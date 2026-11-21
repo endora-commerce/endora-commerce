@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Briefcase, Building2, Receipt, ShoppingCart, Users } from 'lucide-react';
 import type {
   AdminOrganization,
   AdminOrganizationDetail,
@@ -38,6 +38,8 @@ import { RestrictionsPanel, changedRestrictionLists, type RestrictionsSelection 
 import { SalesChannelsPanel } from '../panels/SalesChannelsPanel.js';
 import {
   CustomFieldValuesPanel,
+  DetailHeaderActions,
+  ImmediateBadge,
   ModalDialog,
   SaveSessionActions,
   SaveSessionSummary,
@@ -45,11 +47,41 @@ import {
   type FulfilmentStrategyValue,
 } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, DetailSkeleton, Label, PageHeader, InlineStatus, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  DetailSkeleton,
+  EditorSection,
+  InlineStatus,
+  Label,
+  PageHeader,
+  RecordTabs,
+  Textarea,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /** The VAT validation panel's heading — where the moderation notice's link lands. */
 const VAT_VALIDATION_HEADING_ID = 'organization-vat-validation';
+
+/**
+ * Issue #1515 (UX audit SALES-02) — the screen's tabs, kept in `?tab=` so a link can open one.
+ * **Overview**: status, address, hierarchy, custom fields. **Members & roles**. **Commerce**:
+ * channels, ordering rules, price lists and the `organization.detail.after` panels. **Tax**:
+ * the tax identity, its corrections and the VAT validation. **Sales**: the sales
+ * representatives, offered only to an operator who may assign them.
+ */
+export type OrganizationTab = 'overview' | 'members' | 'commerce' | 'tax' | 'sales';
+
+const TABS: readonly OrganizationTab[] = ['overview', 'members', 'commerce', 'tax', 'sales'];
+
+/** The tab `?tab=` names; Overview for anything else, and for Sales when it is not offered. */
+export function organizationTabOf(value: string | null, salesShown: boolean): OrganizationTab {
+  const tab = TABS.find((candidate) => candidate === value) ?? 'overview';
+  return tab === 'sales' && !salesShown ? 'overview' : tab;
+}
 
 /** `GET /api/v1/admin/organizations/:id` (`adminOrganizationDetailSchema`, issue #599). */
 type OrgDetail = AdminOrganizationDetail;
@@ -143,6 +175,10 @@ function hostChangeCount(edits: HostEdits, org: OrgDetail, restrictions: Restric
  * changed only by the moderation panel, its one writer; the VAT status is read-only in the header
  * and changed by the immediate "Change VAT status…" dialog (owner ruling OQ-1 = B). Neither is
  * staged, counted or sent by the Save.
+ *
+ * Issue #1515 (UX audit SALES-02) — one card of five tabs (`OrganizationTab`) instead of a stack
+ * of cards: each panel is a section of its tab, the header holds Back and the one Save, and the
+ * tax corrections sit on the Tax tab beside the values they change.
  */
 export function OrganizationDetail(): ReactNode {
   const { id = '' } = useParams<{ id: string }>();
@@ -169,6 +205,25 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   // tax-ID change: only while `organizations` is present.
   const canChangeVatStatus = isVisible({ module: 'organizations', requiredPermission: 'customers:manage' });
   const [changingVatStatus, setChangingVatStatus] = useState(false);
+  // The Sales tab's one section gates itself on this code (`OrganizationSalesRepsTab`); the
+  // tab is offered on the same answer, so it is never an empty tab.
+  const canSeeSalesReps = isVisible({ module: 'organizations', requiredPermission: 'organizations:assign-sales-rep' });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = organizationTabOf(searchParams.get('tab'), canSeeSalesReps);
+  const selectTab = useCallback(
+    (next: OrganizationTab): void => {
+      setSearchParams(
+        (params) => {
+          const updated = new URLSearchParams(params);
+          if (next === 'overview') updated.delete('tab');
+          else updated.set('tab', next);
+          return updated;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
   // Feature 173 — the newest registration-time lookup's differing fields, as
   // the VAT validation panel loaded them, for the moderation notice.
   const [registryDivergenceCount, setRegistryDivergenceCount] = useState(0);
@@ -182,6 +237,8 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
    */
   const actionStatus = useInlineStatus();
   const membersStatus = useInlineStatus();
+  // Issue #1515 — a tax correction's result, beside the Tax tab's buttons that opened it.
+  const taxStatus = useInlineStatus();
   const clearActionStatus = actionStatus.clear;
 
   const { hasPermission } = useAuth();
@@ -390,17 +447,30 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     }
   };
 
-  /** The summary's "Show": the part's first marked field, else its first control. */
+  /**
+   * The summary's "Show": the part's first marked field, else its first control — on whichever
+   * tab holds it, which is opened first (a hidden control cannot take focus).
+   */
   const zoneRef = useRef<HTMLDivElement | null>(null);
   const showPart = (partId: string): void => {
+    const root: ParentNode | null = partId === 'host' ? document : zoneRef.current;
+    const target =
+      root?.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+      (partId === 'host'
+        ? document.getElementById('orderConfEmails')
+        : zoneRef.current?.querySelector<HTMLElement>('select, input, textarea'));
+    const owner = target?.closest<HTMLElement>('[data-org-tab]')?.dataset['orgTab'];
+    if (owner !== undefined) selectTab(organizationTabOf(owner, canSeeSalesReps));
+    setTimeout(() => target?.focus(), 0);
+  };
+
+  /** The moderation notice's link: open the Tax tab, then bring the VAT validation into view. */
+  const showVatValidation = (): void => {
+    selectTab('tax');
     setTimeout(() => {
-      const root: ParentNode | null = partId === 'host' ? document : zoneRef.current;
-      const target =
-        root?.querySelector<HTMLElement>('[aria-invalid="true"]') ??
-        (partId === 'host'
-          ? document.getElementById('orderConfEmails')
-          : zoneRef.current?.querySelector<HTMLElement>('select, input, textarea'));
-      target?.focus();
+      const section = document.getElementById(VAT_VALIDATION_HEADING_ID);
+      section?.scrollIntoView?.({ block: 'start' });
+      section?.focus();
     }, 0);
   };
 
@@ -430,6 +500,21 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       </Alert>
     );
 
+  const salesTabShown = canSeeSalesReps;
+  // Zeigarnik: a tab says it holds what the page Save has not written yet. The custom fields are
+  // Overview's; every other host change and every zone panel is Commerce's.
+  const customFieldCount = canManage ? changedCustomFields(edits.customFieldValues, org.customFieldValues ?? {}) : 0;
+  const overviewUnsaved = customFieldCount > 0;
+  const commerceUnsaved = hostCount - customFieldCount + session.dirtyCount > 0;
+  const unsavedLabel = own('detail.tabs.unsaved');
+  const tabItems = [
+    { value: 'overview' as const, label: own('detail.tabs.overview'), icon: <Building2 />, unsaved: overviewUnsaved ? unsavedLabel : undefined },
+    { value: 'members' as const, label: own('detail.tabs.members'), icon: <Users /> },
+    { value: 'commerce' as const, label: own('detail.tabs.commerce'), icon: <ShoppingCart />, unsaved: commerceUnsaved ? unsavedLabel : undefined },
+    { value: 'tax' as const, label: own('detail.tabs.tax'), icon: <Receipt /> },
+    ...(salesTabShown ? [{ value: 'sales' as const, label: own('detail.tabs.sales'), icon: <Briefcase /> }] : []),
+  ];
+
   return (
     <>
       <PageHeader
@@ -445,7 +530,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
               </>
             ) : null}
             {/* Issue #1468 — read-only here, a labelled text badge rather than colour alone; it is
-                changed by "Change VAT status…". A personal Organization has one too. */}
+                changed by "Change VAT status…" on the Tax tab. A personal Organization has one too. */}
             {org.isPersonal || org.taxId ? ' · ' : null}
             <span>
               {t('organizations.detail.vatStatus')}:{' '}
@@ -461,31 +546,22 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
           </span>
         }
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <InlineStatus {...actionStatus.props} className="max-w-sm" />
-            <Button asChild variant="outline">
-              <Link to="/organizations">
-                <ArrowLeft />
-                {t('organizations.detail.back')}
-              </Link>
-            </Button>
-            {org.isPersonal && canConvert ? (
-              <Button type="button" variant="secondary" onClick={(): void => setConverting(true)}>
-                {own('convertToCompany.button')}
+          // Issue #1515 (SALES-02) — the page Save is the one primary (Von Restorff), last in
+          // reading order; the tax corrections moved to the Tax tab, beside what they change.
+          <DetailHeaderActions
+            status={actionStatus.props}
+            secondary={
+              <Button asChild variant="outline">
+                <Link to="/organizations">
+                  <ArrowLeft aria-hidden="true" />
+                  {t('organizations.detail.back')}
+                </Link>
               </Button>
-            ) : null}
-            {!org.isPersonal && canChangeTaxId ? (
-              <Button type="button" variant="secondary" onClick={(): void => setChangingTaxId(true)}>
-                {own('changeTaxId.button')}
-              </Button>
-            ) : null}
-            {canChangeVatStatus ? (
-              <Button type="button" variant="secondary" onClick={(): void => setChangingVatStatus(true)}>
-                {own('changeVatStatus.button')}
-              </Button>
-            ) : null}
-            <SaveSessionActions hostCount={hostCount} canSave={canManage} saving={busy} onSave={(): void => void savePage()} />
-          </div>
+            }
+            primary={
+              <SaveSessionActions hostCount={hostCount} canSave={canManage} saving={busy} onSave={(): void => void savePage()} />
+            }
+          />
         }
       />
 
@@ -505,74 +581,228 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         </Alert>
       ) : null}
 
-      <div {...resource.busyProps}>
-      <div className="mb-4">
-        <ModerationActionsPanel
-          organizationId={org.id}
-          status={org.status}
-          version={org.version ?? 0}
-          blockedReason={org.blockedReason ?? null}
-          rejectedReason={org.rejectedReason ?? null}
-          approvedAt={org.approvedAt ?? null}
-          registryDivergenceCount={registryDivergenceCount}
-          vatValidationAnchorId={VAT_VALIDATION_HEADING_ID}
-          canModerate={canManage}
-          onChanged={refresh}
-        />
-      </div>
+      {/* Issue #1515 (UX audit SALES-02) — one card of tabs instead of sixteen stacked cards
+          and five more from the zone (Hick, Miller/Chunking, Common Region). Every tab stays
+          mounted while another is open: the Save's participants keep their drafts, the VAT
+          history feeds the moderation notice, and the tabs only change what is visible. */}
+      <RecordTabs
+        className="mb-4"
+        items={tabItems}
+        value={tab}
+        onValueChange={selectTab}
+        idBase="organization-detail"
+        aria-label={own('detail.tabs.label')}
+        panelProps={resource.busyProps}
+      >
+        <div hidden={tab !== 'overview'} data-org-tab="overview" className="space-y-(--section-gap)">
+          {/* Issue #1541 (SALES-15) — the status and only the transitions it allows. */}
+          <ModerationActionsPanel
+            organizationId={org.id}
+            status={org.status}
+            version={org.version ?? 0}
+            blockedReason={org.blockedReason ?? null}
+            rejectedReason={org.rejectedReason ?? null}
+            approvedAt={org.approvedAt ?? null}
+            registryDivergenceCount={registryDivergenceCount}
+            vatValidationAnchorId={VAT_VALIDATION_HEADING_ID}
+            {...(org.isPersonal ? {} : { onShowVatValidation: showVatValidation })}
+            canModerate={canManage}
+            onChanged={refresh}
+          />
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>{t('organizations.detail.notificationsCard')}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="orderConfEmails">{own('detail.orderConfirmationEmails')}</Label>
-            <textarea
-              id="orderConfEmails"
-              className="min-h-20 w-full rounded-md border p-2 text-sm"
-              value={edits.emailsText ?? (org.orderConfirmationEmails ?? []).join('\n')}
-              placeholder={'ops@example.com\nsales@example.com'}
-              disabled={busy || !canManage}
-              onChange={(e): void => changeEdits({ emailsText: e.target.value })}
-            />
-            <p className="text-xs text-muted-foreground">
-              {own('detail.orderConfirmationEmailsHint')}
+          <EditorSection title={t('organizations.detail.registeredAddress')}>
+            <p className="text-sm">
+              {org.registeredAddress.street}
+              <br />
+              {org.registeredAddress.postalCode} {org.registeredAddress.city}
+              <br />
+              {org.registeredAddress.country}
             </p>
+          </EditorSection>
+
+          {/* Feature 056 US1 — organization hierarchy (parent picker + subtree view). */}
+          <HierarchyPanel organizationId={org.id} parentId={org.parentId ?? null} onChanged={refresh} />
+
+          {/* Feature 055 — operator-defined custom fields for this organization. Embedded rather
+              than saving on its own (feature 180, WP-7): its bag travels in the host part's one
+              `PATCH`, under the organization's `expectedUpdatedAt`, so the record's version check
+              guards it with the rest (research R15). */}
+          <CustomFieldValuesPanel
+            key={reloadKey}
+            entityType="organization"
+            values={edits.customFieldValues === undefined ? (org.customFieldValues ?? {}) : { ...(org.customFieldValues ?? {}), ...edits.customFieldValues }}
+            onChange={(bag): void => changeEdits({ customFieldValues: bag })}
+            fieldErrors={customFieldErrors}
+            readOnly={!canManage}
+          />
+        </div>
+
+        <div hidden={tab !== 'members'} data-org-tab="members" className="space-y-(--section-gap)">
+          {/* Issue #1516 (SALES-14) — one Members section: the list, one Add member, and the
+              edit and remove dialogs. Its writes stay immediate. */}
+          <InlineStatus {...membersStatus.props} className={membersStatus.props.children ? 'mb-2' : ''} />
+          <OrganizationMembersSection
+            organizationId={org.id}
+            organizationName={org.name}
+            isPersonal={org.isPersonal === true}
+            members={org.members}
+            roleOptions={roleOptions}
+            canManage={canManage}
+            canReadCustomFields={hasPermission('custom_fields:read')}
+            onChanged={membersChanged}
+            onStale={refresh}
+            onDirtyChange={setMembersDirty}
+          />
+
+          {/* Feature 170 — the Organization's roles (US 7). Mounted for a company
+              Organization and an operator holding a role code; it hides itself
+              otherwise and requests nothing. */}
+          <OrganizationRolesTab
+            organizationId={org.id}
+            isPersonal={org.isPersonal === true}
+            onRolesChanged={(): void => {
+              void refreshRoles();
+              void refresh();
+            }}
+          />
+        </div>
+
+        <div hidden={tab !== 'commerce'} data-org-tab="commerce" className="space-y-(--section-gap)">
+          {/* Feature 154 — the stores this Organization's members may use, first because it
+              decides whether they can sign in at all. */}
+          <SalesChannelsPanel organizationId={org.id} />
+
+          <EditorSection title={t('organizations.detail.notificationsCard')}>
+            <div className="space-y-2">
+              <Label htmlFor="orderConfEmails">{own('detail.orderConfirmationEmails')}</Label>
+              <Textarea
+                id="orderConfEmails"
+                className="min-h-20"
+                value={edits.emailsText ?? (org.orderConfirmationEmails ?? []).join('\n')}
+                placeholder={'ops@example.com\nsales@example.com'}
+                disabled={busy || !canManage}
+                aria-describedby="orderConfEmails-hint"
+                onChange={(e): void => changeEdits({ emailsText: e.target.value })}
+              />
+              <p id="orderConfEmails-hint" className="text-xs text-muted-foreground">
+                {own('detail.orderConfirmationEmailsHint')}
+              </p>
+            </div>
+          </EditorSection>
+
+          {/* Feature 026 US4 — per-Organization payment / delivery / warehouse allow-lists. */}
+          <RestrictionsPanel
+            organizationId={org.id}
+            value={edits.restrictions ?? restrictionsStored}
+            onChange={(next): void => changeEdits({ restrictions: next })}
+            onLoaded={setRestrictionsStored}
+            reloadKey={restrictionsReloadKey}
+            disabled={busy || !canManage}
+          />
+
+          {/* Org-level warehouse-picking (fulfilment) strategy override. */}
+          <FulfilmentStrategyPanel
+            value={edits.fulfilment ?? storedFulfilment(org)}
+            onChange={(next): void => changeEdits({ fulfilment: next })}
+            warehouses={warehouses.map((w) => ({ id: w.id, code: w.code, name: w.name }))}
+            disabled={busy || !canManage}
+          />
+
+          {/* Feature 026 US5 — read-only "what price lists apply to this org". */}
+          <ApplicablePriceListsPanel organizationId={org.id} />
+
+          {/* Feature 091 / P7b — the place where a module that has something to say about an
+              organization says it. **One mount, and that is a rule rather than a layout
+              choice**: this member carries no prop that could tell two mounts apart, so a
+              second one would render every contribution twice. Contributions arrive ordered by
+              their declared weight (`price_lists` 200, `quick_order` 300, `related_payers` and
+              `quote_requests` 500, `crm` 600, `projects` 650).
+
+              Issue #1515 — inside the Commerce tab's card, so its sections are sections, not
+              cards (no `chrome="card"`). DS-20 (#1452) will let a contribution name its tab;
+              until then they all sit here. The wrapper draws the one rule above the first of
+              them and nothing at all when the zone renders nothing.
+
+              Feature 180, WP-7 — the panels here take part in this screen's one Save. Re-keyed
+              when a version conflict discarded every change, so each panel reads its stored
+              value again. */}
+          <div ref={zoneRef} className="space-y-(--section-gap) border-t pt-(--section-gap) empty:hidden">
+            <AdminZone key={reloadKey} name="organization.detail.after" props={{ organizationId: org.id, saveSession: session.handle }} />
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>{t('organizations.detail.registeredAddress')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm">
-            {org.registeredAddress.street}
-            <br />
-            {org.registeredAddress.postalCode} {org.registeredAddress.city}
-            <br />
-            {org.registeredAddress.country}
-          </p>
-        </CardContent>
-      </Card>
+        <div hidden={tab !== 'tax'} data-org-tab="tax" className="space-y-(--section-gap)">
+          <EditorSection
+            title={own('detail.tax.title')}
+            action={<ImmediateBadge />}
+          >
+            {/* A personal Organization has no tax ID, so no tax-ID label either
+                (`specs/177-tax-id-scope/` O14); a company row without one shows none. */}
+            {org.isPersonal ? <p className="text-sm text-muted-foreground">{own('detail.tax.noTaxId')}</p> : null}
+            <dl className="grid gap-3 sm:grid-cols-2">
+              {!org.isPersonal && org.taxId ? (
+                <div className="space-y-1">
+                  <dt className="text-xs text-muted-foreground">{t('organizations.detail.taxIdLabel')}</dt>
+                  <dd className="text-sm">
+                    <code className="font-mono">{org.taxId}</code>
+                  </dd>
+                </div>
+              ) : null}
+              <div className="space-y-1">
+                <dt className="text-xs text-muted-foreground">{t('organizations.detail.vatStatus')}</dt>
+                <dd className="text-sm">
+                  <Badge variant="outline">{own(`vatStatus.${org.vatStatus}`)}</Badge>
+                </dd>
+              </div>
+            </dl>
+            {/* The corrections sit beside the values they change (Proximity), as outline
+                buttons under the page's one primary; each opens its own dialog and applies at
+                once. Their result is said here, in a region mounted before it has text. */}
+            <div className="flex flex-wrap items-center gap-2">
+              {org.isPersonal && canConvert ? (
+                <Button type="button" variant="outline" onClick={(): void => setConverting(true)}>
+                  {own('convertToCompany.button')}
+                </Button>
+              ) : null}
+              {!org.isPersonal && canChangeTaxId ? (
+                <Button type="button" variant="outline" onClick={(): void => setChangingTaxId(true)}>
+                  {own('changeTaxId.button')}
+                </Button>
+              ) : null}
+              {canChangeVatStatus ? (
+                <Button type="button" variant="outline" onClick={(): void => setChangingVatStatus(true)}>
+                  {own('changeVatStatus.button')}
+                </Button>
+              ) : null}
+              <InlineStatus {...taxStatus.props} className="max-w-sm" />
+            </div>
+          </EditorSection>
 
-      {/* Issue #1516 (SALES-14) — one Members section: the list, one Add member, and the
-          edit and remove dialogs. Its writes stay immediate. */}
-      <InlineStatus {...membersStatus.props} className={membersStatus.props.children ? 'mb-2' : ''} />
-      <OrganizationMembersSection
-        organizationId={org.id}
-        organizationName={org.name}
-        isPersonal={org.isPersonal === true}
-        members={org.members}
-        roleOptions={roleOptions}
-        canManage={canManage}
-        canReadCustomFields={hasPermission('custom_fields:read')}
-        onChanged={membersChanged}
-        onStale={refresh}
-        onDirtyChange={setMembersDirty}
-      />
+          {/* Feature 026 US7 — VAT-ID / NIP validation history + retrigger. A personal
+              Organization has no tax ID to validate (`specs/177-tax-id-scope/` O14). */}
+          {org.isPersonal ? null : (
+            <VatValidationPanel
+              organizationId={org.id}
+              summary={{
+                outcome: org.vatValidation?.outcome ?? null,
+                provider: org.vatValidation?.provider ?? null,
+                validatedAt: org.vatValidation?.validatedAt ?? null,
+              }}
+              headingId={VAT_VALIDATION_HEADING_ID}
+              onHistoryLoaded={(items) =>
+                setRegistryDivergenceCount(newestRegistrationRow(items)?.divergence?.length ?? 0)
+              }
+              onChanged={refresh}
+            />
+          )}
+        </div>
+
+        {salesTabShown ? (
+          <div hidden={tab !== 'sales'} data-org-tab="sales" className="space-y-(--section-gap)">
+            <OrganizationSalesRepsTab organizationId={org.id} />
+          </div>
+        ) : null}
+      </RecordTabs>
 
       {converting ? (
         <ModalDialog
@@ -586,7 +816,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             onCancel={(): void => setConverting(false)}
             onConverted={(result: ConvertToCompanyResult): void => {
               setConverting(false);
-              actionStatus.show(conversionMessage(own, result));
+              taxStatus.show(conversionMessage(own, result));
               void refresh();
             }}
           />
@@ -602,7 +832,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             onCancel={(): void => setChangingTaxId(false)}
             onChanged={(result: ChangeTaxIdResult): void => {
               setChangingTaxId(false);
-              actionStatus.show(taxIdChangeMessage(own, result));
+              taxStatus.show(taxIdChangeMessage(own, result));
               void refresh();
             }}
           />
@@ -623,125 +853,12 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             onStale={(): void => void refresh()}
             onChanged={(changed): void => {
               setChangingVatStatus(false);
-              actionStatus.show(own(changed ? 'changeVatStatus.success.changed' : 'changeVatStatus.success.unchanged'), changed ? 'success' : 'info');
+              taxStatus.show(own(changed ? 'changeVatStatus.success.changed' : 'changeVatStatus.success.unchanged'), changed ? 'success' : 'info');
               if (changed) void refresh();
             }}
           />
         </ModalDialog>
       ) : null}
-
-      {/* Feature 170 — the Organization's roles (US 7). Mounted for a company
-          Organization and an operator holding a role code; it hides itself
-          otherwise and requests nothing. */}
-      <OrganizationRolesTab
-        organizationId={org.id}
-        isPersonal={org.isPersonal === true}
-        onRolesChanged={(): void => {
-          void refreshRoles();
-          void refresh();
-        }}
-      />
-
-      {/* Feature 091 / P7b — the place at the end of this screen, where a module
-          that has something to say about an organization says it. **One mount,
-          and that is a rule rather than a layout choice**: this member carries
-          no prop that could tell two mounts apart, so a second one would render
-          every contribution twice.
-
-          Contributions arrive here ordered by their declared weight:
-          `price_lists`' display-mode override (200), `quick_order`'s ordering
-          defaults (300) and `carts`' approval policy (400). `sales_channels`'
-          channel membership (100) is gone since feature 154 — the panel just
-          above is this module's own editor of the same assignment, and two
-          editors of it on one page would disagree about who may change it.
-
-          No chrome around it, unlike `catalog`'s category editor: at page level
-          every contribution is a card of its own (`chrome="card"`, issue
-          #1437), so a wrapper would nest one card inside another, and an empty
-          zone renders nothing at all. */}
-      {/* Feature 154 — the stores this Organization's members may use, first
-          among the panels below the members because it decides whether they can
-          sign in at all. */}
-      <SalesChannelsPanel organizationId={org.id} />
-
-      {/* Feature 180, WP-7 — the panels here take part in this screen's one Save. Re-keyed when
-          a version conflict discarded every change, so each panel reads its stored value again. */}
-      <div ref={zoneRef}>
-        <AdminZone key={reloadKey} name="organization.detail.after" props={{ organizationId: org.id, saveSession: session.handle }} chrome="card" />
-      </div>
-
-      {/* Feature 056 US1 — organization hierarchy (parent picker + subtree view). */}
-      <HierarchyPanel
-        organizationId={org.id}
-        parentId={org.parentId ?? null}
-        onChanged={refresh}
-      />
-
-      {/* Feature 026 US4 — per-Organization payment / delivery / warehouse allow-lists. */}
-      <div className="mt-4">
-        <RestrictionsPanel
-          organizationId={org.id}
-          value={edits.restrictions ?? restrictionsStored}
-          onChange={(next): void => changeEdits({ restrictions: next })}
-          onLoaded={setRestrictionsStored}
-          reloadKey={restrictionsReloadKey}
-          disabled={busy || !canManage}
-        />
-      </div>
-
-      {/* Feature 026 US7 — VAT-ID / NIP validation history + retrigger. A personal
-          Organization has no tax ID to validate (`specs/177-tax-id-scope/` O14). */}
-      {org.isPersonal ? null : (
-        <div className="mt-4">
-          <VatValidationPanel
-            organizationId={org.id}
-            summary={{
-              outcome: org.vatValidation?.outcome ?? null,
-              provider: org.vatValidation?.provider ?? null,
-              validatedAt: org.vatValidation?.validatedAt ?? null,
-            }}
-            headingId={VAT_VALIDATION_HEADING_ID}
-            onHistoryLoaded={(items) =>
-              setRegistryDivergenceCount(newestRegistrationRow(items)?.divergence?.length ?? 0)
-            }
-            onChanged={refresh}
-          />
-        </div>
-      )}
-
-      {/* Org-level warehouse-picking (fulfilment) strategy override. */}
-      <div className="mt-4">
-        <FulfilmentStrategyPanel
-          value={edits.fulfilment ?? storedFulfilment(org)}
-          onChange={(next): void => changeEdits({ fulfilment: next })}
-          warehouses={warehouses.map((w) => ({ id: w.id, code: w.code, name: w.name }))}
-          disabled={busy || !canManage}
-        />
-      </div>
-
-      {/* Feature 026 US5 — read-only "what price lists apply to this org". */}
-      <div className="mt-4">
-        <ApplicablePriceListsPanel organizationId={org.id} />
-      </div>
-
-      {/* Feature 055 — operator-defined custom fields for this organization. Embedded rather
-          than saving on its own (feature 180, WP-7): its bag travels in the host part's one
-          `PATCH`, under the organization's `expectedUpdatedAt`, so the record's version check
-          guards it with the rest (research R15). */}
-      <div className="mt-4">
-        <CustomFieldValuesPanel
-          key={reloadKey}
-          chrome="card"
-          entityType="organization"
-          values={edits.customFieldValues === undefined ? (org.customFieldValues ?? {}) : { ...(org.customFieldValues ?? {}), ...edits.customFieldValues }}
-          onChange={(bag): void => changeEdits({ customFieldValues: bag })}
-          fieldErrors={customFieldErrors}
-          readOnly={!canManage}
-        />
-      </div>
-
-      {id ? <OrganizationSalesRepsTab organizationId={id} /> : null}
-      </div>
     </>
   );
 }

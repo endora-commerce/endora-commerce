@@ -179,7 +179,7 @@ function renderDetail(permissions: readonly string[], detail = org()): ReturnTyp
   });
   return renderWithI18n(
     withSession(
-      <MemoryRouter initialEntries={[`/organizations/${ORG_ID}`]}>
+      <MemoryRouter initialEntries={[`/organizations/${ORG_ID}?tab=members`]}>
         <Routes>
           <Route path="/organizations/:id" element={<OrganizationDetail />} />
         </Routes>

@@ -1432,13 +1432,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // and `EmailTemplatesPage`, and both `pwa` files read their module's bundle in
   // both shipped languages now.
   'packages/modules/settings/src/admin/components/AssetIdSettingInput.tsx': 1,
-  // Feature 091, Phase 4 batch 14 — re-keyed, not dropped: `organizations`
-  // took its admin surface into its package and this panel went with it. The
-  // finding is unchanged, and this ledger is one **about** the files it names
-  // rather than one of them, so the batch that moves a screen is structurally
-  // the batch that cannot see the entry go stale — which is why it is
-  // corrected here, in the same merge request.
-  'packages/modules/organizations/src/admin/panels/RestrictionsPanel.tsx': 1,
   // Issue #1316 widened the admin rule — a one-word capitalised label in JSX
   // text, every copy-named prop read through `{…}` and conditionals, a literal
   // rendered as a JSX child, and prose handed to a state setter — and the

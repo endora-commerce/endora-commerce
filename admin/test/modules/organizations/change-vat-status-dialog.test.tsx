@@ -85,7 +85,7 @@ function render(permissions: string[] = ['*'], present: string[] = ['organizatio
   return renderWithI18n(
     withSession(
       <AppLanguageContext.Provider value={{ language: 'en', setLanguage: (): void => {} }}>
-        <MemoryRouter initialEntries={[`/organizations/${ORG_ID}`]}>
+        <MemoryRouter initialEntries={[`/organizations/${ORG_ID}?tab=tax`]}>
           <Routes>
             <Route path="/organizations/:id" element={<OrganizationDetail />} />
           </Routes>
@@ -167,8 +167,8 @@ describe('Change VAT status — on the organization page (#1468)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(await screen.findByText(EN['changeVatStatus.success.changed']!)).toBeInTheDocument();
     await waitFor(() => expect(getSpy.mock.calls.filter(([url]) => url === ORG_URL).length).toBeGreaterThan(reads));
-    // The header reads the new value back.
-    expect(await screen.findByText(EN['vatStatus.reverse_charge']!)).toBeInTheDocument();
+    // The header and the Tax tab's tax identity read the new value back (#1515).
+    expect(await screen.findAllByText(EN['vatStatus.reverse_charge']!)).toHaveLength(2);
   });
 
   it('sends nothing when the value is the stored one, and says so', async () => {
