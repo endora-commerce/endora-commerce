@@ -41,32 +41,51 @@ export function activeTabPath(tabs: RouteTab[], pathname: string): string | null
   return matches.reduce((best, tab) => (tab.to.length > best.to.length ? tab : best)).to;
 }
 
+/**
+ * The strip's chrome — the scroll container and the `tablist` — shared by
+ * `RouteTabs` and the zone-contributed strip (`RouteTabsZone`), so the two
+ * cannot drift apart in markup (issue #1445). Kit-internal: not in the barrel.
+ */
+export function RouteTabStrip({
+  className,
+  children,
+}: {
+  className?: string | undefined;
+  children: ReactNode;
+}): ReactNode {
+  return (
+    <div className={cn('b2b-tabs-scroll', className)}>
+      <div className="b2b-tabs" role="tablist">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function RouteTabs({ tabs, className }: RouteTabsProps): ReactNode {
   const { pathname } = useLocation();
   const active = activeTabPath(tabs, pathname);
 
   return (
-    <div className={cn('b2b-tabs-scroll', className)}>
-      <div className="b2b-tabs" role="tablist">
-        {tabs.map((tab) => {
-          const isActive = tab.to === active;
-          return (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              role="tab"
-              aria-selected={isActive}
-              // `is-active` is the class the design system styles; NavLink's own
-              // `isActive` is deliberately ignored because its prefix matching
-              // is exactly what would light up two tabs at once.
-              className={cn('b2b-tab', isActive && 'is-active')}
-            >
-              {tab.label}
-            </NavLink>
-          );
-        })}
-      </div>
-    </div>
+    <RouteTabStrip className={className}>
+      {tabs.map((tab) => {
+        const isActive = tab.to === active;
+        return (
+          <NavLink
+            key={tab.to}
+            to={tab.to}
+            role="tab"
+            aria-selected={isActive}
+            // `is-active` is the class the design system styles; NavLink's own
+            // `isActive` is deliberately ignored because its prefix matching
+            // is exactly what would light up two tabs at once.
+            className={cn('b2b-tab', isActive && 'is-active')}
+          >
+            {tab.label}
+          </NavLink>
+        );
+      })}
+    </RouteTabStrip>
   );
 }
 

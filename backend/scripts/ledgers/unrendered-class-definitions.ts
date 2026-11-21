@@ -50,6 +50,8 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
   // ---------------------------------------------------------------------
   'b2b-badge--info':
     'rendered only by the price-list screens feature 160 deleted with the old model; P2\'s price-book editor, released together, is its next renderer',
+  'b2b-badge--outline':
+    'the count badge the product browser\'s status tabs rendered until issue #1445 moved them to the kit `Tabs`, whose count is `b2b-badge`; catalog `ProductStatusPills` still names it inside a tone ternary the check does not read as a render',
   'b2b-badge--solid': 'a badge variant no screen renders; drains with the badge vocabulary',
   'b2b-btn--default':
     'the outline button the last screens rendered until issue #1492 moved them to the kit `Button variant="outline"`',

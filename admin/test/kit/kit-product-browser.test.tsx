@@ -292,7 +292,7 @@ describe('requests and filters (B1, B2)', () => {
     // (the order) is not offered a tab of rows it could not tick.
     expect(screen.queryByRole('tab', { name: /^Draft/ })).toBeNull();
     expect(screen.queryByRole('tab', { name: /^Archived/ })).toBeNull();
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['All27', 'Active25', 'Inactive2']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['All 27', 'Active 25', 'Inactive 2']);
     expect(screen.getByRole('searchbox').getAttribute('placeholder')).toBe('Search SKU, slug, name…');
   });
 
@@ -304,10 +304,10 @@ describe('requests and filters (B1, B2)', () => {
     expect(requestedUrls()[0]).toBe(`${PATH}?page=0&pageSize=10`);
 
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'All27',
-      'Active25',
-      'Inactive2',
-      'Archived1',
+      'All 27',
+      'Active 25',
+      'Inactive 2',
+      'Archived 1',
     ]);
     expect(screen.queryByText('Retired widget')).toBeNull();
 
@@ -851,5 +851,118 @@ describe('under <StrictMode>, as the admin renders it', () => {
 
     attempts[1]!(true);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+});
+
+// ---------------------------------------------------------------- issue #1445, #1448
+
+describe('the status strip is the kit Tabs (issue #1445, DS-12)', () => {
+  it('names the strip, keeps one tab stop and links every tab to the list panel', async () => {
+    useCatalog();
+    const user = userEvent.setup();
+    renderHarness(<Harness rules={PRICE_LIST_RULES} />);
+    const dialog = await openPicker(user);
+
+    const strip = within(dialog).getByRole('tablist', { name: 'Product status' });
+    const tabs = within(strip).getAllByRole('tab');
+    // Roving tabindex: the selected tab is the strip's one stop.
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1, -1]);
+    const panel = within(dialog).getByRole('tabpanel');
+    for (const tab of tabs) expect(tab.getAttribute('aria-controls')).toBe(panel.id);
+    expect(panel.getAttribute('aria-labelledby')).toBe(tabs[0]!.id);
+    // The count is part of the tab's accessible name, not a bare number.
+    expect(tabs[1]!.getAttribute('aria-label')).toBe('Active, items: 25');
+    expect(within(panel).getByText('Grouped set')).toBeTruthy();
+  });
+
+  it('moves and selects with the arrow keys, Home and End', async () => {
+    useCatalog();
+    const user = userEvent.setup();
+    renderHarness(<Harness rules={PRICE_LIST_RULES} />);
+    await openPicker(user);
+
+    screen.getByRole('tab', { name: /^All/ }).focus();
+    await user.keyboard('{ArrowRight}');
+    await waitFor(() => expect(requestedUrls().at(-1)).toBe(`${PATH}?page=0&pageSize=10&status=active`));
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: /^Active/ }));
+    expect(screen.getByRole('tab', { name: /^Active/ }).getAttribute('aria-selected')).toBe('true');
+
+    await user.keyboard('{End}');
+    await waitFor(() => expect(requestedUrls().at(-1)).toBe(`${PATH}?archived=only&page=0&pageSize=10`));
+    await user.keyboard('{Home}');
+    await waitFor(() => expect(requestedUrls().at(-1)).toBe(`${PATH}?page=0&pageSize=10`));
+  });
+
+  it('reviewing the selection leaves the strip without a selected tab, and Show all returns to it', async () => {
+    useCatalog();
+    const user = userEvent.setup();
+    renderHarness(<Harness />);
+    const dialog = await openPicker(user);
+    await user.click(rowCheckbox('Widget 01'));
+
+    await user.click(screen.getByRole('button', { name: 'Show selected only' }));
+    // The review is not one status: no tab claims it, and the list is not its panel.
+    const tabs = within(dialog).getAllByRole('tab');
+    for (const tab of tabs) {
+      expect(tab.getAttribute('aria-selected')).toBe('false');
+      expect((tab as HTMLButtonElement).disabled).toBe(true);
+    }
+    expect(within(dialog).queryByRole('tabpanel')).toBeNull();
+    expect(screen.getByText('Widget 01')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Show all products' }));
+    await waitFor(() => expect(screen.getByText('Widget 02')).toBeTruthy());
+    expect(screen.getByRole('tab', { name: /^Active/ }).getAttribute('aria-selected')).toBe('true');
+    expect(within(dialog).getByRole('tabpanel')).toBeTruthy();
+  });
+});
+
+describe('empty states (issue #1448, DS-15)', () => {
+  it('a search or type that matches nothing shows no-results, whose Clear filters resets both and keeps the tab', async () => {
+    useCatalog();
+    const user = userEvent.setup();
+    renderHarness(<Harness rules={PRICE_LIST_RULES} />);
+    const dialog = await openPicker(user);
+    await user.click(screen.getByRole('tab', { name: /^Inactive/ }));
+    await waitFor(() => expect(screen.getByText('Paused widget')).toBeTruthy());
+    await user.click(rowCheckbox('Paused widget'));
+
+    await user.click(screen.getByRole('button', { name: 'Type' }));
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'nothing-matches' } });
+    await screen.findByText('No products match these filters.');
+    const empty = dialog.querySelector('[data-empty-state="no-results"]') as HTMLElement;
+    expect(empty).not.toBeNull();
+
+    await user.click(within(empty).getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(screen.getByText('Old widget')).toBeTruthy());
+    expect(requestedUrls().at(-1)).toBe(`${PATH}?page=0&pageSize=10&status=inactive`);
+    expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('');
+    expect(screen.getByRole('button', { name: 'Type' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /^Inactive/ }).getAttribute('aria-selected')).toBe('true');
+    // The selection is not a filter.
+    expect(screen.getByText('1 selected')).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('searchbox')));
+  });
+
+  it('a tab with nothing in it, unfiltered, says so without offering to clear anything', async () => {
+    useCatalog(CATALOG.filter((p) => p.archivedAt == null));
+    const user = userEvent.setup();
+    renderHarness(<Harness rules={PRICE_LIST_RULES} />);
+    const dialog = await openPicker(user);
+
+    await user.click(screen.getByRole('tab', { name: /^Archived/ }));
+    expect(await screen.findByText('No archived products')).toBeTruthy();
+    const empty = dialog.querySelector('[data-empty-state="no-data"]') as HTMLElement;
+    expect(empty).not.toBeNull();
+    expect(within(empty).queryByRole('button')).toBeNull();
+  });
+
+  it('an empty catalogue says so, in Polish too', async () => {
+    useCatalog([]);
+    const user = userEvent.setup();
+    const { container } = renderHarness(<Harness rules={PRICE_LIST_RULES} />, { language: 'pl' });
+    await openPicker(user, 'Przeglądaj produkty');
+    expect(screen.getByText('Katalog nie ma jeszcze produktów')).toBeTruthy();
+    expectNoRawKeys(container);
   });
 });
