@@ -12,9 +12,9 @@ import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
  * Compact language picker for the top bar (feature 019 / FR-017).
  *
  * Replaces the read-only PL/EN badge — clicking it opens a tiny menu so the
- * admin can switch the UI language from any screen. Reuses the same backend
- * round-trip and AppLanguageContext flip that ProfilePage's language section
- * performs, so the two stay in sync.
+ * admin can switch the UI language from any screen. It is the one place the
+ * preference is set: the profile's own language card was removed (issue #1553,
+ * UX audit SHELL-17), because it repeated this menu with a second Save.
  */
 interface LanguageOption {
   code: SupportedAdminLanguage;
@@ -71,7 +71,7 @@ export function LanguagePicker(): ReactNode {
       } catch (err) {
         // Roll back the optimistic flip so the UI doesn't lie about what the
         // server stored. Logging only — a transient failure here shouldn't
-        // produce a modal; the user can retry from /profile if it persists.
+        // produce a modal; the user can pick the language again.
         setLanguage(previous);
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
