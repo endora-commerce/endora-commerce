@@ -330,7 +330,7 @@
   "reasons.activeLabel": "Active: {label}",
   "reasons.delete": "Delete {label}",
   "reasons.empty.title": "No return reasons yet",
-  "reasons.empty.description": "Add the first one below.",
+  "reasons.empty.description": "Add the reasons customers pick from on the return form.",
   "reasons.newTitle": "New reason",
   "reasons.field.label": "Label (English)",
   "reasons.field.appliesTo": "Applies to",
@@ -346,7 +346,7 @@
   "methods.activeLabel": "Active: {method}",
   "methods.delete": "Delete {method}",
   "methods.empty.title": "No return delivery methods yet",
-  "methods.empty.description": "Add the first one below.",
+  "methods.empty.description": "Add the delivery methods customers may send a return by.",
   "methods.newTitle": "New return delivery method",
   "methods.field.method": "Delivery method",
   "methods.field.chooseMethod": "Choose a delivery method",
@@ -365,5 +365,12 @@
   "methods.deleteConfirm.title": "Delete this return delivery method?",
   "methods.deleteConfirm.message": "Customers will no longer be able to choose “{method}” for a return.",
   "statusConfig.deleteConfirm.title": "Delete this status?",
-  "statusConfig.deleteConfirm.message": "“{status}” will be removed from the return workflow."
+  "statusConfig.deleteConfirm.message": "“{status}” will be removed from the return workflow.",
+  "reasons.validation.labelRequired": "Enter a label.",
+  "methods.validation.methodRequired": "Choose a delivery method.",
+  "methods.validation.methodIdRequired": "Enter the delivery method ID.",
+  "methods.allConfigured": "Every delivery method already has a return setting.",
+  "statusConfig.validation.nameRequired": "Enter a name.",
+  "statusConfig.validation.codeRequired": "Enter a code.",
+  "statusConfig.added": "Status added."
 }
