@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import { EditorSection } from '@endora-commerce/admin-kit/ui';
 
 /**
@@ -10,21 +11,36 @@ import { EditorSection } from '@endora-commerce/admin-kit/ui';
  *
  * `titleId` is the section's base id: the heading is `${titleId}-title` — what a control inside is
  * labelled by (a radio group) — and the description `${titleId}-description`.
+ *
+ * `immediate` marks a section whose controls write at once, on their own, outside the builder's
+ * Save / Publish bar (the retention period, the recipients): its heading carries admin-kit's
+ * `ImmediateBadge`, so the bar is not read as covering it (issue #1512, CONTENT-09; DEC-08).
  */
 export interface PanelSectionProps {
   readonly titleId: string;
   readonly title: ReactNode;
   readonly description?: ReactNode;
   readonly action?: ReactNode;
+  /** The section writes at once, outside the one Save: its heading says so. */
+  readonly immediate?: boolean;
   readonly className?: string;
   readonly children: ReactNode;
 }
 
-export function PanelSection({ titleId, title, description, action, className, children }: PanelSectionProps): ReactNode {
+export function PanelSection({ titleId, title, description, action, immediate = false, className, children }: PanelSectionProps): ReactNode {
   return (
     <EditorSection
       id={titleId}
-      title={title}
+      title={
+        immediate ? (
+          <>
+            {title}{' '}
+            <ImmediateBadge className="align-middle" />
+          </>
+        ) : (
+          title
+        )
+      }
       {...(description !== undefined ? { description } : {})}
       {...(action !== undefined ? { action } : {})}
       {...(className !== undefined ? { className } : {})}

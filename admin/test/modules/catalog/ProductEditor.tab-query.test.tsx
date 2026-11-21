@@ -1,28 +1,20 @@
-import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
-import catalogEn from '../../../../packages/modules/catalog/i18n/en.json';
-import { adminSession, everyDeclaredModule, modulePresence, withSession } from '../../helpers/render-with-session';
-import { scopedValuesResponse } from '../../helpers/scoped-values-fixtures';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { PRODUCT_ID, currentSearch, en, renderEditor, setUpEditorApi } from './product-editor-harness';
 
 /**
- * Feature 163 (review D3) — the product editor opens on the tab its address names
- * (`?tab=scopes`), which is where the bulk scoped-status result links a refused product.
- * An unknown or hidden tab falls back to Details.
+ * Feature 163 (review D3), reshaped by issue #1510 (UX audit CAT-10, DEC-09) — the product editor
+ * opens on the tab its address names, and the Scope map is a drawer its address opens
+ * (`?scopeMap=1`), which is where the bulk scoped-status result links a refused product. The tab
+ * ids the merge removed still land: `?tab=scopes` opens the drawer, `?tab=attachments` the
+ * "Media & files" tab, each rewritten to the current address. An unknown or hidden tab falls back
+ * to Details.
  */
 
-const getSpy = vi.fn();
-
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
-  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
-    '@endora-commerce/admin-kit/lib',
-  );
-  return {
-    ...actual,
-    apiClient: { get: (...a: unknown[]) => getSpy(...a), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
-  };
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>('@endora-commerce/admin-kit/lib');
+  const { api: double } = await import('./product-editor-api-double');
+  return { ...actual, apiClient: double };
 });
 
 vi.mock('../../../../packages/modules/catalog/src/admin/components/ProductScopeOverview', () => ({
@@ -31,61 +23,54 @@ vi.mock('../../../../packages/modules/catalog/src/admin/components/ProductScopeO
 
 const { ProductEditor } = await import('../../../../packages/modules/catalog/src/admin/pages/ProductEditor');
 
-const PRODUCT_ID = '11111111-1111-4111-8111-1111111111d3';
-const PRODUCT = {
-  id: PRODUCT_ID,
-  sku: 'TAB-SKU',
-  slug: 'tab-sku',
-  type: 'simple',
-  status: 'inactive',
-  name: 'Drill',
-  description: {},
-  visibility: 'public',
-  attributeValues: {},
-  attributeSetId: '22222222-2222-4222-8222-2222222222d3',
-  archivedAt: null,
-};
+const url = (query: string): string => `/catalog/products/${PRODUCT_ID}?scope=global&${query}`;
 
-beforeEach(() => {
-  getSpy.mockReset();
-  getSpy.mockImplementation((path: string) => {
-    if (path.includes('/scoped-values')) return Promise.resolve(scopedValuesResponse());
-    if (path.endsWith('/editor-preference')) return Promise.resolve({ data: null });
-    return path === `/api/v1/admin/catalog/products/${PRODUCT_ID}` ? Promise.resolve({ data: PRODUCT }) : Promise.resolve({ data: [] });
-  });
-});
+beforeEach(() => setUpEditorApi());
 afterEach(() => cleanup());
 
-function renderAt(url: string): void {
-  render(
-    <StrictMode>
-      <TranslationProvider language="en" initialBundle={{ catalog: catalogEn as Record<string, string>, core: {} }}>
-        {withSession(
-          <MemoryRouter initialEntries={[url]}>
-            <Routes>
-              <Route path="/catalog/products/:id" element={<ProductEditor />} />
-            </Routes>
-          </MemoryRouter>,
-          {
-            session: adminSession({ permissions: ['catalog:read', 'catalog:write'] }),
-            presence: modulePresence({ present: everyDeclaredModule() }),
-          },
-        )}
-      </TranslationProvider>
-    </StrictMode>,
-  );
-}
-
 describe('the product editor opens on the tab its address names', () => {
-  it('?tab=scopes opens the scopes tab', async () => {
-    renderAt(`/catalog/products/${PRODUCT_ID}?tab=scopes`);
-    expect(await screen.findByText('scope overview stub')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: catalogEn['productEditor.tab.scopes'] })).toHaveAttribute('aria-selected', 'true');
+  it('?scopeMap=1 opens the Scope map drawer over the Details tab', async () => {
+    renderEditor(ProductEditor, { url: url('scopeMap=1') });
+    const drawer = await screen.findByRole('dialog', { name: en['productEditor.scope.scopeMap']! });
+    expect(within(drawer).getByText('scope overview stub')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: en['productEditor.tab.details']! })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('?tab=scopes (the removed tab) opens the drawer and is rewritten to ?scopeMap=1', async () => {
+    const view = renderEditor(ProductEditor, { url: url('tab=scopes') });
+    expect(await screen.findByRole('dialog', { name: en['productEditor.scope.scopeMap']! })).toBeInTheDocument();
+    await waitFor(() => expect(currentSearch(view).get('scopeMap')).toBe('1'));
+    expect(currentSearch(view).get('tab')).toBeNull();
+    expect(screen.queryByRole('tab', { name: en['productEditor.scope.scopeMap']! })).toBeNull();
+  });
+
+  it('?tab=attachments (the removed tab) opens "Media & files" and is rewritten to ?tab=media', async () => {
+    const view = renderEditor(ProductEditor, { url: url('tab=attachments') });
+    const media = await screen.findByRole('tab', { name: en['productEditor.tab.media']! });
+    await waitFor(() => expect(media).toHaveAttribute('aria-selected', 'true'));
+    await waitFor(() => expect(currentSearch(view).get('tab')).toBe('media'));
+    const panel = screen.getByRole('tabpanel');
+    expect(within(panel).getByRole('heading', { name: new RegExp(en['productEditor.gallery.title']!) })).toBeInTheDocument();
+    expect(within(panel).getByRole('heading', { name: new RegExp(en['productEditor.attachments.title']!) })).toBeInTheDocument();
+  });
+
+  it('the scope bar link opens the drawer, and closing it drops ?scopeMap', async () => {
+    const view = renderEditor(ProductEditor, { url: url('tab=pricing') });
+    const link = await screen.findByRole('button', { name: en['productEditor.scope.scopeMap']! });
+    expect(link).toHaveAttribute('aria-haspopup', 'dialog');
+    fireEvent.click(link);
+    const drawer = await screen.findByRole('dialog', { name: en['productEditor.scope.scopeMap']! });
+    await waitFor(() => expect(currentSearch(view).get('scopeMap')).toBe('1'));
+    expect(currentSearch(view).get('tab')).toBe('pricing');
+    fireEvent.click(within(drawer).getByRole('button', { name: en['productEditor.scopeMap.close']! }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(currentSearch(view).get('scopeMap')).toBeNull();
+    expect(currentSearch(view).get('tab')).toBe('pricing');
   });
 
   it('an unknown tab opens Details', async () => {
-    renderAt(`/catalog/products/${PRODUCT_ID}?tab=nope`);
-    expect(await screen.findByRole('tab', { name: /details/i })).toHaveAttribute('aria-selected', 'true');
+    renderEditor(ProductEditor, { url: url('tab=nope') });
+    expect(await screen.findByRole('tab', { name: en['productEditor.tab.details']! })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByText('scope overview stub')).toBeNull();
   });
 });

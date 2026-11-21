@@ -78,12 +78,16 @@ A profile says:
 The profile is read once when the run starts, so editing it during a run changes nothing for
 that run. Profile names are unique, ignoring case (`409 IMPORT_PROFILE_NAME_TAKEN`). In the
 admin, the **Import profiles** section of the Import / Export screen lists, creates, edits and
-deletes profiles; it is shown only to operators holding `catalog:write`.
+deletes profiles; it is shown only to operators holding `catalog:write`. The section starts
+collapsed. The products import's **Manage profiles** link opens it, and with no profile yet,
+**Create a profile** opens the create dialog directly.
 
 ### Dry run first
 
 `&dryRun=true` parses, maps and validates the whole file, including the catalog's own checks,
-and writes nothing. The admin screen always runs it first and shows, before **Apply import**:
+and writes nothing. The admin screen walks through three numbered steps (*Profile*,
+*Check file*, *Apply*) and shows "Step n of 3" above them. It always runs the dry run first and
+shows, before **Apply import**:
 
 - the number of rows that would be imported and refused;
 - for each column, how many cells hold `NULL` and how many hold `INHERIT`;

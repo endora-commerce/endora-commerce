@@ -1,8 +1,20 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { blogSlugSchema } from '@endora-commerce/contracts';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog } from '@endora-commerce/admin-kit/components';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  InlineStatus,
+  Input,
+  Label,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
+import { ImmediateBadge, ModalDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { blogClient, type BlogUrlKeyEntityKind, type BlogUrlKeysResponse } from '../api/blog-client.js';
 
@@ -12,6 +24,10 @@ import { blogClient, type BlogUrlKeyEntityKind, type BlogUrlKeysResponse } from 
  * the former addresses that redirect to it. A key another entry still answers as a
  * redirect is taken over only after the editor confirms it. Every save bumps the
  * entry's version, so `onSaved` lets the editor reload it.
+ *
+ * It saves on its own, outside the editor's one Save, so its heading carries the kit's
+ * `ImmediateBadge` and its result is an `InlineStatus` beside *Save address* (issue #1512,
+ * CONTENT-09; DEC-08).
  */
 export function UrlKeysPanel({
   kind,
@@ -31,6 +47,7 @@ export function UrlKeysPanel({
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const status = useInlineStatus();
   const [takeover, setTakeover] = useState<string | null>(null);
   const [redirectToDelete, setRedirectToDelete] = useState<{ id: string; key: string } | null>(null);
 
@@ -57,6 +74,7 @@ export function UrlKeysPanel({
     }
     setBusy(true);
     setError(null);
+    status.clear();
     try {
       const saved = await blogClient.putUrlKeys(kind, entityId, {
         keys: [{ languageCode: language, key: key === '' ? null : key }],
@@ -66,6 +84,7 @@ export function UrlKeysPanel({
       setKeys(saved);
       setDraft(own(saved));
       setTakeover(null);
+      status.show(t('urlKeys.saved'));
       onSaved();
     } catch (err) {
       if (err instanceof ApiError && err.envelope.error.code === 'BLOG_URL_KEY_REDIRECT_TAKEOVER_REQUIRED') {
@@ -100,7 +119,10 @@ export function UrlKeysPanel({
   return (
     <Card data-settings-group="url-keys">
       <CardHeader>
-        <CardTitle>{t('urlKeys.title', { language })}</CardTitle>
+        <CardTitle>
+          {t('urlKeys.title', { language })}
+          <ImmediateBadge className="align-middle" />
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {error ? (
@@ -117,13 +139,17 @@ export function UrlKeysPanel({
               value={draft}
               placeholder={keys?.slug ?? ''}
               disabled={busy || keys === null}
-              onChange={(event) => setDraft(event.target.value.toLowerCase())}
+              onChange={(event) => {
+                status.clear();
+                setDraft(event.target.value.toLowerCase());
+              }}
             />
             <Button type="button" variant="outline" disabled={busy || !dirty} aria-busy={busy} onClick={() => void save(null)}>
               {t('urlKeys.save')}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">{t('urlKeys.hint')}</p>
+          <InlineStatus {...status.props} />
         </div>
         {effective.length > 0 ? (
           <div className="space-y-1">

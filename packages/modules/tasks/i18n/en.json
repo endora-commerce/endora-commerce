@@ -340,6 +340,8 @@
   "configuration.tab.priorities": "Priorities",
   "configuration.tab.tags": "Tags",
   "configuration.tab.general": "General",
+  "digest.summary.off": "Daily digest: off",
+  "digest.summary.on": "Daily digest: on, {hour}",
   "settings.title": "General task settings",
   "settings.timeZone": "Time zone",
   "settings.timeZoneHint": "Used for due dates, reminders and the digest.",

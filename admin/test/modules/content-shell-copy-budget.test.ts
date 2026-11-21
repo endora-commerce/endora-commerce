@@ -84,7 +84,6 @@ const CUT: readonly Cut[] = [
 const ONE_LINERS: readonly { bundle: string; key: string }[] = [
   { bundle: 'cms', key: 'brand.scope.globalHint' },
   { bundle: 'cms', key: 'brand.layout.scaleHint' },
-  { bundle: 'cms', key: 'pageEditor.pageFieldsHelp' },
   { bundle: 'cms', key: 'pageEditor.languageVersion.help' },
   { bundle: 'cms', key: 'pageEditor.breadcrumbs.parentHelp' },
   { bundle: 'cms', key: 'pageEditor.parentPathInUrlHelp' },

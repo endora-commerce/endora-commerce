@@ -123,13 +123,24 @@ const TAB_IDS = [
   'composite',
   'media',
   'inventory',
-  'attachments',
   'links',
   'channels',
-  'scopes',
   'seo',
 ] as const;
 type TabId = (typeof TAB_IDS)[number];
+
+/**
+ * Issue #1510 (UX audit CAT-10, DEC-09) — tab ids the editor no longer has, and where their old
+ * addresses land: Attachments is a section of "Media & files", and the Scope map is a drawer
+ * (`?scopeMap=1`) over whichever tab was open. The editor rewrites such an address (`replace`).
+ */
+const REMOVED_TABS: Readonly<Record<string, { tab: TabId | null; scopeMap: boolean }>> = {
+  attachments: { tab: 'media', scopeMap: false },
+  scopes: { tab: null, scopeMap: true },
+};
+
+/** The query parameter that opens the Scope map drawer (`?scopeMap=1`). */
+const SCOPE_MAP_PARAM = 'scopeMap';
 
 /** Tabs whose content is the same at every scope (§6): outside Global they show a notice. */
 const GLOBAL_ONLY_TABS = new Set<TabId>(['pricing', 'variants', 'composite', 'links', 'channels']);
@@ -488,6 +499,8 @@ function ScopedProductEditor({
       setSearchParams((prev) => {
         const sp = searchWithScope(prev, next);
         sp.delete('field');
+        // A jump from the Scope map drawer lands on the editor, so the drawer closes with it.
+        sp.delete(SCOPE_MAP_PARAM);
         if (field) sp.set('field', field);
         if (tab) sp.set('tab', tab);
         return sp;
@@ -504,6 +517,7 @@ function ScopedProductEditor({
             const sp = new URLSearchParams(prev);
             sp.set('tab', tab);
             sp.delete('field');
+            sp.delete(SCOPE_MAP_PARAM);
             return sp;
           });
         }
@@ -848,7 +862,35 @@ function ScopedProductEditor({
     if (id === 'seo') return seoContributions.length > 0;
     return true;
   });
-  const requestedTab = searchParams.get('tab') as TabId | null;
+  const rawTab = searchParams.get('tab');
+  const removedTab = rawTab !== null && Object.hasOwn(REMOVED_TABS, rawTab) ? REMOVED_TABS[rawTab] : undefined;
+  const requestedTab = (removedTab ? removedTab.tab : rawTab) as TabId | null;
+  const scopeMapOpen = searchParams.get(SCOPE_MAP_PARAM) === '1' || removedTab?.scopeMap === true;
+  // An address naming a removed tab is rewritten to the one that replaced it (#1510).
+  useEffect(() => {
+    if (!removedTab) return;
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        if (removedTab.tab) sp.set('tab', removedTab.tab);
+        else sp.delete('tab');
+        if (removedTab.scopeMap) sp.set(SCOPE_MAP_PARAM, '1');
+        return sp;
+      },
+      { replace: true },
+    );
+  }, [removedTab, setSearchParams]);
+  const setScopeMapOpen = (open: boolean): void => {
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        if (open) sp.set(SCOPE_MAP_PARAM, '1');
+        else sp.delete(SCOPE_MAP_PARAM);
+        return sp;
+      },
+      { replace: true },
+    );
+  };
   const activeTab: TabId =
     requestedTab && (TAB_IDS as readonly string[]).includes(requestedTab) && (visibleTabs.includes(requestedTab) || type === null)
       ? requestedTab
@@ -948,14 +990,15 @@ function ScopedProductEditor({
           <a
             href={`?${(() => {
               const sp = new URLSearchParams(searchParams);
-              sp.set('tab', 'scopes');
+              sp.set(SCOPE_MAP_PARAM, '1');
               return sp.toString();
             })()}`}
             className={linkClass}
             data-own-unsaved-guard=""
+            aria-haspopup="dialog"
             onClick={(e): void => {
               e.preventDefault();
-              selectTab('scopes');
+              setScopeMapOpen(true);
             }}
           >
             {t('productEditor.scope.scopeMap')}
@@ -1095,10 +1138,16 @@ function ScopedProductEditor({
         );
       case 'media':
         return (
-          <>
+          // Issue #1510 (CAT-10): "Media & files" — the gallery and the attachments behave alike
+          // (the asset set applies at once, the metadata saves with the one Save), so they are
+          // one tab with two sections. Each keeps its `product.editor.field.after` mount, and the
+          // two sections stay siblings, so the kit draws its one rule between them.
+          <div className="space-y-(--section-gap)">
             <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'gallery', scope: state.scope, languageCodes: null, saveSession: session.handle }} />
             <GallerySection />
-          </>
+            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'attachments', scope: state.scope, languageCodes: null, saveSession: session.handle }} />
+            <AttachmentsSection />
+          </div>
         );
       case 'inventory':
         return (
@@ -1135,13 +1184,6 @@ function ScopedProductEditor({
             ) : null}
           </div>
         );
-      case 'attachments':
-        return (
-          <>
-            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'attachments', scope: state.scope, languageCodes: null, saveSession: session.handle }} />
-            <AttachmentsSection />
-          </>
-        );
       case 'links':
         return (
           <>
@@ -1154,23 +1196,6 @@ function ScopedProductEditor({
           // The contribution is the tab's section, with its own heading and "Applies immediately"
           // badge (#1488): a heading here repeated the tab's name above it.
           <AdminZone name="product.editor.channels" props={{ productId, saveSession: session.handle }} />
-        );
-      case 'scopes':
-        return (
-          <ProductScopeOverview
-            productId={productId}
-            links={{
-              href: (scope, field): string => {
-                const sp = searchWithScope(searchParams, scope);
-                sp.set('tab', tabOfField(field));
-                sp.delete('field');
-                if (field) sp.set('field', field);
-                return `?${sp.toString()}`;
-              },
-              open: (scope, field): void => requestScope(scope, undefined, field, tabOfField(field)),
-              words: (scope): string => scopeShortWords(scope, valid, t, adminLanguage),
-            }}
-          />
         );
       case 'seo':
         return (
@@ -1322,7 +1347,7 @@ function ScopedProductEditor({
           readOnly={readOnly}
           adminLanguage={adminLanguage}
           onRequestScope={(next, note): void => requestScope(next, note)}
-          onOpenScopeMap={(): void => selectTab('scopes')}
+          onOpenScopeMap={(): void => setScopeMapOpen(true)}
           completeness={completenessNode}
           action={
             // OQ-6 = A (FR-035): shown when the operator may write the product or any panel.
@@ -1396,6 +1421,38 @@ function ScopedProductEditor({
         >
           {panel()}
         </RecordTabs>
+
+        {scopeMapOpen && data ? (
+          // Issue #1510 (CAT-10, DEC-09): the Scope map is a meta view of every scope, not content
+          // of one, so it is a drawer over the open tab rather than a tab between content tabs.
+          <ModalDialog
+            title={t('productEditor.scope.scopeMap')}
+            placement="end"
+            widthClassName="max-w-4xl"
+            onClose={(): void => setScopeMapOpen(false)}
+            footer={
+              <Button type="button" variant="outline" onClick={(): void => setScopeMapOpen(false)}>
+                {t('productEditor.scopeMap.close')}
+              </Button>
+            }
+          >
+            <ProductScopeOverview
+              productId={productId}
+              links={{
+                href: (scope, field): string => {
+                  const sp = searchWithScope(searchParams, scope);
+                  sp.set('tab', tabOfField(field));
+                  sp.delete('field');
+                  sp.delete(SCOPE_MAP_PARAM);
+                  if (field) sp.set('field', field);
+                  return `?${sp.toString()}`;
+                },
+                open: (scope, field): void => requestScope(scope, undefined, field, tabOfField(field)),
+                words: (scope): string => scopeShortWords(scope, valid, t, adminLanguage),
+              }}
+            />
+          </ModalDialog>
+        ) : null}
 
         {guardOpen && guard ? (
           <ModalDialog

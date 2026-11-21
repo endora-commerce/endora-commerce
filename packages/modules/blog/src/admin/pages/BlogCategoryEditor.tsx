@@ -2,7 +2,21 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import type { BlogCategoryDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  InlineStatus,
+  Input,
+  Label,
+  PageHeader,
+  SaveButtonGroup,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import { AssetFieldPicker, ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
 import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -119,7 +133,8 @@ export function BlogCategoryEditor(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   // Which field a refused save was about, so the field itself says so.
   const [problem, setProblem] = useState<BlogEditorProblem | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // The result of a save, said beside the Save button (InlineStatus, not a banner; issue #1512).
+  const status = useInlineStatus();
   const [saving, setSaving] = useState(false);
 
   const reloadFormFromCategory = useCallback(
@@ -210,7 +225,7 @@ export function BlogCategoryEditor(): ReactNode {
   );
 
   const create = async (): Promise<boolean> => {
-    setInfo(null);
+    status.clear();
     const found = blogEditorProblem({ ...form, ...scope });
     setProblem(found);
     if (found) return refuse(t(found));
@@ -246,7 +261,7 @@ export function BlogCategoryEditor(): ReactNode {
    */
   const save = async (): Promise<boolean> => {
     if (!category) return false;
-    setInfo(null);
+    status.clear();
     const found = blogEditorProblem({ ...form, ...scope });
     setProblem(found);
     if (found) return refuse(t(found));
@@ -296,7 +311,7 @@ export function BlogCategoryEditor(): ReactNode {
         setDescriptionDirty(false);
       }
       setStash({});
-      setInfo(t('messages.saved'));
+      status.show(t('messages.saved'));
       return true;
     } catch (err) {
       return refuse(err instanceof Error ? err.message : String(err));
@@ -331,6 +346,12 @@ export function BlogCategoryEditor(): ReactNode {
         (kept.description !== undefined && !isDraftEqual(kept.description, descriptionFor(category, language))),
     );
   })();
+
+  // A "Saved." stays only while nothing has changed since: the next edit clears it (issue #1512).
+  const { clear: clearStatus } = status;
+  useEffect(() => {
+    if (dirty) clearStatus();
+  }, [dirty, clearStatus]);
 
   const discard = (): void => {
     if (!category) {
@@ -367,8 +388,10 @@ export function BlogCategoryEditor(): ReactNode {
                   : undefined
             }
             actions={
-              <div className="flex flex-wrap items-center gap-2">
+              <div data-save-actions className="flex flex-wrap items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />
+                {/* Mounted before it has text, so a result is announced and not only shown (WCAG 4.1.3). */}
+                <InlineStatus {...status.props} />
                 {isNew ? (
                   <Button type="button" disabled={saving} onClick={() => void create()}>
                     {saving ? t('common.saving') : t('common.create')}
@@ -392,15 +415,6 @@ export function BlogCategoryEditor(): ReactNode {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
-          {/* A live region that is there before it has anything to say, so the
-              result of a save is announced and not only shown (WCAG 4.1.3). */}
-          <div role="status">
-            {info ? (
-              <Alert role="none">
-                <AlertDescription>{info}</AlertDescription>
-              </Alert>
-            ) : null}
-          </div>
         </>
       }
       canvasBar={

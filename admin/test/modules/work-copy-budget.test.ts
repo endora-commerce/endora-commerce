@@ -26,6 +26,8 @@ const CUT: Record<WorkModule, readonly string[]> = {
     'opportunity.create.description',
     'opportunity.create.requiredHint',
     'opportunity.list.description',
+    // The status is said once, in the title badge (issue #1566).
+    'opportunity.stage.current',
     'opportunity.stage.hint',
     'opportunity.status.reasonHint',
     'tags.description',

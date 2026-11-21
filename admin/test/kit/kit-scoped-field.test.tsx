@@ -77,18 +77,38 @@ describe('ScopedField (feature 174, FR-060…FR-065)', () => {
     expect(control).toHaveAttribute('readonly');
     expect(control).not.toBeDisabled();
     expect(control).toHaveValue('Drill');
+    // The value comes from Global, not from the checkbox's B2B PL: the source line adds that fact.
     expect(control).toHaveAccessibleDescription(expect.stringContaining('Inherited from Global'));
-    // A text field at C×L that inherits is "Not translated" (§11).
-    expect(screen.getByText('Not translated')).toBeInTheDocument();
+    // Issue #1508 (UX audit CAT-08): the ticked checkbox and the dashed control already say
+    // "inherited", so no "Not translated" / "Inherited" badge repeats it.
+    expect(screen.queryByText('Not translated')).toBeNull();
+    expect(screen.queryByText('Inherited')).toBeNull();
     await expectNoAxeViolations(container);
   });
 
-  it('inheriting at Channel says "Inherited"; nothing in the chain says "No value"', () => {
+  it('inheriting from the scope the checkbox names: no badge and no source line (issue #1508)', () => {
     renderEn(<Harness scope={AT_C} parentScopeLabel="Global" />);
-    expect(screen.getByText('Inherited')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Use value from Global for Name' })).toBeChecked();
+    expect(screen.queryByText('Inherited')).toBeNull();
+    expect(screen.queryByText('Inherited from Global')).toBeNull();
+    expect(screen.getByLabelText('Name')).not.toHaveAttribute('aria-describedby');
     cleanup();
+    // At C×L a value the channel holds itself is named by the checkbox too.
+    renderEn(<Harness view={view({ value: 'Wiertarka', source: 'inherited_channel' })} />);
+    expect(screen.queryByText('Not translated')).toBeNull();
+    expect(screen.queryByText(/^Inherited from/)).toBeNull();
+  });
+
+  it('nothing in the chain: "No value at any scope above" is the one line, without a "No value" badge (issue #1508)', () => {
     renderEn(<Harness view={view({ value: null, source: 'absent' })} />);
-    expect(screen.getByText('No value')).toBeInTheDocument();
+    expect(screen.queryByText('No value')).toBeNull();
+    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(expect.stringContaining('No value at any scope above'));
+  });
+
+  it('after an untick nothing is staged yet, so the source line still says where the value comes from', () => {
+    renderEn(<Harness scope={AT_C} parentScopeLabel="Global" />);
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(expect.stringContaining('Inherited from Global'));
   });
 
   it('untick stages nothing, makes the control editable and focuses it; typing stages set (FR-061)', () => {
@@ -146,13 +166,14 @@ describe('ScopedField (feature 174, FR-060…FR-065)', () => {
     expect(screen.getByLabelText('Name')).not.toHaveAttribute('readonly');
   });
 
-  it('own value: unchecked box, "Set at this scope", "Overridden"; tick stages inherit and untick restores (FR-062)', () => {
+  it('own value: unchecked box and "Overridden", no repeating source line; tick stages inherit and untick restores (FR-062)', () => {
     const spy = vi.fn();
     renderEn(<Harness onStageSpy={spy} view={view({ value: 'Wiertarka', ownValue: 'Wiertarka', source: 'set' })} />);
     const box = screen.getByRole('checkbox');
     expect(box).not.toBeChecked();
     expect(screen.getByText('Overridden')).toBeInTheDocument();
-    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(expect.stringContaining('Set at this scope'));
+    // Issue #1508: "Set at this scope" says what "Overridden" already says.
+    expect(screen.queryByText('Set at this scope')).toBeNull();
     fireEvent.click(box);
     expect(spy).toHaveBeenLastCalledWith({ op: 'inherit' });
     fireEvent.click(screen.getByRole('checkbox'));
@@ -169,6 +190,12 @@ describe('ScopedField (feature 174, FR-060…FR-065)', () => {
     );
   });
 
+  it('own empty without an empty meaning: "Empty here" alone (issue #1508)', () => {
+    renderEn(<Harness view={view({ value: null, ownValue: null, source: 'set_empty' })} />);
+    expect(screen.getByText('Empty here')).toBeInTheDocument();
+    expect(screen.queryByText(/^Set at this scope/)).toBeNull();
+  });
+
   it('clearing an own value stages empty', () => {
     const spy = vi.fn();
     renderEn(<Harness onStageSpy={spy} view={view({ value: 'W', ownValue: 'W', source: 'set' })} />);
@@ -181,6 +208,12 @@ describe('ScopedField (feature 174, FR-060…FR-065)', () => {
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(screen.getByLabelText('Name')).toHaveAttribute('readonly');
     expect(screen.getByText('Inherited from Global')).toBeInTheDocument();
+    // No checkbox carries the state, so the badge still does.
+    expect(screen.getByText('Not translated')).toBeInTheDocument();
+    cleanup();
+    renderEn(<Harness readOnly scope={AT_C} parentScopeLabel="Global" view={view({ value: 'W', ownValue: 'W', source: 'set' })} />);
+    expect(screen.getByText('Overridden')).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(expect.stringContaining('Set at this scope'));
   });
 
   it('Global only outside Global: read-only, "Global only" and "Edit at Global" (FR-081)', () => {

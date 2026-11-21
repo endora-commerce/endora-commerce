@@ -112,7 +112,9 @@ device you sign in from, and so are the filters you set while switching.
 assigned to you that are not closed, the soonest due first and those without a
 due date last, as a list or a board, with the same filters. Your drafts are not
 in it — find them with the *Only my drafts* filter on **Tasks**. The **Daily
-digest** control at its top turns your digest on and off and sets its hour.
+digest** button in the page header says whether your digest is on and at what
+hour; press it to open the control that turns the digest on and off and sets
+its hour.
 
 **New task** (`/tasks/new`) asks for a title and, optionally, a description,
 assignees — chosen by name among the active administrators who may view tasks,

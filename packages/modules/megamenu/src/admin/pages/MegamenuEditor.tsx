@@ -1,8 +1,22 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { isDraftEqual, randomUUID } from '@endora-commerce/admin-kit/lib';
-import { UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, Textarea } from '@endora-commerce/admin-kit/ui';
+import { ImmediateBadge, UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
+import {
+  Alert,
+  AlertDescription,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  FormField,
+  InlineStatus,
+  Input,
+  PageHeader,
+  SaveButtonGroup,
+  Textarea,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { MegamenuDetail, MegamenuItem, MegamenuItemKind } from '@endora-commerce/contracts';
 
@@ -52,9 +66,24 @@ function deleteSubtree(items: IndexedItem[], itemId: string): IndexedItem[] {
   return items.filter((i) => !toDelete.has(i.id));
 }
 
+/**
+ * The megamenu editor.
+ *
+ * **One Save** (issue #1512, UX audit CONTENT-09; owner decision DEC-08): the header's
+ * `SaveButtonGroup` saves the name and description and then the item tree — each only when it
+ * changed, the tree on the version the name answered with — and says the result in an
+ * `InlineStatus` beside it. The bindings are the one part that applies at once (each add, remove,
+ * activate and deactivate is its own write), so their section heading carries the kit's
+ * `ImmediateBadge` and their results are said in that section.
+ *
+ * **Layout** (issue #1534, CONTENT-16): two rows whose columns start at `lg` and stack below it —
+ * the metadata beside the bindings, then the tree beside the item panel that edits it.
+ */
 export function MegamenuEditor(): ReactNode {
   const t = useTranslation('megamenu');
   const { id } = useParams();
+  const navigate = useNavigate();
+  const saveStatus = useInlineStatus();
   const [menu, setMenu] = useState<MegamenuDetail | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -113,11 +142,13 @@ export function MegamenuEditor(): ReactNode {
       // presentation; a new one starts as a plain link at the start.
       ...(parentId === null ? { presentation: 'link' as const, alignment: 'start' as const } : {}),
     } as IndexedItem;
+    saveStatus.clear();
     setItems([...items, next]);
     setSelectedItemId(id);
   };
 
   const updateItem = (next: IndexedItem): void => {
+    saveStatus.clear();
     setItems((prev) => prev.map((i) => (i.id === next.id ? next : i)));
   };
 
@@ -168,15 +199,22 @@ export function MegamenuEditor(): ReactNode {
   // Issue #1461 (CONTENT-02) — each card's draft against the last saved menu.
   const metadataDirty = menu !== null && (name !== menu.name || description !== (menu.description ?? ''));
   const treeDirty = menu !== null && !isDraftEqual(items, indexItems(menu.items));
+  const dirty = metadataDirty || treeDirty;
+
+  /** The one Save: the name and description, then the tree, each only when changed and each on the version the previous one answered with. */
+  const save = async (): Promise<boolean> => {
+    saveStatus.clear();
+    let base = menu;
+    if (metadataDirty) base = await saveMetadata(base);
+    if (base && treeDirty) base = await saveTree(base);
+    if (base !== null) saveStatus.show(t('editor.saved'));
+    return base !== null;
+  };
+
   const unsavedGuard = useUnsavedChangesGuard({
-    dirty: metadataDirty || treeDirty,
-    // The leave dialog's Save covers both cards, in turn, each on the version the previous one answered with.
-    onSave: async () => {
-      let base = menu;
-      if (metadataDirty) base = await saveMetadata(base);
-      if (base && treeDirty) base = await saveTree(base);
-      return base !== null;
-    },
+    dirty,
+    // The leave dialog's Save is the header's Save.
+    onSave: save,
     onDiscard: () => {
       if (!menu) return;
       setName(menu.name);
@@ -194,6 +232,22 @@ export function MegamenuEditor(): ReactNode {
       <PageHeader
         back={{ label: t('common.back'), to: '/megamenu' }}
         title={menu.name || t('editor.fallbackTitle')}
+        actions={
+          <div data-save-actions className="flex flex-wrap items-center justify-end gap-2">
+            <UnsavedChangesHint dirty={dirty} />
+            <InlineStatus {...saveStatus.props} />
+            <SaveButtonGroup
+              onSave={() => void save()}
+              onSaveAndExit={async () => {
+                if (await save()) navigate('/megamenu');
+              }}
+              saving={saving}
+              saveLabel={t('common.save')}
+              savingLabel={t('common.saving')}
+              saveAndExitLabel={t('common.saveAndExit')}
+            />
+          </div>
+        }
       />
       {error ? (
         <Alert variant="destructive">
@@ -206,66 +260,79 @@ export function MegamenuEditor(): ReactNode {
         </Alert>
       ))}
 
-      <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-4 space-y-4">
+      {/* What the menu is and where it shows. Columns from `lg`, stacked below (WCAG 1.4.10). */}
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-5">
           <Card>
             <CardHeader>
               <CardTitle>{t('sections.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <FormField label={t('fields.name')}>
-                <Input value={name} onChange={(event) => setName(event.target.value)} />
+                <Input
+                  value={name}
+                  onChange={(event) => {
+                    saveStatus.clear();
+                    setName(event.target.value);
+                  }}
+                />
               </FormField>
               <FormField label={t('fields.description')}>
                 <Textarea
                   value={description}
-                  onChange={(event) => setDescription(event.target.value)}
+                  onChange={(event) => {
+                    saveStatus.clear();
+                    setDescription(event.target.value);
+                  }}
                 />
               </FormField>
-              <div className="flex items-center justify-end gap-2">
-                <UnsavedChangesHint dirty={metadataDirty} />
-                <Button onClick={() => void saveMetadata()} disabled={saving}>
-                  {t('common.saveMetadata')}
-                </Button>
-              </div>
             </CardContent>
           </Card>
+        </div>
 
+        <div className="lg:col-span-7">
           <Card>
             <CardHeader>
-              <CardTitle>{t('sections.bindings')}</CardTitle>
+              {/* Each binding change is its own write, outside the header Save (DEC-08). */}
+              <CardTitle>
+                {t('sections.bindings')}
+                <ImmediateBadge className="align-middle" />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <BindingsPanel menuId={menu.id} bindings={menu.bindings} onChanged={() => void load({ keepDrafts: true })} />
             </CardContent>
           </Card>
         </div>
+      </div>
 
-        <div className="col-span-4">
+      {/* The tree and the panel that edits its selected item, side by side (Proximity). */}
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-5">
           <Card>
             <CardHeader>
               <CardTitle>{t('sections.items')}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent>
               <MenuItemTree
                 items={items}
                 selectedItemId={selectedItemId}
                 onSelect={setSelectedItemId}
-                onMove={(itemId, direction) => setItems((prev) => move(prev, itemId, direction))}
-                onDelete={(itemId) => setItems((prev) => deleteSubtree(prev, itemId))}
+                onMove={(itemId, direction) => {
+                  saveStatus.clear();
+                  setItems((prev) => move(prev, itemId, direction));
+                }}
+                onDelete={(itemId) => {
+                  saveStatus.clear();
+                  setItems((prev) => deleteSubtree(prev, itemId));
+                }}
                 onAddChild={addChild}
               />
-              <div className="flex items-center justify-end gap-2">
-                <UnsavedChangesHint dirty={treeDirty} />
-                <Button onClick={() => void saveTree()} disabled={saving}>
-                  {t('common.saveTree')}
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="col-span-4">
+        <div className="lg:col-span-7">
           <Card>
             <CardHeader>
               <CardTitle>{t('sections.item')}</CardTitle>

@@ -116,7 +116,9 @@ describe('ProductSeoSection (feature 174, US10)', () => {
     const title = await screen.findByLabelText(seoEn['productSeo.field.title'], {}, { timeout: 14_000 });
     expect(get).toHaveBeenCalledWith(`/api/v1/admin/seo/meta/product/${PRODUCT_ID}?channelId=${CH}&languageCode=pl-PL`);
     expect(title).toHaveValue('Wiertarka | Sklep');
-    expect(title).toHaveAccessibleDescription(expect.stringContaining('Set at this scope'));
+    // An own value is marked by the "Overridden" badge; no "Set at this scope" line repeats it (#1508).
+    expect(title.closest('[data-field]')).toHaveTextContent('Overridden');
+    expect(title).not.toHaveAccessibleDescription(expect.stringContaining('Set at this scope'));
     expect(screen.getByLabelText(seoEn['productSeo.field.description'])).toHaveAccessibleDescription(
       expect.stringContaining('Derived drill description'),
     );

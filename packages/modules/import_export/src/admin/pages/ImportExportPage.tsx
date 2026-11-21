@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Download, Upload } from 'lucide-react';
 import type { ImportProfile } from '@endora-commerce/contracts';
 import { ApiError, apiBaseUrl, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
@@ -17,11 +17,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  InlineStatus,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { listProductProfiles } from '../components/import-profiles-api.js';
-import { ImportProfilesSection } from '../components/ImportProfilesSection.js';
-import { ProductsImport } from '../components/ProductsImport.js';
+import { ImportProfilesSection, type ImportProfilesSectionHandle } from '../components/ImportProfilesSection.js';
+import { ProductsImport, type ProductsImportProps } from '../components/ProductsImport.js';
 
 /**
  * The import/export centre — the first admin screen that lives in the module
@@ -115,6 +117,20 @@ export default function ImportExportPage(): ReactNode {
     if (canManageProfiles) void loadProfiles();
   }, [canManageProfiles, loadProfiles]);
 
+  // Issue #1528 (Proximity): the products import reaches the profiles section, which sits below
+  // every entity card, collapsed, through these two.
+  const profilesSection = useRef<ImportProfilesSectionHandle>(null);
+  const profileLinks: ProfileLinks | undefined = canManageProfiles
+    ? {
+        profilesError,
+        onRetryProfiles: (): void => {
+          void loadProfiles();
+        },
+        onManageProfiles: (): void => profilesSection.current?.reveal(),
+        onCreateProfile: (): void => profilesSection.current?.create(),
+      }
+    : undefined;
+
   return (
     <>
       <PageHeader
@@ -140,10 +156,12 @@ export default function ImportExportPage(): ReactNode {
             entity={entity}
             profiles={profiles}
             profilesLoading={profilesLoading}
+            profileLinks={profileLinks}
           />
         ))}
         {canManageProfiles ? (
           <ImportProfilesSection
+            ref={profilesSection}
             profiles={profiles}
             loading={profilesLoading}
             loadError={profilesError}
@@ -157,17 +175,28 @@ export default function ImportExportPage(): ReactNode {
   );
 }
 
+type ProfileLinks = Pick<
+  ProductsImportProps,
+  'profilesError' | 'onRetryProfiles' | 'onManageProfiles' | 'onCreateProfile'
+>;
+
 function EntityCard({
   entity,
   profiles,
   profilesLoading,
+  profileLinks,
 }: {
   entity: EntityConfig;
   profiles: ImportProfile[];
   profilesLoading: boolean;
+  profileLinks: ProfileLinks | undefined;
 }): ReactNode {
   const t = useTranslation('import_export');
   const [importing, setImporting] = useState(false);
+  // A whole-file success is the result of the action: it goes beside the trigger (DEC-12 a). A
+  // rolled-back file is a refusal and stays a warning banner, with its row errors.
+  const status = useInlineStatus();
+  const { show: showStatus, clear: clearStatus } = status;
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<Array<{ rowNumber: number; reason: string }>>(
     [],
@@ -181,6 +210,7 @@ function EntityCard({
       if (!file) return;
 
       setImporting(true);
+      clearStatus();
       setImportMessage(null);
       setImportErrors([]);
       setImportError(null);
@@ -192,7 +222,7 @@ function EntityCard({
           headers: { 'Content-Type': 'text/csv' },
         });
         if (res.data.errors.length === 0) {
-          setImportMessage(t('imported', { count: res.data.imported }));
+          showStatus(t('imported', { count: res.data.imported }));
         } else {
           setImportMessage(t('rolledBack', { count: res.data.errors.length }));
           setImportErrors(res.data.errors);
@@ -203,7 +233,7 @@ function EntityCard({
         setImporting(false);
       }
     },
-    [entity.name, t],
+    [entity.name, t, showStatus, clearStatus],
   );
 
   const exportHref = `${apiBaseUrl}/api/v1/admin/export/${entity.name}.csv`;
@@ -251,11 +281,13 @@ function EntityCard({
               </label>
             </Button>
           ) : null}
+          {/* Mounted before it has text, so the result is announced (WCAG 2.2 SC 4.1.3). */}
+          <InlineStatus {...status.props} data-testid="entity-import-status" />
         </div>
 
         {/* Feature 174 — products import through a required profile and a dry run first. */}
         {entity.name === 'products' && entity.importHeader && entity.canImport ? (
-          <ProductsImport profiles={profiles} profilesLoading={profilesLoading} />
+          <ProductsImport profiles={profiles} profilesLoading={profilesLoading} {...profileLinks} />
         ) : null}
 
         {entity.importHeader && entity.canImport ? (
@@ -274,7 +306,7 @@ function EntityCard({
           </Alert>
         ) : null}
         {importMessage ? (
-          <Alert variant={importErrors.length > 0 ? 'warning' : 'success'} live="polite">
+          <Alert variant="warning" live="polite">
             <AlertDescription>{importMessage}</AlertDescription>
           </Alert>
         ) : null}

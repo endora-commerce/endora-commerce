@@ -340,6 +340,8 @@
   "configuration.tab.priorities": "Priorytety",
   "configuration.tab.tags": "Etykiety",
   "configuration.tab.general": "Ogólne",
+  "digest.summary.off": "Dzienne podsumowanie: wyłączone",
+  "digest.summary.on": "Dzienne podsumowanie: włączone, {hour}",
   "settings.title": "Ogólne ustawienia zadań",
   "settings.timeZone": "Strefa czasowa",
   "settings.timeZoneHint": "Dla terminów, przypomnień i dziennego podsumowania.",

@@ -193,6 +193,34 @@ describe('MyTasksPage', () => {
     expect(screen.queryByText('Sign the handover')).toBeNull();
   });
 
+  it('keeps the daily digest out of the way: a closed disclosure in the header that says its state (#1563)', async () => {
+    renderTasks(<MyTasksPage />, { path: '/tasks/mine', pattern: '/tasks/mine' });
+    await screen.findByText('Sign the handover');
+    const summary = await screen.findByRole('button', { name: en('digest.summary.off') });
+    expect(summary).toHaveAttribute('aria-expanded', 'false');
+    const panel = document.getElementById(summary.getAttribute('aria-controls')!)!;
+    expect(panel).not.toBeVisible();
+    // The work comes first: the settings control is not on screen until asked for.
+    expect(screen.queryByRole('checkbox', { name: en('digest.toggle') })).toBeNull();
+    // The summary is a header action, beside the view toggle — not a block above the filters.
+    expect(summary.closest('header')).not.toBeNull();
+
+    await userEvent.click(summary);
+    expect(summary).toHaveAttribute('aria-expanded', 'true');
+    expect(panel).toBeVisible();
+    expect(screen.getByRole('checkbox', { name: en('digest.toggle') })).not.toBeChecked();
+  });
+
+  it('says the stored hour in the closed summary (#1563)', async () => {
+    const answer = getSpy.getMockImplementation()!;
+    getSpy.mockImplementation((path: string) =>
+      path === '/api/v1/admin/tasks/me/digest' ? Promise.resolve({ data: { hour: 8 } }) : answer(path),
+    );
+    renderTasks(<MyTasksPage />, { path: '/tasks/mine', pattern: '/tasks/mine' });
+    const summary = await screen.findByRole('button', { name: en('digest.summary.on', { hour: '08:00' }) });
+    expect(summary).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it("shows the server's sentence when the read fails", async () => {
     const { ApiError } = await import('@endora-commerce/admin-kit/lib');
     const answer = getSpy.getMockImplementation()!;

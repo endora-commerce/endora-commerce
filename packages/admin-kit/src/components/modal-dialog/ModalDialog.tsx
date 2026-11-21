@@ -16,6 +16,14 @@ import { TabPanelContext } from '../../ui/tabs.js';
 export type ModalDialogLayer = 'page' | 'overlay';
 
 /**
+ * Where the panel sits. `center` (the default) is the ordinary dialog; `end` docks a
+ * full-height panel to the inline end of the viewport — a side drawer for a meta view
+ * opened over an editor (issue #1510, UX audit CAT-10: the product editor's Scope map).
+ * It is the same modal: the scrim, focus trap, Escape and stacking do not change.
+ */
+export type ModalDialogPlacement = 'center' | 'end';
+
+/**
  * The z-index of the `overlay` layer: above the builder's 9999 action bar, and
  * above the rich-text editor's own dialogs and fullscreen mode
  * (`@endora-commerce/cms-components`, 2147483000–2147483001), which ship to the
@@ -89,6 +97,8 @@ export interface ModalDialogProps {
   dismissOnScrim?: boolean;
   /** Which stacking layer the dialog opens on — see {@link ModalDialogLayer}. */
   layer?: ModalDialogLayer;
+  /** Where the panel sits — see {@link ModalDialogPlacement}. */
+  placement?: ModalDialogPlacement;
 }
 
 export function ModalDialog(props: ModalDialogProps): ReactNode {
@@ -104,6 +114,7 @@ export function ModalDialog(props: ModalDialogProps): ReactNode {
     widthClassName = 'max-w-lg',
     dismissOnScrim = true,
     layer = 'page',
+    placement = 'center',
   } = props;
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -142,9 +153,14 @@ export function ModalDialog(props: ModalDialogProps): ReactNode {
 
   const dialog = (
     <div
-      className={cn('fixed inset-0 flex items-center justify-center bg-black/40 p-4', layer === 'page' && 'z-50')}
+      className={cn(
+        'fixed inset-0 flex bg-black/40',
+        placement === 'end' ? 'items-stretch justify-end' : 'items-center justify-center p-4',
+        layer === 'page' && 'z-50',
+      )}
       style={layerStyle}
       data-layer={layer}
+      data-placement={placement}
       onMouseDown={(event): void => {
         if (event.target === event.currentTarget && !busy && dismissOnScrim) onClose();
       }}
@@ -157,7 +173,11 @@ export function ModalDialog(props: ModalDialogProps): ReactNode {
         aria-describedby={describedBy}
         aria-busy={busy}
         tabIndex={-1}
-        className={`max-h-full w-full ${widthClassName} overflow-y-auto rounded-lg bg-background p-6 shadow-lg outline-none`}
+        className={cn(
+          'w-full overflow-y-auto bg-background p-6 shadow-lg outline-none',
+          widthClassName,
+          placement === 'end' ? 'h-full rounded-none' : 'max-h-full rounded-lg',
+        )}
       >
         <h2 id={titleId} className="mb-4 text-lg font-semibold">
           {title}

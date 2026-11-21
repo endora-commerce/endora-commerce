@@ -7,7 +7,7 @@ import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHea
 import { ResponsiveTable, ViewModeToggle } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../api.js';
-import { DigestControl } from '../components/DigestControl.js';
+import { useDigestDisclosure } from '../components/DigestControl.js';
 import { TaskBoard } from '../components/TaskBoard.js';
 import { TaskFilters } from '../components/TaskFilters.js';
 import { useTaskColumns } from '../components/task-columns.js';
@@ -38,8 +38,10 @@ const IMPLIED = new URLSearchParams([
  * (`listViewModes['tasks-mine']`) — with the Tasks screen's filters, less the
  * three it implies (assignee, open or closed, drafts). The list is the server's
  * answer of up to 500, in its order; the board is the Tasks board asked for
- * the same set, its closed lanes left empty. Above them, the caller's *Daily
- * digest* control (`specs/165-task-management/` User Story 7).
+ * the same set, its closed lanes left empty. The caller's *Daily digest*
+ * (`specs/165-task-management/` User Story 7) is a closed disclosure in the
+ * header that says its state, so the list is the first thing below the title
+ * (issue #1563).
  */
 export function MyTasksPage(): ReactNode {
   const t = useTranslation('tasks');
@@ -52,6 +54,7 @@ export function MyTasksPage(): ReactNode {
   const columns = useTaskColumns();
   const vocabulary = useTaskVocabulary();
   const [mode, setMode] = useListViewModePreference(LIST_ID);
+  const digest = useDigestDisclosure();
   const [searchParams, setSearchParams] = useSearchParams();
   const address = searchParams.toString();
   const params = useMemo(() => new URLSearchParams(address), [address]);
@@ -104,6 +107,7 @@ export function MyTasksPage(): ReactNode {
         title={t('mine.title')}
         actions={
           <>
+            {digest.trigger}
             <ViewModeToggle mode={mode} onChange={setMode} />
             <Button className="min-h-11 sm:min-h-9" variant="outline" asChild>
               <Link to="/tasks">{t('mine.all')}</Link>
@@ -112,10 +116,8 @@ export function MyTasksPage(): ReactNode {
         }
       />
 
-      {/* The caller's own daily digest (User Story 7, FR-036): off by default, at an hour. */}
-      <div className="mb-4">
-        <DigestControl />
-      </div>
+      {/* The caller's own daily digest (User Story 7, FR-036), opened from its summary in the header (#1563). */}
+      {digest.panel}
 
       <Card className="mb-4">
         <CardContent className="space-y-4">

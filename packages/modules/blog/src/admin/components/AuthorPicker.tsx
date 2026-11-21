@@ -9,13 +9,21 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  * (`GET /api/v1/admin/blog/author-candidates`, `blog.write`: no administrator rights
  * needed). An author who has since become inactive stays selected and is marked so; a
  * deleted one is shown as such, and the storefront shows no author for them.
+ *
+ * Controlled by the chosen administrator's id: the choice is part of the editor's draft and is
+ * saved with its one Save (issue #1512, DEC-08). `saved` is the author as last saved, so an author
+ * who is no longer a candidate stays an option and keeps their mark.
  */
 export function AuthorPicker({
   value,
+  saved,
   disabled,
   onChange,
 }: {
-  value: BlogPostAuthorAdmin | null;
+  /** The chosen administrator's id, `null` for none. */
+  value: string | null;
+  /** The author as last saved. */
+  saved: BlogPostAuthorAdmin | null;
   disabled?: boolean;
   onChange: (adminUserId: string | null) => void;
 }): ReactNode {
@@ -32,21 +40,24 @@ export function AuthorPicker({
 
   // The current author stays an option even when no longer a candidate.
   const options =
-    value && !candidates.some((c) => c.id === value.id)
-      ? [{ id: value.id, name: value.name || t('author.deleted'), avatarUrl: value.avatarUrl }, ...candidates]
+    saved && !candidates.some((c) => c.id === saved.id)
+      ? [{ id: saved.id, name: saved.name || t('author.deleted'), avatarUrl: saved.avatarUrl }, ...candidates]
       : candidates;
+  const chosen = options.find((option) => option.id === value) ?? null;
+  // The inactive / deleted mark belongs to the saved author, and only while they stay chosen.
+  const state = saved && saved.id === value ? saved.state : 'active';
 
   return (
     <div className="space-y-1">
       <Label htmlFor={id}>{t('author.label')}</Label>
       <div className="flex items-center gap-2">
-        {value?.avatarUrl ? (
+        {chosen?.avatarUrl ? (
           // Decorative: the name is beside it.
-          <img src={value.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+          <img src={chosen.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
         ) : null}
         <Select
           id={id}
-          value={value?.id ?? ''}
+          value={value ?? ''}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
         >
@@ -57,8 +68,8 @@ export function AuthorPicker({
             </option>
           ))}
         </Select>
-        {value && value.state !== 'active' ? (
-          <Badge variant="warning">{value.state === 'inactive' ? t('author.inactive') : t('author.deleted')}</Badge>
+        {state !== 'active' ? (
+          <Badge variant="warning">{state === 'inactive' ? t('author.inactive') : t('author.deleted')}</Badge>
         ) : null}
       </div>
       <p className="text-xs text-muted-foreground">{t('author.hint')}</p>

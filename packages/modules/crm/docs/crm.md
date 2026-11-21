@@ -48,7 +48,7 @@ when at least one of them is visible.
 | --- | --- | --- | --- |
 | Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, as a list or, with the **List / Board** switch in the header, as a board. The list has search and filters by state, status, organization, assignee, tags, sales channel, creation date and the custom fields marked as list filters. |
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
-| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | A header, a stage bar with its current status and the moves allowed from it, back and forward, a card of its facts on the right, and tabs: *Overview*, **Links** (its orders and quote requests), **Events** (what is planned for it, with reminders), *Notes*, *Messages*, *Attachments* and **Change history**. See *The opportunity's screen*. |
+| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | A header with the status beside the title, a stage bar with the moves allowed from that status, back and forward, a card of its facts on the right, and tabs: *Overview*, **Links** (its orders and quote requests), **Events** (what is planned for it, with reminders), *Notes*, *Messages*, *Attachments* and **Change history**. See *The opportunity's screen*. |
 | Board | **Board** in the *List / Board* switch of **CRM → Opportunities** (`/crm/opportunities?view=board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. The former address `/crm/board` still opens it. |
 | Calendar | **CRM → Calendar** (`/crm/calendar`) | `crm:read` | The events planned on the open opportunities you may see, by month, week or day, or as a list. Every event opens its opportunity. See *The calendar*. |
 | Analytics | **CRM → Analytics** (`/crm/analytics`) | `crm:analytics` | Five figures over a range of days: handling time, time in each status, the most effective sales reps, the most valuable opportunities and the average value. |
@@ -94,8 +94,9 @@ right. There is no **Edit** button and no separate edit form: every field that
 can be changed is changed where it is shown (see *Editing and deleting an
 opportunity*). The title has its pencil beside the heading.
 
-**The stage bar**, at the top of the left column, names the **current status**
-and shows where the opportunity can go from it — and nothing else. A workflow
+**The stage bar**, at the top of the left column, shows under **Move to…**
+where the opportunity can go from its status — and nothing else. The status
+itself is the badge beside the title; the bar does not repeat it. A workflow
 is not a straight line, so the bar does not draw one: a status your workflow
 does not allow from here is not on the screen.
 
@@ -109,7 +110,7 @@ does not allow from here is not on the screen.
   the bar says so; a closed opportunity also says how and when it closed.
 - For a holder of `crm:write` **each move is a button**, and pressing it is the
   same status change, with the same rules, as anywhere else in the module. The
-  optional **reason** is the field under the bar. Somebody with `crm:read`
+  optional **reason** is behind **Add a reason** under the moves. Somebody with `crm:read`
   alone sees the same moves as plain text.
 - **The bar does not claim a history, and it does not count stages.** It says
   where the opportunity is and where it can go; the *Change history* tab says
@@ -285,8 +286,9 @@ opportunity you were looking at (`If-Match`). What happens next:
   is not of the organization — the field shows the server's own message and
   keeps what you typed.
 
-A status change can carry a **reason**: write it in the field under the stage
-bar before pressing a status. It is optional and is recorded with the change.
+A status change can carry a **reason**: press **Add a reason** under the
+moves, write it, then press a status. It is optional, is recorded with the
+change, and the field folds again after the move.
 
 **Delete**, in the header of the screen, is for a holder of `crm:configure`. It
 asks first, and removes the opportunity together with its status history and
