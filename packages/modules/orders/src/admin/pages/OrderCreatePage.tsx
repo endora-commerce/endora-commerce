@@ -534,14 +534,20 @@ function AddressPicker(props: {
         >
           {props.heading}
         </Label>
-        <div className="flex gap-1">
+        {/* Issue #1600 — two toggle buttons in a named group, the pressed one
+            saying which source is chosen (as the kit's ViewModeToggle). Pressing
+            the source already chosen changes nothing, so a typed address or a
+            picked one is never wiped by a second press. */}
+        <div className="flex gap-1" role="group" aria-label={t('orderCreate.address.mode.label')}>
           <Button
             type="button"
             size="sm"
             variant={choice.mode === 'existing' ? 'default' : 'outline'}
             aria-pressed={choice.mode === 'existing'}
             disabled={props.disabled}
-            onClick={(): void => onChange({ mode: 'existing', id: '' })}
+            onClick={(): void => {
+              if (choice.mode !== 'existing') onChange({ mode: 'existing', id: '' });
+            }}
           >
             {t('orderCreate.address.mode.existing')}
           </Button>
@@ -550,7 +556,9 @@ function AddressPicker(props: {
             size="sm"
             variant={choice.mode === 'new' ? 'default' : 'outline'}
             aria-pressed={choice.mode === 'new'}
-            onClick={(): void => onChange({ mode: 'new', fields: { ...EMPTY_INLINE }, save: true })}
+            onClick={(): void => {
+              if (choice.mode !== 'new') onChange({ mode: 'new', fields: { ...EMPTY_INLINE }, save: true });
+            }}
           >
             {t('orderCreate.address.mode.new')}
           </Button>

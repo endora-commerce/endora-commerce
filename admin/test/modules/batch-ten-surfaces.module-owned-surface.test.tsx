@@ -535,7 +535,6 @@ describe('the moved screens take no reach the package cannot resolve', () => {
     'settings/src/admin/components/ConfigurationReferenceInput.tsx',
     'settings/src/admin/components/ConflictBanner.tsx',
     'settings/src/admin/components/ImageSettingInput.tsx',
-    'settings/src/admin/components/QuoteRequestsSettingsTab.tsx',
     'settings/src/admin/components/SellerCompanyDataInput.tsx',
     'settings/src/admin/components/SettingRowEditor.tsx',
     'settings/src/admin/pages/CachePage.tsx',
