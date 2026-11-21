@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { BellRing, ChevronDown } from 'lucide-react';
 import { Alert, AlertDescription, Button, Checkbox, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { cn } from '@endora-commerce/admin-kit/lib';
 import { tasksApi } from '../api.js';
 import { errorMessage } from '../lib/labels.js';
 
@@ -24,13 +26,24 @@ function hourLabel(hour: number): string {
  * moving through the list with the arrow keys writes nothing (WCAG 3.2.2,
  * T092) (`PUT` / `DELETE /tasks/me/digest`). Each save is said in a polite
  * live region.
+ *
+ * Issue #1563 (UX WORK-14, architect ruling DEC-14 on #512): the control is a
+ * setting, not the work, so *My Tasks* no longer opens with it above the
+ * filters. {@link useDigestDisclosure} returns a one-line summary for the
+ * page header's actions — "Daily digest: off" / "Daily digest: on, 08:00",
+ * so the state is read without opening anything — and the panel it discloses
+ * (`aria-expanded` / `aria-controls`), mounted below the header and closed by
+ * default (Flow, Signal-to-noise). The panel stays mounted while closed, so
+ * its polite live region exists before a save gives it text (WCAG 4.1.3).
  */
-export function DigestControl(): ReactNode {
+export function useDigestDisclosure(): { trigger: ReactNode; panel: ReactNode } {
   const t = useTranslation('tasks');
   const tCore = useTranslation('core');
   const toggleId = useId();
   const hourId = useId();
   const hintId = useId();
+  const panelId = useId();
+  const [open, setOpen] = useState(false);
   const [hour, setHour] = useState<number | null>(null);
   /** The hour chosen in the list and not saved yet; `null` when it is the stored one. */
   const [staged, setStaged] = useState<number | null>(null);
@@ -93,8 +106,34 @@ export function DigestControl(): ReactNode {
     }
   };
 
-  return (
-    <section aria-label={t('digest.title')} className="space-y-2 rounded-md border p-3 text-sm">
+  const summary = !loaded
+    ? t('digest.title')
+    : hour === null
+      ? t('digest.summary.off')
+      : t('digest.summary.on', { hour: hourLabel(hour) });
+
+  const trigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      className="min-h-11 sm:min-h-9"
+      aria-expanded={open}
+      aria-controls={panelId}
+      onClick={(): void => setOpen((current) => !current)}
+    >
+      <BellRing aria-hidden="true" />
+      {summary}
+      <ChevronDown aria-hidden="true" className={cn('transition-transform motion-reduce:transition-none', open && 'rotate-180')} />
+    </Button>
+  );
+
+  const panel = (
+    <section
+      id={panelId}
+      hidden={!open}
+      aria-label={t('digest.title')}
+      className="mb-4 space-y-2 rounded-md border p-3 text-sm"
+    >
       {loadFailed ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-muted-foreground">{t('digest.error')}</p>
@@ -174,4 +213,6 @@ export function DigestControl(): ReactNode {
       ) : null}
     </section>
   );
+
+  return { trigger, panel };
 }

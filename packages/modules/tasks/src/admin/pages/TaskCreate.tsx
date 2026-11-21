@@ -10,6 +10,7 @@ import {
   Card,
   CardContent,
   Checkbox,
+  FormField,
   Input,
   Label,
   PageHeader,
@@ -175,31 +176,19 @@ export function TaskCreate(): ReactNode {
               </p>
             ) : null}
             {context ? <p className="text-sm">{t('create.context')}</p> : null}
-            <div className="space-y-1">
-              <Label htmlFor={ids.title}>
-                {t('field.title')}
-                <span aria-hidden="true" className="text-destructive">
-                  {' *'}
-                </span>
-              </Label>
+            {/* Issue #1564 (WORK-16): required is the kit FormField's asterisk and aria-required, not a prose note. */}
+            <FormField label={t('field.title')} error={missingTitle ? t('create.error.title') : undefined} required>
               <Input
                 id={ids.title}
                 value={title}
                 maxLength={TASK_TITLE_MAX}
                 required
-                aria-invalid={missingTitle}
-                aria-describedby={missingTitle ? `${ids.title}-error` : undefined}
                 onChange={(event): void => {
                   setTitle(event.target.value);
                   setMissingTitle(false);
                 }}
               />
-              {missingTitle ? (
-                <p id={`${ids.title}-error`} className="text-xs text-destructive">
-                  {t('create.error.title')}
-                </p>
-              ) : null}
-            </div>
+            </FormField>
 
             <TaskFieldInputs
               values={fields}
