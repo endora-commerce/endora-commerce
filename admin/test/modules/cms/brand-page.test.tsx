@@ -463,4 +463,49 @@ describe('BrandPage', () => {
     // The reload replaces the unsaved edit with what is stored.
     await waitFor(() => expect(colorTrigger(copy('brand.colors.primary')).textContent).toContain('#1d4ed8'));
   });
+
+  // Issue #1514 (UX audit CONTENT-14): the screen was nine cards, with boxes three
+  // borders deep. It is now one card of sections for the form, scope included,
+  // beside one card for the preview, and nothing inside the form card is framed
+  // but the fields themselves (Common Region).
+  it('draws the form as sections of one card, beside one preview card', async () => {
+    mount();
+    await loaded();
+
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-slot="card"]'));
+    expect(cards).toHaveLength(2);
+    const [form, preview] = cards as [HTMLElement, HTMLElement];
+    expect(within(form).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+      copy('brand.scope.title'),
+      copy('brand.section.colors'),
+      copy('brand.section.schemes'),
+      copy('brand.section.typography'),
+      copy('brand.section.buttons'),
+      copy('brand.section.spacing'),
+      copy('brand.section.layout'),
+    ]);
+    for (const key of ['brand.scope.title', 'brand.section.colors', 'brand.section.layout']) {
+      expect(form.contains(screen.getByRole('region', { name: copy(key) })), key).toBe(true);
+    }
+    expect(preview).toBe(screen.getByRole('region', { name: copy('brand.preview.title') }));
+  });
+
+  it('frames no scheme, font or font file inside the form card, nor the override notice', async () => {
+    channelState = { tokens: OVERRIDE, version: 2 };
+    mount();
+    await loaded();
+    await chooseChannel();
+    await screen.findByText(copy('brand.scope.overriddenNotice'));
+    const heading = screen.getByRole('group', { name: copy('brand.fonts.heading') });
+    fireEvent.change(within(heading).getByLabelText(copy('brand.fonts.kind')), { target: { value: 'asset' } });
+    await within(heading).findByLabelText(copy('brand.fonts.weight'));
+
+    const form = document.querySelector<HTMLElement>('[data-slot="card"]')!;
+    expect(form.querySelectorAll('[data-slot="card"]')).toHaveLength(0);
+    expect(form.querySelectorAll('[data-slot="alert"]')).toHaveLength(0);
+    const framed = Array.from(form.querySelectorAll<HTMLElement>('fieldset, li')).filter((node) =>
+      node.classList.contains('border'),
+    );
+    expect(framed.map((node) => node.tagName)).toEqual([]);
+  });
 });
