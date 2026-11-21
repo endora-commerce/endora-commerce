@@ -3,17 +3,10 @@ import { useParams } from 'react-router-dom';
 import type { AdminProductContent, AdminProductContentList, AdminZoneProps } from '@endora-commerce/contracts';
 import { ApiError, apiClient, useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, PageHeader, TabPanel, useInlineStatus } from '@endora-commerce/admin-kit/ui';
-import { ContentLanguageTabs, adminLanguageToLocale } from '@endora-commerce/admin-kit/components';
+import { ContentLanguageTabs, adminLanguageToLocale, offerContentLanguages, type ContentLanguageOffer } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
-import { PRODUCT_CONTENT_LANGUAGES } from '../components/ProductContentCard.js';
-
-/**
- * The languages a content value is edited in, shared with the Attributes tab's
- * card; a language only the stored content carries is offered after them
- * (FR-021).
- */
-const CATALOG_LOCALES = PRODUCT_CONTENT_LANGUAGES;
+import { ContentLanguageNotes, OutsideLanguageNotice, offeredLanguages, readChannelLanguages } from '../components/ContentLanguageNotes.js';
 
 type EditorZoneProps = AdminZoneProps<'product.content.editor'>;
 
@@ -65,13 +58,15 @@ export function ProductContentPage(): ReactNode {
   const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [languages, setLanguages] = useState<string[]>([...CATALOG_LOCALES]);
-  const [activeLanguage, setActiveLanguage] = useState<string>(CATALOG_LOCALES[0]);
+  // #1507 — the sales channels' languages, then any stored one no channel offers (ruling Q3).
+  const [offer, setOffer] = useState<ContentLanguageOffer>({ editable: [], outside: [], degraded: 'loading' });
+  const languages = useMemo(() => offeredLanguages(offer), [offer]);
+  const [activeLanguage, setActiveLanguage] = useState<string>('');
   // What the editor is seeded with for the active language. It changes when
   // the language does and when a load lands — never on an edit or a save, so
   // a keystroke in the canvas does not hand the canvas a new document.
   const [seed, setSeed] = useState<{ language: string; data: unknown; revision: number }>({
-    language: CATALOG_LOCALES[0],
+    language: '',
     data: null,
     revision: 0,
   });
@@ -88,21 +83,22 @@ export function ProductContentPage(): ReactNode {
     setError(null);
     void (async (): Promise<void> => {
       try {
-        const [content, list, product] = await Promise.all([
+        const [content, list, product, channels] = await Promise.all([
           apiClient.get<{ data: AdminProductContent }>(
             `/api/v1/admin/catalog/products/${productId}/content/${attributeKey}`,
           ),
           apiClient.get<{ data: AdminProductContentList }>(`/api/v1/admin/catalog/products/${productId}/content`),
           apiClient.get<{ data: { name: Record<string, string> } }>(`/api/v1/admin/catalog/products/${productId}`),
+          readChannelLanguages(),
         ]);
         if (cancelled) return;
         const stored = content.data.content?.languages ?? {};
-        const offered = [...new Set<string>([...CATALOG_LOCALES, ...Object.keys(stored)])];
+        const nextOffer = offerContentLanguages(channels, Object.keys(stored), [locale]);
         draft.current = { ...stored };
-        const first = offered[0] ?? CATALOG_LOCALES[0];
+        const first = offeredLanguages(nextOffer)[0] ?? '';
         setProductName(product.data.name);
         setAttributeLabel(list.data.attributes.find((attribute) => attribute.key === attributeKey)?.label);
-        setLanguages(offered);
+        setOffer(nextOffer);
         setActiveLanguage(first);
         setSeed((previous) => ({ language: first, data: stored[first] ?? null, revision: previous.revision + 1 }));
         setDirty(false);
@@ -206,6 +202,7 @@ export function ProductContentPage(): ReactNode {
                 {t('productContent.editor.title', { language: activeLanguage })}
               </CardTitle>
               <ContentLanguageTabs languages={languages} activeLanguage={activeLanguage} onChange={selectLanguage} idBase={CONTENT_TABS_ID} />
+              <ContentLanguageNotes offer={offer} />
             </div>
             {canWrite ? (
               <div className="flex flex-wrap items-center gap-3">
@@ -222,9 +219,13 @@ export function ProductContentPage(): ReactNode {
             {/* Keyed on the seed: a language switch or a load mounts a fresh
                 editor on that document, and an edit or a save never does. */}
             <TabPanel idBase={CONTENT_TABS_ID} value={activeLanguage} tabIndex={-1}>
-              <div key={`${seed.language}:${seed.revision}`}>
-                <AdminZone name="product.content.editor" props={zoneProps} />
-              </div>
+              {offer.outside.includes(activeLanguage) ? (
+                <OutsideLanguageNotice language={activeLanguage} />
+              ) : (
+                <div key={`${seed.language}:${seed.revision}`}>
+                  <AdminZone name="product.content.editor" props={zoneProps} />
+                </div>
+              )}
             </TabPanel>
           </CardContent>
         </Card>

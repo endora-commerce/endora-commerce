@@ -37,7 +37,9 @@ jest wypełniona, oraz krótkie podsumowanie tego, co zapisano. Karty są takie 
 przełącznika zakresów edytora: treść nie ma wartości dla kanału sprzedaży. **Edytuj treść** otwiera ekran treści produktu
 (`/catalog/products/:id/content/:attributeKey`). Zawiera on:
 
-- przełącznik **języka** — angielski, polski i każdy inny język, który ma już zapisana treść;
+- przełącznik **języka** — języki aktywnych kanałów sprzedaży, a po nich każdy inny język, który ma już
+  zapisana treść. Taki język jest wymieniony pod przełącznikiem jako tylko do odczytu: jego dokument zostaje
+  zachowany i zapisany bez zmian, ale nie jest edytowany;
 - obszar roboczy **Page Buildera** dla wybranego języka;
 - przycisk **Zapisz treść** — jedno zapisanie utrwala wszystkie edytowane języki. Opuszczenie ekranu z
   niezapisanymi zmianami wymaga potwierdzenia. Link powrotu prowadzi do karty Atrybuty produktu.
