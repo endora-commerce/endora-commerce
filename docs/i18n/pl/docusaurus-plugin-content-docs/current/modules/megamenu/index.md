@@ -127,7 +127,7 @@ Bez `megamenu.write` lista jest tylko do odczytu: bez **Nowego megamenu** i bez 
 
 Edytor ma jeden przycisk **Zapisz**, w nagłówku, z opcją *Zapisz i wyjdź* obok. Zapisuje nazwę i opis, a potem drzewo pozycji — każde tylko wtedy, gdy się zmieniło; do storefrontu nic nie trafia przed zapisem, a wyjście z niezapisanymi zmianami najpierw o to pyta. Wynik pojawia się obok przycisku.
 
-Wyjątkiem są **powiązania**: dodanie, usunięcie, aktywacja i dezaktywacja powiązania działa od razu, samodzielnie, dlatego ta sekcja jest oznaczona jako *Działa od razu*.
+Wyjątkiem są **powiązania**: dodanie, usunięcie, aktywacja i dezaktywacja powiązania działa od razu, samodzielnie, dlatego ta sekcja jest oznaczona jako *Działa od razu*. Usunięcie powiązania najpierw prosi o potwierdzenie.
 
 Na szerokim ekranie nazwa i opis stoją obok powiązań, a drzewo pozycji obok panelu, który edytuje wybraną pozycję; na wąskim układają się jedno pod drugim.
 

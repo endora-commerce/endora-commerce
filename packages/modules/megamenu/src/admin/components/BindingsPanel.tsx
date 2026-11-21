@@ -22,6 +22,7 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
+import { useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
 
 import { megamenuClient } from '../api/megamenu-client.js';
 
@@ -29,6 +30,10 @@ interface BindingsPanelProps {
   menuId: string;
   bindings: MegamenuBinding[];
   onChanged: () => void;
+}
+
+function bindingKey(binding: MegamenuBinding): string {
+  return `${binding.salesChannelId}:${binding.language}`;
 }
 
 // GET /admin/sales-channels returns a paginated envelope (`items`), not a
@@ -54,6 +59,10 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
   // Issue #313 — what an activation swapped out, said on the panel rather than in `alert()`.
   const status = useInlineStatus();
   const [busy, setBusy] = useState(false);
+  // Removing a binding takes the menu off a storefront scope: asked first, the request runs inside
+  // the question, and focus moves to the next row's remove button, else to the add row (WCAG 2.4.3).
+  const { confirm, confirmDialog } = useConfirmDialog();
+  const removalFocus = useRemovalFocus(bindings, bindingKey, true);
 
   useEffect(() => {
     apiClient
@@ -106,18 +115,22 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
   };
 
   const remove = async (binding: MegamenuBinding): Promise<void> => {
-    setBusy(true);
     setError(null);
     status.clear();
-    try {
-      await megamenuClient.removeBinding(menuId, binding.salesChannelId, binding.language);
-      status.show(t('bindings.removed'));
-      onChanged();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+    const scope = { channel: channelById.get(binding.salesChannelId)?.code ?? binding.salesChannelId, language: binding.language };
+    const removed = await confirm({
+      title: t('bindings.removeConfirm.title'),
+      message: t('bindings.removeConfirm.message', scope),
+      confirmLabel: t('bindings.removeConfirm.action'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+      action: () => megamenuClient.removeBinding(menuId, binding.salesChannelId, binding.language),
+      describeError: (err) => (err instanceof Error ? err.message : String(err)),
+      returnFocusTo: removalFocus.returnFocusTo(binding),
+    });
+    if (!removed) return;
+    status.show(t('bindings.removed'));
+    onChanged();
   };
 
   const activate = async (binding: MegamenuBinding): Promise<void> => {
@@ -171,6 +184,10 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
       {/* Reflows below `sm` instead of squeezing three controls into one row (WCAG 1.4.10). */}
       <div className="grid gap-2 sm:grid-cols-12">
         <Select
+          // Focus lands here once the last binding is removed: *Add binding* is disabled until both are picked.
+          ref={(element) => {
+            removalFocus.createRef.current = element;
+          }}
           className="sm:col-span-5"
           aria-label={t('bindings.salesChannelLabel')}
           value={pickedChannelId}
@@ -260,6 +277,7 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
                       </Button>
                     )}
                     <Button
+                      ref={removalFocus.targetRef(binding)}
                       size="sm"
                       variant="ghost"
                       className="text-destructive"
@@ -279,6 +297,7 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
           </TableBody>
         </Table>
       )}
+      {confirmDialog}
     </div>
   );
 }

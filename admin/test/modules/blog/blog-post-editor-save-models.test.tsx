@@ -216,6 +216,22 @@ describe('BlogPostEditor — author, tags and related items join the one Save (#
     expect(screen.queryByText(copy('messages.saved'), { selector: '[data-slot="alert-description"], [role="alert"] *' })).toBeNull();
   });
 
+  it('clears the "Saved." beside Save on the next edit, so it never sits beside unsaved changes', async () => {
+    renderEditor();
+    await loaded();
+    const status = within(screen.getByRole('button', { name: copy('common.save') }).closest('[data-save-actions]') as HTMLElement).getByRole(
+      'status',
+    );
+    fireEvent.click(screen.getByRole('button', { name: copy('common.save') }));
+    await waitFor(() => expect(status.textContent).toContain(copy('messages.saved')));
+
+    fireEvent.change(screen.getByLabelText(copy('fields.namePerLanguage'), { selector: 'input' }), {
+      target: { value: 'Edited name' },
+    });
+
+    await waitFor(() => expect(status.textContent).toBe(''));
+  });
+
   it('puts the Immediate badge on the address panel only, which still saves on its own', async () => {
     renderEditor();
     await loaded();

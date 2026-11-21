@@ -90,7 +90,7 @@ Without `megamenu.write` the list is read-only: no **New megamenu** and no row m
 
 The editor has one **Save**, in its header, with *Save and exit* beside it. It saves the name and description and then the item tree, each only when it changed; nothing reaches the storefront until you save, and leaving with unsaved changes asks first. The result is shown beside the button.
 
-**Bindings** are the exception: adding, removing, activating and deactivating a binding applies at once, on its own, so that section is marked *Applies immediately*.
+**Bindings** are the exception: adding, removing, activating and deactivating a binding applies at once, on its own, so that section is marked *Applies immediately*. Removing a binding asks first.
 
 On a wide screen the name and description sit beside the bindings, and the item tree beside the panel that edits the selected item; on a narrow one they stack.
 

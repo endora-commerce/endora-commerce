@@ -195,6 +195,40 @@ describe('MegamenuEditor — bindings apply at once, and say so (#1512, DEC-08)'
     ).toBeTruthy();
   });
 
+  it('asks before removing a binding, and removes nothing on Cancel', async () => {
+    const remove = vi.spyOn(megamenuClient, 'removeBinding').mockResolvedValue(undefined as never);
+    renderEditor();
+    await loaded();
+    const bindings = section('sections.bindings');
+
+    fireEvent.click(await within(bindings).findByRole('button', { name: copy('bindings.remove', { channel: 'web', language: 'en-US' }) }));
+    const dialog = await screen.findByRole('dialog', { name: copy('bindings.removeConfirm.title') });
+    expect(remove).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: copy('common.cancel') }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('removes the binding inside the confirmation, says so, and puts focus on the channel picker of the add row when none is left', async () => {
+    const remove = vi.spyOn(megamenuClient, 'removeBinding').mockResolvedValue(undefined as never);
+    const getMenu = vi.mocked(megamenuClient.getMenu);
+    renderEditor();
+    await loaded();
+    const bindings = section('sections.bindings');
+
+    fireEvent.click(await within(bindings).findByRole('button', { name: copy('bindings.remove', { channel: 'web', language: 'en-US' }) }));
+    const dialog = await screen.findByRole('dialog', { name: copy('bindings.removeConfirm.title') });
+    getMenu.mockResolvedValue({ ...stored, bindings: [] });
+    fireEvent.click(within(dialog).getByRole('button', { name: copy('bindings.removeConfirm.action') }));
+
+    await waitFor(() => expect(remove).toHaveBeenCalledWith('menu-1', 'channel-1', 'en-US'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(within(bindings).getByRole('status').textContent).toContain(copy('bindings.removed')));
+    // *Add binding* is disabled until a channel and language are picked, so focus goes to the first of them.
+    await waitFor(() => expect(document.activeElement).toBe(within(bindings).getByLabelText(copy('bindings.salesChannelLabel'))));
+  });
+
   it('says an activation beside the bindings, not as a banner', async () => {
     vi.spyOn(megamenuClient, 'activate').mockResolvedValue({ previouslyActive: null } as never);
     renderEditor();

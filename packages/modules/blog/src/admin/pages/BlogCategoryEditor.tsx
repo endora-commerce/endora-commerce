@@ -347,6 +347,12 @@ export function BlogCategoryEditor(): ReactNode {
     );
   })();
 
+  // A "Saved." stays only while nothing has changed since: the next edit clears it (issue #1512).
+  const { clear: clearStatus } = status;
+  useEffect(() => {
+    if (dirty) clearStatus();
+  }, [dirty, clearStatus]);
+
   const discard = (): void => {
     if (!category) {
       setForm(blankForm);
