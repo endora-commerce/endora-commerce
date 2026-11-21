@@ -249,7 +249,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'admin_feedback:settingLabels.admin_feedback.relay_url.description': 139,
   'admin_notifications:settingLabels.admin_notifications.enabled.description': 233,
   'analytics:settingLabels.analytics.reporting_time_zone.description': 229,
-  'blog:urlKeys.hint': 90,
   'catalog:productsList.bulkEdit.archive.hint': 123,
   'catalog:productsList.bulkEdit.restore.hint': 112,
   'catalog:settingLabels.catalog.scope_completeness_gate.description': 141,

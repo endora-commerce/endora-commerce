@@ -86,6 +86,14 @@ An administrator with `megamenu.write` creates and deletes from here:
 
 Without `megamenu.write` the list is read-only: no **New megamenu** and no row menu.
 
+## The editor
+
+The editor has one **Save**, in its header, with *Save and exit* beside it. It saves the name and description and then the item tree, each only when it changed; nothing reaches the storefront until you save, and leaving with unsaved changes asks first. The result is shown beside the button.
+
+**Bindings** are the exception: adding, removing, activating and deactivating a binding applies at once, on its own, so that section is marked *Applies immediately*.
+
+On a wide screen the name and description sit beside the bindings, and the item tree beside the panel that edits the selected item; on a narrow one they stack.
+
 ## Writes and audit
 
 Every write — a menu's create, update and delete, the item tree's save, and a binding's add, remove, activation and deactivation — runs as a Command (`megamenu.create`, `megamenu.update`, `megamenu.delete`, `megamenu.items.set`, `megamenu.binding.add`, `megamenu.binding.remove`, `megamenu.binding.activate`, `megamenu.binding.deactivate`) and records one audit entry under object type `megamenu`. A tree save's entry holds the tree: each item's kind, presentation, alignment, audience, labels and target.

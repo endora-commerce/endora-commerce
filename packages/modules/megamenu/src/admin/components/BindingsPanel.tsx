@@ -5,7 +5,21 @@ import type {
   SalesChannelDetail,
   SalesChannelSummary,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Badge, Button, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  InlineStatus,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 
@@ -24,6 +38,12 @@ interface SalesChannelsResponse {
   items: SalesChannelSummary[];
 }
 
+/**
+ * A megamenu's (sales channel, language) bindings. Every change here applies at once, on its own,
+ * outside the editor's header Save — the editor marks the section with the kit's `ImmediateBadge`
+ * — so the result of each is said in this section's `InlineStatus` (issue #1512, CONTENT-09;
+ * DEC-08), and no button here is filled: the header Save is the screen's one primary (Von Restorff).
+ */
 export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProps): ReactNode {
   const t = useTranslation('megamenu');
   const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
@@ -32,7 +52,7 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
   const [pickedChannelLanguages, setPickedChannelLanguages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   // Issue #313 — what an activation swapped out, said on the panel rather than in `alert()`.
-  const [notice, setNotice] = useState<string | null>(null);
+  const status = useInlineStatus();
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -68,6 +88,7 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
     if (!pickedChannelId || !pickedLanguage) return;
     setBusy(true);
     setError(null);
+    status.clear();
     try {
       await megamenuClient.addBinding(menuId, {
         salesChannelId: pickedChannelId,
@@ -75,6 +96,7 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
       });
       setPickedChannelId('');
       setPickedLanguage('');
+      status.show(t('bindings.added'));
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -86,8 +108,10 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
   const remove = async (binding: MegamenuBinding): Promise<void> => {
     setBusy(true);
     setError(null);
+    status.clear();
     try {
       await megamenuClient.removeBinding(menuId, binding.salesChannelId, binding.language);
+      status.show(t('bindings.removed'));
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -99,16 +123,18 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
   const activate = async (binding: MegamenuBinding): Promise<void> => {
     setBusy(true);
     setError(null);
-    setNotice(null);
+    status.clear();
     try {
       const result = await megamenuClient.activate(menuId, {
         salesChannelId: binding.salesChannelId,
         language: binding.language,
       });
-      if (result.previouslyActive) {
-        // Surface the swap so the admin knows what happened.
-        setNotice(t('bindings.activatedWithPrevious', { name: result.previouslyActive.name }));
-      }
+      // Surface a swap so the admin knows what else changed.
+      status.show(
+        result.previouslyActive
+          ? t('bindings.activatedWithPrevious', { name: result.previouslyActive.name })
+          : t('bindings.activated'),
+      );
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -120,11 +146,13 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
   const deactivate = async (binding: MegamenuBinding): Promise<void> => {
     setBusy(true);
     setError(null);
+    status.clear();
     try {
       await megamenuClient.deactivate(menuId, {
         salesChannelId: binding.salesChannelId,
         language: binding.language,
       });
+      status.show(t('bindings.deactivated'));
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -140,17 +168,11 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {/* Mounted before it has text, so the notice is announced when it arrives. */}
-      <div role="status" aria-live="polite">
-        {notice ? (
-          <Alert live="polite">
-            <AlertDescription>{notice}</AlertDescription>
-          </Alert>
-        ) : null}
-      </div>
-      <div className="grid grid-cols-12 gap-2">
+      {/* Reflows below `sm` instead of squeezing three controls into one row (WCAG 1.4.10). */}
+      <div className="grid gap-2 sm:grid-cols-12">
         <Select
-          className="col-span-5"
+          className="sm:col-span-5"
+          aria-label={t('bindings.salesChannelLabel')}
           value={pickedChannelId}
           onChange={(event) => {
             setPickedChannelId(event.target.value);
@@ -166,7 +188,8 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
           ))}
         </Select>
         <Select
-          className="col-span-4"
+          className="sm:col-span-4"
+          aria-label={t('bindings.languageLabel')}
           value={pickedLanguage}
           onChange={(event) => setPickedLanguage(event.target.value)}
           disabled={busy || !pickedChannelId}
@@ -180,13 +203,16 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
         </Select>
         <Button
           type="button"
-          className="col-span-3"
+          variant="outline"
+          className="sm:col-span-3"
           onClick={() => void addBinding()}
           disabled={busy || !pickedChannelId || !pickedLanguage}
         >
           {t('bindings.add')}
         </Button>
       </div>
+      {/* Mounted before it has text, so each result is announced when it arrives (WCAG 4.1.3). */}
+      <InlineStatus {...status.props} />
 
       {bindings.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('bindings.empty')}</p>
@@ -229,17 +255,22 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
                         {t('bindings.deactivate')}
                       </Button>
                     ) : (
-                      <Button size="sm" onClick={() => void activate(binding)} disabled={busy}>
+                      <Button size="sm" variant="outline" onClick={() => void activate(binding)} disabled={busy}>
                         {t('bindings.activate')}
                       </Button>
                     )}
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="text-destructive"
+                      aria-label={t('bindings.remove', {
+                        channel: channel?.code ?? binding.salesChannelId,
+                        language: binding.language,
+                      })}
                       onClick={() => void remove(binding)}
                       disabled={busy}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
                     </Button>
                   </TableCell>
                 </TableRow>

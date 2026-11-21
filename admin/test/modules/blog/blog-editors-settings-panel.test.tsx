@@ -372,8 +372,10 @@ describe.each(screens)('$name in the shared editor shell', (screenUnderTest) => 
     expect(putBody.version).toBe(4);
     expect(JSON.stringify(putBody)).toContain('"en-US":{"root":{"props":{}},"content":[{"type":"Heading"');
     // Announced, not only shown: a polite live region that was there before the text.
+    // Beside the Save button (an InlineStatus, issue #1512), not a banner under the header.
+    const actions = saveButton().closest('[data-save-actions]') as HTMLElement;
     await waitFor(() => {
-      expect(screen.getByRole('status').textContent).toContain(copy('messages.saved'));
+      expect(within(actions).getByRole('status').textContent).toContain(copy('messages.saved'));
     });
   });
 

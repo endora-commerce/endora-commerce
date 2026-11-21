@@ -10,8 +10,8 @@ import { megamenuClient } from '../../../../packages/modules/megamenu/src/admin/
 import { MegamenuEditor } from '../../../../packages/modules/megamenu/src/admin/pages/MegamenuEditor';
 
 /**
- * Issue #1461 (UX audit CONTENT-02) — the megamenu editor's two cards (name and
- * description; the item tree) each say when they hold unsaved changes, and a
+ * Issue #1461 (UX audit CONTENT-02) — the megamenu editor says when it holds
+ * unsaved changes (one hint beside the one header Save since issue #1512), and a
  * link out of the editor asks Save / Discard / Stay. A binding saved on its own
  * no longer reloads the stored tree over an unsaved one.
  */
@@ -69,16 +69,16 @@ describe('MegamenuEditor — unsaved changes', () => {
   it('is clean as loaded and a link out leaves at once', async () => {
     renderEditor();
     await screen.findByRole('heading', { level: 1, name: 'Main menu' });
-    expect(hints()).toEqual(['', '']);
+    expect(hints()).toEqual(['']);
     fireEvent.click(screen.getByRole('link', { name: en['common.back'] ?? 'Back' }));
     expect(await screen.findByText('Menu list')).toBeTruthy();
   });
 
-  it('marks the card that changed, and Back asks before leaving it', async () => {
+  it('marks the editor unsaved, and Back asks before leaving it', async () => {
     renderEditor();
     await screen.findByRole('heading', { level: 1, name: 'Main menu' });
     fireEvent.change(screen.getByDisplayValue('Main menu'), { target: { value: 'Top menu' } });
-    expect(hints()).toEqual([ux('hint'), '']);
+    expect(hints()).toEqual([ux('hint')]);
     fireEvent.click(screen.getByRole('link', { name: en['common.back'] ?? 'Back' }));
     const dialog = screen.getByRole('dialog', { name: ux('title') });
     fireEvent.click(within(dialog).getByRole('button', { name: ux('stay') }));
@@ -86,7 +86,7 @@ describe('MegamenuEditor — unsaved changes', () => {
     expect(screen.getByDisplayValue('Top menu')).toBeTruthy();
   });
 
-  it('Save and continue saves the changed card on the loaded version, then leaves', async () => {
+  it('Save and continue saves what changed on the loaded version, then leaves', async () => {
     const patch = vi.spyOn(megamenuClient, 'patchMenu').mockResolvedValue({ ...stored, name: 'Top menu', version: 4 });
     renderEditor();
     await screen.findByRole('heading', { level: 1, name: 'Main menu' });

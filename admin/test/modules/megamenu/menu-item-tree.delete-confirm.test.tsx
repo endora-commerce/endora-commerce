@@ -62,7 +62,7 @@ describe('MenuItemTree — deleting asks first (#1464)', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Delete this menu item?' });
     expect(dialog).toHaveTextContent('“Products” and the 3 items nested under it');
-    expect(dialog).toHaveTextContent('until you save the tree');
+    expect(dialog).toHaveTextContent('until you save.');
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
     await answerConfirm(false);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
