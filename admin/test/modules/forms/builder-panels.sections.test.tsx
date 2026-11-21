@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { useState, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
@@ -35,6 +37,9 @@ const { FieldInspector } = await import('../../../../packages/modules/forms/src/
 const { FormBuilderPage } = await import('../../../../packages/modules/forms/src/admin/pages/FormBuilderPage');
 
 const API = `/api/v1/admin/forms/${FORM_ID}`;
+const IMMEDIATE = (
+  JSON.parse(readFileSync(resolve(process.cwd(), '../packages/modules/_i18n/i18n/en.json'), 'utf8')) as Record<string, string>
+)['saveSession.immediateBadge']!;
 
 function framed(element: Element): boolean {
   return /(^|\s)border(\s|$)/.test(element.className) && /\brounded/.test(element.className);
@@ -84,7 +89,8 @@ describe('FormSettingsPanel — sections, not separators (DS-03)', () => {
       en('settings.confirmation.title'),
       en('settings.restrictions.title'),
       en('settings.spam.title'),
-      en('settings.retention.title'),
+      // Live, outside the one Save: the heading carries the Immediate badge (issue #1512).
+      `${en('settings.retention.title')} ${IMMEDIATE}`,
     ]);
     // Siblings, so each section after the first draws the one rule above itself.
     const parent = sections[0]!.parentElement;
@@ -117,7 +123,7 @@ describe('NotificationsPanel — channel lists as divided rows (DS-03)', () => {
       { permissions: ['forms:read', 'forms:write'] },
     );
     expect(sectionsIn(container).map((section) => section.querySelector('h2, h3')?.textContent)).toEqual([
-      en('notifications.recipients.title'),
+      `${en('notifications.recipients.title')} ${IMMEDIATE}`,
       en('notifications.confirmation.title'),
     ]);
     expect(container.querySelector('[role="none"][data-orientation="horizontal"]')).toBeNull();

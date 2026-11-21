@@ -75,7 +75,9 @@ interface Draft {
  * element; the warnings (FR-018) are said and never block. The *Notifications* tab (User Story 5)
  * saves the recipients on its own and edits the confirmation e-mail in the draft; the *Settings*
  * tab (User Story 6) edits what follows a submission, the restrictions and the CAPTCHA switch in
- * the draft.
+ * the draft, and saves the retention period on its own. **Two save models, said on the section**
+ * (issue #1512, CONTENT-09; DEC-08): everything goes with the Save / Publish bar except the
+ * recipients and the retention period, whose section headings carry admin-kit's `ImmediateBadge`.
  *
  * **The content language** (User Story 7, FR-068; 2026-11-03 owner review, which replaced the
  * *Translations* tab) is page state, chosen in the header with admin-kit's `ContentLanguageTabs` —
@@ -383,8 +385,10 @@ export function FormBuilderPage(): ReactNode {
       ) : null}
 
       {contentLanguages.length > 1 ? (
-        <Card>
-          <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
+        // An unboxed bar divided from the tabs by a rule, not a card of its own: it is page state
+        // over every tab, not a section of one (issue #1539, CONTENT-22; Common Region).
+        <div data-language-bar className="space-y-2 border-b border-border pb-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <span className="inline-flex items-center gap-2 text-sm font-medium">
               <Languages size={16} aria-hidden="true" className="text-muted-foreground" />
               {t('language.title')}
@@ -402,7 +406,7 @@ export function FormBuilderPage(): ReactNode {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="text-amber-700 dark:text-amber-400"
+                      className="text-[var(--warn-soft-fg)]"
                       aria-label={t('language.goToMissing', { language: entry.language, count: entry.missing.length })}
                       onClick={() => goToMissing(entry.language)}
                     >
@@ -416,22 +420,22 @@ export function FormBuilderPage(): ReactNode {
             <p aria-live="polite" className="inline-flex items-center gap-1 text-sm text-muted-foreground">
               {translating && activeMissing === 0 ? (
                 <>
-                  <CheckCircle2 size={14} aria-hidden="true" className="text-emerald-600" />
+                  <CheckCircle2 size={14} aria-hidden="true" className="text-[var(--success-soft-fg)]" />
                   <span>{t('language.complete', { language })}</span>
                 </>
               ) : null}
             </p>
-          </CardContent>
+          </div>
           {translating ? (
-            <div className="flex flex-wrap items-center gap-2 border-t border-border bg-muted/40 px-3 py-2 text-sm">
-              <Lock size={14} aria-hidden="true" className="shrink-0 text-muted-foreground" />
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <Lock size={14} aria-hidden="true" className="shrink-0" />
               <span className="flex-1">{t('language.structureLocked', { language, default: defaultLanguage })}</span>
               <Button type="button" variant="outline" size="sm" onClick={() => setContentLanguage(defaultLanguage)}>
                 {t('language.switchToDefault', { language: defaultLanguage })}
               </Button>
             </div>
           ) : null}
-        </Card>
+        </div>
       ) : null}
 
       <Tabs
