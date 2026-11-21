@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -303,11 +304,21 @@ export function ProductsList(): ReactNode {
 
   const filtered = rows;
 
-  // The Archived tab's own empty copy is true only when nothing narrows it; a
-  // filtered Archived tab gets the usual "try clearing filters".
-  const filtersAtDefault = query.trim() === '' && typeFilter === 'all';
+  // Issue #1448 (DS-15): an empty list is either "nothing here yet" or "these
+  // filters match nothing", and the two send the operator different ways. The
+  // status strip is a set of tabs, not a filter: an empty tab says which status
+  // it holds, and *Clear filters* resets the search and the type, never the tab.
+  const filtersActive = debouncedQuery.trim() !== '' || typeFilter !== 'all';
+  const clearFilters = (): void => {
+    setQuery('');
+    setDebouncedQuery('');
+    setTypeFilter('all');
+  };
+  const searchRef = useRef<HTMLInputElement>(null);
   const restoreFromBar = canWrite && statusFilter === 'archived';
-  const archivedEmpty = statusFilter === 'archived' && filtersAtDefault;
+  // No product at all: the empty state's *New product* is the view's one primary
+  // action, and the header does not repeat it (Von Restorff).
+  const catalogEmpty = !loading && !error && rows.length === 0 && !filtersActive && statusFilter === 'all';
   // A search that finds nothing among live products may be looking for an archived
   // one, which every other tab hides; one step takes the query there.
   const searchArchivedHint =
@@ -472,6 +483,48 @@ export function ProductsList(): ReactNode {
     });
   };
 
+  const newProductButton = (
+    <Button type="button" onClick={(): void => { navigate('/catalog/products/new'); }}>
+      <Plus aria-hidden="true" /> {t('productsList.action.newProduct')}
+    </Button>
+  );
+
+  const emptyList = filtersActive ? (
+    <EmptyState
+      variant="no-results"
+      title={t('productsList.empty.title')}
+      description={
+        // A search that finds nothing among live products may be looking for an
+        // archived one; one step takes the query there.
+        searchArchivedHint ? (
+          <Button type="button" variant="link" className="h-auto p-0" onClick={(): void => chooseTab('archived')}>
+            {t('productsList.empty.searchArchived')}
+          </Button>
+        ) : undefined
+      }
+      onClearFilters={clearFilters}
+      focusAfterClear={searchRef}
+    />
+  ) : statusFilter === 'archived' ? (
+    <EmptyState
+      icon={<ArchiveRestore size={20} />}
+      title={t('productsList.empty.archivedTitle')}
+      description={t('productsList.empty.archivedSub')}
+    />
+  ) : statusFilter === 'active' || statusFilter === 'inactive' ? (
+    <EmptyState
+      icon={<Package size={20} />}
+      title={statusFilter === 'active' ? t('productsList.empty.activeTitle') : t('productsList.empty.inactiveTitle')}
+    />
+  ) : (
+    <EmptyState
+      icon={<Package size={20} />}
+      title={t('productsList.empty.noData.title')}
+      description={canWrite ? t('productsList.empty.noData.body') : t('productsList.empty.noData.readOnly')}
+      action={canWrite ? newProductButton : null}
+    />
+  );
+
   return (
     <div className="b2b-page b2b-page--wide">
       <PageHeader
@@ -482,11 +535,7 @@ export function ProductsList(): ReactNode {
                 module that imports and exports contributes its own link, gated by
                 its own presence and permission, so the list names no other module. */}
             <AdminZone name="product.list.actions" props={{}} />
-            {canWrite ? (
-              <Button type="button" onClick={(): void => { navigate('/catalog/products/new'); }}>
-                <Plus aria-hidden="true" /> {t('productsList.action.newProduct')}
-              </Button>
-            ) : null}
+            {canWrite && !catalogEmpty ? newProductButton : null}
           </>
         }
       />
@@ -521,6 +570,7 @@ export function ProductsList(): ReactNode {
             className="border-b border-border px-3 py-2.5"
             search={
               <ListToolbarSearch
+                ref={searchRef}
                 label={t('productsList.search.label')}
                 placeholder={t('productsList.search.placeholder')}
                 value={query}
@@ -704,45 +754,7 @@ export function ProductsList(): ReactNode {
               {t('productsList.loading')}
             </p>
           ) : filtered.length === 0 ? (
-            <EmptyState
-              icon={<Package size={20} />}
-              title={archivedEmpty ? t('productsList.empty.archivedTitle') : t('productsList.empty.title')}
-              description={
-                /*
-                  The empty state's sentence is *"Try clearing filters, or use
-                  + New product to create one."* — half advice, half affordance.
-                  A read-only operator gets the advice and not the affordance:
-                  the sentence degrades to its own key rather than losing the
-                  button out of the middle of it, which would read as
-                  *"Try clearing filters, or use  to create one."*
-                */
-                archivedEmpty ? (
-                  t('productsList.empty.archivedSub')
-                ) : canWrite ? (
-                  <>
-                    {t('productsList.empty.prefix')}{' '}
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="h-auto p-0"
-                      onClick={(): void => { navigate('/catalog/products/new'); }}
-                    >
-                      {t('productsList.empty.button')}
-                    </Button>{' '}
-                    {t('productsList.empty.suffix')}
-                  </>
-                ) : (
-                  t('productsList.empty.readOnly')
-                )
-              }
-              action={
-                searchArchivedHint ? (
-                  <Button type="button" variant="outline" size="sm" onClick={(): void => chooseTab('archived')}>
-                    {t('productsList.empty.searchArchived')}
-                  </Button>
-                ) : undefined
-              }
-            />
+            emptyList
           ) : (
             <Table>
               <TableHeader>

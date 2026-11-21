@@ -36,6 +36,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `@mikro-orm/migrations` ^6
 - `@mikro-orm/postgresql` ^6
 - `fastify` ^5.11.0
+- `lucide-react` ^1 — *optional*
 - `react` ^19 — *optional*
 - `zod` ^4
 
