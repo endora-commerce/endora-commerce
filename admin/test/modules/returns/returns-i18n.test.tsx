@@ -6,6 +6,7 @@ import { formatMoney } from '@endora-commerce/admin-kit/lib';
 import corePl from '../../../../packages/modules/_i18n/i18n/pl.json';
 import returnsPl from '../../../../packages/modules/returns/i18n/pl.json';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 import { CASE_180 } from './return-detail-fixture';
 
@@ -248,9 +249,12 @@ describe('ReturnReasonsPage in Polish (#1472)', () => {
   function mount(rows: unknown[] = REASONS): void {
     api.get.mockImplementation(() => Promise.resolve({ data: rows }));
     renderWithI18n(
-      <MemoryRouter>
-        <ReturnReasonsPage />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ReturnReasonsPage />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
       { language: 'pl' },
     );
@@ -292,23 +296,24 @@ describe('ReturnReasonsPage in Polish (#1472)', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Usuń: Changed my mind' })));
   });
 
-  it('moves focus to the new-reason field when the last reason is deleted', async () => {
+  it('moves focus to "New reason" when the last reason is deleted', async () => {
     mount([REASONS[0]]);
     await userEvent.click(await screen.findByRole('button', { name: 'Usuń: Uszkodzony' }));
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Usuń' }));
     expect(await screen.findByText('Brak powodów zwrotu')).toBeTruthy();
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(/^Etykieta \(po angielsku\)/)));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Nowy powód' })));
   });
 
-  it('adds a reason through labelled kit fields', async () => {
+  it('adds a reason through labelled kit fields in the "New reason" dialog', async () => {
     mount();
-    await screen.findByText('Uszkodzony');
-    await userEvent.type(screen.getByLabelText(/^Etykieta \(po angielsku\)/), 'Wrong size');
-    await userEvent.selectOptions(screen.getByLabelText('Dotyczy'), 'return');
-    await userEvent.clear(screen.getByLabelText('Waga sortowania'));
-    await userEvent.type(screen.getByLabelText('Waga sortowania'), '5');
+    await userEvent.click(await screen.findByRole('button', { name: 'Nowy powód' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Nowy powód' }));
+    await userEvent.type(dialog.getByLabelText(/^Etykieta \(po angielsku\)/), 'Wrong size');
+    await userEvent.selectOptions(dialog.getByLabelText('Dotyczy'), 'return');
+    await userEvent.clear(dialog.getByLabelText('Waga sortowania'));
+    await userEvent.type(dialog.getByLabelText('Waga sortowania'), '5');
     api.post.mockResolvedValueOnce({ data: {} });
-    await userEvent.click(screen.getByRole('button', { name: 'Dodaj powód' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj powód' }));
     expect(api.post).toHaveBeenCalledWith('/api/v1/admin/returns/reasons', {
       label: { en: 'Wrong size' },
       appliesTo: 'return',
@@ -339,9 +344,12 @@ describe('ReturnDeliveryMethodsPage in Polish (#1472)', () => {
       return Promise.resolve({ data: [] });
     });
     renderWithI18n(
-      <MemoryRouter>
-        <ReturnDeliveryMethodsPage />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ReturnDeliveryMethodsPage />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
       { language: 'pl' },
     );
@@ -359,7 +367,8 @@ describe('ReturnDeliveryMethodsPage in Polish (#1472)', () => {
 
   it('puts "0 = free" in the cost field hint, not in the page description', async () => {
     mount();
-    const cost = await screen.findByLabelText('Koszt zwrotu');
+    await userEvent.click(await screen.findByRole('button', { name: 'Nowa metoda dostawy zwrotnej' }));
+    const cost = within(await screen.findByRole('dialog')).getByLabelText('Koszt zwrotu');
     const hintId = cost.getAttribute('aria-describedby') ?? '';
     expect(hintId).not.toBe('');
     expect(document.getElementById(hintId.split(' ')[0]!)?.textContent).toBe('0 oznacza bezpłatny zwrot, za który płaci sklep.');
@@ -367,12 +376,15 @@ describe('ReturnDeliveryMethodsPage in Polish (#1472)', () => {
 
   it('offers the delivery methods by name and creates the chosen one', async () => {
     mount();
-    const select = await screen.findByLabelText(/^Metoda dostawy/);
+    await screen.findByText('Kurier');
+    await userEvent.click(screen.getByRole('button', { name: 'Nowa metoda dostawy zwrotnej' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    const select = dialog.getByLabelText(/^Metoda dostawy/);
     await waitFor(() => expect(within(select).getByRole('option', { name: 'Paczkomat' })).toBeTruthy());
     await userEvent.selectOptions(select, 'dm-2');
-    await userEvent.clear(screen.getByLabelText('Koszt zwrotu'));
-    await userEvent.type(screen.getByLabelText('Koszt zwrotu'), '9.99');
-    await userEvent.click(screen.getByRole('button', { name: 'Dodaj metodę' }));
+    await userEvent.clear(dialog.getByLabelText('Koszt zwrotu'));
+    await userEvent.type(dialog.getByLabelText('Koszt zwrotu'), '9.99');
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj metodę' }));
     expect(api.post).toHaveBeenCalledWith('/api/v1/admin/returns/delivery-methods', {
       deliveryMethodId: 'dm-2',
       returnCost: 9.99,
@@ -401,7 +413,9 @@ describe('ReturnDeliveryMethodsPage in Polish (#1472)', () => {
 
   it('falls back to an ID field when the delivery methods cannot be read', async () => {
     mount(() => Promise.reject(new Error('403')));
-    expect(await screen.findByLabelText(/^ID metody dostawy/)).toBeTruthy();
+    await screen.findByText('dm-1');
+    await userEvent.click(screen.getByRole('button', { name: 'Nowa metoda dostawy zwrotnej' }));
+    expect(within(await screen.findByRole('dialog')).getByLabelText(/^ID metody dostawy/)).toBeTruthy();
   });
 });
 
@@ -414,9 +428,12 @@ describe('ReturnStatusesConfigPage in Polish (#1472)', () => {
       return Promise.resolve({ data: { items: [] }, items: [] });
     });
     renderWithI18n(
-      <MemoryRouter>
-        <ReturnStatusesConfigPage />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ReturnStatusesConfigPage />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
       { language: 'pl' },
     );
@@ -432,10 +449,12 @@ describe('ReturnStatusesConfigPage in Polish (#1472)', () => {
   it('derives the new status code from its name through labelled kit fields', async () => {
     mount();
     await screen.findByText('received');
-    await userEvent.type(screen.getByLabelText(/^Nazwa \(po angielsku\)/), 'In inspection');
-    expect((screen.getByLabelText(/^Kod nowego statusu/) as HTMLInputElement).value).toBe('in_inspection');
+    await userEvent.click(screen.getByRole('button', { name: 'Nowy status' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Nowy status' }));
+    await userEvent.type(dialog.getByLabelText(/^Nazwa \(po angielsku\)/), 'In inspection');
+    expect((dialog.getByLabelText(/^Kod nowego statusu/) as HTMLInputElement).value).toBe('in_inspection');
     api.post.mockResolvedValueOnce({ data: GRAPH });
-    await userEvent.click(screen.getByRole('button', { name: 'Dodaj status' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj status' }));
     expect(api.post).toHaveBeenCalledWith('/api/v1/admin/returns/statuses', {
       code: 'in_inspection',
       name: { en: 'In inspection' },
@@ -450,9 +469,12 @@ describe('ReturnStatusesConfigPage in Polish (#1472)', () => {
       return Promise.resolve({ data: { recipientsMissing: { global: false, salesChannelIds: [] } }, items: [] });
     });
     renderWithI18n(
-      <MemoryRouter>
-        <ReturnStatusesConfigPage />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ReturnStatusesConfigPage />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
       { language: 'pl' },
     );
@@ -462,7 +484,7 @@ describe('ReturnStatusesConfigPage in Polish (#1472)', () => {
     api.delete.mockResolvedValueOnce({ data: GRAPH });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Usuń' }));
     expect(api.delete).toHaveBeenCalledWith('/api/v1/admin/returns/statuses/inspecting');
-    // The last deletable status is gone: focus goes to the new-status form.
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(/^Nazwa \(po angielsku\)/)));
+    // The last deletable status is gone: focus goes to the header's "New status".
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Nowy status' })));
   });
 });
