@@ -127,14 +127,23 @@ export const KEYS = [
   'editor.language', 'editor.languageMissing', 'editor.startFrom', 'editor.mergeFields.title', 'editor.mergeFields.copy',
   'editor.mergeFields.headerFooterOnly', 'editor.conflict.title', 'editor.conflict.body', 'editor.conflict.reload',
   'editor.conflict.keepEditing',
+  // Issues #1532 and #1535 (UX audit CONTENT-12, CONTENT-18).
+  'page.emptyTitle', 'page.column.scope', 'page.defaultSet', 'page.defaultCleared', 'page.deleted',
+  'dialog.documentType', 'editor.previewTitle', 'editor.previewOpen',
 ];
 
+const documentTemplates = passthroughBundle('document_templates', KEYS);
+// The row menu's name carries the row's name, so each row's trigger is told apart.
+documentTemplates['document_templates']!['page.rowActions'] = 'Actions for {name}';
+
 export const BUNDLE = {
-  ...passthroughBundle('document_templates', KEYS),
+  ...documentTemplates,
   ...passthroughBundle('comparisons', ['documentTypes.comparison.label', 'documentTypes.comparison.description', 'documentTypes.comparison.variables.productCount']),
   ...passthroughBundle('invoices', ['documentTypes.invoice.label']),
   ...passthroughBundle('core', [
     'common.action.back',
+    'common.action.close',
+    'common.action.saveAndExit',
     ...['title', 'body', 'save', 'saving', 'discard', 'stay', 'hint'].map((key) => `form.unsavedChanges.${key}`),
   ]),
 };

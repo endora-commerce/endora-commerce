@@ -145,6 +145,7 @@ describe('DocumentTemplateEditor (spec 152)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'editor.preview' }));
     await waitFor(() => expect(api.previewDocument).toHaveBeenCalledWith('comparisons.comparison', 'en-US', expect.anything()));
     expect(api.saveTemplateContent).not.toHaveBeenCalled();
+    await screen.findByRole('dialog');
     open.mockRestore();
   });
 
@@ -187,6 +188,92 @@ describe('DocumentTemplateEditor (spec 152)', () => {
     renderEditor();
     await waitFor(() => expect(screen.getByTestId('puck').getAttribute('data-language')).toBe('pl-PL'));
     expect(screen.getByTestId('puck').getAttribute('data-preview')).toBe('true');
+  });
+});
+
+/**
+ * Issue #1532 (UX audit CONTENT-12) — the editor in the shell every Page Builder
+ * editor shares: no card around the canvas, the language and merge fields on
+ * the row above it, Save with *Save and exit*, the Default badge beside the
+ * title, the save result beside Save, and the PDF preview in a dialog.
+ */
+describe('DocumentTemplateEditor — the shared editor shell (issue #1532)', () => {
+  beforeEach(() => {
+    lastPuck = null;
+    for (const fn of Object.values(api)) fn.mockReset();
+    api.getTemplate.mockResolvedValue(detail());
+    api.getDocumentType.mockResolvedValue(typeDetail());
+    api.getBuilderConfig.mockResolvedValue(comparisonConfig());
+    api.listContentLanguages.mockResolvedValue(['en-US', 'pl-PL', 'de-DE']);
+  });
+
+  it('lays the canvas out in the shared shell, with no card around it', async () => {
+    const container = renderEditor();
+    await waitFor(() => expect(screen.getByTestId('puck')).toBeTruthy());
+    expect(container.querySelector('.b2b-page--wide')).not.toBeNull();
+    expect(screen.getByTestId('puck').closest('[data-slot="card"]')).toBeNull();
+    expect(screen.getByTestId('puck').closest('section')?.getAttribute('aria-labelledby')).toBeTruthy();
+    // The language and the merge fields sit on the row above the canvas, outside the builder section.
+    expect(screen.getByTestId('language-switcher').closest('section.cms-content-editor__builder')).toBeNull();
+    expect(screen.getByTestId('merge-fields').closest('[data-slot="card"]')).toBeNull();
+  });
+
+  it('shows the Default badge beside the title, not among the actions', async () => {
+    renderEditor();
+    const badge = await screen.findByText('page.default');
+    expect(badge.parentElement?.querySelector('h1')).not.toBeNull();
+  });
+
+  it('says the save result beside Save, as a status — not a banner', async () => {
+    api.saveTemplateContent.mockResolvedValue({ version: 4, languages: ['en-US', 'pl-PL'] });
+    renderEditor();
+    await waitFor(() => expect(lastPuck).not.toBeNull());
+    const status = screen.getByTestId('document-template-status');
+    expect(status.getAttribute('role')).toBe('status');
+    expect(status.textContent).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'editor.save' }));
+    await waitFor(() => expect(status.textContent).toContain('editor.saved'));
+    expect(document.querySelector('[data-slot="alert"]')).toBeNull();
+  });
+
+  it('Save and exit saves, then goes back to the list on the template’s type', async () => {
+    api.saveTemplateContent.mockResolvedValue({ version: 4, languages: ['en-US', 'pl-PL'] });
+    renderWithSession(
+      <MemoryRouter initialEntries={['/document-templates/00000000-0000-4000-8000-0000000000d1']}>
+        <Routes>
+          <Route path="/document-templates/:id" element={<DocumentTemplateEditor />} />
+          <Route path="/document-templates" element={<p>list-page</p>} />
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: everyDeclaredModule() }), contributions: [], bundle: BUNDLE },
+    );
+    await waitFor(() => expect(lastPuck).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'common.action.saveAndExit' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'common.action.saveAndExit' }));
+    await waitFor(() => expect(api.saveTemplateContent).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('list-page')).toBeTruthy();
+  });
+
+  it('previews the PDF in a dialog with an open-in-a-new-tab link, never a pop-up (no blocker can stop it)', async () => {
+    api.previewDocument.mockResolvedValue(new Blob(['%PDF-']));
+    (URL as unknown as { createObjectURL: () => string }).createObjectURL = () => 'blob:y';
+    const revoke = vi.fn();
+    (URL as unknown as { revokeObjectURL: () => void }).revokeObjectURL = revoke;
+    const open = vi.spyOn(window, 'open');
+    renderEditor();
+    await waitFor(() => expect(lastPuck).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'editor.preview' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.querySelector('iframe')?.getAttribute('src')).toBe('blob:y');
+    expect(dialog.querySelector('iframe')?.getAttribute('title')).toBe('editor.previewTitle');
+    const link = screen.getByRole('link', { name: 'editor.previewOpen' });
+    expect(link.getAttribute('href')).toBe('blob:y');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(open).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'common.action.close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(revoke).toHaveBeenCalledWith('blob:y');
+    open.mockRestore();
   });
 });
 

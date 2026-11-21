@@ -2459,6 +2459,9 @@ importers:
       fastify:
         specifier: ^5.12.8
         version: 5.12.8
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
       pdfmake:
         specifier: ^0.3.7
         version: 0.3.7

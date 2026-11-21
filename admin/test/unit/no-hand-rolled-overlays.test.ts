@@ -74,7 +74,7 @@ const LEDGER: Record<string, { shapes: Partial<Record<OverlayShape, number>>; re
   },
   'packages/modules/document_templates/src/admin/pages/DocumentTemplateEditor.tsx': {
     shapes: { 'fixed-inset': 1 },
-    reason: `${FULLSCREEN}; the editor moves to the shared shell under CONTENT-12 (#1532)`,
+    reason: `${FULLSCREEN}; in the shared editor shell since CONTENT-12 (#1532), as the e-mail pane's`,
   },
   'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx': { shapes: { 'role-dialog': 1 }, reason: DRAWER },
   'packages/modules/product_feeds/src/admin/components/RevisionImpactDrawer.tsx': { shapes: { 'role-dialog': 1 }, reason: DRAWER },

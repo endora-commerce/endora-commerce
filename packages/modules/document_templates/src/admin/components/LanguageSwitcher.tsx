@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from 'react';
-import { Button, Label } from '@endora-commerce/admin-kit/ui';
+import { Button, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
@@ -27,21 +27,16 @@ export function LanguageSwitcher(props: LanguageSwitcherProps): ReactNode {
     <div className="flex flex-wrap items-end gap-2" data-testid="language-switcher">
       <div className="flex flex-col gap-1">
         <Label htmlFor={id}>{t('editor.language')}</Label>
-        <select
-          id={id}
-          className="h-9 rounded-md border bg-background px-2 text-sm"
-          value={current}
-          onChange={(event) => onSelect(event.target.value)}
-        >
+        <Select id={id} className="w-auto" value={current} onChange={(event) => onSelect(event.target.value)}>
           {languages.map((language) => (
             <option key={language} value={language}>
               {stored.includes(language) ? language : `${language} — ${t('editor.languageMissing')}`}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       {!stored.includes(current) && copyFrom !== null ? (
-        <Button size="sm" variant="outline" onClick={() => onStart(current)}>
+        <Button variant="outline" onClick={() => onStart(current)}>
           {t('editor.startFrom', { language: copyFrom })}
         </Button>
       ) : null}

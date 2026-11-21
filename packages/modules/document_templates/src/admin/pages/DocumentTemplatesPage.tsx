@@ -1,20 +1,20 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { FileText, Plus } from 'lucide-react';
 import type { DocumentTemplateSummary, DocumentTypeSummary } from '@endora-commerce/contracts';
-import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { ModalDialog } from '@endora-commerce/admin-kit/components';
+import { ApiError, cn, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import {
-  Alert,
-  AlertDescription,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  PageHeader,
-} from '@endora-commerce/admin-kit/ui';
+  ListPage,
+  ResponsiveTable,
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+  useConfirmDialog,
+  useRemovalFocus,
+  type ListPageLoad,
+  type ResponsiveColumn,
+} from '@endora-commerce/admin-kit/components';
+import { Alert, AlertDescription, Badge, Button, EmptyState, InlineStatus, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   clearDefaultTemplate,
@@ -28,16 +28,26 @@ import {
   setDefaultTemplate,
 } from '../api.js';
 import { NewTemplateDialog, type NewTemplateValues } from '../components/NewTemplateDialog.js';
+import { PdfPreviewDialog, usePdfPreview } from '../components/PdfPreviewDialog.js';
 
 /**
  * *Document templates* (`specs/152-compare-pdf-template/contracts/admin-ui.md` §2).
  *
- * One card per available document type — a type whose module is switched off is
- * not offered (FR-051). In each card: the built-in layout, which applies while
+ * One section per available document type — a type whose module is switched
+ * off is not offered (FR-051). In each: the built-in layout, which applies while
  * no template is the default and is where a new template starts (FR-002), then
- * the type's templates grouped by scope — all channels first — with the default
- * of each scope marked (FR-001). `?type=<code>` opens on that type's card (the
- * comparisons screen's *PDF template* button and the invoices tab use it).
+ * the type's templates — all channels first — with the default of each scope
+ * marked (FR-001). `?type=<code>` opens on that type's section and preselects it
+ * in *New template* (the comparisons screen's *PDF template* button and the
+ * invoices tab use it).
+ *
+ * Issue #1535 (UX audit CONTENT-18) — the kit list page. **One** primary
+ * *New template* in the header, which asks for the document type in its dialog,
+ * instead of a filled *New template* in every type's card (Von Restorff); the
+ * template's name is the link to its editor, and a row's other actions are a
+ * `RowActionMenu` — Delete last, apart and confirmed — instead of four outline
+ * buttons per row (Hick, Fitts). The result of an action is an `InlineStatus`
+ * beside the header's action, where focus returns.
  *
  * Without `document_templates:write` every mutating control is absent; preview
  * and the read-only editor stay.
@@ -48,9 +58,28 @@ interface TypeState {
   readonly templates: readonly DocumentTemplateSummary[];
 }
 
-type DialogState =
-  | { readonly kind: 'new'; readonly type: string; readonly source: string | null }
-  | { readonly kind: 'delete'; readonly template: DocumentTemplateSummary };
+type Row =
+  | { readonly kind: 'built_in'; readonly type: DocumentTypeSummary }
+  | { readonly kind: 'template'; readonly template: DocumentTemplateSummary };
+
+interface NewDialogState {
+  /** The type preselected; fixed when `typeFixed`. */
+  readonly type: string;
+  readonly typeFixed: boolean;
+  readonly source: string | null;
+}
+
+const templateId = (template: DocumentTemplateSummary): string => template.id;
+const rowKey = (row: Row): string => (row.kind === 'built_in' ? `built-in:${row.type.code}` : row.template.id);
+
+/** All channels first, then the channels by name: the scope a default applies to reads top-down. */
+function byScope(templates: readonly DocumentTemplateSummary[]): DocumentTemplateSummary[] {
+  return [...templates].sort((a, b) => {
+    const scoped = Number(a.salesChannelId !== null) - Number(b.salesChannelId !== null);
+    if (scoped !== 0) return scoped;
+    return (a.salesChannelName ?? '').localeCompare(b.salesChannelName ?? '') || a.name.localeCompare(b.name);
+  });
+}
 
 export function DocumentTemplatesPage(): ReactNode {
   const t = useTranslation('document_templates');
@@ -60,12 +89,16 @@ export function DocumentTemplatesPage(): ReactNode {
   const navigate = useNavigate();
   const [search] = useSearchParams();
   const focusType = search.get('type');
+  const { confirm, confirmDialog } = useConfirmDialog();
+  const status = useInlineStatus();
+  const pdf = usePdfPreview();
 
   const [types, setTypes] = useState<TypeState[] | null>(null);
   const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [dialog, setDialog] = useState<NewDialogState | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const errorText = useCallback(
@@ -80,12 +113,13 @@ export function DocumentTemplatesPage(): ReactNode {
     [t],
   );
 
+  /** Reads every type with its templates. A reload keeps the rows on screen, so focus stays where it is. */
   const load = useCallback(async (): Promise<void> => {
     setLoadError(false);
     try {
       const listed = await listDocumentTypes();
       const withTemplates = await Promise.all(
-        listed.map(async (type) => ({ type, templates: await listTemplates(type.code) })),
+        listed.map(async (type) => ({ type, templates: byScope(await listTemplates(type.code)) })),
       );
       setTypes(withTemplates);
     } catch {
@@ -103,253 +137,279 @@ export function DocumentTemplatesPage(): ReactNode {
     document.getElementById(`document-type-${focusType}`)?.scrollIntoView?.({ block: 'start' });
   }, [focusType, types]);
 
-  const run = useCallback(
-    async (action: () => Promise<unknown>): Promise<boolean> => {
+  const allTemplates = useMemo(() => (types ?? []).flatMap((entry) => entry.templates), [types]);
+  const removalFocus = useRemovalFocus(allTemplates, templateId, types !== null);
+
+  const typeLabel = useCallback(
+    (type: DocumentTypeSummary): string => translateIn(type.moduleId, type.labelKey),
+    [translateIn],
+  );
+
+  const toggleDefault = useCallback(
+    async (template: DocumentTemplateSummary): Promise<void> => {
       setBusy(true);
       setActionError(null);
+      status.clear();
       try {
-        await action();
+        if (template.isDefault) await clearDefaultTemplate(template.id, template.version);
+        else await setDefaultTemplate(template.id, template.version);
         await load();
-        return true;
+        status.show(t(template.isDefault ? 'page.defaultCleared' : 'page.defaultSet', { name: template.name }));
       } catch (err) {
         setActionError(errorText(err));
-        return false;
       } finally {
         setBusy(false);
       }
     },
-    [load, errorText],
+    [load, errorText, status, t],
+  );
+
+  const askDelete = useCallback(
+    async (template: DocumentTemplateSummary): Promise<void> => {
+      setActionError(null);
+      status.clear();
+      const deleted = await confirm({
+        title: t('dialog.deleteTitle', { name: template.name }),
+        message: template.isDefault
+          ? t(template.salesChannelId ? 'dialog.deleteDefaultChannel' : 'dialog.deleteDefaultGlobal')
+          : t('dialog.deleteBody'),
+        confirmLabel: t('page.delete'),
+        cancelLabel: t('dialog.cancel'),
+        destructive: true,
+        action: () => deleteTemplate(template.id, template.version, template.isDefault),
+        describeError: errorText,
+        returnFocusTo: removalFocus.returnFocusTo(template),
+      });
+      if (!deleted) return;
+      // Removed in place rather than reloaded, so the row focus moved to is still there.
+      setTypes((current) =>
+        (current ?? []).map((entry) => ({ ...entry, templates: entry.templates.filter((row) => row.id !== template.id) })),
+      );
+      status.show(t('page.deleted', { name: template.name }));
+    },
+    [confirm, errorText, removalFocus, status, t],
   );
 
   const previewBuiltIn = useCallback(
-    async (code: string): Promise<void> => {
+    async (type: DocumentTypeSummary): Promise<void> => {
       setActionError(null);
+      status.show(t('editor.previewing'), 'info');
       try {
-        const detail = await getDocumentType(code);
+        const detail = await getDocumentType(type.code);
         const language = Object.keys(detail.builtInContent.languages)[0] ?? 'en-US';
-        const blob = await previewDocument(code, language, detail.builtInContent.languages[language]);
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank', 'noopener,noreferrer');
-        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        const blob = await previewDocument(type.code, language, detail.builtInContent.languages[language]);
+        status.clear();
+        pdf.show(blob, t('editor.previewTitle', { name: `${t('page.builtIn')} — ${typeLabel(type)}` }));
       } catch {
+        status.clear();
         setActionError(t('editor.previewError'));
       }
     },
-    [t],
+    [pdf, status, t, typeLabel],
   );
 
   const submitNew = useCallback(
-    async (type: string, values: NewTemplateValues): Promise<void> => {
-      let createdId: string | null = null;
-      const ok = await run(async () => {
+    async (values: NewTemplateValues): Promise<void> => {
+      setBusy(true);
+      setDialogError(null);
+      try {
         const created = await createTemplate({
-          documentType: type,
+          documentType: values.documentType,
           name: values.name,
           salesChannelId: values.salesChannelId,
           source: values.sourceTemplateId ? { kind: 'template', templateId: values.sourceTemplateId } : { kind: 'built_in' },
           setDefault: values.setDefault,
         });
-        createdId = created.id;
-      });
-      if (ok) {
         setDialog(null);
-        if (createdId) navigate(`/document-templates/${createdId}`);
+        navigate(`/document-templates/${created.id}`);
+      } catch (err) {
+        setDialogError(errorText(err));
+      } finally {
+        setBusy(false);
       }
     },
-    [run, navigate],
+    [navigate, errorText],
   );
 
-  const typeLabel = (type: DocumentTypeSummary): string => translateIn(type.moduleId, type.labelKey);
-
-  const scopeGroups = (templates: readonly DocumentTemplateSummary[]): [string, DocumentTemplateSummary[]][] => {
-    const groups = new Map<string, DocumentTemplateSummary[]>();
-    for (const template of [...templates].sort((a, b) => Number(a.salesChannelId !== null) - Number(b.salesChannelId !== null))) {
-      const key = template.salesChannelName ?? (template.salesChannelId ? template.salesChannelId : t('page.allChannels'));
-      groups.set(key, [...(groups.get(key) ?? []), template]);
-    }
-    return [...groups.entries()];
+  const openNew = (state: NewDialogState): void => {
+    setDialogError(null);
+    setDialog(state);
   };
+
+  /** Each built-in row's menu is named after its type: "Actions for Built-in layout" twice names nothing. */
+  const builtInName = (type: DocumentTypeSummary): string => `${t('page.builtIn')} (${typeLabel(type)})`;
+
+  const columns: ResponsiveColumn<Row>[] = [
+    {
+      id: 'name',
+      header: t('page.column.name'),
+      primary: true,
+      render: (row) =>
+        row.kind === 'built_in' ? (
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <span>{t('page.builtIn')}</span>
+            <Badge variant="secondary">{t('page.builtInBadge')}</Badge>
+          </span>
+        ) : (
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <Link
+              ref={removalFocus.targetRef(row.template)}
+              className="font-medium underline-offset-2 hover:underline"
+              to={`/document-templates/${row.template.id}`}
+            >
+              {row.template.name}
+            </Link>
+            {row.template.isDefault ? <Badge>{t('page.default')}</Badge> : null}
+          </span>
+        ),
+    },
+    {
+      id: 'scope',
+      header: t('page.column.scope'),
+      render: (row) =>
+        row.kind === 'built_in'
+          ? '—'
+          : (row.template.salesChannelName ?? row.template.salesChannelId ?? t('page.allChannels')),
+    },
+    {
+      id: 'languages',
+      header: t('page.column.languages'),
+      render: (row) => (row.kind === 'built_in' ? '—' : row.template.languages.join(', ')),
+    },
+    {
+      id: 'updated',
+      header: t('page.column.updated'),
+      hideOnMobile: true,
+      render: (row) => (row.kind === 'built_in' ? '—' : formatDateTime(row.template.updatedAt)),
+    },
+  ];
+
+  const renderActions = (row: Row): ReactNode => {
+    if (row.kind === 'built_in') {
+      return (
+        <RowActionMenu label={t('page.rowActions', { name: builtInName(row.type) })}>
+          <RowActionMenuItem onSelect={() => void previewBuiltIn(row.type)}>{t('editor.preview')}</RowActionMenuItem>
+          {canWrite ? (
+            <RowActionMenuItem disabled={busy} onSelect={() => openNew({ type: row.type.code, typeFixed: true, source: null })}>
+              {t('page.createFromThis')}
+            </RowActionMenuItem>
+          ) : null}
+        </RowActionMenu>
+      );
+    }
+    // Read-only: the name opens the template, and there is nothing else to do with it.
+    if (!canWrite) return null;
+    const { template } = row;
+    return (
+      <RowActionMenu label={t('page.rowActions', { name: template.name })}>
+        <RowActionMenuItem
+          disabled={busy}
+          onSelect={() => openNew({ type: template.documentType, typeFixed: true, source: template.id })}
+        >
+          {t('page.duplicate')}
+        </RowActionMenuItem>
+        <RowActionMenuItem disabled={busy} onSelect={() => void toggleDefault(template)}>
+          {template.isDefault ? t('page.clearDefault') : t('page.setDefault')}
+        </RowActionMenuItem>
+        <RowActionMenuSeparator />
+        <RowActionMenuItem destructive disabled={busy} onSelect={() => void askDelete(template)}>
+          {t('page.delete')}
+        </RowActionMenuItem>
+      </RowActionMenu>
+    );
+  };
+
+  const listLoad: ListPageLoad = loadError
+    ? { kind: 'error', message: t('page.loadError') }
+    : types === null
+      ? { kind: 'loading' }
+      : { kind: 'ready' };
+  const hasTypes = (types?.length ?? 0) > 0;
+  const preselected = types?.find((entry) => entry.type.code === focusType)?.type.code ?? types?.[0]?.type.code ?? '';
+  const statusRegion = <InlineStatus {...status.props} data-testid="document-templates-status" />;
 
   return (
     <>
-      <PageHeader title={t('page.title')} description={t('page.description')} help={t('page.help')} />
-      {actionError ? (
-        <Alert variant="destructive" className="mb-4" role="alert">
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
-      ) : null}
-      {loadError ? (
-        <Alert variant="destructive" className="mb-4" role="alert">
-          <AlertDescription className="flex items-center gap-2">
-            {t('page.loadError')}
-            <Button size="sm" variant="outline" onClick={() => void load()}>
-              {t('page.retry')}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {types === null && !loadError ? (
-        <p className="text-sm text-muted-foreground" role="status">
-          {t('page.loading')}
-        </p>
-      ) : null}
-      {types !== null && types.length === 0 ? <p className="text-sm text-muted-foreground">{t('page.empty')}</p> : null}
-      <div className="space-y-6">
-        {(types ?? []).map(({ type, templates }) => (
-          <Card
-            key={type.code}
-            id={`document-type-${type.code}`}
-            data-testid={`document-type-${type.code}`}
-            className={focusType === type.code ? 'ring-2 ring-primary' : undefined}
-          >
-            <CardHeader>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <CardTitle>{typeLabel(type)}</CardTitle>
-                  {type.descriptionKey ? (
-                    <CardDescription>{translateIn(type.moduleId, type.descriptionKey)}</CardDescription>
-                  ) : null}
-                </div>
-                {canWrite ? (
-                  <Button size="sm" disabled={busy} onClick={() => setDialog({ kind: 'new', type: type.code, source: null })}>
-                    {t('page.newTemplate')}
-                  </Button>
-                ) : null}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-muted-foreground">
-                    <th className="py-2 font-medium">{t('page.column.name')}</th>
-                    <th className="py-2 font-medium">{t('page.column.languages')}</th>
-                    <th className="py-2 font-medium">{t('page.column.updated')}</th>
-                    <th className="py-2 font-medium">
-                      <span className="sr-only">{t('page.column.actions')}</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr data-testid="built-in-row" className="border-t">
-                    <td className="py-2">
-                      {t('page.builtIn')} <Badge variant="secondary">{t('page.builtInBadge')}</Badge>
-                    </td>
-                    <td className="py-2">—</td>
-                    <td className="py-2">—</td>
-                    <td className="py-2">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => void previewBuiltIn(type.code)}>
-                          {t('editor.preview')}
-                        </Button>
-                        {canWrite ? (
-                          <Button size="sm" variant="outline" disabled={busy} onClick={() => setDialog({ kind: 'new', type: type.code, source: null })}>
-                            {t('page.createFromThis')}
-                          </Button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                  {scopeGroups(templates).map(([scope, rows]) => [
-                    <tr key={`scope-${scope}`} className="border-t bg-muted/40">
-                      <th colSpan={4} scope="colgroup" className="py-1 text-left text-xs font-semibold uppercase text-muted-foreground">
-                        {scope}
-                      </th>
-                    </tr>,
-                    ...rows.map((template) => (
-                      <tr key={template.id} className="border-t" data-testid={`template-row-${template.id}`}>
-                        <td className="py-2">
-                          <Link className="font-medium underline-offset-2 hover:underline" to={`/document-templates/${template.id}`}>
-                            {template.name}
-                          </Link>{' '}
-                          {template.isDefault ? <Badge>{t('page.default')}</Badge> : null}
-                        </td>
-                        <td className="py-2">{template.languages.join(', ')}</td>
-                        <td className="py-2">{formatDateTime(template.updatedAt)}</td>
-                        <td className="py-2">
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <Button size="sm" variant="outline" asChild>
-                              <Link to={`/document-templates/${template.id}`}>{canWrite ? t('page.edit') : t('page.open')}</Link>
-                            </Button>
-                            {canWrite ? (
-                              <>
-                                <Button size="sm" variant="outline" disabled={busy} onClick={() => setDialog({ kind: 'new', type: type.code, source: template.id })}>
-                                  {t('page.duplicate')}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={busy}
-                                  onClick={() =>
-                                    void run(() =>
-                                      template.isDefault
-                                        ? clearDefaultTemplate(template.id, template.version)
-                                        : setDefaultTemplate(template.id, template.version),
-                                    )
-                                  }
-                                >
-                                  {template.isDefault ? t('page.clearDefault') : t('page.setDefault')}
-                                </Button>
-                                <Button size="sm" variant="outline" disabled={busy} onClick={() => setDialog({ kind: 'delete', template })}>
-                                  {t('page.delete')}
-                                </Button>
-                              </>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
-                    )),
-                  ])}
-                </tbody>
-              </table>
-              {templates.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('page.noTemplates')}</p> : null}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      {dialog?.kind === 'new' ? (
+      <ListPage
+        title={t('page.title')}
+        description={t('page.description')}
+        help={t('page.help')}
+        actions={
+          <>
+            {statusRegion}
+            {canWrite && hasTypes ? (
+              <Button
+                ref={(element: HTMLButtonElement | null) => {
+                  removalFocus.createRef.current = element;
+                }}
+                disabled={busy}
+                onClick={() => openNew({ type: preselected, typeFixed: false, source: null })}
+              >
+                <Plus aria-hidden="true" />
+                {t('page.newTemplate')}
+              </Button>
+            ) : null}
+          </>
+        }
+        load={listLoad}
+        onRetry={() => void load()}
+        notice={
+          actionError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{actionError}</AlertDescription>
+            </Alert>
+          ) : null
+        }
+      >
+        {hasTypes ? (
+          <div className="space-y-8">
+            {(types ?? []).map(({ type, templates }) => {
+              const headingId = `document-type-${type.code}-title`;
+              const rows: Row[] = [{ kind: 'built_in', type }, ...templates.map((template): Row => ({ kind: 'template', template }))];
+              return (
+                <section
+                  key={type.code}
+                  id={`document-type-${type.code}`}
+                  data-testid={`document-type-${type.code}`}
+                  aria-labelledby={headingId}
+                  className={cn(
+                    'scroll-mt-24 space-y-2 rounded-md',
+                    focusType === type.code && 'ring-2 ring-primary ring-offset-4 ring-offset-background',
+                  )}
+                >
+                  <div>
+                    <h2 id={headingId} className="text-base font-semibold">
+                      {typeLabel(type)}
+                    </h2>
+                    {type.descriptionKey ? (
+                      <p className="text-sm text-muted-foreground">{translateIn(type.moduleId, type.descriptionKey)}</p>
+                    ) : null}
+                  </div>
+                  <ResponsiveTable columns={columns} data={rows} keyExtractor={rowKey} renderActions={renderActions} />
+                  {templates.length === 0 ? <p className="text-sm text-muted-foreground">{t('page.noTemplates')}</p> : null}
+                </section>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState icon={<FileText size={20} />} title={t('page.emptyTitle')} description={t('page.empty')} />
+        )}
+      </ListPage>
+      {dialog && types ? (
         <NewTemplateDialog
           channels={channels}
-          templates={types?.find((entry) => entry.type.code === dialog.type)?.templates ?? []}
+          types={types.map((entry) => ({ code: entry.type.code, label: typeLabel(entry.type), templates: entry.templates }))}
+          initialType={dialog.type}
+          typeFixed={dialog.typeFixed}
           initialSource={dialog.source}
           busy={busy}
-          error={actionError}
+          error={dialogError}
           onClose={() => setDialog(null)}
-          onSubmit={(values) => void submitNew(dialog.type, values)}
+          onSubmit={(values) => void submitNew(values)}
         />
       ) : null}
-      {dialog?.kind === 'delete' ? (
-        <ModalDialog
-          title={t('dialog.deleteTitle', { name: dialog.template.name })}
-          onClose={() => setDialog(null)}
-          busy={busy}
-          footer={
-            <>
-              <Button variant="outline" disabled={busy} onClick={() => setDialog(null)}>
-                {t('dialog.cancel')}
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={busy}
-                onClick={() =>
-                  void run(() => deleteTemplate(dialog.template.id, dialog.template.version, dialog.template.isDefault)).then(
-                    (ok) => {
-                      if (ok) setDialog(null);
-                    },
-                  )
-                }
-              >
-                {t('page.delete')}
-              </Button>
-            </>
-          }
-        >
-          <p>
-            {dialog.template.isDefault
-              ? t(dialog.template.salesChannelId ? 'dialog.deleteDefaultChannel' : 'dialog.deleteDefaultGlobal')
-              : t('dialog.deleteBody')}
-          </p>
-        </ModalDialog>
-      ) : null}
+      <PdfPreviewDialog preview={pdf.preview} onClose={pdf.close} />
+      {confirmDialog}
     </>
   );
 }
