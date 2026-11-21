@@ -74,14 +74,14 @@ export const contributions: AdminContributions = {
       // this merge request rather than the sidebar quietly changing to a name
       // that happened to be on the allowlist.
       icon: 'Webhook',
-      section: 'system',
-      // The hand-written position in *System* times a hundred, which is batch
-      // four's convention: `/webhooks` was the eighth row of that section
-      // before the drain began. *System* still holds host-declared entries, so
-      // `composeNav` appends every registry row after all of them whatever the
-      // weight says — what the weight can still do is keep the converted rows
-      // in the order the hand-written table had.
-      weight: 800,
+      section: 'platform',
+      // Issue #1519 (UX audit SHELL-11, DEC-02) split *System*: *Platform* is
+      // how the instance is configured and extended, ordered with the host's
+      // own rows by weight — Modules 100, Settings 200, Custom fields 300,
+      // Import/export 400, Bulk operations 500, Webhooks 600, Global search
+      // 700, PWA 800, Command hooks 900, API description 1000. The first of the
+      // integration rows.
+      weight: 600,
       requiredPermission: PERMISSION,
     },
   ],

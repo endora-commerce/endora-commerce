@@ -123,7 +123,8 @@ const { App } = await import('../../../packages/admin-shell/src/App');
 const bundle = {
   ...passthroughBundle('core', [
     'appShell.brand.text',
-    'appShell.section.system',
+    'appShell.section.access',
+    'appShell.section.platform',
     'app.moduleScreenLoading',
     'app.notFound',
     // Both screens still resolve their own copy in the `core` scope — this
@@ -334,6 +335,9 @@ describe('the shell no longer names api_keys or webhooks by hand', () => {
     // (UX audit SHELL-14), gated on the same code.
     expect(keys.contributions.routes?.map((route) => route.path)).toEqual(['/api-keys', '/api-keys/new']);
     expect(hooks.contributions.routes?.map((route) => route.path)).toEqual(['/webhooks', '/webhooks/new']);
+    // Issue #1519 split *System*: API keys are *Access*, webhooks *Platform*.
+    expect(keys.contributions.nav?.[0]?.section).toBe('access');
+    expect(hooks.contributions.nav?.[0]?.section).toBe('platform');
     for (const contributions of [keys.contributions, hooks.contributions]) {
       for (const route of contributions.routes ?? []) {
         expect(route.requiredPermission).toBe('integrations:manage');
@@ -342,7 +346,6 @@ describe('the shell no longer names api_keys or webhooks by hand', () => {
         expect(typeof route.component).toBe('function');
       }
       expect(contributions.nav?.[0]?.requiredPermission).toBe('integrations:manage');
-      expect(contributions.nav?.[0]?.section).toBe('system');
     }
   });
 

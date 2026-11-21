@@ -66,9 +66,10 @@ function codeOf(relativePath: string): string {
 }
 
 /**
- * The seven routes `App.tsx` declares that belong to no module, in source order,
+ * The eight routes `App.tsx` declares that belong to no module, in source order,
  * each with the reason it is the admin application's own. Issue #859 added the
- * fifth, `/login`; `specs/176-command-hooks-outbox/` P4 the two command-hook tabs.
+ * fifth, `/login`; `specs/176-command-hooks-outbox/` P4 the two command-hook tabs;
+ * issue #1519 the Profile's Security tab.
  *
  * **It was four until feature 134's wave 1**, and losing one is the interesting
  * part rather than a tidy-up. `/settings/dhl-parcel` was a `<Navigate>` to a
@@ -108,6 +109,11 @@ const HOST_ROUTES = [
   '/platform/command-hooks/outbox',
   // The signed-in admin's own profile.
   '/profile',
+  // Its Security tab (issue #1519). The destination is the host's: the host
+  // declares the route, the strip and the label, and only the tab's body is a
+  // contribution (the `profile.security` zone). With no contributor the route
+  // lands on the profile, so it outlives any module being absent.
+  '/profile/security',
 ];
 
 /**
@@ -117,14 +123,16 @@ const HOST_ROUTES = [
 const HOST_NAV = [
   // The dashboard's sidebar row, in the `main` section.
   '/',
-  // D-36 again: the modules screen, in the `system` section.
+  // D-36 again: the modules screen, in the `platform` section (the `system`
+  // section until issue #1519 split it into `access` and `platform`).
   '/platform/modules',
-  // The API description, in the `system` section, for the reason its route is
-  // the host's above.
-  '/api-description',
-  // The command-hook screen, in the `system` section, for the reason its routes
-  // are the host's above.
+  // The command-hook screen, in the `platform` section, for the reason its
+  // routes are the host's above.
   '/platform/command-hooks',
+  // The API description, in the `platform` section, for the reason its route
+  // is the host's above — last in source order since issue #1519, matching its
+  // weight, which puts it at the end of the section.
+  '/api-description',
   // The dashboard's command-palette row. `adminNavEntries` counted a palette
   // row beside a sidebar one — both are `{ to, module }` object literals — and
   // it is a second declaration of the same host-owned destination rather than a
@@ -133,7 +141,7 @@ const HOST_NAV = [
 ];
 
 describe('SC-007 — the admin application declares its own registrations and no module’s', () => {
-  it('declares exactly the seven host routes, and those seven', () => {
+  it('declares exactly the eight host routes, and those eight', () => {
     const app = codeOf('../packages/admin-shell/src/App.tsx');
     // Every `<Route` the host declares with a **literal** destination: `index`,
     // or a `path="…"` string. Three `<Route` elements in that file are not

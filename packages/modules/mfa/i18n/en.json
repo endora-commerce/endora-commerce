@@ -23,7 +23,6 @@
   "settingLabels.mfa.admin.totp_enforced.confirmation.signs_out_unprotected": "Administrators who have not set up two-step verification: {count}. They will be signed out now and asked to set it up at their next sign-in. Continue?",
   "settingLabels.mfa.admin.totp_enforced.confirmed.signs_out_unprotected": "Administrators who have not set up two-step verification are being signed out.",
   "settingLabels.mfa.storefront.totp_enforced.notice.encryption_key_missing": "Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY).",
-  "nav.security.label": "Account security",
   "actions.openSecurity.label": "Account security",
   "actions.openSecurity.description": "Set up or change your own two-step verification",
   "security.setup.qrAlt": "QR code to scan with your authenticator app",

@@ -32,7 +32,8 @@ const coreBundle = {
   ...passthroughBundle('core', [
     'appShell.brand.text',
     'appShell.section.analyticsAds',
-    'appShell.section.system',
+    'appShell.section.access',
+    'appShell.section.platform',
     'appShell.nav.users',
   ]),
   // **All four labels resolve in a module's own namespace now**, out of
@@ -116,12 +117,16 @@ describe('AppShell — Analytics & Ads navigation group', () => {
     }
   });
 
-  it('no longer lists the analytics entries under System', () => {
+  it('no longer lists the analytics entries under Platform, which took System\'s rows', () => {
+    // *System* was split into *Access* and *Platform* by issue #1519; the
+    // analytics rows left it long before, and neither successor holds them.
     renderShell();
-    const system = groupByLabel('appShell.section.system');
-    const hrefs = [...system.querySelectorAll('a')].map((a) => a.getAttribute('href'));
-    for (const { href } of ANALYTICS_LINKS) {
-      expect(hrefs).not.toContain(href);
+    for (const labelKey of ['appShell.section.access', 'appShell.section.platform']) {
+      const group = groupByLabel(labelKey);
+      const hrefs = [...group.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+      for (const { href } of ANALYTICS_LINKS) {
+        expect(hrefs).not.toContain(href);
+      }
     }
   });
 

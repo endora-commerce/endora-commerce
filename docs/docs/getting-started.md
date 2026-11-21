@@ -79,7 +79,7 @@ After `pnpm run dev:all`:
 | What | Address | |
 | --- | --- | --- |
 | The storefront | `http://localhost:3000` | |
-| The API | `http://localhost:3001` | its API description is under **System → API description** in the admin |
+| The API | `http://localhost:3001` | its API description is under **Platform → API description** in the admin |
 | The admin | `http://localhost:3002` | sign in with the administrator's e-mail and the password you chose |
 | Mailpit | `http://localhost:8025` | every e-mail the instance sends in development |
 

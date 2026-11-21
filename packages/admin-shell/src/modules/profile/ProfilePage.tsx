@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Navigate } from 'react-router-dom';
 import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import {
   useAppLanguage,
   setPreferredLanguage,
@@ -17,13 +19,58 @@ import {
   Input,
   Label,
   PageHeader,
+  RouteTabs,
   Select,
   Textarea,
   useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 
+export type ProfileTab = 'profile' | 'security';
+
+const PROFILE_PATH = '/profile';
+const SECURITY_PATH = '/profile/security';
+/** The `profile.security` mount carries nothing; one object, so the zone's memo holds. */
+const SECURITY_ZONE_PROPS = {};
+
 /**
- * ProfilePage — feature 010 admin polish.
+ * The signed-in admin's own account, as two tabs (issue #1519, UX audit
+ * SHELL-11, owner decision DEC-02): *Profile* — this screen's form and the
+ * language preference — and *Security*, whose body is the `profile.security`
+ * zone. Two-step verification used to be a row in the sidebar's *System*
+ * section; it is about the account, not the platform, so it lives beside the
+ * account's other settings now, reached from the avatar and from ⌘K.
+ *
+ * The host owns the strip, both labels and both routes, and does not know which
+ * module fills the second tab: it is drawn when `useAdminZone` returns a
+ * contribution, which has already applied both presence axes. With no
+ * contributor there is one tab, and a strip of one is not a choice, so none is
+ * drawn and `/profile/security` lands on the profile.
+ */
+export function ProfilePage({ tab = 'profile' }: { tab?: ProfileTab }): ReactNode {
+  const t = useTranslation('core');
+  const hasSecurity = useAdminZone('profile.security', SECURITY_ZONE_PROPS).length > 0;
+
+  if (tab === 'security' && !hasSecurity) return <Navigate to={PROFILE_PATH} replace />;
+
+  return (
+    <div className="b2b-page">
+      <PageHeader title={t('profile.page.title')} />
+      {hasSecurity ? (
+        <RouteTabs
+          className="mb-4"
+          tabs={[
+            { to: PROFILE_PATH, label: t('profile.tabs.profile') },
+            { to: SECURITY_PATH, label: t('profile.tabs.security') },
+          ]}
+        />
+      ) : null}
+      {tab === 'security' ? <AdminZone name="profile.security" props={SECURITY_ZONE_PROPS} /> : <ProfileDetails />}
+    </div>
+  );
+}
+
+/**
+ * The Profile tab — feature 010 admin polish.
  *
  * Self-edit form for the logged-in admin user. Hits
  * `PATCH /api/v1/admin/me`, which any authenticated admin can call
@@ -44,7 +91,7 @@ import {
  * the one card beside it (Common Region). Kit primitives throughout, so the
  * screen is held by `one-visual-system.test.ts`.
  */
-export function ProfilePage(): ReactNode {
+function ProfileDetails(): ReactNode {
   const t = useTranslation('core');
   const { me, refresh } = useAuth();
   const [firstName, setFirstName] = useState('');
@@ -83,7 +130,7 @@ export function ProfilePage(): ReactNode {
   }, []);
 
   if (!me) {
-    return <div className="b2b-page">{t('profile.loading')}</div>;
+    return <p>{t('profile.loading')}</p>;
   }
 
   // Issue #1449 (DS-19) — the draft against the account, for the save bar's "Unsaved changes".
@@ -143,9 +190,7 @@ export function ProfilePage(): ReactNode {
   };
 
   return (
-    <div className="b2b-page">
-      <PageHeader title={t('profile.page.title')} />
-
+    <>
       <form onSubmit={(e): void => { void handleSubmit(e); }}>
         <Card>
           <CardContent className="space-y-(--section-gap)">
@@ -273,7 +318,7 @@ export function ProfilePage(): ReactNode {
       </form>
 
       <LanguageSection />
-    </div>
+    </>
   );
 }
 

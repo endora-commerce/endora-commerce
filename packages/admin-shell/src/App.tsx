@@ -400,7 +400,10 @@ export function App({ contributions, modulePresence, translations }: AppProps): 
             module is a zone host as well as the contributor P7a and P7b made
             it. Its declaration is in
             `packages/modules/sales_channels/src/admin/index.ts`. */}
-        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/profile" element={<ProfilePage tab="profile" />} />
+        {/* Issue #1519 — the admin's own two-step verification, a tab of the
+            profile whose body is the `profile.security` zone. */}
+        <Route path="/profile/security" element={<ProfilePage tab="security" />} />
         {/* Every module-owned screen, from the generated registry. `App.tsx`
             declares the host's own routes and nothing else; a module adds one
             by shipping `src/admin/` and regenerating (feature 091, FR-010). */}

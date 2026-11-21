@@ -242,19 +242,17 @@ export const contributions: AdminContributions = {
       // **A second section, and this module is the first to declare one.** The
       // hand-written table's reason travels with the row: bulk operations may
       // span many domains rather than only products, so the entry lives under
-      // *System* while the URL stays `/catalog/bulk-operations` to keep
+      // *Platform* while the URL stays `/catalog/bulk-operations` to keep
       // existing deep links — the bulk-edit "queued" acknowledgement among them
       // — valid.
-      section: 'system',
-      // Batch four's convention, unbent here because *System* has room for it:
-      // this row was **fourth** of that section's hand-written thirteen, behind
-      // `/platform/modules`, `/admin-users` (200) and `/admin-roles` (300) and
-      // ahead of `/custom-fields` (500). Today an operator sees it second,
-      // because `composeNav` puts every host row above every contributed one
-      // and this was the section's only host row besides `/platform/modules`.
-      // So the row moves from second to fourth, which is where the table it was
-      // written in put it.
-      weight: 400,
+      section: 'platform',
+      // Issue #1519 (UX audit SHELL-11, DEC-02) split *System*: *Platform* is
+      // how the instance is configured and extended, ordered with the host's
+      // own rows by weight — Modules 100, Settings 200, Custom fields 300,
+      // Import/export 400, Bulk operations 500, Webhooks 600, Global search
+      // 700, PWA 800, Command hooks 900, API description 1000. Beside
+      // Import/export, the other data tool that spans domains.
+      weight: 500,
       requiredPermission: READ_PERMISSION,
     },
   ],

@@ -296,14 +296,14 @@ curl http://localhost:3001/api/v1/store-notice
 ```
 
 **The setting, in the admin.** Open the admin at `http://localhost:3002`, sign in, and go to
-**System → Settings**. Find the **Store notice** group, type a message into **Notice text** and
+**Platform → Settings**. Find the **Store notice** group, type a message into **Notice text** and
 press **Save 1 change(s)**. Ask the route again:
 
 ```json
 {"data":{"message":"We are closed 24-26 December. Orders ship from 27 December.","visible":true}}
 ```
 
-**The permission and its translation.** Go to **System → Roles** and pick a role. The permission
+**The permission and its translation.** Go to **Access → Roles** and pick a role. The permission
 list has a `STORE_NOTICE` group with `store_notice:read — View the store notice`. Switch the admin
 to Polish with the language picker in the top bar and the same line reads
 `Odczyt komunikatu sklepu`.
@@ -317,7 +317,7 @@ terminal.
 Every module can be switched off by the people running the shop, and a module that is off behaves
 as if it were not installed. Nothing is deleted, and switching it on again brings everything back.
 
-**In the admin.** Open **System → Modules** (`/platform/modules`). Every module of the instance is
+**In the admin.** Open **Platform → Modules** (`/platform/modules`). Every module of the instance is
 listed there, yours included, with what the deployment installed and what your business has
 switched on. Switch **Store notice** off with the control in its row.
 

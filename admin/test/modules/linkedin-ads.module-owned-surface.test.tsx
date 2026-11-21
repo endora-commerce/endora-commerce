@@ -90,7 +90,8 @@ const bundle = {
   ...passthroughBundle('core', [
     'appShell.brand.text',
     'appShell.section.analyticsAds',
-    'appShell.section.system',
+    'appShell.section.access',
+    'appShell.section.platform',
     'appShell.nav.users',
   ]),
   ...passthroughBundle('linkedin_ads', ['nav.linkedInAds.label']),

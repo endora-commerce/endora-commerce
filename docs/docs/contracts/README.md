@@ -31,7 +31,7 @@ answered `401 UNAUTHORIZED` (no administrator session or API key) or
 administrator grants the permission on the **Roles** screen; a key with the
 scope can be issued only by an administrator who holds it.
 
-- **In the Admin Panel** — **System → API description** (or ⌘K / CTRL+K,
+- **In the Admin Panel** — **Platform → API description** (or ⌘K / CTRL+K,
   *API description*) shows the document's title, version and endpoint count,
   downloads it as JSON, and opens the interactive reference
   (`GET /api/v1/_docs`, Swagger UI) in a new tab. The reference is served by

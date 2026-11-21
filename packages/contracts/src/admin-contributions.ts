@@ -114,6 +114,20 @@ export const AdminNavSectionNameSchema = z.enum([
   'messaging',
   'newsletter',
   'analyticsAds',
+  // Issue #1519 (UX audit SHELL-11, owner decision DEC-02): the eighteen-row
+  // *System* section is split in two. *Access* is who may sign in and what
+  // they may do — users, roles, API keys, credentials, the audit log.
+  // *Platform* is how the instance is configured and extended — modules,
+  // settings, webhooks, custom fields, import/export and the like.
+  'access',
+  'platform',
+  /**
+   * @deprecated Since issue #1519 — name `'access'` or `'platform'`. Kept so a
+   * separately shipped module that still declares it keeps rendering: the
+   * shell files a `'system'` entry under *Platform*, the section every former
+   * System row that is not about access now lives in. Removing the member is a
+   * breaking change for such a module and waits for a major release.
+   */
   'system',
 ]);
 
@@ -599,6 +613,27 @@ export const AdminZoneNameSchema = z.enum([
    * names no contributor and gains no edge.
    */
   'task.detail.after',
+  /**
+   * The **body** of the signed-in admin's Profile *Security* tab
+   * (`/profile/security`) — issue #1519 (UX audit SHELL-11, DEC-02): personal
+   * two-step verification is about the admin's own account, so it lives under
+   * Profile rather than in a sidebar section about the platform.
+   *
+   * Mounted **once**, by `admin-shell`'s `ProfilePage`, and named from the
+   * host's own word for the place (Z14). The host keeps the tab strip and the
+   * tab's label and stops knowing which module fills it, on
+   * `order.detail.payment`'s terms: the tab is shown by
+   * `useAdminZone(name, props).length > 0`, which has already applied both
+   * presence axes and the contributor's permission, so with `mfa` off there is
+   * no tab and `/profile/security` falls back to the profile.
+   *
+   * **No save session, on purpose.** The contribution's every write — enabling,
+   * confirming, regenerating recovery codes, switching off — is an immediate
+   * write confirmed with a one-time code, which cannot be staged into a Save;
+   * and the tab is a separate view from the profile form, whose one Save covers
+   * only that form. Props: {@link ProfileSecurityZoneProps}.
+   */
+  'profile.security',
 ])
 
 export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
@@ -676,6 +711,12 @@ export interface PaymentMethodIntegrationsZoneProps {}
 
 /** The products list's header-actions mount carries no host-owned data. */
 export interface ProductListActionsZoneProps {}
+
+/**
+ * The Profile *Security* tab carries no host-owned data: its subject is the
+ * signed-in admin, whom every contributor already reads from the session.
+ */
+export interface ProfileSecurityZoneProps {}
 
 /**
  * A zone mounted once at the end of the invoice detail's totals column.
@@ -1007,6 +1048,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'product.content.editor': ProductContentEditorZoneProps;
   'settings.setting.after': SettingsSettingAfterZoneProps;
   'task.detail.after': TaskDetailZoneProps;
+  'profile.security': ProfileSecurityZoneProps;
 }
 
 /** The props of one zone, by name. */

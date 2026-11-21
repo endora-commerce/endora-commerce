@@ -133,7 +133,7 @@ const SUBJECTS: readonly Subject[] = [
     nearMiss: 'custom_fields:write',
     labelKey: 'nav.customFields.label',
     specifier: '@endora-commerce/mod-custom-fields/admin',
-    section: 'system',
+    section: 'platform',
     routes: ['/custom-fields'],
     retiredSharedKey: 'appShell.nav.customFields',
   },
@@ -222,7 +222,8 @@ const bundle = {
   ...passthroughBundle('core', [
     'appShell.brand.text',
     'appShell.section.catalog',
-    'appShell.section.system',
+    'appShell.section.access',
+    'appShell.section.platform',
     'app.moduleScreenLoading',
     'app.notFound',
   ]),

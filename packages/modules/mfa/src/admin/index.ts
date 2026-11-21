@@ -1,13 +1,23 @@
 /**
- * `mfa`' admin surface — one route and one sidebar entry, declared by the
- * module that owns it (feature 091, Phase 4, batch four;
+ * `mfa`' admin surface — the body of the Profile's *Security* tab, and the old
+ * address of the screen kept as a redirect (feature 091, Phase 4, batch four;
  * `specs/091-module-owned-admin-surfaces/contracts/admin-contribution.md`).
+ *
+ * **Under Profile since issue #1519** (UX audit SHELL-11, owner decision
+ * DEC-02). The admin's own two-step verification is about the signed-in
+ * account, not about the platform, so it left the sidebar's *System* section
+ * when that section was split into *Access* and *Platform*. The host owns the
+ * Profile screen, its tab strip and the tab's label; this module fills the
+ * tab through the `profile.security` zone, so with the module off there is no
+ * tab at all. `/security` forwards to `/profile/security` for bookmarks, and
+ * the manifest's `open-security` palette action opens the tab (Principle XVI).
  *
  * **The sidebar entry arrived with issue #510.** Until then `/security` was
  * reachable from neither the sidebar nor the palette, so an admin could not
  * find where to switch two-factor authentication on — Principle XVI forbids
- * that. The entry and the manifest's `open-security` action carry no
- * `requiredPermission`, for the reason the route carries none (below).
+ * that. The entry and the manifest's `open-security` action carried no
+ * `requiredPermission`, for the reason the route carries none (below); the
+ * zone contribution carries none for the same reason.
  *
  * **The nav-less shape, and it is the reason this module was in the batch.**
  * Batch two rejected `mfa` on the ground that it contributes no sidebar entry,
@@ -38,27 +48,29 @@
  * qualify, so a consumer reaching into another module's `./admin` stays a
  * counted boundary reach.
  */
-import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import {
+  zoneComponent,
+  type AdminContributions,
+} from '@endora-commerce/admin-kit/contributions';
 
-/** The module's only admin route: the signed-in admin's own 2FA settings. */
-const ROUTE_PATH = '/security';
+/** The screen's address before issue #1519, kept as a redirect to the Profile tab. */
+const LEGACY_ROUTE_PATH = '/security';
 
 export const contributions: AdminContributions = {
   routes: [
     {
-      path: ROUTE_PATH,
-      component: () => import('./pages/AdminSecuritySettings.js'),
-      index: true,
+      path: LEGACY_ROUTE_PATH,
+      component: () => import('./pages/SecurityRedirect.js'),
+      // Not `index`: a redirect is nobody's landing screen. The palette's
+      // `open-security` opens the destination, `/profile/security`.
     },
   ],
-  nav: [
-    {
-      to: ROUTE_PATH,
-      labelKey: 'nav.security.label',
-      icon: 'ShieldCheck',
-      section: 'system',
-      // Beside `admin_users` (200) and `admin_roles` (300): account identity.
-      weight: 250,
-    },
+  zones: [
+    // The only contribution to this member. Declared with a weight rather than
+    // defaulted so a second contributor (a passkeys panel, say) arrives beside
+    // it rather than ahead of it by accident.
+    zoneComponent('profile.security', () => import('./pages/AdminSecuritySettings.js'), {
+      weight: 100,
+    }),
   ],
 };

@@ -99,17 +99,14 @@ export const contributions: AdminContributions = {
       // `KnownIconNameSchema` — this module's `open-settings` action names
       // `Settings` too.
       icon: 'Settings',
-      section: 'system',
-      // The hand-written position in *System* times a hundred, which is batch
-      // four's convention: `/settings` was the tenth row, between
-      // `/credentials` (900, this batch) and `/settings/pwa` (1400, batch six).
-      // `/settings/groups` (1100) and `/settings/cache` (1200) had rows of
-      // their own until issue #1550 folded them into this one's tab strip.
-      // *System* still holds host-declared entries (`/platform/modules`,
-      // `/catalog/bulk-operations`), so `composeNav` appends every registry row
-      // after both whatever the weight says; what the weight can still do is
-      // keep the converted rows in the order the operator already had.
-      weight: 1000,
+      section: 'platform',
+      // Issue #1519 (UX audit SHELL-11, DEC-02) split *System*: *Platform* is
+      // how the instance is configured and extended, ordered with the host's
+      // own rows by weight — Modules 100, Settings 200, Custom fields 300,
+      // Import/export 400, Bulk operations 500, Webhooks 600, Global search
+      // 700, PWA 800, Command hooks 900, API description 1000. Second only to
+      // Modules: the most-used configuration screen.
+      weight: 200,
       requiredPermission: READ_PERMISSION,
     },
   ],

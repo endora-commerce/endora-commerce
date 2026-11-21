@@ -300,14 +300,14 @@ curl http://localhost:3001/api/v1/store-notice
 ```
 
 **Ustawienie w panelu administracyjnym.** Otwórz panel pod adresem `http://localhost:3002`, zaloguj
-się i przejdź do **System → Settings**. Znajdź grupę **Store notice**, wpisz wiadomość w polu
+się i przejdź do **Platforma → Ustawienia**. Znajdź grupę **Store notice**, wpisz wiadomość w polu
 **Notice text** i naciśnij **Save 1 change(s)**. Zapytaj trasę ponownie:
 
 ```json
 {"data":{"message":"We are closed 24-26 December. Orders ship from 27 December.","visible":true}}
 ```
 
-**Uprawnienie i jego tłumaczenie.** Przejdź do **System → Roles** i wybierz rolę. Lista uprawnień
+**Uprawnienie i jego tłumaczenie.** Przejdź do **Dostęp → Role** i wybierz rolę. Lista uprawnień
 ma grupę `STORE_NOTICE` z pozycją `store_notice:read — View the store notice`. Przełącz panel na
 język polski selektorem języka w górnym pasku, a ta sama linia brzmi
 `Odczyt komunikatu sklepu`.
@@ -321,7 +321,7 @@ trasę administracyjną z terminala.
 Każdy moduł mogą wyłączyć osoby prowadzące sklep, a wyłączony moduł zachowuje się tak, jakby nie
 był zainstalowany. Nic nie jest usuwane, a ponowne włączenie przywraca wszystko.
 
-**W panelu administracyjnym.** Otwórz **System → Modules** (`/platform/modules`). Ekran wymienia
+**W panelu administracyjnym.** Otwórz **Platforma → Moduły** (`/platform/modules`). Ekran wymienia
 każdy moduł instancji, także Twój, i pokazuje, co zainstalowano w tym wdrożeniu, a co włączyła
 Twoja firma. Wyłącz **Store notice** przełącznikiem w jego wierszu.
 

@@ -209,7 +209,7 @@ const SUBJECTS: readonly Subject[] = [
     nearMiss: 'catalog:write',
     labelKey: 'nav.products.label',
     specifier: '@endora-commerce/mod-catalog/admin',
-    sections: ['catalog', 'system'],
+    sections: ['catalog', 'platform'],
     routes: [
       ['/catalog/products', 'catalog:read'],
       // The create form, opened by the code the create demands (D-221). Its
@@ -412,7 +412,8 @@ const bundle = {
     'appShell.brand.text',
     'appShell.section.catalog',
     'appShell.section.sales',
-    'appShell.section.system',
+    'appShell.section.access',
+    'appShell.section.platform',
     'app.moduleScreenLoading',
     'app.notFound',
   ]),

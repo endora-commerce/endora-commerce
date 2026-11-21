@@ -34,8 +34,14 @@ export const contributions: AdminContributions = {
       to: '/global-search/configuration',
       labelKey: 'nav.configuration.label',
       icon: 'Search',
-      section: 'system',
-      weight: 650,
+      section: 'platform',
+      // Issue #1519 (UX audit SHELL-11, DEC-02) split *System*: *Platform* is
+      // how the instance is configured and extended, ordered with the host's
+      // own rows by weight — Modules 100, Settings 200, Custom fields 300,
+      // Import/export 400, Bulk operations 500, Webhooks 600, Global search
+      // 700, PWA 800, Command hooks 900, API description 1000. Configuration of
+      // a shell feature, after the integrations.
+      weight: 700,
       requiredPermission: CONFIGURE_PERMISSION,
     },
   ],

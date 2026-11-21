@@ -103,7 +103,7 @@ współpracownikowi — który zobaczy tylko to, co sam może zobaczyć.
 
 ## Konfiguracja pól wyszukiwania
 
-Użytkownicy z uprawnieniem `admin_search:configure` otwierają **System →
+Użytkownicy z uprawnieniem `admin_search:configure` otwierają **Platforma →
 Wyszukiwanie globalne** (albo *Konfiguruj wyszukiwanie globalne* w palecie
 poleceń). Każdy typ rekordu ma kartę z dostępnymi polami, a pola domyślne są
 oznaczone:

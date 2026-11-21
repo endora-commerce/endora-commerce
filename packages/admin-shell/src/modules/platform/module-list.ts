@@ -1,5 +1,6 @@
 import { foldDiacritics, type ModuleListItem, type ModulePresence } from '@endora-commerce/contracts';
 import type { AdminRegistryEntry } from '../../lib/module-registry/index.js';
+import { resolveSectionKey } from '../../components/sidebar/nav-sections.js';
 
 /**
  * The pure half of `/platform/modules` — issue #1520 (UX audit 2026-11-17,
@@ -172,7 +173,10 @@ export function moduleSectionsOf(
   const best = new Map<string, number>();
   for (const entry of entries) {
     for (const item of entry.contributions.nav ?? []) {
-      const index = order.get(item.section);
+      // A deprecated section key is read as the section that renders it
+      // (issue #1519: `'system'` → *Platform*), so the module is listed where
+      // the sidebar shows it.
+      const index = order.get(resolveSectionKey(item.section));
       if (index === undefined) continue;
       const current = best.get(entry.moduleId);
       if (current === undefined || index < current) best.set(entry.moduleId, index);

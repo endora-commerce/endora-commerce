@@ -76,14 +76,12 @@ export const contributions: AdminContributions = {
       // The glyph `AppShell.tsx` rendered by hand, and one already on the
       // allowlist — `credentials`' row renders it too.
       icon: 'KeyRound',
-      section: 'system',
-      // The hand-written position in *System* times a hundred, which is batch
-      // four's convention: `/api-keys` was the seventh row of that section
-      // before the drain began, one above `/webhooks`. *System* still holds
-      // host-declared entries, so `composeNav` appends every registry row after
-      // all of them whatever the weight says — what the weight can still do is
-      // keep the converted rows in the order the hand-written table had.
-      weight: 700,
+      section: 'access',
+      // Issue #1519 (UX audit SHELL-11, DEC-02) split *System*: *Access* is who
+      // may sign in and what they may do, in the order users, roles, API keys,
+      // credentials, audit log (100 to 500). The machine identities, after the
+      // human ones and their roles.
+      weight: 300,
       requiredPermission: PERMISSION,
     },
   ],

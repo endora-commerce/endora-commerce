@@ -73,7 +73,7 @@ describe('mfa advertises its palette action only while on (Principle XVII item 5
     expect(manifest, 'mfa is not a registered module').toBeDefined();
     const actions = manifest?.actions ?? [];
     expect(actions.map((action) => action.id)).toEqual(['open-security']);
-    expect(actions[0]?.targetRoute).toBe('/security');
+    expect(actions[0]?.targetRoute).toBe('/profile/security');
     expect(actions[0]?.requiredPermission).toBeUndefined();
   });
 

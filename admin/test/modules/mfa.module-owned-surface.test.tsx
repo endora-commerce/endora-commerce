@@ -103,9 +103,13 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   return {
     ...actual,
     apiClient: {
-      get: vi.fn(async () => ({
-        data: { totpActive: false, recoveryCodesRemaining: 0, totpEnabledForScope: true },
-      })),
+      // The Profile tab beside the screen (issue #1519) reads the content
+      // languages; everything else here is the screen's own status read.
+      get: vi.fn(async (path: string) =>
+        path.includes('/i18n/config')
+          ? { data: { languages: [] } }
+          : { data: { totpActive: false, recoveryCodesRemaining: 0, totpEnabledForScope: true } },
+      ),
       post: vi.fn(),
       put: vi.fn(),
       patch: vi.fn(),
@@ -135,11 +139,15 @@ const { App } = await import('../../../packages/admin-shell/src/App');
 const bundle = {
   ...passthroughBundle('core', [
     'appShell.brand.text',
-    'appShell.section.system',
+    'appShell.section.access',
+    'appShell.section.platform',
     'app.moduleScreenLoading',
     'app.notFound',
+    'profile.page.title',
+    'profile.tabs.profile',
+    'profile.tabs.security',
   ]),
-  ...passthroughBundle('mfa', ['nav.security.label']),
+  ...passthroughBundle('mfa', ['security.page.title']),
 };
 
 function renderAt(path: string): RenderResult {
@@ -155,48 +163,71 @@ function renderAt(path: string): RenderResult {
 }
 
 /**
- * The screen's own `h1`. `App` is rendered over the empty bundle, so the heading
- * reads as its key's placeholder: the screen words itself from the `mfa` bundle
- * since issue #1481, and this file is asserting that the screen is *there*, not
- * what it says.
+ * The panel's own heading. It is an `h2` since issue #1519: the screen is the
+ * body of the Profile's *Security* tab, whose `h1` is the Profile's. `App` is
+ * rendered over the empty bundle, so the heading reads as its key's
+ * placeholder — this file asserts that the panel is *there*, not what it says.
  */
 const screenIsRendered = (): boolean =>
-  screen.queryAllByRole('heading', { level: 1, name: /security\.page\.title/ }).length > 0;
+  screen.queryAllByRole('heading', { level: 2, name: /security\.page\.title/ }).length > 0;
 
 /** Every sidebar link's `href`, in rendered order. */
 function sidebarHrefs(): (string | null)[] {
   return [...document.querySelectorAll('.b2b-sidebar a')].map((a) => a.getAttribute('href'));
 }
 
+/** The Profile's tab links, by `href`. */
+function profileTabHrefs(): (string | null)[] {
+  return screen.queryAllByRole('tab').map((tab) => tab.getAttribute('href'));
+}
+
 /** The admin's own unknown-path answer, rendered by `ModuleRoute`'s gate. */
 const notFoundIsRendered = (): boolean => screen.queryAllByText(/app\.notFound/).length > 0;
 
-describe('mfa owns its admin surface, and its proof is the route', () => {
-  it('renders the screen at /security while the module is present', async () => {
+describe('mfa owns its admin surface: the Profile Security tab and the old address', () => {
+  it('renders the panel at /profile/security while the module is present', async () => {
     // The positive control, and it comes first for the reason every off-state
     // assertion in this repository puts one first: an absence proves nothing
-    // until the presence has been seen. The screen is lazily loaded, so the
+    // until the presence has been seen. The panel is lazily loaded, so the
     // assertion waits rather than reading the Suspense fallback.
+    presentModules = new Set(['mfa']);
+    permissions = new Set();
+    renderAt('/profile/security');
+    await waitFor(() => expect(screenIsRendered()).toBe(true));
+    expect(profileTabHrefs()).toEqual(['/profile', '/profile/security']);
+  });
+
+  it('forwards the old /security address to the Profile tab', async () => {
+    // Bookmarks and stale links made before issue #1519 keep working.
     presentModules = new Set(['mfa']);
     permissions = new Set();
     renderAt('/security');
     await waitFor(() => expect(screenIsRendered()).toBe(true));
+    expect(profileTabHrefs()).toEqual(['/profile', '/profile/security']);
   });
 
-  it('renders the not-found treatment while the module is switched off', async () => {
-    // Principle XVII item 5, over the surface this module actually contributes.
-    // The registry still names the module — it answers "what could be here" —
-    // and the render is what withdraws it, so an operator's flip needs no
-    // rebuild. What the operator meets is the admin's own unknown-path answer,
-    // which is what the surface is already telling them by not listing it.
+  it('withdraws the tab, the panel and the old address while the module is switched off', async () => {
+    // Principle XVII item 5, over the surfaces this module contributes. The
+    // old address is a module route, so `ModuleRoute`'s gate answers it with
+    // the admin's own unknown-path page; the tab is the host's, drawn only
+    // while the zone has a contributor, so the profile shows no strip and its
+    // second address lands on the profile.
     presentModules = new Set();
     permissions = new Set();
-    renderAt('/security');
+    const legacy = renderAt('/security');
     await waitFor(() => expect(notFoundIsRendered()).toBe(true));
     expect(screenIsRendered()).toBe(false);
+    legacy.unmount();
+
+    renderAt('/profile/security');
+    await waitFor(() =>
+      expect(screen.queryAllByRole('heading', { level: 1, name: /profile\.page\.title/ }).length).toBe(1),
+    );
+    expect(screenIsRendered()).toBe(false);
+    expect(profileTabHrefs()).toEqual([]);
   });
 
-  it('renders the screen for an operator holding no permission code at all', async () => {
+  it('renders the panel for an operator holding no permission code at all', async () => {
     // The permission axis, and for this module the assertion is that there is
     // no gate — read from the route, where every `/api/v1/admin/account/mfa/`
     // endpoint carries the bare admin guard and no `requireAdmin(...)`. An
@@ -204,11 +235,11 @@ describe('mfa owns its admin surface, and its proof is the route', () => {
     // declaration ever acquires a code copied from a neighbour.
     presentModules = new Set(['mfa']);
     permissions = new Set();
-    renderAt('/security');
+    renderAt('/profile/security');
     await waitFor(() => expect(screenIsRendered()).toBe(true));
   });
 
-  it('restores the screen when the module comes back, with no rebuild', async () => {
+  it('restores the panel when the module comes back, with no rebuild', async () => {
     presentModules = new Set();
     permissions = new Set();
     const off = renderAt('/security');
@@ -221,26 +252,19 @@ describe('mfa owns its admin surface, and its proof is the route', () => {
   });
 });
 
-describe('mfa is in the sidebar, for every admin while present (issue #510)', () => {
-  it('contributes its entry to an operator holding no code, labelled in its own namespace', () => {
-    // No code, as for the route: every admin manages their own second factor.
-    presentModules = new Set(['mfa']);
-    permissions = new Set();
-    renderAt('/');
-    expect(sidebarHrefs()).toContain('/security');
-    expect(screen.getByRole('link', { name: /nav\.security\.label/ })).toBeTruthy();
-  });
-
-  it('withdraws the entry while the module is absent, and restores it after', () => {
-    permissions = new Set();
-    presentModules = new Set();
-    const off = renderAt('/');
-    expect(sidebarHrefs()).not.toContain('/security');
-    off.unmount();
-
-    presentModules = new Set(['mfa']);
-    renderAt('/');
-    expect(sidebarHrefs()).toContain('/security');
+describe('mfa is under Profile, not in the sidebar (issue #1519)', () => {
+  it('contributes no sidebar entry, present or not', () => {
+    // Personal two-step verification is about the account, not the platform,
+    // so it left the sidebar's *System* section (DEC-02). It is reached from
+    // the avatar, through Profile, and from the palette's `open-security`.
+    for (const present of [['mfa'], []]) {
+      presentModules = new Set(present);
+      permissions = new Set();
+      const view = renderAt('/');
+      expect(sidebarHrefs()).not.toContain('/security');
+      expect(sidebarHrefs()).not.toContain('/profile/security');
+      view.unmount();
+    }
   });
 });
 
@@ -248,14 +272,15 @@ describe('the shell no longer names mfa by hand', () => {
   it('has no host route for the module, and no hand-written nav entry', () => {
     // The evidence that the conversion converted something. `App.tsx` is one of
     // the two registries 11 of the last 12 module additions edited; it no longer
-    // mentions this module, and the screen is still there. `AppShell.tsx` is
-    // asserted too: the sidebar row is the module's declaration (issue #510),
-    // and asserting the shell's silence keeps it from being added by hand.
+    // mentions this module, and the screen is still there. The Profile's
+    // *Security* tab is the host's, and only its body is the module's.
     const app = sourceOf('../packages/admin-shell/src/App.tsx');
     const shell = sourceOf('../packages/admin-shell/src/components/AppShell.tsx');
+    const profile = sourceOf('../packages/admin-shell/src/modules/profile/ProfilePage.tsx');
     expect(app).not.toContain('AdminSecuritySettings');
     expect(app).not.toContain('modules/mfa');
     expect(shell).not.toContain("to: '/security'");
+    expect(profile).not.toContain('mfa');
   });
 
   it('resolves the screen through the module package, never through admin/src', () => {
@@ -267,16 +292,16 @@ describe('the shell no longer names mfa by hand', () => {
     expect(registry).not.toContain('packages/modules');
   });
 
-  it('declares one lazily-loaded route and one nav entry, neither gated on a code', async () => {
-    // FR-013, and the declaration this whole file is about. The nav entry
-    // (issue #510) points at the route and, like it, carries no code.
+  it('declares the redirect route and the Profile tab body, neither gated on a code', async () => {
+    // FR-013, and the declaration this whole file is about: no sidebar entry
+    // since issue #1519, the old address kept, and the panel in the zone.
     const { contributions } = await import('@endora-commerce/mod-mfa/admin');
     expect(contributions.routes?.map((route) => route.path)).toEqual(['/security']);
-    expect((contributions.nav ?? []).map((entry) => [entry.to, entry.requiredPermission])).toEqual([
-      ['/security', undefined],
-    ]);
-    expect(typeof contributions.routes?.[0]?.component).toBe('function');
+    expect(contributions.nav ?? []).toEqual([]);
     expect(contributions.routes?.[0]?.requiredPermission).toBeUndefined();
+    expect((contributions.zones ?? []).map((zone) => [zone.zone, zone.requiredPermission])).toEqual([
+      ['profile.security', undefined],
+    ]);
     const loaded = await contributions.routes![0]!.component();
     expect(typeof loaded.default).toBe('function');
   });

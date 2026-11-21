@@ -186,7 +186,7 @@ seconds, and a write that produced rows also wakes the drain at once. A failed
 delivery is retried with a growing delay, up to 10 attempts, and is then
 **dead**; a handler may also give up on a delivery at once.
 
-Dead deliveries are listed in the admin under **System → Command hooks →
+Dead deliveries are listed in the admin under **Platform → Command hooks →
 Outbox** (`platform.command_outbox.read`), with the handler, the attempts and the
 failure's code — never the data the delivery carried. An administrator holding
 `platform.command_outbox.manage` retries one there, and the retry is recorded in

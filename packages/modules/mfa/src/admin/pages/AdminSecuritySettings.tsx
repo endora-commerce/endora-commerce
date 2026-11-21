@@ -5,18 +5,17 @@ import {
   AlertDescription,
   AlertTitle,
   Button,
-  Card,
-  CardContent,
   EditorSection,
   FormField,
   Input,
-  PageHeader,
 } from '@endora-commerce/admin-kit/ui';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
- * Admin self-service 2FA (feature 042, US2). Lets the signed-in admin enable
+ * Admin self-service 2FA (feature 042, US2) — the `profile.security` zone's
+ * one contribution, rendered as the body of the Profile's *Security* tab
+ * (issue #1519). Lets the signed-in admin enable
  * TOTP (scan → confirm → save recovery codes), disable it, and regenerate
  * recovery codes. The admin SPA sends the `b2b_admin_session` cookie with each
  * request, so the component calls the backend directly.
@@ -152,133 +151,134 @@ export default function AdminSecuritySettings(): ReactNode {
 
   const pageError = errorFor('page');
 
+  // Issue #1519 (UX audit SHELL-11, DEC-02) — the body of the Profile's
+  // *Security* tab: the page's `h1` is the Profile's, so this panel is one card
+  // titled at `h2`, and its two forms are `h3` sections inside it.
   return (
-    <>
-      <PageHeader
-        title={
-          <>
-            <ShieldCheck className="size-6 text-primary" aria-hidden="true" />
-            {t('security.page.title')}
-          </>
-        }
-        description={t('security.page.description')}
-      />
-      <Card className="max-w-2xl">
-        <CardContent className="space-y-4">
-          {pageError ? (
-            <Alert variant="destructive">
-              <ShieldAlert className="size-4" />
-              <AlertTitle>{t('security.error.title')}</AlertTitle>
-              <AlertDescription>{pageError}</AlertDescription>
-            </Alert>
-          ) : null}
+    <EditorSection
+      chrome="card"
+      className="max-w-2xl"
+      contentClassName="space-y-4"
+      title={
+        <span className="inline-flex items-center gap-2">
+          <ShieldCheck className="size-5 text-primary" aria-hidden="true" />
+          {t('security.page.title')}
+        </span>
+      }
+      description={t('security.page.description')}
+    >
+      {pageError ? (
+        <Alert variant="destructive">
+          <ShieldAlert className="size-4" />
+          <AlertTitle>{t('security.error.title')}</AlertTitle>
+          <AlertDescription>{pageError}</AlertDescription>
+        </Alert>
+      ) : null}
 
-          {recoveryCodes ? (
-            <Alert>
-              <AlertTitle>{t('security.recoveryCodes.title')}</AlertTitle>
-              <AlertDescription>
-                <p>{t('security.recoveryCodes.body')}</p>
-                <ul className="mt-2 grid grid-cols-2 gap-1 font-mono text-sm">
-                  {recoveryCodes.map((c) => (
-                    <li key={c}>{c}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          ) : null}
+      {recoveryCodes ? (
+        <Alert>
+          <AlertTitle>{t('security.recoveryCodes.title')}</AlertTitle>
+          <AlertDescription>
+            <p>{t('security.recoveryCodes.body')}</p>
+            <ul className="mt-2 grid grid-cols-2 gap-1 font-mono text-sm">
+              {recoveryCodes.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
-          {status === null ? (
-            <p className="text-sm text-muted-foreground">{t('security.loading')}</p>
-          ) : status.totpActive ? (
-            // Two sections in the one card (issue #1437, DS-03): the routine recovery codes first and
-            // switching the factor off last, away from it (Fitts), each form named by its heading.
-            <div className="space-y-6">
-              <p className="text-sm">
-                {t('security.status.enabled', { count: status.recoveryCodesRemaining })}
-              </p>
-              <EditorSection title={t('security.recoveryCodes.sectionTitle')}>
-                <form className="space-y-2" onSubmit={regenerate}>
-                  <FormField
-                    label={t('security.regenerate.label')}
-                    hint={t('security.code.hint')}
-                    error={errorFor('regenerate')}
-                    required
-                  >
-                    <Input
-                      {...CODE_INPUT}
-                      value={regenerateCode}
-                      onChange={(e): void => setRegenerateCode(e.target.value)}
-                    />
-                  </FormField>
-                  <Button type="submit" variant="outline" disabled={busy}>
-                    {t('security.regenerate.submit')}
-                  </Button>
-                </form>
-              </EditorSection>
-              <EditorSection title={t('security.disable.sectionTitle')}>
-                {status.canDisable ? (
-                  <form className="space-y-2" onSubmit={disable}>
-                    <FormField
-                      label={t('security.disable.label')}
-                      hint={t('security.code.hint')}
-                      error={errorFor('disable')}
-                      required
-                    >
-                      <Input
-                        {...CODE_INPUT}
-                        value={disableCode}
-                        onChange={(e): void => setDisableCode(e.target.value)}
-                      />
-                    </FormField>
-                    <Button type="submit" variant="destructive" disabled={busy}>
-                      {t('security.disable.submit')}
-                    </Button>
-                  </form>
-                ) : (
-                  <Alert data-testid="mfa-disable-blocked">
-                    <ShieldCheck className="size-4" />
-                    <AlertTitle>{t('security.disableBlocked.title')}</AlertTitle>
-                    <AlertDescription>{t('security.disableBlocked.body')}</AlertDescription>
-                  </Alert>
-                )}
-              </EditorSection>
-            </div>
-          ) : setup ? (
-            <form className="space-y-3" onSubmit={confirm}>
-              <p className="text-sm">{t('security.setup.intro')}</p>
-              {/* An <img> of the server-drawn SVG, never inserted as markup. */}
-              <img
-                src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(setup.qrSvg)}`}
-                alt={t('security.setup.qrAlt')}
-                width={192}
-                height={192}
-                className="rounded border bg-white p-2"
-              />
-              <p className="text-sm text-muted-foreground">{t('security.setup.qrHint')}</p>
-              <p className="break-all rounded bg-muted px-2 py-1 font-mono text-xs">{setup.otpauthUri}</p>
-              <p className="text-sm">
-                {t('security.setup.manualKey')} <code className="font-mono">{setup.secret}</code>
-              </p>
-              <FormField label={t('security.setup.codeLabel')} error={errorFor('confirm')} required>
+      {status === null ? (
+        <p className="text-sm text-muted-foreground">{t('security.loading')}</p>
+      ) : status.totpActive ? (
+        // Two sections in the one card (issue #1437, DS-03): the routine recovery codes first and
+        // switching the factor off last, away from it (Fitts), each form named by its heading.
+        <div className="space-y-6">
+          <p className="text-sm">
+            {t('security.status.enabled', { count: status.recoveryCodesRemaining })}
+          </p>
+          <EditorSection as="h3" title={t('security.recoveryCodes.sectionTitle')}>
+            <form className="space-y-2" onSubmit={regenerate}>
+              <FormField
+                label={t('security.regenerate.label')}
+                hint={t('security.code.hint')}
+                error={errorFor('regenerate')}
+                required
+              >
                 <Input
                   {...CODE_INPUT}
-                  inputMode="numeric"
-                  value={confirmCode}
-                  onChange={(e): void => setConfirmCode(e.target.value)}
-                  placeholder="123456"
+                  value={regenerateCode}
+                  onChange={(e): void => setRegenerateCode(e.target.value)}
                 />
               </FormField>
-              <Button type="submit" disabled={busy}>
-                {t('security.setup.submit')}
+              <Button type="submit" variant="outline" disabled={busy}>
+                {t('security.regenerate.submit')}
               </Button>
             </form>
-          ) : (
-            <Button onClick={startSetup} disabled={busy}>
-              {t('security.enable.submit')}
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-    </>
+          </EditorSection>
+          <EditorSection as="h3" title={t('security.disable.sectionTitle')}>
+            {status.canDisable ? (
+              <form className="space-y-2" onSubmit={disable}>
+                <FormField
+                  label={t('security.disable.label')}
+                  hint={t('security.code.hint')}
+                  error={errorFor('disable')}
+                  required
+                >
+                  <Input
+                    {...CODE_INPUT}
+                    value={disableCode}
+                    onChange={(e): void => setDisableCode(e.target.value)}
+                  />
+                </FormField>
+                <Button type="submit" variant="destructive" disabled={busy}>
+                  {t('security.disable.submit')}
+                </Button>
+              </form>
+            ) : (
+              <Alert data-testid="mfa-disable-blocked">
+                <ShieldCheck className="size-4" />
+                <AlertTitle>{t('security.disableBlocked.title')}</AlertTitle>
+                <AlertDescription>{t('security.disableBlocked.body')}</AlertDescription>
+              </Alert>
+            )}
+          </EditorSection>
+        </div>
+      ) : setup ? (
+        <form className="space-y-3" onSubmit={confirm}>
+          <p className="text-sm">{t('security.setup.intro')}</p>
+          {/* An <img> of the server-drawn SVG, never inserted as markup. */}
+          <img
+            src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(setup.qrSvg)}`}
+            alt={t('security.setup.qrAlt')}
+            width={192}
+            height={192}
+            className="rounded border bg-white p-2"
+          />
+          <p className="text-sm text-muted-foreground">{t('security.setup.qrHint')}</p>
+          <p className="break-all rounded bg-muted px-2 py-1 font-mono text-xs">{setup.otpauthUri}</p>
+          <p className="text-sm">
+            {t('security.setup.manualKey')} <code className="font-mono">{setup.secret}</code>
+          </p>
+          <FormField label={t('security.setup.codeLabel')} error={errorFor('confirm')} required>
+            <Input
+              {...CODE_INPUT}
+              inputMode="numeric"
+              value={confirmCode}
+              onChange={(e): void => setConfirmCode(e.target.value)}
+              placeholder="123456"
+            />
+          </FormField>
+          <Button type="submit" disabled={busy}>
+            {t('security.setup.submit')}
+          </Button>
+        </form>
+      ) : (
+        <Button onClick={startSetup} disabled={busy}>
+          {t('security.enable.submit')}
+        </Button>
+      )}
+    </EditorSection>
   );
 }

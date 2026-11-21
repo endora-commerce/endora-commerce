@@ -61,12 +61,12 @@ export const contributions: AdminContributions = {
       // entry names its glyph now, so keeping the one the sidebar already drew
       // meant adding the name rather than substituting one already on the list.
       icon: 'ShieldCheck',
-      section: 'system',
-      // The hand-written table's position times a hundred — see the note in
-      // `packages/modules/audit_logs/src/admin/index.ts`. `/admin-roles` was
-      // third of thirteen, directly after `/admin-users` (200), and that
-      // relative order is preserved.
-      weight: 300,
+      section: 'access',
+      // Issue #1519 (UX audit SHELL-11, DEC-02) split *System*: *Access* is who
+      // may sign in and what they may do, in the order users, roles, API keys,
+      // credentials, audit log (100 to 500). Directly after the users the roles
+      // are assigned to.
+      weight: 200,
       requiredPermission: 'admin_users:manage',
     },
   ],
