@@ -1,11 +1,22 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { cn } from '@endora-commerce/admin-kit/lib';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Skeleton,
+} from '@endora-commerce/admin-kit/ui';
 import {
   useRecentActivity,
   type RecentActivityItem,
 } from './useRecentActivity.js';
 import { formatRelative, renderActivity } from './activity-render.js';
+import { MINI_ROW, MINI_ROW_LINK } from './mini-row.js';
 
 /**
  * Feature 024 — Recent Activity card on the admin home dashboard.
@@ -37,48 +48,38 @@ export function RecentActivityCard(): ReactNode {
   if (status === 'forbidden') return null;
 
   return (
-    <div className="b2b-card" data-testid="recent-activity-card">
-      <div className="b2b-card__head">
-        <div>
-          <div className="b2b-card__title">{t('home.recentActivity.title')}</div>
-          <div className="b2b-card__sub">{t('home.recentActivity.subtitle')}</div>
+    <Card flush data-testid="recent-activity-card">
+      <CardHeader className="flex-row items-start justify-between gap-2 space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle>{t('home.recentActivity.title')}</CardTitle>
+          <CardDescription>{t('home.recentActivity.subtitle')}</CardDescription>
         </div>
-        <Link to="/audit-log" className="b2b-btn b2b-btn--ghost b2b-btn--sm">
-          {t('home.activity.viewAll')}
-        </Link>
-      </div>
-      <div className="b2b-card__body b2b-card__body--flush">
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/audit-log">{t('home.activity.viewAll')}</Link>
+        </Button>
+      </CardHeader>
+      <CardContent>
         {status === 'loading' && <LoadingSkeleton />}
         {status === 'error' && (
-          <div
-            className="b2b-help"
-            style={{ padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}
-            role="alert"
-          >
+          <div className="flex items-center justify-between gap-3 p-4 text-sm text-muted-foreground" role="alert">
             <span>{t('home.activity.error')}</span>
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--default b2b-btn--sm"
-              onClick={refetch}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={refetch}>
               {t('home.activity.retry')}
-            </button>
+            </Button>
           </div>
         )}
         {status === 'ready' && items.length === 0 && (
-          <div className="b2b-help" style={{ padding: 16 }}>
-            {t('home.activity.empty')}
-          </div>
+          <p className="p-4 text-sm text-muted-foreground">{t('home.activity.empty')}</p>
         )}
         {status === 'ready' && items.length > 0 && (
-          <div className="b2b-minilist" style={{ padding: 4 }}>
+          <div className="flex flex-col p-1">
             {items.map((row) => (
               <ActivityRow key={row.id} row={row} t={t} translateIn={translateIn} />
             ))}
           </div>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -116,32 +117,21 @@ function ActivityRow({
   // bundle to carry HTML.
   const inner = (
     <>
-      <div
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: '50%',
-          background: 'var(--surface-sunken)',
-          display: 'grid',
-          placeItems: 'center',
-          color: 'var(--fg-muted)',
-          flexShrink: 0,
-        }}
+      <span
+        aria-hidden="true"
+        className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--surface-sunken)] text-muted-foreground"
       >
         <Icon size={13} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0, fontSize: 13 }}>
+      </span>
+      <span className="min-w-0 flex-1 text-sm">
         <b>
           {row.actorKind === 'customer'
             ? t('home.activity.actor.customer', { name: row.actorDisplayName })
             : row.actorDisplayName}
         </b>{' '}
-        {verb}{' '}
-        <span className="b2b-mono">{row.targetDisplayName}</span>
-      </div>
-      <span className="b2b-muted" style={{ fontSize: 11, flexShrink: 0 }}>
-        {timeLabel}
+        {verb} <span className="font-mono">{row.targetDisplayName}</span>
       </span>
+      <span className="shrink-0 text-xs text-muted-foreground">{timeLabel}</span>
     </>
   );
 
@@ -149,8 +139,7 @@ function ActivityRow({
     return (
       <Link
         to={row.targetUrl}
-        className="b2b-minirow"
-        style={{ textDecoration: 'none', color: 'inherit' }}
+        className={cn(MINI_ROW, MINI_ROW_LINK)}
         data-testid="recent-activity-row"
         {...(summaryTooltip ? { title: summaryTooltip } : {})}
       >
@@ -161,8 +150,7 @@ function ActivityRow({
 
   return (
     <div
-      className="b2b-minirow"
-      style={{ opacity: 0.7, cursor: 'default' }}
+      className={cn(MINI_ROW, 'cursor-default opacity-70')}
       data-testid="recent-activity-row"
       data-disabled="true"
       {...(summaryTooltip ? { title: summaryTooltip } : {})}
@@ -173,47 +161,18 @@ function ActivityRow({
 }
 
 function LoadingSkeleton(): ReactNode {
+  const t = useTranslation('core');
   return (
-    <div className="b2b-minilist" style={{ padding: 4 }} data-testid="recent-activity-loading">
+    <div className="flex flex-col p-1" data-testid="recent-activity-loading" aria-busy="true">
+      <span className="sr-only">{t('common.state.loading')}</span>
       {Array.from({ length: ROW_PLACEHOLDER_COUNT }).map((_, idx) => (
-        <div key={idx} className="b2b-minirow" style={{ opacity: 0.6 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: '50%',
-              background: 'var(--surface-sunken)',
-              flexShrink: 0,
-            }}
-          />
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                height: 10,
-                width: '70%',
-                background: 'var(--surface-sunken)',
-                borderRadius: 4,
-              }}
-            />
-            <div
-              style={{
-                height: 8,
-                width: '40%',
-                background: 'var(--surface-sunken)',
-                borderRadius: 4,
-                marginTop: 6,
-              }}
-            />
+        <div key={idx} className={MINI_ROW} aria-hidden="true">
+          <Skeleton className="size-7 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-2.5 w-[70%]" />
+            <Skeleton className="h-2 w-[40%]" />
           </div>
-          <span
-            style={{
-              width: 36,
-              height: 10,
-              background: 'var(--surface-sunken)',
-              borderRadius: 4,
-              flexShrink: 0,
-            }}
-          />
+          <Skeleton className="h-2.5 w-9 shrink-0" />
         </div>
       ))}
     </div>

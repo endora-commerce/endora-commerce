@@ -7,15 +7,17 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Package, Search } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { ADMIN_PRODUCT_SELECTION_MAX, productTypeSchema } from '@endora-commerce/contracts';
 import { usePageSizePreference } from '../../lib/index.js';
 import type { PageSizeOption } from '../../lib/page-size-options.js';
 import { cn } from '../../lib/utils.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { Badge, type BadgeProps } from '../../ui/badge.js';
+import { Button } from '../../ui/button.js';
 import { Checkbox } from '../../ui/checkbox.js';
 import { PaginationFooter } from '../PaginationFooter.js';
+import { ListToolbarSearch } from '../list-toolbar/ListToolbar.js';
 import { ResponsiveTable, type ResponsiveColumn } from '../ResponsiveTable.js';
 import { useFocusTrap } from '../hooks/useFocusTrap.js';
 import {
@@ -40,9 +42,9 @@ import type { ProductBrowserItem, ProductBrowserStatus, ProductBrowserType } fro
  * table with the Products list's filters — status tabs with counts, a type chip,
  * a debounced search — and keeps a multi-page selection until the operator adds or
  * cancels. Composed from the design system's own parts (research R-3): the
- * `b2b-scrim` / `b2b-drawer` overlay, `useFocusTrap`, `ResponsiveTable` in
- * `table-scroll` mode, `PaginationFooter`, and the `b2b-tabs` / `b2b-filterbar`
- * classes the Products list renders its own bar with.
+ * theme's side-drawer overlay, `useFocusTrap`, `ResponsiveTable` in
+ * `table-scroll` mode, `PaginationFooter`, the `b2b-tabs` strip and the
+ * toolbar's `ListToolbarSearch`, on kit `Button`s (issue #1492).
  *
  * **The host owns `open`.** The dialog never closes itself: a host appending lines
  * locally sets `open` to `false` inside `onConfirm`; a host whose confirm is a
@@ -423,8 +425,8 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
           </h2>
         </div>
 
-        <div className="b2b-drawer__body" style={{ padding: 0 }}>
-          <div style={{ padding: '4px 12px 0', overflow: 'hidden' }}>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="overflow-hidden px-3 pt-1">
             <div className="b2b-tabs-scroll">
               <div className="b2b-tabs" role="tablist">
                 {tabs.map((tab) => (
@@ -444,24 +446,18 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
             </div>
           </div>
 
-          <div className="b2b-filterbar">
-            <div className="b2b-filterbar__search">
-              <div className="b2b-input-wrap">
-                <Search size={16} className="lead" aria-hidden="true" />
-                <input
-                  ref={searchRef}
-                  type="search"
-                  className="b2b-field b2b-field--addon"
-                  placeholder={t('productBrowser.search.placeholder')}
-                  aria-label={t('productBrowser.search.placeholder')}
-                  value={query}
-                  onChange={(event): void => {
-                    setQuery(event.target.value);
-                    setView('all');
-                  }}
-                />
-              </div>
-            </div>
+          <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2.5">
+            <ListToolbarSearch
+              ref={searchRef}
+              className="sm:max-w-none"
+              label={t('productBrowser.search.placeholder')}
+              placeholder={t('productBrowser.search.placeholder')}
+              value={query}
+              onValueChange={(next): void => {
+                setQuery(next);
+                setView('all');
+              }}
+            />
             <button
               type="button"
               className={cn('b2b-filterchip', type !== null && 'is-on')}
@@ -475,26 +471,28 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
           </div>
 
           {atCap ? (
-            <p role="status" className="px-3 py-2 text-sm" style={{ background: 'var(--surface-muted)' }}>
+            <p role="status" className="bg-muted px-3 py-2 text-sm">
               {t('productBrowser.limit.notice', { max })}
             </p>
           ) : null}
 
           <div aria-busy={loading || undefined}>
             {loading ? (
-              <p className="b2b-muted px-3 py-6 text-center text-sm">
+              <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                 {t('productBrowser.state.loading')}
               </p>
             ) : view === 'all' && load === 'error' ? (
               <div role="alert" className="px-3 py-6 text-center text-sm">
                 <p>{t('productBrowser.state.loadError')}</p>
-                <button
+                <Button
                   type="button"
-                  className="b2b-btn b2b-btn--default b2b-btn--sm mt-2"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
                   onClick={(): void => setReloadToken((n) => n + 1)}
                 >
                   {t('productBrowser.action.retry')}
-                </button>
+                </Button>
               </div>
             ) : (
               <ResponsiveTable<ProductBrowserItem>
@@ -503,7 +501,7 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
                 data={shownRows}
                 keyExtractor={(row): string => row.id}
                 emptyState={
-                  <p className="b2b-muted px-3 py-6 text-center text-sm">
+                  <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                     {t('productBrowser.state.empty')}
                   </p>
                 }
@@ -529,23 +527,20 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
         {confirmError !== null && confirm.kind === 'failed' ? (
           <div role="alert" className="flex items-center gap-2 px-4 py-2 text-sm text-destructive">
             <span className="flex-1">{confirmError}</span>
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--default b2b-btn--sm"
-              onClick={(): void => runConfirm(confirm.items)}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={(): void => runConfirm(confirm.items)}>
               {t('productBrowser.action.retry')}
-            </button>
+            </Button>
           </div>
         ) : null}
 
-        <div className="b2b-drawer__foot" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="b2b-drawer__foot flex-wrap items-center">
           <span id={countId} aria-live="polite" className="text-sm">
             {t('productBrowser.selection.count', { count: selection.size })}
           </span>
-          <button
+          <Button
             type="button"
-            className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+            variant="ghost"
+            size="sm"
             disabled={selection.size === 0 || pending}
             onClick={(): void => {
               setSelection(new Map());
@@ -553,36 +548,31 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
             }}
           >
             {t('productBrowser.selection.clear')}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+            variant="ghost"
+            size="sm"
             disabled={view === 'all' && selection.size === 0}
             onClick={(): void => setView((v) => (v === 'all' ? 'selectedOnly' : 'all'))}
           >
             {view === 'all'
               ? t('productBrowser.selection.showSelected')
               : t('productBrowser.selection.showAll')}
-          </button>
-          <span style={{ flex: 1 }} />
-          <button
-            type="button"
-            className="b2b-btn b2b-btn--default"
-            disabled={pending}
-            onClick={cancel}
-          >
+          </Button>
+          <span className="flex-1" />
+          <Button type="button" variant="outline" disabled={pending} onClick={cancel}>
             {t('productBrowser.action.cancel')}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="b2b-btn b2b-btn--primary"
             aria-busy={pending || undefined}
             aria-describedby={countId}
             disabled={selection.size === 0 || pending}
             onClick={(): void => runConfirm([...selection.values()])}
           >
             {t('productBrowser.action.confirm', { count: selection.size })}
-          </button>
+          </Button>
         </div>
       </aside>
     </>

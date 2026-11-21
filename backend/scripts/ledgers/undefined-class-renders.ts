@@ -43,14 +43,6 @@
 export type UndefinedClassRenderLedger = Readonly<Record<string, string>>;
 
 export const UNDEFINED_CLASS_RENDERS: UndefinedClassRenderLedger = {
-  // -- a variant that does not exist ------------------------------------
-  'packages/admin-kit/src/components/PaginationFooter.tsx::b2b-field--sm':
-    'renders as an unmodified `b2b-field`; the design system defines no `--sm` size',
-
-  // -- a block that was never in the vocabulary --------------------------
-  'packages/admin-shell/src/components/prompt-actions/PromptModePanel.tsx::b2b-input':
-    'no `b2b-input` block exists; the kit publishes `ui/input`',
-
   // -- a CMS block name --------------------------------------------------
   'packages/modules/cms/src/admin/components/PageBuilderEditor.tsx::cms-page-builder__canvas':
     'the design system defines `cms-page-builder` and not this element',

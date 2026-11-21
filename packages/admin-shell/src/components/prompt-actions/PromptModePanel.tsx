@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
 import type { PromptActionRequestDto, ResultOperation } from '@endora-commerce/contracts';
-import { Button } from '@endora-commerce/admin-kit/ui';
+import { Button, Input } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { markPromptRequestSeen } from '../../lib/prompt-actions/api.js';
 import { usePromptRequest } from '../../lib/prompt-actions/usePromptRequest.js';
@@ -110,13 +110,13 @@ export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props
       }
     }
     return (
-      <div data-testid="prompt-result-summary" style={{ fontSize: 12, marginTop: 8 }}>
+      <div data-testid="prompt-result-summary" className="mt-2 text-xs">
         <span>{t('panel.resultSucceeded', { count: succeeded })}</span>
         {failed > 0 ? (
           <>
             <span> · </span>
             <span>{t('panel.resultFailed', { count: failed })}</span>
-            <ul style={{ margin: '6px 0 0 16px', color: 'var(--fg-muted)' }}>
+            <ul className="ml-4 mt-1.5 list-disc text-muted-foreground">
               {failures.map((f) => (
                 <li key={f.key}>{f.message}</li>
               ))}
@@ -132,7 +132,7 @@ export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props
   return (
     <div data-testid="prompt-mode-panel">
       <div className="b2b-palette__input">
-        <Sparkles size={18} style={{ color: 'var(--fg-muted)' }} />
+        <Sparkles size={18} className="text-muted-foreground" aria-hidden="true" />
         <input
           ref={inputRef}
           data-testid="prompt-input"
@@ -162,7 +162,7 @@ export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props
       </div>
 
       {phase === 'idle' ? (
-        <div style={{ display: 'flex', gap: 8, padding: '10px 16px' }}>
+        <div className="flex gap-2 px-4 py-2.5">
           <Button
             type="button"
             size="sm"
@@ -181,17 +181,7 @@ export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props
           when it arrives (WCAG 2.2 SC 4.1.3, #1465). */}
       <div role="status" aria-live="polite">
         {busy ? (
-          <div
-            data-testid="prompt-busy"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '14px 16px',
-              fontSize: 13,
-              color: 'var(--fg-muted)',
-            }}
-          >
+          <div data-testid="prompt-busy" className="flex items-center gap-2 px-4 py-3.5 text-sm text-muted-foreground">
             <Loader2 size={16} className="animate-spin" aria-hidden="true" />
             {phase === 'interpreting' ? t('panel.interpreting') : t('panel.executing')}
           </div>
@@ -208,39 +198,38 @@ export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props
       ) : null}
 
       {phase === 'needs_clarification' && request?.clarification ? (
-        <div data-testid="prompt-clarification" style={{ padding: '12px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 6 }}>
+        <div data-testid="prompt-clarification" className="px-4 py-3">
+          <div className="mb-1.5 text-xs text-muted-foreground">
             {t('panel.clarificationHeading')}
           </div>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+          <div className="mb-2 text-sm font-semibold">
             {request.clarification.question}
           </div>
           {request.clarification.kind === 'entity_choice' &&
           (request.clarification.candidates?.length ?? 0) > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div className="flex flex-col gap-1">
               {request.clarification.candidates!.map((c) => (
                 <button
                   key={c.id}
                   type="button"
-                  className="b2b-palette__item"
-                  style={{ width: '100%', textAlign: 'left' }}
+                  className="b2b-palette__item w-full text-left"
                   onClick={(): void => void clarify({ selectedCandidateId: c.id })}
                 >
                   <div>
                     <div>{c.label}</div>
                     {c.hint ? (
-                      <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{c.hint}</div>
+                      <div className="text-xs text-muted-foreground">{c.hint}</div>
                     ) : null}
                   </div>
                 </button>
               ))}
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
+            <div className="flex gap-2">
+              <Input
                 data-testid="prompt-clarification-text"
-                className="b2b-input"
-                style={{ flex: 1, fontSize: 13 }}
+                aria-label={request.clarification.question}
+                className="h-8 flex-1"
                 placeholder={t('panel.clarificationFreeTextPlaceholder')}
                 value={freeText}
                 onChange={(e): void => setFreeText(e.target.value)}
@@ -255,7 +244,7 @@ export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props
               </Button>
             </div>
           )}
-          <div style={{ marginTop: 10 }}>
+          <div className="mt-2.5">
             <Button type="button" size="sm" variant="ghost" onClick={handleCancelPlan}>
               {t('panel.cancel')}
             </Button>
@@ -264,15 +253,15 @@ export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props
       ) : null}
 
       {message ? (
-        <div data-testid="prompt-message" style={{ padding: '12px 16px', fontSize: 13 }}>
+        <div data-testid="prompt-message" className="px-4 py-3 text-sm">
           <div>{t(message)}</div>
           {request?.error && (request.status === 'unsupported' || request.status === 'failed') ? (
-            <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>
+            <div className="mt-1 text-xs text-muted-foreground">
               {request.error}
             </div>
           ) : null}
           {resultSummary()}
-          <div style={{ marginTop: 10 }}>
+          <div className="mt-2.5 flex gap-2">
             <Button
               type="button"
               size="sm"
@@ -289,7 +278,6 @@ export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props
               size="sm"
               variant="ghost"
               onClick={handleClose}
-              style={{ marginLeft: 8 }}
             >
               {t('panel.close')}
             </Button>

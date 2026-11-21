@@ -23,6 +23,8 @@
  * - `b2b-badge*` — the status-pill vocabulary the kit itself renders (its
  *   `Tabs` counts, the product browser); the kit `Badge` has no token colours.
  * - `b2b-empty*` — drawn by the kit's `EmptyState`, which a screen uses.
+ * - `b2b-table-scroll` / `b2b-table-wrap` — the scroll frame the kit `Table`
+ *   itself renders, which `dropdown-menu.tsx` measures against.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -48,6 +50,9 @@ const MIGRATED = [
   'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx',
   // Issue #1437 (DS-03): one form card of sections and a language card, on kit primitives.
   'packages/admin-shell/src/modules/profile/ProfilePage.tsx',
+  // The command palette's prompt mode (#1492). `AppShell.tsx` is still to come.
+  'packages/admin-shell/src/components/prompt-actions/PromptModePanel.tsx',
+  'packages/admin-shell/src/components/prompt-actions/PromptPlanPreview.tsx',
 ] as const;
 
 /**
@@ -56,6 +61,11 @@ const MIGRATED = [
  * back. Repo-relative.
  */
 const MIGRATED_DIRS = [
+  // The kit is held whole: a screen built from it inherits what it draws.
+  'packages/admin-kit/src/components',
+  'packages/admin-kit/src/ui',
+  // The Home dashboard, with #1556.
+  'packages/admin-shell/src/modules/home',
   'packages/modules/import_export/src/admin',
   'packages/modules/price_lists/src/admin',
   'packages/modules/product_feeds/src/admin',
@@ -78,7 +88,7 @@ const SCREENS = [...new Set([...MIGRATED, ...MIGRATED_DIRS.flatMap(screensUnder)
  * `font-mono`, `tabular-nums`), the kit `ListToolbar` + `FilterChip` for a
  * filter bar, and a Tailwind `grid` for a form grid.
  */
-const LEGACY = /\bb2b-(?:btn|card|field|input|input-wrap|label|help|row|col|grow|tbl|table|mono|muted|tabular|cbx|bulkbar|thumb|scrim|drawer|filterbar|filterchip|grid)(?:--[a-z0-9-]+|__[a-z0-9-]+)?\b/g;
+const LEGACY = /\bb2b-(?:btn|card|field|input|input-wrap|label|help|row|col|grow|tbl|table|mono|muted|tabular|cbx|bulkbar|thumb|scrim|drawer|filterbar|filterchip|grid)(?!-[a-z])(?:--[a-z0-9-]+|__[a-z0-9-]+)?\b/g;
 
 /**
  * A named exception a screen keeps, with why. `classes` excuses the legacy
@@ -100,11 +110,39 @@ const SCRIM =
 const COMPUTED =
   'a dimension computed at run time (a bar width, a tree indent), which no Tailwind utility can express';
 
+const DATA_COLOUR =
+  'a colour that is data (a status or swatch colour an operator chose, a graph legend matching its SVG), which no token names';
+const FILTERCHIP =
+  "the theme's filter-chip vocabulary, which the kit's own `FilterChip` owns and draws";
+
+const FILTERCHIP_CLASS = /\bb2b-filterchip\b/g;
+const DATA_COLOUR_STYLE = /style=\{\{ (?:backgroundColor|background|color|borderColor): [A-Za-z][^}]*\}\}/;
 const DRAWER_CLASSES = /\bb2b-(?:scrim|drawer(?:--[a-z]+|__[a-z]+)?)\b/g;
 const SCRIM_CLASS = /\bb2b-scrim\b/g;
 const COMPUTED_STYLE = /style=\{\{ (?:width|paddingLeft): `\$\{[^}]+\}(?:%|px)` \}\}/;
 
 const EXCEPTIONS: Record<string, Exception[]> = {
+  'packages/admin-kit/src/components/product-browser/ProductBrowserDialog.tsx': [
+    { kind: 'classes', pattern: DRAWER_CLASSES, count: 6, reason: DRAWER_FRAME },
+    // The type filter cycles through the product types (feature 145), so it is
+    // not the kit's on/off `FilterChip`; it keeps that chip's look.
+    { kind: 'classes', pattern: FILTERCHIP_CLASS, count: 1, reason: FILTERCHIP },
+  ],
+  'packages/admin-kit/src/components/list-toolbar/FilterChip.tsx': [
+    { kind: 'classes', pattern: FILTERCHIP_CLASS, count: 2, reason: FILTERCHIP },
+  ],
+  'packages/admin-kit/src/components/category-tree-picker/CategoryTreeNodeRow.tsx': [
+    { kind: 'styles', pattern: COMPUTED_STYLE, count: 1, reason: COMPUTED },
+  ],
+  'packages/admin-kit/src/components/kanban/MoveToMenu.tsx': [
+    { kind: 'styles', pattern: DATA_COLOUR_STYLE, count: 1, reason: DATA_COLOUR },
+  ],
+  'packages/admin-kit/src/components/status-transition-graph/StatusTransitionGraph.tsx': [
+    { kind: 'styles', pattern: DATA_COLOUR_STYLE, count: 2, reason: DATA_COLOUR },
+  ],
+  'packages/admin-kit/src/ui/color-picker.tsx': [
+    { kind: 'styles', pattern: DATA_COLOUR_STYLE, count: 3, reason: DATA_COLOUR },
+  ],
   'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx': [
     { kind: 'classes', pattern: DRAWER_CLASSES, count: 6, reason: DRAWER_FRAME },
   ],
