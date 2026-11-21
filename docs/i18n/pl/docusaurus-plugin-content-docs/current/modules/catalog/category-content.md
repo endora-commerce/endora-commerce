@@ -14,7 +14,10 @@ Otwórz **Katalog → Kategorie** i w menu akcji wiersza kategorii wybierz **Tre
 
 - przełącznik **języka** — treść jest przechowywana osobno dla każdego języka, tak jak nazwa
   kategorii. Każdy język ma własny dokument, a dla języka pozostawionego bez treści sklep pokazuje
-  treść w innym języku zamiast pustego miejsca;
+  treść w innym języku zamiast pustego miejsca. Przełącznik oferuje języki aktywnych kanałów
+  sprzedaży, a po nich każdy inny język, w którym zapisano nazwę lub treść; taki język jest wymieniony
+  pod przełącznikiem jako tylko do odczytu, a jego dokument zostaje zachowany i zapisany bez zmian,
+  ale nie jest edytowany;
 - obszar roboczy **Page Buildera** dla wybranego języka;
 - przycisk **Zapisz treść** — jedno zapisanie utrwala wszystkie edytowane języki.
 

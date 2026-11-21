@@ -15,11 +15,12 @@ import {
   type SavePart,
 } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, EditorSection, InlineStatus, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
-import { AssetPicker, CustomFieldValuesPanel, ImmediateBadge, RowActionMenu, RowActionMenuItem, RowActionMenuSeparator, SaveSessionSummary, adminLanguageToLocale, customFieldErrorsOf, buildCategoryTree, flattenCategoryTree, pickCategoryDisplayName, useConfirmDialog, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
-import type { CategoryTreePickerCategory } from '@endora-commerce/admin-kit/components';
+import { AssetPicker, CustomFieldValuesPanel, ImmediateBadge, RowActionMenu, RowActionMenuItem, RowActionMenuSeparator, SaveSessionSummary, adminLanguageToLocale, customFieldErrorsOf, buildCategoryTree, flattenCategoryTree, offerContentLanguages, pickCategoryDisplayName, useChannelLanguages, useConfirmDialog, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
+import type { CategoryTreePickerCategory, ChannelLanguagesState } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import type { EditorSaveSessionHandle } from '@endora-commerce/contracts';
+import { LocalizedNameFields } from '../components/LocalizedNameFields.js';
 
 interface AdminCategory {
   id: string;
@@ -55,8 +56,8 @@ const EMPTY_VALUES: Record<string, unknown> = {};
  */
 interface EditDraft {
   slug: string;
-  nameEn: string;
-  namePl: string;
+  /** The name per content language, keyed like the stored name (#1507). */
+  names: Record<string, string>;
   parentId: string;
   customFieldValues?: Record<string, unknown>;
 }
@@ -64,8 +65,7 @@ interface EditDraft {
 function draftOf(category: AdminCategory): EditDraft {
   return {
     slug: category.slug,
-    nameEn: category.name['en-US'] ?? '',
-    namePl: category.name['pl-PL'] ?? '',
+    names: { ...category.name },
     parentId: category.parentCategoryId ?? '',
   };
 }
@@ -75,8 +75,9 @@ function hostChangeCount(draft: EditDraft, category: AdminCategory): number {
   const stored = draftOf(category);
   let count = 0;
   if (draft.slug !== stored.slug) count += 1;
-  if (draft.nameEn !== stored.nameEn) count += 1;
-  if (draft.namePl !== stored.namePl) count += 1;
+  for (const language of new Set([...Object.keys(stored.names), ...Object.keys(draft.names)])) {
+    if ((draft.names[language] ?? '') !== (stored.names[language] ?? '')) count += 1;
+  }
   if (draft.parentId !== stored.parentId) count += 1;
   if (draft.customFieldValues !== undefined) {
     const before = category.customFieldValues ?? {};
@@ -85,6 +86,19 @@ function hostChangeCount(draft: EditDraft, category: AdminCategory): number {
     }
   }
   return count;
+}
+
+/**
+ * The `name` a save sends: every stored language as stored — a read-only one included, so the
+ * write never drops a translation no channel offers (#1507) — and each edited one as typed. A
+ * language the category never had is sent only once it has been given a name.
+ */
+function namePayload(stored: Record<string, string>, edited: Record<string, string>): Record<string, string> {
+  const name = { ...stored };
+  for (const [language, value] of Object.entries(edited)) {
+    if (value !== '' || language in stored) name[language] = value;
+  }
+  return name;
 }
 
 /**
@@ -161,6 +175,8 @@ function CategoriesTreeScreen({
   const locale = adminLanguageToLocale(language);
   const label = (name: Record<string, string>, slug: string): string =>
     pickCategoryDisplayName(name, slug, locale);
+  // #1507 — the languages a name is written in: the sales channels' together (ruling Q3).
+  const channelLanguages = useChannelLanguages();
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -229,17 +245,14 @@ function CategoriesTreeScreen({
     async (input: {
       parentCategoryId: string | null;
       slug: string;
-      nameEn: string;
-      namePl: string;
+      names: Record<string, string>;
       customFieldValues?: Record<string, unknown>;
     }): Promise<void> => {
       setCustomFieldErrors({});
       clearStatus();
       setError(null);
       try {
-        const name: Record<string, string> = {};
-        if (input.nameEn) name['en-US'] = input.nameEn;
-        if (input.namePl) name['pl-PL'] = input.namePl;
+        const name = Object.fromEntries(Object.entries(input.names).filter(([, value]) => value !== ''));
         await apiClient.post<{ data: AdminCategory }>('/api/v1/admin/catalog/categories', {
           parentCategoryId: input.parentCategoryId,
           slug: input.slug,
@@ -275,7 +288,7 @@ function CategoriesTreeScreen({
       payload['slug'] = draft.slug;
       payload['parentCategoryId'] = draft.parentId === '' ? null : draft.parentId;
       const existing = categories.find((c) => c.id === id);
-      payload['name'] = { ...(existing?.name ?? {}), 'en-US': draft.nameEn, 'pl-PL': draft.namePl };
+      payload['name'] = namePayload(existing?.name ?? {}, draft.names);
       try {
         await apiClient.patch<{ data: AdminCategory }>(`/api/v1/admin/catalog/categories/${id}`, payload);
       } catch (err) {
@@ -725,6 +738,7 @@ function CategoriesTreeScreen({
                     categories={categories}
                     draft={draft}
                     onDraft={changeDraft}
+                    channelLanguages={channelLanguages}
                     values={editingRecord.customFieldValues ?? EMPTY_VALUES}
                     customFields={canSeeCustomFields ? { errors: customFieldErrors } : null}
                     saveSession={session.handle}
@@ -753,6 +767,7 @@ function CategoriesTreeScreen({
               ) : createUnderId !== null ? (
                 <CreateForm
                   key={createUnderId}
+                  channelLanguages={channelLanguages}
                   customFields={canSeeCustomFields ? { errors: customFieldErrors } : null}
                   onDirtyChange={setCreateDirty}
                   onCancel={closePanel}
@@ -775,18 +790,19 @@ function CategoriesTreeScreen({
 }
 
 function CreateForm({
+  channelLanguages,
   customFields,
   onDirtyChange,
   onSubmit,
   onCancel,
 }: {
+  channelLanguages: ChannelLanguagesState;
   customFields: CustomFieldsSlot | null;
   /** Whether the form holds anything a switch of the panel would lose. */
   onDirtyChange: (dirty: boolean) => void;
   onSubmit: (input: {
     slug: string;
-    nameEn: string;
-    namePl: string;
+    names: Record<string, string>;
     customFieldValues?: Record<string, unknown>;
   }) => void;
   onCancel: () => void;
@@ -795,14 +811,16 @@ function CreateForm({
   const { language } = useTranslationContext();
   const fieldId = useId();
   const [slug, setSlug] = useState('');
-  const [nameEn, setNameEn] = useState('');
-  const [namePl, setNamePl] = useState('');
+  const [names, setNames] = useState<Record<string, string>>({});
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
-  // The slug follows the first name until the operator edits it (Tesler; DS-22, #1450).
-  const slugField = useDerivedKey({ source: nameEn || namePl, value: slug, onChange: setSlug });
+  // A new category stores nothing yet; the admin's own language is the fallback field.
+  const offer = offerContentLanguages(channelLanguages, [], [adminLanguageToLocale(language)]);
+  // The slug follows the first name given, in the fields' order, until the operator edits it
+  // (Tesler; DS-22, #1450).
+  const firstName = offer.editable.map((code) => names[code] ?? '').find((value) => value !== '') ?? '';
+  const slugField = useDerivedKey({ source: firstName, value: slug, onChange: setSlug });
   const dirty =
-    nameEn !== '' ||
-    namePl !== '' ||
+    Object.values(names).some((value) => value !== '') ||
     slug !== '' ||
     Object.values(customFieldValues).some((value) => value !== undefined && value !== null && value !== '');
   useEffect(() => {
@@ -814,19 +832,16 @@ function CreateForm({
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
         const sentSlug = slugField.commit();
-        onSubmit({ slug: sentSlug, nameEn, namePl, ...(customFields ? { customFieldValues } : {}) });
+        const sentNames = Object.fromEntries(offer.editable.map((code) => [code, names[code] ?? '']));
+        onSubmit({ slug: sentSlug, names: sentNames, ...(customFields ? { customFieldValues } : {}) });
       }}
     >
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor={`${fieldId}-name-en`}>{t('categories.field.nameEn')}</Label>
-          <Input id={`${fieldId}-name-en`} value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${fieldId}-name-pl`}>{t('categories.field.namePl')}</Label>
-          <Input id={`${fieldId}-name-pl`} value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
-        </div>
-      </div>
+      <LocalizedNameFields
+        idBase={fieldId}
+        offer={offer}
+        values={names}
+        onChange={(code, value): void => setNames((previous) => ({ ...previous, [code]: value }))}
+      />
       <SlugField
         id={`${fieldId}-slug`}
         value={slug}
@@ -894,6 +909,7 @@ function EditForm({
   categories,
   draft,
   onDraft,
+  channelLanguages,
   values,
   customFields,
   saveSession,
@@ -909,6 +925,7 @@ function EditForm({
   /** The form's fields, held by the tree (feature 180, WP-6). */
   draft: EditDraft;
   onDraft: (patch: Partial<EditDraft>) => void;
+  channelLanguages: ChannelLanguagesState;
   /** The category's stored custom-field bag, the embedded panel's start. */
   values: Record<string, unknown>;
   customFields: CustomFieldsSlot | null;
@@ -945,16 +962,12 @@ function EditForm({
       }}
     >
       {summary}
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor={`${fieldId}-name-en`}>{t('categories.field.nameEn')}</Label>
-          <Input id={`${fieldId}-name-en`} value={draft.nameEn} onChange={(e): void => onDraft({ nameEn: e.target.value })} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${fieldId}-name-pl`}>{t('categories.field.namePl')}</Label>
-          <Input id={`${fieldId}-name-pl`} value={draft.namePl} onChange={(e): void => onDraft({ namePl: e.target.value })} />
-        </div>
-      </div>
+      <LocalizedNameFields
+        idBase={fieldId}
+        offer={offerContentLanguages(channelLanguages, Object.keys(category.name), [locale])}
+        values={draft.names}
+        onChange={(code, value): void => onDraft({ names: { ...draft.names, [code]: value } })}
+      />
       {/* An existing slug is the category's storefront address: it is not re-derived from a
           renamed category, only lower-cased as typed. */}
       <SlugField

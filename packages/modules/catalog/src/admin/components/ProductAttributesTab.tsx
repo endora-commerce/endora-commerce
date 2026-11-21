@@ -2,11 +2,11 @@ import { useContext, useEffect, useState, type ReactNode } from 'react';
 import type { AdminProductContentList } from '@endora-commerce/contracts';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { MultiSelect } from '@endora-commerce/admin-kit/ui';
-import { ScopedFieldGrid, type ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
+import { ScopedFieldGrid, adminLanguageToLocale, offerContentLanguages, useChannelLanguages, type ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { EditorField, useProductEditor } from './editor/editor-context.js';
-import { PRODUCT_CONTENT_LANGUAGES, ProductContentCard, type ProductContentCardBlocker } from './ProductContentCard.js';
+import { ProductContentCard, type ProductContentCardBlocker } from './ProductContentCard.js';
 import { pickAttributeLabel as pickLabel } from '../lib/variant-axes.js';
 import { BooleanControl, NumberControl, SelectControl, TextControl, type SelectOption } from './editor/scoped-controls.js';
 
@@ -104,7 +104,7 @@ export function ProductAttributesTab(): ReactNode {
   const contentEditors = useAdminZone('product.content.editor', {
     productId: ctx.productId,
     attributeKey: '',
-    language: PRODUCT_CONTENT_LANGUAGES[0],
+    language: '',
     data: null,
     onChange: NO_EDIT,
   });
@@ -223,19 +223,55 @@ export function ProductAttributesTab(): ReactNode {
               />
           );
         })}
-        {content.map((attr) => (
-          <ProductContentCard
-            key={attr.attributeId}
+        {content.length > 0 ? (
+          <ProductContentCards
+            content={content}
             productId={ctx.productId}
-            attributeKey={attr.key}
-            label={pickLabel(attr.label, attr.labelDefault || attr.key, adminLanguage)}
-            languages={[...new Set<string>([...PRODUCT_CONTENT_LANGUAGES, ...attr.languages.map((status) => status.language)])]}
-            stored={attr.languages}
-            preferredLanguage={PRODUCT_CONTENT_LANGUAGES[0]}
+            adminLanguage={adminLanguage}
             blocker={blocker}
           />
-        ))}
+        ) : null}
       </ScopedFieldGrid>
     </div>
+  );
+}
+
+/**
+ * The tab's Page Builder content cards (feature 172), each chipping the sales
+ * channels' languages plus any other stored one (#1507, ruling Q3). Its own
+ * component so the channels are read only on a product that has content
+ * attributes, once for every card.
+ */
+function ProductContentCards({
+  content,
+  productId,
+  adminLanguage,
+  blocker,
+}: {
+  content: readonly ContentAttribute[];
+  productId: string | null | undefined;
+  adminLanguage: string;
+  blocker: ProductContentCardBlocker;
+}): ReactNode {
+  const channelLanguages = useChannelLanguages();
+  const locale = adminLanguageToLocale(adminLanguage);
+  return (
+    <>
+      {content.map((attr) => {
+        const offer = offerContentLanguages(channelLanguages, attr.languages.map((status) => status.language), [locale]);
+        return (
+          <ProductContentCard
+            key={attr.attributeId}
+            productId={productId}
+            attributeKey={attr.key}
+            label={pickLabel(attr.label, attr.labelDefault || attr.key, adminLanguage)}
+            languages={[...offer.editable, ...offer.outside]}
+            stored={attr.languages}
+            preferredLanguage={locale}
+            blocker={blocker}
+          />
+        );
+      })}
+    </>
   );
 }

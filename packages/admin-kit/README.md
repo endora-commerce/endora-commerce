@@ -361,6 +361,34 @@ const codeField = useDerivedKey({
 Used by the Tasks status and priority dialogs, the CRM status dialog and the custom-field definition
 form. The behaviour is pinned in `admin/test/kit/kit-derive-key.test.tsx`.
 
+## Content languages — `useChannelLanguages` and `offerContentLanguages`
+
+Issue #1507 (UX audit 2026-11-17, CAT-05; architect ruling Q3). A value written per content language
+— a category name, a content document, a campaign — is offered in **the union of the active sales
+channels' languages**, not in a hard-coded list (Tesler's law). The hook came from `newsletter`'s
+admin (#1463), so another module reads the same list without importing that module's code.
+
+```tsx
+const channels = useChannelLanguages();                  // { languages, status }
+const offer = offerContentLanguages(channels, Object.keys(record.name), [adminLanguageToLocale(language)]);
+// offer.editable → one field each; offer.outside → read-only and flagged; offer.degraded → say why
+```
+
+- **`useChannelLanguages(current?)`** reads every active channel (one `?activeOnly=true` page) and each
+  one's languages, sorted and de-duplicated. A channel whose detail fails offers its default language;
+  a list that cannot be read is `status: 'failed'`. `current`, when given, is always in the list (a
+  select keeps showing a stored value). `loadChannelLanguages()` is the same read as a promise, for a
+  screen that loads it beside its document.
+- **`offerContentLanguages(channels, stored, fallback)`** splits a record's stored languages: the
+  channels' are `editable` (a stored key differing only in case is kept as stored), a stored one no
+  channel offers is `outside` — **shown read-only and flagged, never dropped or edited**. While the
+  channels are unknown or offer nothing, `stored + fallback` are editable and `degraded` says why.
+- `contentLanguageName(code, adminLanguage)` names a code (`pl-PL` → "Polish (Poland)"). The kit
+  carries no copy: the flag, the hint and the degraded sentences are the consumer's.
+
+Used by the newsletter campaign editor and `catalog`'s category tree, category and product content
+screens. Pinned in `admin/test/kit/kit-channel-languages.test.tsx`.
+
 ## On/off — `Switch` and `SettingRow`
 
 Issue #1442 (UX audit 2026-11-17, DS-09). `Switch` is the one on/off control; `SettingRow` is the

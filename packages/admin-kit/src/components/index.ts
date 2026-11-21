@@ -190,6 +190,8 @@ export type { ProductPickerProps } from './product-picker/ProductPicker.js';
 export { ScopePicker } from './scope-picker/ScopePicker.js';
 export type { ScopePickerProps, ScopePickerValue } from './scope-picker/ScopePicker.js';
 export { fetchScopeSalesChannel, listScopeSalesChannels } from './scope-picker/sales-channels-api.js';
+export { contentLanguageName, loadChannelLanguages, offerContentLanguages, useChannelLanguages } from './channel-languages/channel-languages.js';
+export type { ChannelLanguagesState, ContentLanguageOffer, ContentLanguageOfferDegraded } from './channel-languages/channel-languages.js';
 export { SalesChannelPicker } from './sales-channel-picker/SalesChannelPicker.js';
 export type { SalesChannelPickerProps } from './sales-channel-picker/SalesChannelPicker.js';
 export {

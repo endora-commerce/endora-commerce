@@ -42,8 +42,10 @@ scope switcher: content has no value per sales channel.
 **Edit content** opens the product content screen
 (`/catalog/products/:id/content/:attributeKey`). It has:
 
-- a **language** switch — English, Polish, and any other language the stored
-  content already has;
+- a **language** switch — the languages of your active sales channels, then any
+  other language the stored content already has. Such a language is listed under
+  the switch as read-only: its document is kept and saved unchanged, but not
+  edited;
 - the **Page Builder** canvas for the selected language;
 - **Save content** — one save stores every language you edited. Leaving the screen with
   unsaved edits asks first. The back link returns to the product's Attributes
