@@ -370,9 +370,10 @@ describe('ProductsBulkEditDialog — interaction', () => {
       BUNDLE,
     );
 
-    // The dialog mounts and the channel option renders (no crash).
+    // The dialog mounts and the channel option renders (no crash) — a labelled
+    // checkbox since UX audit slice S14 (it was a toggle button).
     expect(
-      await screen.findByRole('button', { name: 'Web' }),
+      await screen.findByRole('checkbox', { name: 'Web' }),
     ).toBeInTheDocument();
   });
 
