@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import corePl from '../../../../packages/modules/_i18n/i18n/pl.json';
 import returnsPl from '../../../../packages/modules/returns/i18n/pl.json';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 
 /**
@@ -13,7 +14,9 @@ import { installOffsetParentShim } from '../../helpers/layout-shim';
  * from a *New …* in the page header that opens a `ModalDialog`, instead of a
  * create card drawn open under the list. With no record yet the empty state
  * carries the one create action. A refusal stays in the dialog, at its field;
- * a success closes it and says so beside the header's button.
+ * a success closes it and says so beside the header's button. An operator
+ * without `returns:write` (the code every write route enforces) sees the list
+ * but is offered no write it would be refused.
  */
 
 installOffsetParentShim();
@@ -49,11 +52,18 @@ const { ReturnStatusesConfigPage } = await import(
 
 const BUNDLE = { core: corePl as Record<string, string>, returns: returnsPl as Record<string, string> };
 
-function render(node: React.ReactNode): void {
-  renderWithI18n(<MemoryRouter>{node}</MemoryRouter>, BUNDLE, { language: 'pl' });
+/** Who is signed in: by default an operator holding every permission. */
+let permissions: string[] = ['*'];
+const READ_ONLY = ['returns:read'];
+
+function render(node: React.ReactElement): void {
+  renderWithI18n(withSession(<MemoryRouter>{node}</MemoryRouter>, { session: adminSession({ permissions }) }), BUNDLE, {
+    language: 'pl',
+  });
 }
 
 beforeEach(() => {
+  permissions = ['*'];
   api.get.mockReset();
   api.post.mockReset();
   api.patch.mockReset();
@@ -128,6 +138,22 @@ describe('ReturnReasonsPage — create in a dialog', () => {
     expect(await screen.findByText('Brak powodów zwrotu')).toBeTruthy();
     expect(screen.getAllByRole('button', { name: 'Nowy powód' })).toHaveLength(1);
     expect(screen.getByRole('banner').querySelector('button')).toBeNull();
+  });
+
+  it('shows a read-only operator the reasons, with no "New reason", no delete and no toggle', async () => {
+    permissions = READ_ONLY;
+    mount();
+    await screen.findByText('Uszkodzony');
+    expect(screen.queryByRole('button', { name: 'Nowy powód' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Usuń: Uszkodzony' })).toBeNull();
+    expect((screen.getByRole('switch', { name: 'Aktywny: Uszkodzony' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('gives a read-only operator an empty state with no create action', async () => {
+    permissions = READ_ONLY;
+    mount([]);
+    expect(await screen.findByText('Brak powodów zwrotu')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Nowy powód' })).toBeNull();
   });
 
   it('moves focus to the empty state\'s "New reason" when the last reason is deleted', async () => {
@@ -205,6 +231,15 @@ describe('ReturnDeliveryMethodsPage — create in a dialog', () => {
     expect(within(dialog).getByLabelText(/^ID metody dostawy/)).toBeTruthy();
   });
 
+  it('shows a read-only operator the methods, with no create action, no delete and no toggle', async () => {
+    permissions = READ_ONLY;
+    mount();
+    await screen.findByText('Kurier');
+    expect(screen.queryByRole('button', { name: 'Nowa metoda dostawy zwrotnej' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Usuń: Kurier' })).toBeNull();
+    expect((screen.getByRole('switch', { name: 'Aktywna: Kurier' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('with no method yet, the empty state carries the one create action', async () => {
     mount(undefined, []);
     expect(await screen.findByText('Brak metod dostawy zwrotnej')).toBeTruthy();
@@ -277,6 +312,16 @@ describe('ReturnStatusesConfigPage — create in a dialog', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Dodaj status' }));
     await waitFor(() => expect(within(dialog).getByRole('alert').textContent).not.toBe(''));
     expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('shows a read-only operator the statuses, with no "New status", no delete and no e-mail toggle', async () => {
+    permissions = READ_ONLY;
+    mount({ ...GRAPH, statuses: [...GRAPH.statuses, status('inspecting', { isSystem: false })] });
+    await screen.findByText('inspecting');
+    expect(screen.queryByRole('button', { name: 'Nowy status' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Usuń status: Inspecting' })).toBeNull();
+    const notify = screen.getByRole('checkbox', { name: /Inspecting$/ }) as HTMLInputElement;
+    expect(notify.disabled).toBe(true);
   });
 
   it('moves focus to "New status" when the last deletable status is deleted', async () => {

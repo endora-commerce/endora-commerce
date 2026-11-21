@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
-import { ApiError, useDerivedKey } from '@endora-commerce/admin-kit/lib';
+import { ApiError, useAuth, useDerivedKey } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, InlineStatus, Input, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog, StatusTransitionGraph, useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
@@ -29,6 +29,10 @@ export function ReturnStatusesConfigPage(): ReactNode {
   const [transitions, setTransitions] = useState<ReturnTransitionDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // The code every write route enforces (`requireAdmin('returns:write')`): a read-only
+  // operator sees the list but is offered no write it would be refused.
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('returns:write');
   const status = useInlineStatus();
   const [saving, setSaving] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -186,7 +190,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
       <PageHeader
         title={t('returns.statuses.title')}
         actions={
-          loaded ? (
+          canWrite && loaded ? (
             <>
               <InlineStatus {...status.props} />
               {newStatus}
@@ -223,7 +227,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
                 <TableHead>{tr('statusConfig.col.flags')}</TableHead>
                 <TableHead>{tr('statusConfig.notifyColumn')}</TableHead>
                 <TableHead>{tr('statusConfig.col.inUse')}</TableHead>
-                <TableHead />
+                {canWrite ? <TableHead /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -245,7 +249,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
                           className="mt-0.5"
                           aria-label={tr('statusConfig.notifyLabel', { status: statusLabel(s) })}
                           checked={dedicated ? false : s.notifyCustomerOnEntry}
-                          disabled={dedicated || saving === s.code}
+                          disabled={!canWrite || dedicated || saving === s.code}
                           onChange={(e) => void setNotify(s.code, e.target.checked)}
                           {...(dedicated || s.isInitial ? { 'aria-describedby': reasonId } : {})}
                         />
@@ -262,19 +266,21 @@ export function ReturnStatusesConfigPage(): ReactNode {
                       </div>
                     </TableCell>
                     <TableCell>{s.inUseCount}</TableCell>
-                    <TableCell>
-                      {!s.isInitial && !s.isSystem && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          ref={removalFocus.targetRef(s)}
-                          aria-label={tr('statusConfig.delete', { status: statusLabel(s) })}
-                          onClick={() => removeStatus(s)}
-                        >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                        </Button>
-                      )}
-                    </TableCell>
+                    {canWrite ? (
+                      <TableCell>
+                        {!s.isInitial && !s.isSystem && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            ref={removalFocus.targetRef(s)}
+                            aria-label={tr('statusConfig.delete', { status: statusLabel(s) })}
+                            onClick={() => removeStatus(s)}
+                          >
+                            <Trash2 className="size-4" aria-hidden="true" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 );
               })}
@@ -299,7 +305,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
           />
         </CardContent>
       </Card>
-      {creating ? (
+      {canWrite && creating ? (
         <NewStatusDialog
           finalFocusRef={removalFocus.createRef}
           onClose={() => setCreating(false)}

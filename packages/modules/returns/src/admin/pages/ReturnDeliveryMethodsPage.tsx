@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Loader2, Plus, Trash2, Truck } from 'lucide-react';
-import { ApiError, formatMoney } from '@endora-commerce/admin-kit/lib';
+import { ApiError, formatMoney, useAuth } from '@endora-commerce/admin-kit/lib';
 import { ModalDialog, useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
@@ -45,6 +45,10 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
   const [methods, setMethods] = useState<DeliveryMethodOption[] | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // The code every write route enforces (`requireAdmin('returns:write')`): a read-only
+  // operator sees the list but is offered no write it would be refused.
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('returns:write');
   const [busyId, setBusyId] = useState<string | null>(null);
   const status = useInlineStatus();
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -140,7 +144,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
       <PageHeader
         title={t('returns.methods.title')}
         actions={
-          rows !== null && !nothingYet ? (
+          canWrite && rows !== null && !nothingYet ? (
             <>
               <InlineStatus {...status.props} />
               {newMethod}
@@ -162,7 +166,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
                 icon={<Truck size={20} />}
                 title={tr('methods.empty.title')}
                 description={tr('methods.empty.description')}
-                action={newMethod}
+                action={canWrite ? newMethod : null}
               />
             ) : (
               <Table>
@@ -171,7 +175,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
                     <TableHead>{tr('methods.col.method')}</TableHead>
                     <TableHead className="text-right">{tr('methods.col.cost')}</TableHead>
                     <TableHead>{tr('methods.col.active')}</TableHead>
-                    <TableHead />
+                    {canWrite ? <TableHead /> : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -189,6 +193,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
                           <Switch
                             checked={r.isActive}
                             busy={busyId === r.id}
+                            disabled={!canWrite}
                             aria-label={tr('methods.activeLabel', { method: shown })}
                             onCheckedChange={(next) => {
                               setBusyId(r.id);
@@ -198,17 +203,19 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
                             }}
                           />
                         </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            ref={removalFocus.targetRef(r)}
-                            aria-label={tr('methods.delete', { method: shown })}
-                            onClick={() => remove(r, shown)}
-                          >
-                            <Trash2 className="size-4" aria-hidden="true" />
-                          </Button>
-                        </TableCell>
+                        {canWrite ? (
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              ref={removalFocus.targetRef(r)}
+                              aria-label={tr('methods.delete', { method: shown })}
+                              onClick={() => remove(r, shown)}
+                            >
+                              <Trash2 className="size-4" aria-hidden="true" />
+                            </Button>
+                          </TableCell>
+                        ) : null}
                       </TableRow>
                     );
                   })}
@@ -219,7 +226,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
         </Card>
       )}
 
-      {creating ? (
+      {canWrite && creating ? (
         <NewDeliveryMethodDialog
           methods={methods}
           choices={choices}

@@ -6,6 +6,7 @@ import { formatMoney } from '@endora-commerce/admin-kit/lib';
 import corePl from '../../../../packages/modules/_i18n/i18n/pl.json';
 import returnsPl from '../../../../packages/modules/returns/i18n/pl.json';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 import { CASE_180 } from './return-detail-fixture';
 
@@ -248,9 +249,12 @@ describe('ReturnReasonsPage in Polish (#1472)', () => {
   function mount(rows: unknown[] = REASONS): void {
     api.get.mockImplementation(() => Promise.resolve({ data: rows }));
     renderWithI18n(
-      <MemoryRouter>
-        <ReturnReasonsPage />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ReturnReasonsPage />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
       { language: 'pl' },
     );
@@ -340,9 +344,12 @@ describe('ReturnDeliveryMethodsPage in Polish (#1472)', () => {
       return Promise.resolve({ data: [] });
     });
     renderWithI18n(
-      <MemoryRouter>
-        <ReturnDeliveryMethodsPage />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ReturnDeliveryMethodsPage />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
       { language: 'pl' },
     );
@@ -421,9 +428,12 @@ describe('ReturnStatusesConfigPage in Polish (#1472)', () => {
       return Promise.resolve({ data: { items: [] }, items: [] });
     });
     renderWithI18n(
-      <MemoryRouter>
-        <ReturnStatusesConfigPage />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ReturnStatusesConfigPage />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
       { language: 'pl' },
     );
@@ -459,9 +469,12 @@ describe('ReturnStatusesConfigPage in Polish (#1472)', () => {
       return Promise.resolve({ data: { recipientsMissing: { global: false, salesChannelIds: [] } }, items: [] });
     });
     renderWithI18n(
-      <MemoryRouter>
-        <ReturnStatusesConfigPage />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ReturnStatusesConfigPage />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
       { language: 'pl' },
     );

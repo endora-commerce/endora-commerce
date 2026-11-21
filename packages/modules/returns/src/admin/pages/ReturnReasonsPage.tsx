@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { ListChecks, Loader2, Plus, Trash2 } from 'lucide-react';
-import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { ModalDialog, useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
@@ -43,6 +43,10 @@ export function ReturnReasonsPage(): ReactNode {
   const [rows, setRows] = useState<ReturnReasonDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // The code every write route enforces (`requireAdmin('returns:write')`): a read-only
+  // operator sees the list but is offered no write it would be refused.
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('returns:write');
   const [busyId, setBusyId] = useState<string | null>(null);
   const status = useInlineStatus();
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -128,7 +132,7 @@ export function ReturnReasonsPage(): ReactNode {
         title={t('returns.reasons.title')}
         description={t('returns.reasons.description')}
         actions={
-          rows !== null && !nothingYet ? (
+          canWrite && rows !== null && !nothingYet ? (
             <>
               <InlineStatus {...status.props} />
               {newReason}
@@ -150,7 +154,7 @@ export function ReturnReasonsPage(): ReactNode {
                 icon={<ListChecks size={20} />}
                 title={tr('reasons.empty.title')}
                 description={tr('reasons.empty.description')}
-                action={newReason}
+                action={canWrite ? newReason : null}
               />
             ) : (
               <Table>
@@ -160,7 +164,7 @@ export function ReturnReasonsPage(): ReactNode {
                     <TableHead>{tr('reasons.col.appliesTo')}</TableHead>
                     <TableHead className="text-right">{tr('reasons.col.weight')}</TableHead>
                     <TableHead>{tr('reasons.col.active')}</TableHead>
-                    <TableHead />
+                    {canWrite ? <TableHead /> : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -173,6 +177,7 @@ export function ReturnReasonsPage(): ReactNode {
                         <Switch
                           checked={r.isActive}
                           busy={busyId === r.id}
+                          disabled={!canWrite}
                           aria-label={tr('reasons.activeLabel', { label: nameOf(r) })}
                           onCheckedChange={(next) => {
                             setBusyId(r.id);
@@ -182,17 +187,19 @@ export function ReturnReasonsPage(): ReactNode {
                           }}
                         />
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          ref={removalFocus.targetRef(r)}
-                          aria-label={tr('reasons.delete', { label: nameOf(r) })}
-                          onClick={() => remove(r)}
-                        >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                        </Button>
-                      </TableCell>
+                      {canWrite ? (
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            ref={removalFocus.targetRef(r)}
+                            aria-label={tr('reasons.delete', { label: nameOf(r) })}
+                            onClick={() => remove(r)}
+                          >
+                            <Trash2 className="size-4" aria-hidden="true" />
+                          </Button>
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -202,7 +209,7 @@ export function ReturnReasonsPage(): ReactNode {
         </Card>
       )}
 
-      {creating ? (
+      {canWrite && creating ? (
         <NewReasonDialog
           finalFocusRef={removalFocus.createRef}
           onClose={() => setCreating(false)}
