@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { campaignDetailSchema } from '@endora-commerce/contracts';
+import { campaignDetailSchema, campaignGroupResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -62,5 +63,60 @@ describe('Newsletter admin routes (feature 048)', () => {
     });
     expect(send.statusCode).toBe(200);
     expect(campaignDetailSchema.parse(send.json().data).status).toBe('sent');
+  });
+
+  it('answers a campaign\'s manual group, gated like every read (issue #1533)', async () => {
+    const email = `group-${randomUUID()}@contract.test`;
+    const subscriber = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/newsletter/subscribers',
+      cookies: ADMIN,
+      payload: { email },
+    });
+    expect(subscriber.statusCode).toBe(201);
+    const found = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/newsletter/subscribers?q=${encodeURIComponent(email)}`,
+      cookies: ADMIN,
+    });
+    const member = (found.json().data.items as Array<{ id: string; email: string }>).find((s) => s.email === email)!;
+    expect(member).toBeDefined();
+
+    const create = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/newsletter/campaigns',
+      cookies: ADMIN,
+      payload: {
+        name: 'Group campaign',
+        language: 'en-US',
+        subject: 'Hello',
+        content: { root: { props: {} }, content: [], zones: {} },
+        targetType: 'group',
+      },
+    });
+    const campaign = campaignDetailSchema.parse(create.json().data);
+    const url = `/api/v1/admin/newsletter/campaigns/${campaign.id}/group`;
+
+    const anonymous = await h.app.inject({ method: 'GET', url });
+    expect([401, 403]).toContain(anonymous.statusCode);
+
+    const empty = await h.app.inject({ method: 'GET', url, cookies: ADMIN });
+    expect(empty.statusCode).toBe(200);
+    expect(campaignGroupResponseSchema.parse(empty.json().data).items).toEqual([]);
+
+    const put = await h.app.inject({ method: 'PUT', url, cookies: ADMIN, payload: { subscriberIds: [member.id] } });
+    expect(put.statusCode).toBe(200);
+
+    const filled = await h.app.inject({ method: 'GET', url, cookies: ADMIN });
+    expect(campaignGroupResponseSchema.parse(filled.json().data).items).toEqual([
+      { id: member.id, email: member.email },
+    ]);
+
+    const missing = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/newsletter/campaigns/${randomUUID()}/group`,
+      cookies: ADMIN,
+    });
+    expect(missing.statusCode).toBe(404);
   });
 });

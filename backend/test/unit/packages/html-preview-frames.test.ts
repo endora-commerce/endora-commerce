@@ -44,8 +44,9 @@ describe('admin HTML preview frames', () => {
     const names = withFrames.map((file) => relative(REPO_ROOT, file));
     expect(names).toEqual(
       expect.arrayContaining([
+        // The campaign editor's own preview card is gone (issue #1533): the builder's
+        // preview dialog, here, is the one preview a campaign has.
         'packages/page-builder-admin/src/email/EmailEditorPane.tsx',
-        'packages/modules/newsletter/src/admin/pages/CampaignEditor.tsx',
       ]),
     );
   });

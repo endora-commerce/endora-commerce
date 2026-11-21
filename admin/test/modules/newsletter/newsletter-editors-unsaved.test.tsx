@@ -58,6 +58,7 @@ beforeEach(() => {
   vi.spyOn(newsletterClient, 'listTags').mockResolvedValue({ items: [] } as never);
   vi.spyOn(newsletterClient, 'listCustomFields').mockResolvedValue({ items: [] } as never);
   vi.spyOn(newsletterClient, 'listSubscribers').mockResolvedValue({ items: [] } as never);
+  vi.spyOn(newsletterClient, 'getCampaignGroup').mockResolvedValue({ items: [] });
   vi.spyOn(newsletterClient, 'getCampaign').mockResolvedValue(campaign as never);
 });
 

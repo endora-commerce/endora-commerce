@@ -209,6 +209,26 @@ describe('newsletter campaign service (US2)', () => {
     expect(withGroup.audienceEstimate).toBe(1);
   });
 
+  it('answers a manual group\'s members by e-mail, so the editor can show who is in it (issue #1533)', async () => {
+    const em = db.em();
+    const [b, a] = ['b', 'a'].map((prefix) =>
+      em.create(NewsletterSubscriber, { email: `${prefix}-grp-${randomUUID()}@x.test`, status: 'active' }),
+    );
+    // A member who unsubscribed since is still in the group, and is still listed.
+    const gone = em.create(NewsletterSubscriber, { email: `c-grp-${randomUUID()}@x.test`, status: 'unsubscribed' });
+    await em.flush();
+    const c = await service.create({ name: 'G', language: 'en-US', subject: 'S', content: textTree('B'), targetType: 'group' });
+    expect((await service.getGroup(c.id)).items).toEqual([]);
+
+    await service.setGroup(c.id, [b!.id, gone.id, a!.id]);
+    expect((await service.getGroup(c.id)).items).toEqual([
+      { id: a!.id, email: a!.email },
+      { id: b!.id, email: b!.email },
+      { id: gone.id, email: gone.email },
+    ]);
+    await expect(service.getGroup(randomUUID())).rejects.toMatchObject({ statusCode: 404 });
+  });
+
   it('reports no audience estimate once a campaign has left draft', async () => {
     const c = await service.create({ name: 'C', language: 'en-US', subject: 'S', content: textTree('B'), targetType: 'all' });
     const cancelled = await service.cancel(c.id, c.version);
