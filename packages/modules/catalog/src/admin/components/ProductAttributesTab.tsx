@@ -146,12 +146,12 @@ export function ProductAttributesTab(): ReactNode {
 
   if (!data) return null;
   if (data.attributes.length === 0 && content.length === 0) {
-    return <div className="b2b-help">{t('productEditor.attributes.empty')}</div>;
+    return <p className="text-sm text-muted-foreground">{t('productEditor.attributes.empty')}</p>;
   }
   const blocker = contentCardBlocker({ savedSetId: setId, stagedSetId, editors: contentEditors.length });
 
   return (
-    <div className="b2b-col" style={{ gap: 16 }}>
+    <div className="flex flex-col gap-4">
       <ScopedFieldGrid>
         {data.attributes.map((attr) => {
           const label = pickLabel(attr.label, attr.key, adminLanguage);

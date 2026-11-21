@@ -3,7 +3,7 @@ import { MoreHorizontal } from 'lucide-react';
 import type { EditorSaveSessionHandle, ScopeRef, ScopedFieldView, ScopedWriteOp } from '@endora-commerce/contracts';
 import { ScopedField, type ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@endora-commerce/admin-kit/ui';
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@endora-commerce/admin-kit/ui';
 import { CopyToChannelsDialog, type CopyTarget } from '../CopyToChannelsDialog.js';
 import { fieldViewAt, type ScopedEditorAction, type ScopedEditorState } from '../../lib/scoped-editor-store.js';
 
@@ -93,14 +93,16 @@ export function EditorField<T>(props: EditorFieldProps<T>): ReactNode {
         {props.headExtra}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
+            <Button
               ref={menuRef}
               type="button"
-              className="b2b-btn b2b-btn--ghost inline-flex size-7 items-center justify-center p-0 max-lg:size-11"
+              variant="ghost"
+              size="icon"
+              className="size-7 max-lg:size-11"
               aria-label={t('productEditor.copy.menu', { field: props.label })}
             >
-              <MoreHorizontal size={16} aria-hidden="true" />
-            </button>
+              <MoreHorizontal aria-hidden="true" />
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem className="max-lg:min-h-11" onSelect={(): void => setCopyOpen(true)}>
