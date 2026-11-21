@@ -394,14 +394,24 @@ request's channel.
 
 ### Name, slug and description per language
 
-A page's **Name**, **Slug** and **Description** in the *Page metadata* card
-are its defaults. The **Language version** card gives each language of the
-page its own name, slug and description, next to that language's meta title,
-meta description and meta keywords. A field left empty uses the page's own
-value, which the card shows greyed out as a hint. The card edits the language
-the canvas shows: the language tabs in the card and above the canvas switch
-both. While a language's slug has not been typed, it follows that language's
-name, as a new page's slug follows its name.
+The *Page metadata* card edits the language the canvas shows, switched by
+the language tabs above the canvas. A page's own **Name**, **Slug** and
+**Description** belong to no language: every language uses them for each
+field it does not set itself. The card edits them in the page's first
+language, as long as that language has no name, slug or description of its
+own. In any other language, and in the first one once it has its own values,
+the fields read *Name in pl-PL* and so on: a field left empty falls back to
+the page's own value, which the card shows greyed out as a hint. The meta
+title, meta description and meta keywords of the language are in the
+collapsed **SEO** section of the card. The page's status is the badge beside
+its title; it changes only through **Publish**, **Archive** and
+**Unarchive**.
+
+A new page's slug follows its name until you type a slug of your own, and a
+language's slug follows that language's name while the language has no saved
+name or slug. Such a slug, when typed, is normalised as you leave the field,
+so `Mój Slug` becomes `moj-slug`. A saved page keeps its address when you
+rename it.
 
 The overrides are stored in `cms_pages.translations`
 (`{ "<lang>": { "name", "slug", "description" } }`, `{}` for a page that
