@@ -178,6 +178,15 @@ describe('tasks admin surface', () => {
     }
   });
 
+  it('lights the one configuration row on every tab under it (issue #1557)', async () => {
+    presentModules = new Set(['tasks']);
+    permissions = new Set([...READ_AND_WRITE, 'tasks:configure']);
+    renderAt('/tasks/settings/general');
+    await waitFor(() => expect(notFoundIsRendered()).toBe(false));
+    const row = document.querySelector('.b2b-sidebar a[href="/tasks/settings"]');
+    expect(row?.classList.contains('is-active')).toBe(true);
+  });
+
   it('contributes no surface while the module is switched off', async () => {
     presentModules = new Set();
     permissions = new Set(READ_AND_WRITE);

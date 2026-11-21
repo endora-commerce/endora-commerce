@@ -1,5 +1,5 @@
 /**
- * `crm`'s admin surface — eight routes and five sidebar rows
+ * `crm`'s admin surface — nine routes and four sidebar rows
  * (`specs/143-crm-sales-opportunities/contracts/admin-surfaces.md` §1–§2).
  *
  * **The list and the board are one page** (issue #1558, UX audit WORK-07,
@@ -7,13 +7,14 @@
  * one sidebar row. `/crm/board` stays as a redirect, for bookmarks and for the
  * palette's *Opportunity board*, whose `targetRoute` may carry no query string.
  *
- * **A sidebar group of its own.** All six rows sit in the host's `crm` section
+ * **A sidebar group of its own.** All four rows sit in the host's `crm` section
  * (owner ruling of 2026-10-05), not under *Sales*: the section, its heading and
  * its position are the shell's, and a module joins it by naming it.
  *
  * **Only what has shipped** — User Story 1's four screens, User Story 7's
  * board, User Story 6's tag list, User Story 13's analytics and User Story 22's
- * calendar. A sidebar or
+ * calendar. Workflow and Tags are one *Configuration* row with route tabs
+ * since issue #1557 (UX audit WORK-06). A sidebar or
  * palette entry pointing at a route that does not exist is a defect
  * (Principle XVI), so each arrived with the story that shipped its page.
  *
@@ -21,6 +22,7 @@
  * dynamic-import factory, so none of the screens is in the admin's entry chunk.
  */
 import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import { CRM_CONFIGURATION_PATH, CRM_TAGS_PATH, LEGACY_CRM_TAGS_PATH } from './lib/configuration-paths.js';
 
 /**
  * The code that opens the list and one Opportunity.
@@ -51,9 +53,8 @@ const CONFIGURE_PERMISSION = 'crm:configure';
 const ANALYTICS_PERMISSION = 'crm:analytics';
 
 const OPPORTUNITIES_PATH = '/crm/opportunities';
-const WORKFLOW_PATH = '/crm/workflow';
+const WORKFLOW_PATH = CRM_CONFIGURATION_PATH;
 const BOARD_PATH = '/crm/board';
-const TAGS_PATH = '/crm/tags';
 const ANALYTICS_PATH = '/crm/analytics';
 const CALENDAR_PATH = '/crm/calendar';
 
@@ -96,8 +97,15 @@ export const contributions: AdminContributions = {
       // The tag list is read by every screen (`GET /tags` is `crm:read`), but
       // this screen exists to manage it, and every control on it is a write
       // gated `crm:configure` — so it opens on that code, as Workflow does.
-      path: TAGS_PATH,
+      // The configuration's *Tags* tab since issue #1557, under its row.
+      path: CRM_TAGS_PATH,
       component: () => import('./pages/TagsPage.js'),
+      requiredPermission: CONFIGURE_PERMISSION,
+    },
+    {
+      // The tag list's address before #1557, a redirect to the tab now.
+      path: LEGACY_CRM_TAGS_PATH,
+      component: () => import('./pages/CrmTagsRedirect.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
     {
@@ -126,7 +134,7 @@ export const contributions: AdminContributions = {
     {
       // After Opportunities (list and board, one row since issue #1558) and
       // before Analytics: the screens of every day first, then the manager's,
-      // then the two that configure.
+      // then the configuration.
       to: CALENDAR_PATH,
       labelKey: 'nav.calendar.label',
       icon: 'CalendarDays',
@@ -143,19 +151,13 @@ export const contributions: AdminContributions = {
       requiredPermission: ANALYTICS_PERMISSION,
     },
     {
-      to: TAGS_PATH,
-      labelKey: 'nav.tags.label',
-      icon: 'Tag',
-      section: 'crm',
-      weight: 400,
-      requiredPermission: CONFIGURE_PERMISSION,
-    },
-    {
+      // The one configuration row (issue #1557): the workflow, its first tab,
+      // with the tag list under it. Last of the group: configuration is
+      // visited rarely.
       to: WORKFLOW_PATH,
-      labelKey: 'nav.workflow.label',
-      icon: 'ListChecks',
+      labelKey: 'nav.configuration.label',
+      icon: 'Settings',
       section: 'crm',
-      // Last of the group: configuration is visited rarely.
       weight: 500,
       requiredPermission: CONFIGURE_PERMISSION,
     },

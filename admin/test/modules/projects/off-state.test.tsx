@@ -151,6 +151,15 @@ describe('projects admin surface', () => {
     }
   });
 
+  it('lights the one configuration row on every tab under it (issue #1557)', async () => {
+    presentModules = new Set(['projects']);
+    permissions = new Set(READ_AND_WRITE);
+    renderAt('/projects/settings/roles');
+    await waitFor(() => expect(notFoundIsRendered()).toBe(false));
+    const row = document.querySelector('.b2b-sidebar a[href="/projects/settings"]');
+    expect(row?.classList.contains('is-active')).toBe(true);
+  });
+
   it('contributes no surface while the module is switched off', async () => {
     presentModules = new Set();
     permissions = new Set(READ_AND_WRITE);

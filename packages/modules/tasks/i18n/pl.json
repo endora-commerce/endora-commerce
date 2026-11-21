@@ -336,7 +336,7 @@
   "digest.off": "Dzienne podsumowanie wyłączone.",
   "digest.error": "Nie udało się wczytać ustawienia dziennego podsumowania.",
   "digest.saveError": "Nie udało się zapisać ustawienia dziennego podsumowania.",
-  "configuration.tab.workflow": "Przebieg",
+  "configuration.tab.workflow": "Statusy i przebieg",
   "configuration.tab.priorities": "Priorytety",
   "configuration.tab.tags": "Etykiety",
   "configuration.tab.general": "Ogólne",

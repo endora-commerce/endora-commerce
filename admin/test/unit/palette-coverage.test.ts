@@ -42,6 +42,10 @@ const PALETTE_EXEMPTIONS: PaletteLedger = {
     '/cms/blocks/new': 'Create form opened from the block list header; the palette carries the list.',
     '/cms/templates/new': 'Create form opened from the template list header; the palette carries the list.',
   },
+  crm: {
+    '/crm/tags':
+      'Redirect to the Tags tab at /crm/workflow/tags (issue #1557), kept so old bookmarks resolve; open-crm-tags advertises the destination.',
+  },
   dictionaries: {
     '/dictionaries/audit':
       'Unadvertised legacy spelling of /admin/dictionaries/audit, kept so old bookmarks resolve.',
