@@ -243,7 +243,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   '_i18n:fulfilment.hint': 119,
   '_i18n:pageBuilder.fieldText.editorName.hint': 81,
   '_i18n:platform.commandHooks.outbox.hint': 94,
-  '_i18n:platform.commandHooks.plan.afterCommit.hint': 107,
   '_i18n:promotions.page.description': 83,
   '_i18n:returns.detail.settlement.charge.hint': 200,
   'admin_feedback:settingLabels.admin_feedback.module_enabled.description': 251,

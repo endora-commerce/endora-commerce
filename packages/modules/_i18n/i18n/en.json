@@ -1643,7 +1643,7 @@
   "platform.commandHooks.plan.beforeCommit.title": "Before commit, in this order",
   "platform.commandHooks.plan.beforeCommit.hint": "Runs inside the write’s transaction. A refusal cancels the whole write.",
   "platform.commandHooks.plan.afterCommit.title": "After commit, each on its own",
-  "platform.commandHooks.plan.afterCommit.hint": "Each handler is delivered separately through the outbox, in no particular order, and retried when it fails.",
+  "platform.commandHooks.plan.afterCommit.hint": "Delivered separately through the outbox, in no set order; retried on failure.",
   "platform.commandHooks.plan.noHooks": "No module hooks this phase.",
   "platform.commandHooks.module.on": "On",
   "platform.commandHooks.module.off": "Switched off — skipped",

@@ -188,6 +188,40 @@ describe.each(['en', 'pl'] as const)('CommandHooksPage, %s', (language) => {
     expect(screen.getByRole('tab', { name: core(language, 'platform.commandHooks.tab.outbox') })).toBeTruthy();
   });
 
+  it('explains each phase once, in a legend above the actions, not in every action (#1554)', async () => {
+    renderPage('plan', { language });
+    const register = await screen.findByRole('region', { name: 'organization.register' });
+    const create = screen.getByRole('region', { name: 'organization.create' });
+
+    for (const phase of ['beforeCommit', 'afterCommit'] as const) {
+      const hint = core(language, `platform.commandHooks.plan.${phase}.hint`);
+      // Said once on the page, two actions or twenty.
+      expect(screen.getAllByText(hint)).toHaveLength(1);
+      expect(within(register).queryByText(hint)).toBeNull();
+      expect(within(create).queryByText(hint)).toBeNull();
+      // Paired with the phase it explains, in a description list.
+      const term = screen.getByText(core(language, `platform.commandHooks.plan.${phase}.title`), { selector: 'dt' });
+      expect(term.nextElementSibling?.textContent).toBe(hint);
+    }
+
+    // The owner is the action's one-line description, not a second heading.
+    expect(register.getAttribute('aria-describedby')).toBeTruthy();
+    expect(document.getElementById(register.getAttribute('aria-describedby')!)?.textContent).toBe(
+      core(language, 'platform.commandHooks.plan.owner').replace('{module}', 'organizations'),
+    );
+  });
+
+  it('leaves a phase no action offers out of the legend', async () => {
+    planAnswer = async () => ({
+      actions: [{ action: 'organization.create', objectType: 'organization', owner: 'organizations', phases: ['beforeCommit'] }],
+      items: [],
+    });
+    renderPage('plan', { language });
+    await screen.findByRole('region', { name: 'organization.create' });
+    expect(screen.getByText(core(language, 'platform.commandHooks.plan.beforeCommit.hint'))).toBeTruthy();
+    expect(screen.queryByText(core(language, 'platform.commandHooks.plan.afterCommit.hint'))).toBeNull();
+  });
+
   it('lists dead rows with their failure translated by the hook module, then the platform, else raw', async () => {
     renderPage('outbox', { language });
 

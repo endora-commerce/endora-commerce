@@ -17,8 +17,7 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
+  EditorSection,
   Label,
   PageHeader,
   RouteTabs,
@@ -196,6 +195,19 @@ export function CommandHooksPage({ tab }: { tab: Tab }): ReactNode {
 // Execution plan
 // ---------------------------------------------------------------------------
 
+const PHASES = ['beforeCommit', 'afterCommit'] as const;
+
+const PHASE_COPY: Record<(typeof PHASES)[number], { title: string; hint: string }> = {
+  beforeCommit: {
+    title: 'platform.commandHooks.plan.beforeCommit.title',
+    hint: 'platform.commandHooks.plan.beforeCommit.hint',
+  },
+  afterCommit: {
+    title: 'platform.commandHooks.plan.afterCommit.title',
+    hint: 'platform.commandHooks.plan.afterCommit.hint',
+  },
+};
+
 function ExecutionPlan({ t, names }: { t: Translate; names: ReadonlyMap<string, string> }): ReactNode {
   const [plan, setPlan] = useState<CommandHookPlanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -237,18 +249,31 @@ function ExecutionPlan({ t, names }: { t: Translate; names: ReadonlyMap<string, 
       </Card>
     );
   }
+  // A phase is explained once, above every action that offers it — not once per
+  // action (#1554, Signal-to-Noise). A phase no action offers is not explained.
+  const offered = PHASES.filter((phase) => plan.actions.some((action) => action.phases.includes(phase)));
   return (
-    <div className="space-y-4">
-      {plan.actions.map((action) => (
-        <ActionPlan
-          key={action.action}
-          action={action}
-          items={plan.items.filter((item) => item.action === action.action)}
-          names={names}
-          t={t}
-        />
-      ))}
-    </div>
+    <Card>
+      <CardContent className="space-y-(--section-gap)">
+        <dl data-plan-legend className="grid gap-x-6 gap-y-2 border-b pb-4 text-sm md:grid-cols-2">
+          {offered.map((phase) => (
+            <div key={phase} className="min-w-0">
+              <dt className="font-medium">{t(PHASE_COPY[phase].title)}</dt>
+              <dd className="text-(length:--fs-hint) text-muted-foreground">{t(PHASE_COPY[phase].hint)}</dd>
+            </div>
+          ))}
+        </dl>
+        {plan.actions.map((action) => (
+          <ActionPlan
+            key={action.action}
+            action={action}
+            items={plan.items.filter((item) => item.action === action.action)}
+            names={names}
+            t={t}
+          />
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -263,7 +288,6 @@ function ActionPlan({
   names: ReadonlyMap<string, string>;
   t: Translate;
 }): ReactNode {
-  const headingId = useId();
   // The order the hooks run in is the server's position, not the order the
   // response happened to list them in.
   const before = items
@@ -272,41 +296,34 @@ function ActionPlan({
   const after = items.filter((item) => item.phase === 'afterCommit');
 
   return (
-    <Card>
-      <section aria-labelledby={headingId}>
-        <CardHeader className="flex flex-row flex-wrap items-baseline justify-between gap-2 space-y-0">
-          <CardTitle id={headingId} className={cn('min-w-0 font-mono', WRAP)}>
-            {/* eslint-disable-next-line no-restricted-syntax -- a command id is this screen's subject, shown as code */}
-            {action.action}
-          </CardTitle>
-          <span className={`text-sm text-muted-foreground ${WRAP}`}>
-            {t('platform.commandHooks.plan.owner', { module: names.get(action.owner) ?? action.owner })}
-          </span>
-        </CardHeader>
-        <CardContent className="grid gap-6 md:grid-cols-2">
-          {action.phases.includes('beforeCommit') && (
-            <PhaseHooks
-              ordered
-              items={before}
-              names={names}
-              title={t('platform.commandHooks.plan.beforeCommit.title')}
-              hint={t('platform.commandHooks.plan.beforeCommit.hint')}
-              t={t}
-            />
-          )}
-          {action.phases.includes('afterCommit') && (
-            <PhaseHooks
-              ordered={false}
-              items={after}
-              names={names}
-              title={t('platform.commandHooks.plan.afterCommit.title')}
-              hint={t('platform.commandHooks.plan.afterCommit.hint')}
-              t={t}
-            />
-          )}
-        </CardContent>
-      </section>
-    </Card>
+    <EditorSection
+      title={<span className={cn('font-mono', WRAP)}>{action.action}</span>}
+      description={
+        <span className={WRAP}>
+          {t('platform.commandHooks.plan.owner', { module: names.get(action.owner) ?? action.owner })}
+        </span>
+      }
+      contentClassName="grid gap-6 md:grid-cols-2"
+    >
+      {action.phases.includes('beforeCommit') && (
+        <PhaseHooks
+          ordered
+          items={before}
+          names={names}
+          title={t(PHASE_COPY.beforeCommit.title)}
+          t={t}
+        />
+      )}
+      {action.phases.includes('afterCommit') && (
+        <PhaseHooks
+          ordered={false}
+          items={after}
+          names={names}
+          title={t(PHASE_COPY.afterCommit.title)}
+          t={t}
+        />
+      )}
+    </EditorSection>
   );
 }
 
@@ -315,14 +332,12 @@ function PhaseHooks({
   items,
   names,
   title,
-  hint,
   t,
 }: {
   ordered: boolean;
   items: readonly CommandHookPlanItem[];
   names: ReadonlyMap<string, string>;
   title: string;
-  hint: string;
   t: Translate;
 }): ReactNode {
   const titleId = useId();
@@ -330,10 +345,9 @@ function PhaseHooks({
 
   return (
     <div className="min-w-0">
-      <h3 id={titleId} className="text-sm font-medium">
+      <h3 id={titleId} className="mb-2 text-sm font-medium">
         {title}
       </h3>
-      <p className="mb-2 text-xs text-muted-foreground">{hint}</p>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('platform.commandHooks.plan.noHooks')}</p>
       ) : (
