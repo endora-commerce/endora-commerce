@@ -767,6 +767,59 @@ Adopted by the role editor, the profile, the promotion editor, RFQ Modify and RF
 sales-channel editor, and the task, opportunity, project and project-template forms. Pinned in
 `admin/test/kit/kit-sticky-form-actions.test.tsx`, including an axe pass.
 
+## A record's facts — `InlineEdit` and `InlineEditTitle`
+
+Issue #1453 (UX audit 2026-11-17, DS-21; owner decision DEC-05). An operator moving from an
+Opportunity to its Task and its Project met three ways of saving a fact: per field in CRM, one
+*Edit* turning the whole Task block into a form, and three separate Saves on the Project Overview
+(WORK-03, #1525). The record-editing model is CRM's, moved here: **each fact is edited where it is
+shown**, with its own *Save* and *Cancel*, sending only itself.
+
+```tsx
+<InlineEdit<string>
+  label={t('field.startOn')}
+  canEdit={canWrite}
+  display={startOn ? calendarDateLabel(startOn) : t('detail.noStartDate')}
+  initial={() => startOn ?? ''}
+  unchanged={(draft) => (draft || null) === startOn}
+  validate={(draft) => (draft ? null : t('x.required'))}   // optional, before any request
+  save={(draft) => update({ startOn: draft || null })}      // reject with Error(sentence) to refuse
+  editor={({ id, draft, setDraft, busy, errorId }) => (
+    <Input id={id} type="date" value={draft} disabled={busy}
+      aria-invalid={errorId !== undefined} aria-describedby={errorId}
+      onChange={(e) => setDraft(e.target.value)} />
+  )}
+/>
+```
+
+- **States.** Idle: the label, the value and an always-visible pencil named "Edit <label>" (44 px on
+  touch). Editing: the focus moves into the control `id` names, Enter saves a one-line field
+  (`submit` lets a formatted field save on Ctrl/Cmd + Enter), Escape cancels and returns the focus to
+  the pencil. Saving: the control and buttons are held, *Save* is `aria-busy`. Refused: the sentence
+  under the control as `role="alert"`, tied to it through `errorId`, the draft kept. Saved:
+  "<label> saved." is announced by a live region mounted before it has text (WCAG 4.1.3).
+- **`save` throws to refuse.** Its rejection's `message` is shown; one without a message shows
+  `core`'s `common.inlineEdit.error`. Map an API error to a sentence in the module (the server's own
+  sentence first) and rethrow it as `Error`.
+- **`group`** for an editor of several controls — radios, a tag picker: the label is drawn with
+  `labelId` for the group's `aria-labelledby`, instead of a `<label for>` that would name one radio
+  only. Put `id` on the control the focus should land on (the checked radio). A control that is
+  still disabled when the field opens — a picker reading its options — leaves the focus on the
+  field's form, so the next Tab reaches it.
+- **`labelVisible={false}`** where a section heading already names the field (the CRM description).
+- **`InlineEditTitle`** is the same model for the page's `h1`: the `PageHeader` with a pencil beside
+  the title; editing swaps the heading row for a large input (a visually hidden `h1` stays). It takes
+  every `PageHeader` prop but `title`/`titleActions`, plus `value`, `label`, `canEdit`, `beside` (the
+  status badge), `maxLength`, `validate` and `save`; the draft is trimmed before both.
+- **What not.** A page-wide *Edit* that turns a block of facts into a form, and an always-open
+  control with its own filled *Save* beside read-only facts. A switch that applies at once stays a
+  switch; a record's custom fields keep `CustomFieldValuesPanel`'s one Save.
+
+Adopted by the Opportunity (title, value, dates, contact, assignee, Sales Channel, description),
+the Task (title, description, due date, start date, priority, tags, assignees) and the Project
+Overview (description, start date, who sees it). Pinned in `admin/test/kit/kit-inline-edit.test.tsx`,
+including axe passes, against the shipped `core` copy in English and Polish.
+
 ## List filters — `ListToolbar`, `ListToolbarSearch` and `FilterChip`
 
 Issue #1440 (UX audit 2026-11-17, DS-06). `ListToolbar` (`./components`) is a list page's filter row,

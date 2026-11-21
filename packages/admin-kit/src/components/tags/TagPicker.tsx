@@ -81,6 +81,8 @@ export type TagMultiSelectProps = TagMultiSelectName & {
   onChange: (tagIds: string[]) => void;
   /** Where the tag list comes from — the module's own endpoint. Keep it stable. */
   loadTags: () => Promise<readonly TagOption[]>;
+  /** The trigger's id — what an `InlineEdit` editor puts its focus on. */
+  id?: string;
   disabled?: boolean;
   className?: string;
 };
@@ -107,6 +109,7 @@ export function TagMultiSelect(props: TagMultiSelectProps): ReactNode {
       <MultiSelect
         options={options}
         selected={[...props.selected]}
+        {...(props.id !== undefined ? { id: props.id } : {})}
         onChange={(next): void => {
           const chosen = new Set(next);
           props.onChange(tags.filter((tag) => chosen.has(tag.id)).map((tag) => tag.id));

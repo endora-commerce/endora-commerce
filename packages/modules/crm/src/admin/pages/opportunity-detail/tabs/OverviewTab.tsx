@@ -1,8 +1,7 @@
 import { useId, type ReactNode } from 'react';
-import { ReferenceText } from '@endora-commerce/admin-kit/components';
+import { InlineEdit, ReferenceText } from '@endora-commerce/admin-kit/components';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { InlineEdit } from '../../../components/InlineEdit.js';
 import { OpportunityCustomFields } from '../../../components/OpportunityCustomFields.js';
 import { ReferenceField } from '../../../components/ReferenceField.js';
 import { useOrderStatusLabel } from '../../../lib/references.js';

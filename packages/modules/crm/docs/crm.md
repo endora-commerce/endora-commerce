@@ -264,11 +264,12 @@ it turns that one field into its input, with **Save** and **Cancel**:
 | **Description** | Its own section on the *Overview* tab. | The formatted editor (see *Formatted text*); **Ctrl+Enter** (**Cmd+Enter** on a Mac) or **Save** saves. |
 | **Expected close date** | The card of facts. | A date. |
 | **Contact person** | The card of facts. | Only people of the opportunity's organization are offered. |
+| **Assignee** | The card of facts. | Choosing a person is not yet assigning: **Save** is. A cleared choice unassigns. |
 | **Sales channel** | The card of facts. | |
 | **Value** — the amount | The card of facts. | Only while the value is **entered by hand**. A computed value has no pencil: switch the mode first. |
 
-The assignee, the tags and the value's mode were already changed in place and
-still are. The organization, the currency, the source, the number and the
+The tags and the value's mode were already changed in place and still are.
+The organization, the currency, the source, the number and the
 record's dates cannot be changed and carry no pencil. Custom fields keep their
 own section and their own **Save custom fields** button (see *Custom fields*).
 
@@ -622,9 +623,10 @@ In the Admin UI:
   empty and the rule above chooses; pick a person and it is theirs.
 - **On an opportunity**, *Assignee* — in the card of facts on the right —
   names who holds it. A holder of
-  `crm:write` changes it there: choosing a person assigns the opportunity to
-  them at once, and clearing the field leaves it unassigned. There is nothing
-  to save.
+  `crm:write` changes it there with its pencil, as every other fact: choose a
+  person, or clear the field to leave it unassigned, and press **Save**.
+  A refusal — the person was deactivated meanwhile — is shown under the field,
+  which keeps the choice.
 - **On the list** there is an *Assignee* column, and both the list and the
   board have an *Assignee* filter: **Anyone**, **Mine**, **Unassigned**, or
   **A specific person…**, which adds a field to choose them.
