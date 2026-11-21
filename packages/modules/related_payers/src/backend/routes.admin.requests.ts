@@ -44,7 +44,8 @@ export async function registerRelatedPayersRequestAdminRoutes(
     { preHandler: requireAdmin('related_payers:read'), schema: { querystring: adminRelatedPayerRequestsQuerySchema } },
     async (request) => {
       const query = adminRelatedPayerRequestsQuerySchema.parse(request.query ?? {});
-      return { data: await deps.requests().listQueue(query) };
+      const { rows, page, pageSize, total } = await deps.requests().listQueue(query);
+      return { data: rows, meta: { page, pageSize, total } };
     },
   );
 

@@ -7,6 +7,7 @@ import {
   relatedPayerInvitationLookupResponseSchema,
   relatedPayersAvailabilityResponseSchema,
   adminRelatedPayerRequestsQuerySchema,
+  adminRelatedPayerRequestsResponseSchema,
   addPayerInputSchema,
   adminCreatePayerOrganizationBodySchema,
   checkoutPayerSchema,
@@ -421,13 +422,27 @@ describe('checkoutPayerSchema — the payer\'s available credit (RP-16 c)', () =
 });
 
 describe('Phase 5 — the operator queue query and the outbox actions (T080 – T082)', () => {
-  it('the queue query takes a state, a reason and a channel, and nothing else', () => {
+  it('the queue query takes a state, a reason, a channel and a page, and nothing else', () => {
     expect(adminRelatedPayerRequestsQuerySchema.parse({ state: 'pending', reason: 'second_step' })).toEqual({
       state: 'pending',
       reason: 'second_step',
+      page: 1,
     });
     expect(adminRelatedPayerRequestsQuerySchema.safeParse({ reason: 'anything' }).success).toBe(false);
     expect(adminRelatedPayerRequestsQuerySchema.safeParse({ routing: 'operator' }).success).toBe(false);
+  });
+
+  it('pages the queue from the query string: one-based page, at most 200 a page (UX audit DS-05, #1439)', () => {
+    expect(adminRelatedPayerRequestsQuerySchema.parse({ page: '3', pageSize: '50' })).toEqual({ page: 3, pageSize: 50 });
+    expect(adminRelatedPayerRequestsQuerySchema.safeParse({ page: '0' }).success).toBe(false);
+    expect(adminRelatedPayerRequestsQuerySchema.safeParse({ pageSize: '201' }).success).toBe(false);
+    expect(adminRelatedPayerRequestsQuerySchema.safeParse({ pageSize: '1.5' }).success).toBe(false);
+  });
+
+  it('the queue answers one page and the total across every page', () => {
+    const page = { data: [], meta: { page: 2, pageSize: 20, total: 21 } };
+    expect(adminRelatedPayerRequestsResponseSchema.parse(page)).toEqual(page);
+    expect(adminRelatedPayerRequestsResponseSchema.safeParse({ data: [] }).success).toBe(false);
   });
 
   it('the outbox actions are the Commands\' own names, after commit only (research R-8; expiry RP-20 c)', () => {

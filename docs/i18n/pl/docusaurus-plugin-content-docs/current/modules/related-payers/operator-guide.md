@@ -104,7 +104,9 @@ zaproszenie do rejestracji i w ten sposób dowiaduje się, że NIP nie ma konta.
 ## Kolejka próśb o płatnika
 
 **Klienci → Prośby o płatnika** (także pod ⌘K / CTRL+K, *Prośby o płatnika*) pokazuje prośby, które
-czekają na operatora, wraz z powodem:
+czekają na operatora, od najstarszej, wraz z powodem. Listę można filtrować według stanu
+(*Oczekuje*, jeśli nie wybierzesz innego) i powodu; *Wyczyść wszystkie filtry* wraca do próśb, które
+czekają. Długa kolejka jest stronicowana pod listą.
 
 | Powód | Co zrobić |
 | --- | --- |
@@ -115,10 +117,11 @@ czekają na operatora, wraz z powodem:
 | Kilka organizacji ma ten NIP | Przypisz właściwą organizację albo odrzuć. |
 | Organizacja nie może być płatnikiem | Dopasowana organizacja nie jest zatwierdzoną organizacją firmową albo już płaci za nadawcę. Odrzuć albo najpierw popraw organizację. |
 
-Akcje:
+Akcje — **Zaakceptuj** to przycisk w wierszu; pozostałe są w menu ⋮ wiersza, a **Odrzuć** jest na
+końcu. Wynik każdej akcji pojawia się nad listą:
 
 - **Zaakceptuj** — tworzy aktywne powiązanie na warunkach kupującego. Prośba bez dopasowanej
-  organizacji musi najpierw ją dostać.
+  organizacji nie ma przycisku *Zaakceptuj*, dopóki jej nie dostanie.
 - **Odrzuć** — wpisany powód kupujący zobaczy na ekranie *Płatnicy* swojego konta.
 - **Przypisz organizację** — dostępne, gdy istnieją organizacje z NIP-em prośby (niejednoznaczny NIP
   albo organizacja zarejestrowana po wysłaniu prośby). Prośba trafia wtedy do osób zatwierdzających
