@@ -87,7 +87,7 @@ function renderTree(permissions: readonly string[] = ['catalog:read', 'catalog:w
 }
 
 async function openCreate(): Promise<void> {
-  await screen.findByText('Furniture');
+  await screen.findByRole('button', { name: 'Furniture' });
   fireEvent.click(screen.getByRole('button', { name: en['categories.action.newRoot']! }));
   fireEvent.change(screen.getByLabelText(en['categories.field.slug']!), { target: { value: 'lamps' } });
 }
@@ -153,8 +153,7 @@ describe('CategoriesTree — custom fields (feature 175)', () => {
   it('edit: shows the stored values and sends the edited bag in the category PATCH', async () => {
     patchSpy.mockResolvedValue({ data: { id: ROOT } });
     renderTree();
-    await screen.findByText('Furniture');
-    fireEvent.click(screen.getByRole('button', { name: en['categories.action.edit']! }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Furniture' }));
     const input = (await screen.findByLabelText('Merchandising note')) as HTMLInputElement;
     expect(input.value).toBe('Bestseller');
     fireEvent.change(input, { target: { value: 'Clearance' } });

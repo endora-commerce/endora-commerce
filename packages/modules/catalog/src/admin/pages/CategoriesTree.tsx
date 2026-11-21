@@ -1,20 +1,21 @@
-import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Eye, EyeOff, FileText } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, EyeOff, FileText, ImageIcon, ImageOff, X } from 'lucide-react';
 import {
   ApiError,
   SaveSessionProvider,
   apiClient,
   cn,
+  toAbsoluteAssetUrl,
   useAuth,
+  useDerivedKey,
   useSaveSession,
-  useUnsavedChangesPrompt,
   type ParticipantIssues,
   type SaveOutcome,
   type SavePart,
 } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, InlineStatus, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
-import { AssetPicker, CustomFieldValuesPanel, ModalDialog, SaveSessionSummary, adminLanguageToLocale, customFieldErrorsOf, buildCategoryTree, flattenCategoryTree, pickCategoryDisplayName, useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, EditorSection, InlineStatus, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { AssetPicker, CustomFieldValuesPanel, ImmediateBadge, RowActionMenu, RowActionMenuItem, RowActionMenuSeparator, SaveSessionSummary, adminLanguageToLocale, customFieldErrorsOf, buildCategoryTree, flattenCategoryTree, pickCategoryDisplayName, useConfirmDialog, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import type { CategoryTreePickerCategory } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
@@ -126,6 +127,22 @@ export function CategoriesTree(): ReactNode {
   );
 }
 
+/** The create form's parent when it creates a root category. */
+const ROOT_PARENT = '__root__';
+
+/** The asset file route the Assets Library serves; `toAbsoluteAssetUrl` points it at the API. */
+function assetFileUrl(assetId: string): string {
+  return toAbsoluteAssetUrl(`/assets/file/${encodeURIComponent(assetId)}`);
+}
+
+/**
+ * Issue #1507 (UX audit CAT-05, owner decision DEC-10) — a master-detail screen: the tree on
+ * the left, one panel on the right holding either the open category's editor or the create
+ * form. A row carries three controls — the name (opens the editor), a ghost "+" (a new
+ * subcategory) and one actions menu — instead of five buttons and a red Delete beside the
+ * frequent ones (Hick, Fitts). Every switch of the panel goes through the kit's unsaved-changes
+ * guard (#1606); Cancel stays the explicit discard it has always been.
+ */
 function CategoriesTreeScreen({
   editing,
   setEditing,
@@ -153,10 +170,16 @@ function CategoriesTreeScreen({
   // it is gone (or changed) by then, and the header stays.
   const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   const [createUnderId, setCreateUnderId] = useState<string | null>(null);
+  // Whether the open create form holds anything a switch would lose.
+  const [createDirty, setCreateDirty] = useState(false);
   const { hasPermission } = useAuth();
   const canSeeCustomFields = hasPermission('custom_fields:read');
   // Feature 175 — the refusals of the last create / edit attempt, by field key.
   const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
+  const panelId = useId();
+  const panelHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  // The control that opened the panel; focus goes back to it when the panel closes.
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   // `?focus=<id>` — where a global-search Category result lands
   // (`specs/150-admin-global-search/` research R-15). The tree has no collapsed
   // state, so the category's ancestors are always shown; the row is marked
@@ -227,6 +250,7 @@ function CategoriesTreeScreen({
         });
         showStatus(t('categories.success.create'));
         setCreateUnderId(null);
+        setCreateDirty(false);
         await refresh();
       } catch (err) {
         setCustomFieldErrors(customFieldErrorsOf(err) ?? {});
@@ -271,7 +295,6 @@ function CategoriesTreeScreen({
   // The open form's fields, tagged with the category they belong to.
   const [draftState, setDraftState] = useState<{ id: string; draft: EditDraft } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [guard, setGuard] = useState<{ target: string } | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
   const editingRecord = editing === null ? undefined : categoryById.get(editing);
   const draft: EditDraft | null =
@@ -282,8 +305,6 @@ function CategoriesTreeScreen({
         : draftOf(editingRecord);
   const hostCount = draft !== null && editingRecord !== undefined ? hostChangeCount(draft, editingRecord) : 0;
   const totalUnsaved = hostCount + session.dirtyCount;
-  // Leaving the page — an in-app link, a reload, closing the tab — asks once for every part.
-  useUnsavedChangesPrompt(totalUnsaved > 0);
 
   const changeDraft = useCallback(
     (patch: Partial<EditDraft>): void => {
@@ -300,33 +321,10 @@ function CategoriesTreeScreen({
     (id: string | null): void => {
       setDraftState(null);
       setCustomFieldErrors({});
-      setGuard(null);
       setEditing(id);
     },
     [setEditing],
   );
-
-  /** **Edit** on a row: through the guard when the open category has unsaved changes (FR-051). */
-  const requestEdit = (id: string): void => {
-    if (editing !== null && editing !== id && totalUnsaved > 0) {
-      setGuard({ target: id });
-      return;
-    }
-    clearStatus();
-    openEditor(id);
-  };
-
-  /** Opening a create form starts a new action: the last result no longer applies. */
-  const startCreate = (parentId: string): void => {
-    clearStatus();
-    setCreateUnderId(parentId);
-  };
-
-  /** Cancel is *Discard* without a dialog, as it has always been for the form's own fields. */
-  const cancelEdit = (): void => {
-    session.discardAll();
-    openEditor(null);
-  };
 
   /** The form's own checks (slug required and kebab-case), as the browser reports them. */
   const validateForm = (): ParticipantIssues => {
@@ -376,6 +374,98 @@ function CategoriesTreeScreen({
     }
   };
 
+  // --- The panel and its guard (#1507, #1606) ----------------------------------------------
+  const panelKey = editing !== null ? `edit:${editing}` : createUnderId !== null ? `create:${createUnderId}` : null;
+  const editDirty = totalUnsaved > 0;
+  // Leaving the page or switching the panel asks once for every part: the kit's one guard
+  // (Save and continue / Discard changes / Stay here). Save is offered for the editor's
+  // changes; a half-filled create form can only be kept or discarded.
+  const guard = useUnsavedChangesGuard({
+    dirty: editDirty || createDirty,
+    onSave: editDirty ? saveEdit : undefined,
+    onDiscard: (): void => {
+      session.discardAll();
+      setDraftState(null);
+      setCreateDirty(false);
+    },
+    title:
+      editDirty && editingRecord !== undefined
+        ? t('categories.guard.title', { name: label(editingRecord.name, editingRecord.slug) })
+        : undefined,
+    message: editDirty
+      ? t(`categories.guard.body.${new Intl.PluralRules(language).select(totalUnsaved)}`, { count: String(totalUnsaved) })
+      : undefined,
+  });
+
+  /** Remembers the control a panel switch came from, so closing the panel can return to it. */
+  const rememberOpener = (): void => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) returnFocusRef.current = active;
+  };
+
+  /** The name, or **Edit** in the menu: opens that category in the panel. */
+  const requestEdit = (id: string): void => {
+    if (editing === id) {
+      panelHeadingRef.current?.focus();
+      return;
+    }
+    rememberOpener();
+    guard.confirm(() => {
+      clearStatus();
+      setCreateUnderId(null);
+      setCreateDirty(false);
+      openEditor(id);
+    });
+  };
+
+  /** "New root category" or a row's "+": the create form in the panel. */
+  const startCreate = (parentId: string): void => {
+    if (editing === null && createUnderId === parentId) {
+      panelHeadingRef.current?.focus();
+      return;
+    }
+    rememberOpener();
+    guard.confirm(() => {
+      clearStatus();
+      if (editing !== null) {
+        session.discardAll();
+        openEditor(null);
+      }
+      setCreateDirty(false);
+      setCreateUnderId(parentId);
+    });
+  };
+
+  /** Closes the panel without asking — Cancel is *Discard*, as it has always been. */
+  const closePanel = (): void => {
+    if (editing !== null) {
+      session.discardAll();
+      openEditor(null);
+    }
+    setCreateUnderId(null);
+    setCreateDirty(false);
+  };
+
+  // Opening the panel (or switching what it holds) moves focus to its heading, so a keyboard
+  // or screen-reader user lands where the form starts — below the tree on a narrow screen.
+  // Closing it returns focus to the control that opened it, if that control is still there.
+  const previousPanelKey = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = previousPanelKey.current;
+    previousPanelKey.current = panelKey;
+    if (panelKey !== null && panelKey !== previous) {
+      const heading = panelHeadingRef.current;
+      if (heading !== null) {
+        heading.scrollIntoView?.({ block: 'nearest' });
+        heading.focus({ preventScroll: true });
+      }
+    } else if (panelKey === null && previous !== null) {
+      const opener = returnFocusRef.current;
+      returnFocusRef.current = null;
+      if (opener?.isConnected) opener.focus();
+    }
+  }, [panelKey]);
+
   /** The summary's "Show": the form's first marked field, else the form. */
   const showPart = (): void => {
     setTimeout(() => {
@@ -404,6 +494,22 @@ function CategoriesTreeScreen({
     [refresh, t, showStatus, clearStatus],
   );
 
+  /** Feature 013 / US5 — the main image applies at once, outside the editor's Save. */
+  const handleMainImage = useCallback(
+    async (id: string, assetId: string | null): Promise<void> => {
+      setError(null);
+      try {
+        await apiClient.patch<{ data: AdminCategory }>(`/api/v1/admin/catalog/categories/${id}`, {
+          mainImageAssetId: assetId,
+        });
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.update'));
+      }
+    },
+    [refresh, t],
+  );
+
   const handleDelete = useCallback(
     async (cat: CategoryTreePickerCategory): Promise<void> => {
       const ok = await confirm({
@@ -417,13 +523,28 @@ function CategoriesTreeScreen({
       try {
         await apiClient.delete<void>(`/api/v1/admin/catalog/categories/${cat.id}`);
         showStatus(t('categories.success.delete'));
+        // The deleted category's editor, or a create form under it, has nothing left to edit.
+        if (editing === cat.id) {
+          session.discardAll();
+          openEditor(null);
+        }
+        if (createUnderId === cat.id) setCreateUnderId(null);
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.delete'));
       }
     },
-    [refresh, t, tc, confirm, showStatus, clearStatus],
+    [refresh, t, tc, confirm, showStatus, clearStatus, editing, createUnderId, session, openEditor],
   );
+
+  const createParent = createUnderId !== null && createUnderId !== ROOT_PARENT ? categoryById.get(createUnderId) : undefined;
+  const panelTitle =
+    editingRecord !== undefined
+      ? t('categories.panel.editTitle', { name: label(editingRecord.name, editingRecord.slug) })
+      : createParent !== undefined
+        ? t('categories.panel.createChildTitle', { name: label(createParent.name, createParent.slug) })
+        : t('categories.action.newRoot');
+  const panelOpen = (editing !== null && draft !== null) || createUnderId !== null;
 
   return (
     <>
@@ -432,7 +553,7 @@ function CategoriesTreeScreen({
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <InlineStatus {...statusProps} />
-            <Button type="button" onClick={(): void => startCreate('__root__')}>
+            <Button type="button" onClick={(): void => startCreate(ROOT_PARENT)}>
               <Plus />
               {t('categories.action.newRoot')}
             </Button>
@@ -446,250 +567,222 @@ function CategoriesTreeScreen({
         </Alert>
       ) : null}
 
-      {createUnderId === '__root__' ? (
-        <CreateForm
-          parentLabel="(root)"
-          customFields={canSeeCustomFields ? { errors: customFieldErrors } : null}
-          onCancel={(): void => setCreateUnderId(null)}
-          onSubmit={(input): void => void handleCreate({ parentCategoryId: null, ...input })}
-        />
-      ) : null}
-
-      <Card>
-        <CardContent>
-          {/* Only the first read replaces the tree: a refresh after a write keeps the open
-              editor mounted, its fields and its panels with it. */}
-          {loading && categories.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('categories.loading')}</p>
-          ) : tree.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('categories.empty')}</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('categories.column.category')}</TableHead>
-                  <TableHead>{t('categories.column.slug')}</TableHead>
-                  <TableHead>{t('categories.column.sort')}</TableHead>
-                  <TableHead>{t('categories.column.status')}</TableHead>
-                  <TableHead>{t('categories.column.mainImage')}</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {flattenCategoryTree(tree).map(({ category: c, depth }) => {
-                  const record = categoryById.get(c.id);
-                  const isActive = record?.isActive ?? true;
-                  return (
-                  <Fragment key={c.id}>
-                    <TableRow
-                      className={cn(
-                        isActive ? undefined : 'opacity-60',
-                        focusId === c.id && 'bg-muted ring-2 ring-inset ring-ring focus-visible:outline-none',
-                      )}
-                      {...(focusId === c.id
-                        ? { 'aria-current': 'true' as const, tabIndex: -1, ref: focusRow }
-                        : {})}
-                    >
-                      <TableCell style={{ paddingLeft: depth * 24 + 8 }}>
-                        {editing === c.id && draft !== null ? (
-                          <EditForm
-                            category={c}
-                            categories={categories}
-                            draft={draft}
-                            onDraft={changeDraft}
-                            values={record?.customFieldValues ?? EMPTY_VALUES}
-                            customFields={canSeeCustomFields ? { errors: customFieldErrors } : null}
-                            saveSession={session.handle}
-                            changeCount={totalUnsaved}
-                            saving={saving || session.saving}
-                            formRef={formRef}
-                            summary={
-                              showSummary(session.lastOutcome) || session.notices.length > 0 ? (
-                                <SaveSessionSummary
-                                  outcome={showSummary(session.lastOutcome) ? session.lastOutcome : null}
-                                  notices={session.notices}
-                                  onShow={showPart}
-                                />
-                              ) : null
-                            }
-                            onCancel={cancelEdit}
-                            onSubmit={(): void => void saveEdit()}
-                          />
-                        ) : (
-                          <span
-                            className={
-                              isActive
-                                ? 'font-medium'
-                                : 'font-medium text-muted-foreground line-through'
-                            }
-                          >
-                            {label(c.name, c.slug)}
-                          </span>
+      <div
+        className={cn(
+          'grid items-start gap-4',
+          panelOpen && 'xl:grid-cols-[minmax(0,1fr)_minmax(24rem,32rem)]',
+        )}
+      >
+        <Card className="min-w-0">
+          <CardContent>
+            {/* Only the first read replaces the tree: a refresh after a write keeps the open
+                editor mounted, its fields and its panels with it. */}
+            {loading && categories.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('categories.loading')}</p>
+            ) : tree.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('categories.empty')}</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('categories.column.category')}</TableHead>
+                    <TableHead>{t('categories.column.slug')}</TableHead>
+                    <TableHead>{t('categories.column.sort')}</TableHead>
+                    <TableHead>{t('categories.column.status')}</TableHead>
+                    <TableHead>{t('categories.column.mainImage')}</TableHead>
+                    <TableHead>
+                      <span className="sr-only">{t('categories.column.actions')}</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {flattenCategoryTree(tree).map(({ category: c, depth }) => {
+                    const record = categoryById.get(c.id);
+                    const isActive = record?.isActive ?? true;
+                    const name = label(c.name, c.slug);
+                    const open = editing === c.id;
+                    return (
+                      <TableRow
+                        key={c.id}
+                        data-state={open ? 'selected' : undefined}
+                        className={cn(
+                          isActive ? undefined : 'opacity-60',
+                          focusId === c.id && 'bg-muted ring-2 ring-inset ring-ring focus-visible:outline-none',
                         )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{c.slug}</TableCell>
-                      <TableCell>{c.sortOrder}</TableCell>
-                      <TableCell>
-                        <Badge variant={isActive ? 'success' : 'secondary'}>
-                          {isActive
-                            ? t('categories.status.active')
-                            : t('categories.status.inactive')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <CategoryMainImage
-                          mainImageAssetId={categoryById.get(c.id)?.mainImageAssetId ?? null}
-                          onChange={(assetId): void => {
-                            void apiClient
-                              .patch<{ data: AdminCategory }>(
-                                `/api/v1/admin/catalog/categories/${c.id}`,
-                                { mainImageAssetId: assetId },
-                              )
-                              .then(() => void refresh())
-                              .catch((err: unknown) => {
-                                setError(
-                                  err instanceof ApiError
-                                    ? err.envelope.error.message
-                                    : 'Update failed.',
-                                );
-                              });
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {editing === c.id ? null : (
-                          <div className="flex gap-2">
+                        {...(focusId === c.id
+                          ? { 'aria-current': 'true' as const, tabIndex: -1, ref: focusRow }
+                          : {})}
+                      >
+                        <TableCell style={{ paddingLeft: depth * 24 + 8 }}>
+                          {/* The name is the way in (the issue's "name click = Edit"): the row's
+                              most frequent action is its largest target (Fitts). */}
+                          <button
+                            type="button"
+                            className={cn(
+                              'rounded-sm text-left font-medium underline-offset-4 hover:underline',
+                              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                              !isActive && 'text-muted-foreground line-through',
+                            )}
+                            aria-expanded={open}
+                            {...(open ? { 'aria-controls': panelId } : {})}
+                            onClick={(): void => requestEdit(c.id)}
+                          >
+                            {name}
+                          </button>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{c.slug}</TableCell>
+                        <TableCell>{c.sortOrder}</TableCell>
+                        <TableCell>
+                          <Badge variant={isActive ? 'success' : 'secondary'}>
+                            {isActive
+                              ? t('categories.status.active')
+                              : t('categories.status.inactive')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <CategoryThumbnail assetId={record?.mainImageAssetId ?? null} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
                             <Button
-                              variant="outline"
-                              size="sm"
                               type="button"
-                              onClick={(): void => requestEdit(c.id)}
-                            >
-                              <Pencil />
-                              {t('categories.action.edit')}
-                            </Button>
-                            {hasContentEditor ? (
-                              <Button asChild variant="outline" size="sm">
-                                <Link to={`/catalog/categories/${c.id}/content`}>
-                                  <FileText />
-                                  {t('categories.action.content')}
-                                </Link>
-                              </Button>
-                            ) : null}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={t('categories.action.newChildOf', { name })}
+                              title={t('categories.action.newChildOf', { name })}
                               onClick={(): void => startCreate(c.id)}
                             >
-                              <Plus />
-                              {t('categories.action.newChild')}
+                              <Plus aria-hidden="true" />
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              type="button"
-                              aria-pressed={!isActive}
-                              onClick={(): void => void handleToggleActive(c.id, !isActive)}
-                            >
-                              {isActive ? <EyeOff /> : <Eye />}
-                              {isActive
-                                ? t('categories.action.deactivate')
-                                : t('categories.action.activate')}
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              type="button"
-                              onClick={(): void => void handleDelete(c)}
-                            >
-                              <Trash2 />
-                              {t('categories.action.delete')}
-                            </Button>
+                            <RowActionMenu label={t('categories.action.menu', { name })}>
+                              <RowActionMenuItem onSelect={(): void => requestEdit(c.id)}>
+                                <Pencil aria-hidden="true" />
+                                {t('categories.action.edit')}
+                              </RowActionMenuItem>
+                              {hasContentEditor ? (
+                                <RowActionMenuItem asChild>
+                                  <Link to={`/catalog/categories/${c.id}/content`}>
+                                    <FileText aria-hidden="true" />
+                                    {t('categories.action.content')}
+                                  </Link>
+                                </RowActionMenuItem>
+                              ) : null}
+                              <RowActionMenuItem onSelect={(): void => void handleToggleActive(c.id, !isActive)}>
+                                {isActive ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                                {isActive
+                                  ? t('categories.action.deactivate')
+                                  : t('categories.action.activate')}
+                              </RowActionMenuItem>
+                              <RowActionMenuSeparator />
+                              <RowActionMenuItem destructive onSelect={(): void => void handleDelete(c)}>
+                                <Trash2 aria-hidden="true" />
+                                {t('categories.action.delete')}
+                              </RowActionMenuItem>
+                            </RowActionMenu>
                           </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                    {createUnderId === c.id ? (
-                      <TableRow>
-                        <TableCell colSpan={6} style={{ paddingLeft: depth * 24 + 32 }}>
-                          <CreateForm
-                            parentLabel={label(c.name, c.slug)}
-                            customFields={canSeeCustomFields ? { errors: customFieldErrors } : null}
-                            onCancel={(): void => setCreateUnderId(null)}
-                            onSubmit={(input): void =>
-                              void handleCreate({ parentCategoryId: c.id, ...input })
-                            }
-                          />
                         </TableCell>
                       </TableRow>
-                    ) : null}
-                  </Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {panelOpen ? (
+          <Card
+            id={panelId}
+            role="region"
+            aria-labelledby={`${panelId}-title`}
+            className="min-w-0 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto"
+          >
+            <CardHeader>
+              <div className="flex items-start justify-between gap-2">
+                <CardTitle id={`${panelId}-title`} ref={panelHeadingRef} tabIndex={-1} className="focus:outline-none">
+                  {panelTitle}
+                </CardTitle>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={t('categories.panel.close')}
+                  title={t('categories.panel.close')}
+                  disabled={saving}
+                  onClick={(): void => guard.confirm(closePanel)}
+                >
+                  <X aria-hidden="true" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {editing !== null && draft !== null && editingRecord !== undefined ? (
+                <>
+                  <EditForm
+                    category={editingRecord}
+                    categories={categories}
+                    draft={draft}
+                    onDraft={changeDraft}
+                    values={editingRecord.customFieldValues ?? EMPTY_VALUES}
+                    customFields={canSeeCustomFields ? { errors: customFieldErrors } : null}
+                    saveSession={session.handle}
+                    changeCount={totalUnsaved}
+                    saving={saving || session.saving}
+                    formRef={formRef}
+                    summary={
+                      showSummary(session.lastOutcome) || session.notices.length > 0 ? (
+                        <SaveSessionSummary
+                          outcome={showSummary(session.lastOutcome) ? session.lastOutcome : null}
+                          notices={session.notices}
+                          onShow={showPart}
+                        />
+                      ) : null
+                    }
+                    onCancel={closePanel}
+                    onSubmit={(): void => void saveEdit()}
+                  />
+                  {/* After the Save row on purpose: the main image applies at once and is
+                      not one of the changes Save counts (feature 180, FR-052). */}
+                  <CategoryMainImage
+                    mainImageAssetId={editingRecord.mainImageAssetId ?? null}
+                    onChange={(assetId): void => void handleMainImage(editingRecord.id, assetId)}
+                  />
+                </>
+              ) : createUnderId !== null ? (
+                <CreateForm
+                  key={createUnderId}
+                  customFields={canSeeCustomFields ? { errors: customFieldErrors } : null}
+                  onDirtyChange={setCreateDirty}
+                  onCancel={closePanel}
+                  onSubmit={(input): void =>
+                    void handleCreate({
+                      parentCategoryId: createUnderId === ROOT_PARENT ? null : createUnderId,
+                      ...input,
+                    })
+                  }
+                />
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+      </div>
       {confirmDialog}
-      {guard !== null && editingRecord !== undefined ? (
-        <ModalDialog
-          title={t('categories.guard.title', { name: label(editingRecord.name, editingRecord.slug) })}
-          onClose={(): void => setGuard(null)}
-          busy={saving}
-          dismissOnScrim={false}
-          aria-describedby="category-guard-body"
-          footer={
-            <>
-              <Button type="button" variant="outline" disabled={saving} onClick={(): void => setGuard(null)}>
-                {t('categories.guard.stay')}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={saving}
-                onClick={(): void => {
-                  session.discardAll();
-                  openEditor(guard.target);
-                }}
-              >
-                {t('categories.guard.discard')}
-              </Button>
-              <Button
-                type="button"
-                disabled={saving}
-                aria-busy={saving || undefined}
-                onClick={(): void => {
-                  const target = guard.target;
-                  void saveEdit().then((ok) => {
-                    if (ok) openEditor(target);
-                    else setGuard(null);
-                  });
-                }}
-              >
-                {t('categories.guard.save')}
-              </Button>
-            </>
-          }
-        >
-          <p id="category-guard-body" className="text-sm">
-            {t(`categories.guard.body.${new Intl.PluralRules(language).select(totalUnsaved)}`, { count: String(totalUnsaved) })}
-          </p>
-        </ModalDialog>
-      ) : null}
+      {guard.dialog}
     </>
   );
 }
 
 function CreateForm({
-  parentLabel,
   customFields,
+  onDirtyChange,
   onSubmit,
   onCancel,
 }: {
-  parentLabel: string;
   customFields: CustomFieldsSlot | null;
+  /** Whether the form holds anything a switch of the panel would lose. */
+  onDirtyChange: (dirty: boolean) => void;
   onSubmit: (input: {
     slug: string;
     nameEn: string;
@@ -700,62 +793,99 @@ function CreateForm({
 }): ReactNode {
   const t = useTranslation('catalog');
   const { language } = useTranslationContext();
+  const fieldId = useId();
   const [slug, setSlug] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [namePl, setNamePl] = useState('');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
+  // The slug follows the first name until the operator edits it (Tesler; DS-22, #1450).
+  const slugField = useDerivedKey({ source: nameEn || namePl, value: slug, onChange: setSlug });
+  const dirty =
+    nameEn !== '' ||
+    namePl !== '' ||
+    slug !== '' ||
+    Object.values(customFieldValues).some((value) => value !== undefined && value !== null && value !== '');
+  useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
   return (
-    <Card className="mb-4">
-      <CardContent>
-        <form
-          className="space-y-4"
-          onSubmit={(e: FormEvent): void => {
-            e.preventDefault();
-            onSubmit({ slug, nameEn, namePl, ...(customFields ? { customFieldValues } : {}) });
-          }}
-        >
-          <p className="text-sm">
-            {t('categories.create.under')} <strong>{parentLabel}</strong>
-          </p>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="cslug">{t('categories.field.slug')}</Label>
-              <Input
-                id="cslug"
-                value={slug}
-                onChange={(e): void => setSlug(e.target.value.toLowerCase())}
-                required
-                pattern="[a-z0-9]+(-[a-z0-9]+)*"
-                title="kebab-case"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cen">{t('categories.field.nameEn')}</Label>
-              <Input id="cen" value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cpl">{t('categories.field.namePl')}</Label>
-              <Input id="cpl" value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
-            </div>
-          </div>
-          {customFields ? (
-            <CustomFieldValuesPanel
-              entityType="category"
-              values={EMPTY_VALUES}
-              onChange={setCustomFieldValues}
-              fieldErrors={customFields.errors}
-              language={language}
-            />
-          ) : null}
-          <div className="flex gap-2">
-            <Button type="submit">{t('categories.action.create')}</Button>
-            <Button type="button" variant="outline" onClick={onCancel}>
-              {t('categories.action.cancel')}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+    <form
+      className="space-y-4"
+      onSubmit={(e: FormEvent): void => {
+        e.preventDefault();
+        const sentSlug = slugField.commit();
+        onSubmit({ slug: sentSlug, nameEn, namePl, ...(customFields ? { customFieldValues } : {}) });
+      }}
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor={`${fieldId}-name-en`}>{t('categories.field.nameEn')}</Label>
+          <Input id={`${fieldId}-name-en`} value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${fieldId}-name-pl`}>{t('categories.field.namePl')}</Label>
+          <Input id={`${fieldId}-name-pl`} value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
+        </div>
+      </div>
+      <SlugField
+        id={`${fieldId}-slug`}
+        value={slug}
+        onChange={slugField.onChange}
+        onBlur={slugField.onBlur}
+        hint={t('categories.field.slugHint')}
+      />
+      {customFields ? (
+        <CustomFieldValuesPanel
+          entityType="category"
+          values={EMPTY_VALUES}
+          onChange={setCustomFieldValues}
+          fieldErrors={customFields.errors}
+          language={language}
+        />
+      ) : null}
+      <div className="flex gap-2">
+        <Button type="submit">{t('categories.action.create')}</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          {t('categories.action.cancel')}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** The slug input both forms share: lower-case kebab-case, required, its rule said in a hint. */
+function SlugField({
+  id,
+  value,
+  onChange,
+  onBlur,
+  hint,
+}: {
+  id: string;
+  value: string;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: () => void;
+  hint: string;
+}): ReactNode {
+  const t = useTranslation('catalog');
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{t('categories.field.slug')}</Label>
+      <Input
+        id={id}
+        name="slug"
+        className="font-mono"
+        value={value}
+        onChange={onChange}
+        {...(onBlur ? { onBlur } : {})}
+        required
+        pattern="[a-z0-9]+(-[a-z0-9]+)*"
+        aria-describedby={`${id}-hint`}
+      />
+      <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+        {hint}
+      </p>
+    </div>
   );
 }
 
@@ -815,31 +945,7 @@ function EditForm({
       }}
     >
       {summary}
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor={`${fieldId}-slug`}>{t('categories.field.slug')}</Label>
-          <Input
-            id={`${fieldId}-slug`}
-            name="slug"
-            value={draft.slug}
-            onChange={(e): void => onDraft({ slug: e.target.value.toLowerCase() })}
-            required
-            pattern="[a-z0-9]+(-[a-z0-9]+)*"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${fieldId}-parent`}>{t('categories.field.parent')}</Label>
-          <Select id={`${fieldId}-parent`} value={draft.parentId} onChange={(e): void => onDraft({ parentId: e.target.value })}>
-            <option value="">{t('categories.field.parentRoot')}</option>
-            {categories
-              .filter((c) => c.id !== category.id)
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {pickCategoryDisplayName(c.name, c.slug, locale)} ({c.slug})
-                </option>
-              ))}
-          </Select>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor={`${fieldId}-name-en`}>{t('categories.field.nameEn')}</Label>
           <Input id={`${fieldId}-name-en`} value={draft.nameEn} onChange={(e): void => onDraft({ nameEn: e.target.value })} />
@@ -848,6 +954,27 @@ function EditForm({
           <Label htmlFor={`${fieldId}-name-pl`}>{t('categories.field.namePl')}</Label>
           <Input id={`${fieldId}-name-pl`} value={draft.namePl} onChange={(e): void => onDraft({ namePl: e.target.value })} />
         </div>
+      </div>
+      {/* An existing slug is the category's storefront address: it is not re-derived from a
+          renamed category, only lower-cased as typed. */}
+      <SlugField
+        id={`${fieldId}-slug`}
+        value={draft.slug}
+        onChange={(e): void => onDraft({ slug: e.target.value.toLowerCase() })}
+        hint={t('categories.field.slugEditHint')}
+      />
+      <div className="space-y-2">
+        <Label htmlFor={`${fieldId}-parent`}>{t('categories.field.parent')}</Label>
+        <Select id={`${fieldId}-parent`} value={draft.parentId} onChange={(e): void => onDraft({ parentId: e.target.value })}>
+          <option value="">{t('categories.field.parentRoot')}</option>
+          {categories
+            .filter((c) => c.id !== category.id)
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {pickCategoryDisplayName(c.name, c.slug, locale)} ({c.slug})
+              </option>
+            ))}
+        </Select>
       </div>
       {/* Feature 175 — embedded rather than saving on its own: the panel's own
           button would be a second submit inside this form. Its bag travels in
@@ -881,7 +1008,6 @@ function EditForm({
       <div className="flex gap-2">
         <Button
           type="submit"
-          size="sm"
           // aria-disabled, not disabled: focus stays on Save after it has saved (WCAG 2.4.3).
           aria-disabled={inert}
           aria-busy={saving || undefined}
@@ -889,7 +1015,7 @@ function EditForm({
         >
           {saveLabel}
         </Button>
-        <Button type="button" variant="outline" size="sm" disabled={saving} onClick={onCancel}>
+        <Button type="button" variant="outline" disabled={saving} onClick={onCancel}>
           {t('categories.action.cancel')}
         </Button>
       </div>
@@ -897,7 +1023,43 @@ function EditForm({
   );
 }
 
-// — Feature 013 / US5 — inline Library picker for the Category main image.
+/** The row's 32 px main-image thumbnail (Picture Superiority), or a dash when there is none. */
+function CategoryThumbnail({ assetId }: { assetId: string | null }): ReactNode {
+  const t = useTranslation('catalog');
+  const [failed, setFailed] = useState<string | null>(null);
+  if (assetId === null) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">{t('categories.mainImage.none')}</span>
+      </span>
+    );
+  }
+  if (failed === assetId) {
+    return (
+      <span
+        className="inline-flex size-8 items-center justify-center rounded border bg-muted text-muted-foreground"
+        title={t('categories.mainImage.unavailable')}
+      >
+        <ImageOff className="size-4" aria-hidden="true" />
+        <span className="sr-only">{t('categories.mainImage.unavailable')}</span>
+      </span>
+    );
+  }
+  return (
+    <img
+      src={assetFileUrl(assetId)}
+      alt=""
+      width={32}
+      height={32}
+      loading="lazy"
+      className="size-8 rounded border object-cover"
+      onError={(): void => setFailed(assetId)}
+    />
+  );
+}
+
+// — Feature 013 / US5 — the Library picker for the Category main image, in the editor panel.
 
 function CategoryMainImage({
   mainImageAssetId,
@@ -909,17 +1071,27 @@ function CategoryMainImage({
   const t = useTranslation('catalog');
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">
-          {mainImageAssetId ? `${mainImageAssetId.slice(0, 8)}…` : t('categories.mainImage.none')}
-        </span>
+    <EditorSection as="h3" title={t('categories.mainImage.title')} action={<ImmediateBadge />}>
+      <div className="flex flex-wrap items-center gap-3">
+        {mainImageAssetId ? (
+          <img
+            src={assetFileUrl(mainImageAssetId)}
+            alt={t('categories.mainImage.title')}
+            width={64}
+            height={64}
+            className="size-16 rounded border object-cover"
+          />
+        ) : (
+          <span className="text-sm text-muted-foreground">{t('categories.mainImage.none')}</span>
+        )}
         <Button
           type="button"
           variant="outline"
           size="sm"
+          aria-expanded={pickerOpen}
           onClick={(): void => setPickerOpen((v) => !v)}
         >
+          <ImageIcon aria-hidden="true" />
           {pickerOpen
             ? t('categories.action.cancel')
             : mainImageAssetId
@@ -927,14 +1099,8 @@ function CategoryMainImage({
               : t('categories.mainImage.pick')}
         </Button>
         {mainImageAssetId ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={(): void => onChange(null)}
-            title={t('categories.mainImage.clear')}
-          >
-            ✕
+          <Button type="button" variant="ghost" size="sm" onClick={(): void => onChange(null)}>
+            {t('categories.mainImage.clear')}
           </Button>
         ) : null}
       </div>
@@ -949,7 +1115,7 @@ function CategoryMainImage({
           onClose={(): void => setPickerOpen(false)}
         />
       ) : null}
-    </div>
+    </EditorSection>
   );
 }
 
