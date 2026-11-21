@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import {
@@ -6,14 +6,14 @@ import {
   cmsLocalizedPage,
   cmsPagePublicPaths,
   firstSlugSegment,
-  slugify as slugifyText,
   type CmsBreadcrumbsScheme,
   type CmsPagePathNode,
   type CmsPageDetail,
+  type CmsPageStatus,
   type CmsPageSummary,
   type CmsPageTranslations,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, Label, PageHeader, SaveButtonGroup, Select, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, Label, PageHeader, SaveButtonGroup, Select, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   AssetFieldPicker,
@@ -23,7 +23,7 @@ import {
   UnsavedChangesHint,
   type ScopePickerValue,
 } from '@endora-commerce/admin-kit/components';
-import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
+import { isDraftEqual, useDerivedKey } from '@endora-commerce/admin-kit/lib';
 import { PageBuilderEditor } from '../components/PageBuilderEditor.js';
 import {
   emptyPageBuilderData,
@@ -183,19 +183,22 @@ function pageAndDescendantIds(
 }
 
 /**
- * Build a URL slug from a free-text page name (so Polish `Łatwy poradnik` gives
- * `latwy-poradnik`), within the 180-character limit the CMS slug validation
- * regex enforces.
- *
- * `slugify` from `@endora-commerce/contracts`, **imported, never re-implemented** (issue
- * #245) — aliased because this wrapper keeps the local name the JSX reads. This
- * site's chain was already correct: it and `BlockEditor` were the only two of
- * eight that cut to length *before* stripping the trailing separator, so
- * nothing about its output moves.
+ * The 180-character limit the CMS slug validation regex enforces. Slugs are
+ * derived through the kit's `useDerivedKey` (issue #1513), which is `slugify`
+ * from `@endora-commerce/contracts` — so Polish `Łatwy poradnik` gives
+ * `latwy-poradnik` (issue #245).
  */
-function slugify(input: string): string {
-  return slugifyText(input, { maxLength: 180 });
-}
+const SLUG_MAX_LENGTH = 180;
+
+/** The header badge for each status (issue #1513): a label, never a disabled select. */
+const STATUS_BADGES: Readonly<Record<CmsPageStatus, { labelKey: string; variant: 'secondary' | 'success' | 'outline' }>> = {
+  draft: { labelKey: 'status.draft', variant: 'secondary' },
+  published: { labelKey: 'status.published', variant: 'success' },
+  archived: { labelKey: 'status.archived', variant: 'outline' },
+};
+
+/** The three fields a language can carry of its own. */
+type LanguageFieldKey = keyof LanguageFields;
 
 /** The form as the page was last saved (issue #1461: also what `dirty` compares against). */
 function formFor(loaded: CmsPageDetail | null): FormState {
@@ -267,15 +270,6 @@ export function PageEditor(): ReactNode {
   const [languageContentOverrides, setLanguageContentOverrides] = useState<Record<string, Data>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  // For a new page the slug is auto-derived from the name until the operator
-  // edits the slug field themselves, after which it is left untouched.
-  const [slugEdited, setSlugEdited] = useState(false);
-  /**
-   * R24: the languages whose slug the operator has set, here or before — the
-   * others follow the language's name as it is typed, as the page's own slug
-   * does for a new page.
-   */
-  const [languageSlugsEdited, setLanguageSlugsEdited] = useState<ReadonlySet<string>>(new Set());
   /**
    * The deployment's reserved first path segments (feature 105, FR-033).
    *
@@ -335,9 +329,6 @@ export function PageEditor(): ReactNode {
     const loaded = await cmsClient.getPage(id);
     setPage(loaded);
     setForm(formFor(loaded));
-    setLanguageSlugsEdited(
-      new Set(Object.entries(loaded.translations ?? {}).filter(([, own]) => Boolean(own.slug)).map(([language]) => language)),
-    );
     setScope({ salesChannelIds: loaded.salesChannelIds, languages: loaded.languages });
     setActiveLanguage(loaded.languages[0] ?? null);
     setExcludedParentIds([loaded.id]);
@@ -416,14 +407,12 @@ export function PageEditor(): ReactNode {
     },
     [form.slug, form.translations, form.parentPageId, form.parentPathInUrl, page?.id, pathAncestors],
   );
-  const publicPath = useMemo(() => addressIn(null), [addressIn]);
 
   /** The reserved segment this slug would lose to, or `null` (§5.1, US4.2). */
   const reservedSegmentOf = (slug: string): string | null => {
     const segment = firstSlugSegment(slug);
     return segment.length > 0 && reservedSegments.includes(segment) ? segment : null;
   };
-  const reservedSegment = reservedSegmentOf(form.slug);
 
   useEffect(() => {
     if (!isNew) return;
@@ -433,8 +422,6 @@ export function PageEditor(): ReactNode {
     setActiveLanguage(null);
     setDraftData(null);
     setLanguageContentOverrides({});
-    setSlugEdited(false);
-    setLanguageSlugsEdited(new Set());
     setParentLabel('');
     setExcludedParentIds([]);
     setError(null);
@@ -584,7 +571,7 @@ export function PageEditor(): ReactNode {
     }
   };
 
-  /** The canvas tabs and the language card edit one language: either switches both. */
+  /** The canvas tabs switch the canvas and the page-fields card together (issue #1513: one strip). */
   const switchLanguage = (language: string): void => {
     // Keep unsaved canvas per language — clearing draft without stashing
     // would drop edits when switching tabs.
@@ -611,6 +598,55 @@ export function PageEditor(): ReactNode {
       meta: { ...f.meta, [language]: { ...(f.meta[language] ?? blankMetaFields), ...patch } },
     }));
   };
+
+  /**
+   * Issue #1513 (CONTENT-10) — one card edits the language the canvas shows.
+   * In the page's first language its fields *are* the page's own values; in
+   * any other they are that language's, inheriting the page's while empty.
+   */
+  const defaultLanguage = scope.languages[0] ?? null;
+  const editedLanguage = activeLanguage ?? defaultLanguage;
+  const editsPageValues = editedLanguage === null || editedLanguage === defaultLanguage;
+
+  /**
+   * Whether `field` is edited as the language's own value. Always outside the
+   * first language; in it only where the language already carries one (a page
+   * stored before #1513 could), so what the input shows is what is served.
+   */
+  const ownsField = (field: LanguageFieldKey): boolean => {
+    if (!editsPageValues) return true;
+    if (!editedLanguage) return false;
+    const saved = page?.translations?.[editedLanguage]?.[field] ?? '';
+    const drafted = form.translations[editedLanguage]?.[field] ?? '';
+    return saved.trim().length > 0 || drafted.trim().length > 0;
+  };
+
+  const bindingFor = (field: LanguageFieldKey): FieldBinding => {
+    if (editedLanguage && ownsField(field)) {
+      const language = editedLanguage;
+      return {
+        value: form.translations[language]?.[field] ?? '',
+        inherited: form[field],
+        onChange: (value) => setLanguageFields(language, { [field]: value }),
+      };
+    }
+    return {
+      value: form[field],
+      inherited: null,
+      onChange: (value) => setForm((f) => ({ ...f, [field]: value })),
+    };
+  };
+
+  /**
+   * A slug follows its name only while nothing about it is stored: a new page,
+   * or a language the page has no saved name or slug for. A stored address
+   * never moves because a page was renamed.
+   */
+  const slugFollowsName = ownsField('slug')
+    ? !(editedLanguage && (page?.translations?.[editedLanguage]?.name || page?.translations?.[editedLanguage]?.slug))
+    : isNew;
+
+  const statusBadge = page ? STATUS_BADGES[page.status] : null;
 
   const saveAndExit = async (): Promise<void> => {
     if (await save()) navigate('/cms/pages');
@@ -646,6 +682,7 @@ export function PageEditor(): ReactNode {
           <PageHeader
             back={{ label: t('common.back'), to: '/cms/pages' }}
             title={isNew ? t('pageEditor.title.new') : form.name || t('pageEditor.title.edit')}
+            titleActions={statusBadge ? <Badge variant={statusBadge.variant}>{t(statusBadge.labelKey)}</Badge> : undefined}
             actions={
               <div className="flex items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />
@@ -694,60 +731,25 @@ export function PageEditor(): ReactNode {
               <CardTitle>{t('pageEditor.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <FormField label={t('fields.name')}>
-                <Input
-                  ref={nameRef}
-                  value={form.name}
-                  onChange={(event) => {
-                    const name = event.target.value;
-                    setForm((f) => ({
-                      ...f,
-                      name,
-                      ...(isNew && !slugEdited ? { slug: slugify(name) } : {}),
-                    }));
-                  }}
-                />
-              </FormField>
-              <div className="space-y-1">
-                <FormField label={t('fields.slug')} describedBy="cms-page-slug-address">
-                  <Input
-                    value={form.slug}
-                    onChange={(event) => {
-                      setSlugEdited(true);
-                      setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }));
-                    }}
-                  />
-                </FormField>
-                <p id="cms-page-slug-address" className="text-xs text-muted-foreground">
-                  <span className="mr-1">{t('pageEditor.publicAddress')}:</span>
-                  {publicPath ? (
-                    <code className="font-mono">{publicPath}</code>
-                  ) : (
-                    <span>{t('pageEditor.publicAddressEmpty')}</span>
-                  )}
-                </p>
-                {/*
-                  A warning and not an error: nothing has failed yet, the
-                  operator is still typing, and this is what US4.2 asks for —
-                  the notice that arrives *before* Save, which is what actually
-                  prevents the mistake. The refusal that follows on Save is the
-                  backstop, and it renders in the destructive banner above.
-                */}
-                {reservedSegment ? (
-                  <Alert variant="warning">
-                    <AlertDescription>
-                      {t('pageEditor.reservedSegmentWarning', { segment: reservedSegment })}
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-              </div>
-              <FormField label={t('fields.status')}>
-                <Select value={page?.status ?? 'draft'} disabled>
-                  <option value="draft">{t('status.draft')}</option>
-                  <option value="published">{t('status.published')}</option>
-                  <option value="archived">{t('status.archived')}</option>
-                </Select>
-              </FormField>
+              {/*
+                Keyed by language so each one's slug starts following (or not)
+                afresh: the derivation state is per language, as the values are.
+              */}
+              <PageLanguageFields
+                key={editedLanguage ?? ''}
+                language={editedLanguage}
+                ownLanguage={editsPageValues ? null : editedLanguage}
+                defaultLanguage={defaultLanguage}
+                name={bindingFor('name')}
+                slug={bindingFor('slug')}
+                description={bindingFor('description')}
+                slugFollowsName={slugFollowsName}
+                address={addressIn(editedLanguage)}
+                reservedSegment={reservedSegmentOf(
+                  (editedLanguage ? form.translations[editedLanguage]?.slug.trim() : '') || form.slug,
+                )}
+                nameRef={editsPageValues ? nameRef : undefined}
+              />
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -756,46 +758,15 @@ export function PageEditor(): ReactNode {
                 />
                 {t('fields.active')}
               </label>
-              <FormField label={t('fields.description')}>
-                <Textarea
-                  value={form.description}
-                  onChange={(event) => setForm({ ...form, description: event.target.value })}
+              {editedLanguage ? (
+                <PageSeoFields
+                  language={editedLanguage}
+                  meta={form.meta[editedLanguage] ?? blankMetaFields}
+                  onChange={(patch) => setMetaFields(editedLanguage, patch)}
                 />
-              </FormField>
-              <p className="text-xs text-muted-foreground">{t('pageEditor.pageFieldsHelp')}</p>
+              ) : null}
             </CardContent>
           </Card>
-          {/*
-            R24: one language's own name, slug and description, and its meta.
-            The language is the canvas's — the tabs here and above the canvas
-            switch both — so the fields and the content shown are one language.
-          */}
-          {activeLanguage ? (
-            <LanguageVersionCard
-              language={activeLanguage}
-              languages={scope.languages}
-              onLanguageChange={switchLanguage}
-              fields={form.translations[activeLanguage] ?? blankLanguageFields}
-              meta={form.meta[activeLanguage] ?? blankMetaFields}
-              inherited={{ name: form.name, slug: form.slug, description: form.description }}
-              address={addressIn(activeLanguage)}
-              reservedSegment={reservedSegmentOf(form.translations[activeLanguage]?.slug ?? '')}
-              onFieldsChange={(patch) => {
-                const language = activeLanguage;
-                if (patch.slug !== undefined) {
-                  setLanguageSlugsEdited((edited) => new Set(edited).add(language));
-                  setLanguageFields(language, { slug: patch.slug.toLowerCase() });
-                  return;
-                }
-                if (patch.name !== undefined && !languageSlugsEdited.has(language)) {
-                  setLanguageFields(language, { name: patch.name, slug: patch.name.trim() ? slugify(patch.name) : '' });
-                  return;
-                }
-                setLanguageFields(language, patch);
-              }}
-              onMetaChange={(patch) => setMetaFields(activeLanguage, patch)}
-            />
-          ) : null}
           <Card>
             <CardHeader>
               <CardTitle>{t('pageEditor.breadcrumbs.title')}</CardTitle>
@@ -941,108 +912,143 @@ export function PageEditor(): ReactNode {
   );
 }
 
-interface LanguageVersionCardProps {
-  language: string;
-  languages: string[];
-  onLanguageChange: (language: string) => void;
-  fields: LanguageFields;
-  meta: MetaFields;
-  /** The page's own values, which an empty field inherits — shown as its placeholder. */
-  inherited: LanguageFields;
+/** One text field as the card edits it: the value, what it inherits while empty, and its writer. */
+interface FieldBinding {
+  value: string;
+  /** The page's own value, shown as the placeholder — `null` where the field *is* the page's value. */
+  inherited: string | null;
+  onChange: (value: string) => void;
+}
+
+interface PageLanguageFieldsProps {
+  /** The language the canvas shows, or `null` before the page has one. */
+  language: string | null;
+  /** The language whose own values these are, or `null` where they are the page's. */
+  ownLanguage: string | null;
+  defaultLanguage: string | null;
+  name: FieldBinding;
+  slug: FieldBinding;
+  description: FieldBinding;
+  slugFollowsName: boolean;
   /** The address in this language, or `null` while there is no slug. */
   address: string | null;
   reservedSegment: string | null;
-  onFieldsChange: (patch: Partial<LanguageFields>) => void;
-  onMetaChange: (patch: Partial<MetaFields>) => void;
+  nameRef?: Ref<HTMLInputElement> | undefined;
 }
 
 /**
- * The per-language card (R24): name, slug and description in one language,
- * each inheriting the page's own value while empty, and the language's meta.
+ * Name, slug and description in one language (R24; merged by issue #1513).
+ * The labels name the language only where the values are its own, so the
+ * first language reads as what it is: the page's fields.
  */
-function LanguageVersionCard({
+function PageLanguageFields({
   language,
-  languages,
-  onLanguageChange,
-  fields,
-  meta,
-  inherited,
+  ownLanguage,
+  defaultLanguage,
+  name,
+  slug,
+  description,
+  slugFollowsName,
   address,
   reservedSegment,
-  onFieldsChange,
-  onMetaChange,
-}: LanguageVersionCardProps): ReactNode {
+  nameRef,
+}: PageLanguageFieldsProps): ReactNode {
   const t = useTranslation('cms');
-  const id = (field: string) => `cms-page-${field}-${language}`;
-  const label = (key: string) => t(key, { language });
+  // Issue #1513 — the slug follows the name until edited, and is normalised on blur (Tesler, Postel).
+  const slugField = useDerivedKey({
+    source: name.value,
+    value: slug.value,
+    onChange: (next) => slug.onChange(next.toLowerCase()),
+    maxLength: SLUG_MAX_LENGTH,
+    enabled: slugFollowsName,
+  });
+  const label = (pageKey: string, languageKey: string): string =>
+    ownLanguage ? t(languageKey, { language: ownLanguage }) : t(pageKey);
+  const addressId = `cms-page-slug-address-${language ?? 'page'}`;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('pageEditor.languageVersion.title')}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {languages.length > 1 ? (
-          <ContentLanguageTabs languages={languages} activeLanguage={language} onChange={onLanguageChange} />
+    <>
+      {ownLanguage && defaultLanguage ? (
+        <p className="text-xs text-muted-foreground">
+          {t('pageEditor.languageVersion.help', { language: defaultLanguage })}
+        </p>
+      ) : null}
+      <FormField label={label('fields.name', 'pageEditor.languageVersion.name')}>
+        <Input
+          ref={nameRef}
+          value={name.value}
+          placeholder={name.inherited ?? undefined}
+          onChange={(event) => name.onChange(event.target.value)}
+        />
+      </FormField>
+      <div className="space-y-1">
+        <FormField label={label('fields.slug', 'pageEditor.languageVersion.slug')} describedBy={addressId}>
+          <Input
+            value={slug.value}
+            placeholder={slug.inherited ?? undefined}
+            onChange={slugField.onChange}
+            onBlur={slugField.onBlur}
+          />
+        </FormField>
+        <p id={addressId} className="text-xs text-muted-foreground">
+          <span className="mr-1">{t('pageEditor.publicAddress')}:</span>
+          {address ? <code className="font-mono">{address}</code> : <span>{t('pageEditor.publicAddressEmpty')}</span>}
+        </p>
+        {/*
+          A warning and not an error: nothing has failed yet, the operator is
+          still typing, and this is what US4.2 asks for — the notice that
+          arrives *before* Save, which is what actually prevents the mistake.
+          The refusal that follows on Save is the backstop, and it renders in
+          the destructive banner above.
+        */}
+        {reservedSegment ? (
+          <Alert variant="warning">
+            <AlertDescription>{t('pageEditor.reservedSegmentWarning', { segment: reservedSegment })}</AlertDescription>
+          </Alert>
         ) : null}
-        <p className="text-xs text-muted-foreground">{t('pageEditor.languageVersion.help')}</p>
-        <div className="space-y-1">
-          <Label htmlFor={id('name')}>{label('pageEditor.languageVersion.name')}</Label>
-          <Input
-            id={id('name')}
-            value={fields.name}
-            placeholder={inherited.name}
-            onChange={(event) => onFieldsChange({ name: event.target.value })}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={id('slug')}>{label('pageEditor.languageVersion.slug')}</Label>
-          <Input
-            id={id('slug')}
-            value={fields.slug}
-            placeholder={inherited.slug}
-            onChange={(event) => onFieldsChange({ slug: event.target.value })}
-          />
-          <p className="text-xs text-muted-foreground">
-            <span className="mr-1">{t('pageEditor.publicAddress')}:</span>
-            {address ? <code className="font-mono">{address}</code> : <span>{t('pageEditor.publicAddressEmpty')}</span>}
-          </p>
-          {reservedSegment ? (
-            <Alert variant="warning">
-              <AlertDescription>{t('pageEditor.reservedSegmentWarning', { segment: reservedSegment })}</AlertDescription>
-            </Alert>
-          ) : null}
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={id('description')}>{label('pageEditor.languageVersion.description')}</Label>
-          <Textarea
-            id={id('description')}
-            value={fields.description}
-            placeholder={inherited.description}
-            onChange={(event) => onFieldsChange({ description: event.target.value })}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={id('meta-title')}>{label('pageEditor.languageVersion.metaTitle')}</Label>
-          <Input id={id('meta-title')} value={meta.title} onChange={(event) => onMetaChange({ title: event.target.value })} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={id('meta-description')}>{label('pageEditor.languageVersion.metaDescription')}</Label>
-          <Textarea
-            id={id('meta-description')}
-            value={meta.description}
-            onChange={(event) => onMetaChange({ description: event.target.value })}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={id('meta-keywords')}>{label('pageEditor.languageVersion.metaKeywords')}</Label>
-          <Input
-            id={id('meta-keywords')}
-            value={meta.keywords}
-            onChange={(event) => onMetaChange({ keywords: event.target.value })}
-          />
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+      <FormField label={label('fields.description', 'pageEditor.languageVersion.description')}>
+        <Textarea
+          value={description.value}
+          placeholder={description.inherited ?? undefined}
+          onChange={(event) => description.onChange(event.target.value)}
+        />
+      </FormField>
+    </>
+  );
+}
+
+interface PageSeoFieldsProps {
+  language: string;
+  meta: MetaFields;
+  onChange: (patch: Partial<MetaFields>) => void;
+}
+
+/**
+ * The language's meta, collapsed (issue #1513, Hick): it is read by search
+ * engines, not by the storefront visitor, and is rarely the reason the editor
+ * is open. A native disclosure, so the keyboard and screen-reader behaviour is
+ * the browser's.
+ */
+function PageSeoFields({ language, meta, onChange }: PageSeoFieldsProps): ReactNode {
+  const t = useTranslation('cms');
+  const label = (key: string): string => t(key, { language });
+  return (
+    <details className="border-t border-border pt-3">
+      <summary className="cursor-pointer rounded-sm text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        {t('pageEditor.seo.title')}
+      </summary>
+      <div className="mt-3 space-y-3">
+        <FormField label={label('pageEditor.languageVersion.metaTitle')}>
+          <Input value={meta.title} onChange={(event) => onChange({ title: event.target.value })} />
+        </FormField>
+        <FormField label={label('pageEditor.languageVersion.metaDescription')}>
+          <Textarea value={meta.description} onChange={(event) => onChange({ description: event.target.value })} />
+        </FormField>
+        <FormField label={label('pageEditor.languageVersion.metaKeywords')}>
+          <Input value={meta.keywords} onChange={(event) => onChange({ keywords: event.target.value })} />
+        </FormField>
+      </div>
+    </details>
   );
 }
 
