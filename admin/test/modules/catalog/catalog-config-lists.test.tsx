@@ -259,11 +259,23 @@ describe('AttributeSetsPage — the kit list page (S6)', () => {
     renderPage(<AttributeSetsPage />);
     expect(await screen.findByText(tr('attributeSets.badge.system'))).toBeInTheDocument();
     noFilledRowDelete();
+  });
+
+  it('says why the system set cannot be deleted when Delete is chosen from the keyboard', async () => {
+    serve([SYSTEM]);
+    renderPage(<AttributeSetsPage />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: tr('attributeSets.rowActions', { code: 'default' }) }));
+    const trigger = await screen.findByRole('button', { name: tr('attributeSets.rowActions', { code: 'default' }) });
+    trigger.focus();
+    await user.keyboard('{Enter}');
     const del = await screen.findByRole('menuitem', { name: tr('attributeSets.action.delete') });
-    expect(del).toHaveAttribute('data-disabled');
-    expect(del).toHaveAttribute('title', tr('attributeSets.deleteHint.system'));
+    // Reachable: not disabled, so the arrow keys land on it.
+    expect(del).not.toHaveAttribute('data-disabled');
+    while (document.activeElement !== del) await user.keyboard('{ArrowDown}');
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText(tr('attributeSets.deleteHint.system'))).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(deleteSpy).not.toHaveBeenCalled();
   });
 
   it('manages a set\'s attributes in a dialog that applies each change at once', async () => {

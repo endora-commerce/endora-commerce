@@ -224,9 +224,16 @@ export function AttributeSetsPage(): ReactNode {
                     <RowActionMenuSeparator />
                     <RowActionMenuItem
                       destructive
-                      disabled={hint !== undefined}
-                      title={hint}
-                      onSelect={(): void => void handleDelete(set)}
+                      onSelect={(): void => {
+                        // A disabled menu item is skipped by the keyboard and its tooltip is
+                        // never heard, so the item stays enabled and says why it cannot delete.
+                        if (hint !== undefined) {
+                          clearStatus();
+                          setError(hint);
+                          return;
+                        }
+                        void handleDelete(set);
+                      }}
                     >
                       {t('attributeSets.action.delete')}
                     </RowActionMenuItem>
