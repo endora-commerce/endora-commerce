@@ -80,13 +80,15 @@ its base prices save with Save.
 
 ## Switching with unsaved changes
 
-Changes are saved one scope at a time, so switching scope (or leaving the product, or using the browser's Back
-button) with unsaved changes — base prices included — opens a dialog with three choices:
+Changes are saved one scope at a time, so switching scope (or leaving the product through its back link or any other
+link in the admin, or using the browser's Back button between scopes) with unsaved changes — base prices included —
+opens a dialog with three choices:
 
 - **Save and continue** — save the changes at the scope you are leaving, then switch; if any part is not saved, you
   stay;
 - **Discard changes** — drop every unsaved change on the page and switch;
-- **Stay here** — close the dialog and keep editing.
+- **Stay here** — close the dialog and keep editing; after the browser's Back button the address returns to the scope
+  you stayed at.
 
 If the save is refused, you stay where you are and the refusal is shown on the field. If someone else saved the
 product in the meantime, the editor reports a version conflict; **Reload** discards your staged changes and reads the

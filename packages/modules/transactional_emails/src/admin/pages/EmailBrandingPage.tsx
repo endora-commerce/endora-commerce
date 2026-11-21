@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { SalesChannelListResponse } from '@endora-commerce/contracts';
-import { AssetFieldPicker, ModalDialog } from '@endora-commerce/admin-kit/components';
-import { ApiError, apiClient, useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
+import { AssetFieldPicker, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
+import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   Alert,
@@ -42,9 +42,10 @@ function messageOf(error: unknown, fallback: string): string {
  * The values are settings the module owns, read and written per scope: *All
  * channels* is the default, and a sales channel overrides only what is changed
  * while it is selected (`brandingPatch` sends the difference, never the
- * inherited value back). One Save for the screen (FR-083); switching the scope
- * with unsaved edits asks Save / Discard / Stay, and leaving the page asks
- * through the shared unsaved-changes prompt.
+ * inherited value back). One Save for the screen (FR-083). Switching the scope
+ * or leaving the page with unsaved edits asks Save / Discard / Stay through the
+ * kit's one unsaved-changes guard (issue #1606), titled for this screen; the
+ * scope switch says what it asks about.
  */
 export function EmailBrandingPage(): ReactNode {
   const t = useTranslation('transactional_emails');
@@ -62,12 +63,9 @@ export function EmailBrandingPage(): ReactNode {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  /** A scope the operator asked for while the current one had unsaved edits. */
-  const [pendingScope, setPendingScope] = useState<string | null | undefined>(undefined);
 
   const patch = loaded && draft ? brandingPatch(loaded, draft) : null;
   const dirty = patch !== null;
-  useUnsavedChangesPrompt(dirty);
 
   useEffect(() => {
     if (!canRead) return undefined;
@@ -134,10 +132,18 @@ export function EmailBrandingPage(): ReactNode {
     setChannelId(scope);
   };
 
+  // Leaving the page or switching the scope over unsaved edits asks Save and continue /
+  // Discard changes / Stay here (Stay has the focus, so an accidental Enter keeps the work).
+  const guard = useUnsavedChangesGuard({
+    dirty,
+    onSave: canWrite ? save : undefined,
+    onDiscard: () => setDraft(loaded),
+    title: t('branding.switchScope.title'),
+  });
+
   const requestScope = (scope: string | null): void => {
     if (scope === channelId) return;
-    if (dirty) setPendingScope(scope);
-    else switchScope(scope);
+    guard.confirm(() => switchScope(scope), { message: t('branding.switchScope.message') });
   };
 
   if (!canRead) {
@@ -242,49 +248,7 @@ export function EmailBrandingPage(): ReactNode {
         </CardContent>
       </Card>
 
-      {pendingScope !== undefined ? (
-        <ModalDialog
-          title={t('branding.switchScope.title')}
-          onClose={() => setPendingScope(undefined)}
-          busy={saving}
-          dismissOnScrim={false}
-          footer={
-            <>
-              <Button type="button" variant="ghost" onClick={() => setPendingScope(undefined)} disabled={saving}>
-                {t('branding.switchScope.stay')}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  const scope = pendingScope;
-                  setPendingScope(undefined);
-                  switchScope(scope);
-                }}
-                disabled={saving}
-              >
-                {t('branding.switchScope.discard')}
-              </Button>
-              <Button
-                type="button"
-                onClick={() => {
-                  const scope = pendingScope;
-                  void save().then((ok) => {
-                    setPendingScope(undefined);
-                    if (ok) switchScope(scope);
-                  });
-                }}
-                disabled={saving || !canWrite}
-                aria-busy={saving || undefined}
-              >
-                {t('branding.switchScope.save')}
-              </Button>
-            </>
-          }
-        >
-          <p className="text-sm">{t('branding.switchScope.message')}</p>
-        </ModalDialog>
-      ) : null}
+      {guard.dialog}
     </div>
   );
 }

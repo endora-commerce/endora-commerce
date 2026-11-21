@@ -22,7 +22,6 @@ import {
   ApiError,
   apiClient,
   useAuth,
-  useUnsavedChangesPrompt,
   INERT_SAVE_SESSION,
   SaveSessionProvider,
   useSaveSession,
@@ -53,7 +52,7 @@ import {
   TableRow,
   useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog, ProductPicker, SaveSessionSummary } from '@endora-commerce/admin-kit/components';
+import { ModalDialog, ProductPicker, SaveSessionSummary, useUnsavedChangesGuard, type UnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { ProductInventoryTab } from '../components/ProductInventoryTab.js';
@@ -111,8 +110,9 @@ import {
  * membership, stock) run at once as their own audited Commands, carry an "Applies immediately"
  * badge, and neither stage nor clear the staged changes.
  *
- * Switching scope (the switcher, an "Edit at …" jump, browser Back) with staged changes asks
- * Save / Discard / Stay first.
+ * Switching scope (the switcher, an "Edit at …" jump, browser Back) or leaving the product (the
+ * Back link, any other in-app link) with staged changes asks Save / Discard / Stay first, through
+ * the kit's one unsaved-changes guard (issue #1606).
  */
 
 const TAB_IDS = [
@@ -155,8 +155,6 @@ type FormError =
   | { kind: 'conflict' }
   | { kind: 'seo' }
   | { kind: 'message'; text: string };
-
-type Guard = { kind: 'switch' | 'url'; target: ScopeRef; note?: string; field?: string; tab?: string } | { kind: 'leave' };
 
 export function ProductEditor(): ReactNode {
   const params = useParams<{ id: string }>();
@@ -289,7 +287,11 @@ function ScopedProductEditor({
   // text, not as a success banner between the header and the tabs that pushes the form down.
   const saveStatus = useInlineStatus();
   const wholeStatus = useInlineStatus();
-  const [guard, setGuard] = useState<Guard | null>(null);
+  /**
+   * The unsaved-changes guard's `confirm`, declared further down (after `save`, which it offers);
+   * the scope switches above it reach it through this ref.
+   */
+  const confirmLeaveRef = useRef<UnsavedChangesGuard['confirm']>((action) => action());
   const [saving, setSaving] = useState(false);
   const [takeovers, setTakeovers] = useState<UrlKeyRedirectTakeoverRequiredDetails['takeovers'] | null>(null);
   const [archivedOverride, setArchivedOverride] = useState<string | null | undefined>(undefined);
@@ -444,7 +446,19 @@ function ScopedProductEditor({
     if (!urlScope) return;
     if (scopeKey(urlScope) === loadedKeyRef.current) return;
     if (!skipGuardRef.current && loadedKeyRef.current !== null && hasUnsaved()) {
-      setGuard({ kind: 'url', target: urlScope });
+      const target = urlScope;
+      const field = searchParams.get('field');
+      confirmLeaveRef.current(
+        () => {
+          skipGuardRef.current = false;
+          void load(target, { field });
+        },
+        {
+          message: plural('productEditor.guard.body', stateRef.current.staged.size + sessionRef.current.dirtyCount),
+          // Back / Forward moved the URL: Stay puts the current scope back (§11).
+          onStay: () => setSearchParams((prev) => searchWithScope(prev, stateRef.current.scope)),
+        },
+      );
       return;
     }
     skipGuardRef.current = false;
@@ -478,7 +492,6 @@ function ScopedProductEditor({
 
   const totalUnsaved = state.staged.size + session.dirtyCount;
   const { show: showSaveStatus, clear: clearSaveStatus } = saveStatus;
-  useUnsavedChangesPrompt(totalUnsaved > 0);
 
   // "Saved N changes" belongs to the last save: a new staged edit clears it, and the summary of
   // the last save with it (FR-016; a participant's edit clears the summary itself).
@@ -525,12 +538,16 @@ function ScopedProductEditor({
         return;
       }
       if (hasUnsaved()) {
-        setGuard({ kind: 'switch', target: next, ...(note ? { note } : {}), ...(field ? { field } : {}), ...(tab ? { tab } : {}) });
+        confirmLeaveRef.current(() => go(next, note, field, tab), {
+          message: plural('productEditor.guard.body', stateRef.current.staged.size + sessionRef.current.dirtyCount),
+        });
         return;
       }
       go(next, note, field, tab);
     },
-    [go, setSearchParams, hasUnsaved],
+    // `plural` reads `t` and the admin language only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [go, setSearchParams, hasUnsaved, t, adminLanguage],
   );
 
   const refreshFamily = useCallback(
@@ -761,24 +778,30 @@ function ScopedProductEditor({
   };
 
   // --- Guard -------------------------------------------------------------------------------
-  const proceed = (g: Guard): void => {
-    setGuard(null);
-    if (g.kind === 'leave') {
-      navigate('/catalog/products');
-      return;
-    }
-    if (g.kind === 'url') {
-      skipGuardRef.current = false;
-      void load(g.target, { field: searchParams.get('field') });
-      return;
-    }
-    go(g.target, g.note, g.field, g.tab);
-  };
-  const stay = (g: Guard): void => {
-    setGuard(null);
-    // Back / Forward moved the URL: put the current scope back (§11, Stay re-pushes the URL).
-    if (g.kind === 'url') setSearchParams((prev) => searchWithScope(prev, stateRef.current.scope));
-  };
+  // Issue #1606 — the kit's one guard asks Save and continue / Discard changes / Stay here (Stay
+  // has the initial focus) with the editor's own question. It intercepts every in-app link, the
+  // Back link included; the scope switches and the browser's Back / Forward between scopes ask
+  // through `confirm`, each worded for the switch.
+  const unsavedGuard = useUnsavedChangesGuard({
+    dirty: totalUnsaved > 0,
+    onSave: async (): Promise<boolean> => {
+      const ok = await save();
+      if (!ok) {
+        // The summary focuses itself when it has something to say; else the form error.
+        setTimeout(() => {
+          if (!document.querySelector('[data-testid="product-save-summary"]')) document.getElementById('product-save-error')?.focus();
+        }, 0);
+      }
+      return ok;
+    },
+    onDiscard: (): void => {
+      dispatch({ type: 'discard' });
+      sessionRef.current.discardAll();
+    },
+    title: t('productEditor.guard.title', { scope: words(state.scope) }),
+    message: plural('productEditor.guard.bodyLeave', totalUnsaved),
+  });
+  confirmLeaveRef.current = unsavedGuard.confirm;
 
   // --- Whole-product actions (each applies at once, at every scope) -------------------------
   const handleDelete = async (): Promise<void> => {
@@ -1239,22 +1262,12 @@ function ScopedProductEditor({
     }, 0);
   };
 
-  const guardOpen = guard !== null;
   return (
     <ProductEditorContextProvider value={contextValue}>
       <div className="b2b-page b2b-page--wide">
         <PageHeader
-          back={{
-            label: t('productEditor.back'),
-            to: '/catalog/products',
-            onClick: (event): void => {
-              // Unsaved edits: ask first (Save / Discard / Stay) instead of leaving.
-              if (hasUnsaved()) {
-                event.preventDefault();
-                setGuard({ kind: 'leave' });
-              }
-            },
-          }}
+          // Unsaved edits: the guard asks first (Save / Discard / Stay), as for any in-app link.
+          back={{ label: t('productEditor.back'), to: '/catalog/products' }}
           title={title}
           titleActions={
             data || statusSource || archivedAt ? (
@@ -1454,58 +1467,7 @@ function ScopedProductEditor({
           </ModalDialog>
         ) : null}
 
-        {guardOpen && guard ? (
-          <ModalDialog
-            title={t('productEditor.guard.title', { scope: words(state.scope) })}
-            onClose={(): void => stay(guard)}
-            busy={saving}
-            dismissOnScrim={false}
-            aria-describedby="product-guard-body"
-            footer={
-              <>
-                <Button type="button" variant="outline" disabled={saving} onClick={(): void => stay(guard)}>
-                  {t('productEditor.guard.stay')}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={saving}
-                  onClick={(): void => {
-                    dispatch({ type: 'discard' });
-                    session.discardAll();
-                    proceed(guard);
-                  }}
-                >
-                  {t('productEditor.guard.discard')}
-                </Button>
-                <Button
-                  type="button"
-                  disabled={saving}
-                  aria-busy={saving || undefined}
-                  onClick={(): void => {
-                    void save().then((ok) => {
-                      if (ok) {
-                        proceed(guard);
-                        return;
-                      }
-                      setGuard(null);
-                      // The summary focuses itself when it has something to say; else the form error.
-                      setTimeout(() => {
-                        if (!document.querySelector('[data-testid="product-save-summary"]')) document.getElementById('product-save-error')?.focus();
-                      }, 0);
-                    });
-                  }}
-                >
-                  {t('productEditor.guard.save')}
-                </Button>
-              </>
-            }
-          >
-            <p id="product-guard-body" className="text-sm">
-              {plural(guard.kind === 'leave' ? 'productEditor.guard.bodyLeave' : 'productEditor.guard.body', stagedCount)}
-            </p>
-          </ModalDialog>
-        ) : null}
+        {unsavedGuard.dialog}
 
         {takeovers ? (
           <ModalDialog
