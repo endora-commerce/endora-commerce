@@ -75,7 +75,7 @@ function mockApi(role: typeof ROLE, unprotected: number | null = 3, signedOut = 
   );
 }
 
-async function renderPage(present: string[], role: typeof ROLE = ROLE): Promise<HTMLInputElement> {
+async function renderPage(present: string[], role: typeof ROLE = ROLE): Promise<HTMLButtonElement> {
   mockApi(role);
   renderWithI18n(
     withSession(
@@ -90,7 +90,7 @@ async function renderPage(present: string[], role: typeof ROLE = ROLE): Promise<
     bundle,
   );
   fireEvent.click(await screen.findByText('accounting'));
-  return (await screen.findByLabelText(/adminRoles\.field\.requires2fa/)) as HTMLInputElement;
+  return (await screen.findByLabelText(/adminRoles\.field\.requires2fa/)) as HTMLButtonElement;
 }
 
 describe('AdminRolesPage — the two-factor requirement', () => {
@@ -100,7 +100,7 @@ describe('AdminRolesPage — the two-factor requirement', () => {
     vi.mocked(apiClient.put).mockReset();
   });
 
-  it('disables the checkbox and says why while mfa is absent', async () => {
+  it('disables the switch and says why while mfa is absent', async () => {
     const box = await renderPage(['admin_users', 'admin_roles']);
     expect(box.disabled).toBe(true);
     expect(screen.getByText('roles.twoFactor.mfaOff')).toBeTruthy();
@@ -109,7 +109,8 @@ describe('AdminRolesPage — the two-factor requirement', () => {
 
   it('keeps showing a requirement that is already set while mfa is absent', async () => {
     const box = await renderPage(['admin_users', 'admin_roles'], { ...ROLE, requiresTwoFactor: true });
-    expect(box.checked).toBe(true);
+    expect(box).toHaveAttribute('role', 'switch');
+    expect(box).toHaveAttribute('aria-checked', 'true');
     expect(box.disabled).toBe(true);
   });
 
@@ -148,7 +149,8 @@ describe('AdminRolesPage — the two-factor requirement', () => {
       requiresTwoFactor: true,
       twoFactorNotice: { code: 'encryption_key_missing', message: 'Not in force: no encryption key.' },
     });
-    expect(box.checked).toBe(true);
+    expect(box).toHaveAttribute('role', 'switch');
+    expect(box).toHaveAttribute('aria-checked', 'true');
     // The save bar has a status region of its own (issue #1449); the notice is the one that speaks.
     const status = screen.getByText('roles.twoFactor.notice.encryption_key_missing').closest('[role="status"]');
     expect(status).not.toBeNull();

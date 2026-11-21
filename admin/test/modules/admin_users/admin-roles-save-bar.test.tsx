@@ -93,7 +93,7 @@ describe('AdminRolesPage — the one Save in the sticky bar', () => {
     await openRole();
     const hint = within(saveBar()).getByTestId('unsaved-changes-hint');
     expect(hint).toHaveTextContent('');
-    fireEvent.click(screen.getByRole('checkbox', { name: /orders:write/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: core['adminRoles.permission.orders:write']! }));
     expect(hint).toHaveTextContent(core['form.unsavedChanges.hint']!);
   });
 
