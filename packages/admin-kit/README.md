@@ -576,9 +576,18 @@ whose tabs are routes. Both draw `.b2b-tabs` / `.b2b-tab`, so an operator cannot
   the keyboard two strips with the same keys: make the second level `Section`s. In development a
   `Tabs` rendered inside a `TabPanel` logs a warning; a `ModalDialog` opened from a panel is a new
   context and does not.
+- **A strip with no one panel** — page state spread over the screen — passes
+  `controlsPanel={false}`, and its tabs carry no `aria-controls` naming a panel that is not there.
 
 The behaviour is pinned in `admin/test/kit/kit-tabs.test.tsx`, including the keyboard path and an
 axe pass.
+
+**`ContentLanguageTabs`** (`./components`) is this strip over content language codes. The screen
+owns the panel, because the strip sits in a card header or a canvas bar: pass `idBase` and wrap the
+per-language fields in `<TabPanel idBase={idBase} value={activeLanguage} tabIndex={-1}>`. Leave
+`idBase` out where the language drives several regions — a Page Builder editor, where it switches
+the canvas and the settings fields, and the canvas carries the builder's own tablists. With no language to offer it draws an
+`EmptyState` with the reason. Pinned in `admin/test/kit/kit-content-language-tabs.test.tsx`.
 
 ## Empty lists — `EmptyState`
 

@@ -13,6 +13,7 @@ import {
   Label,
   PageHeader,
   Select,
+  TabPanel,
   Textarea,
 } from '@endora-commerce/admin-kit/ui';
 import {
@@ -31,6 +32,8 @@ import { returnsClient, type ClauseBody } from '../api/returns-client.js';
 
 const LANGUAGES: string[] = [...SUPPORTED_LANGUAGES];
 const TEXT_MAX = 5000;
+/** The language strip's ids: its tabs name the per-language fields below them (`aria-controls`). */
+const LANGUAGE_TABS_ID = 'return-clause-language';
 
 type Draft = {
   label: Record<string, string>;
@@ -281,42 +284,50 @@ function ClauseDialog(props: {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <ContentLanguageTabs languages={LANGUAGES} activeLanguage={language} onChange={setLanguage} />
-        <div className="space-y-1">
-          <Label htmlFor="clause-label">{tr('clauses.field.label')}</Label>
-          <Input
-            id="clause-label"
-            ref={labelRef}
-            maxLength={120}
-            value={draft.label[language] ?? ''}
-            onChange={(e) => setLocalized('label', e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="clause-text">{tr('clauses.field.text')}</Label>
-          <Textarea
-            id="clause-text"
-            maxLength={TEXT_MAX}
-            rows={6}
-            value={text}
-            onChange={(e) => setLocalized('text', e.target.value)}
-            aria-describedby="clause-text-counter"
-          />
-          <p id="clause-text-counter" className="text-xs text-muted-foreground">
-            {tr('clauses.counter', { count: text.length, max: TEXT_MAX })}
-          </p>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="clause-link">{tr('clauses.field.linkUrl')}</Label>
-          <Input
-            id="clause-link"
-            type="url"
-            inputMode="url"
-            placeholder={tr('clauses.field.linkUrlPlaceholder')}
-            value={draft.linkUrl[language] ?? ''}
-            onChange={(e) => setLocalized('linkUrl', e.target.value)}
-          />
-        </div>
+        <ContentLanguageTabs
+          languages={LANGUAGES}
+          activeLanguage={language}
+          onChange={setLanguage}
+          idBase={LANGUAGE_TABS_ID}
+        />
+        {/* The fields the strip switches; the channel and the scope below are one per clause. */}
+        <TabPanel idBase={LANGUAGE_TABS_ID} value={language} tabIndex={-1} className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="clause-label">{tr('clauses.field.label')}</Label>
+            <Input
+              id="clause-label"
+              ref={labelRef}
+              maxLength={120}
+              value={draft.label[language] ?? ''}
+              onChange={(e) => setLocalized('label', e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="clause-text">{tr('clauses.field.text')}</Label>
+            <Textarea
+              id="clause-text"
+              maxLength={TEXT_MAX}
+              rows={6}
+              value={text}
+              onChange={(e) => setLocalized('text', e.target.value)}
+              aria-describedby="clause-text-counter"
+            />
+            <p id="clause-text-counter" className="text-xs text-muted-foreground">
+              {tr('clauses.counter', { count: text.length, max: TEXT_MAX })}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="clause-link">{tr('clauses.field.linkUrl')}</Label>
+            <Input
+              id="clause-link"
+              type="url"
+              inputMode="url"
+              placeholder={tr('clauses.field.linkUrlPlaceholder')}
+              value={draft.linkUrl[language] ?? ''}
+              onChange={(e) => setLocalized('linkUrl', e.target.value)}
+            />
+          </div>
+        </TabPanel>
         <div className="space-y-1">
           <Label htmlFor="clause-channel">{tr('clauses.field.channel')}</Label>
           <SalesChannelPicker
