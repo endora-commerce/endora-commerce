@@ -410,7 +410,9 @@ export function StatusTransitionGraph({
             ))}
           </Select>
         </div>
+        {/* In-editor Add is outline: the view's one primary is not this form's (issue #1441, DS-07). */}
         <Button
+          variant="outline"
           onClick={(): void => {
             tryAdd(transFrom, transTo);
             setTransFrom('');

@@ -211,6 +211,7 @@ export function HookBlockAttachmentsPanel({
           />
           <Button
             type="button"
+            variant="outline"
             title={t('hookAttachments.addBlock')}
             onClick={() => void addAttachment()}
             disabled={saving || !selectedBlockId}

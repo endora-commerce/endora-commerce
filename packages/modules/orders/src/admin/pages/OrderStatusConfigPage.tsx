@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import type { DictionaryLanguagesPageResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient, statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, EditorSection, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { StatusTransitionGraph, useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { ModalDialog, StatusTransitionGraph, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ORDER_STATUS_DEFAULT_COLOR } from '@endora-commerce/contracts';
 import { StatusColorPicker } from '../components/StatusColorPicker.js';
@@ -62,12 +62,8 @@ export function OrderStatusConfigPage(): ReactNode {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Add-status form.
-  const [newCode, setNewCode] = useState('');
-  const [newDefaultName, setNewDefaultName] = useState('');
-  const [newNames, setNewNames] = useState<Record<string, string>>({});
-  const [newTerminal, setNewTerminal] = useState(false);
-  const [newColor, setNewColor] = useState(ORDER_STATUS_DEFAULT_COLOR);
+  // The add-status dialog (issue #1439, DS-05): opened from the statuses card's header.
+  const [adding, setAdding] = useState(false);
 
   // Inline edit of an existing status's names.
   const [editCode, setEditCode] = useState<string | null>(null);
@@ -118,29 +114,6 @@ export function OrderStatusConfigPage(): ReactNode {
     },
     [load],
   );
-
-  /** Drop empty per-language entries before sending. */
-  const cleanNames = (names: Record<string, string>): Record<string, string> =>
-    Object.fromEntries(Object.entries(names).filter(([, v]) => v.trim().length > 0));
-
-  const addStatus = (): void => {
-    if (!newCode.trim()) return;
-    const defaultName = newDefaultName.trim() || newCode.trim();
-    void run(async () => {
-      await apiClient.post('/api/v1/admin/orders/statuses', {
-        code: newCode.trim(),
-        name: cleanNames(newNames),
-        defaultName,
-        isTerminal: newTerminal,
-        color: newColor,
-      });
-      setNewCode('');
-      setNewDefaultName('');
-      setNewNames({});
-      setNewTerminal(false);
-      setNewColor(ORDER_STATUS_DEFAULT_COLOR);
-    });
-  };
 
   const startEdit = (s: StatusDef): void => {
     setEditCode(s.code);
@@ -212,8 +185,15 @@ export function OrderStatusConfigPage(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle>{t('orderStatusConfig.statuses')}</CardTitle>
+          {/* Outline, not filled: the screen configures two things and neither add is its one
+              primary (issue #1441, DS-07). It opens a dialog instead of a form drawn open under
+              the table (issue #1439, DS-05; Hick). */}
+          <Button variant="outline" size="sm" onClick={(): void => setAdding(true)}>
+            <Plus />
+            {t('orderStatusConfig.addStatus')}
+          </Button>
         </CardHeader>
         <CardContent>
           <Table>
@@ -322,68 +302,6 @@ export function OrderStatusConfigPage(): ReactNode {
             </TableBody>
           </Table>
 
-          {/* The add form is a titled section of the statuses card, set off from the table by one
-              rule (issue #1437, DS-03), on the kit's fields. */}
-          <EditorSection
-            as="h3"
-            title={tOrders('statusConfig.newStatus.title')}
-            className="mt-4 border-t pt-(--section-gap)"
-          >
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="newCode">{t('orderStatusConfig.col.code')}</Label>
-                <Input
-                  id="newCode"
-                  className="w-auto"
-                  value={newCode}
-                  onChange={(e): void => setNewCode(e.target.value)}
-                  placeholder="awaiting_stock"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="newDefaultName">{t('orderStatusConfig.field.defaultName')}</Label>
-                <Input
-                  id="newDefaultName"
-                  className="w-auto"
-                  value={newDefaultName}
-                  onChange={(e): void => setNewDefaultName(e.target.value)}
-                />
-              </div>
-              {languages.map((lang) => (
-                <div key={lang.code} className="space-y-1">
-                  <Label htmlFor={`newName-${lang.code}`}>{lang.label}</Label>
-                  <Input
-                    id={`newName-${lang.code}`}
-                    className="w-auto"
-                    value={newNames[lang.code] ?? ''}
-                    onChange={(e): void =>
-                      setNewNames((prev) => ({ ...prev, [lang.code]: e.target.value }))
-                    }
-                  />
-                </div>
-              ))}
-              <div className="space-y-1">
-                <Label>{t('orderStatusConfig.field.color')}</Label>
-                <StatusColorPicker
-                  value={newColor}
-                  onChange={setNewColor}
-                  label={t('orderStatusConfig.field.color')}
-                  customLabel={t('orderStatusConfig.color.custom')}
-                />
-              </div>
-              <label className="flex min-h-9 items-center gap-2 text-sm">
-                <Checkbox
-                  checked={newTerminal}
-                  onChange={(e): void => setNewTerminal(e.target.checked)}
-                />
-                {t('orderStatusConfig.flag.terminal')}
-              </label>
-              <Button onClick={addStatus} disabled={!newCode.trim()}>
-                <Plus />
-                {t('orderStatusConfig.addStatus')}
-              </Button>
-            </div>
-          </EditorSection>
         </CardContent>
       </Card>
 
@@ -402,8 +320,136 @@ export function OrderStatusConfigPage(): ReactNode {
         </CardContent>
       </Card>
 
+      {adding ? (
+        <AddStatusDialog
+          languages={languages}
+          onClose={(): void => setAdding(false)}
+          onCreated={async (): Promise<void> => {
+            setAdding(false);
+            await load();
+          }}
+        />
+      ) : null}
       {confirmDialog}
     </>
+  );
+}
+
+/** Drop empty per-language entries before sending. */
+function cleanNames(names: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(names).filter(([, v]) => v.trim().length > 0));
+}
+
+/**
+ * The new-status form, in the kit's dialog (issue #1439, DS-05). A refusal is
+ * shown inside the dialog and keeps what was typed; the scrim does not dismiss
+ * it, so a stray click cannot throw the input away.
+ */
+function AddStatusDialog(props: {
+  languages: ActiveLanguage[];
+  onClose: () => void;
+  onCreated: () => Promise<void>;
+}): ReactNode {
+  const { languages, onClose, onCreated } = props;
+  const t = useTranslation('core');
+  const tOrders = useTranslation('orders');
+  const id = useId();
+  const [code, setCode] = useState('');
+  const [defaultName, setDefaultName] = useState('');
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [terminal, setTerminal] = useState(false);
+  const [color, setColor] = useState(ORDER_STATUS_DEFAULT_COLOR);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (event: FormEvent): Promise<void> => {
+    event.preventDefault();
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.post('/api/v1/admin/orders/statuses', {
+        code: trimmed,
+        name: cleanNames(names),
+        defaultName: defaultName.trim() || trimmed,
+        isTerminal: terminal,
+        color,
+      });
+      await onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('common.state.error'));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ModalDialog
+      title={tOrders('statusConfig.newStatus.title')}
+      busy={busy}
+      dismissOnScrim={false}
+      onClose={onClose}
+    >
+      <form noValidate className="space-y-4" onSubmit={(event): void => void submit(event)}>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <div className="space-y-1">
+          <Label htmlFor={`${id}-code`}>{t('orderStatusConfig.col.code')}</Label>
+          <Input
+            id={`${id}-code`}
+            className="font-mono"
+            value={code}
+            autoFocus
+            onChange={(e): void => setCode(e.target.value)}
+            placeholder="awaiting_stock"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${id}-defaultName`}>{t('orderStatusConfig.field.defaultName')}</Label>
+          <Input
+            id={`${id}-defaultName`}
+            value={defaultName}
+            onChange={(e): void => setDefaultName(e.target.value)}
+          />
+        </div>
+        {languages.map((lang) => (
+          <div key={lang.code} className="space-y-1">
+            <Label htmlFor={`${id}-name-${lang.code}`}>{lang.label}</Label>
+            <Input
+              id={`${id}-name-${lang.code}`}
+              value={names[lang.code] ?? ''}
+              placeholder={defaultName}
+              onChange={(e): void => setNames((prev) => ({ ...prev, [lang.code]: e.target.value }))}
+            />
+          </div>
+        ))}
+        <div className="space-y-1">
+          <Label>{t('orderStatusConfig.field.color')}</Label>
+          <StatusColorPicker
+            value={color}
+            onChange={setColor}
+            label={t('orderStatusConfig.field.color')}
+            customLabel={t('orderStatusConfig.color.custom')}
+          />
+        </div>
+        <label className="flex min-h-9 items-center gap-2 text-sm">
+          <Checkbox checked={terminal} onChange={(e): void => setTerminal(e.target.checked)} />
+          {t('orderStatusConfig.flag.terminal')}
+        </label>
+        <div className="flex flex-wrap justify-end gap-2 pt-2">
+          <Button className="min-h-11 sm:min-h-9" type="button" variant="outline" disabled={busy} onClick={onClose}>
+            {t('common.action.cancel')}
+          </Button>
+          <Button className="min-h-11 sm:min-h-9" type="submit" disabled={busy || !code.trim()} aria-busy={busy}>
+            <Plus />
+            {busy ? t('common.state.saving') : t('orderStatusConfig.addStatus')}
+          </Button>
+        </div>
+      </form>
+    </ModalDialog>
   );
 }
 
