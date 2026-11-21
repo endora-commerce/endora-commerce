@@ -650,15 +650,34 @@ export type RelatedPayerSentRequestsResponse = z.infer<typeof relatedPayerSentRe
 export const relatedPayerIncomingRequestsResponseSchema = z.object({ data: z.array(relatedPayerIncomingRequestSchema) });
 export type RelatedPayerIncomingRequestsResponse = z.infer<typeof relatedPayerIncomingRequestsResponseSchema>;
 
-/** `GET /api/v1/admin/related-payers/requests` — the operator queue (FR-023). */
+/** The largest page the operator queue serves (UX audit DS-05, #1439). */
+export const ADMIN_RELATED_PAYER_REQUESTS_MAX_PAGE_SIZE = 200;
+
+/**
+ * `GET /api/v1/admin/related-payers/requests` — the operator queue (FR-023), oldest first. `page`
+ * is one-based; without a `pageSize` the queue answers its first 500 entries, as it did before it
+ * was paged (UX audit DS-05, #1439).
+ */
 export const adminRelatedPayerRequestsQuerySchema = z.strictObject({
   /** Default `pending`: what waits for the operator. */
   state: relatedPayerRequestStateSchema.optional(),
   reason: relatedPayerOperatorReasonSchema.optional(),
   salesChannelId: uuidSchema.optional(),
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(ADMIN_RELATED_PAYER_REQUESTS_MAX_PAGE_SIZE).optional(),
 });
 export type AdminRelatedPayerRequestsQuery = z.infer<typeof adminRelatedPayerRequestsQuerySchema>;
-export const adminRelatedPayerRequestsResponseSchema = z.object({ data: z.array(adminRelatedPayerRequestSchema) });
+/** What a caller sends: `page` may be left out. */
+export type AdminRelatedPayerRequestsQueryInput = z.input<typeof adminRelatedPayerRequestsQuerySchema>;
+/** One page of the queue, and `meta.total` across every page — the Organizations list's shape. */
+export const adminRelatedPayerRequestsResponseSchema = z.object({
+  data: z.array(adminRelatedPayerRequestSchema),
+  meta: z.object({
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+  }),
+});
 export type AdminRelatedPayerRequestsResponse = z.infer<typeof adminRelatedPayerRequestsResponseSchema>;
 
 // ────────────────────────────────────────────────────────────────────────
