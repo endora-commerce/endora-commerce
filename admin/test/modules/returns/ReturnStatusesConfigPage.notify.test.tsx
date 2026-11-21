@@ -42,7 +42,8 @@ const { ReturnStatusesConfigPage } = await import(
 
 const status = (code: string, over: Record<string, unknown> = {}) => ({
   code,
-  name: { en: code },
+  // The screen names a status by `name[language]` first (#1472), so the fixture's English name is its label.
+  name: { en: code[0]!.toUpperCase() + code.slice(1) },
   defaultName: code[0]!.toUpperCase() + code.slice(1),
   isInitial: false,
   isTerminal: false,

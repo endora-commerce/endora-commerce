@@ -1382,11 +1382,9 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // two-way and keyed by path, so each move stranded the old key and reported
   // the new one as a regression. Both halves of all five fired in one run,
   // which is what the ratchet is for: a re-key is visible as a re-key rather
-  // than as a debt that quietly moved house.
-  'packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx': 11,
-  'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': 14,
-  'packages/modules/returns/src/admin/pages/ReturnReasonsPage.tsx': 14,
-  'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 4,
+  // than as a debt that quietly moved house. The `delivery_methods` entry was
+  // drained by #1694 and the four `returns` entries by issue #1472 (UX audit
+  // SALES-07); all five reached zero and were deleted.
   // Feature 091, Phase 4 batch five: the screen moved into `stripe`'s package
   // and the entry is **re-keyed**, not raised and not dropped — the same
   // twenty-nine strings at a new address, which this check's two-way ratchet
