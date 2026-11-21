@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { OrganizationSalesChannelOption } from '@endora-commerce/contracts';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { CustomFieldValuesPanel, OrganizationPicker, customFieldErrorsOf } from '@endora-commerce/admin-kit/components';
@@ -128,14 +127,7 @@ export function OrganizationCreate(): ReactNode {
 
   return (
     <>
-      <Link
-        to="/organizations"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {t('create.back')}
-      </Link>
-      <PageHeader title={t('create.title')} />
+      <PageHeader title={t('create.title')} back={{ label: t('create.back'), to: '/organizations' }} />
       <Card>
         <CardContent>
           {error ? (

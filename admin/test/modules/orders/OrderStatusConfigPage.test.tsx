@@ -89,7 +89,7 @@ beforeEach(() => {
 });
 
 const BUNDLE = {
-  ...passthroughBundle('core', ['common.action.delete']),
+  ...passthroughBundle('core', ['common.action.delete', 'orders.page.title']),
   ...shippedModuleBundle('orders', 'en'),
 };
 
@@ -108,6 +108,15 @@ describe('OrderStatusConfigPage', () => {
     expect(await screen.findByRole('button', { name: 'Edit status Pending' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
     expect(developerIdLabels(container)).toEqual([]);
+  });
+
+  // #1549 (SALES-27): the way back is the header's back link to Orders, not an outline Back button.
+  it('goes back to Orders through the header back link', async () => {
+    renderPage();
+    const heading = await screen.findByRole('heading', { level: 1 });
+    const back = within(heading.closest('header')!).getByRole('link', { name: 'orders.page.title' });
+    expect(back).toHaveAttribute('href', '/orders');
+    expect(screen.queryByRole('link', { name: 'common.action.back' })).toBeNull();
   });
 
   it('lists the configured statuses and transitions', async () => {

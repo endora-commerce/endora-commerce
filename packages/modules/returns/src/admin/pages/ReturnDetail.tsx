@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, FileText, Mail, ShieldOff, Store, UserRound } from 'lucide-react';
+import { FileText, Mail, ShieldOff, Store, UserRound } from 'lucide-react';
 import { ApiError, apiBaseUrl, formatDateTime, formatMoney, useAuth } from '@endora-commerce/admin-kit/lib';
 import { ConfirmDialog, RowActionMenu, RowActionMenuItem, RowActionMenuSeparator } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, InlineStatus, Input, Label, Select, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useInlineStatus, type InlineStatusState } from '@endora-commerce/admin-kit/ui';
@@ -241,7 +241,7 @@ export function ReturnDetail(): ReactNode {
   if (!rc) {
     return (
       <div className="space-y-4">
-        <PageHeader title={t('returns.detail.title')} />
+        <PageHeader title={t('returns.detail.title')} back={{ label: tr('detail.back'), to: '/returns' }} />
         {(error || loadFailed) && (
           <Alert variant="destructive">
             <AlertDescription>{error ?? tr('detail.loadFailed')}</AlertDescription>
@@ -288,13 +288,8 @@ export function ReturnDetail(): ReactNode {
 
   return (
     <div className="space-y-4">
-      <Button asChild variant="ghost" size="sm">
-        <Link to="/returns">
-          <ArrowLeft className="size-4" /> {tr('detail.back')}
-        </Link>
-      </Button>
-
       <PageHeader
+        back={{ label: tr('detail.back'), to: '/returns' }}
         title={
           <span className="flex items-center gap-2">
             {/* 180 FR-A44 — the RMA number, else the derived reference. */}

@@ -148,5 +148,15 @@ describe('EntryDetailPage', () => {
     );
     renderEntry();
     expect(await screen.findByText(en('entry.notFound'))).toBeTruthy();
+    // #1549 (SALES-27): the way out is the header's back link, as on the entry itself.
+    const heading = screen.getByRole('heading', { level: 1, name: en('entry.titleUnknown') });
+    expect(within(heading.closest('header')!).getByRole('link', { name: en('entry.back') })).toHaveAttribute('href', '/forms/entries');
+  });
+
+  it('goes back to the entries through the header back link (#1549)', async () => {
+    renderEntry(READ);
+    await screen.findByRole('region', { name: en('entry.answers') });
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(within(heading.closest('header')!).getByRole('link', { name: en('entry.back') })).toHaveAttribute('href', '/forms/entries');
   });
 });

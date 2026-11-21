@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Briefcase, Building2, Receipt, ShoppingCart, Users } from 'lucide-react';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { Briefcase, Building2, Receipt, ShoppingCart, Users } from 'lucide-react';
 import type {
   AdminOrganization,
   AdminOrganizationDetail,
@@ -518,6 +518,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   return (
     <>
       <PageHeader
+        back={{ label: t('organizations.detail.back'), to: '/organizations' }}
         title={org.name}
         description={
           <span>
@@ -550,14 +551,6 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
           // reading order; the tax corrections moved to the Tax tab, beside what they change.
           <DetailHeaderActions
             status={actionStatus.props}
-            secondary={
-              <Button asChild variant="outline">
-                <Link to="/organizations">
-                  <ArrowLeft aria-hidden="true" />
-                  {t('organizations.detail.back')}
-                </Link>
-              </Button>
-            }
             primary={
               <SaveSessionActions hostCount={hostCount} canSave={canManage} saving={busy} onSave={(): void => void savePage()} />
             }

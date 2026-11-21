@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import { FORM_ENTRY_STATUSES, type FormEntryDetail, type FormEntryStatus } from '@endora-commerce/contracts';
 import { ModalDialog, adminLanguageToLocale, listScopeSalesChannels } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -33,6 +33,8 @@ type Change =
  * Layout: two columns from `lg` — the answers and consents on the left (what was sent), the status,
  * the details and the notes on the right (what is done with it) — stacking in that order below.
  */
+const ENTRIES_PATH = '/forms/entries';
+
 export function EntryDetailPage(): ReactNode {
   const t = useTranslation('forms');
   const { language } = useAppLanguage();
@@ -86,7 +88,7 @@ export function EntryDetailPage(): ReactNode {
   if (load.kind === 'missing' || load.kind === 'error') {
     return (
       <div className="space-y-4">
-        <BackLink />
+        <PageHeader title={t('entry.titleUnknown')} back={{ label: t('entry.back'), to: ENTRIES_PATH }} />
         <Alert variant="destructive">
           <AlertDescription>{load.kind === 'missing' ? t('entry.notFound') : t('entry.loadError')}</AlertDescription>
         </Alert>
@@ -115,7 +117,7 @@ export function EntryDetailPage(): ReactNode {
     setDeleteError(null);
     try {
       await entriesApi.remove(entry.id);
-      navigate('/forms/entries');
+      navigate(ENTRIES_PATH);
     } catch (failure) {
       setDeleteError(errorMessage(failure, t('entries.actionError')));
       setBusy(false);
@@ -124,8 +126,8 @@ export function EntryDetailPage(): ReactNode {
 
   return (
     <div className="space-y-4">
-      <BackLink />
       <PageHeader
+        back={{ label: t('entry.back'), to: ENTRIES_PATH }}
         title={t('entry.title', { form: entry.formName })}
         description={t('entry.sentAt', { date: time.format(new Date(entry.submittedAt)) })}
         actions={
@@ -219,16 +221,6 @@ export function EntryDetailPage(): ReactNode {
         </ModalDialog>
       ) : null}
     </div>
-  );
-}
-
-function BackLink(): ReactNode {
-  const t = useTranslation('forms');
-  return (
-    <Link to="/forms/entries" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-      <ArrowLeft size={14} aria-hidden="true" />
-      {t('entry.back')}
-    </Link>
   );
 }
 

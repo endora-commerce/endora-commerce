@@ -159,6 +159,7 @@
   "entries.actionError": "The change could not be made.",
   "entry.back": "All entries",
   "entry.title": "Entry from {form}",
+  "entry.titleUnknown": "Form entry",
   "entry.sentAt": "Sent {date}",
   "entry.loading": "Loading the entry…",
   "entry.loadError": "The entry could not be loaded.",
