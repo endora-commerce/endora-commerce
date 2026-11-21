@@ -21,6 +21,7 @@ import { Alert, AlertDescription, Button, EmptyState, Input, Label, Table, Table
 import type { SettingGroupRowDto } from '@endora-commerce/contracts';
 import { settingsClient } from '../api/settings-client.js';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { SettingsSectionTabs } from '../components/SettingsSectionTabs.js';
 /**
  * Settings groups page — feature 004 / US2.
  *
@@ -110,6 +111,7 @@ export function GroupsPage(): ReactNode {
       <ListPage
         title={t('groups.page.title')}
         actions={newGroupButton('default')}
+        tabs={<SettingsSectionTabs />}
         load={load}
         onRetry={() => void refresh()}
       >

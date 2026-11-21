@@ -53,11 +53,13 @@ import type { PromptActionRequestDto } from '@endora-commerce/contracts';
 
 import type { NavItem, NavSection } from './sidebar/nav-types.js';
 import { sidebarGroupItemsId } from './sidebar/group-ids.js';
+import { navItemMatchesExactly } from './sidebar/nav-match.js';
 import { PinnedSection } from './sidebar/PinnedSection.js';
 import { PinToggleButton } from './sidebar/PinToggleButton.js';
 import { PreferencesSaveNotice } from './sidebar/PreferencesSaveNotice.js';
 import { usePinActions, type PinOutcome } from './sidebar/use-pin-actions.js';
 import {
+  pinMatchesExactly,
   reorderVisiblePins,
   resolvePinsFrom,
   visibleDestinations,
@@ -1244,8 +1246,10 @@ export function AppShell(): ReactNode {
                 translatedLabel={t('appShell.pinned.heading')}
                 pinned={{
                   icon: Pin,
-                  endOf: (item): boolean =>
-                    resolvedPins.find((pin) => pin.item === item)?.end ?? false,
+                  endOf: (item): boolean => {
+                    const pin = resolvedPins.find((candidate) => candidate.item === item);
+                    return pin ? pinMatchesExactly(pin, location.pathname) : false;
+                  },
                   onUnpin: togglePinOf,
                 }}
               />
@@ -1319,18 +1323,16 @@ export function AppShell(): ReactNode {
                 <div className="b2b-sidebar__items" id={sidebarGroupItemsId(section.key)}>
                   {visibleItems.map((item) => {
                     const Icon = item.icon;
-                    // Force exact-match (`end`) when another item in the same
-                    // section nests under this item's path. Without this, a
-                    // parent route like `/inventory` lights up alongside its
-                    // children (`/inventory/low-stock`, `/inventory/import`,
-                    // …) because NavLink's default match is prefix-based.
-                    // The home link (`/`) is the canonical example and is
-                    // covered by the same rule (every other item starts with
-                    // `/`).
-                    const hasNestedSibling = section.items.some(
-                      (other) =>
-                        other !== item &&
-                        other.to.startsWith(item.to === '/' ? '/' : `${item.to}/`),
+                    // Force exact-match (`end`) only while a more specific
+                    // row of the same section is the one the operator is on
+                    // (issue #1550): `/inventory` stays dark on
+                    // `/inventory/low-stock`, and `/settings` lights up on
+                    // `/settings/groups`, which has no row of its own. The
+                    // home link (`/`) always matches exactly.
+                    const exact = navItemMatchesExactly(
+                      item.to,
+                      section.items.map((other) => other.to),
+                      location.pathname,
                     );
                     const label = navLabel(item);
                     // Feature 164 — the pin control is the row's second Tab
@@ -1339,7 +1341,7 @@ export function AppShell(): ReactNode {
                       <div key={item.to} className="b2b-nav-row">
                         <NavLink
                           to={item.to}
-                          end={item.to === '/' || hasNestedSibling}
+                          end={exact}
                           className={({ isActive }): string =>
                             cn('b2b-nav-item', isActive && 'is-active')
                           }
@@ -1695,16 +1697,18 @@ function RailSection(props: RailSectionProps): ReactNode {
           ) : null}
           {visibleItems.map((item) => {
             const Icon = item.icon;
-            const hasNestedSibling = visibleItems.some(
-              (other) =>
-                other !== item &&
-                other.to.startsWith(item.to === '/' ? '/' : `${item.to}/`),
+            // The sidebar's rule (issue #1550): exact only while a more
+            // specific row is the active one.
+            const exact = navItemMatchesExactly(
+              item.to,
+              visibleItems.map((other) => other.to),
+              location.pathname,
             );
             return (
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === '/' || hasNestedSibling}
+                end={exact}
                 role="menuitem"
                 className={({ isActive }): string =>
                   cn('b2b-sidebar__rail-popover-item', isActive && 'is-active')

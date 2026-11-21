@@ -2,14 +2,37 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Eraser, Languages, RefreshCw, Search } from 'lucide-react';
 import type { CacheNamespaceDto } from '@endora-commerce/contracts';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, PageHeader } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  EditorSection,
+  InlineStatus,
+  PageHeader,
+  Skeleton,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import { reloadBundles, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { settingsClient } from '../api/settings-client.js';
+import { SettingsSectionTabs } from '../components/SettingsSectionTabs.js';
 
 /**
  * Cache maintenance page — lets an operator flush selected Redis cache
  * namespaces so freshly-published content / changed settings appear without
- * waiting for TTL expiry. Backed by `/api/v1/admin/cache/*` (settings:write).
+ * waiting for TTL expiry, rebuild the search index, and reload the admin's
+ * translation bundles. Backed by `/api/v1/admin/cache/*` (settings:write).
+ *
+ * **One card, three rows** since issue #1550 (UX audit SHELL-10): each row is
+ * an action label, a one-line effect and its button (`EditorSection`), so the
+ * three maintenance actions read as one place rather than three objects
+ * (Common Region) and the screen offers three choices, not three cards of
+ * prose (Hick). None of the buttons is filled — they are equals, and none is
+ * the page's primary (Von Restorff). The result of an action is said beside the
+ * button that produced it, in an always-mounted `InlineStatus` (WCAG 4.1.3),
+ * not in a banner at the top of the page.
  */
 export function CachePage(): ReactNode {
   const t = useTranslation('settings');
@@ -18,8 +41,10 @@ export function CachePage(): ReactNode {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const clearStatus = useInlineStatus();
+  const reindexStatus = useInlineStatus();
+  const i18nStatus = useInlineStatus();
 
   // Prefer a localised label/description for a known namespace, fall back to
   // the backend-provided English default for any namespace the bundle hasn't
@@ -43,13 +68,13 @@ export function CachePage(): ReactNode {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const res = await settingsClient.listCacheNamespaces();
       setNamespaces(res.data);
       setCacheEnabled(res.cacheEnabled);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('cache.error.load'));
+      setLoadError(err instanceof ApiError ? err.message : t('cache.error.load'));
     } finally {
       setLoading(false);
     }
@@ -81,18 +106,17 @@ export function CachePage(): ReactNode {
 
   const reindexSearch = async (): Promise<void> => {
     setBusy(true);
-    setError(null);
-    setResult(null);
+    reindexStatus.clear();
     try {
       const res = await settingsClient.reindexSearch();
-      setResult(
+      reindexStatus.show(
         t('search.reindex.done', {
           channels: res.channelsReindexed,
           documents: res.documentCount,
         }),
       );
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('search.reindex.error'));
+      reindexStatus.show(err instanceof ApiError ? err.message : t('search.reindex.error'), 'error');
     } finally {
       setBusy(false);
     }
@@ -100,46 +124,47 @@ export function CachePage(): ReactNode {
 
   const reloadTranslations = async (): Promise<void> => {
     setBusy(true);
-    setError(null);
-    setResult(null);
+    i18nStatus.clear();
     try {
       const res = await reloadBundles();
-      setResult(t('cache.i18n.done', { installed: res.installed }));
+      i18nStatus.show(t('cache.i18n.done', { installed: res.installed }));
       // Refresh so the TranslationProvider refetches the new admin bundles.
       window.setTimeout(() => window.location.reload(), 800);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('cache.i18n.error'));
+      i18nStatus.show(err instanceof ApiError ? err.message : t('cache.i18n.error'), 'error');
       setBusy(false);
     }
   };
 
   const clear = async (which: 'all' | string[]): Promise<void> => {
     setBusy(true);
-    setError(null);
-    setResult(null);
+    clearStatus.clear();
     try {
       const res = await settingsClient.clearCache({ namespaces: which });
-      setResult(t('cache.cleared', { count: res.data.totalDeletedKeys }));
+      clearStatus.show(t('cache.cleared', { count: res.data.totalDeletedKeys }));
       setSelected(new Set());
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('cache.error.clear'));
+      // The selection stays, so a retry is one click.
+      clearStatus.show(err instanceof ApiError ? err.message : t('cache.error.clear'), 'error');
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-(--card-gap)">
       <PageHeader title={t('cache.page.title')} />
+      <SettingsSectionTabs />
 
-      {error ? (
+      {loadError ? (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {result ? (
-        <Alert live="polite">
-          <AlertDescription>{result}</AlertDescription>
+          <AlertDescription className="flex flex-wrap items-center gap-2">
+            {loadError}
+            <Button type="button" size="sm" variant="outline" onClick={() => void load()}>
+              <RefreshCw aria-hidden="true" />
+              {t('cache.refresh')}
+            </Button>
+          </AlertDescription>
         </Alert>
       ) : null}
       {!cacheEnabled ? (
@@ -149,82 +174,93 @@ export function CachePage(): ReactNode {
       ) : null}
 
       <Card>
-        <CardContent className="space-y-1 p-4">
-          {loading ? (
-            <p className="py-6 text-sm text-muted-foreground">{t('cache.loading')}</p>
-          ) : (
-            <>
-              <label className="flex items-center gap-3 border-b border-border pb-3">
-                <Checkbox
-                  checked={allSelected}
-                  onChange={toggleAll}
-                  aria-label={t('cache.selectAll')}
-                />
-                <span className="text-sm font-medium">{t('cache.selectAll')}</span>
-              </label>
-              {namespaces.map((ns) => (
-                <label
-                  key={ns.key}
-                  className="flex items-start gap-3 rounded-md px-1 py-2 hover:bg-muted/50"
-                >
-                  <Checkbox
-                    className="mt-1"
-                    checked={selected.has(ns.key)}
-                    onChange={() => toggle(ns.key)}
-                    aria-label={nsLabel(ns)}
-                  />
-                  <span className="flex flex-col">
-                    <span className="text-sm font-medium">{nsLabel(ns)}</span>
-                    <span className="text-xs text-muted-foreground">{nsDescription(ns)}</span>
-                  </span>
+        <CardContent>
+          <EditorSection
+            title={t('cache.clear.title')}
+            description={t('cache.clear.description')}
+            action={
+              <Button variant="outline" onClick={() => void clear('all')} disabled={busy}>
+                <Eraser aria-hidden="true" />
+                {t('cache.clearAll')}
+              </Button>
+            }
+          >
+            {loading ? (
+              <div className="space-y-2" aria-busy="true">
+                <span className="sr-only">{t('cache.loading')}</span>
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-5 w-64" />
+                <Skeleton className="h-5 w-56" />
+              </div>
+            ) : (
+              <fieldset className="space-y-1">
+                <legend className="sr-only">{t('cache.namespaces.label')}</legend>
+                <label className="flex items-center gap-3 border-b border-border pb-2">
+                  <Checkbox checked={allSelected} onChange={toggleAll} />
+                  <span className="text-sm font-medium">{t('cache.selectAll')}</span>
                 </label>
-              ))}
-            </>
-          )}
-        </CardContent>
-      </Card>
+                <ul className="divide-y divide-border">
+                  {namespaces.map((ns) => (
+                    <li key={ns.key}>
+                      <label className="flex items-start gap-3 py-2 hover:bg-muted/50">
+                        <Checkbox
+                          className="mt-1"
+                          checked={selected.has(ns.key)}
+                          onChange={() => toggle(ns.key)}
+                          aria-label={nsLabel(ns)}
+                        />
+                        <span className="flex flex-col">
+                          <span className="text-sm">{nsLabel(ns)}</span>
+                          <span className="text-xs text-muted-foreground">{nsDescription(ns)}</span>
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </fieldset>
+            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => void clear([...selected])}
+                disabled={busy || selected.size === 0}
+              >
+                <Eraser aria-hidden="true" />
+                {t('cache.clearSelected')}
+              </Button>
+              <Button variant="ghost" onClick={() => void load()} disabled={busy || loading}>
+                <RefreshCw aria-hidden="true" />
+                {t('cache.refresh')}
+              </Button>
+              <InlineStatus {...clearStatus.props} />
+            </div>
+          </EditorSection>
 
-      <div className="flex flex-wrap gap-3">
-        <Button
-          onClick={() => void clear([...selected])}
-          disabled={busy || selected.size === 0}
-        >
-          <Eraser className="mr-2 h-4 w-4" />
-          {t('cache.clearSelected')}
-        </Button>
-        <Button variant="outline" onClick={() => void clear('all')} disabled={busy}>
-          <Eraser className="mr-2 h-4 w-4" />
-          {t('cache.clearAll')}
-        </Button>
-        <Button variant="ghost" onClick={() => void load()} disabled={busy || loading}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          {t('cache.refresh')}
-        </Button>
-      </div>
+          <EditorSection
+            title={t('search.reindex.title')}
+            description={t('search.reindex.description')}
+            action={
+              <Button variant="outline" onClick={() => void reindexSearch()} disabled={busy}>
+                <Search aria-hidden="true" />
+                {t('search.reindex.button')}
+              </Button>
+            }
+          >
+            <InlineStatus {...reindexStatus.props} />
+          </EditorSection>
 
-      <Card>
-        <CardContent className="space-y-3 p-4">
-          <div>
-            <h2 className="text-sm font-medium">{t('search.reindex.title')}</h2>
-            <p className="text-xs text-muted-foreground">{t('search.reindex.description')}</p>
-          </div>
-          <Button variant="outline" onClick={() => void reindexSearch()} disabled={busy}>
-            <Search className="mr-2 h-4 w-4" />
-            {t('search.reindex.button')}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="space-y-3 p-4">
-          <div>
-            <h2 className="text-sm font-medium">{t('cache.i18n.title')}</h2>
-            <p className="text-xs text-muted-foreground">{t('cache.i18n.description')}</p>
-          </div>
-          <Button variant="outline" onClick={() => void reloadTranslations()} disabled={busy}>
-            <Languages className="mr-2 h-4 w-4" />
-            {t('cache.i18n.button')}
-          </Button>
+          <EditorSection
+            title={t('cache.i18n.title')}
+            description={t('cache.i18n.description')}
+            action={
+              <Button variant="outline" onClick={() => void reloadTranslations()} disabled={busy}>
+                <Languages aria-hidden="true" />
+                {t('cache.i18n.button')}
+              </Button>
+            }
+          >
+            <InlineStatus {...i18nStatus.props} />
+          </EditorSection>
         </CardContent>
       </Card>
     </div>

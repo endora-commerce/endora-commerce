@@ -1,10 +1,10 @@
 import { useCallback, useId, useMemo, type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, GripVertical } from 'lucide-react';
 import { ADMIN_PINNED_GROUP_KEY } from '@endora-commerce/contracts';
 import { cn } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import type { ResolvedPin } from '../../lib/pinned-entries.js';
+import { pinMatchesExactly, type ResolvedPin } from '../../lib/pinned-entries.js';
 import {
   useReorderList,
   type ReorderLabels,
@@ -60,6 +60,7 @@ export function PinnedSection({
 }: PinnedSectionProps): ReactNode {
   const t = useTranslation('core');
   const baseId = useId();
+  const { pathname } = useLocation();
 
   const labels = useMemo<ReorderLabels>(() => {
     const say =
@@ -149,7 +150,7 @@ export function PinnedSection({
               </button>
               <NavLink
                 to={pin.destination}
-                end={pin.end}
+                end={pinMatchesExactly(pin, pathname)}
                 aria-describedby={sourceId}
                 draggable={false}
                 className={({ isActive }): string => cn('b2b-nav-item', isActive && 'is-active')}
