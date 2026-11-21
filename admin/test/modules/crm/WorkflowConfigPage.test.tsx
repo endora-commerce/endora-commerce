@@ -168,6 +168,15 @@ describe('WorkflowConfigPage — one save model per tab (issue #1559, WORK-08)',
   });
 });
 
+describe('WorkflowConfigPage — the counting statuses (issue #1561)', () => {
+  it('sends the opportunity value\'s #value-counting link to the Value tab, under its anchor', async () => {
+    renderCrm(<WorkflowConfigPage />, { path: '/crm/workflow#value-counting' });
+    expect(await screen.findByRole('tab', { name: en('workflow.tab.value') })).toHaveAttribute('aria-selected', 'true');
+    const heading = await screen.findByText(en('value.counting.title'));
+    expect(heading.closest('#value-counting')).not.toBeNull();
+  });
+});
+
 describe('WorkflowConfigPage — the Board card tab (User Story 19)', () => {
   it('shows the board-card editor in a section of its own', async () => {
     renderCrm(<WorkflowConfigPage />, { path: '/crm/workflow/board-card' });

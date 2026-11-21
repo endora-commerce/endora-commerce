@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   WORKFLOW_SECTION_TABS,
   workflowSection,
+  workflowSectionForHash,
   workflowSectionPath,
 } from './workflow-sections.js';
 
@@ -22,5 +23,14 @@ describe('workflowSection (issue #1559)', () => {
     for (const tab of WORKFLOW_SECTION_TABS) {
       expect(workflowSection(workflowSectionPath(tab.section))).toBe(tab.section);
     }
+  });
+});
+
+describe('workflowSectionForHash', () => {
+  it('maps the old in-page anchors to their tabs', () => {
+    expect(workflowSectionForHash('#board-card')).toBe('boardCard');
+    expect(workflowSectionForHash('#value-counting')).toBe('value');
+    expect(workflowSectionForHash('#other')).toBeNull();
+    expect(workflowSectionForHash('')).toBeNull();
   });
 });

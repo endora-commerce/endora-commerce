@@ -31,6 +31,19 @@ export const WORKFLOW_SECTION_TABS: readonly WorkflowSectionTab[] = [
 /** The anchor the board's *Configure card* link has always pointed at. */
 export const BOARD_CARD_HASH = '#board-card';
 
+/** The anchor an Opportunity's computed value links to (issue #1561). */
+export const VALUE_COUNTING_HASH = '#value-counting';
+
+/**
+ * The tab an old in-page anchor stands for: the sections those links scrolled
+ * to are tabs now, so the link opens the tab instead. `null` for any other hash.
+ */
+export function workflowSectionForHash(hash: string): WorkflowSection | null {
+  if (hash === BOARD_CARD_HASH) return 'boardCard';
+  if (hash === VALUE_COUNTING_HASH) return 'value';
+  return null;
+}
+
 /** The path of a tab. */
 export function workflowSectionPath(section: WorkflowSection): string {
   return WORKFLOW_SECTION_TABS.find((tab) => tab.section === section)?.path ?? WORKFLOW_PATH;

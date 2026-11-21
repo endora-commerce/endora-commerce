@@ -30,9 +30,10 @@ import { boardFieldLabel } from '../lib/board-fields.js';
 import { errorMessage, workflowStatusLabel } from '../lib/labels.js';
 import { useServerReorder } from '../lib/use-server-reorder.js';
 import {
-  BOARD_CARD_HASH,
+  VALUE_COUNTING_HASH,
   WORKFLOW_SECTION_TABS,
   workflowSection,
+  workflowSectionForHash,
   workflowSectionPath,
 } from '../lib/workflow-sections.js';
 import { OrderStatusMappings } from './workflow/OrderStatusMappings.js';
@@ -170,10 +171,12 @@ export function WorkflowConfigPage(): ReactNode {
     }
   };
 
-  // The board's *Configure card* has always linked to `#board-card`, the
-  // section that is a tab of its own now.
-  if (hash === BOARD_CARD_HASH && section === 'statuses') {
-    return <Navigate to={workflowSectionPath('boardCard')} replace />;
+  // The board's *Configure card* links to `#board-card`, an Opportunity's
+  // computed value to `#value-counting` (issue #1561): sections of one long
+  // page once, tabs of their own now, so the link opens its tab.
+  const hashSection = workflowSectionForHash(hash);
+  if (hashSection !== null && section === 'statuses') {
+    return <Navigate to={workflowSectionPath(hashSection)} replace />;
   }
 
   const header = (
@@ -312,14 +315,17 @@ export function WorkflowConfigPage(): ReactNode {
 
       {/* --- User Story 8: which statuses count towards a computed value --- */}
       {section === 'value' ? (
-        <ValueCountingStatuses
-          workflow={workflow}
-          orderStatuses={orderStatuses}
-          language={language}
-          onSave={async (body): Promise<void> => {
-            setWorkflow(await crmApi.setValueCountingStatuses(body));
-          }}
-        />
+        // Keeps the anchor the value link has always named.
+        <div id={VALUE_COUNTING_HASH.slice(1)}>
+          <ValueCountingStatuses
+            workflow={workflow}
+            orderStatuses={orderStatuses}
+            language={language}
+            onSave={async (body): Promise<void> => {
+              setWorkflow(await crmApi.setValueCountingStatuses(body));
+            }}
+          />
+        </div>
       ) : null}
 
       {dialog ? (
