@@ -105,6 +105,7 @@ function keyBundle(): Bundle {
   entries['importProfiles.mapping.removeRow'] = 'importProfiles.mapping.removeRow {row}';
   entries['importProfiles.editNamed'] = 'importProfiles.editNamed {name}';
   entries['importProfiles.deleteNamed'] = 'importProfiles.deleteNamed {name}';
+  entries['products.step'] = 'Step {current} of {total}';
   return { import_export: entries };
 }
 
@@ -120,6 +121,14 @@ async function productsCard(): Promise<HTMLElement> {
   const root = title.closest('[data-entity]');
   if (!(root instanceof HTMLElement)) throw new Error('no products card');
   return root;
+}
+
+/** The profiles section starts collapsed (issue #1528); open it the way an operator does. */
+async function openProfiles(): Promise<HTMLElement> {
+  const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+  const toggle = within(section).getByRole('button', { name: 'importProfiles.title' });
+  if (toggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle);
+  return section;
 }
 
 function csvFile(): File {
@@ -152,7 +161,7 @@ afterEach(() => {
 describe('Import profiles section', () => {
   it('lists the profiles with their mapping count for a catalog:write operator', async () => {
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     expect(await within(section).findByText('Akeneo default')).toBeTruthy();
     expect(api.get).toHaveBeenCalledWith('/api/v1/admin/import-export/profiles?entity=products');
   });
@@ -167,7 +176,7 @@ describe('Import profiles section', () => {
   it('shows the empty state when no profile exists', async () => {
     profiles = [];
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     expect(await within(section).findByText('importProfiles.empty')).toBeTruthy();
   });
 
@@ -177,7 +186,7 @@ describe('Import profiles section', () => {
       return getHandler(url);
     });
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     expect(await within(section).findByText('importProfiles.error.load')).toBeTruthy();
     // A retry reads the list again (final design review: no dead end).
     api.get.mockImplementation(async (url: string) => getHandler(url));
@@ -189,7 +198,7 @@ describe('Import profiles section', () => {
   it('creates a profile with a mapping row whose target is a channel and language', async () => {
     profiles = [];
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     fireEvent.click(await within(section).findByRole('button', { name: 'importProfiles.create' }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('importProfiles.field.name'), {
@@ -218,7 +227,7 @@ describe('Import profiles section', () => {
 
   it('labels each target with the channel name and language, keeping the code as secondary text (#718)', async () => {
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     fireEvent.click(await within(section).findByRole('button', { name: `importProfiles.editNamed ${profile.name}` }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(await within(dialog).findByRole('button', { name: 'importProfiles.mapping.targets, row 1' }));
@@ -235,7 +244,7 @@ describe('Import profiles section', () => {
   it('refuses to save a profile without a name, without calling the server', async () => {
     profiles = [];
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     fireEvent.click(await within(section).findByRole('button', { name: 'importProfiles.create' }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.save' }));
@@ -249,7 +258,7 @@ describe('Import profiles section', () => {
       throw new ApiError(409, { error: { code: 'IMPORT_PROFILE_NAME_TAKEN', message: 'taken' } });
     });
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     fireEvent.click(await within(section).findByRole('button', { name: 'importProfiles.create' }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('importProfiles.field.name'), {
@@ -261,7 +270,7 @@ describe('Import profiles section', () => {
 
   it('edits a profile through PATCH and warns about a target whose channel no longer exists', async () => {
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     fireEvent.click(await within(section).findByRole('button', { name: `importProfiles.editNamed ${profile.name}` }));
     const dialog = await screen.findByRole('dialog');
     expect(await within(dialog).findByText('importProfiles.mapping.missingChannel')).toBeTruthy();
@@ -272,7 +281,7 @@ describe('Import profiles section', () => {
 
   it('offers targets to a catalog:write operator from the import_export read alone', async () => {
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     fireEvent.click(await within(section).findByRole('button', { name: 'importProfiles.create' }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.mapping.add' }));
@@ -284,7 +293,7 @@ describe('Import profiles section', () => {
   it('shows the channel read refusal in the mapping editor instead of an empty target list', async () => {
     channelsForbidden = true;
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     fireEvent.click(await within(section).findByRole('button', { name: 'importProfiles.create' }));
     const dialog = await screen.findByRole('dialog');
     expect(await within(dialog).findByText('importProfiles.error.channels')).toBeTruthy();
@@ -297,7 +306,7 @@ describe('Import profiles section', () => {
   it('marks and focuses the field a validation problem names, row by row', async () => {
     profiles = [];
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     fireEvent.click(await within(section).findByRole('button', { name: 'importProfiles.create' }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('importProfiles.field.name'), { target: { value: 'Rows' } });
@@ -327,7 +336,7 @@ describe('Import profiles section', () => {
 
   it('deletes a profile only after confirmation', async () => {
     renderPage(['catalog:write']);
-    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const section = await openProfiles();
     fireEvent.click(await within(section).findByRole('button', { name: `importProfiles.deleteNamed ${profile.name}` }));
     const dialog = await screen.findByRole('dialog');
     expect(api.delete).not.toHaveBeenCalled();
@@ -358,11 +367,17 @@ describe('Products import: required profile, dry run, then Apply', () => {
     expect((card.getByLabelText('products.checkFile') as HTMLInputElement).disabled).toBe(false);
   });
 
-  it('points to the profiles section when no profile exists', async () => {
+  it('points to the profiles section when no profile exists, and creates one from there', async () => {
     profiles = [];
     renderPage(['catalog:write']);
     const card = within(await productsCard());
     expect(await card.findByText('products.noProfile')).toBeTruthy();
+    // Issue #1528 (Tesler): the prerequisite is one click away, not a scroll to the bottom.
+    fireEvent.click(card.getByRole('button', { name: 'products.createProfile' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText('importProfiles.field.name')).toBeTruthy();
+    const section = screen.getByRole('region', { name: 'importProfiles.title' });
+    expect(within(section).getByRole('button', { name: 'importProfiles.title' })).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('runs a dry run first and shows the counts, warnings and refusals before Apply', async () => {
@@ -443,5 +458,101 @@ describe('Products import: required profile, dry run, then Apply', () => {
     renderPage(['catalog:write', 'inventory:write']);
     await screen.findByText('entity.stock');
     expect(screen.getAllByLabelText('products.profile')).toHaveLength(1);
+  });
+});
+
+describe('Products import: progress and prerequisite (issue #1528)', () => {
+  function stepItem(card: ReturnType<typeof within>, key: string): HTMLElement {
+    const steps = card.getByRole('list', { name: 'products.steps' });
+    const item = within(steps).getByText(key).closest('li');
+    if (!(item instanceof HTMLElement)) throw new Error(`no step ${key}`);
+    return item;
+  }
+
+  it('says which of the three steps the operator is on, from profile to apply', async () => {
+    profiles = [profile, { ...profile, id: '00000000-0000-4000-8000-0000000000a2', name: 'Second' }];
+    renderPage(['catalog:write']);
+    const card = within(await productsCard());
+    await card.findByRole('option', { name: 'Second' });
+    expect(card.getByText('Step 1 of 3')).toBeTruthy();
+    expect(stepItem(card, 'products.step.profile')).toHaveAttribute('aria-current', 'step');
+
+    fireEvent.change(card.getByLabelText('products.profile'), { target: { value: profile.id } });
+    expect(card.getByText('Step 2 of 3')).toBeTruthy();
+    expect(stepItem(card, 'products.step.check')).toHaveAttribute('aria-current', 'step');
+    expect(stepItem(card, 'products.step.profile')).not.toHaveAttribute('aria-current');
+    expect(within(stepItem(card, 'products.step.profile')).getByText('products.step.complete')).toBeTruthy();
+
+    fireEvent.change(card.getByLabelText('products.checkFile'), { target: { files: [csvFile()] } });
+    await card.findByRole('button', { name: 'products.apply' });
+    expect(card.getByText('Step 3 of 3')).toBeTruthy();
+    expect(stepItem(card, 'products.step.apply')).toHaveAttribute('aria-current', 'step');
+
+    fireEvent.click(card.getByRole('button', { name: 'products.apply' }));
+    await card.findByText('products.applied');
+    expect(within(stepItem(card, 'products.step.apply')).getByText('products.step.complete')).toBeTruthy();
+  });
+
+  it('collapses the profiles section by default and opens it from the import\'s Manage profiles', async () => {
+    renderPage(['catalog:write']);
+    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    const toggle = within(section).getByRole('button', { name: 'importProfiles.title' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(section).queryByText(profile.name)).toBeNull();
+
+    const card = within(await productsCard());
+    fireEvent.click(card.getByRole('button', { name: 'products.manageProfiles' }));
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(await within(section).findByText(profile.name)).toBeTruthy();
+    await waitFor(() => expect(toggle).toHaveFocus());
+  });
+
+  it('reports the result beside the import in a polite status region, not a success banner', async () => {
+    renderPage(['catalog:write']);
+    const card = within(await productsCard());
+    await waitFor(() => expect(card.getByLabelText('products.profile')).toHaveValue(profile.id));
+    const status = card.getByTestId('products-import-status');
+    expect(status).toHaveAttribute('role', 'status');
+    expect(status.textContent).toBe('');
+    fireEvent.change(card.getByLabelText('products.checkFile'), { target: { files: [csvFile()] } });
+    await waitFor(() => expect(status.textContent).toContain('products.dryRunSummary'));
+    fireEvent.click(card.getByRole('button', { name: 'products.apply' }));
+    await waitFor(() => expect(status.textContent).toContain('products.applied'));
+    // The dry-run report refused rows, so the result is a partial one.
+    expect(status).toHaveAttribute('data-tone', 'warning');
+    const card2 = await productsCard();
+    expect(card2.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+  });
+
+  it('shows a failed Apply beside Apply and keeps the checked file to retry', async () => {
+    renderPage(['catalog:write']);
+    const card = within(await productsCard());
+    await waitFor(() => expect(card.getByLabelText('products.profile')).toHaveValue(profile.id));
+    fireEvent.change(card.getByLabelText('products.checkFile'), { target: { files: [csvFile()] } });
+    await card.findByRole('button', { name: 'products.apply' });
+    api.post.mockImplementationOnce(async () => {
+      throw new Error('boom');
+    });
+    fireEvent.click(card.getByRole('button', { name: 'products.apply' }));
+    const panel = card.getByRole('region', { name: 'products.review.title' });
+    expect(await within(panel).findByText('error.import')).toBeTruthy();
+    expect(within(panel).getByRole('button', { name: 'products.apply' })).toBeTruthy();
+    expect(card.getByText('Step 3 of 3')).toBeTruthy();
+  });
+
+  it('says the profiles could not be read at step 1, with a retry, instead of "no profile yet"', async () => {
+    let failing = true;
+    api.get.mockImplementation(async (url: string) => {
+      if (failing && url.startsWith('/api/v1/admin/import-export/profiles')) throw new Error('boom');
+      return getHandler(url);
+    });
+    renderPage(['catalog:write']);
+    const card = within(await productsCard());
+    expect(await card.findByText('products.profilesError')).toBeTruthy();
+    expect(card.queryByText('products.noProfile')).toBeNull();
+    failing = false;
+    fireEvent.click(card.getByRole('button', { name: 'importProfiles.retry' }));
+    await waitFor(() => expect(card.getByLabelText('products.profile')).toHaveValue(profile.id));
+    expect(card.queryByText('products.profilesError')).toBeNull();
   });
 });
