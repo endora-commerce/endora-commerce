@@ -49,6 +49,12 @@ const KEYS = passthroughBundle('product_feeds', [
   'builder.empty.title',
   'builder.empty.subtitle',
   'builder.preview.empty.omitted',
+  'builder.field.duplicate',
+  'builder.field.moveTo',
+  'builder.field.moveToLabel',
+  'builder.field.moveToApply',
+  'builder.field.moveToCancel',
+  'builder.field.remove',
 ]);
 
 const CORE = passthroughBundle('core', ['reorder.moveUp', 'reorder.moveDown', 'reorder.groupLabel', 'common.emptyState.clearFilters']);
@@ -213,5 +219,28 @@ describe('TemplateFieldList', () => {
     renderList({ fields: [] });
     expect(document.querySelector('[data-empty-state]')?.getAttribute('data-empty-state')).toBe('no-data');
     expect(screen.queryByRole('button', { name: 'common.emptyState.clearFilters' })).toBeNull();
+  });
+
+  // DS-03 (#1437, #1530): the row menu and its "Move to" were hand-drawn floating boxes.
+  it('opens the row actions as a kit menu, and "Move to" as a dialog that moves the field', async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderList();
+    await user.click(screen.getByRole('button', { name: 'More actions for id' }));
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'builder.field.duplicate',
+      'builder.field.moveTo',
+      'builder.field.remove',
+    ]);
+    await user.click(within(menu).getByRole('menuitem', { name: 'builder.field.moveTo' }));
+    const dialog = await screen.findByRole('dialog', { name: 'builder.field.moveTo' });
+    const position = within(dialog).getByRole('spinbutton', { name: 'builder.field.moveToLabel' });
+    await user.clear(position);
+    await user.type(position, '3');
+    await user.click(within(dialog).getByRole('button', { name: 'builder.field.moveToApply' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(onChange).toHaveBeenCalled();
+    const moved = onChange.mock.calls.at(-1)![0] as DraftField[];
+    expect(moved.map((f) => f.outputName)).toEqual(['title', 'price', 'id']);
   });
 });

@@ -1372,7 +1372,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // two-way and keyed by path, so moving a directory strands the old key as a
   // stale entry and reports the new one as a regression; both halves fired here
   // and both are the move, not a change to a single string.
-  'packages/modules/product_feeds/src/admin/components/FeedDeliveryPanel.tsx': 1,
   'packages/modules/promotions/src/admin/components/CouponGeneratorForm.tsx': 2,
   'packages/modules/promotions/src/admin/pages/PromotionEditPage.tsx': 1,
   'packages/modules/promotions/src/admin/pages/PromotionStatsPage.tsx': 2,
