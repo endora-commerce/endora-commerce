@@ -119,8 +119,14 @@ describe('inventory contributes the sales-channel editor zone', () => {
 
   it('renders the warehouse panel for the channel it is mounted on', async () => {
     const container = renderZone({});
-    // The first case pays for the chunk's cold import (the kit's `ui` barrel with it).
-    await waitFor(() => expect(container.textContent).toContain('warehouses.channel.title'), { timeout: 10_000 });
+    // The first case pays for the chunk's cold import (the kit's `ui` barrel with it). The
+    // heading is drawn on the panel's first commit, before its load effect has run, so waiting
+    // for the heading and then asserting the request raced the effect on a slow runner (#1701).
+    // Wait for the state only a finished load draws — the empty table row — instead.
+    await waitFor(() => expect(container.textContent).toContain('warehouses.channel.empty'), {
+      timeout: 10_000,
+    });
+    expect(container.textContent).toContain('warehouses.channel.title');
     expect(getSpy).toHaveBeenCalledWith(
       `/api/v1/admin/sales-channels/${CHANNEL_ID}/warehouses`,
     );
