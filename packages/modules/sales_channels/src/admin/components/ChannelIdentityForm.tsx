@@ -24,10 +24,9 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   Checkbox,
   Combobox,
+  EditorSection,
   FormField,
   Input,
   Label,
@@ -366,276 +365,299 @@ export function ChannelIdentityForm({
     }
   }, [languages, defaultLanguage, prefixDefaultLanguage]);
 
+  // Issue #1552 (UX audit SHELL-16) — the URL warning is the consequence of a change, so it is
+  // shown only once the URLs the form derives differ from the stored channel's (Signal-to-Noise):
+  // a create form has no URLs yet, and an untouched edit form moves none.
+  const storedUrlSignature = useMemo(
+    () => (mode === 'edit' && seededFrom ? urlSignature(seededFrom) : null),
+    [mode, seededFrom],
+  );
+  const urlsChange =
+    storedUrlSignature !== null &&
+    urlSignature({ languages, defaultLanguage, prefixDefaultLanguage }) !== storedUrlSignature;
+
   return (
     <div>
+      {/* Issue #1552 (UX audit SHELL-16) — one card, three sections (Common Region, Chunking):
+          what the channel is, what it sells in, and how its storefront behaves. The first
+          section keeps the card's old title; one name for both modes, since on the create
+          screen the page title already says "New sales channel" (issue #1482). */}
       <Card>
-        <CardHeader>
-          <CardTitle>
-            {/* One name for both modes: on the create screen the page title already says
-                "New sales channel", and the card repeating it was noise (issue #1482). */}
-            {t('identity.title.edit')}
-          </CardTitle>
-        </CardHeader>
         <CardContent>
           {summary}
-          <form id={formId} className="grid gap-4" onSubmit={handleSubmit}>
-            <FormField
-              label={t('identity.code.label')}
-              hint={lockCode ? t('identity.code.lockedHelp') : undefined}
-            >
-              <Input
-                id="sc-code"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder={t('identity.code.placeholder')}
-                disabled={lockCode}
-                required
-              />
-            </FormField>
-
-            <FormField label={t('identity.name.label')}>
-              <Input
-                id="sc-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('identity.name.placeholder')}
-                required
-              />
-            </FormField>
-
-            {/*
-              Free text, and never a closed list — feature 102 / D-199.
-
-              The admin and the storefront are separate deployments. Whatever a
-              list here showed could only ever be advisory, because the storefront
-              is the only thing that knows which themes it has installed, and it
-              already answers a wrong value correctly: it renders its own default,
-              marks the document `data-theme-requested`, and never rewrites what
-              is stored here. A control that *refused* a value would be refusing on
-              worse information than the thing that will actually decide.
-
-              `pattern` is the same shape the backend's write schemas validate
-              (`themeCodeRe`), so the field refuses a malformed code and accepts
-              every well-formed one — including a theme this repository has never
-              heard of, which is the whole point.
-            */}
-            <FormField label={t('identity.theme.label')} hint={t('identity.theme.help')}>
-              <Input
-                id="sc-theme"
-                value={themeCode}
-                onChange={(e) => setThemeCode(e.target.value)}
-                placeholder={t('identity.theme.placeholder')}
-                pattern="[a-z][a-z0-9_-]*"
-                title={t('identity.theme.pattern')}
-              />
-            </FormField>
-
-            {dictionaryStatus === 'error' && (
-              <Alert variant="destructive">
-                <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-                  <span>{t('identity.dictionary.loadError')}</span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDictionaryAttempt((n) => n + 1)}
-                  >
-                    {t('identity.dictionary.retry')}
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="grid items-start gap-2 md:grid-cols-[2fr_1fr]">
-              <div className="grid gap-2">
-                <Label id="sc-languages-label" htmlFor="sc-languages">
-                  {t('identity.languages.label')}
-                </Label>
-                <MultiCombobox
-                  id="sc-languages"
-                  ariaLabelledBy="sc-languages-label"
-                  ariaDescribedBy={describedBy(languagesMissing && 'sc-languages-error')}
-                  invalid={languagesMissing}
-                  options={languageOptions.available}
-                  value={languages}
-                  onChange={changeLanguages}
-                  loading={dictionaryStatus === 'loading'}
-                  loadingMessage={t('identity.dictionary.loading')}
-                  placeholder={t('identity.languages.placeholder')}
-                  emptyMessage={
-                    languageOptions.available.length === 0
-                      ? t('identity.dictionary.empty')
-                      : t('identity.languages.noMatches')
-                  }
+          <form id={formId} className="space-y-(--section-gap)" onSubmit={handleSubmit}>
+            <EditorSection title={t('identity.title.edit')} contentClassName="grid gap-4">
+              <FormField
+                label={t('identity.code.label')}
+                hint={lockCode ? t('identity.code.lockedHelp') : undefined}
+              >
+                <Input
+                  id="sc-code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder={t('identity.code.placeholder')}
+                  disabled={lockCode}
+                  required
                 />
-                {languagesMissing && (
-                  <FieldError id="sc-languages-error">{t('identity.languages.required')}</FieldError>
-                )}
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="sc-default-lang">{t('identity.defaultLanguage.label')}</Label>
-                <Combobox
-                  id="sc-default-lang"
-                  ariaDescribedBy={describedBy(defaultLanguageMissing && 'sc-default-lang-error')}
-                  invalid={defaultLanguageMissing}
-                  options={languageOptions.selected}
-                  value={defaultLanguage === '' ? null : defaultLanguage}
-                  onChange={(next) => setDefaultLanguage(next ?? '')}
-                  clearable={false}
-                  disabled={languagesMissing}
-                  placeholder={t('identity.pickOption')}
-                  emptyMessage={t('identity.languages.noMatches')}
-                />
-                {defaultLanguageMissing && (
-                  <FieldError id="sc-default-lang-error">
-                    {t('identity.defaultLanguage.required')}
-                  </FieldError>
-                )}
-              </div>
-            </div>
+              </FormField>
 
-            <div className="grid items-start gap-2 md:grid-cols-[2fr_1fr]">
-              <div className="grid gap-2">
-                <Label id="sc-currencies-label" htmlFor="sc-currencies">
-                  {t('identity.currencies.label')}
-                </Label>
-                <MultiCombobox
-                  id="sc-currencies"
-                  ariaLabelledBy="sc-currencies-label"
-                  ariaDescribedBy={describedBy(currenciesMissing && 'sc-currencies-error')}
-                  invalid={currenciesMissing}
-                  options={currencyOptions.available}
-                  value={currencies}
-                  onChange={changeCurrencies}
-                  loading={dictionaryStatus === 'loading'}
-                  loadingMessage={t('identity.dictionary.loading')}
-                  placeholder={t('identity.currencies.placeholder')}
-                  emptyMessage={
-                    currencyOptions.available.length === 0
-                      ? t('identity.dictionary.empty')
-                      : t('identity.currencies.noMatches')
-                  }
+              <FormField label={t('identity.name.label')}>
+                <Input
+                  id="sc-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('identity.name.placeholder')}
+                  required
                 />
-                {currenciesMissing && (
-                  <FieldError id="sc-currencies-error">{t('identity.currencies.required')}</FieldError>
-                )}
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="sc-default-curr">{t('identity.defaultCurrency.label')}</Label>
-                <Combobox
-                  id="sc-default-curr"
-                  ariaDescribedBy={describedBy(defaultCurrencyMissing && 'sc-default-curr-error')}
-                  invalid={defaultCurrencyMissing}
-                  options={currencyOptions.selected}
-                  value={defaultCurrency === '' ? null : defaultCurrency}
-                  onChange={(next) => setDefaultCurrency(next ?? '')}
-                  clearable={false}
-                  disabled={currenciesMissing}
-                  placeholder={t('identity.pickOption')}
-                  emptyMessage={t('identity.currencies.noMatches')}
-                />
-                {defaultCurrencyMissing && (
-                  <FieldError id="sc-default-curr-error">
-                    {t('identity.defaultCurrency.required')}
-                  </FieldError>
-                )}
-              </div>
-            </div>
+              </FormField>
 
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="sc-active"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-                disabled={initial?.systemDefault === true}
-              />
-              <Label htmlFor="sc-active" className="cursor-pointer">
-                {t('identity.active')}
-              </Label>
-              {initial?.systemDefault && (
-                <span className="text-xs text-muted-foreground">
-                  {t('identity.cannotDeactivateDefault')}
-                </span>
+              {/*
+                Free text, and never a closed list — feature 102 / D-199.
+
+                The admin and the storefront are separate deployments. Whatever a
+                list here showed could only ever be advisory, because the storefront
+                is the only thing that knows which themes it has installed, and it
+                already answers a wrong value correctly: it renders its own default,
+                marks the document `data-theme-requested`, and never rewrites what
+                is stored here. A control that *refused* a value would be refusing on
+                worse information than the thing that will actually decide.
+
+                `pattern` is the same shape the backend's write schemas validate
+                (`themeCodeRe`), so the field refuses a malformed code and accepts
+                every well-formed one — including a theme this repository has never
+                heard of, which is the whole point.
+              */}
+              <FormField label={t('identity.theme.label')} hint={t('identity.theme.help')}>
+                <Input
+                  id="sc-theme"
+                  value={themeCode}
+                  onChange={(e) => setThemeCode(e.target.value)}
+                  placeholder={t('identity.theme.placeholder')}
+                  pattern="[a-z][a-z0-9_-]*"
+                  title={t('identity.theme.pattern')}
+                />
+              </FormField>
+            </EditorSection>
+
+            <EditorSection title={t('identity.section.locales')} contentClassName="grid gap-4">
+              {dictionaryStatus === 'error' && (
+                <Alert variant="destructive">
+                  <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+                    <span>{t('identity.dictionary.loadError')}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDictionaryAttempt((n) => n + 1)}
+                    >
+                      {t('identity.dictionary.retry')}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
               )}
-            </div>
 
-            {/*
-              Feature 154 — the second presence fact about a channel, placed under
-              *Active* because it answers the neighbouring question: who may use
-              this store. A checkbox rather than a switch because that is what
-              *Active* above is, and admin-kit carries no switch primitive; two
-              on/off facts of one channel reading differently would be the
-              inconsistency. Unlike *Active* it stays editable on the system
-              default, which may well be a members-only store.
+              <div className="grid items-start gap-2 md:grid-cols-[2fr_1fr]">
+                <div className="grid gap-2">
+                  <Label id="sc-languages-label" htmlFor="sc-languages">
+                    {t('identity.languages.label')}
+                  </Label>
+                  <MultiCombobox
+                    id="sc-languages"
+                    ariaLabelledBy="sc-languages-label"
+                    ariaDescribedBy={describedBy(languagesMissing && 'sc-languages-error')}
+                    invalid={languagesMissing}
+                    options={languageOptions.available}
+                    value={languages}
+                    onChange={changeLanguages}
+                    loading={dictionaryStatus === 'loading'}
+                    loadingMessage={t('identity.dictionary.loading')}
+                    placeholder={t('identity.languages.placeholder')}
+                    emptyMessage={
+                      languageOptions.available.length === 0
+                        ? t('identity.dictionary.empty')
+                        : t('identity.languages.noMatches')
+                    }
+                  />
+                  {languagesMissing && (
+                    <FieldError id="sc-languages-error">{t('identity.languages.required')}</FieldError>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="sc-default-lang">{t('identity.defaultLanguage.label')}</Label>
+                  <Combobox
+                    id="sc-default-lang"
+                    ariaDescribedBy={describedBy(defaultLanguageMissing && 'sc-default-lang-error')}
+                    invalid={defaultLanguageMissing}
+                    options={languageOptions.selected}
+                    value={defaultLanguage === '' ? null : defaultLanguage}
+                    onChange={(next) => setDefaultLanguage(next ?? '')}
+                    clearable={false}
+                    disabled={languagesMissing}
+                    placeholder={t('identity.pickOption')}
+                    emptyMessage={t('identity.languages.noMatches')}
+                  />
+                  {defaultLanguageMissing && (
+                    <FieldError id="sc-default-lang-error">
+                      {t('identity.defaultLanguage.required')}
+                    </FieldError>
+                  )}
+                </div>
+              </div>
 
-              The hint is the operator's only warning of the consequences, so it
-              is attached to the control rather than left beside it.
+              <div className="grid items-start gap-2 md:grid-cols-[2fr_1fr]">
+                <div className="grid gap-2">
+                  <Label id="sc-currencies-label" htmlFor="sc-currencies">
+                    {t('identity.currencies.label')}
+                  </Label>
+                  <MultiCombobox
+                    id="sc-currencies"
+                    ariaLabelledBy="sc-currencies-label"
+                    ariaDescribedBy={describedBy(currenciesMissing && 'sc-currencies-error')}
+                    invalid={currenciesMissing}
+                    options={currencyOptions.available}
+                    value={currencies}
+                    onChange={changeCurrencies}
+                    loading={dictionaryStatus === 'loading'}
+                    loadingMessage={t('identity.dictionary.loading')}
+                    placeholder={t('identity.currencies.placeholder')}
+                    emptyMessage={
+                      currencyOptions.available.length === 0
+                        ? t('identity.dictionary.empty')
+                        : t('identity.currencies.noMatches')
+                    }
+                  />
+                  {currenciesMissing && (
+                    <FieldError id="sc-currencies-error">{t('identity.currencies.required')}</FieldError>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="sc-default-curr">{t('identity.defaultCurrency.label')}</Label>
+                  <Combobox
+                    id="sc-default-curr"
+                    ariaDescribedBy={describedBy(defaultCurrencyMissing && 'sc-default-curr-error')}
+                    invalid={defaultCurrencyMissing}
+                    options={currencyOptions.selected}
+                    value={defaultCurrency === '' ? null : defaultCurrency}
+                    onChange={(next) => setDefaultCurrency(next ?? '')}
+                    clearable={false}
+                    disabled={currenciesMissing}
+                    placeholder={t('identity.pickOption')}
+                    emptyMessage={t('identity.currencies.noMatches')}
+                  />
+                  {defaultCurrencyMissing && (
+                    <FieldError id="sc-default-curr-error">
+                      {t('identity.defaultCurrency.required')}
+                    </FieldError>
+                  )}
+                </div>
+              </div>
+            </EditorSection>
 
-              The link answers the question operators bring to this control and
-              it does not answer: whether anonymous visitors see prices. That is
-              the display-mode chain's `pricing.unauthenticated_display_mode`, per
-              channel — the channel's own public flag that once said it is retired
-              (issue #492) — so the link names it and goes to where it is set. It
-              was a paragraph plus a link; the link alone carries it (#1482).
-            */}
-            <div className="grid gap-1">
+            <EditorSection title={t('identity.section.storefront')} contentClassName="grid gap-4">
               <div className="flex items-center gap-2">
                 <Checkbox
-                  id="sc-anonymous-access"
-                  checked={anonymousAccess}
-                  onChange={(e) => setAnonymousAccess(e.target.checked)}
-                  aria-describedby="sc-anonymous-access-hint sc-anonymous-access-prices-hint"
+                  id="sc-active"
+                  checked={active}
+                  onChange={(e) => setActive(e.target.checked)}
+                  disabled={initial?.systemDefault === true}
                 />
-                <Label htmlFor="sc-anonymous-access" className="cursor-pointer">
-                  {t('identity.anonymousAccess.label')}
+                <Label htmlFor="sc-active" className="cursor-pointer">
+                  {t('identity.active')}
                 </Label>
+                {initial?.systemDefault && (
+                  <span className="text-xs text-muted-foreground">
+                    {t('identity.cannotDeactivateDefault')}
+                  </span>
+                )}
               </div>
-              <p id="sc-anonymous-access-hint" className="text-xs text-muted-foreground">
-                {t('identity.anonymousAccess.hint')}
-              </p>
-              <p id="sc-anonymous-access-prices-hint" className="text-xs text-muted-foreground">
-                <Link to="/price-lists/display-modes" className="underline underline-offset-2">
-                  {t('identity.anonymousAccess.pricesLink')}
-                </Link>
-              </p>
-            </div>
 
-            {/* Feature 167 (US3) — whether the default language carries its path
-                prefix in storefront URLs. The derived prefix of every channel
-                language is listed under it, recomputed as the languages change, with
-                the warning that both the list and the switch move the URLs. */}
-            <div className="grid gap-1">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="sc-prefix-default-language"
-                  checked={prefixDefaultLanguage}
-                  disabled={readOnly}
-                  onChange={(e) => setPrefixDefaultLanguage(e.target.checked)}
-                  aria-describedby="sc-prefix-default-language-hint sc-prefix-default-language-warning"
-                />
-                <Label htmlFor="sc-prefix-default-language" className="cursor-pointer">
-                  {t('identity.prefixDefaultLanguage.label')}
-                </Label>
+              {/*
+                Feature 154 — the second presence fact about a channel, placed under
+                *Active* because it answers the neighbouring question: who may use
+                this store. A checkbox rather than a switch because that is what
+                *Active* above is, and admin-kit carries no switch primitive; two
+                on/off facts of one channel reading differently would be the
+                inconsistency. Unlike *Active* it stays editable on the system
+                default, which may well be a members-only store.
+
+                The hint is the operator's only warning of the consequences, so it
+                is attached to the control rather than left beside it.
+
+                The link answers the question operators bring to this control and
+                it does not answer: whether anonymous visitors see prices. That is
+                the display-mode chain's `pricing.unauthenticated_display_mode`, per
+                channel — the channel's own public flag that once said it is retired
+                (issue #492) — so the link names it and goes to where it is set. It
+                was a paragraph plus a link; the link alone carries it (#1482).
+              */}
+              <div className="grid gap-1">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="sc-anonymous-access"
+                    checked={anonymousAccess}
+                    onChange={(e) => setAnonymousAccess(e.target.checked)}
+                    aria-describedby="sc-anonymous-access-hint sc-anonymous-access-prices-hint"
+                  />
+                  <Label htmlFor="sc-anonymous-access" className="cursor-pointer">
+                    {t('identity.anonymousAccess.label')}
+                  </Label>
+                </div>
+                <p id="sc-anonymous-access-hint" className="text-xs text-muted-foreground">
+                  {t('identity.anonymousAccess.hint')}
+                </p>
+                <p id="sc-anonymous-access-prices-hint" className="text-xs text-muted-foreground">
+                  <Link to="/price-lists/display-modes" className="underline underline-offset-2">
+                    {t('identity.anonymousAccess.pricesLink')}
+                  </Link>
+                </p>
               </div>
-              <p id="sc-prefix-default-language-hint" className="text-xs text-muted-foreground">
-                {t('identity.prefixDefaultLanguage.hint')}
-              </p>
-              {urlLanguages.length > 0 && (
-                <>
-                  <p id="sc-prefix-default-language-prefixes" className="text-xs font-medium">
-                    {t('identity.prefixDefaultLanguage.prefixesHeading')}
-                  </p>
-                  <ul aria-labelledby="sc-prefix-default-language-prefixes" className="grid gap-0.5 text-xs font-mono">
-                    {urlLanguages.map((l) => (
-                      <li key={l.languageCode}>{`${l.languageCode} → /${l.prefixed ? l.prefix : ''}`}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              <p id="sc-prefix-default-language-warning" className="text-xs text-muted-foreground">
-                {t('identity.prefixDefaultLanguage.urlChangeWarning')}
-              </p>
-            </div>
+
+              {/* Feature 167 (US3) — whether the default language carries its path
+                  prefix in storefront URLs. The derived prefix of every channel
+                  language is listed under it, recomputed as the languages change, and
+                  the warning that the URLs move appears once they would (#1552). */}
+              <div className="grid gap-1">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="sc-prefix-default-language"
+                    checked={prefixDefaultLanguage}
+                    disabled={readOnly}
+                    onChange={(e) => setPrefixDefaultLanguage(e.target.checked)}
+                    aria-describedby={describedBy(
+                      'sc-prefix-default-language-hint',
+                      urlsChange && 'sc-prefix-default-language-warning',
+                    )}
+                  />
+                  <Label htmlFor="sc-prefix-default-language" className="cursor-pointer">
+                    {t('identity.prefixDefaultLanguage.label')}
+                  </Label>
+                </div>
+                <p id="sc-prefix-default-language-hint" className="text-xs text-muted-foreground">
+                  {t('identity.prefixDefaultLanguage.hint')}
+                </p>
+                {urlLanguages.length > 0 && (
+                  <>
+                    <p id="sc-prefix-default-language-prefixes" className="text-xs font-medium">
+                      {t('identity.prefixDefaultLanguage.prefixesHeading')}
+                    </p>
+                    <ul aria-labelledby="sc-prefix-default-language-prefixes" className="grid gap-0.5 text-xs font-mono">
+                      {urlLanguages.map((l) => (
+                        <li key={l.languageCode}>{`${l.languageCode} → /${l.prefixed ? l.prefix : ''}`}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {/* Always mounted, so the warning is announced when a change in another
+                    control (the languages picker) makes it appear. */}
+                <div role="status">
+                  {urlsChange && (
+                    <p id="sc-prefix-default-language-warning" className="text-xs font-medium">
+                      {t('identity.prefixDefaultLanguage.urlChangeWarning')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </EditorSection>
           </form>
         </CardContent>
       </Card>
@@ -725,6 +747,24 @@ function buildOptions(
     ],
     selected: selected.map(toOption),
   };
+}
+
+/**
+ * The storefront URLs a language set derives, order-free: reordering the channel's languages
+ * moves no address, so it is no URL change. A set the derivation refuses (a case-insensitive
+ * duplicate) has no URLs, which differs from any stored channel's.
+ */
+function urlSignature(
+  value: Pick<SalesChannelDetail, 'languages' | 'defaultLanguage' | 'prefixDefaultLanguage'>,
+): string {
+  try {
+    return channelUrlLanguages(value)
+      .map((l) => `${l.languageCode}=/${l.prefixed ? l.prefix : ''}`)
+      .sort()
+      .join(' ');
+  } catch {
+    return '';
+  }
 }
 
 /** `aria-describedby` from whichever of its parts currently exist. */

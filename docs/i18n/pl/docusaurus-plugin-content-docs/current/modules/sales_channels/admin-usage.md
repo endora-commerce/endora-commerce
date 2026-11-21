@@ -44,7 +44,9 @@ automatycznie dostaje kanał `default`).
 ## Edycja istniejącego kanału
 
 1. Kliknij `code` kanału na liście.
-2. Strona edycji wczytuje dane kanału. Wprowadź zmiany i kliknij **Zapisz**. Przycisk pokazuje, ile
+2. Strona edycji wczytuje kanał w jednej karcie z trzema sekcjami — **Tożsamość**, **Języki i waluty**
+   oraz **Sklep** — a pod nią sekcje dodane przez inne moduły. Wprowadź zmiany i kliknij **Zapisz**
+   na pasku u dołu strony, który pozostaje widoczny podczas przewijania. Przycisk pokazuje, ile
    zmian czeka („Zapisz 2 zmiany”), i nic nie robi, gdy nie ma nic do zapisania.
 3. Jeśli inny administrator zmienił ten sam kanał między wczytaniem strony a zapisem, zapis zwróci
    baner konfliktu 412 z bieżącą wersją. Odśwież stronę, aby pobrać aktualny stan, i ponownie
@@ -121,6 +123,8 @@ Na ekranie edycji kanału przełącznik **Prefiks języka domyślnego w adresach
 czy język domyślny kanału ma prefiks w adresach sklepu (`/pl/p/wiertarka`), czy nie
 (`/p/wiertarka`). Pozostałe języki kanału zawsze mają prefiks (`/en/p/drill`). Pod
 przełącznikiem ekran pokazuje prefiks każdego języka kanału, przeliczany przy zmianie języków.
+Gdy zmiana języków lub przełącznika przesunęłaby adresy sklepu, pod listą pojawia się
+ostrzeżenie; znika, jeśli przywrócisz poprzednią wartość.
 
 - Nowe kanały startują z przełącznikiem **włączonym**. Kanały istniejące przed aktualizacją,
   która wprowadziła przełącznik, startują z **wyłączonym**, więc ich adresy się nie zmieniły.
