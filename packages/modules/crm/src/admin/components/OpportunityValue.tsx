@@ -6,7 +6,7 @@ import type {
   OpportunityExcludedDocument,
   OpportunityValueMode,
 } from '@endora-commerce/contracts';
-import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Input } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
@@ -14,6 +14,9 @@ import { errorMessage, moneyLabel, normaliseAmount } from '../lib/labels.js';
 import { useOpportunityUpdate } from '../lib/use-opportunity-update.js';
 import { InlineEdit } from './InlineEdit.js';
 import { useReturnHere } from '../lib/return-here.js';
+
+/** The workflow screen's section that says which statuses count (issue #1561). */
+const VALUE_COUNTING_LINK = '/crm/workflow#value-counting';
 
 /** The reasons a counting document is left out that this screen has a sentence for. */
 const KNOWN_REASONS: ReadonlySet<string> = new Set(['currency_mismatch']);
@@ -30,7 +33,9 @@ export interface OpportunityValueProps {
  * The value of an Opportunity and where it comes from (User Story 8,
  * FR-030 – FR-033): the figure, whether it is typed in or computed from the
  * linked documents, and — for a computed one — the documents that would count
- * but were left out, each with the reason.
+ * but were left out, each with the reason. Where the figure comes from is one
+ * line; which statuses count is configured on the workflow screen, and the
+ * line links there for whoever may change it.
  *
  * **Switching the mode is one press and loses nothing.** The typed estimate is
  * kept while the value is computed, shown beside it, and is back the moment the
@@ -50,6 +55,8 @@ export function OpportunityValue(props: OpportunityValueProps): ReactNode {
   const returnHere = useReturnHere();
   const { opportunity, canWrite, onChange, reload } = props;
   const t = useTranslation('crm');
+  // Which statuses count is `crm:configure`'s to change: only its holder is sent there.
+  const canConfigure = useAuth().hasPermission('crm:configure');
   const headingId = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,7 +203,22 @@ export function OpportunityValue(props: OpportunityValueProps): ReactNode {
         </Alert>
       ) : null}
 
-      {computed ? <p className="max-w-prose text-xs text-muted-foreground">{t('value.hint.computed')}</p> : null}
+      {computed ? (
+        <p className="text-xs text-muted-foreground">
+          {t('value.hint.computed')}
+          {canConfigure ? (
+            <>
+              {' '}
+              <Link
+                to={VALUE_COUNTING_LINK}
+                className="text-primary underline underline-offset-4 hover:no-underline"
+              >
+                {t('value.hint.configure')}
+              </Link>
+            </>
+          ) : null}
+        </p>
+      ) : null}
 
       {computed && opportunity.manualValue !== null ? (
         <p className="text-sm text-muted-foreground">

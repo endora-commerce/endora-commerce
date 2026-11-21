@@ -77,6 +77,14 @@ async function renderPage(): Promise<void> {
   await screen.findByRole('button', { name: en('workflow.status.add') });
 }
 
+describe('WorkflowConfigPage — the counting statuses section (issue #1561)', () => {
+  it('is under the anchor the opportunity`s value links to', async () => {
+    await renderPage();
+    const heading = screen.getByText(en('value.counting.title'));
+    expect(heading.closest('#value-counting')).not.toBeNull();
+  });
+});
+
 describe('WorkflowConfigPage — the Board card section (User Story 19)', () => {
   it('is on the screen, under the anchor the board links to', async () => {
     await renderPage();
