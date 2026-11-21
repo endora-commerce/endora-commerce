@@ -72,7 +72,7 @@ export class NewsletterSubscriberAdminService {
     const em = this.emFactory();
     const where = await this.buildWhere(em, query);
     const [rows, total] = await em.findAndCount(NewsletterSubscriber, where, {
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc', id: 'desc' },
       limit: query.pageSize,
       offset: (query.page - 1) * query.pageSize,
     });
