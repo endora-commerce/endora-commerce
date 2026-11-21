@@ -13,8 +13,8 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  FormField,
   Input,
-  Label,
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
 import { OrganizationPicker } from '@endora-commerce/admin-kit/components';
@@ -86,7 +86,8 @@ export default function WebhookCreatePage(): ReactNode {
           <CardContent>
             {created.secret ? (
               <>
-                <p className="text-xs text-muted-foreground">{created.name}</p>
+                <p className="text-sm text-muted-foreground">{t('webhooks.revealed.body')}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{created.name}</p>
                 <div className="mt-2 flex items-center gap-2">
                   <Input
                     readOnly
@@ -133,6 +134,23 @@ export default function WebhookCreatePage(): ReactNode {
   );
 }
 
+/**
+ * Which organizations a subscription hears about (issue #1551, UX audit
+ * SHELL-15) — a choice rather than an optional picker under a paragraph about
+ * what leaving it empty means. All organizations is the default, and the
+ * subscription the contract stores with `organizationId: null`.
+ */
+type WebhookScope = 'all' | 'organization';
+
+const WEBHOOK_SCOPES = [
+  { scope: 'all', labelKey: 'webhooks.create.scope.all.label', hintKey: 'webhooks.create.scope.all.hint' },
+  {
+    scope: 'organization',
+    labelKey: 'webhooks.create.scope.organization.label',
+    hintKey: 'webhooks.create.scope.organization.hint',
+  },
+] as const satisfies ReadonlyArray<{ scope: WebhookScope; labelKey: string; hintKey: string }>;
+
 function CreateWebhookForm(props: {
   onSubmit: (input: CreateWebhookInput) => Promise<void>;
   /**
@@ -146,6 +164,7 @@ function CreateWebhookForm(props: {
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [events, setEvents] = useState<Set<string>>(new Set());
+  const [scope, setScope] = useState<WebhookScope>('all');
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -158,21 +177,25 @@ function CreateWebhookForm(props: {
     });
   };
 
+  const boundOrganizationId = scope === 'organization' ? organizationId : null;
+  const canSubmit =
+    !submitting &&
+    name.trim() !== '' &&
+    url.trim() !== '' &&
+    events.size > 0 &&
+    (scope === 'all' || boundOrganizationId !== null);
+
   const onSubmit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
-    if (!name.trim() || !url.trim() || events.size === 0) return;
+    if (!canSubmit) return;
     setSubmitting(true);
     try {
       await props.onSubmit({
         name: name.trim(),
         url: url.trim(),
         eventTypes: Array.from(events),
-        organizationId,
+        organizationId: boundOrganizationId,
       });
-      setName('');
-      setUrl('');
-      setEvents(new Set());
-      setOrganizationId(null);
     } catch {
       /* surfaced by the page's error alert; the form keeps what was typed */
     } finally {
@@ -188,8 +211,7 @@ function CreateWebhookForm(props: {
       }}
     >
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="webhook-name">{t('webhooks.create.nameLabel')}</Label>
+        <FormField label={t('webhooks.create.nameLabel')} required>
           <Input
             id="webhook-name"
             value={name}
@@ -197,9 +219,8 @@ function CreateWebhookForm(props: {
             placeholder={t('webhooks.create.namePlaceholder')}
             required
           />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="webhook-url">{t('webhooks.create.urlLabel')}</Label>
+        </FormField>
+        <FormField label={t('webhooks.create.urlLabel')} required>
           <Input
             id="webhook-url"
             type="url"
@@ -208,41 +229,66 @@ function CreateWebhookForm(props: {
             placeholder={t('webhooks.create.urlPlaceholder')}
             required
           />
+        </FormField>
+      </div>
+
+      <fieldset className="space-y-2">
+        <legend className="mb-1.5 text-sm font-medium">{t('webhooks.create.scope.label')}</legend>
+        <div className="grid gap-2 md:grid-cols-2">
+          {WEBHOOK_SCOPES.map((option) => (
+            <label
+              key={option.scope}
+              className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border p-3 has-[:checked]:border-primary"
+            >
+              <input
+                type="radio"
+                name="webhook-scope"
+                value={option.scope}
+                checked={scope === option.scope}
+                onChange={(): void => setScope(option.scope)}
+                className="mt-0.5 h-4 w-4 accent-primary"
+              />
+              <span className="space-y-0.5">
+                <span className="block text-sm font-medium">{t(option.labelKey)}</span>
+                <span className="block text-xs text-muted-foreground">{t(option.hintKey)}</span>
+              </span>
+            </label>
+          ))}
         </div>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="webhook-organization">{t('webhooks.create.organizationLabel')}</Label>
-        <OrganizationPicker
-          id="webhook-organization"
-          value={organizationId}
-          onChange={setOrganizationId}
-          ariaLabel={t('webhooks.create.organizationLabel')}
-        />
-        <p className="text-xs text-muted-foreground">{t('webhooks.create.organizationHelp')}</p>
-      </div>
-      <div className="space-y-2">
-        <Label>{t('webhooks.create.eventsLabel')}</Label>
-        <div className="flex flex-wrap gap-3">
+      </fieldset>
+
+      {scope === 'organization' ? (
+        <FormField label={t('webhooks.create.organizationLabel')} className="md:max-w-md" required>
+          {(control): ReactNode => (
+            <OrganizationPicker
+              id={control.id}
+              value={organizationId}
+              onChange={setOrganizationId}
+              ariaLabel={t('webhooks.create.organizationLabel')}
+            />
+          )}
+        </FormField>
+      ) : null}
+
+      <FormField label={t('webhooks.create.eventsLabel')} group required>
+        <div className="flex flex-wrap gap-2">
           {offeredEventTypes.map((event) => (
             <label
               key={event}
-              className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-xs"
+              className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-xs"
             >
               <Checkbox checked={events.has(event)} onChange={(): void => toggle(event)} />
               <code className="font-mono">{event}</code>
             </label>
           ))}
         </div>
-      </div>
+      </FormField>
+
       <div className="flex flex-wrap justify-end gap-2">
         <Button asChild variant="outline">
           <Link to={WEBHOOKS_PATH}>{t('common.action.cancel')}</Link>
         </Button>
-        <Button
-          type="submit"
-          disabled={submitting || !name.trim() || !url.trim() || events.size === 0}
-          aria-busy={submitting}
-        >
+        <Button type="submit" disabled={!canSubmit} aria-busy={submitting}>
           {submitting ? t('webhooks.create.submitting') : t('webhooks.create.submit')}
         </Button>
       </div>

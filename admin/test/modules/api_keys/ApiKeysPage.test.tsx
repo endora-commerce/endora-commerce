@@ -8,7 +8,10 @@ import { installOffsetParentShim } from '../../helpers/layout-shim';
 
 /**
  * Feature 062 (T031) — Admin API-keys page: typed scope catalog, distributor
- * binding section, expiry, and the binding/expiry list columns.
+ * binding section, expiry, and the binding/expiry list columns. Since issue
+ * #1551 (UX audit SHELL-15) the binding is a choice of key kind — *Platform* or
+ * *Organization* — and each kind offers only the scopes it may hold, so the
+ * B1, B2 and all-or-none rules have no error path left on the form.
  *
  * The empty i18n bundle makes `t()` resolve to the `core.<key>` placeholder,
  * so assertions query by key rather than locale copy. Pickers and the API
@@ -176,79 +179,112 @@ beforeEach(() => {
   });
 });
 
-describe('ApiKeysPage — typed scope catalog (T031)', () => {
-  it('renders exactly the contract scope enum, without integrations:manage', async () => {
+/** The scopes the form currently offers, in the order it offers them. */
+function offeredScopes(): string[] {
+  return Array.from(document.querySelectorAll('form code')).map((node) => node.textContent ?? '');
+}
+
+describe('ApiKeysPage — the key kind is a choice, not a paragraph (issue #1551, SHELL-15)', () => {
+  it('starts on a platform key, offering only the scopes a platform key may hold', async () => {
     renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
-    for (const scope of ['catalog:read', 'catalog:write', 'orders:read', 'orders:write']) {
-      expect(screen.getByText(scope)).toBeInTheDocument();
-    }
+    expect(screen.getByRole('radio', { name: /core\.apiKeys\.create\.kind\.platform\.label/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /core\.apiKeys\.create\.kind\.organization\.label/ })).not.toBeChecked();
+    expect(offeredScopes()).toEqual(['catalog:read', 'catalog:write', 'platform.api_description.read']);
     expect(screen.queryByText('integrations:manage')).not.toBeInTheDocument();
-    // The two-key-modes helper text is present.
-    expect(screen.getByText('core.apiKeys.create.modesHelp')).toBeInTheDocument();
+    // No binding pickers on a platform key, and no prose explaining the model.
+    expect(screen.queryByLabelText('mock-org-picker')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('mock-customer-picker')).not.toBeInTheDocument();
+    expect(screen.queryByText('core.apiKeys.create.modesHelp')).not.toBeInTheDocument();
+    expect(screen.queryByText('core.apiKeys.create.bindingHelp')).not.toBeInTheDocument();
   });
-});
 
-describe('ApiKeysPage — binding validation mirrors (B1–B5)', () => {
-  it('B1: an orders scope requires a complete binding before submit', async () => {
+  it('an organization key shows the binding trio and offers the order scopes instead of catalog:write', async () => {
     const user = userEvent.setup();
     renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
-    await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'Distributor');
+    await user.click(screen.getByRole('radio', { name: /core\.apiKeys\.create\.kind\.organization\.label/ }));
+
+    expect(offeredScopes()).toEqual([
+      'catalog:read',
+      'orders:read',
+      'orders:write',
+      'platform.api_description.read',
+    ]);
+    expect(screen.getByLabelText('mock-org-picker')).toBeInTheDocument();
+    expect(screen.getByLabelText('mock-channel-picker')).toBeInTheDocument();
+    expect(screen.getByLabelText('mock-customer-picker')).toBeDisabled();
+  });
+
+  it('switching the kind drops a selected scope the new kind cannot hold', async () => {
+    postSpy.mockResolvedValue({ data: { apiKey: unboundKey(), bearerToken: 'sk_live_unbound' } });
+    const user = userEvent.setup();
+    renderAt('/api-keys/new');
+    await screen.findByText('core.apiKeys.create.title');
+
+    await user.type(screen.getByLabelText(/core\.apiKeys\.create\.nameLabel/), 'PIM sync');
+    await user.click(screen.getByRole('checkbox', { name: 'catalog:write' }));
+    await user.click(screen.getByRole('checkbox', { name: 'catalog:read' }));
+    await user.click(screen.getByRole('radio', { name: /core\.apiKeys\.create\.kind\.organization\.label/ }));
+    await user.click(screen.getByRole('checkbox', { name: 'orders:read' }));
+    await user.click(screen.getByRole('radio', { name: /core\.apiKeys\.create\.kind\.platform\.label/ }));
+
+    expect(screen.getByRole('checkbox', { name: 'catalog:read' })).toBeChecked();
+    // catalog:write was dropped on the way through the organization kind.
+    expect(screen.getByRole('checkbox', { name: 'catalog:write' })).not.toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'core.apiKeys.create.submit' }));
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    const [, body] = postSpy.mock.calls[0] as [string, Record<string, unknown>];
+    expect(body).toEqual({ name: 'PIM sync', scopes: ['catalog:read'] });
+  });
+
+  it('an organization key cannot be created until organization, channel and service account are chosen — without an error restating the rule', async () => {
+    const user = userEvent.setup();
+    renderAt('/api-keys/new');
+    await screen.findByText('core.apiKeys.create.title');
+
+    await user.type(screen.getByLabelText(/core\.apiKeys\.create\.nameLabel/), 'Distributor');
+    await user.click(screen.getByRole('radio', { name: /core\.apiKeys\.create\.kind\.organization\.label/ }));
     await user.click(screen.getByRole('checkbox', { name: 'orders:write' }));
-
-    expect(screen.getByText('core.apiKeys.validation.bindingRequiredForOrders')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'core.apiKeys.create.submit' })).toBeDisabled();
-
     await user.type(screen.getByLabelText('mock-org-picker'), ORG_ID);
+
+    const submit = screen.getByRole('button', { name: 'core.apiKeys.create.submit' });
+    expect(submit).toBeDisabled();
+    for (const key of ['bindingIncomplete', 'bindingRequiredForOrders', 'catalogWriteBound']) {
+      expect(screen.queryByText(`core.apiKeys.validation.${key}`)).not.toBeInTheDocument();
+    }
+
     await user.type(screen.getByLabelText('mock-channel-picker'), CHANNEL_ID);
     await user.type(screen.getByLabelText('mock-customer-picker'), ACCOUNT_ID);
-
-    expect(
-      screen.queryByText('core.apiKeys.validation.bindingRequiredForOrders'),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'core.apiKeys.create.submit' })).toBeEnabled();
+    expect(submit).toBeEnabled();
   });
 
-  it('B2: catalog:write is refused on a bound key', async () => {
+  it('a new organization clears the chosen service account (B3 by construction)', async () => {
     const user = userEvent.setup();
     renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
-
-    await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'Bad combo');
-    await user.click(screen.getByRole('checkbox', { name: 'catalog:write' }));
+    await user.click(screen.getByRole('radio', { name: /core\.apiKeys\.create\.kind\.organization\.label/ }));
     await user.type(screen.getByLabelText('mock-org-picker'), ORG_ID);
-
-    expect(screen.getByText('core.apiKeys.validation.catalogWriteBound')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'core.apiKeys.create.submit' })).toBeDisabled();
+    await user.type(screen.getByLabelText('mock-customer-picker'), ACCOUNT_ID);
+    await user.type(screen.getByLabelText('mock-org-picker'), '2');
+    expect(screen.getByLabelText('mock-customer-picker')).toHaveValue('');
   });
 
-  it('partial binding (all-or-none) blocks submit', async () => {
+  it('B5: a past expiry is refused on the field itself', async () => {
     const user = userEvent.setup();
     renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
-    await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'Partial');
-    await user.click(screen.getByRole('checkbox', { name: 'catalog:read' }));
-    await user.type(screen.getByLabelText('mock-org-picker'), ORG_ID);
-
-    expect(screen.getByText('core.apiKeys.validation.bindingIncomplete')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'core.apiKeys.create.submit' })).toBeDisabled();
-  });
-
-  it('B5: a past expiry is refused inline', async () => {
-    const user = userEvent.setup();
-    renderAt('/api-keys/new');
-    await screen.findByText('core.apiKeys.create.title');
-
-    await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'Expired');
+    await user.type(screen.getByLabelText(/core\.apiKeys\.create\.nameLabel/), 'Expired');
     await user.click(screen.getByRole('checkbox', { name: 'catalog:read' }));
     const expiry = screen.getByLabelText('core.apiKeys.create.expiresLabel');
+    expect(expiry).toHaveAccessibleDescription('core.apiKeys.create.expires.hint');
     await user.type(expiry, '2020-01-01T00:00');
 
-    expect(screen.getByText('core.apiKeys.validation.expiryFuture')).toBeInTheDocument();
+    expect(expiry).toHaveAttribute('aria-invalid', 'true');
+    expect(expiry).toHaveAccessibleDescription(/core\.apiKeys\.validation\.expiryFuture/);
     expect(screen.getByRole('button', { name: 'core.apiKeys.create.submit' })).toBeDisabled();
   });
 });
@@ -262,10 +298,11 @@ describe('ApiKeysPage — create payload + service-account org filter (B3)', () 
     renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
+    await user.click(screen.getByRole('radio', { name: /core\.apiKeys\.create\.kind\.organization\.label/ }));
     // Service-account picker is disabled until an organization is chosen.
     expect(screen.getByLabelText('mock-customer-picker')).toBeDisabled();
 
-    await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'Distributor ACME');
+    await user.type(screen.getByLabelText(/core\.apiKeys\.create\.nameLabel/), 'Distributor ACME');
     await user.click(screen.getByRole('checkbox', { name: 'catalog:read' }));
     await user.click(screen.getByRole('checkbox', { name: 'orders:write' }));
     await user.type(screen.getByLabelText('mock-org-picker'), ORG_ID);
@@ -299,7 +336,7 @@ describe('ApiKeysPage — create payload + service-account org filter (B3)', () 
 
     // Token revealed once, on the create page, in place of the form.
     expect(await screen.findByDisplayValue('sk_live_test_token')).toBeInTheDocument();
-    expect(screen.queryByLabelText('core.apiKeys.create.nameLabel')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/core\.apiKeys\.create\.nameLabel/)).not.toBeInTheDocument();
 
     // Done goes back to the list; the token is not carried there.
     await user.click(screen.getByRole('link', { name: 'core.apiKeys.revealed.confirm' }));
@@ -313,12 +350,12 @@ describe('ApiKeysPage — create payload + service-account org filter (B3)', () 
     const user = userEvent.setup();
     renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
-    await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'PIM sync');
+    await user.type(screen.getByLabelText(/core\.apiKeys\.create\.nameLabel/), 'PIM sync');
     await user.click(screen.getByRole('checkbox', { name: 'catalog:write' }));
     await user.click(screen.getByRole('button', { name: 'core.apiKeys.create.submit' }));
     // The mock ApiError carries 'mock' as its message.
     expect(await screen.findByText('mock')).toBeInTheDocument();
-    expect(screen.getByLabelText('core.apiKeys.create.nameLabel')).toHaveValue('PIM sync');
+    expect(screen.getByLabelText(/core\.apiKeys\.create\.nameLabel/)).toHaveValue('PIM sync');
   });
 
   it('creates a legacy unbound key without binding or expiry fields', async () => {
@@ -329,7 +366,7 @@ describe('ApiKeysPage — create payload + service-account org filter (B3)', () 
     renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
-    await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'PIM sync');
+    await user.type(screen.getByLabelText(/core\.apiKeys\.create\.nameLabel/), 'PIM sync');
     await user.click(screen.getByRole('checkbox', { name: 'catalog:write' }));
     await user.click(screen.getByRole('button', { name: 'core.apiKeys.create.submit' }));
 
@@ -367,7 +404,7 @@ describe('ApiKeysPage — the list comes first (issue #1501, SHELL-14)', () => {
     renderAt('/api-keys');
     const create = await screen.findByRole('link', { name: 'core.apiKeys.create.action' });
     expect(create).toHaveAttribute('href', '/api-keys/new');
-    expect(screen.queryByLabelText('core.apiKeys.create.nameLabel')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/core\.apiKeys\.create\.nameLabel/)).not.toBeInTheDocument();
   });
 
   it('revokes a key from the row menu only after the confirmation', async () => {

@@ -1,11 +1,7 @@
-import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useState, type FormEvent, type ReactNode } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import {
-  apiKeyScopeSchema,
-  type ApiKeyBinding,
-  type CreateApiKeyResponse,
-} from '@endora-commerce/contracts';
+import type { ApiKeyBinding, CreateApiKeyResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
@@ -17,8 +13,8 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  FormField,
   Input,
-  Label,
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
 import {
@@ -26,12 +22,27 @@ import {
   OrganizationPicker,
   SalesChannelPicker,
 } from '@endora-commerce/admin-kit/components';
+import { scopesForKeyKind, type ApiKeyKind } from '../key-kind.js';
 import { API_KEYS_PATH } from '../paths.js';
 
-// Feature 062 — the scope catalog is the typed contract enum (research §R3);
-// `integrations:manage` is an admin permission, not an api-key scope.
-const KNOWN_SCOPES: readonly string[] = apiKeyScopeSchema.options;
-const ORDERS_SCOPES: ReadonlySet<string> = new Set(['orders:read', 'orders:write']);
+/**
+ * The key kinds, platform first — the default, and the kind a key without a
+ * binding always was. The scope catalog behind each is the typed contract enum
+ * (feature 062, research §R3); `integrations:manage` is an admin permission,
+ * not an api-key scope.
+ */
+const API_KEY_KINDS = [
+  {
+    kind: 'platform',
+    labelKey: 'apiKeys.create.kind.platform.label',
+    hintKey: 'apiKeys.create.kind.platform.hint',
+  },
+  {
+    kind: 'organization',
+    labelKey: 'apiKeys.create.kind.organization.label',
+    hintKey: 'apiKeys.create.kind.organization.hint',
+  },
+] as const satisfies ReadonlyArray<{ kind: ApiKeyKind; labelKey: string; hintKey: string }>;
 
 interface CreateApiKeyEnvelope {
   data: CreateApiKeyResponse;
@@ -54,6 +65,11 @@ interface CreateKeyInput {
  * way out, back to the list. The token is held in this page's state only and
  * is not carried to the list in router state, which would keep it in the
  * browser's session history.
+ *
+ * The form opens on a choice of key kind (issue #1551, UX audit SHELL-15):
+ * *Platform key* or *Organization key*. The binding trio appears only for the
+ * second, and each kind offers only the scopes it may hold, so the rules the
+ * form used to explain in three paragraphs and three errors are what it offers.
  */
 export default function ApiKeyCreatePage(): ReactNode {
   const t = useTranslation('core');
@@ -143,12 +159,15 @@ function CreateKeyForm(props: {
 }): ReactNode {
   const t = useTranslation('core');
   const [name, setName] = useState('');
+  const [kind, setKind] = useState<ApiKeyKind>('platform');
   const [scopes, setScopes] = useState<Set<string>>(new Set());
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [salesChannelId, setSalesChannelId] = useState<string | null>(null);
   const [customerAccountId, setCustomerAccountId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const offeredScopes = scopesForKeyKind(kind);
 
   const toggle = (scope: string): void => {
     setScopes((prev) => {
@@ -159,6 +178,13 @@ function CreateKeyForm(props: {
     });
   };
 
+  const chooseKind = (next: ApiKeyKind): void => {
+    setKind(next);
+    // A scope the new kind cannot hold is dropped rather than refused (B1, B2).
+    const allowed = new Set<string>(scopesForKeyKind(next));
+    setScopes((prev) => new Set(Array.from(prev).filter((scope) => allowed.has(scope))));
+  };
+
   const handleOrganizationChange = (id: string | null): void => {
     setOrganizationId(id);
     // B3 by construction — the service account must belong to the chosen
@@ -166,36 +192,21 @@ function CreateKeyForm(props: {
     setCustomerAccountId(null);
   };
 
-  const hasOrdersScope = useMemo(
-    () => Array.from(scopes).some((s) => ORDERS_SCOPES.has(s)),
-    [scopes],
-  );
-  const bindingStarted =
-    organizationId !== null || salesChannelId !== null || customerAccountId !== null;
-  const bindingComplete =
-    organizationId !== null && salesChannelId !== null && customerAccountId !== null;
+  const binding: ApiKeyBinding | null =
+    kind === 'organization' && organizationId !== null && salesChannelId !== null && customerAccountId !== null
+      ? { organizationId, salesChannelId, customerAccountId }
+      : null;
 
-  // Inline mirrors of the server-side creation rules B1–B5
-  // (specs/062-distributor-api/contracts/api-key-binding.md §2).
-  const validationIssues = useMemo(() => {
-    const issues: string[] = [];
-    if (hasOrdersScope && !bindingComplete) {
-      issues.push(t('apiKeys.validation.bindingRequiredForOrders'));
-    }
-    if (bindingStarted && scopes.has('catalog:write')) {
-      issues.push(t('apiKeys.validation.catalogWriteBound'));
-    }
-    if (bindingStarted && !bindingComplete && !hasOrdersScope) {
-      issues.push(t('apiKeys.validation.bindingIncomplete'));
-    }
-    if (expiresAt !== '' && new Date(expiresAt).getTime() <= Date.now()) {
-      issues.push(t('apiKeys.validation.expiryFuture'));
-    }
-    return issues;
-  }, [hasOrdersScope, bindingStarted, bindingComplete, scopes, expiresAt, t]);
+  // B5's inline mirror — the one creation rule the form cannot absorb.
+  const expiryError =
+    expiresAt !== '' && new Date(expiresAt).getTime() <= Date.now() ? t('apiKeys.validation.expiryFuture') : undefined;
 
   const canSubmit =
-    name.trim().length > 0 && scopes.size > 0 && validationIssues.length === 0 && !submitting;
+    name.trim().length > 0 &&
+    scopes.size > 0 &&
+    (kind === 'platform' || binding !== null) &&
+    expiryError === undefined &&
+    !submitting;
 
   const onSubmit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
@@ -204,18 +215,10 @@ function CreateKeyForm(props: {
     try {
       await props.onSubmit({
         name: name.trim(),
-        scopes: Array.from(scopes),
-        ...(bindingComplete
-          ? { binding: { organizationId, salesChannelId, customerAccountId } }
-          : {}),
+        scopes: offeredScopes.filter((scope) => scopes.has(scope)),
+        ...(binding !== null ? { binding } : {}),
         ...(expiresAt !== '' ? { expiresAt: new Date(expiresAt).toISOString() } : {}),
       });
-      setName('');
-      setScopes(new Set());
-      setOrganizationId(null);
-      setSalesChannelId(null);
-      setCustomerAccountId(null);
-      setExpiresAt('');
     } catch {
       /* surfaced by the page-level error alert; keep the form state */
     } finally {
@@ -230,9 +233,7 @@ function CreateKeyForm(props: {
         void onSubmit(e);
       }}
     >
-      <p className="text-xs text-muted-foreground">{t('apiKeys.create.modesHelp')}</p>
-      <div className="space-y-2">
-        <Label htmlFor="api-key-name">{t('apiKeys.create.nameLabel')}</Label>
+      <FormField label={t('apiKeys.create.nameLabel')} required>
         <Input
           id="api-key-name"
           value={name}
@@ -240,73 +241,94 @@ function CreateKeyForm(props: {
           placeholder={t('apiKeys.create.namePlaceholder')}
           required
         />
-      </div>
-      <div className="space-y-2">
-        <Label>{t('apiKeys.create.scopesLabel')}</Label>
-        <div className="flex flex-wrap gap-3">
-          {KNOWN_SCOPES.map((scope) => (
+      </FormField>
+
+      <fieldset className="space-y-2">
+        <legend className="mb-1.5 text-sm font-medium">{t('apiKeys.create.kind.label')}</legend>
+        <div className="grid gap-2 md:grid-cols-2">
+          {API_KEY_KINDS.map((option) => (
+            <label
+              key={option.kind}
+              className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border p-3 has-[:checked]:border-primary"
+            >
+              <input
+                type="radio"
+                name="api-key-kind"
+                value={option.kind}
+                checked={kind === option.kind}
+                onChange={(): void => chooseKind(option.kind)}
+                className="mt-0.5 h-4 w-4 accent-primary"
+              />
+              <span className="space-y-0.5">
+                <span className="block text-sm font-medium">{t(option.labelKey)}</span>
+                <span className="block text-xs text-muted-foreground">{t(option.hintKey)}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      {kind === 'organization' ? (
+        <div className="grid gap-4 md:grid-cols-3">
+          <FormField label={t('apiKeys.create.organizationLabel')} required>
+            {(control): ReactNode => (
+              <OrganizationPicker
+                id={control.id}
+                value={organizationId}
+                onChange={handleOrganizationChange}
+                ariaLabel={t('apiKeys.create.organizationLabel')}
+              />
+            )}
+          </FormField>
+          <FormField label={t('apiKeys.create.salesChannelLabel')} required>
+            {(control): ReactNode => (
+              <SalesChannelPicker
+                id={control.id}
+                value={salesChannelId}
+                onChange={setSalesChannelId}
+                ariaLabel={t('apiKeys.create.salesChannelLabel')}
+              />
+            )}
+          </FormField>
+          <FormField
+            label={t('apiKeys.create.serviceAccountLabel')}
+            hint={t('apiKeys.create.serviceAccount.hint')}
+            required
+          >
+            {(control): ReactNode => (
+              <CustomerPicker
+                id={control.id}
+                value={customerAccountId}
+                onChange={setCustomerAccountId}
+                status="active"
+                {...(organizationId !== null ? { organizationId } : {})}
+                disabled={organizationId === null}
+                ariaLabel={t('apiKeys.create.serviceAccountLabel')}
+              />
+            )}
+          </FormField>
+        </div>
+      ) : null}
+
+      <FormField label={t('apiKeys.create.scopesLabel')} hint={t('apiKeys.create.scopes.hint')} group required>
+        <div className="flex flex-wrap gap-2">
+          {offeredScopes.map((scope) => (
             <label
               key={scope}
-              className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-xs"
+              className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-xs"
             >
               <Checkbox checked={scopes.has(scope)} onChange={(): void => toggle(scope)} />
               <code className="font-mono">{scope}</code>
             </label>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">{t('apiKeys.create.scopesHelp')}</p>
-      </div>
+      </FormField>
 
-      <div className="space-y-3 rounded-md border p-4">
-        <div>
-          <p className="text-sm font-medium">{t('apiKeys.create.bindingTitle')}</p>
-          <p className="text-xs text-muted-foreground">{t('apiKeys.create.bindingHelp')}</p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="space-y-2">
-            <Label htmlFor="api-key-organization">
-              {t('apiKeys.create.organizationLabel')}
-            </Label>
-            <OrganizationPicker
-              id="api-key-organization"
-              value={organizationId}
-              onChange={handleOrganizationChange}
-              ariaLabel={t('apiKeys.create.organizationLabel')}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="api-key-sales-channel">
-              {t('apiKeys.create.salesChannelLabel')}
-            </Label>
-            <SalesChannelPicker
-              id="api-key-sales-channel"
-              value={salesChannelId}
-              onChange={setSalesChannelId}
-              ariaLabel={t('apiKeys.create.salesChannelLabel')}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="api-key-service-account">
-              {t('apiKeys.create.serviceAccountLabel')}
-            </Label>
-            <CustomerPicker
-              id="api-key-service-account"
-              value={customerAccountId}
-              onChange={setCustomerAccountId}
-              status="active"
-              {...(organizationId !== null ? { organizationId } : {})}
-              disabled={organizationId === null}
-              ariaLabel={t('apiKeys.create.serviceAccountLabel')}
-            />
-            <p className="text-xs text-muted-foreground">
-              {t('apiKeys.create.serviceAccountHelp')}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="api-key-expires-at">{t('apiKeys.create.expiresLabel')}</Label>
+      <FormField
+        label={t('apiKeys.create.expiresLabel')}
+        hint={t('apiKeys.create.expires.hint')}
+        error={expiryError}
+      >
         <Input
           id="api-key-expires-at"
           type="datetime-local"
@@ -314,18 +336,7 @@ function CreateKeyForm(props: {
           value={expiresAt}
           onChange={(e): void => setExpiresAt(e.target.value)}
         />
-        <p className="text-xs text-muted-foreground">{t('apiKeys.create.expiresHelp')}</p>
-      </div>
-
-      {validationIssues.length > 0 ? (
-        <div className="space-y-1">
-          {validationIssues.map((issue) => (
-            <p key={issue} className="text-xs text-destructive">
-              {issue}
-            </p>
-          ))}
-        </div>
-      ) : null}
+      </FormField>
 
       <div className="flex flex-wrap justify-end gap-2">
         <Button asChild variant="outline">
