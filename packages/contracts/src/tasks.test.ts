@@ -170,6 +170,40 @@ describe('§1 GET /tasks/board — TaskBoardQuery', () => {
   });
 });
 
+describe('§1 GET /tasks/count — TaskCountQuery (spec 183)', () => {
+  it('takes every list filter, the Tasks tab\'s query among them', () => {
+    const parsed = tasks.TaskCountQuerySchema.parse({
+      linkedKind: 'opportunity',
+      linkedId: UUID_A,
+      statusCategory: 'open',
+    });
+    expect(parsed.statusCategory).toEqual(['open']);
+    accepts(tasks.TaskCountQuerySchema, {});
+    accepts(tasks.TaskCountQuerySchema, { assignee: ['me', 'none'], tagId: UUID_B, overdue: 'true', q: 'measure' });
+  });
+
+  it('refuses paging, sorting and card values', () => {
+    rejects(tasks.TaskCountQuerySchema, { limit: '10' });
+    rejects(tasks.TaskCountQuerySchema, { cursor: 'abc' });
+    rejects(tasks.TaskCountQuerySchema, { sort: 'title' });
+    rejects(tasks.TaskCountQuerySchema, { dir: 'asc' });
+    rejects(tasks.TaskCountQuerySchema, { cardValues: 'true' });
+  });
+
+  it('refuses a half-linked pair', () => {
+    rejects(tasks.TaskCountQuerySchema, { linkedKind: 'opportunity' });
+    rejects(tasks.TaskCountQuerySchema, { linkedId: UUID_A });
+  });
+
+  it('answers a non-negative integer count in a data envelope', () => {
+    accepts(tasks.TaskCountResponseSchema, { data: { count: 0 } });
+    accepts(tasks.TaskCountResponseSchema, { data: { count: 3 } });
+    rejects(tasks.TaskCountResponseSchema, { data: { count: -1 } });
+    rejects(tasks.TaskCountResponseSchema, { data: { count: 1.5 } });
+    rejects(tasks.TaskCountResponseSchema, { count: 3 });
+  });
+});
+
 describe('§1 POST /tasks — CreateTaskBody', () => {
   it('accepts a title alone, and every optional field', () => {
     accepts(tasks.CreateTaskBodySchema, { title: 'Measure the showroom' });
