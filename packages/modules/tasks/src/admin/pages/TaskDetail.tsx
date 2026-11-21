@@ -16,11 +16,11 @@ import {
   Button,
   Card,
   CardContent,
-  Checkbox,
   Input,
   Label,
   PageHeader,
   RecordTabs,
+  Switch,
 } from '@endora-commerce/admin-kit/ui';
 import {
   ConfirmDialog,
@@ -448,20 +448,26 @@ export function TaskDetail(): ReactNode {
               {/* Only its Creator says whether a Task is private, and a Task of a record never is (FR-038). */}
               {canWrite && mine && task.context === null && !editing ? (
                 <div className="space-y-1">
-                  <label htmlFor={privateId} className="flex min-h-11 items-center gap-2 text-sm font-medium sm:min-h-9">
-                    <Checkbox
+                  {/* Issue #1607 — the kit `Switch`. Blocked, it stays focusable and is described by
+                      why (`disabledReason`), which a natively disabled control would never let a
+                      keyboard user hear; the visible hint says the same thing. */}
+                  <div className="flex min-h-11 items-center gap-2 sm:min-h-9">
+                    <Switch
                       id={privateId}
-                      role="switch"
                       checked={task.private}
-                      disabled={busy || privateBlocked}
-                      aria-describedby={`${privateId}-hint`}
-                      onChange={(event): void =>
-                        void write({ private: event.target.checked }, () => t('detail.saved'))
-                      }
+                      disabled={busy}
+                      {...(privateBlocked
+                        ? { disabledReason: t('detail.privateBlocked') }
+                        : { 'aria-describedby': `${privateId}-hint` })}
+                      onCheckedChange={(next): void => void write({ private: next }, () => t('detail.saved'))}
                     />
-                    {t('detail.private')}
-                  </label>
-                  <p id={`${privateId}-hint`} className="text-xs text-muted-foreground">
+                    <Label htmlFor={privateId}>{t('detail.private')}</Label>
+                  </div>
+                  <p
+                    id={`${privateId}-hint`}
+                    className="text-xs text-muted-foreground"
+                    {...(privateBlocked ? { 'aria-hidden': true } : {})}
+                  >
                     {task.private
                       ? t('detail.privateOnHint')
                       : privateBlocked

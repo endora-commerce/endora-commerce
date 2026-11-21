@@ -147,7 +147,9 @@ describe('TaskCreate — drafts and private Tasks', () => {
     expect(screen.getByRole('combobox', { name: en('field.assignee') })).toBeTruthy();
     const privateSwitch = screen.getByRole('switch', { name: en('create.private') });
     await userEvent.click(privateSwitch);
-    expect((privateSwitch as HTMLInputElement).checked).toBe(true);
+    // The kit Switch (issue #1607): a button whose state is `aria-checked`.
+    expect(privateSwitch.tagName).toBe('BUTTON');
+    expect(privateSwitch).toHaveAttribute('aria-checked', 'true');
     // No picker of other people while it is on: only the caller, said so.
     expect(screen.queryByRole('combobox', { name: en('field.assignee') })).toBeNull();
     expect(screen.getByText(en('create.privateAssignee'))).toBeTruthy();
@@ -219,7 +221,7 @@ describe('TaskDetail — drafts and private Tasks', () => {
     const header = screen.getByRole('heading', { name: /Order the racking/ });
     expect(within(header).getByText(en('detail.privateBadge'))).toBeTruthy();
     const privateSwitch = screen.getByRole('switch', { name: en('detail.private') });
-    expect((privateSwitch as HTMLInputElement).checked).toBe(true);
+    expect(privateSwitch).toHaveAttribute('aria-checked', 'true');
     await userEvent.click(privateSwitch);
     expect(patchSpy).toHaveBeenCalledWith(TASK_PATH, { private: false });
   });
@@ -244,8 +246,12 @@ describe('TaskDetail — drafts and private Tasks', () => {
     });
     await renderDetail();
     const blocked = screen.getByRole('switch', { name: en('detail.private') });
-    expect(blocked).toBeDisabled();
+    // Blocked, it stays in the tab order so the reason is heard (kit Switch `disabledReason`, #1607).
+    expect(blocked).toHaveAttribute('aria-disabled', 'true');
+    expect(blocked).toBeEnabled();
     expect(blocked).toHaveAccessibleDescription(en('detail.privateBlocked'));
+    await userEvent.click(blocked);
+    expect(patchSpy).not.toHaveBeenCalled();
   });
 
   it('says what a private Task is while it is one', async () => {
