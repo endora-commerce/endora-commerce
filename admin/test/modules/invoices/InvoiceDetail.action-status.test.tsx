@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { passthroughBundle } from '../../helpers/render-with-i18n';
@@ -99,6 +99,7 @@ function renderDetail(invoice: typeof INVOICE = INVOICE): void {
         'invoiceDetail.regenerated',
         'invoiceDetail.regenerateError',
         'invoiceDetail.pdfNotReady',
+        'common.action.more',
       ]),
     },
   );
@@ -110,6 +111,12 @@ function headerStatus(): HTMLElement {
   const region = group?.querySelector<HTMLElement>('[role="status"]');
   if (!region) throw new Error('no status region in the header actions');
   return region;
+}
+
+/** Regenerate PDF on a ready invoice sits in the header's "More" menu (#1547, DS-07). */
+async function chooseFromMore(name: string): Promise<void> {
+  await userEvent.click(screen.getByRole('button', { name: 'common.action.more' }));
+  await userEvent.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name }));
 }
 
 afterEach(() => {
@@ -130,7 +137,7 @@ describe('InvoiceDetail — action results beside the header buttons (#1499)', (
     const region = headerStatus();
     postSpy.mockResolvedValue({});
 
-    await userEvent.click(screen.getByRole('button', { name: 'invoiceDetail.action.regeneratePdf' }));
+    await chooseFromMore('invoiceDetail.action.regeneratePdf');
 
     await waitFor(() => expect(region).toHaveTextContent('invoiceDetail.regenerated'));
     expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
