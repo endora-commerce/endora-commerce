@@ -42,6 +42,11 @@ const PALETTE_EXEMPTIONS: PaletteLedger = {
     '/cms/blocks/new': 'Create form opened from the block list header; the palette carries the list.',
     '/cms/templates/new': 'Create form opened from the template list header; the palette carries the list.',
   },
+  crm: {
+    '/crm/workflow/order-sync': 'A tab of the workflow configuration (RouteTabs, issue #1559); open-crm-workflow carries the screen.',
+    '/crm/workflow/value': 'A tab of the workflow configuration (RouteTabs, issue #1559); open-crm-workflow carries the screen.',
+    '/crm/workflow/board-card': 'A tab of the workflow configuration (RouteTabs, issue #1559); open-crm-workflow carries the screen.',
+  },
   dictionaries: {
     '/dictionaries/audit':
       'Unadvertised legacy spelling of /admin/dictionaries/audit, kept so old bookmarks resolve.',
