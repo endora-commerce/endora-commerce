@@ -44,6 +44,24 @@ describe('base-price panel — what it shows', () => {
     expect(within(eur()).getByText('No base price in EUR: buyers paying in EUR cannot order this product.')).toBeInTheDocument();
   });
 
+  it('says a currency without a price with the warning token and an icon, not a hard-coded amber (#1529, CAT-19)', async () => {
+    await open();
+    const line = within(eur()).getByText('No base price in EUR: buyers paying in EUR cannot order this product.');
+    const note = line.closest('[data-slot=base-price-note]')!;
+    expect(note).not.toBeNull();
+    expect(note.className).toContain('text-[var(--warn-soft-fg)]');
+    expect(note.className).not.toMatch(/amber/);
+    expect(note.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('has no Discard of its own: the editor’s one Save and its guard own discarding (#1529, CAT-19)', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.clear(within(pln()).getByLabelText('Price from 1, PLN'));
+    await user.type(within(pln()).getByLabelText('Price from 1, PLN'), '81');
+    expect(screen.queryByRole('button', { name: /discard/i })).toBeNull();
+  });
+
   it('is two sibling h2 sections divided by a rule, as every other editor tab (#1490, CAT-11)', async () => {
     await open();
     const headings = screen.getAllByRole('heading');

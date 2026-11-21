@@ -245,8 +245,8 @@ module. It is available once the product has been created.
   it would refuse stops the whole Save and is reported on the panel. If the product is saved but the
   base prices are not, the editor says so and the next Save writes only the base prices. An invalid
   value is reported on its field.
-  **Discard changes** on the panel resets the base prices to their saved values and leaves the rest
-  of the product's changes alone.
+  The panel has no Discard of its own: the editor's question when you leave or switch scope —
+  **Save and continue**, **Discard changes** or **Stay here** — keeps or drops the base prices with the product's other changes.
 - **Open the base prices** opens the base book's grid; **Why this price?** opens the explainer for
   this product.
 

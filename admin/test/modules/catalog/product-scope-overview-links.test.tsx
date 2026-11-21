@@ -46,7 +46,9 @@ const OVERVIEW = {
   },
 };
 
-const SCOPES_TAB = `/catalog/products/${PRODUCT_ID}?scope=global&tab=scopes`;
+// Issue #1510 (CAT-10, DEC-09): the Scope map is a drawer its address opens.
+const SCOPES_TAB = `/catalog/products/${PRODUCT_ID}?scope=global&scopeMap=1`;
+const drawer = (): HTMLElement => screen.getByRole('dialog', { name: en['productEditor.scope.scopeMap']! });
 
 beforeEach(() => {
   setUpEditorApi({
@@ -66,8 +68,7 @@ describe('the scope map switches the editor scope (feature 174, US12)', () => {
     renderEditor(ProductEditor, { url: SCOPES_TAB });
     const table = await map();
     expect(within(table).queryByText('Every channel')).toBeNull();
-    const panel = screen.getByRole('tabpanel');
-    expect(within(panel).getByRole('link', { name: 'Edit at Global' })).toHaveAttribute('href', expect.stringContaining('scope=global'));
+    expect(within(drawer()).getByRole('link', { name: 'Edit at Global' })).toHaveAttribute('href', expect.stringContaining('scope=global'));
     expect(within(table).getByRole('link', { name: 'Edit at Retail PL' })).toHaveAttribute(
       'href',
       expect.stringMatching(new RegExp(`scope=channel&.*channel=${CH_RETAIL}`)),
@@ -82,6 +83,9 @@ describe('the scope map switches the editor scope (feature 174, US12)', () => {
     fireEvent.click(within(await map()).getByRole('link', { name: 'Edit at Retail PL × Polish' }));
     await waitFor(() => expect(currentSearch(view).get('scope')).toBe('cl'));
     expect(currentSearch(view).get('language')).toBe('pl-PL');
+    // The jump lands on the editor, so the drawer closes with it.
+    expect(currentSearch(view).get('scopeMap')).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: en['productEditor.scope.scopeMap']! })).toBeNull());
   });
 
   it('a field named in a cell opens that field at that scope', async () => {
@@ -97,11 +101,10 @@ describe('the scope map switches the editor scope (feature 174, US12)', () => {
   it('with staged changes a map link asks Save / Discard / Stay first', async () => {
     renderEditor(ProductEditor, { url: `/catalog/products/${PRODUCT_ID}?scope=global` });
     fireEvent.change(await screen.findByLabelText(en['productEditor.field.name']!), { target: { value: 'Wiertarka' } });
-    fireEvent.click(screen.getByRole('tab', { name: en['productEditor.tab.scopes']! }));
+    fireEvent.click(screen.getByRole('button', { name: en['productEditor.scope.scopeMap']! }));
     const link = within(await map()).getByRole('link', { name: 'Edit at Retail PL' });
     fireEvent.click(link);
-    const dialog = await screen.findByRole('dialog');
-    expect(dialog).toHaveAccessibleName(/Save your changes at Global\?/);
+    expect(await screen.findByRole('dialog', { name: /Save your changes at Global\?/ })).toBeInTheDocument();
   });
 
   it('a reset keeps working beside the links (FR-101)', async () => {
@@ -113,10 +116,10 @@ describe('the scope map switches the editor scope (feature 174, US12)', () => {
 
   // Owner decision 2026-11-04: one name per place. The tab and the table are the "Scope map", and a
   // reset names the scope the value then comes from: Global for a channel, the channel for a cell.
-  it('the tab and the table are the Scope map; a reset names the scope the value comes from', async () => {
+  it('the drawer and the table are the Scope map; a reset names the scope the value comes from', async () => {
     renderEditor(ProductEditor, { url: SCOPES_TAB });
     const table = await screen.findByRole('table', { name: 'Scope map' });
-    expect(screen.getByRole('tab', { name: 'Scope map' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('dialog', { name: 'Scope map' })).toContainElement(table);
     expect(screen.queryByText(/Scope overview|Use inherited/)).toBeNull();
     const channelReset = within(table).getByRole('button', { name: /^Use value from Global for .* in Retail PL$/ });
     expect(channelReset).toHaveTextContent('Use value from Global');
@@ -125,10 +128,9 @@ describe('the scope map switches the editor scope (feature 174, US12)', () => {
     });
     expect(cellReset).toHaveTextContent('Use value from Retail PL');
     fireEvent.click(cellReset);
-    const dialog = await screen.findByRole('dialog');
-    expect(dialog).toHaveAccessibleName(
-      `Use value from Retail PL for ${en['productEditor.scopeOverview.field.urlKey']} in Retail PL · pl-PL?`,
-    );
+    const dialog = await screen.findByRole('dialog', {
+      name: `Use value from Retail PL for ${en['productEditor.scopeOverview.field.urlKey']} in Retail PL · pl-PL?`,
+    });
     expect(within(dialog).getByRole('button', { name: 'Use value from Retail PL' })).toBeInTheDocument();
   });
 });

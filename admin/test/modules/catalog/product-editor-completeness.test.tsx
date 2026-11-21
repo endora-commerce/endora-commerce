@@ -76,7 +76,9 @@ describe('completeness at the editor scope (feature 174, US11)', () => {
     const view = renderEditor(ProductEditor);
     await waitFor(() => expect(summary()).toHaveTextContent('3 incomplete scopes'));
     fireEvent.click(within(summary()).getByRole('link', { name: en['productEditor.scope.scopeMap']! }));
-    await waitFor(() => expect(currentSearch(view).get('tab')).toBe('scopes'));
+    // Issue #1510 (CAT-10): the Scope map is a drawer, opened over the tab.
+    await waitFor(() => expect(currentSearch(view).get('scopeMap')).toBe('1'));
+    expect(await screen.findByRole('dialog', { name: en['productEditor.scope.scopeMap']! })).toBeInTheDocument();
   });
 
   it('a complete scope shows nothing', async () => {

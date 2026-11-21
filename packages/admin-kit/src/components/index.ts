@@ -133,7 +133,7 @@ export type {
 export { useFocusTrap } from './hooks/useFocusTrap.js';
 export type { FocusTrapOptions } from './hooks/useFocusTrap.js';
 export { ModalDialog, MODAL_OVERLAY_Z_INDEX } from './modal-dialog/ModalDialog.js';
-export type { ModalDialogLayer, ModalDialogProps } from './modal-dialog/ModalDialog.js';
+export type { ModalDialogLayer, ModalDialogPlacement, ModalDialogProps } from './modal-dialog/ModalDialog.js';
 // Issue #313 — the design-system replacement for the browser's `confirm()`.
 export { ConfirmDialog, useConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
 export type {

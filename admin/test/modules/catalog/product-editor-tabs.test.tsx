@@ -28,9 +28,11 @@ describe('the product editor tabs (feature 174, FR-105, FR-107)', () => {
   it('labels every tab from the catalog bundle and links it to the panel', async () => {
     renderEditor(ProductEditor, { url: `/catalog/products/${PRODUCT_ID}?scope=global` });
     const details = await screen.findByRole('tab', { name: en['productEditor.tab.details']! });
-    for (const key of ['attributes', 'pricing', 'media', 'inventory', 'attachments', 'links', 'scopes']) {
-      expect(screen.getByRole('tab', { name: en[`productEditor.tab.${key}`]! })).toBeInTheDocument();
-    }
+    // Issue #1510 (CAT-10): Media and Attachments are one "Media & files" tab, and the Scope map
+    // is a drawer, not a tab — a simple product without Channels and SEO contributions has six.
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(
+      ['details', 'attributes', 'pricing', 'media', 'inventory', 'links'].map((key) => en[`productEditor.tab.${key}`]),
+    );
     expect(details).toHaveAttribute('aria-selected', 'true');
     expect(details).toHaveAttribute('aria-controls', 'product-tabpanel');
     expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', details.id);

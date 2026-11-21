@@ -272,11 +272,13 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
   const bodyCell = { verticalAlign: 'top', padding: '8px 12px' } as const;
 
   return (
-    // Issue #1490 (UX audit CAT-11): no "Scope map" heading under the Scope map tab — the tab names
-    // the panel. The map and the values that no longer apply are its two `h2` sections, the
-    // editor's one section style; the map's help line is its section's description.
+    // Issue #1490 (UX audit CAT-11): no second "Scope map" heading — the drawer's title (issue #1510,
+    // CAT-10: the map is a drawer, no longer a tab) is the `h2` that names it. The map and the
+    // values that no longer apply are its two `h3` sections, the editor's one section style; the
+    // map's help line is its section's description.
     <div className="space-y-(--section-gap)" aria-busy={busy || undefined}>
       <EditorSection
+        as="h3"
         id={sectionId}
         title={t('productEditor.scopeOverview.matrix.title')}
         description={t('productEditor.scopeOverview.help')}
@@ -417,7 +419,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
         )}
       </EditorSection>
 
-      <EditorSection title={t('productEditor.scopeOverview.orphans.title')}>
+      <EditorSection as="h3" title={t('productEditor.scopeOverview.orphans.title')}>
         {overview.orphans.length === 0 ? (
           <p className="b2b-help" style={{ margin: 0 }}>
             {t('productEditor.scopeOverview.orphans.none')}
