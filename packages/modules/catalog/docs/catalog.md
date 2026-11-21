@@ -242,10 +242,15 @@ column and stripped the keys.
 
 ## Editing a category
 
-*Catalog → Categories* shows the category tree; **Edit** on a category opens its editor beside the tree. The
-editor holds the category's own fields — its names, slug, parent and custom fields — and, while the Price lists
+*Catalog → Categories* shows the category tree. Each row has three controls: the category's **name**, which opens
+its editor in a panel beside the tree; a **+** that opens the form for a new subcategory in the same panel; and an
+**actions menu** (⋮) holding **Edit**, **Content**, **Activate** / **Deactivate** and, last, **Delete**, which asks
+for confirmation. The row shows the category's main image as a small thumbnail.
+
+The editor holds the category's own fields — its names, slug, parent and custom fields — and, while the Price lists
 module is on, the category's **Price display mode**, contributed by that module and shown above the Save and Cancel
-buttons.
+buttons. The **Main image** sits below them and applies at once, outside Save. In the new-category form the slug is
+made from the name as you type it; type your own to stop that.
 
 The editor has **one Save** for all of it. Changing the price display mode only stages it: it is no longer saved
 the moment you choose it. Save reads "Save" while there is nothing to save and "Save 2 changes" once there is,
@@ -257,8 +262,8 @@ counting the category's own changes and the display mode together.
 - If the category is saved and the display mode is not, the editor stays open and a summary says what was saved
   and what was not. The next Save writes only the display mode.
 - **Cancel** discards every unsaved change without asking.
-- **Edit** on another category with unsaved changes asks first: **Save and continue**, **Discard changes** or
-  **Stay here**. Following a link elsewhere in the admin, or closing or reloading the browser tab, asks too. The
+- Opening another category, a new-category form or closing the panel with unsaved changes asks first: **Save and
+  continue**, **Discard changes** or **Stay here**. Following a link elsewhere in the admin, or closing or reloading the browser tab, asks too. The
   open category is not part of the page address, so the browser's Back button leaves the page without asking.
 
 ## Entities

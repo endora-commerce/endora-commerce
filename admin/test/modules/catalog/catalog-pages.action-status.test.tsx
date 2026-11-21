@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import core from '../../../../packages/modules/_i18n/i18n/en.json';
 import catalog from '../../../../packages/modules/catalog/i18n/en.json';
@@ -196,6 +197,13 @@ describe('AttributesManager — results beside New attribute (#1499, #1527)', ()
   });
 });
 
+/** Picks an entry of a category row's actions menu (#1507), as a pointer user would. */
+async function chooseRowAction(name: string, item: string): Promise<void> {
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: tr('categories.action.menu', { name }) }));
+  await user.click(await screen.findByRole('menuitem', { name: item }));
+}
+
 describe('CategoriesTree — results in the page header (#1499)', () => {
   const ROOT = {
     id: '33333333-3333-4333-8333-333333333301',
@@ -214,7 +222,7 @@ describe('CategoriesTree — results in the page header (#1499)', () => {
     const region = statusBeside(newRoot);
     expect(region.textContent).toBe('');
 
-    fireEvent.click(await screen.findByRole('button', { name: tr('categories.action.deactivate') }));
+    await chooseRowAction('Furniture', tr('categories.action.deactivate'));
 
     await waitFor(() => expect(region).toHaveTextContent(tr('categories.success.deactivated')));
     noSuccessBanner();
@@ -230,12 +238,12 @@ describe('CategoriesTree — results in the page header (#1499)', () => {
     renderAt(<CategoriesTree />, '/catalog/categories');
     const region = statusBeside(await screen.findByRole('button', { name: tr('categories.action.newRoot') }));
 
-    fireEvent.click(await screen.findByRole('button', { name: tr('categories.action.delete') }));
+    await chooseRowAction('Furniture', tr('categories.action.delete'));
     await confirmDialog();
     await waitFor(() => expect(region).toHaveTextContent(tr('categories.success.delete')));
     noSuccessBanner();
 
-    fireEvent.click(screen.getByRole('button', { name: tr('categories.action.delete') }));
+    await chooseRowAction('Furniture', tr('categories.action.delete'));
     await confirmDialog();
     expect(await screen.findByText(tr('categories.error.delete'))).toBeInTheDocument();
     expect(region.textContent).toBe('');

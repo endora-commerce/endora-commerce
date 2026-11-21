@@ -1,0 +1,7 @@
+---
+'@endora-commerce/mod-catalog': patch
+---
+
+The category tree is a master-detail screen (issue #1507, UX audit 2026-11-17, CAT-05). The editor and the new-category form open in a panel beside the tree instead of inside a table cell. A row keeps three controls: the category name, which opens the editor; a "+" for a new subcategory; and one actions menu with Edit, Content, Activate / Deactivate and, last, Delete, which still asks for confirmation. The main image shows as a 32 px thumbnail in the row and is changed in the editor panel, where it applies at once. In the new-category form the slug follows the name until the operator types one. Opening another category, a new form, or closing the panel over unsaved changes asks through the shared unsaved-changes dialog (issue #1606).
+
+Translation keys removed from both `en` and `pl`: catalog `categories.action.newChild`, `categories.create.under`, `categories.guard.save`, `categories.guard.discard`, `categories.guard.stay` (the dialog's buttons now use `core` `form.unsavedChanges.*`). New keys: `categories.action.newChildOf`, `categories.action.menu`, `categories.column.actions`, `categories.panel.editTitle`, `categories.panel.createChildTitle`, `categories.panel.close`, `categories.field.slugHint`, `categories.field.slugEditHint`, `categories.mainImage.title`, `categories.mainImage.unavailable`. A deployment that overrides a removed key can drop the override.

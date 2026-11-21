@@ -1441,7 +1441,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/admin-kit/src/zones/ZoneErrorBoundary.tsx': 1,
   'packages/admin-shell/src/components/AppShell.tsx': 5,
   'packages/modules/catalog/src/admin/pages/AttributeSetsPage.tsx': 3,
-  'packages/modules/catalog/src/admin/pages/CategoriesTree.tsx': 2,
   'packages/modules/cms/src/admin/components/BackgroundFields.tsx': 5,
   'packages/modules/cms/src/admin/components/CarouselPreviewNav.tsx': 5,
   'packages/modules/cms/src/admin/components/ContentSliderActionBarExtras.tsx': 2,

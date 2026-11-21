@@ -98,6 +98,7 @@ function renderDetail(readInvoice: () => Promise<unknown>): void {
         'invoiceDetail.notFound',
         'invoiceDetail.section.details',
         'invoiceDetail.action.regeneratePdf',
+        'common.action.more',
       ]),
     },
   );
@@ -129,7 +130,9 @@ describe('InvoiceDetail — first load and refresh (SALES-06)', () => {
     const heading = await screen.findByText('invoiceDetail.section.details');
     postSpy.mockResolvedValue({});
 
-    await userEvent.click(screen.getByRole('button', { name: 'invoiceDetail.action.regeneratePdf' }));
+    // On a ready invoice Regenerate PDF is an entry of the header's "More" menu (#1547).
+    await userEvent.click(screen.getByRole('button', { name: 'common.action.more' }));
+    await userEvent.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'invoiceDetail.action.regeneratePdf' }));
 
     await waitFor(() => expect(reads).toHaveLength(2));
     expect(heading).toBeInTheDocument();

@@ -11,7 +11,7 @@ including formatted text written in its rich-text block.
 
 ## For operators
 
-Open **Catalog → Categories** and choose **Content** on the category's row. The
+Open **Catalog → Categories** and choose **Content** in the category row's actions menu. The
 content screen has:
 
 - a **language** switch — content is kept per language, like the category's

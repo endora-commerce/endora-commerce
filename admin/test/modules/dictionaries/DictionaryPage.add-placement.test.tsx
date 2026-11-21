@@ -118,8 +118,12 @@ describe('DictionaryPage — one place for Add (issue #1562)', () => {
   it('puts the active tab’s Add in the page header, filled, and nowhere else', async () => {
     renderPage();
     await screen.findByText('Polska');
+    // The tab tells the page header it is empty in an effect after its own empty state renders,
+    // so wait for the header's Add to go rather than asserting in the frame between the two.
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: DICT_PL['countries.addCountry']! })).toHaveLength(1),
+    );
     const add = screen.getAllByRole('button', { name: DICT_PL['countries.addCountry']! });
-    expect(add).toHaveLength(1);
     expect(add[0]!.closest('header')).not.toBeNull();
     expect(isFilled(add[0]!)).toBe(true);
     // The tab already says "Countries"; the card does not say it again.
@@ -150,8 +154,12 @@ describe('DictionaryPage — one place for Add (issue #1562)', () => {
     const empty = await screen.findByText(DICT_PL['countries.emptyState.title']!);
     const block = empty.closest('[data-empty-state="no-data"]') as HTMLElement;
     expect(block).not.toBeNull();
+    // The tab tells the page header it is empty in an effect after its own empty state
+    // renders, so wait for the header's Add to go instead of asserting between the two.
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: DICT_PL['countries.addCountry']! })).toHaveLength(1),
+    );
     const add = screen.getAllByRole('button', { name: DICT_PL['countries.addCountry']! });
-    expect(add).toHaveLength(1);
     expect(block.contains(add[0]!)).toBe(true);
     const user = userEvent.setup();
     await user.click(add[0]!);

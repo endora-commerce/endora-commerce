@@ -92,9 +92,9 @@ function form(): HTMLElement {
   return screen.getByLabelText(en['categories.field.nameEn']!).closest('form') as HTMLElement;
 }
 
+/** The row's name opens the category in the editor panel (#1507). */
 async function openEdit(rowName = 'Furniture'): Promise<void> {
-  const row = (await screen.findByText(rowName)).closest('tr') as HTMLElement;
-  fireEvent.click(within(row).getByRole('button', { name: en['categories.action.edit']! }));
+  fireEvent.click(await screen.findByRole('button', { name: rowName }));
   await screen.findByLabelText(MODE_LABEL);
 }
 
@@ -221,23 +221,23 @@ describe('category editor — one Save covers the display mode (feature 180, WP-
     expect(putSpy).not.toHaveBeenCalled();
   });
 
-  it('asks Save / Discard / Stay before another category opens over a display-mode change', async () => {
+  it('asks Save / Discard / Stay (the kit dialog, #1606) before another category opens over a display-mode change', async () => {
     renderTree();
     await openEdit();
     await chooseMode('net_only');
-    const lighting = (await screen.findByText('Lighting')).closest('tr') as HTMLElement;
-    fireEvent.click(within(lighting).getByRole('button', { name: en['categories.action.edit']! }));
+    const lighting = screen.getByRole('button', { name: 'Lighting' });
+    fireEvent.click(lighting);
 
     const dialog = await screen.findByRole('dialog');
     // Stay: nothing changes.
-    fireEvent.click(within(dialog).getByRole('button', { name: en['categories.guard.stay']! }));
+    fireEvent.click(within(dialog).getByTestId('unsaved-changes-stay'));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect((screen.getByLabelText(en['categories.field.slug']!) as HTMLInputElement).value).toBe('furniture');
     expect(saveButton()).toHaveTextContent('Save 1 change');
 
     // Discard: the other category opens and nothing was written.
-    fireEvent.click(within(lighting).getByRole('button', { name: en['categories.action.edit']! }));
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: en['categories.guard.discard']! }));
+    fireEvent.click(lighting);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByTestId('unsaved-changes-discard'));
     await waitFor(() => expect((screen.getByLabelText(en['categories.field.slug']!) as HTMLInputElement).value).toBe('lighting'));
     expect(putSpy).not.toHaveBeenCalled();
     expect(patchSpy).not.toHaveBeenCalled();
@@ -247,9 +247,9 @@ describe('category editor — one Save covers the display mode (feature 180, WP-
     renderTree();
     await openEdit();
     await chooseMode('net_only');
-    const lighting = (await screen.findByText('Lighting')).closest('tr') as HTMLElement;
-    fireEvent.click(within(lighting).getByRole('button', { name: en['categories.action.edit']! }));
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: en['categories.guard.save']! }));
+    const lighting = screen.getByRole('button', { name: 'Lighting' });
+    fireEvent.click(lighting);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByTestId('unsaved-changes-save'));
 
     await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
     expect(putSpy.mock.calls[0]?.[0]).toBe(modeUrl(FURNITURE));
@@ -269,8 +269,7 @@ describe('category editor — one Save covers the display mode (feature 180, WP-
 describe('category editor — price_lists not installed (feature 180, US5)', () => {
   it('shows no display-mode row and sends no pricing request', async () => {
     renderTree({ present: false });
-    const row = (await screen.findByText('Furniture')).closest('tr') as HTMLElement;
-    fireEvent.click(within(row).getByRole('button', { name: en['categories.action.edit']! }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Furniture' }));
     await screen.findByLabelText(en['categories.field.nameEn']!);
     expect(screen.queryByLabelText(MODE_LABEL)).toBeNull();
     expect(getSpy.mock.calls.map((call) => String(call[0])).filter((url) => url.includes('/pricing/'))).toEqual([]);
