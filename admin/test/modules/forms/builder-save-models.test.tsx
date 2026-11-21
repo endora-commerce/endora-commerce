@@ -168,6 +168,10 @@ describe('The panels’ copy — no prose save model, one line each (CONTENT-09,
     for (const key of [...DESCRIPTIONS, ...HINTS]) expect(en(key).length, key).toBeLessThanOrEqual(80);
   });
 
+  it('keeps the condition under which a reply reaches the submitter', () => {
+    expect(en('notifications.recipients.description')).toMatch(/if the form has a submitter e-mail field/);
+  });
+
   it('no longer explains in prose what the badge and the Save bar say', () => {
     for (const key of [...DESCRIPTIONS, ...HINTS]) expect(en(key), key).not.toMatch(/publish|at once|immediately/i);
   });

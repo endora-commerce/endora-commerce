@@ -446,7 +446,7 @@
   "versions.live": "Live",
   "versions.loadError": "The versions could not be loaded.",
   "notifications.recipients.title": "Shop notification",
-  "notifications.recipients.description": "Each entry is e-mailed to these addresses; a reply goes to the submitter.",
+  "notifications.recipients.description": "Replies go to the submitter, if the form has a submitter e-mail field.",
   "notifications.recipients.default": "Default recipients",
   "notifications.recipients.hint": "One address per line, at most {max}.",
   "notifications.recipients.channels": "Lists for particular sales channels",

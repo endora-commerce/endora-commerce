@@ -446,7 +446,7 @@
   "versions.live": "Opublikowana",
   "versions.loadError": "Nie udało się wczytać wersji.",
   "notifications.recipients.title": "Powiadomienie dla sklepu",
-  "notifications.recipients.description": "Każde zgłoszenie trafia e-mailem na te adresy; odpowiedź dotrze do nadawcy.",
+  "notifications.recipients.description": "Odpowiedzi trafiają do nadawcy, jeśli formularz ma pole e-maila nadawcy.",
   "notifications.recipients.default": "Domyślni odbiorcy",
   "notifications.recipients.hint": "Jeden adres w wierszu, najwyżej {max}.",
   "notifications.recipients.channels": "Listy dla wybranych kanałów sprzedaży",
