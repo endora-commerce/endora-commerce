@@ -580,6 +580,13 @@ whose tabs are routes. Both draw `.b2b-tabs` / `.b2b-tab`, so an operator cannot
 The behaviour is pinned in `admin/test/kit/kit-tabs.test.tsx`, including the keyboard path and an
 axe pass.
 
+**A view that is none of the tabs.** The product browser's status strip is a `Tabs` over one
+`TabPanel` (the list). Its *Show selected only* review lists the selection across every status,
+so while it is on every item is `disabled`: no tab is selected or a tab stop, and the review is
+rendered outside the `TabPanel` — no tab claims what it does not show. The toggle that entered
+the review leaves it. `RouteTabs` and `RouteTabsZone` share one strip chrome
+(`RouteTabStrip`, kit-internal), so a contributed strip's markup cannot drift from the listed one.
+
 ## Empty lists — `EmptyState`
 
 Issue #1448 (UX audit 2026-11-17, DS-15). What a list, a tab or a panel shows when it has

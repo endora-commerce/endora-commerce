@@ -16,6 +16,8 @@ import { useTranslation } from '../../i18n/useTranslation.js';
 import { Badge, type BadgeProps } from '../../ui/badge.js';
 import { Button } from '../../ui/button.js';
 import { Checkbox } from '../../ui/checkbox.js';
+import { EmptyState } from '../../ui/empty-state.js';
+import { TabPanel, Tabs, type TabItem } from '../../ui/tabs.js';
 import { PaginationFooter } from '../PaginationFooter.js';
 import { ListToolbarSearch } from '../list-toolbar/ListToolbar.js';
 import { ResponsiveTable, type ResponsiveColumn } from '../ResponsiveTable.js';
@@ -43,8 +45,14 @@ import type { ProductBrowserItem, ProductBrowserStatus, ProductBrowserType } fro
  * a debounced search — and keeps a multi-page selection until the operator adds or
  * cancels. Composed from the design system's own parts (research R-3): the
  * theme's side-drawer overlay, `useFocusTrap`, `ResponsiveTable` in
- * `table-scroll` mode, `PaginationFooter`, the `b2b-tabs` strip and the
- * toolbar's `ListToolbarSearch`, on kit `Button`s (issue #1492).
+ * `table-scroll` mode, `PaginationFooter`, the kit's `Tabs` / `TabPanel` for the
+ * status strip (issue #1445), `EmptyState` (issue #1448) and the toolbar's
+ * `ListToolbarSearch`, on kit `Button`s (issue #1492).
+ *
+ * **Reviewing the selection is not a status.** "Show selected only" lists the
+ * selection across every status, so while it is on no tab is selected: the
+ * strip's tabs are disabled (no tab claims the view, none is a tab stop) and the
+ * list is not a tab panel. The footer toggle that entered the review leaves it.
  *
  * **The host owns `open`.** The dialog never closes itself: a host appending lines
  * locally sets `open` to `false` inside `onConfirm`; a host whose confirm is a
@@ -94,6 +102,13 @@ const TAB_LABEL_KEY: Record<ProductBrowserStatusFilter, string> = {
   inactive: 'productBrowser.tab.inactive',
   archived: 'productBrowser.tab.archived',
 };
+/** What an unfiltered tab with no rows says — the catalogue, or the status, has none. */
+const EMPTY_TAB_KEY: Record<ProductBrowserStatusFilter, string> = {
+  all: 'productBrowser.state.emptyTab.all',
+  active: 'productBrowser.state.emptyTab.active',
+  inactive: 'productBrowser.state.emptyTab.inactive',
+  archived: 'productBrowser.state.emptyTab.archived',
+};
 const STATUS_LABEL_KEY: Record<ProductBrowserStatus, string> = {
   active: 'productBrowser.status.active',
   inactive: 'productBrowser.status.inactive',
@@ -121,6 +136,7 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
   const baseId = useId();
   const titleId = `${baseId}-title`;
   const countId = `${baseId}-count`;
+  const tabsId = `${baseId}-status`;
 
   // Read-only: `setPageSize` is deliberately never taken (contract B4).
   const { pageSize: preferredPageSize } = usePageSizePreference('catalog-products');
@@ -307,6 +323,16 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
     setView('all');
   };
 
+  // The tab is the view, not a filter, and the selection is neither: only the
+  // search and the type are cleared.
+  const clearFilters = (): void => {
+    setQuery('');
+    setDebouncedQuery('');
+    setType(null);
+    setPage(0);
+    setView('all');
+  };
+
   const cycleType = (): void => {
     const idx = type === null ? -1 : TYPES.indexOf(type);
     const next = idx + 1 >= TYPES.length ? null : (TYPES[idx + 1] ?? null);
@@ -396,12 +422,85 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
     },
   ];
 
+  const reviewing = view === 'selectedOnly';
+  const filtered = debouncedQuery !== '' || type !== null;
+  const tabItems: TabItem<ProductBrowserStatusFilter>[] = tabs.map((tab) => ({
+    value: tab,
+    label: t(TAB_LABEL_KEY[tab]),
+    count: counts[tab],
+    disabled: reviewing,
+  }));
+
   const loading = view === 'all' && load === 'loading';
   const atCap = selection.size >= max;
   const confirmError =
     confirm.kind === 'failed'
       ? (confirmErrorMessage?.(confirm.error) ?? t('productBrowser.state.confirmError'))
       : null;
+
+  const listBody = (
+    <>
+      {atCap ? (
+        <p role="status" className="bg-muted px-3 py-2 text-sm">
+          {t('productBrowser.limit.notice', { max })}
+        </p>
+      ) : null}
+
+      <div aria-busy={loading || undefined}>
+        {loading ? (
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+            {t('productBrowser.state.loading')}
+          </p>
+        ) : view === 'all' && load === 'error' ? (
+          <div role="alert" className="px-3 py-6 text-center text-sm">
+            <p>{t('productBrowser.state.loadError')}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={(): void => setReloadToken((n) => n + 1)}
+            >
+              {t('productBrowser.action.retry')}
+            </Button>
+          </div>
+        ) : (
+          <ResponsiveTable<ProductBrowserItem>
+            mode="table-scroll"
+            columns={columns}
+            data={shownRows}
+            keyExtractor={(row): string => row.id}
+            emptyState={
+              filtered ? (
+                <EmptyState
+                  variant="no-results"
+                  title={t('productBrowser.state.empty')}
+                  onClearFilters={clearFilters}
+                  focusAfterClear={searchRef}
+                />
+              ) : (
+                <EmptyState icon={<Package size={20} />} title={t(EMPTY_TAB_KEY[status])} />
+              )
+            }
+          />
+        )}
+      </div>
+
+      {view === 'all' && load !== 'error' ? (
+        <PaginationFooter
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageSizeChange={(next): void => {
+            setPageSize(next);
+            setPage(0);
+          }}
+          onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
+          onNext={(): void => setPage((p) => p + 1)}
+        />
+      ) : null}
+    </>
+  );
 
   return (
     <>
@@ -427,23 +526,13 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="overflow-hidden px-3 pt-1">
-            <div className="b2b-tabs-scroll">
-              <div className="b2b-tabs" role="tablist">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    role="tab"
-                    aria-selected={view === 'all' && status === tab}
-                    className={cn('b2b-tab', view === 'all' && status === tab && 'is-active')}
-                    onClick={(): void => changeStatus(tab)}
-                  >
-                    <span>{t(TAB_LABEL_KEY[tab])}</span>
-                    <span className="b2b-badge b2b-badge--outline">{counts[tab]}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <Tabs
+              items={tabItems}
+              value={status}
+              onValueChange={changeStatus}
+              idBase={tabsId}
+              aria-label={t('productBrowser.tabs.label')}
+            />
           </div>
 
           <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2.5">
@@ -470,58 +559,15 @@ function ProductBrowserSession(props: ProductBrowserDialogProps): ReactNode {
             </button>
           </div>
 
-          {atCap ? (
-            <p role="status" className="bg-muted px-3 py-2 text-sm">
-              {t('productBrowser.limit.notice', { max })}
-            </p>
-          ) : null}
-
-          <div aria-busy={loading || undefined}>
-            {loading ? (
-              <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                {t('productBrowser.state.loading')}
-              </p>
-            ) : view === 'all' && load === 'error' ? (
-              <div role="alert" className="px-3 py-6 text-center text-sm">
-                <p>{t('productBrowser.state.loadError')}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={(): void => setReloadToken((n) => n + 1)}
-                >
-                  {t('productBrowser.action.retry')}
-                </Button>
-              </div>
-            ) : (
-              <ResponsiveTable<ProductBrowserItem>
-                mode="table-scroll"
-                columns={columns}
-                data={shownRows}
-                keyExtractor={(row): string => row.id}
-                emptyState={
-                  <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                    {t('productBrowser.state.empty')}
-                  </p>
-                }
-              />
-            )}
-          </div>
-
-          {view === 'all' && load !== 'error' ? (
-            <PaginationFooter
-              page={page}
-              pageSize={pageSize}
-              total={total}
-              onPageSizeChange={(next): void => {
-                setPageSize(next);
-                setPage(0);
-              }}
-              onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
-              onNext={(): void => setPage((p) => p + 1)}
-            />
-          ) : null}
+          {reviewing ? (
+            listBody
+          ) : (
+            // The list is the strip's one panel. It holds the row checkboxes, so it is
+            // reached through them rather than as a tab stop of its own.
+            <TabPanel idBase={tabsId} value={status} tabIndex={-1}>
+              {listBody}
+            </TabPanel>
+          )}
         </div>
 
         {confirmError !== null && confirm.kind === 'failed' ? (
