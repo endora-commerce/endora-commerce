@@ -221,6 +221,7 @@
   "appShell.impersonation.notice": "Każda Twoja akcja jest zapisywana w dzienniku audytu na Twoje konto admina.",
   "appShell.impersonation.title": "Działasz jako {customer}",
   "appShell.languageIndicator.label": "Język interfejsu",
+  "appShell.languageIndicator.saveFailed": "Nie udało się zapisać preferowanego języka. Spróbuj ponownie.",
   "appShell.mobileMenu.close": "Zamknij menu",
   "appShell.mobileMenu.open": "Otwórz menu",
   "appShell.mobileMenu.title": "Nawigacja",

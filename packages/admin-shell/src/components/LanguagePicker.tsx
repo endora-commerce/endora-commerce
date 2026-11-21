@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
+import { InlineStatus } from '@endora-commerce/admin-kit/ui';
 import {
   useAppLanguage,
   setPreferredLanguage,
@@ -38,6 +39,8 @@ export function LanguagePicker(): ReactNode {
   const { refresh } = useAuth();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const errorId = useId();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   // Close on outside click and on Escape, matching standard menu behaviour.
@@ -63,15 +66,18 @@ export function LanguagePicker(): ReactNode {
       setOpen(false);
       if (next === language || submitting) return;
       const previous = language;
+      setSaveFailed(false);
       setSubmitting(true);
       setLanguage(next);
+      let saved = false;
       try {
         await setPreferredLanguage(next);
+        saved = true;
         await refresh();
       } catch (err) {
+        if (!saved) setSaveFailed(true);
         // Roll back the optimistic flip so the UI doesn't lie about what the
-        // server stored. Logging only — a transient failure here shouldn't
-        // produce a modal; the user can pick the language again.
+        // server stored. A failed save gets inline feedback, not a modal.
         setLanguage(previous);
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
@@ -95,6 +101,7 @@ export function LanguagePicker(): ReactNode {
         aria-label={t('appShell.languageIndicator.label')}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-describedby={saveFailed ? errorId : undefined}
         disabled={submitting}
         onClick={(): void => setOpen((v) => !v)}
         // Custom pill style — the topbar's icon-btn class fixes the box at
@@ -132,65 +139,83 @@ export function LanguagePicker(): ReactNode {
         <span className="b2b-lang-picker__label">{language.toUpperCase()}</span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
-      {open && (
-        <div
-          role="menu"
-          aria-label={t('appShell.languageIndicator.label')}
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            right: 0,
-            minWidth: 180,
-            background: 'var(--surface, white)',
-            border: '1px solid var(--border-color)',
-            borderRadius: 6,
-            boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
-            padding: 4,
-            zIndex: 60,
-          }}
+      <div
+        style={{
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          right: 0,
+          zIndex: 60,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: 4,
+          width: 'max-content',
+          maxWidth: 'min(20rem, calc(100vw - 16px))',
+        }}
+      >
+        <InlineStatus
+          id={errorId}
+          tone="error"
+          className={saveFailed ? 'm-0 max-w-full rounded-md border border-border bg-background p-2 shadow-md' : 'm-0'}
         >
-          {LANGUAGES.map(({ code, labelKey, flag }) => {
-            const active = code === language;
-            return (
-              <button
-                key={code}
-                type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                onClick={(): void => {
-                  void pick(code);
-                }}
-                style={{
-                  display: 'flex',
-                  width: '100%',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '6px 10px',
-                  background: active ? 'var(--surface-2, rgba(0,0,0,0.04))' : 'transparent',
-                  border: 'none',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  textAlign: 'left',
-                  color: 'inherit',
-                  gap: 8,
-                }}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <span aria-hidden="true" style={{ fontSize: 16, lineHeight: 1 }}>
-                    {flag}
+          {saveFailed ? t('appShell.languageIndicator.saveFailed') : null}
+        </InlineStatus>
+        {open && (
+          <div
+            role="menu"
+            aria-label={t('appShell.languageIndicator.label')}
+            style={{
+              minWidth: 180,
+              background: 'var(--surface, white)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 6,
+              boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
+              padding: 4,
+            }}
+          >
+            {LANGUAGES.map(({ code, labelKey, flag }) => {
+              const active = code === language;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={active}
+                  onClick={(): void => {
+                    void pick(code);
+                  }}
+                  style={{
+                    display: 'flex',
+                    width: '100%',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '6px 10px',
+                    background: active ? 'var(--surface-2, rgba(0,0,0,0.04))' : 'transparent',
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    textAlign: 'left',
+                    color: 'inherit',
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <span aria-hidden="true" style={{ fontSize: 16, lineHeight: 1 }}>
+                      {flag}
+                    </span>
+                    <span style={{ fontWeight: 600, fontSize: 11, letterSpacing: 0.5 }}>
+                      {code.toUpperCase()}
+                    </span>
+                    <span>{t(labelKey)}</span>
                   </span>
-                  <span style={{ fontWeight: 600, fontSize: 11, letterSpacing: 0.5 }}>
-                    {code.toUpperCase()}
-                  </span>
-                  <span>{t(labelKey)}</span>
-                </span>
-                {active ? <Check size={14} /> : null}
-              </button>
-            );
-          })}
-        </div>
-      )}
+                  {active ? <Check size={14} /> : null}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
