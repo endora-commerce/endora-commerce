@@ -388,7 +388,7 @@ export class CartAdminService {
     const [rows, totalCount] = await em.findAndCount(
       CartAuditEntry,
       { cartId },
-      { orderBy: { occurredAt: 'desc' }, limit: capped, offset: (page - 1) * capped },
+      { orderBy: { occurredAt: 'desc', id: 'desc' }, limit: capped, offset: (page - 1) * capped },
     );
 
     const actorIds = Array.from(

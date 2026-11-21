@@ -1763,7 +1763,7 @@ export class CatalogAdminService {
       )) as Array<{ count: string | number }>;
       total = Number(totalRows[0]?.count ?? 0);
       const idRows = (await em.execute(
-        baseQuery.clone().orderBy('created_at', 'desc').offset(page * pageSize).limit(pageSize).select('id'),
+        baseQuery.clone().orderBy('created_at', 'desc').orderBy('id', 'desc').offset(page * pageSize).limit(pageSize).select('id'),
       )) as Array<{ id: string }>;
       const ids = idRows.map((r) => r.id);
       if (ids.length === 0) {
@@ -1777,7 +1777,7 @@ export class CatalogAdminService {
       }
     } else {
       [items, total] = await em.findAndCount(Product, where, {
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'desc', id: 'desc' },
         offset: page * pageSize,
         limit: pageSize,
       });
@@ -1957,7 +1957,7 @@ export class CatalogAdminService {
       Product,
       { id: { $in: uniqueIds } },
       {
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'desc', id: 'desc' },
         offset: page * pageSize,
         limit: pageSize,
       },
