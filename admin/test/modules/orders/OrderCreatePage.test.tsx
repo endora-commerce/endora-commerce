@@ -106,6 +106,7 @@ const PREVIEW = {
 
 const BUNDLE = passthroughBundle('core', [
   'common.action.back',
+  'orders.page.title',
   'common.action.cancel',
   'orderCreate.field.customer',
   'orderCreate.field.salesChannel',
@@ -301,6 +302,17 @@ describe('OrderCreatePage', () => {
    * back to. The page reads all of it as opaque — it never learns what an
    * origin *is*.
    */
+  // #1549 (SALES-27): opened from the list, the way back is the header back link to Orders —
+  // not an outline Back button among the header actions.
+  it('goes back to Orders through the header back link above the title', () => {
+    renderPage();
+    const heading = screen.getByRole('heading', { level: 1 });
+    const back = within(heading.closest('header')!).getByRole('link', { name: 'orders.page.title' });
+    expect(back).toHaveAttribute('href', '/orders');
+    expect(back.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'common.action.back' })).toBeNull();
+  });
+
   describe('opened with an origin', () => {
     const ORIGIN_ID = '00000000-0000-4000-8000-0000000000b1';
     const ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000a1';
@@ -381,6 +393,10 @@ describe('OrderCreatePage', () => {
       );
       const back = screen.getByRole('link', { name: 'common.action.back' });
       expect(back).toHaveAttribute('href', RETURN_TO);
+      // #1549 (SALES-27): the way back is the header's own back link, above the title.
+      const heading = screen.getByRole('heading', { level: 1 });
+      expect(heading.closest('header')).toContainElement(back);
+      expect(back.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
       // The customer arrived chosen and its default address followed by itself:
       // nothing here was typed, so leaving at once asks nothing.
@@ -422,7 +438,7 @@ describe('OrderCreatePage', () => {
       'does not follow a return address that leaves the application: %s',
       async (returnTo) => {
         renderPage(entry({ returnTo }));
-        expect(screen.getByRole('link', { name: 'common.action.back' })).toHaveAttribute('href', '/orders');
+        expect(screen.getByRole('link', { name: 'orders.page.title' })).toHaveAttribute('href', '/orders');
       },
     );
   });

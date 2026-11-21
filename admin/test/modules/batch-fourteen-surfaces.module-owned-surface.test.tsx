@@ -830,7 +830,12 @@ describe('the one route that tightens says so in its own declaration', () => {
       '../packages/modules/sales_channels/src/admin/pages/SalesChannelsListPage.tsx',
     );
     expect(roster).toContain("hasPermission('sales_channels:write')");
-    expect(roster).toMatch(/canWrite \? \(\s*<Button asChild>/);
+    // Issue #1448 (DS-15): the button is one element offered in two places — the
+    // header, and the empty state while there is no channel — and both are gated.
+    expect(roster).toMatch(/const newChannel = \(\s*<Button asChild>\s*<Link to="\/sales-channels\/new">/);
+    expect(roster).toMatch(/canWrite && !noData \? newChannel : null/);
+    expect(roster).toMatch(/action=\{canWrite \? newChannel : null\}/);
+    expect(roster.match(/[^.]newChannel\b/g)).toHaveLength(3);
   });
 });
 

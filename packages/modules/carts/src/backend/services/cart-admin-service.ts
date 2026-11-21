@@ -388,7 +388,7 @@ export class CartAdminService {
     const [rows, totalCount] = await em.findAndCount(
       CartAuditEntry,
       { cartId },
-      { orderBy: { occurredAt: 'desc' }, limit: capped, offset: (page - 1) * capped },
+      { orderBy: { occurredAt: 'desc', id: 'desc' }, limit: capped, offset: (page - 1) * capped },
     );
 
     const actorIds = Array.from(
@@ -463,23 +463,30 @@ export class CartAdminService {
 
   // Internal helpers ─────────────────────────────────────────────────────
 
+  /**
+   * Every sort ends on `id` in the primary key's direction (issue #1621): the
+   * list pages by offset, so carts sharing a sort key need a total order or a
+   * page boundary repeats one cart and skips another.
+   */
   private sortClause(
     sort: NonNullable<AdminCartsListQuery['sort']>,
   ): Record<string, 'asc' | 'desc'> {
     switch (sort) {
       case 'last_activity_asc':
-        return { lastActivityAt: 'asc' };
+        return { lastActivityAt: 'asc', id: 'asc' };
       case 'total_desc':
-      case 'total_asc':
+      case 'total_asc': {
         // The grand total is computed from cart_items at read time; the
         // SQL-side approximation is `updatedAt` (a write-heavy proxy). A
         // true total-sort needs a subquery — kept as a follow-up.
-        return { updatedAt: sort === 'total_desc' ? 'desc' : 'asc' };
+        const dir = sort === 'total_desc' ? 'desc' : 'asc';
+        return { updatedAt: dir, id: dir };
+      }
       case 'created_desc':
-        return { createdAt: 'desc' };
+        return { createdAt: 'desc', id: 'desc' };
       case 'last_activity_desc':
       default:
-        return { lastActivityAt: 'desc' };
+        return { lastActivityAt: 'desc', id: 'desc' };
     }
   }
 

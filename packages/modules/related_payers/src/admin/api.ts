@@ -4,7 +4,7 @@ import type {
   AdminCreatePayerOrganizationRequest,
   AdminCreateRequestOrganizationRequest,
   AdminOrganizationRelatedPayersResponse,
-  AdminRelatedPayerRequestsQuery,
+  AdminRelatedPayerRequestsQueryInput,
   AdminRelatedPayerRequestsResponse,
   AdminUpdateRelatedPayerLinkBody,
   RegistryLookupResponse,
@@ -44,10 +44,12 @@ export const relatedPayersClient = {
     });
   },
 
-  /** FR-023 — the operator queue, `pending` unless asked otherwise. */
-  queue(query: AdminRelatedPayerRequestsQuery): Promise<AdminRelatedPayerRequestsResponse> {
+  /** FR-023 — one page of the operator queue, `pending` unless asked otherwise (UX audit DS-05, #1439). */
+  queue(query: AdminRelatedPayerRequestsQueryInput): Promise<AdminRelatedPayerRequestsResponse> {
     const params = new URLSearchParams({ state: query.state ?? 'pending' });
     if (query.reason) params.set('reason', query.reason);
+    if (query.page !== undefined) params.set('page', String(query.page));
+    if (query.pageSize !== undefined) params.set('pageSize', String(query.pageSize));
     return apiClient.get<AdminRelatedPayerRequestsResponse>(`/api/v1/admin/related-payers/requests?${params.toString()}`);
   },
 

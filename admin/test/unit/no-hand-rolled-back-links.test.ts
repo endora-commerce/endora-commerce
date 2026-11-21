@@ -37,13 +37,9 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
-/** Hand-made back links still to migrate, keyed by repo-relative file. */
-const LEDGER: Record<string, { count: number; reason: string }> = {
-  'packages/modules/orders/src/admin/pages/OrderCreatePage.tsx': {
-    count: 2,
-    reason: 'open PR #1741 edits this file; migrate to PageHeader back once it merges (#1549)',
-  },
-};
+/** Hand-made back links still to migrate, keyed by repo-relative file. Empty since #1549 migrated
+ * the last screen (New order): a new hand-made back link fails. */
+const LEDGER: Record<string, { count: number; reason: string }> = {};
 
 const LINKS = new Set(['a', 'Link', 'NavLink']);
 const BACK_KEY = /(?:^|\.)back(?:To[A-Za-z]*)?$/;

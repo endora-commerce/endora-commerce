@@ -99,7 +99,9 @@ disclosure is acceptable.
 ## The payer request queue
 
 **Customers → Payer requests** (also under ⌘K / CTRL+K, *Payer requests*) lists the requests that
-wait for an operator, with the reason each one waits:
+wait for an operator, oldest first, with the reason each one waits. Filter it by state (*Pending*
+unless you choose another) and by reason; *Clear all filters* goes back to what waits. Long queues
+are paged under the list.
 
 | Reason | What to do |
 | --- | --- |
@@ -110,10 +112,11 @@ wait for an operator, with the reason each one waits:
 | Several organizations have this tax ID | Assign the right Organization, or reject. |
 | The organization cannot be a payer | The match is not an approved company Organization, or already pays for the sender. Reject, or fix the Organization first. |
 
-Actions:
+Actions — **Approve** is the button on the row; the others are in the row's ⋮ menu, with
+**Reject** last. The result of each is shown above the list:
 
 - **Approve** — creates the link, active, on the buyer's terms. A request without a matched
-  Organization must get one first.
+  Organization has no *Approve* until it gets one.
 - **Reject** — the reason you write is shown to the buyer on its *Payers* screen.
 - **Assign organization** — offered when Organizations with the request's tax ID exist (an
   ambiguous tax ID, or one that registered after the request). The request then goes to that

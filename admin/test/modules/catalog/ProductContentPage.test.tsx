@@ -190,6 +190,18 @@ describe('ProductContentPage (feature 172)', () => {
     );
   });
 
+  it('names the editor as the panel of the language tabs (issue #1445)', async () => {
+    stubApi({ languages: { 'pl-PL': tree('stored-pl') } });
+    renderPage({});
+    const tab = await screen.findByRole('tab', { name: 'en-US' });
+    const panel = screen.getByRole('tabpanel');
+    expect(tab.getAttribute('aria-controls')).toBe(panel.id);
+    expect(panel.getAttribute('aria-labelledby')).toBe(tab.id);
+    expect(panel).toContainElement(screen.getByTestId('editor-language'));
+    // One tab in the tab order: the selected one.
+    expect(screen.getAllByRole('tab').filter((t) => t.tabIndex === 0)).toEqual([tab]);
+  });
+
   it('offers the sales channels’ languages, then a stored one no channel offers, flagged and not edited (FR-021, #1507)', async () => {
     stubApi({ languages: { 'de-DE': tree('stored-de') } });
     renderPage({});

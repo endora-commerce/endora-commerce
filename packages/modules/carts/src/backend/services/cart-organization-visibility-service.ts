@@ -121,20 +121,27 @@ export class CartOrganizationVisibilityService {
     return cart;
   }
 
+  /**
+   * Every sort ends on `id` in the primary key's direction (issue #1760): the
+   * list pages by offset, so carts sharing a sort key need a total order or a
+   * page boundary repeats one cart and skips another.
+   */
   private sortClause(
     sort: NonNullable<OrgCartsListQuery['sort']>,
   ): Record<string, 'asc' | 'desc'> {
     switch (sort) {
       case 'last_activity_asc':
-        return { lastActivityAt: 'asc' };
+        return { lastActivityAt: 'asc', id: 'asc' };
       case 'total_desc':
-      case 'total_asc':
-        return { updatedAt: sort === 'total_desc' ? 'desc' : 'asc' };
+      case 'total_asc': {
+        const dir = sort === 'total_desc' ? 'desc' : 'asc';
+        return { updatedAt: dir, id: dir };
+      }
       case 'created_desc':
-        return { createdAt: 'desc' };
+        return { createdAt: 'desc', id: 'desc' };
       case 'last_activity_desc':
       default:
-        return { lastActivityAt: 'desc' };
+        return { lastActivityAt: 'desc', id: 'desc' };
     }
   }
 }

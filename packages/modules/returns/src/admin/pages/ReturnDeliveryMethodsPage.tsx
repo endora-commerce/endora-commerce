@@ -1,15 +1,13 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Trash2, Truck } from 'lucide-react';
-import { ApiError, formatMoney } from '@endora-commerce/admin-kit/lib';
-import { useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
+import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { Loader2, Plus, Trash2, Truck } from 'lucide-react';
+import { ApiError, formatMoney, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ModalDialog, useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
   Button,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   EmptyState,
   FormField,
   InlineStatus,
@@ -46,13 +44,15 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
   // then takes the method's id instead.
   const [methods, setMethods] = useState<DeliveryMethodOption[] | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
-  const [deliveryMethodId, setDeliveryMethodId] = useState('');
-  const [returnCost, setReturnCost] = useState(0);
-  const [currency, setCurrency] = useState('PLN');
+  const [creating, setCreating] = useState(false);
+  // The code every write route enforces (`requireAdmin('returns:write')`): a read-only
+  // operator sees the list but is offered no write it would be refused.
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('returns:write');
   const [busyId, setBusyId] = useState<string | null>(null);
   const status = useInlineStatus();
   const { confirm, confirmDialog } = useConfirmDialog();
-  // After a confirmed delete, focus goes to the next row's Delete, else the method field (WCAG 2.4.3).
+  // After a confirmed delete, focus goes to the next row's Delete, else the create action (WCAG 2.4.3).
   const removalFocus = useRemovalFocus(rows ?? [], rowId, rows !== null);
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -117,29 +117,41 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
       returnFocusTo: removalFocus.returnFocusTo(r),
     });
   };
-  const setCreateTarget = (element: HTMLElement | null): void => {
-    removalFocus.createRef.current = element;
-  };
 
-  const add = async (event: FormEvent): Promise<void> => {
-    event.preventDefault();
-    if (!deliveryMethodId.trim()) return;
-    const ok = await run(() =>
-      returnsClient.createDeliveryMethod({
-        deliveryMethodId: deliveryMethodId.trim(),
-        returnCost,
-        currency: currency.trim().toUpperCase(),
-      }),
-    );
-    if (ok) {
-      setDeliveryMethodId('');
-      status.show(tr('methods.added'));
-    }
-  };
+  // Issue #1439 (DS-05): the create action sits in the header and opens a dialog, rather
+  // than a create card drawn open under the list (Hick); with no method yet the empty state
+  // carries it instead (Von Restorff). One ref serves removal focus and the dialog's return.
+  const newMethod = (
+    <Button
+      ref={(element: HTMLButtonElement | null) => {
+        removalFocus.createRef.current = element;
+      }}
+      type="button"
+      className="min-h-11 sm:min-h-9"
+      onClick={() => {
+        status.clear();
+        setCreating(true);
+      }}
+    >
+      <Plus size={16} aria-hidden="true" />
+      {tr('methods.newTitle')}
+    </Button>
+  );
+  const nothingYet = rows !== null && rows.length === 0;
 
   return (
     <div className="space-y-4">
-      <PageHeader title={t('returns.methods.title')} />
+      <PageHeader
+        title={t('returns.methods.title')}
+        actions={
+          canWrite && rows !== null && !nothingYet ? (
+            <>
+              <InlineStatus {...status.props} />
+              {newMethod}
+            </>
+          ) : null
+        }
+      />
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -154,6 +166,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
                 icon={<Truck size={20} />}
                 title={tr('methods.empty.title')}
                 description={tr('methods.empty.description')}
+                action={canWrite ? newMethod : null}
               />
             ) : (
               <Table>
@@ -162,7 +175,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
                     <TableHead>{tr('methods.col.method')}</TableHead>
                     <TableHead className="text-right">{tr('methods.col.cost')}</TableHead>
                     <TableHead>{tr('methods.col.active')}</TableHead>
-                    <TableHead />
+                    {canWrite ? <TableHead /> : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -180,6 +193,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
                           <Switch
                             checked={r.isActive}
                             busy={busyId === r.id}
+                            disabled={!canWrite}
                             aria-label={tr('methods.activeLabel', { method: shown })}
                             onCheckedChange={(next) => {
                               setBusyId(r.id);
@@ -189,17 +203,19 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
                             }}
                           />
                         </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            ref={removalFocus.targetRef(r)}
-                            aria-label={tr('methods.delete', { method: shown })}
-                            onClick={() => remove(r, shown)}
-                          >
-                            <Trash2 className="size-4" aria-hidden="true" />
-                          </Button>
-                        </TableCell>
+                        {canWrite ? (
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              ref={removalFocus.targetRef(r)}
+                              aria-label={tr('methods.delete', { method: shown })}
+                              onClick={() => remove(r, shown)}
+                            >
+                              <Trash2 className="size-4" aria-hidden="true" />
+                            </Button>
+                          </TableCell>
+                        ) : null}
                       </TableRow>
                     );
                   })}
@@ -210,36 +226,118 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{tr('methods.newTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="flex flex-wrap items-start gap-4" onSubmit={(e) => void add(e)}>
-            {methods === null ? (
-              <FormField label={tr('methods.field.methodId')} hint={tr('methods.field.methodIdHint')} required className="w-96">
+      {canWrite && creating ? (
+        <NewDeliveryMethodDialog
+          methods={methods}
+          choices={choices}
+          finalFocusRef={removalFocus.createRef}
+          onClose={() => setCreating(false)}
+          onCreated={async () => {
+            await refresh();
+            setCreating(false);
+            status.show(tr('methods.added'));
+          }}
+        />
+      ) : null}
+      {confirmDialog}
+    </div>
+  );
+}
+
+interface NewDeliveryMethodDialogProps {
+  /** As on the page: `undefined` while loading, `null` when they cannot be read. */
+  methods: DeliveryMethodOption[] | null | undefined;
+  /** The methods without a return setting yet — the only ones offered. */
+  choices: DeliveryMethodOption[];
+  /** Focused when the dialog closes: the create action drawn at that moment. */
+  finalFocusRef: RefObject<HTMLElement | null>;
+  onClose: () => void;
+  onCreated: () => Promise<void>;
+}
+
+/**
+ * The new return-delivery-method form — three fields, so a dialog (DS-05). The method is
+ * chosen by name; when the list cannot be read it takes the method's ID. With every method
+ * already configured it says so instead of offering an empty choice.
+ */
+function NewDeliveryMethodDialog({ methods, choices, finalFocusRef, onClose, onCreated }: NewDeliveryMethodDialogProps): ReactNode {
+  const t = useTranslation('core');
+  const tr = useTranslation('returns');
+  const { language } = useTranslationContext();
+  const formId = useId();
+  const [deliveryMethodId, setDeliveryMethodId] = useState('');
+  const [returnCost, setReturnCost] = useState(0);
+  const [currency, setCurrency] = useState('PLN');
+  const [methodError, setMethodError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const byId = methods === null;
+  const nothingLeft = Array.isArray(methods) && choices.length === 0;
+
+  const pick = (value: string): void => {
+    setDeliveryMethodId(value);
+    if (methodError) setMethodError(null);
+  };
+
+  const submit = async (event: FormEvent): Promise<void> => {
+    event.preventDefault();
+    setFailure(null);
+    if (!deliveryMethodId.trim()) {
+      setMethodError(byId ? tr('methods.validation.methodIdRequired') : tr('methods.validation.methodRequired'));
+      return;
+    }
+    setMethodError(null);
+    setSaving(true);
+    try {
+      await returnsClient.createDeliveryMethod({
+        deliveryMethodId: deliveryMethodId.trim(),
+        returnCost,
+        currency: currency.trim().toUpperCase(),
+      });
+      await onCreated();
+    } catch (err) {
+      setFailure(err instanceof ApiError ? err.envelope.error.message : tr('admin.actionFailed'));
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalDialog
+      title={tr('methods.newTitle')}
+      onClose={onClose}
+      busy={saving}
+      dismissOnScrim={false}
+      finalFocusRef={finalFocusRef}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+            {t('common.action.cancel')}
+          </Button>
+          <Button type="submit" form={formId} disabled={saving || nothingLeft} aria-busy={saving || undefined}>
+            {saving ? <Loader2 size={14} aria-hidden="true" className="motion-safe:animate-spin" /> : null}
+            {tr('methods.add')}
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} noValidate className="space-y-4" onSubmit={(e) => void submit(e)}>
+        {nothingLeft ? (
+          <p className="text-sm text-muted-foreground">{tr('methods.allConfigured')}</p>
+        ) : (
+          <>
+            {byId ? (
+              <FormField label={tr('methods.field.methodId')} hint={tr('methods.field.methodIdHint')} required error={methodError}>
                 <Input
-                  ref={setCreateTarget}
                   className="font-mono"
                   spellCheck={false}
                   autoComplete="off"
                   value={deliveryMethodId}
-                  onChange={(e) => {
-                    setDeliveryMethodId(e.target.value);
-                    status.clear();
-                  }}
+                  onChange={(e) => pick(e.target.value)}
                 />
               </FormField>
             ) : (
-              <FormField label={tr('methods.field.method')} required className="w-72">
-                <Select
-                  ref={setCreateTarget}
-                  value={deliveryMethodId}
-                  onChange={(e) => {
-                    setDeliveryMethodId(e.target.value);
-                    status.clear();
-                  }}
-                >
+              <FormField label={tr('methods.field.method')} required error={methodError}>
+                <Select value={deliveryMethodId} onChange={(e) => pick(e.target.value)}>
                   <option value="">{tr('methods.field.chooseMethod')}</option>
                   {choices.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -249,7 +347,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
                 </Select>
               </FormField>
             )}
-            <FormField label={tr('methods.field.cost')} hint={tr('methods.field.costHint')} className="w-80">
+            <FormField label={tr('methods.field.cost')} hint={tr('methods.field.costHint')}>
               <Input
                 type="number"
                 step="0.01"
@@ -259,26 +357,24 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
                 onChange={(e) => setReturnCost(Number(e.target.value))}
               />
             </FormField>
-            <FormField label={tr('methods.field.currency')} className="w-24">
+            <FormField label={tr('methods.field.currency')}>
               <Input
                 maxLength={3}
                 autoComplete="off"
-                className="uppercase"
+                className="w-24 uppercase"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
               />
             </FormField>
-            <div className="flex items-center gap-3 pt-6">
-              <Button type="submit" size="sm" disabled={!deliveryMethodId.trim()}>
-                {tr('methods.add')}
-              </Button>
-              <InlineStatus {...status.props} />
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-      {confirmDialog}
-    </div>
+          </>
+        )}
+        {/* Mounted before it has text, so a refusal that arrives is announced. */}
+        <p role="alert" className="text-sm text-destructive">
+          {failure}
+        </p>
+      </form>
+    </ModalDialog>
   );
 }
+
 export default ReturnDeliveryMethodsPage;

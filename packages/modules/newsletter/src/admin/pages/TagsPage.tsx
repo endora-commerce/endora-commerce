@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type FormEvent, type ReactNode } from 'react';
+import { ListPlus, Plus, Tags } from 'lucide-react';
 import { slugify, type CustomFieldType, type NewsletterCustomField, type NewsletterTag } from '@endora-commerce/contracts';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { ModalDialog, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, FormField, Input, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import { newsletterClient } from '../api/newsletter-client.js';
 import { describeDeleteError } from '../describe-delete-error.js';
 import { customFieldTypeLabels } from '../lib/labels.js';
@@ -44,11 +45,8 @@ export function TagsPage(): React.ReactElement {
   const [tags, setTags] = useState<NewsletterTag[]>([]);
   const [fields, setFields] = useState<NewsletterCustomField[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [tagCode, setTagCode] = useState('');
-  const [tagName, setTagName] = useState('');
-  const [fieldKey, setFieldKey] = useState('');
-  const [fieldLabel, setFieldLabel] = useState('');
-  const [fieldType, setFieldType] = useState<CustomFieldType>('text');
+  // Issue #1439 (DS-05): the add forms are dialogs opened from each section's header.
+  const [adding, setAdding] = useState<'tag' | 'field' | null>(null);
   const [editTag, setEditTag] = useState<{ id: string; name: string; description: string } | null>(null);
   const [editField, setEditField] = useState<{ id: string; label: string } | null>(null);
 
@@ -99,31 +97,6 @@ export function TagsPage(): React.ReactElement {
     }
   }
 
-  const addTag = (): void =>
-    void run(async () => {
-      if (tagName.trim() === '') throw new Error(tn('tags.nameRequired'));
-      const code = slugifyCode(tagCode.trim() || tagName);
-      if (!CODE_RE.test(code)) {
-        throw new Error(tn('tags.codeInvalid'));
-      }
-      await newsletterClient.createTag({ code, name: tagName.trim() });
-      setTagCode('');
-      setTagName('');
-    });
-
-  const addField = (): void =>
-    void run(async () => {
-      if (fieldLabel.trim() === '') throw new Error(tn('fields.labelRequired'));
-      const key = slugifyCode(fieldKey.trim() || fieldLabel);
-      if (!CODE_RE.test(key)) {
-        throw new Error(tn('fields.keyInvalid'));
-      }
-      await newsletterClient.createCustomField({ key, label: fieldLabel.trim(), type: fieldType });
-      setFieldKey('');
-      setFieldLabel('');
-      setFieldType('text');
-    });
-
   if (!hasPermission('newsletter:read')) {
     return (
       <Alert>
@@ -141,22 +114,10 @@ export function TagsPage(): React.ReactElement {
         </Alert>
       ) : null}
       <Card>
-        <CardHeader>
-          <CardTitle>{tn('tags.section')}</CardTitle>
-        </CardHeader>
+        <SectionHeader title={tn('tags.section')} addLabel={canWrite ? tn('tags.add') : null} onAdd={() => setAdding('tag')} />
         <CardContent className="space-y-3">
-          {canWrite ? (
-            <div className="flex flex-wrap items-start gap-3">
-              <FormField label={tn('tags.field.name')} className="w-full max-w-[220px]">
-                <Input value={tagName} onChange={(e) => setTagName(e.target.value)} />
-              </FormField>
-              <FormField label={tn('tags.field.code')} hint={tn('tags.field.codeHint')} className="w-full max-w-[220px]">
-                <Input value={tagCode} onChange={(e) => setTagCode(e.target.value)} className="font-mono" />
-              </FormField>
-              <Button size="sm" onClick={addTag} className="mt-6">
-                {tn('tags.add')}
-              </Button>
-            </div>
+          {tags.length === 0 ? (
+            <EmptyState icon={<Tags size={20} />} title={tn('tags.empty')} description={tn('tags.emptyBody')} />
           ) : null}
           <ul className="divide-y text-sm">
             {tags.map((t) => {
@@ -226,35 +187,13 @@ export function TagsPage(): React.ReactElement {
               );
             })}
           </ul>
-          {tags.length === 0 ? <p className="text-sm text-muted-foreground">{tn('tags.empty')}</p> : null}
         </CardContent>
       </Card>
       <Card>
-        <CardHeader>
-          <CardTitle>{tn('fields.section')}</CardTitle>
-        </CardHeader>
+        <SectionHeader title={tn('fields.section')} addLabel={canWrite ? tn('fields.add') : null} onAdd={() => setAdding('field')} />
         <CardContent className="space-y-3">
-          {canWrite ? (
-            <div className="flex flex-wrap items-start gap-3">
-              <FormField label={tn('fields.field.label')} className="w-full max-w-[220px]">
-                <Input value={fieldLabel} onChange={(e) => setFieldLabel(e.target.value)} />
-              </FormField>
-              <FormField label={tn('fields.field.key')} hint={tn('fields.field.keyHint')} className="w-full max-w-[220px]">
-                <Input value={fieldKey} onChange={(e) => setFieldKey(e.target.value)} className="font-mono" />
-              </FormField>
-              <FormField label={tn('fields.field.type')} className="w-full max-w-[160px]">
-                <Select value={fieldType} onChange={(e) => setFieldType(e.target.value as CustomFieldType)}>
-                  {customFieldTypeLabels.options(tn).map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
-              <Button size="sm" onClick={addField} className="mt-6">
-                {tn('fields.add')}
-              </Button>
-            </div>
+          {fields.length === 0 ? (
+            <EmptyState icon={<ListPlus size={20} />} title={tn('fields.empty')} description={tn('fields.emptyBody')} />
           ) : null}
           <ul className="divide-y text-sm">
             {fields.map((f) => {
@@ -319,11 +258,184 @@ export function TagsPage(): React.ReactElement {
               );
             })}
           </ul>
-          {fields.length === 0 ? <p className="text-sm text-muted-foreground">{tn('fields.empty')}</p> : null}
         </CardContent>
       </Card>
+      {adding === 'tag' ? (
+        <TagDialog
+          onClose={() => setAdding(null)}
+          onCreated={() => {
+            setAdding(null);
+            load();
+          }}
+        />
+      ) : null}
+      {adding === 'field' ? (
+        <FieldDialog
+          onClose={() => setAdding(null)}
+          onCreated={() => {
+            setAdding(null);
+            load();
+          }}
+        />
+      ) : null}
       {confirmDialog}
     </div>
+  );
+}
+
+/**
+ * A section's header: its title and, for an operator who may write, an outline
+ * *Add …*. Outline, not filled: the screen manages two lists and neither add is
+ * its one primary (issue #1441, DS-07; Von Restorff).
+ */
+function SectionHeader(props: { title: string; addLabel: string | null; onAdd: () => void }): ReactNode {
+  return (
+    <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+      <CardTitle>{props.title}</CardTitle>
+      {props.addLabel ? (
+        <Button variant="outline" size="sm" onClick={props.onAdd}>
+          <Plus />
+          {props.addLabel}
+        </Button>
+      ) : null}
+    </CardHeader>
+  );
+}
+
+/** The submit and cancel row both create dialogs share; the submit is the dialog's one primary. */
+function DialogActions(props: { busy: boolean; submitLabel: string; onCancel: () => void }): ReactNode {
+  const tc = useTranslation('core');
+  return (
+    <div className="flex flex-wrap justify-end gap-2 pt-2">
+      <Button className="min-h-11 sm:min-h-9" type="button" variant="outline" disabled={props.busy} onClick={props.onCancel}>
+        {tc('common.action.cancel')}
+      </Button>
+      <Button className="min-h-11 sm:min-h-9" type="submit" disabled={props.busy} aria-busy={props.busy}>
+        {props.busy ? tc('common.state.saving') : props.submitLabel}
+      </Button>
+    </div>
+  );
+}
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Create a tag. The name is required; the code is derived from it when left
+ * empty (Tesler). A missing name or an invalid code is marked on its field; a
+ * server refusal stays inside the dialog with what was typed.
+ */
+function TagDialog(props: { onClose: () => void; onCreated: () => void }): ReactNode {
+  const tn = useTranslation('newsletter');
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
+  const [errors, setErrors] = useState<{ name?: string; code?: string }>({});
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (event: FormEvent): Promise<void> => {
+    event.preventDefault();
+    setError(null);
+    if (name.trim() === '') {
+      setErrors({ name: tn('tags.nameRequired') });
+      return;
+    }
+    const derived = slugifyCode(code.trim() || name);
+    if (!CODE_RE.test(derived)) {
+      setErrors({ code: tn('tags.codeInvalid') });
+      return;
+    }
+    setErrors({});
+    setBusy(true);
+    try {
+      await newsletterClient.createTag({ code: derived, name: name.trim() });
+      props.onCreated();
+    } catch (err) {
+      setError(errorText(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ModalDialog title={tn('tags.dialog.title')} busy={busy} dismissOnScrim={false} onClose={props.onClose}>
+      <form noValidate className="space-y-4" onSubmit={(event): void => void submit(event)}>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <FormField label={tn('tags.field.name')} error={errors.name} required>
+          <Input value={name} autoFocus onChange={(e) => setName(e.target.value)} />
+        </FormField>
+        <FormField label={tn('tags.field.code')} hint={tn('tags.field.codeHint')} error={errors.code}>
+          <Input value={code} onChange={(e) => setCode(e.target.value)} className="font-mono" />
+        </FormField>
+        <DialogActions busy={busy} submitLabel={tn('tags.add')} onCancel={props.onClose} />
+      </form>
+    </ModalDialog>
+  );
+}
+
+/** Create a custom subscriber field; the key is derived from the label when left empty. */
+function FieldDialog(props: { onClose: () => void; onCreated: () => void }): ReactNode {
+  const tn = useTranslation('newsletter');
+  const [label, setLabel] = useState('');
+  const [key, setKey] = useState('');
+  const [type, setType] = useState<CustomFieldType>('text');
+  const [errors, setErrors] = useState<{ label?: string; key?: string }>({});
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (event: FormEvent): Promise<void> => {
+    event.preventDefault();
+    setError(null);
+    if (label.trim() === '') {
+      setErrors({ label: tn('fields.labelRequired') });
+      return;
+    }
+    const derived = slugifyCode(key.trim() || label);
+    if (!CODE_RE.test(derived)) {
+      setErrors({ key: tn('fields.keyInvalid') });
+      return;
+    }
+    setErrors({});
+    setBusy(true);
+    try {
+      await newsletterClient.createCustomField({ key: derived, label: label.trim(), type });
+      props.onCreated();
+    } catch (err) {
+      setError(errorText(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ModalDialog title={tn('fields.dialog.title')} busy={busy} dismissOnScrim={false} onClose={props.onClose}>
+      <form noValidate className="space-y-4" onSubmit={(event): void => void submit(event)}>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <FormField label={tn('fields.field.label')} error={errors.label} required>
+          <Input value={label} autoFocus onChange={(e) => setLabel(e.target.value)} />
+        </FormField>
+        <FormField label={tn('fields.field.key')} hint={tn('fields.field.keyHint')} error={errors.key}>
+          <Input value={key} onChange={(e) => setKey(e.target.value)} className="font-mono" />
+        </FormField>
+        <FormField label={tn('fields.field.type')}>
+          <Select value={type} onChange={(e) => setType(e.target.value as CustomFieldType)}>
+            {customFieldTypeLabels.options(tn).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+        <DialogActions busy={busy} submitLabel={tn('fields.add')} onCancel={props.onClose} />
+      </form>
+    </ModalDialog>
   );
 }
 

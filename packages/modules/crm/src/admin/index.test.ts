@@ -55,6 +55,10 @@ describe('crm admin contributions', () => {
       ['/crm/opportunities/new', 'crm:write'],
       ['/crm/opportunities/:id', 'crm:read'],
       ['/crm/workflow', 'crm:configure'],
+      // Issue #1559: the workflow configuration's tabs are routes of their own.
+      ['/crm/workflow/order-sync', 'crm:configure'],
+      ['/crm/workflow/value', 'crm:configure'],
+      ['/crm/workflow/board-card', 'crm:configure'],
       // The board's former address, redirecting to `?view=board` (issue #1558).
       ['/crm/board', 'crm:read'],
       // The configuration's Tags tab (issue #1557), and its old address, a redirect.

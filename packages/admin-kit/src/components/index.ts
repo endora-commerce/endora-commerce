@@ -146,6 +146,7 @@ export type {
 // Issue #1446 (DS-13) — the one unsaved-changes guard: Save / Discard / Stay before a navigation drops edits.
 export { UnsavedChangesDialog, UnsavedChangesHint, useUnsavedChangesGuard } from './unsaved-changes/UnsavedChangesGuard.js';
 export type {
+  UnsavedChangesAsk,
   UnsavedChangesDialogProps,
   UnsavedChangesGuard,
   UnsavedChangesGuardOptions,

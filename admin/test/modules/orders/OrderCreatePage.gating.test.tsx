@@ -62,6 +62,7 @@ const QUICK_SEARCH = 'orderCreate.items.quickSearch';
 
 const BUNDLE = passthroughBundle('core', [
   'common.action.back',
+  'orders.page.title',
   'common.combobox.clearSelection',
   ITEMS,
   SUMMARY,
@@ -253,7 +254,7 @@ describe('OrderCreatePage — Items and Order summary gated on customer and sale
 
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     try {
-      await userEvent.click(screen.getByRole('link', { name: 'common.action.back' }));
+      await userEvent.click(screen.getByRole('link', { name: 'orders.page.title' }));
       expect(confirm).toHaveBeenCalledTimes(1);
     } finally {
       confirm.mockRestore();

@@ -18,6 +18,7 @@ import {
   Card,
   CardContent,
   EditorSection,
+  EmptyState,
   Label,
   PageHeader,
   RouteTabs,
@@ -241,11 +242,9 @@ function ExecutionPlan({ t, names }: { t: Translate; names: ReadonlyMap<string, 
   }
   if (plan.actions.length === 0) {
     return (
+      // Issue #1448 (DS-15): the tab's whole body, so the kit block.
       <Card>
-        <CardContent className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Webhook className="size-5 shrink-0" aria-hidden="true" />
-          <p>{t('platform.commandHooks.plan.empty')}</p>
-        </CardContent>
+        <EmptyState icon={<Webhook size={20} />} title={t('platform.commandHooks.plan.empty')} />
       </Card>
     );
   }
@@ -413,7 +412,7 @@ function Outbox({
 
   const retryButtons = useRef(new Map<string, HTMLButtonElement>());
   const rows = useRef(new Map<string, HTMLTableRowElement>());
-  const emptyRef = useRef<HTMLParagraphElement | null>(null);
+  const emptyRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLParagraphElement | null>(null);
   const pendingFocus = useRef<FocusTarget | null>(null);
 
@@ -561,17 +560,14 @@ function Outbox({
       )}
 
       {loading || loadError !== null ? null : items.length === 0 ? (
-        <Card>
-          <CardContent className="flex items-center gap-3 text-sm text-muted-foreground">
-            {status === 'dead' ? (
-              <CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-hidden="true" />
-            ) : (
-              <Inbox className="size-5 shrink-0" aria-hidden="true" />
-            )}
-            <p ref={emptyRef} tabIndex={-1} className="outline-none">
-              {t(EMPTY_KEY[status])}
-            </p>
-          </CardContent>
+        // Issue #1448 (DS-15): the tab's whole body, so the kit block. Each status
+        // is a view of its own, not a filter, so there is nothing to clear. The
+        // wrapper takes focus when the last row is retried away (WCAG 2.4.3).
+        <Card ref={emptyRef} tabIndex={-1} className="outline-none">
+          <EmptyState
+            icon={status === 'dead' ? <CheckCircle2 size={20} /> : <Inbox size={20} />}
+            title={t(EMPTY_KEY[status])}
+          />
         </Card>
       ) : (
         <Card>

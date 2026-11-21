@@ -75,6 +75,13 @@ export interface TabsProps<V extends string = string> {
   /** Names the strip — "Product sections". One of the two is required by the pattern. */
   'aria-label'?: string;
   'aria-labelledby'?: string;
+  /**
+   * `false` for a strip whose selection is page state spread over the screen
+   * rather than one panel (a content-language switch above several tabs): its
+   * tabs then carry no `aria-controls`, which would otherwise name a panel the
+   * screen never renders. Default `true` — render a `TabPanel`.
+   */
+  controlsPanel?: boolean;
   className?: string;
 }
 
@@ -144,7 +151,7 @@ function countedName(name: string, unsaved: string | undefined): string {
 }
 
 export function Tabs<V extends string>(props: TabsProps<V>): ReactNode {
-  const { items, value, onValueChange, idBase, className } = props;
+  const { items, value, onValueChange, idBase, controlsPanel = true, className } = props;
   const t = useTranslation('core');
   const insidePanel = useContext(TabPanelContext);
   if (insidePanel) warnNestedTabs(idBase);
@@ -185,7 +192,7 @@ export function Tabs<V extends string>(props: TabsProps<V>): ReactNode {
               type="button"
               role="tab"
               aria-selected={selected}
-              aria-controls={tabPanelId(idBase)}
+              aria-controls={controlsPanel ? tabPanelId(idBase) : undefined}
               // A bare number says nothing read aloud: the name says what is counted.
               aria-label={
                 count > 0

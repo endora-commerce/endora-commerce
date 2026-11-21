@@ -242,6 +242,10 @@ describe('sales_channels contributes the product editor channels zone', () => {
         'membership.action.remove',
         'membership.action.add',
       ]);
+      // Issue #1441 (DS-07): Add is an in-editor action, so it is outline, not a filled primary.
+      const add = [...container.querySelectorAll('button')].at(-1)!;
+      expect(add.className.split(/\s+/)).not.toContain('bg-primary');
+      expect(add.className.split(/\s+/)).toContain('border-input');
       expect(container.textContent).toContain('saveSession.immediateBadge');
     });
   });

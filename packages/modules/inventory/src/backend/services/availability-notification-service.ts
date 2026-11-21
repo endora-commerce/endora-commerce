@@ -378,7 +378,7 @@ export class AvailabilityNotificationService {
     if (filter.status) where['status'] = filter.status;
 
     const [rows, total] = await em.findAndCount(AvailabilityNotification, where, {
-      orderBy: { requestedAt: 'desc' },
+      orderBy: { requestedAt: 'desc', id: 'desc' },
       offset: page * pageSize,
       limit: pageSize,
     });
