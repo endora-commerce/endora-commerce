@@ -44,6 +44,10 @@ const CUT: readonly Cut[] = [
   { bundle: '_i18n', key: 'legacyMethods.integrations.description', reader: 'payment_methods' },
   { bundle: '_i18n', key: 'legacyMethods.integrations.shippingDescription', reader: 'delivery_methods' },
   { bundle: '_i18n', key: 'creditLimits.page.description', reader: 'credit_limits' },
+  // #1436 (DS-02 remainder, S1): "Cart-level discounts. Percentage values are 0..100;
+  // amount-off requires a currency." The title says the first half, and the editor's
+  // fields already enforce the second.
+  { bundle: '_i18n', key: 'promotions.page.description', reader: 'promotions' },
   { bundle: '_i18n', key: 'promotions.edit.description', reader: 'promotions' },
   { bundle: '_i18n', key: 'promotionStats.description', reader: 'promotions' },
   { bundle: 'customers', key: 'list.description', reader: 'customers' },

@@ -112,7 +112,7 @@ export function CouponGeneratorForm({
         </Field>
       </div>
       <div className="flex items-center gap-3">
-        <Button type="button" disabled={busy} onClick={() => void generate()}>
+        <Button type="button" variant="outline" disabled={busy} onClick={() => void generate()}>
           {t('promotions.generator.generate')}
         </Button>
         {lastBatchId ? (
