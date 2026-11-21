@@ -245,6 +245,27 @@ describe('Tabs and TabPanel — the WAI-ARIA tabs pattern', () => {
     expect(screen.getByRole('tab', { name: 'Countries' })).toBeInTheDocument();
   });
 
+  it('names no panel when the strip drives page state rather than one panel (controlsPanel={false})', async () => {
+    const { container } = renderWithI18n(
+      <Tabs
+        items={[
+          { value: 'en', label: 'en' },
+          { value: 'pl', label: 'pl' },
+        ]}
+        value="pl"
+        onValueChange={(): void => {}}
+        idBase="page-language"
+        aria-label="Content language"
+        controlsPanel={false}
+      />,
+      EN,
+    );
+    for (const tab of screen.getAllByRole('tab')) expect(tab).not.toHaveAttribute('aria-controls');
+    expect(screen.getByRole('tab', { name: 'pl' })).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('tab', { name: 'en' })).toHaveAttribute('tabindex', '-1');
+    await expectNoAxeViolations(container);
+  });
+
   it('passes axe', async () => {
     const { container } = renderWithI18n(<Strip />, EN);
     await expectNoAxeViolations(container);

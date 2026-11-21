@@ -227,6 +227,22 @@ describe.each(screens)('$name in the shared editor shell', (screenUnderTest) => 
     expect(within(builder).queryByText(screenUnderTest.metadataTitle)).toBeNull();
   });
 
+  it('makes the canvas the language tabs\' panel where the language switches nothing else (#1445)', async () => {
+    renderEditor(screenUnderTest, 'entity-1');
+    const tab = await screen.findByRole('tab', { name: 'en-US' });
+    expect(screen.getAllByRole('tab').filter((t) => t.tabIndex === 0)).toEqual([tab]);
+    if (screenUnderTest.name === 'PageEditor') {
+      // A page's language also switches its settings fields: page state, no one panel to name.
+      expect(tab).not.toHaveAttribute('aria-controls');
+      expect(screen.queryByRole('tabpanel')).toBeNull();
+      return;
+    }
+    const panel = screen.getByRole('tabpanel');
+    expect(tab).toHaveAttribute('aria-controls', panel.id);
+    expect(panel).toHaveAttribute('aria-labelledby', tab.id);
+    expect(within(panel).getByTestId('canvas-stub')).toBeTruthy();
+  });
+
   it('keeps the save action outside both regions, so collapsing the panel cannot take it away', () => {
     renderEditor(screenUnderTest, 'new');
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useParams } from 'react-router-dom';
 import type { AdminCategoryContent, AdminZoneProps } from '@endora-commerce/contracts';
 import { ApiError, apiClient, useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, PageHeader, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, PageHeader, TabPanel, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { ContentLanguageTabs, adminLanguageToLocale, pickCategoryDisplayName } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
@@ -22,6 +22,9 @@ interface CategoryRow {
 }
 
 type EditorZoneProps = AdminZoneProps<'category.content.editor'>;
+
+/** The language strip's ids: its tabs name the editor below them (`aria-controls`). */
+const CONTENT_TABS_ID = 'category-content-language';
 
 /**
  * The category content screen (`/catalog/categories/:id/content`).
@@ -208,6 +211,7 @@ export function CategoryContentPage(): ReactNode {
                 languages={languages}
                 activeLanguage={activeLanguage}
                 onChange={selectLanguage}
+                idBase={CONTENT_TABS_ID}
               />
             </div>
             {canWrite ? (
@@ -224,9 +228,11 @@ export function CategoryContentPage(): ReactNode {
           <CardContent>
             {/* Keyed on the seed: a language switch or a load mounts a fresh
                 editor on that document, and an edit or a save never does. */}
-            <div key={`${seed.language}:${seed.revision}`}>
-              <AdminZone name="category.content.editor" props={zoneProps} />
-            </div>
+            <TabPanel idBase={CONTENT_TABS_ID} value={activeLanguage} tabIndex={-1}>
+              <div key={`${seed.language}:${seed.revision}`}>
+                <AdminZone name="category.content.editor" props={zoneProps} />
+              </div>
+            </TabPanel>
           </CardContent>
         </Card>
       )}
