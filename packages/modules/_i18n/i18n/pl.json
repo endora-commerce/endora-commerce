@@ -411,6 +411,7 @@
   "fileDropzone.selected": "Wybrano: {name}",
   "contentLanguageTabs.ariaLabel": "Język treści",
   "contentLanguageTabs.empty": "Nie wybrano języków treści.",
+  "contentLanguageTabs.emptyHint": "Wybierz co najmniej jeden język w zakresie, aby edytować treść.",
   "boardCardFields.shown.title": "Widoczne na karcie",
   "boardCardFields.shown.count": "{count} z {max}",
   "boardCardFields.shown.empty": "Nie wybrano żadnego pola: karta pokazuje sam tytuł.",

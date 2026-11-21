@@ -183,6 +183,18 @@ describe('ProductContentPage (feature 172)', () => {
     );
   });
 
+  it('names the editor as the panel of the language tabs (issue #1445)', async () => {
+    stubApi({ languages: { 'pl-PL': tree('stored-pl') } });
+    renderPage({});
+    const tab = await screen.findByRole('tab', { name: 'en-US' });
+    const panel = screen.getByRole('tabpanel');
+    expect(tab.getAttribute('aria-controls')).toBe(panel.id);
+    expect(panel.getAttribute('aria-labelledby')).toBe(tab.id);
+    expect(panel).toContainElement(screen.getByTestId('editor-language'));
+    // One tab in the tab order: the selected one.
+    expect(screen.getAllByRole('tab').filter((t) => t.tabIndex === 0)).toEqual([tab]);
+  });
+
   it('offers en-US, pl-PL and a language only the stored content carries (FR-021)', async () => {
     stubApi({ languages: { 'de-DE': tree('stored-de') } });
     renderPage({});

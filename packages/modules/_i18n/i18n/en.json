@@ -411,6 +411,7 @@
   "fileDropzone.selected": "Selected: {name}",
   "contentLanguageTabs.ariaLabel": "Content language",
   "contentLanguageTabs.empty": "No content languages selected.",
+  "contentLanguageTabs.emptyHint": "Choose at least one language in the scope to edit content.",
   "boardCardFields.shown.title": "Shown on the card",
   "boardCardFields.shown.count": "{count} of {max}",
   "boardCardFields.shown.empty": "No field is chosen: a card shows the title alone.",
