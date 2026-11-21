@@ -102,6 +102,9 @@ async function openModify(payload = groupedPayload()): Promise<void> {
 }
 
 const region = (name: string): HTMLElement => screen.getByRole('region', { name });
+/** The line groups — the regions inside Modify's *Lines* section (issue #1542). */
+const groupRegions = (): HTMLElement[] =>
+  within(screen.getByRole('region', { name: /rfq\.detail\.modify\.section\.lines/ })).getAllByRole('region');
 const saveBody = async (): Promise<{ groups?: unknown; items: Array<Record<string, unknown>> }> => {
   await userEvent.click(screen.getByRole('button', { name: 'rfq.detail.modify.saveRevision' }));
   await waitFor(() => expect(patchSpy).toHaveBeenCalled());
@@ -117,7 +120,7 @@ beforeEach(() => {
 describe('RfqDetail — Modify with groups (T030)', () => {
   it('opens on the stored groups, an empty one included, then Ungrouped', async () => {
     await openModify();
-    expect(screen.getAllByRole('region').map((section) => section.getAttribute('aria-label'))).toEqual([
+    expect(groupRegions().map((section) => section.getAttribute('aria-label'))).toEqual([
       'Hall',
       'Spare',
       'Ungrouped',
@@ -197,7 +200,7 @@ describe('RfqDetail — Modify with groups (T030)', () => {
   it('moves a group up and has no automated accessibility violation', async () => {
     await openModify();
     await userEvent.click(screen.getByRole('button', { name: 'Move group Spare up' }));
-    expect(screen.getAllByRole('region').map((section) => section.getAttribute('aria-label'))).toEqual([
+    expect(groupRegions().map((section) => section.getAttribute('aria-label'))).toEqual([
       'Spare',
       'Hall',
       'Ungrouped',

@@ -45,6 +45,12 @@ export const BUNDLE = passthroughBundle('core', [
   'rfq.detail.approve',
   'rfq.detail.modify.addLine',
   'rfq.detail.modify.lineGroup',
+  'rfq.detail.modify.product',
+  'rfq.detail.modify.quantity',
+  'rfq.detail.modify.lineTotal',
+  'rfq.detail.modify.referenceDifference',
+  'rfq.detail.modify.section.terms',
+  'rfq.detail.modify.section.lines',
 ]);
 
 export interface ItemOverrides {

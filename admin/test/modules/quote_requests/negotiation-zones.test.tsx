@@ -417,4 +417,17 @@ describe('quote_requests contributes the price-negotiation lock to two detail zo
     expect(pl['negotiation.organization.label']).not.toBe(en['negotiation.organization.label']);
     expect(pl['negotiation.effective']).not.toBe(en['negotiation.effective']);
   });
+
+  // Issue #1542 (UX audit 2026-11-17, SALES-16 text pass) — the line under a panel's control
+  // is read in passing: one line, the 80-character budget of `specs/conventions/module-i18n.md`.
+  it('keeps each one-line description and hint within 80 characters in English', () => {
+    const en = readBundle('en');
+    for (const key of [
+      'negotiation.organization.description',
+      'negotiation.customer.description',
+      'negotiation.readOnlyHint',
+    ]) {
+      expect(en[key]!.length, key).toBeLessThanOrEqual(80);
+    }
+  });
 });
