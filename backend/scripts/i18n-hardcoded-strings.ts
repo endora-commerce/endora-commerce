@@ -1357,16 +1357,10 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // above to the KSeF block's editor preview in the module that declares the
   // block; T069 then took that module out of this repository, and the entry
   // with it.
-  // Feature 091, Phase 4 batch three: the screen moved into its module's
-  // package and the entry is **re-keyed**, not raised and not dropped. The
-  // finding is one LinkedIn URN format example in a `placeholder`, and it is
-  // the same finding at a new address — this check's two-way ratchet reported
-  // both halves in one run (unaccounted here, over-baselined there), which is
-  // the laundering FR-017 refuses arriving one check over. It is not drained
-  // here because `urn:lla:llaPartnerConversion:…` is a wire-format example and
-  // not a sentence: putting it in a bundle would invite a translator to
-  // translate a LinkedIn identifier.
-  'packages/modules/linkedin_ads/src/admin/pages/ConversionMappingEditPage.tsx': 1,
+  // The LinkedIn conversion-mapping editor's entry (one URN format example in
+  // a `placeholder`) is gone: issue #1537 derives the placeholder from the
+  // conversion ID through the contract's `conversionRuleUrnFor`, so the field
+  // shows the value that is sent, and no literal is left to translate.
   // Feature 091, Phase 4, the plan's batch 7 — the same four counts under the
   // same four files, **re-keyed rather than re-baselined**. The ratchet is
   // two-way and keyed by path, so moving a directory strands the old key as a

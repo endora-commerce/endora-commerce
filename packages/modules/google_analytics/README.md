@@ -38,6 +38,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `bullmq` ^5
 - `fastify` ^5.11.0
 - `ioredis` ^5
+- `lucide-react` ^1 — *optional*
 - `react` ^19 — *optional*
 - `react-router-dom` ^7 — *optional*
 - `zod` ^4
