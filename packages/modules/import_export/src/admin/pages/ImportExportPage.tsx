@@ -17,6 +17,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  InlineStatus,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { listProductProfiles } from '../components/import-profiles-api.js';
@@ -191,6 +193,10 @@ function EntityCard({
 }): ReactNode {
   const t = useTranslation('import_export');
   const [importing, setImporting] = useState(false);
+  // A whole-file success is the result of the action: it goes beside the trigger (DEC-12 a). A
+  // rolled-back file is a refusal and stays a warning banner, with its row errors.
+  const status = useInlineStatus();
+  const { show: showStatus, clear: clearStatus } = status;
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<Array<{ rowNumber: number; reason: string }>>(
     [],
@@ -204,6 +210,7 @@ function EntityCard({
       if (!file) return;
 
       setImporting(true);
+      clearStatus();
       setImportMessage(null);
       setImportErrors([]);
       setImportError(null);
@@ -215,7 +222,7 @@ function EntityCard({
           headers: { 'Content-Type': 'text/csv' },
         });
         if (res.data.errors.length === 0) {
-          setImportMessage(t('imported', { count: res.data.imported }));
+          showStatus(t('imported', { count: res.data.imported }));
         } else {
           setImportMessage(t('rolledBack', { count: res.data.errors.length }));
           setImportErrors(res.data.errors);
@@ -226,7 +233,7 @@ function EntityCard({
         setImporting(false);
       }
     },
-    [entity.name, t],
+    [entity.name, t, showStatus, clearStatus],
   );
 
   const exportHref = `${apiBaseUrl}/api/v1/admin/export/${entity.name}.csv`;
@@ -274,6 +281,8 @@ function EntityCard({
               </label>
             </Button>
           ) : null}
+          {/* Mounted before it has text, so the result is announced (WCAG 2.2 SC 4.1.3). */}
+          <InlineStatus {...status.props} data-testid="entity-import-status" />
         </div>
 
         {/* Feature 174 — products import through a required profile and a dry run first. */}
@@ -297,7 +306,7 @@ function EntityCard({
           </Alert>
         ) : null}
         {importMessage ? (
-          <Alert variant={importErrors.length > 0 ? 'warning' : 'success'} live="polite">
+          <Alert variant="warning" live="polite">
             <AlertDescription>{importMessage}</AlertDescription>
           </Alert>
         ) : null}

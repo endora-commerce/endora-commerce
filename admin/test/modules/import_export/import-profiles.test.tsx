@@ -556,3 +556,38 @@ describe('Products import: progress and prerequisite (issue #1528)', () => {
     expect(card.queryByText('products.profilesError')).toBeNull();
   });
 });
+
+describe('One-shot import of the other entities (issue #1528 follow-up)', () => {
+  async function stockCard(): Promise<HTMLElement> {
+    const title = await screen.findByText('entity.stock');
+    const root = title.closest('[data-entity]');
+    if (!(root instanceof HTMLElement)) throw new Error('no stock card');
+    return root;
+  }
+
+  it('reports a successful import beside its trigger in a polite status region, not a success banner', async () => {
+    api.post.mockImplementation(async () => ({ data: { imported: 3, errors: [] } }));
+    renderPage(['inventory:write']);
+    const root = await stockCard();
+    const card = within(root);
+    const status = card.getByTestId('entity-import-status');
+    expect(status).toHaveAttribute('role', 'status');
+    expect(status.textContent).toBe('');
+    fireEvent.change(card.getByLabelText('importCsv'), { target: { files: [csvFile()] } });
+    await waitFor(() => expect(status.textContent).toContain('imported'));
+    expect(status).toHaveAttribute('data-tone', 'success');
+    expect(root.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+  });
+
+  it('keeps a rolled-back file as a warning banner with its row errors', async () => {
+    api.post.mockImplementation(async () => ({ data: { imported: 0, errors: [{ rowNumber: 2, reason: 'bad row' }] } }));
+    renderPage(['inventory:write']);
+    const root = await stockCard();
+    const card = within(root);
+    fireEvent.change(card.getByLabelText('importCsv'), { target: { files: [csvFile()] } });
+    expect(await card.findByText('rolledBack')).toBeTruthy();
+    expect(root.querySelector('[data-slot="alert"][data-variant="warning"]')).not.toBeNull();
+    expect(card.getByText('bad row')).toBeTruthy();
+    expect(card.getByTestId('entity-import-status').textContent).toBe('');
+  });
+});
