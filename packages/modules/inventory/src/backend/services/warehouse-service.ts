@@ -93,7 +93,7 @@ export class WarehouseService {
     if (options.activeOnly) where['active'] = true;
 
     const [rows, total] = await em.findAndCount(Warehouse, where, {
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'asc', id: 'asc' },
       offset: page * pageSize,
       limit: pageSize,
     });
