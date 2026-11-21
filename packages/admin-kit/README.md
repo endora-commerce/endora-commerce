@@ -10,7 +10,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 | Subpath | What it is |
 | --- | --- |
 | `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header` (`PageHeader`, see below), `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `empty-state` (`EmptyState`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `tabs` (`Tabs`, `TabPanel`, `RecordTabs`, see below), `editor-section` (`EditorSection`, see below), `separator` |
-| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `ListToolbar` with `ListToolbarSearch` and `FilterChip` (see below), `RowActionMenu`, `DetailHeaderActions` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
+| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `ListToolbar` with `ListToolbarSearch` and `FilterChip` (see below), `ViewModeToggle` (see below), `RowActionMenu`, `DetailHeaderActions` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
 | `./contributions` | the declaration types, re-exported from `@endora-commerce/contracts` so a module needs one import for the shapes and not two |
@@ -838,6 +838,22 @@ the opportunity list, the Projects list, and Tasks and My Tasks use it.
 - **The panel's controls mount only while it is open.** Data that a closed panel still needs, such
   as the custom-field labels used to name a refused filter, is read by the page, not by a cell in
   the panel.
+
+## List or board — `ViewModeToggle`
+
+Issue #1558 (UX audit 2026-11-17, WORK-07). `ViewModeToggle` (`./components`) is the *List | Board*
+switch of a screen that shows its records both ways, moved from Tasks so every such screen offers it the
+same way (Jakob's Law). It sits first in the `PageHeader` actions.
+
+```tsx
+<PageHeader title={t('list.title')} actions={<><ViewModeToggle mode={mode} onChange={setMode} />{newButton}</>} />
+```
+
+- **Two toggle buttons in a named group** (`common.viewMode.label`), each with an icon and a word. The
+  pressed one says which view is on screen by `aria-pressed` and its `secondary` fill, never by colour
+  alone. `onChange` is not called for the view already on screen.
+- **The screen keeps the choice.** Tasks remembers it per admin (`useListViewModePreference`). CRM keeps
+  it in the address (`/crm/opportunities?view=board`), so both views share one address and its filters.
 
 ## Known rough edge
 

@@ -45,10 +45,10 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 
 | Ekran | Gdzie | Uprawnienie | Do czego służy |
 | --- | --- | --- | --- |
-| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży, data utworzenia i pola niestandardowe oznaczone jako filtry listy. |
+| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, jako lista albo — przełącznikiem **Lista / Tablica** w nagłówku — jako tablica. Lista ma wyszukiwanie i filtry: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży, data utworzenia i pola niestandardowe oznaczone jako filtry listy. |
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
 | Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Nagłówek, pasek etapów z obecnym statusem i dozwolonymi z niego zmianami — wstecz i dalej — panel informacji po prawej oraz karty: *Przegląd*, **Powiązania** (zamówienia i zapytania ofertowe szansy), **Wydarzenia** (to, co dla niej zaplanowano, z przypomnieniami), *Notatki*, *Wiadomości*, *Załączniki* i **Historia zmian**. Zobacz *Ekran szansy sprzedażowej*. |
-| Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
+| Tablica | **Tablica** w przełączniku *Lista / Tablica* ekranu **CRM → Szanse sprzedażowe** (`/crm/opportunities?view=board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. Dawny adres `/crm/board` nadal ją otwiera. |
 | Kalendarz | **CRM → Kalendarz** (`/crm/calendar`) | `crm:read` | Wydarzenia zaplanowane w otwartych szansach, które możesz zobaczyć — w miesiącu, tygodniu, dniu albo jako lista. Każde wydarzenie otwiera swoją szansę. Zobacz *Kalendarz*. |
 | Analityka | **CRM → Analityka** (`/crm/analytics`) | `crm:analytics` | Pięć wskaźników dla wybranego zakresu dni: czas obsługi, czas w każdym statusie, najskuteczniejsi handlowcy, najcenniejsze szanse i średnia wartość. |
 | Etykiety | **CRM → Etykiety** (`/crm/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. |
@@ -302,7 +302,8 @@ statusów i powiązaniami; same powiązane zamówienia pozostają bez zmian.
 
 ## Tablica
 
-**CRM → Tablica** pokazuje szanse, które możesz zobaczyć, jako karty — po
+Widok **Tablica** ekranu **CRM → Szanse sprzedażowe** — przełącznik **Lista /
+Tablica** w nagłówku strony — pokazuje szanse, które możesz zobaczyć, jako karty — po
 jednej kolumnie dla każdego statusu, w kolejności przepływu. Nagłówek kolumny
 podaje liczbę szans w tym statusie i ich wartość, osobną sumę dla każdej
 waluty; karta pokazuje tytuł szansy oraz pola wybrane dla karty — dopóki nikt
@@ -397,10 +398,14 @@ znajduje szansę po numerze. Filtry się łączą:
 pokazywane, liczone i sumowane są tylko szanse spełniające wszystkie naraz.
 Filtr wartości porównuje kwotę niezależnie od waluty.
 
-**Filtry są zapisane w adresie tablicy.** Odśwież stronę, dodaj ją do zakładek
-albo wyślij link współpracownikowi — zostaną zastosowane te same filtry.
-Przycisk **Wyczyść filtry** usuwa wszystkie. Link zapisany przed zmianą karty
-nadal się otwiera: filtr po polu, którego nie ma już na karcie, jest pomijany.
+**Filtry są zapisane w adresie strony.** Odśwież stronę, dodaj ją do zakładek
+albo wyślij link współpracownikowi — zostaną zastosowane te same filtry. Lista
+i tablica mają wspólny adres: wyszukiwanie, organizacja, handlowiec, etykiety,
+kanał sprzedaży i daty utworzenia ustawione w jednym widoku obowiązują w drugim
+po przełączeniu, a filtr, który ma tylko jeden widok, czeka na niego. Przycisk
+**Wyczyść wszystkie filtry** usuwa filtry obu widoków. Link zapisany przed
+zmianą karty nadal się otwiera: filtr po polu, którego nie ma już na karcie,
+jest pomijany.
 
 ### Filtry pól niestandardowych na liście
 

@@ -1,6 +1,11 @@
 /**
- * `crm`'s admin surface — eight routes and six sidebar rows
+ * `crm`'s admin surface — eight routes and five sidebar rows
  * (`specs/143-crm-sales-opportunities/contracts/admin-surfaces.md` §1–§2).
+ *
+ * **The list and the board are one page** (issue #1558, UX audit WORK-07,
+ * owner decision DEC-13): `/crm/opportunities`, the board at `?view=board`,
+ * one sidebar row. `/crm/board` stays as a redirect, for bookmarks and for the
+ * palette's *Opportunity board*, whose `targetRoute` may carry no query string.
  *
  * **A sidebar group of its own.** All six rows sit in the host's `crm` section
  * (owner ruling of 2026-10-05), not under *Sales*: the section, its heading and
@@ -55,8 +60,9 @@ const CALENDAR_PATH = '/crm/calendar';
 export const contributions: AdminContributions = {
   routes: [
     {
+      // The list, or at `?view=board` the board (issue #1558).
       path: OPPORTUNITIES_PATH,
-      component: () => import('./pages/OpportunitiesList.js'),
+      component: () => import('./pages/OpportunitiesPage.js'),
       requiredPermission: READ_PERMISSION,
       index: true,
     },
@@ -79,11 +85,11 @@ export const contributions: AdminContributions = {
       requiredPermission: CONFIGURE_PERMISSION,
     },
     {
-      // Another view of the list, on the code that reads it: `GET /board` is
-      // `crm:read`. Moving a card needs `crm:write`, which the screen asks for
-      // itself — a reader sees the board without the controls.
+      // The board's former address, now `/crm/opportunities?view=board`: a
+      // redirect on the code that reads the board (`GET /board` is `crm:read`).
+      // Moving a card needs `crm:write`, which the view asks for itself.
       path: BOARD_PATH,
-      component: () => import('./pages/OpportunityBoardPage.js'),
+      component: () => import('./pages/OpportunityBoardRedirect.js'),
       requiredPermission: READ_PERMISSION,
     },
     {
@@ -118,16 +124,9 @@ export const contributions: AdminContributions = {
       requiredPermission: READ_PERMISSION,
     },
     {
-      to: BOARD_PATH,
-      labelKey: 'nav.board.label',
-      icon: 'PanelLeft',
-      section: 'crm',
-      weight: 200,
-      requiredPermission: READ_PERMISSION,
-    },
-    {
-      // Between Board and Analytics: the three screens of every day first,
-      // then the manager's, then the two that configure.
+      // After Opportunities (list and board, one row since issue #1558) and
+      // before Analytics: the screens of every day first, then the manager's,
+      // then the two that configure.
       to: CALENDAR_PATH,
       labelKey: 'nav.calendar.label',
       icon: 'CalendarDays',
