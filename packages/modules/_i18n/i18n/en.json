@@ -1383,7 +1383,7 @@
   "orderDetail.tabs.comments": "Comments",
   "orderDetail.tabs.delivery": "Delivery",
   "orderDetail.tabs.overview": "Overview",
-  "orderDetail.tabs.payment": "Payment",
+  "orderDetail.tabs.payment": "Payment & invoices",
   "orderDetail.taxId": "Tax ID",
   "orderDetail.title": "Order #{id}",
   "orderDetail.totals.delivery": "Delivery",
