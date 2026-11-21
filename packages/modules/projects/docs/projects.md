@@ -92,12 +92,15 @@ Its tabs:
   changes who sees it there — the same three choices as on *New project* — and
   saves it with *Save who sees it*; everybody else is told what it is and who is
   listed.
-- **Stages** — each stage's name, colour, planned duration, responsible roles,
-  alert days, completion gate, whether the project may be completed from it
-  and a deadline set by hand, saved one stage at a time; stages are added at the end, moved up or down
-  and deleted here. With the Tasks module on, each stage also lists its
+- **Stages** — one row per stage, with its planned duration, responsible roles
+  and deadline. *Edit* opens one stage at a time: its name, colour, planned
+  duration, responsible roles, alert days, completion gate, whether the project
+  may be completed from it and a deadline set by hand, all saved with that
+  stage's one *Save*; opening another stage over unsaved changes asks first.
+  Stages are added at the end, moved up or down and deleted here — deleting
+  asks first. With the Tasks module on, each stage also lists its
   **stage tasks** — a title, the days after the stage starts that the task is
-  due, and the responsible role — saved as one list per stage; a stage whose
+  due, and the responsible role — edited and saved with the stage; a stage whose
   tasks could not be created when the project entered it says so and offers
   *Create the stage's tasks again*. Below the stages the **workflow**, drawn as
   a graph, where moves are added and removed; a stage no move reaches from the

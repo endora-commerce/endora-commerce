@@ -19,15 +19,13 @@ export interface StageTasksEditorProps {
   roles: readonly ProjectRole[];
   canWrite: boolean;
   busy: boolean;
-  /** The whole list, replaced. Resolves `true` when it was saved. Not used with `onChange`. */
-  onSave?: (tasks: StageTaskDefinition[]) => Promise<boolean>;
   /**
-   * Live editing (the Template editor): every change hands the whole list over
-   * — `null` while one of them cannot be sent — and there is no Save button
-   * here; whoever holds the list saves it.
+   * Every change hands the whole list over — `null` while one of them cannot
+   * be sent. There is no Save here: whoever holds the list saves it with the
+   * rest of the Stage (issue #1523) or of the Template.
    */
   onChange?: (tasks: StageTaskDefinition[] | null) => void;
-  /** Show which definitions cannot be sent (live editing: after a refused save). */
+  /** Show which definitions cannot be sent (after a refused save). */
   showErrors?: boolean;
 }
 
@@ -40,7 +38,7 @@ interface Draft {
   description: string | undefined;
 }
 
-function draftsOf(stage: Pick<ProjectStage, 'stageTasks'>): Draft[] {
+export function draftsOf(stage: Pick<ProjectStage, 'stageTasks'>): Draft[] {
   return [...stage.stageTasks]
     .sort((a, b) => a.position - b.position)
     .map((task) => ({
@@ -53,7 +51,7 @@ function draftsOf(stage: Pick<ProjectStage, 'stageTasks'>): Draft[] {
 }
 
 /** The definitions to send, or `null` when one of them cannot be sent. */
-function definitionsOf(drafts: readonly Draft[]): StageTaskDefinition[] | null {
+export function definitionsOf(drafts: readonly Draft[]): StageTaskDefinition[] | null {
   const definitions: StageTaskDefinition[] = [];
   for (const draft of drafts) {
     const days = parseDuration(draft.dueOffset);
@@ -80,21 +78,18 @@ let nextKey = 0;
  * (`PUT /stages/:stageId/tasks`, at most {@link PROJECT_STAGE_TASKS_MAX}). A
  * reader sees the list as text.
  *
- * The Stages editor renders this only while the Tasks module is present. The
- * Template editor uses it live (`onChange`): the list is saved with the
- * Template.
+ * The Stages editor renders this only while the Tasks module is present, and
+ * saves the list with the Stage's one Save (issue #1523); the Template editor
+ * saves it with the Template.
  */
 export function StageTasksEditor(props: StageTasksEditorProps): ReactNode {
   const { stage, position, roles, canWrite, busy } = props;
   const t = useTranslation('projects');
-  const tCore = useTranslation('core');
   const hintId = useId();
   const [drafts, setDrafts] = useState<Draft[]>(() => draftsOf(stage));
-  const [refused, setRefused] = useState(false);
-  const invalid = refused || props.showErrors === true;
-  const live = props.onChange;
-  const liveRef = useRef(live);
-  liveRef.current = live;
+  const invalid = props.showErrors === true;
+  const liveRef = useRef(props.onChange);
+  liveRef.current = props.onChange;
   const first = useRef(true);
 
   // Live editing: hand every change over; the first render changed nothing.
@@ -134,16 +129,6 @@ export function StageTasksEditor(props: StageTasksEditorProps): ReactNode {
 
   const change = (key: string, patch: Partial<Draft>): void => {
     setDrafts((previous) => previous.map((draft) => (draft.key === key ? { ...draft, ...patch } : draft)));
-    setRefused(false);
-  };
-
-  const save = async (): Promise<void> => {
-    const definitions = definitionsOf(drafts);
-    if (definitions === null) {
-      setRefused(true);
-      return;
-    }
-    await props.onSave?.(definitions);
   };
 
   return (
@@ -210,10 +195,7 @@ export function StageTasksEditor(props: StageTasksEditorProps): ReactNode {
                 className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
                 aria-label={t('stageTasks.remove', { index: number, position })}
                 disabled={busy}
-                onClick={(): void => {
-                  setDrafts((previous) => previous.filter((candidate) => candidate.key !== draft.key));
-                  setRefused(false);
-                }}
+                onClick={(): void => setDrafts((previous) => previous.filter((candidate) => candidate.key !== draft.key))}
               >
                 <Trash2 aria-hidden="true" />
               </Button>
@@ -224,34 +206,21 @@ export function StageTasksEditor(props: StageTasksEditorProps): ReactNode {
 
       {invalid ? <p className="text-xs text-destructive">{t('stageTasks.invalid')}</p> : null}
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="min-h-11 sm:min-h-9"
-          disabled={busy || drafts.length >= PROJECT_STAGE_TASKS_MAX}
-          onClick={(): void =>
-            setDrafts((previous) => [
-              ...previous,
-              { key: `new-${++nextKey}`, title: '', dueOffset: '0', responsibleRoleId: '', description: undefined },
-            ])
-          }
-        >
-          <Plus aria-hidden="true" />
-          {t('stageTasks.add')}
-        </Button>
-        {live ? null : (
-          <Button
-            type="button"
-            className="min-h-11 sm:min-h-9"
-            aria-label={t('stageTasks.save', { position })}
-            disabled={busy}
-            onClick={(): void => void save()}
-          >
-            {tCore('common.action.save')}
-          </Button>
-        )}
-      </div>
+      <Button
+        type="button"
+        variant="outline"
+        className="min-h-11 sm:min-h-9"
+        disabled={busy || drafts.length >= PROJECT_STAGE_TASKS_MAX}
+        onClick={(): void =>
+          setDrafts((previous) => [
+            ...previous,
+            { key: `new-${++nextKey}`, title: '', dueOffset: '0', responsibleRoleId: '', description: undefined },
+          ])
+        }
+      >
+        <Plus aria-hidden="true" />
+        {t('stageTasks.add')}
+      </Button>
     </fieldset>
   );
 }

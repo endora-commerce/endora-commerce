@@ -59,7 +59,11 @@ function useVisibilitySetting(): ProjectVisibilitySetting | null | 'failed' {
   return setting;
 }
 
-/** The one sentence saying what `visibility` means under the module setting. */
+/**
+ * The one sentence saying what `visibility` means under the module setting —
+ * which it names by the label the Settings screen shows for it, so the option
+ * and its explanation never call the same thing two names (issue #1565).
+ */
 export function VisibilityEffect(props: { visibility: ProjectVisibility; id?: string }): ReactNode {
   const t = useTranslation('projects');
   const setting = useVisibilitySetting();
@@ -69,9 +73,11 @@ export function VisibilityEffect(props: { visibility: ProjectVisibility; id?: st
   else if (setting === null) key = '';
   else if (setting === 'failed') key = 'visibility.effect.inheritUnknown';
   else key = setting === 'everyone' ? 'visibility.effect.inheritEveryone' : 'visibility.effect.inheritMembers';
+  const settingLabel =
+    setting === 'everyone' || setting === 'members' ? t(`settingLabels.projects.visibility.options.${setting}`) : '';
   return (
     <p id={props.id} aria-live="polite" className="text-sm text-muted-foreground">
-      {key ? t(key) : t('visibility.effect.loading')}
+      {key ? t(key, { setting: settingLabel }) : t('visibility.effect.loading')}
     </p>
   );
 }

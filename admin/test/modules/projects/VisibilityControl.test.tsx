@@ -92,14 +92,35 @@ describe('VisibilityControl', () => {
     const radios = within(group()).getAllByRole('radio');
     expect(radios.map((radio) => radio.getAttribute('value'))).toEqual(['inherit', 'everyone', 'members_and_listed']);
     expect(within(group()).getByRole('radio', { name: en('visibility.option.inherit') })).toBeChecked();
-    expect(await screen.findByText(en('visibility.effect.inheritMembers'))).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        en('visibility.effect.inheritMembers', { setting: en('settingLabels.projects.visibility.options.members') }),
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText(en('visibility.listed.label'))).toBeNull();
+  });
+
+  it('names the module setting by the label its own screen shows (issue #1565, WORK-18)', async () => {
+    renderProjects(<Harness />);
+    const effect = await screen.findByText(new RegExp(en('settingLabels.projects.visibility.options.members')));
+    // Not a third name for the same option ("Members only").
+    expect(effect.textContent).not.toMatch(/Members only/);
+    expect(effect.textContent?.length ?? 0).toBeLessThanOrEqual(100);
+    setting = 'everyone';
+    renderProjects(<Harness />);
+    expect(
+      await screen.findByText(new RegExp(en('settingLabels.projects.visibility.options.everyone'))),
+    ).toBeInTheDocument();
   });
 
   it('reads the module setting as it stands — "everyone" is said as such', async () => {
     setting = 'everyone';
     renderProjects(<Harness />);
-    expect(await screen.findByText(en('visibility.effect.inheritEveryone'))).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        en('visibility.effect.inheritEveryone', { setting: en('settingLabels.projects.visibility.options.everyone') }),
+      ),
+    ).toBeInTheDocument();
   });
 
   it('when the setting cannot be read, still says the Project follows it, without guessing', async () => {

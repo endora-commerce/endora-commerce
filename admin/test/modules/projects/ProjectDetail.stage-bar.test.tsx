@@ -266,6 +266,7 @@ describe('ProjectDetail — the tabs', () => {
     patchSpy.mockResolvedValue({ data: stage({ id: STAGE_BUILD, name: 'Build out', position: 1 }) });
     await renderPage({ search: '?tab=stages' });
     const panel = await screen.findByRole('tabpanel');
+    await userEvent.click(await within(panel).findByRole('button', { name: en('editor.edit', { position: 2 }) }));
     const name = await within(panel).findByLabelText(en('stage.name', { position: 2 }));
     await userEvent.clear(name);
     await userEvent.type(name, 'Build out');
@@ -280,10 +281,11 @@ describe('ProjectDetail — the tabs', () => {
     patchSpy.mockResolvedValue({ data: stage({ id: STAGE_DESIGN, name: 'Design', position: 0 }) });
     await renderPage({ search: '?tab=stages' });
     const panel = await screen.findByRole('tabpanel');
+    await userEvent.click(await within(panel).findByRole('button', { name: en('editor.edit', { position: 1 }) }));
     const field = (await within(panel).findByLabelText(en('editor.deadlineField', { position: 1 }))) as HTMLInputElement;
     // A computed deadline is shown, not held in the field: empty means "start + planned days".
     expect(field.value).toBe('');
-    expect(within(panel).getAllByText(en('editor.deadlineFieldHint')).length).toBeGreaterThan(0);
+    expect(within(panel).getAllByText(en('editor.deadlineFieldHint'))).toHaveLength(1);
     fireEvent.change(field, { target: { value: '2026-11-30' } });
     await userEvent.click(within(panel).getByRole('button', { name: en('editor.save', { position: 1 }) }));
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
@@ -303,6 +305,7 @@ describe('ProjectDetail — the tabs', () => {
     patchSpy.mockResolvedValue({ data: stage({ id: STAGE_DESIGN, name: 'Design', position: 0 }) });
     await renderPage({ search: '?tab=stages' });
     const panel = await screen.findByRole('tabpanel');
+    await userEvent.click(await within(panel).findByRole('button', { name: en('editor.edit', { position: 1 }) }));
     const field = (await within(panel).findByLabelText(en('editor.deadlineField', { position: 1 }))) as HTMLInputElement;
     expect(field.value).toBe('2026-11-30');
     fireEvent.change(field, { target: { value: '' } });

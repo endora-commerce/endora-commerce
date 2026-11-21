@@ -231,6 +231,7 @@ describe('ProjectDetail — Stage Task definitions on the Stages tab', () => {
     putSpy.mockResolvedValue({ data: stage({ id: STAGE_BUILD, name: 'Build', position: 1 }) });
     await renderPage({ search: '?tab=stages' });
     const panel = await screen.findByRole('tabpanel');
+    await userEvent.click(await within(panel).findByRole('button', { name: en('editor.edit', { position: 2 }) }));
     const section = await within(panel).findByRole('group', { name: en('stageTasks.heading', { position: 2 }) });
     await userEvent.click(within(section).getByRole('button', { name: en('stageTasks.add') }));
     await userEvent.type(within(section).getByLabelText(en('stageTasks.title', { index: 1, position: 2 })), 'Book the crane');
@@ -238,7 +239,10 @@ describe('ProjectDetail — Stage Task definitions on the Stages tab', () => {
     await userEvent.clear(offset);
     await userEvent.type(offset, '3');
     await userEvent.selectOptions(within(section).getByLabelText(en('stageTasks.role', { index: 1, position: 2 })), ROLE_MANAGER);
-    await userEvent.click(within(section).getByRole('button', { name: en('stageTasks.save', { position: 2 }) }));
+    // The Stage's one Save writes its tasks too; nothing else changed, so nothing else is sent.
+    await userEvent.click(within(panel).getByRole('button', { name: en('editor.save', { position: 2 }) }));
+    await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
+    expect(patchSpy).not.toHaveBeenCalled();
     expect(putSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/stages/${STAGE_BUILD}/tasks`, {
       tasks: [{ title: 'Book the crane', dueOffsetDays: 3, responsibleRoleId: ROLE_MANAGER }],
       // The Stage's version as read (issue #449).
@@ -254,6 +258,7 @@ describe('ProjectDetail — Stage Task definitions on the Stages tab', () => {
     );
     await renderPage({ search: '?tab=stages' });
     const panel = await screen.findByRole('tabpanel');
+    await userEvent.click(await within(panel).findByRole('button', { name: en('editor.edit', { position: 2 }) }));
     const name = await within(panel).findByLabelText(en('stage.name', { position: 2 }));
     await userEvent.clear(name);
     await userEvent.type(name, 'Assembly');
@@ -295,6 +300,9 @@ describe('ProjectDetail — Stage Task definitions on the Stages tab', () => {
     });
     await renderPage({ search: '?tab=stages' });
     const panel = await screen.findByRole('tabpanel');
+    // In the row, as a reader sees it; and in the fields once the Stage is opened.
+    expect(await within(panel).findByText(en('stageTasks.item', { title: 'Measure the hall', days: 2 }))).toBeTruthy();
+    await userEvent.click(within(panel).getByRole('button', { name: en('editor.edit', { position: 1 }) }));
     const field = await within(panel).findByLabelText(en('stageTasks.title', { index: 1, position: 1 }));
     expect((field as HTMLInputElement).value).toBe('Measure the hall');
   });
@@ -345,13 +353,14 @@ describe('ProjectDetail — Stage Task definitions on the Stages tab', () => {
     });
     await renderPage({ present: ['projects', 'organizations', 'admin_users'], search: '?tab=stages' });
     const panel = await screen.findByRole('tabpanel');
-    await within(panel).findByLabelText(en('stage.name', { position: 2 }));
+    await within(panel).findAllByText('Build');
     expect(within(panel).queryByText(en('editor.retry.body', { position: 1 }))).toBeNull();
   });
 
   it('has no Task section while the Tasks module is off', async () => {
     await renderPage({ present: ['projects', 'organizations', 'admin_users'], search: '?tab=stages' });
     const panel = await screen.findByRole('tabpanel');
+    await userEvent.click(await within(panel).findByRole('button', { name: en('editor.edit', { position: 2 }) }));
     await within(panel).findByLabelText(en('stage.name', { position: 2 }));
     expect(within(panel).queryByRole('group', { name: en('stageTasks.heading', { position: 2 }) })).toBeNull();
   });

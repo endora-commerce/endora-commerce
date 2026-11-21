@@ -290,7 +290,7 @@ describe('ProjectCreate', () => {
     await userEvent.type(screen.getByLabelText(new RegExp(en('field.title'))), 'Fit-out');
     await userEvent.type(within(stagesSection()).getByLabelText(en('stage.name', { position: 1 })), 'Design');
     expect(screen.getByRole('radio', { name: en('visibility.option.inherit') })).toBeChecked();
-    expect(await screen.findByText(en('visibility.effect.inheritMembers'))).toBeInTheDocument();
+    expect(await screen.findByText(en('visibility.effect.inheritMembers', { setting: en('settingLabels.projects.visibility.options.members') }))).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('radio', { name: en('visibility.option.members_and_listed') }));
     await pick(screen.getByLabelText(en('visibility.listed.label')), 'Piotr');
