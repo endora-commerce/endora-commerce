@@ -102,10 +102,13 @@ Kod zapisuje się w całości, razem z kropkami. Dla manifestu powyżej:
 }
 ```
 
-Rozstrzyganie odbywa się osobno dla każdego klucza: język administratora, potem angielski, potem
-tekst zadeklarowany w manifeście. Każdy klucz jest opcjonalny, więc moduł, który nie dostarcza
-żadnego z nich, wygląda dokładnie tak jak wcześniej, a ustawienia można tłumaczyć po jednym. Ze
-sposobu wyszukiwania wynikają trzy rzeczy:
+Rozstrzyganie odbywa się osobno dla każdego klucza. **Nazwa** jest szukana w języku
+administratora, potem po angielsku, potem brany jest tekst zadeklarowany w manifeście. **Opis**
+nigdy nie jest pokazywany w innym języku: po polsku jest to polski klucz albo nic, a angielskie
+zdanie z manifestu widzi tylko czytelnik angielski. Opis mieści się w jednym wierszu ekranu —
+najwyżej 120 znaków po angielsku, czego pilnuje `pnpm --filter backend run check:text-budget` —
+a pełne wyjaśnienie trafia na stronę dokumentacji modułu. Ze sposobu wyszukiwania wynikają trzy
+rzeczy:
 
 - **Czytana jest wyłącznie paczka modułu będącego właścicielem** — tego, którego manifest ustawień
   zadeklarował wiersz (`moduleCode`, który musi być równy `id` modułu, żeby jego paczka została

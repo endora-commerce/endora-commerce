@@ -6,7 +6,7 @@ import { Card, CardContent, Input } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { AssigneeSection } from '../../components/AssigneeSection.js';
-import { InlineEdit } from '../../components/InlineEdit.js';
+import { InlineEdit } from '@endora-commerce/admin-kit/components';
 import { ContactLookup, SalesChannelLookup } from '../../components/LookupPickers.js';
 import { OpportunityValue } from '../../components/OpportunityValue.js';
 import { TagsSection } from '../../components/TagsSection.js';

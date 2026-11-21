@@ -45,5 +45,20 @@
   "actions.importStock.keywords": "stock levels, warehouse",
   "settingGroups.inventory.name": "Inventory",
   "settingLabels.inventory.low_stock_alert_recipient_email.name": "Low-stock alert recipient email",
-  "settingLabels.inventory.low_stock_alert_recipient_email.description": "Email address that receives low-stock alerts. When empty, the INVENTORY_LOW_STOCK_RECIPIENT environment variable is used; when that is not set either, no alert is sent."
+  "settingLabels.inventory.low_stock_alert_recipient_email.description": "Receives low-stock alerts. While empty, INVENTORY_LOW_STOCK_RECIPIENT is used; without it no alert is sent.",
+  "settingLabels.inventory.enabled.name": "Inventory enabled",
+  "settingLabels.inventory.display_mode.name": "Storefront stock display mode",
+  "settingLabels.inventory.display_mode.description": "How product cards and pages show stock: exact, band or available_or_not.",
+  "settingLabels.inventory.fulfilment_strategy.name": "Order fulfilment strategy",
+  "settingLabels.inventory.fulfilment_strategy.description": "How warehouses are picked to fulfil order lines.",
+  "settingLabels.inventory.fulfilment_strategy_warehouse_order.name": "Warehouse order (for \"defined_order\" strategy)",
+  "settingLabels.inventory.fulfilment_strategy_warehouse_order.description": "Ordered list of warehouse IDs the defined-order strategy walks.",
+  "settingLabels.inventory.global_threshold_high.name": "Global high-stock threshold",
+  "settingLabels.inventory.global_threshold_high.description": "Quantity at or above which a product counts as high stock.",
+  "settingLabels.inventory.global_threshold_medium.name": "Global medium-stock threshold",
+  "settingLabels.inventory.global_threshold_medium.description": "Quantity at or above which a product counts as medium stock.",
+  "settingLabels.inventory.global_threshold_low.name": "Global low-stock threshold",
+  "settingLabels.inventory.global_threshold_low.description": "Quantity at or above which a product counts as low stock. Below it, out of stock.",
+  "settingLabels.inventory.allow_negative_stock.name": "Allow ordering below stock (negative stock)",
+  "settingLabels.inventory.allow_negative_stock.description": "Lets products with backorder switched on be ordered below available stock."
 }

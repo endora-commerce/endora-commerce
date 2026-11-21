@@ -37,7 +37,7 @@ export const manifest = defineModuleManifest({
         code: 'seo.enabled',
         name: 'SEO enabled',
         description:
-          'Switches the meta-tag override screens, their API, the generated sitemap and the search engine robots settings on or off. While it is off the storefront sends no default robots directive, so a sales channel set to noindex becomes indexable again; it also adds no custom instructions to robots.txt and serves no llms.txt. Nothing is dropped: overrides and settings stay in the database and apply again when you switch it back on.',
+          'While off, the storefront sends no default robots directive: a channel set to noindex becomes indexable again.',
         groupCode: 'seo',
         valueType: 'boolean',
         defaultValue: true,
@@ -54,7 +54,7 @@ export const manifest = defineModuleManifest({
         code: 'seo.default_robots',
         name: 'Default robots',
         description:
-          'What search engines are told about every page of the storefront, per sales channel. It only adds restrictions: a page that already says noindex stays noindex whatever is chosen here. NOINDEX asks search engines not to list the storefront, NOFOLLOW asks them not to follow its links. robots.txt is not changed, because a crawler has to fetch a page to read that it must not be indexed. A change is in force on the storefront within a few minutes; search engines apply it when they next visit a page, which can take days or weeks.',
+          'What search engines are told about every storefront page. It only adds restrictions and applies within minutes.',
         groupCode: 'seo',
         valueType: 'string',
         enumOptions: ['INDEX, FOLLOW', 'NOINDEX, FOLLOW', 'INDEX, NOFOLLOW', 'NOINDEX, NOFOLLOW'],
@@ -74,7 +74,7 @@ export const manifest = defineModuleManifest({
         code: 'seo.robots_txt_custom',
         name: 'Custom robots.txt instructions',
         description:
-          "Rules added to the storefront's robots.txt, per sales channel. The text is added after the rules the storefront generates, exactly as written; the preview below shows the resulting file. The generated rules cannot be edited here, but a group written for one crawler (User-agent: its name) replaces them for that crawler — repeat the ones you still want in that group. Forbidding crawling does not remove pages from search results: to keep the storefront out of them use \"Default robots\", and do not add \"Disallow: /\" on top of it. At most 64 KiB of text. A change is served within a few minutes.",
+          'Rules added after the generated robots.txt rules. To keep pages out of search results, use Default robots.',
         groupCode: 'seo',
         valueType: 'string',
         multiline: true,
@@ -93,7 +93,7 @@ export const manifest = defineModuleManifest({
         code: 'seo.llms_txt_additional',
         name: 'Additional llms.txt content',
         description:
-          "Text added to the storefront's llms.txt, per sales channel — the file that tells AI assistants what the shop is and where its public pages are. The text is added after the part the storefront generates (the shop's name and links to its main pages), exactly as written; the preview below shows the resulting file. The file is not served while \"Default robots\" asks search engines not to index the sales channel. At most 64 KiB of text. A change is served within a few minutes.",
+          'Text added after the generated part of llms.txt, which tells AI assistants about the shop. At most 64 KiB.',
         groupCode: 'seo',
         valueType: 'string',
         multiline: true,

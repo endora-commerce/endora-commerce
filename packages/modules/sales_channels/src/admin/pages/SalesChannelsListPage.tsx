@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Plus, Store } from 'lucide-react';
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Link } from 'react-router-dom';
 import type { SalesChannelSummary } from '@endora-commerce/contracts';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Checkbox, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, Checkbox, EmptyState, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { salesChannelsClient } from '../api/sales-channels-client.js';
 import { DefaultChannelBadge } from '../components/DefaultChannelBadge.js';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -34,6 +35,7 @@ export function SalesChannelsListPage(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [activeOnly, setActiveOnly] = useState(false);
   const [promoting, setPromoting] = useState<string | null>(null);
+  const activeOnlyRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -82,6 +84,18 @@ export function SalesChannelsListPage(): ReactNode {
     [refresh, rows, t, confirm],
   );
 
+  // Issue #1448 (DS-15): with *Active only* on, an empty list means the filter
+  // hides every channel; without it, there is no channel yet. While there is
+  // none, the empty state's New channel is the view's one primary (Von Restorff).
+  const noData = !loading && !error && rows.length === 0 && !activeOnly;
+  const newChannel = (
+    <Button asChild>
+      <Link to="/sales-channels/new">
+        <Plus aria-hidden="true" /> {t('list.action.newChannel')}
+      </Link>
+    </Button>
+  );
+
   return (
     <>
       <PageHeader
@@ -92,11 +106,7 @@ export function SalesChannelsListPage(): ReactNode {
           // therefore ungated too; the route is this module's own now and takes
           // `sales_channels:write`, so an ungated button would be a dead end for
           // a read-only operator rather than a refusal they could act on.
-          canWrite ? (
-            <Button asChild>
-              <Link to="/sales-channels/new">{t('list.action.newChannel')}</Link>
-            </Button>
-          ) : null
+          canWrite && !noData ? newChannel : null
         }
       />
       {error && (
@@ -108,6 +118,7 @@ export function SalesChannelsListPage(): ReactNode {
         <CardContent>
           <div className="flex items-center gap-2">
             <Checkbox
+              ref={activeOnlyRef}
               id="sc-active-only"
               checked={activeOnly}
               onChange={(e) => setActiveOnly(e.target.checked)}
@@ -123,7 +134,21 @@ export function SalesChannelsListPage(): ReactNode {
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('list.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('list.empty')}</p>
+            activeOnly ? (
+              <EmptyState
+                variant="no-results"
+                title={t('list.empty')}
+                onClearFilters={(): void => setActiveOnly(false)}
+                focusAfterClear={activeOnlyRef}
+              />
+            ) : (
+              <EmptyState
+                icon={<Store size={20} />}
+                title={t('list.noData.title')}
+                description={canWrite ? t('list.noData.body') : t('list.noData.bodyReadOnly')}
+                action={canWrite ? newChannel : null}
+              />
+            )
           ) : (
             <Table>
               <TableHeader>

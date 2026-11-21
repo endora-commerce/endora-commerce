@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
-import { ApiError, useDerivedKey } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, Input, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { StatusTransitionGraph, useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { ApiError, useAuth, useDerivedKey } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, InlineStatus, Input, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { ModalDialog, StatusTransitionGraph, useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient } from '../api/returns-client.js';
 import { returnStatusName } from '../labels.js';
@@ -28,18 +28,20 @@ export function ReturnStatusesConfigPage(): ReactNode {
   const [statuses, setStatuses] = useState<Array<ReturnStatusDto & { inUseCount: number }>>([]);
   const [transitions, setTransitions] = useState<ReturnTransitionDto[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
+  const [creating, setCreating] = useState(false);
+  // The code every write route enforces (`requireAdmin('returns:write')`): a read-only
+  // operator sees the list but is offered no write it would be refused.
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('returns:write');
+  const status = useInlineStatus();
   const [saving, setSaving] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   // Issue #1472 — the operator's language first (`returnStatusName`), then the default name.
   const statusLabel = (s: Pick<ReturnStatusDto, 'code' | 'name' | 'defaultName'>): string => returnStatusName(s, language);
-  // Tesler: the code follows the English name until the operator edits it (DS-22, `useDerivedKey`).
   const { confirm, confirmDialog } = useConfirmDialog();
-  // Only these rows carry a Delete; focus after one goes to the next of them, else the new-status form.
+  // Only these rows carry a Delete; focus after one goes to the next of them, else "New status".
   const deletable = statuses.filter((s) => !s.isInitial && !s.isSystem);
   const removalFocus = useRemovalFocus(deletable, statusCode, loaded);
-  const codeField = useDerivedKey({ source: name, value: code, onChange: setCode, separator: '_', maxLength: 64 });
   // `specs/180-off-platform-complaints/` D-7 — where the new-case e-mail goes to nobody.
   const [health, setHealth] = useState<ReturnNotificationHealth | null>(null);
   const [channelNames, setChannelNames] = useState<Record<string, string>>({});
@@ -153,16 +155,25 @@ export function ReturnStatusesConfigPage(): ReactNode {
     });
   };
 
-  const addStatus = (event: FormEvent): void => {
-    event.preventDefault();
-    const sent = codeField.commit();
-    if (!sent || !name.trim()) return;
-    void run(async () => {
-      await returnsClient.createStatus({ code: sent, name: { en: name.trim() }, defaultName: name.trim() });
-      setCode('');
-      setName('');
-    });
-  };
+  // Issue #1439 (DS-05): "New status" sits in the header and opens a dialog, rather than a
+  // create card drawn open between the statuses and their transitions (Hick). The system
+  // statuses always exist, so the header always carries it.
+  const newStatus = (
+    <Button
+      ref={(element: HTMLButtonElement | null) => {
+        removalFocus.createRef.current = element;
+      }}
+      type="button"
+      className="min-h-11 sm:min-h-9"
+      onClick={() => {
+        status.clear();
+        setCreating(true);
+      }}
+    >
+      <Plus size={16} aria-hidden="true" />
+      {tr('statusConfig.newTitle')}
+    </Button>
+  );
 
   const missingChannels = health?.recipientsMissing.salesChannelIds ?? [];
   const recipientsAlert =
@@ -176,7 +187,17 @@ export function ReturnStatusesConfigPage(): ReactNode {
 
   return (
     <div className="space-y-4">
-      <PageHeader title={t('returns.statuses.title')} />
+      <PageHeader
+        title={t('returns.statuses.title')}
+        actions={
+          canWrite && loaded ? (
+            <>
+              <InlineStatus {...status.props} />
+              {newStatus}
+            </>
+          ) : null
+        }
+      />
       {recipientsAlert && (
         <Alert variant="warning">
           <AlertDescription>
@@ -206,7 +227,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
                 <TableHead>{tr('statusConfig.col.flags')}</TableHead>
                 <TableHead>{tr('statusConfig.notifyColumn')}</TableHead>
                 <TableHead>{tr('statusConfig.col.inUse')}</TableHead>
-                <TableHead />
+                {canWrite ? <TableHead /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -228,7 +249,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
                           className="mt-0.5"
                           aria-label={tr('statusConfig.notifyLabel', { status: statusLabel(s) })}
                           checked={dedicated ? false : s.notifyCustomerOnEntry}
-                          disabled={dedicated || saving === s.code}
+                          disabled={!canWrite || dedicated || saving === s.code}
                           onChange={(e) => void setNotify(s.code, e.target.checked)}
                           {...(dedicated || s.isInitial ? { 'aria-describedby': reasonId } : {})}
                         />
@@ -245,19 +266,21 @@ export function ReturnStatusesConfigPage(): ReactNode {
                       </div>
                     </TableCell>
                     <TableCell>{s.inUseCount}</TableCell>
-                    <TableCell>
-                      {!s.isInitial && !s.isSystem && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          ref={removalFocus.targetRef(s)}
-                          aria-label={tr('statusConfig.delete', { status: statusLabel(s) })}
-                          onClick={() => removeStatus(s)}
-                        >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                        </Button>
-                      )}
-                    </TableCell>
+                    {canWrite ? (
+                      <TableCell>
+                        {!s.isInitial && !s.isSystem && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            ref={removalFocus.targetRef(s)}
+                            aria-label={tr('statusConfig.delete', { status: statusLabel(s) })}
+                            onClick={() => removeStatus(s)}
+                          >
+                            <Trash2 className="size-4" aria-hidden="true" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 );
               })}
@@ -265,42 +288,6 @@ export function ReturnStatusesConfigPage(): ReactNode {
           </Table>
           {/* FR-A33 — marking a status sends nothing for the cases already in it. */}
           <p className="text-xs text-muted-foreground">{tr('statusConfig.notifyExistingHint')}</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{tr('statusConfig.newTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="flex flex-wrap items-start gap-4" onSubmit={addStatus}>
-            <FormField label={tr('statusConfig.newName')} required className="w-64">
-              <Input
-                ref={(element: HTMLInputElement | null) => {
-                  removalFocus.createRef.current = element;
-                }}
-                value={name}
-                maxLength={120}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </FormField>
-            <FormField label={tr('statusConfig.newCode')} hint={tr('statusConfig.codeHint')} required className="w-80">
-              <Input
-                className="font-mono"
-                spellCheck={false}
-                autoComplete="off"
-                maxLength={64}
-                value={code}
-                onChange={codeField.onChange}
-                onBlur={codeField.onBlur}
-              />
-            </FormField>
-            <div className="pt-6">
-              <Button type="submit" size="sm" disabled={!code.trim() || !name.trim()}>
-                {tr('statusConfig.addStatus')}
-              </Button>
-            </div>
-          </form>
         </CardContent>
       </Card>
 
@@ -318,8 +305,111 @@ export function ReturnStatusesConfigPage(): ReactNode {
           />
         </CardContent>
       </Card>
+      {canWrite && creating ? (
+        <NewStatusDialog
+          finalFocusRef={removalFocus.createRef}
+          onClose={() => setCreating(false)}
+          onCreated={async () => {
+            await refresh();
+            setCreating(false);
+            status.show(tr('statusConfig.added'));
+          }}
+        />
+      ) : null}
       {confirmDialog}
     </div>
   );
 }
+interface NewStatusDialogProps {
+  /** Focused when the dialog closes: the header's "New status". */
+  finalFocusRef: RefObject<HTMLElement | null>;
+  onClose: () => void;
+  onCreated: () => Promise<void>;
+}
+
+/**
+ * The new-status form — a name and a code, so a dialog (DS-05). Tesler: the code follows
+ * the English name until the operator edits it (DS-22, `useDerivedKey`). Each refusal is
+ * said at its field; the server's stays in the dialog with what was typed kept.
+ */
+function NewStatusDialog({ finalFocusRef, onClose, onCreated }: NewStatusDialogProps): ReactNode {
+  const t = useTranslation('core');
+  const tr = useTranslation('returns');
+  const formId = useId();
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [errors, setErrors] = useState<{ name?: string; code?: string }>({});
+  const [failure, setFailure] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const codeField = useDerivedKey({ source: name, value: code, onChange: setCode, separator: '_', maxLength: 64 });
+
+  const submit = async (event: FormEvent): Promise<void> => {
+    event.preventDefault();
+    setFailure(null);
+    const sent = codeField.commit();
+    const found: { name?: string; code?: string } = {};
+    if (!name.trim()) found.name = tr('statusConfig.validation.nameRequired');
+    if (!sent) found.code = tr('statusConfig.validation.codeRequired');
+    setErrors(found);
+    if (found.name || found.code) return;
+    setSaving(true);
+    try {
+      await returnsClient.createStatus({ code: sent, name: { en: name.trim() }, defaultName: name.trim() });
+      await onCreated();
+    } catch (err) {
+      setFailure(err instanceof ApiError ? err.envelope.error.message : tr('admin.actionFailed'));
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalDialog
+      title={tr('statusConfig.newTitle')}
+      onClose={onClose}
+      busy={saving}
+      dismissOnScrim={false}
+      finalFocusRef={finalFocusRef}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+            {t('common.action.cancel')}
+          </Button>
+          <Button type="submit" form={formId} disabled={saving} aria-busy={saving || undefined}>
+            {saving ? <Loader2 size={14} aria-hidden="true" className="motion-safe:animate-spin" /> : null}
+            {tr('statusConfig.addStatus')}
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} noValidate className="space-y-4" onSubmit={(e) => void submit(e)}>
+        <FormField label={tr('statusConfig.newName')} required error={errors.name}>
+          <Input
+            value={name}
+            maxLength={120}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (errors.name) setErrors(({ code: codeError }) => (codeError ? { code: codeError } : {}));
+            }}
+          />
+        </FormField>
+        <FormField label={tr('statusConfig.newCode')} hint={tr('statusConfig.codeHint')} required error={errors.code}>
+          <Input
+            className="font-mono"
+            spellCheck={false}
+            autoComplete="off"
+            maxLength={64}
+            value={code}
+            onChange={codeField.onChange}
+            onBlur={codeField.onBlur}
+          />
+        </FormField>
+        {/* Mounted before it has text, so a refusal that arrives is announced. */}
+        <p role="alert" className="text-sm text-destructive">
+          {failure}
+        </p>
+      </form>
+    </ModalDialog>
+  );
+}
+
 export default ReturnStatusesConfigPage;

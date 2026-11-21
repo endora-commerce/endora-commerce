@@ -50,13 +50,32 @@ export interface UnsavedChangesGuardOptions {
   message?: ReactNode;
 }
 
+/**
+ * One question asked through {@link UnsavedChangesGuard.confirm} (issue #1606):
+ * a screen that asks about different things — a scope switch and leaving the
+ * page — words each, and can undo what the switch already moved when the
+ * operator stays.
+ */
+export interface UnsavedChangesAsk {
+  /** This question's title, instead of the guard's `title`. */
+  title?: ReactNode;
+  /** This question's text, instead of the guard's `message`. */
+  message?: ReactNode;
+  /**
+   * Runs when the operator stays (Stay here or Escape) — e.g. putting back the
+   * address the browser's Back / Forward already changed.
+   */
+  onStay?: (() => void) | undefined;
+}
+
 export interface UnsavedChangesGuard {
   /**
    * Runs `action` now when nothing is unsaved, otherwise asks first and runs it
    * after Discard, or after a successful Save. For the screen's own `navigate()`
-   * calls and for any in-screen switch that would drop the changes.
+   * calls and for any in-screen switch that would drop the changes. `ask` words
+   * this one question and says what Stay undoes.
    */
-  confirm: (action: () => void) => void;
+  confirm: (action: () => void, ask?: UnsavedChangesAsk) => void;
   /** Whether the dialog is open. */
   asking: boolean;
   /** The dialog — render it once, anywhere in the screen (it portals to `document.body`). */
@@ -65,39 +84,43 @@ export interface UnsavedChangesGuard {
 
 export function useUnsavedChangesGuard(options: UnsavedChangesGuardOptions): UnsavedChangesGuard {
   const { dirty, onSave, onDiscard, guardTabsOutside, title, message } = options;
-  const [pending, setPending] = useState<(() => void) | null>(null);
+  const [pending, setPending] = useState<{ proceed: () => void; ask: UnsavedChangesAsk } | null>(null);
   const [saving, setSaving] = useState(false);
 
   useLeaveInterception(
     dirty,
     (replay) => {
-      setPending(() => replay);
+      setPending({ proceed: replay, ask: {} });
       return false;
     },
     { guardTabsOutside },
   );
 
   const confirm = useCallback(
-    (action: () => void): void => {
+    (action: () => void, ask: UnsavedChangesAsk = {}): void => {
       if (!dirty) {
         action();
         return;
       }
-      setPending(() => action);
+      setPending({ proceed: action, ask });
     },
     [dirty],
   );
 
-  const stay = (): void => setPending(null);
+  const stay = (): void => {
+    const onStay = pending?.ask.onStay;
+    setPending(null);
+    onStay?.();
+  };
   const discard = (): void => {
-    const proceed = pending;
+    const proceed = pending?.proceed;
     setPending(null);
     onDiscard?.();
     proceed?.();
   };
   const save = onSave
     ? async (): Promise<void> => {
-        const proceed = pending;
+        const proceed = pending?.proceed;
         setSaving(true);
         let ok = false;
         try {
@@ -115,8 +138,8 @@ export function useUnsavedChangesGuard(options: UnsavedChangesGuardOptions): Uns
   const dialog =
     pending !== null ? (
       <UnsavedChangesDialog
-        title={title}
-        message={message}
+        title={pending.ask.title ?? title}
+        message={pending.ask.message ?? message}
         saving={saving}
         onStay={stay}
         onDiscard={discard}

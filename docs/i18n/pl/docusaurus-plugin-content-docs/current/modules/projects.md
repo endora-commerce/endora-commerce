@@ -91,12 +91,14 @@ usuwany: ekran to mówi, a rekordy trzeba najpierw odłączyć.
 
 Jego zakładki:
 
-- **Przegląd** — opis — z odwołaniami wyświetlanymi jako łącza, edytowany
-  przyciskiem *Edytuj opis* (zob. *Notatki, wiadomości i odwołania*) — data
-  rozpoczęcia, **kto widzi projekt** i członkowie według ról. Administrator, który może tworzyć i prowadzić projekty, zmienia
-  tu, kto widzi projekt — te same trzy możliwości co w *Nowym projekcie* — i
-  zapisuje to przyciskiem *Zapisz widoczność*; pozostali widzą, jakie jest to
-  ustawienie i kto jest dopisany.
+- **Przegląd** — opis z odwołaniami wyświetlanymi jako łącza (zob. *Notatki,
+  wiadomości i odwołania*), data rozpoczęcia, **kto widzi projekt** i członkowie
+  według ról. Administrator, który może tworzyć i prowadzić projekty, zmienia
+  opis, datę rozpoczęcia i to, kto widzi projekt, tam, gdzie są wyświetlane:
+  ołówek obok każdego z nich otwiera to jedno pole z przyciskami **Zapisz**
+  i **Anuluj**, a zapis wysyła tylko to pole. Widoczność oferuje te same trzy
+  możliwości co w *Nowym projekcie*. Pozostali widzą, jakie jest każde z nich
+  i kto jest dopisany.
 - **Etapy** — jeden wiersz na etap, z planowanym czasem trwania, rolami
   odpowiedzialnymi i terminem. *Edytuj* otwiera jeden etap naraz: nazwę, kolor,
   planowany czas trwania, role odpowiedzialne, dni alertów, blokadę zakończenia,

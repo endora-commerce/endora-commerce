@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Link, useParams } from 'react-router-dom';
+import { ListChecks } from 'lucide-react';
 import {
   BULK_OPERATION_TYPES,
   type BulkOperation,
@@ -8,8 +9,8 @@ import {
   type BulkOperationStatus,
   type BulkOperationUndoResponse,
 } from '@endora-commerce/contracts';
-import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Card, CardContent, CardHeader, CardTitle, InlineStatus, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { ApiError, apiClient, cn, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, InlineStatus, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { lookupProductLabels, type ProductLabel } from '../lib/product-labels.js';
 import { bulkOperationLogText } from '../lib/bulk-operation-log-text.js';
@@ -22,6 +23,13 @@ import { isUnchangedResult } from '../lib/bulk-result-outcome.js';
  * processing summary, the operation's lifecycle log trail, and the per-element
  * outcome of the operation. Polls while the operation is still pending /
  * running so progress, logs, and results update live.
+ *
+ * On the kit's controls (issue #1492, UX audit slice S14): Undo is the page's
+ * one primary `Button`; the per-element filter is one labelled `Select` (four
+ * buttons, the chosen one filled, said which was on by colour alone); the
+ * per-element list's two empties are the kit's `EmptyState` — nothing
+ * recorded, or nothing for this outcome with *Clear filters* (DS-15). The table
+ * scrolls inside the card without a second bordered frame (DS-03).
  */
 
 const ACTIVE_STATUSES: BulkOperationStatus[] = ['pending', 'running'];
@@ -72,6 +80,7 @@ export function BulkOperationDetailPage(): ReactNode {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elementFilter, setElementFilter] = useState<ElementFilter>('all');
+  const elementFilterRef = useRef<HTMLSelectElement | null>(null);
   const [productInfo, setProductInfo] = useState<Record<string, ProductInfo>>({});
   const [undoing, setUndoing] = useState(false);
   // Issue #1499 (UX audit SALES-17, DEC-12 a) — the undo's result is said in the
@@ -215,6 +224,7 @@ export function BulkOperationDetailPage(): ReactNode {
   }
 
   const pct = op.total > 0 ? Math.round((op.processed / op.total) * 100) : 0;
+  const hasResults = (op.results?.length ?? 0) > 0;
 
   return (
     <>
@@ -251,14 +261,15 @@ export function BulkOperationDetailPage(): ReactNode {
               <p className="text-sm text-muted-foreground">{t('bulkOperations.undo.alreadyReverted')}</p>
             ) : null}
             {canUndo ? (
-              <button
+              <Button
                 type="button"
-                className="b2b-btn b2b-btn--sm b2b-btn--primary"
+                size="sm"
                 disabled={undoing}
+                aria-busy={undoing || undefined}
                 onClick={(): void => void handleUndo()}
               >
                 {undoing ? t('bulkOperations.undo.running') : t('bulkOperations.undo.action')}
-              </button>
+              </Button>
             ) : null}
           </div>
         </CardHeader>
@@ -304,7 +315,7 @@ export function BulkOperationDetailPage(): ReactNode {
               {op.logs.map((entry, idx) => (
                 <li key={idx} className="flex flex-wrap gap-2">
                   <span className="text-muted-foreground">{formatDateTime(entry.ts)}</span>
-                  <span className={`uppercase ${LOG_LEVEL_CLASS[entry.level]}`}>{entry.level}</span>
+                  <span className={cn('uppercase', LOG_LEVEL_CLASS[entry.level])}>{entry.level}</span>
                   <span className={LOG_LEVEL_CLASS[entry.level]}>{bulkOperationLogText(t, entry)}</span>
                 </li>
               ))}
@@ -318,26 +329,35 @@ export function BulkOperationDetailPage(): ReactNode {
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <CardTitle>{t('bulkOperations.detail.elements')}</CardTitle>
-          <div className="flex flex-wrap gap-1">
-            {ELEMENT_FILTERS.map((f) => (
-              <button
-                key={f}
-                type="button"
-                className={`b2b-btn b2b-btn--sm ${elementFilter === f ? 'b2b-btn--primary' : 'b2b-btn--ghost'}`}
-                onClick={(): void => setElementFilter(f)}
-              >
-                {f === 'all' ? t('bulkOperations.filter.all') : t(`bulkOperations.outcome.${f}`)}
-              </button>
-            ))}
-          </div>
+          {/* Nothing to filter until there are results. */}
+          {hasResults ? (
+            <Select
+              ref={elementFilterRef}
+              aria-label={t('bulkOperations.detail.outcome')}
+              className="w-auto"
+              value={elementFilter}
+              onChange={(e): void => setElementFilter(e.target.value as ElementFilter)}
+            >
+              {ELEMENT_FILTERS.map((f) => (
+                <option key={f} value={f}>
+                  {f === 'all' ? t('bulkOperations.filter.all') : t(`bulkOperations.outcome.${f}`)}
+                </option>
+              ))}
+            </Select>
+          ) : null}
         </CardHeader>
         <CardContent>
-          {!op.results || op.results.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('bulkOperations.detail.noResults')}</p>
+          {!hasResults ? (
+            <EmptyState icon={<ListChecks size={20} />} title={t('bulkOperations.detail.noResults')} />
           ) : filteredResults.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('bulkOperations.detail.noElementsForFilter')}</p>
+            <EmptyState
+              variant="no-results"
+              title={t('bulkOperations.detail.noElementsForFilter')}
+              onClearFilters={(): void => setElementFilter('all')}
+              focusAfterClear={elementFilterRef}
+            />
           ) : (
-            <div className="max-h-[32rem] overflow-auto rounded-md border">
+            <div className="max-h-[32rem] overflow-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

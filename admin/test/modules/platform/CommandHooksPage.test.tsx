@@ -327,7 +327,9 @@ describe('CommandHooksPage — loading, empty and error states', () => {
     renderPage('plan');
     expect(screen.getByText(core('en', 'platform.commandHooks.plan.loading'))).toBeTruthy();
     release({ actions: [], items: [] });
-    expect(await screen.findByText(core('en', 'platform.commandHooks.plan.empty'))).toBeTruthy();
+    const empty = await screen.findByText(core('en', 'platform.commandHooks.plan.empty'));
+    // Issue #1448 (DS-15): the tab's whole body is the kit empty state, not a bare sentence.
+    expect(empty.closest('[data-empty-state="no-data"]')).not.toBeNull();
   });
 
   it('shows the plan error', async () => {
@@ -344,7 +346,8 @@ describe('CommandHooksPage — loading, empty and error states', () => {
     renderPage('outbox');
     expect(await screen.findByText(core('en', 'platform.commandHooks.outbox.loading'))).toBeTruthy();
     release({ items: [], nextCursor: null });
-    expect(await screen.findByText(core('en', 'platform.commandHooks.outbox.empty.dead'))).toBeTruthy();
+    const empty = await screen.findByText(core('en', 'platform.commandHooks.outbox.empty.dead'));
+    expect(empty.closest('[data-empty-state="no-data"]')).not.toBeNull();
   });
 
   it('shows the outbox error', async () => {
@@ -407,7 +410,9 @@ describe('CommandHooksPage — retry keeps the keyboard user in place (review 1�
     await screen.findByRole('table');
     await userEvent.click(within(bodyRows()[0]!).getByRole('button', { name: /retry/i }));
     const empty = await screen.findByText(core('en', 'platform.commandHooks.outbox.empty.dead'));
-    await waitFor(() => expect(document.activeElement).toBe(empty));
+    // Focus lands on the empty state's frame, which reads its title.
+    await waitFor(() => expect(document.activeElement?.contains(empty)).toBe(true));
+    expect(document.activeElement).not.toBe(document.body);
   });
 
   it('treats 409 COMMAND_OUTBOX_NOT_DEAD as an outcome: the row leaves the list, the sentence is announced, no error alert', async () => {

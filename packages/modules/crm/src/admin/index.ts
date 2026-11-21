@@ -23,6 +23,7 @@
  */
 import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
 import { CRM_CONFIGURATION_PATH, CRM_TAGS_PATH, LEGACY_CRM_TAGS_PATH } from './lib/configuration-paths.js';
+import { WORKFLOW_SECTION_TABS } from './lib/workflow-sections.js';
 
 /**
  * The code that opens the list and one Opportunity.
@@ -80,11 +81,13 @@ export const contributions: AdminContributions = {
       component: () => import('./pages/OpportunityDetail.js'),
       requiredPermission: READ_PERMISSION,
     },
-    {
-      path: WORKFLOW_PATH,
+    // The workflow configuration's tabs (issue #1559): one route each, one
+    // screen behind them all, on the code of the screen itself.
+    ...WORKFLOW_SECTION_TABS.map((tab) => ({
+      path: tab.path,
       component: () => import('./pages/WorkflowConfigPage.js'),
       requiredPermission: CONFIGURE_PERMISSION,
-    },
+    })),
     {
       // The board's former address, now `/crm/opportunities?view=board`: a
       // redirect on the code that reads the board (`GET /board` is `crm:read`).

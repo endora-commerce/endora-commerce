@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { useState, type ReactNode } from 'react';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { PushAudienceRule } from '@endora-commerce/contracts';
+import { expectNoAxeViolations } from '../../helpers/axe';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 
 /**
@@ -12,7 +14,8 @@ import { renderWithI18n } from '../../helpers/render-with-i18n';
  * inline colours (a white-on-primary operator button hard-coded `#fff`). The
  * value picker's options were `<li onClick>`s: a mouse could pick one, a
  * keyboard could not (WCAG 2.1.1). It draws kit primitives now, and each
- * option is a labelled checkbox.
+ * option is a labelled checkbox. Issue #1622 protects the keyboard path and
+ * adds the requested axe regression coverage.
  */
 const read = (file: string): Record<string, string> =>
   JSON.parse(readFileSync(resolve(process.cwd(), file), 'utf8')) as Record<string, string>;
@@ -21,6 +24,11 @@ const core = read('../packages/modules/_i18n/i18n/en.json');
 const p = (key: string): string => {
   const value = pwa[key];
   if (value === undefined) throw new Error(`missing pwa key ${key}`);
+  return value;
+};
+const c = (key: string): string => {
+  const value = core[key];
+  if (value === undefined) throw new Error(`missing core key ${key}`);
   return value;
 };
 
@@ -47,7 +55,8 @@ const CHANNELS = {
 
 let latest: PushAudienceRule = { kind: 'all' };
 
-async function mount(initial: PushAudienceRule): Promise<void> {
+async function mount(initial: PushAudienceRule): Promise<ReturnType<typeof renderWithI18n>> {
+  latest = initial;
   const { PushAudienceRuleBuilder } = await import(
     '../../../../packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder'
   );
@@ -63,7 +72,7 @@ async function mount(initial: PushAudienceRule): Promise<void> {
       />
     );
   }
-  renderWithI18n(<Host />, { pwa, core });
+  return renderWithI18n(<Host />, { pwa, core });
 }
 
 const GROUP: PushAudienceRule = {
@@ -80,13 +89,37 @@ beforeEach(() => {
 describe('push audience rule builder (#1492)', () => {
   it('lets a keyboard pick a value: every option is a labelled checkbox', async () => {
     get.mockResolvedValue(CHANNELS);
+    const user = userEvent.setup();
     await mount(GROUP);
-    fireEvent.click(screen.getByRole('button', { name: p('audience.pickValues') }));
-    const retail = await screen.findByRole('checkbox', { name: /Retail/ });
+    const trigger = screen.getByRole('button', { name: p('audience.pickValues') });
+    for (const control of [
+      screen.getByRole('button', { name: p('audience.collapse') }),
+      screen.getByRole('button', { name: p('audience.op.AND') }),
+      screen.getByRole('button', { name: p('audience.op.OR') }),
+      screen.getByRole('combobox', { name: p('audience.criterionType') }),
+      trigger,
+    ]) {
+      await user.tab();
+      expect(control).toHaveFocus();
+    }
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('searchbox', { name: p('audience.search') })).toHaveFocus();
+
+    const wholesale = await screen.findByRole('checkbox', { name: /Wholesale/ });
+    const retail = screen.getByRole('checkbox', { name: /Retail/ });
     expect(retail).not.toBeChecked();
-    fireEvent.click(retail);
+    await user.tab();
+    expect(wholesale).toHaveFocus();
+    await user.tab();
+    expect(retail).toHaveFocus();
+    await user.keyboard(' ');
     expect(retail).toBeChecked();
-    fireEvent.click(screen.getByRole('button', { name: p('audience.apply').replace('{count}', '1') }));
+    expect(retail).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: c('common.action.cancel') })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: p('audience.apply').replace('{count}', '1') })).toHaveFocus();
+    await user.keyboard('{Enter}');
     await waitFor(() =>
       expect(latest).toEqual({
         kind: 'group',
@@ -94,6 +127,50 @@ describe('push audience rule builder (#1492)', () => {
         children: [{ kind: 'criterion', type: 'salesChannel', values: ['ch-2'] }],
       }),
     );
+    expect(screen.queryByRole('searchbox', { name: p('audience.search') })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retail' })).toBeInTheDocument();
+  });
+
+  it('has no axe violations with the option picker open and populated', async () => {
+    get.mockResolvedValue(CHANNELS);
+    const user = userEvent.setup();
+    const { container } = await mount(GROUP);
+    await user.click(screen.getByRole('button', { name: p('audience.pickValues') }));
+    expect(await screen.findByRole('checkbox', { name: /Retail/ })).not.toBeChecked();
+    await user.click(screen.getByRole('checkbox', { name: /Wholesale/ }));
+    expect(screen.getByRole('checkbox', { name: /Wholesale/ })).toBeChecked();
+    await expectNoAxeViolations(container);
+  });
+
+  it('discards uncommitted selection changes on Cancel', async () => {
+    get.mockResolvedValue(CHANNELS);
+    const user = userEvent.setup();
+    const initial: PushAudienceRule = {
+      kind: 'group',
+      op: 'AND',
+      children: [{ kind: 'criterion', type: 'salesChannel', values: ['ch-1'] }],
+    };
+    await mount(initial);
+    await user.click(await screen.findByRole('button', { name: 'Wholesale' }));
+    const wholesale = await screen.findByRole('checkbox', { name: /Wholesale/ });
+    const retail = screen.getByRole('checkbox', { name: /Retail/ });
+    expect(wholesale).toBeChecked();
+    expect(retail).not.toBeChecked();
+    expect(screen.getByRole('searchbox', { name: p('audience.search') })).toHaveFocus();
+    await user.tab();
+    expect(wholesale).toHaveFocus();
+    await user.tab();
+    expect(retail).toHaveFocus();
+    await user.keyboard(' ');
+    expect(retail).toBeChecked();
+    await user.tab();
+    expect(screen.getByRole('button', { name: c('common.action.cancel') })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(latest).toEqual(initial);
+    expect(screen.queryByRole('searchbox', { name: p('audience.search') })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Wholesale' }));
+    expect(await screen.findByRole('checkbox', { name: /Wholesale/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Retail/ })).not.toBeChecked();
   });
 
   it('announces the options loading as a status', async () => {

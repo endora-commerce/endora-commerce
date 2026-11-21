@@ -6,8 +6,8 @@ import { en, renderCrm } from './crm-fixtures';
 
 /**
  * CRM configuration is one place (issue #1557, UX audit WORK-06): one sidebar
- * row, *Configuration*, opening a route-tab strip Workflow | Tags. Tags and
- * Workflow used to be two rows of the CRM section.
+ * row, *Configuration*, opening one route-tab strip — the workflow's four tabs
+ * (issue #1559) and Tags. Tags and Workflow used to be two rows of the CRM section.
  */
 
 const getSpy = vi.fn();
@@ -72,11 +72,13 @@ describe('CRM configuration — one sidebar row', () => {
 
 describe('CRM configuration — the tab strip', () => {
   it.each([
-    [CONFIGURATION, () => <WorkflowConfigPage />, 'configuration.tab.workflow'],
+    [CONFIGURATION, () => <WorkflowConfigPage />, 'workflow.tab.statuses'],
     [`${CONFIGURATION}/tags`, () => <TagsPage />, 'configuration.tab.tags'],
-  ] as const)('%s shows both tabs with its own selected', (path, ui, labelKey) => {
+  ] as const)('%s shows the one strip with its own tab selected', (path, ui, labelKey) => {
     renderCrm(ui(), { permissions: CONFIGURER, path });
     const strips = screen.getAllByRole('tablist');
+    // One strip, never a workflow strip nested under a configuration strip.
+    expect(strips).toHaveLength(1);
     const strip = strips.find((candidate) =>
       within(candidate).queryByRole('tab', { name: en('configuration.tab.tags') }),
     );

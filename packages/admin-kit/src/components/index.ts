@@ -146,6 +146,7 @@ export type {
 // Issue #1446 (DS-13) — the one unsaved-changes guard: Save / Discard / Stay before a navigation drops edits.
 export { UnsavedChangesDialog, UnsavedChangesHint, useUnsavedChangesGuard } from './unsaved-changes/UnsavedChangesGuard.js';
 export type {
+  UnsavedChangesAsk,
   UnsavedChangesDialogProps,
   UnsavedChangesGuard,
   UnsavedChangesGuardOptions,
@@ -214,6 +215,10 @@ export { FilterChip } from './list-toolbar/FilterChip.js';
 export type { FilterChipProps } from './list-toolbar/FilterChip.js';
 export { ListToolbar, ListToolbarSearch } from './list-toolbar/ListToolbar.js';
 export type { AppliedFilter, ListToolbarProps, ListToolbarSearchProps } from './list-toolbar/ListToolbar.js';
+export { InlineEdit, InlineEditPencil } from './inline-edit/InlineEdit.js';
+export type { InlineEditorProps, InlineEditProps } from './inline-edit/InlineEdit.js';
+export { InlineEditTitle } from './inline-edit/InlineEditTitle.js';
+export type { InlineEditTitleProps } from './inline-edit/InlineEditTitle.js';
 // Issue #1558 (UX audit WORK-07) — the *List | Board* switch, moved from Tasks.
 export { ViewModeToggle } from './view-mode-toggle/ViewModeToggle.js';
 export type { ViewModeToggleProps } from './view-mode-toggle/ViewModeToggle.js';

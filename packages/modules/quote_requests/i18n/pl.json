@@ -206,5 +206,16 @@
   "list.rowMenu.label": "Akcje zapytania ofertowego {number}",
   "list.rowMenu.organization": "Otwórz organizację",
   "detail.tabs.label": "Sekcje zapytania ofertowego",
-  "detail.sidebar.label": "Powiązane działania"
+  "detail.sidebar.label": "Powiązane działania",
+  "settingLabels.quote_requests.enabled.name": "Zapytania ofertowe włączone",
+  "settingLabels.quote_requests.expiry_days.name": "Automatyczne wygasanie oczekujących po (dniach)",
+  "settingLabels.quote_requests.expiry_days.description": "Po ilu dniach bez aktywności oczekujące zapytanie wygasa. 0: nigdy.",
+  "settingLabels.quote_requests.show_add_to_quote_on_card.name": "Pokazuj „Dodaj do zapytania” na karcie produktu",
+  "settingLabels.quote_requests.show_add_to_quote_on_card.description": "Pokazuje przycisk „Dodaj do zapytania” na kartach produktów.",
+  "settingLabels.quote_requests.show_add_to_quote_on_pdp.name": "Pokazuj „Dodaj do zapytania” na stronie produktu",
+  "settingLabels.quote_requests.show_add_to_quote_on_pdp.description": "Pokazuje przycisk „Dodaj do zapytania” na stronach produktów.",
+  "settingLabels.quote_requests.business_id.prefix.name": "Prefiks numeru zapytania",
+  "settingLabels.quote_requests.business_id.prefix.description": "Tekst przed numerem zapytania widocznym dla klienta, np. QR-. Pusty: bez prefiksu.",
+  "settingLabels.quote_requests.business_id.suffix.name": "Sufiks numeru zapytania",
+  "settingLabels.quote_requests.business_id.suffix.description": "Tekst po numerze zapytania widocznym dla klienta, np. -2026. Pusty: bez sufiksu."
 }

@@ -311,6 +311,11 @@ const guard = useUnsavedChangesGuard({ dirty, onSave: save, onDiscard: reset });
   *Discard changes* (`onDiscard`, then the navigation), *Stay here* (the initial focus, so an Enter
   pressed by accident keeps the work). Without `onSave` — no permission, nothing valid to send — the
   choice is Discard or Stay. Copy is `core`'s `form.unsavedChanges.*`; `title` and `message` override it.
+- **One guard, several questions** (#1606): `confirm(action, { title, message, onStay })` words that
+  one ask — a scope switch says it is a switch, while a link keeps the guard's `title` / `message` —
+  and `onStay` runs on *Stay here* or Escape, for undoing what the switch already moved (the product
+  editor puts back the address the browser's Back / Forward changed). Do not arm a second guard or
+  draw a second dialog for the switch.
 - **The blocked link or tab is replayed**, not re-routed: the same element is clicked again with the
   guard stood down, so the guard needs no router and keeps whatever the link does.
 - **Not interceptable here**: Back / Forward. The admin mounts a component `<BrowserRouter>`, not a
@@ -576,9 +581,18 @@ whose tabs are routes. Both draw `.b2b-tabs` / `.b2b-tab`, so an operator cannot
   the keyboard two strips with the same keys: make the second level `Section`s. In development a
   `Tabs` rendered inside a `TabPanel` logs a warning; a `ModalDialog` opened from a panel is a new
   context and does not.
+- **A strip with no one panel** — page state spread over the screen — passes
+  `controlsPanel={false}`, and its tabs carry no `aria-controls` naming a panel that is not there.
 
 The behaviour is pinned in `admin/test/kit/kit-tabs.test.tsx`, including the keyboard path and an
 axe pass.
+
+**`ContentLanguageTabs`** (`./components`) is this strip over content language codes. The screen
+owns the panel, because the strip sits in a card header or a canvas bar: pass `idBase` and wrap the
+per-language fields in `<TabPanel idBase={idBase} value={activeLanguage} tabIndex={-1}>`. Leave
+`idBase` out where the language drives several regions — a Page Builder editor, where it switches
+the canvas and the settings fields, and the canvas carries the builder's own tablists. With no language to offer it draws an
+`EmptyState` with the reason. Pinned in `admin/test/kit/kit-content-language-tabs.test.tsx`.
 
 ## Empty lists — `EmptyState`
 
@@ -587,6 +601,11 @@ nothing to show: a decorative icon, a title, at most one line and at most one ac
 bare grey sentence (Picture Superiority). It draws the `.b2b-empty` classes, so do not write
 them out by hand. Two variants, because "nothing here yet" and "your filters match nothing" call
 for different next steps:
+
+It belongs where the empty area is the page's or the tab's primary region — a list or table page,
+a tab whose body is one collection, a top-level record panel. A picker's or combobox's results, an
+inline sub-list in a form section and a side or summary widget keep a one-line muted sentence
+(architect ruling on #1448).
 
 ```tsx
 filtered ? (
@@ -766,6 +785,59 @@ long list, or inside the first card while it also saved the zone panels below it
 Adopted by the role editor, the profile, the promotion editor, RFQ Modify and RFQ create, the
 sales-channel editor, and the task, opportunity, project and project-template forms. Pinned in
 `admin/test/kit/kit-sticky-form-actions.test.tsx`, including an axe pass.
+
+## A record's facts — `InlineEdit` and `InlineEditTitle`
+
+Issue #1453 (UX audit 2026-11-17, DS-21; owner decision DEC-05). An operator moving from an
+Opportunity to its Task and its Project met three ways of saving a fact: per field in CRM, one
+*Edit* turning the whole Task block into a form, and three separate Saves on the Project Overview
+(WORK-03, #1525). The record-editing model is CRM's, moved here: **each fact is edited where it is
+shown**, with its own *Save* and *Cancel*, sending only itself.
+
+```tsx
+<InlineEdit<string>
+  label={t('field.startOn')}
+  canEdit={canWrite}
+  display={startOn ? calendarDateLabel(startOn) : t('detail.noStartDate')}
+  initial={() => startOn ?? ''}
+  unchanged={(draft) => (draft || null) === startOn}
+  validate={(draft) => (draft ? null : t('x.required'))}   // optional, before any request
+  save={(draft) => update({ startOn: draft || null })}      // reject with Error(sentence) to refuse
+  editor={({ id, draft, setDraft, busy, errorId }) => (
+    <Input id={id} type="date" value={draft} disabled={busy}
+      aria-invalid={errorId !== undefined} aria-describedby={errorId}
+      onChange={(e) => setDraft(e.target.value)} />
+  )}
+/>
+```
+
+- **States.** Idle: the label, the value and an always-visible pencil named "Edit <label>" (44 px on
+  touch). Editing: the focus moves into the control `id` names, Enter saves a one-line field
+  (`submit` lets a formatted field save on Ctrl/Cmd + Enter), Escape cancels and returns the focus to
+  the pencil. Saving: the control and buttons are held, *Save* is `aria-busy`. Refused: the sentence
+  under the control as `role="alert"`, tied to it through `errorId`, the draft kept. Saved:
+  "<label> saved." is announced by a live region mounted before it has text (WCAG 4.1.3).
+- **`save` throws to refuse.** Its rejection's `message` is shown; one without a message shows
+  `core`'s `common.inlineEdit.error`. Map an API error to a sentence in the module (the server's own
+  sentence first) and rethrow it as `Error`.
+- **`group`** for an editor of several controls — radios, a tag picker: the label is drawn with
+  `labelId` for the group's `aria-labelledby`, instead of a `<label for>` that would name one radio
+  only. Put `id` on the control the focus should land on (the checked radio). A control that is
+  still disabled when the field opens — a picker reading its options — leaves the focus on the
+  field's form, so the next Tab reaches it.
+- **`labelVisible={false}`** where a section heading already names the field (the CRM description).
+- **`InlineEditTitle`** is the same model for the page's `h1`: the `PageHeader` with a pencil beside
+  the title; editing swaps the heading row for a large input (a visually hidden `h1` stays). It takes
+  every `PageHeader` prop but `title`/`titleActions`, plus `value`, `label`, `canEdit`, `beside` (the
+  status badge), `maxLength`, `validate` and `save`; the draft is trimmed before both.
+- **What not.** A page-wide *Edit* that turns a block of facts into a form, and an always-open
+  control with its own filled *Save* beside read-only facts. A switch that applies at once stays a
+  switch; a record's custom fields keep `CustomFieldValuesPanel`'s one Save.
+
+Adopted by the Opportunity (title, value, dates, contact, assignee, Sales Channel, description),
+the Task (title, description, due date, start date, priority, tags, assignees) and the Project
+Overview (description, start date, who sees it). Pinned in `admin/test/kit/kit-inline-edit.test.tsx`,
+including axe passes, against the shipped `core` copy in English and Polish.
 
 ## List filters — `ListToolbar`, `ListToolbarSearch` and `FilterChip`
 

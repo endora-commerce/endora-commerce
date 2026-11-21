@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentType, ReactElement, ReactNode } from 'react';
 import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
@@ -175,3 +175,41 @@ describe('DisplayModeOverridesPage — one visual system (#1492)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Save failed.');
   });
 });
+
+/**
+ * Issue #1448 (UX audit DS-15, slice S12): an empty scope and a search that
+ * matches nothing are different situations. Only the second offers Clear
+ * filters, which empties the search and hands focus back to it.
+ */
+describe('DisplayModeOverridesPage — no overrides vs no results (#1448)', () => {
+  beforeEach(() => {
+    getSpy.mockReset();
+    getSpy.mockImplementation(async (url: string) => answer(url));
+  });
+
+  it('says an empty scope has no overrides yet', async () => {
+    mount('en');
+    const panel = await screen.findByRole('tabpanel');
+    await waitFor(() => expect(panel.querySelector('[data-empty-state]')).not.toBeNull());
+    expect(panel.querySelector('[data-empty-state]')).toHaveAttribute('data-empty-state', 'no-data');
+    expect(within(panel).queryByRole('button', { name: CORE_EN['common.emptyState.clearFilters']! })).toBeNull();
+  });
+
+  it('says a search matches nothing, and Clear filters brings the overrides back', async () => {
+    const user = userEvent.setup();
+    mount('en');
+    await user.click(await screen.findByRole('tab', { name: 'Category' }));
+    const table = await screen.findByRole('table');
+    await within(table).findByText('Screws');
+    const search = screen.getByRole('searchbox');
+    await user.type(search, 'zzz');
+    const panel = screen.getByRole('tabpanel');
+    expect(panel.querySelector('[data-empty-state]')).toHaveAttribute('data-empty-state', 'no-results');
+    await user.click(within(panel).getByRole('button', { name: CORE_EN['common.emptyState.clearFilters']! }));
+    expect(await within(await screen.findByRole('table')).findByText('Screws')).toBeInTheDocument();
+    expect(search).toHaveValue('');
+    await waitFor(() => expect(document.activeElement).toBe(search));
+  });
+});
+
+const CORE_EN = coreBundle('en').core as Record<string, string>;

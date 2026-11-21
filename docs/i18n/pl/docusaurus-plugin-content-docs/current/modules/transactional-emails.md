@@ -96,8 +96,8 @@ ustawia dwie wartości, z którymi renderuje się każdy e-mail:
 Lista **Zakres** wybiera *Wszystkie kanały (domyślnie)* albo jeden kanał sprzedaży. Kanał
 dziedziczy wartość wszystkich kanałów dla wszystkiego, czego nie nadpisuje: zapis wysyła tylko
 pola zmienione przy wybranym zakresie, więc zmiana koloru akcentu dla jednego kanału zostawia mu
-logo wszystkich kanałów. Zmiana zakresu przy niezapisanych zmianach pyta, czy je zapisać, odrzucić,
-czy zostać. Podgląd wymaga `transactional_emails:read`, zapis — `transactional_emails:write`.
+logo wszystkich kanałów. Zmiana zakresu albo przejście linkiem w inne miejsce panelu przy
+niezapisanych zmianach pyta, czy je zapisać, odrzucić, czy zostać. Podgląd wymaga `transactional_emails:read`, zapis — `transactional_emails:write`.
 Wartości to ustawienia `transactional_emails.logo_asset_id` i `transactional_emails.accent_color`,
 więc widać je także na ekranie Ustawień.
 

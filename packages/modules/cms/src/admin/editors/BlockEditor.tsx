@@ -7,6 +7,7 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
 import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
 import { PageBuilderEditor } from '../components/PageBuilderEditor.js';
+import { CanvasLanguagePanel } from '../components/CanvasLanguagePanel.js';
 import {
   emptyPageBuilderData,
   hasUnsavedCanvas,
@@ -62,6 +63,9 @@ function dataFor(block: CmsBlockDetail | null, language: string | null): Data | 
   if (data && typeof data === 'object') return data as Data;
   return { root: { props: {} }, content: [] };
 }
+
+/** The content-language strip's ids: its tabs name the canvas (`CanvasLanguagePanel`). */
+const LANGUAGE_TABS_ID = 'cms-block-content-language';
 
 export function BlockEditor(): ReactNode {
   const t = useTranslation('cms');
@@ -229,6 +233,9 @@ export function BlockEditor(): ReactNode {
     if (await save()) navigate('/cms/blocks');
   };
 
+  // The tab the strip shows selected — the active language, else the scope's first.
+  const canvasLanguage = resolveScopedContentLanguage(scope, activeLanguage);
+
   return (
     <PageBuilderEditorLayout
       settingsPanel={settingsPanel}
@@ -315,6 +322,7 @@ export function BlockEditor(): ReactNode {
         <ContentLanguageTabs
           languages={scope.languages}
           activeLanguage={activeLanguage}
+          idBase={canvasLanguage === null ? undefined : LANGUAGE_TABS_ID}
           onChange={(language) => {
             if (activeLanguage && draftData) {
               setLanguageContentOverrides((prev) => ({
@@ -328,39 +336,41 @@ export function BlockEditor(): ReactNode {
         />
       }
       builder={
-        <PageBuilderEditor
-          data={currentData}
-          onChange={setDraftData}
-          contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
-          // Feature 151 — the translation's audit subject, and the version whose
-          // change (a save) retires its *Restore previous content*.
-          resource={{ type: 'cms_block', id: block?.id ?? null }}
-          savedVersion={block?.version ?? null}
-          languages={scope.languages}
-          activeLanguage={activeLanguage}
-          onResolveLanguageContent={(language) => {
-            if (language === activeLanguage && draftData) {
-              return structuredClone(draftData);
+        <CanvasLanguagePanel idBase={LANGUAGE_TABS_ID} language={canvasLanguage}>
+          <PageBuilderEditor
+            data={currentData}
+            onChange={setDraftData}
+            contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
+            // Feature 151 — the translation's audit subject, and the version whose
+            // change (a save) retires its *Restore previous content*.
+            resource={{ type: 'cms_block', id: block?.id ?? null }}
+            savedVersion={block?.version ?? null}
+            languages={scope.languages}
+            activeLanguage={activeLanguage}
+            onResolveLanguageContent={(language) => {
+              if (language === activeLanguage && draftData) {
+                return structuredClone(draftData);
+              }
+              if (languageContentOverrides[language]) {
+                return structuredClone(languageContentOverrides[language]!);
+              }
+              return structuredClone(dataFor(block, language) ?? emptyPageBuilderData());
+            }}
+            onSaveAsTemplate={async (meta, canvasData) => {
+              await saveCanvasAsCmsTemplate({
+                ...meta,
+                data: canvasData,
+                salesChannelIds: scope.salesChannelIds,
+                languages: scope.languages,
+                activeLanguage,
+              });
+            }}
+            onListTemplatesForApply={listCmsTemplatesForApply}
+            onResolveTemplateLayout={(templateId) =>
+              loadCmsTemplateCanvas(templateId, activeLanguage)
             }
-            if (languageContentOverrides[language]) {
-              return structuredClone(languageContentOverrides[language]!);
-            }
-            return structuredClone(dataFor(block, language) ?? emptyPageBuilderData());
-          }}
-          onSaveAsTemplate={async (meta, canvasData) => {
-            await saveCanvasAsCmsTemplate({
-              ...meta,
-              data: canvasData,
-              salesChannelIds: scope.salesChannelIds,
-              languages: scope.languages,
-              activeLanguage,
-            });
-          }}
-          onListTemplatesForApply={listCmsTemplatesForApply}
-          onResolveTemplateLayout={(templateId) =>
-            loadCmsTemplateCanvas(templateId, activeLanguage)
-          }
-        />
+          />
+        </CanvasLanguagePanel>
       }
     />
   );

@@ -105,10 +105,14 @@ The code is written whole, dots included. For the manifest above:
 }
 ```
 
-Resolution is per key: the administrator's language, then English, then the
-string the manifest declared. Every key is optional, so a module that ships none
-of them renders exactly as it did before, and you can translate one setting at a
-time. Three things follow from how the lookup works:
+Resolution is per key. A **name** is looked up in the administrator's language,
+then English, then the string the manifest declared. A **description** is never
+shown in another language: in Polish it is the Polish key or nothing, and the
+manifest's English sentence is shown only to an English reader. Keep each
+description to one row of the screen — at most 120 English characters, which
+`pnpm --filter backend run check:text-budget` holds — and put the full
+explanation in your module's documentation page. Three things follow from how
+the lookup works:
 
 - **Only the owning module's bundle is read** — the module whose settings
   manifest declared the row (`moduleCode`, which must equal the module's `id`

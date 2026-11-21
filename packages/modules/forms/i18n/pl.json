@@ -523,5 +523,12 @@
   "settingGroups.forms.name": "Formularze",
   "settingLabels.forms.captcha_provider.options.none": "Brak",
   "settingLabels.forms.captcha_provider.options.turnstile": "Cloudflare Turnstile",
-  "settingLabels.forms.captcha_provider.options.hcaptcha": "hCaptcha"
+  "settingLabels.forms.captcha_provider.options.hcaptcha": "hCaptcha",
+  "settingLabels.forms.enabled.name": "Formularze włączone",
+  "settingLabels.forms.captcha_provider.name": "Dostawca CAPTCHA",
+  "settingLabels.forms.captcha_provider.description": "Usługa sprawdzająca, że formularz wysłał człowiek: Turnstile lub hCaptcha. Przy none nic nie jest sprawdzane.",
+  "settingLabels.forms.captcha_site_key.name": "Klucz witryny CAPTCHA",
+  "settingLabels.forms.captcha_site_key.description": "Publiczny klucz witryny od dostawcy CAPTCHA. Jest wysyłany do przeglądarki.",
+  "settingLabels.forms.captcha_secret_key.name": "Tajny klucz CAPTCHA",
+  "settingLabels.forms.captcha_secret_key.description": "Tajny klucz od dostawcy CAPTCHA, używany przez serwer. Przechowywany zaszyfrowany; tylko do zapisu."
 }

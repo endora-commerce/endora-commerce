@@ -468,7 +468,7 @@ export const manifest = defineModuleManifest({
         code: 'catalog.scope_completeness_gate',
         name: 'Completeness check when switching a product on',
         description:
-          'Applies when a product is switched on where its name, URL key or a required attribute is missing in that language. Editor and bulk edit only.',
+          'Applies when a product is switched on with a missing name, URL key or required attribute in that language.',
         groupCode: 'catalog',
         valueType: 'string',
         enumOptions: ['warn', 'refuse'],

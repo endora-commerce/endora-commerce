@@ -10,6 +10,9 @@
   "list.filter.activeOnly": "Show active channels only",
   "list.loading": "Loading sales channels…",
   "list.empty": "No channels match the filter.",
+  "list.noData.title": "No sales channels yet",
+  "list.noData.body": "Create a channel to open a storefront.",
+  "list.noData.bodyReadOnly": "Channels appear here once an administrator creates one.",
   "list.column.code": "Code",
   "list.column.name": "Name",
   "list.column.defaultLangCurrency": "Default lang / currency",
@@ -113,5 +116,7 @@
   "edit.error.delete": "Could not delete the channel.",
   "membership.error.load": "Failed to load channel memberships.",
   "membership.error.add": "Could not add to the channel.",
-  "membership.error.remove": "Could not remove from the channel."
+  "membership.error.remove": "Could not remove from the channel.",
+  "settingLabels.sales_channels.storefront_url.name": "Storefront URL",
+  "settingLabels.sales_channels.storefront_url.description": "Public base URL of this channel's storefront, used in sitemaps and links. Empty: STOREFRONT_BASE_URL."
 }

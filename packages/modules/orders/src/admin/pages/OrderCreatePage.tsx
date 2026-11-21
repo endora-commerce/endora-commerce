@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Copy, Info, Split, Trash2 } from 'lucide-react';
+import { Copy, Info, Split, Trash2 } from 'lucide-react';
 import type {
   AdminOrderPreviewMessageCode,
   OrganizationSalesChannelOption,
@@ -1107,15 +1107,14 @@ export function OrderCreatePage(): ReactNode {
   return (
     <div>
       <PageHeader
-        title={t('orderCreate.title')}
-        actions={
-          <Button asChild variant="outline">
-            <Link to={openedWith.returnTo ?? '/orders'}>
-              <ArrowLeft />
-              {t('common.action.back')}
-            </Link>
-          </Button>
+        // Issue #1549 (SALES-27) — the way back is the header's back link, as on the order detail:
+        // to where the form was opened from, else to the order list by name.
+        back={
+          openedWith.returnTo
+            ? { label: t('common.action.back'), to: openedWith.returnTo }
+            : { label: t('orders.page.title'), to: '/orders' }
         }
+        title={t('orderCreate.title')}
       />
 
       <RouteTabsZone name="order.entry.tabs" props={{}} className="mb-4" />

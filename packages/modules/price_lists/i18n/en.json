@@ -590,5 +590,11 @@
   "settingLabels.pricing.unauthenticated_display_mode.options.none": "Hide prices",
   "settings.displayModes.removeFor": "Remove override for {name}",
   "settings.displayModes.scopeTabs": "Override scope",
-  "settings.displayModes.toolbar": "Filter overrides"
+  "settings.displayModes.toolbar": "Filter overrides",
+  "settingLabels.pricing.default_display_mode.name": "Default price display mode",
+  "settingLabels.pricing.default_display_mode.description": "How the storefront shows prices to signed-in customers: gross, net, both or none.",
+  "settingLabels.pricing.unauthenticated_display_mode.name": "Unauthenticated price display mode",
+  "settingLabels.pricing.unauthenticated_display_mode.description": "How prices show to visitors who are not signed in. Set none to hide prices until login.",
+  "settingLabels.pricing.show_list_price.name": "Show list price beside the buyer price",
+  "settingLabels.pricing.show_list_price.description": "A buyer whose price is below the catalogue price sees both on product pages and cards."
 }

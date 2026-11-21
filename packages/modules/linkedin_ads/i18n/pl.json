@@ -45,5 +45,16 @@
   "mappings.deleteConfirm.message": "Konwersja {name} nie będzie już raportowana dla tej akcji w sklepie. LinkedIn zachowa już policzone konwersje.",
   "mappings.deleteConfirm.action": "Usuń mapowanie",
   "mappings.deleteConfirm.failed": "Nie udało się usunąć mapowania i nic nie zostało zmienione. Spróbuj ponownie.",
-  "mappings.conversionIdInvalid": "Podaj ID konwersji: same cyfry, jak w Campaign Manager."
+  "mappings.conversionIdInvalid": "Podaj ID konwersji: same cyfry, jak w Campaign Manager.",
+  "settingLabels.linkedin_ads.module_enabled.name": "Moduł LinkedIn Ads włączony",
+  "settingLabels.linkedin_ads.enabled.name": "Włącz LinkedIn Ads",
+  "settingLabels.linkedin_ads.enabled.description": "Wczytuje LinkedIn Insight Tag w tym kanale sprzedaży.",
+  "settingLabels.linkedin_ads.partner_id.name": "Identyfikator partnera",
+  "settingLabels.linkedin_ads.partner_id.description": "Identyfikator partnera Insight Tag z Campaign Managera. Pusty: kanał nie jest śledzony.",
+  "settingLabels.linkedin_ads.require_consent.name": "Wymagaj zgody na analitykę",
+  "settingLabels.linkedin_ads.require_consent.description": "Nic związanego z LinkedIn nie działa, dopóki odwiedzający nie zaakceptuje cookies.",
+  "settingLabels.linkedin_ads.server_side_enabled.name": "Konwersje po stronie serwera",
+  "settingLabels.linkedin_ads.server_side_enabled.description": "Raportuje konwersje z serwera przez Conversions API. Wymaga tokenu dostępu.",
+  "settingLabels.linkedin_ads.access_token.name": "Token dostępu Conversions API",
+  "settingLabels.linkedin_ads.access_token.description": "Token OAuth dla Conversions API. Przechowywany zaszyfrowany; tylko do zapisu."
 }

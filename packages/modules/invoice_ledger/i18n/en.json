@@ -35,8 +35,11 @@
   "deliveries.status.failed": "Failed",
   "deliveries.status.dead": "Stopped",
   "deliveries.filter.status.all": "All statuses",
+  "deliveries.filter.status.label": "Delivery status",
   "deliveries.retry": "Retry",
-  "deliveries.empty": "No deliveries yet.",
+  "deliveries.empty": "No deliveries yet",
+  "deliveries.emptyBody": "Invoices appear here once they are sent to the ledger vendor.",
+  "deliveries.emptyFiltered": "No deliveries with this status",
   "deliveries.loading": "Loading deliveries.",
   "deliveries.noError": "None",
   "deliveries.loadMore": "Load more",
@@ -53,5 +56,9 @@
   "settingLabels.invoice_ledger.numbering.mode.options.endora": "Endora assigns the number (mode A)",
   "settingLabels.invoice_ledger.numbering.mode.options.vendor": "The ledger vendor assigns it (mode B)",
   "settingLabels.invoice_ledger.ksef.routing.options.native": "The platform (native)",
-  "settingLabels.invoice_ledger.ksef.routing.options.vendor": "The ledger vendor"
+  "settingLabels.invoice_ledger.ksef.routing.options.vendor": "The ledger vendor",
+  "settingLabels.invoice_ledger.numbering.mode.name": "Invoice numbering source",
+  "settingLabels.invoice_ledger.numbering.mode.description": "Whether VAT numbers are assigned by Endora (mode A) or wait for the ledger vendor (mode B).",
+  "settingLabels.invoice_ledger.ksef.routing.name": "KSeF submission routing",
+  "settingLabels.invoice_ledger.ksef.routing.description": "Native leaves KSeF submission to the platform; vendor leaves it to the ledger vendor."
 }

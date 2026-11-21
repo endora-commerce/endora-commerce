@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 
 /**
@@ -98,9 +99,12 @@ beforeEach(() => {
 
 function renderPage(): void {
   renderWithI18n(
-    <MemoryRouter>
-      <ReturnStatusesConfigPage />
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter>
+        <ReturnStatusesConfigPage />
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }) },
+    ),
     BUNDLE,
   );
 }

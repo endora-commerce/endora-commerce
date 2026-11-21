@@ -108,12 +108,25 @@ describe('setting label resolution', () => {
       );
     });
 
-    it('falls back to English, then to the declared description', () => {
+    // Issue #1522 (UX audit SHELL-23) — a description is a hint, and an
+    // English paragraph under a Polish label is noise: it never falls back to
+    // another language, neither to the English bundle nor to the manifest.
+    it('shows nothing in Polish when only English carries the description', () => {
       const fallbackBundle: Bundle = { seo: { [DESCRIPTION_KEY]: 'English bundle copy.' } };
       expect(
         resolveSettingDescription(SETTING, { language: 'pl', bundle: {}, fallbackBundle }),
+      ).toBeNull();
+      expect(resolveSettingDescription(SETTING, { language: 'pl', bundle: {} })).toBeNull();
+    });
+
+    it('takes the English bundle, then the declared description, in English', () => {
+      expect(
+        resolveSettingDescription(SETTING, {
+          language: 'en',
+          bundle: { seo: { [DESCRIPTION_KEY]: 'English bundle copy.' } },
+        }),
       ).toBe('English bundle copy.');
-      expect(resolveSettingDescription(SETTING, { language: 'pl', bundle: {} })).toBe(
+      expect(resolveSettingDescription(SETTING, { language: 'en', bundle: {} })).toBe(
         'What search engines are told about every page.',
       );
     });

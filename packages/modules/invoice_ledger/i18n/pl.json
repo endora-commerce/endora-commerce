@@ -35,8 +35,11 @@
   "deliveries.status.failed": "Błąd",
   "deliveries.status.dead": "Zatrzymane",
   "deliveries.filter.status.all": "Wszystkie statusy",
+  "deliveries.filter.status.label": "Status dostawy",
   "deliveries.retry": "Ponów",
-  "deliveries.empty": "Brak dostaw.",
+  "deliveries.empty": "Brak dostaw",
+  "deliveries.emptyBody": "Faktury pojawią się tutaj po wysłaniu do dostawcy księgi.",
+  "deliveries.emptyFiltered": "Brak dostaw o tym statusie",
   "deliveries.loading": "Wczytywanie dostaw.",
   "deliveries.noError": "Brak",
   "deliveries.loadMore": "Wczytaj więcej",
@@ -53,5 +56,9 @@
   "settingLabels.invoice_ledger.numbering.mode.options.endora": "Numer nadaje Endora (tryb A)",
   "settingLabels.invoice_ledger.numbering.mode.options.vendor": "Numer nadaje system księgowy (tryb B)",
   "settingLabels.invoice_ledger.ksef.routing.options.native": "Platforma (natywnie)",
-  "settingLabels.invoice_ledger.ksef.routing.options.vendor": "System księgowy"
+  "settingLabels.invoice_ledger.ksef.routing.options.vendor": "System księgowy",
+  "settingLabels.invoice_ledger.numbering.mode.name": "Źródło numeracji faktur",
+  "settingLabels.invoice_ledger.numbering.mode.description": "Czy numery faktur nadaje Endora (tryb A), czy czekają na dostawcę księgowości (tryb B).",
+  "settingLabels.invoice_ledger.ksef.routing.name": "Kierowanie wysyłki do KSeF",
+  "settingLabels.invoice_ledger.ksef.routing.description": "Native zostawia wysyłkę do KSeF platformie; vendor — dostawcy księgowości."
 }

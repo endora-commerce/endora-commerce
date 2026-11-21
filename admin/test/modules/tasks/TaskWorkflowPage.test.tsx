@@ -138,6 +138,27 @@ function inOrder(codes: readonly string[]): TaskWorkflow {
   };
 }
 
+describe('TaskWorkflowPage — one save model per card (issue #1559, WORK-08)', () => {
+  it('puts the statuses and the moves in one card, both marked as applied immediately', async () => {
+    await renderPage();
+    const statuses = screen.getByRole('region', { name: en('workflow.statuses.title') });
+    const moves = screen.getByRole('region', { name: en('workflow.transitions.title') });
+    expect(statuses.parentElement).toBe(moves.parentElement);
+    for (const section of [statuses, moves]) {
+      expect(within(section).getByText(core('saveSession.immediateBadge'))).toBeInTheDocument();
+    }
+  });
+
+  it('keeps the board card, the one part with a Save, in a card of its own without the badge', async () => {
+    await renderPage();
+    const board = await screen.findByRole('region', { name: en('boardCard.title') });
+    const moves = screen.getByRole('region', { name: en('workflow.transitions.title') });
+    expect(board.contains(moves)).toBe(false);
+    expect(moves.parentElement?.contains(board)).toBe(false);
+    expect(within(board).queryByText(core('saveSession.immediateBadge'))).toBeNull();
+  });
+});
+
 describe('TaskWorkflowPage — reordering the statuses (issue #1560)', () => {
   const moveDown = (code: string, name: string) =>
     userEvent.click(within(statusRow(code)).getByRole('button', { name: en('reorder.moveDown', { name }) }));
@@ -526,7 +547,8 @@ describe('TaskWorkflowPage — the board card (FR-022)', () => {
     try {
       renderTasks(<TaskWorkflowPage />, { permissions: CONFIGURER, path: '/tasks/settings/workflow#board-card' });
       const section = await screen.findByRole('region', { name: en('boardCard.title') });
-      await waitFor(() => expect(scrolled).toContain(section));
+      // The anchor wraps the section's card.
+      await waitFor(() => expect(scrolled.some((element) => element.id === 'board-card' && element.contains(section))).toBe(true));
     } finally {
       Element.prototype.scrollIntoView = original;
     }

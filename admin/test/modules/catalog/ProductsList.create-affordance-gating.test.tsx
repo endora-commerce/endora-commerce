@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
@@ -92,10 +92,9 @@ const BUNDLE = passthroughBundle('catalog', [
   'productsList.action.newProduct',
   'productsList.loading',
   'productsList.empty.title',
-  'productsList.empty.prefix',
-  'productsList.empty.button',
-  'productsList.empty.suffix',
-  'productsList.empty.readOnly',
+  'productsList.empty.noData.title',
+  'productsList.empty.noData.body',
+  'productsList.empty.noData.readOnly',
   'productsList.column.product',
   'productsList.column.sku',
   'productsList.column.status',
@@ -188,23 +187,26 @@ describe('the empty-state create affordance', () => {
     vi.clearAllMocks();
   });
 
-  it('degrades to advice for a role holding catalog:read alone', async () => {
+  // Issue #1448 (DS-15): an empty catalog with no filter applied is "no products
+  // yet", not "no products match these filters" — the operator applied none.
+  it('says why there is nothing to create for a role holding catalog:read alone', async () => {
     mount(['catalog:read']);
 
-    await screen.findByText('productsList.empty.title');
-    expect(screen.queryByText('productsList.empty.button')).toBeNull();
-    // The sentence the button sat inside goes with it, rather than rendering as
-    // *"Try clearing filters, or use  to create one."* — the half of the advice
-    // that survives is its own key.
-    expect(screen.queryByText('productsList.empty.prefix')).toBeNull();
-    expect(screen.getByText('productsList.empty.readOnly')).toBeInTheDocument();
+    const title = await screen.findByText('productsList.empty.noData.title');
+    expect(title.closest('[data-empty-state="no-data"]')).not.toBeNull();
+    expect(screen.getByText('productsList.empty.noData.readOnly')).toBeInTheDocument();
+    expect(screen.queryByText('productsList.action.newProduct')).toBeNull();
+    expect(screen.queryByText('productsList.empty.title')).toBeNull();
   });
 
-  it('offers the create for a role holding catalog:write', async () => {
+  it('offers the create once, in the empty state, for a role holding catalog:write', async () => {
     mount(['catalog:read', 'catalog:write']);
 
-    await screen.findByText('productsList.empty.title');
-    expect(screen.getByText('productsList.empty.button')).toBeInTheDocument();
-    expect(screen.queryByText('productsList.empty.readOnly')).toBeNull();
+    const title = await screen.findByText('productsList.empty.noData.title');
+    const block = title.closest('[data-empty-state="no-data"]') as HTMLElement;
+    expect(within(block).getByRole('button', { name: /productsList\.action\.newProduct/ })).toBeInTheDocument();
+    // The header's New product steps back while the empty state carries it (Von Restorff).
+    expect(screen.getAllByRole('button', { name: /productsList\.action\.newProduct/ })).toHaveLength(1);
+    expect(screen.getByText('productsList.empty.noData.body')).toBeInTheDocument();
   });
 });

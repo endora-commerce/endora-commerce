@@ -10,6 +10,9 @@
   "list.filter.activeOnly": "Pokaż tylko aktywne kanały",
   "list.loading": "Wczytywanie kanałów sprzedaży…",
   "list.empty": "Żaden kanał nie pasuje do filtra.",
+  "list.noData.title": "Nie ma jeszcze kanałów sprzedaży",
+  "list.noData.body": "Utwórz kanał, aby uruchomić sklep.",
+  "list.noData.bodyReadOnly": "Kanały pojawią się tutaj, gdy administrator je utworzy.",
   "list.column.code": "Kod",
   "list.column.name": "Nazwa",
   "list.column.defaultLangCurrency": "Domyślny język / waluta",
@@ -113,5 +116,7 @@
   "edit.error.delete": "Nie udało się usunąć kanału.",
   "membership.error.load": "Nie udało się wczytać przynależności do kanałów.",
   "membership.error.add": "Nie udało się dodać do kanału.",
-  "membership.error.remove": "Nie udało się usunąć z kanału."
+  "membership.error.remove": "Nie udało się usunąć z kanału.",
+  "settingLabels.sales_channels.storefront_url.name": "Adres sklepu",
+  "settingLabels.sales_channels.storefront_url.description": "Publiczny adres sklepu tego kanału, używany w mapie witryny i linkach. Pusty: STOREFRONT_BASE_URL."
 }

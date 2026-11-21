@@ -195,5 +195,15 @@
   "orderDetail.payer": "Payer",
   "orderDetail.payerTerms.buyer": "on the buyer's terms",
   "orderDetail.payerTerms.payer": "on the payer's terms",
-  "list.filter.payer": "Payer"
+  "list.filter.payer": "Payer",
+  "settingLabels.orders.business_id.prefix.name": "Business Order ID prefix",
+  "settingLabels.orders.business_id.prefix.description": "Text before the order number shown to the customer, e.g. ORD-. Empty: no prefix.",
+  "settingLabels.orders.business_id.suffix.name": "Business Order ID suffix",
+  "settingLabels.orders.business_id.suffix.description": "Text after the order number shown to the customer, e.g. -2026. Empty: no suffix.",
+  "settingLabels.orders.min_order_value.name": "Minimum order value",
+  "settingLabels.orders.min_order_value.description": "Minimum order total needed to check out or create an order. 0 means no minimum.",
+  "settingLabels.orders.reorder_enabled.name": "Reordering enabled",
+  "settingLabels.orders.reorder_enabled.description": "A past order can be placed again.",
+  "settingLabels.orders.confirmation_recipients.name": "Order confirmation recipients",
+  "settingLabels.orders.confirmation_recipients.description": "Extra addresses that receive a confirmation of every order placed."
 }

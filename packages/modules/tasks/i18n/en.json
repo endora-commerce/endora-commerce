@@ -223,7 +223,6 @@
   "detail.error": "The task could not be loaded.",
   "detail.back": "Tasks",
   "detail.details": "Details",
-  "detail.edit": "Edit",
   "detail.assignToMe": "Assign to me",
   "detail.unassign": "Unassign",
   "detail.saved": "Task saved.",
@@ -544,5 +543,6 @@
   "actions.openTaskPriorities.keywords": "priorities, priority, urgency",
   "actions.openTaskTags.keywords": "tags, labels",
   "actions.openTaskGeneralSettings.keywords": "settings, time zone",
-  "settingGroups.tasks.name": "Tasks"
+  "settingGroups.tasks.name": "Tasks",
+  "settingLabels.tasks.enabled.name": "Tasks enabled"
 }

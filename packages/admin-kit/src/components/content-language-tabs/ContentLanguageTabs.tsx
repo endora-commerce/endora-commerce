@@ -1,5 +1,7 @@
-import type { ReactNode } from 'react';
-import { Button } from '../../ui/button.js';
+import { useId, useMemo, type ReactNode } from 'react';
+import { Languages } from 'lucide-react';
+import { Tabs, type TabItem } from '../../ui/tabs.js';
+import { EmptyState } from '../../ui/empty-state.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 
 /**
@@ -20,6 +22,20 @@ import { useTranslation } from '../../i18n/useTranslation.js';
  * `core.<key>` at the operator rather than failing to compile. Both of this
  * component's keys had no other reader anywhere in the tree, so they moved to
  * `core` under `contentLanguageTabs.*` rather than being copied.
+ *
+ * **It is the kit's `Tabs`** (issue #1445, UX audit 2026-11-17, DS-12): one tab
+ * in the tab order (roving `tabindex`), ←/→ select and wrap, Home/End jump to
+ * the ends, and the look of every other strip in the admin (Jakob, Similarity).
+ * The screen owns the panel, because the strip sits in a card header or a
+ * canvas bar and the fields it switches sit elsewhere: pass `idBase` and wrap
+ * the per-language content in `<TabPanel idBase={idBase} value={activeLanguage}>`,
+ * and every tab names that panel (`aria-controls`). Without `idBase` the strip
+ * is page state over the screen — a form builder's language above its own
+ * tabs — and names no panel, rather than one that is not there.
+ *
+ * **No language to offer** (issue #1448, DS-15): the kit's `EmptyState` with
+ * the reason, never a bare grey sentence — an empty strip would leave the
+ * operator editing content in no language without saying why.
  */
 export interface ContentLanguageTabsProps {
   /** The content language codes to offer, in the order they should read. */
@@ -28,41 +44,47 @@ export interface ContentLanguageTabsProps {
   activeLanguage: string | null;
   /** The caller commits the chosen code. */
   onChange: (language: string) => void;
+  /**
+   * The ids' common prefix (see `Tabs`): the screen renders the per-language
+   * content in `<TabPanel idBase={idBase} value={activeLanguage}>`, and every
+   * tab names it. Omit it only for a strip that switches page state spread over
+   * the screen, with no one panel to name. Unique on the page.
+   */
+  idBase?: string | undefined;
 }
 
 export function ContentLanguageTabs({
   languages,
   activeLanguage,
   onChange,
+  idBase,
 }: ContentLanguageTabsProps): ReactNode {
   const t = useTranslation('core');
+  const generatedId = useId();
+  const items = useMemo<TabItem[]>(
+    () => languages.map((language) => ({ value: language, label: language })),
+    [languages],
+  );
 
   if (languages.length === 0) {
-    return <p className="text-sm text-muted-foreground">{t('contentLanguageTabs.empty')}</p>;
+    return (
+      <EmptyState
+        icon={<Languages size={20} />}
+        title={t('contentLanguageTabs.empty')}
+        description={t('contentLanguageTabs.emptyHint')}
+      />
+    );
   }
 
   return (
-    <div
-      className="flex flex-wrap gap-2"
-      role="tablist"
+    <Tabs
+      items={items}
+      // `Tabs` keeps its first tab in the tab order while nothing is selected.
+      value={activeLanguage ?? ''}
+      onValueChange={onChange}
+      idBase={idBase ?? `content-language-${generatedId}`}
+      controlsPanel={idBase !== undefined}
       aria-label={t('contentLanguageTabs.ariaLabel')}
-    >
-      {languages.map((language) => {
-        const active = language === activeLanguage;
-        return (
-          <Button
-            key={language}
-            type="button"
-            variant={active ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => onChange(language)}
-            role="tab"
-            aria-selected={active}
-          >
-            {language}
-          </Button>
-        );
-      })}
-    </div>
+    />
   );
 }

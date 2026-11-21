@@ -223,7 +223,6 @@
   "detail.error": "Nie udało się wczytać zadania.",
   "detail.back": "Zadania",
   "detail.details": "Szczegóły",
-  "detail.edit": "Edytuj",
   "detail.assignToMe": "Przypisz do mnie",
   "detail.unassign": "Usuń przypisanie",
   "detail.saved": "Zadanie zapisane.",
@@ -544,5 +543,6 @@
   "actions.openTaskPriorities.keywords": "priorytety, priorytet, pilność",
   "actions.openTaskTags.keywords": "etykiety, etykieta",
   "actions.openTaskGeneralSettings.keywords": "ustawienia, strefa czasowa",
-  "settingGroups.tasks.name": "Zadania"
+  "settingGroups.tasks.name": "Zadania",
+  "settingLabels.tasks.enabled.name": "Zadania włączone"
 }

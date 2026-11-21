@@ -1,11 +1,12 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertCircle, Search, Upload } from 'lucide-react';
+import { AlertCircle, Boxes, Upload } from 'lucide-react';
 import type {
   InventoryLandingKpis,
   StockLevelRow,
@@ -148,6 +149,19 @@ export function InventoryPage(): ReactNode {
 
   // Filters are server-side now; rows arrive pre-filtered and pre-paginated.
   const filtered = rows;
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Issue #1448 (DS-15): an empty roster is either "nothing is tracked yet" or
+  // "these filters match nothing" — two situations with different next steps.
+  const filtersActive = debouncedQuery.trim() !== '' || statusFilter !== 'all';
+  const clearFilters = (): void => {
+    setQuery('');
+    setDebouncedQuery('');
+    setStatusFilter('all');
+  };
+  // While nothing is tracked, the empty state's import is the view's one
+  // primary action; the header does not repeat it (Von Restorff).
+  const noData = !loading && !error && filtered.length === 0 && !filtersActive;
 
   if (!canRead) {
     return <div className="b2b-page">{t('inventory.noPermission')}</div>;
@@ -158,7 +172,7 @@ export function InventoryPage(): ReactNode {
       <PageHeader
         title={t('inventory.page.title')}
         actions={
-          canWrite ? (
+          canWrite && !noData ? (
             <Button asChild variant="outline" size="sm">
               <Link to="/inventory/import">
                 <Upload aria-hidden="true" /> {t('inventory.action.import')}
@@ -208,6 +222,7 @@ export function InventoryPage(): ReactNode {
           className="border-b border-border px-3 py-2.5"
           search={
             <ListToolbarSearch
+              ref={searchRef}
               label={t('inventory.search.label')}
               placeholder={t('inventory.search.placeholder')}
               value={query}
@@ -239,7 +254,29 @@ export function InventoryPage(): ReactNode {
             {t('inventory.loading')}
           </p>
         ) : filtered.length === 0 ? (
-          <EmptyState icon={<Search size={20} />} title={t('inventory.empty')} />
+          filtersActive ? (
+            <EmptyState
+              variant="no-results"
+              title={t('inventory.empty')}
+              onClearFilters={clearFilters}
+              focusAfterClear={searchRef}
+            />
+          ) : (
+            <EmptyState
+              icon={<Boxes size={20} />}
+              title={t('inventory.noData.title')}
+              description={canWrite ? t('inventory.noData.body') : t('inventory.noData.bodyReadOnly')}
+              action={
+                canWrite ? (
+                  <Button asChild>
+                    <Link to="/inventory/import">
+                      <Upload aria-hidden="true" /> {t('inventory.action.import')}
+                    </Link>
+                  </Button>
+                ) : null
+              }
+            />
+          )
         ) : (
           <Table>
             <TableHeader>

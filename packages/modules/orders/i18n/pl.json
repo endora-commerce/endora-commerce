@@ -197,5 +197,15 @@
   "orderDetail.payer": "Płatnik",
   "orderDetail.payerTerms.buyer": "na warunkach kupującego",
   "orderDetail.payerTerms.payer": "na warunkach płatnika",
-  "list.filter.payer": "Płatnik"
+  "list.filter.payer": "Płatnik",
+  "settingLabels.orders.business_id.prefix.name": "Prefiks numeru zamówienia",
+  "settingLabels.orders.business_id.prefix.description": "Tekst przed numerem zamówienia widocznym dla klienta, np. ORD-. Pusty: bez prefiksu.",
+  "settingLabels.orders.business_id.suffix.name": "Sufiks numeru zamówienia",
+  "settingLabels.orders.business_id.suffix.description": "Tekst po numerze zamówienia widocznym dla klienta, np. -2026. Pusty: bez sufiksu.",
+  "settingLabels.orders.min_order_value.name": "Minimalna wartość zamówienia",
+  "settingLabels.orders.min_order_value.description": "Minimalna wartość zamówienia potrzebna do złożenia zamówienia. 0 oznacza brak minimum.",
+  "settingLabels.orders.reorder_enabled.name": "Ponowne zamawianie włączone",
+  "settingLabels.orders.reorder_enabled.description": "Wcześniejsze zamówienie można złożyć ponownie.",
+  "settingLabels.orders.confirmation_recipients.name": "Odbiorcy potwierdzeń zamówień",
+  "settingLabels.orders.confirmation_recipients.description": "Dodatkowe adresy, które dostają potwierdzenie każdego złożonego zamówienia."
 }

@@ -397,7 +397,7 @@ export class AdminUserService {
       const [items, total] = await em.findAndCount(
         AdminUser,
         { deletedAt: null },
-        { orderBy: { email: 'asc' }, offset: page * pageSize, limit: pageSize },
+        { orderBy: { email: 'asc', id: 'asc' }, offset: page * pageSize, limit: pageSize },
       );
       return { items, page, pageSize, total };
     }
@@ -433,7 +433,7 @@ export class AdminUserService {
            WHEN LOWER("email")      LIKE ? THEN 5
            WHEN LOWER("email")      LIKE ? THEN 6
            ELSE 7
-         END ASC, "email" ASC`,
+         END ASC, "email" ASC, "id" ASC`,
         [prefix, contains, prefix, contains, prefix, contains],
       )
       .offset(page * pageSize)

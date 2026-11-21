@@ -8,7 +8,7 @@ export const shipmentsSettingsManifest = defineModuleSettingsManifest({
       code: 'shipments.enabled',
       name: 'Shipments enabled',
       description:
-        'Switches the shipment lifecycle on or off: creating a shipment for an order (which is also how a failed one is retried), the carrier receive_shipment ingress and the per-order shipment history. Nothing is dropped — every shipment, its status transitions and its carrier references stay in the database, and an order mid-fulfilment resumes exactly where it was.',
+        'Switches shipment creation, carrier updates and shipment history on or off. Nothing is deleted while it is off.',
       groupCode: 'shipments',
       valueType: 'boolean',
       defaultValue: true,

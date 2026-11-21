@@ -123,7 +123,7 @@ const settings = defineModuleSettingsManifest({
       code: CMS_PAGE_BUILDER_SETTING_CODES.TRANSLATION_ENABLED,
       name: 'Translation enabled',
       description:
-        'Shows the Translate button in the Page Builder. When on, editors with the "Translate Page Builder content with AI" permission can translate a canvas into the language being edited. The text of the canvas is sent to the provider of the model chosen below.',
+        'Shows the Translate button in the Page Builder. The canvas text is sent to the provider of the chosen model.',
       groupCode: 'cms_page_builder',
       valueType: 'boolean',
       defaultValue: false,
@@ -132,7 +132,7 @@ const settings = defineModuleSettingsManifest({
       code: CMS_PAGE_BUILDER_SETTING_CODES.TRANSLATION_LLM_CREDENTIALS,
       name: 'Translation credentials',
       description:
-        'The LLM credential configuration (Credentials screen) whose provider, model and API key the Translate button uses. Supported providers: OpenAI, Anthropic, Google, DeepSeek and any OpenAI-compatible endpoint (through the configuration\'s Base URL). Required for the button to work.',
+        'The LLM configuration (Credentials screen) the Translate button uses. Required for the button to work.',
       groupCode: 'cms_page_builder',
       valueType: 'credential_ref',
       configurationType: 'llm',
@@ -142,7 +142,7 @@ const settings = defineModuleSettingsManifest({
       code: CMS_PAGE_BUILDER_SETTING_CODES.TRANSLATION_MAX_SOURCE_CHARACTERS,
       name: 'Translation size limit (characters)',
       description:
-        'The most text, in characters, one click of Translate may send to the model (default 40 000, allowed 1 000–200 000). A higher limit lets longer pages be translated at once but costs more per click and makes the editor wait longer on a single request, which a slow provider or a proxy timeout can then cut off. Larger content is refused before anything is sent.',
+        'Most characters one Translate click may send (1 000–200 000). Longer content is refused before sending.',
       groupCode: 'cms_page_builder',
       valueType: 'number',
       defaultValue: CMS_TRANSLATION_DEFAULT_MAX_SOURCE_CHARACTERS,
@@ -164,7 +164,7 @@ const settings = defineModuleSettingsManifest({
       code: CMS_SETTING_CODES.CONTACT_FORM_RECIPIENTS,
       name: 'Contact form recipients',
       description:
-        'The e-mail addresses that receive the messages sent with the Contact form block on this sales channel — at most 10. Leave empty and the form answers that it is unavailable. Can be overridden per sales channel. Never shown on the storefront.',
+        'Up to 10 addresses that receive Contact form messages. While empty, the form says it is unavailable.',
       groupCode: 'cms_contact_form',
       valueType: 'string_list',
       defaultValue: [],

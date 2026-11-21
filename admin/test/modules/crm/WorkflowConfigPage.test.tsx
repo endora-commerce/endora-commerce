@@ -73,23 +73,116 @@ beforeEach(() => {
 });
 
 async function renderPage(): Promise<void> {
-  renderCrm(<WorkflowConfigPage />);
+  renderCrm(<WorkflowConfigPage />, { path: '/crm/workflow' });
   await screen.findByRole('button', { name: en('workflow.status.add') });
 }
 
-describe('WorkflowConfigPage — the counting statuses section (issue #1561)', () => {
-  it('is under the anchor the opportunity`s value links to', async () => {
+/** The *Order sync* tab, both mapping tables loaded. */
+async function renderOrderSync(): Promise<void> {
+  renderCrm(<WorkflowConfigPage />, { path: '/crm/workflow/order-sync' });
+  await screen.findByRole('table', { name: en('workflow.mapping.title') });
+}
+
+const TAB_PATHS = {
+  'workflow.tab.statuses': '/crm/workflow',
+  'workflow.tab.orderSync': '/crm/workflow/order-sync',
+  'workflow.tab.value': '/crm/workflow/value',
+  'workflow.tab.boardCard': '/crm/workflow/board-card',
+  // The tag list, the configuration's last tab (issue #1557), on the same strip.
+  'configuration.tab.tags': '/crm/workflow/tags',
+} as const;
+
+describe('WorkflowConfigPage — one save model per tab (issue #1559, WORK-08)', () => {
+  it('splits the configuration into route tabs — four of the workflow, then Tags — and shows one at a time', async () => {
     await renderPage();
-    const heading = screen.getByText(en('value.counting.title'));
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('href')])).toEqual(
+      Object.entries(TAB_PATHS).map(([key, path]) => [en(key), path]),
+    );
+    expect(screen.getByRole('tab', { name: en('workflow.tab.statuses') })).toHaveAttribute('aria-selected', 'true');
+    // The other tabs' content is not on this one.
+    expect(screen.queryByRole('table', { name: en('workflow.mapping.title') })).toBeNull();
+    expect(screen.queryByText(en('value.counting.title'))).toBeNull();
+    expect(screen.queryByRole('region', { name: en('boardCard.title') })).toBeNull();
+  });
+
+  it('marks Statuses & moves as applied immediately, in one card with no Save', async () => {
+    await renderPage();
+    const statuses = screen.getByRole('region', { name: en('workflow.statuses.title') });
+    const moves = screen.getByRole('region', { name: en('workflow.transitions.title') });
+    // Two sections of one card, not two cards.
+    expect(statuses.parentElement).toBe(moves.parentElement);
+    for (const section of [statuses, moves]) {
+      expect(within(section).getByText(core('saveSession.immediateBadge'))).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: core('common.action.save') })).toBeNull();
+  });
+
+  it('holds both directions of the order sync under one Save, with no immediate badge', async () => {
+    await renderOrderSync();
+    expect(screen.getByRole('tab', { name: en('workflow.tab.orderSync') })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('region', { name: en('workflow.mapping.title') })).toBeInTheDocument();
+    const reverse = screen.getByRole('region', { name: en('workflow.reverse.title') });
+    // The one rule the tables do not show stays, as the section's line.
+    expect(reverse).toHaveAccessibleDescription(en('workflow.reverse.description'));
+    expect(screen.getAllByRole('button', { name: en('workflow.mapping.save') })).toHaveLength(1);
+    expect(screen.queryByText(core('saveSession.immediateBadge'))).toBeNull();
+    expect(screen.queryByRole('button', { name: en('workflow.status.add') })).toBeNull();
+  });
+
+  it('says a mapping was saved beside its Save, and says unsaved changes before it', async () => {
+    await renderOrderSync();
+    await userEvent.selectOptions(
+      screen.getByLabelText(en('workflow.mapping.orderStatusFor', { name: 'Qualified' })),
+      'paid',
+    );
+    expect(screen.getByText(core('form.unsavedChanges.hint'))).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: en('workflow.mapping.save') }));
+    expect(await screen.findByText(en('workflow.mapping.saved'))).toBeInTheDocument();
+  });
+
+  it('asks before a tab switch drops an unsaved mapping', async () => {
+    await renderOrderSync();
+    await userEvent.selectOptions(
+      screen.getByLabelText(en('workflow.mapping.orderStatusFor', { name: 'Qualified' })),
+      'paid',
+    );
+    await userEvent.click(screen.getByRole('tab', { name: en('workflow.tab.value') }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: en('workflow.mapping.title') })).toBeInTheDocument();
+  });
+
+  it('opens the value tab with its one Save', async () => {
+    renderCrm(<WorkflowConfigPage />, { path: '/crm/workflow/value' });
+    const region = await screen.findByRole('region', { name: en('value.counting.title') });
+    expect(within(region).getByRole('group', { name: en('value.counting.order.legend') })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: en('value.counting.save') })).toHaveLength(1);
+    expect(screen.queryByRole('table', { name: en('workflow.statuses.title') })).toBeNull();
+  });
+
+  it('sends the board\'s old #board-card link to the Board card tab', async () => {
+    renderCrm(<WorkflowConfigPage />, { path: '/crm/workflow#board-card' });
+    expect(await screen.findByRole('tab', { name: en('workflow.tab.boardCard') })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(await screen.findByRole('region', { name: core('boardCardFields.shown.title') })).toBeInTheDocument();
+  });
+});
+
+describe('WorkflowConfigPage — the counting statuses (issue #1561)', () => {
+  it('sends the opportunity value\'s #value-counting link to the Value tab, under its anchor', async () => {
+    renderCrm(<WorkflowConfigPage />, { path: '/crm/workflow#value-counting' });
+    expect(await screen.findByRole('tab', { name: en('workflow.tab.value') })).toHaveAttribute('aria-selected', 'true');
+    const heading = await screen.findByText(en('value.counting.title'));
     expect(heading.closest('#value-counting')).not.toBeNull();
   });
 });
 
-describe('WorkflowConfigPage — the Board card section (User Story 19)', () => {
-  it('is on the screen, under the anchor the board links to', async () => {
-    await renderPage();
-    const heading = screen.getByText(en('boardCard.title'));
-    expect(heading.closest('#board-card')).not.toBeNull();
+describe('WorkflowConfigPage — the Board card tab (User Story 19)', () => {
+  it('shows the board-card editor in a section of its own', async () => {
+    renderCrm(<WorkflowConfigPage />, { path: '/crm/workflow/board-card' });
+    expect(await screen.findByRole('region', { name: en('boardCard.title') })).toBeInTheDocument();
     expect(await screen.findByRole('region', { name: core('boardCardFields.shown.title') })).toBeInTheDocument();
   });
 });
@@ -314,7 +407,7 @@ describe('WorkflowConfigPage', () => {
   });
 
   it('sets a forward mapping from an opportunity status to an order status', async () => {
-    await renderPage();
+    await renderOrderSync();
     const select = await screen.findByLabelText(
       en('workflow.mapping.orderStatusFor', { name: 'Qualified' }),
     );
@@ -347,7 +440,7 @@ describe('WorkflowConfigPage', () => {
       });
 
     it('offers one row per order status, with nothing mapped and the toggle unavailable', async () => {
-      await renderPage();
+      await renderOrderSync();
       await waitFor(() => expect(reverseTable()).toBeInTheDocument());
       for (const name of ['New', 'Paid', 'Completed']) {
         expect(targetFor(name)).toHaveValue('');
@@ -357,7 +450,7 @@ describe('WorkflowConfigPage', () => {
     });
 
     it('turns "only when every linked order is there" on by default when the target closes the opportunity', async () => {
-      await renderPage();
+      await renderOrderSync();
       await waitFor(() => expect(reverseTable()).toBeInTheDocument());
       await userEvent.selectOptions(targetFor('Completed'), 'won');
       expect(everyOrderFor('Completed')).toBeEnabled();
@@ -389,7 +482,7 @@ describe('WorkflowConfigPage', () => {
     });
 
     it('sends the toggle as the operator left it, and both directions in one write', async () => {
-      await renderPage();
+      await renderOrderSync();
       await waitFor(() => expect(reverseTable()).toBeInTheDocument());
       await userEvent.selectOptions(
         screen.getByLabelText(en('workflow.mapping.orderStatusFor', { name: 'Won' })),
@@ -428,7 +521,7 @@ describe('WorkflowConfigPage', () => {
         if (path === '/api/v1/admin/orders/statuses') return Promise.resolve({ data: ORDER_STATUS_GRAPH });
         return Promise.reject(new Error(`unexpected GET ${path}`));
       });
-      await renderPage();
+      await renderOrderSync();
       await waitFor(() => expect(reverseTable()).toBeInTheDocument());
 
       expect(targetFor('Paid')).toHaveValue('qualified');
@@ -459,39 +552,6 @@ describe('WorkflowConfigPage', () => {
         }),
       );
     });
-  });
-
-  it('keeps an unsaved mapping choice when another part of the workflow is saved', async () => {
-    // Every write answers a fresh workflow. One that did not touch the mappings
-    // must not throw away what the operator has chosen and not yet saved.
-    putSpy.mockResolvedValue({
-      data: {
-        ...WORKFLOW,
-        transitions: [...WORKFLOW.transitions, { fromStatusCode: 'qualified', toStatusCode: 'lost' }],
-      },
-    });
-    await renderPage();
-    const select = await screen.findByLabelText(
-      en('workflow.mapping.orderStatusFor', { name: 'Qualified' }),
-    );
-    await userEvent.selectOptions(select, 'paid');
-    await userEvent.selectOptions(
-      screen.getByLabelText(core('orderStatusConfig.col.from')),
-      'qualified',
-    );
-    await userEvent.selectOptions(screen.getByLabelText(core('orderStatusConfig.col.to')), 'lost');
-    await userEvent.click(
-      screen.getByRole('button', { name: core('orderStatusConfig.addTransition') }),
-    );
-    await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
-    // Let the answer land before reading the control.
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: en('workflow.mapping.save') })).toBeEnabled(),
-    );
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(
-      screen.getByLabelText(en('workflow.mapping.orderStatusFor', { name: 'Qualified' })),
-    ).toHaveValue('paid');
   });
 
   it('shows the refusal when an in-use status is deleted', async () => {
@@ -547,7 +607,7 @@ describe('WorkflowConfigPage', () => {
         new ApiError(403, { error: { code: 'FORBIDDEN', message: 'Missing permission.' } }),
       );
     });
-    await renderPage();
+    renderCrm(<WorkflowConfigPage />, { path: '/crm/workflow/order-sync' });
     expect(await screen.findByText(en('workflow.mapping.ordersUnavailable'))).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: en('workflow.mapping.save') })).toBeNull();
   });

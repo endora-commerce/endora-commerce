@@ -50,5 +50,22 @@
   "security.setup.intro": "Dodaj to konto w aplikacji uwierzytelniającej:",
   "security.setup.manualKey": "Klucz do wpisania ręcznie:",
   "security.setup.codeLabel": "Wpisz 6-cyfrowy kod, aby potwierdzić",
-  "security.setup.submit": "Potwierdź i włącz"
+  "security.setup.submit": "Potwierdź i włącz",
+  "settingLabels.mfa.enabled.name": "MFA włączone",
+  "settingLabels.mfa.admin.totp_enabled.name": "Panel — zezwalaj na weryfikację dwuetapową",
+  "settingLabels.mfa.admin.totp_enabled.description": "Administratorzy mogą włączyć weryfikację dwuetapową aplikacją uwierzytelniającą.",
+  "settingLabels.mfa.admin.totp_enforced.name": "Panel — wymagaj weryfikacji dwuetapowej",
+  "settingLabels.mfa.admin.totp_enforced.description": "Administratorzy muszą skonfigurować weryfikację dwuetapową przed użyciem panelu.",
+  "settingLabels.mfa.storefront.totp_enabled.name": "Sklep — zezwalaj na weryfikację dwuetapową",
+  "settingLabels.mfa.storefront.totp_enabled.description": "Klienci mogą włączyć weryfikację dwuetapową aplikacją uwierzytelniającą.",
+  "settingLabels.mfa.storefront.totp_enforced.name": "Sklep — wymagaj weryfikacji dwuetapowej",
+  "settingLabels.mfa.storefront.totp_enforced.description": "Klienci muszą skonfigurować weryfikację dwuetapową przed użyciem sklepu.",
+  "settingLabels.mfa.admin.google_enabled.name": "Panel — logowanie przez Google",
+  "settingLabels.mfa.admin.google_enabled.description": "Istniejący administratorzy mogą logować się przez Google.",
+  "settingLabels.mfa.admin.microsoft_enabled.name": "Panel — logowanie przez Microsoft",
+  "settingLabels.mfa.admin.microsoft_enabled.description": "Istniejący administratorzy mogą logować się przez Microsoft.",
+  "settingLabels.mfa.storefront.google_enabled.name": "Sklep — logowanie przez Google",
+  "settingLabels.mfa.storefront.google_enabled.description": "Klienci mogą logować się przez Google.",
+  "settingLabels.mfa.storefront.microsoft_enabled.name": "Sklep — logowanie przez Microsoft",
+  "settingLabels.mfa.storefront.microsoft_enabled.description": "Klienci mogą logować się przez Microsoft."
 }

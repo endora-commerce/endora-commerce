@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { Warehouse } from '@endora-commerce/contracts';
 import { Plus, Warehouse as WarehouseIcon } from 'lucide-react';
@@ -68,24 +68,35 @@ export function WarehousesList(): ReactNode {
     );
   }, [rows, query]);
 
+  // Issue #1448 (DS-15): "no warehouse yet" and "nothing matches" are different
+  // situations; only the first one is answered by creating a warehouse.
+  const searchRef = useRef<HTMLInputElement>(null);
+  const filtersActive = query.trim() !== '' || activeOnly;
+  const clearFilters = (): void => {
+    setQuery('');
+    setActiveOnly(false);
+  };
+  // While there is none, the empty state's New warehouse is the view's one primary (Von Restorff).
+  const noData = !loading && !error && filtered.length === 0 && !filtersActive;
+
   if (!canRead) {
     return <div className="b2b-page">{t('inventory.noPermission')}</div>;
   }
+
+  const newWarehouse = (
+    <Button asChild>
+      <Link to="/warehouses/new">
+        <Plus aria-hidden="true" /> {t('warehouses.action.new')}
+      </Link>
+    </Button>
+  );
 
   return (
     <div className="b2b-page b2b-page--wide">
       <PageHeader
         title={t('warehouses.page.title')}
         help={t('warehouses.page.help')}
-        actions={
-          canWrite ? (
-            <Button asChild>
-              <Link to="/warehouses/new">
-                <Plus aria-hidden="true" /> {t('warehouses.action.new')}
-              </Link>
-            </Button>
-          ) : null
-        }
+        actions={canWrite && !noData ? newWarehouse : null}
       />
 
       {/* Issue #1492 (CAT-17): a failure is a kit Alert (role="alert"), not a card painted red. */}
@@ -103,6 +114,7 @@ export function WarehousesList(): ReactNode {
           className="border-b border-border px-3 py-2.5"
           search={
             <ListToolbarSearch
+              ref={searchRef}
               label={t('warehouses.search.label')}
               placeholder={t('warehouses.search.placeholder')}
               value={query}
@@ -121,7 +133,21 @@ export function WarehousesList(): ReactNode {
             {t('warehouses.loading')}
           </p>
         ) : filtered.length === 0 ? (
-          <EmptyState icon={<WarehouseIcon size={20} />} title={t('warehouses.empty')} />
+          filtersActive ? (
+            <EmptyState
+              variant="no-results"
+              title={t('warehouses.empty')}
+              onClearFilters={clearFilters}
+              focusAfterClear={searchRef}
+            />
+          ) : (
+            <EmptyState
+              icon={<WarehouseIcon size={20} />}
+              title={t('warehouses.noData.title')}
+              description={canWrite ? t('warehouses.noData.body') : t('warehouses.noData.bodyReadOnly')}
+              action={canWrite ? newWarehouse : null}
+            />
+          )
         ) : (
           <Table>
             <TableHeader>

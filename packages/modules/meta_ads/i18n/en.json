@@ -48,5 +48,12 @@
   "customEvents.deleteConfirm.failed": "The event could not be deleted, and nothing was changed. Try again.",
   "customEvents.eventNameInvalid": "Enter a Meta event name: a letter, then letters, digits or underscores.",
   "customEvents.standardEventHint": "Meta also receives its standard event {name}.",
-  "customEvents.standardEventHintNone": "This action has no Meta standard event."
+  "customEvents.standardEventHintNone": "This action has no Meta standard event.",
+  "settingLabels.meta_ads.module_enabled.name": "Meta Ads module enabled",
+  "settingLabels.meta_ads.enabled.name": "Enable Meta Ads",
+  "settingLabels.meta_ads.enabled.description": "Loads the Meta Pixel on this sales channel.",
+  "settingLabels.meta_ads.pixel_id.name": "Pixel ID",
+  "settingLabels.meta_ads.pixel_id.description": "Meta Pixel ID from Events Manager. Empty: the channel is not tracked.",
+  "settingLabels.meta_ads.require_consent.name": "Require analytics consent",
+  "settingLabels.meta_ads.require_consent.description": "Nothing Meta-related runs until the visitor accepts cookies."
 }

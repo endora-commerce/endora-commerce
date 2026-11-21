@@ -1,8 +1,21 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BULK_OPERATION_TYPES, type BulkOperation, type BulkOperationStatus } from '@endora-commerce/contracts';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { Layers } from 'lucide-react';
+import {
+  BULK_OPERATION_TYPES,
+  type BulkOperation,
+  type BulkOperationStatus,
+  type BulkOperationsListResponse,
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Card, CardContent, CardHeader, CardTitle, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Badge, Button, EmptyState, Select } from '@endora-commerce/admin-kit/ui';
+import {
+  ListPage,
+  ListToolbar,
+  ResponsiveTable,
+  useListPagination,
+  type ListPageLoad,
+} from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
@@ -12,15 +25,17 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  * processing summary (processed / succeeded / skipped / failed). Polls
  * while anything is still in flight so progress updates live; stops
  * polling once everything has settled to avoid needless load.
+ *
+ * The kit's `ListPage` (issue #1439, DS-05; UX audit slice S14): the status
+ * filter is a labelled select in the `ListToolbar`, the list is server-paged
+ * by `limit` / `offset` (it showed the first 100 and nothing past them), the
+ * operation's name is the link to it (the row opened on a mouse click only),
+ * and "nothing yet" differs from "nothing with this status" (DS-15).
  */
 
-const STATUS_FILTERS: Array<'all' | BulkOperationStatus> = [
-  'all',
-  'pending',
-  'running',
-  'completed',
-  'failed',
-];
+type StatusFilter = 'all' | BulkOperationStatus;
+
+const STATUS_FILTERS: BulkOperationStatus[] = ['pending', 'running', 'completed', 'failed'];
 
 const ACTIVE_STATUSES: BulkOperationStatus[] = ['pending', 'running'];
 
@@ -36,10 +51,26 @@ const STATUS_BADGE: Record<
 
 const POLL_INTERVAL_MS = 4000;
 
+/** `GET /api/v1/admin/catalog/bulk-operations` serves at most 100 rows a page. */
+const MAX_PAGE_SIZE = 100;
+
 const KNOWN_OPERATION_TYPES = new Set<string>([
   BULK_OPERATION_TYPES.PRODUCT_BULK_UPDATE,
   BULK_OPERATION_TYPES.SEARCH_REINDEX,
 ]);
+
+/**
+ * The request for one page of the list: the status when one is chosen, and the
+ * page as `limit` / `offset`, which is how the endpoint pages. `page` is
+ * one-based, as `useListPagination().query` gives it.
+ */
+export function bulkOperationsListPath(filters: { status: StatusFilter; page: number; pageSize: number }): string {
+  const params = new URLSearchParams();
+  if (filters.status !== 'all') params.set('status', filters.status);
+  params.set('limit', String(filters.pageSize));
+  params.set('offset', String((filters.page - 1) * filters.pageSize));
+  return `/api/v1/admin/catalog/bulk-operations?${params.toString()}`;
+}
 
 /**
  * Friendly label for a bulk operation's `type`. Known kinds resolve through
@@ -57,134 +88,204 @@ function operationTypeLabel(
 
 export function BulkOperationsPage(): ReactNode {
   const t = useTranslation('catalog');
-  const navigate = useNavigate();
+  const pager = useListPagination({ scope: 'catalog-bulk-operations', maxPageSize: MAX_PAGE_SIZE });
+  const { resetPage, syncTotal } = pager;
   const [rows, setRows] = useState<BulkOperation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | BulkOperationStatus>('all');
-  const filterRef = useRef(statusFilter);
-  filterRef.current = statusFilter;
+  const [total, setTotal] = useState(0);
+  const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [reloadKey, setReloadKey] = useState(0);
+  const path = bulkOperationsListPath({ status: statusFilter, ...pager.query });
 
-  const refresh = useCallback(async (): Promise<void> => {
-    setError(null);
-    try {
-      const filter = filterRef.current;
-      const qs = filter === 'all' ? '?limit=100' : `?limit=100&status=${filter}`;
-      const res = await apiClient.get<{ data: BulkOperation[] }>(
-        `/api/v1/admin/catalog/bulk-operations${qs}`,
-      );
+  const apply = useCallback(
+    (res: BulkOperationsListResponse): void => {
       setRows(res.data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('bulkOperations.error.load'));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+      setTotal(res.pagination.total);
+      syncTotal(res.pagination.total);
+    },
+    [syncTotal],
+  );
 
   useEffect(() => {
-    setLoading(true);
-    void refresh();
-  }, [refresh, statusFilter]);
+    // A response that lands after a newer request was sent is dropped, so a
+    // slow page cannot overwrite the one the operator is looking at now.
+    let alive = true;
+    setLoad({ kind: 'loading' });
+    apiClient
+      .get<BulkOperationsListResponse>(path)
+      .then((res) => {
+        if (!alive) return;
+        apply(res);
+        setLoad({ kind: 'ready' });
+      })
+      .catch((err: unknown) => {
+        if (!alive) return;
+        setLoad({
+          kind: 'error',
+          message: err instanceof ApiError ? err.envelope.error.message : t('bulkOperations.error.load'),
+        });
+      });
+    return (): void => {
+      alive = false;
+    };
+  }, [path, reloadKey, apply, t]);
 
-  // Poll while anything is still pending / running.
-  const hasActive = rows.some((r) => ACTIVE_STATUSES.includes(r.status));
+  // Poll the page on screen while anything on it is still pending / running.
+  // A poll refreshes the rows in place — no skeleton every four seconds — and
+  // a failed poll leaves them as they were until the next one.
+  const hasActive = load.kind === 'ready' && rows.some((r) => ACTIVE_STATUSES.includes(r.status));
   useEffect(() => {
     if (!hasActive) return undefined;
+    let alive = true;
     const id = window.setInterval(() => {
-      void refresh();
+      apiClient
+        .get<BulkOperationsListResponse>(path)
+        .then((res) => {
+          if (alive) apply(res);
+        })
+        .catch((): void => undefined);
     }, POLL_INTERVAL_MS);
-    return (): void => window.clearInterval(id);
-  }, [hasActive, refresh]);
+    return (): void => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [hasActive, path, apply]);
+
+  const filtered = statusFilter !== 'all';
+  const clearFilters = useCallback((): void => {
+    setStatusFilter('all');
+    resetPage();
+  }, [resetPage]);
 
   return (
-    <>
-      <PageHeader title={t('bulkOperations.title')} />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
-          <CardTitle>{t('bulkOperations.listTitle')}</CardTitle>
-          <div className="flex flex-wrap gap-1">
-            {STATUS_FILTERS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={`b2b-btn b2b-btn--sm ${statusFilter === s ? 'b2b-btn--primary' : 'b2b-btn--ghost'}`}
-                onClick={(): void => setStatusFilter(s)}
-              >
-                {t(`bulkOperations.filter.${s}`)}
-              </button>
-            ))}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">{t('bulkOperations.loading')}</p>
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('bulkOperations.empty')}</p>
+    <ListPage
+      title={t('bulkOperations.title')}
+      load={load}
+      onRetry={(): void => setReloadKey((key) => key + 1)}
+      count={t('bulkOperations.count', { count: total })}
+      toolbar={
+        <ListToolbar
+          className="min-w-0 flex-1"
+          label={t('bulkOperations.toolbar.label')}
+          filters={
+            <Select
+              aria-label={t('bulkOperations.column.status')}
+              className="w-auto"
+              value={statusFilter}
+              onChange={(e): void => {
+                setStatusFilter(e.target.value as StatusFilter);
+                resetPage();
+              }}
+            >
+              <option value="all">{t('bulkOperations.filter.allStatuses')}</option>
+              {STATUS_FILTERS.map((s) => (
+                <option key={s} value={s}>
+                  {t(`bulkOperations.filter.${s}`)}
+                </option>
+              ))}
+            </Select>
+          }
+          filtersActive={filtered}
+          onClearFilters={clearFilters}
+        />
+      }
+      pagination={pager.footer(total)}
+    >
+      <ResponsiveTable
+        data={rows}
+        keyExtractor={(op) => op.id}
+        emptyState={
+          filtered ? (
+            <EmptyState variant="no-results" title={t('bulkOperations.emptyFiltered')} onClearFilters={clearFilters} />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('bulkOperations.column.created')}</TableHead>
-                  <TableHead>{t('bulkOperations.column.type')}</TableHead>
-                  <TableHead>{t('bulkOperations.column.status')}</TableHead>
-                  <TableHead>{t('bulkOperations.column.progress')}</TableHead>
-                  <TableHead className="text-right">{t('bulkOperations.column.succeeded')}</TableHead>
-                  <TableHead className="text-right">{t('bulkOperations.column.skipped')}</TableHead>
-                  <TableHead className="text-right">{t('bulkOperations.column.failed')}</TableHead>
-                  <TableHead>{t('bulkOperations.column.fields')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((op) => {
-                  const pct =
-                    op.total > 0 ? Math.round((op.processed / op.total) * 100) : 0;
-                  return (
-                    <TableRow
-                      key={op.id}
-                      onClick={(): void => {
-                        void navigate(`/catalog/bulk-operations/${op.id}`);
-                      }}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <TableCell className="whitespace-nowrap text-sm">
-                        {formatDateTime(op.createdAt)}
-                      </TableCell>
-                      <TableCell className="text-sm">{operationTypeLabel(op, t)}</TableCell>
-                      <TableCell>
-                        <Badge variant={STATUS_BADGE[op.status]}>
-                          {t(`bulkOperations.status.${op.status}`)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        <span className="font-mono">
-                          {op.processed}/{op.total}
-                        </span>{' '}
-                        <span className="text-muted-foreground">({pct}%)</span>
-                      </TableCell>
-                      <TableCell className="text-right text-sm">{op.succeeded}</TableCell>
-                      <TableCell className="text-right text-sm">{op.skipped}</TableCell>
-                      <TableCell className="text-right text-sm">{op.failed}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {op.touchedFields.length > 0
-                          ? op.touchedFields.join(', ')
-                          : '—'}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </>
+            <EmptyState
+              icon={<Layers size={20} />}
+              title={t('bulkOperations.emptyTitle')}
+              description={t('bulkOperations.emptyHint')}
+              action={
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/catalog/products">{t('bulkOperations.emptyAction')}</Link>
+                </Button>
+              }
+            />
+          )
+        }
+        columns={[
+          {
+            // The operation is the way into its page — a link a keyboard reaches.
+            id: 'type',
+            header: t('bulkOperations.column.type'),
+            primary: true,
+            render: (op) => (
+              <Link to={`/catalog/bulk-operations/${op.id}`} className="font-medium text-primary hover:underline">
+                {operationTypeLabel(op, t)}
+              </Link>
+            ),
+            meta: (op) => formatDateTime(op.createdAt),
+          },
+          {
+            id: 'created',
+            header: t('bulkOperations.column.created'),
+            hideOnMobile: true,
+            className: 'whitespace-nowrap',
+            render: (op) => formatDateTime(op.createdAt),
+          },
+          {
+            id: 'status',
+            header: t('bulkOperations.column.status'),
+            render: (op) => (
+              <Badge variant={STATUS_BADGE[op.status]}>{t(`bulkOperations.status.${op.status}`)}</Badge>
+            ),
+          },
+          {
+            id: 'progress',
+            header: t('bulkOperations.column.progress'),
+            render: (op) => {
+              const pct = op.total > 0 ? Math.round((op.processed / op.total) * 100) : 0;
+              return (
+                <>
+                  <span className="font-mono">
+                    {op.processed}/{op.total}
+                  </span>{' '}
+                  <span className="text-muted-foreground">({pct}%)</span>
+                </>
+              );
+            },
+          },
+          {
+            id: 'succeeded',
+            header: t('bulkOperations.column.succeeded'),
+            hideOnMobile: true,
+            className: 'text-right tabular-nums',
+            render: (op) => op.succeeded,
+          },
+          {
+            id: 'skipped',
+            header: t('bulkOperations.column.skipped'),
+            hideOnMobile: true,
+            className: 'text-right tabular-nums',
+            render: (op) => op.skipped,
+          },
+          {
+            id: 'failed',
+            header: t('bulkOperations.column.failed'),
+            hideOnMobile: true,
+            className: 'text-right tabular-nums',
+            render: (op) => op.failed,
+          },
+          {
+            id: 'fields',
+            header: t('bulkOperations.column.fields'),
+            hideOnMobile: true,
+            render: (op) => (
+              <span className="text-muted-foreground">
+                {op.touchedFields.length > 0 ? op.touchedFields.join(', ') : '—'}
+              </span>
+            ),
+          },
+        ]}
+      />
+    </ListPage>
   );
 }
 

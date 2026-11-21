@@ -51,5 +51,20 @@
   "customEvents.removeField": "Remove field {n}",
   "error.generic": "Something went wrong.",
   "error.notFound": "Custom event not found.",
-  "error.versionConflict": "Someone else changed this event. Reload and reapply your edit."
+  "error.versionConflict": "Someone else changed this event. Reload and reapply your edit.",
+  "settingLabels.google_analytics.module_enabled.name": "Google Analytics module enabled",
+  "settingLabels.google_analytics.enabled.name": "Enable Google Analytics",
+  "settingLabels.google_analytics.enabled.description": "Loads Google Analytics on this sales channel.",
+  "settingLabels.google_analytics.measurement_id.name": "Measurement ID",
+  "settingLabels.google_analytics.measurement_id.description": "GA4 Measurement ID (G-XXXXXXXXXX). Empty: the channel is not tracked.",
+  "settingLabels.google_analytics.enhanced_ecommerce_enabled.name": "Enhanced Ecommerce",
+  "settingLabels.google_analytics.enhanced_ecommerce_enabled.description": "Sends GA4 ecommerce events: view_item, add_to_cart, begin_checkout, purchase.",
+  "settingLabels.google_analytics.server_side_enabled.name": "Server-side tagging",
+  "settingLabels.google_analytics.server_side_enabled.description": "Sends the channel's events from the server instead of the browser.",
+  "settingLabels.google_analytics.server_side_endpoint.name": "Server-side endpoint",
+  "settingLabels.google_analytics.server_side_endpoint.description": "Server-side GTM container URL. Empty: the GA4 Measurement Protocol endpoint.",
+  "settingLabels.google_analytics.server_side_api_secret.name": "Measurement Protocol API secret",
+  "settingLabels.google_analytics.server_side_api_secret.description": "GA4 Measurement Protocol API secret, from Admin → Data Streams. Stored encrypted; write-only.",
+  "settingLabels.google_analytics.require_consent.name": "Require analytics consent",
+  "settingLabels.google_analytics.require_consent.description": "Google Analytics waits in Consent Mode v2 until the visitor consents."
 }

@@ -118,9 +118,6 @@
   "branding.noPermission": "Nie masz uprawnień do przeglądania brandingu maili.",
   "branding.switchScope.title": "Niezapisane zmiany brandingu",
   "branding.switchScope.message": "Zapisać zmiany dla tego zakresu przed przełączeniem, czy je odrzucić?",
-  "branding.switchScope.save": "Zapisz i przełącz",
-  "branding.switchScope.discard": "Odrzuć i przełącz",
-  "branding.switchScope.stay": "Zostań",
   "list.column.name": "Nazwa",
   "list.column.code": "Kod",
   "list.column.module": "Moduł",
@@ -147,5 +144,13 @@
   "source.default": "Domyślna treść z modułu",
   "source.global": "Treść zmieniona dla wszystkich kanałów",
   "source.channel": "Treść zmieniona dla tego kanału sprzedaży",
-  "editor.saving": "Zapisywanie…"
+  "editor.saving": "Zapisywanie…",
+  "settingLabels.transactional_emails.logo_asset_id.name": "Logo w nagłówku e-maili",
+  "settingLabels.transactional_emails.logo_asset_id.description": "Logo w nagłówku e-maili transakcyjnych.",
+  "settingLabels.transactional_emails.accent_color.name": "Kolor akcentu e-maili",
+  "settingLabels.transactional_emails.accent_color.description": "Kolor hex akcentu domyślnych komponentów e-maili.",
+  "settingLabels.transactional_emails.header_block_code.name": "Domyślny blok nagłówka",
+  "settingLabels.transactional_emails.header_block_code.description": "Blok e-maila wstawiany jako nagłówek nowych e-maili.",
+  "settingLabels.transactional_emails.footer_block_code.name": "Domyślny blok stopki",
+  "settingLabels.transactional_emails.footer_block_code.description": "Blok e-maila wstawiany jako stopka nowych e-maili."
 }

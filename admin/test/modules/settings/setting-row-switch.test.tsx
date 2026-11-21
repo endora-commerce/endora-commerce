@@ -77,24 +77,38 @@ function hosted(ui: ReactElement): ReactElement {
 
 function renderRow(
   row: SettingDto,
-  options: { readOnly?: boolean; language?: SupportedAdminLanguage; text?: string } = {},
+  options: {
+    readOnly?: boolean;
+    language?: SupportedAdminLanguage;
+    text?: string;
+    /** The read-only reason the page's group states once (issue #1518). */
+    readOnlyReason?: string;
+  } = {},
 ): { container: HTMLElement; onChange: ReturnType<typeof vi.fn> } {
   const text = options.text ?? deriveDisplayValue(row, null);
   const onChange = vi.fn();
   const language = options.language ?? 'en';
   const { container } = renderWithI18n(
     hosted(
-      <SettingRowEditor
-        setting={row}
-        draft={{ text, initialText: deriveDisplayValue(row, null) }}
-        channelContext={null}
-        isCopied={false}
-        resetting={false}
-        readOnly={options.readOnly ?? false}
-        onChange={onChange}
-        onCopyCode={vi.fn()}
-        onReset={vi.fn()}
-      />,
+      <>
+        {options.readOnlyReason !== undefined ? (
+          <p id="demo-read-only-reason">{options.readOnlyReason}</p>
+        ) : null}
+        <SettingRowEditor
+          setting={row}
+          draft={{ text, initialText: deriveDisplayValue(row, null) }}
+          channelContext={null}
+          isCopied={false}
+          resetting={false}
+          readOnly={options.readOnly ?? false}
+          {...(options.readOnlyReason !== undefined
+            ? { readOnlyReasonId: 'demo-read-only-reason' }
+            : {})}
+          onChange={onChange}
+          onCopyCode={vi.fn()}
+          onReset={vi.fn()}
+        />
+      </>,
     ),
     bundleFor(language),
     { language },
@@ -133,7 +147,10 @@ describe('SettingRowEditor — a boolean setting is a switch', () => {
   });
 
   it('read-only: the switch is disabled, says why, and a press stages nothing', async () => {
-    const { onChange } = renderRow(setting({ editable: false }), { readOnly: true });
+    const { onChange } = renderRow(setting({ editable: false }), {
+      readOnly: true,
+      readOnlyReason: settingsEn['editor.readOnlyReason'],
+    });
     const toggle = screen.getByRole('switch', { name: 'Demo flag' }) as HTMLButtonElement;
     expect(toggle.disabled).toBe(true);
     const described = (toggle.getAttribute('aria-describedby') ?? '')
@@ -148,12 +165,17 @@ describe('SettingRowEditor — a boolean setting is a switch', () => {
   it.each([
     ['en', 'On', 'Off'],
     ['pl', 'Włączone', 'Wyłączone'],
-  ] as const)('the default and global values read as on / off in %s', (language, on, off) => {
+  ] as const)('the default value reads as on / off in %s', (language, on, off) => {
+    // Issue #1518 (SHELL-09) — the default is named once the value in force
+    // differs from it; the switch itself shows the value in force.
     const { container } = renderRow(setting({ defaultValue: false, globalValue: true }), {
       language,
     });
     const codes = [...container.querySelectorAll('code')].map((el) => el.textContent);
-    expect(codes).toEqual([off, on]);
+    expect(codes).toEqual([off]);
+    expect(screen.getByRole('switch', { name: 'Demo flag' }).getAttribute('aria-checked')).toBe(
+      on === 'On' || on === 'Włączone' ? 'true' : 'false',
+    );
     expect(container.textContent).not.toMatch(/\btrue\b|\bfalse\b/);
   });
 });
@@ -184,7 +206,7 @@ describe('SettingRowEditor — enum options are labelled by the owning module', 
   });
 
   it("the default value under the field reads as its option's label", () => {
-    const { container } = renderRow(ENUM);
+    const { container } = renderRow({ ...ENUM, globalValue: 'single' } as SettingDto);
     expect(container.querySelector('code')?.textContent).toBe('Double opt-in');
   });
 });

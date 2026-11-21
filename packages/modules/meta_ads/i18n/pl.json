@@ -48,5 +48,12 @@
   "customEvents.deleteConfirm.failed": "Nie udało się usunąć zdarzenia i nic nie zostało zmienione. Spróbuj ponownie.",
   "customEvents.eventNameInvalid": "Podaj nazwę zdarzenia Meta: litera, a po niej litery, cyfry lub podkreślenia.",
   "customEvents.standardEventHint": "Meta otrzymuje też zdarzenie standardowe {name}.",
-  "customEvents.standardEventHintNone": "Ta akcja nie ma zdarzenia standardowego Meta."
+  "customEvents.standardEventHintNone": "Ta akcja nie ma zdarzenia standardowego Meta.",
+  "settingLabels.meta_ads.module_enabled.name": "Moduł Meta Ads włączony",
+  "settingLabels.meta_ads.enabled.name": "Włącz Meta Ads",
+  "settingLabels.meta_ads.enabled.description": "Wczytuje Meta Pixel w tym kanale sprzedaży.",
+  "settingLabels.meta_ads.pixel_id.name": "Identyfikator piksela",
+  "settingLabels.meta_ads.pixel_id.description": "Identyfikator Meta Pixel z Menedżera zdarzeń. Pusty: kanał nie jest śledzony.",
+  "settingLabels.meta_ads.require_consent.name": "Wymagaj zgody na analitykę",
+  "settingLabels.meta_ads.require_consent.description": "Nic związanego z Meta nie działa, dopóki odwiedzający nie zaakceptuje cookies."
 }

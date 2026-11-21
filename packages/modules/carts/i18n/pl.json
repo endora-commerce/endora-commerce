@@ -184,5 +184,9 @@
   "organizationPermissions.carts.approve.description": "Przeglądanie koszyków organizacji oraz akceptowanie lub odrzucanie koszyków przekazanych do akceptacji.",
   "organizationPermissions.carts.order_without_approval.label": "Składanie zamówień bez akceptacji",
   "organizationPermissions.carts.order_without_approval.description": "Zamawianie koszyka bezpośrednio, bez wcześniejszego przekazywania go do akceptacji.",
-  "settingGroups.carts.name": "Koszyki"
+  "settingGroups.carts.name": "Koszyki",
+  "settingLabels.carts.abandonment.inactivity_minutes.name": "Próg porzucenia koszyka (minuty)",
+  "settingLabels.carts.abandonment.inactivity_minutes.description": "Po ilu minutach bezczynności aktywny koszyk uznaje się za porzucony. Domyślnie 10080 (7 dni).",
+  "settingLabels.carts.abandonment.notification_recipient.name": "Odbiorca powiadomień o porzuceniu",
+  "settingLabels.carts.abandonment.notification_recipient.description": "Adres powiadamiany o każdym porzuconym koszyku. Pusty: brak powiadomień."
 }

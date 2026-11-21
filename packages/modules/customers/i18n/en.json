@@ -77,7 +77,8 @@
   "online.description": "Active within the time set in the Customers settings.",
   "online.error": "Could not load online customers.",
   "online.loading": "Loading…",
-  "online.empty": "No customers are currently online.",
+  "online.empty": "No customers are currently online",
+  "online.emptyBody": "Refresh to check again, or turn on auto-refresh.",
   "online.column.lastSeen": "Last seen",
   "online.refresh": "Refresh",
   "online.autoRefresh": "Auto-refresh",
@@ -138,5 +139,11 @@
   "list.toolbar.label": "Filter customers",
   "list.emptyTitle": "No customer accounts yet",
   "list.rowMenu.label": "Actions for {name}",
-  "list.rowMenu.organization": "Open organization"
+  "list.rowMenu.organization": "Open organization",
+  "settingLabels.customers.allow_registration_without_organization.name": "Allow registration without organization",
+  "settingLabels.customers.allow_registration_without_organization.description": "Visitors may register an account that is not attached to any organization.",
+  "settingLabels.customers.deletion_retention_days.name": "Customer deletion retention window (days)",
+  "settingLabels.customers.deletion_retention_days.description": "Days a deleted customer account can be restored before its data is anonymised. Default 365.",
+  "settingLabels.customers.presence_freshness_minutes.name": "Online customers freshness (minutes)",
+  "settingLabels.customers.presence_freshness_minutes.description": "A customer counts as online if their session was active within this many minutes. Default 10."
 }

@@ -40,5 +40,12 @@
   "page.results.announce": "{count} records found",
   "actions.openGlobalSearch.keywords": "search, find, records",
   "actions.openConfiguration.keywords": "fields, search, configuration",
-  "settingGroups.admin_search.name": "Global search"
+  "settingGroups.admin_search.name": "Global search",
+  "settingLabels.admin_search.enabled.name": "Global search enabled",
+  "settingLabels.admin_search.minimum_query_length.name": "Minimum search length",
+  "settingLabels.admin_search.minimum_query_length.description": "Characters to type in the command palette before records are searched (2–10).",
+  "settingLabels.admin_search.results_per_entity.name": "Results per record type",
+  "settingLabels.admin_search.results_per_entity.description": "How many records of each type the command palette shows (1–10).",
+  "settingLabels.admin_search.entity_fields.name": "Searchable fields",
+  "settingLabels.admin_search.entity_fields.description": "Which fields each record type is searched by. Edited on the Global search configuration screen."
 }
