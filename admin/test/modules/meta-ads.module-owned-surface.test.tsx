@@ -90,7 +90,8 @@ const bundle = {
   ...passthroughBundle('core', [
     'appShell.brand.text',
     'appShell.section.analyticsAds',
-    'appShell.section.system',
+    'appShell.section.access',
+    'appShell.section.platform',
     'appShell.nav.users',
   ]),
   ...passthroughBundle('meta_ads', ['nav.metaAds.label']),

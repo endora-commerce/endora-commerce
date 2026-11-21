@@ -254,7 +254,6 @@
   "appShell.section.newsletter": "Newsletter",
   "appShell.section.pricing": "Pricing",
   "appShell.section.sales": "Sales",
-  "appShell.section.system": "System",
   "appShell.section.work": "Projects & tasks",
   "appShell.sidebarToggle.collapse": "Collapse sidebar (⌘B)",
   "appShell.sidebarToggle.expand": "Expand sidebar (⌘B)",
@@ -2819,5 +2818,9 @@
   "legacyMethods.delivery.newTitle": "New delivery method",
   "legacyMethods.rowActions": "Actions for {code}",
   "legacyMethods.fields.adapterDefault": "Default for the kind ({kind})",
-  "legacyMethods.payment.statusGroup": "Order status changes"
+  "legacyMethods.payment.statusGroup": "Order status changes",
+  "appShell.section.access": "Access",
+  "appShell.section.platform": "Platform",
+  "profile.tabs.profile": "Profile",
+  "profile.tabs.security": "Security"
 }

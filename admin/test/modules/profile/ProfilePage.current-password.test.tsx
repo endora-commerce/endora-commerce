@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+// Issue #1519 — the screen mounts the `profile.security` zone, which reads the
+// real session and presence providers; no contributor here.
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 import enBundle from '../../../../packages/modules/_i18n/i18n/en.json';
 
@@ -49,7 +52,7 @@ const { ProfilePage } = await import(
 function renderProfile(): void {
   renderWithI18n(
     <AppLanguageContext.Provider value={{ language: 'en', setLanguage: () => {} }}>
-      <ProfilePage />
+      {withSession(<ProfilePage />, { session: adminSession({ permissions: ['*'] }), presence: modulePresence({}) })}
     </AppLanguageContext.Provider>,
     { core: enBundle as Record<string, string> },
   );

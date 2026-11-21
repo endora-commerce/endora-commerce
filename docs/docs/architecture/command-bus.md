@@ -234,7 +234,7 @@ for these handlers only.
 
 ## Watching it: the *Command hooks* screen {#command-hooks-screen}
 
-**System → Command hooks** in the admin (`/platform/command-hooks`, or ⌘K / CTRL+K
+**Platform → Command hooks** in the admin (`/platform/command-hooks`, or ⌘K / CTRL+K
 *command hooks*; *outbox* opens the second tab directly) shows both halves. It is the
 platform's own screen, not a module's. Either tab's permission opens it, and a tab the
 administrator may not read is not shown: someone holding only the outbox permission lands on

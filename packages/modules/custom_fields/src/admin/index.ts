@@ -76,19 +76,15 @@ export const contributions: AdminContributions = {
       // The glyph `AppShell.tsx` rendered by hand, and already on
       // `KnownIconNameSchema` — this module's own palette action names it.
       icon: 'Layers',
-      // Custom fields extend Organizations, Orders, Customers, Categories and
-      // more, so the entry belongs to *System* rather than to any one domain —
-      // the placement the host comment carried and this declaration keeps.
-      section: 'system',
-      // The hand-written position in *System* times a hundred, which is batch
-      // four's convention: `/custom-fields` was the fifth row of that section
-      // before the drain began, between `/catalog/bulk-operations` and
-      // `/audit-log`. The weights already declared there — `admin_users` 200,
-      // `admin_roles` 300, `audit_logs` 600, `api_keys` 700, `webhooks` 800 —
-      // leave 500 exactly where this row sat among them. *System* still holds
-      // host-declared entries, so `composeNav` appends every registry row after
-      // all of them whatever the weight says.
-      weight: 500,
+      section: 'platform',
+      // Issue #1519 (UX audit SHELL-11, DEC-02) split *System*: *Platform* is
+      // how the instance is configured and extended, ordered with the host's
+      // own rows by weight — Modules 100, Settings 200, Custom fields 300,
+      // Import/export 400, Bulk operations 500, Webhooks 600, Global search
+      // 700, PWA 800, Command hooks 900, API description 1000. Custom fields
+      // extend Organizations, Orders, Customers, Categories and more, so the
+      // row belongs to no one domain.
+      weight: 300,
       requiredPermission: CUSTOM_FIELDS_READ_PERMISSION,
     },
   ],

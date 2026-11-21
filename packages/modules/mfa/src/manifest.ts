@@ -288,14 +288,16 @@ export const manifest = defineModuleManifest({
   // endpoints are gated by the bare admin guard, because every admin manages
   // their own second factor (`src/admin/index.ts` carries the reasoning). The
   // palette therefore offers it to every signed-in admin while `mfa` is on.
+  // Since issue #1519 the screen is the Profile's *Security* tab and has no
+  // sidebar row, so this action is the one shortcut to it besides the avatar.
   actions: [
     {
       id: 'open-security',
       labelKey: 'actions.openSecurity.label',
       descriptionKey: 'actions.openSecurity.description',
       icon: 'ShieldCheck',
-      targetRoute: '/security',
-      keywords: ['2fa', 'mfa', 'two-factor', 'two-step verification', 'security', 'authenticator', 'totp'],
+      targetRoute: '/profile/security',
+      keywords: ['2fa', 'mfa', 'two-factor', 'two-step verification', 'security', 'authenticator', 'totp', 'profile'],
       keywordsKey: 'actions.openSecurity.keywords',
       weight: 900,
     },

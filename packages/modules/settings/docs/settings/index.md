@@ -227,7 +227,7 @@ someone else has changed the setting since you opened it, the save returns
 overwrites.
 
 The settings screen has three tabs under one *Settings* entry in the
-*System* section of the sidebar: **Settings**, **Groups** and **Cache and
+*Platform* section of the sidebar: **Settings**, **Groups** and **Cache and
 search index** (the last one only for administrators holding
 `settings:write`). Each tab can also be opened directly from the command
 palette (⌘K / CTRL+K): *Open platform settings*, *Setting groups* and

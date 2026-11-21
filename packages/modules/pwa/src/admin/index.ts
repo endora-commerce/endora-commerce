@@ -85,12 +85,14 @@ export const contributions: AdminContributions = {
       // to a name already on the allowlist would have been a visible change
       // bought for nothing.
       icon: 'Smartphone',
-      section: 'system',
-      // The hand-written table's position times a hundred — the convention
-      // batch four set. `/settings/pwa` was fourteenth of fourteen in the
-      // *System* section and 1400 keeps it last among the converted entries,
-      // which are 200, 300, 600 and 700 today.
-      weight: 1400,
+      section: 'platform',
+      // Issue #1519 (UX audit SHELL-11, DEC-02) split *System*: *Platform* is
+      // how the instance is configured and extended, ordered with the host's
+      // own rows by weight — Modules 100, Settings 200, Custom fields 300,
+      // Import/export 400, Bulk operations 500, Webhooks 600, Global search
+      // 700, PWA 800, Command hooks 900, API description 1000. Rarely changed
+      // once set up, so low in the list, before the developer tools.
+      weight: 800,
       // The code enforced on the destination, which is the route declared
       // above — the two are one statement now rather than a module's guess
       // about a host registration.

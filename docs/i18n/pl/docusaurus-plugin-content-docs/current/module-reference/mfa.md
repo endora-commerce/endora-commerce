@@ -47,7 +47,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 
 | Akcja | Otwiera | Uprawnienie |
 | --- | --- | --- |
-| `open-security` | `/security` | — |
+| `open-security` | `/profile/security` | — |
 
 ## Ustawienia
 

@@ -47,6 +47,13 @@ export interface NavItem extends GatedSurface {
    * being silently unfiltered.
    */
   module: string | null;
+  /**
+   * Where a **host** row sits among its section's contributed rows, on the
+   * contributions' own `weight` scale (issue #1519). Absent keeps the old rule
+   * — the row renders before every contribution — which is what every section
+   * that declares no weighted host row still does.
+   */
+  weight?: number;
 }
 
 export interface NavSection {

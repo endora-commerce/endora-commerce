@@ -133,13 +133,13 @@ describe('moduleSectionsOf / groupModuleRows — grouped by the sidebar section'
     { key: 'main', labelKey: '' },
     { key: 'sales', labelKey: 'appShell.section.sales' },
     { key: 'catalog', labelKey: 'appShell.section.catalog' },
-    { key: 'system', labelKey: 'appShell.section.system' },
+    { key: 'platform', labelKey: 'appShell.section.platform' },
   ];
   const nav = (section: string) => ({ section, to: '/x', labelKey: 'x', icon: 'Box', weight: 100 });
   const entries = [
     { moduleId: 'orders', contributions: { nav: [nav('sales')] } },
     // Two sections: listed where an operator meets it first.
-    { moduleId: 'catalog', contributions: { nav: [nav('system'), nav('catalog')] } },
+    { moduleId: 'catalog', contributions: { nav: [nav('platform'), nav('catalog')] } },
     // Only the unlabelled top cluster: not a group of its own.
     { moduleId: 'dashboard_widgets', contributions: { nav: [nav('main')] } },
     { moduleId: 'webhooks', contributions: {} },
@@ -151,6 +151,11 @@ describe('moduleSectionsOf / groupModuleRows — grouped by the sidebar section'
     expect(sections.get('catalog')).toBe('catalog');
     expect(sections.has('dashboard_widgets')).toBe(false);
     expect(sections.has('webhooks')).toBe(false);
+  });
+
+  it("lists a module still naming the deprecated 'system' section under Platform (issue #1519)", () => {
+    const legacy = [{ moduleId: 'legacy_tool', contributions: { nav: [nav('system')] } }] as never;
+    expect(moduleSectionsOf(legacy, headings).get('legacy_tool')).toBe('platform');
   });
 
   it('orders the groups as the sidebar does, the rows by name, and "Other" last; empty groups are dropped', () => {

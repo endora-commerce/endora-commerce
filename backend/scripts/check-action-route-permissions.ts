@@ -212,7 +212,8 @@ export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> =
     '/api/v1/admin/settings (`settings:read`). Retire this entry when those routes move under ' +
     '/api/v1/admin/settings/cache or the walk resolves them.',
   'mfa:open-security':
-    '"Account security" (issue #510) declares no code, and that is the right answer: `/security` ' +
+    '"Account security" (issue #510) declares no code, and that is the right answer: ' +
+    '`/profile/security` (the Profile tab since issue #1519, `/security` before it) ' +
     "is the signed-in admin's own two-factor screen, and its six endpoints are registered by " +
     "`registerMfaSelfServiceRoutes` under `pathPrefix: '/api/v1/admin/account/mfa'` " +
     '(`packages/modules/mfa/src/backend/plugin.ts`), each gated by the bare admin guard and no ' +

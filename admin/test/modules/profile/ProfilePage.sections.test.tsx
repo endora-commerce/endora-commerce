@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+// Issue #1519 — the screen mounts the `profile.security` zone, which reads the
+// real session and presence providers; no contributor here.
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import enBundle from '../../../../packages/modules/_i18n/i18n/en.json';
 
 /**
@@ -48,7 +51,7 @@ const { ProfilePage } = await import('../../../../packages/admin-shell/src/modul
 const core = enBundle as Record<string, string>;
 
 function renderProfile(): void {
-  renderWithI18n(<ProfilePage />, { core });
+  renderWithI18n(withSession(<ProfilePage />, { session: adminSession({ permissions: ['*'] }), presence: modulePresence({}) }), { core });
 }
 
 function languageCard(): HTMLElement {

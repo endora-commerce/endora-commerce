@@ -47,7 +47,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 
 | Action | Opens | Permission |
 | --- | --- | --- |
-| `open-security` | `/security` | — |
+| `open-security` | `/profile/security` | — |
 
 ## Settings
 

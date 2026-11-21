@@ -12,6 +12,10 @@ storefront and the Admin UI — and, on the storefront, per sales channel. An
 organization can require a second factor of its own members, and a platform
 administrator can reset a member's second factor.
 
+An administrator sets up their own second factor on the **Security** tab of
+**My profile** — open it from your avatar, or with ⌘K / CTRL+K,
+*Account security*.
+
 The settings, permissions and palette actions the module declares are listed on
 its generated reference page.
 
@@ -106,7 +110,7 @@ requirement the same way.
   factor (`POST /api/v1/admin/account/mfa/disable`, `POST /api/v1/account/mfa/disable`) is refused
   with `409 MFA_LAST_FACTOR_REQUIRED`, before the code or password is checked. The status route
   (`GET …/mfa/status`) answers `canDisable` and `disableBlockedReason` (`factor_required`), and the
-  admin **Account security** screen and the storefront's account security page hide the switch-off
+  admin **My profile → Security** tab and the storefront's account security page hide the switch-off
   form and say why. An administrator's reset of somebody else's factor is not affected.
 - **No encryption key, no requirement.** Without `MFA_SECRET_ENCRYPTION_KEY` no second factor can
   be set up, so no requirement is in force and nothing above is refused. Turning a requirement on

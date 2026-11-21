@@ -254,7 +254,6 @@
   "appShell.section.newsletter": "Newsletter",
   "appShell.section.pricing": "Cennik",
   "appShell.section.sales": "Sprzedaż",
-  "appShell.section.system": "System",
   "appShell.section.work": "Projekty i zadania",
   "appShell.sidebarToggle.collapse": "Zwiń pasek boczny (⌘B)",
   "appShell.sidebarToggle.expand": "Rozwiń pasek boczny (⌘B)",
@@ -2819,5 +2818,9 @@
   "legacyMethods.delivery.newTitle": "Nowa metoda dostawy",
   "legacyMethods.rowActions": "Akcje dla {code}",
   "legacyMethods.fields.adapterDefault": "Domyślny dla typu ({kind})",
-  "legacyMethods.payment.statusGroup": "Zmiany statusu zamówienia"
+  "legacyMethods.payment.statusGroup": "Zmiany statusu zamówienia",
+  "appShell.section.access": "Dostęp",
+  "appShell.section.platform": "Platforma",
+  "profile.tabs.profile": "Profil",
+  "profile.tabs.security": "Bezpieczeństwo"
 }

@@ -101,7 +101,7 @@ to a colleague — who sees only what they themselves may see.
 
 ## Configuring searchable fields
 
-Holders of the `admin_search:configure` permission open **System → Global
+Holders of the `admin_search:configure` permission open **Platform → Global
 search** (or *Configure global search* in the command palette). Each record
 type has a card with its offered fields, the defaults marked:
 

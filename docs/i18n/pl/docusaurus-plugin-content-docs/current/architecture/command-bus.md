@@ -245,7 +245,7 @@ dostarczeń to druga, trwała ścieżka tylko dla tych odbiorców.
 
 ## Podgląd: ekran *Hooki modułów* {#command-hooks-screen}
 
-**System → Hooki modułów** w panelu administracyjnym (`/platform/command-hooks` albo ⌘K / CTRL+K
+**Platforma → Hooki modułów** w panelu administracyjnym (`/platform/command-hooks` albo ⌘K / CTRL+K
 *hooki modułów*; *kolejka dostarczeń* otwiera od razu drugą kartę) pokazuje obie połowy. To ekran samej
 platformy, a nie żadnego modułu. Otwiera go uprawnienie do dowolnej z kart, a karta, do której
 administrator nie ma dostępu, nie jest pokazywana: ktoś z samym uprawnieniem do kolejki trafia od razu

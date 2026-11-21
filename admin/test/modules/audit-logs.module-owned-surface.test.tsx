@@ -134,7 +134,8 @@ const { App } = await import('../../../packages/admin-shell/src/App');
 const bundle = {
   ...passthroughBundle('core', [
     'appShell.brand.text',
-    'appShell.section.system',
+    'appShell.section.access',
+    'appShell.section.platform',
     'app.moduleScreenLoading',
     'app.notFound',
   ]),
@@ -307,7 +308,7 @@ describe('the shell no longer names audit_logs by hand', () => {
     expect(contributions.routes?.map((route) => route.path)).toEqual(['/audit-log']);
     expect(contributions.routes?.[0]?.requiredPermission).toBe('audit_log:read');
     expect(contributions.nav?.[0]?.requiredPermission).toBe('audit_log:read');
-    expect(contributions.nav?.[0]?.section).toBe('system');
+    expect(contributions.nav?.[0]?.section).toBe('access');
     expect(typeof contributions.routes?.[0]?.component).toBe('function');
   });
 

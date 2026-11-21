@@ -12,6 +12,10 @@ każdej powierzchni — sklepu i Admin UI — a w sklepie także osobno dla każ
 kanału sprzedaży. Organizacja może wymagać drugiego składnika od swoich członków,
 a administrator platformy może zresetować drugi składnik wybranej osoby.
 
+Administrator konfiguruje własny drugi składnik na karcie **Bezpieczeństwo**
+w **Moim profilu** — otworzysz ją z awatara albo przez ⌘K / CTRL+K,
+*Bezpieczeństwo konta*.
+
 Ustawienia, uprawnienia i akcje palety poleceń, które moduł deklaruje, wymienia
 jego wygenerowana strona referencyjna.
 
@@ -105,7 +109,7 @@ w ten sam sposób.
   drugiego składnika (`POST /api/v1/admin/account/mfa/disable`, `POST /api/v1/account/mfa/disable`)
   jest odrzucane z `409 MFA_LAST_FACTOR_REQUIRED`, zanim zostanie sprawdzony kod lub hasło. Trasa
   stanu (`GET …/mfa/status`) zwraca `canDisable` i `disableBlockedReason` (`factor_required`),
-  a ekran **Bezpieczeństwo konta** w panelu oraz strona bezpieczeństwa konta w sklepie ukrywają
+  a karta **Mój profil → Bezpieczeństwo** w panelu oraz strona bezpieczeństwa konta w sklepie ukrywają
   formularz wyłączania i wyjaśniają dlaczego. Reset cudzego składnika przez administratora nie jest
   tym objęty.
 - **Bez klucza szyfrowania nie ma wymagania.** Bez `MFA_SECRET_ENCRYPTION_KEY` nie da się

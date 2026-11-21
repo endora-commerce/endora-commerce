@@ -27,7 +27,7 @@ administratora i klucza API) albo `403 FORBIDDEN` (administrator lub klucz bez t
 Administrator platformy nadaje uprawnienie na ekranie **Role**; klucz z tym zakresem może wydać
 tylko administrator, który sam je ma.
 
-- **W panelu administracyjnym** — **System → Opis API** (albo ⌘K / CTRL+K, *Opis API*) pokazuje
+- **W panelu administracyjnym** — **Platforma → Opis API** (albo ⌘K / CTRL+K, *Opis API*) pokazuje
   tytuł, wersję i liczbę endpointów dokumentu, pozwala pobrać go jako JSON i otwiera w nowej karcie
   interaktywną dokumentację (`GET /api/v1/_docs`, Swagger UI). Dokumentację serwuje samo API i
   korzysta ona z Twojej sesji administratora.

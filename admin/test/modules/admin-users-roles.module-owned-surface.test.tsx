@@ -143,7 +143,8 @@ const { App } = await import('../../../packages/admin-shell/src/App');
 const bundle = {
   ...passthroughBundle('core', [
     'appShell.brand.text',
-    'appShell.section.system',
+    'appShell.section.access',
+    'appShell.section.platform',
     'app.moduleScreenLoading',
     'app.notFound',
   ]),

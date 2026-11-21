@@ -70,10 +70,10 @@ describe('AdminSecuritySettings — copy, heading and per-form state (issue #148
     post.mockReset();
   });
 
-  it('titles the page with an h1 and words it in Polish', async () => {
+  it('titles the panel with an h2 under the Profile\'s h1 (issue #1519) and words it in Polish', async () => {
     status = ACTIVE;
     renderWithI18n(<AdminSecuritySettings />, bundleOf('pl'), { language: 'pl' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'Weryfikacja dwuetapowa' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Weryfikacja dwuetapowa' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Wyłącz weryfikację dwuetapową' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Wygeneruj nowe kody odzyskiwania' })).toBeTruthy();
     expect(screen.getByText(/Niewykorzystane kody odzyskiwania: 8/)).toBeTruthy();

@@ -181,7 +181,7 @@ zadań opróżnia wiersze co 10 sekund, a zapis, który utworzył wiersze, od ra
 Nieudane dostarczenie jest ponawiane z rosnącym odstępem, do 10 prób, a potem staje się
 **martwe**; odbiorca może też od razu zrezygnować z dostarczenia.
 
-Martwe dostarczenia widać w panelu w **System → Hooki modułów → Kolejka dostarczeń**
+Martwe dostarczenia widać w panelu w **Platforma → Hooki modułów → Kolejka dostarczeń**
 (`platform.command_outbox.read`), z odbiorcą, liczbą prób i kodem błędu — nigdy z danymi, które
 niosło dostarczenie. Administrator z uprawnieniem `platform.command_outbox.manage` może je tam
 ponowić, a ponowienie trafia do dziennika audytu. Dostarczenie, którego moduł odbiorcy jest

@@ -60,10 +60,10 @@ describe('AdminSecuritySettings — sections inside the one card (DS-03)', () =>
     expect(within(off).getByTestId('mfa-disable-blocked')).toBeTruthy();
   });
 
-  it('names both sections in Polish', async () => {
+  it('names both sections in Polish, at h3 inside the panel titled at h2 (issue #1519)', async () => {
     status = ACTIVE;
     renderWithI18n(<AdminSecuritySettings />, bundleOf('pl'), { language: 'pl' });
-    expect(await screen.findByRole('heading', { level: 2, name: 'Kody odzyskiwania' })).toBeTruthy();
-    expect(screen.getByRole('heading', { level: 2, name: 'Wyłączenie weryfikacji dwuetapowej' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 3, name: 'Kody odzyskiwania' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 3, name: 'Wyłączenie weryfikacji dwuetapowej' })).toBeTruthy();
   });
 });

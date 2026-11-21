@@ -79,12 +79,11 @@ export const contributions: AdminContributions = {
       labelKey: 'nav.adminUsers.label',
       // The icon the hand-written NAV entry carried.
       icon: 'Users',
-      section: 'system',
-      // The hand-written table's position times a hundred — see the note in
-      // `packages/modules/audit_logs/src/admin/index.ts`. `/admin-users` was
-      // second of thirteen, ahead of `/admin-roles` (300) and `/audit-log`
-      // (600), and that relative order is preserved.
-      weight: 200,
+      section: 'access',
+      // Issue #1519 (UX audit SHELL-11, DEC-02) split *System*: *Access* is who
+      // may sign in and what they may do, in the order users, roles, API keys,
+      // credentials, audit log (100 to 500). Identities first.
+      weight: 100,
       requiredPermission: 'admin_users:manage',
     },
   ],

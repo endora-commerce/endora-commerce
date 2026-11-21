@@ -53,17 +53,12 @@ export const contributions: AdminContributions = {
       labelKey: 'nav.auditLog.label',
       // The icon the hand-written NAV entry carried.
       icon: 'ListChecks',
-      section: 'system',
-      // **The *System* section still holds host-declared entries**, unlike the
-      // *Analytics & Ads* section batch three emptied, so this weight orders
-      // the entry only against the other converted modules — the host block
-      // renders first whatever any weight says, and that is the batch's one
-      // operator-visible change. The scale is the hand-written table's own
-      // position times a hundred, so the three entries this batch converts keep
-      // the relative order they had (`/admin-users` 200, `/admin-roles` 300,
-      // `/audit-log` 600) and the eight System entries still to convert have a
-      // slot each waiting for them.
-      weight: 600,
+      section: 'access',
+      // Issue #1519 (UX audit SHELL-11, DEC-02) split *System*: *Access* is who
+      // may sign in and what they may do, in the order users, roles, API keys,
+      // credentials, audit log (100 to 500). The record of what every identity
+      // above did, last.
+      weight: 500,
       // The code that opens the screen: the sidebar advertises a destination,
       // so it gates on what the landing route enforces.
       requiredPermission: 'audit_log:read',

@@ -54,6 +54,13 @@ import type { PromptActionRequestDto } from '@endora-commerce/contracts';
 import type { NavItem, NavSection } from './sidebar/nav-types.js';
 import { sidebarGroupItemsId } from './sidebar/group-ids.js';
 import { navItemMatchesExactly } from './sidebar/nav-match.js';
+import {
+  SECTION_ALIASES,
+  migrateCollapsedGroups,
+  orderSectionItems,
+  resolveSectionKey,
+  toggleCollapsedGroup,
+} from './sidebar/nav-sections.js';
 import { PinnedSection } from './sidebar/PinnedSection.js';
 import { PinToggleButton } from './sidebar/PinToggleButton.js';
 import { PreferencesSaveNotice } from './sidebar/PreferencesSaveNotice.js';
@@ -305,9 +312,38 @@ const NAV: NavSection[] = [
     // operator-visible regression; this is where it is repaired.
     items: [],
   },
+  // Issue #1519 (UX audit SHELL-11, owner decision DEC-02): the *System*
+  // section held eighteen rows — personal security, access control,
+  // integrations and data tools in one list, more than twice what a group can
+  // hold before it stops reading as one (Miller). It is two sections now, each
+  // about one thing, and the admin's own two-step verification left the
+  // sidebar for the Profile's *Security* tab (`profile.security` zone), since
+  // it is about the signed-in account and not about the platform.
   {
-    key: 'system',
-    labelKey: 'appShell.section.system',
+    // Who may sign in and what they may do. Every row is a contribution —
+    // `admin_users`, `admin_roles`, `api_keys`, `credentials`, `audit_logs` —
+    // at weights 100 to 500, in that order: identities first, then what grants
+    // their rights, then the secrets machines use, then the record of what
+    // all of them did.
+    key: 'access',
+    labelKey: 'appShell.section.access',
+    items: [],
+  },
+  {
+    // How the instance is configured and extended. Three rows are the host's
+    // and the rest are contributions; **every row carries a weight**, the
+    // host's included, so the section is one order rather than *host rows
+    // first, then contributions* — which kept the developer-facing API
+    // description above Settings whatever any module declared. Frequent
+    // configuration opens the list and the developer tools close it (Serial
+    // Position): Modules 100, Settings 200, Custom fields 300, Import/export
+    // 400, Bulk operations 500, Webhooks 600, Global search 700, PWA 800,
+    // Command hooks 900, API description 1000.
+    //
+    // A contribution still naming the deprecated `'system'` section is filed
+    // here (`SECTION_ALIASES`).
+    key: 'platform',
+    labelKey: 'appShell.section.platform',
     items: [
       // `module: null`, deliberately (D-36). This is the screen that switches
       // modules on and off; attributing it to a module would mean the surface
@@ -319,16 +355,7 @@ const NAV: NavSection[] = [
         icon: Boxes,
         requiredPermission: 'platform.modules.read',
         module: null,
-      },
-      // `module: null` for the same reason: the API description covers every
-      // module's routes, so no module's presence decides whether it is there.
-      // Gated on the code its backing route enforces.
-      {
-        to: '/api-description',
-        labelKey: 'appShell.nav.platformApiDescription',
-        icon: BookOpen,
-        requiredPermission: 'platform.api_description.read',
-        module: null,
+        weight: 100,
       },
       // `module: null` for the same reason (`specs/176-command-hooks-outbox/`
       // FR-041): a command hook spans the module that declares an action and
@@ -340,43 +367,28 @@ const NAV: NavSection[] = [
         icon: Webhook,
         requiredPermission: ['platform.modules.read', 'platform.command_outbox.read'],
         module: null,
+        weight: 900,
       },
-      // `/admin-users`, `/admin-roles` and `/audit-log` are declared by the
-      // modules that own them since feature 091's Phase 4 batch four, and
-      // arrive through `composeNav` from `modules.generated.ts` — including the
-      // split this file used to carry a comment about: the roles row is
-      // `admin_roles`' while the screen it points at is `admin_users`'. Their
-      // declarations, and that comment's reasoning, are in
-      // `packages/modules/{admin_users,admin_roles,audit_logs}/src/admin/index.ts`.
-      //
-      // Unlike *Analytics & Ads*, this section still holds host entries, so a
-      // registry entry appends after every one of them whatever its weight says
-      // — the operator-visible consequence the batch records.
-      // `/catalog/bulk-operations` stood here until feature 091's Phase 4 batch
-      // 15; `catalog` declares it now, at weight 400 — its position in this
-      // table's original thirteen rows, which is behind `/admin-roles`' 300 and
-      // ahead of `/custom-fields`' 500. One operator-visible change follows and
-      // is recorded rather than glossed: the row rendered *second* while it was
-      // the host's, `composeNav` putting every host row above every contributed
-      // one, and it renders fourth now — back where the table that wrote it put
-      // it. That *bulk operations may span many domains, so the entry lives
-      // under System while the URL stays `/catalog/bulk-operations` to keep
-      // existing deep links valid* is recorded where the route is.
-      // `/api-keys` and `/webhooks` are declared by the modules that own them
-      // since feature 091's Phase 4 (the plan's batch 6), and arrive through
-      // `composeNav` from `modules.generated.ts`. Their declarations are in
-      // `packages/modules/{api_keys,webhooks}/src/admin/index.ts`.
-      // `/credentials`, `/settings`, `/settings/groups` and `/settings/cache`
-      // are declared by the modules that own them since feature 091's Phase 4
-      // batch 10, and arrive through `composeNav` from `modules.generated.ts`.
-      // Their declarations are in
-      // `packages/modules/{credentials,settings}/src/admin/index.ts`.
-      //
-      // `/settings/pwa` is `pwa`'s and has been since batch six, when only the
-      // advertisement moved because the screen lived under
-      // `modules/settings/pages/`. Batch 10 moved that directory, so the screen
-      // went with it and the route is `pwa`'s too — the split closes rather
-      // than standing.
+      // `module: null` for the same reason: the API description covers every
+      // module's routes, so no module's presence decides whether it is there.
+      // Gated on the code its backing route enforces.
+      {
+        to: '/api-description',
+        labelKey: 'appShell.nav.platformApiDescription',
+        icon: BookOpen,
+        requiredPermission: 'platform.api_description.read',
+        module: null,
+        weight: 1000,
+      },
+      // `/settings` (one row since issue #1550, with its groups and cache as
+      // tabs), `/custom-fields`, `/import-export`, `/catalog/bulk-operations`,
+      // `/webhooks`, `/global-search/configuration` and `/settings/pwa` are
+      // declared by the modules that own them, in
+      // `packages/modules/<id>/src/admin/index.ts`, and arrive through
+      // `composeNav` from `modules.generated.ts`. *Bulk operations may span
+      // many domains, so the entry lives here while the URL stays
+      // `/catalog/bulk-operations` to keep existing deep links valid* is
+      // recorded where the route is.
     ],
   },
 ];
@@ -592,8 +604,11 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   // *System*'s first host entry, `/platform/modules`, where these three trails
   // named `/admin-users` by hand; and the leaf label resolves in the owning
   // module's namespace rather than in `core`.
+  // Issue #1519 — the section crumb names *Platform*, the section the row
+  // renders in, and links nowhere: the screen is that section's first row, so
+  // a link would point at the page the operator is on.
   { test: /^\/platform\/modules\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.section.platform', href: null },
     { labelKey: 'appShell.nav.platformModules', href: null },
   ] },
   // `/settings` and `/settings/groups` had a hand-written trail here until
@@ -606,6 +621,13 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   // label their sidebar row already carries.
   { test: /^\/profile\/?$/, build: () => [
     { labelKey: 'appShell.crumb.myProfile', href: null },
+  ] },
+  // Issue #1519 — the Profile's *Security* tab, the admin's own two-step
+  // verification. Both crumbs are the host's: the tab and its label are, and
+  // only the tab's body is a contribution (`profile.security`).
+  { test: /^\/profile\/security\/?$/, build: () => [
+    { labelKey: 'appShell.crumb.myProfile', href: '/profile' },
+    { labelKey: 'profile.tabs.security', href: null },
   ] },
   // The six `/transactional-emails*` trails stood here until feature 091's
   // Phase 4 batch 11. `registryCrumbs` derives all six now, out of the sidebar
@@ -923,7 +945,9 @@ const PALETTE_ITEMS: PaletteItem[] = [
  * render would allocate a new array on every keystroke in the palette input.
  *
  * **A module's entries append to their section**, ordered among themselves by
- * `weight` then module id. R11 describes the end state — the whole section
+ * `weight` then module id — unless the section's host rows carry a `weight` of
+ * their own, as *Platform*'s do since issue #1519, in which case host rows and
+ * contributions are one order (`orderSectionItems`). R11 describes the end state — the whole section
  * weight-ordered — which needs a weight on all 97 host entries and is Story 3's
  * to deliver as it drains them; inventing one per host entry now would be a
  * hundred numbers nothing derives. The consequence is visible and worth
@@ -942,7 +966,7 @@ function composeNav(
   const declared = new Set(sections.map((section) => section.key));
   for (const entry of entries) {
     for (const item of entry.contributions.nav ?? []) {
-      if (declared.has(item.section)) continue;
+      if (declared.has(resolveSectionKey(item.section))) continue;
       throw new Error(
         `Module '${entry.moduleId}' contributes a sidebar entry in section '${item.section}', ` +
           `which this shell does not declare. An entry in a section nobody renders is a ` +
@@ -950,26 +974,32 @@ function composeNav(
       );
     }
   }
-  return sections.map((section) => ({
-    ...section,
-    items: [
-      ...section.items,
-      ...registryNavFor(section.key, entries).map(
-        (item): NavItem => ({
-          to: item.to,
-          labelKey: item.labelKey,
-          labelScope: item.module,
-          icon: resolveIcon(item.icon),
-          // `exactOptionalPropertyTypes` — an ungated entry has no property,
-          // not a property holding `undefined`.
-          ...(item.requiredPermission === undefined
-            ? {}
-            : { requiredPermission: item.requiredPermission }),
-          module: item.module,
-        }),
-      ),
-    ],
-  }));
+  return sections.map((section) => {
+    // The section's own key, plus every retired key filed under it
+    // (`SECTION_ALIASES`, issue #1519).
+    const keys = [
+      section.key,
+      ...Object.keys(SECTION_ALIASES).filter((alias) => resolveSectionKey(alias) === section.key),
+    ];
+    const contributed = keys.flatMap((key) => registryNavFor(key, entries)).map(
+      (item): NavItem & { weight: number } => ({
+        to: item.to,
+        labelKey: item.labelKey,
+        labelScope: item.module,
+        icon: resolveIcon(item.icon),
+        // `exactOptionalPropertyTypes` — an ungated entry has no property,
+        // not a property holding `undefined`.
+        ...(item.requiredPermission === undefined
+          ? {}
+          : { requiredPermission: item.requiredPermission }),
+        module: item.module,
+        weight: item.weight,
+      }),
+    );
+    // A host row with a `weight` takes its place among the contributions
+    // (issue #1519); one without keeps rendering first.
+    return { ...section, items: orderSectionItems(section.items, contributed) };
+  });
 }
 
 /**
@@ -1032,7 +1062,8 @@ export function AppShell(): ReactNode {
   // this release does not render folds nothing and is kept in the next write
   // (FR-015).
   const [collapsedGroups, setCollapsedGroups] = useAdminPreference('sidebarCollapsedGroups');
-  const collapsed = useMemo(() => new Set(collapsedGroups), [collapsedGroups]);
+  // Issue #1519 — a folded *System* reads as both of its successors folded.
+  const collapsed = useMemo(() => new Set(migrateCollapsedGroups(collapsedGroups)), [collapsedGroups]);
   const [storedRailMode, setStoredRailMode] = useAdminPreference('sidebarRailMode');
   const platformVersion = usePlatformVersion();
   const feedbackOffered = isModulePresent('admin_feedback');
@@ -1092,11 +1123,10 @@ export function AppShell(): ReactNode {
 
   const toggleSection = useCallback(
     (key: string): void => {
-      setCollapsedGroups(
-        collapsedGroups.includes(key)
-          ? collapsedGroups.filter((group) => group !== key)
-          : [...collapsedGroups, key],
-      );
+      // Through the migration (issue #1519): a retired key is written back as
+      // its successors, so it cannot fold them again after they are opened.
+      // Every other key this release does not render is kept (FR-015).
+      setCollapsedGroups(toggleCollapsedGroup(collapsedGroups, key));
     },
     [collapsedGroups, setCollapsedGroups],
   );

@@ -221,7 +221,7 @@ Równoczesne zmiany są wykrywane przez `expectedVersion` (znacznik czasu ISO). 
 ustawienie, odkąd je otworzyłeś, zapis zwraca `409 VERSION_CONFLICT`, a komunikat prosi o odświeżenie
 i ponowienie próby — nic nie jest po cichu nadpisywane.
 
-Ekran ustawień ma trzy karty pod jedną pozycją *Ustawienia* w sekcji *System* paska bocznego:
+Ekran ustawień ma trzy karty pod jedną pozycją *Ustawienia* w sekcji *Platforma* paska bocznego:
 **Ustawienia**, **Grupy** oraz **Cache i indeks wyszukiwania** (ta ostatnia tylko dla
 administratorów z uprawnieniem `settings:write`). Każdą kartę otworzysz też bezpośrednio z palety
 poleceń (⌘K / CTRL+K): *Otwórz ustawienia platformy*, *Grupy ustawień* i *Wyczyść cache*.

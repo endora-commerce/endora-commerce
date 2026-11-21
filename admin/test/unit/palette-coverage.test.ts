@@ -56,6 +56,10 @@ const PALETTE_EXEMPTIONS: PaletteLedger = {
     '/invoices/templates':
       'Redirect to Document templates (spec 152 FR-088), kept so old bookmarks resolve; document_templates advertises the destination.',
   },
+  mfa: {
+    '/security':
+      'Redirect to the Profile Security tab (issue #1519), kept so old bookmarks resolve; open-security advertises /profile/security.',
+  },
   newsletter: {
     '/newsletter/automations/new': 'Create form opened from the automation list header.',
   },

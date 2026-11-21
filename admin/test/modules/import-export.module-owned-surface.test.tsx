@@ -78,7 +78,8 @@ const { AppShell } = await import('../../../packages/admin-shell/src/components/
 const bundle = {
   ...passthroughBundle('core', [
     'appShell.brand.text',
-    'appShell.section.system',
+    'appShell.section.access',
+    'appShell.section.platform',
     'appShell.nav.users',
   ]),
   ...passthroughBundle('import_export', ['nav.importExport.label']),

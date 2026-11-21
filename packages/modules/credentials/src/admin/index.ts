@@ -97,16 +97,12 @@ export const contributions: AdminContributions = {
       // `KnownIconNameSchema` — this module's `open-credentials` action names
       // it too.
       icon: 'KeyRound',
-      section: 'system',
-      // The hand-written position in *System* times a hundred, which is batch
-      // four's convention: `/credentials` was the ninth row of that section,
-      // directly above the three `/settings*` rows this batch converts at 1000,
-      // 1100 and 1200 and below `/webhooks` at 800. *System* still holds
-      // host-declared entries (`/platform/modules`, `/catalog/bulk-operations`),
-      // so `composeNav` appends every registry row after both whatever the
-      // weight says; what the weight can still do is keep the converted rows in
-      // the order the operator already had.
-      weight: 900,
+      section: 'access',
+      // Issue #1519 (UX audit SHELL-11, DEC-02) split *System*: *Access* is who
+      // may sign in and what they may do, in the order users, roles, API keys,
+      // credentials, audit log (100 to 500). The secrets integrations sign in
+      // with, beside API keys.
+      weight: 400,
       requiredPermission: READ_PERMISSION,
     },
   ],
