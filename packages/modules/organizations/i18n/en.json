@@ -214,7 +214,7 @@
   "list.menu.taxIdScope": "Tax-ID scope",
   "taxIdScope.title": "Tax-ID scope",
   "taxIdScope.description": "Whether one tax ID may be held by more than one organization.",
-  "taxIdScope.back": "Back to organizations",
+  "taxIdScope.back": "Organizations",
   "taxIdScope.loading": "Loading the tax-ID scope…",
   "taxIdScope.loadError": "The tax-ID scope could not be loaded.",
   "taxIdScope.forbidden": "You do not have permission to see the tax-ID scope. A platform administrator with the Manage the tax-ID scope permission can.",

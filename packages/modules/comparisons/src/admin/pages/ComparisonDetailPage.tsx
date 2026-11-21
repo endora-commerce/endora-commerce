@@ -38,7 +38,7 @@ import { getComparisonDetail } from '../api/comparisons-client.js';
 export default function ComparisonDetailPage(): ReactNode {
   const t = useTranslation('comparisons');
   const { id } = useParams<{ id: string }>();
-  const back = { label: t('detail.backToList'), to: '/comparisons' };
+  const back = { label: t('list.page.title'), to: '/comparisons' };
   const [detail, setDetail] = useState<ComparisonAdminDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 

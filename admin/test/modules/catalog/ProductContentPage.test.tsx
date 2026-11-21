@@ -178,7 +178,7 @@ describe('ProductContentPage (feature 172)', () => {
     await waitFor(() => expect(screen.getByTestId('editor-language').textContent).toBe('en-US'));
     expect(screen.getByTestId('editor-data').textContent).toContain('stored-en');
     expect(screen.getByText('Buying guide — Cordless drill')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'productContent.action.back' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Cordless drill' }).getAttribute('href')).toBe(
       `/catalog/products/${PRODUCT_ID}?tab=attributes`,
     );
   });
@@ -218,7 +218,7 @@ describe('ProductContentPage (feature 172)', () => {
     renderPage({});
     await waitFor(() => expect(screen.getByText('stub-edit')).toBeTruthy());
     fireEvent.click(screen.getByText('stub-edit'));
-    fireEvent.click(screen.getByRole('link', { name: 'productContent.action.back' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Cordless drill' }));
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('product editor')).toBeNull();
   });
@@ -241,6 +241,7 @@ describe('ProductContentPage (feature 172)', () => {
     renderPage({});
     await waitFor(() => expect(screen.getByText('productContent.error.notAvailable')).toBeTruthy());
     expect(screen.queryByTestId('editor-stub')).toBeNull();
+    // The product's name is not known here, so the way back says "Product".
     expect(screen.getByRole('link', { name: 'productContent.action.back' })).toBeTruthy();
   });
 

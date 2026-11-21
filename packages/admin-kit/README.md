@@ -261,7 +261,7 @@ Issue #1436 (UX audit 2026-11-17, DS-02). Every admin page draws its one `h1` th
 
 ```tsx
 <PageHeader
-  back={{ label: t('list.back'), to: '/warehouses' }}
+  back={{ label: t('warehouses.page.title'), to: '/warehouses' }}
   title={warehouse.name}
   titleActions={<Badge variant="secondary">{t('status.archived')}</Badge>}
   description={warehouse.code}
@@ -284,6 +284,13 @@ Issue #1436 (UX audit 2026-11-17, DS-02). Every admin page draws its one `h1` th
   button among the `actions`, no `ArrowLeft` link above the header —
   `admin/test/unit/no-hand-rolled-back-links.test.ts` refuses both. Give the page its `back` in
   its loading and error states too, so the way out stays in one place.
+- **The `back` label names the destination**, as that screen names itself: *Organizations* /
+  *Organizacje*, *Price books* / *Cenniki* — reuse the destination's own title key where the screen
+  reads that bundle. Never *Back to …*, *All …*, *Wróć do …* or a bare *Back* to a screen the
+  page knows (Law of Similarity: one function, one wording). A destination that is one record
+  takes the record's name (`feed.name`), with a singular noun until it has loaded. The generic
+  `common.action.back` (*Back* / *Wstecz*) is for `?returnTo=` only — the screen cannot name a
+  destination its caller chose — and is required there. The same test refuses each departure.
 
 The behaviour is pinned in `admin/test/kit/kit-page-header.test.tsx`, including an axe pass.
 

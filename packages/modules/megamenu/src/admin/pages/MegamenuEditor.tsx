@@ -230,7 +230,7 @@ export function MegamenuEditor(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        back={{ label: t('common.back'), to: '/megamenu' }}
+        back={{ label: t('list.title'), to: '/megamenu' }}
         title={menu.name || t('editor.fallbackTitle')}
         actions={
           <div data-save-actions className="flex flex-wrap items-center justify-end gap-2">

@@ -238,7 +238,7 @@ export function BlockEditor(): ReactNode {
       header={
         <>
           <PageHeader
-            back={{ label: t('common.back'), to: '/cms/blocks' }}
+            back={{ label: t('blocksList.title'), to: '/cms/blocks' }}
             title={isNew ? t('blockEditor.title.new') : form.name || t('blockEditor.title.edit')}
             actions={
               <div className="flex items-center gap-2">

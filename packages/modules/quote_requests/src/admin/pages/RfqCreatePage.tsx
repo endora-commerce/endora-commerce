@@ -648,7 +648,7 @@ export function RfqCreatePage(): ReactNode {
           // Opened from elsewhere: the way back leads there, and says only "Back".
           openedWith.returnTo
             ? { label: t('common.action.back'), to: openedWith.returnTo }
-            : { label: t('rfqCreate.back'), to: '/quote-requests' }
+            : { label: t('rfq.list.title'), to: '/quote-requests' }
         }
       />
 

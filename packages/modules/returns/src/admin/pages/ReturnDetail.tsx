@@ -241,7 +241,7 @@ export function ReturnDetail(): ReactNode {
   if (!rc) {
     return (
       <div className="space-y-4">
-        <PageHeader title={t('returns.detail.title')} back={{ label: tr('detail.back'), to: '/returns' }} />
+        <PageHeader title={t('returns.detail.title')} back={{ label: t('returns.title'), to: '/returns' }} />
         {(error || loadFailed) && (
           <Alert variant="destructive">
             <AlertDescription>{error ?? tr('detail.loadFailed')}</AlertDescription>
@@ -289,7 +289,7 @@ export function ReturnDetail(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        back={{ label: tr('detail.back'), to: '/returns' }}
+        back={{ label: t('returns.title'), to: '/returns' }}
         title={
           <span className="flex items-center gap-2">
             {/* 180 FR-A44 — the RMA number, else the derived reference. */}

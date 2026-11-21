@@ -131,7 +131,6 @@
   "statusConfig.recipientsMissing.channels": "Wiadomości o nowych zgłoszeniach nie trafiają do nikogo: brak odbiorcy dla {channels}.",
   "statusConfig.recipientsMissing.any": "Wiadomości o nowych zgłoszeniach nie trafiają do nikogo: brak odbiorcy dla żadnego kanału.",
   "statusConfig.recipientsMissing.link": "Skonfiguruj odbiorców",
-  "detail.back": "Wróć do zwrotów",
   "detail.actions": "Akcje",
   "detail.caseCard": "Zgłoszenie",
   "detail.submitted": "Złożono",

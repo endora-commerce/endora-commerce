@@ -518,7 +518,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   return (
     <>
       <PageHeader
-        back={{ label: t('organizations.detail.back'), to: '/organizations' }}
+        back={{ label: t('organizations.page.title'), to: '/organizations' }}
         title={org.name}
         description={
           <span>

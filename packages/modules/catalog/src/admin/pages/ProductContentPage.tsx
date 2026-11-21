@@ -166,7 +166,7 @@ export function ProductContentPage(): ReactNode {
 
   const attribute = pickText(attributeLabel, locale, attributeKey);
   const product = pickText(productName, locale, '');
-  const back = { label: t('productContent.action.back'), to: `/catalog/products/${productId}?tab=attributes` };
+  const back = { label: product || t('productContent.action.back'), to: `/catalog/products/${productId}?tab=attributes` };
 
   return (
     <div className="space-y-4">

@@ -213,7 +213,7 @@ export function TemplateEditor(): ReactNode {
       header={
         <>
           <PageHeader
-            back={{ label: t('common.back'), to: '/cms/templates' }}
+            back={{ label: t('templatesList.title'), to: '/cms/templates' }}
             title={isNew ? t('templateEditor.title.new') : form.name || t('templateEditor.title.edit')}
             actions={
               <div className="flex items-center gap-2">

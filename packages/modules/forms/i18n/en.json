@@ -157,7 +157,6 @@
   "entries.empty.body": "They appear here when visitors send your forms.",
   "entries.emptyFiltered": "No entry matches these filters.",
   "entries.actionError": "The change could not be made.",
-  "entry.back": "All entries",
   "entry.title": "Entry from {form}",
   "entry.titleUnknown": "Form entry",
   "entry.sentAt": "Sent {date}",
