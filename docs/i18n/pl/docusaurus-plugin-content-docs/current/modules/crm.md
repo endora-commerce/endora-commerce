@@ -51,8 +51,8 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 | Tablica | **Tablica** w przełączniku *Lista / Tablica* ekranu **CRM → Szanse sprzedażowe** (`/crm/opportunities?view=board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. Dawny adres `/crm/board` nadal ją otwiera. |
 | Kalendarz | **CRM → Kalendarz** (`/crm/calendar`) | `crm:read` | Wydarzenia zaplanowane w otwartych szansach, które możesz zobaczyć — w miesiącu, tygodniu, dniu albo jako lista. Każde wydarzenie otwiera swoją szansę. Zobacz *Kalendarz*. |
 | Analityka | **CRM → Analityka** (`/crm/analytics`) | `crm:analytics` | Pięć wskaźników dla wybranego zakresu dni: czas obsługi, czas w każdym statusie, najskuteczniejsi handlowcy, najcenniejsze szanse i średnia wartość. |
-| Etykiety | **CRM → Etykiety** (`/crm/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. |
-| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy, status szansy, do którego prowadzi każdy status zamówienia, statusy liczone do wartości wyliczanej oraz pola widoczne na karcie na tablicy. |
+| Etykiety | karta **Etykiety** w **CRM → Konfiguracja** (`/crm/workflow/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. Dawny adres `/crm/tags` nadal ją otwiera. |
+| Statusy i przepływ | **CRM → Konfiguracja** (`/crm/workflow`), jej pierwsza karta, **Statusy i przepływ** | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy, status szansy, do którego prowadzi każdy status zamówienia, statusy liczone do wartości wyliczanej oraz pola widoczne na karcie na tablicy. |
 
 Codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
 **Szanse sprzedażowe**, **Nowa szansa sprzedażowa**, **Tablica szans
@@ -101,7 +101,7 @@ linią, więc pasek jej nie rysuje: statusu, na który Twój przepływ nie pozwa
 z obecnego miejsca, nie ma na ekranie.
 
 - **Wstecz** to zmiany na status wcześniejszy w kolejności ustawionej na
-  ekranie **CRM → Statusy i przepływ** oraz zmiany, które ponownie otwierają
+  ekranie **CRM → Konfiguracja → Statusy i przepływ** oraz zmiany, które ponownie otwierają
   zamkniętą szansę.
 - **Dalej** to zmiany na status późniejszy oraz każda zmiana zamykająca szansę,
   oznaczona jako *wygrana* albo *przegrana* — niezależnie od tego, które
@@ -352,7 +352,7 @@ menu.
 ### Co pokazuje karta
 
 Karta zawsze pokazuje tytuł szansy. To, co widać pod tytułem, wybierasz
-samodzielnie: na ekranie **CRM → Statusy i przepływ** sekcja **Karta na
+samodzielnie: na ekranie **CRM → Konfiguracja → Statusy i przepływ** sekcja **Karta na
 tablicy** zawiera listę pól widocznych na karcie, w kolejności, oraz pola,
 które można dodać. Osoba, która może konfigurować CRM, trafia tam również z
 tablicy, przyciskiem **Pola na karcie**.
@@ -705,7 +705,7 @@ Nadawanie etykiet szansie to codzienna praca i wymaga `crm:write`.
 
 W Admin UI:
 
-- **CRM → Etykiety** to lista etykiet z informacją, ile widocznych dla Ciebie
+- **CRM → Konfiguracja → Etykiety** to lista etykiet z informacją, ile widocznych dla Ciebie
   szans ma każdą z nich. Przycisk **Dodaj etykietę** otwiera krótki formularz
   z nazwą i kolorem; ołówek zmienia nazwę lub kolor; kosz usuwa etykietę — po
   potwierdzeniu, które podaje, ile szans ją straci.
@@ -1513,7 +1513,7 @@ Na ekranie szansy sprzedażowej:
   wyliczanej widać każdy dokument **pominięty** w sumie, wraz z powodem, oraz
   przypomnienie, że Twój własny szacunek jest zachowany.
 
-Na ekranie **CRM → Statusy i przepływ** sekcja *Statusy liczone do wartości
+Na ekranie **CRM → Konfiguracja → Statusy i przepływ** sekcja *Statusy liczone do wartości
 wyliczanej* to dwie listy pól wyboru — statusy zamówień i statusy zapytań
 ofertowych — zapisywane razem. Przycisk *Ten i wszystkie kolejne* zaznacza
 status zamówienia i wszystkie następne. Po zapisaniu ekran informuje, że
@@ -2477,7 +2477,7 @@ wyłącznie po angielsku.
 | `crm.enabled` | włączone | Przełącznik opisany powyżej. |
 | `crm.auto_create_from_orders` | wyłączone | Każde zamówienie złożone od tej chwili dostaje własną szansę. Ustawienie może być różne dla kanałów sprzedaży; decyduje kanał zamówienia. |
 | `crm.auto_create_from_quote_requests` | wyłączone | Każde zapytanie ofertowe utworzone od tej chwili — przesłane przez klienta albo przygotowane przez administratora — dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
-| `crm.board_card_fields` | numer, organizacja, wartość, handlowiec, etykiety | Pola widoczne na karcie na tablicy, w kolejności, jako lista odwołań do pól. Zmieniaj je w sekcji **Karta na tablicy** na ekranie **CRM → Statusy i przepływ**, która proponuje istniejące pola, a nie tutaj. |
+| `crm.board_card_fields` | numer, organizacja, wartość, handlowiec, etykiety | Pola widoczne na karcie na tablicy, w kolejności, jako lista odwołań do pól. Zmieniaj je w sekcji **Karta na tablicy** na ekranie **CRM → Konfiguracja → Statusy i przepływ**, która proponuje istniejące pola, a nie tutaj. |
 
 Wydarzenia, przypomnienia i kalendarz nie dodają żadnego ustawienia. E-mail z
 przypomnieniem zmienia się i wyłącza na ekranie **Maile transakcyjne**, pod

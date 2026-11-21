@@ -52,8 +52,8 @@ when at least one of them is visible.
 | Board | **Board** in the *List / Board* switch of **CRM → Opportunities** (`/crm/opportunities?view=board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. The former address `/crm/board` still opens it. |
 | Calendar | **CRM → Calendar** (`/crm/calendar`) | `crm:read` | The events planned on the open opportunities you may see, by month, week or day, or as a list. Every event opens its opportunity. See *The calendar*. |
 | Analytics | **CRM → Analytics** (`/crm/analytics`) | `crm:analytics` | Five figures over a range of days: handling time, time in each status, the most effective sales reps, the most valuable opportunities and the average value. |
-| Tags | **CRM → Tags** (`/crm/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. |
-| Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, the order status each opportunity status sets, the opportunity status each order status leads to, the statuses that count towards a computed value, and the fields a board card shows. |
+| Tags | the **Tags** tab of **CRM → Configuration** (`/crm/workflow/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. The former address `/crm/tags` still opens it. |
+| Workflow | **CRM → Configuration** (`/crm/workflow`), its first tab, **Workflow** | `crm:configure` | The statuses, the transitions between them, the order status each opportunity status sets, the opportunity status each order status leads to, the statuses that count towards a computed value, and the fields a board card shows. |
 
 The everyday screens are also in the command palette (`⌘K` / `Ctrl+K`):
 **Sales opportunities**, **New sales opportunity**, **Opportunity board**,
@@ -101,7 +101,7 @@ is not a straight line, so the bar does not draw one: a status your workflow
 does not allow from here is not on the screen.
 
 - **Back** lists the moves to a status that comes earlier in the order you gave
-  the statuses on **CRM → Workflow**, and the moves that reopen a closed
+  the statuses on **CRM → Configuration → Workflow**, and the moves that reopen a closed
   opportunity.
 - **Forward** lists the moves to a later status, and every move that closes the
   opportunity, each marked as *won* or *lost* — whatever position a closing
@@ -342,7 +342,7 @@ and the menus.
 ### What a card shows
 
 A card always shows the opportunity's title. What it shows under the title is
-yours to choose: on **CRM → Workflow**, the **Board card** section lists the
+yours to choose: on **CRM → Configuration → Workflow**, the **Board card** section lists the
 fields on the card, in order, and the fields that can be added. Somebody who
 may configure CRM reaches it from the board too, with **Card fields**.
 
@@ -681,7 +681,7 @@ on an opportunity is everyday work and needs `crm:write`.
 
 In the Admin UI:
 
-- **CRM → Tags** is the tag list, with how many of the opportunities you can
+- **CRM → Configuration → Tags** is the tag list, with how many of the opportunities you can
   see carry each tag. **Add tag** opens a small form with a name and a colour;
   the pencil renames or recolours; the bin deletes, after a confirmation that
   says how many opportunities will lose the tag.
@@ -1448,7 +1448,7 @@ On an opportunity's screen:
   lists every document that was **left out**, with the reason, and reminds you
   that your own estimate is kept.
 
-On **CRM → Workflow**, *Statuses that count towards a computed value* is two
+On **CRM → Configuration → Workflow**, *Statuses that count towards a computed value* is two
 lists of checkboxes — order statuses and quote request statuses — saved
 together. *This and every later status* ticks an order status and all that
 follow it. After saving, the screen says that the values are being recalculated
@@ -2382,7 +2382,7 @@ there are in English only.
 | `crm.enabled` | on | The switch described above. |
 | `crm.auto_create_from_orders` | off | Every order placed from then on gets an opportunity of its own. The setting can differ per sales channel; the order's channel decides. |
 | `crm.auto_create_from_quote_requests` | off | Every quote request created from then on — submitted by a customer or prepared by an administrator — gets an opportunity of its own. Needs the Quote Requests module to be on. |
-| `crm.board_card_fields` | number, organization, value, sales rep, tags | The fields a board card shows, in order, as a list of field references. Change it in the **Board card** section of **CRM → Workflow**, which offers the fields that exist, rather than here. |
+| `crm.board_card_fields` | number, organization, value, sales rep, tags | The fields a board card shows, in order, as a list of field references. Change it in the **Board card** section of **CRM → Configuration → Workflow**, which offers the fields that exist, rather than here. |
 
 Events, reminders and the calendar add no setting. The reminder e-mail is
 edited and switched off on the **Transactional emails** screen, as *Event

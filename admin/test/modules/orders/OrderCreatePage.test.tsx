@@ -580,6 +580,25 @@ describe.each(['en', 'pl'] as const)('OrderCreatePage — fields named by their 
     expect(fresh).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('names the address-source toggle pair as a group (issue #1600)', async () => {
+    renderTranslated();
+    const delivery = await screen.findByRole('group', { name: copy('orderCreate.address.deliveryHeading') });
+    const source = within(delivery).getByRole('group', { name: copy('orderCreate.address.mode.label') });
+    expect(within(source).getByRole('button', { name: copy('orderCreate.address.mode.existing') })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(source).getByRole('button', { name: copy('orderCreate.address.mode.new') })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('pressing the source already chosen keeps what was typed (issue #1600)', async () => {
+    renderTranslated();
+    const delivery = await screen.findByRole('group', { name: copy('orderCreate.address.deliveryHeading') });
+    const fresh = within(delivery).getByRole('button', { name: copy('orderCreate.address.mode.new') });
+    await userEvent.click(fresh);
+    const street = within(delivery).getByRole('textbox', { name: copy('orderCreate.address.field.street') });
+    await userEvent.type(street, 'Prosta 1');
+    await userEvent.click(fresh);
+    expect(within(delivery).getByRole('textbox', { name: copy('orderCreate.address.field.street') })).toHaveValue('Prosta 1');
+  });
+
   it('lays a new address\'s fields out in the parties card, not in a frame of their own (#1498, SALES-13)', async () => {
     renderTranslated();
     const delivery = await screen.findByRole('group', { name: copy('orderCreate.address.deliveryHeading') });

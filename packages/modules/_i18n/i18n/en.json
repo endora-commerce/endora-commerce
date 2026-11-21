@@ -1222,6 +1222,7 @@
   "orderCreate.address.field.street": "Street",
   "orderCreate.address.group.organization": "Organization",
   "orderCreate.address.group.personal": "Personal",
+  "orderCreate.address.mode.label": "Address source",
   "orderCreate.address.mode.existing": "Pick existing",
   "orderCreate.address.mode.new": "Enter new",
   "orderCreate.address.none": "This customer has no saved addresses",

@@ -57,6 +57,8 @@ describe('crm admin contributions', () => {
       ['/crm/workflow', 'crm:configure'],
       // The board's former address, redirecting to `?view=board` (issue #1558).
       ['/crm/board', 'crm:read'],
+      // The configuration's Tags tab (issue #1557), and its old address, a redirect.
+      ['/crm/workflow/tags', 'crm:configure'],
       ['/crm/tags', 'crm:configure'],
       ['/crm/analytics', 'crm:analytics'],
       // User Story 22: the read behind it is `crm:read`, and the screen holds no write.
@@ -75,16 +77,16 @@ describe('crm admin contributions', () => {
     expect(entry).not.toMatch(/^import .* from '\.\/(pages|components)\//m);
   });
 
-  it('puts every sidebar row in the CRM section — opportunities (list and board, one row), the calendar, analytics, tags, workflow last', () => {
+  it('puts every sidebar row in the CRM section — opportunities (list and board, one row), the calendar, analytics, the configuration last', () => {
     expect(
       (contributions.nav ?? []).map((row) => [row.to, row.section, row.requiredPermission]),
     ).toEqual([
       // One row for the list and the board since issue #1558 (DEC-13).
       ['/crm/opportunities', 'crm', 'crm:read'],
-      // The three screens of every day first, then the manager's, then the two that configure.
+      // The screens of every day first, then the manager's, then the one
+      // configuration row (Workflow | Tags since issue #1557).
       ['/crm/calendar', 'crm', 'crm:read'],
       ['/crm/analytics', 'crm', 'crm:analytics'],
-      ['/crm/tags', 'crm', 'crm:configure'],
       ['/crm/workflow', 'crm', 'crm:configure'],
     ]);
     const weights = (contributions.nav ?? []).map((row) => row.weight ?? 0);

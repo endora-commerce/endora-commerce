@@ -8,7 +8,7 @@ import {
   type EditorSectionHeading,
 } from '../../ui/editor-section.js';
 import { Checkbox } from '../../ui/checkbox.js';
-import { Label } from '../../ui/label.js';
+import { FormField } from '../../ui/form-field.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { fetchScopeSalesChannel, listScopeSalesChannels } from './sales-channels-api.js';
 
@@ -238,8 +238,10 @@ export function ScopePicker({ value, onChange, chrome, titleAs }: ScopePickerPro
         ))}
       </div>
 
-      <div className="space-y-2">
-        <Label>{t('scopePicker.languages')}</Label>
+      {/* Issue #1599 — the checkboxes have no single control to label, so the
+          heading names their group (`FormField` `group`) instead of being a
+          `<label>` that labels nothing. */}
+      <FormField label={t('scopePicker.languages')} group>
         <div className="flex flex-wrap gap-2">
           {!hasSelectedChannels ? (
             <p className="text-sm text-muted-foreground">{t('scopePicker.selectChannel')}</p>
@@ -264,7 +266,7 @@ export function ScopePicker({ value, onChange, chrome, titleAs }: ScopePickerPro
             ))
           )}
         </div>
-      </div>
+      </FormField>
     </EditorSection>
   );
 }

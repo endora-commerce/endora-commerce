@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import type { AdminProductContent, AdminProductContentList, AdminZoneProps } from '@endora-commerce/contracts';
 import { ApiError, apiClient, useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, PageHeader, useInlineStatus } from '@endora-commerce/admin-kit/ui';
@@ -166,18 +166,14 @@ export function ProductContentPage(): ReactNode {
 
   const attribute = pickText(attributeLabel, locale, attributeKey);
   const product = pickText(productName, locale, '');
-  const backLink = (
-    <Button asChild variant="outline">
-      <Link to={`/catalog/products/${productId}?tab=attributes`}>{t('productContent.action.back')}</Link>
-    </Button>
-  );
+  const back = { label: t('productContent.action.back'), to: `/catalog/products/${productId}?tab=attributes` };
 
   return (
     <div className="space-y-4">
       <PageHeader
         title={t('productContent.page.title', { attribute, product })}
         description={t('productContent.page.description')}
-        actions={backLink}
+        back={back}
       />
 
       {error ? (

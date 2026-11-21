@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Briefcase, Building2, Receipt, ShoppingCart, Users } from 'lucide-react';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { Briefcase, Building2, Receipt, ShoppingCart, Users } from 'lucide-react';
 import type {
   AdminOrganization,
   AdminOrganizationDetail,
@@ -518,6 +518,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   return (
     <>
       <PageHeader
+        back={{ label: t('organizations.detail.back'), to: '/organizations' }}
         title={org.name}
         description={
           <span>
@@ -550,14 +551,6 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
           // reading order; the tax corrections moved to the Tax tab, beside what they change.
           <DetailHeaderActions
             status={actionStatus.props}
-            secondary={
-              <Button asChild variant="outline">
-                <Link to="/organizations">
-                  <ArrowLeft aria-hidden="true" />
-                  {t('organizations.detail.back')}
-                </Link>
-              </Button>
-            }
             primary={
               <SaveSessionActions hostCount={hostCount} canSave={canManage} saving={busy} onSave={(): void => void savePage()} />
             }
@@ -715,7 +708,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
               organization says it. **One mount, and that is a rule rather than a layout
               choice**: this member carries no prop that could tell two mounts apart, so a
               second one would render every contribution twice. Contributions arrive ordered by
-              their declared weight (`price_lists` 200, `quick_order` 300, `related_payers` and
+              their declared weight (`price_lists` 200, `quick_order` 300, `credit_limits` 450, `related_payers` and
               `quote_requests` 500, `crm` 600, `projects` 650).
 
               Issue #1515 — inside the Commerce tab's card, so its sections are sections, not

@@ -278,6 +278,17 @@ describe('organization detail — one card of tabs (#1515)', () => {
     expect(within(group).getByRole('button', { name: /^Save/ })).toBeInTheDocument();
   });
 
+  // #1549 (SALES-27): the way back is the header's back link, not an outline button beside Save.
+  it('goes back through the header back link, not a button among the actions', async () => {
+    renderDetail();
+    await tabs();
+    const heading = screen.getByRole('heading', { level: 1 });
+    const back = within(heading.closest('header')!).getByRole('link', { name: C('organizations.detail.back') });
+    expect(back).toHaveAttribute('href', '/organizations');
+    const group = document.querySelector<HTMLElement>('[data-slot="detail-header-actions"]')!;
+    expect(within(group).queryByRole('link', { name: C('organizations.detail.back') })).toBeNull();
+  });
+
   it('marks the tab that holds unsaved work, and keeps the draft across tabs', async () => {
     const user = userEvent.setup();
     renderDetail();

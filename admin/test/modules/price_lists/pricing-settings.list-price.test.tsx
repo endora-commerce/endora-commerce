@@ -73,8 +73,12 @@ describe('Pricing settings — show the list price (FR-026)', () => {
     mountScreen({ path: '/price-lists/display-modes', session: PLATFORM_ADMIN });
     const region = await section();
     const control = await within(region).findByRole('switch', { name: LABEL });
-    expect(control.getAttribute('aria-checked') ?? String((control as HTMLInputElement).checked)).toBe('false');
-    expect((control as HTMLInputElement).checked).toBe(false);
+    // The kit Switch (issue #1607): a button whose state is `aria-checked`, not a ticked box.
+    expect(control.tagName).toBe('BUTTON');
+    expect(control).toHaveAttribute('aria-checked', 'false');
+    expect(control).toHaveAccessibleDescription(
+      'Buyers paying less than the catalogue price see both; the basket shows only the price charged.',
+    );
     expect(api.get).toHaveBeenCalledWith(SETTING);
     expect(
       within(region).getByText(
@@ -87,7 +91,7 @@ describe('Pricing settings — show the list price (FR-026)', () => {
     stored = true;
     mountScreen({ path: '/price-lists/display-modes', session: PLATFORM_ADMIN });
     const control = await within(await section()).findByRole('switch', { name: LABEL });
-    await waitFor(() => expect((control as HTMLInputElement).checked).toBe(true));
+    await waitFor(() => expect(control).toHaveAttribute('aria-checked', 'true'));
   });
 
   it('writes { value } through the settings endpoint and announces the save', async () => {
@@ -114,17 +118,18 @@ describe('Pricing settings — show the list price (FR-026)', () => {
     expect(api.put).toHaveBeenCalledTimes(1);
     // In flight: busy, not clickable twice, and said so.
     expect(control.getAttribute('aria-busy')).toBe('true');
-    expect((control as HTMLInputElement).disabled).toBe(true);
+    await user.click(control);
+    expect(api.put).toHaveBeenCalledTimes(1);
     expect(status.textContent).toBe('Saving…');
     release();
     await waitFor(() => expect(status.textContent).toBe('Saved. Buyers see the list price from their next page.'));
-    expect((control as HTMLInputElement).checked).toBe(true);
-    expect((control as HTMLInputElement).disabled).toBe(false);
+    expect(control).toHaveAttribute('aria-checked', 'true');
+    expect(control).not.toHaveAttribute('aria-busy');
 
     await user.click(control);
     expect(api.put).toHaveBeenLastCalledWith(SETTING, { value: false });
     await waitFor(() => expect(status.textContent).toBe('Saved. Buyers see one price.'));
-    expect((control as HTMLInputElement).checked).toBe(false);
+    expect(control).toHaveAttribute('aria-checked', 'false');
   });
 
   it('keeps the stored value and says why when the save is refused', async () => {
@@ -139,7 +144,7 @@ describe('Pricing settings — show the list price (FR-026)', () => {
     await waitFor(() =>
       expect(within(region).getByRole('status').textContent).toBe('The setting could not be saved. Try again.'),
     );
-    expect((control as HTMLInputElement).checked).toBe(false);
+    expect(control).toHaveAttribute('aria-checked', 'false');
   });
 
   it('offers no control without price_lists:write, and shows the state', async () => {

@@ -6,10 +6,7 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
+  EditorSection,
   InlineStatus,
   Input,
   Label,
@@ -468,57 +465,52 @@ export function BlogCategoryEditor(): ReactNode {
       }
       settings={
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('sections.metadata')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="cat-name">{t('fields.namePerLanguage')}</Label>
-                <Input
-                  id="cat-name"
-                  aria-invalid={problem === 'validation.nameRequired' ? true : undefined}
-                  aria-describedby={problem === 'validation.nameRequired' ? 'cat-error' : undefined}
-                  value={form.name}
-                  onChange={(event) => setForm((f) => ({ ...f, name: event.target.value }))}
-                  placeholder={t('categoryEditor.namePlaceholder')}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="cat-slug">{t('fields.slug')}</Label>
-                <Input
-                  id="cat-slug"
-                  aria-invalid={problem === 'validation.slugInvalid' ? true : undefined}
-                  aria-describedby={problem === 'validation.slugInvalid' ? 'cat-error' : undefined}
-                  value={form.slug}
-                  onChange={(event) =>
-                    setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }))
-                  }
-                  className="font-mono"
-                  placeholder={t('categoryEditor.slugPlaceholder')}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="cat-image">{t('fields.mainImageAssetId')}</Label>
-                <AssetFieldPicker
-                  id="cat-image"
-                  value={form.mainImageAssetId}
-                  onChange={(assetId) => setForm((f) => ({ ...f, mainImageAssetId: assetId }))}
-                  acceptMimePrefix="image/"
-                  allowUpload
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  id="cat-enabled"
-                  type="checkbox"
-                  checked={form.enabled}
-                  onChange={(event) => setForm((f) => ({ ...f, enabled: event.target.checked }))}
-                />
-                {t('fields.enabledStorefrontVisible')}
-              </label>
-            </CardContent>
-          </Card>
+          <EditorSection as="h3" title={t('sections.metadata')}>
+            <div className="space-y-1">
+              <Label htmlFor="cat-name">{t('fields.namePerLanguage')}</Label>
+              <Input
+                id="cat-name"
+                aria-invalid={problem === 'validation.nameRequired' ? true : undefined}
+                aria-describedby={problem === 'validation.nameRequired' ? 'cat-error' : undefined}
+                value={form.name}
+                onChange={(event) => setForm((f) => ({ ...f, name: event.target.value }))}
+                placeholder={t('categoryEditor.namePlaceholder')}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="cat-slug">{t('fields.slug')}</Label>
+              <Input
+                id="cat-slug"
+                aria-invalid={problem === 'validation.slugInvalid' ? true : undefined}
+                aria-describedby={problem === 'validation.slugInvalid' ? 'cat-error' : undefined}
+                value={form.slug}
+                onChange={(event) =>
+                  setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }))
+                }
+                className="font-mono"
+                placeholder={t('categoryEditor.slugPlaceholder')}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="cat-image">{t('fields.mainImageAssetId')}</Label>
+              <AssetFieldPicker
+                id="cat-image"
+                value={form.mainImageAssetId}
+                onChange={(assetId) => setForm((f) => ({ ...f, mainImageAssetId: assetId }))}
+                acceptMimePrefix="image/"
+                allowUpload
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                id="cat-enabled"
+                type="checkbox"
+                checked={form.enabled}
+                onChange={(event) => setForm((f) => ({ ...f, enabled: event.target.checked }))}
+              />
+              {t('fields.enabledStorefrontVisible')}
+            </label>
+          </EditorSection>
 
           {category && activeLanguage ? (
             <UrlKeysPanel
@@ -534,45 +526,40 @@ export function BlogCategoryEditor(): ReactNode {
             />
           ) : null}
 
-          <ScopePicker value={scope} onChange={setScope} chrome="card" />
+          <ScopePicker value={scope} onChange={setScope} titleAs="h3" />
 
-          <Card data-settings-group="seo">
-            <CardHeader>
-              <CardTitle>{t('sections.seo')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="cat-meta-title">{t('fields.metaTitlePerLanguage')}</Label>
-                <Input
-                  id="cat-meta-title"
-                  value={form.metaTitle}
-                  onChange={(event) =>
-                    setForm((f) => ({ ...f, metaTitle: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="cat-meta-description">{t('fields.metaDescriptionPerLanguage')}</Label>
-                <Input
-                  id="cat-meta-description"
-                  value={form.metaDescription}
-                  onChange={(event) =>
-                    setForm((f) => ({ ...f, metaDescription: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="cat-meta-keywords">{t('fields.metaKeywordsPerLanguage')}</Label>
-                <Input
-                  id="cat-meta-keywords"
-                  value={form.metaKeywords}
-                  onChange={(event) =>
-                    setForm((f) => ({ ...f, metaKeywords: event.target.value }))
-                  }
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <EditorSection as="h3" title={t('sections.seo')} data-settings-group="seo">
+            <div className="space-y-1">
+              <Label htmlFor="cat-meta-title">{t('fields.metaTitlePerLanguage')}</Label>
+              <Input
+                id="cat-meta-title"
+                value={form.metaTitle}
+                onChange={(event) =>
+                  setForm((f) => ({ ...f, metaTitle: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="cat-meta-description">{t('fields.metaDescriptionPerLanguage')}</Label>
+              <Input
+                id="cat-meta-description"
+                value={form.metaDescription}
+                onChange={(event) =>
+                  setForm((f) => ({ ...f, metaDescription: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="cat-meta-keywords">{t('fields.metaKeywordsPerLanguage')}</Label>
+              <Input
+                id="cat-meta-keywords"
+                value={form.metaKeywords}
+                onChange={(event) =>
+                  setForm((f) => ({ ...f, metaKeywords: event.target.value }))
+                }
+              />
+            </div>
+          </EditorSection>
         </>
       }
     />

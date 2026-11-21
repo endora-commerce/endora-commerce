@@ -9,11 +9,11 @@ import {
   Button,
   Card,
   CardContent,
-  Checkbox,
   FormField,
   Input,
   Label,
   PageHeader,
+  Switch,
 } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../api.js';
@@ -201,14 +201,13 @@ export function TaskCreate(): ReactNode {
                 before the assignees, because turning it on narrows who they can be (issue #512). */}
             {context ? null : (
               <div className="space-y-1">
-                <label htmlFor={ids.private} className="flex min-h-11 items-center gap-2 text-sm font-medium sm:min-h-9">
-                  <Checkbox
+                {/* Issue #1607 — the kit `Switch`, named by the label beside it. */}
+                <div className="flex min-h-11 items-center gap-2 sm:min-h-9">
+                  <Switch
                     id={ids.private}
-                    role="switch"
                     checked={isPrivate}
                     aria-describedby={`${ids.private}-hint ${ids.private}-removed`}
-                    onChange={(event): void => {
-                      const on = event.target.checked;
+                    onCheckedChange={(on): void => {
                       setPrivate(on);
                       if (!on) {
                         setRemovedByPrivate('');
@@ -224,8 +223,8 @@ export function TaskCreate(): ReactNode {
                       );
                     }}
                   />
-                  {t('create.private')}
-                </label>
+                  <Label htmlFor={ids.private}>{t('create.private')}</Label>
+                </div>
                 <p id={`${ids.private}-hint`} className="text-xs text-muted-foreground">
                   {t('create.privateHint')}
                 </p>

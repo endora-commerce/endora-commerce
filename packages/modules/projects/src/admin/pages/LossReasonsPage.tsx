@@ -3,7 +3,7 @@ import { DictionaryScreen } from '../components/DictionaryScreen.js';
 
 /**
  * The loss reasons (`specs/163-projects-and-tasks/`, User Story 4 and FR-005;
- * `contracts/admin-surfaces.md` §2, `/projects/loss-reasons`): the reasons a
+ * `contracts/admin-surfaces.md` §2, `/projects/settings/loss-reasons` since #1557): the reasons a
  * Project can be closed as lost for. The route is `projects:configure`.
  */
 export function LossReasonsPage(): ReactNode {

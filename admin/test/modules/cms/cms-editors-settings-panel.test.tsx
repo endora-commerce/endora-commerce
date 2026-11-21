@@ -181,8 +181,8 @@ describe.each(screens)('$name in the shared editor shell', (screenUnderTest) => 
     for (const label of screenUnderTest.labelledFields) {
       expect(within(settings).getByRole('textbox', { name: label })).toBeInTheDocument();
     }
-    // The metadata card: its title sits in the card's header (CardTitle → CardHeader → Card).
-    const metadataCard = within(settings).getByText(screenUnderTest.metadataTitle).parentElement!.parentElement!;
+    // The metadata group: its title heads an `EditorSection` (#1511 — one panel, sections in it).
+    const metadataCard = within(settings).getByText(screenUnderTest.metadataTitle).closest('section')!;
     expect(within(metadataCard).getByRole('textbox', { name: screenUnderTest.labelledFields[0]! })).toBeInTheDocument();
     expect(orphanLabels(metadataCard)).toEqual([]);
     if (screenUnderTest.name === 'PageEditor') {
@@ -206,6 +206,17 @@ describe.each(screens)('$name in the shared editor shell', (screenUnderTest) => 
     expect(
       Boolean(metadata.compareDocumentPosition(scope) & Node.DOCUMENT_POSITION_FOLLOWING),
     ).toBe(true);
+  });
+
+  it('sets the groups as sections of one panel, not a card each (#1511)', async () => {
+    renderEditor(screenUnderTest, 'new');
+    const settings = screen.getByRole('complementary', { name: shell('settings') });
+    await within(settings).findByText(/Web store/);
+
+    expect(settings.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
+    const metadata = within(settings).getByRole('heading', { name: screenUnderTest.metadataTitle });
+    expect(metadata.tagName).toBe('H3');
+    expect(within(settings).getByRole('heading', { name: coreEn['scopePicker.title']! }).tagName).toBe('H3');
   });
 
   it('hands the canvas to the builder region and nothing else to it', () => {

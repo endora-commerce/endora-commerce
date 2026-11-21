@@ -2,7 +2,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Store } from 'lucide-react';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { Button, Card, CardContent, Checkbox } from '@endora-commerce/admin-kit/ui';
+import { Button, Card, CardContent, SettingRow, Switch } from '@endora-commerce/admin-kit/ui';
 import { usePriceBooksApi } from '../lib/use-price-books-api.js';
 
 /**
@@ -61,7 +61,6 @@ export function ShowListPriceSwitch(): ReactNode {
   };
 
   const titleId = `${id}-title`;
-  const helpId = `${id}-help`;
   return (
     <section aria-labelledby={titleId} className="mt-4">
       <Card>
@@ -84,28 +83,21 @@ export function ShowListPriceSwitch(): ReactNode {
               {t('settings.precedence.loading')}
             </p>
           ) : mayWrite ? (
-            <label className="flex min-h-11 cursor-pointer items-start gap-3">
-              <Checkbox
-                role="switch"
-                className="mt-0.5"
-                checked={value}
-                aria-checked={value}
-                aria-busy={saving}
-                aria-describedby={helpId}
-                disabled={saving}
-                onChange={(e): void => void change(e.target.checked)}
-              />
-              <span className="text-sm font-medium">{t('settings.listPrice.label')}</span>
-            </label>
+            // Issue #1607 — the kit `Switch` in a `SettingRow`: a real switch,
+            // named by the label and described by the help beside it, busy
+            // (and deaf to a second press) while its save is in flight.
+            <SettingRow label={t('settings.listPrice.label')} description={t('settings.listPrice.help')}>
+              <Switch checked={value} busy={saving} onCheckedChange={(next): void => void change(next)} />
+            </SettingRow>
           ) : (
-            <p className="flex items-center gap-2 text-sm">
-              <span className="font-medium">{t('settings.listPrice.label')}</span>
-              <span>{value ? t('settings.listPrice.on') : t('settings.listPrice.off')}</span>
-            </p>
+            <>
+              <p className="flex items-center gap-2 text-sm">
+                <span className="font-medium">{t('settings.listPrice.label')}</span>
+                <span>{value ? t('settings.listPrice.on') : t('settings.listPrice.off')}</span>
+              </p>
+              <p className="text-sm text-muted-foreground">{t('settings.listPrice.help')}</p>
+            </>
           )}
-          <p id={helpId} className="text-sm text-muted-foreground">
-            {t('settings.listPrice.help')}
-          </p>
           <p role="status" className="text-sm">
             {status}
           </p>

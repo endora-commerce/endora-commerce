@@ -19,6 +19,7 @@ import {
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi, type ProjectDictionaryKind } from '../api.js';
 import { errorMessage } from '../lib/labels.js';
+import { ProjectConfigurationTabs } from './ProjectConfigurationTabs.js';
 
 /** A Project Role or a loss reason — one shape (`contracts/src/projects.ts`). */
 type Entry = ProjectRole;
@@ -160,6 +161,7 @@ export function DictionaryScreen({ kind }: DictionaryScreenProps): ReactNode {
         description={DESCRIPTION[kind] ? t(DESCRIPTION[kind]) : undefined}
         actions={empty ? undefined : add}
       />
+      <ProjectConfigurationTabs />
 
       <Card>
         <CardContent className="space-y-4" aria-busy={loading}>

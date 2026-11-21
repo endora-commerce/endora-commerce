@@ -479,7 +479,7 @@ export const manifest = defineModuleManifest({
       labelKey: 'actions.openCrmTags.label',
       descriptionKey: 'actions.openCrmTags.description',
       icon: 'Tag',
-      targetRoute: '/crm/tags',
+      targetRoute: '/crm/workflow/tags',
       requiredPermission: 'crm:configure',
       keywords: ['crm', 'tag', 'tags', 'label', 'labels'],
       keywordsKey: 'actions.openCrmTags.keywords',

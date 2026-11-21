@@ -1222,6 +1222,7 @@
   "orderCreate.address.field.street": "Ulica",
   "orderCreate.address.group.organization": "Organizacja",
   "orderCreate.address.group.personal": "Osobisty",
+  "orderCreate.address.mode.label": "Źródło adresu",
   "orderCreate.address.mode.existing": "Wybierz istniejący",
   "orderCreate.address.mode.new": "Wprowadź nowy",
   "orderCreate.address.none": "Ten klient nie ma zapisanych adresów",

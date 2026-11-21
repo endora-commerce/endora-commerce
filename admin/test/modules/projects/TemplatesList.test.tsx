@@ -7,7 +7,7 @@ import { en, renderProjects } from './projects-fixtures';
 
 /**
  * The Templates list (`specs/163-projects-and-tasks/`, User Story 3 — task
- * T078; `contracts/admin-surfaces.md` §2, `/projects/templates`): each
+ * T078; `contracts/admin-surfaces.md` §2, `/projects/settings/templates`): each
  * Template by name with its number of Stages, archived ones only on request
  * and marked as such, and the way to a new one.
  */
@@ -54,7 +54,7 @@ beforeEach(() => {
 function render(): void {
   renderProjects(<TemplatesList />, {
     permissions: ['projects:read', 'projects:configure'],
-    path: '/projects/templates',
+    path: '/projects/settings',
   });
 }
 
@@ -62,11 +62,11 @@ describe('TemplatesList', () => {
   it('lists the active Templates, each linked to its editor, with the way to a new one', async () => {
     render();
     const link = await screen.findByRole('link', { name: 'Showroom fit-out' });
-    expect(link.getAttribute('href')).toBe(`/projects/templates/${ACTIVE.id}`);
+    expect(link.getAttribute('href')).toBe(`/projects/settings/templates/${ACTIVE.id}`);
     expect(screen.getByText(en('templates.list.stageCount', { count: 3 }))).toBeTruthy();
     expect(screen.queryByText('Retired kiosk')).toBeNull();
     expect(screen.getByRole('link', { name: new RegExp(en('templates.list.new')) }).getAttribute('href')).toBe(
-      '/projects/templates/new',
+      '/projects/settings/templates/new',
     );
   });
 

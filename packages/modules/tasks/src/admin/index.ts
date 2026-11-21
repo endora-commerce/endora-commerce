@@ -2,9 +2,10 @@
  * `tasks`' admin surface (`specs/163-projects-and-tasks/contracts/admin-surfaces.md`
  * §1–§3): 163's four screens and two sidebar rows — the Tasks screen and *My
  * Tasks* now each a list or a board (`specs/165-task-management/` User Story 3)
- * — the workflow screen (User Story 2) with its *Task settings* row, and the
- * priorities and tags screens (User Story 9) and the general settings screen
- * (User Story 7), each linked from the workflow screen.
+ * — and the four configuration screens behind one *Task configuration* row:
+ * the workflow (User Story 2), the priorities and tags (User Story 9) and the
+ * general settings (User Story 7), one route-tab strip across them since issue
+ * #1557 (UX audit WORK-06).
  *
  * The palette actions are the manifest's (`src/manifest.ts`, §4). The zone
  * `task.detail.after` is mounted by `pages/TaskDetail.tsx`; this module
@@ -16,6 +17,13 @@
  * dynamic-import factory, so none of the screens is in the admin's entry chunk.
  */
 import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import {
+  LEGACY_TASK_WORKFLOW_PATH,
+  TASK_CONFIGURATION_PATH,
+  TASK_GENERAL_SETTINGS_PATH,
+  TASK_PRIORITIES_PATH,
+  TASK_TAGS_PATH,
+} from './lib/settings-paths.js';
 
 /** The code that opens the lists and one Task; `GET /tasks`, `/tasks/mine` and `/tasks/:id` enforce it. */
 const READ_PERMISSION = 'tasks:read';
@@ -31,14 +39,6 @@ const WRITE_PERMISSION = 'tasks:write';
 const CONFIGURE_PERMISSION = 'tasks:configure';
 
 const TASKS_PATH = '/tasks';
-
-const WORKFLOW_PATH = `${TASKS_PATH}/settings/workflow`;
-
-const PRIORITIES_PATH = `${TASKS_PATH}/settings/priorities`;
-
-const TAGS_PATH = `${TASKS_PATH}/settings/tags`;
-
-const GENERAL_SETTINGS_PATH = `${TASKS_PATH}/settings/general`;
 
 export const contributions: AdminContributions = {
   routes: [
@@ -60,25 +60,33 @@ export const contributions: AdminContributions = {
       requiredPermission: WRITE_PERMISSION,
     },
     {
-      path: WORKFLOW_PATH,
+      // The configuration's first tab, the workflow, at the sidebar row's own
+      // address (issue #1557) — the row is lit on every tab under it.
+      path: TASK_CONFIGURATION_PATH,
       component: () => import('./pages/settings/TaskWorkflowPage.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
     {
-      // The priority list (User Story 9, R-9), reached from the workflow screen and ⌘K.
-      path: PRIORITIES_PATH,
+      // The workflow's address before #1557, a redirect to the tab now.
+      path: LEGACY_TASK_WORKFLOW_PATH,
+      component: () => import('./pages/settings/TaskConfigurationRedirect.js'),
+      requiredPermission: CONFIGURE_PERMISSION,
+    },
+    {
+      // The priority list (User Story 9, R-9), a tab of the configuration and a ⌘K action.
+      path: TASK_PRIORITIES_PATH,
       component: () => import('./pages/settings/TaskPrioritiesPage.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
     {
-      // The tag list (User Story 9, R-10), reached from the workflow screen and ⌘K.
-      path: TAGS_PATH,
+      // The tag list (User Story 9, R-10), a tab of the configuration and a ⌘K action.
+      path: TASK_TAGS_PATH,
       component: () => import('./pages/settings/TaskTagsPage.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
     {
-      // The time zone (User Story 7, R-17), reached from the workflow screen.
-      path: GENERAL_SETTINGS_PATH,
+      // The time zone (User Story 7, R-17), the configuration's *General* tab.
+      path: TASK_GENERAL_SETTINGS_PATH,
       component: () => import('./pages/settings/TaskGeneralSettingsPage.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
@@ -107,10 +115,12 @@ export const contributions: AdminContributions = {
       requiredPermission: READ_PERMISSION,
     },
     {
-      // With the section's other configuration rows, after Projects' (400–420)
-      // (`specs/165-task-management/contracts/admin-surfaces.md` §1).
-      to: WORKFLOW_PATH,
-      labelKey: 'nav.settings.label',
+      // The one configuration row (issue #1557), after Projects' (400)
+      // (`specs/165-task-management/contracts/admin-surfaces.md` §1). Its
+      // address is the first tab's and the prefix of the other three, so it
+      // is lit on each of them.
+      to: TASK_CONFIGURATION_PATH,
+      labelKey: 'nav.configuration.label',
       icon: 'Settings',
       section: 'work',
       weight: 430,

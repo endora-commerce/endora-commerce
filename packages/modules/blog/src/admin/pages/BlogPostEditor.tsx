@@ -6,10 +6,7 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
+  EditorSection,
   InlineStatus,
   Input,
   Label,
@@ -604,84 +601,74 @@ export function BlogPostEditor(): ReactNode {
       }
       settings={
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('sections.metadata')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="post-name">{t('fields.namePerLanguage')}</Label>
-                <Input
-                  id="post-name"
-                  aria-invalid={problem === 'validation.nameRequired' ? true : undefined}
-                  aria-describedby={problem === 'validation.nameRequired' ? 'post-error' : undefined}
-                  value={form.name}
-                  onChange={(event) => {
-                    const name = event.target.value;
-                    setForm((f) => ({
-                      ...f,
-                      name,
-                      // New post: keep slug + meta title in sync with the title
-                      // until the editor overrides either one.
-                      ...(isNew && !slugEdited ? { slug: slugify(name) } : {}),
-                      ...(isNew && !metaTitleEdited ? { metaTitle: name } : {}),
-                    }));
-                  }}
-                  placeholder={t('postEditor.namePlaceholder')}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="post-slug">{t('fields.slug')}</Label>
-                <Input
-                  id="post-slug"
-                  aria-invalid={problem === 'validation.slugInvalid' ? true : undefined}
-                  aria-describedby={problem === 'validation.slugInvalid' ? 'post-error' : undefined}
-                  value={form.slug}
-                  onChange={(event) => {
-                    setSlugEdited(true);
-                    setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }));
-                  }}
-                  className="font-mono"
-                  placeholder="best-cordless-trimmers-2026"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  id="post-active"
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(event) => setForm((f) => ({ ...f, active: event.target.checked }))}
-                />
-                {t('fields.activeWhenPublished')}
-              </label>
-              <div className="space-y-1">
-                <Label htmlFor="post-image">{t('fields.mainImage')}</Label>
-                <AssetFieldPicker
-                  id="post-image"
-                  value={form.mainImageAssetId}
-                  onChange={(assetId) => setForm((f) => ({ ...f, mainImageAssetId: assetId }))}
-                  acceptMimePrefix="image/"
-                  allowUpload
-                />
-                <p className="text-xs text-muted-foreground">{t('postEditor.mainImageHint')}</p>
-              </div>
-            </CardContent>
-          </Card>
+          <EditorSection as="h3" title={t('sections.metadata')}>
+            <div className="space-y-1">
+              <Label htmlFor="post-name">{t('fields.namePerLanguage')}</Label>
+              <Input
+                id="post-name"
+                aria-invalid={problem === 'validation.nameRequired' ? true : undefined}
+                aria-describedby={problem === 'validation.nameRequired' ? 'post-error' : undefined}
+                value={form.name}
+                onChange={(event) => {
+                  const name = event.target.value;
+                  setForm((f) => ({
+                    ...f,
+                    name,
+                    // New post: keep slug + meta title in sync with the title
+                    // until the editor overrides either one.
+                    ...(isNew && !slugEdited ? { slug: slugify(name) } : {}),
+                    ...(isNew && !metaTitleEdited ? { metaTitle: name } : {}),
+                  }));
+                }}
+                placeholder={t('postEditor.namePlaceholder')}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="post-slug">{t('fields.slug')}</Label>
+              <Input
+                id="post-slug"
+                aria-invalid={problem === 'validation.slugInvalid' ? true : undefined}
+                aria-describedby={problem === 'validation.slugInvalid' ? 'post-error' : undefined}
+                value={form.slug}
+                onChange={(event) => {
+                  setSlugEdited(true);
+                  setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }));
+                }}
+                className="font-mono"
+                placeholder="best-cordless-trimmers-2026"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                id="post-active"
+                type="checkbox"
+                checked={form.active}
+                onChange={(event) => setForm((f) => ({ ...f, active: event.target.checked }))}
+              />
+              {t('fields.activeWhenPublished')}
+            </label>
+            <div className="space-y-1">
+              <Label htmlFor="post-image">{t('fields.mainImage')}</Label>
+              <AssetFieldPicker
+                id="post-image"
+                value={form.mainImageAssetId}
+                onChange={(assetId) => setForm((f) => ({ ...f, mainImageAssetId: assetId }))}
+                acceptMimePrefix="image/"
+                allowUpload
+              />
+              <p className="text-xs text-muted-foreground">{t('postEditor.mainImageHint')}</p>
+            </div>
+          </EditorSection>
 
           {post ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('author.title')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AuthorPicker
-                  value={links.authorId}
-                  saved={post.author ?? null}
-                  disabled={saving}
-                  onChange={(authorId) => setLinks((l) => ({ ...l, authorId }))}
-                />
-              </CardContent>
-            </Card>
+            <EditorSection as="h3" title={t('author.title')}>
+              <AuthorPicker
+                value={links.authorId}
+                saved={post.author ?? null}
+                disabled={saving}
+                onChange={(authorId) => setLinks((l) => ({ ...l, authorId }))}
+              />
+            </EditorSection>
           ) : null}
 
           {post && activeLanguage ? (
@@ -696,110 +683,85 @@ export function BlogPostEditor(): ReactNode {
             />
           ) : null}
 
-          <ScopePicker value={scope} onChange={setScope} chrome="card" />
+          <ScopePicker value={scope} onChange={setScope} titleAs="h3" />
 
-          <Card data-settings-group="seo">
-            <CardHeader>
-              <CardTitle>{t('sections.seo')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="post-meta-title">{t('fields.metaTitlePerLanguage')}</Label>
-                <Input
-                  id="post-meta-title"
-                  value={form.metaTitle}
-                  onChange={(event) => {
-                    setMetaTitleEdited(true);
-                    setForm((f) => ({ ...f, metaTitle: event.target.value }));
-                  }}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="post-meta-description">{t('fields.metaDescriptionPerLanguage')}</Label>
-                <Input
-                  id="post-meta-description"
-                  value={form.metaDescription}
-                  onChange={(event) =>
-                    setForm((f) => ({ ...f, metaDescription: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="post-meta-keywords">{t('fields.metaKeywordsPerLanguage')}</Label>
-                <Input
-                  id="post-meta-keywords"
-                  value={form.metaKeywords}
-                  onChange={(event) =>
-                    setForm((f) => ({ ...f, metaKeywords: event.target.value }))
-                  }
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <EditorSection as="h3" title={t('sections.seo')} data-settings-group="seo">
+            <div className="space-y-1">
+              <Label htmlFor="post-meta-title">{t('fields.metaTitlePerLanguage')}</Label>
+              <Input
+                id="post-meta-title"
+                value={form.metaTitle}
+                onChange={(event) => {
+                  setMetaTitleEdited(true);
+                  setForm((f) => ({ ...f, metaTitle: event.target.value }));
+                }}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="post-meta-description">{t('fields.metaDescriptionPerLanguage')}</Label>
+              <Input
+                id="post-meta-description"
+                value={form.metaDescription}
+                onChange={(event) =>
+                  setForm((f) => ({ ...f, metaDescription: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="post-meta-keywords">{t('fields.metaKeywordsPerLanguage')}</Label>
+              <Input
+                id="post-meta-keywords"
+                value={form.metaKeywords}
+                onChange={(event) =>
+                  setForm((f) => ({ ...f, metaKeywords: event.target.value }))
+                }
+              />
+            </div>
+          </EditorSection>
 
           {post ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('sections.tags')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TagPicker
-                  value={links.tagIds}
-                  onChange={(tagIds) => setLinks((l) => ({ ...l, tagIds }))}
-                />
-              </CardContent>
-            </Card>
+            <EditorSection as="h3" title={t('sections.tags')}>
+              <TagPicker
+                value={links.tagIds}
+                onChange={(tagIds) => setLinks((l) => ({ ...l, tagIds }))}
+              />
+            </EditorSection>
           ) : null}
 
           {post ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('sections.relatedPosts')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RelatedPostsPicker
-                  value={links.relatedPostIds}
-                  selfId={post.id}
-                  onChange={(relatedPostIds) => setLinks((l) => ({ ...l, relatedPostIds }))}
-                />
-              </CardContent>
-            </Card>
+            <EditorSection as="h3" title={t('sections.relatedPosts')}>
+              <RelatedPostsPicker
+                value={links.relatedPostIds}
+                selfId={post.id}
+                onChange={(relatedPostIds) => setLinks((l) => ({ ...l, relatedPostIds }))}
+              />
+            </EditorSection>
           ) : null}
 
           {post ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('sections.relatedProducts')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RelatedProductsPicker
-                  value={links.relatedProductIds}
-                  onChange={(relatedProductIds) => setLinks((l) => ({ ...l, relatedProductIds }))}
-                />
-              </CardContent>
-            </Card>
+            <EditorSection as="h3" title={t('sections.relatedProducts')}>
+              <RelatedProductsPicker
+                value={links.relatedProductIds}
+                onChange={(relatedProductIds) => setLinks((l) => ({ ...l, relatedProductIds }))}
+              />
+            </EditorSection>
           ) : null}
 
           {/* Last, and away from Save: archiving is rare and takes the post
               off the storefront. */}
           {post ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('sections.lifecycle')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">{t('postEditor.archiveHint')}</p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={saving || post.status === 'archived'}
-                  onClick={() => void onLifecycle('archive')}
-                >
-                  {t('common.archive')}
-                </Button>
-              </CardContent>
-            </Card>
+            <EditorSection as="h3" title={t('sections.lifecycle')}>
+              <p className="text-sm text-muted-foreground">{t('postEditor.archiveHint')}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={saving || post.status === 'archived'}
+                onClick={() => void onLifecycle('archive')}
+              >
+                {t('common.archive')}
+              </Button>
+            </EditorSection>
           ) : null}
         </>
       }

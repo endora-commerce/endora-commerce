@@ -18,5 +18,15 @@
   "dialog.organization": "Organization",
   "dialog.pickOrganization": "If it already holds a limit, you can adjust it here.",
   "dialog.checking": "Checking the organization's credit limit…",
+  "organizationPanel.title": "Credit limit",
+  "organizationPanel.description": "Deferred-payment limit this organization's orders reserve against.",
+  "organizationPanel.loading": "Loading the credit limit…",
+  "organizationPanel.error": "The credit limit could not be loaded. Reload the page to try again.",
+  "organizationPanel.none": "No credit limit granted. This organization cannot order on deferred payment.",
+  "organizationPanel.granted": "Granted",
+  "organizationPanel.reserved": "Reserved",
+  "organizationPanel.available": "Available",
+  "organizationPanel.reservations": "Active reservations",
+  "organizationPanel.overdrawn": "Reservations exceed the limit by {amount}. New deferred-payment orders are refused.",
   "settingLabels.credit_limits.enabled.name": "Credit limits enabled"
 }

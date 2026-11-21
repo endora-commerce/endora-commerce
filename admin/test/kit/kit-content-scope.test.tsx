@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
@@ -343,6 +343,56 @@ describe('ScopePicker — a stored scope survives channel details loading late',
   });
 });
 
+describe('ScopePicker — the languages are a group named by their label (issue #1599)', () => {
+  beforeEach(() => {
+    vi.spyOn(apiClient, 'get').mockImplementation((path: string) => {
+      if (path.startsWith('/api/v1/admin/sales-channels?')) {
+        return Promise.resolve({
+          items: [{ id: 'channel-1', code: 'web', name: { 'en-US': 'Web store' }, active: true, defaultLanguage: 'en-US' }],
+          page: 1,
+          pageSize: 100,
+          total: 1,
+        } as never);
+      }
+      return Promise.resolve({
+        id: 'channel-1',
+        code: 'web',
+        name: { 'en-US': 'Web store' },
+        active: true,
+        defaultLanguage: 'en-US',
+        languages: ['en-US', 'pl-PL'],
+      } as never);
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('names the language checkboxes "Languages", and no <label> is left labelling nothing', async () => {
+    const { container } = renderInCore(
+      <ScopePicker value={{ salesChannelIds: ['channel-1'], languages: ['en-US'] }} onChange={(): void => {}} />,
+      'en',
+    );
+    const group = await screen.findByRole('group', { name: 'Languages' });
+    await waitFor(() => expect(within(group).getByRole('checkbox', { name: 'pl-PL' })).toBeTruthy());
+    expect(within(group).getByRole('checkbox', { name: 'en-US' })).toBeTruthy();
+    // Every <label> either points at a control or wraps one.
+    const orphans = [...container.querySelectorAll('label')].filter(
+      (label) => !label.htmlFor && !label.querySelector('input, button, select, textarea'),
+    );
+    expect(orphans.map((label) => label.textContent)).toEqual([]);
+  });
+
+  it('is named in Polish too', async () => {
+    renderInCore(
+      <ScopePicker value={{ salesChannelIds: [], languages: [] }} onChange={(): void => {}} />,
+      'pl',
+    );
+    expect(await screen.findByRole('group', { name: 'Języki' })).toBeTruthy();
+  });
+});
+
 describe('ScopePicker — a section of its host by default (issue #1503, SHELL-22; DS-03 #1437)', () => {
   beforeEach(() => {
     vi.spyOn(apiClient, 'get').mockResolvedValue({ items: [], page: 1, pageSize: 100, total: 0 } as never);
@@ -375,7 +425,9 @@ describe('ScopePicker — a section of its host by default (issue #1503, SHELL-2
     expect(card!.querySelector('h3')).toHaveTextContent('Scope');
   });
 
-  it('is mounted as a card by every editor that places it between its own cards', () => {
+  // Issue #1511 (CONTENT-01): the Page Builder shell draws one settings card, and its
+  // groups — the scope among them — are `h3` sections inside it, not cards of their own.
+  it('is mounted as an h3 section of the one settings card by every Page Builder editor', () => {
     for (const host of [
       'blog/src/admin/pages/BlogCategoryEditor.tsx',
       'blog/src/admin/pages/BlogPostEditor.tsx',
@@ -384,7 +436,8 @@ describe('ScopePicker — a section of its host by default (issue #1503, SHELL-2
       'cms/src/admin/editors/TemplateEditor.tsx',
     ]) {
       const source = readFileSync(join(REPO_ROOT, 'packages/modules', host), 'utf8');
-      expect(source, host).toMatch(/<ScopePicker [^>]*chrome="card"/);
+      expect(source, host).toMatch(/<ScopePicker [^>]*titleAs="h3"/);
+      expect(source, host).not.toMatch(/<ScopePicker [^>]*chrome="card"/);
     }
   });
 });

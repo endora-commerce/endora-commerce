@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
@@ -39,6 +39,7 @@ const BUNDLE = passthroughBundle('returns', [
   'comments.internalBadge',
   'clauses.acceptedTitle',
   'clauses.revisionOf',
+  'detail.back',
 ]);
 
 const RC = {
@@ -101,5 +102,16 @@ describe('ReturnDetail — item lists as divided rows (DS-03)', () => {
     const list = details[0]!.parentElement!;
     expect(list.className).toMatch(/\bdivide-y\b/);
     for (const item of details) expect(framed(item)).toBe(false);
+  });
+});
+
+describe('ReturnDetail — the way back (#1549, SALES-27)', () => {
+  it('goes back to the returns through the header back link, not a button above it', async () => {
+    renderDetail();
+    await screen.findByText('First note');
+    const heading = screen.getByRole('heading', { level: 1 });
+    const back = within(heading.closest('header')!).getByRole('link', { name: 'detail.back' });
+    expect(back).toHaveAttribute('href', '/returns');
+    expect(screen.getAllByRole('link', { name: 'detail.back' })).toHaveLength(1);
   });
 });

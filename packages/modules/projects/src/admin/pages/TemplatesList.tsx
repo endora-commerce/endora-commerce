@@ -3,16 +3,19 @@ import { Link } from 'react-router-dom';
 import { Layers, Plus } from 'lucide-react';
 import type { ProjectTemplateSummary } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, Checkbox, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { ProjectConfigurationTabs } from '../components/ProjectConfigurationTabs.js';
+import { PROJECT_TEMPLATE_NEW_PATH, projectTemplatePath } from '../lib/configuration-paths.js';
 import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi } from '../api.js';
 import { errorMessage } from '../lib/labels.js';
 
-const NEW_PATH = '/projects/templates/new';
+const NEW_PATH = PROJECT_TEMPLATE_NEW_PATH;
 
 /**
  * The Project Templates (`specs/163-projects-and-tasks/`, User Story 3;
- * `contracts/admin-surfaces.md` §2, `/projects/templates`).
+ * `contracts/admin-surfaces.md` §2, `/projects/settings/templates` since
+ * issue #1557, the configuration's first tab).
  *
  * The Templates a new Project may start from, by name, each with its number
  * of Stages and when it last changed. Archived Templates — no longer offered
@@ -58,7 +61,7 @@ export function TemplatesList(): ReactNode {
       render: (row) => (
         <span className="flex flex-wrap items-center gap-2 [overflow-wrap:anywhere]">
           <Link
-            to={`/projects/templates/${row.id}`}
+            to={projectTemplatePath(row.id)}
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
             {row.name}
@@ -106,6 +109,7 @@ export function TemplatesList(): ReactNode {
         // With nothing listed the empty state carries the one action.
         actions={rows.length > 0 || showArchived || !loaded ? newTemplate : undefined}
       />
+      <ProjectConfigurationTabs />
 
       <Card>
         <CardContent className="space-y-4" aria-busy={loading}>

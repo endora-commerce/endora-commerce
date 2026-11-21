@@ -258,6 +258,25 @@ describe.each(screens)('$name in the shared editor shell', (screenUnderTest) => 
     expect(builder.contains(nameField())).toBe(false);
   });
 
+  it('sets every group as a section of one panel, not a card each (#1511)', async () => {
+    renderEditor(screenUnderTest, 'entity-1');
+    await loaded();
+    const settings = settingsPanel();
+    await within(settings).findByText(/Web store/);
+
+    expect(settings.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
+    const groups = within(settings).getAllByRole('heading').filter((h) => h.tagName !== 'H2');
+    expect(groups.length).toBeGreaterThan(2);
+    for (const heading of groups) expect(heading.tagName).toBe('H3');
+  });
+
+  it('for a new entity sets the fields as one panel too (#1511)', async () => {
+    renderEditor(screenUnderTest, 'new');
+    const settings = screen.getByRole('region', { name: shell('settings') });
+    await within(settings).findByText(/Web store/);
+    expect(settings.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
+  });
+
   it('groups the panel: what the entity is, where it shows, how it is found', async () => {
     renderEditor(screenUnderTest, 'entity-1');
     await loaded();
