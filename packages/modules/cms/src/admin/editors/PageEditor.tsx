@@ -13,7 +13,7 @@ import {
   type CmsPageSummary,
   type CmsPageTranslations,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, Label, PageHeader, SaveButtonGroup, Select, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, EditorSection, FormField, Input, Label, PageHeader, SaveButtonGroup, Select, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   AssetFieldPicker,
@@ -723,140 +723,125 @@ export function PageEditor(): ReactNode {
       }
       settings={
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('pageEditor.metadata')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/*
-                Keyed by language so each one's slug starts following (or not)
-                afresh: the derivation state is per language, as the values are.
-              */}
-              <PageLanguageFields
-                key={editedLanguage ?? ''}
+          <EditorSection as="h3" title={t('pageEditor.metadata')}>
+            {/*
+              Keyed by language so each one's slug starts following (or not)
+              afresh: the derivation state is per language, as the values are.
+            */}
+            <PageLanguageFields
+              key={editedLanguage ?? ''}
+              language={editedLanguage}
+              ownLanguage={editsPageValues ? null : editedLanguage}
+              name={bindingFor('name')}
+              slug={bindingFor('slug')}
+              description={bindingFor('description')}
+              slugFollowsName={slugFollowsName}
+              address={addressIn(editedLanguage)}
+              reservedSegment={reservedSegmentOf(
+                (editedLanguage ? form.translations[editedLanguage]?.slug.trim() : '') || form.slug,
+              )}
+              nameRef={editsPageValues ? nameRef : undefined}
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(event) => setForm({ ...form, active: event.target.checked })}
+              />
+              {t('fields.active')}
+            </label>
+            {editedLanguage ? (
+              <PageSeoFields
                 language={editedLanguage}
-                ownLanguage={editsPageValues ? null : editedLanguage}
-                name={bindingFor('name')}
-                slug={bindingFor('slug')}
-                description={bindingFor('description')}
-                slugFollowsName={slugFollowsName}
-                address={addressIn(editedLanguage)}
-                reservedSegment={reservedSegmentOf(
-                  (editedLanguage ? form.translations[editedLanguage]?.slug.trim() : '') || form.slug,
-                )}
-                nameRef={editsPageValues ? nameRef : undefined}
+                meta={form.meta[editedLanguage] ?? blankMetaFields}
+                onChange={(patch) => setMetaFields(editedLanguage, patch)}
               />
+            ) : null}
+          </EditorSection>
+          <EditorSection as="h3" title={t('pageEditor.breadcrumbs.title')}>
+            <div className="space-y-1">
+              <Label htmlFor="cms-page-parent">{t('pageEditor.breadcrumbs.parent')}</Label>
+              <CmsPagePicker
+                id="cms-page-parent"
+                value={form.parentPageId}
+                onChange={(parentPageId) => {
+                  setForm((f) => ({ ...f, parentPageId }));
+                  if (!parentPageId) setParentLabel('');
+                }}
+                excludeIds={excludedParentIds}
+                selectedLabel={parentLabel}
+                placeholder={t('pageEditor.breadcrumbs.parentPlaceholder')}
+                ariaLabel={t('pageEditor.breadcrumbs.parent')}
+              />
+              <p className="text-xs text-muted-foreground">{t('pageEditor.breadcrumbs.parentHelp')}</p>
+            </div>
+            {/* R19D: off by default, so a stored page keeps its flat address. */}
+            <div className="space-y-1">
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  checked={form.active}
-                  onChange={(event) => setForm({ ...form, active: event.target.checked })}
+                  checked={form.parentPathInUrl}
+                  onChange={(event) => setForm({ ...form, parentPathInUrl: event.target.checked })}
                 />
-                {t('fields.active')}
+                {t('pageEditor.parentPathInUrl')}
               </label>
-              {editedLanguage ? (
-                <PageSeoFields
-                  language={editedLanguage}
-                  meta={form.meta[editedLanguage] ?? blankMetaFields}
-                  onChange={(patch) => setMetaFields(editedLanguage, patch)}
-                />
-              ) : null}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('pageEditor.breadcrumbs.title')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="cms-page-parent">{t('pageEditor.breadcrumbs.parent')}</Label>
-                <CmsPagePicker
-                  id="cms-page-parent"
-                  value={form.parentPageId}
-                  onChange={(parentPageId) => {
-                    setForm((f) => ({ ...f, parentPageId }));
-                    if (!parentPageId) setParentLabel('');
-                  }}
-                  excludeIds={excludedParentIds}
-                  selectedLabel={parentLabel}
-                  placeholder={t('pageEditor.breadcrumbs.parentPlaceholder')}
-                  ariaLabel={t('pageEditor.breadcrumbs.parent')}
-                />
-                <p className="text-xs text-muted-foreground">{t('pageEditor.breadcrumbs.parentHelp')}</p>
-              </div>
-              {/* R19D: off by default, so a stored page keeps its flat address. */}
-              <div className="space-y-1">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={form.parentPathInUrl}
-                    onChange={(event) => setForm({ ...form, parentPathInUrl: event.target.checked })}
-                  />
-                  {t('pageEditor.parentPathInUrl')}
-                </label>
-                <p className="text-xs text-muted-foreground">{t('pageEditor.parentPathInUrlHelp')}</p>
-              </div>
+              <p className="text-xs text-muted-foreground">{t('pageEditor.parentPathInUrlHelp')}</p>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.breadcrumbsVisible}
+                onChange={(event) => setForm({ ...form, breadcrumbsVisible: event.target.checked })}
+              />
+              {t('pageEditor.breadcrumbs.visible')}
+            </label>
+            <div className="space-y-1">
+              <Label htmlFor="cms-page-breadcrumbs-scheme">{t('pageEditor.breadcrumbs.scheme')}</Label>
+              <Select
+                id="cms-page-breadcrumbs-scheme"
+                value={form.breadcrumbsScheme}
+                onChange={(event) =>
+                  setForm({ ...form, breadcrumbsScheme: event.target.value as CmsBreadcrumbsScheme })
+                }
+              >
+                {BREADCRUMB_SCHEME_LABEL_KEYS.map(([scheme, labelKey]) => (
+                  <option key={scheme} value={scheme}>
+                    {t(labelKey)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            {/* R21H (T355): the trail over the first section instead of a band above it; off by default. */}
+            <div className="space-y-1">
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  checked={form.breadcrumbsVisible}
-                  onChange={(event) => setForm({ ...form, breadcrumbsVisible: event.target.checked })}
+                  checked={form.breadcrumbsOverlay}
+                  onChange={(event) => setForm({ ...form, breadcrumbsOverlay: event.target.checked })}
                 />
-                {t('pageEditor.breadcrumbs.visible')}
+                {t('pageEditor.breadcrumbs.overlay')}
               </label>
-              <div className="space-y-1">
-                <Label htmlFor="cms-page-breadcrumbs-scheme">{t('pageEditor.breadcrumbs.scheme')}</Label>
-                <Select
-                  id="cms-page-breadcrumbs-scheme"
-                  value={form.breadcrumbsScheme}
-                  onChange={(event) =>
-                    setForm({ ...form, breadcrumbsScheme: event.target.value as CmsBreadcrumbsScheme })
-                  }
-                >
-                  {BREADCRUMB_SCHEME_LABEL_KEYS.map(([scheme, labelKey]) => (
-                    <option key={scheme} value={scheme}>
-                      {t(labelKey)}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              {/* R21H (T355): the trail over the first section instead of a band above it; off by default. */}
-              <div className="space-y-1">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={form.breadcrumbsOverlay}
-                    onChange={(event) => setForm({ ...form, breadcrumbsOverlay: event.target.checked })}
-                  />
-                  {t('pageEditor.breadcrumbs.overlay')}
-                </label>
-                <p className="text-xs text-muted-foreground">{t('pageEditor.breadcrumbs.overlayHelp')}</p>
-              </div>
-            </CardContent>
-          </Card>
+              <p className="text-xs text-muted-foreground">{t('pageEditor.breadcrumbs.overlayHelp')}</p>
+            </div>
+          </EditorSection>
           {/* Feature 163 (FR-033): the page's own sharing image; empty falls back to the default. */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('pageEditor.share.title')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              <Label htmlFor="cms-page-share-image">{t('pageEditor.share.image')}</Label>
-              <AssetFieldPicker
-                id="cms-page-share-image"
-                value={form.shareImageAssetId ?? ''}
-                onChange={(assetId) => setForm((f) => ({ ...f, shareImageAssetId: assetId || null }))}
-                acceptMimePrefix="image/"
-                allowUpload
-                placeholder={t('pageEditor.share.placeholder')}
-                ariaLabel={t('pageEditor.share.image')}
-                chooseLabel={t('pageEditor.share.choose')}
-                changeLabel={t('pageEditor.share.change')}
-                clearLabel={t('pageEditor.share.clear')}
-              />
-              <p className="text-xs text-muted-foreground">{t('pageEditor.share.help')}</p>
-            </CardContent>
-          </Card>
-          <ScopePicker value={scope} onChange={setScope} chrome="card" />
+          <EditorSection as="h3" title={t('pageEditor.share.title')} contentClassName="space-y-1">
+            <Label htmlFor="cms-page-share-image">{t('pageEditor.share.image')}</Label>
+            <AssetFieldPicker
+              id="cms-page-share-image"
+              value={form.shareImageAssetId ?? ''}
+              onChange={(assetId) => setForm((f) => ({ ...f, shareImageAssetId: assetId || null }))}
+              acceptMimePrefix="image/"
+              allowUpload
+              placeholder={t('pageEditor.share.placeholder')}
+              ariaLabel={t('pageEditor.share.image')}
+              chooseLabel={t('pageEditor.share.choose')}
+              changeLabel={t('pageEditor.share.change')}
+              clearLabel={t('pageEditor.share.clear')}
+            />
+            <p className="text-xs text-muted-foreground">{t('pageEditor.share.help')}</p>
+          </EditorSection>
+          <ScopePicker value={scope} onChange={setScope} titleAs="h3" />
         </>
       }
       canvasBar={

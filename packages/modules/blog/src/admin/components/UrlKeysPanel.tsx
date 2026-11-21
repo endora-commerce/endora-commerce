@@ -5,10 +5,7 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
+  EditorSection,
   InlineStatus,
   Input,
   Label,
@@ -117,77 +114,79 @@ export function UrlKeysPanel({
   const dirty = keys !== null && draft.trim() !== own(keys);
 
   return (
-    <Card data-settings-group="url-keys">
-      <CardHeader>
-        <CardTitle>
+    // A section of the editor's one settings panel (issue #1511), not a card of its own.
+    <EditorSection
+      as="h3"
+      data-settings-group="url-keys"
+      title={
+        <>
           {t('urlKeys.title', { language })}
           <ImmediateBadge className="align-middle" />
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        <div className="space-y-1">
-          <Label htmlFor={inputId}>{t('urlKeys.key')}</Label>
-          <div className="flex gap-2">
-            <Input
-              id={inputId}
-              className="font-mono"
-              value={draft}
-              placeholder={keys?.slug ?? ''}
-              disabled={busy || keys === null}
-              onChange={(event) => {
-                status.clear();
-                setDraft(event.target.value.toLowerCase());
-              }}
-            />
-            <Button type="button" variant="outline" disabled={busy || !dirty} aria-busy={busy} onClick={() => void save(null)}>
-              {t('urlKeys.save')}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">{t('urlKeys.hint')}</p>
-          <InlineStatus {...status.props} />
+        </>
+      }
+    >
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      <div className="space-y-1">
+        <Label htmlFor={inputId}>{t('urlKeys.key')}</Label>
+        <div className="flex gap-2">
+          <Input
+            id={inputId}
+            className="font-mono"
+            value={draft}
+            placeholder={keys?.slug ?? ''}
+            disabled={busy || keys === null}
+            onChange={(event) => {
+              status.clear();
+              setDraft(event.target.value.toLowerCase());
+            }}
+          />
+          <Button type="button" variant="outline" disabled={busy || !dirty} aria-busy={busy} onClick={() => void save(null)}>
+            {t('urlKeys.save')}
+          </Button>
         </div>
-        {effective.length > 0 ? (
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">{t('urlKeys.servedAt')}</p>
-            <ul className="space-y-0.5 font-mono text-xs">
-              {effective.map((e) => (
-                <li key={`${e.salesChannelId}:${e.languageCode}`}>{e.path}</li>
+        <p className="text-xs text-muted-foreground">{t('urlKeys.hint')}</p>
+        <InlineStatus {...status.props} />
+      </div>
+      {effective.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">{t('urlKeys.servedAt')}</p>
+          <ul className="space-y-0.5 font-mono text-xs">
+            {effective.map((e) => (
+              <li key={`${e.salesChannelId}:${e.languageCode}`}>{e.path}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {keys?.redirects !== undefined ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">{t('urlKeys.redirects')}</p>
+          {redirects.length === 0 ? (
+            <p className="text-xs text-muted-foreground">{t('urlKeys.noRedirects')}</p>
+          ) : (
+            <ul className="space-y-1">
+              {redirects.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-2 font-mono text-xs">
+                  <span>{r.key}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={t('urlKeys.deleteRedirect', { key: r.key })}
+                    disabled={busy}
+                    onClick={() => setRedirectToDelete(r)}
+                  >
+                    {t('common.delete')}
+                  </Button>
+                </li>
               ))}
             </ul>
-          </div>
-        ) : null}
-        {keys?.redirects !== undefined ? (
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">{t('urlKeys.redirects')}</p>
-            {redirects.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{t('urlKeys.noRedirects')}</p>
-            ) : (
-              <ul className="space-y-1">
-                {redirects.map((r) => (
-                  <li key={r.id} className="flex items-center justify-between gap-2 font-mono text-xs">
-                    <span>{r.key}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      aria-label={t('urlKeys.deleteRedirect', { key: r.key })}
-                      disabled={busy}
-                      onClick={() => setRedirectToDelete(r)}
-                    >
-                      {t('common.delete')}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ) : null}
-      </CardContent>
+          )}
+        </div>
+      ) : null}
 
       {takeover !== null ? (
         <ModalDialog
@@ -228,6 +227,6 @@ export function UrlKeysPanel({
           <p className="text-sm">{t('urlKeys.deleteRedirectBody', { key: redirectToDelete.key })}</p>
         </ModalDialog>
       ) : null}
-    </Card>
+    </EditorSection>
   );
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import type { CmsTemplateDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, EditorSection, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
 import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
@@ -243,26 +243,21 @@ export function TemplateEditor(): ReactNode {
       }
       settings={
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('templateEditor.metadata')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <FormField label={t('fields.name')}>
-                <Input ref={nameRef} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-              </FormField>
-              <FormField label={t('fields.code')}>
-                <Input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
-              </FormField>
-              <FormField label={t('fields.description')}>
-                <Textarea
-                  value={form.description}
-                  onChange={(event) => setForm({ ...form, description: event.target.value })}
-                />
-              </FormField>
-            </CardContent>
-          </Card>
-          <ScopePicker value={scope} onChange={setScope} chrome="card" />
+          <EditorSection as="h3" title={t('templateEditor.metadata')}>
+            <FormField label={t('fields.name')}>
+              <Input ref={nameRef} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+            </FormField>
+            <FormField label={t('fields.code')}>
+              <Input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+            </FormField>
+            <FormField label={t('fields.description')}>
+              <Textarea
+                value={form.description}
+                onChange={(event) => setForm({ ...form, description: event.target.value })}
+              />
+            </FormField>
+          </EditorSection>
+          <ScopePicker value={scope} onChange={setScope} titleAs="h3" />
         </>
       }
       canvasBar={

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import { slugify, type CmsBlockDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, EditorSection, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
 import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
@@ -268,52 +268,47 @@ export function BlockEditor(): ReactNode {
       }
       settings={
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('blockEditor.metadata')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <FormField label={t('fields.name')}>
-                <Input
-                  ref={nameRef}
-                  value={form.name}
-                  onChange={(event) => {
-                    const name = event.target.value;
-                    setForm((f) => ({
-                      ...f,
-                      name,
-                      ...(isNew && !codeEdited ? { code: codeFromName(name) } : {}),
-                    }));
-                  }}
-                />
-              </FormField>
-              <FormField label={t('fields.code')}>
-                <Input
-                  value={form.code}
-                  className="font-mono"
-                  onChange={(event) => {
-                    setCodeEdited(true);
-                    setForm((f) => ({ ...f, code: event.target.value.toLowerCase() }));
-                  }}
-                />
-              </FormField>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(event) => setForm({ ...form, active: event.target.checked })}
-                />
-                {t('fields.active')}
-              </label>
-              <FormField label={t('fields.description')}>
-                <Textarea
-                  value={form.description}
-                  onChange={(event) => setForm({ ...form, description: event.target.value })}
-                />
-              </FormField>
-            </CardContent>
-          </Card>
-          <ScopePicker value={scope} onChange={setScope} chrome="card" />
+          <EditorSection as="h3" title={t('blockEditor.metadata')}>
+            <FormField label={t('fields.name')}>
+              <Input
+                ref={nameRef}
+                value={form.name}
+                onChange={(event) => {
+                  const name = event.target.value;
+                  setForm((f) => ({
+                    ...f,
+                    name,
+                    ...(isNew && !codeEdited ? { code: codeFromName(name) } : {}),
+                  }));
+                }}
+              />
+            </FormField>
+            <FormField label={t('fields.code')}>
+              <Input
+                value={form.code}
+                className="font-mono"
+                onChange={(event) => {
+                  setCodeEdited(true);
+                  setForm((f) => ({ ...f, code: event.target.value.toLowerCase() }));
+                }}
+              />
+            </FormField>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(event) => setForm({ ...form, active: event.target.checked })}
+              />
+              {t('fields.active')}
+            </label>
+            <FormField label={t('fields.description')}>
+              <Textarea
+                value={form.description}
+                onChange={(event) => setForm({ ...form, description: event.target.value })}
+              />
+            </FormField>
+          </EditorSection>
+          <ScopePicker value={scope} onChange={setScope} titleAs="h3" />
         </>
       }
       canvasBar={

@@ -425,7 +425,9 @@ describe('ScopePicker — a section of its host by default (issue #1503, SHELL-2
     expect(card!.querySelector('h3')).toHaveTextContent('Scope');
   });
 
-  it('is mounted as a card by every editor that places it between its own cards', () => {
+  // Issue #1511 (CONTENT-01): the Page Builder shell draws one settings card, and its
+  // groups — the scope among them — are `h3` sections inside it, not cards of their own.
+  it('is mounted as an h3 section of the one settings card by every Page Builder editor', () => {
     for (const host of [
       'blog/src/admin/pages/BlogCategoryEditor.tsx',
       'blog/src/admin/pages/BlogPostEditor.tsx',
@@ -434,7 +436,8 @@ describe('ScopePicker — a section of its host by default (issue #1503, SHELL-2
       'cms/src/admin/editors/TemplateEditor.tsx',
     ]) {
       const source = readFileSync(join(REPO_ROOT, 'packages/modules', host), 'utf8');
-      expect(source, host).toMatch(/<ScopePicker [^>]*chrome="card"/);
+      expect(source, host).toMatch(/<ScopePicker [^>]*titleAs="h3"/);
+      expect(source, host).not.toMatch(/<ScopePicker [^>]*chrome="card"/);
     }
   });
 });

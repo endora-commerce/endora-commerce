@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { PanelRightClose, PanelRightOpen } from 'lucide-react';
-import { Button } from '@endora-commerce/admin-kit/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
 import { cn } from '@endora-commerce/admin-kit/lib';
 import { useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -21,9 +30,11 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 export const PAGE_BUILDER_EDITOR_SETTINGS_STORAGE_KEY = 'b2b-admin.cms-editor.settings-panel';
 
 /**
- * The width from which the settings panel is a column beside the Page Builder.
- * The classes below spell the same number as `min-[1800px]:` — Tailwind reads
- * class names as literals, so the two are kept in step by hand.
+ * The width from which the settings panel is a column beside the Page Builder;
+ * below it the panel is a sheet laid over the canvas's inline end (issue #1511).
+ * The classes below spell the same number as `min-[1800px]:` and
+ * `max-[1799px]:` — Tailwind reads class names as literals, so they are kept in
+ * step by hand.
  *
  * Not the `2xl` breakpoint (1536px): with the admin navigation, the 20rem
  * panel and the builder's own two side panels, a 1536px viewport leaves the
@@ -40,7 +51,8 @@ function hasRoomBesideBuilder(): boolean {
 /**
  * The operator's remembered choice, or — when they have never made one — open
  * only where the panel is a column beside the builder. Below that width an
- * open panel is a block above the canvas and pushes it off the first screen.
+ * open panel is a sheet over the canvas's inline end — the builder's own field
+ * panel among it — so it starts put away.
  */
 function readPreference(): boolean {
   if (typeof window === 'undefined') return true;
@@ -64,7 +76,7 @@ function writePreference(open: boolean): void {
 }
 
 export interface PageBuilderEditorSettingsPanel {
-  /** Whether the settings cards are showing. */
+  /** Whether the settings panel is showing. */
   open: boolean;
   /** The operator's own choice: flips the panel and remembers it. */
   toggle: () => void;
@@ -132,9 +144,11 @@ export interface PageBuilderEditorLayoutProps {
   /** What is composed on the canvas, when "Page Builder" is not the best name for it. */
   builderLabel?: string | undefined;
   /**
-   * The cards that describe the entity rather than compose it. Omit — together
-   * with `settingsPanel` — on a screen that has none, and the canvas simply has
-   * the page.
+   * The groups that describe the entity rather than compose it, each an
+   * `EditorSection` with an `h3` title: the layout draws the **one** card they
+   * share (issue #1511, Common Region), so a group is never a card of its own.
+   * Omit — together with `settingsPanel` — on a screen that has none, and the
+   * canvas simply has the page.
    */
   settings?: ReactNode | undefined;
   settingsPanel?: PageBuilderEditorSettingsPanel | undefined;
@@ -155,12 +169,22 @@ export interface PageBuilderEditorLayoutProps {
 /**
  * The shell every Page Builder editor is laid out in: CMS pages, blocks and
  * templates, blog posts and categories, transactional e-mails and their
- * reusable blocks and templates.
+ * reusable blocks and templates, document templates.
  *
- * The canvas is the main column: it is what an editor spends the session in.
- * The cards that describe the entity are a secondary panel — a column to its
- * right where the viewport has room for one, a block above it where it does
- * not — and the panel can be put away to give the canvas the full width.
+ * The canvas is the main column: it is what an editor spends the session in,
+ * and it keeps its row — directly under the header — at every width. The
+ * groups that describe the entity are one secondary panel: a column to its
+ * right where the viewport has room for one, and below that a sheet laid over
+ * the canvas's inline end, sticky under the top bar (issue #1511, UX audit
+ * CONTENT-01: the panel used to be a two-column wall of cards above the
+ * canvas, so the main task came last — Serial Position). The panel can be put
+ * away to give the canvas the full width, and Escape puts the sheet away and
+ * hands focus back to its control.
+ *
+ * The sheet is **not modal**: the canvas stays usable beside it, nothing is
+ * trapped, and it is the same element as the column — moved by CSS, not
+ * re-mounted — so a resize never resets a field. That is also why it is not
+ * the kit's `ModalDialog placement="end"`, which mounts on open and holds focus.
  *
  * Document order is header, the disclosure control, the panel, the canvas bar,
  * the builder. A disclosure's content follows its control, and a dozen form
@@ -206,10 +230,19 @@ export function PageBuilderEditorLayout({
     rootRef.current?.scrollIntoView({ block: 'start' });
   }, [revealCount]);
 
-  const settingsHeading = (
-    <h2 id={panelHeadingId} className="sr-only">
-      {t('pageBuilder.editorLayout.settings')}
-    </h2>
+  const toggleRef = useRef<HTMLButtonElement | null>(null);
+
+  // The groups share one card (issue #1511): a title the sheet needs on screen,
+  // then the sections, a rule between each.
+  const settingsCard = (
+    <Card>
+      <CardHeader>
+        <CardTitle as="h2" id={panelHeadingId}>
+          {t('pageBuilder.editorLayout.settings')}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-(--section-gap)">{settings}</CardContent>
+    </Card>
   );
 
   if (builder === null) {
@@ -217,9 +250,9 @@ export function PageBuilderEditorLayout({
       <div className="b2b-page space-y-4">
         {header}
         {canvasBar}
-        <section aria-labelledby={panelHeadingId}>
-          {settingsHeading}
-          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">{settings}</div>
+        {/* A form is read down one column; capped so a line stays readable. */}
+        <section aria-labelledby={panelHeadingId} className="max-w-3xl">
+          {settingsCard}
         </section>
         {unsavedGuard.dialog}
       </div>
@@ -230,79 +263,76 @@ export function PageBuilderEditorLayout({
   const open = hasPanel && settingsPanel.open;
   const ToggleIcon = open ? PanelRightClose : PanelRightOpen;
 
+  // Escape puts the sheet away — only the sheet: beside the canvas the column
+  // covers nothing, and a key that silently removed it would be a surprise. A
+  // listbox or a combobox in the panel that answered Escape first keeps it.
+  const onPanelKeyDown = (event: ReactKeyboardEvent<HTMLElement>): void => {
+    if (event.key !== 'Escape' || event.defaultPrevented || !hasPanel || !open) return;
+    if (hasRoomBesideBuilder()) return;
+    event.preventDefault();
+    settingsPanel.toggle();
+    toggleRef.current?.focus();
+  };
+
   return (
     <div ref={rootRef} className="b2b-page b2b-page--wide scroll-mt-24 space-y-4">
       {header}
+      {/* Two columns at every width — the canvas bar with the control beside
+          it, then the canvas across both; from the two-column width an open
+          panel adds a third. */}
       <div
         data-settings-open={hasPanel ? (open ? 'true' : 'false') : undefined}
         className={cn(
-          'grid items-start gap-4',
-          open
-            ? 'grid-cols-1 min-[1800px]:grid-cols-[minmax(0,1fr)_auto_20rem] min-[1800px]:grid-rows-[auto_1fr]'
-            : 'grid-cols-[minmax(0,1fr)_auto]',
+          'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4',
+          open && 'min-[1800px]:grid-cols-[minmax(0,1fr)_auto_20rem] min-[1800px]:grid-rows-[auto_1fr]',
         )}
       >
         {hasPanel ? (
           <>
             <Button
+              ref={toggleRef}
               type="button"
               variant="outline"
               size="sm"
               aria-expanded={open}
               aria-controls={panelId}
               onClick={settingsPanel.toggle}
-              className={cn(
-                'justify-self-end',
-                open ? 'min-[1800px]:col-start-2 min-[1800px]:row-start-1' : 'col-start-2 row-start-1',
-              )}
+              className="col-start-2 row-start-1 justify-self-end"
             >
               <ToggleIcon aria-hidden="true" />
               {open
                 ? t('pageBuilder.editorLayout.hideSettings')
                 : t('pageBuilder.editorLayout.showSettings')}
             </Button>
+            {/* Below the two-column width: a sheet in the canvas's row, laid
+                over its inline end (`z-20` — above the builder's own layers,
+                below the sticky form actions, the top bar and the fullscreen
+                builder), sticky under the top bar and scrolling on its own.
+                From that width: the third column, spanning both rows.
+
+                `min-w-0`: without it a picker with long unbreakable rows
+                widens the grid item past its 20rem and off the viewport. */}
             <aside
               id={panelId}
               aria-labelledby={panelHeadingId}
               hidden={!open}
-              className="min-w-0 min-[1800px]:col-start-3 min-[1800px]:row-span-2 min-[1800px]:row-start-1"
+              onKeyDown={onPanelKeyDown}
+              className={cn(
+                'min-w-0',
+                'max-[1799px]:sticky max-[1799px]:top-16 max-[1799px]:z-20 max-[1799px]:col-span-2 max-[1799px]:col-start-1 max-[1799px]:row-start-2 max-[1799px]:w-80 max-[1799px]:max-w-full max-[1799px]:max-h-[calc(100vh-5rem)] max-[1799px]:justify-self-end max-[1799px]:overflow-y-auto max-[1799px]:rounded-lg max-[1799px]:shadow-lg',
+                'min-[1800px]:col-start-3 min-[1800px]:row-span-2 min-[1800px]:row-start-1',
+              )}
             >
-              {settingsHeading}
-              {/* `grid-cols-1` is `minmax(0, 1fr)`: without it the implicit
-                  column is as wide as its widest card's min-content, and a
-                  picker with long unbreakable rows pushes every card past the
-                  20rem column and off the viewport.
-
-                  Above the canvas the cards flow in two balanced columns
-                  rather than a two-column grid: a grid row is as tall as its
-                  taller card, so a short card beside a long one leaves a hole
-                  the height of the difference, and seven cards of uneven
-                  height push the canvas a screen further down than they need
-                  to. */}
-              <div className="grid grid-cols-1 items-start gap-4 lg:max-[1799px]:block lg:max-[1799px]:columns-2 lg:max-[1799px]:[&>*]:mb-4 lg:max-[1799px]:[&>*]:break-inside-avoid">
-                {settings}
-              </div>
+              {settingsCard}
             </aside>
           </>
         ) : null}
-        <div
-          className={cn(
-            'min-w-0 self-center',
-            !hasPanel
-              ? 'col-span-2'
-              : open
-                ? 'min-[1800px]:col-start-1 min-[1800px]:row-start-1'
-                : 'col-start-1 row-start-1',
-          )}
-        >
+        <div className={cn('min-w-0 self-center col-start-1 row-start-1', !hasPanel && 'col-span-2')}>
           {canvasBar}
         </div>
         <section
           aria-labelledby={builderHeadingId}
-          className={cn(
-            'cms-content-editor__builder',
-            open ? 'min-[1800px]:col-span-2 min-[1800px]:col-start-1 min-[1800px]:row-start-2' : 'col-span-2',
-          )}
+          className="cms-content-editor__builder col-span-2 col-start-1 row-start-2"
         >
           <h2 id={builderHeadingId} className="sr-only">
             {builderLabel ?? t('pageBuilder.editorLayout.builder')}
