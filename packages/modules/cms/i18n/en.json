@@ -2010,7 +2010,7 @@
   "pageEditor.share.choose": "Choose",
   "pageEditor.share.change": "Change",
   "pageEditor.share.clear": "Remove sharing image",
-  "pageEditor.languageVersion.help": "Empty fields use the {language} value, shown greyed out.",
+  "pageEditor.languageVersion.help": "Empty fields use the page's own value, shown greyed out.",
   "pageEditor.languageVersion.name": "Name in {language}",
   "pageEditor.languageVersion.slug": "Slug in {language}",
   "pageEditor.languageVersion.description": "Description in {language}",

@@ -609,7 +609,7 @@ describe('PageEditor page fields, one card per language (#1513)', () => {
     expect(plSlug.value).toBe('strona');
     expect(plSlug.placeholder).toBe('edited');
     expect(field<HTMLTextAreaElement>(label('pageEditor.languageVersion.description', 'pl-PL')).placeholder).toBe('New base');
-    expect(within(settings).getByText(copy('pageEditor.languageVersion.help').replace('{language}', 'en-US'))).toBeTruthy();
+    expect(within(settings).getByText(copy('pageEditor.languageVersion.help'))).toBeTruthy();
     expect(within(settings).getByText('/strona')).toBeTruthy();
 
     fireEvent.change(plSlug, { target: { value: 'Nowa-Strona' } });
@@ -639,23 +639,37 @@ describe('PageEditor page fields, one card per language (#1513)', () => {
     expect((within(settings).getByLabelText(label('pageEditor.languageVersion.metaTitle', 'pl-PL')) as HTMLInputElement).value).toBe('PL title');
   });
 
-  it('keeps a value the first language stored as its own, rather than hiding it behind the page value', async () => {
+  it('opens the first language on its own translation fields when it carries one, never the page fields', async () => {
     stubPage({ ...translated, translations: { ...translated.translations, 'en-US': { name: 'Legacy EN' } } });
     const patch = vi.spyOn(apiClient, 'patch').mockResolvedValue({ data: translated } as never);
     renderTranslated();
-    await loaded();
+    const settings = await loaded();
 
-    const name = field(copy('fields.name'));
+    // The whole language is its own: name, slug and description, each falling back to the page's.
+    expect(within(settings).queryByRole('textbox', { name: copy('fields.name') })).toBeNull();
+    const name = field(label('pageEditor.languageVersion.name', 'en-US'));
     expect(name.value).toBe('Legacy EN');
     expect(name.placeholder).toBe('Edited page');
+    const slug = field(label('pageEditor.languageVersion.slug', 'en-US'));
+    expect(slug.value).toBe('');
+    expect(slug.placeholder).toBe('edited');
+    expect(field<HTMLTextAreaElement>(label('pageEditor.languageVersion.description', 'en-US')).placeholder).toBe('Base description');
+    expect(within(settings).getByText(copy('pageEditor.languageVersion.help'))).toBeTruthy();
+
     fireEvent.change(name, { target: { value: 'Renamed EN' } });
     fireEvent.click(screen.getByRole('button', { name: copy('common.save') }));
-
     await waitFor(() => expect(patch).toHaveBeenCalled());
     expect(patch.mock.calls[0]![1]).toMatchObject({
       name: 'Edited page',
+      slug: 'edited',
       translations: { 'en-US': { name: 'Renamed EN' }, 'pl-PL': { name: 'Strona', slug: 'strona' } },
     });
+  });
+
+  it('never calls the first language the page base in its hint', () => {
+    for (const bundle of [en, pl]) {
+      expect(bundle['pageEditor.languageVersion.help']).not.toContain('{language}');
+    }
   });
 
   it('derives a new language slug from its name until the slug is edited, and switching tabs edits nothing', async () => {

@@ -412,22 +412,22 @@ nawigacji w storefroncie, link kanoniczny, `og:url` i mapa witryny używają
 ### Nazwa, slug i opis w każdym języku
 
 Karta *Metadane strony* edytuje język widoczny na płótnie, przełączany
-zakładkami języków nad płótnem. W pierwszym języku strony pola **Nazwa**,
-**Slug** i **Opis** są wartościami samej strony, których używa każdy inny
-język, dopóki nie ustawi własnych. W pozostałych językach te same pola
-nazywają się *Nazwa (pl-PL)* i tak dalej: puste pole oznacza wartość strony,
-którą karta pokazuje na szaro jako podpowiedź. Tytuł, opis i słowa kluczowe
-meta w danym języku są w zwiniętej sekcji **Pozycjonowanie (SEO)** tej karty.
-Status strony to plakietka obok jej tytułu; zmieniają go tylko przyciski
-**Opublikuj**, **Archiwizuj** i **Przywróć z archiwum**.
+zakładkami języków nad płótnem. Własne pola strony **Nazwa**, **Slug** i
+**Opis** nie należą do żadnego języka: każdy język używa ich w każdym polu,
+którego nie ustawia sam. Karta edytuje je w pierwszym języku strony, dopóki
+ten język nie ma własnej nazwy, sluga ani opisu. W pozostałych językach, a w
+pierwszym, gdy ma już własne wartości, pola nazywają się *Nazwa (pl-PL)* i
+tak dalej: puste pole oznacza własną wartość strony, którą karta pokazuje na
+szaro jako podpowiedź. Tytuł, opis i słowa kluczowe meta w danym języku są w
+zwiniętej sekcji **Pozycjonowanie (SEO)** tej karty. Status strony to
+plakietka obok jej tytułu; zmieniają go tylko przyciski **Opublikuj**,
+**Archiwizuj** i **Przywróć z archiwum**.
 
 Slug nowej strony podąża za jej nazwą, dopóki nie wpiszesz własnego, a slug
 języka podąża za nazwą w tym języku, dopóki język nie ma zapisanej nazwy ani
 sluga. Taki slug, wpisany ręcznie, jest normalizowany po opuszczeniu pola,
-więc `Mój Slug` staje się `moj-slug`. Zapisana strona zachowuje swój adres po zmianie nazwy.
-Strona zapisana przed tym układem może mieć własne wartości w pierwszym
-języku; karta pokazuje wtedy i edytuje te wartości, z wartością strony jako
-podpowiedzią.
+więc `Mój Slug` staje się `moj-slug`. Zapisana strona zachowuje swój adres po
+zmianie nazwy.
 
 Nadpisania są zapisane w `cms_pages.translations`
 (`{ "<lang>": { "name", "slug", "description" } }`, `{}` dla strony, która

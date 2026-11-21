@@ -2010,7 +2010,7 @@
   "pageEditor.share.choose": "Wybierz",
   "pageEditor.share.change": "Zmień",
   "pageEditor.share.clear": "Usuń obraz do udostępniania",
-  "pageEditor.languageVersion.help": "Puste pole używa wartości z wersji {language}, pokazanej na szaro.",
+  "pageEditor.languageVersion.help": "Puste pole używa własnej wartości strony, pokazanej na szaro.",
   "pageEditor.languageVersion.name": "Nazwa ({language})",
   "pageEditor.languageVersion.slug": "Slug ({language})",
   "pageEditor.languageVersion.description": "Opis ({language})",

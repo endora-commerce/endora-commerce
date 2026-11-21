@@ -395,22 +395,23 @@ request's channel.
 ### Name, slug and description per language
 
 The *Page metadata* card edits the language the canvas shows, switched by
-the language tabs above the canvas. In the page's first language its
-**Name**, **Slug** and **Description** are the page's own values, which every
-other language uses unless it sets its own. In any other language the same
-fields read *Name in pl-PL* and so on: a field left empty uses the page's
-value, which the card shows greyed out as a hint. The meta title, meta
-description and meta keywords of the language are in the collapsed **SEO**
-section of the card. The page's status is the badge beside its title; it
-changes only through **Publish**, **Archive** and **Unarchive**.
+the language tabs above the canvas. A page's own **Name**, **Slug** and
+**Description** belong to no language: every language uses them for each
+field it does not set itself. The card edits them in the page's first
+language, as long as that language has no name, slug or description of its
+own. In any other language, and in the first one once it has its own values,
+the fields read *Name in pl-PL* and so on: a field left empty falls back to
+the page's own value, which the card shows greyed out as a hint. The meta
+title, meta description and meta keywords of the language are in the
+collapsed **SEO** section of the card. The page's status is the badge beside
+its title; it changes only through **Publish**, **Archive** and
+**Unarchive**.
 
 A new page's slug follows its name until you type a slug of your own, and a
 language's slug follows that language's name while the language has no saved
 name or slug. Such a slug, when typed, is normalised as you leave the field,
-so `Mój Slug` becomes `moj-slug`. A saved page keeps its address when you rename
-it. A page saved before this layout may carry its own values for its first
-language; the card then shows and edits those, with the page's value as the
-hint.
+so `Mój Slug` becomes `moj-slug`. A saved page keeps its address when you
+rename it.
 
 The overrides are stored in `cms_pages.translations`
 (`{ "<lang>": { "name", "slug", "description" } }`, `{}` for a page that

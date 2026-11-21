@@ -200,6 +200,11 @@ const STATUS_BADGES: Readonly<Record<CmsPageStatus, { labelKey: string; variant:
 /** The three fields a language can carry of its own. */
 type LanguageFieldKey = keyof LanguageFields;
 
+/** Whether a language carries any name, slug or description of its own. */
+function hasOwnTranslation(fields: LanguageFields | undefined): boolean {
+  return Boolean(fields && (fields.name.trim() || fields.slug.trim() || fields.description.trim()));
+}
+
 /** The form as the page was last saved (issue #1461: also what `dirty` compares against). */
 function formFor(loaded: CmsPageDetail | null): FormState {
   if (!loaded) return blankForm;
@@ -601,28 +606,20 @@ export function PageEditor(): ReactNode {
 
   /**
    * Issue #1513 (CONTENT-10) — one card edits the language the canvas shows.
-   * In the page's first language its fields *are* the page's own values; in
-   * any other they are that language's, inheriting the page's while empty.
+   * The page's own values belong to no language: every language falls back to
+   * them field by field (`cmsLocalizedPage`). By convention the card edits them
+   * in the page's first language, but only while that language carries no
+   * translation of its own (a page stored before #1513 can); otherwise the
+   * first language shows its own fields, as every other language does.
    */
-  const defaultLanguage = scope.languages[0] ?? null;
-  const editedLanguage = activeLanguage ?? defaultLanguage;
-  const editsPageValues = editedLanguage === null || editedLanguage === defaultLanguage;
-
-  /**
-   * Whether `field` is edited as the language's own value. Always outside the
-   * first language; in it only where the language already carries one (a page
-   * stored before #1513 could), so what the input shows is what is served.
-   */
-  const ownsField = (field: LanguageFieldKey): boolean => {
-    if (!editsPageValues) return true;
-    if (!editedLanguage) return false;
-    const saved = page?.translations?.[editedLanguage]?.[field] ?? '';
-    const drafted = form.translations[editedLanguage]?.[field] ?? '';
-    return saved.trim().length > 0 || drafted.trim().length > 0;
-  };
+  const firstLanguage = scope.languages[0] ?? null;
+  const editedLanguage = activeLanguage ?? firstLanguage;
+  const editsPageValues =
+    editedLanguage === null ||
+    (editedLanguage === firstLanguage && !hasOwnTranslation(form.translations[editedLanguage]));
 
   const bindingFor = (field: LanguageFieldKey): FieldBinding => {
-    if (editedLanguage && ownsField(field)) {
+    if (editedLanguage && !editsPageValues) {
       const language = editedLanguage;
       return {
         value: form.translations[language]?.[field] ?? '',
@@ -642,7 +639,7 @@ export function PageEditor(): ReactNode {
    * or a language the page has no saved name or slug for. A stored address
    * never moves because a page was renamed.
    */
-  const slugFollowsName = ownsField('slug')
+  const slugFollowsName = !editsPageValues
     ? !(editedLanguage && (page?.translations?.[editedLanguage]?.name || page?.translations?.[editedLanguage]?.slug))
     : isNew;
 
@@ -739,7 +736,6 @@ export function PageEditor(): ReactNode {
                 key={editedLanguage ?? ''}
                 language={editedLanguage}
                 ownLanguage={editsPageValues ? null : editedLanguage}
-                defaultLanguage={defaultLanguage}
                 name={bindingFor('name')}
                 slug={bindingFor('slug')}
                 description={bindingFor('description')}
@@ -925,7 +921,6 @@ interface PageLanguageFieldsProps {
   language: string | null;
   /** The language whose own values these are, or `null` where they are the page's. */
   ownLanguage: string | null;
-  defaultLanguage: string | null;
   name: FieldBinding;
   slug: FieldBinding;
   description: FieldBinding;
@@ -944,7 +939,6 @@ interface PageLanguageFieldsProps {
 function PageLanguageFields({
   language,
   ownLanguage,
-  defaultLanguage,
   name,
   slug,
   description,
@@ -967,10 +961,8 @@ function PageLanguageFields({
   const addressId = `cms-page-slug-address-${language ?? 'page'}`;
   return (
     <>
-      {ownLanguage && defaultLanguage ? (
-        <p className="text-xs text-muted-foreground">
-          {t('pageEditor.languageVersion.help', { language: defaultLanguage })}
-        </p>
+      {ownLanguage ? (
+        <p className="text-xs text-muted-foreground">{t('pageEditor.languageVersion.help')}</p>
       ) : null}
       <FormField label={label('fields.name', 'pageEditor.languageVersion.name')}>
         <Input
