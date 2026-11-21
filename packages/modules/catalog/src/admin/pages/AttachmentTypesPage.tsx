@@ -1,7 +1,18 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
-import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus, type InlineStatusState } from '@endora-commerce/admin-kit/ui';
+import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
+import { Paperclip, Plus } from 'lucide-react';
+import {
+  ListPage,
+  ModalDialog,
+  ResponsiveTable,
+  RowActionMenu,
+  RowActionMenuItem,
+  useConfirmDialog,
+  useRemovalFocus,
+  type ListPageLoad,
+  type ResponsiveColumn,
+} from '@endora-commerce/admin-kit/components';
+import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, EmptyState, InlineStatus, Input, Label, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 interface AttachmentType {
@@ -12,47 +23,56 @@ interface AttachmentType {
   usageCount?: number;
 }
 
+interface CreateInput {
+  code: string;
+  nameEn: string;
+  namePl: string;
+}
+
+const messageOf = (err: unknown, fallback: string): string =>
+  err instanceof ApiError ? err.envelope.error.message : fallback;
+
+const rowId = (row: AttachmentType): string => row.id;
+
 /**
- * Attachment Types dictionary CRUD (T087, feature 002 US3).
+ * Attachment Types dictionary CRUD (T087, feature 002 US3). The system seeds 4
+ * standard rows (certificate / tech_spec / product_card / pdf) which the server
+ * reports with `usageCount > 0` once any product attaches one.
  *
- * Foundation pattern: single-file module, inline `useState` + `useEffect`,
- * direct `apiClient` calls. Mirrors AttributeSetsPage but lighter — type
- * is just `code + name (multilingual) + position`. The system seeds 4
- * standard rows (certificate / tech_spec / product_card / pdf) which the
- * server reports with `usageCount > 0` once any product attaches one.
+ * UX audit slice S6 (#1439 DS-05, #1441 DS-07, #1448 DS-15): the kit's
+ * `ListPage` — the list first, *New attachment type* as the header's one
+ * primary opening a dialog instead of a create form drawn under the table,
+ * Delete in the row's "…" menu instead of a filled red button in every row, and
+ * an `EmptyState` whose one action is *New attachment type*.
+ *
+ * Issue #1499 (UX audit SALES-17, DEC-12 a) — a result is said beside *New
+ * attachment type*, where the dialogs hand focus back, in a region mounted
+ * before it has text, not as a success banner. A refusal is the page's
+ * destructive banner — or, for a create, the dialog's, so the typed values stay.
  */
 export function AttachmentTypesPage(): ReactNode {
   const t = useTranslation('catalog');
   const tc = useTranslation('core');
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('catalog:write');
   const { confirm, confirmDialog } = useConfirmDialog();
   const [types, setTypes] = useState<AttachmentType[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
   const [error, setError] = useState<string | null>(null);
-  // Issue #1499 (UX audit SALES-17, DEC-12 a) — a result is said where it was
-  // asked for, in a region mounted before it has text, not as a success banner
-  // above the card: "created" beside Add, and "deleted" in the list's header,
-  // because the deleted row and its button are gone.
-  const createStatus = useInlineStatus();
-  const { show: showCreateStatus, clear: clearCreateStatus } = createStatus;
-  const deleteStatus = useInlineStatus();
-  const { show: showDeleteStatus, clear: clearDeleteStatus } = deleteStatus;
-  const clearStatuses = useCallback((): void => {
-    clearCreateStatus();
-    clearDeleteStatus();
-  }, [clearCreateStatus, clearDeleteStatus]);
+  const [creating, setCreating] = useState(false);
+  const status = useInlineStatus();
+  const { show: showStatus, clear: clearStatus } = status;
+  const removalFocus = useRemovalFocus(types, rowId, load.kind === 'ready');
 
   const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
+    // A reload after a write keeps the rows on screen rather than flashing the skeleton.
+    setLoad((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading' }));
     try {
-      const res = await apiClient.get<{ data: AttachmentType[] }>(
-        '/api/v1/admin/catalog/attachment-types',
-      );
+      const res = await apiClient.get<{ data: AttachmentType[] }>('/api/v1/admin/catalog/attachment-types');
       setTypes(res.data);
+      setLoad({ kind: 'ready' });
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('attachmentTypes.error.load'));
-    } finally {
-      setLoading(false);
+      setLoad({ kind: 'error', message: messageOf(err, t('attachmentTypes.error.load')) });
     }
   }, [t]);
 
@@ -60,180 +80,223 @@ export function AttachmentTypesPage(): ReactNode {
     void refresh();
   }, [refresh]);
 
+  const openCreate = useCallback((): void => {
+    clearStatus();
+    setError(null);
+    setCreating(true);
+  }, [clearStatus]);
+
+  /** Throws on a refusal, which the dialog says; resolves once the type exists. */
   const handleCreate = useCallback(
-    async (input: { code: string; nameEn: string; namePl: string }): Promise<void> => {
-      clearStatuses();
-      setError(null);
-      try {
-        await apiClient.post('/api/v1/admin/catalog/attachment-types', {
-          code: input.code,
-          name: { 'en-US': input.nameEn, 'pl-PL': input.namePl || input.nameEn },
-        });
-        showCreateStatus(t('attachmentTypes.success.create', { code: input.code }));
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('attachmentTypes.error.create'));
-      }
+    async (input: CreateInput): Promise<void> => {
+      await apiClient.post('/api/v1/admin/catalog/attachment-types', {
+        code: input.code,
+        name: { 'en-US': input.nameEn, 'pl-PL': input.namePl || input.nameEn },
+      });
+      setCreating(false);
+      showStatus(t('attachmentTypes.success.create', { code: input.code }));
+      await refresh();
     },
-    [refresh, t, clearStatuses, showCreateStatus],
+    [refresh, t, showStatus],
   );
 
   const handleDelete = useCallback(
-    async (id: string, code: string, usage: number): Promise<void> => {
-      clearStatuses();
+    async (row: AttachmentType): Promise<void> => {
+      clearStatus();
+      const usage = row.usageCount ?? 0;
       if (usage > 0) {
         // Issue #313 — said on the page, not in the browser's `alert()`.
-        setError(t('attachmentTypes.deleteInUse', { code, count: usage }));
+        setError(t('attachmentTypes.deleteInUse', { code: row.code, count: usage }));
         return;
       }
+      setError(null);
+      // The request runs inside the dialog: a refusal stays there, beside Retry and Cancel.
       const ok = await confirm({
-        message: t('attachmentTypes.deleteConfirm', { code }),
+        message: t('attachmentTypes.deleteConfirm', { code: row.code }),
         confirmLabel: tc('common.action.delete'),
         destructive: true,
+        action: () => apiClient.delete(`/api/v1/admin/catalog/attachment-types/${row.id}`),
+        describeError: (err) => messageOf(err, t('attachmentTypes.error.delete')),
+        // The menu goes with the row: focus moves to a neighbour, or to *New …* when none is left.
+        returnFocusTo: removalFocus.returnFocusTo(row),
       });
       if (!ok) return;
-      setError(null);
-      try {
-        await apiClient.delete(`/api/v1/admin/catalog/attachment-types/${id}`);
-        showDeleteStatus(t('attachmentTypes.success.delete', { code }));
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('attachmentTypes.error.delete'));
-      }
+      showStatus(t('attachmentTypes.success.delete', { code: row.code }));
+      await refresh();
     },
-    [refresh, t, tc, confirm, clearStatuses, showDeleteStatus],
+    [refresh, t, tc, confirm, clearStatus, showStatus, removalFocus],
   );
 
+  const newButton = (
+    <Button
+      ref={(element): void => {
+        removalFocus.createRef.current = element;
+      }}
+      type="button"
+      onClick={openCreate}
+    >
+      <Plus aria-hidden="true" />
+      {t('attachmentTypes.action.new')}
+    </Button>
+  );
+  // While the list is empty the empty state's *New …* is the one primary (Von Restorff).
+  const nothingYet = load.kind === 'ready' && types.length === 0;
+
+  const columns: ResponsiveColumn<AttachmentType>[] = [
+    {
+      id: 'code',
+      header: t('attachmentTypes.column.code'),
+      primary: true,
+      render: (row) => (
+        <code ref={removalFocus.targetRef(row)} tabIndex={-1} className="font-mono text-sm">
+          {row.code}
+        </code>
+      ),
+      meta: (row) => row.name['en-US'] ?? '—',
+    },
+    { id: 'nameEn', header: t('attachmentTypes.column.nameEn'), hideOnMobile: true, render: (row) => row.name['en-US'] ?? '—' },
+    { id: 'namePl', header: t('attachmentTypes.column.namePl'), render: (row) => row.name['pl-PL'] ?? '—' },
+    { id: 'position', header: t('attachmentTypes.column.position'), hideOnMobile: true, render: (row) => row.position },
+    { id: 'inUse', header: t('attachmentTypes.column.inUse'), render: (row) => row.usageCount ?? 0 },
+  ];
+
   return (
-    <div>
-      <PageHeader
+    <>
+      <ListPage
         title={t('attachmentTypes.page.title')}
         description={t('attachmentTypes.page.description')}
-      />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-          <CardTitle>{t('attachmentTypes.list.title')}</CardTitle>
-          <InlineStatus {...deleteStatus.props} />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {loading ? (
-            <p className="text-sm text-muted-foreground">{t('attachmentTypes.loading')}</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('attachmentTypes.column.code')}</TableHead>
-                  <TableHead>{t('attachmentTypes.column.nameEn')}</TableHead>
-                  <TableHead>{t('attachmentTypes.column.namePl')}</TableHead>
-                  <TableHead>{t('attachmentTypes.column.position')}</TableHead>
-                  <TableHead>{t('attachmentTypes.column.inUse')}</TableHead>
-                  <TableHead className="w-[1%] whitespace-nowrap">{t('attachmentTypes.column.actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {types.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-mono">{row.code}</TableCell>
-                    <TableCell>{row.name['en-US'] ?? '—'}</TableCell>
-                    <TableCell>{row.name['pl-PL'] ?? '—'}</TableCell>
-                    <TableCell>{row.position}</TableCell>
-                    <TableCell>{row.usageCount ?? 0}</TableCell>
-                    <TableCell>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => void handleDelete(row.id, row.code, row.usageCount ?? 0)}
-                      >
-                        {t('attachmentTypes.action.delete')}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-
-          <CreateAttachmentTypeInline onCreate={handleCreate} status={createStatus} />
-        </CardContent>
-      </Card>
+        actions={
+          <div className="flex items-center gap-3">
+            <InlineStatus {...status.props} />
+            {canWrite && !nothingYet ? newButton : null}
+          </div>
+        }
+        count={t('attachmentTypes.count', { count: String(types.length) })}
+        notice={
+          error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null
+        }
+        load={load}
+        onRetry={(): void => void refresh()}
+      >
+        <ResponsiveTable
+          columns={columns}
+          data={types}
+          keyExtractor={rowId}
+          emptyState={
+            <EmptyState
+              icon={<Paperclip size={20} />}
+              title={t('attachmentTypes.empty')}
+              description={canWrite ? t('attachmentTypes.empty.body') : t('attachmentTypes.empty.bodyReadOnly')}
+              action={canWrite ? newButton : null}
+            />
+          }
+          {...(canWrite
+            ? {
+                renderActions: (row: AttachmentType): ReactNode => (
+                  <RowActionMenu label={t('attachmentTypes.rowActions', { code: row.code })}>
+                    <RowActionMenuItem destructive onSelect={(): void => void handleDelete(row)}>
+                      {t('attachmentTypes.action.delete')}
+                    </RowActionMenuItem>
+                  </RowActionMenu>
+                ),
+              }
+            : {})}
+        />
+      </ListPage>
+      {creating ? <CreateAttachmentTypeDialog onClose={(): void => setCreating(false)} onCreate={handleCreate} /> : null}
       {confirmDialog}
-    </div>
+    </>
   );
 }
 
-function CreateAttachmentTypeInline({
+/**
+ * Three fields, so a dialog rather than a route (the kit README's list-page
+ * rule). A refusal keeps it open with the server's message and what was typed.
+ */
+function CreateAttachmentTypeDialog({
+  onClose,
   onCreate,
-  status,
 }: {
-  onCreate: (input: { code: string; nameEn: string; namePl: string }) => Promise<void>;
-  /** The result of the last create, said beside Add. */
-  status: InlineStatusState;
+  onClose: () => void;
+  onCreate: (input: CreateInput) => Promise<void>;
 }): ReactNode {
   const t = useTranslation('catalog');
+  const tc = useTranslation('core');
+  const formId = useId();
   const [code, setCode] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [namePl, setNamePl] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: FormEvent): void => {
+  const handleSubmit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
-    if (!code || !nameEn) return;
-    void onCreate({ code, nameEn, namePl }).then(() => {
-      setCode('');
-      setNameEn('');
-      setNamePl('');
-    });
+    if (busy || !code || !nameEn) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onCreate({ code, nameEn, namePl });
+    } catch (err) {
+      setError(messageOf(err, t('attachmentTypes.error.create')));
+      setBusy(false);
+    }
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      // Typing the next type starts a new action: the last "created" no longer applies.
-      onChange={(): void => status.clear()}
-      className="grid gap-3 md:grid-cols-4 border-t pt-4"
-      aria-label={t('attachmentTypes.create.title')}
+    <ModalDialog
+      title={t('attachmentTypes.create.title')}
+      onClose={onClose}
+      busy={busy}
+      // A stray click must not throw away what was typed.
+      dismissOnScrim={false}
+      footer={
+        <>
+          <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+            {tc('common.action.cancel')}
+          </Button>
+          <Button type="submit" form={formId} disabled={busy} aria-busy={busy || undefined}>
+            {tc('common.action.create')}
+          </Button>
+        </>
+      }
     >
-      <div className="space-y-1">
-        <Label htmlFor="atcode">{t('attachmentTypes.field.code')}</Label>
-        <Input
-          id="atcode"
-          value={code}
-          onChange={(e): void => setCode(e.target.value)}
-          placeholder="warranty"
-          pattern="[a-z0-9_]+"
-          required
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="atnameen">{t('attachmentTypes.field.nameEn')}</Label>
-        <Input
-          id="atnameen"
-          value={nameEn}
-          onChange={(e): void => setNameEn(e.target.value)}
-          required
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="atnamepl">{t('attachmentTypes.field.namePl')}</Label>
-        <Input
-          id="atnamepl"
-          value={namePl}
-          onChange={(e): void => setNamePl(e.target.value)}
-          placeholder={t('attachmentTypes.field.namePlPlaceholder')}
-        />
-      </div>
-      <div className="flex flex-wrap items-center gap-3 md:col-span-4">
-        <Button type="submit">{t('attachmentTypes.action.add')}</Button>
-        <InlineStatus {...status.props} />
-      </div>
-    </form>
+      <form id={formId} className="space-y-4" onSubmit={(e): void => void handleSubmit(e)}>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <div className="space-y-1">
+          <Label htmlFor={`${formId}-code`}>{t('attachmentTypes.field.code')}</Label>
+          <Input
+            id={`${formId}-code`}
+            value={code}
+            onChange={(e): void => setCode(e.target.value)}
+            placeholder="warranty"
+            pattern="[a-z0-9_]+"
+            title={t('attachmentTypes.field.codeTitle')}
+            required
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${formId}-name-en`}>{t('attachmentTypes.field.nameEn')}</Label>
+          <Input id={`${formId}-name-en`} value={nameEn} onChange={(e): void => setNameEn(e.target.value)} required />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${formId}-name-pl`}>{t('attachmentTypes.field.namePl')}</Label>
+          <Input
+            id={`${formId}-name-pl`}
+            value={namePl}
+            onChange={(e): void => setNamePl(e.target.value)}
+            placeholder={t('attachmentTypes.field.namePlPlaceholder')}
+          />
+        </div>
+      </form>
+    </ModalDialog>
   );
 }
 
