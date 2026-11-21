@@ -157,7 +157,7 @@ export function PriceBookCreatePage(): ReactNode {
     <>
       <PageHeader
         title={t('priceBooks.create.title')}
-        back={{ label: t('priceBooks.common.backToList'), to: '/price-lists' }}
+        back={{ label: t('priceBooks.list.title'), to: '/price-lists' }}
       />
       <section className="max-w-2xl space-y-4" aria-labelledby={`${nameId}-heading`}>
         <h2 id={`${nameId}-heading`} ref={headingRef} tabIndex={-1} className="text-lg font-semibold focus-visible:outline-none">

@@ -26,6 +26,8 @@ export interface MultiSelectProps {
    * copy of it.
    */
   ariaLabelledBy?: string;
+  /** The trigger's id — what an `InlineEdit` editor puts its focus on. */
+  id?: string;
   className?: string;
   disabled?: boolean;
   /** Optional leading icon for the trigger (e.g. a Columns glyph). */
@@ -51,6 +53,7 @@ export function MultiSelect({
   placeholder,
   ariaLabel,
   ariaLabelledBy,
+  id,
   className,
   disabled = false,
   icon,
@@ -105,6 +108,7 @@ export function MultiSelect({
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       <button
+        id={id}
         type="button"
         aria-label={ariaLabelledBy ? undefined : (ariaLabel ?? placeholder)}
         aria-labelledby={ariaLabelledBy}

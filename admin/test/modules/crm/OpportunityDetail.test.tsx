@@ -885,9 +885,8 @@ describe('OpportunityDetail — the header and the sidebar (User Story 20)', () 
     );
     expect(fact(customer, 'opportunity.field.contact')).toHaveTextContent('Jan Kowalski');
     expect(fact(customer, 'opportunity.field.contact')).toHaveTextContent('jan@acme.example');
-    expect(within(customer).getByRole('group', { name: en('assignment.label') })).toHaveTextContent(
-      'Anna Nowak',
-    );
+    // The assignee is a fact edited as its neighbours are (issue #1525, WORK-03).
+    expect(fact(customer, 'assignment.label')).toHaveTextContent('Anna Nowak');
 
     const classification = group('opportunity.facts.classification');
     expect(fact(classification, 'opportunity.field.source')).toHaveTextContent(
@@ -973,7 +972,7 @@ describe('OpportunityDetail — the header and the sidebar (User Story 20)', () 
     expect(screen.queryByRole('button', { name: /^Edit$/ })).toBeNull();
     expect(screen.queryByRole('form')).toBeNull();
     expect(
-      screen.getByRole('button', { name: en('inlineEdit.edit', { field: en('opportunity.field.title') }) }),
+      screen.getByRole('button', { name: core('common.inlineEdit.edit', { field: en('opportunity.field.title') }) }),
     ).toBeInTheDocument();
   });
 

@@ -494,7 +494,7 @@ export function DocumentTemplateEditor(): ReactNode {
         header={
           <>
             <PageHeader
-              back={{ label: tCore('common.action.back'), to: listPath }}
+              back={{ label: t('page.title'), to: listPath }}
               title={template?.name ?? t('editor.title')}
               titleActions={template?.isDefault ? <Badge>{t('page.default')}</Badge> : undefined}
               description={template ? `${typeLabel} · ${template.salesChannelName ?? t('page.allChannels')}` : undefined}

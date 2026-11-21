@@ -230,7 +230,7 @@ export function WarehouseEditor(): ReactNode {
   return (
     <div className="b2b-page">
       <PageHeader
-        back={{ label: t('warehouses.editor.backToList'), to: '/warehouses' }}
+        back={{ label: t('warehouses.page.title'), to: '/warehouses' }}
         title={isNew ? t('warehouses.editor.newTitle') : loaded?.name ?? t('warehouses.editor.fallbackTitle')}
         description={
           !isNew && loaded ? (

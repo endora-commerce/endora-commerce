@@ -1,12 +1,19 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react';
 import { Pencil } from 'lucide-react';
-import { Button } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { Button } from '../../ui/button.js';
+import { cn } from '../../lib/utils.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 
 /** What the editor of an inline field is handed while it is open. */
 export interface InlineEditorProps<T> {
-  /** The id the control takes, so the field's name labels it. */
+  /** The id the control takes, so the field's name labels it and the focus lands on it. */
   id: string;
+  /**
+   * The id of the field's name. A `group` editor — a radio group, a tag
+   * picker — names itself with it (`aria-labelledby`); a single control is
+   * already labelled through `id`.
+   */
+  labelId: string;
   draft: T;
   setDraft: (next: T) => void;
   busy: boolean;
@@ -29,20 +36,30 @@ export interface InlineEditProps<T> {
   /** A sentence when the draft cannot be saved as it is; checked before anything is sent. */
   validate?: (draft: T) => string | null;
   /**
-   * Saves the draft. A rejection carries the sentence to show, and the draft is
-   * kept for another try.
+   * Saves the draft. A rejection carries the sentence to show (its `message`),
+   * and the draft is kept for another try; one without a sentence shows the
+   * kit's.
    */
   save: (draft: T) => Promise<void>;
   /** Whether the draft is the value unchanged — then *Save* is no request. */
   unchanged?: (draft: T) => boolean;
-  /** Where the label goes: above the value (a fact of the sidebar), or nowhere visible (the page's title). */
+  /** Where the label goes: above the value (a fact), or nowhere visible (a section's heading names it). */
   labelVisible?: boolean;
+  /**
+   * The editor is a group of controls — radios, a multi-select — rather than
+   * one: the label is then drawn as text with `labelId`, for the group's
+   * `aria-labelledby`, instead of a `<label for>` that would name only one of
+   * them. The editor still puts `id` on the control the focus should land on.
+   */
+  group?: boolean;
   className?: string;
 }
 
 /**
- * One field of an Opportunity, edited where it is shown
- * (`specs/158-crm-opportunity-inline-editing/`, FR-001 – FR-004): no form
+ * One fact of a record, edited where it is shown — the admin's one model for
+ * editing a record's facts (issue #1453, UX audit 2026-11-17 DS-21, owner
+ * decision DEC-05; first written for CRM in
+ * `specs/158-crm-opportunity-inline-editing/`, FR-001 – FR-004): no form
  * elsewhere, no page of its own.
  *
  * Four states, each said on screen and to assistive technology:
@@ -57,9 +74,10 @@ export interface InlineEditProps<T> {
  * - **error** — the sentence of what went wrong under the control, tied to it,
  *   and the draft kept as typed.
  *
- * Once saved, the value is shown again and "Saved" is announced. The one *Save*
- * is the only filled button while a field is open (Von Restorff); *Cancel* is
- * beside it, as every form of the admin has them (Jakob).
+ * Once saved, the value is shown again and "<field> saved." is announced
+ * through a live region mounted before it has text (WCAG 4.1.3). The one
+ * *Save* is the only filled button while a field is open (Von Restorff);
+ * *Cancel* is beside it, as every form of the admin has them (Jakob).
  */
 export function InlineEdit<T>(props: InlineEditProps<T>): ReactNode {
   const {
@@ -72,12 +90,13 @@ export function InlineEdit<T>(props: InlineEditProps<T>): ReactNode {
     save,
     unchanged,
     labelVisible = true,
+    group = false,
     className,
   } = props;
-  const t = useTranslation('crm');
-  const tCore = useTranslation('core');
+  const t = useTranslation('core');
   const baseId = useId();
   const controlId = `${baseId}-control`;
+  const labelId = `${baseId}-label`;
   const errorId = `${baseId}-error`;
   // A draft may itself be `null` — a cleared contact, no Sales Channel — so
   // whether the field is open is its own state.
@@ -88,13 +107,18 @@ export function InlineEdit<T>(props: InlineEditProps<T>): ReactNode {
   const [notice, setNotice] = useState('');
   const pencil = useRef<HTMLButtonElement>(null);
   const region = useRef<HTMLDivElement>(null);
+  const form = useRef<HTMLFormElement>(null);
   /** Where the focus goes once the field closes: back to its pencil. */
   const returnFocus = useRef(false);
 
   useEffect(() => {
     if (editing) {
-      // The control the editor drew: an input, a picker, a formatted field.
-      region.current?.ownerDocument.getElementById(controlId)?.focus();
+      // The control the editor drew: an input, a picker, a formatted field. One
+      // still held — a picker reading its options — leaves the focus on the
+      // form, inside the field, so the next Tab reaches it (WCAG 2.4.3).
+      const control = region.current?.ownerDocument.getElementById(controlId);
+      if (control && !control.matches(':disabled')) control.focus();
+      else form.current?.focus();
       return;
     }
     if (returnFocus.current) {
@@ -135,26 +159,27 @@ export function InlineEdit<T>(props: InlineEditProps<T>): ReactNode {
     try {
       await save(current);
       close();
-      setNotice(t('inlineEdit.saved', { field: label }));
+      setNotice(t('common.inlineEdit.saved', { field: label }));
     } catch (failure) {
-      setProblem(failure instanceof Error && failure.message ? failure.message : t('opportunity.edit.error'));
+      setProblem(failure instanceof Error && failure.message ? failure.message : t('common.inlineEdit.error'));
     } finally {
       setBusy(false);
     }
   };
 
-  const labelElement = labelVisible ? (
-    editing ? (
-      <label htmlFor={controlId} className="block text-xs text-muted-foreground">
+  const labelClass = labelVisible ? 'block text-xs text-muted-foreground' : 'sr-only';
+  const labelElement = editing ? (
+    group ? (
+      <p id={labelId} className={labelClass}>
+        {label}
+      </p>
+    ) : (
+      <label id={labelId} htmlFor={controlId} className={labelClass}>
         {label}
       </label>
-    ) : (
-      <p className="text-xs text-muted-foreground">{label}</p>
     )
-  ) : editing ? (
-    <label htmlFor={controlId} className="sr-only">
-      {label}
-    </label>
+  ) : labelVisible ? (
+    <p className="text-xs text-muted-foreground">{label}</p>
   ) : null;
 
   return (
@@ -162,9 +187,11 @@ export function InlineEdit<T>(props: InlineEditProps<T>): ReactNode {
       {labelElement}
       {editing ? (
         <form
+          ref={form}
           noValidate
+          tabIndex={-1}
           aria-busy={busy}
-          className="mt-1 space-y-2"
+          className="mt-1 space-y-2 outline-none"
           onSubmit={(event): void => void submit(event)}
           onKeyDown={(event): void => {
             // A control that takes Escape for itself — an open list — stops it first.
@@ -176,6 +203,7 @@ export function InlineEdit<T>(props: InlineEditProps<T>): ReactNode {
         >
           {editor({
             id: controlId,
+            labelId,
             draft: draft as T,
             setDraft: (next) => {
               setDraft(next);
@@ -199,10 +227,10 @@ export function InlineEdit<T>(props: InlineEditProps<T>): ReactNode {
               disabled={busy}
               onClick={close}
             >
-              {tCore('common.action.cancel')}
+              {t('common.action.cancel')}
             </Button>
             <Button type="submit" size="sm" className="min-h-11 sm:min-h-8" disabled={busy} aria-busy={busy}>
-              {busy ? tCore('common.state.saving') : tCore('common.action.save')}
+              {busy ? t('common.state.saving') : t('common.action.save')}
             </Button>
           </div>
         </form>
@@ -210,18 +238,12 @@ export function InlineEdit<T>(props: InlineEditProps<T>): ReactNode {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere]">{display}</div>
           {canEdit ? (
-            <Button
+            <InlineEditPencil
               ref={pencil}
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="-my-1 min-h-11 min-w-11 shrink-0 px-2 text-muted-foreground hover:text-foreground sm:min-h-8 sm:min-w-8"
-              aria-label={t('inlineEdit.edit', { field: label })}
-              title={t('inlineEdit.edit', { field: label })}
+              className="-my-1"
+              label={t('common.inlineEdit.edit', { field: label })}
               onClick={open}
-            >
-              <Pencil aria-hidden="true" className="size-4" />
-            </Button>
+            />
           ) : null}
         </div>
       )}
@@ -230,5 +252,33 @@ export function InlineEdit<T>(props: InlineEditProps<T>): ReactNode {
         {notice}
       </p>
     </div>
+  );
+}
+
+/** The pencil every inline field opens with: icon-only, so named, and 44 px on touch (Fitts). */
+export function InlineEditPencil(props: {
+  label: string;
+  onClick: () => void;
+  ref?: Ref<HTMLButtonElement>;
+  disabled?: boolean;
+  className?: string;
+}): ReactNode {
+  return (
+    <Button
+      ref={props.ref}
+      type="button"
+      variant="ghost"
+      size="sm"
+      className={cn(
+        'min-h-11 min-w-11 shrink-0 px-2 text-muted-foreground hover:text-foreground sm:min-h-8 sm:min-w-8',
+        props.className,
+      )}
+      aria-label={props.label}
+      title={props.label}
+      disabled={props.disabled ?? false}
+      onClick={props.onClick}
+    >
+      <Pencil aria-hidden="true" className="size-4" />
+    </Button>
   );
 }

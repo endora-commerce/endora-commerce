@@ -129,7 +129,7 @@ export function StockImportWizard(): ReactNode {
   return (
     <div className="b2b-page">
       <PageHeader
-        back={{ label: t('inventory.import.back'), to: '/inventory' }}
+        back={{ label: t('inventory.page.title'), to: '/inventory' }}
         title={t('inventory.import.title')}
         description={
           <>

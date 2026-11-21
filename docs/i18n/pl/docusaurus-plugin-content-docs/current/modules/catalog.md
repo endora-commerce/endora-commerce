@@ -258,6 +258,11 @@ także **tryb prezentacji ceny** kategorii, dostarczany przez ten moduł i pokaz
 Pod nimi jest **obraz główny**, który zmienia się od razu, poza przyciskiem Zapisz. W formularzu nowej kategorii slug
 powstaje z nazwy w trakcie jej wpisywania; wpisanie własnego to wyłącza.
 
+Kategoria ma **nazwę w każdym języku, który oferują aktywne kanały sprzedaży** — po jednym polu na język, wszystkie
+widoczne naraz. Nazwa zapisana w języku, którego żaden aktywny kanał już nie oferuje, zostaje w edytorze tylko do
+odczytu, oznaczona jako **Poza kanałami**; zapisanie zachowuje ją bez zmian. Jeśli nie da się odczytać języków
+kanałów, edytor o tym informuje i oferuje języki, które kategoria już ma, oraz język panelu.
+
 Edytor ma **jeden przycisk Zapisz** dla wszystkiego. Zmiana trybu prezentacji ceny tylko czeka na zapis: nie jest
 już zapisywana w chwili wyboru. Zapisz pokazuje „Zapisz”, gdy nie ma nic do zapisania, i „Zapisz 2 zmiany”, gdy jest,
 licząc razem własne zmiany kategorii i tryb prezentacji.

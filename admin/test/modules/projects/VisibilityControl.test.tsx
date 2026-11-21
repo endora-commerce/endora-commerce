@@ -4,7 +4,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ProjectDetail } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../../setup';
-import { ADMIN_ID, PROJECT_ID, detail, en, renderProjects } from './projects-fixtures';
+import { ADMIN_ID, PROJECT_ID, core, detail, en, renderProjects } from './projects-fixtures';
 
 /**
  * Who sees a Project — the visibility control on *New project* and on a
@@ -165,20 +165,32 @@ describe('VisibilityControl', () => {
 });
 
 describe('Overview — who sees this project', () => {
+  /** Who sees it is a fact edited in place — the kit's `InlineEdit` (issue #1525, WORK-03). */
+  const EDIT = (): string => core('common.inlineEdit.edit', { field: en('visibility.section') });
+
   function renderOverview(project: ProjectDetail, onChange = vi.fn()): ReturnType<typeof vi.fn> {
     renderProjects(<OverviewTab project={project} onChange={onChange} reload={vi.fn(async () => {})} />);
     return onChange;
   }
 
+  it('is read until its pencil is pressed: the choice, what it means and no radio', async () => {
+    renderOverview(detail());
+    expect(screen.getByText(en('visibility.option.inherit'))).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.getByRole('button', { name: EDIT() })).toBeInTheDocument();
+  });
+
   it('a writer changes it and saves: one PATCH naming the version read, and the answer is put on screen', async () => {
     const answer = detail({ visibility: 'everyone', version: 4 });
     patchSpy.mockResolvedValue({ data: answer });
     const onChange = renderOverview(detail());
-    const save = screen.getByRole('button', { name: en('visibility.save') });
-    expect(save).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: EDIT() }));
+    // The choices are named by the field, and the focus is on the chosen one.
+    const choices = screen.getByRole('radiogroup', { name: en('visibility.section') });
+    await waitFor(() => expect(within(choices).getByRole('radio', { name: en('visibility.option.inherit') })).toHaveFocus());
 
     await userEvent.click(screen.getByRole('radio', { name: en('visibility.option.everyone') }));
-    await userEvent.click(save);
+    await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
 
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     expect(patchSpy).toHaveBeenCalledWith(`/api/v1/admin/projects/${PROJECT_ID}`, {
@@ -187,17 +199,29 @@ describe('Overview — who sees this project', () => {
       version: 3,
     });
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(answer));
-    expect(await screen.findByRole('status')).toHaveTextContent(en('visibility.saved'));
+    expect(
+      await screen.findByText(core('common.inlineEdit.saved', { field: en('visibility.section') })),
+    ).toHaveAttribute('role', 'status');
   });
 
-  it('a refusal is said where the change was made, and nothing is put on screen', async () => {
+  it('an unchanged choice is no request', async () => {
+    renderOverview(detail());
+    await userEvent.click(screen.getByRole('button', { name: EDIT() }));
+    await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
+    expect(patchSpy).not.toHaveBeenCalled();
+    expect(screen.queryByRole('radio')).toBeNull();
+  });
+
+  it('a refusal is said where the change was made, the choice kept, and nothing is put on screen', async () => {
     patchSpy.mockRejectedValue(
       new ApiError(409, { error: { code: 'PROJECT_CHANGED', message: 'The project changed since it was read.' } }),
     );
     const onChange = renderOverview(detail());
+    await userEvent.click(screen.getByRole('button', { name: EDIT() }));
     await userEvent.click(screen.getByRole('radio', { name: en('visibility.option.everyone') }));
-    await userEvent.click(screen.getByRole('button', { name: en('visibility.save') }));
-    expect(await screen.findByText('The project changed since it was read.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The project changed since it was read.');
+    expect(screen.getByRole('radio', { name: en('visibility.option.everyone') })).toBeChecked();
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -214,21 +238,21 @@ describe('Overview — who sees this project', () => {
     );
   }
 
-  it('follows a newer read of the Project while nothing is changed here — no stale choice, nothing to save', async () => {
+  it('follows a newer read of the Project while it is not being changed here', async () => {
     renderProjects(<Page first={detail()} later={detail({ visibility: 'everyone', version: 4 })} />);
-    expect(screen.getByRole('radio', { name: en('visibility.option.inherit') })).toBeChecked();
+    expect(screen.getByText(en('visibility.option.inherit'))).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'another write' }));
-    expect(screen.getByRole('radio', { name: en('visibility.option.everyone') })).toBeChecked();
-    expect(screen.getByRole('button', { name: en('visibility.save') })).toBeDisabled();
+    expect(screen.getByText(en('visibility.option.everyone'))).toBeInTheDocument();
   });
 
   it('keeps a change somebody is making when a newer read arrives, and saves it against the newer version', async () => {
     patchSpy.mockResolvedValue({ data: detail({ visibility: 'members_and_listed', version: 5 }) });
     renderProjects(<Page first={detail()} later={detail({ title: 'Renamed', version: 4 })} />);
+    await userEvent.click(screen.getByRole('button', { name: EDIT() }));
     await userEvent.click(screen.getByRole('radio', { name: en('visibility.option.everyone') }));
     await userEvent.click(screen.getByRole('button', { name: 'another write' }));
     expect(screen.getByRole('radio', { name: en('visibility.option.everyone') })).toBeChecked();
-    await userEvent.click(screen.getByRole('button', { name: en('visibility.save') }));
+    await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     expect(patchSpy).toHaveBeenCalledWith(`/api/v1/admin/projects/${PROJECT_ID}`, {
       visibility: 'everyone',
@@ -246,8 +270,49 @@ describe('Overview — who sees this project', () => {
       }),
     );
     expect(screen.queryByRole('radio')).toBeNull();
-    expect(screen.queryByRole('button', { name: en('visibility.save') })).toBeNull();
+    expect(screen.queryByRole('button', { name: EDIT() })).toBeNull();
     expect(screen.getByText(en('visibility.effect.membersAndListed'))).toBeInTheDocument();
     expect(within(screen.getByRole('list', { name: en('visibility.listed.label') })).getByText('Piotr Wiśniewski')).toBeInTheDocument();
+  });
+});
+
+describe('Overview — the start date', () => {
+  const EDIT = (): string => core('common.inlineEdit.edit', { field: en('overview.startOn') });
+
+  it('a writer changes it in place and saves it alone, against the version read', async () => {
+    patchSpy.mockResolvedValue({ data: detail({ startOn: '2026-12-01', version: 4 }) });
+    const onChange = vi.fn();
+    renderProjects(<OverviewTab project={detail()} onChange={onChange} reload={vi.fn(async () => {})} />);
+    await userEvent.click(screen.getByRole('button', { name: EDIT() }));
+    const field = screen.getByLabelText(en('overview.startOn'));
+    expect(field).toHaveFocus();
+    await userEvent.clear(field);
+    await userEvent.type(field, '2026-12-01{Enter}');
+    await waitFor(() =>
+      expect(patchSpy).toHaveBeenCalledWith(`/api/v1/admin/projects/${PROJECT_ID}`, { startOn: '2026-12-01', version: 3 }),
+    );
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+  });
+
+  it('cannot be cleared: the refusal is said before anything is sent', async () => {
+    renderProjects(<OverviewTab project={detail()} onChange={vi.fn()} reload={vi.fn(async () => {})} />);
+    await userEvent.click(screen.getByRole('button', { name: EDIT() }));
+    const field = screen.getByLabelText(en('overview.startOn'));
+    await userEvent.clear(field);
+    await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
+    expect(field).toHaveAccessibleDescription(en('overview.startOnRequired'));
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
+  it('a reader sees it with no pencil', () => {
+    renderProjects(
+      <OverviewTab
+        project={detail({ permissions: { canWrite: false, canConfigure: false } })}
+        onChange={vi.fn()}
+        reload={vi.fn(async () => {})}
+      />,
+    );
+    expect(screen.getByText(en('overview.startOn'))).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: EDIT() })).toBeNull();
   });
 });

@@ -12,7 +12,7 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
 import { errorMessage, moneyLabel, normaliseAmount } from '../lib/labels.js';
 import { useOpportunityUpdate } from '../lib/use-opportunity-update.js';
-import { InlineEdit } from './InlineEdit.js';
+import { InlineEdit } from '@endora-commerce/admin-kit/components';
 import { useReturnHere } from '../lib/return-here.js';
 
 /** The workflow screen's section that says which statuses count (issue #1561). */

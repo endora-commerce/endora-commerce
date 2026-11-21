@@ -64,7 +64,7 @@ const PRODUCT = { id: 'prod-1', sku: 'SKU-1', slug: 'p1', status: 'active', type
 
 const BUNDLE = passthroughBundle('core', [
   'rfqCreate.submit',
-  'rfqCreate.back',
+  'rfq.list.title',
   'common.action.back',
   'rfqCreate.items.quickSearch',
   'rfqCreate.field.agreedUnitPrice',
