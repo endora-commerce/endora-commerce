@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import type { AdminPrepareCustomerBasketResponse } from '@endora-commerce/contracts';
 import { apiClient, ApiError, cn, formatDateTime, isDraftEqual, readReturnTo, useDetailResource, useModulePresence } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, DetailSkeleton, Input, Label, PageHeader, RecordTabs, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, DetailSkeleton, EditorSection, Input, Label, PageHeader, RecordTabs, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldValuesPanel,
   DetailHeaderActions,
@@ -49,6 +49,7 @@ import type { ReferenceAmount } from '../reference-difference.js';
 import {
   DifferenceCell,
   ReferenceCell,
+  ReferenceDifferenceCell,
   probeCustomerPrice,
   proposalOf,
   referencePriceOf,
@@ -1466,8 +1467,9 @@ function ModifyCard({
   // the row instead of being trapped inside it. The fixed-width columns only
   // engage at md+ (where the header is visible); on narrower widths the row
   // stacks so the trailing actions column can't overflow and break the layout.
+  // Issue #1542 (SALES-16) — seven columns: the reference and its difference share a cell.
   const gridCols =
-    'md:grid-cols-[minmax(180px,1fr)_80px_120px_130px_100px_120px_130px_auto]';
+    'md:grid-cols-[minmax(180px,1fr)_80px_120px_160px_100px_130px_auto]';
 
   // The deadline field's answers, all about the same date: what saving would
   // set, or — while the field is blank — what leaving it blank keeps. "Blank"
@@ -1496,8 +1498,10 @@ function ModifyCard({
           );
 
   return (
-    <Section title={t('rfq.detail.modify.title')}>
-      <div className="space-y-3">
+    // Issue #1542 (SALES-16) — no title that repeats the tab's: two sections under it, the
+    // request's terms and its lines, inside the tab's one card (Common Region).
+    <div className="space-y-(--section-gap)">
+      <EditorSection title={t('rfq.detail.modify.section.terms')} contentClassName="space-y-3">
         <div className="space-y-2">
           <Label htmlFor="modify-note">{t('rfq.detail.modify.headerNote')}</Label>
           <Textarea
@@ -1537,19 +1541,23 @@ function ModifyCard({
             {validityHelp}
           </p>
         </div>
+      </EditorSection>
+      <EditorSection title={t('rfq.detail.modify.section.lines')} contentClassName="space-y-3">
         <div className="space-y-2">
+          {/* Visual column heads only: every control in a line carries its own name. */}
           <div
+            aria-hidden="true"
+            data-testid="rfq-modify-columns"
             className={cn(
               'hidden gap-3 px-1 text-xs font-medium text-muted-foreground md:grid',
               gridCols,
             )}
           >
-            <span>{t('rfq.detail.modify.productId')}</span>
+            <span>{t('rfq.detail.modify.product')}</span>
             <span>{t('rfq.detail.modify.quantity')}</span>
             <span>{t('rfq.detail.modify.agreedUnitPrice')}</span>
-            <span>{t('rfq.detail.reference.column.reference')}</span>
+            <span>{t('rfq.detail.modify.referenceDifference')}</span>
             <span>{t('rfq.detail.reference.column.proposed')}</span>
-            <span>{t('rfq.detail.reference.column.difference')}</span>
             <span>{t('rfq.detail.modify.lineTotal')}</span>
             <span />
           </div>
@@ -1609,6 +1617,7 @@ function ModifyCard({
                 >
                   <ProductPicker
                     mode="select"
+                    ariaLabel={t('rfq.detail.modify.product')}
                     value={l.productId || null}
                     onChange={(v): void => {
                       // Switching products invalidates any prior agreed price; clear
@@ -1652,19 +1661,17 @@ function ModifyCard({
                     onChange={(e): void => updateLine(l.key, { agreedUnitPrice: e.target.value })}
                     className="tabular-nums"
                   />
-                  <div className="flex min-h-9 items-center text-sm">
-                    <ReferenceCell view={reference} perBaseUnit={Boolean(orig?.packagingUnitName)} />
+                  <div className="flex min-h-9 items-center text-sm" data-testid="rfq-modify-reference">
+                    <ReferenceDifferenceCell
+                      view={reference}
+                      perBaseUnit={Boolean(orig?.packagingUnitName)}
+                      price={typedAgreed}
+                      currency={orig?.lineCurrency ?? currency}
+                    />
                   </div>
                   <span className="flex min-h-9 items-center text-sm tabular-nums text-muted-foreground">
                     {desired !== null ? format.unitMoney(desired, currency) : '—'}
                   </span>
-                  <div className="flex min-h-9 items-center text-sm">
-                    <DifferenceCell
-                      price={typedAgreed}
-                      currency={orig?.lineCurrency ?? currency}
-                      reference={referencePriceOf(reference)}
-                    />
-                  </div>
                   <span className="flex min-h-9 items-center text-sm font-medium tabular-nums">
                     {lineTotal !== null ? format.money(lineTotal, currency) : '—'}
                   </span>
@@ -1723,21 +1730,21 @@ function ModifyCard({
             {t('rfq.detail.modify.addLine')}
           </Button>
         </div>
-        {/* Issue #1449 (DS-19) — the one Save stays in view over a long list of lines. */}
-        <StickyFormActions
-          desktop="sticky"
-          dirty={dirty}
-          error={saveError}
-          status={saveStatus}
-          note={t('rfq.detail.modify.notifiesCustomer')}
-          primary={
-            <Button onClick={(): void => void save()} disabled={busy} aria-busy={busy || undefined}>
-              {t('rfq.detail.modify.saveRevision')}
-            </Button>
-          }
-        />
-      </div>
-    </Section>
+      </EditorSection>
+      {/* Issue #1449 (DS-19) — the one Save stays in view over a long list of lines. */}
+      <StickyFormActions
+        desktop="sticky"
+        dirty={dirty}
+        error={saveError}
+        status={saveStatus}
+        note={t('rfq.detail.modify.notifiesCustomer')}
+        primary={
+          <Button onClick={(): void => void save()} disabled={busy} aria-busy={busy || undefined}>
+            {t('rfq.detail.modify.saveRevision')}
+          </Button>
+        }
+      />
+    </div>
   );
 }
 
