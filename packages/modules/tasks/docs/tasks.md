@@ -158,7 +158,7 @@ project the task is in, for one. Without the
 permission to change tasks the screen is read-only.
 
 **On other records.** The screens of an **opportunity**, an **order** and a
-**quote request** end with a **Tasks** panel: the tasks linked to it that you
+**quote request** have a **Tasks** section in their sidebar: the tasks linked to it that you
 may see, with their status, assignees and due date, *Add task* — a new task
 already linked to the record — and *Show in the task list*. A task opened or
 added from the panel leads *Back* to the record, also after it is deleted.

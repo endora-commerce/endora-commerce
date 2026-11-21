@@ -141,12 +141,13 @@ Its tabs:
   said to be so.
 
 **On the screens of the records a project holds** — an Order, a Quote Request,
-an Opportunity, a Task — a **Project** panel names the project it belongs to:
+an Opportunity, a Task — a **Project** section in the screen's sidebar names
+the project it belongs to:
 its number, a link to it, its title, its state and its current stage with the
 stage's deadline. A record in no project, or in a project you may not see,
 shows no panel at all.
 
-**On an Organization's screen** a **Projects** panel lists the projects of that
+**On an Organization's screen** a **Projects** section on the **Sales** tab lists the projects of that
 Organization you may see, newest first — the ten newest, saying how many there
 are and linking *All projects* to the projects list, filtered to that Organization, when there are more — each with
 its number, a link to it, its title, its state and its current stage.

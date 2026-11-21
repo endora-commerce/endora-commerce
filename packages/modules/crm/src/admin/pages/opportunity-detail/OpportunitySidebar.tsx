@@ -4,6 +4,7 @@ import type { OpportunityDetail } from '@endora-commerce/contracts';
 import { formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Card, CardContent, Input } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { AssigneeSection } from '../../components/AssigneeSection.js';
 import { InlineEdit } from '../../components/InlineEdit.js';
 import { ContactLookup, SalesChannelLookup } from '../../components/LookupPickers.js';
@@ -90,6 +91,10 @@ export function OpportunitySidebar(props: OpportunitySidebarProps): ReactNode {
   const t = useTranslation('crm');
   const contact = opportunity.customerAccount;
   const update = useOpportunityUpdate(opportunity, onChange);
+  // Issues #1452 / #1526 (UX audit DS-20, WORK-12) — the panels other modules add about the
+  // Opportunity. The wrapper is drawn only while something fills the zone, so with every
+  // contributor off the sidebar is the one it was, with no rule over nothing.
+  const zoneShown = useAdminZone('opportunity.detail.sidebar', { opportunityId: opportunity.id }).length > 0;
 
   return (
     <aside aria-label={t('opportunity.section.details')} className={className}>
@@ -211,6 +216,12 @@ export function OpportunitySidebar(props: OpportunitySidebarProps): ReactNode {
           ) : null}
         </dl>
       </FactGroup>
+
+      {zoneShown ? (
+        <div className="space-y-(--section-gap) pt-5">
+          <AdminZone name="opportunity.detail.sidebar" props={{ opportunityId: opportunity.id }} chrome="section" />
+        </div>
+      ) : null}
         </CardContent>
       </Card>
     </aside>

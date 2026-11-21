@@ -1425,7 +1425,7 @@ The **Tasks** module is optional in the same way. While it is switched off a
 task mentioned in a text reads as *Task unavailable*, the `@@` document list
 offers no tasks and an opportunity's screen shows no *Tasks* panel; switched
 back on, the mentions show their tasks again. While it is on, the *Tasks* panel
-at the end of an opportunity's screen lists the tasks linked to it that you may
+in an opportunity's sidebar lists the tasks linked to it that you may
 see — the Tasks module's own page describes it.
 
 So is the **Projects** module: while it is switched off a project mentioned in a
@@ -2108,8 +2108,8 @@ the definitions and every stored value.
 
 ## Opportunities on the organization's screen
 
-An organization's screen ends with an **Open opportunities** panel: the
-opportunities being worked with that organization that are not yet won or lost,
+An organization's **Sales** tab holds an **Open opportunities** section, after
+the sales representatives: the opportunities being worked with that organization that are not yet won or lost,
 newest first, each with its number and title (a link to the opportunity), its
 status and its value. **New opportunity** opens the create form with the
 organization already chosen.
@@ -2120,6 +2120,8 @@ organization already chosen.
   list.
 - Somebody confined to certain organizations sees the panel only on those
   organizations' screens, like every other opportunity list.
+- The Sales tab is shown to somebody who may assign sales representatives or
+  who sees this section, so holding `crm:read` alone is enough to open it.
 - With CRM switched off the organization's screen shows nothing of it — no
   panel, no heading, no request.
 
@@ -2129,8 +2131,8 @@ opportunity, the entry stays and carries no title and no link.
 
 ## The opportunity on the order's and the quote request's screen
 
-An order's screen ends with a **Linked opportunity** panel, whichever tab is
-open.
+An order's screen has a **Linked opportunity** section in its sidebar, beside
+the tabs, so it is in view whichever tab is open.
 
 - **An order linked to an opportunity** shows the opportunity's number and
   title (a link to it), its status, who it is assigned to and its value.
@@ -2147,9 +2149,10 @@ open.
     the opportunity's own screen.
 - The panel is shown to whoever holds `crm:read`. Without it, and with CRM
   switched off, the order's screen is exactly as it is without the module — no
-  panel, no heading, no empty space, no request.
+  panel, no heading, no empty space, no request. When nothing else fills the
+  sidebar either, the screen has no sidebar at all.
 
-**A quote request's screen ends with the same panel**, for a quote request:
+**A quote request's sidebar holds the same panel**, for a quote request:
 the opportunity it is linked to, or — for a holder of `crm:write` — *Link to an
 opportunity* and *Create opportunity*, which carry the quote request instead of
 an order. Whoever is on that screen holds `rfqs:handle`, which linking a quote
@@ -2168,10 +2171,11 @@ MODULE_DISABLED`, whoever asks. The create form accepts `linkDocumentKind=order`
 or `quote_request` and `linkDocumentId=<the document's id>` beside
 `organizationId` in its address.
 
-For module authors: the panel is CRM's contribution to the `order.detail.after`
-and `quote_request.detail.after` admin zones, which the Orders and the Quote
-Requests modules mount and which any module may contribute to. Neither imports
-CRM or declares a dependency on it.
+For module authors: the panel is CRM's contribution to the `order.detail.sidebar`
+and `quote_request.detail.sidebar` admin zones, and the organization's section
+its contribution to `organization.detail.sales`, which the Orders, the Quote
+Requests and the Organizations modules mount and which any module may
+contribute to. None of them imports CRM or declares a dependency on it.
 
 ## Adding your own logic to a status change
 

@@ -20,7 +20,7 @@ import {
  * CRM's panel on the Order screen (`specs/143-crm-sales-opportunities/`, User
  * Story 17 — task T173; `contracts/admin-surfaces.md` §5).
  *
- * `orders` mounts `order.detail.after` and names nobody. CRM contributes one
+ * `orders` mounts `order.detail.sidebar` and names nobody. CRM contributes one
  * panel: the Opportunity the Order is linked to — number, title, status,
  * assignee, value, a link — or, for an Order linked to none, the two ways to
  * give it one. The zone renderer applies both presence axes and `crm:read`
@@ -70,7 +70,7 @@ function renderZone(
     withSession(
       <AppLanguageContext.Provider value={{ language: 'en', setLanguage: (): void => {} }}>
         <MemoryRouter initialEntries={[`/orders/${ORDER_ID}`]}>
-          <AdminZone name="order.detail.after" props={{ orderId: ORDER_ID }} />
+          <AdminZone name="order.detail.sidebar" props={{ orderId: ORDER_ID }} />
         </MemoryRouter>
       </AppLanguageContext.Provider>,
       {
@@ -105,7 +105,7 @@ beforeEach(() => {
 
 describe('crm contributes the order detail zone', () => {
   it('declares the contribution on crm:read, behind a dynamic import', () => {
-    const zone = (crm.contributions.zones ?? []).find((entry) => entry.zone === 'order.detail.after');
+    const zone = (crm.contributions.zones ?? []).find((entry) => entry.zone === 'order.detail.sidebar');
     expect(zone?.requiredPermission).toBe('crm:read');
     expect(zone?.weight).toBe(600);
     expect(zone?.match).toBeUndefined();
