@@ -1643,7 +1643,7 @@
   "platform.commandHooks.plan.beforeCommit.title": "Przed zatwierdzeniem, w tej kolejności",
   "platform.commandHooks.plan.beforeCommit.hint": "Działa w transakcji zapisu. Odmowa anuluje cały zapis.",
   "platform.commandHooks.plan.afterCommit.title": "Po zatwierdzeniu, każdy osobno",
-  "platform.commandHooks.plan.afterCommit.hint": "Do każdego odbiorcy dostarczenie trafia osobno przez kolejkę dostarczeń, w dowolnej kolejności, i jest ponawiane po błędzie.",
+  "platform.commandHooks.plan.afterCommit.hint": "Dostarczane osobno przez kolejkę dostarczeń, w dowolnej kolejności; ponawiane po błędzie.",
   "platform.commandHooks.plan.noHooks": "Żaden moduł nie podpina się do tej fazy.",
   "platform.commandHooks.module.on": "Włączony",
   "platform.commandHooks.module.off": "Wyłączony — pomijany",
