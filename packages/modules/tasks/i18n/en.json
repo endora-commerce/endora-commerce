@@ -223,7 +223,6 @@
   "detail.error": "The task could not be loaded.",
   "detail.back": "Tasks",
   "detail.details": "Details",
-  "detail.edit": "Edit",
   "detail.assignToMe": "Assign to me",
   "detail.unassign": "Unassign",
   "detail.saved": "Task saved.",

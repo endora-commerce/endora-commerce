@@ -272,11 +272,12 @@ pola. Jego naciśnięcie zamienia to jedno pole w kontrolkę edycji, z przyciska
 | **Opis** | Własna sekcja na karcie *Przegląd*. | Edytor formatowania (zob. *Tekst sformatowany*); zapisuje **Ctrl+Enter** (**Cmd+Enter** na Macu) albo **Zapisz**. |
 | **Planowana data zamknięcia** | Panel informacji. | Data. |
 | **Osoba kontaktowa** | Panel informacji. | Proponowane są tylko osoby z organizacji szansy. |
+| **Handlowiec** | Panel informacji. | Wybranie osoby jeszcze jej nie przypisuje: przypisuje **Zapisz**. Wyczyszczony wybór zdejmuje przypisanie. |
 | **Kanał sprzedaży** | Panel informacji. | |
 | **Wartość** — kwota | Panel informacji. | Tylko gdy wartość jest **wpisana ręcznie**. Wartość wyliczana nie ma ołówka: najpierw trzeba przełączyć sposób jej ustalania. |
 
-Handlowca, etykiety i sposób ustalania wartości już wcześniej zmieniało się na
-miejscu i tak zostaje. Organizacji, waluty, źródła, numeru ani dat rekordu nie
+Etykiety i sposób ustalania wartości już wcześniej zmieniało się na miejscu
+i tak zostaje. Organizacji, waluty, źródła, numeru ani dat rekordu nie
 można zmienić i nie mają ołówka. Pola niestandardowe mają nadal własną sekcję
 i własny przycisk **Zapisz pola niestandardowe** (zob. *Pola niestandardowe*).
 
@@ -644,9 +645,10 @@ W Admin UI:
   jest jej.
 - **Na ekranie szansy** pole *Handlowiec* — w panelu informacji po prawej —
   pokazuje, kto ją prowadzi.
-  Posiadacz uprawnienia `crm:write` zmienia to w tym samym miejscu: wybranie
-  osoby od razu przypisuje jej szansę, a wyczyszczenie pola zostawia szansę
-  nieprzypisaną. Niczego nie trzeba zapisywać.
+  Posiadacz uprawnienia `crm:write` zmienia to w tym samym miejscu ołówkiem,
+  jak każdą inną informację: wybierz osobę albo wyczyść pole, aby zostawić
+  szansę nieprzypisaną, i naciśnij **Zapisz**. Odmowa — osoba została
+  w międzyczasie dezaktywowana — pojawia się pod polem, które zachowuje wybór.
 - **Na liście** jest kolumna *Handlowiec*, a lista i tablica mają filtr
   *Handlowiec*: **Dowolny**, **Moje**, **Nieprzypisane** albo **Wybrana
   osoba…** — ta ostatnia opcja dodaje pole wyboru osoby.

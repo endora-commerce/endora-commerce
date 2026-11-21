@@ -163,38 +163,93 @@ describe('TaskDetail — the fields of a full work item (US1)', () => {
     expect(within(details).getByText(core('references.unavailable.opportunity'))).toBeTruthy();
   });
 
-  it('edits the description in the reference editor, the due time, the start date, the priority and the tags', async () => {
-    patchSpy.mockResolvedValue({ data: current });
-    await renderPage();
-    await userEvent.click(screen.getByRole('button', { name: en('detail.edit') }));
-    // The reference editor, not a plain textarea.
-    expect(screen.getByLabelText(en('field.description')).getAttribute('contenteditable')).toBe('true');
-    // Every assignee is in the multi-select.
-    expect(screen.getAllByText('Anna Nowak').length).toBeGreaterThan(0);
-
-    const time = screen.getByLabelText(en('field.dueTime'));
-    await userEvent.clear(time);
-    await userEvent.type(time, '09:15');
-    const start = screen.getByLabelText(en('field.startOn'));
-    await userEvent.clear(start);
-    await userEvent.type(start, '2026-11-02');
-    await userEvent.selectOptions(screen.getByLabelText(en('field.priority')), 'urgent');
-    const tags = screen.getByRole('button', { name: en('field.tags') });
-    await waitFor(() => expect(tags).not.toBeDisabled());
-    await userEvent.click(tags);
-    await userEvent.click(await screen.findByRole('checkbox', { name: 'Urgent' }));
-
+  /** Opens one fact's editor through its pencil (the kit's `InlineEdit`, issue #1525). */
+  async function edit(field: string): Promise<void> {
+    await userEvent.click(screen.getByRole('button', { name: core('common.inlineEdit.edit', { field: en(field) }) }));
+  }
+  async function save(): Promise<Record<string, unknown>> {
     await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     const [path, body] = patchSpy.mock.calls[0] as [string, Record<string, unknown>];
     expect(path).toBe(TASK_PATH);
-    expect(body).toMatchObject({
-      dueAt: new Date('2026-11-05T09:15').toISOString(),
-      startOn: '2026-11-02',
-      priorityCode: 'urgent',
-      tagIds: [INSTALL.id, URGENT.id],
-    });
-    expect(body).not.toHaveProperty('title');
+    return body;
+  }
+
+  it('edits the description in the reference editor, in place, and sends it alone', async () => {
+    patchSpy.mockResolvedValue({ data: current });
+    await renderPage();
+    await edit('field.description');
+    const description = screen.getByLabelText(en('field.description'));
+    // The reference editor, not a plain textarea, with the focus in it.
+    expect(description.getAttribute('contenteditable')).toBe('true');
+    await waitFor(() => expect(description).toHaveFocus());
+    await userEvent.type(description, ' today');
+    const body = await save();
+    expect(Object.keys(body)).toEqual(['description']);
+  });
+
+  it('edits the due time in place and sends the due moment alone', async () => {
+    patchSpy.mockResolvedValue({ data: current });
+    await renderPage();
+    await edit('field.dueAt');
+    expect(screen.getByLabelText(en('field.dueAt'))).toHaveFocus();
+    const time = screen.getByLabelText(en('field.dueTime'));
+    await userEvent.clear(time);
+    await userEvent.type(time, '09:15');
+    expect(await save()).toEqual({ dueAt: new Date('2026-11-05T09:15').toISOString() });
+  });
+
+  it('edits the start date in place and sends it alone', async () => {
+    patchSpy.mockResolvedValue({ data: current });
+    await renderPage();
+    await edit('field.startOn');
+    const start = screen.getByLabelText(en('field.startOn'));
+    await userEvent.clear(start);
+    await userEvent.type(start, '2026-11-02');
+    expect(await save()).toEqual({ startOn: '2026-11-02' });
+  });
+
+  it('edits the priority in place and sends it alone', async () => {
+    patchSpy.mockResolvedValue({ data: current });
+    await renderPage();
+    await edit('field.priority');
+    await userEvent.selectOptions(screen.getByLabelText(en('field.priority')), 'urgent');
+    expect(await save()).toEqual({ priorityCode: 'urgent' });
+  });
+
+  it('edits the tags in place — the picker named by the field — and sends them alone', async () => {
+    patchSpy.mockResolvedValue({ data: current });
+    await renderPage();
+    await edit('field.tags');
+    const tags = screen.getByRole('button', { name: en('field.tags') });
+    await waitFor(() => expect(tags).not.toBeDisabled());
+    await userEvent.click(tags);
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Urgent' }));
+    expect(await save()).toEqual({ tagIds: [INSTALL.id, URGENT.id] });
+  });
+
+  it('edits the assignees in place, every one of them in the multi-select', async () => {
+    patchSpy.mockResolvedValue({ data: current });
+    await renderPage();
+    await edit('field.assignee');
+    await screen.findByRole('combobox', { name: en('field.assignee') });
+    expect(screen.getAllByText('Anna Nowak').length).toBeGreaterThan(1);
+    // Unchanged, Save is no request.
+    await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
+    expect(patchSpy).not.toHaveBeenCalled();
+    expect(screen.queryByRole('combobox', { name: en('field.assignee') })).toBeNull();
+  });
+
+  it('announces a saved field by its name', async () => {
+    patchSpy.mockResolvedValue({ data: { ...current, startOn: '2026-11-02' } });
+    await renderPage();
+    await edit('field.startOn');
+    const start = screen.getByLabelText(en('field.startOn'));
+    await userEvent.clear(start);
+    await userEvent.type(start, '2026-11-02{Enter}');
+    expect(
+      await screen.findByText(core('common.inlineEdit.saved', { field: en('field.startOn') })),
+    ).toHaveAttribute('role', 'status');
   });
 
   it('shows the task custom fields, and saves them through the Task', async () => {
@@ -270,7 +325,7 @@ describe('TaskDetail — the fields of a full work item (US1)', () => {
 
   it('a reader sees the fields and the files, and none of the controls', async () => {
     await renderPage(['tasks:read']);
-    expect(screen.queryByRole('button', { name: en('detail.edit') })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Edit / })).toBeNull();
     const section = await openTab(en('attachments.title'));
     expect(await within(section).findByText('plan.pdf')).toBeTruthy();
     expect(within(section).queryByRole('button', { name: en('attachments.upload') })).toBeNull();
