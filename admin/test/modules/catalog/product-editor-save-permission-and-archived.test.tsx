@@ -19,7 +19,8 @@ import {
 /**
  * Feature 174 final QA, spec "Edge Cases":
  * - *Permission lost mid-session* — a 403 refuses the whole save; nothing is claimed saved;
- * - *Archived product* — the archived notice wins; the switcher still works.
+ * - *Archived product* — the header says it is archived (pill + Restore, #1509); the switcher
+ *   still works.
  */
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
@@ -69,13 +70,14 @@ describe('permission lost mid-session', () => {
 });
 
 describe('archived product', () => {
-  it('shows the archived notice and the scope switcher still switches scope', async () => {
+  it('shows the archived state in the header and the scope switcher still switches scope', async () => {
     archivedAt = '2026-10-01T10:00:00.000Z';
     const view = renderEditor(ProductEditor, { url: `/catalog/products/${PRODUCT_ID}` });
-    expect(await screen.findByTestId('product-archived-notice')).toBeInTheDocument();
+    const restore = { name: en['productEditor.action.restore']! };
+    expect(await screen.findByRole('button', restore)).toBeInTheDocument();
     const channel = screen.getByLabelText(en['productEditor.scope.channelSelect']!);
     fireEvent.change(channel, { target: { value: CH_VIP } });
     await waitFor(() => expect(currentSearch(view).get('channel')).toBe(CH_VIP));
-    expect(await screen.findByTestId('product-archived-notice')).toBeInTheDocument();
+    expect(await screen.findByRole('button', restore)).toBeInTheDocument();
   });
 });
