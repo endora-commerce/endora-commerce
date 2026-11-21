@@ -3,7 +3,7 @@
 **Feature Branch**: `spec/record-tab-contributions`
 **Created**: 2026-11-21
 **Status**: Draft. The owner decision of 2026-11-21 is recorded below. OQ-1 (what the tab counts)
-is open and has a recommended default.
+is resolved: owner, 2026-11-21, option A (open Tasks only). No clarification markers remain.
 **Input**: Owner decision (2026-11-21): *on the CRM opportunity detail, Tasks get their own
 **tab** (for example "Tasks (3)") next to Overview, Links, Events, Notes, Messages, Attachments and
 Change history, not a sidebar section.*
@@ -59,7 +59,7 @@ renders the list.
 
 1. **Given** `tasks` is on, the reader holds `tasks:read`, and 3 open Tasks plus 1 closed Task are
    linked to the opportunity, **When** the opportunity opens, **Then** the strip shows a **Tasks**
-   tab with the count **3** (per OQ-1's default) and the accessible name "Tasks, open: 3".
+   tab with the count **3** (OQ-1 A, owner 2026-11-21) and the accessible name "Tasks, open: 3".
 2. **Given** the same, **When** the reader selects Tasks, **Then** the address becomes `?tab=tasks`
    and the panel lists the linked Tasks the reader may see, with *Add task* for a holder of
    `tasks:write`.
@@ -181,7 +181,8 @@ bundle, an optional count loader, a weight and a permission. The author edits no
   gated on `tasks:read`. It replaces its contribution to `opportunity.detail.sidebar`.
 - **FR-013**: The Tasks tab's count MUST come from a single dedicated count read that applies the
   list's filters and the visibility pre-filter. It MUST NOT come from a capped list page.
-  **[NEEDS CLARIFICATION] OQ-1**: does it count **open** Tasks (default) or all linked Tasks?
+  It counts **open** Tasks only (`statusCategory=open`), with the accessible name
+  "Tasks, open: <n>" (OQ-1 A, resolved by the owner on 2026-11-21).
 - **FR-014**: The Tasks tab panel MUST list the linked Tasks the reader may see, with number,
   title, status, assignees and due date. It offers *Add task* to a `tasks:write` holder, with a
   return address of the current `?tab=tasks` URL, and a link to the filtered Tasks list. It MUST
@@ -226,12 +227,12 @@ bundle, an optional count loader, a weight and a permission. The author edits no
   it does not adopt this mechanism. Organizations are not a Task link kind (`TASK_LINK_KINDS` in
   `packages/contracts/src/tasks.ts`), so the organization detail is out of scope.
 
-## Open questions
+## Resolved questions
 
-- **OQ-1 [NEEDS CLARIFICATION] — what does the Tasks count count?**
-  - **A (recommended):** open Tasks (`statusCategory=open`), with the accessible name "Tasks,
+- **OQ-1 — what does the Tasks count count? Resolved: A (owner, 2026-11-21).**
+  - **A (chosen):** open Tasks (`statusCategory=open`), with the accessible name "Tasks,
     open: 3". This is the Events precedent, which counts upcoming items ("is anything still to
     do?", research N-CAL12, kept by the owner on 2026-10-09). A total of linked Tasks only grows.
   - **B:** all linked Tasks the reader may see ("Tasks, items: 4"). This is the Notes and
     Attachments precedent.
-  - Either is one query parameter. If the owner has not ruled, A ships.
+  - Ruling: **A**. The badge counts open Tasks only ("Tasks, open: 3").

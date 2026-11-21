@@ -18,7 +18,7 @@ the same caller, across all pages:
   excluded);
 - an unknown status, priority or tag id matches nothing, and is not refused.
 
-**The Tasks tab's call** is `?linkedKind=opportunity&linkedId=<id>&statusCategory=open` (OQ-1 A).
-Under OQ-1 B it is the same without `statusCategory`.
+**The Tasks tab's call** is `?linkedKind=opportunity&linkedId=<id>&statusCategory=open` (OQ-1 A,
+resolved by the owner on 2026-11-21: the badge counts open Tasks only).
 
 **Not cached** (research R5). It is one aggregate over the indexed `task_record_links` predicate.

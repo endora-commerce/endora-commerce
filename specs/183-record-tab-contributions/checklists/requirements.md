@@ -16,7 +16,7 @@
 - [x] CHK005 Off-state (XVII) and permission behaviour specified (US2, FR-015)
 - [x] CHK006 Deep-link behaviour specified (US3, FR-011)
 - [x] CHK007 Edge cases cover collisions, failures, zero, other hosts
-- [ ] CHK008 One open question remains: OQ-1 (what the count counts), with a recommended default
+- [x] CHK008 OQ-1 (what the count counts) resolved by the owner on 2026-11-21: A, open Tasks only
 - [x] CHK009 Scope bounded: opportunity only; order/RFQ/project/organization reasoned in research R9
 
 ## Feature Readiness

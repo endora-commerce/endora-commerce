@@ -67,8 +67,8 @@ that is not visible costs zero bytes and zero requests.
 - **Palette.** No change (XVI N/A above).
 - **i18n.** New `tasks` keys, EN and PL, in `packages/modules/tasks/i18n/{en,pl}.json`:
   - `recordTab.label`: "Tasks" / "Zadania";
-  - `recordTab.countLabel`: "{label}, open: {count}" / "{label}, otwarte: {count}", or nothing
-    under OQ-1 B.
+  - `recordTab.countLabel`: "{label}, open: {count}" / "{label}, otwarte: {count}" (OQ-1 A, owner
+    2026-11-21).
   - Remove `panel.title` only if nothing else uses it (order and RFQ still do, so keep it).
   - `crm` gains no string.
 - **Settings, cache, audit.** None (research R5).
@@ -270,5 +270,5 @@ package.
   - the targeted admin and contract tests above, plus the derived-ledger units;
   - `pnpm --filter '!backend' run test` (packages);
   - for MR-A, `backend/test/contract/tasks/` on `dev:infra:test`.
-- **OQ-1.** Ship A (open Tasks) unless the owner has ruled B.
+- **OQ-1** is resolved (owner, 2026-11-21): A, so the badge counts open Tasks only.
 - **Designer review** of the tab layout of `TasksPanel` (spacing, toolbar) is non-blocking.
