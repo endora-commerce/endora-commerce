@@ -110,6 +110,43 @@ describe('ReturnReasonsPage — create in a dialog', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Nowy powód' })));
   });
 
+  it('creates a reason with a Polish label only (owner decision 2026-11-21)', async () => {
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Nowy powód' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Nowy powód' });
+    await userEvent.type(within(dialog).getByLabelText(/^Etykieta \(po polsku\)/), 'Zły rozmiar');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Dodaj powód' }));
+    expect(api.post).toHaveBeenCalledWith('/api/v1/admin/returns/reasons', {
+      label: { pl: 'Zły rozmiar' },
+      appliesTo: 'both',
+      weight: 100,
+    });
+    expect(await screen.findByText('Zły rozmiar')).toBeTruthy();
+    // The new row has no English label, and the list says so.
+    expect(screen.getByText('Brak: angielski')).toBeTruthy();
+  });
+
+  it('edits a reason\'s labels in a dialog, keeping a language it does not show', async () => {
+    mount([{ ...REASON, label: { en: 'Damaged', de: 'Beschädigt' } }]);
+    api.patch.mockResolvedValueOnce({ data: {} });
+    expect(await screen.findByText('Brak: polski')).toBeTruthy();
+    const edit = screen.getByRole('button', { name: 'Edytuj: Damaged' });
+    await userEvent.click(edit);
+    const dialog = await screen.findByRole('dialog', { name: 'Edytuj powód' });
+    expect((within(dialog).getByLabelText(/^Etykieta \(po angielsku\)/) as HTMLInputElement).value).toBe('Damaged');
+    expect((within(dialog).getByLabelText('Dotyczy') as HTMLSelectElement).value).toBe('complaint');
+    await userEvent.type(within(dialog).getByLabelText(/^Etykieta \(po polsku\)/), 'Uszkodzony');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+    expect(api.patch).toHaveBeenCalledWith('/api/v1/admin/returns/reasons/r1', {
+      label: { en: 'Damaged', de: 'Beschädigt', pl: 'Uszkodzony' },
+      appliesTo: 'complaint',
+      weight: 10,
+    });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByText('Zapisano powód.')).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(edit));
+  });
+
   it('refuses an empty label at its field and sends nothing', async () => {
     mount();
     await userEvent.click(await screen.findByRole('button', { name: 'Nowy powód' }));
@@ -117,7 +154,7 @@ describe('ReturnReasonsPage — create in a dialog', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Dodaj powód' }));
     const field = within(dialog).getByLabelText(/^Etykieta \(po angielsku\)/);
     expect(field.getAttribute('aria-invalid')).toBe('true');
-    expect(within(dialog).getByText('Podaj etykietę.')).toBeTruthy();
+    expect(within(dialog).getByText('Podaj etykietę po angielsku lub po polsku.')).toBeTruthy();
     expect(api.post).not.toHaveBeenCalled();
   });
 
@@ -145,6 +182,7 @@ describe('ReturnReasonsPage — create in a dialog', () => {
     mount();
     await screen.findByText('Uszkodzony');
     expect(screen.queryByRole('button', { name: 'Nowy powód' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edytuj: Uszkodzony' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Usuń: Uszkodzony' })).toBeNull();
     expect((screen.getByRole('switch', { name: 'Aktywny: Uszkodzony' }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -293,13 +331,47 @@ describe('ReturnStatusesConfigPage — create in a dialog', () => {
     expect(screen.getByText('Dodano status.')).toBeTruthy();
   });
 
+  it('creates a status with a Polish name only, the code and default name following it', async () => {
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Nowy status' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Nowy status' });
+    await userEvent.type(within(dialog).getByLabelText(/^Nazwa \(po polsku\)/), 'W oględzinach');
+    expect((within(dialog).getByLabelText(/^Kod nowego statusu/) as HTMLInputElement).value).toBe('w_ogledzinach');
+    api.post.mockResolvedValueOnce({ data: GRAPH });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Dodaj status' }));
+    expect(api.post).toHaveBeenCalledWith('/api/v1/admin/returns/statuses', {
+      code: 'w_ogledzinach',
+      name: { pl: 'W oględzinach' },
+      defaultName: 'W oględzinach',
+    });
+  });
+
+  it('edits a status\'s names in a dialog, with no code field, and says it is missing a language', async () => {
+    mount();
+    expect(await screen.findAllByText('Brak: polski')).toHaveLength(2);
+    api.patch.mockResolvedValueOnce({ data: GRAPH });
+    const edit = screen.getByRole('button', { name: 'Edytuj status: Received' });
+    await userEvent.click(edit);
+    const dialog = await screen.findByRole('dialog', { name: 'Edytuj status' });
+    expect(within(dialog).queryByLabelText(/^Kod nowego statusu/)).toBeNull();
+    await userEvent.type(within(dialog).getByLabelText(/^Nazwa \(po polsku\)/), 'Odebrane');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+    expect(api.patch).toHaveBeenCalledWith('/api/v1/admin/returns/statuses/received', {
+      name: { en: 'Received', pl: 'Odebrane' },
+      defaultName: 'Received',
+    });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByText('Zapisano status.')).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(edit));
+  });
+
   it('refuses an empty name at its field', async () => {
     mount();
     await userEvent.click(await screen.findByRole('button', { name: 'Nowy status' }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Dodaj status' }));
     expect(within(dialog).getByLabelText(/^Nazwa \(po angielsku\)/).getAttribute('aria-invalid')).toBe('true');
-    expect(within(dialog).getByText('Podaj nazwę.')).toBeTruthy();
+    expect(within(dialog).getByText('Podaj nazwę po angielsku lub po polsku.')).toBeTruthy();
     expect(api.post).not.toHaveBeenCalled();
   });
 
@@ -319,6 +391,7 @@ describe('ReturnStatusesConfigPage — create in a dialog', () => {
     mount({ ...GRAPH, statuses: [...GRAPH.statuses, status('inspecting', { isSystem: false })] });
     await screen.findByText('inspecting');
     expect(screen.queryByRole('button', { name: 'Nowy status' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edytuj status: Inspecting' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Usuń status: Inspecting' })).toBeNull();
     const notify = screen.getByRole('checkbox', { name: /Inspecting$/ }) as HTMLInputElement;
     expect(notify.disabled).toBe(true);
