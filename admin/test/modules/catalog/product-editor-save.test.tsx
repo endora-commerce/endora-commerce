@@ -16,6 +16,7 @@ import {
   scopedValuesResponse,
   setUpEditorApi,
 } from './product-editor-harness';
+import { shippedCoreBundle } from '../../helpers/core-bundle';
 
 /**
  * Feature 174 (T106; US7 #1–#6 UI half, FR-070…FR-076, FR-083) — one Save of the current scope:
@@ -32,6 +33,9 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 });
 
 const { ProductEditor } = await import('../../../../packages/modules/catalog/src/admin/pages/ProductEditor');
+
+/** The kit unsaved-changes dialog's buttons are `core`'s (#1606). */
+const core = shippedCoreBundle('en').core as Record<string, string>;
 
 function read(scope: ScopeRef) {
   return scopedValuesResponse({
@@ -89,7 +93,7 @@ describe('one Save of the current scope (feature 174, US7)', () => {
     await stageName();
     fireEvent.change(screen.getByLabelText(en['productEditor.scope.channelSelect']!), { target: { value: CH_VIP } });
     const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: en['productEditor.guard.stay']! }));
+    fireEvent.click(within(dialog).getByRole('button', { name: core['form.unsavedChanges.stay']! }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(currentSearch(view).get('channel')).toBe(CH_RETAIL);
     expect(screen.getByLabelText(en['productEditor.field.name']!)).toHaveValue('Wiertarka');
@@ -99,7 +103,7 @@ describe('one Save of the current scope (feature 174, US7)', () => {
     const view = renderEditor(ProductEditor, { url: AT_C });
     await stageName();
     fireEvent.change(screen.getByLabelText(en['productEditor.scope.channelSelect']!), { target: { value: CH_VIP } });
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: en['productEditor.guard.discard']! }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: core['form.unsavedChanges.discard']! }));
     await waitFor(() => expect(currentSearch(view).get('channel')).toBe(CH_VIP));
     expect(await screen.findByLabelText(en['productEditor.field.name']!)).toHaveValue('Drill');
     expect(scopedPuts()).toHaveLength(0);
@@ -109,7 +113,7 @@ describe('one Save of the current scope (feature 174, US7)', () => {
     const view = renderEditor(ProductEditor, { url: AT_C });
     await stageName();
     fireEvent.change(screen.getByLabelText(en['productEditor.scope.channelSelect']!), { target: { value: CH_VIP } });
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: en['productEditor.guard.save']! }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: core['form.unsavedChanges.save']! }));
     await waitFor(() => expect(currentSearch(view).get('channel')).toBe(CH_VIP));
     expect(scopedPuts()).toHaveLength(1);
     expect((scopedPuts()[0]![1] as { scope: unknown }).scope).toEqual({ channelId: CH_RETAIL });
@@ -120,7 +124,7 @@ describe('one Save of the current scope (feature 174, US7)', () => {
     await stageName();
     fireEvent.click(screen.getByRole('link', { name: en['productEditor.back']! }));
     const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: en['productEditor.guard.discard']! }));
+    fireEvent.click(within(dialog).getByRole('button', { name: core['form.unsavedChanges.discard']! }));
     expect(await screen.findByText('product list')).toBeInTheDocument();
   });
 

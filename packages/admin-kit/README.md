@@ -311,6 +311,11 @@ const guard = useUnsavedChangesGuard({ dirty, onSave: save, onDiscard: reset });
   *Discard changes* (`onDiscard`, then the navigation), *Stay here* (the initial focus, so an Enter
   pressed by accident keeps the work). Without `onSave` — no permission, nothing valid to send — the
   choice is Discard or Stay. Copy is `core`'s `form.unsavedChanges.*`; `title` and `message` override it.
+- **One guard, several questions** (#1606): `confirm(action, { title, message, onStay })` words that
+  one ask — a scope switch says it is a switch, while a link keeps the guard's `title` / `message` —
+  and `onStay` runs on *Stay here* or Escape, for undoing what the switch already moved (the product
+  editor puts back the address the browser's Back / Forward changed). Do not arm a second guard or
+  draw a second dialog for the switch.
 - **The blocked link or tab is replayed**, not re-routed: the same element is clicked again with the
   guard stood down, so the guard needs no router and keeps whatever the link does.
 - **Not interceptable here**: Back / Forward. The admin mounts a component `<BrowserRouter>`, not a

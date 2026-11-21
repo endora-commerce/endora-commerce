@@ -257,7 +257,7 @@ describe('the product editor’s one Save with a zone participant (feature 180)'
     await stageProbe();
     fireEvent.click(screen.getByRole('link', { name: en['productEditor.back']! }));
     const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: en['productEditor.guard.discard']! }));
+    fireEvent.click(within(dialog).getByRole('button', { name: CORE['form.unsavedChanges.discard']! }));
     expect(await screen.findByText('product list')).toBeInTheDocument();
   });
 
@@ -266,7 +266,7 @@ describe('the product editor’s one Save with a zone participant (feature 180)'
     await stageProbe();
     fireEvent.change(screen.getByLabelText(en['productEditor.scope.channelSelect']!), { target: { value: CH_RETAIL } });
     const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: en['productEditor.guard.stay']! }));
+    fireEvent.click(within(dialog).getByRole('button', { name: CORE['form.unsavedChanges.stay']! }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(currentSearch(view).get('channel')).toBeNull();
     expect(screen.getByLabelText('Probe value')).toHaveValue('edited');
@@ -276,7 +276,7 @@ describe('the product editor’s one Save with a zone participant (feature 180)'
     const view = open();
     await stageProbe();
     fireEvent.change(screen.getByLabelText(en['productEditor.scope.channelSelect']!), { target: { value: CH_RETAIL } });
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: en['productEditor.guard.save']! }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: CORE['form.unsavedChanges.save']! }));
     await waitFor(() => expect(currentSearch(view).get('channel')).toBe(CH_RETAIL));
     expect(writes()).toEqual(['/probe']);
   });
