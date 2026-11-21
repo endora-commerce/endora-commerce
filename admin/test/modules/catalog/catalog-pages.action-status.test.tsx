@@ -16,7 +16,8 @@ import {
  * dictionary, tree and bulk-operation screens say an action's result where it
  * was asked for, in a `role="status"` region that is mounted empty before the
  * action, not as a success `Alert` at the top of the page. A refusal stays the
- * page's destructive banner and clears the result.
+ * page's destructive banner and clears the result. Attachment types are held in
+ * `catalog-config-lists.test.tsx` since they moved onto the kit list page (S6).
  */
 
 const getSpy = vi.fn();
@@ -40,9 +41,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   };
 });
 
-const { AttachmentTypesPage } = await import(
-  '../../../../packages/modules/catalog/src/admin/pages/AttachmentTypesPage'
-);
 const { AttributesManager } = await import('../../../../packages/modules/catalog/src/admin/pages/AttributesManager');
 const { CategoriesTree } = await import('../../../../packages/modules/catalog/src/admin/pages/CategoriesTree');
 const { BulkOperationDetailPage } = await import(
@@ -93,50 +91,6 @@ beforeEach(() => {
   deleteSpy.mockReset();
 });
 afterEach(() => vi.clearAllMocks());
-
-describe('AttachmentTypesPage — results beside Add and in the list header (#1499)', () => {
-  const TYPE = { id: 't1', code: 'warranty', name: { 'en-US': 'Warranty' }, position: 0, usageCount: 0 };
-
-  it('says "created" beside Add, with no success banner, and clears it on the next edit', async () => {
-    getSpy.mockResolvedValue({ data: [] });
-    postSpy.mockResolvedValue({ data: TYPE });
-    renderAt(<AttachmentTypesPage />);
-    const add = await screen.findByRole('button', { name: tr('attachmentTypes.action.add') });
-    const region = statusBeside(add);
-    expect(region.textContent).toBe('');
-
-    fireEvent.change(document.getElementById('atcode') as HTMLInputElement, { target: { value: 'warranty' } });
-    fireEvent.change(document.getElementById('atnameen') as HTMLInputElement, { target: { value: 'Warranty' } });
-    fireEvent.click(add);
-
-    await waitFor(() => expect(region).toHaveTextContent(tr('attachmentTypes.success.create', { code: 'warranty' })));
-    noSuccessBanner();
-
-    fireEvent.change(document.getElementById('atcode') as HTMLInputElement, { target: { value: 'manual' } });
-    expect(region.textContent).toBe('');
-  });
-
-  it('says "deleted" in the list header — the row is gone — and a refusal is the banner', async () => {
-    getSpy.mockResolvedValue({ data: [TYPE] });
-    deleteSpy.mockResolvedValue(undefined);
-    renderAt(<AttachmentTypesPage />);
-    const title = await screen.findByText(tr('attachmentTypes.list.title'));
-    const region = statusBeside(title);
-    expect(region.textContent).toBe('');
-
-    fireEvent.click(await screen.findByRole('button', { name: tr('attachmentTypes.action.delete') }));
-    await confirmDialog();
-
-    await waitFor(() => expect(region).toHaveTextContent(tr('attachmentTypes.success.delete', { code: 'warranty' })));
-    noSuccessBanner();
-
-    deleteSpy.mockRejectedValueOnce(new Error('down'));
-    fireEvent.click(screen.getByRole('button', { name: tr('attachmentTypes.action.delete') }));
-    await confirmDialog();
-    expect(await screen.findByText(tr('attachmentTypes.error.delete'))).toBeInTheDocument();
-    expect(region.textContent).toBe('');
-  });
-});
 
 describe('AttributesManager — results beside New attribute (#1499, #1527)', () => {
   const ATTR = {
