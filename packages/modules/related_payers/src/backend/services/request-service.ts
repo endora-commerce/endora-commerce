@@ -53,6 +53,9 @@ export interface RequestServiceDeps {
   readonly onLinksChanged: (buyerOrganizationId: string) => Promise<void>;
 }
 
+/** The queue's page when the caller names no `pageSize` — its cap before it was paged. */
+const UNPAGED_QUEUE_LIMIT = 500;
+
 export interface RequestSender {
   readonly organizationId: string;
   readonly customerAccountId: string;
@@ -207,11 +210,17 @@ export class RelatedPayerRequestService {
 
   /**
    * FR-023 — the operator queue: requests routed to an operator, `pending` unless asked for
-   * another state. Read in the operator's own reach (the ambient filter on the sender), with
-   * everything the sender never sees.
+   * another state, oldest first. Read in the operator's own reach (the ambient filter on the
+   * sender), with everything the sender never sees. One page of it and the total across every
+   * page (UX audit DS-05, #1439); `id` breaks a `createdAt` tie, or a page boundary could repeat
+   * a row and skip another. Without a `pageSize` the page is the first 500, the queue's old cap.
    */
-  async listQueue(query: AdminRelatedPayerRequestsQuery): Promise<AdminRelatedPayerRequest[]> {
-    const rows = await this.deps.emFactory().find(
+  async listQueue(
+    query: AdminRelatedPayerRequestsQuery,
+  ): Promise<{ rows: AdminRelatedPayerRequest[]; page: number; pageSize: number; total: number }> {
+    const pageSize = query.pageSize ?? UNPAGED_QUEUE_LIMIT;
+    const page = query.pageSize === undefined ? 1 : query.page;
+    const [rows, total] = await this.deps.emFactory().findAndCount(
       RelatedPayerRequest,
       {
         routing: 'operator',
@@ -219,7 +228,7 @@ export class RelatedPayerRequestService {
         ...(query.reason ? { operatorReason: query.reason } : {}),
         ...(query.salesChannelId ? { salesChannelId: query.salesChannelId } : {}),
       },
-      { orderBy: { createdAt: 'asc', id: 'asc' }, limit: 500 },
+      { orderBy: { createdAt: 'asc', id: 'asc' }, offset: (page - 1) * pageSize, limit: pageSize },
     );
     const ids = [...new Set(rows.flatMap((r) => [r.organizationId, ...(r.counterpartyOrganizationId ? [r.counterpartyOrganizationId] : [])]))];
     const orgs = new Map((ids.length ? await this.deps.organizations.findByIds(ids) : []).map((o) => [o.id, o]));
@@ -231,7 +240,7 @@ export class RelatedPayerRequestService {
         candidates.set(r.id, (await this.#candidates(r)).map((o) => ({ organizationId: o.id, name: o.name })));
       }
     }
-    return rows.map((r) => ({
+    const listed = rows.map((r) => ({
       id: r.id,
       direction: r.direction,
       taxId: r.taxIdNormalized,
@@ -254,6 +263,7 @@ export class RelatedPayerRequestService {
       counterpartyAcceptedAt: r.counterpartyAcceptedAt?.toISOString() ?? null,
       candidates: candidates.get(r.id) ?? [],
     }));
+    return { rows: listed, page, pageSize, total };
   }
 
   /** FR-023 — the operator approves a queued request: the link, on the buyer's terms. */

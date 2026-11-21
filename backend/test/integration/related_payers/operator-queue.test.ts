@@ -174,6 +174,36 @@ describe('related_payers — operator queue (T073)', () => {
     expect((await sentState(x, id))?.state).toBe('pending');
   });
 
+  it('pages the queue, oldest first, with the total across every page (UX audit DS-05, #1439)', async () => {
+    await setSetting(h, 'related_payers.approval_mode', 'admin');
+    const ids: string[] = [];
+    for (const name of ['Paged buyer 1', 'Paged buyer 2', 'Paged buyer 3']) {
+      ids.push(await requestFrom(await makeOrganizationWithAdmin(h.em(), name), y.taxId));
+    }
+
+    const whole = await admin('GET', QUEUE);
+    expect(whole.statusCode, whole.body).toBe(200);
+    const all = whole.json() as { data: Array<{ id: string }>; meta: { page: number; pageSize: number; total: number } };
+    const total = all.data.length;
+    expect(total).toBeGreaterThanOrEqual(3);
+    expect(all.meta).toEqual({ page: 1, pageSize: 500, total });
+    expect(all.data.map((r) => r.id).slice(-3)).toEqual(ids);
+
+    const walked: string[] = [];
+    for (let page = 1; page <= Math.ceil(total / 2); page += 1) {
+      const res = await admin('GET', `${QUEUE}?state=pending&page=${page}&pageSize=2`);
+      expect(res.statusCode, res.body).toBe(200);
+      const body = res.json() as { data: Array<{ id: string }>; meta: unknown };
+      expect(body.meta).toEqual({ page, pageSize: 2, total });
+      expect(body.data.length).toBeLessThanOrEqual(2);
+      walked.push(...body.data.map((r) => r.id));
+    }
+    expect(walked).toEqual(all.data.map((r) => r.id));
+
+    expect((await admin('GET', `${QUEUE}?pageSize=201`)).statusCode).toBe(400);
+    expect((await admin('GET', `${QUEUE}?page=0`)).statusCode).toBe(400);
+  });
+
   it('a request waiting for the counterparty is not the operator\'s to decide', async () => {
     const x = await makeOrganizationWithAdmin(h.em(), 'Counterparty buyer');
     const id = await requestFrom(x, y.taxId);
