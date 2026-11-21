@@ -25,6 +25,14 @@ W storefroncie profil konta i strona checkoutu wyświetlają `CreditLimitWidget`
 dostępny i rozbicie rezerwacji), gdy limit istnieje; metody płatności typu `credit_limit` są
 ukrywane w checkoucie, gdy limit nie został przyznany albo suma koszyka przekracza dostępny kredyt.
 
+W panelu ekran **Limity kredytowe** zawiera wszystkie przyznane limity; *Przyznaj limit
+kredytowy* oraz *Koryguj limit* w wierszu otwierają jedno okno dialogowe. Zakładka **Handel** na
+ekranie organizacji zawiera podsumowanie *Limit kredytowy* tylko do odczytu — kwotę przyznaną,
+zarezerwowaną i dostępną oraz liczbę aktywnych rezerwacji albo informację, że limitu nie
+przyznano — z odnośnikiem *Koryguj limit* / *Przyznaj limit kredytowy*, który otwiera to okno dla
+tej organizacji (`/credit-limits?organizationId=<id>`). Podsumowanie widzi tylko osoba
+z uprawnieniem `credit_limits:manage`, a gdy moduł jest wyłączony, nie ma go wcale (issue #1544).
+
 Które rezerwacje widzi klient: limit jest wspólny, więc kwota przyznana, kwota dostępna
 i `activeReservationCount` to zawsze wartości dla całej organizacji. Lista `activeReservations`
 zawiera tylko rezerwacje zamówień, które klient może odczytać: jego własnych albo wszystkich
