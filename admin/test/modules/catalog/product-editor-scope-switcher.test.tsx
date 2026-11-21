@@ -48,7 +48,12 @@ describe('the scope switcher (feature 174, US5)', () => {
     const language = screen.getByLabelText(en['productEditor.scope.languageSelect']!);
     expect(language).toBeDisabled();
     expect(screen.getByText(en['productEditor.scope.pickChannelFirst']!)).toBeInTheDocument();
-    expect(screen.getByTestId('scope-words')).toHaveTextContent(en['productEditor.scope.global']!);
+    // Issue #1508 (UX audit CAT-08): the selects say the scope; no "Editing: <scope>" column repeats it.
+    expect(screen.queryByTestId('scope-words')).toBeNull();
+    expect(screen.queryByText('Editing')).toBeNull();
+    // The scope-map link sits with the language select, in its column.
+    const scopeMap = screen.getByRole('button', { name: en['productEditor.scope.scopeMap']! });
+    expect(scopeMap.parentElement).toContainElement(language);
     // The banner is empty at Global; the editor announces the scope after its data loads.
     expect(banner()).toBeEmptyDOMElement();
   });

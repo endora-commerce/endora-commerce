@@ -243,6 +243,12 @@ through `FormField`, so no screen wires `htmlFor`, `aria-describedby` or `aria-i
   elsewhere) cover the editor rows that carry more than a label.
 - **`ScopedField`** (`./components`, the scoped editors' field) splits copy the same way since
   issue #1459: `note` is the one clause read with the control, `help` the ⓘ beside the label.
+  Since issue #1508 it states a field's scope once: while the "Use value from <parent>" checkbox
+  is shown, an inheriting field has **no** "Inherited" / "Not translated" / "No value" badge, and
+  the source line appears only for a fact nothing else shows — no value at any scope above, a
+  value from further up than the checkbox's parent, a pending untick, a staged tick ("Will use the
+  value from … when you save"), or an own empty with its `emptyMeaning`. "Overridden", "Empty
+  here", "Unsaved" and "Missing" stay. Without the checkbox (`readOnly`) badge and line stay in full.
 
 The behaviour is pinned in `admin/test/kit/kit-form-field.test.tsx`, including an axe pass;
 `ScopedField`'s `help` in `admin/test/kit/kit-scoped-field.test.tsx`.
