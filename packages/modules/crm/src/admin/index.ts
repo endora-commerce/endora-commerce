@@ -16,6 +16,7 @@
  * dynamic-import factory, so none of the screens is in the admin's entry chunk.
  */
 import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import { WORKFLOW_PATH, WORKFLOW_SECTION_TABS } from './lib/workflow-sections.js';
 
 /**
  * The code that opens the list and one Opportunity.
@@ -46,7 +47,6 @@ const CONFIGURE_PERMISSION = 'crm:configure';
 const ANALYTICS_PERMISSION = 'crm:analytics';
 
 const OPPORTUNITIES_PATH = '/crm/opportunities';
-const WORKFLOW_PATH = '/crm/workflow';
 const BOARD_PATH = '/crm/board';
 const TAGS_PATH = '/crm/tags';
 const ANALYTICS_PATH = '/crm/analytics';
@@ -73,11 +73,13 @@ export const contributions: AdminContributions = {
       component: () => import('./pages/OpportunityDetail.js'),
       requiredPermission: READ_PERMISSION,
     },
-    {
-      path: WORKFLOW_PATH,
+    // The workflow configuration's tabs (issue #1559): one route each, one
+    // screen behind them all, on the code of the screen itself.
+    ...WORKFLOW_SECTION_TABS.map((tab) => ({
+      path: tab.path,
       component: () => import('./pages/WorkflowConfigPage.js'),
       requiredPermission: CONFIGURE_PERMISSION,
-    },
+    })),
     {
       // Another view of the list, on the code that reads it: `GET /board` is
       // `crm:read`. Moving a card needs `crm:write`, which the screen asks for

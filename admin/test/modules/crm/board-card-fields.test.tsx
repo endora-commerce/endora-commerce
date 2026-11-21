@@ -248,7 +248,7 @@ describe('WorkflowConfigPage — the Board card section on CRM\'s endpoint', () 
   });
 
   async function renderEditor(): Promise<HTMLElement> {
-    renderCrm(<WorkflowConfigPage />);
+    renderCrm(<WorkflowConfigPage />, { path: '/crm/workflow/board-card' });
     return screen.findByRole('region', { name: core('boardCardFields.shown.title') });
   }
 

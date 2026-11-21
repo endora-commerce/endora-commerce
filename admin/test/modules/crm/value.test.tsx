@@ -287,7 +287,7 @@ describe('Quote Requests on an Opportunity', () => {
 
 describe('the statuses that count towards a computed value', () => {
   async function openWorkflow(quotes = true): Promise<void> {
-    renderCrm(<WorkflowConfigPage />, quotes ? { alsoPresent: ['quote_requests'] } : {});
+    renderCrm(<WorkflowConfigPage />, { path: '/crm/workflow/value', ...(quotes ? { alsoPresent: ['quote_requests'] } : {}) });
     await screen.findByText(en('value.counting.title'));
   }
 

@@ -52,7 +52,7 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 | Kalendarz | **CRM → Kalendarz** (`/crm/calendar`) | `crm:read` | Wydarzenia zaplanowane w otwartych szansach, które możesz zobaczyć — w miesiącu, tygodniu, dniu albo jako lista. Każde wydarzenie otwiera swoją szansę. Zobacz *Kalendarz*. |
 | Analityka | **CRM → Analityka** (`/crm/analytics`) | `crm:analytics` | Pięć wskaźników dla wybranego zakresu dni: czas obsługi, czas w każdym statusie, najskuteczniejsi handlowcy, najcenniejsze szanse i średnia wartość. |
 | Etykiety | **CRM → Etykiety** (`/crm/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. |
-| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy, status szansy, do którego prowadzi każdy status zamówienia, statusy liczone do wartości wyliczanej oraz pola widoczne na karcie na tablicy. |
+| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Cztery karty. **Statusy i przejścia**: statusy i przejścia między nimi, każda zmiana stosowana od razu. **Synchronizacja zamówień** (`/crm/workflow/order-sync`): status zamówienia ustawiany przez każdy status szansy i status szansy, do którego prowadzi każdy status zamówienia, pod jednym przyciskiem Zapisz. **Wartość** (`/crm/workflow/value`): statusy liczone do wartości wyliczanej. **Karta na tablicy** (`/crm/workflow/board-card`): pola widoczne na karcie na tablicy. |
 
 Codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
 **Szanse sprzedażowe**, **Nowa szansa sprzedażowa**, **Tablica szans
@@ -350,7 +350,7 @@ menu.
 ### Co pokazuje karta
 
 Karta zawsze pokazuje tytuł szansy. To, co widać pod tytułem, wybierasz
-samodzielnie: na ekranie **CRM → Statusy i przepływ** sekcja **Karta na
+samodzielnie: na ekranie **CRM → Statusy i przepływ** karta **Karta na
 tablicy** zawiera listę pól widocznych na karcie, w kolejności, oraz pola,
 które można dodać. Osoba, która może konfigurować CRM, trafia tam również z
 tablicy, przyciskiem **Pola na karcie**.
@@ -573,7 +573,7 @@ i się zatrzymuje:
 - gdy zamówienie przesuwa swoją szansę, żadne inne zamówienie tej szansy nie
   jest proszone o podążanie.
 
-Na ekranie **Statusy i przepływ** te mapowania to druga tabela, *Status szansy
+Na karcie **Synchronizacja zamówień** ekranu **CRM → Statusy i przepływ** te mapowania to druga tabela, *Status szansy
 dla każdego statusu zamówienia*: jeden wiersz dla każdego statusu zamówienia,
 wybór statusu szansy, do którego on prowadzi, oraz pole wyboru **Dopiero gdy są
 tam wszystkie powiązane zamówienia**. Pole jest zaznaczane automatycznie, gdy
@@ -1507,7 +1507,7 @@ Na ekranie szansy sprzedażowej:
   wyliczanej widać każdy dokument **pominięty** w sumie, wraz z powodem, oraz
   przypomnienie, że Twój własny szacunek jest zachowany.
 
-Na ekranie **CRM → Statusy i przepływ** sekcja *Statusy liczone do wartości
+Na karcie **Wartość** ekranu **CRM → Statusy i przepływ** sekcja *Statusy liczone do wartości
 wyliczanej* to dwie listy pól wyboru — statusy zamówień i statusy zapytań
 ofertowych — zapisywane razem. Przycisk *Ten i wszystkie kolejne* zaznacza
 status zamówienia i wszystkie następne. Po zapisaniu ekran informuje, że
@@ -2471,7 +2471,7 @@ wyłącznie po angielsku.
 | `crm.enabled` | włączone | Przełącznik opisany powyżej. |
 | `crm.auto_create_from_orders` | wyłączone | Każde zamówienie złożone od tej chwili dostaje własną szansę. Ustawienie może być różne dla kanałów sprzedaży; decyduje kanał zamówienia. |
 | `crm.auto_create_from_quote_requests` | wyłączone | Każde zapytanie ofertowe utworzone od tej chwili — przesłane przez klienta albo przygotowane przez administratora — dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
-| `crm.board_card_fields` | numer, organizacja, wartość, handlowiec, etykiety | Pola widoczne na karcie na tablicy, w kolejności, jako lista odwołań do pól. Zmieniaj je w sekcji **Karta na tablicy** na ekranie **CRM → Statusy i przepływ**, która proponuje istniejące pola, a nie tutaj. |
+| `crm.board_card_fields` | numer, organizacja, wartość, handlowiec, etykiety | Pola widoczne na karcie na tablicy, w kolejności, jako lista odwołań do pól. Zmieniaj je na karcie **Karta na tablicy** ekranu **CRM → Statusy i przepływ**, która proponuje istniejące pola, a nie tutaj. |
 
 Wydarzenia, przypomnienia i kalendarz nie dodają żadnego ustawienia. E-mail z
 przypomnieniem zmienia się i wyłącza na ekranie **Maile transakcyjne**, pod

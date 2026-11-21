@@ -55,6 +55,10 @@ describe('crm admin contributions', () => {
       ['/crm/opportunities/new', 'crm:write'],
       ['/crm/opportunities/:id', 'crm:read'],
       ['/crm/workflow', 'crm:configure'],
+      // Issue #1559: the workflow configuration's tabs are routes of their own.
+      ['/crm/workflow/order-sync', 'crm:configure'],
+      ['/crm/workflow/value', 'crm:configure'],
+      ['/crm/workflow/board-card', 'crm:configure'],
       ['/crm/board', 'crm:read'],
       ['/crm/tags', 'crm:configure'],
       ['/crm/analytics', 'crm:analytics'],
