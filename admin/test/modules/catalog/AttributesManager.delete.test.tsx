@@ -6,6 +6,8 @@ import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { AppLanguageContext, TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import catalogEn from '../../../../packages/modules/catalog/i18n/en.json';
 import { adminSession, withSession } from '../../helpers/render-with-session';
+import { installOffsetParentShim } from '../../helpers/layout-shim';
+import { rowOf } from './attributes-manager-helpers';
 
 /**
  * Feature 172 (`specs/172-product-content-attributes/`, FR-007 – FR-009, owner
@@ -21,6 +23,9 @@ import { adminSession, withSession } from '../../helpers/render-with-session';
 
 const getSpy = vi.fn();
 const deleteSpy = vi.fn();
+
+// jsdom lays nothing out; without this the dialog's focus trap finds nothing to focus.
+installOffsetParentShim();
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
@@ -112,10 +117,12 @@ beforeEach(() => {
   });
 });
 
+/** Delete is the last entry of the row's menu, after a separator (issue #1527). */
 async function openDelete(key: string): Promise<HTMLElement> {
   const user = userEvent.setup();
-  const row = (await screen.findByText(key)).closest('tr') as HTMLElement;
-  await user.click(within(row).getByRole('button', { name: EN['attributes.delete.action']! }));
+  const row = await rowOf(key);
+  await user.click(within(row).getByRole('button', { name: fill('attributes.rowActions', { attribute: `Label ${key}` }) }));
+  await user.click(await screen.findByRole('menuitem', { name: EN['attributes.delete.action']! }));
   return screen.findByRole('dialog');
 }
 
@@ -124,11 +131,15 @@ const confirmButton = (dialog: HTMLElement): HTMLElement =>
 
 describe('AttributesManager — Delete for every attribute type (feature 172, OR-5)', () => {
   it('offers Delete on a row of every type', async () => {
+    const user = userEvent.setup();
     render(wrap(<AttributesManager />));
-    await screen.findByText('material');
     for (const a of ATTRIBUTES) {
-      const row = screen.getByText(String(a['key'])).closest('tr') as HTMLElement;
-      expect(within(row).getByRole('button', { name: EN['attributes.delete.action']! })).toBeTruthy();
+      const key = String(a['key']);
+      const row = await rowOf(key);
+      await user.click(within(row).getByRole('button', { name: fill('attributes.rowActions', { attribute: `Label ${key}` }) }));
+      expect(await screen.findByRole('menuitem', { name: EN['attributes.delete.action']! })).toBeTruthy();
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
     }
   });
 
@@ -144,9 +155,15 @@ describe('AttributesManager — Delete for every attribute type (feature 172, OR
     await waitFor(() => expect(confirmButton(dialog)).not.toBeDisabled());
     await user.click(confirmButton(dialog));
     await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith(`${LIST_PATH}/colour`));
-    // The list is read again, and the row is gone.
+    // The row is gone, the result is said beside New attribute, and focus moves to
+    // the next row's name rather than falling to the page (WCAG 2.4.3).
     await waitFor(() => expect(screen.queryByText('colour')).toBeNull());
     expect(screen.queryByRole('dialog')).toBeNull();
+    const newButton = screen.getByRole('button', { name: EN['attributes.action.new']! });
+    expect(newButton.parentElement?.querySelector('[role="status"]')?.textContent).toBe(
+      fill('attributes.success.delete', { key: 'colour' }),
+    );
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Label buying_guide' })));
   });
 
   it('says why, and keeps confirm disabled, while the attribute is in a set', async () => {

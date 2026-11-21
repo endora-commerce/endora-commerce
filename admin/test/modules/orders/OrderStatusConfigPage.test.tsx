@@ -194,3 +194,26 @@ describe('OrderStatusConfigPage', () => {
     expect(pressed()).toEqual(['core.orderStatusConfig.graph.layoutForce']);
   });
 });
+
+/**
+ * Issue #1437 (UX audit 2026-11-17, DS-03) — the new-status form is a titled
+ * section of the statuses card, separated by the section's own rule, not a row
+ * fenced off with a hand-drawn top border; its fields are the kit's.
+ */
+describe('OrderStatusConfigPage — the new-status form is a section of the statuses card (DS-03)', () => {
+  it('renders the add form as an h3 section inside the statuses card, on kit inputs', async () => {
+    renderPage();
+    const section = await screen.findByRole('region', { name: 'New status' });
+    expect(section.getAttribute('data-slot')).toBe('editor-section');
+    expect(section.querySelector('h3')?.textContent).toBe('New status');
+    const card = section.closest('[data-slot="card"]');
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getByRole('table')).toBeTruthy();
+    expect(within(section).getByRole('button', { name: /core\.orderStatusConfig\.addStatus/ })).toBeTruthy();
+    // No raw, hand-styled inputs: every text field of the form is the kit's `Input`.
+    const raw = [...section.querySelectorAll('input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="hidden"])')].filter(
+      (input) => !/\bborder-input\b/.test(input.className),
+    );
+    expect(raw).toEqual([]);
+  });
+});

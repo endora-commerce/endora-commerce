@@ -178,6 +178,60 @@ export function DifferenceCell({
   );
 }
 
+/**
+ * Issue #1542 (UX audit 2026-11-17, SALES-16) — Modify's reference and the typed price's
+ * difference from it in one cell ("120.00 PLN · −8.00 %" over "at request"), so a line is
+ * seven columns, not eight (Miller's Law). The percentage is the figure an operator scans;
+ * the signed amount stands in only where there is no percentage (a zero reference). The
+ * difference is named for a screen reader, which reads the cell without its column header.
+ */
+export function ReferenceDifferenceCell({
+  view,
+  perBaseUnit,
+  price,
+  currency,
+}: {
+  view: ReferenceView;
+  /** As `ReferenceCell`'s: the reference is the price of one base unit. */
+  perBaseUnit: boolean;
+  /** The price typed on the line; `null` while none is. */
+  price: number | null;
+  /** The line's currency: a reference in another one has no difference (FR-005). */
+  currency: string;
+}): ReactNode {
+  const t = useTranslation('core');
+  const format = useRfqNumberFormat();
+  if (view.kind === 'pending') return <span className="text-muted-foreground">—</span>;
+  if (view.kind === 'none') {
+    return <span className="text-xs text-muted-foreground">{t('rfq.detail.reference.none')}</span>;
+  }
+  const difference = referenceDifference(price, currency, view.price);
+  return (
+    <div className="space-y-0.5">
+      <div className="tabular-nums">
+        {format.unitMoney(view.price.amount, view.price.currency)}
+        {difference !== null ? (
+          <span className="text-muted-foreground">
+            {' · '}
+            <span className="sr-only">{t('rfq.detail.reference.column.difference')} </span>
+            {difference.percent !== null
+              ? format.signedPercent(difference.percent)
+              : `${format.signedUnitAmount(difference.amount)} ${currency}`}
+          </span>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap gap-x-1 text-xs text-muted-foreground">
+        <span>
+          {view.kind === 'atRequest'
+            ? t('rfq.detail.reference.atRequest')
+            : t('rfq.detail.reference.current')}
+        </span>
+        {perBaseUnit ? <span>· {t('rfq.detail.reference.perBaseUnit')}</span> : null}
+      </div>
+    </div>
+  );
+}
+
 /** How many current-price probes one screen keeps in flight at once (review fix S4). */
 export const PROBE_CONCURRENCY = 4;
 

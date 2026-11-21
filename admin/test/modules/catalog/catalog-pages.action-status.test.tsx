@@ -77,14 +77,6 @@ function statusBeside(element: HTMLElement): HTMLElement {
   return region;
 }
 
-/** The form card's title — "Create attribute" is also the create button's label. */
-async function formTitle(text: string): Promise<HTMLElement> {
-  const found = await screen.findAllByText(text);
-  const title = found.find((element) => element.closest('button') === null);
-  if (!title) throw new Error(`no title "${text}"`);
-  return title;
-}
-
 /** Answers the kit's confirm dialog with its confirm button. */
 async function confirmDialog(): Promise<void> {
   const dialog = await screen.findByRole('dialog');
@@ -145,7 +137,7 @@ describe('AttachmentTypesPage — results beside Add and in the list header (#14
   });
 });
 
-describe('AttributesManager — results in the form header and above the table (#1499)', () => {
+describe('AttributesManager — results beside New attribute (#1499, #1527)', () => {
   const ATTR = {
     id: 'a1',
     key: 'brand',
@@ -166,56 +158,40 @@ describe('AttributesManager — results in the form header and above the table (
     massEditable: false,
   };
 
-  it('says "created" in the form card header, with no success banner', async () => {
-    getSpy.mockResolvedValue({ data: [] });
-    postSpy.mockResolvedValue({ data: ATTR });
+  it('says "created" beside New attribute once the dialog has closed, with no success banner', async () => {
+    getSpy.mockResolvedValue({ data: [ATTR] });
+    postSpy.mockResolvedValue({ data: { ...ATTR, id: 'a2', key: 'colour' } });
     renderAt(<AttributesManager />);
-    const title = await formTitle(tr('attributes.create.title'));
-    const region = statusBeside(title);
+    const newButton = await screen.findByRole('button', { name: tr('attributes.action.new') });
+    const region = statusBeside(newButton);
     expect(region.textContent).toBe('');
 
-    fireEvent.change(document.getElementById('akey') as HTMLInputElement, { target: { value: 'brand' } });
-    fireEvent.click(screen.getByRole('button', { name: tr('attributes.action.create') }));
+    fireEvent.click(newButton);
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(tr('attributes.field.key')), { target: { value: 'colour' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: tr('attributes.action.create') }));
 
-    await waitFor(() => expect(region).toHaveTextContent(tr('attributes.success.create', { key: 'brand' })));
+    await waitFor(() => expect(region).toHaveTextContent(tr('attributes.success.create', { key: 'colour' })));
+    expect(screen.queryByRole('dialog')).toBeNull();
     noSuccessBanner();
   });
 
-  it('keeps the form header mounted when a saved edit gives way to the create form', async () => {
+  it('says "updated" in the same region after an edit, and opening the editor again clears it', async () => {
     getSpy.mockResolvedValue({ data: [ATTR] });
     patchSpy.mockResolvedValue({ data: ATTR });
     renderAt(<AttributesManager />);
-    const title = await formTitle(tr('attributes.create.title'));
-    const region = statusBeside(title);
+    const newButton = await screen.findByRole('button', { name: tr('attributes.action.new') });
+    const region = statusBeside(newButton);
 
-    fireEvent.click(await screen.findByRole('button', { name: tr('attributes.action.edit') }));
-    expect(await screen.findByText(tr('attributes.edit.title', { key: 'brand' }))).toBe(title);
-    const form = document.getElementById('akey')!.closest('form')!;
-    fireEvent.submit(form);
+    fireEvent.click(await screen.findByRole('button', { name: 'Brand' }));
+    const dialog = await screen.findByRole('dialog', { name: tr('attributes.edit.title', { key: 'brand' }) });
+    fireEvent.click(within(dialog).getByRole('button', { name: tr('attributes.action.saveEdit') }));
 
     await waitFor(() => expect(region).toHaveTextContent(tr('attributes.success.update', { key: 'brand' })));
-    expect(await formTitle(tr('attributes.create.title'))).toBe(title);
-    expect(region.isConnected).toBe(true);
-    noSuccessBanner();
-  });
-
-  it('says "flags saved" above the table once the unsaved-flags bar is gone, and a flag edit clears it', async () => {
-    getSpy.mockResolvedValue({ data: [ATTR] });
-    patchSpy.mockResolvedValue({ data: { ...ATTR, massEditable: true } });
-    renderAt(<AttributesManager />);
-    const table = (await screen.findByText('brand')).closest('table')!;
-    const region = table.parentElement?.parentElement?.querySelector<HTMLElement>('[role="status"]');
-    if (!region) throw new Error('no status region above the table');
-    expect(region.textContent).toBe('');
-
-    fireEvent.click(within(table).getByLabelText('brand-massEditable'));
-    fireEvent.click(screen.getByRole('button', { name: tr('attributes.action.save') }));
-
-    await waitFor(() => expect(region.textContent).not.toBe(''));
     expect(region.getAttribute('data-tone')).toBe('success');
     noSuccessBanner();
 
-    fireEvent.click(within(table).getByLabelText('brand-isSearchable'));
+    fireEvent.click(screen.getByRole('button', { name: 'Brand' }));
     expect(region.textContent).toBe('');
   });
 });

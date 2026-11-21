@@ -1004,7 +1004,7 @@ whole request `403`.
   registered address and VAT status entered. **Its id does not change**, and
   its orders, carts, addresses, prices and sales channels stay attached.
 - Its member keeps the *Administrator* role, so they can now invite colleagues
-  and manage roles; the organization page shows the Members and Roles tabs, and
+  and manage roles; the organization page's **Members & roles** tab shows the roles, and
   the storefront offers the company screens on the member's next page.
 - **Its status is kept** (an active customer stays active; conversion does not
   put it into the moderation queue). If the organization was never approved, it
@@ -1346,7 +1346,7 @@ member is offered follows their role, and the Organization's kind:
 
 ### Roles in the Admin UI
 
-The Organization detail screen has a **Roles** tab. It is shown to an operator
+The Organization detail screen has a **Roles** section, on its **Members & roles** tab. It is shown to an operator
 holding `organizations:read-roles` or `organizations:manage-roles`, and never for
 a personal Organization. With the read code it is read-only; with
 `organizations:manage-roles` the operator creates, edits and deletes roles under
@@ -1411,6 +1411,27 @@ Commands of `customer_accounts`; creating and revoking an invitation run
 `organization_invitation.create` / `organization_invitation.revoke`. Each is
 audited against the organization, naming the member or the operator who acted.
 
+## The organization screen
+
+The organization screen (`/organizations/:id`) is one card of tabs. The address bar keeps the
+open tab (`?tab=members`, `commerce`, `tax`, `sales`), so a link can open one directly.
+
+| Tab | What it holds |
+| --- | --- |
+| **Overview** | Moderation (the status and the actions it allows), the registered address, the hierarchy, custom fields |
+| **Members & roles** | The members, **Add member**, and the roles |
+| **Commerce** | Sales channels, order-confirmation e-mails, restrictions, fulfilment strategy, the price books that apply, and the panels other modules add (price display mode, ordering defaults, payers, price negotiation, CRM opportunities, projects) |
+| **Tax** | The tax ID and VAT status with **Change tax ID…**, **Change VAT status…** or, for a personal organization, **Convert to company…**; then VAT validation |
+| **Sales** | The sales representatives. Shown only with `organizations:assign-sales-rep` |
+
+Switching tabs keeps every unsaved change. A tab that holds unsaved changes shows a dot, and a
+screen reader hears "unsaved changes" with the tab's name.
+
+**Moderation** offers only the actions the status allows: **Approve** and **Reject** for an
+organization pending verification, **Block** for an active one, **Unblock** for a blocked one, and
+none for a rejected one. A pending organization whose registry data differs from what was
+submitted shows a notice; **Open VAT validation** opens the Tax tab at the VAT validation.
+
 ## One Save on the organization screen
 
 The organization screen (`/organizations/:id`) has **one Save**, in the page header. It covers
@@ -1460,7 +1481,7 @@ the roles and the sales representatives.
   reason, and notify the customer. They are offered only with `customers:manage`; without it the
   section shows the status and the reason alone.
 - The **VAT status** (VAT payer, VAT exempt, reverse charge) is shown in the page header, after the
-  tax ID. To change it, use **Change VAT status…** in the header, next to **Change tax ID**. It
+  tax ID. To change it, use **Change VAT status…** on the **Tax** tab, next to **Change tax ID…**. It
   needs `customers:manage`, applies immediately and is recorded in the audit log. The VAT status
   decides the tax on every order the organization places from then on; orders, invoices and quote
   documents already issued keep theirs. Validating the tax ID does not change the VAT status.

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
+import { EditorSection } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   FulfilmentStrategyPicker,
@@ -33,20 +33,16 @@ export function FulfilmentStrategyPanel({
 }: FulfilmentStrategyPanelProps): ReactNode {
   const t = useTranslation('core');
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <CardTitle>{t('fulfilment.orgTitle')}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <FulfilmentStrategyPicker
-          value={value}
-          onChange={onChange}
-          warehouses={warehouses}
-          allowInherit
-          disabled={disabled}
-          idPrefix="org-fulfilment"
-        />
-      </CardContent>
-    </Card>
+    // Issue #1515 — a section of the Commerce tab's card, not a card of its own.
+    <EditorSection title={t('fulfilment.orgTitle')}>
+      <FulfilmentStrategyPicker
+        value={value}
+        onChange={onChange}
+        warehouses={warehouses}
+        allowInherit
+        disabled={disabled}
+        idPrefix="org-fulfilment"
+      />
+    </EditorSection>
   );
 }

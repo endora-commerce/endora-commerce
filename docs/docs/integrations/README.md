@@ -27,9 +27,10 @@ contracts in `@endora-commerce/contracts`.
 
 ## Authenticating with an API key
 
-Issue a key from **Admin Panel → API keys → New API key**, choosing the scopes the
-key is allowed to use and, optionally, an **Organization binding** (see
-below). The full bearer token (`sk_live_…`) is shown **once**; only the last
+Issue a key from **Admin Panel → API keys → New API key**. Pick the key type
+first — **Platform key** (unbound) or **Organization key** (bound, see below) —
+then the scopes the key is allowed to use; each type offers only the scopes it
+may hold. The full bearer token (`sk_live_…`) is shown **once**; only the last
 four characters are stored after that. The platform stores the SHA-256 hash
 of the token, never the token itself.
 

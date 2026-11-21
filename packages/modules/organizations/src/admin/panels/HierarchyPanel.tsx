@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { OrganizationPicker, ImmediateBadge } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, InlineStatus, Label, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, EditorSection, InlineStatus, Label, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 interface TreeNode {
@@ -86,14 +86,16 @@ export function HierarchyPanel(props: HierarchyPanelProps): ReactNode {
   const rootDepth = subtree.find((n) => n.id === organizationId)?.depth ?? 0;
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle>
+    // Issue #1515 — a section of the Overview tab's card, not a card of its own.
+    <EditorSection
+      title={
+        <>
           {t('organizations.detail.hierarchyCard')}
           <ImmediateBadge className="align-middle" />
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+        </>
+      }
+      contentClassName="space-y-4"
+    >
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -157,7 +159,6 @@ export function HierarchyPanel(props: HierarchyPanelProps): ReactNode {
             </ul>
           )}
         </div>
-      </CardContent>
-    </Card>
+    </EditorSection>
   );
 }

@@ -6,6 +6,8 @@ import { AppLanguageContext, TranslationProvider } from '@endora-commerce/admin-
 import catalogEn from '../../../../packages/modules/catalog/i18n/en.json';
 import catalogPl from '../../../../packages/modules/catalog/i18n/pl.json';
 import { adminSession, withSession } from '../../helpers/render-with-session';
+import { installOffsetParentShim } from '../../helpers/layout-shim';
+import { openAttribute, openNewAttribute } from './attributes-manager-helpers';
 
 /**
  * Feature 175 (`specs/175-buyer-input-custom-fields/` FR-036, SD-2) — product
@@ -19,6 +21,9 @@ import { adminSession, withSession } from '../../helpers/render-with-session';
 const getSpy = vi.fn();
 const postSpy = vi.fn();
 const patchSpy = vi.fn();
+
+// jsdom lays nothing out; without this the dialog's focus trap finds nothing to focus.
+installOffsetParentShim();
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
@@ -95,12 +100,11 @@ beforeEach(() => {
   patchSpy.mockReset().mockResolvedValue({ data: attribute({}) });
 });
 
+/** The editor dialog of `key` — the form and its footer Save (issue #1527). */
 async function editFormOf(key: string): Promise<HTMLElement> {
-  const user = userEvent.setup();
-  const row = (await screen.findByText(key)).closest('tr') as HTMLElement;
-  await user.click(within(row).getByRole('button', { name: EN['attributes.action.edit']! }));
-  await screen.findByText(EN['attributes.edit.title']!.replace('{key}', key));
-  return screen.getByLabelText(EN['attributes.field.type']!).closest('form') as HTMLElement;
+  const dialog = await openAttribute(userEvent.setup(), key);
+  await within(dialog).findByText(EN['attributes.edit.title']!.replace('{key}', key));
+  return dialog;
 }
 
 describe('AttributesManager — admin access (feature 175)', () => {
@@ -122,7 +126,7 @@ describe('AttributesManager — admin access (feature 175)', () => {
     const user = userEvent.setup();
     render(wrap(<AttributesManager />));
     await screen.findByText('material');
-    const form = screen.getByLabelText(EN['attributes.field.type']!).closest('form') as HTMLElement;
+    const form = await openNewAttribute(user, EN['attributes.action.new']!);
 
     const select = within(form).getByLabelText(EN['attributes.adminAccess.label']!) as HTMLSelectElement;
     expect(Array.from(select.options, (o) => o.value)).toEqual(['edit', 'read', 'hidden']);

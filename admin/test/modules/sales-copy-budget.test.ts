@@ -38,6 +38,8 @@ const CUT: readonly Cut[] = [
   { bundle: '_i18n', key: 'organizations.page.description', reader: 'organizations' },
   { bundle: '_i18n', key: 'returns.description', reader: 'returns' },
   { bundle: '_i18n', key: 'returns.statuses.description', reader: 'returns' },
+  // #1472 (SALES-07): "0 = free" moved to the cost field's hint (`methods.field.costHint`).
+  { bundle: '_i18n', key: 'returns.methods.description', reader: 'returns' },
   { bundle: '_i18n', key: 'legacyMethods.payment.description', reader: 'payment_methods' },
   { bundle: '_i18n', key: 'legacyMethods.integrations.description', reader: 'payment_methods' },
   { bundle: '_i18n', key: 'legacyMethods.integrations.shippingDescription', reader: 'delivery_methods' },
@@ -55,7 +57,7 @@ const CUT: readonly Cut[] = [
 /** Kept on screen, so each must fit the one clamped line. */
 const ONE_LINERS: readonly { bundle: string; key: string }[] = [
   { bundle: '_i18n', key: 'returns.reasons.description' },
-  { bundle: '_i18n', key: 'returns.methods.description' },
+  { bundle: 'returns', key: 'methods.field.costHint' },
   { bundle: '_i18n', key: 'legacyMethods.delivery.description' },
   { bundle: '_i18n', key: 'promotionRules.page.description' },
   { bundle: 'customers', key: 'online.description' },

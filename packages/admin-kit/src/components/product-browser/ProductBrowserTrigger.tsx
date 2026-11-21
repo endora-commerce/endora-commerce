@@ -2,6 +2,7 @@ import { useId, type ReactNode } from 'react';
 import { PackageSearch } from 'lucide-react';
 import { useAuth } from '../../lib/index.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { Button } from '../../ui/button.js';
 
 /**
  * The **Browse products** button that opens `ProductBrowserDialog` (feature 145).
@@ -39,9 +40,9 @@ export function ProductBrowserTrigger(props: ProductBrowserTriggerProps): ReactN
 
   return (
     <span className="inline-flex flex-col items-start gap-1">
-      <button
+      <Button
         type="button"
-        className="b2b-btn b2b-btn--default"
+        variant="outline"
         disabled={disabled}
         aria-describedby={hint !== null ? hintId : undefined}
         title={hint ?? undefined}
@@ -49,7 +50,7 @@ export function ProductBrowserTrigger(props: ProductBrowserTriggerProps): ReactN
       >
         <PackageSearch size={14} aria-hidden="true" />
         {props.label ?? t('productBrowser.trigger')}
-      </button>
+      </Button>
       {hint !== null ? (
         <span id={hintId} className="text-xs text-muted-foreground">
           {hint}

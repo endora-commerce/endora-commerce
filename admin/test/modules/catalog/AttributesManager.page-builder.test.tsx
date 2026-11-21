@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { AppLanguageContext, TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import catalogEn from '../../../../packages/modules/catalog/i18n/en.json';
 import { adminSession, withSession } from '../../helpers/render-with-session';
+import { installOffsetParentShim } from '../../helpers/layout-shim';
+import { openAttribute, openNewAttribute, rowOf } from './attributes-manager-helpers';
 
 /**
  * Feature 172 (`specs/172-product-content-attributes/`, FR-001, FR-003,
@@ -17,6 +19,9 @@ import { adminSession, withSession } from '../../helpers/render-with-session';
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
+
+// jsdom lays nothing out; without this the dialog's focus trap finds nothing to focus.
+installOffsetParentShim();
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
@@ -111,7 +116,8 @@ describe('AttributesManager — Page Builder content type (feature 172)', () => 
     const user = userEvent.setup();
     render(wrap(<AttributesManager />));
     await screen.findByText('material');
-    const form = screen.getByLabelText(EN['attributes.field.type']!).closest('form') as HTMLElement;
+    // The create dialog: its form and the footer's Create (issue #1527).
+    const form = await openNewAttribute(user, EN['attributes.action.new']!);
 
     const typeSelect = within(form).getByLabelText(EN['attributes.field.type']!) as HTMLSelectElement;
     expect(within(typeSelect).getByRole('option', { name: EN['attributes.type.pageBuilder']! })).toBeTruthy();
@@ -147,7 +153,8 @@ describe('AttributesManager — Page Builder content type (feature 172)', () => 
     const user = userEvent.setup();
     render(wrap(<AttributesManager />));
     await screen.findByText('material');
-    const form = screen.getByLabelText(EN['attributes.field.type']!).closest('form') as HTMLElement;
+    // The create dialog: its form and the footer's Create (issue #1527).
+    const form = await openNewAttribute(user, EN['attributes.action.new']!);
     await user.click(within(form).getByLabelText(EN['attributes.flag.searchable']!));
     await user.selectOptions(within(form).getByLabelText(EN['attributes.field.type']!), 'page_builder');
     await user.type(within(form).getByLabelText(EN['attributes.field.key']!), 'guide_two');
@@ -156,39 +163,28 @@ describe('AttributesManager — Page Builder content type (feature 172)', () => 
     expect((postSpy.mock.calls[0] as [string, Record<string, unknown>])[1]).toMatchObject({ isSearchable: false });
   });
 
-  it('locks the inline flags of a content attribute row, with the reason as their title', async () => {
+  it('shows no capability in a content attribute row, with the reason instead (#1527)', async () => {
     render(wrap(<AttributesManager />));
-    const row = (await screen.findByText('buying_guide')).closest('tr') as HTMLElement;
-    const checkboxes = within(row).getAllByRole('checkbox');
-    expect(checkboxes.length).toBeGreaterThan(0);
-    for (const checkbox of checkboxes) {
-      expect(checkbox).toBeDisabled();
-      expect(checkbox.closest('[title]')?.getAttribute('title')).toBe(EN['attributes.pageBuilder.flagsLocked']);
-    }
+    const row = await rowOf('buying_guide');
+    expect(within(row).queryAllByRole('checkbox')).toHaveLength(0);
+    expect(within(row).getByText(EN['attributes.pageBuilder.flagsLocked']!)).toBeTruthy();
     expect(within(row).getByText(EN['attributes.type.pageBuilder']!)).toBeTruthy();
-
-    const plainRow = screen.getByText('material').closest('tr') as HTMLElement;
-    for (const checkbox of within(plainRow).getAllByRole('checkbox')) expect(checkbox).not.toBeDisabled();
   });
 
   it('disables the type selector on edit, from and to Page Builder content (FR-005)', async () => {
     const user = userEvent.setup();
     render(wrap(<AttributesManager />));
-    const row = (await screen.findByText('buying_guide')).closest('tr') as HTMLElement;
-    await user.click(within(row).getByRole('button', { name: EN['attributes.action.edit']! }));
-    // The edit card takes the create card's place, so its form is the only one.
-    await screen.findByText(EN['attributes.edit.title']!.replace('{key}', 'buying_guide'));
-    const editForm = screen.getByLabelText(EN['attributes.field.type']!).closest('form') as HTMLElement;
+    const editForm = await openAttribute(user, 'buying_guide');
+    await within(editForm).findByText(EN['attributes.edit.title']!.replace('{key}', 'buying_guide'));
     const typeSelect = within(editForm).getByLabelText(EN['attributes.field.type']!) as HTMLSelectElement;
     expect(typeSelect).toBeDisabled();
     expect(typeSelect.value).toBe('page_builder');
     for (const label of CAPABILITY_LABELS) expect(within(editForm).queryByLabelText(label)).toBeNull();
 
     await user.click(within(editForm).getByRole('button', { name: EN['attributes.action.cancel']! }));
-    const plainRow = screen.getByText('material').closest('tr') as HTMLElement;
-    await user.click(within(plainRow).getByRole('button', { name: EN['attributes.action.edit']! }));
-    await screen.findByText(EN['attributes.edit.title']!.replace('{key}', 'material'));
-    const plainForm = screen.getByLabelText(EN['attributes.field.type']!).closest('form') as HTMLElement;
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const plainForm = await openAttribute(user, 'material');
+    await within(plainForm).findByText(EN['attributes.edit.title']!.replace('{key}', 'material'));
     expect(within(plainForm).getByLabelText(EN['attributes.field.type']!)).toBeDisabled();
   });
 });

@@ -7,6 +7,7 @@ import catalogEn from '../../../../packages/modules/catalog/i18n/en.json';
 import catalogPl from '../../../../packages/modules/catalog/i18n/pl.json';
 import { adminSession, withSession } from '../../helpers/render-with-session';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
+import { openAttribute } from './attributes-manager-helpers';
 
 /**
  * Feature 163 / T095a (FR-090, analyze H2) — the attribute edit form shows whether a
@@ -53,6 +54,8 @@ const B2B = '00000000-0000-4000-8000-00000000c001';
 const B2C = '00000000-0000-4000-8000-00000000c002';
 const GONE = '00000000-0000-4000-8000-00000000c0ff';
 const LIST_PATH = '/api/v1/admin/catalog/attributes';
+/** The narrowing confirmation, opened over the editor dialog (whose title also names the attribute). */
+const NARROW = /narrow the scope|zawęzić zakres/i;
 const PREVIEW_PREFIX = '/api/v1/admin/catalog/attributes/material/scope-change-preview';
 
 function attribute(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -114,8 +117,7 @@ function wrap(ui: ReactElement, permissions: readonly string[] = ['catalog:read'
 async function openEdit(permissions?: readonly string[]): Promise<HTMLElement> {
   const user = userEvent.setup();
   render(wrap(<AttributesManager />, permissions));
-  const row = (await screen.findByText('material')).closest('tr') as HTMLElement;
-  await user.click(within(row).getByRole('button', { name: /edit/i }));
+  await openAttribute(user, 'material');
   return screen.findByRole('group', { name: /scope/i });
 }
 
@@ -156,7 +158,7 @@ describe('AttributesManager — the scopable flag (feature 174, FR-012, R15)', (
     await user.click(within(group).getByRole('checkbox', { name: /per sales channel/i }));
     await user.click(screen.getByRole('button', { name: /^save$/i }));
 
-    const dialog = await screen.findByRole('dialog', { name: /material/i });
+    const dialog = await screen.findByRole('dialog', { name: NARROW });
     expect(getSpy).toHaveBeenCalledWith(`${PREVIEW_PREFIX}?scopable=false&valueType=string`);
     expect(dialog.textContent).toMatch(/7/);
     expect(within(dialog).getByText(/B2B shop/).textContent).toMatch(/5/);
@@ -190,7 +192,7 @@ describe('AttributesManager — the scopable flag (feature 174, FR-012, R15)', (
     await user.click(save);
     expect(getSpy.mock.calls.filter(([p]) => String(p).startsWith(PREVIEW_PREFIX))).toHaveLength(1);
     release(undefined);
-    expect(await screen.findByRole('dialog', { name: /material/i })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: NARROW })).toBeInTheDocument();
   });
 
   it('cancel sends nothing', async () => {
@@ -198,9 +200,9 @@ describe('AttributesManager — the scopable flag (feature 174, FR-012, R15)', (
     const group = await openEdit();
     await user.click(within(group).getByRole('checkbox', { name: /per sales channel/i }));
     await user.click(screen.getByRole('button', { name: /^save$/i }));
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog', { name: NARROW });
     await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: NARROW })).toBeNull());
     expect(patchSpy).not.toHaveBeenCalled();
   });
 
@@ -210,7 +212,7 @@ describe('AttributesManager — the scopable flag (feature 174, FR-012, R15)', (
     const group = await openEdit();
     await user.click(within(group).getByRole('checkbox', { name: /per sales channel/i }));
     await user.click(screen.getByRole('button', { name: /^save$/i }));
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog', { name: NARROW });
     expect(dialog.textContent).toMatch(/no values/i);
   });
 
@@ -231,7 +233,7 @@ describe('AttributesManager — the scopable flag (feature 174, FR-012, R15)', (
     const group = await openEdit();
     await user.click(within(group).getByRole('checkbox', { name: /per sales channel/i }));
     await user.click(screen.getByRole('button', { name: /^save$/i }));
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog', { name: NARROW });
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(dialog.getAttribute('aria-describedby')).toBeTruthy();
     await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
@@ -248,8 +250,7 @@ describe('AttributesManager — the scopable flag (feature 174, FR-012, R15)', (
     delete bare['scopable'];
     primeGets([bare]);
     render(wrap(<AttributesManager />));
-    const row = (await screen.findByText('material')).closest('tr') as HTMLElement;
-    await user.click(within(row).getByRole('button', { name: /edit/i }));
+    await openAttribute(user, 'material');
     await screen.findByRole('button', { name: /^save$/i });
     expect(screen.queryByRole('group', { name: /scope/i })).toBeNull();
   });
@@ -262,11 +263,10 @@ describe('AttributesManager — the scopable flag (feature 174, FR-012, R15)', (
     preview = { orphanedOverrides: count, byChannel: [] };
     const user = userEvent.setup();
     render(wrap(<AttributesManager />, undefined, 'pl'));
-    const row = (await screen.findByText('material')).closest('tr') as HTMLElement;
-    await user.click(within(row).getAllByRole('button')[0] as HTMLElement);
+    await openAttribute(user, 'material');
     await user.click(await screen.findByRole('checkbox', { name: /kanału sprzedaży/i }));
     await user.click(screen.getByRole('button', { name: /^zapisz/i }));
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog', { name: NARROW });
     expect(dialog.textContent).toContain(sentence);
   });
 
@@ -276,14 +276,13 @@ describe('AttributesManager — the scopable flag (feature 174, FR-012, R15)', (
     const group = await openEdit();
     await user.click(within(group).getByRole('checkbox', { name: /per sales channel/i }));
     await user.click(screen.getByRole('button', { name: /^save$/i }));
-    expect((await screen.findByRole('dialog')).textContent).toContain('1 value set per channel or language will stop applying.');
+    expect((await screen.findByRole('dialog', { name: NARROW })).textContent).toContain('1 value set per channel or language will stop applying.');
   });
 
   it('renders in Polish', async () => {
     const user = userEvent.setup();
     render(wrap(<AttributesManager />, undefined, 'pl'));
-    const row = (await screen.findByText('material')).closest('tr') as HTMLElement;
-    await user.click(within(row).getAllByRole('button')[0] as HTMLElement);
+    await openAttribute(user, 'material');
     expect(await screen.findByRole('checkbox', { name: /kanału sprzedaży/i })).toBeTruthy();
   });
 });

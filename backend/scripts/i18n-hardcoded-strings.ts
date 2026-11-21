@@ -1372,7 +1372,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // two-way and keyed by path, so moving a directory strands the old key as a
   // stale entry and reports the new one as a regression; both halves fired here
   // and both are the move, not a change to a single string.
-  'packages/modules/product_feeds/src/admin/components/FeedDeliveryPanel.tsx': 1,
   'packages/modules/promotions/src/admin/pages/PromotionStatsPage.tsx': 2,
   // Feature 091, Phase 4, the plan's batch 8 — five files, 30 findings, the
   // same counts under new keys. `delivery_methods`' list screen and four of
@@ -1380,11 +1379,9 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // two-way and keyed by path, so each move stranded the old key and reported
   // the new one as a regression. Both halves of all five fired in one run,
   // which is what the ratchet is for: a re-key is visible as a re-key rather
-  // than as a debt that quietly moved house.
-  'packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx': 11,
-  'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': 14,
-  'packages/modules/returns/src/admin/pages/ReturnReasonsPage.tsx': 14,
-  'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 4,
+  // than as a debt that quietly moved house. The `delivery_methods` entry was
+  // drained by #1694 and the four `returns` entries by issue #1472 (UX audit
+  // SALES-07); all five reached zero and were deleted.
   // Feature 091, Phase 4 batch five: the screen moved into `stripe`'s package
   // and the entry is **re-keyed**, not raised and not dropped — the same
   // twenty-nine strings at a new address, which this check's two-way ratchet
@@ -1433,13 +1430,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // and `EmailTemplatesPage`, and both `pwa` files read their module's bundle in
   // both shipped languages now.
   'packages/modules/settings/src/admin/components/AssetIdSettingInput.tsx': 1,
-  // Feature 091, Phase 4 batch 14 — re-keyed, not dropped: `organizations`
-  // took its admin surface into its package and this panel went with it. The
-  // finding is unchanged, and this ledger is one **about** the files it names
-  // rather than one of them, so the batch that moves a screen is structurally
-  // the batch that cannot see the entry go stale — which is why it is
-  // corrected here, in the same merge request.
-  'packages/modules/organizations/src/admin/panels/RestrictionsPanel.tsx': 1,
   // Issue #1316 widened the admin rule — a one-word capitalised label in JSX
   // text, every copy-named prop read through `{…}` and conditionals, a literal
   // rendered as a JSX child, and prose handed to a state setter — and the

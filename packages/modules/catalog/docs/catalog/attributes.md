@@ -16,6 +16,16 @@ are then pinned to a Product so the admin editor renders just the
 fields that family actually needs. This page covers the attribute
 itself; the set ↔ product wiring lives on the Attribute sets page.
 
+The **Attributes** screen opens on the list. Search it by key or label, or
+narrow it by type; each row shows the label in the admin language, the type,
+the options and, as badges, what the attribute is used for (search, filters,
+variant axis, comparison, bulk edit, quick order, promotion and price-list
+rules). **New attribute** in the header, or the attribute's name in its row,
+opens the attribute editor in a dialog. Its **Save** is the only save on the
+screen: the capabilities are switched on and off there, not in the list.
+Options of a select-style attribute are edited in the same dialog and apply
+immediately.
+
 ## Anatomy
 
 Every attribute carries:
@@ -79,8 +89,8 @@ tab ([Product content](./product-content.md)). Its settings are fixed:
 - its type cannot be changed, and no attribute can be changed into it
   (`409 ATTRIBUTE_VALUE_TYPE_LOCKED`, token `page_builder`).
 
-The attribute editor hides those settings for this type, and the list shows the
-row's flags locked. The type is admissible for products only.
+The attribute editor hides those settings for this type, and the list says in
+the row that they are not available. The type is admissible for products only.
 
 ## Option lists
 
@@ -126,7 +136,7 @@ them by `filterPosition`.
 
 ## Deleting an attribute
 
-**Delete** is offered on every attribute row, whatever its type. The
+**Delete** is offered in every attribute row's menu, whatever its type. The
 confirmation first reads `GET …/attributes/:idOrKey/usage` and says what stands
 in the way and what goes with the attribute:
 

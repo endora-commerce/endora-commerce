@@ -79,55 +79,39 @@ afterEach(() => {
 });
 
 describe('ModerationActionsPanel — interaction', () => {
-  it('only Approve + Reject are enabled for pending_verification', () => {
+  /**
+   * Issue #1541 (UX audit SALES-15) — only the transitions the status allows are rendered. Four
+   * buttons, three of them disabled and none saying why, asked the operator to read which one
+   * was live (Hick; required states: a disabled control explains itself or is not there).
+   */
+  const ACTIONS = ['approve', 'reject', 'block', 'unblock'] as const;
+  const shownActions = (): string[] =>
+    ACTIONS.filter((kind) => screen.queryByRole('button', { name: `organizations.moderation.action.${kind}` }) !== null);
+
+  it.each([
+    ['pending_verification', ['approve', 'reject']],
+    ['active', ['block']],
+    ['blocked', ['unblock']],
+    ['rejected', []],
+  ] as const)('a %s organization is offered exactly %j, each enabled', (status, expected) => {
     renderWithI18n(
       <ModerationActionsPanel
         organizationId="org-1"
-        status="pending_verification"
-        version={0}
-        canModerate
-        onChanged={onChangedSpy}
-      />,
-      BUNDLE,
-    );
-
-    expect(
-      screen.getByRole('button', { name: 'organizations.moderation.action.approve' }),
-    ).not.toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: 'organizations.moderation.action.reject' }),
-    ).not.toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: 'organizations.moderation.action.block' }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: 'organizations.moderation.action.unblock' }),
-    ).toBeDisabled();
-  });
-
-  it('only Block is enabled for active status', () => {
-    renderWithI18n(
-      <ModerationActionsPanel
-        organizationId="org-1"
-        status="active"
+        status={status}
         version={3}
+        blockedReason={status === 'blocked' ? 'Past-due AR' : null}
         canModerate
         onChanged={onChangedSpy}
       />,
       BUNDLE,
     );
-    expect(
-      screen.getByRole('button', { name: 'organizations.moderation.action.approve' }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: 'organizations.moderation.action.block' }),
-    ).not.toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: 'organizations.moderation.action.unblock' }),
-    ).toBeDisabled();
+    expect(shownActions()).toEqual(expected);
+    for (const kind of expected) {
+      expect(screen.getByRole('button', { name: `organizations.moderation.action.${kind}` })).not.toBeDisabled();
+    }
   });
 
-  it('only Unblock is enabled for blocked status', () => {
+  it('a blocked organization shows its block reason beside Unblock', () => {
     renderWithI18n(
       <ModerationActionsPanel
         organizationId="org-1"
@@ -139,13 +123,25 @@ describe('ModerationActionsPanel — interaction', () => {
       />,
       BUNDLE,
     );
-    expect(
-      screen.getByRole('button', { name: 'organizations.moderation.action.unblock' }),
-    ).not.toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: 'organizations.moderation.action.block' }),
-    ).toBeDisabled();
     expect(screen.getByText(/Past-due AR/)).toBeDefined();
+  });
+
+  it('is a section of the page card, not a card of its own (#1515)', () => {
+    const { container } = renderWithI18n(
+      <ModerationActionsPanel organizationId="org-1" status="active" version={1} canModerate onChanged={onChangedSpy} />,
+      BUNDLE,
+    );
+    expect(container.querySelector('[data-slot="card"]')).toBeNull();
+    expect(container.querySelector('[data-slot="editor-section"]')).not.toBeNull();
+  });
+
+  it('draws no filled button: the page Save is the one primary (Von Restorff)', () => {
+    renderWithI18n(
+      <ModerationActionsPanel organizationId="org-1" status="pending_verification" version={1} canModerate onChanged={onChangedSpy} />,
+      BUNDLE,
+    );
+    const approve = screen.getByRole('button', { name: 'organizations.moderation.action.approve' });
+    expect(approve.className).not.toMatch(/\bbg-primary\b/);
   });
 
   it('clicking Approve calls POST /approve and refreshes the parent', async () => {
@@ -271,6 +267,26 @@ describe('ModerationActionsPanel — registry divergence notice (feature 173, T0
       'href',
       '#organization-vat-validation',
     );
+  });
+
+  it('the link hands over to the screen when it can open the VAT validation itself (#1515)', async () => {
+    const user = userEvent.setup();
+    const onShow = vi.fn();
+    renderWithI18n(
+      <ModerationActionsPanel
+        organizationId="org-1"
+        status="pending_verification"
+        version={0}
+        registryDivergenceCount={1}
+        vatValidationAnchorId="organization-vat-validation"
+        onShowVatValidation={onShow}
+        canModerate
+        onChanged={onChangedSpy}
+      />,
+      NOTICE_BUNDLE,
+    );
+    await user.click(screen.getByRole('link', { name: 'Go to VAT validation' }));
+    expect(onShow).toHaveBeenCalledTimes(1);
   });
 
   it('no notice once the organization is no longer pending', () => {

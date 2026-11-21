@@ -69,6 +69,9 @@ export async function registerNewsletterAdminRoutes(
   app.put(`${base}/campaigns/:id`, write, async (req, reply) =>
     reply.send({ data: await deps.campaigns.update(idOf(req), updateCampaignRequestSchema.parse(req.body)) }),
   );
+  app.get(`${base}/campaigns/:id/group`, read, async (req, reply) =>
+    reply.send({ data: await deps.campaigns.getGroup(idOf(req)) }),
+  );
   app.put(`${base}/campaigns/:id/group`, write, async (req, reply) =>
     reply.send({
       data: await deps.campaigns.setGroup(idOf(req), setCampaignGroupRequestSchema.parse(req.body).subscriberIds),

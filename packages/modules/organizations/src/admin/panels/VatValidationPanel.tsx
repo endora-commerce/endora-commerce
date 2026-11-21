@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { TriangleAlert } from 'lucide-react';
 import type { OrganizationTaxIdValidationRecord } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, EditorSection, InlineStatus, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   attemptNotes,
@@ -124,14 +124,18 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
   const canAutoFill = lastOutcome === 'validated' && lastHasLegalName;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle id={props.headingId} className="scroll-mt-4">
+    // Issue #1515 — a section of the Tax tab's card, not a card of its own. `headingId` names
+    // the section, so the moderation notice's link lands on (and focuses) it.
+    <EditorSection
+      {...(props.headingId ? { id: props.headingId, tabIndex: -1 } : {})}
+      className="scroll-mt-4 focus-visible:outline-none"
+      title={
+        <>
           {t('organizations.vatValidation.title')}
           <ImmediateBadge className="align-middle" />
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+        </>
+      }
+    >
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -156,7 +160,8 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={(): void => void trigger(false)} disabled={busy}>
+          {/* Outline: the page Save is the screen's one primary (Von Restorff). */}
+          <Button variant="outline" onClick={(): void => void trigger(false)} disabled={busy}>
             {t('organizations.vatValidation.action.validateNow')}
           </Button>
           <Button
@@ -178,9 +183,9 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
 
         {items.length > 0 ? (
           <div className="pt-2">
-            <h4 className="mb-2 text-sm font-medium text-muted-foreground">
+            <h3 className="mb-2 text-sm font-medium text-muted-foreground">
               {t('organizations.vatValidation.historyTitle')}
-            </h4>
+            </h3>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -215,8 +220,7 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
             </Table>
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+    </EditorSection>
   );
 }
 
@@ -268,9 +272,9 @@ function RegistrySnapshotCard({ row }: { row: ValidationRecord }): ReactNode {
   const anyDiffers = rows.some((entry) => entry.differs);
   return (
     <section className="rounded-md border p-3" aria-labelledby={`registry-snapshot-${row.id}`}>
-      <h4 id={`registry-snapshot-${row.id}`} className="m-0 text-sm font-medium">
+      <h3 id={`registry-snapshot-${row.id}`} className="m-0 text-sm font-medium">
         {tm('vatValidation.registry.heading')}
-      </h4>
+      </h3>
       <p className="mt-1 mb-2 text-xs text-muted-foreground">
         {tm('vatValidation.registry.fetchedFrom', {
           source: providerLabel(details?.dataSource ?? row.provider),

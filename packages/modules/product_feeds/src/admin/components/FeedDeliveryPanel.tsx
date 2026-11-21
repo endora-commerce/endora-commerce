@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { History, Send, ShieldAlert } from 'lucide-react';
+import { History, Send, ShieldAlert, Trash2 } from 'lucide-react';
 import type {
   FeedDeliveryAttempt,
   FeedDeliveryConfig,
@@ -14,13 +14,15 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
+  Checkbox,
+  EditorSection,
   EmptyState,
+  InlineStatus,
   Input,
   Label,
   Select,
   Textarea,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
@@ -50,6 +52,14 @@ import {
  * hidden. Where a feed is delivered is a fact a read-only operator needs — it
  * is the answer to "did the partner get today's file" — and hiding the form
  * would make the tab look like it does not apply to this feed.
+ *
+ * ## One card (issue #1530, UX audit CAT-20)
+ *
+ * The tab is one card of three sections — the target, its history, and the
+ * removal last and on its own (Fitts: the destructive action away from Save).
+ * The result of an action — saved, removed, a test that passed or failed — is
+ * an `InlineStatus` beside the buttons, not a banner above the form; only a
+ * request that failed outright is an `Alert`.
  *
  * ## What this screen does not show
  *
@@ -103,7 +113,7 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
   const [headerText, setHeaderText] = useState('');
 
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const status = useInlineStatus();
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
 
@@ -183,12 +193,12 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
   const save = async (): Promise<void> => {
     setBusy(true);
     setError(null);
-    setNotice(null);
+    status.clear();
     try {
       const result = await feedDeliveryClient.save(feedId, buildBody());
       hydrate(result.data);
       setConfiguring(false);
-      setNotice(t('delivery.saved'));
+      status.show(t('delivery.saved'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -199,16 +209,17 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
   const test = async (): Promise<void> => {
     setTesting(true);
     setError(null);
-    setNotice(null);
+    status.clear();
     try {
       const result = await feedDeliveryClient.test(feedId);
       if (result.data.ok) {
-        setNotice(t('delivery.test.ok'));
+        status.show(t('delivery.test.ok'));
       } else {
-        setError(
+        status.show(
           `${t('delivery.test.failed')} ${
             result.data.failureReason ? t(`delivery.reason.${result.data.failureReason}`) : ''
           } ${result.data.failureDetail ?? ''}`.trim(),
+          'error',
         );
       }
       setAttempts((await feedDeliveryClient.listAttempts(feedId)).data);
@@ -228,11 +239,12 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
     if (!ok) return;
     setBusy(true);
     setError(null);
+    status.clear();
     try {
       await feedDeliveryClient.remove(feedId);
       hydrate(null);
       setConfiguring(false);
-      setNotice(t('delivery.removed'));
+      status.show(t('delivery.removed'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -299,9 +311,21 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
     },
   ];
 
-  if (!loaded) return null;
+  if (!loaded) {
+    return (
+      <Card aria-busy="true">
+        <CardContent>
+          <p role="status" className="text-sm text-muted-foreground">
+            {t('delivery.loading')}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const showForm = config !== null || configuring;
+  const field = 'flex flex-col gap-1.5';
+  const hintClass = 'text-xs text-muted-foreground';
 
   return (
     <div className="flex flex-col gap-4">
@@ -310,267 +334,279 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      {notice && (
-        <Alert live="polite">
-          <AlertDescription role="status">{notice}</AlertDescription>
-        </Alert>
-      )}
 
-      {!showForm && (
-        <Card>
-          <CardContent>
-            <EmptyState
-              icon={<Send size={20} />}
-              title={t('delivery.empty.title')}
-              description={t('delivery.empty.subtitle')}
-              action={
-                <Button
-                  className="min-h-11 sm:min-h-9"
-                  onClick={() => setConfiguring(true)}
-                  disabled={!canWrite}
-                  title={writeTitle}
-                >
-                  {t('delivery.action.configure')}
-                </Button>
+      <Card>
+        <CardContent className="space-y-(--section-gap)">
+          <EditorSection
+            title={t('delivery.title')}
+            description={t('delivery.subtitle')}
+            contentClassName="flex flex-col gap-4"
+          >
+            {!showForm && (
+              <EmptyState
+                icon={<Send size={20} />}
+                title={t('delivery.empty.title')}
+                description={t('delivery.empty.subtitle')}
+                action={
+                  <Button
+                    className="min-h-11 sm:min-h-9"
+                    onClick={() => setConfiguring(true)}
+                    disabled={!canWrite}
+                    title={writeTitle}
+                  >
+                    {t('delivery.action.configure')}
+                  </Button>
+                }
+              />
+            )}
+
+            {showForm && (
+              <>
+                <label className="flex min-h-11 items-center gap-2 text-sm sm:min-h-0">
+                  <Checkbox
+                    checked={enabled}
+                    onChange={(e) => setEnabled(e.target.checked)}
+                    disabled={!canWrite}
+                    title={writeTitle}
+                  />
+                  {t('delivery.field.send')}
+                </label>
+
+                <div className={field}>
+                  <Label htmlFor="delivery-protocol">{t('delivery.field.protocol')}</Label>
+                  <Select
+                    id="delivery-protocol"
+                    className="sm:max-w-xs"
+                    value={choice}
+                    onChange={(e) => setChoice(e.target.value as ProtocolChoice)}
+                    disabled={!canWrite}
+                    title={writeTitle}
+                  >
+                    {PROTOCOL_CHOICES.map((value) => (
+                      <option key={value} value={value}>
+                        {t(`delivery.protocol.${value}`)}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+
+                {protocol === 'ftp' && (
+                  <Alert>
+                    <ShieldAlert size={16} aria-hidden="true" />
+                    <AlertDescription>{t('delivery.ftp.plaintextWarning')}</AlertDescription>
+                  </Alert>
+                )}
+
+                {protocol !== 'http' && (
+                  <>
+                    {/* Host and port, then user and password, pair up on a wide screen (Proximity). */}
+                    <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_8rem]">
+                      <div className={field}>
+                        <Label htmlFor="delivery-host">{t('delivery.field.host')}</Label>
+                        <Input
+                          id="delivery-host"
+                          value={host}
+                          placeholder={protocol === 'sftp' ? 'sftp.example.com' : 'ftp.example.com'}
+                          onChange={(e) => setHost(e.target.value)}
+                          disabled={!canWrite}
+                          title={writeTitle}
+                        />
+                      </div>
+                      <div className={field}>
+                        <Label htmlFor="delivery-port">{t('delivery.field.port')}</Label>
+                        <Input
+                          id="delivery-port"
+                          inputMode="numeric"
+                          value={port}
+                          placeholder={protocol === 'sftp' ? '22' : '21'}
+                          onChange={(e) => setPort(e.target.value)}
+                          disabled={!canWrite}
+                          title={writeTitle}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className={field}>
+                        <Label htmlFor="delivery-username">{t('delivery.field.username')}</Label>
+                        <Input
+                          id="delivery-username"
+                          value={username}
+                          autoComplete="off"
+                          onChange={(e) => setUsername(e.target.value)}
+                          disabled={!canWrite}
+                          title={writeTitle}
+                        />
+                      </div>
+                      <div className={field}>
+                        <Label htmlFor="delivery-password">{t('delivery.field.password')}</Label>
+                        <Input
+                          id="delivery-password"
+                          type="password"
+                          value={password}
+                          autoComplete="new-password"
+                          aria-describedby={config?.passwordSet ? 'delivery-password-set' : undefined}
+                          onChange={(e) => setPassword(e.target.value)}
+                          disabled={!canWrite}
+                          title={writeTitle}
+                        />
+                        {config?.passwordSet && (
+                          <p id="delivery-password-set" className={hintClass}>
+                            {t('delivery.field.password.set')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {protocol === 'sftp' && (
+                      <div className={field}>
+                        <Label htmlFor="delivery-key">{t('delivery.field.privateKey')}</Label>
+                        <Textarea
+                          id="delivery-key"
+                          rows={4}
+                          value={privateKey}
+                          aria-describedby="delivery-key-hint"
+                          onChange={(e) => setPrivateKey(e.target.value)}
+                          disabled={!canWrite}
+                          title={writeTitle}
+                        />
+                        <p id="delivery-key-hint" className={hintClass}>
+                          {config?.privateKeySet
+                            ? t('delivery.field.privateKey.set')
+                            : t('delivery.field.privateKey.help')}
+                        </p>
+                      </div>
+                    )}
+                    <div className={field}>
+                      <Label htmlFor="delivery-directory">{t('delivery.field.directoryPath')}</Label>
+                      <Input
+                        id="delivery-directory"
+                        value={directoryPath}
+                        placeholder="/incoming/feeds"
+                        aria-describedby="delivery-directory-hint"
+                        onChange={(e) => setDirectoryPath(e.target.value)}
+                        disabled={!canWrite}
+                        title={writeTitle}
+                      />
+                      <p id="delivery-directory-hint" className={hintClass}>
+                        {t('delivery.field.directoryPath.help')}
+                      </p>
+                    </div>
+                    {protocol === 'ftp' && (
+                      // Passive mode is the only one supported, so it is a fact, not a control (issue #1459).
+                      <p className="flex items-center gap-2 text-sm" data-testid="delivery-passive">
+                        <span className="font-medium">{t('delivery.field.passiveMode')}</span>
+                        <span>{t('delivery.field.enabled.on')}</span>
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {protocol === 'http' && (
+                  <>
+                    <div className={field}>
+                      <Label htmlFor="delivery-url">{t('delivery.field.requestUrl')}</Label>
+                      <Input
+                        id="delivery-url"
+                        value={requestUrl}
+                        placeholder="https://partner.example.com/feeds"
+                        aria-describedby="delivery-url-hint"
+                        onChange={(e) => setRequestUrl(e.target.value)}
+                        disabled={!canWrite}
+                        title={writeTitle}
+                      />
+                      <p id="delivery-url-hint" className={hintClass}>
+                        {t('delivery.field.requestUrl.help')}
+                      </p>
+                    </div>
+                    <div className={field}>
+                      <Label htmlFor="delivery-headers">{t('delivery.field.headers')}</Label>
+                      <Textarea
+                        id="delivery-headers"
+                        rows={5}
+                        value={headerText}
+                        placeholder={t('delivery.field.headers.placeholder')}
+                        aria-describedby="delivery-headers-hint"
+                        onChange={(e) => setHeaderText(e.target.value)}
+                        aria-invalid={duplicates.length > 0}
+                        disabled={!canWrite}
+                        title={writeTitle}
+                      />
+                      <div id="delivery-headers-hint" className="flex flex-col gap-1">
+                        <p className={hintClass}>{t('delivery.field.headers.help')}</p>
+                        {secretNames.length > 0 && (
+                          <p className={hintClass}>{t('delivery.field.headers.secretNote')}</p>
+                        )}
+                      </div>
+                      {duplicates.length > 0 && (
+                        <p className="text-xs text-destructive" role="alert">
+                          {duplicates.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* One status region, mounted whether or not the form is open, so a removal's
+                result is announced where the form was (WCAG 4.1.3). */}
+            <div className="flex flex-wrap items-center gap-3">
+              {showForm && (
+                <>
+                  <Button
+                    onClick={() => void save()}
+                    disabled={!canWrite || busy || duplicates.length > 0}
+                    aria-busy={busy}
+                    title={writeTitle}
+                  >
+                    {t('delivery.action.save')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => void test()}
+                    disabled={!canWrite || testing || config === null}
+                    aria-busy={testing}
+                    title={writeTitle}
+                  >
+                    {testing ? t('delivery.test.running') : t('delivery.action.test')}
+                  </Button>
+                </>
+              )}
+              <InlineStatus {...status.props} />
+            </div>
+          </EditorSection>
+
+          <EditorSection title={t('delivery.history.title')}>
+            <ResponsiveTable
+              columns={attemptColumns}
+              data={attempts}
+              keyExtractor={(row) => row.id}
+              emptyState={
+                <EmptyState
+                  icon={<History size={20} />}
+                  title={t('delivery.history.empty.title')}
+                  description={t('delivery.history.empty.subtitle')}
+                />
               }
             />
-          </CardContent>
-        </Card>
-      )}
+          </EditorSection>
 
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('delivery.title')}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <p className="text-sm text-muted-foreground">{t('delivery.subtitle')}</p>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="delivery-enabled">{t('delivery.field.enabled')}</Label>
-              <Select
-                id="delivery-enabled"
-                value={enabled ? 'on' : 'off'}
-                onChange={(e) => setEnabled(e.target.value === 'on')}
-                disabled={!canWrite}
-                title={writeTitle}
-              >
-                <option value="on">{t('delivery.field.enabled.on')}</option>
-                <option value="off">{t('delivery.field.enabled.off')}</option>
-              </Select>
-              <p className="text-xs text-muted-foreground">{t('delivery.field.enabled.help')}</p>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="delivery-protocol">{t('delivery.field.protocol')}</Label>
-              <Select
-                id="delivery-protocol"
-                value={choice}
-                onChange={(e) => setChoice(e.target.value as ProtocolChoice)}
-                disabled={!canWrite}
-                title={writeTitle}
-              >
-                {PROTOCOL_CHOICES.map((value) => (
-                  <option key={value} value={value}>
-                    {t(`delivery.protocol.${value}`)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            {protocol === 'ftp' && (
-              <Alert>
-                <ShieldAlert size={16} aria-hidden="true" />
-                <AlertDescription>{t('delivery.ftp.plaintextWarning')}</AlertDescription>
-              </Alert>
-            )}
-
-            {protocol !== 'http' && (
-              <>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="delivery-host">{t('delivery.field.host')}</Label>
-                  <Input
-                    id="delivery-host"
-                    value={host}
-                    onChange={(e) => setHost(e.target.value)}
-                    disabled={!canWrite}
-                    title={writeTitle}
-                  />
-                  <p className="text-xs text-muted-foreground">{t('delivery.field.host.help')}</p>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="delivery-port">Port</Label>
-                  <Input
-                    id="delivery-port"
-                    inputMode="numeric"
-                    value={port}
-                    placeholder={protocol === 'sftp' ? '22' : '21'}
-                    onChange={(e) => setPort(e.target.value)}
-                    disabled={!canWrite}
-                    title={writeTitle}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="delivery-username">{t('delivery.field.username')}</Label>
-                  <Input
-                    id="delivery-username"
-                    value={username}
-                    autoComplete="off"
-                    onChange={(e) => setUsername(e.target.value)}
-                    disabled={!canWrite}
-                    title={writeTitle}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="delivery-password">{t('delivery.field.password')}</Label>
-                  <Input
-                    id="delivery-password"
-                    type="password"
-                    value={password}
-                    autoComplete="new-password"
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={!canWrite}
-                    title={writeTitle}
-                  />
-                  {config?.passwordSet && (
-                    <p className="text-xs text-muted-foreground">
-                      {t('delivery.field.password.set')}
-                    </p>
-                  )}
-                </div>
-                {protocol === 'sftp' && (
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="delivery-key">{t('delivery.field.privateKey')}</Label>
-                    <Textarea
-                      id="delivery-key"
-                      rows={4}
-                      value={privateKey}
-                      onChange={(e) => setPrivateKey(e.target.value)}
-                      disabled={!canWrite}
-                      title={writeTitle}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {config?.privateKeySet
-                        ? t('delivery.field.privateKey.set')
-                        : t('delivery.field.privateKey.help')}
-                    </p>
-                  </div>
-                )}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="delivery-directory">{t('delivery.field.directoryPath')}</Label>
-                  <Input
-                    id="delivery-directory"
-                    value={directoryPath}
-                    onChange={(e) => setDirectoryPath(e.target.value)}
-                    disabled={!canWrite}
-                    title={writeTitle}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t('delivery.field.directoryPath.help')}
-                  </p>
-                </div>
-                {protocol === 'ftp' && (
-                  // Passive mode is the only one supported, so it is a fact, not a control (issue #1459).
-                  <p className="flex items-center gap-2 text-sm" data-testid="delivery-passive">
-                    <span className="font-medium">{t('delivery.field.passiveMode')}</span>
-                    <span>{t('delivery.field.enabled.on')}</span>
-                  </p>
-                )}
-              </>
-            )}
-
-            {protocol === 'http' && (
-              <>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="delivery-url">{t('delivery.field.requestUrl')}</Label>
-                  <Input
-                    id="delivery-url"
-                    value={requestUrl}
-                    placeholder="https://partner.example.com/feeds"
-                    onChange={(e) => setRequestUrl(e.target.value)}
-                    disabled={!canWrite}
-                    title={writeTitle}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t('delivery.field.requestUrl.help')}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="delivery-headers">{t('delivery.field.headers')}</Label>
-                  <Textarea
-                    id="delivery-headers"
-                    rows={5}
-                    value={headerText}
-                    onChange={(e) => setHeaderText(e.target.value)}
-                    aria-invalid={duplicates.length > 0}
-                    disabled={!canWrite}
-                    title={writeTitle}
-                  />
-                  <p className="whitespace-pre-line text-xs text-muted-foreground">
-                    {t('delivery.field.headers.help')}
-                  </p>
-                  {secretNames.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      {t('delivery.field.headers.secretNote')}
-                    </p>
-                  )}
-                  {duplicates.length > 0 && (
-                    <p className="text-xs text-destructive" role="alert">
-                      {duplicates.join(', ')}
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                onClick={() => void save()}
-                disabled={!canWrite || busy || duplicates.length > 0}
-                title={writeTitle}
-              >
-                {t('delivery.action.save')}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => void test()}
-                disabled={!canWrite || testing || config === null}
-                title={writeTitle}
-              >
-                {testing ? t('delivery.test.running') : t('delivery.action.test')}
-              </Button>
-              {config !== null && (
+          {config !== null && (
+            // Last and on its own, after the history (Fitts: away from Save), as on the price book.
+            <EditorSection title={t('delivery.remove.title')} description={t('delivery.remove.help')}>
+              <div>
                 <Button
-                  variant="ghost"
+                  variant="outline"
+                  className="text-destructive"
                   onClick={() => void remove()}
                   disabled={!canWrite || busy}
                   title={writeTitle}
                 >
+                  <Trash2 aria-hidden="true" />
                   {t('delivery.action.remove')}
                 </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('delivery.history.title')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveTable
-            columns={attemptColumns}
-            data={attempts}
-            keyExtractor={(row) => row.id}
-            emptyState={
-              <EmptyState
-                icon={<History size={20} />}
-                title={t('delivery.history.empty.title')}
-                description={t('delivery.history.empty.subtitle')}
-              />
-            }
-          />
+              </div>
+            </EditorSection>
+          )}
         </CardContent>
       </Card>
       {confirmDialog}

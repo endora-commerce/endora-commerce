@@ -4,7 +4,7 @@
  * research R16).
  *
  * A composition, not a new primitive: `StickyFormActions` (fixed to the bottom below 1024 px,
- * inline above) around the design system's primary `b2b-btn`, worded and pluralised as the
+ * inline above) around the design system's primary `Button`, worded and pluralised as the
  * product editor's own Save (`ProductEditorSaveAction`). The count is the host's own staged
  * changes plus every participant's, read from the session the control sits under.
  */
@@ -14,6 +14,7 @@ import { Save } from 'lucide-react';
 import { useTranslationContext } from '../../i18n/TranslationProvider.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { useSaveSession } from '../../save-session/SaveSessionProvider.js';
+import { Button } from '../../ui/button.js';
 import { StickyFormActions } from '../StickyFormActions.js';
 
 export interface SaveSessionActionsProps {
@@ -53,9 +54,9 @@ export function SaveSessionActions({
   return (
     <StickyFormActions>
       <div className="flex w-full flex-col gap-1 lg:w-auto lg:flex-row lg:items-center lg:gap-2">
-        <button
+        <Button
           type="button"
-          className="b2b-btn b2b-btn--primary max-lg:min-h-11 max-lg:w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+          className="max-lg:min-h-11 max-lg:w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
           // aria-disabled, not disabled: focus stays on Save after it has saved (WCAG 2.4.3).
           aria-disabled={inert}
           aria-busy={busy}
@@ -67,7 +68,7 @@ export function SaveSessionActions({
         >
           <Save size={14} aria-hidden="true" />
           {label}
-        </button>
+        </Button>
         <span id={noteId} className="text-xs text-muted-foreground max-lg:text-center">
           {total === 0 && !busy ? t('saveSession.action.noChanges') : ''}
         </span>

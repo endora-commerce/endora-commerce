@@ -9,9 +9,11 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  InlineStatus,
   Input,
   Label,
   Textarea,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { AlternativeResolution, ReturnCaseDetail } from '@endora-commerce/contracts';
@@ -86,12 +88,14 @@ export function ConsumerWithdrawalPanel(props: {
   rc: ReturnCaseDetail;
   /** The case's status is terminal in the configured graph. */
   closed: boolean;
-  onChanged: (message: string) => Promise<void>;
+  /** Reloads the case. The result is said beside the panel's own buttons (#1472, #1499). */
+  onChanged: () => Promise<void>;
 }): ReactNode {
   const { rc, closed, onChanged } = props;
   const t = useTranslation('returns');
   const tc = useTranslation('core');
   const [dialog, setDialog] = useState<'record' | 'revoke' | null>(null);
+  const status = useInlineStatus();
   const consent = rc.alternativeResolutionConsent;
   const settled = rc.resolutionType !== null;
   const resolutionLabel = (resolution: string): string => tc(`returns.detail.resolution.${resolution}`);
@@ -141,6 +145,7 @@ export function ConsumerWithdrawalPanel(props: {
             )}
           </div>
         )}
+        <InlineStatus {...status.props} />
         {dialog === 'record' && (
           <RecordConsentDialog
             caseId={rc.id}
@@ -151,7 +156,8 @@ export function ConsumerWithdrawalPanel(props: {
             onClose={() => setDialog(null)}
             onSaved={async () => {
               setDialog(null);
-              await onChanged(t('consent.recordedInfo'));
+              await onChanged();
+              status.show(t('consent.recordedInfo'));
             }}
           />
         )}
@@ -161,7 +167,8 @@ export function ConsumerWithdrawalPanel(props: {
             onClose={() => setDialog(null)}
             onRevoked={async () => {
               setDialog(null);
-              await onChanged(t('consent.revokedInfo'));
+              await onChanged();
+              status.show(t('consent.revokedInfo'));
             }}
           />
         )}

@@ -13,12 +13,8 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Checkbox,
+  EditorSection,
   Input,
   Label,
   Select,
@@ -241,15 +237,19 @@ export function PayersPanel({ organizationId }: PayersPanelProps): ReactNode {
   };
 
   return (
-    <Card className="mt-4" id="payers">
-      <CardHeader>
-        <CardTitle id={titleId} className="text-base">
+    // Issue #1515 — a section of the organization detail's Commerce tab, like every other
+    // `organization.detail.after` panel there: the host's card frames it (Common Region).
+    <EditorSection
+      id="payers"
+      title={
+        <>
           {t('panel.title')}
           <ImmediateBadge className="align-middle" />
-        </CardTitle>
-        <CardDescription>{t('panel.description')}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+        </>
+      }
+      description={t('panel.description')}
+      contentClassName="grid gap-4"
+    >
         {loadError ? (
           <Alert variant="destructive">
             <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
@@ -313,7 +313,6 @@ export function PayersPanel({ organizationId }: PayersPanelProps): ReactNode {
         <p role="status" className="text-xs text-muted-foreground">
           {status}
         </p>
-      </CardContent>
       {revoking ? (
         <ConfirmDialog
           title={t('panel.revoke.title')}
@@ -329,7 +328,7 @@ export function PayersPanel({ organizationId }: PayersPanelProps): ReactNode {
           }
         />
       ) : null}
-    </Card>
+    </EditorSection>
   );
 }
 

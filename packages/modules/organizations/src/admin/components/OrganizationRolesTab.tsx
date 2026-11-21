@@ -12,12 +12,8 @@ import {
   AlertDescription,
   Badge,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Checkbox,
+  EditorSection,
   InlineStatus,
   Input,
   Label,
@@ -151,17 +147,15 @@ function OrganizationRolesPanel({
   const hasCustom = roles.some((r) => r.kind === 'custom');
 
   return (
-    <Card className="mt-4">
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1.5">
-          {/* The badge beside the heading, not in it: the heading's name stays the tab's name. */}
-          <div className="flex flex-wrap items-center">
-            <CardTitle>{t('roles.tab.title')}</CardTitle>
-            <ImmediateBadge className="align-middle" />
-          </div>
-          <CardDescription>{t('roles.tab.description')}</CardDescription>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    // Issue #1515 — a section of the Members & roles tab's card, not a card of its own.
+    <EditorSection
+      title={t('roles.tab.title')}
+      description={t('roles.tab.description')}
+      contentClassName="space-y-4"
+      action={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* The badge beside the heading, not in it: the heading's name stays the section's name. */}
+          <ImmediateBadge className="align-middle" />
           {canManage ? <InlineStatus {...statusProps} /> : null}
           {showHistory ? (
             <Button asChild variant="outline" size="sm">
@@ -171,15 +165,16 @@ function OrganizationRolesPanel({
               </Link>
             </Button>
           ) : null}
+          {/* Outline: the page Save is the screen's one primary (Von Restorff). */}
           {canManage ? (
-            <Button type="button" size="sm" onClick={(): void => openEditor({ mode: 'create' })} disabled={loading || catalogue === null}>
+            <Button type="button" variant="outline" size="sm" onClick={(): void => openEditor({ mode: 'create' })} disabled={loading || catalogue === null}>
               <Plus aria-hidden="true" />
               {t('roles.action.create')}
             </Button>
           ) : null}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      }
+    >
         <div role="status" aria-live="polite" className="text-sm">
           {loading ? <span className="text-muted-foreground">{t('roles.loading')}</span> : null}
         </div>
@@ -227,7 +222,6 @@ function OrganizationRolesPanel({
         {!loading && !loadError && !hasCustom ? (
           <p className="text-sm text-muted-foreground">{t('roles.list.empty')}</p>
         ) : null}
-      </CardContent>
 
       {editor && catalogue ? (
         <RoleEditorDialog
@@ -247,7 +241,7 @@ function OrganizationRolesPanel({
           onDeleted={(): Promise<void> => afterWrite(t('roles.info.deleted'))}
         />
       ) : null}
-    </Card>
+    </EditorSection>
   );
 }
 

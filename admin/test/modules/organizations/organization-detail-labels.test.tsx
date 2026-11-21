@@ -103,10 +103,10 @@ function serve(): void {
   });
 }
 
-function renderDetail(language: SupportedAdminLanguage): void {
+function renderDetail(language: SupportedAdminLanguage, search = ''): void {
   renderWithI18n(
     withSession(
-      <MemoryRouter initialEntries={[`/organizations/${ORG_ID}`]}>
+      <MemoryRouter initialEntries={[`/organizations/${ORG_ID}${search}`]}>
         <Routes>
           <Route path="/organizations/:id" element={<OrganizationDetail />} />
         </Routes>
@@ -169,12 +169,14 @@ describe.each(['en', 'pl'] as const)('organization detail labels (%s) — issues
     renderDetail(language);
     const label = own['vatStatus.vat_payer']!;
     expect(label).toBeTruthy();
-    const badge = await screen.findByText(label);
-    expect(badge.parentElement?.textContent).toContain(`${core['organizations.detail.vatStatus']!}:`);
+    // The header's, first; the Tax tab repeats it beside "Change VAT status…" (#1515).
+    const [badge] = await screen.findAllByText(label);
+    expect(badge!.parentElement?.textContent).toContain(`${core['organizations.detail.vatStatus']!}:`);
   });
 
   it('lists the VAT status options of the change dialog by their translated labels', async () => {
-    renderDetail(language);
+    // The correction sits on the Tax tab, beside the value it changes (#1515).
+    renderDetail(language, '?tab=tax');
     fireEvent.click(await screen.findByRole('button', { name: own['changeVatStatus.button']! }));
     const dialog = await screen.findByRole('dialog');
     const select = within(dialog).getByLabelText(own['changeVatStatus.field.vatStatus']!);

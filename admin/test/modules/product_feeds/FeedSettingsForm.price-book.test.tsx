@@ -41,7 +41,6 @@ const bundle = passthroughBundle('product_feeds', [
   'feeds.settings.binding',
   'feeds.settings.criteria',
   'feeds.settings.schedule',
-  'feeds.settings.danger',
   'feeds.settings.prices',
   'feeds.settings.priceBook',
   'feeds.settings.priceBook.none',
@@ -199,7 +198,8 @@ describe('FeedSettingsForm — one card, sections inside it (issue #1503, SHELL-
     priceBookOptions.mockResolvedValue({ data: OPTIONS });
   });
 
-  it('draws the settings tab as one card of h2 sections divided by a rule, not five cards', async () => {
+  // Issue #1530 (CAT-20): the "danger zone" held only the reversible on/off switch, which moved to the first section.
+  it('draws the settings tab as one card of h2 sections divided by a rule, not separate cards', async () => {
     renderForm();
     await waitFor(() => expect(within(picker()).getAllByRole('option')).toHaveLength(4));
     const cards = document.querySelectorAll('[data-slot="card"]');
@@ -210,7 +210,6 @@ describe('FeedSettingsForm — one card, sections inside it (issue #1503, SHELL-
       'feeds.settings.prices',
       'feeds.settings.criteria',
       'feeds.settings.schedule',
-      'feeds.settings.danger',
     ]);
     for (const section of sections) expect(section).toHaveAccessibleName();
     // No card inside the card: a frame inside a card is a defect unless it is a field.

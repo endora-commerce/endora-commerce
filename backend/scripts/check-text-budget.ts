@@ -243,7 +243,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   '_i18n:fulfilment.hint': 119,
   '_i18n:pageBuilder.fieldText.editorName.hint': 81,
   '_i18n:platform.commandHooks.outbox.hint': 94,
-  '_i18n:platform.commandHooks.plan.afterCommit.hint': 107,
   '_i18n:promotions.page.description': 83,
   '_i18n:returns.detail.settlement.charge.hint': 200,
   'admin_feedback:settingLabels.admin_feedback.module_enabled.description': 251,
@@ -271,7 +270,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'product_feeds:builder.outputFormat.hint': 108,
   'product_feeds:checks.reason.transport.hint': 140,
   'product_feeds:delivery.empty.subtitle': 121,
-  'product_feeds:delivery.subtitle': 92,
   'product_feeds:feeds.empty.subtitle': 90,
   'product_feeds:feeds.settings.priceBook.hint': 98,
   'product_feeds:templates.startingPoint.hint': 103,
@@ -288,7 +286,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'seo:settingLabels.seo.enabled.description': 428,
   'seo:settingLabels.seo.llms_txt_additional.description': 475,
   'seo:settingLabels.seo.robots_txt_custom.description': 595,
-  'settings:quoteRequestsTab.expiry.help': 508,
   'shipments:settingLabels.shipments.enabled.description': 360,
 };
 

@@ -150,7 +150,8 @@ const SUBJECTS: readonly Subject[] = [
     specifier: '@endora-commerce/mod-settings/admin',
     section: 'system',
     routes: ['/settings', '/settings/groups', '/settings/cache'],
-    navTargets: ['/settings', '/settings/groups', '/settings/cache'],
+    // One row since issue #1550: Groups and Cache are tabs under it.
+    navTargets: ['/settings'],
     retiredSharedKeys: [
       'appShell.nav.settings',
       'appShell.nav.settingGroups',

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LayoutTemplate, Lock, Plus, Upload } from 'lucide-react';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, EditorSection, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -226,81 +226,84 @@ export function FeedTemplatesListPage(): ReactNode {
 
       {/* The operator's own templates come first: they are the working set,
           the ones they came here to edit. The platform's are a shelf to copy
-          from once, so they sit underneath. */}
-      <h2 className="mb-2 text-sm font-medium">{t('templates.mine')}</h2>
-      <div className="mb-6">
-        {loading ? (
-          <p role="status" className="m-0 text-sm text-muted-foreground">{t('feeds.criteria.counting')}</p>
-        ) : mine.length === 0 ? (
-          <EmptyState
-            icon={<LayoutTemplate size={20} />}
-            title={t('templates.empty.mine.title')}
-            description={t('templates.empty.mine.subtitle')}
-          />
-        ) : (
-          // The platform's templates below are already cards; the operator's
-          // own were the one surface on this screen sitting on bare page
-          // background.
-          <Card>
-            <CardContent>
-              <ResponsiveTable
-                columns={columns}
-                data={mine}
-                keyExtractor={(row): string => row.id}
-              />
-            </CardContent>
-          </Card>
-        )}
-      </div>
+          from once, so they sit underneath. Two page-level cards, each a
+          region named by its heading; the platform's templates are rows of
+          their card, not a grid of cards (DS-03, #1437). */}
+      <div className="flex flex-col gap-6">
+        <EditorSection chrome="card" title={t('templates.mine')}>
+          {loading ? (
+            <p role="status" className="m-0 text-sm text-muted-foreground">{t('feeds.criteria.counting')}</p>
+          ) : mine.length === 0 ? (
+            <EmptyState
+              icon={<LayoutTemplate size={20} />}
+              title={t('templates.empty.mine.title')}
+              description={t('templates.empty.mine.subtitle')}
+            />
+          ) : (
+            <ResponsiveTable
+              columns={columns}
+              data={mine}
+              keyExtractor={(row): string => row.id}
+            />
+          )}
+        </EditorSection>
 
-      <h2 className="mb-2 text-sm font-medium">{t('templates.provided')}</h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {system.map((template) => {
-          const isSkeleton = template.fieldCount <= SKELETON_FIELD_CEILING;
-          return (
-            <Card key={template.id}>
-              <CardHeader>
-                <CardTitle className="flex items-start justify-between gap-2">
-                  <span>{template.name}</span>
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded border border-border px-2 py-0.5 text-xs">
-                    <Lock size={11} aria-hidden="true" />
-                    {isSkeleton ? t('templates.startingPoint') : t('templates.readyToUse')}
+        <EditorSection chrome="card" title={t('templates.provided')}>
+          <ul className="divide-y divide-border">
+            {system.map((template) => {
+              const isSkeleton = template.fieldCount <= SKELETON_FIELD_CEILING;
+              return (
+                <li
+                  key={template.id}
+                  className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"
+                >
+                  <div className="flex min-w-0 flex-col gap-1 text-sm">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{template.name}</span>
+                      {/* Icon and word, never colour alone (FR-007). */}
+                      <Badge variant="outline" className="gap-1 font-normal">
+                        <Lock size={11} aria-hidden="true" />
+                        {isSkeleton ? t('templates.startingPoint') : t('templates.readyToUse')}
+                      </Badge>
+                    </span>
+                    <p className="text-muted-foreground">{template.description}</p>
+                    {isSkeleton ? (
+                      <p className="text-xs text-muted-foreground">{t('templates.startingPoint.hint')}</p>
+                    ) : null}
+                    <p className="text-xs text-muted-foreground">
+                      {template.outputFormat.toUpperCase()} ·{' '}
+                      {t(`builder.granularity.${template.itemGranularity}`)} ·{' '}
+                      {t('templates.fields', { count: template.fieldCount })}
+                    </p>
+                  </div>
+                  {/* Secondary actions: the page's one primary is *New template* (Von Restorff). */}
+                  <span className="flex shrink-0 gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={(): void => {
+                        navigate(`/product-feeds/templates/${template.id}`);
+                      }}
+                    >
+                      {t('templates.view')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!canWrite}
+                      title={!canWrite ? t('permission.needWrite') : undefined}
+                      onClick={(): void => duplicate(template)}
+                    >
+                      {t('templates.duplicate')}
+                    </Button>
                   </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
-                <p>{template.description}</p>
-                {isSkeleton ? <p className="text-xs">{t('templates.startingPoint.hint')}</p> : null}
-                <p className="text-xs">
-                  {template.outputFormat.toUpperCase()} ·{' '}
-                  {t(`builder.granularity.${template.itemGranularity}`)} ·{' '}
-                  {t('templates.fields', { count: template.fieldCount })}
-                </p>
-                <span className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(): void => {
-                      navigate(`/product-feeds/templates/${template.id}`);
-                    }}
-                  >
-                    {t('templates.view')}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!canWrite}
-                    title={!canWrite ? t('permission.needWrite') : undefined}
-                    onClick={(): void => duplicate(template)}
-                  >
-                    {t('templates.duplicate')}
-                  </Button>
-                </span>
-              </CardContent>
-            </Card>
-          );
-        })}
+                </li>
+              );
+            })}
+          </ul>
+        </EditorSection>
       </div>
       {confirmDialog}
     </div>

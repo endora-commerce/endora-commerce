@@ -83,14 +83,13 @@ describe('RfqDetail Modify — reference, proposal, live difference, payload', (
     expect(line).toHaveTextContent('rfq.detail.reference.perBaseUnit');
     expect(line).toHaveTextContent('rfq.detail.reference.atRequest');
     expect(line).toHaveTextContent('100.00 PLN');
-    // The input opens on the proposal: −20.00 against 120.00.
+    // The input opens on the proposal: −20.00 against 120.00. Since issue #1542 (SALES-16)
+    // the difference is its percentage, in the reference's cell.
     expect(input.value).toBe('100.00');
-    expect(line).toHaveTextContent('−20.00 PLN');
     expect(line).toHaveTextContent('−16.67 %');
 
     await userEvent.clear(input);
     await userEvent.type(input, '108');
-    expect(line).toHaveTextContent('−12.00 PLN');
     expect(line).toHaveTextContent('−10.00 %');
 
     await userEvent.clear(input);
@@ -121,7 +120,6 @@ describe('RfqDetail Modify — reference, proposal, live difference, payload', (
     // The input keeps a dot: it is a number field, not a display.
     expect(input.value).toBe('100.00');
     expect(line).toHaveTextContent('120,00 PLN');
-    expect(line).toHaveTextContent('−20,00 PLN');
     expect(line).toHaveTextContent('−16,67 %');
     expect(line).toHaveTextContent('200,00 PLN');
   });

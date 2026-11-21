@@ -226,7 +226,14 @@ someone else has changed the setting since you opened it, the save returns
 `409 VERSION_CONFLICT` and a banner asks you to refresh and retry — no silent
 overwrites.
 
-Setting groups are managed under `Admin → Operations → Setting groups`.
+The settings screen has three tabs under one *Settings* entry in the
+*System* section of the sidebar: **Settings**, **Groups** and **Cache and
+search index** (the last one only for administrators holding
+`settings:write`). Each tab can also be opened directly from the command
+palette (⌘K / CTRL+K): *Open platform settings*, *Setting groups* and
+*Clear cache*.
+
+Setting groups are managed on the **Groups** tab.
 The `general` group is system-protected; the platform refuses to delete it.
 Deleting any other group reassigns its settings to `general` and preserves
 their per-channel values.
@@ -301,7 +308,9 @@ loaded rather than from the last read, so even a setting read on every request
 ages out.
 
 That window is the bound on how long a missed invalidation can be visible. It
-is also why the operator-facing "clear cache" page is a diagnostic tool rather
+is also why the operator-facing *Clear cache* action (on the **Cache and search
+index** tab, beside *Rebuild search index* and *Reload translations*) is a
+diagnostic tool rather
 than a repair: it drops both layers in the process that serves it and the
 shared entries for everyone, and every other process converges within the same
 30 s.

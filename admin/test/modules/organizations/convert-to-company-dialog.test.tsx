@@ -89,7 +89,7 @@ function render(permissions: string[] = ['*']): ReturnType<typeof renderWithI18n
     withSession(
       // The app shell provides the language `CountrySelect` labels countries in.
       <AppLanguageContext.Provider value={{ language: 'en', setLanguage: (): void => {} }}>
-        <MemoryRouter initialEntries={[`/organizations/${ORG_ID}`]}>
+        <MemoryRouter initialEntries={[`/organizations/${ORG_ID}?tab=tax`]}>
           <Routes>
             <Route path="/organizations/:id" element={<OrganizationDetail />} />
           </Routes>

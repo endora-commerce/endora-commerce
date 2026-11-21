@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, EditorSection } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 interface MethodOption {
@@ -142,11 +142,8 @@ export function RestrictionsPanel(props: RestrictionsPanelProps): ReactNode {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('organizations.restrictions.title')}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    // Issue #1515 — a section of the Commerce tab's card, not a card of its own.
+    <EditorSection title={t('organizations.restrictions.title')} contentClassName="space-y-4">
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -183,8 +180,7 @@ export function RestrictionsPanel(props: RestrictionsPanelProps): ReactNode {
             />
           </>
         )}
-      </CardContent>
-    </Card>
+    </EditorSection>
   );
 }
 
@@ -198,11 +194,12 @@ interface SectionProps {
 }
 
 function Section(props: SectionProps): ReactNode {
+  const own = useTranslation('organizations');
   return (
     <div>
-      <h4 className="mb-2 text-sm font-medium">{props.title}</h4>
+      <h3 className="mb-2 text-sm font-medium">{props.title}</h3>
       {props.options.length === 0 ? (
-        <p className="text-xs text-muted-foreground">— none configured</p>
+        <p className="text-xs text-muted-foreground">{own('restrictions.noneConfigured')}</p>
       ) : (
         <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
           {props.options.map((opt) => (

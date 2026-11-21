@@ -298,6 +298,9 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     fireEvent.change(emailsField(), { target: { value: 'ops@example.com' } });
     await waitFor(() => expect(saveButton()).toHaveAccessibleName('Save 1 change'));
 
+    // The sales channels are a section of the Commerce tab (#1515).
+    // Its name says it holds the staged e-mails: "Commerce (unsaved changes)".
+    fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${orgEn['detail.tabs.commerce']!}`) }));
     const trade = await screen.findByRole('checkbox', { name: /Trade/ });
     fireEvent.click(trade);
     await waitFor(() => expect(writes).toEqual([`PUT ${CHANNELS_URL}`]));
@@ -492,6 +495,8 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
 
     // Removing a member still applies at once, and a staged host change stays staged.
     fireEvent.change(emailsField(), { target: { value: 'ops@example.com' } });
+    // The members are on the Members & roles tab (#1515); switching tabs keeps the staged change.
+    fireEvent.click(screen.getByRole('tab', { name: orgEn['detail.tabs.members']! }));
     fireEvent.click(screen.getByRole('button', { name: orgEn['members.row.remove']!.replace('{email}', MEMBER.email) }));
     // Issue #1516 — asked first, then applied at once.
     await answerConfirm(true);
@@ -535,7 +540,8 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     expect(screen.queryByLabelText('Account status')).toBeNull();
     expect(screen.queryByLabelText(coreEn['organizations.detail.vatStatus']!)).toBeNull();
     expect(screen.queryByRole('combobox', { name: /status/i })).toBeNull();
-    const vat = screen.getByText(orgEn['vatStatus.vat_payer']!);
+    // The header's; the Tax tab's tax identity repeats it (#1515).
+    const vat = within(screen.getByRole('banner')).getByText(orgEn['vatStatus.vat_payer']!);
     expect(vat.parentElement?.textContent).toContain(`${coreEn['organizations.detail.vatStatus']!}:`);
     // The moderation panel is the one place the organization status is shown and changed.
     expect(screen.getByRole('button', { name: coreEn['organizations.moderation.action.block']! })).toBeEnabled();
@@ -545,7 +551,7 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     stored = { ...initialOrg(), name: 'Jan Kowalski', taxId: null, isPersonal: true, vatStatus: 'vat_exempt' };
     renderDetail();
     await ready();
-    const vat = screen.getByText(orgEn['vatStatus.vat_exempt']!);
+    const vat = within(screen.getByRole('banner')).getByText(orgEn['vatStatus.vat_exempt']!);
     expect(vat.parentElement?.textContent).toContain(`${coreEn['organizations.detail.vatStatus']!}:`);
   });
 

@@ -38,7 +38,11 @@ it never collides with an external ESP (MailerLite, GetResponse, …).
 - **Campaign** — a one-off send to `all` / a manual `group` / a `tag` / a
   `tag_list`. Authored in the shared email Page Builder (same palette as
   transactional emails) with subject + Puck content tree + variables; previewed
-  with sample data; sent now or scheduled. **Send** saves the campaign and then
+  with sample data in the builder's **Preview email** dialog; sent now or
+  scheduled. The editor asks for the settings first — name, language, subject
+  and audience — and the content below them; a manual group is picked by
+  searching the active subscribers by e-mail, and shows who is already in it.
+  **Send** saves the campaign and then
   asks for confirmation, naming the subject and how many subscribers the send
   reaches (active and not suppressed — the same rule the dispatch applies); an
   audience that reaches nobody is refused before anything is asked.

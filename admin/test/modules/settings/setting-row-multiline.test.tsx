@@ -19,6 +19,12 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 
 const channelsGetSpy = vi.fn(async () => ({ items: [] }));
 // The kit's barrel, not `@/lib/api-client` — see `SettingsPage.diacritics.test.tsx`.
+// The tab strip between the module's screens needs a router and a session this
+// file does not mount; it is covered by `settings-section-tabs.test.tsx` (#1550).
+vi.mock('../../../../packages/modules/settings/src/admin/components/SettingsSectionTabs', () => ({
+  SettingsSectionTabs: () => null,
+}));
+
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
     '@endora-commerce/admin-kit/lib',

@@ -44,6 +44,7 @@ vi.mock('../../../../packages/modules/newsletter/src/admin/api/newsletter-client
     listCustomFields: async () => ({ items: [] }),
     listSubscribers: async () => ({ items: [] }),
     getCampaign: (...args: unknown[]) => getCampaign(...args),
+    getCampaignGroup: async () => ({ items: [] }),
     updateCampaign: (...args: unknown[]) => updateCampaign(...args),
     setCampaignGroup: vi.fn(),
     createCampaign: vi.fn(),
@@ -88,7 +89,8 @@ const BUNDLE = {
       'campaign.send.notice.queued',
       'campaign.send.failed',
       'campaign.send.audience.all',
-      'campaign.audience.title',
+      'campaign.settings.title',
+      'campaign.field.audience',
     ]).newsletter,
     'campaign.send.message.other': '{subject} → {count} ({audience})',
     'campaign.send.confirm.other': 'Send to {count} subscribers',
@@ -184,7 +186,7 @@ describe('CampaignEditor — send asks first, naming the audience (#1462)', () =
 
   it('puts the audience before the content, so the target is chosen first', async () => {
     await renderEditor();
-    const audience = screen.getByText('campaign.audience.title');
+    const audience = screen.getByRole('combobox', { name: 'campaign.field.audience' });
     const canvas = screen.getByTestId('email-canvas');
     expect(audience.compareDocumentPosition(canvas) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });

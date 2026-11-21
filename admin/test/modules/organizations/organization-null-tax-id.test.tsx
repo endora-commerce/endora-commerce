@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -53,6 +53,9 @@ vi.mock('../../../../packages/modules/organizations/src/admin/panels/SalesChanne
 }));
 vi.mock('../../../../packages/modules/organizations/src/admin/components/OrganizationSalesRepsTab', () => ({
   OrganizationSalesRepsTab: () => null,
+}));
+vi.mock('../../../../packages/modules/organizations/src/admin/components/OrganizationRolesTab', () => ({
+  OrganizationRolesTab: () => null,
 }));
 const { OrganizationDetail } = await import(
   '../../../../packages/modules/organizations/src/admin/pages/OrganizationDetail'
@@ -156,7 +159,8 @@ describe('Organization detail — a personal Organization has no tax ID (177 O14
   it('shows a company tax ID in the header', async () => {
     answer(COMPANY);
     renderAt(`/organizations/${ORG_ID}`);
-    expect(await screen.findByText('5260250274')).toBeInTheDocument();
+    // The Tax tab's tax identity repeats it (#1515); this is about the header's.
+    expect(await within(await screen.findByRole('banner')).findByText('5260250274')).toBeInTheDocument();
   });
 });
 

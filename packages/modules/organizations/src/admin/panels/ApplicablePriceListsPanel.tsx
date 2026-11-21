@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, EditorSection, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 type Reason =
@@ -58,11 +58,8 @@ export function ApplicablePriceListsPanel(props: ApplicablePriceListsPanelProps)
   }, [refresh]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('organizations.applicablePriceLists.title')}</CardTitle>
-      </CardHeader>
-      <CardContent>
+    // Issue #1515 — a section of the Commerce tab's card, not a card of its own.
+    <EditorSection title={t('organizations.applicablePriceLists.title')}>
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -102,8 +99,7 @@ export function ApplicablePriceListsPanel(props: ApplicablePriceListsPanelProps)
             </TableBody>
           </Table>
         ) : null}
-      </CardContent>
-    </Card>
+    </EditorSection>
   );
 }
 

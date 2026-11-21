@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Trash2, UserPlus } from 'lucide-react';
 import { ApiError, apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Combobox, type ComboboxOption, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Combobox, EditorSection, InlineStatus, type ComboboxOption, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ImmediateBadge } from '@endora-commerce/admin-kit/components';
 
@@ -90,10 +90,13 @@ function OrganizationSalesRepsPanel({
   organizationId: string;
 }): ReactNode {
   const t = useTranslation('core');
+  const own = useTranslation('organizations');
   const [rows, setRows] = useState<SalesRepRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1515 — "Sales rep assigned." is said beside Assign, in a region mounted before it
+  // has text (DEC-12 a), not as an info banner at the top of the section.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   const [selectedAdminUserId, setSelectedAdminUserId] = useState<string | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<string>('');
   const [busy, setBusy] = useState(false);
@@ -185,13 +188,13 @@ function OrganizationSalesRepsPanel({
     if (selectedAdminUserId === null) return;
     setBusy(true);
     setError(null);
-    setInfo(null);
+    clearStatus();
     try {
       await apiClient.post(
         `/api/v1/admin/organizations/${organizationId}/sales-reps`,
         { adminUserId: selectedAdminUserId },
       );
-      setInfo(t('organizations.salesReps.info.assigned'));
+      showStatus(t('organizations.salesReps.info.assigned'));
       setSelectedAdminUserId(null);
       setSelectedLabel('');
       setPickerOptions([]);
@@ -206,12 +209,12 @@ function OrganizationSalesRepsPanel({
   const unassign = async (id: string): Promise<void> => {
     setBusy(true);
     setError(null);
-    setInfo(null);
+    clearStatus();
     try {
       await apiClient.delete(
         `/api/v1/admin/organizations/${organizationId}/sales-reps/${id}`,
       );
-      setInfo(t('organizations.salesReps.info.unassigned'));
+      showStatus(t('organizations.salesReps.info.unassigned'));
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.salesReps.error.unassign'));
@@ -221,26 +224,23 @@ function OrganizationSalesRepsPanel({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
+    // Issue #1515 — a section of the Sales tab's card, not a card of its own.
+    <EditorSection
+      title={
+        <>
           {t('organizations.salesReps.title')}
           <ImmediateBadge className="align-middle" />
-        </CardTitle>
-      </CardHeader>
-      <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        </>
+      }
+      contentClassName="flex flex-col gap-4"
+    >
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
-        {info ? (
-          <Alert live="polite">
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
         {rows.length === 0 && !loading ? (
-          <p style={{ color: 'var(--b2b-muted)', fontSize: 13 }}>
+          <p className="text-sm text-muted-foreground">
             {t('organizations.salesReps.empty')}
           </p>
         ) : (
@@ -250,7 +250,9 @@ function OrganizationSalesRepsPanel({
                 <TableHead>{t('organizations.salesReps.column.name')}</TableHead>
                 <TableHead>{t('organizations.salesReps.column.email')}</TableHead>
                 <TableHead>{t('organizations.salesReps.column.assignedAt')}</TableHead>
-                <TableHead style={{ width: 60 }}></TableHead>
+                <TableHead className="w-16">
+                  <span className="sr-only">{own('salesReps.column.actions')}</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -260,13 +262,15 @@ function OrganizationSalesRepsPanel({
                   <TableCell>{r.email}</TableCell>
                   <TableCell>{new Date(r.assignedAt).toLocaleDateString('pl-PL')}</TableCell>
                   <TableCell>
+                    {/* Icon-only, so it carries its name (WCAG 4.1.2). */}
                     <Button
                       variant="ghost"
                       size="sm"
+                      aria-label={own('salesReps.unassign', { name: r.displayName })}
                       onClick={(): void => void unassign(r.adminUserId)}
                       disabled={busy}
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={14} aria-hidden="true" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -275,8 +279,8 @@ function OrganizationSalesRepsPanel({
           </Table>
         )}
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-          <div style={{ flex: 1 }}>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-0 flex-1">
             <Label htmlFor="rep-picker">{t('organizations.salesReps.assignLabel')}</Label>
             <Combobox<string>
               id="rep-picker"
@@ -292,14 +296,16 @@ function OrganizationSalesRepsPanel({
               emptyMessage={pickerSearching ? t('organizations.salesReps.searching') : t('organizations.salesReps.noMatch')}
             />
           </div>
+          {/* Outline: the page Save is the screen's one primary (Von Restorff). */}
           <Button
+            variant="outline"
             onClick={(): void => void assign()}
             disabled={busy || loading || selectedAdminUserId === null}
           >
-            <UserPlus size={14} style={{ marginRight: 4 }} /> {t('organizations.salesReps.assign')}
+            <UserPlus size={14} aria-hidden="true" /> {t('organizations.salesReps.assign')}
           </Button>
+          <InlineStatus {...statusProps} />
         </div>
-      </CardContent>
-    </Card>
+    </EditorSection>
   );
 }
