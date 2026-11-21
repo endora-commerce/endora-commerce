@@ -245,6 +245,22 @@ export const setCampaignGroupRequestSchema = z.object({
 });
 export type SetCampaignGroupRequest = z.infer<typeof setCampaignGroupRequestSchema>;
 
+/**
+ * The subscribers in a campaign's manual group (`targetType = group`), by
+ * e-mail and ordered by it — what the editor's picker shows as chips, whether
+ * or not a member is still active (issue #1533).
+ */
+export const campaignGroupMemberSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string(),
+});
+export type CampaignGroupMember = z.infer<typeof campaignGroupMemberSchema>;
+
+export const campaignGroupResponseSchema = z.object({
+  items: z.array(campaignGroupMemberSchema),
+});
+export type CampaignGroupResponse = z.infer<typeof campaignGroupResponseSchema>;
+
 export const sendCampaignRequestSchema = z.object({
   scheduledAt: z.string().datetime().optional(),
   expectedVersion: z.number().int(),
