@@ -36,6 +36,8 @@ import { ValueCountingStatuses } from './workflow/ValueCountingStatuses.js';
 
 /** The anchor of the *Board card* section — what the board's own link points at. */
 const BOARD_CARD_ANCHOR = 'board-card';
+/** The Opportunity's computed value links here (issue #1561). */
+const VALUE_COUNTING_ANCHOR = 'value-counting';
 
 type DialogState = { kind: 'create' } | { kind: 'edit'; status: OpportunityWorkflowStatus } | null;
 
@@ -86,13 +88,17 @@ export function WorkflowConfigPage(): ReactNode {
     void load();
   }, [load]);
 
-  // The board links here as `#board-card`: the section is far down the page,
-  // and it exists only once the workflow has loaded.
+  // The board links here as `#board-card`, an Opportunity's value as
+  // `#value-counting`: both sections are far down the page, and they exist only
+  // once the workflow has loaded.
   const { hash } = useLocation();
   const boardCardSection = useRef<HTMLDivElement>(null);
+  const valueCountingSection = useRef<HTMLDivElement>(null);
   const loaded = workflow !== null;
   useEffect(() => {
-    if (loaded && hash === `#${BOARD_CARD_ANCHOR}`) boardCardSection.current?.scrollIntoView?.();
+    if (!loaded) return;
+    if (hash === `#${BOARD_CARD_ANCHOR}`) boardCardSection.current?.scrollIntoView?.();
+    if (hash === `#${VALUE_COUNTING_ANCHOR}`) valueCountingSection.current?.scrollIntoView?.();
   }, [loaded, hash]);
 
   const orderedStatuses = useMemo(
@@ -265,7 +271,7 @@ export function WorkflowConfigPage(): ReactNode {
       </Card>
 
       {/* --- User Story 8: which statuses count towards a computed value --- */}
-      <Card className="mb-4">
+      <Card id={VALUE_COUNTING_ANCHOR} ref={valueCountingSection} className="mb-4 scroll-mt-4">
         <CardHeader>
           <CardTitle>{t('value.counting.title')}</CardTitle>
           <CardDescription>{t('value.counting.description')}</CardDescription>

@@ -1,5 +1,5 @@
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
-import { ArrowLeft, ArrowRight, CircleX, Trophy } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ArrowLeft, ArrowRight, CircleX, Plus, Trophy } from 'lucide-react';
 import type {
   OpportunityDetail,
   OpportunityStatusRef,
@@ -28,14 +28,18 @@ export interface StageBarProps {
  * (`specs/143-crm-sales-opportunities/`, User Story 20; FR-013, FR-016).
  *
  * **Only what can happen next is on screen.** The workflow is a graph the
- * operator draws, so the bar does not draw a line of every status: it names the
- * current one and lists the statuses `allowedTransitions` — the server's
+ * operator draws, so the bar does not draw a line of every status: under
+ * *Move to…* it lists the statuses `allowedTransitions` — the server's
  * answer — lets it move to, sorted into *Back* and *Forward* (see
- * {@link stageModel}). A side with nothing on it is not drawn.
+ * {@link stageModel}). A side with nothing on it is not drawn. The current
+ * status is not repeated here: the badge beside the page title names it
+ * (issue #1566).
  *
  * Pressing a status is the one transition path this screen has ever had:
- * `POST …/transition` with the optional reason typed below, the server's own
- * sentence shown on a veto, and a re-read on a 409. Somebody without
+ * `POST …/transition` with the optional reason, the server's own sentence shown
+ * on a veto, and a re-read on a 409. The reason is optional, so it is folded
+ * behind *Add a reason* (issue #1561): opening it puts the focus in the field,
+ * the next move sends it, and the bar folds again. Somebody without
  * `crm:write` sees the same statuses as text, with no button among them.
  *
  * The direction of a move between two open statuses needs the workflow's order,
@@ -52,9 +56,12 @@ export function StageBar(props: StageBarProps): ReactNode {
   const t = useTranslation('crm');
   const headingId = useId();
   const reasonId = useId();
+  const reasonPanelId = useId();
   /** `undefined` while the workflow is being read; `null` when it could not be. */
   const [workflow, setWorkflow] = useState<OpportunityWorkflow | null | undefined>(undefined);
   const [reason, setReason] = useState('');
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const reasonInput = useRef<HTMLInputElement>(null);
   const [movingTo, setMovingTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -93,6 +100,7 @@ export function StageBar(props: StageBarProps): ReactNode {
       onMoved(result);
       // A reason belongs to one change; the next one starts without it.
       setReason('');
+      setReasonOpen(false);
       setNotice(t('opportunity.status.moved', { status: result.opportunity.status.name }));
     } catch (failure) {
       setError(errorMessage(failure, t('opportunity.status.error')));
@@ -105,6 +113,11 @@ export function StageBar(props: StageBarProps): ReactNode {
   };
 
   const loadingOrder = needsOrder && workflow === undefined;
+
+  // Opening the reason is asking to type it.
+  useEffect(() => {
+    if (reasonOpen) reasonInput.current?.focus();
+  }, [reasonOpen]);
 
   /** The icon of a closing status, or the operator's colour as a dot. */
   const marker = (status: OpportunityStatusRef): ReactNode =>
@@ -140,12 +153,11 @@ export function StageBar(props: StageBarProps): ReactNode {
     which: StageSide,
     title: string,
     targets: readonly OpportunityStatusRef[],
-    className: string,
   ): ReactNode => {
     if (targets.length === 0) return null;
     const labelId = `${headingId}-${which}`;
     return (
-      <div role="group" aria-labelledby={labelId} className={`space-y-1.5 ${className}`}>
+      <div role="group" aria-labelledby={labelId} className="space-y-1.5">
         <p
           id={labelId}
           className="flex items-center gap-1 text-xs font-medium text-muted-foreground"
@@ -189,68 +201,79 @@ export function StageBar(props: StageBarProps): ReactNode {
     );
   };
 
-  const currentOutcome = outcomeOf(opportunity.status);
-
   return (
     <section aria-labelledby={headingId} aria-busy={loadingOrder} className="space-y-4">
       <h2 id={headingId} className="sr-only">
         {t('opportunity.section.status')}
       </h2>
 
-      {/*
-        In the markup: the current status, then back, then forward — what a
-        screen reader should hear first, and the order the keyboard walks. From
-        `sm` up they are drawn back · current · forward; the current status takes
-        no focus, so the two orders never disagree for the keyboard.
-      */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-8">
-        <div className="space-y-1.5 sm:order-2">
-          <p className="text-xs font-medium text-muted-foreground">
-            {t('opportunity.stage.current')}
-          </p>
-          <p className="flex min-h-11 items-center gap-2 text-lg font-semibold leading-tight [overflow-wrap:anywhere] sm:min-h-9">
-            {marker(opportunity.status)}
-            <span>
-              {opportunity.status.name}
-              {currentOutcome ? <span className="sr-only">{` (${currentOutcome})`}</span> : null}
-            </span>
-          </p>
-          {opportunity.closedKind && opportunity.closedAt ? (
-            <p className="text-sm text-muted-foreground">
-              {t(`opportunity.status.closed.${opportunity.closedKind}`, {
-                date: formatDateTime(opportunity.closedAt),
-              })}
-            </p>
-          ) : null}
-        </div>
+      {opportunity.closedKind && opportunity.closedAt ? (
+        <p className="text-sm text-muted-foreground">
+          {t(`opportunity.status.closed.${opportunity.closedKind}`, {
+            date: formatDateTime(opportunity.closedAt),
+          })}
+        </p>
+      ) : null}
 
-        {loadingOrder ? (
-          // As tall as a row of moves, so their arrival moves nothing below.
-          <div aria-hidden="true" className="space-y-1.5 sm:order-3">
-            <div className="h-4 w-16 animate-pulse rounded bg-muted motion-reduce:animate-none" />
-            <div className="h-11 w-40 animate-pulse rounded-md bg-muted motion-reduce:animate-none sm:h-9" />
+      {transitions.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{t('opportunity.stage.heading')}</p>
+          {/*
+            Back, then forward, then the moves with no direction: the order a
+            screen reader hears and the keyboard walks is the order drawn. The
+            groups wrap under each other on a narrow screen.
+          */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-8">
+            {loadingOrder ? (
+              // As tall as a row of moves, so their arrival moves nothing below.
+              <div aria-hidden="true" className="space-y-1.5">
+                <div className="h-4 w-16 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+                <div className="h-11 w-40 animate-pulse rounded-md bg-muted motion-reduce:animate-none sm:h-9" />
+              </div>
+            ) : (
+              <>
+                {side('back', t('opportunity.stage.back'), model.back)}
+                {side('forward', t('opportunity.stage.forward'), model.forward)}
+                {side('unsorted', t('opportunity.stage.other'), model.unsorted)}
+              </>
+            )}
           </div>
-        ) : (
-          <>
-            {side('back', t('opportunity.stage.back'), model.back, 'sm:order-1')}
-            {side('forward', t('opportunity.stage.forward'), model.forward, 'sm:order-3')}
-            {side('unsorted', t('opportunity.stage.other'), model.unsorted, 'sm:order-4')}
-          </>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       {!loadingOrder && model.unsorted.length > 0 ? (
         <p className="text-xs text-muted-foreground">{t('opportunity.stage.partial')}</p>
+      ) : null}
+
+      {canWrite && transitions.length > 0 ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="-ml-2 min-h-11 text-muted-foreground sm:min-h-9"
+          aria-expanded={reasonOpen}
+          aria-controls={reasonOpen ? reasonPanelId : undefined}
+          disabled={movingTo !== null}
+          onClick={(): void => {
+            // Folding the field drops what was typed: nothing hidden is sent with a move.
+            if (reasonOpen) setReason('');
+            setReasonOpen(!reasonOpen);
+          }}
+        >
+          <Plus aria-hidden="true" className="size-4" />
+          {t('opportunity.status.addReason')}
+        </Button>
       ) : null}
 
       {!canWrite ? (
         <p className="text-sm text-muted-foreground">{t('opportunity.status.noPermission')}</p>
       ) : transitions.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('opportunity.status.none')}</p>
-      ) : (
-        <div className="max-w-xl space-y-1">
+      ) : reasonOpen ? (
+        <div id={reasonPanelId} className="max-w-xl space-y-1">
           <Label htmlFor={reasonId}>{t('opportunity.status.reason')}</Label>
           <Input
+            ref={reasonInput}
             id={reasonId}
             value={reason}
             maxLength={2000}
@@ -258,7 +281,7 @@ export function StageBar(props: StageBarProps): ReactNode {
             onChange={(event): void => setReason(event.target.value)}
           />
         </div>
-      )}
+      ) : null}
 
       {error ? (
         <Alert variant="destructive">
