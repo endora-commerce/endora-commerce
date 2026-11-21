@@ -24,10 +24,17 @@ which blocks its documents may use.
 **Content → Document templates** in the sidebar, or press **⌘K** / **Ctrl+K**
 and type *pdf*, *document template*, *invoice template*, *szablon faktury*,
 *quote pdf*, *offer template* or *szablon oferty*. **Manage PDF templates** in a
-quote request's export dialog opens the quote request card.
-The **PDF template** button on the **Comparisons** screen opens the product
-comparison card, and the **Templates** tab of **Invoices** opens the invoice
-card.
+quote request's export dialog opens the list on the quote request section.
+The **PDF template** button on the **Comparisons** screen opens it on the
+product comparison section, and the **Templates** tab of **Invoices** on the
+invoice section.
+
+The list has one section per document type: its built-in layout first, then
+its templates with the scope each applies to. **New template** asks for the
+document type first, preselected to the section the list was opened on. A
+template's name opens its editor; **Duplicate…**, **Set as default** and
+**Delete** are in the row's **⋮** menu, and the built-in layout's menu holds
+**Preview PDF** and **Create from this**.
 
 ## Built-in layout, templates and the default
 
@@ -67,7 +74,8 @@ The editor offers **only the blocks of the template's document type**:
 
 The canvas shows each block filled with a **sample document**; **Preview PDF**
 produces the real PDF of the canvas — saved or not — with the same sample, and
-saves nothing.
+saves nothing. The PDF opens in a dialog over the editor; **Open in a new tab**
+shows it in the browser's own viewer.
 
 **Page settings** (the root of the tree) set the page size (A4 or Letter),
 orientation (automatic — landscape from three compared products — portrait or

@@ -7,8 +7,8 @@ import {
   Button,
   Card,
   CardContent,
+  FormField,
   Input,
-  Label,
   PageHeader,
   Select,
 } from '@endora-commerce/admin-kit/ui';
@@ -193,12 +193,6 @@ export function OpportunityCreatePage(): ReactNode {
     }
   };
 
-  const required = (
-    <span aria-hidden="true" className="text-destructive">
-      {' *'}
-    </span>
-  );
-
   return (
     <>
       <PageHeader
@@ -236,71 +230,60 @@ export function OpportunityCreatePage(): ReactNode {
               </p>
             ) : null}
 
-            <div className="space-y-1">
-              <Label htmlFor="crm-create-title">
-                {t('opportunity.field.title')}
-                {required}
-              </Label>
+            {/* Issue #1564 (WORK-16): required is the kit FormField's asterisk and aria-required, not a prose note. */}
+            <FormField label={t('opportunity.field.title')} error={errors.title} required>
               <Input
                 id="crm-create-title"
                 ref={titleRef}
                 value={title}
                 maxLength={200}
                 required
-                aria-invalid={errors.title !== undefined}
-                aria-describedby={errors.title ? 'crm-create-title-error' : undefined}
                 onChange={(event): void => setTitle(event.target.value)}
               />
-              {errors.title ? (
-                <p id="crm-create-title-error" className="text-xs text-destructive">
-                  {errors.title}
-                </p>
-              ) : null}
-            </div>
+            </FormField>
 
             <div className="grid gap-x-4 gap-y-5 md:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="crm-create-organization">
-                  {t('opportunity.field.organization')}
-                  {required}
-                </Label>
-                <OrganizationLookup
-                  id="crm-create-organization"
-                  ariaLabel={t('opportunity.field.organization')}
-                  value={organizationId}
-                  selectedLabel={organizationName}
-                  onChange={chooseOrganization}
-                  placeholder={t('opportunity.picker.organizationPlaceholder')}
-                  emptyMessage={t('opportunity.picker.organizationEmpty')}
-                />
-                <p
-                  className={
-                    errors.organization ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'
-                  }
-                >
-                  {errors.organization ?? t('opportunity.field.organizationHint')}
-                </p>
-              </div>
+              <FormField
+                id="crm-create-organization"
+                label={t('opportunity.field.organization')}
+                hint={t('opportunity.field.organizationHint')}
+                error={errors.organization}
+                required
+              >
+                {(control): ReactNode => (
+                  <OrganizationLookup
+                    id={control.id}
+                    ariaLabel={t('opportunity.field.organization')}
+                    ariaDescribedBy={control['aria-describedby']}
+                    invalid={control['aria-invalid'] === true}
+                    value={organizationId}
+                    selectedLabel={organizationName}
+                    onChange={chooseOrganization}
+                    placeholder={t('opportunity.picker.organizationPlaceholder')}
+                    emptyMessage={t('opportunity.picker.organizationEmpty')}
+                  />
+                )}
+              </FormField>
 
-              <div className="space-y-1">
-                <Label htmlFor="crm-create-contact">{t('opportunity.field.contact')}</Label>
-                <ContactLookup
-                  // Remounted per Organization: the picker caches what it found.
-                  key={organizationId ?? 'none'}
-                  id="crm-create-contact"
-                  ariaLabel={t('opportunity.field.contact')}
-                  value={customerAccountId}
-                  onChange={setCustomerAccountId}
-                  disabled={!organizationId}
-                  placeholder={t('opportunity.picker.contactPlaceholder')}
-                  emptyMessage={t('opportunity.picker.contactEmpty')}
-                  {...(organizationId ? { organizationId } : {})}
-                />
-                <p className="text-xs text-muted-foreground">{t('opportunity.field.contactHint')}</p>
-              </div>
+              <FormField id="crm-create-contact" label={t('opportunity.field.contact')} hint={t('opportunity.field.contactHint')}>
+                {(control): ReactNode => (
+                  <ContactLookup
+                    // Remounted per Organization: the picker caches what it found.
+                    key={organizationId ?? 'none'}
+                    id={control.id}
+                    ariaLabel={t('opportunity.field.contact')}
+                    ariaDescribedBy={control['aria-describedby']}
+                    value={customerAccountId}
+                    onChange={setCustomerAccountId}
+                    disabled={!organizationId}
+                    placeholder={t('opportunity.picker.contactPlaceholder')}
+                    emptyMessage={t('opportunity.picker.contactEmpty')}
+                    {...(organizationId ? { organizationId } : {})}
+                  />
+                )}
+              </FormField>
 
-              <div className="space-y-1">
-                <Label htmlFor="crm-create-channel">{t('opportunity.field.salesChannel')}</Label>
+              <FormField id="crm-create-channel" label={t('opportunity.field.salesChannel')}>
                 <SalesChannelSelect
                   source={salesChannels}
                   id="crm-create-channel"
@@ -311,20 +294,21 @@ export function OpportunityCreatePage(): ReactNode {
                   placeholder={t('opportunity.picker.salesChannelPlaceholder')}
                   emptyMessage={t('opportunity.picker.salesChannelEmpty')}
                 />
-              </div>
+              </FormField>
 
-              <div className="space-y-1">
-                <Label htmlFor="crm-create-assignee">{t('assignment.label')}</Label>
-                <AssigneeLookup
-                  id="crm-create-assignee"
-                  ariaLabel={t('assignment.label')}
-                  value={assigneeId}
-                  onChange={setAssigneeId}
-                  placeholder={t('assignment.picker.placeholder')}
-                  emptyMessage={t('assignment.picker.empty')}
-                />
-                <p className="text-xs text-muted-foreground">{t('assignment.create.hint')}</p>
-              </div>
+              <FormField id="crm-create-assignee" label={t('assignment.label')} hint={t('assignment.create.hint')}>
+                {(control): ReactNode => (
+                  <AssigneeLookup
+                    id={control.id}
+                    ariaLabel={t('assignment.label')}
+                    ariaDescribedBy={control['aria-describedby']}
+                    value={assigneeId}
+                    onChange={setAssigneeId}
+                    placeholder={t('assignment.picker.placeholder')}
+                    emptyMessage={t('assignment.picker.empty')}
+                  />
+                )}
+              </FormField>
 
               <div className="space-y-1">
                 <span className="text-sm font-medium leading-none">{t('tags.section')}</span>
@@ -337,78 +321,61 @@ export function OpportunityCreatePage(): ReactNode {
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="crm-create-close-date">
-                  {t('opportunity.field.expectedCloseDate')}
-                </Label>
+              <FormField label={t('opportunity.field.expectedCloseDate')}>
                 <Input
                   id="crm-create-close-date"
                   type="date"
                   value={expectedCloseDate}
                   onChange={(event): void => setExpectedCloseDate(event.target.value)}
                 />
-              </div>
+              </FormField>
 
-              <div className="space-y-1">
-                <Label htmlFor="crm-create-value">{t('opportunity.field.value')}</Label>
+              <FormField label={t('opportunity.field.value')} hint={t('opportunity.field.valueHint')} error={errors.value}>
                 <Input
                   id="crm-create-value"
                   inputMode="decimal"
                   value={value}
-                  aria-invalid={errors.value !== undefined}
-                  aria-describedby="crm-create-value-hint"
                   onChange={(event): void => setValue(event.target.value)}
                 />
-                <p
-                  id="crm-create-value-hint"
-                  className={errors.value ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}
-                >
-                  {errors.value ?? t('opportunity.field.valueHint')}
-                </p>
-              </div>
+              </FormField>
 
-              <div className="space-y-1">
-                <Label htmlFor="crm-create-currency">
-                  {t('opportunity.field.currency')}
-                  {required}
-                </Label>
-                <Select
-                  id="crm-create-currency"
-                  required
-                  value={currency}
-                  aria-invalid={errors.currency !== undefined}
-                  aria-describedby="crm-create-currency-hint"
-                  onChange={(event): void => {
-                    setCurrency(event.target.value);
-                    setErrors((previous) => ({ ...previous, currency: undefined }));
-                  }}
-                >
-                  <option value="">{t('opportunity.field.currencyChoose')}</option>
-                  {currencies.map((code) => (
-                    <option key={code} value={code}>
-                      {code}
-                    </option>
-                  ))}
-                </Select>
-                {salesChannels.failed ? (
-                  <p role="alert" className="text-xs text-destructive">
-                    {t('opportunity.picker.loadError')}
-                  </p>
-                ) : null}
-                <p
-                  id="crm-create-currency-hint"
-                  className={
-                    errors.currency ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'
-                  }
-                >
-                  {errors.currency ?? t('opportunity.field.currencyHint')}
-                </p>
-              </div>
+              <FormField
+                id="crm-create-currency"
+                label={t('opportunity.field.currency')}
+                hint={t('opportunity.field.currencyHint')}
+                error={errors.currency}
+                required
+              >
+                {(control): ReactNode => (
+                  <>
+                    <Select
+                      {...control}
+                      required
+                      value={currency}
+                      onChange={(event): void => {
+                        setCurrency(event.target.value);
+                        setErrors((previous) => ({ ...previous, currency: undefined }));
+                      }}
+                    >
+                      <option value="">{t('opportunity.field.currencyChoose')}</option>
+                      {currencies.map((code) => (
+                        <option key={code} value={code}>
+                          {code}
+                        </option>
+                      ))}
+                    </Select>
+                    {salesChannels.failed ? (
+                      <p role="alert" className="mt-1 text-xs text-destructive">
+                        {t('opportunity.picker.loadError')}
+                      </p>
+                    ) : null}
+                  </>
+                )}
+              </FormField>
             </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="crm-create-description">{t('opportunity.field.description')}</Label>
-              {/* User Story 12: the description may refer to products and orders. */}
+            {/* User Story 12: the description may refer to products and orders. */}
+            <FormField label={t('opportunity.field.description')}>
               <ReferenceField
                 id="crm-create-description"
                 rows={5}
@@ -417,7 +384,7 @@ export function OpportunityCreatePage(): ReactNode {
                 organizationId={organizationId}
                 onValueChange={setDescription}
               />
-            </div>
+            </FormField>
           </CardContent>
         </Card>
 

@@ -2459,6 +2459,9 @@ importers:
       fastify:
         specifier: ^5.12.8
         version: 5.12.8
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
       pdfmake:
         specifier: ^0.3.7
         version: 0.3.7
@@ -2630,6 +2633,9 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
       react:
         specifier: ^19.2.5
         version: 19.2.5
@@ -2948,6 +2954,9 @@ importers:
       fastify:
         specifier: ^5.12.8
         version: 5.12.8
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
       react:
         specifier: ^19.2.5
         version: 19.2.5
@@ -3041,6 +3050,9 @@ importers:
       fastify:
         specifier: ^5.12.8
         version: 5.12.8
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
       react:
         specifier: ^19.2.5
         version: 19.2.5

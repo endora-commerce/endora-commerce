@@ -4,6 +4,7 @@ import type {
   GaCustomEventResponse,
   GaCustomEventUpdate,
   GaTriggerAction,
+  SalesChannelListResponse,
 } from '@endora-commerce/contracts';
 
 type Wrap<T> = { data: T };
@@ -41,3 +42,15 @@ export const googleAnalyticsClient = {
   remove: (id: string): Promise<void> =>
     apiClient.delete<void>(`${BASE}/custom-events/${id}`).then(() => undefined),
 };
+
+/**
+ * The sales channels the list names an event's channel with and the editor
+ * offers (issue #1537). Built from the published `apiClient` and the contract's
+ * own response type, as `linkedin_ads` and `meta_ads` do — no module names a
+ * file another module owns. This module stores the channel **code**, so the
+ * editor's select keys its options by code.
+ */
+export const listSalesChannels = (): Promise<SalesChannelListResponse> =>
+  apiClient.get<SalesChannelListResponse>(
+    '/api/v1/admin/sales-channels?activeOnly=false&pageSize=100',
+  );

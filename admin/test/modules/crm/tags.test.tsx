@@ -140,7 +140,7 @@ async function tick(control: HTMLElement, ...names: string[]): Promise<void> {
 
 describe('TagsPage', () => {
   async function renderPage(): Promise<void> {
-    renderCrm(<TagsPage />, { path: '/crm/tags', pattern: '/crm/tags' });
+    renderCrm(<TagsPage />, { path: '/crm/workflow/tags', pattern: '/crm/workflow/tags' });
     await screen.findByRole('heading', { level: 1, name: en('tags.title') });
   }
 

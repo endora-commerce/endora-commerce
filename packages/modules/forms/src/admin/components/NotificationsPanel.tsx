@@ -3,7 +3,18 @@ import { Lock, Plus, Trash2 } from 'lucide-react';
 import { FORMS_LIMITS, type FormDefinition, type FormDetail } from '@endora-commerce/contracts';
 import { SalesChannelPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, Label, Textarea } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  InlineStatus,
+  Label,
+  Textarea,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import { formsApi } from '../api.js';
 import { errorMessage } from '../lib/errors.js';
 import { PanelSection } from './PanelSection.js';
@@ -17,7 +28,9 @@ import { TranslatableText } from './TranslatableText.js';
  *   that channel. Live settings of the form: saved on their own with *Save recipients*
  *   (`PUT …/notifications`, naming the revision) and in effect for the next entry without a publish.
  *   Checked here before the call — at most ten addresses a list, each an address, a channel chosen
- *   once per list — and by the server, whose refusal is shown as it arrives.
+ *   once per list — and by the server, whose refusal is shown as it arrives. The heading carries
+ *   the kit's `ImmediateBadge` and the result is an `InlineStatus` beside *Save recipients*, so the
+ *   save model is said on the section, not in a hint (issue #1512, CONTENT-09; DEC-08).
  * - **The confirmation e-mail** — part of the form's definition: the switch, the summary and the
  *   subject and text edit the builder's draft, saved and published with the form like every other
  *   text of it.
@@ -91,7 +104,7 @@ export function NotificationsPanel(props: NotificationsPanelProps): ReactNode {
   const [errors, setErrors] = useState<{ default: ListError | null; rows: Record<string, RowError> } | null>(null);
   const [tooManyRows, setTooManyRows] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const status = useInlineStatus();
   const [failure, setFailure] = useState<string | null>(null);
 
   // A recipients save answers a new revision; the lists shown are the server's afterwards.
@@ -114,7 +127,7 @@ export function NotificationsPanel(props: NotificationsPanelProps): ReactNode {
   };
 
   const save = async (): Promise<void> => {
-    setStatus(null);
+    status.clear();
     setFailure(null);
     const defaults = addressesOf(recipients);
     const rowErrors: Record<string, RowError> = {};
@@ -146,7 +159,7 @@ export function NotificationsPanel(props: NotificationsPanelProps): ReactNode {
     try {
       const saved = await formsApi.notifications(form.id, { expectedRevision: form.revision, recipients: defaults, channelRecipients });
       props.onSaved(saved);
-      setStatus(t('notifications.recipients.saved'));
+      status.show(t('notifications.recipients.saved'));
     } catch (error) {
       setFailure(errorMessage(error, t('builder.error')));
     } finally {
@@ -154,8 +167,10 @@ export function NotificationsPanel(props: NotificationsPanelProps): ReactNode {
     }
   };
 
-  const updateRow = (key: string, change: Partial<ChannelRow>): void =>
+  const updateRow = (key: string, change: Partial<ChannelRow>): void => {
+    status.clear();
     setRows((current) => current.map((row) => (row.key === key ? { ...row, ...change } : row)));
+  };
 
   const confirmationEmail = definition.behaviour.confirmationEmail;
   const setConfirmation = (change: Partial<typeof confirmationEmail>): void =>
@@ -180,7 +195,12 @@ export function NotificationsPanel(props: NotificationsPanelProps): ReactNode {
           </p>
         ) : null}
 
-        <PanelSection titleId={`${id}-recipients`} title={t('notifications.recipients.title')} description={t('notifications.recipients.description')}>
+        <PanelSection
+          titleId={`${id}-recipients`}
+          title={t('notifications.recipients.title')}
+          description={t('notifications.recipients.description')}
+          immediate
+        >
           <div className="max-w-2xl space-y-5">
             <div className="space-y-1">
               <Label htmlFor={`${id}-default`}>{t('notifications.recipients.default')}</Label>
@@ -191,7 +211,10 @@ export function NotificationsPanel(props: NotificationsPanelProps): ReactNode {
                 disabled={disabled}
                 aria-invalid={errors?.default ? true : undefined}
                 aria-describedby={errors?.default ? `${hintId} ${defaultErrorId}` : hintId}
-                onChange={(event) => setRecipients(event.target.value)}
+                onChange={(event) => {
+                  status.clear();
+                  setRecipients(event.target.value);
+                }}
               />
               <p id={hintId} className="text-xs text-muted-foreground">
                 {t('notifications.recipients.hint', { max: FORMS_LIMITS.recipients })}
@@ -294,9 +317,7 @@ export function NotificationsPanel(props: NotificationsPanelProps): ReactNode {
                   {saving ? t('notifications.recipients.saving') : t('notifications.recipients.save')}
                 </Button>
               )}
-              <p role="status" className="text-sm text-muted-foreground">
-                {status}
-              </p>
+              <InlineStatus {...status.props} />
             </div>
           </div>
         </PanelSection>

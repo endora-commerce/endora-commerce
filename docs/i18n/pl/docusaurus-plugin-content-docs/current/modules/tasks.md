@@ -74,7 +74,8 @@ jest usuwane.
 
 Zadania są w menu bocznym w sekcji **Projekty i zadania**: **Moje zadania**
 (`/tasks/mine`) i **Zadania** (`/tasks`) dla administratorów, którzy mogą
-przeglądać zadania, oraz **Ustawienia zadań** dla tych, którzy je konfigurują.
+przeglądać zadania, oraz **Konfiguracja zadań** (`/tasks/settings`) dla tych,
+którzy je konfigurują.
 
 **Zadania** (`/tasks`) pokazuje każde zadanie, które możesz zobaczyć, jako
 **listę** albo **tablicę** — przełącza się je polem *Widok*. Wybór jest
@@ -121,8 +122,10 @@ ustawione przed przełączeniem zostają.
 przypisane do ciebie, które nie są zamknięte, najpierw te z najbliższym
 terminem, na końcu te bez terminu, jako lista albo tablica, z tymi samymi
 filtrami. Twoich szkiców tu nie ma — znajdziesz je filtrem *Tylko moje
-szkice* na ekranie **Zadania**. Pole **Dzienne podsumowanie** u góry włącza
-i wyłącza twoje podsumowanie oraz ustawia jego godzinę.
+szkice* na ekranie **Zadania**. Przycisk **Dzienne podsumowanie** w nagłówku
+strony mówi, czy twoje podsumowanie jest włączone i o której godzinie; naciśnij
+go, aby otworzyć pole, które włącza i wyłącza podsumowanie oraz ustawia jego
+godzinę.
 
 **Nowe zadanie** (`/tasks/new`) wymaga tytułu, a opcjonalnie opisu, osób
 przypisanych — wybieranych po nazwisku spośród aktywnych administratorów, którzy
@@ -362,10 +365,13 @@ każdym wpisie.
 
 ## Konfiguracja zadań
 
-Posiadacze *Configure tasks* docierają do tych ekranów z **Ustawień zadań**
-w menu bocznym i z palety poleceń; każdy z nich prowadzi do pozostałych.
+Posiadacze *Configure tasks* docierają do tych ekranów z **Konfiguracji zadań**
+w menu bocznym, która otwiera je jako cztery karty — **Statusy i przebieg**,
+**Priorytety**, **Etykiety** i **Ogólne** — oraz z palety poleceń, która
+otwiera każdy z nich bezpośrednio. Dotychczasowy adres przebiegu,
+`/tasks/settings/workflow`, nadal otwiera jego kartę.
 
-**Statusy i przebieg** (`/tasks/settings/workflow`). Dodawaj, zmieniaj nazwy —
+**Statusy i przebieg** (`/tasks/settings`). Dodawaj, zmieniaj nazwy —
 po angielsku i po polsku — kolory i kolejność statusów, usuwaj je; oznaczaj
 status początkowy; dodawaj i usuwaj przejścia na grafie przebiegu, tym samym
 edytorze co w zamówieniach i szansach sprzedażowych. Nowy status trafia na
@@ -397,7 +403,7 @@ znaków. Usunięcie etykiety wymaga potwierdzenia i zdejmuje ją ze wszystkich
 zadań, które ją mają; usunięcie jest zapisywane raz, na etykiecie, z liczbą
 zadań, które ją miały.
 
-**Ustawienia ogólne** (`/tasks/settings/general`). **Strefa czasowa**, w której
+**Ogólne** (`/tasks/settings/general`). **Strefa czasowa**, w której
 moduł Zadania liczy „dziś”: kiedy zadanie z samą datą terminu staje się
 zadaniem po terminie, kiedy jest wysyłane przypomnienie przed taką datą oraz
 o której godzinie przychodzi dzienne podsumowanie.
@@ -414,8 +420,8 @@ i pozostają bez zmian.
 | Kod | Domyślnie | Znaczenie |
 | --- | --- | --- |
 | `tasks.enabled` | włączone | Czy moduł jest włączony — zmienia się to na ekranie **Moduły**. |
-| `tasks.time_zone` | `Europe/Warsaw` | Strefa czasowa IANA, w której moduł Zadania liczy daty. Zmienia się ją w **Ustawieniach zadań → Ustawienia ogólne**. |
-| `tasks.board_card_fields` | numer, osoby przypisane, termin, priorytet, etykiety | Pola pokazywane na karcie tablicy, w kolejności. Zmienia się je w sekcji **Karta na tablicy** **Ustawień zadań**, która proponuje istniejące pola. |
+| `tasks.time_zone` | `Europe/Warsaw` | Strefa czasowa IANA, w której moduł Zadania liczy daty. Zmienia się ją w **Konfiguracji zadań → Ogólne**. |
+| `tasks.board_card_fields` | numer, osoby przypisane, termin, priorytet, etykiety | Pola pokazywane na karcie tablicy, w kolejności. Zmienia się je w sekcji **Karta na tablicy** karty **Konfiguracja zadań → Statusy i przebieg**, która proponuje istniejące pola. |
 
 ## Włączanie i wyłączanie
 
@@ -425,7 +431,7 @@ i włącza z powrotem — na ekranie **Moduły** panelu administracyjnego
 
 Gdy jest wyłączony:
 
-- z panelu znikają pozycje *Moje zadania*, *Zadania* i *Ustawienia zadań*
+- z panelu znikają pozycje *Moje zadania*, *Zadania* i *Konfiguracja zadań*
   oraz każdy ekran zadania, a także zakładka *Zadania* projektu i jego zadania
   etapów, panele *Zadania* szans sprzedażowych, zamówień i zapytań ofertowych,
   akcje palety poleceń i zadania w wyszukiwaniu globalnym;
@@ -681,7 +687,7 @@ może już dostać powiadomienia — jako `skipped`; żadne z nich niczego nie
 wysyła. Podsumowanie zajmuje dzień każdego subskrybenta, zanim wyśle
 `tasks_daily_digest`, więc wychodzi najwyżej raz dziennie.
 
-Wszystkie cztery przebiegi — przebieg strefy czasowej (zob. *Ustawienia ogólne*),
+Wszystkie cztery przebiegi — przebieg strefy czasowej (zob. *Ogólne*),
 a po nim przypomnienia co minutę, podsumowanie i przebieg porządkujący najwyżej
 co piętnaście minut — działają w jednym harmonogramie
 zadań BullMQ `tasks-reminders`, podpinanym przez `ctx.worker` tylko w procesie,

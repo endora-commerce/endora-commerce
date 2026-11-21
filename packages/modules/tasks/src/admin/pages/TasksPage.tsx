@@ -8,6 +8,7 @@ import {
   CursorPagination,
   ResponsiveTable,
   SavedViewsControl,
+  ViewModeToggle,
   customFieldFilterRefusal,
   writeCustomFieldFilterParams,
   withoutCustomFieldFilter,
@@ -17,7 +18,6 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../api.js';
 import { TaskBoard } from '../components/TaskBoard.js';
 import { TaskFilters } from '../components/TaskFilters.js';
-import { ViewModeToggle } from '../components/ViewModeToggle.js';
 import { useTaskColumns } from '../components/task-columns.js';
 import { errorMessage } from '../lib/labels.js';
 import { BOARD_CARD_ANCHOR, TASK_WORKFLOW_PATH } from '../lib/settings-paths.js';

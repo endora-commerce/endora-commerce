@@ -15,7 +15,6 @@ import {
   CardContent,
   EditorSection,
   PageHeader,
-  RouteTabs,
 } from '@endora-commerce/admin-kit/ui';
 import {
   BoardCardFieldsEditor,
@@ -29,9 +28,9 @@ import { crmApi, type OrderStatusOption } from '../api.js';
 import { boardFieldLabel } from '../lib/board-fields.js';
 import { errorMessage, workflowStatusLabel } from '../lib/labels.js';
 import { useServerReorder } from '../lib/use-server-reorder.js';
+import { CrmConfigurationTabs } from '../components/CrmConfigurationTabs.js';
 import {
   VALUE_COUNTING_HASH,
-  WORKFLOW_SECTION_TABS,
   workflowSection,
   workflowSectionForHash,
   workflowSectionPath,
@@ -182,10 +181,8 @@ export function WorkflowConfigPage(): ReactNode {
   const header = (
     <>
       <PageHeader title={t('workflow.title')} />
-      <RouteTabs
-        className="mb-4"
-        tabs={WORKFLOW_SECTION_TABS.map((tab) => ({ to: tab.path, label: t(tab.labelKey) }))}
-      />
+      {/* One strip for the whole configuration: the four workflow tabs and Tags (#1557, #1559). */}
+      <CrmConfigurationTabs />
     </>
   );
 

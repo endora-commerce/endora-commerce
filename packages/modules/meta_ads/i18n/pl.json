@@ -20,7 +20,6 @@
   "customEvents.enabled": "Aktywne",
   "customEvents.save": "Zapisz",
   "customEvents.delete": "Usuń",
-  "customEvents.deleteConfirm": "Usunąć to zdarzenie własne?",
   "customEvents.action.product_viewed": "Wyświetlenie produktu",
   "customEvents.action.add_to_cart": "Dodanie do koszyka",
   "customEvents.action.add_to_quote_request": "Dodanie do zapytania ofertowego",
@@ -35,5 +34,19 @@
   "error.validationFailed": "Niektóre pola są nieprawidłowe.",
   "actions.openMetaAds.keywords": "reklamy",
   "actions.newCustomEvent.keywords": "zdarzenie",
-  "settingGroups.meta_ads.name": "Meta Ads"
+  "settingGroups.meta_ads.name": "Meta Ads",
+  "customEvents.status": "Status",
+  "customEvents.statusEnabled": "Aktywne",
+  "customEvents.statusDisabled": "Nieaktywne",
+  "customEvents.count": "Zdarzenia własne: {count}",
+  "customEvents.emptyBody": "Dodaj je, by raportować akcję w sklepie pod własną nazwą zdarzenia Meta.",
+  "customEvents.emptyBodyReadOnly": "Poproś administratora, który zarządza Meta Ads, o dodanie.",
+  "customEvents.rowActions": "Działania dla: {action}, {name}",
+  "customEvents.deleteConfirm.title": "Usunąć to zdarzenie własne?",
+  "customEvents.deleteConfirm.message": "„{name}” zostanie usunięte, a sklep przestanie raportować je do Meta. Zdarzenia standardowe działają dalej.",
+  "customEvents.deleteConfirm.action": "Usuń zdarzenie",
+  "customEvents.deleteConfirm.failed": "Nie udało się usunąć zdarzenia i nic nie zostało zmienione. Spróbuj ponownie.",
+  "customEvents.eventNameInvalid": "Podaj nazwę zdarzenia Meta: litera, a po niej litery, cyfry lub podkreślenia.",
+  "customEvents.standardEventHint": "Meta otrzymuje też zdarzenie standardowe {name}.",
+  "customEvents.standardEventHintNone": "Ta akcja nie ma zdarzenia standardowego Meta."
 }

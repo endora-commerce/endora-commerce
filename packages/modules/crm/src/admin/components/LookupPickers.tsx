@@ -35,6 +35,10 @@ export interface LookupPickerProps {
   clearable?: boolean;
   /** The label of `value` when it was chosen elsewhere (a preselection, a stored value). */
   selectedLabel?: string;
+  /** Ids of the hint and error describing the field — what `FormField` hands its control (#1564). */
+  ariaDescribedBy?: string | undefined;
+  /** The field is failing validation (`aria-invalid`). */
+  invalid?: boolean;
 }
 
 interface RemoteOptions {
@@ -134,6 +138,8 @@ function RemotePicker(props: LookupPickerProps & { remote: RemoteOptions }): Rea
       <Combobox<string>
         id={props.id ?? ''}
         ariaLabel={props.ariaLabel}
+        ariaDescribedBy={props.ariaDescribedBy}
+        invalid={props.invalid ?? false}
         options={remote.options}
         value={props.value}
         onChange={props.onChange}
@@ -272,6 +278,8 @@ export function SalesChannelSelect(
       <Combobox<string>
         id={props.id ?? ''}
         ariaLabel={props.ariaLabel}
+        ariaDescribedBy={props.ariaDescribedBy}
+        invalid={props.invalid ?? false}
         options={options}
         value={props.value}
         onChange={props.onChange}

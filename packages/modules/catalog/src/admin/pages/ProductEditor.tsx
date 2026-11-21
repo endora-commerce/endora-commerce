@@ -123,13 +123,24 @@ const TAB_IDS = [
   'composite',
   'media',
   'inventory',
-  'attachments',
   'links',
   'channels',
-  'scopes',
   'seo',
 ] as const;
 type TabId = (typeof TAB_IDS)[number];
+
+/**
+ * Issue #1510 (UX audit CAT-10, DEC-09) — tab ids the editor no longer has, and where their old
+ * addresses land: Attachments is a section of "Media & files", and the Scope map is a drawer
+ * (`?scopeMap=1`) over whichever tab was open. The editor rewrites such an address (`replace`).
+ */
+const REMOVED_TABS: Readonly<Record<string, { tab: TabId | null; scopeMap: boolean }>> = {
+  attachments: { tab: 'media', scopeMap: false },
+  scopes: { tab: null, scopeMap: true },
+};
+
+/** The query parameter that opens the Scope map drawer (`?scopeMap=1`). */
+const SCOPE_MAP_PARAM = 'scopeMap';
 
 /** Tabs whose content is the same at every scope (§6): outside Global they show a notice. */
 const GLOBAL_ONLY_TABS = new Set<TabId>(['pricing', 'variants', 'composite', 'links', 'channels']);
@@ -285,6 +296,9 @@ function ScopedProductEditor({
   const [archiveDialog, setArchiveDialog] = useState<'archive' | 'restore' | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
+  const productMenuRef = useRef<HTMLButtonElement | null>(null);
+  /** Where focus goes when the archive dialog closes: the Product menu once Restore has gone. */
+  const archiveDialogFinalFocus = useRef<HTMLElement | null>(null);
   const [duplicating, setDuplicating] = useState(false);
   const [wholeProductDialog, setWholeProductDialog] = useState<'duplicate' | 'delete' | null>(null);
   const [wholeProductError, setWholeProductError] = useState<string | null>(null);
@@ -485,6 +499,8 @@ function ScopedProductEditor({
       setSearchParams((prev) => {
         const sp = searchWithScope(prev, next);
         sp.delete('field');
+        // A jump from the Scope map drawer lands on the editor, so the drawer closes with it.
+        sp.delete(SCOPE_MAP_PARAM);
         if (field) sp.set('field', field);
         if (tab) sp.set('tab', tab);
         return sp;
@@ -501,6 +517,7 @@ function ScopedProductEditor({
             const sp = new URLSearchParams(prev);
             sp.set('tab', tab);
             sp.delete('field');
+            sp.delete(SCOPE_MAP_PARAM);
             return sp;
           });
         }
@@ -814,9 +831,13 @@ function ScopedProductEditor({
     if (archiveDialog === null || archiving) return;
     setArchiving(true);
     setArchiveError(null);
+    archiveDialogFinalFocus.current = null;
     wholeStatus.clear();
     try {
       const res = await apiClient.post<{ data: { archivedAt?: string | null } }>(`${PRODUCT_PATH(productId)}/${archiveDialog}`, {});
+      // Restore unmounts its own button with the archived state; focus lands on the Product menu,
+      // beside which the result is said.
+      archiveDialogFinalFocus.current = archiveDialog === 'restore' ? productMenuRef.current : null;
       setArchivedOverride(res.data.archivedAt ?? null);
       wholeStatus.show(t(archiveDialog === 'archive' ? 'productEditor.archive.done' : 'productEditor.restore.done'));
       setArchiveDialog(null);
@@ -841,7 +862,35 @@ function ScopedProductEditor({
     if (id === 'seo') return seoContributions.length > 0;
     return true;
   });
-  const requestedTab = searchParams.get('tab') as TabId | null;
+  const rawTab = searchParams.get('tab');
+  const removedTab = rawTab !== null && Object.hasOwn(REMOVED_TABS, rawTab) ? REMOVED_TABS[rawTab] : undefined;
+  const requestedTab = (removedTab ? removedTab.tab : rawTab) as TabId | null;
+  const scopeMapOpen = searchParams.get(SCOPE_MAP_PARAM) === '1' || removedTab?.scopeMap === true;
+  // An address naming a removed tab is rewritten to the one that replaced it (#1510).
+  useEffect(() => {
+    if (!removedTab) return;
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        if (removedTab.tab) sp.set('tab', removedTab.tab);
+        else sp.delete('tab');
+        if (removedTab.scopeMap) sp.set(SCOPE_MAP_PARAM, '1');
+        return sp;
+      },
+      { replace: true },
+    );
+  }, [removedTab, setSearchParams]);
+  const setScopeMapOpen = (open: boolean): void => {
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        if (open) sp.set(SCOPE_MAP_PARAM, '1');
+        else sp.delete(SCOPE_MAP_PARAM);
+        return sp;
+      },
+      { replace: true },
+    );
+  };
   const activeTab: TabId =
     requestedTab && (TAB_IDS as readonly string[]).includes(requestedTab) && (visibleTabs.includes(requestedTab) || type === null)
       ? requestedTab
@@ -941,14 +990,15 @@ function ScopedProductEditor({
           <a
             href={`?${(() => {
               const sp = new URLSearchParams(searchParams);
-              sp.set('tab', 'scopes');
+              sp.set(SCOPE_MAP_PARAM, '1');
               return sp.toString();
             })()}`}
             className={linkClass}
             data-own-unsaved-guard=""
+            aria-haspopup="dialog"
             onClick={(e): void => {
               e.preventDefault();
-              selectTab('scopes');
+              setScopeMapOpen(true);
             }}
           >
             {t('productEditor.scope.scopeMap')}
@@ -1088,10 +1138,16 @@ function ScopedProductEditor({
         );
       case 'media':
         return (
-          <>
+          // Issue #1510 (CAT-10): "Media & files" — the gallery and the attachments behave alike
+          // (the asset set applies at once, the metadata saves with the one Save), so they are
+          // one tab with two sections. Each keeps its `product.editor.field.after` mount, and the
+          // two sections stay siblings, so the kit draws its one rule between them.
+          <div className="space-y-(--section-gap)">
             <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'gallery', scope: state.scope, languageCodes: null, saveSession: session.handle }} />
             <GallerySection />
-          </>
+            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'attachments', scope: state.scope, languageCodes: null, saveSession: session.handle }} />
+            <AttachmentsSection />
+          </div>
         );
       case 'inventory':
         return (
@@ -1128,13 +1184,6 @@ function ScopedProductEditor({
             ) : null}
           </div>
         );
-      case 'attachments':
-        return (
-          <>
-            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'attachments', scope: state.scope, languageCodes: null, saveSession: session.handle }} />
-            <AttachmentsSection />
-          </>
-        );
       case 'links':
         return (
           <>
@@ -1147,23 +1196,6 @@ function ScopedProductEditor({
           // The contribution is the tab's section, with its own heading and "Applies immediately"
           // badge (#1488): a heading here repeated the tab's name above it.
           <AdminZone name="product.editor.channels" props={{ productId, saveSession: session.handle }} />
-        );
-      case 'scopes':
-        return (
-          <ProductScopeOverview
-            productId={productId}
-            links={{
-              href: (scope, field): string => {
-                const sp = searchWithScope(searchParams, scope);
-                sp.set('tab', tabOfField(field));
-                sp.delete('field');
-                if (field) sp.set('field', field);
-                return `?${sp.toString()}`;
-              },
-              open: (scope, field): void => requestScope(scope, undefined, field, tabOfField(field)),
-              words: (scope): string => scopeShortWords(scope, valid, t, adminLanguage),
-            }}
-          />
         );
       case 'seo':
         return (
@@ -1243,13 +1275,36 @@ function ScopedProductEditor({
           actions={
             canWrite ? (
             <div className="flex items-start gap-2">
-              {/* "Archived" / "Restored" — the dialog and the archived notice that asked are gone. */}
+              {/* "Archived" / "Restored" — the dialog that asked is gone. */}
               <InlineStatus {...wholeStatus.props} className="self-center" data-testid="product-whole-status" />
+              {/* Issue #1509 (CAT-09): an archived product says so in the header — the Archived
+                  pill beside the title, and Restore here, the one way back — instead of a warning
+                  banner between the header and the tabs. The banner's sentence describes it. */}
+              {archivedAt ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="max-lg:min-h-11"
+                    aria-describedby="product-archived-hint"
+                    onClick={(): void => {
+                      setArchiveError(null);
+                      setArchiveDialog('restore');
+                    }}
+                  >
+                    <ArchiveRestore aria-hidden="true" /> {t('productEditor.action.restore')}
+                  </Button>
+                  <span id="product-archived-hint" className="sr-only">
+                    {t('productEditor.archived.title')} {t('productEditor.archived.body')}
+                  </span>
+                </>
+              ) : null}
               {/* The whole-product actions (FR-084, §11): one menu, captioned; each applies at once. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   {/* Issue #1492 (CAT-17): the kit button, one look with the tabs' Save below it. */}
                   <Button
+                    ref={productMenuRef}
                     type="button"
                     variant="outline"
                     className="max-lg:min-h-11"
@@ -1292,7 +1347,7 @@ function ScopedProductEditor({
           readOnly={readOnly}
           adminLanguage={adminLanguage}
           onRequestScope={(next, note): void => requestScope(next, note)}
-          onOpenScopeMap={(): void => selectTab('scopes')}
+          onOpenScopeMap={(): void => setScopeMapOpen(true)}
           completeness={completenessNode}
           action={
             // OQ-6 = A (FR-035): shown when the operator may write the product or any panel.
@@ -1354,31 +1409,6 @@ function ScopedProductEditor({
             </Alert>
           ) : null}
         </div>
-        {archivedAt ? (
-          <Alert variant="warning" role="status" className="mb-4" data-testid="product-archived-notice">
-            <AlertDescription>
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="flex-1">
-                  <strong>{t('productEditor.archived.title')}</strong> {t('productEditor.archived.body')}
-                </span>
-                {canWrite ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="max-lg:min-h-11"
-                    onClick={(): void => {
-                      setArchiveError(null);
-                      setArchiveDialog('restore');
-                    }}
-                  >
-                    <ArchiveRestore size={13} aria-hidden="true" /> {t('productEditor.action.restore')}
-                  </Button>
-                ) : null}
-              </div>
-            </AlertDescription>
-          </Alert>
-        ) : null}
 
         <RecordTabs
           items={visibleTabs.map((id) => ({ value: id, label: tabLabel(id) }))}
@@ -1391,6 +1421,38 @@ function ScopedProductEditor({
         >
           {panel()}
         </RecordTabs>
+
+        {scopeMapOpen && data ? (
+          // Issue #1510 (CAT-10, DEC-09): the Scope map is a meta view of every scope, not content
+          // of one, so it is a drawer over the open tab rather than a tab between content tabs.
+          <ModalDialog
+            title={t('productEditor.scope.scopeMap')}
+            placement="end"
+            widthClassName="max-w-4xl"
+            onClose={(): void => setScopeMapOpen(false)}
+            footer={
+              <Button type="button" variant="outline" onClick={(): void => setScopeMapOpen(false)}>
+                {t('productEditor.scopeMap.close')}
+              </Button>
+            }
+          >
+            <ProductScopeOverview
+              productId={productId}
+              links={{
+                href: (scope, field): string => {
+                  const sp = searchWithScope(searchParams, scope);
+                  sp.set('tab', tabOfField(field));
+                  sp.delete('field');
+                  sp.delete(SCOPE_MAP_PARAM);
+                  if (field) sp.set('field', field);
+                  return `?${sp.toString()}`;
+                },
+                open: (scope, field): void => requestScope(scope, undefined, field, tabOfField(field)),
+                words: (scope): string => scopeShortWords(scope, valid, t, adminLanguage),
+              }}
+            />
+          </ModalDialog>
+        ) : null}
 
         {guardOpen && guard ? (
           <ModalDialog
@@ -1526,6 +1588,7 @@ function ScopedProductEditor({
             title={t(archiveDialog === 'archive' ? 'productEditor.archive.confirmTitle' : 'productEditor.restore.confirmTitle')}
             onClose={(): void => setArchiveDialog(null)}
             busy={archiving}
+            finalFocusRef={archiveDialogFinalFocus}
             aria-describedby="product-archive-confirm-body"
             footer={
               <>
@@ -1597,7 +1660,14 @@ function ProductLinksSection({ productId, readOnly = false }: { productId: strin
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1509 (CAT-09): an add/remove result is said in the panel header's polite region,
+  // mounted before it has text, not as an Alert above the panel's content.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
+  /** Each action starts clean: the last result and the last refusal both go. */
+  const begin = useCallback((): void => {
+    setError(null);
+    clearStatus();
+  }, [clearStatus]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -1647,31 +1717,33 @@ function ProductLinksSection({ productId, readOnly = false }: { productId: strin
 
   const handleCreate = useCallback(
     async (input: { targetProductId: string; kind: LinkKind }): Promise<void> => {
+      begin();
       try {
         await apiClient.post(`/api/v1/admin/catalog/products/${productId}/links`, {
           links: [{ targetProductId: input.targetProductId, kind: input.kind }],
         });
-        setInfo(t('productEditor.links.success.add', { kind: input.kind }));
+        showStatus(t('productEditor.links.success.add', { kind: t(`productEditor.links.kind.${input.kind}`) }));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.links.error.add'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, begin, showStatus, t],
   );
 
   const handleDelete = useCallback(
     async (linkId: string): Promise<void> => {
       if (!(await ask(t('productEditor.links.removeConfirm')))) return;
+      begin();
       try {
         await apiClient.delete(`/api/v1/admin/catalog/products/${productId}/links/${linkId}`);
-        setInfo(t('productEditor.links.success.remove'));
+        showStatus(t('productEditor.links.success.remove'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.links.error.delete'));
       }
     },
-    [productId, refresh, ask, t],
+    [productId, refresh, ask, begin, showStatus, t],
   );
 
   const byKind = useMemo(() => {
@@ -1688,15 +1760,13 @@ function ProductLinksSection({ productId, readOnly = false }: { productId: strin
   }, [links]);
 
   return (
-    <EditorSection title={sectionTitle(t('productEditor.links.title'), !readOnly)}>
+    <EditorSection
+      title={sectionTitle(t('productEditor.links.title'), !readOnly)}
+      action={<InlineStatus {...statusProps} data-testid="links-panel-status" />}
+    >
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert live="polite">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -1867,7 +1937,14 @@ function GroupedItemsSection({ productId, readOnly = false }: { productId: strin
   const [items, setItems] = useState<AdminGroupedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1509 (CAT-09): an add/remove result is said in the panel header's polite region,
+  // mounted before it has text, not as an Alert above the panel's content.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
+  /** Each action starts clean: the last result and the last refusal both go. */
+  const begin = useCallback((): void => {
+    setError(null);
+    clearStatus();
+  }, [clearStatus]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -1890,6 +1967,7 @@ function GroupedItemsSection({ productId, readOnly = false }: { productId: strin
 
   const handleCreate = useCallback(
     async (input: { childProductId: string; quantity: string }): Promise<void> => {
+      begin();
       const qty = Number(input.quantity);
       if (!Number.isFinite(qty) || qty <= 0) {
         setError(t('productEditor.grouped.error.invalidQuantity'));
@@ -1900,41 +1978,40 @@ function GroupedItemsSection({ productId, readOnly = false }: { productId: strin
           `/api/v1/admin/catalog/products/${productId}/grouped-items`,
           { childProductId: input.childProductId, quantity: qty },
         );
-        setInfo(t('productEditor.grouped.success.add'));
+        showStatus(t('productEditor.grouped.success.add'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.grouped.error.add'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, begin, showStatus, t],
   );
 
   const handleDelete = useCallback(
     async (itemId: string): Promise<void> => {
       if (!(await ask(t('productEditor.grouped.removeConfirm')))) return;
+      begin();
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/grouped-items/${itemId}`,
         );
-        setInfo(t('productEditor.grouped.success.remove'));
+        showStatus(t('productEditor.grouped.success.remove'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.grouped.error.delete'));
       }
     },
-    [productId, refresh, ask, t],
+    [productId, refresh, ask, begin, showStatus, t],
   );
 
   return (
-    <EditorSection title={sectionTitle(t('productEditor.grouped.title'), !readOnly)}>
+    <EditorSection
+      title={sectionTitle(t('productEditor.grouped.title'), !readOnly)}
+      action={<InlineStatus {...statusProps} data-testid="grouped-panel-status" />}
+    >
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert live="polite">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -2062,7 +2139,14 @@ function BundleSlotsSection({ productId, readOnly = false }: { productId: string
   const [slots, setSlots] = useState<AdminBundleSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1509 (CAT-09): an add/remove result is said in the panel header's polite region,
+  // mounted before it has text, not as an Alert above the panel's content.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
+  /** Each action starts clean: the last result and the last refusal both go. */
+  const begin = useCallback((): void => {
+    setError(null);
+    clearStatus();
+  }, [clearStatus]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -2085,6 +2169,7 @@ function BundleSlotsSection({ productId, readOnly = false }: { productId: string
 
   const handleCreateSlot = useCallback(
     async (input: { name: string; minQuantity: string; maxQuantity: string }): Promise<void> => {
+      begin();
       const min = Number(input.minQuantity);
       const max = Number(input.maxQuantity);
       if (!Number.isFinite(max) || max <= 0) {
@@ -2100,74 +2185,75 @@ function BundleSlotsSection({ productId, readOnly = false }: { productId: string
             maxQuantity: max,
           },
         );
-        setInfo(t('productEditor.bundle.success.addSlot', { name: input.name }));
+        showStatus(t('productEditor.bundle.success.addSlot', { name: input.name }));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.addSlot'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, begin, showStatus, t],
   );
 
   const handleDeleteSlot = useCallback(
     async (slotId: string): Promise<void> => {
       if (!(await ask(t('productEditor.bundle.removeSlotConfirm')))) return;
+      begin();
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}`,
         );
-        setInfo(t('productEditor.bundle.success.removeSlot'));
+        showStatus(t('productEditor.bundle.success.removeSlot'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.deleteSlot'));
       }
     },
-    [productId, refresh, ask, t],
+    [productId, refresh, ask, begin, showStatus, t],
   );
 
   const handleAddOption = useCallback(
     async (slotId: string, optionProductId: string): Promise<void> => {
       if (!optionProductId) return;
+      begin();
       try {
         await apiClient.post(
           `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}/options`,
           { optionProductId },
         );
-        setInfo(t('productEditor.bundle.success.addOption'));
+        showStatus(t('productEditor.bundle.success.addOption'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.addOption'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, begin, showStatus, t],
   );
 
   const handleRemoveOption = useCallback(
     async (slotId: string, optionId: string): Promise<void> => {
       if (!(await ask(t('productEditor.bundle.removeOptionConfirm')))) return;
+      begin();
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}/options/${optionId}`,
         );
-        setInfo(t('productEditor.bundle.success.removeOption'));
+        showStatus(t('productEditor.bundle.success.removeOption'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.deleteOption'));
       }
     },
-    [productId, refresh, ask, t],
+    [productId, refresh, ask, begin, showStatus, t],
   );
 
   return (
-    <EditorSection title={sectionTitle(t('productEditor.bundle.title'), !readOnly)}>
+    <EditorSection
+      title={sectionTitle(t('productEditor.bundle.title'), !readOnly)}
+      action={<InlineStatus {...statusProps} data-testid="bundle-panel-status" />}
+    >
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert live="polite">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 

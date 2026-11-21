@@ -25,6 +25,9 @@ describe('tasks admin contributions', () => {
       ['/tasks', 'tasks:read'],
       ['/tasks/mine', 'tasks:read'],
       ['/tasks/new', 'tasks:write'],
+      // The configuration's four tabs (issue #1557): the workflow at the row's
+      // address, its old address a redirect, then the other three.
+      ['/tasks/settings', 'tasks:configure'],
       ['/tasks/settings/workflow', 'tasks:configure'],
       ['/tasks/settings/priorities', 'tasks:configure'],
       ['/tasks/settings/tags', 'tasks:configure'],
@@ -42,13 +45,13 @@ describe('tasks admin contributions', () => {
     expect(entry).not.toMatch(/^import .* from '\.\/(pages|components)\//m);
   });
 
-  it('puts "My tasks" and "Tasks" after "Projects", and "Task settings" with the section’s configuration rows', () => {
+  it('puts "My tasks" and "Tasks" after "Projects", and "Task configuration" with the section’s configuration rows', () => {
     expect(
       (contributions.nav ?? []).map((row) => [row.to, row.section, row.weight, row.requiredPermission, row.icon]),
     ).toEqual([
       ['/tasks/mine', 'work', 200, 'tasks:read', 'ListChecks'],
       ['/tasks', 'work', 210, 'tasks:read', 'ListChecks'],
-      ['/tasks/settings/workflow', 'work', 430, 'tasks:configure', 'Settings'],
+      ['/tasks/settings', 'work', 430, 'tasks:configure', 'Settings'],
     ]);
   });
 

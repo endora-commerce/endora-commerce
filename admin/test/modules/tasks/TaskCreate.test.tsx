@@ -67,6 +67,13 @@ describe('TaskCreate', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
+  it('marks the title required the kit way: an asterisk and aria-required, no prose note (#1564)', async () => {
+    renderPage();
+    const title = await screen.findByLabelText(new RegExp(en('field.title')));
+    expect(title).toHaveAttribute('aria-required', 'true');
+    expect(screen.queryByText(/marked \* are required/i)).toBeNull();
+  });
+
   it('shows busy only on the button that was pressed (#512)', async () => {
     postSpy.mockReturnValue(new Promise(() => undefined));
     renderPage();

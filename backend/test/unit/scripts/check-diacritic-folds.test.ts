@@ -1286,8 +1286,12 @@ describe('check-diacritic-folds — the tree it guards', () => {
     // a key left behind would read as *"this site stopped slugifying"*, which is
     // the only claim the list makes.
     'packages/modules/cms/src/admin/editors/BlockEditor.tsx',
-    'packages/modules/cms/src/admin/editors/PageEditor.tsx',
     'packages/modules/blog/src/admin/pages/BlogPostEditor.tsx',
+    // Issue #1513 — re-keyed, not dropped: `PageEditor.tsx` derives its slugs
+    // through the kit's `useDerivedKey` now (still at 180), so the call lives in
+    // the hook's file. `PageEditor.tsx` is held to importing the hook below, so
+    // the chain from the editor to the shared generator is proven link by link.
+    'packages/admin-kit/src/lib/derive-key.ts',
     // Feature 091, Phase 4, the plan's batch 7 — the file is
     // `@endora-commerce/mod-product-feeds`' admin layer now. This list is a
     // ledger *about* the files it names rather than one of them, so the batch
@@ -1314,6 +1318,14 @@ describe('check-diacritic-folds — the tree it guards', () => {
     expect(source, `${path} still collapses characters on its own`).not.toContain(
       '.replace(/[^a-z0-9]',
     );
+  });
+
+  it('packages/modules/cms/src/admin/editors/PageEditor.tsx slugifies through the kit hook, not its own chain', () => {
+    const path = 'packages/modules/cms/src/admin/editors/PageEditor.tsx';
+    const source = readFileSync(join(REPO_ROOT, path), 'utf8');
+    expect(analyzeSource(source, path), `${path} folds or builds a slug on its own again`).toEqual([]);
+    expect(source).toMatch(/import \{[^}]*\buseDerivedKey\b[^}]*\} from '@endora-commerce\/admin-kit\/lib'/);
+    expect(source).not.toContain('.replace(/[^a-z0-9]');
   });
 
   it('the shared generator is exported from the package index', () => {

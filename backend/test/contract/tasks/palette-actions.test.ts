@@ -44,7 +44,7 @@ const EXPECTED: readonly ExpectedAction[] = [
   {
     // `specs/165-task-management/contracts/admin-surfaces.md` §4 (T047).
     id: 'open-task-workflow',
-    route: '/tasks/settings/workflow',
+    route: '/tasks/settings',
     permission: 'tasks:configure',
     icon: 'Settings',
     label: { en: 'Task statuses and workflow', pl: 'Statusy i przejścia zadań' },

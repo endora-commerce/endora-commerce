@@ -34,10 +34,13 @@ client*, *No decision* and *Other* — are a list the operator keeps the same wa
 ## In the Admin UI
 
 Projects are in the sidebar under **Projects & tasks → Projects** (`/projects`),
-for administrators who may view projects. Their configuration is in the same
-section, for administrators who may configure projects: **Templates**
-(`/projects/templates`), **Project roles** (`/projects/roles`) and **Loss
-reasons** (`/projects/loss-reasons`). **Analytics** (`/projects/analytics`) is
+for administrators who may view projects. Their configuration is one entry of
+the same section, **Project configuration**, for administrators who may
+configure projects: three tabs, **Templates** (`/projects/settings`), **Roles**
+(`/projects/settings/roles`) and **Loss reasons**
+(`/projects/settings/loss-reasons`). The addresses used before,
+`/projects/templates`, `/projects/roles` and `/projects/loss-reasons`, still
+open the same tabs. **Analytics** (`/projects/analytics`) is
 there too, for administrators who may view project analytics (see
 *Analytics*).
 
@@ -159,7 +162,7 @@ the projects you may see.
 Without the permission to create and run projects the screen is read-only: the
 stages, the workflow and the history are shown, and nothing can be changed.
 
-**Templates** (`/projects/templates`) lists the templates by name with their
+**Templates** (`/projects/settings`) lists the templates by name with their
 number of stages; archived ones are listed on request, marked *Archived*. A
 template's screen — or *New template* — edits its name, default description and
 project roles, and its stages with the same fields, stage tasks and workflow
@@ -325,7 +328,7 @@ decided by their administrator role and its permissions alone, and by the
 rules of *Who sees a project*. Being a member of a project, whatever the role,
 is one of the ways to *see* it, never a way to change it.
 
-**Project roles** (`/projects/roles`) lists every role with its name in each
+**Roles** (`/projects/settings/roles`) lists every role with its name in each
 language of the Admin UI. *Sales Rep* and *Project Manager* are there from the
 start, marked **Built-in**.
 
@@ -345,7 +348,7 @@ start, marked **Built-in**.
 
 ## Loss reasons
 
-**Loss reasons** (`/projects/loss-reasons`) are the reasons a project can be
+**Loss reasons** (`/projects/settings/loss-reasons`) are the reasons a project can be
 closed as lost, one of which must be chosen when someone closes one: *Price*,
 *Chose a competitor*, *Cancelled by the client*, *No decision* and *Other* are
 there from the start, marked **Built-in**. The screen works exactly as

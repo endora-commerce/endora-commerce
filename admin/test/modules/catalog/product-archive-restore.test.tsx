@@ -222,12 +222,14 @@ describe('ProductEditor — Archive (FR-019)', () => {
     expect(patchSpy).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
-    expect(await screen.findByTestId('product-archived-notice')).toHaveTextContent(tr('productEditor.archived.title'));
+    // Issue #1509 (CAT-09): the archived state is the header's — the pill and Restore — not a banner.
+    const restore = await screen.findByRole('button', { name: tr('productEditor.action.restore') });
+    expect(restore.closest('header')).not.toBeNull();
+    expect(screen.queryByTestId('product-archived-notice')).toBeNull();
     // Issue #1499 (CAT-09): said beside the Product menu, in its polite region — not a banner.
     await waitFor(() => expect(screen.getByTestId('product-whole-status')).toHaveTextContent(tr('productEditor.archive.done')));
     expect(screen.getByTestId('product-whole-status')).toHaveAttribute('role', 'status');
     expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
-    expect(screen.getByRole('button', { name: tr('productEditor.action.restore') })).toBeInTheDocument();
     await expectNoArchiveInMenu(user);
     // The status is kept, drawn as a neutral outline beside the one coloured
     // Archived pill.
@@ -261,7 +263,7 @@ describe('ProductEditor — Archive (FR-019)', () => {
     const dialog = screen.getByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: tr('productEditor.archive.confirm') }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Product not found.');
-    expect(screen.queryByTestId('product-archived-notice')).toBeNull();
+    expect(screen.queryByRole('button', { name: tr('productEditor.action.restore') })).toBeNull();
   });
 });
 
@@ -270,13 +272,16 @@ describe('ProductEditor — an archived product and Restore (FR-019, O-5)', () =
     current = product({ status: 'active', archivedAt: '2026-10-20T00:00:00.000Z' });
   });
 
-  it('says it is archived once, with Restore inside the notice, and the O-5 note at the selector', async () => {
+  it('says it is archived in the header, with Restore beside the pill, and the O-5 note at the selector', async () => {
     const user = userEvent.setup();
     renderEditor();
-    const notice = await screen.findByTestId('product-archived-notice');
-    expect(notice).toHaveTextContent(`${tr('productEditor.archived.title')} ${tr('productEditor.archived.body')}`);
-    expect(within(notice).getByRole('button', { name: tr('productEditor.action.restore') })).toBeInTheDocument();
-    // Restore is offered once, in the notice; the header offers no Archive.
+    // Issue #1509 (CAT-09): no archived banner between the header and the tabs.
+    const restore = await screen.findByRole('button', { name: tr('productEditor.action.restore') });
+    const head = restore.closest('header') as HTMLElement;
+    expect(within(head).getByText(tr('productsList.status.archived'))).toHaveClass('b2b-badge--warn');
+    expect(restore).toHaveAccessibleDescription(`${tr('productEditor.archived.title')} ${tr('productEditor.archived.body')}`);
+    expect(screen.queryByTestId('product-archived-notice')).toBeNull();
+    // Restore is offered once, in the header; the Product menu offers no Archive.
     expect(screen.getAllByRole('button', { name: tr('productEditor.action.restore') })).toHaveLength(1);
     await expectNoArchiveInMenu(user);
     // "Setting Active does not restore" is said once, at the selector.
@@ -302,7 +307,9 @@ describe('ProductEditor — an archived product and Restore (FR-019, O-5)', () =
     await waitFor(() =>
       expect(postSpy).toHaveBeenCalledWith(`/api/v1/admin/catalog/products/${PRODUCT_ID}/restore`, {}),
     );
-    await waitFor(() => expect(screen.queryByTestId('product-archived-notice')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('button', { name: tr('productEditor.action.restore') })).toBeNull());
+    // Restore unmounted with the archived state: focus is on the Product menu, beside the result.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: tr('productEditor.wholeProduct.menu') })));
     // Issue #1499 (CAT-09): said beside the Product menu, in its polite region — not a banner.
     await waitFor(() => expect(screen.getByTestId('product-whole-status')).toHaveTextContent(tr('productEditor.restore.done')));
     expect(screen.getByTestId('product-whole-status')).toHaveAttribute('role', 'status');
@@ -318,7 +325,7 @@ describe('ProductEditor — an archived product and Restore (FR-019, O-5)', () =
     );
     const user = userEvent.setup();
     renderEditor();
-    await screen.findByTestId('product-archived-notice');
+    await screen.findByRole('button', { name: tr('productEditor.action.restore') });
     await user.selectOptions(await statusSelect(), 'inactive');
     await user.click(screen.getByRole('button', { name: /^Save/ }));
     await waitFor(() => expect(putSpy).toHaveBeenCalledWith(expect.stringMatching(/\/scoped-values$/), expect.anything()));
@@ -326,7 +333,7 @@ describe('ProductEditor — an archived product and Restore (FR-019, O-5)', () =
     expect(body.changes).toEqual({ status: 'inactive' });
     expect(patchSpy).not.toHaveBeenCalled();
     expect(postSpy).not.toHaveBeenCalled();
-    expect(await screen.findByTestId('product-archived-notice')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: tr('productEditor.action.restore') })).toBeInTheDocument();
   });
 });
 
@@ -334,7 +341,8 @@ describe('ProductEditor — catalog:read only', () => {
   it('offers neither Archive nor Restore, and still shows the archived state', async () => {
     current = product({ archivedAt: '2026-10-20T00:00:00.000Z' });
     renderEditor({ permissions: ['catalog:read'] });
-    expect(await screen.findByTestId('product-archived-notice')).toBeInTheDocument();
+    const head = (await screen.findByRole('heading', { level: 1 })).closest('header') as HTMLElement;
+    expect(await within(head).findByText(tr('productsList.status.archived'))).toBeInTheDocument();
     // T110: no "Product" menu (Duplicate, Archive, Delete) and no Save without catalog:write.
     expect(screen.queryByRole('button', { name: tr('productEditor.wholeProduct.menu') })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Save/ })).toBeNull();

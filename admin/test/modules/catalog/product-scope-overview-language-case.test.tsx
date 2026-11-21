@@ -47,7 +47,7 @@ afterEach(() => cleanup());
 
 describe('scope map language tags keep their canonical case (issue #501)', () => {
   it('shows de-DE as stored in the column header and in a reset name', async () => {
-    renderEditor(ProductEditor, { url: `/catalog/products/${PRODUCT_ID}?scope=global&tab=scopes` });
+    renderEditor(ProductEditor, { url: `/catalog/products/${PRODUCT_ID}?scope=global&scopeMap=1` });
     const table = await screen.findByRole('table', { name: en['productEditor.scopeOverview.title']! });
     const header = within(table).getByRole('columnheader', { name: 'de-DE' });
     expect(header.querySelector('span.normal-case')).not.toBeNull();

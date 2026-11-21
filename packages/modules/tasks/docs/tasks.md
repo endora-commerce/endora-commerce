@@ -70,7 +70,8 @@ deleted.
 
 Tasks are in the sidebar under **Projects & tasks**: **My tasks**
 (`/tasks/mine`) and **Tasks** (`/tasks`) for administrators who may view
-tasks, and **Task settings** for those who configure them.
+tasks, and **Task configuration** (`/tasks/settings`) for those who configure
+them.
 
 **Tasks** (`/tasks`) shows every task you may see, as a **list** or a
 **board** — switch with *View*. The choice is remembered for you, on every
@@ -111,7 +112,9 @@ device you sign in from, and so are the filters you set while switching.
 assigned to you that are not closed, the soonest due first and those without a
 due date last, as a list or a board, with the same filters. Your drafts are not
 in it — find them with the *Only my drafts* filter on **Tasks**. The **Daily
-digest** control at its top turns your digest on and off and sets its hour.
+digest** button in the page header says whether your digest is on and at what
+hour; press it to open the control that turns the digest on and off and sets
+its hour.
 
 **New task** (`/tasks/new`) asks for a title and, optionally, a description,
 assignees — chosen by name among the active administrators who may view tasks,
@@ -328,10 +331,13 @@ and projects; for anybody else they are left out of every entry.
 
 ## Configuring Tasks
 
-Holders of *Configure tasks* reach these screens from **Task settings** in the
-sidebar and from the command palette; each links to the others.
+Holders of *Configure tasks* reach these screens from **Task configuration** in
+the sidebar, which opens them as four tabs — **Workflow**, **Priorities**,
+**Tags** and **General** — and from the command palette, which opens each one
+directly. The workflow's earlier address, `/tasks/settings/workflow`, still
+opens its tab.
 
-**Statuses and workflow** (`/tasks/settings/workflow`). Add, rename — in English
+**Statuses and workflow** (`/tasks/settings`). Add, rename — in English
 and in Polish — recolour, reorder and remove statuses; mark the start status;
 add and remove moves on the workflow graph, the editor orders and opportunities
 use. A new status goes last; the arrows on each row move it up or down, and
@@ -358,7 +364,7 @@ are unique whatever their letter case, up to 64 characters. Deleting a tag asks
 for confirmation and removes it from every task that carries it; the deletion is
 recorded once, on the tag, with how many tasks carried it.
 
-**General settings** (`/tasks/settings/general`). The **time zone** in which
+**General** (`/tasks/settings/general`). The **time zone** in which
 Tasks counts "today": when a task with a due date alone becomes overdue, when a
 reminder before such a date fires, and the hour of the daily digest.
 Changing it moves what was counted in the old zone within a minute or two: a
@@ -373,8 +379,8 @@ due time, do not depend on the zone and stay as they are.
 | Code | Default | Meaning |
 | --- | --- | --- |
 | `tasks.enabled` | on | Whether the module is switched on — change it on the **Modules** screen. |
-| `tasks.time_zone` | `Europe/Warsaw` | The IANA time zone Tasks counts dates in. Change it on **Task settings → General settings**. |
-| `tasks.board_card_fields` | number, assignees, due date, priority, tags | The fields a board card shows, in order. Change it in the **Board card** section of **Task settings**, which offers the fields that exist. |
+| `tasks.time_zone` | `Europe/Warsaw` | The IANA time zone Tasks counts dates in. Change it on **Task configuration → General**. |
+| `tasks.board_card_fields` | number, assignees, due date, priority, tags | The fields a board card shows, in order. Change it in the **Board card** section of **Task configuration → Workflow**, which offers the fields that exist. |
 
 ## Switching it on and off
 
@@ -384,7 +390,7 @@ off, and back on, on the **Modules** screen of the Admin UI
 
 While it is off:
 
-- the *My tasks*, *Tasks* and *Task settings* entries and every task screen are
+- the *My tasks*, *Tasks* and *Task configuration* entries and every task screen are
   gone from the Admin UI, and so are a project's *Tasks* tab and its stage
   tasks, the *Tasks* panels of opportunities, orders and quote requests, the
   command-palette actions and tasks in the global search;
@@ -624,7 +630,7 @@ late is recorded as `expired`, one for a recipient who may no longer be told as
 `skipped`, and neither sends anything. The digest claims each subscriber's day
 before it sends (`tasks_daily_digest`), so it is sent at most once a day.
 
-All four passes — the time-zone pass (see *General settings*) and then the
+All four passes — the time-zone pass (see *General*) and then the
 reminders every minute, the digest and the maintenance pass at most every
 fifteen minutes — run in the one BullMQ Job Scheduler
 `tasks-reminders`, attached through `ctx.worker` only in a process that runs

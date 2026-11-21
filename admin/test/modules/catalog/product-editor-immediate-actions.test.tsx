@@ -103,7 +103,7 @@ describe('immediate actions beside staged changes (feature 174, US7 #7)', () => 
     renderEditor(ProductEditor, { url: MEDIA });
     const heading = await screen.findByRole('heading', { name: new RegExp(en['productEditor.gallery.title']!) });
     expect(heading).toHaveTextContent(IMMEDIATE_BADGE);
-    fireEvent.click(screen.getByRole('tab', { name: en['productEditor.tab.attachments']! }));
+    // Issue #1510 (CAT-10): the attachments are the second section of the same "Media & files" tab.
     expect(await screen.findByRole('heading', { name: new RegExp(en['productEditor.attachments.title']!) })).toHaveTextContent(
       IMMEDIATE_BADGE,
     );

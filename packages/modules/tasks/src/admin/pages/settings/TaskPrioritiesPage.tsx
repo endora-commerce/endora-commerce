@@ -24,7 +24,7 @@ import { TaskPriorityDialog, type TaskPriorityDialogSubmit } from '../../compone
 import { ReorderControls } from '../../components/reorder/ReorderControls.js';
 import { SettingsEmptyState } from '../../components/SettingsEmptyState.js';
 import { errorMessage, workflowStatusName } from '../../lib/labels.js';
-import { TASK_WORKFLOW_PATH } from '../../lib/settings-paths.js';
+import { TaskConfigurationTabs } from '../../components/TaskConfigurationTabs.js';
 import { useServerReorder } from '../../lib/use-server-reorder.js';
 
 type DialogState = { kind: 'create' } | { kind: 'edit'; priority: TaskPriorityConfig } | null;
@@ -99,18 +99,20 @@ export function TaskPrioritiesPage(): ReactNode {
   // The one place for Add (issue #1562, WORK-13): the header's filled button,
   // hidden while the list is empty, where the empty state's Add stands alone.
   const header = (
-    <PageHeader
-      title={t('priorities.title')}
-      back={{ label: t('settings.back'), to: TASK_WORKFLOW_PATH }}
-      actions={
-        priorities !== null && priorities.length > 0 ? (
-          <Button className="min-h-11 sm:min-h-9" onClick={openCreate}>
-            <Plus aria-hidden="true" />
-            {t('priorities.add')}
-          </Button>
-        ) : undefined
-      }
-    />
+    <>
+      <PageHeader
+        title={t('priorities.title')}
+        actions={
+          priorities !== null && priorities.length > 0 ? (
+            <Button className="min-h-11 sm:min-h-9" onClick={openCreate}>
+              <Plus aria-hidden="true" />
+              {t('priorities.add')}
+            </Button>
+          ) : undefined
+        }
+      />
+      <TaskConfigurationTabs />
+    </>
   );
 
   if (priorities === null) {

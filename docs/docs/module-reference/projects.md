@@ -66,9 +66,9 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | --- | --- | --- |
 | `new-project` | `/projects/new` | `projects:write` |
 | `open-project-analytics` | `/projects/analytics` | `projects:analytics` |
-| `open-project-loss-reasons` | `/projects/loss-reasons` | `projects:configure` |
-| `open-project-roles` | `/projects/roles` | `projects:configure` |
-| `open-project-templates` | `/projects/templates` | `projects:configure` |
+| `open-project-loss-reasons` | `/projects/settings/loss-reasons` | `projects:configure` |
+| `open-project-roles` | `/projects/settings/roles` | `projects:configure` |
+| `open-project-templates` | `/projects/settings` | `projects:configure` |
 | `open-projects` | `/projects` | `projects:read` |
 
 ## Settings

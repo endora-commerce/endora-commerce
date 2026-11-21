@@ -140,11 +140,21 @@ function stageBar(): HTMLElement {
   return screen.getByRole('region', { name: en('opportunity.section.status') });
 }
 
-/** The statuses the bar lets the operator move to — its only buttons — by what they show. */
+/** The bar's *Add a reason* disclosure — the one button of the bar that is not a move. */
+const ADD_REASON = (): string => en('opportunity.status.addReason');
+
+/** The statuses the bar lets the operator move to, by what they show. */
 function transitionButtons(): string[] {
   return within(stageBar())
     .queryAllByRole('button')
+    .filter((button) => !button.hasAttribute('aria-expanded'))
     .map((button) => button.textContent?.trim() ?? '');
+}
+
+/** The status the header's badge names, beside the title — the one place the screen says it. */
+function headerStatus(): string {
+  const title = screen.getByRole('heading', { level: 1 });
+  return title.textContent ?? '';
 }
 
 /** The name of the bar's button for a later open status: what pressing it does. */
@@ -410,7 +420,6 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
   const WON = { code: 'won', name: 'Won', color: '#10b981', kind: 'won' } as const;
   const LOST = { code: 'lost', name: 'Lost', color: '#ef4444', kind: 'lost' } as const;
 
-  const WON_SPOKEN = `Won (${en('opportunity.stage.kind.won')})`;
   const LOST_SPOKEN = `Lost (${en('opportunity.stage.kind.lost')})`;
   const toLost = en('opportunity.stage.moveToClosing', {
     status: 'Lost',
@@ -427,23 +436,19 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
       : null;
   }
 
-  /** What the bar says the current status is. */
-  function currentStatus(): string {
-    const label = within(stageBar()).getByText(en('opportunity.stage.current'));
-    return label.nextElementSibling?.textContent ?? '';
-  }
-
   /** Every status named anywhere in the bar. */
   function everyStatusShown(): string {
     return stageBar().textContent ?? '';
   }
 
-  it('names the current status and offers both ways out of it, each on its side', async () => {
+  it('says the status once, in the title, and offers both ways out of it under Move to… (issue #1566)', async () => {
     current = detail({ status: QUALIFIED, allowedTransitions: [NEW, NEGOTIATION, LOST] });
     await renderPage();
     const bar = stageBar();
-    expect(within(bar).getByText(en('opportunity.stage.current'))).toBeInTheDocument();
-    expect(currentStatus()).toBe('Qualified');
+    expect(headerStatus()).toContain('Qualified');
+    // The bar is the moves, captioned *Move to…* — it does not name the status again.
+    expect(within(bar).getByText(en('opportunity.stage.heading'))).toBeInTheDocument();
+    expect(everyStatusShown()).not.toContain('Qualified');
     expect(side('back')).toEqual(['New']);
     expect(side('forward')).toEqual(['Negotiation', 'Lost']);
     expect(side('other')).toBeNull();
@@ -456,7 +461,9 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
   it('names each button by what pressing it does, its visible label included', async () => {
     current = detail({ status: QUALIFIED, allowedTransitions: [NEW, NEGOTIATION, LOST] });
     await renderPage();
-    const buttons = within(stageBar()).getAllByRole('button');
+    const buttons = within(stageBar())
+      .getAllByRole('button')
+      .filter((button) => !button.hasAttribute('aria-expanded'));
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
       en('opportunity.stage.moveBack', { status: 'New' }),
       en('opportunity.stage.moveForward', { status: 'Negotiation' }),
@@ -491,8 +498,11 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
     });
     await renderPage();
     const bar = stageBar();
-    expect(currentStatus()).toBe(WON_SPOKEN);
+    expect(headerStatus()).toContain('Won');
     expect(within(bar).getByText(/^Closed as won on /)).toBeInTheDocument();
+    // Nothing to move to: no *Move to…* heading, and no reason to add.
+    expect(within(bar).queryByText(en('opportunity.stage.heading'))).toBeNull();
+    expect(within(bar).queryByRole('button', { name: ADD_REASON() })).toBeNull();
     expect(within(bar).queryAllByRole('group')).toEqual([]);
     expect(within(bar).getByText(en('opportunity.status.none'))).toBeInTheDocument();
     // Nothing to sort, so the workflow's order is not asked for.
@@ -507,7 +517,7 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
       closedAt: '2026-10-05T12:00:00.000Z',
     });
     await renderPage();
-    expect(currentStatus()).toBe(LOST_SPOKEN);
+    expect(headerStatus()).toContain('Lost');
     expect(side('back')).toEqual(['Negotiation']);
     expect(side('forward')).toEqual(['Won']);
   });
@@ -520,6 +530,7 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
     expect(side('forward')).toEqual(['Negotiation', LOST_SPOKEN]);
     expect(within(stageBar()).queryAllByRole('button')).toEqual([]);
     expect(screen.queryByLabelText(en('opportunity.status.reason'))).toBeNull();
+    expect(screen.queryByRole('button', { name: ADD_REASON() })).toBeNull();
     expect(screen.getByText(en('opportunity.status.noPermission'))).toBeInTheDocument();
   });
 
@@ -533,8 +544,12 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
       },
     });
     await renderPage();
-    // The reason is still asked for where a move is possible, and still goes with it.
-    await userEvent.type(screen.getByLabelText(en('opportunity.status.reason')), 'Budget cut.');
+    // The reason is behind *Add a reason*; opening it puts the focus in the field.
+    const addReason = within(stageBar()).getByRole('button', { name: ADD_REASON() });
+    addReason.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByLabelText(en('opportunity.status.reason'))).toHaveFocus();
+    await userEvent.keyboard('Budget cut.');
     const lost = within(stageBar()).getByRole('button', { name: toLost });
     lost.focus();
     await userEvent.keyboard('{Enter}');
@@ -548,7 +563,37 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
     // Announced, and the bar now shows where the opportunity is.
     expect(await screen.findByText(en('opportunity.status.moved', { status: 'Lost' }))).toBeInTheDocument();
     await waitFor(() => expect(transitionButtons()).toEqual([]));
-    expect(currentStatus()).toBe(LOST_SPOKEN);
+    expect(headerStatus()).toContain('Lost');
+  });
+
+  it('keeps the optional reason folded behind Add a reason, and folds it again after a move (issue #1561)', async () => {
+    current = detail({ status: QUALIFIED, allowedTransitions: [NEW, NEGOTIATION, LOST] });
+    postSpy.mockResolvedValue({
+      data: {
+        opportunity: detail({ status: NEGOTIATION, allowedTransitions: [QUALIFIED, LOST] }),
+        from: 'qualified',
+        to: 'negotiation',
+        propagation: [],
+      },
+    });
+    await renderPage();
+    const addReason = within(stageBar()).getByRole('button', { name: ADD_REASON() });
+    expect(addReason).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText(en('opportunity.status.reason'))).toBeNull();
+
+    await userEvent.click(addReason);
+    expect(addReason).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.type(screen.getByLabelText(en('opportunity.status.reason')), 'Asked for a demo.');
+    await userEvent.click(within(stageBar()).getByRole('button', { name: moveTo('Negotiation') }));
+    await waitFor(() =>
+      expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/transition`, {
+        to: 'negotiation',
+        reason: 'Asked for a demo.',
+      }),
+    );
+    // A reason belongs to one change: the next one starts folded and empty.
+    await waitFor(() => expect(screen.queryByLabelText(en('opportunity.status.reason'))).toBeNull());
+    expect(within(stageBar()).getByRole('button', { name: ADD_REASON() })).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('still offers every allowed move when the workflow`s order cannot be read, without guessing a direction', async () => {

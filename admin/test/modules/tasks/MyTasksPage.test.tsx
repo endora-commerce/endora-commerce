@@ -3,7 +3,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { TaskBoard } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../../setup';
-import { OTHER_TASK_ID, TASK_ID, en, renderTasks, taskSummary, STATUS, workflow } from './tasks-fixtures';
+import { OTHER_TASK_ID, TASK_ID, core, en, renderTasks, taskSummary, STATUS, workflow } from './tasks-fixtures';
 
 /**
  * *My Tasks* (`specs/165-task-management/` User Story 3 scenario 6, FR-018;
@@ -95,7 +95,7 @@ function lastQuery(prefix: string): URLSearchParams | null {
 }
 
 function viewButton(name: 'list' | 'board'): HTMLElement {
-  return within(screen.getByRole('group', { name: en('view.label') })).getByRole('button', { name: en(`view.${name}`) });
+  return within(screen.getByRole('group', { name: core('common.viewMode.label') })).getByRole('button', { name: core(`common.viewMode.${name}`) });
 }
 
 describe('MyTasksPage', () => {
@@ -191,6 +191,34 @@ describe('MyTasksPage', () => {
     await act(async () => pending?.({ data: [UNDATED] }));
     await waitFor(() => expect(table).toHaveAttribute('aria-busy', 'false'));
     expect(screen.queryByText('Sign the handover')).toBeNull();
+  });
+
+  it('keeps the daily digest out of the way: a closed disclosure in the header that says its state (#1563)', async () => {
+    renderTasks(<MyTasksPage />, { path: '/tasks/mine', pattern: '/tasks/mine' });
+    await screen.findByText('Sign the handover');
+    const summary = await screen.findByRole('button', { name: en('digest.summary.off') });
+    expect(summary).toHaveAttribute('aria-expanded', 'false');
+    const panel = document.getElementById(summary.getAttribute('aria-controls')!)!;
+    expect(panel).not.toBeVisible();
+    // The work comes first: the settings control is not on screen until asked for.
+    expect(screen.queryByRole('checkbox', { name: en('digest.toggle') })).toBeNull();
+    // The summary is a header action, beside the view toggle — not a block above the filters.
+    expect(summary.closest('header')).not.toBeNull();
+
+    await userEvent.click(summary);
+    expect(summary).toHaveAttribute('aria-expanded', 'true');
+    expect(panel).toBeVisible();
+    expect(screen.getByRole('checkbox', { name: en('digest.toggle') })).not.toBeChecked();
+  });
+
+  it('says the stored hour in the closed summary (#1563)', async () => {
+    const answer = getSpy.getMockImplementation()!;
+    getSpy.mockImplementation((path: string) =>
+      path === '/api/v1/admin/tasks/me/digest' ? Promise.resolve({ data: { hour: 8 } }) : answer(path),
+    );
+    renderTasks(<MyTasksPage />, { path: '/tasks/mine', pattern: '/tasks/mine' });
+    const summary = await screen.findByRole('button', { name: en('digest.summary.on', { hour: '08:00' }) });
+    expect(summary).toHaveAttribute('aria-expanded', 'false');
   });
 
   it("shows the server's sentence when the read fails", async () => {

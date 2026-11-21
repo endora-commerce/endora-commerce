@@ -41,7 +41,7 @@ const EXPECTED: readonly ExpectedAction[] = [
   },
   {
     id: 'open-project-templates',
-    route: '/projects/templates',
+    route: '/projects/settings',
     permission: 'projects:configure',
     icon: 'Layers',
     label: { en: 'Project templates', pl: 'Szablony projektów' },
@@ -55,14 +55,14 @@ const EXPECTED: readonly ExpectedAction[] = [
   },
   {
     id: 'open-project-roles',
-    route: '/projects/roles',
+    route: '/projects/settings/roles',
     permission: 'projects:configure',
     icon: 'Users',
     label: { en: 'Project roles', pl: 'Role projektowe' },
   },
   {
     id: 'open-project-loss-reasons',
-    route: '/projects/loss-reasons',
+    route: '/projects/settings/loss-reasons',
     permission: 'projects:configure',
     icon: 'Tag',
     label: { en: 'Project loss reasons', pl: 'Powody utraty projektów' },

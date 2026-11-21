@@ -16,13 +16,25 @@ earlier section differ, §11 wins.
 - Every scope change `push`es the URL and `PUT`s the preference (debounced 500 ms, best-effort).
 - `field` focuses that field after load (scope-map links, completeness links); `tab` extends today's allow-list.
 
+> *Amended 2026-11-21 by issue #1510 (UX audit 2026-11-17, CAT-10, DEC-09):* the tab allow-list is `details`,
+> `attributes`, `pricing`, `variants`, `composite`, `media`, `inventory`, `links`, `channels`, `seo`. Media and
+> Attachments are one "Media & files" tab (`media`), and the Scope map is a right-hand drawer opened by
+> `scopeMap=1` over whichever tab is open, not a tab. The removed ids are rewritten (`replace`): `tab=attachments` →
+> `tab=media`, `tab=scopes` → `scopeMap=1` with no `tab`. Closing the drawer drops `scopeMap`; following a map link
+> drops it with the jump.
+
 ## 2. Header scope bar (FR-050…FR-055, FR-057)
+
+> *Amended 2026-11-21 by issue #1508 (UX audit 2026-11-17, CAT-08):* the "Scope in words" part is no longer a
+> column of the bar — the two selects and the banner already name the scope. The words remain the banner's,
+> the Save button's accessible name and the editor's announcements; the "Scope map" link sits beside the
+> language select.
 
 | Part | Spec |
 | --- | --- |
 | "Sales channel" `Select` | "All channels" + member channels; `Combobox` (`ui/combobox`) when more than **8** options (FR-055 threshold) |
 | "Language" `Select` | "All languages" + languages of the chosen channel, by **name** (`Intl.DisplayNames`, admin locale); not editable at "All channels" |
-| Scope in words | "Global" · "B2B PL — all languages" · "B2B PL × Polish"; link "Scope map" → `?tab=scopes` |
+| Scope in words | "Global" · "B2B PL — all languages" · "B2B PL × Polish"; link "Scope map" → `?scopeMap=1` (drawer, #1510) |
 | Banner (non-Global) | `Alert variant="warning"` with icon: "Changes apply only to <scope in words>". The `role="status"` region is rendered empty on mount and its text set after (WCAG 4.1.3) |
 | Read-only line (no `catalog:write`) | "Read-only — you can view values at every scope" |
 | Status pill | effective status at the scope + source (FR-054) |
@@ -67,6 +79,13 @@ earlier section differ, §11 wins.
   "Language" selects and Save flush, `AttachmentScopesDialog`, `PackagingUnitsEditor`'s translations dialog.
 
 ## 4. `ScopedField` (admin-kit, FR-060…FR-065, FR-081, FR-082)
+
+> *Amended 2026-11-21 by issue #1508 (UX audit 2026-11-17, CAT-08):* while the checkbox is shown, an inheriting
+> field carries no "Inherited" / "Not translated" / "No value" badge, and the source line is rendered only for a
+> fact the checkbox, the dashed control and the badges do not show — "No value at any scope above", "Inherited
+> from Global" at C×L when the channel inherits too, the line of a pending untick, "Will use the value from …
+> when you save", and "Set at this scope, empty — <empty meaning>". "Set at this scope" is dropped beside
+> "Overridden". Without `catalog:write` (no checkbox) the table below applies unchanged.
 
 `packages/admin-kit/src/components/scoped-field/ScopedField.tsx`, exported from the kit barrel:
 
@@ -122,6 +141,10 @@ stock) show the "Global only" notice outside G. Tab labels move into `catalog/i1
 list follows the WAI-ARIA tabs pattern (arrow keys, `aria-selected`, `aria-controls`; FR-107).
 
 ## 7. Scope map links (US12, FR-100, FR-101)
+
+> *Amended 2026-11-21 by issue #1510 (CAT-10):* `ProductScopeOverview` renders in a `ModalDialog` with
+> `placement="end"` titled "Scope map" (its sections are `h3` under the drawer's `h2`); a link's activation closes the
+> drawer as it switches scope.
 
 `ProductScopeOverview`: the Language row is removed; each cell, each "whole channel" header and the Global corner
 render a real `<Link>` "Edit at <scope>" to the §1 URL; each field named in a cell links with `&field=`. Activation

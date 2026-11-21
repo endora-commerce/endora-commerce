@@ -80,12 +80,16 @@ Profil jest odczytywany raz na początku przebiegu, więc jego zmiana w trakcie 
 na ten przebieg. Nazwy profili są unikalne bez względu na wielkość liter
 (`409 IMPORT_PROFILE_NAME_TAKEN`). W panelu administracyjnym sekcja **Profile importu** na ekranie
 Import / eksport pozwala przeglądać, tworzyć, edytować i usuwać profile; widzą ją tylko operatorzy
-z uprawnieniem `catalog:write`.
+z uprawnieniem `catalog:write`. Sekcja jest domyślnie zwinięta. Link **Zarządzaj profilami** przy
+imporcie produktów ją rozwija, a gdy nie ma jeszcze żadnego profilu, **Utwórz profil** od razu
+otwiera okno tworzenia.
 
 ### Najpierw import próbny
 
 `&dryRun=true` analizuje, mapuje i waliduje cały plik, łącznie z kontrolami katalogu, i niczego nie
-zapisuje. Ekran panelu zawsze wykonuje go najpierw i przed **Zastosuj import** pokazuje:
+zapisuje. Ekran panelu prowadzi przez trzy ponumerowane kroki (*Profil*, *Sprawdzenie pliku*,
+*Zastosowanie*) i pokazuje nad nimi „Krok n z 3”. Zawsze najpierw wykonuje import próbny i przed
+**Zastosuj import** pokazuje:
 
 - liczbę wierszy, które zostałyby zaimportowane i odrzucone;
 - dla każdej kolumny liczbę komórek `NULL` i `INHERIT`;

@@ -24,11 +24,17 @@ describe('projects admin contributions', () => {
     expect((contributions.routes ?? []).map((route) => [route.path, route.requiredPermission])).toEqual([
       ['/projects', 'projects:read'],
       ['/projects/new', 'projects:write'],
-      // User Story 3 — Templates are configuration.
+      // The configuration (issue #1557): User Story 3's Templates at the row's
+      // address, their editor, User Story 4's Project Roles and loss reasons.
+      ['/projects/settings', 'projects:configure'],
+      ['/projects/settings/templates/new', 'projects:configure'],
+      ['/projects/settings/templates/:id', 'projects:configure'],
+      ['/projects/settings/roles', 'projects:configure'],
+      ['/projects/settings/loss-reasons', 'projects:configure'],
+      // Their addresses before #1557, redirects now.
       ['/projects/templates', 'projects:configure'],
       ['/projects/templates/new', 'projects:configure'],
       ['/projects/templates/:id', 'projects:configure'],
-      // User Story 4 — Project Roles and loss reasons are configuration too.
       ['/projects/roles', 'projects:configure'],
       ['/projects/loss-reasons', 'projects:configure'],
       // User Story 10 — analytics, on a code of its own.
@@ -52,9 +58,8 @@ describe('projects admin contributions', () => {
     ).toEqual([
       ['/projects', 'work', 100, 'projects:read', 'ClipboardList'],
       ['/projects/analytics', 'work', 300, 'projects:analytics', 'LineChart'],
-      ['/projects/templates', 'work', 400, 'projects:configure', 'Layers'],
-      ['/projects/roles', 'work', 410, 'projects:configure', 'Users'],
-      ['/projects/loss-reasons', 'work', 420, 'projects:configure', 'Tag'],
+      // One configuration row since issue #1557.
+      ['/projects/settings', 'work', 400, 'projects:configure', 'Settings'],
     ]);
   });
 

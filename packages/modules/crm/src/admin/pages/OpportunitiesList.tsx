@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { CircleDollarSign, Plus } from 'lucide-react';
 import {
   opportunityBoardCustomFieldRef,
   type CustomFieldFilters,
   type OpportunityFieldFilters,
-  type OpportunityStatusKind,
   type OpportunitySummary,
   type OpportunityWorkflowStatus,
 } from '@endora-commerce/contracts';
@@ -34,7 +33,6 @@ import {
   ResponsiveTable,
   customFieldDisplayName,
   customFieldFilterRefusal,
-  emptyCustomFieldFilters,
   pruneRemovedOptions,
   readCustomFieldFilterParams,
   toCustomFieldFiltersParam,
@@ -42,6 +40,7 @@ import {
   withCustomFieldFilter,
   writeCustomFieldFilterParams,
   TagChips,
+  ViewModeToggle,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -50,7 +49,6 @@ import { AssigneeName } from '../components/AssigneeName.js';
 import {
   LIST_MORE_FILTERS,
   LIST_PRIMARY_FILTERS,
-  NO_SHARED_FILTERS,
   OpportunityFilterFields,
   hasSharedFilters,
   hiddenSharedFilterCount,
@@ -63,20 +61,19 @@ import {
   moneyLabel,
   workflowStatusLabel,
 } from '../lib/labels.js';
+import {
+  OPPORTUNITY_LIST_SORTS,
+  readListFilters,
+  readListSort,
+  withListFilters,
+  withListSort,
+  withoutOpportunityFilters,
+  type ListFilters,
+  type OpportunityListSort,
+} from '../lib/opportunity-address.js';
+import { useAddressSearch, useOpportunityAddress } from '../lib/use-opportunity-address.js';
 
-const STATES: readonly OpportunityStatusKind[] = ['open', 'won', 'lost'];
-
-/** `<field>:<direction>` — one control for the two query parameters. */
-const SORTS = [
-  'createdAt:desc',
-  'createdAt:asc',
-  'updatedAt:desc',
-  'value:desc',
-  'expectedCloseDate:asc',
-] as const;
-type SortOption = (typeof SORTS)[number];
-
-const SEARCH_DEBOUNCE_MS = 300;
+const STATES = ['open', 'won', 'lost'] as const;
 
 /** The custom fields this list offers as filters (feature 157). */
 const CUSTOM_FIELD_FILTERS_ENDPOINT = '/api/v1/admin/crm/opportunities/custom-field-filters';
@@ -97,17 +94,15 @@ function customFieldReferences(filters: CustomFieldFilters): OpportunityFieldFil
   return references;
 }
 
-/** The filters shared with the board, plus the two only a list has. */
-interface Filters extends SharedOpportunityFilters {
-  state: OpportunityStatusKind | '';
-  statusCode: string;
-}
-
-const NO_FILTERS: Filters = { ...NO_SHARED_FILTERS, state: '', statusCode: '' };
+/** The filters shared with the board, plus the two only a list has — flat, as the fields edit them. */
+type Filters = SharedOpportunityFilters & Omit<ListFilters, 'shared'>;
 
 function hasFilters(filters: Filters): boolean {
   return hasSharedFilters(filters) || filters.state !== '' || filters.statusCode !== '';
 }
+
+/** No cursor followed yet: the first page. */
+const FIRST_PAGE: readonly string[] = [];
 
 /**
  * The Opportunities list (`specs/143-crm-sales-opportunities/`, User Story 1 —
@@ -125,6 +120,13 @@ function hasFilters(filters: Filters): boolean {
  * `cf.<key>.<op>` and reach the server as `custom:<key>` references in
  * `fieldFilters`; a filter the server refuses is reported by name with a way
  * to remove it. The board and its card-field filters are untouched.
+ *
+ * Since issue #1558 (UX audit WORK-07, DEC-13) the list is the *List* view of
+ * the one Opportunities page, the board its *Board* view (`?view=board`).
+ * **Every filter, the sort included, lives in the address**, which the two
+ * views share (`lib/opportunity-address.ts`): switching view carries the
+ * shared filters over, a filtered list can be reloaded and sent on, and the
+ * page restarts from its first page whenever the address changes.
  */
 export function OpportunitiesList(): ReactNode {
   const t = useTranslation('crm');
@@ -136,11 +138,25 @@ export function OpportunitiesList(): ReactNode {
   const canWrite = hasPermission('crm:write');
   const { pageSize, setPageSize } = usePageSizePreference('crm-opportunities');
 
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<SortOption>('createdAt:desc');
-  /** The cursors that led to the page on screen; empty on the first page. */
-  const [trail, setTrail] = useState<string[]>([]);
+  const { address, params: addressParams, update, setView } = useOpportunityAddress();
+  const filters = useMemo<Filters>(() => {
+    const read = readListFilters(addressParams);
+    return { ...read.shared, state: read.state, statusCode: read.statusCode };
+  }, [addressParams]);
+  const sort = readListSort(addressParams);
+  const customFilters = useMemo<CustomFieldFilters>(
+    () => readCustomFieldFilterParams(addressParams),
+    [addressParams],
+  );
+  /**
+   * The cursors that led to the page on screen, for the address and page size
+   * they were followed under: any other means the first page (FIRST_PAGE).
+   */
+  const pagingKey = `${address}|${pageSize}`;
+  const [paging, setPaging] = useState<{ key: string; trail: readonly string[] }>({ key: pagingKey, trail: FIRST_PAGE });
+  const trail = paging.key === pagingKey ? paging.trail : FIRST_PAGE;
+  const setTrail = (next: (previous: readonly string[]) => readonly string[]): void =>
+    setPaging((previous) => ({ key: pagingKey, trail: next(previous.key === pagingKey ? previous.trail : FIRST_PAGE) }));
   const [rows, setRows] = useState<OpportunitySummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -148,10 +164,6 @@ export function OpportunitiesList(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [statuses, setStatuses] = useState<OpportunityWorkflowStatus[]>([]);
   const sequence = useRef(0);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [customFilters, setCustomFilters] = useState<CustomFieldFilters>(() =>
-    readCustomFieldFilterParams(searchParams),
-  );
   /** The key of a custom-field filter the server refused, until it is removed. */
   const [refusedKey, setRefusedKey] = useState<string | null>(null);
   const {
@@ -167,16 +179,28 @@ export function OpportunitiesList(): ReactNode {
    */
   const lastRequest = useRef<string | null>(null);
 
-  /** The custom-field filters changed: into the address, and back to the first page. */
+  /** The custom-field filters changed: into the address, and so back to the first page. */
   const changeCustom = useCallback(
     (next: CustomFieldFilters): void => {
-      setCustomFilters(next);
       setRefusedKey(null);
-      setTrail([]);
-      setSearchParams((previous) => writeCustomFieldFilterParams(previous, next), { replace: true });
+      update((previous) => writeCustomFieldFilterParams(previous, next));
     },
-    [setSearchParams],
+    [update],
   );
+
+  /** Any change of what is asked for goes into the address, and so starts again from the first page. */
+  const change = useCallback(
+    (patch: Partial<Filters>): void =>
+      update((previous) => {
+        const current = readListFilters(previous);
+        const { state = current.state, statusCode = current.statusCode, ...shared } = patch;
+        return withListFilters(previous, { shared: { ...current.shared, ...shared }, state, statusCode });
+      }),
+    [update],
+  );
+
+  const commitSearch = useCallback((q: string): void => change({ q }), [change]);
+  const [search, setSearch, resetSearch] = useAddressSearch(filters.q, commitSearch);
 
   // Options removed since the address was written are dropped once the fields
   // are known; an unknown key stays for the server to refuse.
@@ -203,15 +227,6 @@ export function OpportunitiesList(): ReactNode {
       alive = false;
     };
   }, []);
-
-  // The search box is typed into; the request follows once typing pauses.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setFilters((previous) => (previous.q === search ? previous : { ...previous, q: search }));
-      setTrail((previous) => (previous.length === 0 ? previous : []));
-    }, SEARCH_DEBOUNCE_MS);
-    return (): void => clearTimeout(timer);
-  }, [search]);
 
   const params = useMemo<OpportunityListParams>(() => {
     const [field, order] = sort.split(':') as [OpportunitySort, 'asc' | 'desc'];
@@ -259,17 +274,11 @@ export function OpportunitiesList(): ReactNode {
     void load();
   }, [load]);
 
-  /** Any change of what is asked for starts again from the first page. */
-  const change = (patch: Partial<Filters>): void => {
-    setFilters((previous) => ({ ...previous, ...patch }));
-    setTrail([]);
-  };
-
+  /** Every filter of both views goes; the view and the sort stay. */
   const clear = (): void => {
-    setSearch('');
-    setFilters(NO_FILTERS);
-    setTrail([]);
-    if (Object.keys(customFilters).length > 0) changeCustom(emptyCustomFieldFilters());
+    resetSearch();
+    setRefusedKey(null);
+    update(withoutOpportunityFilters);
   };
 
   const removeRefused = (): void => {
@@ -380,9 +389,14 @@ export function OpportunitiesList(): ReactNode {
     <>
       <PageHeader
         title={t('opportunity.list.title')}
-        // With nothing listed the empty state carries the one action; two
-        // filled buttons for the same thing would compete.
-        actions={canWrite && (rows.length > 0 || filtered || !loaded) ? newOpportunity : undefined}
+        actions={
+          <>
+            <ViewModeToggle mode="list" onChange={setView} />
+            {/* With nothing listed the empty state carries the one action; two
+                filled buttons for the same thing would compete. */}
+            {canWrite && (rows.length > 0 || filtered || !loaded) ? newOpportunity : null}
+          </>
+        }
       />
 
       <Card className="mb-4">
@@ -407,7 +421,7 @@ export function OpportunitiesList(): ReactNode {
                   className="w-auto"
                   value={filters.state}
                   onChange={(event): void =>
-                    change({ state: event.target.value as OpportunityStatusKind | '' })
+                    change({ state: event.target.value as Filters['state'] })
                   }
                 >
                   <option value="">{t('opportunity.list.filter.stateAll')}</option>
@@ -446,12 +460,11 @@ export function OpportunitiesList(): ReactNode {
                 aria-label={t('opportunity.list.sort')}
                 className="w-auto"
                 value={sort}
-                onChange={(event): void => {
-                  setSort(event.target.value as SortOption);
-                  setTrail([]);
-                }}
+                onChange={(event): void =>
+                  update((previous) => withListSort(previous, event.target.value as OpportunityListSort))
+                }
               >
-                {SORTS.map((option) => (
+                {OPPORTUNITY_LIST_SORTS.map((option) => (
                   <option key={option} value={option}>
                     {t(`opportunity.list.sortOption.${option.replace(':', '.')}`)}
                   </option>
@@ -531,10 +544,7 @@ export function OpportunitiesList(): ReactNode {
                   hasPrevious={trail.length > 0}
                   hasNext={nextCursor !== null}
                   busy={loading}
-                  onPageSizeChange={(next): void => {
-                    setPageSize(next);
-                    setTrail([]);
-                  }}
+                  onPageSizeChange={setPageSize}
                   onPrevious={(): void => setTrail((previous) => previous.slice(0, -1))}
                   onNext={(): void => {
                     if (nextCursor) setTrail((previous) => [...previous, nextCursor]);

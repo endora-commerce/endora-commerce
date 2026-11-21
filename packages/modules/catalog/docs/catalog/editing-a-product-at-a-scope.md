@@ -20,8 +20,8 @@ The switcher offers three levels, narrowest last:
 Only scopes that are valid for the product are offered: the product must be in the channel, and the channel must
 offer the language. A product that is in no sales channel can only be edited at Global. If the address you open names
 a channel or language that is no longer valid, the editor opens at the nearest valid scope and says why ("Opened at
-…"). A banner reading "Changes apply only to *scope*" is shown whenever you are not at Global, and the editor says in
-words where you are ("Editing …"). Next to it is a link to the **Scope map** tab.
+…"). A banner reading "Changes apply only to *scope*" is shown whenever you are not at Global. Next to the language
+select is the **Scope map** link, which opens the Scope map in a panel on the right.
 
 Saving applies to the current scope only. A save never changes a value at any other scope. The **Save** button sits
 in the scope bar, next to the scope it saves, and shows how many changes are waiting ("Save 2 changes"). On a wide
@@ -99,11 +99,16 @@ browser tab with unsaved changes makes the browser ask before it leaves.
 
 At Channel and Channel × language, every field that can be set at that scope shows where its value comes from:
 
-- **Inherited** — the field is ticked "Use value from *parent scope*" and shows the parent's value, with its source,
-  read-only. A text field at Channel × language reads "Not translated"; "No value" appears when nothing in the
-  chain has one;
+- **Inherited** — the field is ticked "Use value from *parent scope*" and shows the parent's value read-only, in a
+  dashed box. A line under the field adds only what the checkbox does not say: "No value at any scope above" when
+  nothing in the chain has one, and "Inherited from Global" at Channel × language when the channel has no value of
+  its own either;
 - **Overridden** — the field holds its own value at this scope;
 - **Empty here** — the field holds a deliberately empty value, which stops the chain: the parent's value is not used.
+
+Without permission to change the product there is no checkbox, so each field says it in words instead: an
+**Inherited** (or, for a text field at Channel × language, **Not translated**) badge with "Inherited from *scope*",
+or "Set at this scope".
 
 To set a value at this scope, untick "Use value from *parent scope*" and type it. To go back to the parent's value,
 tick it again; the own value is removed when you save. A required field (the name, a required attribute) cannot be
@@ -119,13 +124,18 @@ present when it exists at the scope, at the channel, or at Global, in that order
 "*N* incomplete scopes" with a link to the Scope map. The list reflects **saved** values; the check made when you
 save counts saved and staged values together.
 
-## The Scope map tab
+## The Scope map
 
-The **Scope map** tab is the overview of every scope of the product: one cell per sales channel in one language, a
+The **Scope map** is the overview of every scope of the product: one cell per sales channel in one language, a
 "Whole channel" column for values set for the channel itself, the status in each cell (set here, from the channel or
 from Global, and whether the product is live there now), and what is missing. **Edit at *scope*** opens the editor at
 that scope, and a field's link focuses that field. Values kept for a channel or language the product has left are
 listed under "No longer applies" and can be deleted there.
+
+The Scope map opens in a panel on the right, over the tab you were on, from the link next to the language select and
+from the "*N* incomplete scopes" line. **Close** or Escape returns to that tab; following an **Edit at *scope***
+link closes the panel and opens the editor at that scope. Its address is the product's address with `?scopeMap=1`;
+an older link to the former Scope map tab (`?tab=scopes`) opens the panel too.
 
 ## Read-only mode
 

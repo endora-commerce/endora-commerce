@@ -172,7 +172,7 @@ export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> =
   // router refuses on; declaring the read code would advertise a screen a
   // reader is refused, the 403 this check exists to prevent.
   'crm:open-crm-tags':
-    '"CRM tags" (issue #516) declares `crm:configure`, the code the /crm/tags screen and every ' +
+    '"CRM tags" (issue #516) declares `crm:configure`, the code the /crm/workflow/tags screen and every ' +
     'write on it (POST, PATCH, DELETE /api/v1/admin/crm/tags) are gated on; the list it loads, ' +
     'GET /api/v1/admin/crm/tags, is `crm:read` because tagging an opportunity is daily work and ' +
     'the opportunity screens read it. Retire this entry if the tag picker reads the list from a ' +
@@ -183,13 +183,13 @@ export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> =
     'because the list, the board and the detail screen all need the statuses to render ' +
     '(`routes.workflow.ts`). Retire this entry if those screens read the statuses elsewhere.',
   'projects:open-project-roles':
-    '"Project roles" (issue #516) declares `projects:configure`, the code the /projects/roles ' +
+    '"Project roles" (issue #516) declares `projects:configure`, the code the /projects/settings/roles ' +
     'screen is gated on; GET /api/v1/admin/projects/roles is `projects:read` because the project ' +
     'screens read the dictionary to offer its active entries. Same shape as ' +
     '`projects:open-project-templates`; retire it on the same answer.',
   'projects:open-project-loss-reasons':
     '"Project loss reasons" (issue #516) declares `projects:configure`, the code the ' +
-    '/projects/loss-reasons screen is gated on; GET /api/v1/admin/projects/loss-reasons is ' +
+    '/projects/settings/loss-reasons screen is gated on; GET /api/v1/admin/projects/loss-reasons is ' +
     '`projects:read` because the project screens read the dictionary to offer its active ' +
     'entries. Same shape as `projects:open-project-templates`; retire it on the same answer.',
   'newsletter:open-newsletter-provider':

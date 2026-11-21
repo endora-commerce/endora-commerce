@@ -10,7 +10,10 @@
  * *Configure card*, a palette action) can open it directly.
  */
 
-export const WORKFLOW_PATH = '/crm/workflow';
+import { CRM_CONFIGURATION_PATH } from './configuration-paths.js';
+
+/** The workflow is the configuration's first tab (issue #1557). */
+export const WORKFLOW_PATH = CRM_CONFIGURATION_PATH;
 
 export type WorkflowSection = 'statuses' | 'orderSync' | 'value' | 'boardCard';
 

@@ -64,7 +64,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `open-task-priorities` | `/tasks/settings/priorities` | `tasks:configure` |
 | `open-task-tags` | `/tasks/settings/tags` | `tasks:configure` |
 | `open-task-general-settings` | `/tasks/settings/general` | `tasks:configure` |
-| `open-task-workflow` | `/tasks/settings/workflow` | `tasks:configure` |
+| `open-task-workflow` | `/tasks/settings` | `tasks:configure` |
 | `open-tasks` | `/tasks` | `tasks:read` |
 
 ## Ustawienia

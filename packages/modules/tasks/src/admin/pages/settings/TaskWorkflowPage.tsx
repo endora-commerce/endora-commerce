@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import type {
   TaskBoardCardConfig,
@@ -23,12 +23,8 @@ import {
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../../api.js';
-import {
-  BOARD_CARD_ANCHOR,
-  TASK_GENERAL_SETTINGS_PATH,
-  TASK_PRIORITIES_PATH,
-  TASK_TAGS_PATH,
-} from '../../lib/settings-paths.js';
+import { BOARD_CARD_ANCHOR } from '../../lib/settings-paths.js';
+import { TaskConfigurationTabs } from '../../components/TaskConfigurationTabs.js';
 import { TaskStatusDeleteDialog } from '../../components/workflow/TaskStatusDeleteDialog.js';
 import { boardFieldLabel } from '../../components/TaskCard.js';
 import {
@@ -170,29 +166,13 @@ export function TaskWorkflowPage(): ReactNode {
     setWorkflow(await tasksApi.deleteStatus(pendingDelete.code, replacement));
   };
 
+  // The configuration's tab strip (issue #1557) replaces the three text links
+  // this header used to carry to the other screens.
   const header = (
-    <PageHeader
-      title={t('workflow.title')}
-      actions={
-        <nav aria-label={t('settings.nav')} className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          {(
-            [
-              [TASK_PRIORITIES_PATH, 'settings.priorities.link'],
-              [TASK_TAGS_PATH, 'settings.tags.link'],
-              [TASK_GENERAL_SETTINGS_PATH, 'settings.link'],
-            ] as const
-          ).map(([to, labelKey]) => (
-            <Link
-              key={to}
-              to={to}
-              className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline-offset-4 hover:underline sm:min-h-8"
-            >
-              {t(labelKey)}
-            </Link>
-          ))}
-        </nav>
-      }
-    />
+    <>
+      <PageHeader title={t('workflow.title')} />
+      <TaskConfigurationTabs />
+    </>
   );
 
   if (workflow === null) {

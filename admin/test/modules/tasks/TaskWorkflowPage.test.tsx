@@ -561,7 +561,7 @@ describe('TaskWorkflowPage — the board card (FR-022)', () => {
       const section = await screen.findByRole('region', { name: en('boardCard.title') });
       await within(section).findByRole('list', { name: core('boardCardFields.shown.title') });
       await userEvent.click(within(section).getByRole('button', { name: core('boardCardFields.add', { field: 'Region' }) }));
-      await userEvent.click(screen.getByRole('link', { name: en('settings.tags.link') }));
+      await userEvent.click(screen.getByRole('tab', { name: en('configuration.tab.tags') }));
       expect(confirmSpy).toHaveBeenCalledWith(core('form.unsavedChanges.confirm'));
       expect(screen.getByRole('region', { name: en('boardCard.title') })).toBeInTheDocument();
     } finally {
@@ -601,11 +601,11 @@ describe('TaskWorkflowPage — the board card (FR-022)', () => {
 
 describe('TaskWorkflowPage — who sees it', () => {
   it('is a route and a nav entry on tasks:configure only, and a palette action on the same code', async () => {
-    const route = (contributions.routes ?? []).find((candidate) => candidate.path === '/tasks/settings/workflow');
+    // The configuration's first tab, at the row's own address (issue #1557).
+    const route = (contributions.routes ?? []).find((candidate) => candidate.path === '/tasks/settings');
     expect(route?.requiredPermission).toBe('tasks:configure');
-    const nav = (contributions.nav ?? []).find((row) => row.to === '/tasks/settings/workflow');
+    const nav = (contributions.nav ?? []).find((row) => row.to === '/tasks/settings');
     expect(nav?.requiredPermission).toBe('tasks:configure');
-    expect(nav?.labelKey).toBe('nav.settings.label');
-    expect(en('nav.settings.label')).toBe('Task settings');
+    expect(nav?.labelKey).toBe('nav.configuration.label');
   });
 });

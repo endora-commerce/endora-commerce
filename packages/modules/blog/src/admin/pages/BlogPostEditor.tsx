@@ -2,7 +2,21 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import { slugify as slugifyText, type BlogPostDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  InlineStatus,
+  Input,
+  Label,
+  PageHeader,
+  SaveButtonGroup,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AssetFieldPicker, ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
 import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
@@ -55,6 +69,30 @@ function savedForm(post: BlogPostDetail, language: string): FormState {
     ...savedFields(post, language),
   };
 }
+
+/**
+ * What the post links to: its author, its tags and its related posts and products. Issue #1512
+ * (UX audit CONTENT-09; owner decision DEC-08) — these used to write the moment they were picked,
+ * beside fields that waited for Save; they are now part of the draft and go with the one Save.
+ * Order matters for the three lists (it is the storefront's order), so they compare as sequences.
+ */
+interface Links {
+  authorId: string | null;
+  tagIds: string[];
+  relatedPostIds: string[];
+  relatedProductIds: string[];
+}
+
+function savedLinks(post: BlogPostDetail): Links {
+  return {
+    authorId: post.author?.id ?? null,
+    tagIds: post.tags.map((tag) => tag.id),
+    relatedPostIds: [...post.relatedPostIds],
+    relatedProductIds: [...post.relatedProductIds],
+  };
+}
+
+const blankLinks: Links = { authorId: null, tagIds: [], relatedPostIds: [], relatedProductIds: [] };
 
 /** Same channels and languages, in any order. */
 function sameMembers(a: readonly string[], b: readonly string[]): boolean {
@@ -122,6 +160,7 @@ export function BlogPostEditor(): ReactNode {
   const settingsPanel = usePageBuilderEditorSettingsPanel(isNew);
   const [post, setPost] = useState<BlogPostDetail | null>(null);
   const [form, setForm] = useState<FormState>(blankForm);
+  const [links, setLinks] = useState<Links>(blankLinks);
   // For a new post, slug + meta title are auto-derived from the title until the
   // editor types in either field, at which point that field stops auto-syncing.
   const [slugEdited, setSlugEdited] = useState(false);
@@ -144,13 +183,15 @@ export function BlogPostEditor(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   // Which field a refused save was about, so the field itself says so.
   const [problem, setProblem] = useState<BlogEditorProblem | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // The result of a save or a status change, said beside the buttons (InlineStatus, not a banner).
+  const status = useInlineStatus();
   const [saving, setSaving] = useState(false);
 
   const reloadFormFromPost = useCallback(
     (loaded: BlogPostDetail, language: string | null) => {
       const lang = language ?? loaded.languages[0] ?? 'en-US';
       setForm(savedForm(loaded, lang));
+      setLinks(savedLinks(loaded));
       setStash({});
     },
     [],
@@ -183,6 +224,7 @@ export function BlogPostEditor(): ReactNode {
     if (!isNew) return;
     setPost(null);
     setForm(blankForm);
+    setLinks(blankLinks);
     setScope({ salesChannelIds: [], languages: ['en-US'] });
     setActiveLanguage('en-US');
     setDraftData(null);
@@ -197,10 +239,9 @@ export function BlogPostEditor(): ReactNode {
    * stash, and the fields every language shares (slug, image, …) are not touched.
    *
    * Done where the language is chosen rather than in an effect over `post`: the
-   * tag and related-content pickers save on their own and answer with a new
-   * `post`, and an effect keyed on it would put the stored canvas back under an
-   * operator who is half-way through editing — now that the pickers sit beside
-   * the canvas instead of a screen below it, that is one click away.
+   * address panel saves on its own and the post is re-read after it, and an
+   * effect keyed on `post` would put the stored canvas back under an operator
+   * who is half-way through editing.
    */
   const switchLanguage = useCallback(
     (language: string) => {
@@ -239,7 +280,7 @@ export function BlogPostEditor(): ReactNode {
   );
 
   const create = async (): Promise<boolean> => {
-    setInfo(null);
+    status.clear();
     const found = blogEditorProblem({ ...form, ...scope });
     setProblem(found);
     if (found) return refuse(t(found));
@@ -276,23 +317,27 @@ export function BlogPostEditor(): ReactNode {
   };
 
   /**
-   * One save for the fields and the canvas.
+   * One save for the fields, what the post links to, and the canvas.
    *
-   * They are still the two requests they always were — the fields, then the
-   * canvas when it was touched, carrying the version the first one answered
-   * with. What went is the second button: "Save metadata" lived at the foot of
-   * the form, and a save action inside a panel that collapses is a save action
-   * that can disappear.
+   * The fields go first, with the author and the tags when either changed; then
+   * the related posts and the related products, each only when changed; then the
+   * canvas when it was touched — every request carrying the version the previous
+   * one answered with. What went is the other buttons: "Save metadata" lived at
+   * the foot of the form, and a save action inside a panel that collapses is a
+   * save action that can disappear; the author, tag and related-item pickers
+   * wrote the moment they were picked (issue #1512, DEC-08). Only the address
+   * panel still saves on its own, and its heading says so (`ImmediateBadge`).
    */
   const save = async (): Promise<boolean> => {
     if (!post) return false;
-    setInfo(null);
+    status.clear();
     const found = blogEditorProblem({ ...form, ...scope });
     setProblem(found);
     if (found) return refuse(t(found));
     setSaving(true);
     setError(null);
     const lang = activeLanguage ?? 'en-US';
+    const saved = savedLinks(post);
     // Every language with unsaved fields, the one on screen included.
     const fieldsByLanguage: Record<string, LanguageFields> = {
       ...Object.fromEntries(
@@ -321,10 +366,22 @@ export function BlogPostEditor(): ReactNode {
         metaTitle: { ...(post.metaTitle ?? {}), ...perLanguage('metaTitle') },
         metaDescription: { ...(post.metaDescription ?? {}), ...perLanguage('metaDescription') },
         metaKeywords: { ...(post.metaKeywords ?? {}), ...perLanguage('metaKeywords') },
+        // The author and the tags ride on the fields request, only when changed (DEC-08).
+        ...(links.authorId !== saved.authorId ? { authorAdminUserId: links.authorId } : {}),
+        ...(!isDraftEqual(links.tagIds, saved.tagIds) ? { tagIds: links.tagIds } : {}),
         version: post.version,
       });
-      // The fields are stored from here on, whatever the canvas request does.
+      // The fields are stored from here on, whatever the later requests do.
       setPost(updated);
+      // The related items have requests of their own; each carries the version the previous answered with.
+      if (!isDraftEqual(links.relatedPostIds, saved.relatedPostIds)) {
+        updated = await blogClient.setPostRelatedPosts(post.id, links.relatedPostIds, updated.version);
+        setPost(updated);
+      }
+      if (!isDraftEqual(links.relatedProductIds, saved.relatedProductIds)) {
+        updated = await blogClient.setPostRelatedProducts(post.id, links.relatedProductIds, updated.version);
+        setPost(updated);
+      }
       if (Object.keys(canvases).length > 0) {
         updated = await blogClient.putPostContent(post.id, {
           content: {
@@ -337,7 +394,8 @@ export function BlogPostEditor(): ReactNode {
         setContentDirty(false);
       }
       setStash({});
-      setInfo(t('messages.saved'));
+      setLinks(savedLinks(updated));
+      status.show(t('messages.saved'));
       return true;
     } catch (err) {
       return refuse(err instanceof Error ? err.message : String(err));
@@ -350,97 +408,12 @@ export function BlogPostEditor(): ReactNode {
     if (await save()) navigate('/blog/posts');
   };
 
-  const onSaveTags = useCallback(
-    async (tagIds: string[]) => {
-      if (!post) return;
-      setSaving(true);
-      setError(null);
-      setInfo(null);
-      try {
-        const updated = await blogClient.setPostTags(post.id, tagIds, post.version);
-        setPost(updated);
-        setInfo(t('messages.tagsUpdated', { count: tagIds.length }));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setSaving(false);
-      }
-    },
-    [post, t],
-  );
-
-  /** Feature 171 (US7) — the post's author, saved on its own like the tags. */
-  const onSaveAuthor = useCallback(
-    async (authorAdminUserId: string | null) => {
-      if (!post) return;
-      setSaving(true);
-      setError(null);
-      setInfo(null);
-      try {
-        const updated = await blogClient.patchPost(post.id, { authorAdminUserId, version: post.version });
-        setPost(updated);
-        setInfo(t('author.updated'));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setSaving(false);
-      }
-    },
-    [post, t],
-  );
-
-  const onSaveRelatedPosts = useCallback(
-    async (relatedPostIds: string[]) => {
-      if (!post) return;
-      setSaving(true);
-      setError(null);
-      setInfo(null);
-      try {
-        const updated = await blogClient.setPostRelatedPosts(
-          post.id,
-          relatedPostIds,
-          post.version,
-        );
-        setPost(updated);
-        setInfo(t('messages.relatedPostsUpdated', { count: relatedPostIds.length }));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setSaving(false);
-      }
-    },
-    [post, t],
-  );
-
-  const onSaveRelatedProducts = useCallback(
-    async (productIds: string[]) => {
-      if (!post) return;
-      setSaving(true);
-      setError(null);
-      setInfo(null);
-      try {
-        const updated = await blogClient.setPostRelatedProducts(
-          post.id,
-          productIds,
-          post.version,
-        );
-        setPost(updated);
-        setInfo(t('messages.relatedProductsUpdated', { count: productIds.length }));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setSaving(false);
-      }
-    },
-    [post, t],
-  );
-
   const onLifecycle = useCallback(
     async (kind: 'publish' | 'unpublish' | 'archive') => {
       if (!post) return;
       setSaving(true);
       setError(null);
-      setInfo(null);
+      status.clear();
       try {
         const updated =
           kind === 'publish'
@@ -449,14 +422,14 @@ export function BlogPostEditor(): ReactNode {
               ? await blogClient.unpublishPost(post.id, post.version)
               : await blogClient.archivePost(post.id, post.version);
         setPost(updated);
-        setInfo(t('messages.statusUpdated', { status: t(`status.${updated.status}`) }));
+        status.show(t('messages.statusUpdated', { status: t(`status.${updated.status}`) }));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
         setSaving(false);
       }
     },
-    [post, t],
+    [post, status, t],
   );
 
   const ready = !isNew && post !== null && activeLanguage !== null && draftData !== null;
@@ -472,6 +445,7 @@ export function BlogPostEditor(): ReactNode {
     }
     const lang = activeLanguage ?? post.languages[0] ?? 'en-US';
     if (!isDraftEqual(form, savedForm(post, lang))) return true;
+    if (!isDraftEqual(links, savedLinks(post))) return true;
     if (!sameMembers(scope.salesChannelIds, post.salesChannelIds) || !sameMembers(scope.languages, post.languages)) return true;
     if (contentDirty && draftData && !isDraftEqual(draftData, dataFor(post, lang))) return true;
     return Object.entries(stash).some(
@@ -481,6 +455,12 @@ export function BlogPostEditor(): ReactNode {
     );
   })();
 
+  // A "Saved." stays only while nothing has changed since: the next edit clears it (issue #1512).
+  const { clear: clearStatus } = status;
+  useEffect(() => {
+    if (dirty) clearStatus();
+  }, [dirty, clearStatus]);
+
   const discard = (): void => {
     if (!post) {
       setForm(blankForm);
@@ -489,6 +469,7 @@ export function BlogPostEditor(): ReactNode {
     }
     const lang = activeLanguage ?? post.languages[0] ?? 'en-US';
     setForm(savedForm(post, lang));
+    setLinks(savedLinks(post));
     setScope({ salesChannelIds: post.salesChannelIds, languages: post.languages });
     setStash({});
     setDraftData(dataFor(post, lang));
@@ -508,8 +489,10 @@ export function BlogPostEditor(): ReactNode {
             title={isNew ? t('postEditor.title.new') : form.name || t('postEditor.title.edit')}
             description={isNew ? t('postEditor.description.new') : undefined}
             actions={
-              <div className="flex flex-wrap items-center gap-2">
+              <div data-save-actions className="flex flex-wrap items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />
+                {/* Mounted before it has text, so a result is announced and not only shown (WCAG 4.1.3). */}
+                <InlineStatus {...status.props} />
                 {/* Publishing is the last step of writing, not a setting: it
                     stays in the header, where it is reachable with the panel
                     put away. Only the transition the status allows is offered. */}
@@ -556,15 +539,6 @@ export function BlogPostEditor(): ReactNode {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
-          {/* A live region that is there before it has anything to say, so the
-              result of a save is announced and not only shown (WCAG 4.1.3). */}
-          <div role="status">
-            {info ? (
-              <Alert role="none">
-                <AlertDescription>{info}</AlertDescription>
-              </Alert>
-            ) : null}
-          </div>
         </>
       }
       canvasBar={
@@ -700,7 +674,12 @@ export function BlogPostEditor(): ReactNode {
                 <CardTitle>{t('author.title')}</CardTitle>
               </CardHeader>
               <CardContent>
-                <AuthorPicker value={post.author ?? null} disabled={saving} onChange={(id) => void onSaveAuthor(id)} />
+                <AuthorPicker
+                  value={links.authorId}
+                  saved={post.author ?? null}
+                  disabled={saving}
+                  onChange={(authorId) => setLinks((l) => ({ ...l, authorId }))}
+                />
               </CardContent>
             </Card>
           ) : null}
@@ -765,8 +744,8 @@ export function BlogPostEditor(): ReactNode {
               </CardHeader>
               <CardContent>
                 <TagPicker
-                  value={post.tags.map((tag) => tag.id)}
-                  onChange={(next) => void onSaveTags(next)}
+                  value={links.tagIds}
+                  onChange={(tagIds) => setLinks((l) => ({ ...l, tagIds }))}
                 />
               </CardContent>
             </Card>
@@ -779,9 +758,9 @@ export function BlogPostEditor(): ReactNode {
               </CardHeader>
               <CardContent>
                 <RelatedPostsPicker
-                  value={post.relatedPostIds}
+                  value={links.relatedPostIds}
                   selfId={post.id}
-                  onChange={(next) => void onSaveRelatedPosts(next)}
+                  onChange={(relatedPostIds) => setLinks((l) => ({ ...l, relatedPostIds }))}
                 />
               </CardContent>
             </Card>
@@ -794,8 +773,8 @@ export function BlogPostEditor(): ReactNode {
               </CardHeader>
               <CardContent>
                 <RelatedProductsPicker
-                  value={post.relatedProductIds}
-                  onChange={(next) => void onSaveRelatedProducts(next)}
+                  value={links.relatedProductIds}
+                  onChange={(relatedProductIds) => setLinks((l) => ({ ...l, relatedProductIds }))}
                 />
               </CardContent>
             </Card>

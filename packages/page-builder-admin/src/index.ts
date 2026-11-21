@@ -87,6 +87,9 @@ export type {
   PageBuilderEditorLayoutProps,
   PageBuilderEditorSettingsPanel,
 } from './chrome/PageBuilderEditorLayout.js';
+// Issue #1540 — a builder's first load: the three-pane skeleton, not a grey sentence.
+export { PageBuilderLoadingSkeleton } from './chrome/PageBuilderLoadingSkeleton.js';
+export type { PageBuilderLoadingSkeletonProps } from './chrome/PageBuilderLoadingSkeleton.js';
 // Feature 163 — the shared fields of the reshaped blocks (research R-9, R-11):
 // one `LinkValue` field, the `ButtonSpec[]` list and the `ResponsiveImage`
 // field. `createButtonLinkSlugField` is `cms`' old slug-only link target, moved

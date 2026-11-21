@@ -66,7 +66,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `new-opportunity` | `/crm/opportunities/new` | `crm:write` |
 | `open-crm-analytics` | `/crm/analytics` | `crm:analytics` |
 | `open-crm-calendar` | `/crm/calendar` | `crm:read` |
-| `open-crm-tags` | `/crm/tags` | `crm:configure` |
+| `open-crm-tags` | `/crm/workflow/tags` | `crm:configure` |
 | `open-crm-workflow` | `/crm/workflow` | `crm:configure` |
 | `open-opportunities` | `/crm/opportunities` | `crm:read` |
 | `open-opportunity-board` | `/crm/board` | `crm:read` |

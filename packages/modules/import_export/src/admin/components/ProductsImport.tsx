@@ -1,11 +1,13 @@
 import { useEffect, useId, useState, type ChangeEvent, type ReactNode } from 'react';
-import { FileSearch } from 'lucide-react';
+import { Check, FileSearch } from 'lucide-react';
 import type { ImportProfile } from '@endora-commerce/contracts';
 import { apiClient, cn } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
   Button,
+  EditorSection,
+  InlineStatus,
   Label,
   Select,
   Table,
@@ -14,6 +16,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { errorMessage } from './import-profiles-api.js';
@@ -88,12 +91,45 @@ function rowErrorLabel(reason: string, t: (key: string, params?: Record<string, 
   return reason;
 }
 
+/** The three steps of a products import, in order (issue #1528). */
+export const PRODUCTS_IMPORT_STEPS = ['profile', 'check', 'apply'] as const;
+export type ProductsImportStep = (typeof PRODUCTS_IMPORT_STEPS)[number];
+
+/**
+ * Which step the operator is on: choosing a profile until one is chosen, checking a file until a
+ * dry run is pending, then applying it. A finished import stays on its last step, done.
+ */
+export function productsImportStep(state: {
+  profileId: string;
+  pending: boolean;
+  applied: boolean;
+}): { current: ProductsImportStep; done: boolean } {
+  if (state.profileId === '') return { current: 'profile', done: false };
+  if (state.pending) return { current: 'apply', done: false };
+  if (state.applied) return { current: 'apply', done: true };
+  return { current: 'check', done: false };
+}
+
 export interface ProductsImportProps {
   profiles: ImportProfile[];
   profilesLoading: boolean;
+  /** The profile list could not be read: step 1 says so, with a retry, rather than "none yet". */
+  profilesError?: boolean;
+  onRetryProfiles?: () => void;
+  /** Opens the page's profiles section beside its use (Proximity). Absent: no link. */
+  onManageProfiles?: () => void;
+  /** Opens the create-profile dialog, for an operator who has none yet (Tesler). */
+  onCreateProfile?: () => void;
 }
 
-export function ProductsImport({ profiles, profilesLoading }: ProductsImportProps): ReactNode {
+export function ProductsImport({
+  profiles,
+  profilesLoading,
+  profilesError = false,
+  onRetryProfiles,
+  onManageProfiles,
+  onCreateProfile,
+}: ProductsImportProps): ReactNode {
   const t = useTranslation('import_export');
   const profileSelectId = useId();
   const [profileId, setProfileId] = useState('');
@@ -106,7 +142,10 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<{ csv: string; report: ProductsImportReport } | null>(null);
   const [applied, setApplied] = useState<ProductsImportReport | null>(null);
-  const [requestError, setRequestError] = useState<string | null>(null);
+  // An error belongs to the step that produced it: a failed check under the file control, a
+  // failed apply beside Apply, where the checked file is still waiting.
+  const [requestError, setRequestError] = useState<{ step: 'check' | 'apply'; message: string } | null>(null);
+  const status = useInlineStatus();
 
   const post = (csv: string, dryRun: boolean): Promise<{ data: ProductsImportReport }> => {
     const qs = new URLSearchParams({ profileId });
@@ -116,6 +155,9 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
     });
   };
 
+  const partial = (report: ProductsImportReport): boolean =>
+    report.errors.length > 0 || (report.fieldErrors?.length ?? 0) > 0;
+
   const onFile = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -124,12 +166,17 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
     setPending(null);
     setApplied(null);
     setRequestError(null);
+    status.clear();
     try {
       const csv = await file.text();
       const res = await post(csv, true);
       setPending({ csv, report: res.data });
+      status.show(
+        t('products.dryRunSummary', { count: res.data.imported, refused: res.data.errors.length }),
+        partial(res.data) ? 'warning' : 'info',
+      );
     } catch (err) {
-      setRequestError(errorMessage(err, t, 'error.import'));
+      setRequestError({ step: 'check', message: errorMessage(err, t, 'error.import') });
     } finally {
       setBusy(false);
     }
@@ -143,29 +190,98 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
       const res = await post(pending.csv, false);
       setPending(null);
       setApplied(res.data);
+      status.show(
+        t('products.applied', { count: res.data.imported, refused: res.data.errors.length }),
+        partial(res.data) ? 'warning' : 'success',
+      );
     } catch (err) {
-      setRequestError(errorMessage(err, t, 'error.import'));
+      setRequestError({ step: 'apply', message: errorMessage(err, t, 'error.import') });
     } finally {
       setBusy(false);
     }
   };
 
-  const noProfile = !profilesLoading && profiles.length === 0;
+  const discard = (): void => {
+    setPending(null);
+    setRequestError(null);
+    status.clear();
+  };
+
+  const noProfile = !profilesLoading && !profilesError && profiles.length === 0;
+  const step = productsImportStep({ profileId, pending: pending !== null, applied: applied !== null });
+  const currentIndex = PRODUCTS_IMPORT_STEPS.indexOf(step.current);
 
   return (
     <div className="space-y-3">
+      {/* Zeigarnik / Goal-Gradient (issue #1528): the operator always sees where they are. */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground">
+          {t('products.step', { current: currentIndex + 1, total: PRODUCTS_IMPORT_STEPS.length })}
+        </p>
+        <ol aria-label={t('products.steps')} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          {PRODUCTS_IMPORT_STEPS.map((key, index) => {
+            const complete = index < currentIndex || (index === currentIndex && step.done);
+            const current = index === currentIndex;
+            return (
+              <li
+                key={key}
+                aria-current={current ? 'step' : undefined}
+                className={cn(
+                  'flex items-center gap-1.5',
+                  index > 0 && "before:mr-0.5 before:h-px before:w-4 before:bg-border before:content-['']",
+                  current ? 'font-semibold text-foreground' : 'text-muted-foreground',
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'flex size-5 items-center justify-center rounded-full border text-xs tabular-nums',
+                    complete
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : current
+                        ? 'border-primary text-foreground'
+                        : 'border-border',
+                  )}
+                >
+                  {complete ? <Check className="size-3" /> : index + 1}
+                </span>
+                <span>{t(`products.step.${key}`)}</span>
+                {complete ? <span className="sr-only">{t('products.step.complete')}</span> : null}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-56 space-y-1.5">
-          <Label htmlFor={profileSelectId}>{t('products.profile')}</Label>
+          <div className="flex items-baseline justify-between gap-3">
+            <Label htmlFor={profileSelectId}>{t('products.profile')}</Label>
+            {/* Proximity (issue #1528): the prerequisite is managed next to where it is used. */}
+            {onManageProfiles && !noProfile ? (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs max-lg:min-h-11"
+                onClick={onManageProfiles}
+              >
+                {t('products.manageProfiles')}
+              </Button>
+            ) : null}
+          </div>
           <Select
             id={profileSelectId}
             value={profileId}
-            disabled={busy || noProfile}
+            disabled={busy || noProfile || profilesError}
             required
             onChange={(event): void => {
               setProfileId(event.target.value);
               // A dry run belongs to the profile it was planned with.
               setPending(null);
+              setApplied(null);
+              setRequestError(null);
+              status.clear();
             }}
           >
             <option value="">{t('products.profilePlaceholder')}</option>
@@ -186,14 +302,14 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
             profileId === '' ? 'cursor-not-allowed opacity-50' : busy ? 'cursor-wait opacity-70' : 'cursor-pointer',
           )}
         >
-          <label className="relative">
+          <label className="relative" aria-busy={busy && pending === null ? true : undefined}>
             <FileSearch />
             {busy && pending === null ? t('products.checking') : t('products.checkFile')}
             <input
               type="file"
               accept=".csv,text/csv"
               disabled={busy || profileId === ''}
-              aria-describedby={profileId === '' && !noProfile ? profileHintId : undefined}
+              aria-describedby={profileId === '' && !noProfile && !profilesError ? profileHintId : undefined}
               onChange={(event): void => {
                 void onFile(event);
               }}
@@ -202,37 +318,61 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
           </label>
         </Button>
       </div>
-      {noProfile ? <p className="text-xs text-muted-foreground">{t('products.noProfile')}</p> : null}
-      {profileId === '' && !noProfile && !profilesLoading ? (
+      {profilesError ? (
+        <Alert variant="destructive" live="off">
+          <AlertDescription>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flex-1">{t('products.profilesError')}</span>
+              {onRetryProfiles ? (
+                <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={onRetryProfiles}>
+                  {t('importProfiles.retry')}
+                </Button>
+              ) : null}
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {noProfile ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>{t('products.noProfile')}</span>
+          {onCreateProfile ? (
+            <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" onClick={onCreateProfile}>
+              {t('products.createProfile')}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {profileId === '' && !noProfile && !profilesLoading && !profilesError ? (
         <p id={profileHintId} className="text-xs text-muted-foreground">
           {t('products.chooseProfileFirst')}
         </p>
       ) : null}
 
-      {requestError ? (
+      {requestError?.step === 'check' ? (
         <Alert variant="destructive">
-          <AlertDescription>{requestError}</AlertDescription>
+          <AlertDescription>{requestError.message}</AlertDescription>
         </Alert>
       ) : null}
 
+      {/* Mounted before it has text, so the dry run's and the apply's results are announced. */}
+      <InlineStatus {...status.props} data-testid="products-import-status" />
+
       {pending !== null ? (
-        <div className="space-y-3 rounded-md border p-4">
-          <Alert variant="default">
-            <AlertDescription>
-              {t('products.dryRunSummary', {
-                count: pending.report.imported,
-                refused: pending.report.errors.length,
-              })}
-            </AlertDescription>
-          </Alert>
+        <EditorSection as="h3" title={t('products.review.title')} className="border-t pt-3">
           <ReportDetails report={pending.report} />
+          {requestError?.step === 'apply' ? (
+            <Alert variant="destructive">
+              <AlertDescription>{requestError.message}</AlertDescription>
+            </Alert>
+          ) : null}
           <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="outline" disabled={busy} onClick={(): void => setPending(null)}>
+            <Button type="button" variant="outline" disabled={busy} onClick={discard}>
               {t('products.cancel')}
             </Button>
             <Button
               type="button"
               disabled={busy}
+              aria-busy={busy ? true : undefined}
               onClick={(): void => {
                 void apply();
               }}
@@ -240,22 +380,10 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
               {busy ? t('products.applying') : t('products.apply')}
             </Button>
           </div>
-        </div>
+        </EditorSection>
       ) : null}
 
-      {applied !== null ? (
-        <div className="space-y-3">
-          <Alert
-            variant={applied.errors.length > 0 || (applied.fieldErrors?.length ?? 0) > 0 ? 'warning' : 'success'}
-            live="polite"
-          >
-            <AlertDescription>
-              {t('products.applied', { count: applied.imported, refused: applied.errors.length })}
-            </AlertDescription>
-          </Alert>
-          <ReportDetails report={applied} />
-        </div>
-      ) : null}
+      {applied !== null ? <ReportDetails report={applied} /> : null}
     </div>
   );
 }

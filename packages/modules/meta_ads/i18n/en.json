@@ -20,7 +20,6 @@
   "customEvents.enabled": "Enabled",
   "customEvents.save": "Save",
   "customEvents.delete": "Delete",
-  "customEvents.deleteConfirm": "Delete this custom event?",
   "customEvents.action.product_viewed": "Product viewed",
   "customEvents.action.add_to_cart": "Added to cart",
   "customEvents.action.add_to_quote_request": "Added to quote request",
@@ -35,5 +34,19 @@
   "error.validationFailed": "Some fields are invalid.",
   "actions.openMetaAds.keywords": "ads",
   "actions.newCustomEvent.keywords": "event",
-  "settingGroups.meta_ads.name": "Meta Ads"
+  "settingGroups.meta_ads.name": "Meta Ads",
+  "customEvents.status": "Status",
+  "customEvents.statusEnabled": "Enabled",
+  "customEvents.statusDisabled": "Disabled",
+  "customEvents.count": "Custom events: {count}",
+  "customEvents.emptyBody": "Add one to report a storefront action under your own Meta event name.",
+  "customEvents.emptyBodyReadOnly": "Ask an administrator who manages Meta Ads to add one.",
+  "customEvents.rowActions": "Actions for {action}: {name}",
+  "customEvents.deleteConfirm.title": "Delete this custom event?",
+  "customEvents.deleteConfirm.message": "“{name}” is deleted, and the storefront stops reporting it to Meta. Standard events are not affected.",
+  "customEvents.deleteConfirm.action": "Delete event",
+  "customEvents.deleteConfirm.failed": "The event could not be deleted, and nothing was changed. Try again.",
+  "customEvents.eventNameInvalid": "Enter a Meta event name: a letter, then letters, digits or underscores.",
+  "customEvents.standardEventHint": "Meta also receives its standard event {name}.",
+  "customEvents.standardEventHintNone": "This action has no Meta standard event."
 }

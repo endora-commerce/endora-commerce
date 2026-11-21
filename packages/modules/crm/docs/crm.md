@@ -46,14 +46,14 @@ when at least one of them is visible.
 
 | Screen | Where | Permission | What it is for |
 | --- | --- | --- | --- |
-| Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, assignee, tags, sales channel, creation date and the custom fields marked as list filters. |
+| Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, as a list or, with the **List / Board** switch in the header, as a board. The list has search and filters by state, status, organization, assignee, tags, sales channel, creation date and the custom fields marked as list filters. |
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
-| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | A header, a stage bar with its current status and the moves allowed from it, back and forward, a card of its facts on the right, and tabs: *Overview*, **Links** (its orders and quote requests), **Events** (what is planned for it, with reminders), *Notes*, *Messages*, *Attachments* and **Change history**. See *The opportunity's screen*. |
-| Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
+| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | A header with the status beside the title, a stage bar with the moves allowed from that status, back and forward, a card of its facts on the right, and tabs: *Overview*, **Links** (its orders and quote requests), **Events** (what is planned for it, with reminders), *Notes*, *Messages*, *Attachments* and **Change history**. See *The opportunity's screen*. |
+| Board | **Board** in the *List / Board* switch of **CRM → Opportunities** (`/crm/opportunities?view=board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. The former address `/crm/board` still opens it. |
 | Calendar | **CRM → Calendar** (`/crm/calendar`) | `crm:read` | The events planned on the open opportunities you may see, by month, week or day, or as a list. Every event opens its opportunity. See *The calendar*. |
 | Analytics | **CRM → Analytics** (`/crm/analytics`) | `crm:analytics` | Five figures over a range of days: handling time, time in each status, the most effective sales reps, the most valuable opportunities and the average value. |
-| Tags | **CRM → Tags** (`/crm/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. |
-| Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | Four tabs. **Statuses & moves**: the statuses and the transitions between them, each change applied at once. **Order sync** (`/crm/workflow/order-sync`): the order status each opportunity status sets and the opportunity status each order status leads to, under one Save. **Value** (`/crm/workflow/value`): the statuses that count towards a computed value. **Board card** (`/crm/workflow/board-card`): the fields a board card shows. |
+| Tags | the **Tags** tab of **CRM → Configuration** (`/crm/workflow/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. The former address `/crm/tags` still opens it. |
+| Workflow | **CRM → Configuration** (`/crm/workflow`) | `crm:configure` | Four tabs before **Tags**, each with one save model. **Statuses & moves** (`/crm/workflow`): the statuses and the transitions between them, each change applied at once. **Order sync** (`/crm/workflow/order-sync`): the order status each opportunity status sets and the opportunity status each order status leads to, under one Save. **Value** (`/crm/workflow/value`): the statuses that count towards a computed value. **Board card** (`/crm/workflow/board-card`): the fields a board card shows. |
 
 The everyday screens are also in the command palette (`⌘K` / `Ctrl+K`):
 **Sales opportunities**, **New sales opportunity**, **Opportunity board**,
@@ -94,13 +94,14 @@ right. There is no **Edit** button and no separate edit form: every field that
 can be changed is changed where it is shown (see *Editing and deleting an
 opportunity*). The title has its pencil beside the heading.
 
-**The stage bar**, at the top of the left column, names the **current status**
-and shows where the opportunity can go from it — and nothing else. A workflow
+**The stage bar**, at the top of the left column, shows under **Move to…**
+where the opportunity can go from its status — and nothing else. The status
+itself is the badge beside the title; the bar does not repeat it. A workflow
 is not a straight line, so the bar does not draw one: a status your workflow
 does not allow from here is not on the screen.
 
 - **Back** lists the moves to a status that comes earlier in the order you gave
-  the statuses on **CRM → Workflow**, and the moves that reopen a closed
+  the statuses on **CRM → Configuration → Statuses & moves**, and the moves that reopen a closed
   opportunity.
 - **Forward** lists the moves to a later status, and every move that closes the
   opportunity, each marked as *won* or *lost* — whatever position a closing
@@ -109,7 +110,7 @@ does not allow from here is not on the screen.
   the bar says so; a closed opportunity also says how and when it closed.
 - For a holder of `crm:write` **each move is a button**, and pressing it is the
   same status change, with the same rules, as anywhere else in the module. The
-  optional **reason** is the field under the bar. Somebody with `crm:read`
+  optional **reason** is behind **Add a reason** under the moves. Somebody with `crm:read`
   alone sees the same moves as plain text.
 - **The bar does not claim a history, and it does not count stages.** It says
   where the opportunity is and where it can go; the *Change history* tab says
@@ -285,8 +286,9 @@ opportunity you were looking at (`If-Match`). What happens next:
   is not of the organization — the field shows the server's own message and
   keeps what you typed.
 
-A status change can carry a **reason**: write it in the field under the stage
-bar before pressing a status. It is optional and is recorded with the change.
+A status change can carry a **reason**: press **Add a reason** under the
+moves, write it, then press a status. It is optional, is recorded with the
+change, and the field folds again after the move.
 
 **Delete**, in the header of the screen, is for a holder of `crm:configure`. It
 asks first, and removes the opportunity together with its status history and
@@ -294,7 +296,8 @@ its links; the linked orders themselves are not touched.
 
 ## The board
 
-**CRM → Board** shows the opportunities you may see as cards, in one column per
+The **Board** view of **CRM → Opportunities** — the **List / Board** switch in
+the page header — shows the opportunities you may see as cards, in one column per
 status, in the workflow's order. Each column's header carries the number of
 opportunities in that status and their value, one total per currency; each card
 shows the opportunity's title and the fields chosen for the card — unless
@@ -339,7 +342,7 @@ and the menus.
 ### What a card shows
 
 A card always shows the opportunity's title. What it shows under the title is
-yours to choose: on **CRM → Workflow**, the **Board card** tab lists the
+yours to choose: on **CRM → Configuration**, the **Board card** tab lists the
 fields on the card, in order, and the fields that can be added. Somebody who
 may configure CRM reaches it from the board too, with **Card fields**.
 
@@ -384,10 +387,14 @@ by its number. Filters combine: only opportunities
 that match all of them are shown, counted and totalled. The value filter
 compares the amount whatever its currency.
 
-**The filters are in the board's address.** Reload the page, bookmark it or
-send the link to a colleague and the same filters are applied. **Clear
-filters** removes them all. A link saved before the card was changed still
-opens: a filter on a field that is no longer on the card is ignored.
+**The filters are in the page's address.** Reload the page, bookmark it or
+send the link to a colleague and the same filters are applied. The list and the
+board share the address: the search, the organization, the assignee, the tags,
+the sales channel and the creation dates set in one view are applied in the
+other when you switch, and a filter only one view has waits for it. **Clear all
+filters** removes the filters of both views. A link saved before the card was
+changed still opens: a filter on a field that is no longer on the card is
+ignored.
 
 ### The list's custom-field filters
 
@@ -551,7 +558,7 @@ administrator is recorded as having made it.
 - when an order moves its opportunity, no other order of that opportunity is
   asked to follow.
 
-On the **Order sync** tab of **CRM → Workflow** these mappings are the second table, *Opportunity
+On the **Order sync** tab of **CRM → Configuration** these mappings are the second table, *Opportunity
 status for each order status*: one row per order status, a choice of the
 opportunity status it leads to, and a checkbox, **Only when every linked order
 is there**. The checkbox is ticked for you when the chosen status closes the
@@ -674,7 +681,7 @@ on an opportunity is everyday work and needs `crm:write`.
 
 In the Admin UI:
 
-- **CRM → Tags** is the tag list, with how many of the opportunities you can
+- **CRM → Configuration → Tags** is the tag list, with how many of the opportunities you can
   see carry each tag. **Add tag** opens a small form with a name and a colour;
   the pencil renames or recolours; the bin deletes, after a confirmation that
   says how many opportunities will lose the tag.
@@ -1441,7 +1448,7 @@ On an opportunity's screen:
   lists every document that was **left out**, with the reason, and reminds you
   that your own estimate is kept.
 
-On the **Value** tab of **CRM → Workflow**, *Statuses that count towards a computed value* is two
+On the **Value** tab of **CRM → Configuration**, *Statuses that count towards a computed value* is two
 lists of checkboxes — order statuses and quote request statuses — saved
 together. *This and every later status* ticks an order status and all that
 follow it. After saving, the screen says that the values are being recalculated
@@ -2375,7 +2382,7 @@ there are in English only.
 | `crm.enabled` | on | The switch described above. |
 | `crm.auto_create_from_orders` | off | Every order placed from then on gets an opportunity of its own. The setting can differ per sales channel; the order's channel decides. |
 | `crm.auto_create_from_quote_requests` | off | Every quote request created from then on — submitted by a customer or prepared by an administrator — gets an opportunity of its own. Needs the Quote Requests module to be on. |
-| `crm.board_card_fields` | number, organization, value, sales rep, tags | The fields a board card shows, in order, as a list of field references. Change it on the **Board card** tab of **CRM → Workflow**, which offers the fields that exist, rather than here. |
+| `crm.board_card_fields` | number, organization, value, sales rep, tags | The fields a board card shows, in order, as a list of field references. Change it on the **Board card** tab of **CRM → Configuration**, which offers the fields that exist, rather than here. |
 
 Events, reminders and the calendar add no setting. The reminder e-mail is
 edited and switched off on the **Transactional emails** screen, as *Event

@@ -22,12 +22,12 @@ import {
   CardContent,
   Checkbox,
   ColorPicker,
+  EditorSection,
   InlineStatus,
   Input,
   Label,
   PageHeader,
   SaveButtonGroup,
-  Section,
   Select,
   useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
@@ -208,18 +208,6 @@ function setTierScale<K extends keyof TierScale>(draft: CmsBrandTokens, key: K, 
   else delete draft.tierScale;
 }
 
-function BrandCard(props: { title: string; children: ReactNode }): ReactElement {
-  return (
-    <Card>
-      <CardContent>
-        <Section title={props.title}>
-          {props.children}
-        </Section>
-      </CardContent>
-    </Card>
-  );
-}
-
 /**
  * Feature 163 — the brand screen (`specs/163-page-builder-marketing-pages/`
  * FR-006 to FR-006c, contract §1 and §6).
@@ -230,6 +218,12 @@ function BrandCard(props: { title: string; children: ReactNode }): ReactElement 
  * has its own, which later global changes do not reach and which "Reset to
  * global" removes. Contrast below WCAG 2.2 AA is a warning beside the form,
  * never a refusal (FR-006b). Without `cms.brand` the screen is read-only.
+ *
+ * Issue #1514 (UX audit CONTENT-14): one card holds the whole form — scope,
+ * colours, schemes, typography, buttons, spacing and layout — as sections, and
+ * the preview is the one card beside it. Inside, groups are separated by space
+ * and a rule, never by a border of their own: a border per level stops saying
+ * "group" (Common Region, Prägnanz).
  */
 export function BrandPage(): ReactNode {
   const t = useTranslation('cms');
@@ -401,41 +395,6 @@ export function BrandPage(): ReactNode {
 
       {feedback ? <FeedbackAlert feedback={feedback} t={t} /> : null}
 
-      <Card>
-        <CardContent className="space-y-3">
-          <Section title={t('brand.scope.title')}>
-            <div className="max-w-md space-y-1.5">
-              <Label htmlFor="brand-scope-channel">{t('brand.scope.channelLabel')}</Label>
-              <SalesChannelPicker
-                id="brand-scope-channel"
-                value={channelId}
-                onChange={(next): void => {
-                  setFeedback(null);
-                  clearStatus();
-                  setChannelId(next);
-                }}
-                clearable
-                placeholder={t('brand.scope.allChannels')}
-                emptyMessage={t('brand.scope.noChannels')}
-                ariaLabel={t('brand.scope.channelLabel')}
-              />
-              <p className="text-xs text-muted-foreground">{t('brand.scope.channelHint')}</p>
-            </div>
-            <ScopeState
-              channelId={channelId}
-              loading={loading}
-              hasOverride={hasOverride}
-              overriding={overriding}
-              canEdit={canEdit}
-              busy={saving}
-              onOverride={startOverride}
-              onReset={(): void => void resetToGlobal()}
-              t={t}
-            />
-          </Section>
-        </CardContent>
-      </Card>
-
       {/* Mounted before it has text, so the change is announced (WCAG 4.1.3). */}
       <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
         {loading ? t('brand.loading') : ''}
@@ -453,267 +412,304 @@ export function BrandPage(): ReactNode {
         </Alert>
       ) : null}
 
-      {draft ? (
-        <div className="grid gap-4 lg:grid-cols-12">
-          <div className="space-y-4 lg:col-span-8">
-            <BrandCard title={t('brand.section.colors')}>
-              <fieldset className="space-y-3">
-                <legend className="text-sm font-semibold">{t('brand.colors.palette')}</legend>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {PALETTE_ROLES.map((role) => (
-                    <ColorField
-                      key={role}
-                      label={t(`brand.colors.${role}`)}
-                      value={draft.colors[role]}
-                      disabled={disabled}
-                      onChange={(hex): void => edit((d) => void (d.colors[role] = hex))}
-                    />
-                  ))}
-                </div>
-              </fieldset>
-              <fieldset className="space-y-3">
-                <legend className="text-sm font-semibold">{t('brand.gradient.title')}</legend>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <ColorField
-                    label={t('brand.gradient.from')}
-                    value={draft.accentGradient.from}
-                    disabled={disabled}
-                    onChange={(hex): void => edit((d) => void (d.accentGradient.from = hex))}
-                  />
-                  <ColorField
-                    label={t('brand.gradient.to')}
-                    value={draft.accentGradient.to}
-                    disabled={disabled}
-                    onChange={(hex): void => edit((d) => void (d.accentGradient.to = hex))}
-                  />
-                  <NumberField
-                    id="brand-gradient-angle"
-                    label={t('brand.gradient.angle')}
-                    value={draft.accentGradient.angle}
-                    min={0}
-                    max={360}
-                    disabled={disabled}
-                    onChange={(value): void => edit((d) => void (d.accentGradient.angle = value))}
-                  />
-                </div>
-              </fieldset>
-              <fieldset className="space-y-3">
-                <legend className="text-sm font-semibold">{t('brand.colors.neutral')}</legend>
-                <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
-                  {NEUTRAL_STEPS.map((step) => (
-                    <ColorField
-                      key={step}
-                      label={t('brand.colors.neutralStep', { step })}
-                      value={draft.colors.neutral[step]}
-                      disabled={disabled}
-                      onChange={(hex): void => edit((d) => void (d.colors.neutral[step] = hex))}
-                    />
-                  ))}
-                </div>
-              </fieldset>
-            </BrandCard>
-
-            <BrandCard title={t('brand.section.schemes')}>
-              {BRAND_SCHEMES.map((scheme) => (
-                <SchemeFields
-                  key={scheme}
-                  scheme={scheme}
-                  tokens={draft}
-                  disabled={disabled}
-                  edit={edit}
-                  t={t}
+      <div className="grid gap-4 lg:grid-cols-12">
+        <Card className="lg:col-span-8">
+          <CardContent className="space-y-(--section-gap)">
+            <EditorSection title={t('brand.scope.title')}>
+              <div className="max-w-md space-y-1.5">
+                <Label htmlFor="brand-scope-channel">{t('brand.scope.channelLabel')}</Label>
+                <SalesChannelPicker
+                  id="brand-scope-channel"
+                  value={channelId}
+                  onChange={(next): void => {
+                    setFeedback(null);
+                    clearStatus();
+                    setChannelId(next);
+                  }}
+                  clearable
+                  placeholder={t('brand.scope.allChannels')}
+                  emptyMessage={t('brand.scope.noChannels')}
+                  ariaLabel={t('brand.scope.channelLabel')}
                 />
-              ))}
-            </BrandCard>
-
-            <BrandCard title={t('brand.section.typography')}>
-              <div className="grid gap-3 xl:grid-cols-2">
-                <BrandFontFields
-                  idPrefix="brand-font-heading"
-                  legend={t('brand.fonts.heading')}
-                  value={draft.fonts.heading}
-                  disabled={disabled}
-                  onChange={(next): void => edit((d) => void (d.fonts.heading = next))}
-                />
-                <BrandFontFields
-                  idPrefix="brand-font-body"
-                  legend={t('brand.fonts.body')}
-                  value={draft.fonts.body}
-                  disabled={disabled}
-                  onChange={(next): void => edit((d) => void (d.fonts.body = next))}
-                />
+                <p className="text-xs text-muted-foreground">{t('brand.scope.channelHint')}</p>
               </div>
-              <TypeScaleTable tokens={draft} disabled={disabled} edit={edit} t={t} />
-            </BrandCard>
+              <ScopeState
+                channelId={channelId}
+                loading={loading}
+                hasOverride={hasOverride}
+                overriding={overriding}
+                canEdit={canEdit}
+                busy={saving}
+                onOverride={startOverride}
+                onReset={(): void => void resetToGlobal()}
+                t={t}
+              />
+            </EditorSection>
 
-            <BrandCard title={t('brand.section.buttons')}>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="brand-button-radius">{t('brand.buttons.radius')}</Label>
-                  <Select
-                    id="brand-button-radius"
-                    value={draft.buttons.radius}
-                    disabled={disabled}
-                    onChange={(e): void =>
-                      edit((d) => void (d.buttons.radius = e.target.value as CmsBrandTokens['buttons']['radius']))
-                    }
-                  >
-                    <option value="square">{t('brand.buttons.radius.square')}</option>
-                    <option value="rounded">{t('brand.buttons.radius.rounded')}</option>
-                    <option value="pill">{t('brand.buttons.radius.pill')}</option>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="brand-button-weight">{t('brand.buttons.fontWeight')}</Label>
-                  <Select
-                    id="brand-button-weight"
-                    value={String(draft.buttons.fontWeight)}
-                    disabled={disabled}
-                    onChange={(e): void =>
-                      edit(
-                        (d) =>
-                          void (d.buttons.fontWeight = Number(e.target.value) as CmsBrandTokens['buttons']['fontWeight']),
-                      )
-                    }
-                  >
-                    {BUTTON_WEIGHTS.map((weight) => (
-                      <option key={weight} value={weight}>
-                        {weight}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="brand-button-transform">{t('brand.buttons.textTransform')}</Label>
-                  <Select
-                    id="brand-button-transform"
-                    value={draft.buttons.textTransform}
-                    disabled={disabled}
-                    onChange={(e): void =>
-                      edit((d) => void (d.buttons.textTransform = e.target.value as 'none' | 'uppercase'))
-                    }
-                  >
-                    <option value="none">{t('brand.buttons.textTransform.none')}</option>
-                    <option value="uppercase">{t('brand.buttons.textTransform.uppercase')}</option>
-                  </Select>
-                </div>
-                {(['small', 'medium', 'large'] as const).map((size) => (
-                  <NumberField
-                    key={size}
-                    id={`brand-button-height-${size}`}
-                    label={t(`brand.buttons.height${size[0]!.toUpperCase()}${size.slice(1)}`)}
-                    value={draft.buttons.heights[size]}
-                    min={28}
-                    max={72}
-                    disabled={disabled}
-                    onChange={(value): void => edit((d) => void (d.buttons.heights[size] = value))}
-                  />
-                ))}
-              </div>
-            </BrandCard>
-
-            <BrandCard title={t('brand.section.spacing')}>
-              <table className="w-full max-w-xl text-sm">
-                <thead>
-                  <tr className="text-left text-muted-foreground">
-                    <th scope="col" className="pb-2 font-medium">{t('brand.spacing.step')}</th>
-                    <th scope="col" className="pb-2 font-medium">{t('brand.spacing.mobilePx')}</th>
-                    <th scope="col" className="pb-2 font-medium">{t('brand.spacing.desktopPx')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {BRAND_SPACE_TOKENS.map((step) => (
-                    <tr key={step}>
-                      <th scope="row" className="py-1 pr-3 text-left font-medium">{t(`brand.space.${step}`)}</th>
-                      {(['mobilePx', 'desktopPx'] as const).map((tier) => (
-                        <td key={tier} className="py-1 pr-3">
-                          <NumberField
-                            id={`brand-space-${step}-${tier}`}
-                            label={t('brand.typeScale.cellLabel', {
-                              role: t(`brand.space.${step}`),
-                              field: t(`brand.spacing.${tier}`),
-                            })}
-                            labelHidden
-                            value={draft.spacing[step][tier]}
-                            min={0}
-                            max={320}
-                            disabled={disabled}
-                            onChange={(value): void => edit((d) => void (d.spacing[step][tier] = value))}
-                          />
-                        </td>
+            {draft ? (
+              <>
+                <EditorSection title={t('brand.section.colors')} contentClassName="space-y-6">
+                  <fieldset className="space-y-3">
+                    <legend className="text-sm font-semibold">{t('brand.colors.palette')}</legend>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {PALETTE_ROLES.map((role) => (
+                        <ColorField
+                          key={role}
+                          label={t(`brand.colors.${role}`)}
+                          value={draft.colors[role]}
+                          disabled={disabled}
+                          onChange={(hex): void => edit((d) => void (d.colors[role] = hex))}
+                        />
                       ))}
-                    </tr>
+                    </div>
+                  </fieldset>
+                  <fieldset className="space-y-3">
+                    <legend className="text-sm font-semibold">{t('brand.gradient.title')}</legend>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <ColorField
+                        label={t('brand.gradient.from')}
+                        value={draft.accentGradient.from}
+                        disabled={disabled}
+                        onChange={(hex): void => edit((d) => void (d.accentGradient.from = hex))}
+                      />
+                      <ColorField
+                        label={t('brand.gradient.to')}
+                        value={draft.accentGradient.to}
+                        disabled={disabled}
+                        onChange={(hex): void => edit((d) => void (d.accentGradient.to = hex))}
+                      />
+                      <NumberField
+                        id="brand-gradient-angle"
+                        label={t('brand.gradient.angle')}
+                        value={draft.accentGradient.angle}
+                        min={0}
+                        max={360}
+                        disabled={disabled}
+                        onChange={(value): void => edit((d) => void (d.accentGradient.angle = value))}
+                      />
+                    </div>
+                  </fieldset>
+                  <fieldset className="space-y-3">
+                    <legend className="text-sm font-semibold">{t('brand.colors.neutral')}</legend>
+                    <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
+                      {NEUTRAL_STEPS.map((step) => (
+                        <ColorField
+                          key={step}
+                          label={t('brand.colors.neutralStep', { step })}
+                          value={draft.colors.neutral[step]}
+                          disabled={disabled}
+                          onChange={(hex): void => edit((d) => void (d.colors.neutral[step] = hex))}
+                        />
+                      ))}
+                    </div>
+                  </fieldset>
+                </EditorSection>
+
+                <EditorSection title={t('brand.section.schemes')} contentClassName="divide-y divide-border">
+                  {BRAND_SCHEMES.map((scheme) => (
+                    <SchemeFields
+                      key={scheme}
+                      scheme={scheme}
+                      tokens={draft}
+                      disabled={disabled}
+                      edit={edit}
+                      t={t}
+                    />
                   ))}
-                </tbody>
-              </table>
-            </BrandCard>
+                </EditorSection>
 
-            <BrandCard title={t('brand.section.layout')}>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {(['containerMaxPx', 'widePx', 'gutterMobilePx', 'gutterDesktopPx'] as const).map((key) => (
-                  <NumberField
-                    key={key}
-                    id={`brand-layout-${key}`}
-                    label={t(`brand.layout.${key}`)}
-                    value={draft.layout[key]}
-                    min={key.startsWith('gutter') ? 0 : 320}
-                    max={key.startsWith('gutter') ? 160 : 3840}
-                    disabled={disabled}
-                    onChange={(value): void => edit((d) => void (d.layout[key] = value))}
-                  />
-                ))}
-              </div>
-              {/* R20F (T322): the type and spacing scale on a tablet and a small desktop; empty is 1. */}
-              <p className="text-sm text-muted-foreground">{t('brand.layout.scaleHint')}</p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {(['tablet', 'smallDesktop'] as const).map((tier) => (
-                  <FactorField
-                    key={tier}
-                    id={`brand-tier-scale-${tier}`}
-                    label={t(tier === 'tablet' ? 'brand.layout.tabletScale' : 'brand.layout.smallDesktopScale')}
-                    value={draft.tierScale?.[tier]}
-                    disabled={disabled}
-                    onChange={(value): void => edit((d) => setTierScale(d, tier, value))}
-                  />
-                ))}
-              </div>
-              {/* R21H (T351, T352): fluid desktop sizes and scaled buttons. */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    id="brand-tier-scale-fluidDesktop"
-                    checked={draft.tierScale?.fluidDesktop === true}
-                    disabled={disabled}
-                    onChange={(event): void => edit((d) => setTierScale(d, 'fluidDesktop', event.target.checked ? true : undefined))}
-                  />
-                  {t('brand.layout.fluidDesktop')}
-                </label>
-                {draft.tierScale?.fluidDesktop === true ? (
-                  <FactorField
-                    id="brand-tier-scale-fluidUntilPx"
-                    label={t('brand.layout.fluidUntilPx')}
-                    value={draft.tierScale?.fluidUntilPx}
-                    min={1025}
-                    max={3840}
-                    step={1}
-                    disabled={disabled}
-                    onChange={(value): void => edit((d) => setTierScale(d, 'fluidUntilPx', value))}
-                  />
-                ) : null}
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    id="brand-tier-scale-buttons"
-                    checked={draft.tierScale?.buttons === true}
-                    disabled={disabled}
-                    onChange={(event): void => edit((d) => setTierScale(d, 'buttons', event.target.checked ? true : undefined))}
-                  />
-                  {t('brand.layout.scaleButtons')}
-                </label>
-              </div>
-            </BrandCard>
-          </div>
+                <EditorSection title={t('brand.section.typography')} contentClassName="space-y-6">
+                  <div className="grid gap-6 xl:grid-cols-2">
+                    <BrandFontFields
+                      idPrefix="brand-font-heading"
+                      legend={t('brand.fonts.heading')}
+                      value={draft.fonts.heading}
+                      disabled={disabled}
+                      onChange={(next): void => edit((d) => void (d.fonts.heading = next))}
+                    />
+                    <BrandFontFields
+                      idPrefix="brand-font-body"
+                      legend={t('brand.fonts.body')}
+                      value={draft.fonts.body}
+                      disabled={disabled}
+                      onChange={(next): void => edit((d) => void (d.fonts.body = next))}
+                    />
+                  </div>
+                  <TypeScaleTable tokens={draft} disabled={disabled} edit={edit} t={t} />
+                </EditorSection>
 
-          <section aria-label={t('brand.preview.title')} className="lg:col-span-4">
+                <EditorSection title={t('brand.section.buttons')}>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="brand-button-radius">{t('brand.buttons.radius')}</Label>
+                      <Select
+                        id="brand-button-radius"
+                        value={draft.buttons.radius}
+                        disabled={disabled}
+                        onChange={(e): void =>
+                          edit((d) => void (d.buttons.radius = e.target.value as CmsBrandTokens['buttons']['radius']))
+                        }
+                      >
+                        <option value="square">{t('brand.buttons.radius.square')}</option>
+                        <option value="rounded">{t('brand.buttons.radius.rounded')}</option>
+                        <option value="pill">{t('brand.buttons.radius.pill')}</option>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="brand-button-weight">{t('brand.buttons.fontWeight')}</Label>
+                      <Select
+                        id="brand-button-weight"
+                        value={String(draft.buttons.fontWeight)}
+                        disabled={disabled}
+                        onChange={(e): void =>
+                          edit(
+                            (d) =>
+                              void (d.buttons.fontWeight = Number(e.target.value) as CmsBrandTokens['buttons']['fontWeight']),
+                          )
+                        }
+                      >
+                        {BUTTON_WEIGHTS.map((weight) => (
+                          <option key={weight} value={weight}>
+                            {weight}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="brand-button-transform">{t('brand.buttons.textTransform')}</Label>
+                      <Select
+                        id="brand-button-transform"
+                        value={draft.buttons.textTransform}
+                        disabled={disabled}
+                        onChange={(e): void =>
+                          edit((d) => void (d.buttons.textTransform = e.target.value as 'none' | 'uppercase'))
+                        }
+                      >
+                        <option value="none">{t('brand.buttons.textTransform.none')}</option>
+                        <option value="uppercase">{t('brand.buttons.textTransform.uppercase')}</option>
+                      </Select>
+                    </div>
+                    {(['small', 'medium', 'large'] as const).map((size) => (
+                      <NumberField
+                        key={size}
+                        id={`brand-button-height-${size}`}
+                        label={t(`brand.buttons.height${size[0]!.toUpperCase()}${size.slice(1)}`)}
+                        value={draft.buttons.heights[size]}
+                        min={28}
+                        max={72}
+                        disabled={disabled}
+                        onChange={(value): void => edit((d) => void (d.buttons.heights[size] = value))}
+                      />
+                    ))}
+                  </div>
+                </EditorSection>
+
+                <EditorSection title={t('brand.section.spacing')}>
+                  <table className="w-full max-w-xl text-sm">
+                    <thead>
+                      <tr className="text-left text-muted-foreground">
+                        <th scope="col" className="pb-2 font-medium">{t('brand.spacing.step')}</th>
+                        <th scope="col" className="pb-2 font-medium">{t('brand.spacing.mobilePx')}</th>
+                        <th scope="col" className="pb-2 font-medium">{t('brand.spacing.desktopPx')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {BRAND_SPACE_TOKENS.map((step) => (
+                        <tr key={step}>
+                          <th scope="row" className="py-1 pr-3 text-left font-medium">{t(`brand.space.${step}`)}</th>
+                          {(['mobilePx', 'desktopPx'] as const).map((tier) => (
+                            <td key={tier} className="py-1 pr-3">
+                              <NumberField
+                                id={`brand-space-${step}-${tier}`}
+                                label={t('brand.typeScale.cellLabel', {
+                                  role: t(`brand.space.${step}`),
+                                  field: t(`brand.spacing.${tier}`),
+                                })}
+                                labelHidden
+                                value={draft.spacing[step][tier]}
+                                min={0}
+                                max={320}
+                                disabled={disabled}
+                                onChange={(value): void => edit((d) => void (d.spacing[step][tier] = value))}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </EditorSection>
+
+                <EditorSection title={t('brand.section.layout')}>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(['containerMaxPx', 'widePx', 'gutterMobilePx', 'gutterDesktopPx'] as const).map((key) => (
+                      <NumberField
+                        key={key}
+                        id={`brand-layout-${key}`}
+                        label={t(`brand.layout.${key}`)}
+                        value={draft.layout[key]}
+                        min={key.startsWith('gutter') ? 0 : 320}
+                        max={key.startsWith('gutter') ? 160 : 3840}
+                        disabled={disabled}
+                        onChange={(value): void => edit((d) => void (d.layout[key] = value))}
+                      />
+                    ))}
+                  </div>
+                  {/* R20F (T322): the type and spacing scale on a tablet and a small desktop; empty is 1. */}
+                  <p className="text-sm text-muted-foreground">{t('brand.layout.scaleHint')}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(['tablet', 'smallDesktop'] as const).map((tier) => (
+                      <FactorField
+                        key={tier}
+                        id={`brand-tier-scale-${tier}`}
+                        label={t(tier === 'tablet' ? 'brand.layout.tabletScale' : 'brand.layout.smallDesktopScale')}
+                        value={draft.tierScale?.[tier]}
+                        disabled={disabled}
+                        onChange={(value): void => edit((d) => setTierScale(d, tier, value))}
+                      />
+                    ))}
+                  </div>
+                  {/* R21H (T351, T352): fluid desktop sizes and scaled buttons. */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        id="brand-tier-scale-fluidDesktop"
+                        checked={draft.tierScale?.fluidDesktop === true}
+                        disabled={disabled}
+                        onChange={(event): void => edit((d) => setTierScale(d, 'fluidDesktop', event.target.checked ? true : undefined))}
+                      />
+                      {t('brand.layout.fluidDesktop')}
+                    </label>
+                    {draft.tierScale?.fluidDesktop === true ? (
+                      <FactorField
+                        id="brand-tier-scale-fluidUntilPx"
+                        label={t('brand.layout.fluidUntilPx')}
+                        value={draft.tierScale?.fluidUntilPx}
+                        min={1025}
+                        max={3840}
+                        step={1}
+                        disabled={disabled}
+                        onChange={(value): void => edit((d) => setTierScale(d, 'fluidUntilPx', value))}
+                      />
+                    ) : null}
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        id="brand-tier-scale-buttons"
+                        checked={draft.tierScale?.buttons === true}
+                        disabled={disabled}
+                        onChange={(event): void => edit((d) => setTierScale(d, 'buttons', event.target.checked ? true : undefined))}
+                      />
+                      {t('brand.layout.scaleButtons')}
+                    </label>
+                  </div>
+                </EditorSection>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        {draft ? (
+          <div className="lg:col-span-4">
             <div className="space-y-4 lg:sticky lg:top-4">
               {findings.length > 0 ? (
                 <Alert variant="warning" live="polite">
@@ -728,17 +724,13 @@ export function BrandPage(): ReactNode {
                   </AlertDescription>
                 </Alert>
               ) : null}
-              <Card>
-                <CardContent>
-                  <Section title={t('brand.preview.title')}>
-                    <BrandPreview tokens={draft} />
-                  </Section>
-                </CardContent>
-              </Card>
+              <EditorSection chrome="card" title={t('brand.preview.title')}>
+                <BrandPreview tokens={draft} />
+              </EditorSection>
             </div>
-          </section>
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+      </div>
       {confirmDialog}
     </div>
   );
@@ -791,11 +783,9 @@ function ScopeState(props: {
 
   if (props.hasOverride) {
     return (
-      <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Badge variant="secondary">{t('brand.scope.overriddenBadge')}</Badge>
-        <Alert>
-          <AlertDescription>{t('brand.scope.overriddenNotice')}</AlertDescription>
-        </Alert>
+        <p className="text-sm text-muted-foreground">{t('brand.scope.overriddenNotice')}</p>
         {reset}
       </div>
     );
@@ -833,8 +823,8 @@ function SchemeFields(props: {
   const schemeName = t(`brand.schemes.${scheme}`);
   const colors = tokens.schemes[scheme];
   return (
-    <fieldset className="space-y-3 rounded-md border p-3">
-      <legend className="px-1 text-sm font-semibold">{schemeName}</legend>
+    <fieldset className="space-y-3 py-4 first:pt-0 last:pb-0">
+      <legend className="text-sm font-semibold">{schemeName}</legend>
       <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {SCHEME_FIELDS.map((field) => (
           <ColorField

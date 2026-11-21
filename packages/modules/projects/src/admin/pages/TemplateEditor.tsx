@@ -19,6 +19,7 @@ import {
   Card,
   CardContent,
   Checkbox,
+  FormField,
   Input,
   Label,
   PageHeader,
@@ -38,8 +39,9 @@ import { StageDot } from '../components/StageDot.js';
 import { StageTasksEditor } from '../components/StageTasksEditor.js';
 import { errorMessage, parseAlertOffsets, parseDuration } from '../lib/labels.js';
 import { stageColorAt } from '../lib/stage-colors.js';
+import { PROJECT_TEMPLATES_PATH, projectTemplatePath } from '../lib/configuration-paths.js';
 
-const LIST_PATH = '/projects/templates';
+const LIST_PATH = PROJECT_TEMPLATES_PATH;
 
 /** The module whose presence decides whether Stage Task definitions are shown (Principle XVII). */
 const TASKS_MODULE = 'tasks';
@@ -142,7 +144,8 @@ const NEW_GRAPH = (): Graph => ({
 
 /**
  * A Project Template, created or edited (`specs/163-projects-and-tasks/`,
- * User Story 3; `contracts/admin-surfaces.md` §2, `/projects/templates/:id`).
+ * User Story 3; `contracts/admin-surfaces.md` §2, `/projects/settings/templates/:id`
+ * since issue #1557).
  *
  * The same Stage fields, Stage Task definitions and workflow graph as a
  * Project's *Stages* tab (`StageEditor.tsx`'s {@link StageFields} and
@@ -329,7 +332,7 @@ export function TemplateEditor(): ReactNode {
     try {
       if (isNew) {
         const created = await projectsApi.createTemplate(body);
-        void navigate(`${LIST_PATH}/${created.id}`);
+        void navigate(projectTemplatePath(created.id));
         return;
       }
       reset(graphOf(await projectsApi.saveTemplate(id as string, body)));
@@ -366,7 +369,7 @@ export function TemplateEditor(): ReactNode {
     try {
       if (action === 'duplicate') {
         const copy = await projectsApi.duplicateTemplate(id);
-        void navigate(`${LIST_PATH}/${copy.id}`);
+        void navigate(projectTemplatePath(copy.id));
         return;
       }
       const answered = action === 'archive' ? await projectsApi.archiveTemplate(id) : await projectsApi.restoreTemplate(id);
@@ -493,27 +496,21 @@ export function TemplateEditor(): ReactNode {
 
         <Card>
           <CardContent className="space-y-5">
-            <div className="space-y-1">
-              <Label htmlFor="template-name">
-                {t('templates.editor.name')}
-                {required}
-              </Label>
+            {/* Issue #1564 (WORK-16): required is the kit FormField's asterisk and aria-required. */}
+            <FormField
+              label={t('templates.editor.name')}
+              error={nameInvalid ? t('templates.editor.error.name') : undefined}
+              required
+            >
               <Input
                 id="template-name"
                 ref={nameRef}
                 value={graph.name}
                 maxLength={120}
                 required
-                aria-invalid={nameInvalid}
-                aria-describedby={nameInvalid ? 'template-name-error' : undefined}
                 onChange={(event): void => update({ name: event.target.value })}
               />
-              {nameInvalid ? (
-                <p id="template-name-error" className="text-xs text-destructive">
-                  {t('templates.editor.error.name')}
-                </p>
-              ) : null}
-            </div>
+            </FormField>
             <div className="space-y-1">
               <Label htmlFor="template-description">{t('templates.editor.description')}</Label>
               <Textarea

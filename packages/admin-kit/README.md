@@ -10,7 +10,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 | Subpath | What it is |
 | --- | --- |
 | `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header` (`PageHeader`, see below), `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `empty-state` (`EmptyState`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `tabs` (`Tabs`, `TabPanel`, `RecordTabs`, see below), `editor-section` (`EditorSection`, see below), `separator` |
-| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `ListToolbar` with `ListToolbarSearch` and `FilterChip` (see below), `RowActionMenu`, `DetailHeaderActions` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
+| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `ListToolbar` with `ListToolbarSearch` and `FilterChip` (see below), `ViewModeToggle` (see below), `RowActionMenu`, `DetailHeaderActions` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
 | `./contributions` | the declaration types, re-exported from `@endora-commerce/contracts` so a module needs one import for the shapes and not two |
@@ -243,6 +243,12 @@ through `FormField`, so no screen wires `htmlFor`, `aria-describedby` or `aria-i
   elsewhere) cover the editor rows that carry more than a label.
 - **`ScopedField`** (`./components`, the scoped editors' field) splits copy the same way since
   issue #1459: `note` is the one clause read with the control, `help` the ⓘ beside the label.
+  Since issue #1508 it states a field's scope once: while the "Use value from <parent>" checkbox
+  is shown, an inheriting field has **no** "Inherited" / "Not translated" / "No value" badge, and
+  the source line appears only for a fact nothing else shows — no value at any scope above, a
+  value from further up than the checkbox's parent, a pending untick, a staged tick ("Will use the
+  value from … when you save"), or an own empty with its `emptyMeaning`. "Overridden", "Empty
+  here", "Unsaved" and "Missing" stay. Without the checkbox (`readOnly`) badge and line stay in full.
 
 The behaviour is pinned in `admin/test/kit/kit-form-field.test.tsx`, including an axe pass;
 `ScopedField`'s `help` in `admin/test/kit/kit-scoped-field.test.tsx`.
@@ -839,6 +845,22 @@ the opportunity list, the Projects list, and Tasks and My Tasks use it.
   as the custom-field labels used to name a refused filter, is read by the page, not by a cell in
   the panel.
 
+## List or board — `ViewModeToggle`
+
+Issue #1558 (UX audit 2026-11-17, WORK-07). `ViewModeToggle` (`./components`) is the *List | Board*
+switch of a screen that shows its records both ways, moved from Tasks so every such screen offers it the
+same way (Jakob's Law). It sits first in the `PageHeader` actions.
+
+```tsx
+<PageHeader title={t('list.title')} actions={<><ViewModeToggle mode={mode} onChange={setMode} />{newButton}</>} />
+```
+
+- **Two toggle buttons in a named group** (`common.viewMode.label`), each with an icon and a word. The
+  pressed one says which view is on screen by `aria-pressed` and its `secondary` fill, never by colour
+  alone. `onChange` is not called for the view already on screen.
+- **The screen keeps the choice.** Tasks remembers it per admin (`useListViewModePreference`). CRM keeps
+  it in the address (`/crm/opportunities?view=board`), so both views share one address and its filters.
+
 ## Known rough edge
 
 `./i18n` publishes `resolve` (the translation resolver) under that bare name, because it
@@ -869,6 +891,9 @@ what a hand-drawn scrim leaves out:
   `ConfirmDialog` takes the same `layer` prop, and `useConfirmDialog({ layer: 'overlay' })` opens
   every question the screen asks on that layer. The Page Builder's *Clear canvas* question uses it.
   The default is `page`.
+- `placement` — `center` (default) or `end`, a full-height panel docked to the inline end: a side
+  drawer for a meta view opened over an editor, e.g. the product editor's Scope map (#1510). Same
+  modal semantics; give it a `widthClassName` such as `max-w-3xl` and a Close button in `footer`.
 
 ```tsx
 <ModalDialog title={t('x.dialog.title')} onClose={close} busy={busy} footer={<>{cancel}{apply}</>}>

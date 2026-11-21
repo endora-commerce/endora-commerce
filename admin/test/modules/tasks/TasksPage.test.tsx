@@ -145,7 +145,7 @@ function moreFilters(): HTMLElement {
 }
 
 function viewButton(name: 'list' | 'board'): HTMLElement {
-  return within(screen.getByRole('group', { name: en('view.label') })).getByRole('button', { name: en(`view.${name}`) });
+  return within(screen.getByRole('group', { name: core('common.viewMode.label') })).getByRole('button', { name: core(`common.viewMode.${name}`) });
 }
 
 describe('TasksPage — the list', () => {

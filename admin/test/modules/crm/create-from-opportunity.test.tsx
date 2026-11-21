@@ -78,8 +78,8 @@ const createdLink = (overrides: Partial<Link>): Link => ({
   ...overrides,
 });
 
-/** What `GET …/opportunities/:id` answers, read by read. */
-let reads: OpportunityDetailData[];
+/** What `GET …/opportunities/:id` answers, read by read — a promise holds that read open. */
+let reads: Array<OpportunityDetailData | Promise<OpportunityDetailData>>;
 
 beforeEach(() => {
   getSpy.mockReset();
@@ -89,7 +89,7 @@ beforeEach(() => {
     if (lookup) return lookup;
     if (path === DETAIL_PATH) {
       const next = reads.length > 1 ? reads.shift() : reads[0];
-      return Promise.resolve({ data: next });
+      return Promise.resolve(next).then((data) => ({ data }));
     }
     if (path === '/api/v1/admin/crm/workflow') return Promise.resolve({ data: WORKFLOW });
     if (path === '/api/v1/admin/orders/statuses') return Promise.resolve({ data: ORDER_STATUS_GRAPH });
@@ -175,10 +175,17 @@ describe('coming back from the create-order screen', () => {
 
   it('says the new order is linked once it is — reading again until the link is there', async () => {
     // The link is written just after the order commits: the first read may be too early.
-    reads = [detail({ links: [] }), detail({ links: [] }), detail({ links: [createdLink({})] })];
+    // The read that finds the link is held open, so the transient "linking" state is
+    // asserted while it is guaranteed to be on screen rather than raced against the poll.
+    let releaseLink!: () => void;
+    const linkedRead = new Promise<OpportunityDetailData>((resolve) => {
+      releaseLink = () => resolve(detail({ links: [createdLink({})] }));
+    });
+    reads = [detail({ links: [] }), detail({ links: [] }), linkedRead];
     await openOpportunity(arrival);
     const orders = await section(en('links.title'));
-    expect(within(orders).getByText(en('origin.order.linking'))).toBeInTheDocument();
+    expect(await within(orders).findByText(en('origin.order.linking'))).toBeInTheDocument();
+    releaseLink();
 
     expect(
       await within(orders).findByText(en('origin.order.linked', { number: 'ORD-2001' }), undefined, {

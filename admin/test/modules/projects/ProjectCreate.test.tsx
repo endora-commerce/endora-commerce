@@ -112,6 +112,15 @@ function requested(): string[] {
 const stagesSection = (): HTMLElement => screen.getByRole('group', { name: en('create.stages.section') });
 
 describe('ProjectCreate', () => {
+  it('asks for the Template in the same card as the title, and marks the title required (#1564)', async () => {
+    await renderForm();
+    const template = screen.getByLabelText(en('create.template.label'));
+    const title = screen.getByLabelText(new RegExp(en('field.title')));
+    expect(template.closest('[data-slot="card"]')).toBe(title.closest('[data-slot="card"]'));
+    expect(title).toHaveAttribute('aria-required', 'true');
+    expect(template).toHaveAccessibleDescription(en('create.template.hint'));
+  });
+
   it('refuses to send a Project without a title or a named Stage, and says why', async () => {
     await renderForm();
     await userEvent.click(screen.getByRole('button', { name: en('create.submit') }));

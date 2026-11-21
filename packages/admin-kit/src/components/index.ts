@@ -133,7 +133,7 @@ export type {
 export { useFocusTrap } from './hooks/useFocusTrap.js';
 export type { FocusTrapOptions } from './hooks/useFocusTrap.js';
 export { ModalDialog, MODAL_OVERLAY_Z_INDEX } from './modal-dialog/ModalDialog.js';
-export type { ModalDialogLayer, ModalDialogProps } from './modal-dialog/ModalDialog.js';
+export type { ModalDialogLayer, ModalDialogPlacement, ModalDialogProps } from './modal-dialog/ModalDialog.js';
 // Issue #313 — the design-system replacement for the browser's `confirm()`.
 export { ConfirmDialog, useConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
 export type {
@@ -214,6 +214,9 @@ export { FilterChip } from './list-toolbar/FilterChip.js';
 export type { FilterChipProps } from './list-toolbar/FilterChip.js';
 export { ListToolbar, ListToolbarSearch } from './list-toolbar/ListToolbar.js';
 export type { AppliedFilter, ListToolbarProps, ListToolbarSearchProps } from './list-toolbar/ListToolbar.js';
+// Issue #1558 (UX audit WORK-07) — the *List | Board* switch, moved from Tasks.
+export { ViewModeToggle } from './view-mode-toggle/ViewModeToggle.js';
+export type { ViewModeToggleProps } from './view-mode-toggle/ViewModeToggle.js';
 export type { RuleAttributeField, RuleBuilderBuiltinField, RuleBuilderLabels, RuleBuilderProps, RuleFieldOptions, StructuralRule, StructuralRuleCondition, StructuralRuleField, StructuralRuleValue } from './rule-builder/RuleBuilder.js';
 // Feature 163 — the collaboration components promoted from CRM (`specs/163-projects-and-tasks/research.md` R-17).
 export { ReferenceField } from './references/ReferenceField.js';

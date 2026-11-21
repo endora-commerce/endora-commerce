@@ -353,7 +353,6 @@ export function ProductBasePrices({ productId, saveSession }: ProductBasePricesP
   const drafts: Drafts = participant.draft ?? loaded ?? {};
   const errors: Readonly<Record<string, string>> = participant.issues?.fields ?? {};
   const refusal = participant.error ?? participant.issues?.message ?? null;
-  const dirty = participant.status !== 'clean';
 
   const anyPrice = Object.values(answer?.byCurrency ?? {}).some((entry) => entry.product.length > 0);
   const label = (vid: string): string => skus[vid] ?? vid.slice(0, 8);
@@ -413,18 +412,22 @@ export function ProductBasePrices({ productId, saveSession }: ProductBasePricesP
                 onChange={(next): void => participant.setDraft((current) => ({ ...current, [code]: next }))}
               />
             ))}
-            {writable && loaded !== null ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="ghost" disabled={!dirty} onClick={(): void => participant.setDraft(loaded)}>
-                  {t('basePrices.discard')}
-                </Button>
-              </div>
-            ) : null}
+            {/* Issue #1529 (CAT-19): no Discard of the panel's own. The editor's one Save and its
+                Save / Discard / Stay question are the one way to keep or drop these drafts. */}
           </div>
         )}
       </EditorSection>
       <BooksPricingProduct productId={productId} books={books} language={language} />
     </div>
+  );
+}
+
+function BasePriceNote({ children }: { readonly children: ReactNode }): ReactNode {
+  return (
+    <p data-slot="base-price-note" className="flex items-start gap-1.5 text-xs text-[var(--warn-soft-fg)]">
+      <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+      <span>{children}</span>
+    </p>
   );
 }
 
@@ -531,9 +534,11 @@ function CurrencyLine(props: {
           ))}
         </ul>
       )}
-      {noPrice ? <p className="text-xs text-amber-800">{t('basePrices.noPriceIn', { currency: code })}</p> : null}
+      {/* Issue #1529 (CAT-19): the warning token, which every theme defines, and an icon, so the
+          warning is not carried by colour alone. */}
+      {noPrice ? <BasePriceNote>{t('basePrices.noPriceIn', { currency: code })}</BasePriceNote> : null}
       {!noPrice && draft.firstStart > 1 ? (
-        <p className="text-xs text-amber-800">{t('basePrices.notOrderableBelow', { start: draft.firstStart, currency: code })}</p>
+        <BasePriceNote>{t('basePrices.notOrderableBelow', { start: draft.firstStart, currency: code })}</BasePriceNote>
       ) : null}
 
       {props.variantIds.length > 0 ? (

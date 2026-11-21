@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Plus, SlidersHorizontal } from 'lucide-react';
 import type {
   OpportunityBoard as OpportunityBoardData,
@@ -20,7 +20,7 @@ import {
   CardContent,
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
-import { ListToolbar, ListToolbarSearch } from '@endora-commerce/admin-kit/components';
+import { ListToolbar, ListToolbarSearch, ViewModeToggle } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, MAX_PAGE_LIMIT } from '../api.js';
 import { BoardFieldFilters } from '../components/BoardFieldFilters.js';
@@ -35,17 +35,15 @@ import {
 } from '../components/OpportunityFilterFields.js';
 import {
   DEFAULT_BOARD_CARD_FIELDS,
-  NO_BOARD_FILTERS,
   activeFieldFilters,
   fieldFiltersKey,
   hiddenBoardFilterCount,
   readBoardFilters,
-  writeBoardFilters,
   type BoardFilters,
 } from '../lib/board-fields.js';
 import { errorMessage, isRefusedOutcome, workflowStatusLabel } from '../lib/labels.js';
-
-const SEARCH_DEBOUNCE_MS = 300;
+import { withBoardFilters, withoutOpportunityFilters } from '../lib/opportunity-address.js';
+import { useAddressSearch, useOpportunityAddress } from '../lib/use-opportunity-address.js';
 
 /** A move the server refused: which card, where to, and the server's own sentence. */
 interface MoveRefusal {
@@ -127,7 +125,11 @@ function viewOf(board: OpportunityBoardData): BoardColumnView[] {
 
 /**
  * The Opportunity board (`specs/143-crm-sales-opportunities/`, User Story 7 —
- * FR-051; `contracts/admin-api.md` §10).
+ * FR-051; `contracts/admin-api.md` §10) — since issue #1558 (UX audit WORK-07,
+ * DEC-13) the *Board* view of the one Opportunities page, `/crm/opportunities?view=board`,
+ * reached by the page's *List | Board* switch. It shares the address with the
+ * list, so the filters the two have in common carry over when the view changes
+ * (`lib/opportunity-address.ts`).
  *
  * Two reads draw it. `GET /workflow` gives the lanes before any card exists —
  * so the first paint is the board's own shape, loading — and the transitions,
@@ -163,7 +165,7 @@ export function OpportunityBoardPage(): ReactNode {
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('crm:write');
   const canConfigure = hasPermission('crm:configure');
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { address, update, setView } = useOpportunityAddress();
 
   const [workflow, setWorkflow] = useState<OpportunityWorkflow | null>(null);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
@@ -174,10 +176,8 @@ export function OpportunityBoardPage(): ReactNode {
   /** The fields a card shows — the board's own answer; `null` until it has answered once. */
   const [cardFields, setCardFields] = useState<OpportunityBoardCardField[] | null>(null);
   // Keyed by the address's own text, so the filters are the same object until it changes.
-  const address = searchParams.toString();
   const boardFilters = useMemo<BoardFilters>(() => readBoardFilters(new URLSearchParams(address)), [address]);
   const filters = boardFilters.shared;
-  const [search, setSearch] = useState(filters.q);
   const [movingIds, setMovingIds] = useState<ReadonlySet<string>>(() => new Set());
   const [refusedOrders, setRefusedOrders] = useState<ReadonlyMap<string, number>>(() => new Map());
   const [moveRefusal, setMoveRefusal] = useState<MoveRefusal | null>(null);
@@ -201,49 +201,18 @@ export function OpportunityBoardPage(): ReactNode {
     void loadWorkflow();
   }, [loadWorkflow]);
 
-  /**
-   * The address as this screen last knew it: what it last wrote itself, or
-   * what it last rendered. react-router hands `setSearchParams(fn)` the address
-   * of the last render, so two changes made in one turn — two filter boxes
-   * whose typing pause ends together — would each start from that one, and
-   * the second would write over the first (issue #418).
-   */
-  const latestAddress = useRef(address);
-  useLayoutEffect(() => {
-    latestAddress.current = address;
-  }, [address]);
-
-  /** Replace the address's filters; the history keeps one entry for the board. */
+  /** Replace the board's filters in the address; the history keeps one entry for the page. */
   const applyFilters = useCallback(
-    (next: (previous: BoardFilters) => BoardFilters): void => {
-      const written = writeBoardFilters(next(readBoardFilters(new URLSearchParams(latestAddress.current))));
-      latestAddress.current = written.toString();
-      setSearchParams(written, { replace: true });
-    },
-    [setSearchParams],
+    (next: (previous: BoardFilters) => BoardFilters): void =>
+      update((previous) => withBoardFilters(previous, next(readBoardFilters(previous)))),
+    [update],
   );
 
-  // The search box is typed into; the address, and the request, follow once typing pauses.
-  /** The search this screen last put in the address itself. */
-  const writtenSearch = useRef(filters.q);
-  useEffect(() => {
-    const typed = search.trim();
-    if (typed === filters.q) return undefined;
-    const timer = setTimeout(() => {
-      writtenSearch.current = typed;
-      applyFilters((previous) => ({ ...previous, shared: { ...previous.shared, q: typed } }));
-    }, SEARCH_DEBOUNCE_MS);
-    return (): void => clearTimeout(timer);
-  }, [search, filters.q, applyFilters]);
-
-  // And the other way: an address whose search this screen did not write — a
-  // link to the bare board, the browser's Back — is what the box shows. One it
-  // did write is left alone: more may have been typed since.
-  useEffect(() => {
-    if (filters.q === writtenSearch.current) return;
-    writtenSearch.current = filters.q;
-    setSearch(filters.q);
-  }, [filters.q]);
+  const commitSearch = useCallback(
+    (q: string): void => applyFilters((previous) => ({ ...previous, shared: { ...previous.shared, q } })),
+    [applyFilters],
+  );
+  const [search, setSearch, resetSearch] = useAddressSearch(filters.q, commitSearch);
 
   /**
    * The field filters the server is sent. Until the board has said which
@@ -489,9 +458,8 @@ export function OpportunityBoardPage(): ReactNode {
   );
 
   const clear = (): void => {
-    setSearch('');
-    writtenSearch.current = '';
-    applyFilters(() => NO_BOARD_FILTERS);
+    resetSearch();
+    update(withoutOpportunityFilters);
   };
 
   const shownFields = cardFields ?? DEFAULT_BOARD_CARD_FIELDS;
@@ -508,28 +476,27 @@ export function OpportunityBoardPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title={t('board.title')}
+        title={t('opportunity.list.title')}
         actions={
-          canWrite || canConfigure ? (
-            <>
-              {canConfigure ? (
-                <Button variant="outline" className="min-h-11 sm:min-h-9" asChild>
-                  <Link to="/crm/workflow#board-card">
-                    <SlidersHorizontal aria-hidden="true" />
-                    {t('board.configureCard')}
-                  </Link>
-                </Button>
-              ) : null}
-              {canWrite ? (
-                <Button className="min-h-11 sm:min-h-9" asChild>
-                  <Link to="/crm/opportunities/new">
-                    <Plus aria-hidden="true" />
-                    {t('opportunity.list.new')}
-                  </Link>
-                </Button>
-              ) : null}
-            </>
-          ) : undefined
+          <>
+            <ViewModeToggle mode="board" onChange={setView} />
+            {canConfigure ? (
+              <Button variant="outline" className="min-h-11 sm:min-h-9" asChild>
+                <Link to="/crm/workflow#board-card">
+                  <SlidersHorizontal aria-hidden="true" />
+                  {t('board.configureCard')}
+                </Link>
+              </Button>
+            ) : null}
+            {canWrite ? (
+              <Button className="min-h-11 sm:min-h-9" asChild>
+                <Link to="/crm/opportunities/new">
+                  <Plus aria-hidden="true" />
+                  {t('opportunity.list.new')}
+                </Link>
+              </Button>
+            ) : null}
+          </>
         }
       />
 

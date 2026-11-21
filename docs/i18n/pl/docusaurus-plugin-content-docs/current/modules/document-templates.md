@@ -22,10 +22,15 @@ gdy ten moduł jest włączony. Moduł decyduje też, jakich bloków mogą używ
 
 **Treści → Szablony dokumentów** w menu bocznym albo **⌘K** / **Ctrl+K** i wpisz *pdf*, *szablon
 dokumentu*, *szablon faktury*, *invoice template*, *szablon oferty* lub *zapytanie ofertowe pdf*.
-**Zarządzaj szablonami PDF** w oknie eksportu zapytania ofertowego otwiera kartę zapytania
-ofertowego. Przycisk **Szablon PDF** na ekranie
-**Porównania** otwiera kartę porównania produktów, a zakładka **Szablony** w **Fakturach** — kartę
-faktury.
+**Zarządzaj szablonami PDF** w oknie eksportu zapytania ofertowego otwiera listę na sekcji
+zapytania ofertowego. Przycisk **Szablon PDF** na ekranie **Porównania** otwiera ją na sekcji
+porównania produktów, a zakładka **Szablony** w **Fakturach** — na sekcji faktury.
+
+Lista ma jedną sekcję na każdy rodzaj dokumentu: najpierw układ wbudowany, potem szablony z
+zakresem, którego dotyczą. **Nowy szablon** pyta najpierw o rodzaj dokumentu, wstępnie wybierając
+sekcję, na której otwarto listę. Nazwa szablonu otwiera jego edytor; **Duplikuj…**, **Ustaw jako
+domyślny** i **Usuń** są w menu **⋮** wiersza, a menu układu wbudowanego zawiera **Podgląd PDF** i
+**Utwórz na tej podstawie**.
 
 ## Układ wbudowany, szablony i szablon domyślny
 
@@ -64,6 +69,8 @@ Edytor oferuje **tylko bloki typu dokumentu, do którego należy szablon**:
 
 Kanwa pokazuje każdy blok wypełniony **przykładowym dokumentem**; **Podgląd PDF** generuje
 prawdziwy PDF kanwy — zapisanej lub nie — z tymi samymi przykładowymi danymi i niczego nie zapisuje.
+PDF otwiera się w oknie nad edytorem; **Otwórz w nowej karcie** pokazuje go w przeglądarce PDF
+przeglądarki.
 
 **Ustawienia strony** (korzeń drzewa) określają rozmiar strony (A4 lub Letter), orientację
 (automatyczną — poziomą od trzech porównywanych produktów — pionową lub poziomą), marginesy, bazowy

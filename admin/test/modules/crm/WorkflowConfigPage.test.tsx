@@ -88,10 +88,12 @@ const TAB_PATHS = {
   'workflow.tab.orderSync': '/crm/workflow/order-sync',
   'workflow.tab.value': '/crm/workflow/value',
   'workflow.tab.boardCard': '/crm/workflow/board-card',
+  // The tag list, the configuration's last tab (issue #1557), on the same strip.
+  'configuration.tab.tags': '/crm/workflow/tags',
 } as const;
 
 describe('WorkflowConfigPage — one save model per tab (issue #1559, WORK-08)', () => {
-  it('splits the configuration into four route tabs and shows one at a time', async () => {
+  it('splits the configuration into route tabs — four of the workflow, then Tags — and shows one at a time', async () => {
     await renderPage();
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('href')])).toEqual(
