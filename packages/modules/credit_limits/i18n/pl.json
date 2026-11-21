@@ -17,5 +17,6 @@
   "list.openOrganization": "Otwórz organizację",
   "dialog.organization": "Organizacja",
   "dialog.pickOrganization": "Jeśli ma już limit, możesz go tu skorygować.",
-  "dialog.checking": "Sprawdzanie limitu kredytowego organizacji…"
+  "dialog.checking": "Sprawdzanie limitu kredytowego organizacji…",
+  "settingLabels.credit_limits.enabled.name": "Limity kredytowe włączone"
 }

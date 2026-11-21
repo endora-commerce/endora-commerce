@@ -522,5 +522,12 @@
   "settingGroups.forms.name": "Forms",
   "settingLabels.forms.captcha_provider.options.none": "None",
   "settingLabels.forms.captcha_provider.options.turnstile": "Cloudflare Turnstile",
-  "settingLabels.forms.captcha_provider.options.hcaptcha": "hCaptcha"
+  "settingLabels.forms.captcha_provider.options.hcaptcha": "hCaptcha",
+  "settingLabels.forms.enabled.name": "Forms enabled",
+  "settingLabels.forms.captcha_provider.name": "CAPTCHA provider",
+  "settingLabels.forms.captcha_provider.description": "The service that checks a form was sent by a person: Turnstile or hCaptcha. With none, nothing is checked.",
+  "settingLabels.forms.captcha_site_key.name": "CAPTCHA site key",
+  "settingLabels.forms.captcha_site_key.description": "The public site key from the CAPTCHA provider. It is sent to the browser.",
+  "settingLabels.forms.captcha_secret_key.name": "CAPTCHA secret key",
+  "settingLabels.forms.captcha_secret_key.description": "The secret key from the CAPTCHA provider, used by the server. Stored encrypted; write-only."
 }

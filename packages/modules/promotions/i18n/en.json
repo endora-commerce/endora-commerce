@@ -57,5 +57,6 @@
   "errors.PROMOTION_COUPON_SPACE_EXHAUSTED": "Only {generated} of {requested} unique codes fit this length and format. Make the codes longer or widen the format.",
   "errors.PROMOTION_RULE_NAME_TAKEN": "A rule named {name} already exists. Choose a different name.",
   "errors.PROMOTION_RULE_IN_USE": "Promotions that use this rule: {promotionCount}. Remove the rule from them before you delete it.",
-  "errors.PROMOTION_ATTRIBUTE_NOT_ELIGIBLE": "The attribute {attributeKey} is not usable in promotion rules. Turn that on for the attribute in the catalogue, or choose another attribute."
+  "errors.PROMOTION_ATTRIBUTE_NOT_ELIGIBLE": "The attribute {attributeKey} is not usable in promotion rules. Turn that on for the attribute in the catalogue, or choose another attribute.",
+  "settingLabels.promotions.enabled.name": "Promotions enabled"
 }

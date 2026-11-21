@@ -17,5 +17,6 @@
   "list.openOrganization": "Open organization",
   "dialog.organization": "Organization",
   "dialog.pickOrganization": "If it already holds a limit, you can adjust it here.",
-  "dialog.checking": "Checking the organization's credit limit…"
+  "dialog.checking": "Checking the organization's credit limit…",
+  "settingLabels.credit_limits.enabled.name": "Credit limits enabled"
 }

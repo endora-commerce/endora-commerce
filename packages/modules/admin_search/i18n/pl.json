@@ -40,5 +40,12 @@
   "page.results.announce": "Znaleziono rekordów: {count}",
   "actions.openGlobalSearch.keywords": "szukaj, wyszukaj, rekordy",
   "actions.openConfiguration.keywords": "pola, wyszukiwania, konfiguracja",
-  "settingGroups.admin_search.name": "Wyszukiwanie globalne"
+  "settingGroups.admin_search.name": "Wyszukiwanie globalne",
+  "settingLabels.admin_search.enabled.name": "Wyszukiwanie globalne włączone",
+  "settingLabels.admin_search.minimum_query_length.name": "Minimalna długość wyszukiwania",
+  "settingLabels.admin_search.minimum_query_length.description": "Ile znaków trzeba wpisać w palecie poleceń, zanim rekordy zostaną przeszukane (2–10).",
+  "settingLabels.admin_search.results_per_entity.name": "Wyniki na typ rekordu",
+  "settingLabels.admin_search.results_per_entity.description": "Ile rekordów każdego typu pokazuje paleta poleceń (1–10).",
+  "settingLabels.admin_search.entity_fields.name": "Przeszukiwane pola",
+  "settingLabels.admin_search.entity_fields.description": "Po których polach przeszukiwany jest każdy typ rekordu. Edytowane na ekranie konfiguracji wyszukiwania globalnego."
 }

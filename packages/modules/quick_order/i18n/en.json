@@ -59,5 +59,9 @@
   "errors.ONE_CLICK_UNAVAILABLE": "One-click buy is not available right now. Add the product to the cart and place the order from there.",
   "errors.ONE_CLICK_UNAVAILABLE.setting_disabled": "One-click buy is switched off in this store. Add the product to the cart and place the order from there.",
   "errors.ONE_CLICK_UNAVAILABLE.missing_defaults": "One-click buy needs a default delivery address, billing address, delivery method and payment method that this store offers. Set them in your account, or add the product to the cart and place the order from there.",
-  "defaultPreferences.partLabel": "Ordering defaults"
+  "defaultPreferences.partLabel": "Ordering defaults",
+  "settingLabels.quick_order.one_click_buy_enabled.name": "One-click buy enabled",
+  "settingLabels.quick_order.one_click_buy_enabled.description": "Buyers with all default ordering preferences set see “Buy in one click” on product pages.",
+  "settingLabels.quick_order.import_max_rows.name": "Import row limit",
+  "settingLabels.quick_order.import_max_rows.description": "Most rows one CSV or Excel quick-order import accepts."
 }

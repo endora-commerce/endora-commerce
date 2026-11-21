@@ -546,5 +546,6 @@
   "actions.openTaskPriorities.keywords": "priorytety, priorytet, pilność",
   "actions.openTaskTags.keywords": "etykiety, etykieta",
   "actions.openTaskGeneralSettings.keywords": "ustawienia, strefa czasowa",
-  "settingGroups.tasks.name": "Zadania"
+  "settingGroups.tasks.name": "Zadania",
+  "settingLabels.tasks.enabled.name": "Zadania włączone"
 }

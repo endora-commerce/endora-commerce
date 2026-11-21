@@ -18,6 +18,7 @@
   "column.day": "Day",
   "settingGroups.analytics.name": "Analytics",
   "settingLabels.analytics.reporting_time_zone.name": "Reporting time zone",
-  "settingLabels.analytics.reporting_time_zone.description": "The time zone, as an IANA name such as Europe/Warsaw, in which reports count days, months and other ranges of days — today, Projects analytics and CRM analytics. Default UTC. While Analytics is switched off, reports count in UTC.",
-  "actions.openAnalytics.keywords": "analytics, events, report"
+  "settingLabels.analytics.reporting_time_zone.description": "The IANA time zone (e.g. Europe/Warsaw) in which reports count days and months. Default UTC.",
+  "actions.openAnalytics.keywords": "analytics, events, report",
+  "settingLabels.analytics.enabled.name": "Analytics enabled"
 }

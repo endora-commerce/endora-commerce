@@ -105,7 +105,7 @@ const settings = defineModuleSettingsManifest({
       code: RETURNS_SETTING_CODES.TIME_ZONE,
       name: 'Time zone of the return windows',
       description:
-        'The time zone, as an IANA name such as Europe/Warsaw, in which the free-return window and the consumer\'s withdrawal period count calendar days: each ends at the end of its last day in this zone, and a last day on a Saturday or Sunday moves to the Monday. Sales-channel value overrides the global value.',
+        'The IANA time zone (e.g. Europe/Warsaw) in which return and withdrawal periods count calendar days.',
       groupCode: 'returns',
       valueType: 'string',
       defaultValue: RETURNS_DEFAULT_TIME_ZONE,
@@ -117,7 +117,7 @@ const settings = defineModuleSettingsManifest({
       code: RETURNS_SETTING_CODES.NEW_CASE_RECIPIENTS,
       name: 'New-case recipients',
       description:
-        'E-mail addresses that receive the "new case" e-mail for every return and complaint filed. Up to 10 addresses are used. An invalid address is skipped and reported in the e-mail log. Sales-channel value replaces the global value.',
+        'Up to 10 addresses that receive an e-mail for every new return and complaint.',
       groupCode: 'returns',
       valueType: 'string_list',
       defaultValue: [],
@@ -128,7 +128,7 @@ const settings = defineModuleSettingsManifest({
       code: RETURNS_SETTING_CODES.OFF_PLATFORM_COMPLAINTS_ENABLED,
       name: 'Complaints without a platform order',
       description:
-        'Customers may file a complaint about goods they did not buy on this platform: they name the product or model, the purchase date and how to reach them. Such a complaint is settled by repair, replacement or outside the platform, never by a refund here. Sales-channel value overrides the global value.',
+        'Customers may complain about goods not bought here; settled by repair or replacement, never by a refund.',
       groupCode: 'returns',
       valueType: 'boolean',
       defaultValue: false,
@@ -138,7 +138,7 @@ const settings = defineModuleSettingsManifest({
       code: RETURNS_SETTING_CODES.PROOF_OF_PURCHASE_REQUIRED,
       name: 'Proof of purchase required',
       description:
-        'A complaint without a platform order is accepted only with an attachment typed "proof of purchase". Applies to complaints without a platform order only; has no effect while those are switched off. Sales-channel value overrides the global value.',
+        'A complaint without a platform order is accepted only with a proof-of-purchase attachment.',
       groupCode: 'returns',
       valueType: 'boolean',
       defaultValue: false,
@@ -149,7 +149,7 @@ const settings = defineModuleSettingsManifest({
       code: RETURNS_SETTING_CODES.GUEST_COMPLAINTS_ENABLED,
       name: 'Complaints from guests',
       description:
-        'Visitors without a customer account may file a complaint about goods they did not buy on this platform, after confirming their e-mail address by a one-time link. Takes effect only while "Complaints without a platform order" is on for the same channel. Sales-channel value overrides the global value.',
+        'Visitors without an account may file a complaint after confirming their e-mail. Needs complaints without an order.',
       groupCode: 'returns',
       valueType: 'boolean',
       defaultValue: false,
@@ -161,7 +161,7 @@ const settings = defineModuleSettingsManifest({
       code: RETURNS_SETTING_CODES.GUEST_DATA_RETENTION_DAYS,
       name: 'Guest data retention (days)',
       description:
-        'How many days after a guest case is closed (enters a final status) the contact data, ship-back address and files of the guest are erased. Values below 30 are read as 30 and above 3650 as 3650. Comments and the case itself are kept.',
+        'Days after a guest case closes before its contact data, address and files are erased (30–3650).',
       groupCode: 'returns',
       valueType: 'number',
       defaultValue: 90,

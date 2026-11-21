@@ -147,5 +147,13 @@
   "source.default": "Default content from the module",
   "source.global": "Content customized for all channels",
   "source.channel": "Content customized for this sales channel",
-  "editor.saving": "Saving…"
+  "editor.saving": "Saving…",
+  "settingLabels.transactional_emails.logo_asset_id.name": "Email header logo",
+  "settingLabels.transactional_emails.logo_asset_id.description": "Logo in the header of transactional e-mails.",
+  "settingLabels.transactional_emails.accent_color.name": "Email accent color",
+  "settingLabels.transactional_emails.accent_color.description": "Hex accent colour of the default e-mail components.",
+  "settingLabels.transactional_emails.header_block_code.name": "Default header block",
+  "settingLabels.transactional_emails.header_block_code.description": "E-mail block inserted as the header of new e-mails.",
+  "settingLabels.transactional_emails.footer_block_code.name": "Default footer block",
+  "settingLabels.transactional_emails.footer_block_code.description": "E-mail block inserted as the footer of new e-mails."
 }

@@ -50,5 +50,22 @@
   "security.setup.intro": "Add this account to your authenticator app:",
   "security.setup.manualKey": "Manual key:",
   "security.setup.codeLabel": "Enter the 6-digit code to confirm",
-  "security.setup.submit": "Confirm and enable"
+  "security.setup.submit": "Confirm and enable",
+  "settingLabels.mfa.enabled.name": "MFA enabled",
+  "settingLabels.mfa.admin.totp_enabled.name": "Admin UI — allow two-step verification",
+  "settingLabels.mfa.admin.totp_enabled.description": "Administrators may set up two-step verification with an authenticator app.",
+  "settingLabels.mfa.admin.totp_enforced.name": "Admin UI — enforce two-step verification",
+  "settingLabels.mfa.admin.totp_enforced.description": "Administrators must set up two-step verification before using the admin.",
+  "settingLabels.mfa.storefront.totp_enabled.name": "Storefront — allow two-step verification",
+  "settingLabels.mfa.storefront.totp_enabled.description": "Customers may set up two-step verification with an authenticator app.",
+  "settingLabels.mfa.storefront.totp_enforced.name": "Storefront — enforce two-step verification",
+  "settingLabels.mfa.storefront.totp_enforced.description": "Customers must set up two-step verification before using the storefront.",
+  "settingLabels.mfa.admin.google_enabled.name": "Admin UI — Google sign-in",
+  "settingLabels.mfa.admin.google_enabled.description": "Existing administrators may sign in with Google.",
+  "settingLabels.mfa.admin.microsoft_enabled.name": "Admin UI — Microsoft sign-in",
+  "settingLabels.mfa.admin.microsoft_enabled.description": "Existing administrators may sign in with Microsoft.",
+  "settingLabels.mfa.storefront.google_enabled.name": "Storefront — Google sign-in",
+  "settingLabels.mfa.storefront.google_enabled.description": "Customers may sign in with Google.",
+  "settingLabels.mfa.storefront.microsoft_enabled.name": "Storefront — Microsoft sign-in",
+  "settingLabels.mfa.storefront.microsoft_enabled.description": "Customers may sign in with Microsoft."
 }

@@ -546,5 +546,6 @@
   "actions.openTaskPriorities.keywords": "priorities, priority, urgency",
   "actions.openTaskTags.keywords": "tags, labels",
   "actions.openTaskGeneralSettings.keywords": "settings, time zone",
-  "settingGroups.tasks.name": "Tasks"
+  "settingGroups.tasks.name": "Tasks",
+  "settingLabels.tasks.enabled.name": "Tasks enabled"
 }

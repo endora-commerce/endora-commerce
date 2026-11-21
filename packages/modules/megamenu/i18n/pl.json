@@ -162,5 +162,6 @@
   "listActions.open": "Otwórz",
   "listActions.delete": "Usuń",
   "listActions.deleteActiveBindings": "Jest aktywne w kanale sprzedaży. Najpierw wyłącz jego powiązania w edytorze.",
-  "listActions.deleteFailed": "Nie udało się usunąć. Sprawdź połączenie i spróbuj ponownie."
+  "listActions.deleteFailed": "Nie udało się usunąć. Sprawdź połączenie i spróbuj ponownie.",
+  "settingLabels.megamenu.enabled.name": "Megamenu włączone"
 }

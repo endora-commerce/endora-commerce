@@ -56,7 +56,7 @@ export const newsletterSettingsManifest = defineModuleSettingsManifest({
       code: NEWSLETTER_SETTING_CODES.TRACKING_OPENS_ENABLED,
       name: 'Track campaign opens',
       description:
-        'Adds an invisible 1×1 image to every campaign e-mail, so the campaign statistics can count who opened it. Opens are recorded per recipient. When off, campaign e-mails carry no image and no opens are counted. Off by default. Automation e-mails are never tracked.',
+        'Counts opens per recipient with an invisible image in campaign e-mails. Automation e-mails are never tracked.',
       groupCode: 'newsletter',
       valueType: 'boolean',
       defaultValue: false,
@@ -65,7 +65,7 @@ export const newsletterSettingsManifest = defineModuleSettingsManifest({
       code: NEWSLETTER_SETTING_CODES.TRACKING_CLICKS_ENABLED,
       name: 'Track campaign link clicks',
       description:
-        'Sends the links in every campaign e-mail through a redirect on this platform, so the campaign statistics can count clicks per recipient and per link. When off, links lead straight to their destination and no clicks are counted. Off by default. Automation e-mails are never tracked.',
+        'Counts clicks per recipient and link by redirecting campaign links. Automation e-mails are never tracked.',
       groupCode: 'newsletter',
       valueType: 'boolean',
       defaultValue: false,

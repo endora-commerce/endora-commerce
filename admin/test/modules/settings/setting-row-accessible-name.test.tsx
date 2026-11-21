@@ -74,21 +74,33 @@ function hosted(ui: ReactElement): ReactElement {
   });
 }
 
-function renderRow(row: SettingDto, options: { readOnly?: boolean } = {}): HTMLElement {
+function renderRow(
+  row: SettingDto,
+  options: { readOnly?: boolean; readOnlyReasonId?: string } = {},
+): HTMLElement {
   const text = deriveDisplayValue(row, null);
   const { container } = renderWithI18n(
     hosted(
-      <SettingRowEditor
-        setting={row}
-        draft={{ text, initialText: text }}
-        channelContext={null}
-        isCopied={false}
-        resetting={false}
-        readOnly={options.readOnly ?? false}
-        onChange={vi.fn()}
-        onCopyCode={vi.fn()}
-        onReset={vi.fn()}
-      />,
+      <>
+        {/* The page's group states the reason once (issue #1518). */}
+        {options.readOnlyReasonId !== undefined ? (
+          <p id={options.readOnlyReasonId}>editor.readOnlyReason</p>
+        ) : null}
+        <SettingRowEditor
+          setting={row}
+          draft={{ text, initialText: text }}
+          channelContext={null}
+          isCopied={false}
+          resetting={false}
+          readOnly={options.readOnly ?? false}
+          {...(options.readOnlyReasonId !== undefined
+            ? { readOnlyReasonId: options.readOnlyReasonId }
+            : {})}
+          onChange={vi.fn()}
+          onCopyCode={vi.fn()}
+          onReset={vi.fn()}
+        />
+      </>,
     ),
     BUNDLE,
   );
@@ -163,7 +175,7 @@ describe('SettingRowEditor — descriptions are linked to the control', () => {
   });
 
   it('links the read-only reason, and the control is disabled', () => {
-    renderRow(setting({ editable: false }), { readOnly: true });
+    renderRow(setting({ editable: false }), { readOnly: true, readOnlyReasonId: 'group-reason' });
     const input = screen.getByRole('textbox', { name: 'Demo field' }) as HTMLInputElement;
     expect(input.disabled).toBe(true);
     expect(descriptions(input)).toContain('editor.readOnlyReason');

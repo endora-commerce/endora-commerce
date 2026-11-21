@@ -2,5 +2,18 @@
   "actions.openGoogleTagManager.label": "Google Tag Manager",
   "actions.openGoogleTagManager.description": "Skonfiguruj kontener GTM i tagowanie server-side dla kanału sprzedaży",
   "actions.openGoogleTagManager.keywords": "tagi, kontener",
-  "settingGroups.google_tag_manager.name": "Google Tag Manager"
+  "settingGroups.google_tag_manager.name": "Google Tag Manager",
+  "settingLabels.google_tag_manager.module_enabled.name": "Moduł Google Tag Manager włączony",
+  "settingLabels.google_tag_manager.enabled.name": "Włącz Google Tag Manager",
+  "settingLabels.google_tag_manager.enabled.description": "Wczytuje kontener GTM w tym kanale sprzedaży. Nie włączaj dla niego także Google Analytics.",
+  "settingLabels.google_tag_manager.container_id.name": "Identyfikator kontenera",
+  "settingLabels.google_tag_manager.container_id.description": "Identyfikator kontenera GTM (GTM-XXXXXXX). Pusty: kanał nie jest śledzony.",
+  "settingLabels.google_tag_manager.require_consent.name": "Wymagaj zgody na analitykę",
+  "settingLabels.google_tag_manager.require_consent.description": "Kontener startuje bez zgody i żadne zdarzenie nie jest wysyłane, dopóki odwiedzający nie zaakceptuje cookies.",
+  "settingLabels.google_tag_manager.server_side_enabled.name": "Tagowanie po stronie serwera",
+  "settingLabels.google_tag_manager.server_side_enabled.description": "Wysyła zdarzenia handlowe do kontenera serwerowego GTM z backendu zamiast z przeglądarki.",
+  "settingLabels.google_tag_manager.server_container_url.name": "Adres kontenera serwerowego",
+  "settingLabels.google_tag_manager.server_container_url.description": "Bazowy adres kontenera serwerowego GTM. Pusty pozostawia kanał przy przeglądarce.",
+  "settingLabels.google_tag_manager.server_ingest_path.name": "Ścieżka odbioru kontenera serwerowego",
+  "settingLabels.google_tag_manager.server_ingest_path.description": "Ścieżka, na której nasłuchuje klient kontenera serwerowego. Domyślna /data pasuje do Data Client Google."
 }

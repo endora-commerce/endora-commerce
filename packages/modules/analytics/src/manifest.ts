@@ -74,8 +74,7 @@ export const manifest = defineModuleManifest({
         code: ANALYTICS_REPORTING_TIME_ZONE_SETTING,
         name: 'Reporting time zone',
         description:
-          'The time zone, as an IANA name such as Europe/Warsaw, in which reports count days, months and other ' +
-          'ranges of days — today, Projects analytics and CRM analytics. Default UTC. While Analytics is switched off, reports count in UTC.',
+          'The IANA time zone (e.g. Europe/Warsaw) in which reports count days and months. Default UTC.',
         groupCode: 'analytics',
         valueType: 'string',
         defaultValue: 'UTC',

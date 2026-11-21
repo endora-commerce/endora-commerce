@@ -803,5 +803,12 @@
   "actions.openCrmCalendar.keywords": "calendar, events, reminder, deadlines",
   "actions.openCrmTags.keywords": "label, labels",
   "actions.openCrmWorkflow.keywords": "workflow, statuses, funnel",
-  "settingGroups.crm.name": "CRM"
+  "settingGroups.crm.name": "CRM",
+  "settingLabels.crm.enabled.name": "CRM enabled",
+  "settingLabels.crm.auto_create_from_orders.name": "Create an opportunity for every new order",
+  "settingLabels.crm.auto_create_from_orders.description": "Every new order gets a linked sales opportunity, unless it is already linked to one. Off by default.",
+  "settingLabels.crm.auto_create_from_quote_requests.name": "Create an opportunity for every new quote request",
+  "settingLabels.crm.auto_create_from_quote_requests.description": "Every new quote request gets a linked sales opportunity. Needs Quote requests. Off by default.",
+  "settingLabels.crm.board_card_fields.name": "Fields shown on a board card",
+  "settingLabels.crm.board_card_fields.description": "Fields a card on the opportunity board shows, at most six. Edited on the CRM workflow screen."
 }

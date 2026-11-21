@@ -803,5 +803,12 @@
   "actions.openCrmCalendar.keywords": "kalendarz, wydarzenia, przypomnienie, terminy",
   "actions.openCrmTags.keywords": "etykieta, etykiety",
   "actions.openCrmWorkflow.keywords": "przepływ, statusy, lejek",
-  "settingGroups.crm.name": "CRM"
+  "settingGroups.crm.name": "CRM",
+  "settingLabels.crm.enabled.name": "CRM włączony",
+  "settingLabels.crm.auto_create_from_orders.name": "Twórz szansę sprzedaży dla każdego nowego zamówienia",
+  "settingLabels.crm.auto_create_from_orders.description": "Każde nowe zamówienie dostaje powiązaną szansę sprzedaży, chyba że już ma powiązaną. Domyślnie wyłączone.",
+  "settingLabels.crm.auto_create_from_quote_requests.name": "Twórz szansę sprzedaży dla każdego nowego zapytania ofertowego",
+  "settingLabels.crm.auto_create_from_quote_requests.description": "Każde nowe zapytanie ofertowe dostaje powiązaną szansę sprzedaży. Wymaga zapytań ofertowych. Domyślnie wyłączone.",
+  "settingLabels.crm.board_card_fields.name": "Pola na karcie tablicy",
+  "settingLabels.crm.board_card_fields.description": "Pola pokazywane na karcie tablicy szans sprzedaży, najwyżej sześć. Edytowane na ekranie procesu CRM."
 }

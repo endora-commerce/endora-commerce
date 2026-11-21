@@ -8,5 +8,6 @@
   "errors.PAYMENT_ALREADY_PAID.mark_failed": "Płatność {paymentId} jest już opłacona, więc nie można oznaczyć jej jako nieudanej.",
   "errors.PAYMENT_REFUNDED": "Ta płatność została zwrócona, więc nie można jej ponowić.",
   "errors.PAYMENT_SETTLED_OUT_OF_BAND": "To zamówienie jest rozliczane poza bramką płatności, więc nie ma czego ponawiać.",
-  "settingGroups.payments.name": "Płatności"
+  "settingGroups.payments.name": "Płatności",
+  "settingLabels.payments.enabled.name": "Płatności włączone"
 }
