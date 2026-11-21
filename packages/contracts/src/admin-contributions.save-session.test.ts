@@ -64,6 +64,10 @@ describe('the save-session handle in the zone contract', () => {
     // @ts-expect-error — the order detail offers no session (spec § *Zone hosts that do not change*).
     const order: AdminZoneProps<'order.detail.after'> = { orderId: 'o', saveSession: handle };
     void order;
+
+    // @ts-expect-error — the organization Sales tab is not part of the Commerce one Save (#1452).
+    const sales: AdminZoneProps<'organization.detail.sales'> = { organizationId: 'o', saveSession: handle };
+    void sales;
   });
 
   it('carries no function in its public type, so contracts stays free of React', () => {

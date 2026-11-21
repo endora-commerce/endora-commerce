@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
-import { INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
@@ -12,7 +11,7 @@ import { CRM_BUNDLE_EN, OPPORTUNITY_ID, ORGANIZATION_ID, en, summary } from './c
  * CRM's panel on the Organization screen (`specs/143-crm-sales-opportunities/`,
  * User Story 14 — task T136; `contracts/admin-surfaces.md` §5).
  *
- * `organizations` mounts `organization.detail.after` and knows nothing of who
+ * `organizations` mounts `organization.detail.sales` and knows nothing of who
  * fills it. CRM contributes one panel: the Organization's open Opportunities,
  * each with its status and value and a link to it, and a "New opportunity" link
  * carrying the Organization. The zone renderer applies both presence axes and
@@ -49,7 +48,7 @@ function renderZone(
     withSession(
       <AppLanguageContext.Provider value={{ language: 'en', setLanguage: (): void => {} }}>
         <MemoryRouter initialEntries={[`/organizations/${ORGANIZATION_ID}`]}>
-          <AdminZone name="organization.detail.after" props={{ organizationId: ORGANIZATION_ID, saveSession: INERT_SAVE_SESSION }} />
+          <AdminZone name="organization.detail.sales" props={{ organizationId: ORGANIZATION_ID }} />
         </MemoryRouter>
       </AppLanguageContext.Provider>,
       {
@@ -87,7 +86,7 @@ beforeEach(() => {
 
 describe('crm contributes the organization detail zone', () => {
   it('declares the contribution on crm:read, behind a dynamic import', () => {
-    const zone = (crm.contributions.zones ?? []).find((entry) => entry.zone === 'organization.detail.after');
+    const zone = (crm.contributions.zones ?? []).find((entry) => entry.zone === 'organization.detail.sales');
     expect(zone).toBeDefined();
     expect(zone?.requiredPermission).toBe('crm:read');
     expect(zone?.weight).toBe(600);

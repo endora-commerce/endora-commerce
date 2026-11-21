@@ -1479,7 +1479,14 @@ Moduł dodaje panel, deklarując `zoneComponent('quote_request.detail.after', �
 wkładach do panelu administracyjnego; ten moduł nie wymienia żadnego z nich i żadnego nie
 importuje. Gdy nikt nic nie wnosi — nie ma takiego modułu, moduł jest wyłączony albo osoba nie ma
 uprawnienia wymaganego przez panel — strefa nie renderuje niczego, a ekran jest dokładnie taki jak
-bez niej. Moduł CRM wnosi szansę, z którą zapytanie ofertowe jest powiązane.
+bez niej.
+
+Strefa panelu administracyjnego `quote_request.detail.sidebar` jest osadzona raz, w karcie panelu
+bocznego obok zakładek, i przekazuje wkładowi ten sam `{ quoteRequestId }`. Każdy wkład jest
+sekcją tej jednej karty. Panel boczny jest rysowany tylko wtedy, gdy coś go wypełnia, więc gdy
+nikt nic nie wnosi, ekran ma jedną kolumnę — dokładnie taki jak bez strefy. Moduły CRM, Projekty
+i Zadania wnoszą tu szansę, z którą zapytanie ofertowe jest powiązane, jego projekt i zadania;
+wkłady do `quote_request.detail.after` działają bez zmian.
 
 ## Wyszukiwanie globalne
 

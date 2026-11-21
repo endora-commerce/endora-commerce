@@ -145,12 +145,13 @@ Jego zakładki:
   którego projekt już nie ma, są opisane właśnie tak.
 
 **Na ekranach dokumentów należących do projektu** — zamówienia, zapytania
-ofertowego, szansy sprzedażowej, zadania — panel **Projekt** wskazuje projekt,
+ofertowego, szansy sprzedażowej, zadania — sekcja **Projekt** w panelu bocznym
+ekranu wskazuje projekt,
 do którego dokument należy: jego numer jako odnośnik, tytuł, stan oraz bieżący
 etap z terminem. Dokument spoza projektów albo z projektu, którego nie możesz
 zobaczyć, nie pokazuje żadnego panelu.
 
-**Na ekranie organizacji** panel **Projekty** wymienia projekty tej organizacji,
+**Na ekranie organizacji** sekcja **Projekty** na karcie **Sprzedaż** wymienia projekty tej organizacji,
 które możesz zobaczyć, od najnowszych — dziesięć najnowszych; gdy jest ich
 więcej, panel podaje, ile ich jest, i prowadzi odnośnikiem *Wszystkie projekty*
 do listy projektów zawężonej do tej organizacji — każdy z numerem jako odnośnikiem, tytułem, stanem i

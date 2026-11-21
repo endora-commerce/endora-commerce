@@ -307,6 +307,8 @@ const SUBJECTS: readonly Subject[] = [
     zones: ['order.entry.tabs'],
     mounts: [
       ['orders/src/admin/pages/OrderDetail.tsx', 'order.detail.payment', 1],
+      // Issue #1452 (UX audit DS-20) — the sidebar card beside the tabs.
+      ['orders/src/admin/pages/OrderDetail.tsx', 'order.detail.sidebar', 1],
       ['orders/src/admin/components/OrderShipmentsTab.tsx', 'order.shipment.row.actions', 1],
       ['orders/src/admin/components/OrderShipmentsTab.tsx', 'order.shipments.tab.actions', 1],
       ['orders/src/admin/pages/OrderCreatePage.tsx', 'order.entry.tabs', 1],

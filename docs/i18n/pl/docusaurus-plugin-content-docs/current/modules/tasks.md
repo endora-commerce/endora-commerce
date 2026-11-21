@@ -171,7 +171,7 @@ projekt, w którym jest zadanie. Bez uprawnienia do
 zmieniania zadań ekran jest tylko do odczytu.
 
 **Na innych rekordach.** Ekrany **szansy sprzedażowej**, **zamówienia**
-i **zapytania ofertowego** kończą się panelem **Zadania**: powiązanymi z nim
+i **zapytania ofertowego** mają w panelu bocznym sekcję **Zadania**: z powiązanymi z nim
 zadaniami, które możesz zobaczyć, z ich statusem, osobami przypisanymi
 i terminem, przyciskiem *Dodaj zadanie* — nowe zadanie od razu powiązane
 z rekordem — oraz *Pokaż na liście zadań*. Zadanie otwarte albo dodane

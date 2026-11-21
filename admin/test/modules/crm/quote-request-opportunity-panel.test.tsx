@@ -12,7 +12,7 @@ import { ADMIN_ID, CRM_BUNDLE_EN, OPPORTUNITY_ID, ORGANIZATION_ID, en, summary }
  * CRM's panel on the Quote Request screen (`specs/143-crm-sales-opportunities/`,
  * User Story 17 — the Quote Request half; `contracts/admin-surfaces.md` §5).
  *
- * `quote_requests` mounts `quote_request.detail.after` and names nobody. CRM
+ * `quote_requests` mounts `quote_request.detail.sidebar` and names nobody. CRM
  * contributes the panel the Order screen has, for the other document kind: the
  * Opportunity the request is linked to, or the two ways to give it one. Its
  * sentences say "quote request", the link and the create form carry that kind,
@@ -62,7 +62,7 @@ function renderZone(
     withSession(
       <AppLanguageContext.Provider value={{ language: 'en', setLanguage: (): void => {} }}>
         <MemoryRouter initialEntries={[`/quote-requests/${QUOTE_ID}`]}>
-          <AdminZone name="quote_request.detail.after" props={{ quoteRequestId: QUOTE_ID }} />
+          <AdminZone name="quote_request.detail.sidebar" props={{ quoteRequestId: QUOTE_ID }} />
         </MemoryRouter>
       </AppLanguageContext.Provider>,
       {
@@ -97,7 +97,7 @@ beforeEach(() => {
 
 describe('crm contributes the quote request detail zone', () => {
   it('declares the contribution on crm:read, behind a dynamic import', () => {
-    const zone = (crm.contributions.zones ?? []).find((entry) => entry.zone === 'quote_request.detail.after');
+    const zone = (crm.contributions.zones ?? []).find((entry) => entry.zone === 'quote_request.detail.sidebar');
     expect(zone?.requiredPermission).toBe('crm:read');
     expect(zone?.weight).toBe(600);
     expect(typeof zone?.component).toBe('function');
