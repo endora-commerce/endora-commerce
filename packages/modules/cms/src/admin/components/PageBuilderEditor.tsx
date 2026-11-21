@@ -71,6 +71,7 @@ import {
   PageBuilderHeaderActions,
   emptyPageBuilderData,
   isEmptyPageBuilderData,
+  PageBuilderLoadingSkeleton,
   PageBuilderOverlayBridge,
 } from '@endora-commerce/page-builder-admin';
 import { AdminCatalogPreviewProvider } from './AdminCatalogPreviewProvider.js';
@@ -1175,9 +1176,16 @@ export function PageBuilderEditor({
           onDismiss={(): void => setTranslationNotice(null)}
         />
       ) : null}
+      {/* Issue #1540 (CONTENT-23): until the descriptor and the contributed
+          editors are known, the builder is a skeleton of its own three panes
+          — not a grey sentence over an empty box — and Puck mounts once, with
+          the full config. A failed read keeps the degraded canvas below. */}
       {(!descriptor || contributedEditors === null) && !error ? (
-        <p className="text-sm text-muted-foreground">{t('pageBuilder.loadingConfig')}</p>
-      ) : null}
+        <PageBuilderLoadingSkeleton
+          label={t('pageBuilder.loadingConfig')}
+          className={cn(fullscreen && 'min-h-0 flex-1')}
+        />
+      ) : (
       <div
         className={cn(
           'cms-page-builder__canvas overflow-x-auto overflow-y-auto border',
@@ -1217,6 +1225,7 @@ export function PageBuilderEditor({
           </AdminCatalogPreviewProvider>
         </AdminCmsAssetProvider>
       </div>
+      )}
       <RowLayoutPicker
         open={rowLayoutPickerForId !== null}
         onOpenChange={(open): void => {

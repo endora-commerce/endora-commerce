@@ -218,6 +218,18 @@ describe('DocumentTemplateEditor — the shared editor shell (issue #1532)', () 
     expect(screen.getByTestId('merge-fields').closest('[data-slot="card"]')).toBeNull();
   });
 
+  it('loads as a skeleton of the builder, announced politely and busy — not a grey sentence (#1540)', async () => {
+    api.getTemplate.mockReturnValue(new Promise(() => undefined));
+    const container = renderEditor();
+    const region = (await screen.findByText('editor.loading')).closest('[role="status"]')!;
+    expect(region.getAttribute('data-slot')).toBe('page-builder-skeleton');
+    expect(region.getAttribute('aria-busy')).toBe('true');
+    expect(region.querySelector('[data-pane="canvas"]')).not.toBeNull();
+    expect(region.querySelector('.sr-only')?.textContent).toBe('editor.loading');
+    expect(screen.queryByTestId('puck')).toBeNull();
+    await expectNoAxeViolations(container);
+  });
+
   it('shows the Default badge beside the title, not among the actions', async () => {
     renderEditor();
     const badge = await screen.findByText('page.default');
