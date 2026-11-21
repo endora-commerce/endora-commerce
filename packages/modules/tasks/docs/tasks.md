@@ -132,11 +132,13 @@ task's number, its title, its status and *Draft* or *Private* when it is one. A
 draft shows *Publish* to its creator; the creator of a task with no record can
 switch *Private* on and off. Below are three cards:
 
-- **Details** — *Move to…* beside *Edit*, offering only the moves the workflow
-  allows; the description, with its references as links; assignees, due date
-  and time, start date, priority and tags, changed with *Edit* and saved
-  together; *Assign to me*; who created the task and when, and when it was
-  finished; and the task's **custom fields**. *Delete task*, at the top of the screen and away from *Edit*, asks
+- **Details** — *Move to…*, offering only the moves the workflow allows; the
+  description, with its references as links; due date and time, start date,
+  priority, tags and assignees, each changed where it is shown: the pencil
+  beside it opens that one field, with **Save** and **Cancel**, and saving sends
+  that field alone, as on an opportunity. The title has its pencil beside the
+  heading. *Assign to me*; who created the task and when, and when it was
+  finished; and the task's **custom fields**. *Delete task*, at the top of the screen and away from the fields, asks
   before it deletes, and says how many sub-tasks the task has: they become
   top-level tasks, they are not deleted. It is not
   offered for a task of a record you may not change — a project you may not

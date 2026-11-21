@@ -1,6 +1,6 @@
-import { useId, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { OpportunityDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription } from '@endora-commerce/admin-kit/ui';
+import { InlineEdit } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
 import { errorMessage } from '../lib/labels.js';
@@ -15,74 +15,51 @@ export interface AssigneeSectionProps {
 }
 
 /**
- * Who holds the Opportunity, and — for a holder of `crm:write` — the control
- * that changes it (`contracts/admin-api.md` §5).
+ * Who holds the Opportunity, and — for a holder of `crm:write` — the change
+ * of it (`contracts/admin-api.md` §5).
  *
- * **Choosing is assigning.** There is one field and no *Save*: picking a person
- * posts the assignment, clearing the field unassigns, and the answer is put on
- * screen. A refusal (`CRM_ASSIGNEE_INVALID` — somebody deactivated meanwhile)
- * is shown in the server's sentence and the field goes back to whoever holds
- * the Opportunity. Assigning notifies the new assignee; nothing here does.
- *
- * It is one labelled fact of the screen's sidebar: a group under an `h3`, not a
- * landmark of its own.
+ * **One fact of the sidebar, edited as its neighbours are** — the kit's
+ * `InlineEdit` (issue #1525, UX audit 2026-11-17 WORK-03): the name and a
+ * pencil, then the lookup with *Save* and *Cancel*. *Save* posts the
+ * assignment through its own endpoint, a cleared choice unassigns. A refusal
+ * (`CRM_ASSIGNEE_INVALID` — somebody deactivated meanwhile) is shown in the
+ * server's sentence under the lookup and the choice is kept for another try.
+ * Assigning notifies the new assignee; nothing here does.
  */
 export function AssigneeSection(props: AssigneeSectionProps): ReactNode {
   const { opportunity, canWrite, onChange } = props;
   const t = useTranslation('crm');
-  const headingId = useId();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState('');
   const assignee = opportunity.assignee;
-
-  const assign = async (adminUserId: string | null): Promise<void> => {
-    if (adminUserId === (assignee?.id ?? null)) return;
-    setBusy(true);
-    setError(null);
-    setNotice('');
-    try {
-      onChange(await crmApi.assign(opportunity.id, adminUserId));
-      setNotice(t(adminUserId === null ? 'assignment.cleared' : 'assignment.saved'));
-    } catch (failure) {
-      setError(errorMessage(failure, t('assignment.error')));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const label = t('assignment.label');
 
   return (
-    <div role="group" aria-labelledby={headingId} className="space-y-2">
-      <h3 id={headingId} className="text-xs font-normal text-muted-foreground">
-        {t('assignment.label')}
-      </h3>
-      <p className="text-sm">
-        <AssigneeName assignee={assignee} />
-      </p>
-      {canWrite ? (
-        <div className="max-w-sm space-y-1">
-          <AssigneeLookup
-            // Remounted when the assignee changes, so a refused choice is not left typed in.
-            key={`${assignee?.id ?? 'none'}:${error ?? ''}`}
-            ariaLabel={t('assignment.change')}
-            value={assignee?.id ?? null}
-            selectedLabel={assignee?.name ?? ''}
-            disabled={busy}
-            onChange={(adminUserId): void => void assign(adminUserId)}
-            placeholder={t('assignment.picker.placeholder')}
-            emptyMessage={t('assignment.picker.empty')}
-          />
-        </div>
-      ) : null}
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {/* Mounted before it has text, so the announcement is reliable. */}
-      <p role="status" className="text-xs text-muted-foreground empty:sr-only">
-        {notice}
-      </p>
-    </div>
+    <InlineEdit<string | null>
+      label={label}
+      canEdit={canWrite}
+      display={<AssigneeName assignee={assignee} />}
+      initial={(): string | null => assignee?.id ?? null}
+      unchanged={(draft): boolean => draft === (assignee?.id ?? null)}
+      save={async (draft): Promise<void> => {
+        try {
+          onChange(await crmApi.assign(opportunity.id, draft));
+        } catch (failure) {
+          throw new Error(errorMessage(failure, t('assignment.error')));
+        }
+      }}
+      editor={({ id, draft, setDraft, busy, errorId }): ReactNode => (
+        <AssigneeLookup
+          id={id}
+          ariaLabel={label}
+          value={draft}
+          disabled={busy}
+          onChange={setDraft}
+          placeholder={t('assignment.picker.placeholder')}
+          emptyMessage={t('assignment.picker.empty')}
+          ariaDescribedBy={errorId}
+          invalid={errorId !== undefined}
+          {...(assignee && draft === assignee.id ? { selectedLabel: assignee.name } : {})}
+        />
+      )}
+    />
   );
 }

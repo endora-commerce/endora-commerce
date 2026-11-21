@@ -10,6 +10,7 @@ import {
   PROJECT_ID,
   STAGE_ID,
   TASK_ID,
+  core,
   en,
   historyPage,
   renderTasks,
@@ -122,7 +123,9 @@ describe('the assignee picker asks who may see the Task (#506)', () => {
 
   it('on a Task’s screen, the lookup names the Task', async () => {
     await renderDetail();
-    await userEvent.click(screen.getByRole('button', { name: en('detail.edit') }));
+    await userEvent.click(
+      screen.getByRole('button', { name: core('common.inlineEdit.edit', { field: en('field.assignee') }) }),
+    );
     await screen.findByRole('combobox', { name: en('field.assignee') });
     expect(assigneeLookups()).toContain(`${TASKS_API}/lookups/assignees?taskId=${TASK_ID}`);
   });
@@ -274,7 +277,8 @@ describe('TaskDetail — drafts and private Tasks', () => {
     await renderDetail(['tasks:read', 'tasks:see_private']);
     expect(screen.getByText(en('detail.privateReadOnly', { name: 'Anna Nowak' }))).toBeTruthy();
     expect(screen.queryByLabelText(en('field.status'))).toBeNull();
-    expect(screen.queryByRole('button', { name: en('detail.edit') })).toBeNull();
+    // No pencil on any fact, the title's included (issue #1525).
+    expect(screen.queryByRole('button', { name: /^Edit / })).toBeNull();
     expect(screen.queryByRole('switch', { name: en('detail.private') })).toBeNull();
     // Nothing that would move it into a record either.
     expect(screen.queryByRole('button', { name: en('context.choose') })).toBeNull();

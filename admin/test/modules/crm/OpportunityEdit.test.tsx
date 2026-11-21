@@ -112,7 +112,7 @@ async function renderPage(permissions?: readonly string[]): Promise<void> {
 
 /** The pencil beside a field, named "Edit <field>". */
 function pencil(field: string): HTMLElement {
-  return screen.getByRole('button', { name: en('inlineEdit.edit', { field }) });
+  return screen.getByRole('button', { name: core('common.inlineEdit.edit', { field }) });
 }
 
 function save(): Promise<void> {
@@ -147,7 +147,7 @@ describe('OpportunityDetail — editing in place (specs/158-crm-opportunity-inli
       expect(pencil(field)).toBeInTheDocument();
     }
     for (const fixed of ['opportunity.field.organization', 'opportunity.field.source', 'opportunity.field.number']) {
-      expect(screen.queryByRole('button', { name: en('inlineEdit.edit', { field: en(fixed) }) })).toBeNull();
+      expect(screen.queryByRole('button', { name: core('common.inlineEdit.edit', { field: en(fixed) }) })).toBeNull();
     }
   });
 
@@ -168,7 +168,7 @@ describe('OpportunityDetail — editing in place (specs/158-crm-opportunity-inli
     );
     expect(await screen.findByRole('heading', { level: 1, name: /Fleet renewal 2027/ })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: TITLE })).toBeNull();
-    expect(await screen.findByText(en('inlineEdit.saved', { field: TITLE }))).toBeInTheDocument();
+    expect(await screen.findByText(core('common.inlineEdit.saved', { field: TITLE }))).toBeInTheDocument();
     await waitFor(() => expect(pencil(TITLE)).toHaveFocus());
   });
 
@@ -237,7 +237,7 @@ describe('OpportunityDetail — editing in place (specs/158-crm-opportunity-inli
       expect(patchSpy).toHaveBeenCalledWith(DETAIL_PATH, { customerAccountId: OTHER_CONTACT_ID }, IF_MATCH_1),
     );
 
-    expect(await screen.findByText(en('inlineEdit.saved', { field: CONTACT }))).toBeInTheDocument();
+    expect(await screen.findByText(core('common.inlineEdit.saved', { field: CONTACT }))).toBeInTheDocument();
     await userEvent.click(pencil(CHANNEL));
     await userEvent.click(screen.getByRole('combobox', { name: CHANNEL }));
     await userEvent.click(await screen.findByRole('option', { name: /Wholesale/ }));
@@ -268,7 +268,7 @@ describe('OpportunityDetail — editing in place (specs/158-crm-opportunity-inli
   it('offers no pencil on a computed value — the documents make it', async () => {
     current = detail({ valueMode: 'computed' });
     await renderPage();
-    expect(screen.queryByRole('button', { name: en('inlineEdit.edit', { field: VALUE }) })).toBeNull();
+    expect(screen.queryByRole('button', { name: core('common.inlineEdit.edit', { field: VALUE }) })).toBeNull();
   });
 
   it('opens a field that holds no value yet — a Sales Channel never chosen', async () => {

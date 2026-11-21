@@ -89,12 +89,13 @@ deleted: the screen says so, and the records have to be unlinked first.
 
 Its tabs:
 
-- **Overview** — the description — its references drawn as links, and edited
-  with *Edit description* (see *Notes, messages and references*) — the start
-  date, **who sees the project** and the members by role. An administrator who may create and run projects
-  changes who sees it there — the same three choices as on *New project* — and
-  saves it with *Save who sees it*; everybody else is told what it is and who is
-  listed.
+- **Overview** — the description, its references drawn as links (see *Notes,
+  messages and references*), the start date, **who sees the project** and the
+  members by role. An administrator who may create and run projects changes the
+  description, the start date and who sees it where they are shown: the pencil
+  beside each opens that one field, with **Save** and **Cancel**, and saving
+  sends that field alone. Who sees it offers the same three choices as on *New
+  project*. Everybody else is told what each is, and who is listed.
 - **Stages** — one row per stage, with its planned duration, responsible roles
   and deadline. *Edit* opens one stage at a time: its name, colour, planned
   duration, responsible roles, alert days, completion gate, whether the project
