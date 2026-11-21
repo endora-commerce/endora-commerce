@@ -70,7 +70,7 @@ describe('MegamenuEditor — unsaved changes', () => {
     renderEditor();
     await screen.findByRole('heading', { level: 1, name: 'Main menu' });
     expect(hints()).toEqual(['']);
-    fireEvent.click(screen.getByRole('link', { name: en['common.back'] ?? 'Back' }));
+    fireEvent.click(screen.getByRole('link', { name: en['list.title'] ?? 'Megamenu' }));
     expect(await screen.findByText('Menu list')).toBeTruthy();
   });
 
@@ -79,7 +79,7 @@ describe('MegamenuEditor — unsaved changes', () => {
     await screen.findByRole('heading', { level: 1, name: 'Main menu' });
     fireEvent.change(screen.getByDisplayValue('Main menu'), { target: { value: 'Top menu' } });
     expect(hints()).toEqual([ux('hint')]);
-    fireEvent.click(screen.getByRole('link', { name: en['common.back'] ?? 'Back' }));
+    fireEvent.click(screen.getByRole('link', { name: en['list.title'] ?? 'Megamenu' }));
     const dialog = screen.getByRole('dialog', { name: ux('title') });
     fireEvent.click(within(dialog).getByRole('button', { name: ux('stay') }));
     expect(screen.queryByText('Menu list')).toBeNull();
@@ -91,7 +91,7 @@ describe('MegamenuEditor — unsaved changes', () => {
     renderEditor();
     await screen.findByRole('heading', { level: 1, name: 'Main menu' });
     fireEvent.change(screen.getByDisplayValue('Main menu'), { target: { value: 'Top menu' } });
-    fireEvent.click(screen.getByRole('link', { name: en['common.back'] ?? 'Back' }));
+    fireEvent.click(screen.getByRole('link', { name: en['list.title'] ?? 'Megamenu' }));
     fireEvent.click(screen.getByRole('button', { name: ux('save') }));
     await waitFor(() => expect(patch).toHaveBeenCalledWith('menu-1', { name: 'Top menu', description: null, version: 3 }));
     expect(await screen.findByText('Menu list')).toBeTruthy();

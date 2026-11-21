@@ -420,7 +420,6 @@
   "priceBooks.channels.emptyWarning": "Without a sales channel the book applies nowhere. You can add one later.",
   "priceBooks.channels.none": "No sales channel sells in {currency} yet.",
   "priceBooks.channels.noneBound": "No sales channel.",
-  "priceBooks.common.backToList": "Back to price books",
   "priceBooks.common.cancel": "Cancel",
   "priceBooks.common.retry": "Try again",
   "priceBooks.create.back": "Back",

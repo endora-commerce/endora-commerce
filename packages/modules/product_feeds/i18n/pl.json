@@ -446,6 +446,7 @@
   "import.unresolved.notice": "{count} pól nie udało się dopasować do niczego w tym sklepie. Uzupełnij je, zanim użyjesz tego szablonu.",
   "templates.export": "Eksportuj…",
   "runs.detail.title": "Generowanie z {date}",
+  "runs.detail.feedFallback": "Feed produktowy",
   "runs.detail.templateState": "Szablon: {name}, stan z {date}",
   "runs.detail.download": "Pobierz plik",
   "runs.detail.loadFailed": "Nie udało się wczytać tego generowania.",

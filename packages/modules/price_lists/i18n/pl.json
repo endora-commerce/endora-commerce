@@ -420,7 +420,6 @@
   "priceBooks.channels.emptyWarning": "Bez kanału sprzedaży cennik nigdzie nie obowiązuje. Możesz dodać kanał później.",
   "priceBooks.channels.none": "Żaden kanał sprzedaży nie sprzedaje jeszcze w {currency}.",
   "priceBooks.channels.noneBound": "Brak kanału sprzedaży.",
-  "priceBooks.common.backToList": "Wróć do cenników",
   "priceBooks.common.cancel": "Anuluj",
   "priceBooks.common.retry": "Spróbuj ponownie",
   "priceBooks.create.back": "Wstecz",

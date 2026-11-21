@@ -482,7 +482,7 @@ export function BlogPostEditor(): ReactNode {
       header={
         <>
           <PageHeader
-            back={{ label: t('postEditor.backToList'), to: '/blog/posts' }}
+            back={{ label: t('postList.title'), to: '/blog/posts' }}
             title={isNew ? t('postEditor.title.new') : form.name || t('postEditor.title.edit')}
             description={isNew ? t('postEditor.description.new') : undefined}
             actions={

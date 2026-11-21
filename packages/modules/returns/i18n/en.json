@@ -131,7 +131,6 @@
   "statusConfig.recipientsMissing.channels": "New-case e-mails go to nobody: no recipient is configured for {channels}.",
   "statusConfig.recipientsMissing.any": "New-case e-mails go to nobody: no recipient is configured for any channel.",
   "statusConfig.recipientsMissing.link": "Configure recipients",
-  "detail.back": "Back to returns",
   "detail.actions": "Actions",
   "detail.caseCard": "Case",
   "detail.submitted": "Submitted",

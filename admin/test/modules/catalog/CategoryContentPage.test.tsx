@@ -62,7 +62,6 @@ const tree = (marker: string): Record<string, unknown> => ({
 
 const PASSTHROUGH = passthroughBundle('catalog', [
   'categoryContent.page.description',
-  'categoryContent.action.back',
   'categoryContent.action.save',
   'categoryContent.action.saving',
   'categoryContent.success.save',

@@ -109,12 +109,15 @@ interface Screen {
   missingChannel: string;
   /** The metadata card's text fields, by the label each must be named by (#1465). */
   labelledFields: string[];
+  /** The header back link's name: the list it leads to (follow-up of #1549). */
+  back: string;
 }
 
 const screens: Screen[] = [
   {
     name: 'PageEditor',
     path: '/cms/pages',
+    back: copy('pagesList.title'),
     element: <PageEditor />,
     metadataTitle: copy('pageEditor.metadata'),
     missingChannel: copy('pageEditor.errors.selectChannel'),
@@ -123,6 +126,7 @@ const screens: Screen[] = [
   {
     name: 'BlockEditor',
     path: '/cms/blocks',
+    back: copy('blocksList.title'),
     element: <BlockEditor />,
     metadataTitle: copy('blockEditor.metadata'),
     missingChannel: copy('blockEditor.errors.selectChannel'),
@@ -131,6 +135,7 @@ const screens: Screen[] = [
   {
     name: 'TemplateEditor',
     path: '/cms/templates',
+    back: copy('templatesList.title'),
     element: <TemplateEditor />,
     metadataTitle: copy('templateEditor.metadata'),
     missingChannel: copy('templateEditor.errors.selectChannel'),
@@ -794,14 +799,14 @@ describe.each(screens)('$name — unsaved changes', (screenUnderTest) => {
     expect(screen.getByTestId('unsaved-changes-hint').textContent).toBe('');
     fireEvent.click(screen.getByRole('button', { name: 'reseed-canvas' }));
     expect(screen.getByTestId('unsaved-changes-hint').textContent).toBe('');
-    fireEvent.click(screen.getByRole('link', { name: copy('common.back') }));
+    fireEvent.click(screen.getByRole('link', { name: screenUnderTest.back }));
     expect(await screen.findByText('List screen')).toBeTruthy();
   });
 
   it('Back is the page header\'s back link above the title, not one more button beside Save (#1494)', async () => {
     renderWithList();
     await loaded();
-    const back = screen.getByRole('link', { name: copy('common.back') });
+    const back = screen.getByRole('link', { name: screenUnderTest.back });
     const heading = screen.getByRole('heading', { level: 1, name: 'Stored entity' });
     // Before the title in document order, and not styled as a button.
     expect(back.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -814,7 +819,7 @@ describe.each(screens)('$name — unsaved changes', (screenUnderTest) => {
     await loaded();
     fireEvent.change(nameField(), { target: { value: 'Renamed' } });
     expect(screen.getByTestId('unsaved-changes-hint').textContent).toBe(ux('hint'));
-    fireEvent.click(screen.getByRole('link', { name: copy('common.back') }));
+    fireEvent.click(screen.getByRole('link', { name: screenUnderTest.back }));
     const dialog = screen.getByRole('dialog', { name: ux('title') });
     fireEvent.click(within(dialog).getByRole('button', { name: ux('stay') }));
     expect(screen.queryByText('List screen')).toBeNull();
@@ -826,7 +831,7 @@ describe.each(screens)('$name — unsaved changes', (screenUnderTest) => {
     await loaded();
     fireEvent.click(screen.getByRole('button', { name: 'edit-canvas' }));
     expect(screen.getByTestId('unsaved-changes-hint').textContent).toBe(ux('hint'));
-    fireEvent.click(screen.getByRole('link', { name: copy('common.back') }));
+    fireEvent.click(screen.getByRole('link', { name: screenUnderTest.back }));
     fireEvent.click(screen.getByRole('button', { name: ux('discard') }));
     expect(await screen.findByText('List screen')).toBeTruthy();
   });

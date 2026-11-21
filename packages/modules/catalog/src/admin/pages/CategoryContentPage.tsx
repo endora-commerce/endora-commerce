@@ -180,7 +180,7 @@ export function CategoryContentPage(): ReactNode {
       <PageHeader
         title={t('categoryContent.page.title', { name })}
         description={t('categoryContent.page.description')}
-        back={{ label: t('categoryContent.action.back'), to: '/catalog/categories' }}
+        back={{ label: t('categories.page.title'), to: '/catalog/categories' }}
       />
 
       {error ? (

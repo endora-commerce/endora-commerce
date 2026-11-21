@@ -283,10 +283,10 @@ describe('organization detail — one card of tabs (#1515)', () => {
     renderDetail();
     await tabs();
     const heading = screen.getByRole('heading', { level: 1 });
-    const back = within(heading.closest('header')!).getByRole('link', { name: C('organizations.detail.back') });
+    const back = within(heading.closest('header')!).getByRole('link', { name: C('organizations.page.title') });
     expect(back).toHaveAttribute('href', '/organizations');
     const group = document.querySelector<HTMLElement>('[data-slot="detail-header-actions"]')!;
-    expect(within(group).queryByRole('link', { name: C('organizations.detail.back') })).toBeNull();
+    expect(within(group).queryByRole('link', { name: C('organizations.page.title') })).toBeNull();
   });
 
   it('marks the tab that holds unsaved work, and keeps the draft across tabs', async () => {

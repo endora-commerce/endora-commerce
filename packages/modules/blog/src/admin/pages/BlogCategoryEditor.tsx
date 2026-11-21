@@ -373,7 +373,7 @@ export function BlogCategoryEditor(): ReactNode {
       header={
         <>
           <PageHeader
-            back={{ label: t('categoryEditor.backToTree'), to: '/blog/categories' }}
+            back={{ label: t('categoryTree.title'), to: '/blog/categories' }}
             title={
               isNew ? t('categoryEditor.title.new') : form.name || t('categoryEditor.title.edit')
             }

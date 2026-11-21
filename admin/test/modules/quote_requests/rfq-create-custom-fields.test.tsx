@@ -79,7 +79,7 @@ const DEFINITION = {
 
 const BUNDLE = passthroughBundle('core', [
   'rfqCreate.submit',
-  'rfqCreate.back',
+  'rfq.list.title',
   'rfqCreate.items.quickSearch',
   'rfqCreate.field.agreedUnitPrice',
   'customFields.title',

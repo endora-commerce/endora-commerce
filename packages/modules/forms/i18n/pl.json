@@ -157,7 +157,6 @@
   "entries.empty.body": "Pojawią się tu, gdy odwiedzający wyślą formularze.",
   "entries.emptyFiltered": "Żaden wpis nie pasuje do tych filtrów.",
   "entries.actionError": "Nie udało się wprowadzić zmiany.",
-  "entry.back": "Wszystkie wpisy",
   "entry.title": "Wpis z formularza {form}",
   "entry.titleUnknown": "Wpis z formularza",
   "entry.sentAt": "Wysłano {date}",
