@@ -3,7 +3,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { TaskBoard } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../../setup';
-import { OTHER_TASK_ID, TASK_ID, en, renderTasks, taskSummary, STATUS, workflow } from './tasks-fixtures';
+import { OTHER_TASK_ID, TASK_ID, core, en, renderTasks, taskSummary, STATUS, workflow } from './tasks-fixtures';
 
 /**
  * *My Tasks* (`specs/165-task-management/` User Story 3 scenario 6, FR-018;
@@ -95,7 +95,7 @@ function lastQuery(prefix: string): URLSearchParams | null {
 }
 
 function viewButton(name: 'list' | 'board'): HTMLElement {
-  return within(screen.getByRole('group', { name: en('view.label') })).getByRole('button', { name: en(`view.${name}`) });
+  return within(screen.getByRole('group', { name: core('common.viewMode.label') })).getByRole('button', { name: core(`common.viewMode.${name}`) });
 }
 
 describe('MyTasksPage', () => {

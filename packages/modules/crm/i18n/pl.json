@@ -1,7 +1,6 @@
 {
   "module.name": "CRM",
   "nav.opportunities.label": "Szanse sprzedażowe",
-  "nav.board.label": "Tablica",
   "nav.calendar.label": "Kalendarz",
   "nav.analytics.label": "Analityka",
   "nav.tags.label": "Etykiety",
@@ -245,7 +244,6 @@
   "propagation.retried": "Ponowiono zmianę statusu zamówienia.",
   "propagation.dismissed": "Odmowa została pominięta.",
   "propagation.error": "Nie udało się wykonać akcji. Spróbuj ponownie.",
-  "board.title": "Tablica szans sprzedażowych",
   "board.label": "Tablica szans sprzedażowych",
   "board.loading": "Wczytywanie tablicy…",
   "board.error": "Nie udało się wczytać tablicy. Sprawdź połączenie i spróbuj ponownie.",

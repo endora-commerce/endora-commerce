@@ -1,7 +1,6 @@
 {
   "module.name": "CRM",
   "nav.opportunities.label": "Opportunities",
-  "nav.board.label": "Board",
   "nav.calendar.label": "Calendar",
   "nav.analytics.label": "Analytics",
   "nav.tags.label": "Tags",
@@ -245,7 +244,6 @@
   "propagation.retried": "The order status change was retried.",
   "propagation.dismissed": "The refusal was dismissed.",
   "propagation.error": "The action could not be completed. Try again.",
-  "board.title": "Opportunity board",
   "board.label": "Opportunity board",
   "board.loading": "Loading the board…",
   "board.error": "The board could not be loaded. Check your connection and try again.",

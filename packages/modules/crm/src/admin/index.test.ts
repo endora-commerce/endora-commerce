@@ -55,6 +55,7 @@ describe('crm admin contributions', () => {
       ['/crm/opportunities/new', 'crm:write'],
       ['/crm/opportunities/:id', 'crm:read'],
       ['/crm/workflow', 'crm:configure'],
+      // The board's former address, redirecting to `?view=board` (issue #1558).
       ['/crm/board', 'crm:read'],
       ['/crm/tags', 'crm:configure'],
       ['/crm/analytics', 'crm:analytics'],
@@ -74,12 +75,12 @@ describe('crm admin contributions', () => {
     expect(entry).not.toMatch(/^import .* from '\.\/(pages|components)\//m);
   });
 
-  it('puts every sidebar row in the CRM section — opportunities, the board, the calendar, analytics, tags, workflow last', () => {
+  it('puts every sidebar row in the CRM section — opportunities (list and board, one row), the calendar, analytics, tags, workflow last', () => {
     expect(
       (contributions.nav ?? []).map((row) => [row.to, row.section, row.requiredPermission]),
     ).toEqual([
+      // One row for the list and the board since issue #1558 (DEC-13).
       ['/crm/opportunities', 'crm', 'crm:read'],
-      ['/crm/board', 'crm', 'crm:read'],
       // The three screens of every day first, then the manager's, then the two that configure.
       ['/crm/calendar', 'crm', 'crm:read'],
       ['/crm/analytics', 'crm', 'crm:analytics'],

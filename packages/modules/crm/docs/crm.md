@@ -46,10 +46,10 @@ when at least one of them is visible.
 
 | Screen | Where | Permission | What it is for |
 | --- | --- | --- | --- |
-| Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, assignee, tags, sales channel, creation date and the custom fields marked as list filters. |
+| Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, as a list or, with the **List / Board** switch in the header, as a board. The list has search and filters by state, status, organization, assignee, tags, sales channel, creation date and the custom fields marked as list filters. |
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
 | An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | A header, a stage bar with its current status and the moves allowed from it, back and forward, a card of its facts on the right, and tabs: *Overview*, **Links** (its orders and quote requests), **Events** (what is planned for it, with reminders), *Notes*, *Messages*, *Attachments* and **Change history**. See *The opportunity's screen*. |
-| Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
+| Board | **Board** in the *List / Board* switch of **CRM → Opportunities** (`/crm/opportunities?view=board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. The former address `/crm/board` still opens it. |
 | Calendar | **CRM → Calendar** (`/crm/calendar`) | `crm:read` | The events planned on the open opportunities you may see, by month, week or day, or as a list. Every event opens its opportunity. See *The calendar*. |
 | Analytics | **CRM → Analytics** (`/crm/analytics`) | `crm:analytics` | Five figures over a range of days: handling time, time in each status, the most effective sales reps, the most valuable opportunities and the average value. |
 | Tags | **CRM → Tags** (`/crm/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. |
@@ -294,7 +294,8 @@ its links; the linked orders themselves are not touched.
 
 ## The board
 
-**CRM → Board** shows the opportunities you may see as cards, in one column per
+The **Board** view of **CRM → Opportunities** — the **List / Board** switch in
+the page header — shows the opportunities you may see as cards, in one column per
 status, in the workflow's order. Each column's header carries the number of
 opportunities in that status and their value, one total per currency; each card
 shows the opportunity's title and the fields chosen for the card — unless
@@ -384,10 +385,14 @@ by its number. Filters combine: only opportunities
 that match all of them are shown, counted and totalled. The value filter
 compares the amount whatever its currency.
 
-**The filters are in the board's address.** Reload the page, bookmark it or
-send the link to a colleague and the same filters are applied. **Clear
-filters** removes them all. A link saved before the card was changed still
-opens: a filter on a field that is no longer on the card is ignored.
+**The filters are in the page's address.** Reload the page, bookmark it or
+send the link to a colleague and the same filters are applied. The list and the
+board share the address: the search, the organization, the assignee, the tags,
+the sales channel and the creation dates set in one view are applied in the
+other when you switch, and a filter only one view has waits for it. **Clear all
+filters** removes the filters of both views. A link saved before the card was
+changed still opens: a filter on a field that is no longer on the card is
+ignored.
 
 ### The list's custom-field filters
 
