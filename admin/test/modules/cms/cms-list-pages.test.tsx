@@ -33,9 +33,12 @@ const client = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../../packages/modules/cms/src/admin/api/cms-client', () => ({ cmsClient: client }));
-// The hooks screen's side panel reads attachments of its own; it is not under test here.
+// The hooks screen's side panel reads attachments of its own; it is not under test here. The stub
+// only says which hook it was given, so the selection can be followed.
 vi.mock('../../../../packages/modules/cms/src/admin/components/HookBlockAttachmentsPanel', () => ({
-  HookBlockAttachmentsPanel: () => null,
+  HookBlockAttachmentsPanel: ({ hook }: { hook: { id: string } | null }) => (
+    <div data-testid="hook-panel" data-hook={hook?.id ?? ''} />
+  ),
 }));
 
 const { PagesListPage } = await import('../../../../packages/modules/cms/src/admin/pages/PagesListPage');
@@ -271,6 +274,43 @@ describe('CMS hooks', () => {
     expect(screen.getAllByText(en['state.active']!).length).toBeGreaterThan(0);
     expect(screen.getByText(en['state.system']!)).toBeInTheDocument();
     expect(screen.getByText(en['state.custom']!)).toBeInTheDocument();
+  });
+});
+
+/**
+ * Issue #1534 (UX audit CONTENT-16) — the hooks screen used a fixed 12-column grid, so the list
+ * and the attachments panel never stacked (WCAG 1.4.10), and the selected hook was told by
+ * colour alone, with nothing for assistive technology (WCAG 1.4.1).
+ */
+describe('CMS hooks — layout and selection (#1534, CONTENT-16)', () => {
+  const HOME = '00000000-0000-4000-8000-0000000000d1';
+  const CHECKOUT = '00000000-0000-4000-8000-0000000000d2';
+  const selector = (name: string): HTMLElement => screen.getByRole('button', { name });
+
+  it('uses no fixed 12-column grid: the columns start at lg and stack below it', async () => {
+    mount(<HooksPage />);
+    await screen.findByText('Home top');
+    const classes = [...document.body.querySelectorAll('[class]')].map((element) => element.getAttribute('class') ?? '');
+    const bare = classes.filter((names) => names.split(/\s+/).some((name) => /^(grid-cols-\d+|col-span-\d+)$/.test(name)));
+    expect(bare).toEqual([]);
+    expect(classes.some((names) => names.split(/\s+/).includes('lg:grid-cols-12'))).toBe(true);
+  });
+
+  it('marks the selected hook with aria-current and a visible marker, and moves both on select', async () => {
+    mount(<HooksPage />);
+    await screen.findByText('Home top');
+    expect(selector('Home top')).toHaveAttribute('aria-current', 'true');
+    expect(selector('Checkout')).not.toHaveAttribute('aria-current');
+    expect(selector('Home top').querySelector('[data-selected-marker]')).not.toBeNull();
+    expect(selector('Checkout').querySelector('[data-selected-marker]')).toBeNull();
+    expect(screen.getByTestId('hook-panel')).toHaveAttribute('data-hook', HOME);
+
+    await userEvent.click(selector('Checkout'));
+    expect(selector('Checkout')).toHaveAttribute('aria-current', 'true');
+    expect(selector('Home top')).not.toHaveAttribute('aria-current');
+    expect(selector('Checkout').querySelector('[data-selected-marker]')).not.toBeNull();
+    expect(selector('Home top').querySelector('[data-selected-marker]')).toBeNull();
+    expect(screen.getByTestId('hook-panel')).toHaveAttribute('data-hook', CHECKOUT);
   });
 });
 

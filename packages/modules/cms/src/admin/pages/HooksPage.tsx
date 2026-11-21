@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Anchor, RotateCw } from 'lucide-react';
+import { Anchor, Check, RotateCw } from 'lucide-react';
 import type { CmsHookSummary } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Badge, Button, EmptyState, Card, CardContent, PageHeader, Skeleton } from '@endora-commerce/admin-kit/ui';
 import {
@@ -10,7 +10,7 @@ import {
   useRemovalFocus,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
-import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { cn, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { cmsClient } from '../api/cms-client.js';
 import { HookBlockAttachmentsPanel } from '../components/HookBlockAttachmentsPanel.js';
@@ -27,6 +27,10 @@ const rowId = (row: { id: string }): string => row.id;
  * row menu that deletes a **custom** hook through the confirmation and
  * `DELETE /api/v1/admin/cms/hooks/:id`. A system hook is refused by the server
  * (`CMS_HOOK_SYSTEM_PROTECTED`), so it is offered no delete at all.
+ *
+ * Issue #1534 (UX audit CONTENT-16): the two columns start at `lg` and stack below it (WCAG
+ * 1.4.10), and the selected hook is told by `aria-current` and a check mark beside its name,
+ * not by colour alone (WCAG 1.4.1).
  */
 export function HooksPage(): ReactNode {
   const t = useTranslation('cms');
@@ -86,16 +90,29 @@ export function HooksPage(): ReactNode {
       id: 'name',
       header: t('columns.name'),
       primary: true,
-      render: (hook) => (
-        <button
-          ref={removalFocus.targetRef(hook)}
-          type="button"
-          className="text-left font-medium text-primary hover:underline"
-          onClick={() => setSelectedId(hook.id)}
-        >
-          {hook.name}
-        </button>
-      ),
+      render: (hook) => {
+        const isSelected = hook.id === selected?.id;
+        return (
+          <button
+            ref={removalFocus.targetRef(hook)}
+            type="button"
+            aria-current={isSelected ? 'true' : undefined}
+            className={cn(
+              'inline-flex items-center gap-1.5 text-left font-medium text-primary hover:underline',
+              isSelected && 'underline',
+            )}
+            onClick={() => setSelectedId(hook.id)}
+          >
+            {/* The mark's slot is kept on every row, so names stay aligned as the selection moves. */}
+            {isSelected ? (
+              <Check size={14} aria-hidden="true" data-selected-marker="" className="shrink-0" />
+            ) : (
+              <span aria-hidden="true" className="w-3.5 shrink-0" />
+            )}
+            {hook.name}
+          </button>
+        );
+      },
       meta: (hook) => <code className="text-xs">{hook.code}</code>,
     },
     {
@@ -155,8 +172,8 @@ export function HooksPage(): ReactNode {
           </Button>
         }
       />
-      <div className="grid grid-cols-12 gap-4">
-        <Card className="col-span-7" aria-busy={loading || undefined}>
+      <div className="grid gap-4 lg:grid-cols-12">
+        <Card className="min-w-0 lg:col-span-7" aria-busy={loading || undefined}>
           <CardContent className="space-y-4 p-4">
             {notice ? (
               <Alert live="polite">
@@ -202,7 +219,7 @@ export function HooksPage(): ReactNode {
             )}
           </CardContent>
         </Card>
-        <div className="col-span-5">
+        <div className="min-w-0 lg:col-span-5">
           <HookBlockAttachmentsPanel hook={selected} onChanged={() => void load()} />
         </div>
       </div>
