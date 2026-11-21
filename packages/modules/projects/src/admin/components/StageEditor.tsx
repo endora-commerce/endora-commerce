@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from 'lucide-react';
 import type {
   ProjectDetail,
   ProjectRole,
@@ -9,9 +9,21 @@ import type {
   UpdateProjectStageBody,
 } from '@endora-commerce/contracts';
 import { ApiError, useModulePresence } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, AlertTitle, Button, Checkbox, ColorPicker, Input, Label } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Checkbox,
+  ColorPicker,
+  InlineStatus,
+  Input,
+  Label,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import {
   StatusTransitionGraph,
+  useConfirmDialog,
   type StatusTransitionGraphStatus,
   type StatusTransitionGraphTransition,
 } from '@endora-commerce/admin-kit/components';
@@ -20,7 +32,7 @@ import { projectsApi } from '../api.js';
 import { calendarDateLabel, errorMessage, parseAlertOffsets, parseDuration } from '../lib/labels.js';
 import { stageColorAt } from '../lib/stage-colors.js';
 import { StageDot } from './StageDot.js';
-import { StageTasksEditor } from './StageTasksEditor.js';
+import { StageTasksEditor, definitionsOf, draftsOf } from './StageTasksEditor.js';
 
 /** The module whose presence decides whether Stage Task definitions are shown (Principle XVII). */
 const TASKS_MODULE = 'tasks';
@@ -93,13 +105,23 @@ function changesOf(stage: ProjectStage, draft: StageDraft): UpdateProjectStageBo
 }
 
 /**
- * A Project's Stages and workflow, edited in place (`specs/163-projects-and-tasks/`,
- * User Story 1; `contracts/admin-surfaces.md` §2, the *Stages* tab).
+ * A Project's Stages and workflow (`specs/163-projects-and-tasks/`, User
+ * Story 1; `contracts/admin-surfaces.md` §2, the *Stages* tab).
  *
- * **Each Stage is saved on its own** — `PATCH /stages/:stageId` takes any of its
- * attributes — so an edit to one Stage never waits on another's mistake. Adding
- * puts a Stage at the end; deleting refuses the current Stage and a Project's
- * only one, in the server's words. Reordering moves one Stage one place.
+ * **Every Stage is a row** — what a reader sees, plus *Edit*, the two moves and
+ * *Delete* (issue #1523, UX audit WORK-01). *Edit* opens **one** Stage at a
+ * time, below its row; opening another over unsaved changes asks first. The
+ * open Stage has **one** Save, which writes its attributes
+ * (`PATCH /stages/:stageId`) and then its Task definitions
+ * (`PUT /stages/:stageId/tasks`, at the version the first write answered) —
+ * only what changed, so a Save of an untouched Stage sends nothing. Should
+ * the second write fail after the first went through, the Stage stays open
+ * with the error beside its Save, and saving again sends what is left.
+ *
+ * Adding puts a Stage at the end; deleting asks, and refuses the current Stage
+ * and a Project's only one, in the server's words. Reordering moves one Stage
+ * one place. The result of each write is said beside *Add stage*
+ * (`InlineStatus`); an error in the open Stage, beside its Save.
  *
  * **The workflow** is drawn with the kit's `StatusTransitionGraph`, whose
  * From/To form is the keyboard path; every change replaces the whole set
@@ -108,23 +130,37 @@ function changesOf(stage: ProjectStage, draft: StageDraft): UpdateProjectStageBo
  *
  * **Stage Task definitions** (User Story 2) are a section of each Stage, shown
  * only while the Tasks module is present: off, they stay stored, untouched and
- * unseen, and come back with it. Each Stage's list is saved whole
- * (`PUT /stages/:stageId/tasks`). A Stage whose Tasks could not be created on
+ * unseen, and come back with it. A Stage whose Tasks could not be created on
  * entry (`tasksMaterializeFailed`) offers to create them again.
+ *
+ * Every write names the version it was read at (issue #449) — a Stage's edit
+ * the Stage's, the others the Project's `configurationVersion` — and a 409
+ * re-reads the Project, starting the open Stage again from what it now is.
  *
  * The Template editor (User Story 3) shares its parts — {@link StageFields},
  * {@link StageWorkflow} and `StageTasksEditor` — and saves the whole Template
- * at once instead of one Stage at a time.
+ * at once.
  */
 export function StageEditor(props: StageEditorProps): ReactNode {
   const { project, onChange, reload } = props;
   const t = useTranslation('projects');
+  const tCore = useTranslation('core');
   const canWrite = project.permissions.canWrite;
   const tasksPresent = useModulePresence().isPresent(TASKS_MODULE);
   const [roles, setRoles] = useState<ProjectRole[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState('');
+  const status = useInlineStatus();
+  const { confirm, confirmDialog } = useConfirmDialog();
+  /** The one Stage open for editing, and what went wrong saving it. */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  /** Bumped to start the open Stage again from the Project as re-read (a 409). */
+  const [editGeneration, setEditGeneration] = useState(0);
+  const editingDirty = useRef(false);
+  const editButtons = useRef(new Map<string, HTMLButtonElement>());
+  const addButton = useRef<HTMLButtonElement>(null);
+  const focusAfterClose = useRef<string | null>(null);
 
   // Every Role, archived ones too: a Stage still names the ones it uses.
   useEffect(() => {
@@ -142,21 +178,57 @@ export function StageEditor(props: StageEditorProps): ReactNode {
     };
   }, []);
 
+  // A closed Stage gives focus back to its Edit (WCAG 2.4.3).
+  useEffect(() => {
+    const id = focusAfterClose.current;
+    if (editingId !== null || id === null) return;
+    focusAfterClose.current = null;
+    editButtons.current.get(id)?.focus();
+  }, [editingId]);
+
   const stages = useMemo(() => [...project.stages].sort((a, b) => a.position - b.position), [project.stages]);
+
+  const close = (stageId: string): void => {
+    focusAfterClose.current = stageId;
+    editingDirty.current = false;
+    setEditError(null);
+    setEditingId(null);
+  };
+
+  /** Open `stage`, closing the open one — after asking, when it holds unsaved changes. */
+  const toggle = async (stage: ProjectStage): Promise<void> => {
+    if (editingId !== null && editingDirty.current) {
+      const openPosition = stages.findIndex((candidate) => candidate.id === editingId) + 1;
+      const discard = await confirm({
+        title: t('editor.discard.title'),
+        message: t('editor.discard.message', { position: openPosition }),
+        confirmLabel: t('editor.discard.confirm'),
+        destructive: true,
+      });
+      if (!discard) return;
+    }
+    if (editingId === stage.id) {
+      close(stage.id);
+      return;
+    }
+    editingDirty.current = false;
+    setEditError(null);
+    setError(null);
+    status.clear();
+    setEditingId(stage.id);
+  };
+
   /**
-   * Run one write: on success say so and show the server's state, on failure
-   * its sentence — and re-read on a 409, as the stage bar does: every write
-   * here names the version it was read at (issue #449) — a Stage's edit the
-   * Stage's, the others the Project's `configurationVersion` — and what
-   * somebody else changed meanwhile is shown as it is now.
+   * Run one write outside the open Stage: on success say so beside *Add stage*,
+   * on failure show the server's sentence — and re-read on a 409.
    */
-  const run = async (write: () => Promise<void>, done: string): Promise<boolean> => {
+  const run = async (write: () => Promise<void>, done: () => string): Promise<boolean> => {
     setBusy(true);
     setError(null);
-    setNotice('');
+    status.clear();
     try {
       await write();
-      setNotice(done);
+      status.show(done());
       return true;
     } catch (failure) {
       setError(errorMessage(failure, t('editor.error')));
@@ -167,33 +239,71 @@ export function StageEditor(props: StageEditorProps): ReactNode {
     }
   };
 
-  const saveStage = (stage: ProjectStage, body: UpdateProjectStageBody): Promise<boolean> =>
-    run(async () => {
-      await projectsApi.updateStage(project.id, stage.id, { ...body, version: stage.version });
+  /** The open Stage's one Save: its attributes, then its Task definitions — what changed of each. */
+  const saveEdit = async (
+    stage: ProjectStage,
+    body: UpdateProjectStageBody | null,
+    tasks: StageTaskDefinition[] | null,
+  ): Promise<void> => {
+    setBusy(true);
+    setEditError(null);
+    setError(null);
+    status.clear();
+    let wrote = false;
+    try {
+      let version = stage.version;
+      if (body !== null) {
+        version = (await projectsApi.updateStage(project.id, stage.id, { ...body, version })).version;
+        wrote = true;
+      }
+      if (tasks !== null) await projectsApi.setStageTasks(project.id, stage.id, tasks, version);
       await reload();
-    }, t('editor.saved'));
-
-  const saveStageTasks = (stage: ProjectStage, tasks: StageTaskDefinition[]): Promise<boolean> =>
-    run(async () => {
-      await projectsApi.setStageTasks(project.id, stage.id, tasks, stage.version);
-      await reload();
-    }, t('stageTasks.saved'));
-
-  const retryStageTasks = async (stage: ProjectStage): Promise<boolean> => {
-    let created = 0;
-    const done = await run(async () => {
-      created = (await projectsApi.retryStageTasks(project.id, stage.id)).created;
-      await reload();
-    }, '');
-    if (done) setNotice(t('editor.retry.done', { count: created }));
-    return done;
+      close(stage.id);
+      status.show(t('editor.saved'));
+    } catch (failure) {
+      setEditError(errorMessage(failure, t('editor.error')));
+      if (failure instanceof ApiError && failure.status === 409) {
+        await reload();
+        setEditGeneration((generation) => generation + 1);
+      } else if (wrote) {
+        // The attributes went through: what is left to send is counted from them.
+        await reload();
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const deleteStage = (stage: ProjectStage): Promise<boolean> =>
-    run(async () => {
-      await projectsApi.deleteStage(project.id, stage.id);
-      await reload();
-    }, t('editor.deleted'));
+  const retryStageTasks = (stage: ProjectStage): Promise<boolean> => {
+    let created = 0;
+    return run(
+      async () => {
+        created = (await projectsApi.retryStageTasks(project.id, stage.id)).created;
+        await reload();
+      },
+      () => t('editor.retry.done', { count: created }),
+    );
+  };
+
+  const deleteStage = async (stage: ProjectStage, position: number): Promise<void> => {
+    status.clear();
+    const deleted = await confirm({
+      title: t('editor.delete', { position }),
+      message: t('editor.deleteConfirm', { name: stage.name }),
+      confirmLabel: tCore('common.action.delete'),
+      destructive: true,
+      action: () => projectsApi.deleteStage(project.id, stage.id),
+      describeError: (failure) => errorMessage(failure, t('editor.error')),
+      returnFocusTo: addButton,
+    });
+    if (!deleted) return;
+    if (editingId === stage.id) {
+      editingDirty.current = false;
+      setEditingId(null);
+    }
+    await reload();
+    status.show(t('editor.deleted'));
+  };
 
   const addStage = (): Promise<boolean> =>
     run(async () => {
@@ -203,13 +313,16 @@ export function StageEditor(props: StageEditorProps): ReactNode {
         configurationVersion: project.configurationVersion,
       });
       await reload();
-    }, t('editor.added'));
+    }, () => t('editor.added'));
 
   const moveStage = (index: number, by: -1 | 1): Promise<boolean> => {
     const ids = stages.map((stage) => stage.id);
     const target = index + by;
     [ids[index], ids[target]] = [ids[target] as string, ids[index] as string];
-    return run(async () => onChange(await projectsApi.reorderStages(project.id, ids, project.configurationVersion)), t('editor.reordered'));
+    return run(
+      async () => onChange(await projectsApi.reorderStages(project.id, ids, project.configurationVersion)),
+      () => t('editor.reordered'),
+    );
   };
 
   const setMoves = (moves: ProjectStageMove[]): Promise<boolean> =>
@@ -221,8 +334,7 @@ export function StageEditor(props: StageEditorProps): ReactNode {
         unreachableStageIds: result.unreachableStageIds,
         configurationVersion: result.configurationVersion,
       });
-    }, t('editor.movesSaved'));
-
+    }, () => t('editor.movesSaved'));
 
   return (
     <div className="space-y-6">
@@ -230,7 +342,7 @@ export function StageEditor(props: StageEditorProps): ReactNode {
           defect unless it is a field (issue #1437, WORK-01). */}
       <ol className="divide-y divide-border">
         {stages.map((stage, index) => (
-          <li key={`${stage.id}:${JSON.stringify(stage)}`} className="py-4 first:pt-0 last:pb-0">
+          <li key={stage.id} className="py-4 first:pt-0 last:pb-0">
             <StageRow
               stage={stage}
               position={index + 1}
@@ -241,10 +353,21 @@ export function StageEditor(props: StageEditorProps): ReactNode {
               canWrite={canWrite}
               tasksPresent={tasksPresent}
               busy={busy}
-              onSave={(body): Promise<boolean> => saveStage(stage, body)}
-              onSaveTasks={(tasks): Promise<boolean> => saveStageTasks(stage, tasks)}
+              editing={editingId === stage.id}
+              editGeneration={editGeneration}
+              editError={editingId === stage.id ? editError : null}
+              editButtonRef={(element): void => {
+                if (element) editButtons.current.set(stage.id, element);
+                else editButtons.current.delete(stage.id);
+              }}
+              onToggle={(): void => void toggle(stage)}
+              onDirtyChange={(dirty): void => {
+                if (editingId === stage.id) editingDirty.current = dirty;
+              }}
+              onSave={(body, tasks): Promise<void> => saveEdit(stage, body, tasks)}
+              onCancel={(): void => close(stage.id)}
               onRetryTasks={(): Promise<boolean> => retryStageTasks(stage)}
-              onDelete={(): Promise<boolean> => deleteStage(stage)}
+              onDelete={(): void => void deleteStage(stage, index + 1)}
               onMove={(by): Promise<boolean> => moveStage(index, by)}
             />
           </li>
@@ -252,16 +375,26 @@ export function StageEditor(props: StageEditorProps): ReactNode {
       </ol>
 
       {canWrite ? (
-        <Button
-          type="button"
-          variant="outline"
-          className="min-h-11 sm:min-h-9"
-          disabled={busy || stages.length >= 50}
-          onClick={(): void => void addStage()}
-        >
-          <Plus aria-hidden="true" />
-          {t('editor.add')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            ref={addButton}
+            type="button"
+            variant="outline"
+            className="min-h-11 sm:min-h-9"
+            disabled={busy || stages.length >= 50}
+            onClick={(): void => void addStage()}
+          >
+            <Plus aria-hidden="true" />
+            {t('editor.add')}
+          </Button>
+          <InlineStatus {...status.props} />
+        </div>
+      ) : null}
+
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
       <StageWorkflow
@@ -271,15 +404,7 @@ export function StageEditor(props: StageEditorProps): ReactNode {
         canWrite={canWrite}
         onSetMoves={(moves): void => void setMoves(moves)}
       />
-
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      <p role="status" className="sr-only">
-        {notice}
-      </p>
+      {confirmDialog}
     </div>
   );
 }
@@ -295,88 +420,116 @@ interface StageRowProps {
   /** The Tasks module is present: the Stage's Task definitions are shown. */
   tasksPresent: boolean;
   busy: boolean;
-  onSave: (body: UpdateProjectStageBody) => Promise<boolean>;
-  onSaveTasks: (tasks: StageTaskDefinition[]) => Promise<boolean>;
+  /** This Stage is the one open for editing. */
+  editing: boolean;
+  editGeneration: number;
+  editError: string | null;
+  editButtonRef: (element: HTMLButtonElement | null) => void;
+  onToggle: () => void;
+  onDirtyChange: (dirty: boolean) => void;
+  /** Save what changed: the attributes (`null`: none) and the whole Task list (`null`: unchanged). */
+  onSave: (body: UpdateProjectStageBody | null, tasks: StageTaskDefinition[] | null) => Promise<void>;
+  onCancel: () => void;
   /** Create the Stage's Tasks again after creating them failed (`tasksMaterializeFailed`). */
   onRetryTasks: () => Promise<boolean>;
-  onDelete: () => Promise<boolean>;
+  onDelete: () => void;
   onMove: (by: -1 | 1) => Promise<boolean>;
 }
 
-/** One Stage: its attributes as fields, saved together; or as text for a reader. */
+/** One Stage: the row a reader sees, with its actions for a writer, and below it the open editor. */
 function StageRow(props: StageRowProps): ReactNode {
-  const { stage, position, roles, canWrite, busy } = props;
+  const { stage, position, roles, canWrite, busy, editing } = props;
   const t = useTranslation('projects');
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
-  const [draft, setDraft] = useState<StageDraft>(() => draftOf(stage));
-  const [invalid, setInvalid] = useState(false);
-  /** The deadline set by hand, as typed — empty for one counted from the start (FR-013). */
-  const manualDeadline = stage.deadlineManual ? (stage.deadlineOn ?? '') : '';
-  const [deadlineDraft, setDeadlineDraft] = useState(manualDeadline);
-  const idPrefix = `project-stage-${stage.id}`;
-
-  const change = (patch: Partial<StageDraft>): void => {
-    setDraft((previous) => ({ ...previous, ...patch }));
-    setInvalid(false);
-  };
+  const editorId = `project-stage-${stage.id}-editor`;
 
   const roleLabel = (roleId: string): string => roles.find((role) => role.id === roleId)?.label ?? roleId;
 
-  const deadline = stage.deadlineOn ? (
-    <p className="text-xs text-muted-foreground">
-      {t(stage.deadlineManual ? 'editor.deadlineManual' : 'editor.deadline', {
-        date: calendarDateLabel(stage.deadlineOn, language),
-      })}
-    </p>
-  ) : null;
-
-  const header = (
-    <div className="flex flex-wrap items-center gap-2">
-      <span aria-hidden="true" className="text-sm font-medium tabular-nums text-muted-foreground">
-        {position}.
-      </span>
-      <StageDot color={stage.color} />
-      <span className="font-medium [overflow-wrap:anywhere]">{stage.name}</span>
-      {props.isCurrent ? <span className="text-xs text-muted-foreground">({t('editor.current')})</span> : null}
-    </div>
-  );
-
-  if (!canWrite) {
-    return (
-      <div className="space-y-1 text-sm">
-        {header}
-        <p className="text-muted-foreground">
-          {stage.plannedDurationDays} {t('stage.durationShort').toLowerCase()}
-          {stage.responsibleRoleIds.length > 0 ? ` · ${stage.responsibleRoleIds.map(roleLabel).join(', ')}` : ''}
-        </p>
-        {stage.completionPermitted ? <p className="text-muted-foreground">{t('editor.completionPermitted')}</p> : null}
-        {deadline}
-        {props.tasksPresent ? (
-          <StageTasksEditor stage={stage} position={position} roles={roles} canWrite={false} busy={busy} onSave={props.onSaveTasks} />
+  return (
+    <div className="space-y-3 text-sm">
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span aria-hidden="true" className="font-medium tabular-nums text-muted-foreground">
+              {position}.
+            </span>
+            <StageDot color={stage.color} />
+            <span className="font-medium [overflow-wrap:anywhere]">{stage.name}</span>
+            {props.isCurrent ? <span className="text-xs text-muted-foreground">({t('editor.current')})</span> : null}
+          </div>
+          {editing ? null : (
+            <>
+              <p className="text-muted-foreground">
+                {stage.plannedDurationDays} {t('stage.durationShort').toLowerCase()}
+                {stage.responsibleRoleIds.length > 0 ? ` · ${stage.responsibleRoleIds.map(roleLabel).join(', ')}` : ''}
+                {stage.completionGate ? ` · ${t('editor.gate')}` : ''}
+              </p>
+              {stage.completionPermitted ? <p className="text-muted-foreground">{t('editor.completionPermitted')}</p> : null}
+            </>
+          )}
+          {stage.deadlineOn ? (
+            <p className="text-xs text-muted-foreground">
+              {t(stage.deadlineManual ? 'editor.deadlineManual' : 'editor.deadline', {
+                date: calendarDateLabel(stage.deadlineOn, language),
+              })}
+            </p>
+          ) : null}
+        </div>
+        {canWrite ? (
+          <div className="flex items-center gap-1">
+            <Button
+              ref={props.editButtonRef}
+              type="button"
+              variant="outline"
+              className="min-h-11 sm:min-h-9"
+              aria-label={t('editor.edit', { position })}
+              aria-expanded={editing}
+              {...(editing ? { 'aria-controls': editorId } : {})}
+              disabled={busy}
+              onClick={props.onToggle}
+            >
+              <Pencil aria-hidden="true" />
+              {tCore('common.action.edit')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
+              aria-label={t('stage.moveUp', { position })}
+              disabled={busy || props.isFirst}
+              onClick={(): void => void props.onMove(-1)}
+            >
+              <ArrowUp aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
+              aria-label={t('stage.moveDown', { position })}
+              disabled={busy || props.isLast}
+              onClick={(): void => void props.onMove(1)}
+            >
+              <ArrowDown aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="ml-2 min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
+              aria-label={t('editor.delete', { position })}
+              disabled={busy}
+              onClick={props.onDelete}
+            >
+              <Trash2 aria-hidden="true" />
+            </Button>
+          </div>
         ) : null}
       </div>
-    );
-  }
 
-  const save = async (): Promise<void> => {
-    const body = changesOf(stage, draft);
-    if (body === null) {
-      setInvalid(true);
-      return;
-    }
-    // Set by hand, or — emptied — counted from the start plus the planned days again.
-    const withDeadline: UpdateProjectStageBody =
-      deadlineDraft !== manualDeadline ? { ...body, deadlineOn: deadlineDraft === '' ? null : deadlineDraft } : body;
-    if (Object.keys(withDeadline).length === 0) return;
-    await props.onSave(withDeadline);
-  };
-
-  return (
-    <div className="space-y-3">
-      {header}
-      {deadline}
-      {props.tasksPresent && stage.tasksMaterializeFailed ? (
+      {canWrite && props.tasksPresent && stage.tasksMaterializeFailed ? (
         <Alert variant="destructive">
           <AlertTitle>{t('editor.retry.title')}</AlertTitle>
           <AlertDescription className="space-y-2">
@@ -394,6 +547,97 @@ function StageRow(props: StageRowProps): ReactNode {
           </AlertDescription>
         </Alert>
       ) : null}
+
+      {editing ? (
+        <StageEditForm
+          key={props.editGeneration}
+          id={editorId}
+          stage={stage}
+          position={position}
+          roles={roles}
+          tasksPresent={props.tasksPresent}
+          busy={busy}
+          error={props.editError}
+          onDirtyChange={props.onDirtyChange}
+          onSave={props.onSave}
+          onCancel={props.onCancel}
+        />
+      ) : props.tasksPresent ? (
+        <StageTasksEditor stage={stage} position={position} roles={roles} canWrite={false} busy={busy} />
+      ) : null}
+    </div>
+  );
+}
+
+interface StageEditFormProps {
+  id: string;
+  stage: ProjectStage;
+  position: number;
+  roles: readonly ProjectRole[];
+  tasksPresent: boolean;
+  busy: boolean;
+  error: string | null;
+  onDirtyChange: (dirty: boolean) => void;
+  onSave: StageRowProps['onSave'];
+  onCancel: () => void;
+}
+
+/**
+ * The open Stage: its attributes, its hand-set deadline and its Task
+ * definitions, with one Save for all of them (issue #1523). The drafts are
+ * compared with the Stage as last read, so after a write that went through in
+ * part only what is left is sent again.
+ */
+function StageEditForm(props: StageEditFormProps): ReactNode {
+  const { stage, position, roles, busy } = props;
+  const t = useTranslation('projects');
+  const tCore = useTranslation('core');
+  const idPrefix = `project-stage-${stage.id}`;
+  const [draft, setDraft] = useState<StageDraft>(() => draftOf(stage));
+  const [invalid, setInvalid] = useState(false);
+  /** The deadline set by hand, as typed — empty for one counted from the start (FR-013). */
+  const manualDeadline = stage.deadlineManual ? (stage.deadlineOn ?? '') : '';
+  const [deadlineDraft, setDeadlineDraft] = useState(manualDeadline);
+  /** The Task list as edited: `undefined` untouched, `null` while one cannot be sent. */
+  const [tasksDraft, setTasksDraft] = useState<StageTaskDefinition[] | null | undefined>(undefined);
+
+  const body = changesOf(stage, draft);
+  const deadlinePatch: UpdateProjectStageBody =
+    deadlineDraft !== manualDeadline ? { deadlineOn: deadlineDraft === '' ? null : deadlineDraft } : {};
+  const tasksChanged =
+    tasksDraft !== undefined &&
+    (tasksDraft === null || JSON.stringify(tasksDraft) !== JSON.stringify(definitionsOf(draftsOf(stage))));
+  const dirty = body === null || Object.keys(body).length > 0 || Object.keys(deadlinePatch).length > 0 || tasksChanged;
+
+  const { onDirtyChange } = props;
+  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
+
+  // Opened: the first field takes focus.
+  useEffect(() => {
+    document.getElementById(`${idPrefix}-name`)?.focus();
+  }, [idPrefix]);
+
+  const change = (patch: Partial<StageDraft>): void => {
+    setDraft((previous) => ({ ...previous, ...patch }));
+    setInvalid(false);
+  };
+
+  const save = (): void => {
+    if (body === null || tasksDraft === null) {
+      setInvalid(true);
+      return;
+    }
+    const stageBody = { ...body, ...deadlinePatch } as UpdateProjectStageBody;
+    const stageChanged = Object.keys(stageBody).length > 0;
+    if (!stageChanged && !tasksChanged) {
+      props.onCancel();
+      return;
+    }
+    void props.onSave(stageChanged ? stageBody : null, tasksChanged && tasksDraft ? tasksDraft : null);
+  };
+
+  return (
+    <div id={props.id} className="space-y-3">
       <StageFields
         idPrefix={idPrefix}
         position={position}
@@ -427,54 +671,42 @@ function StageRow(props: StageRowProps): ReactNode {
         </p>
       ) : null}
 
+      {props.tasksPresent ? (
+        <StageTasksEditor
+          stage={stage}
+          position={position}
+          roles={roles}
+          canWrite
+          busy={busy}
+          showErrors={invalid && tasksDraft === null}
+          onChange={(tasks): void => {
+            setTasksDraft(tasks);
+            setInvalid(false);
+          }}
+        />
+      ) : null}
+
+      {props.error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{props.error}</AlertDescription>
+        </Alert>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+        <Button type="button" variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={props.onCancel}>
+          {tCore('common.action.cancel')}
+        </Button>
         <Button
           type="button"
           className="min-h-11 sm:min-h-9"
           aria-label={t('editor.save', { position })}
+          aria-busy={busy}
           disabled={busy}
-          onClick={(): void => void save()}
+          onClick={save}
         >
           {tCore('common.action.save')}
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
-          aria-label={t('stage.moveUp', { position })}
-          disabled={busy || props.isFirst}
-          onClick={(): void => void props.onMove(-1)}
-        >
-          <ArrowUp aria-hidden="true" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
-          aria-label={t('stage.moveDown', { position })}
-          disabled={busy || props.isLast}
-          onClick={(): void => void props.onMove(1)}
-        >
-          <ArrowDown aria-hidden="true" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="ml-auto min-h-11 text-destructive hover:text-destructive sm:min-h-9"
-          aria-label={t('editor.delete', { position })}
-          disabled={busy}
-          onClick={(): void => void props.onDelete()}
-        >
-          <Trash2 aria-hidden="true" />
-          {tCore('common.action.delete')}
-        </Button>
       </div>
-
-      {props.tasksPresent ? (
-        <StageTasksEditor stage={stage} position={position} roles={roles} canWrite busy={busy} onSave={props.onSaveTasks} />
-      ) : null}
     </div>
   );
 }
@@ -497,7 +729,7 @@ export interface StageFieldsProps {
 /**
  * A Stage's attributes as fields (FR-010) — name, colour, planned days, alert
  * offsets, responsible Roles, completion permitted and the completion gate.
- * Controlled: the Project's Stages tab saves one Stage at a time, the Template
+ * Controlled: the Project's Stages tab saves the one open Stage, the Template
  * editor the whole Template at once.
  */
 export function StageFields(props: StageFieldsProps): ReactNode {

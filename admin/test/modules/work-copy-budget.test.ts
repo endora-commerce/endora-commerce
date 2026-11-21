@@ -55,6 +55,9 @@ const CUT: Record<WorkModule, readonly string[]> = {
     'editor.movesHint',
     'list.description',
     'lossReasons.description',
+    // The Stage's one Save writes its tasks too (issue #1523).
+    'stageTasks.save',
+    'stageTasks.saved',
     'tasks.hint',
     'templates.editor.intro',
     'templates.editor.rolesHint',

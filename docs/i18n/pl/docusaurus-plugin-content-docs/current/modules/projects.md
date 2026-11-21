@@ -94,13 +94,16 @@ Jego zakładki:
   tu, kto widzi projekt — te same trzy możliwości co w *Nowym projekcie* — i
   zapisuje to przyciskiem *Zapisz widoczność*; pozostali widzą, jakie jest to
   ustawienie i kto jest dopisany.
-- **Etapy** — nazwa, kolor, planowany czas trwania, role odpowiedzialne, dni
-  alertów, blokada zakończenia, informacja, czy z danego etapu można zakończyć
-  projekt, oraz termin ustawiony ręcznie, zapisywane osobno dla każdego etapu; tutaj dodaje się etapy (na
-  końcu), przesuwa je w górę lub w dół i usuwa. Gdy moduł Zadania jest
-  włączony, każdy etap ma też listę **zadań etapu** — tytuł, liczbę dni od
-  rozpoczęcia etapu do terminu zadania i odpowiedzialną rolę — zapisywaną w
-  całości dla każdego etapu; etap, którego zadań nie udało się utworzyć przy
+- **Etapy** — jeden wiersz na etap, z planowanym czasem trwania, rolami
+  odpowiedzialnymi i terminem. *Edytuj* otwiera jeden etap naraz: nazwę, kolor,
+  planowany czas trwania, role odpowiedzialne, dni alertów, blokadę zakończenia,
+  informację, czy z danego etapu można zakończyć projekt, oraz termin ustawiony
+  ręcznie — wszystko zapisywane jednym przyciskiem *Zapisz* tego etapu; otwarcie
+  innego etapu przy niezapisanych zmianach wymaga potwierdzenia. Tutaj dodaje
+  się etapy (na końcu), przesuwa je w górę lub w dół i usuwa — usunięcie
+  wymaga potwierdzenia. Gdy moduł Zadania jest włączony, każdy etap ma też
+  listę **zadań etapu** — tytuł, liczbę dni od rozpoczęcia etapu do terminu
+  zadania i odpowiedzialną rolę — edytowaną i zapisywaną razem z etapem; etap, którego zadań nie udało się utworzyć przy
   wejściu projektu, mówi o tym i proponuje *Utwórz ponownie zadania etapu*.
   Pod etapami **przebieg** narysowany jako graf, w którym dodaje się i usuwa
   przejścia; etap, do którego nie prowadzi żadne przejście od pierwszego, jest
