@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { screen } from '@testing-library/react';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 // Issue #1519 — the screen mounts the `profile.security` zone, which reads the
 // real session and presence providers; no contributor here.
@@ -8,14 +8,12 @@ import enBundle from '../../../../packages/modules/_i18n/i18n/en.json';
 
 /**
  * Issue #1437 (UX audit 2026-11-17, DS-03) — the profile is one form card whose
- * parts are sections, not three cards, and the language preference — saved on
- * its own — is the one card beside it. What the language Save answers is said
- * beside the button in an always-mounted status region, not in a `.b2b-card`
- * painted red or green inside the card (a frame inside a card, colour as the
- * only carrier, and a message no screen reader hears: WCAG 2.2 SC 1.4.1, 4.1.3).
+ * parts are sections, not three cards.
+ *
+ * Issue #1553 (SHELL-17) — and nothing beside it: the language preference had a
+ * card and a second filled Save of its own, duplicating the top-bar
+ * `LanguagePicker`. It is gone; one muted line says where the language is set.
  */
-
-const setPreferredLanguageSpy = vi.fn();
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual('@endora-commerce/admin-kit/lib');
@@ -32,15 +30,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   };
 });
 
-vi.mock('@endora-commerce/admin-kit/i18n', async () => {
-  const actual = await vi.importActual('@endora-commerce/admin-kit/i18n');
-  return {
-    ...(actual as Record<string, unknown>),
-    useAppLanguage: () => ({ language: 'en', setLanguage: () => {} }),
-    setPreferredLanguage: (language: string) => setPreferredLanguageSpy(language),
-  };
-});
-
 const ME = {
   adminUser: { email: 'ada@example.com', firstName: 'Ada', lastName: 'Lovelace' },
   role: { name: 'Operator' },
@@ -54,15 +43,7 @@ function renderProfile(): void {
   renderWithI18n(withSession(<ProfilePage />, { session: adminSession({ permissions: ['*'] }), presence: modulePresence({}) }), { core });
 }
 
-function languageCard(): HTMLElement {
-  return screen.getByRole('region', { name: core['profilePage.section.language']! });
-}
-
 describe('ProfilePage — sections in one card (DS-03)', () => {
-  beforeEach(() => {
-    setPreferredLanguageSpy.mockReset();
-  });
-
   it('draws the form as one card of three sections, and no card inside a card', () => {
     renderProfile();
     const form = document.querySelector('form')!;
@@ -78,24 +59,22 @@ describe('ProfilePage — sections in one card (DS-03)', () => {
     expect(document.querySelector('.b2b-card')).toBeNull();
   });
 
-  it('keeps the separately saved language preference as its own card, with a named select', () => {
+  it('has no language card of its own: the top-bar picker is the one place to change it (SHELL-17)', () => {
     renderProfile();
-    const card = languageCard();
-    expect(card.getAttribute('data-slot')).toBe('card');
-    expect(card.closest('form')).toBeNull();
-    expect(within(card).getByRole('combobox', { name: core['profilePage.section.language']! })).toBeTruthy();
+    // One Save on the page — the form's. Nothing outside the form is a button,
+    // so there is no second filled primary competing with it (Von Restorff).
+    const outside = [...document.querySelectorAll('button')].filter((button) => !button.closest('form'));
+    expect(outside).toHaveLength(0);
+    expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
+    expect(document.getElementById('profile-language')).toBeNull();
   });
 
-  it('says what the language Save answered in a status region mounted before it, not a painted card', async () => {
-    setPreferredLanguageSpy.mockRejectedValue(new Error('offline'));
+  it('points to the top-bar language menu in one muted line inside the identity section', () => {
     renderProfile();
-    const card = languageCard();
-    const status = within(card).getByRole('status');
-    expect(status.textContent).toBe('');
-    fireEvent.change(within(card).getByRole('combobox'), { target: { value: 'pl' } });
-    fireEvent.click(within(card).getByRole('button', { name: core['profilePage.language.action.save']! }));
-    await waitFor(() => expect(status.textContent).toBe(core['profilePage.language.failed']));
-    expect(status.getAttribute('data-tone')).toBe('error');
-    expect(card.querySelector('[data-slot="card"]')).toBeNull();
+    const note = screen.getByText(core['profile.languageHelp']!);
+    expect(note.tagName).toBe('P');
+    expect(note.className).toContain('text-muted-foreground');
+    const section = note.closest('[data-slot="editor-section"]');
+    expect(section?.querySelector('h2')?.textContent).toBe(core['profile.identityTitle']);
   });
 });
