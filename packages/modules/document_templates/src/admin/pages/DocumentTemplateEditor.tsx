@@ -10,11 +10,24 @@ import type {
   DocumentTypeDetail,
 } from '@endora-commerce/contracts';
 import { ApiError, cn, isDraftEqual, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  InlineStatus,
+  PageHeader,
+  SaveButtonGroup,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import { ModalDialog, UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { useBlockContributions } from '@endora-commerce/admin-kit/zones';
-import { PageBuilderHeaderActions, PageBuilderOverlayBridge } from '@endora-commerce/page-builder-admin';
+import {
+  PageBuilderEditorLayout,
+  PageBuilderHeaderActions,
+  PageBuilderOverlayBridge,
+} from '@endora-commerce/page-builder-admin';
 import { countComponentNames, createColorField } from '@endora-commerce/page-builder-core';
 import {
   BlockRenderEnvironmentProvider,
@@ -44,6 +57,7 @@ import { coreBlockCanvas } from '../blocks/core-block-editors.js';
 import { DocumentCollectionsProvider } from '../blocks/items-table/index.js';
 import { LanguageSwitcher } from '../components/LanguageSwitcher.js';
 import { MergeFieldsPanel } from '../components/MergeFieldsPanel.js';
+import { PdfPreviewDialog, usePdfPreview } from '../components/PdfPreviewDialog.js';
 
 /**
  * The document-template editor (`specs/152-compare-pdf-template/contracts/admin-ui.md` §3).
@@ -60,6 +74,18 @@ import { MergeFieldsPanel } from '../components/MergeFieldsPanel.js';
  * server's *Preview PDF* renders (FR-016). Saving sends the loaded version, and a
  * stale version opens a blocking dialog — never a silent overwrite (FR-006).
  * Without `document_templates:write` the editor previews and saves nothing.
+ *
+ * Issue #1532 (UX audit CONTENT-12) — laid out in `PageBuilderEditorLayout`,
+ * the shell of every other Page Builder editor (Jakob, Similarity): the canvas
+ * has the page, with no card around its own border (Common Region); the
+ * language and the merge fields are the row above it (`canvasBar`), because
+ * they say what is on the canvas; Save is the shared `SaveButtonGroup` with
+ * *Save and exit*, its result an `InlineStatus` beside it; the *Default* badge
+ * is a fact about the template and sits beside its title; and *Preview PDF*
+ * opens the PDF in a dialog rather than a tab a pop-up blocker could stop.
+ * Like the e-mail editor, the screen has no settings panel: nothing on it
+ * describes the template rather than composes it, the name and scope being set
+ * in the list's dialog.
  */
 
 const EMPTY: Data = { root: { props: {} }, content: [] };
@@ -134,7 +160,8 @@ export function DocumentTemplateEditor(): ReactNode {
   const [draftOf, setDraftOf] = useState<string | null>(null);
   const [epoch, setEpoch] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const status = useInlineStatus();
+  const pdf = usePdfPreview();
   const [conflict, setConflict] = useState(false);
   const [busy, setBusy] = useState<'save' | 'preview' | 'default' | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -297,7 +324,7 @@ export function DocumentTemplateEditor(): ReactNode {
     if (!template || !canWrite) return false;
     setBusy('save');
     setError(null);
-    setNotice(null);
+    status.clear();
     try {
       const summary = await saveTemplateContent(template.id, language, draft, template.version);
       setTemplate({
@@ -306,7 +333,7 @@ export function DocumentTemplateEditor(): ReactNode {
         languages: summary.languages,
         content: { schemaVersion: 1, languages: { ...template.content.languages, [language]: draft } },
       });
-      setNotice(t('editor.saved'));
+      status.show(t('editor.saved'));
       return true;
     } catch (err) {
       if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') setConflict(true);
@@ -315,7 +342,12 @@ export function DocumentTemplateEditor(): ReactNode {
     } finally {
       setBusy(null);
     }
-  }, [template, canWrite, language, draft, t, errorText]);
+  }, [template, canWrite, language, draft, t, errorText, status]);
+
+  const listPath = template ? `/document-templates?type=${encodeURIComponent(template.documentType)}` : '/document-templates';
+  const saveAndExit = useCallback(async (): Promise<void> => {
+    if (await save()) void navigate(listPath);
+  }, [save, navigate, listPath]);
 
   /**
    * Issue #1461 (CONTENT-02) — the canvas against the language's stored tree,
@@ -342,18 +374,20 @@ export function DocumentTemplateEditor(): ReactNode {
     if (!template || !canWrite) return;
     setBusy('default');
     setError(null);
+    status.clear();
     try {
       const summary = template.isDefault
         ? await clearDefaultTemplate(template.id, template.version)
         : await setDefaultTemplate(template.id, template.version);
       setTemplate({ ...template, isDefault: summary.isDefault, version: summary.version });
+      status.show(t(summary.isDefault ? 'page.defaultSet' : 'page.defaultCleared', { name: template.name }));
     } catch (err) {
       if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') setConflict(true);
       else setError(errorText(err, 'editor.saveError'));
     } finally {
       setBusy(null);
     }
-  }, [template, canWrite, errorText]);
+  }, [template, canWrite, errorText, status, t]);
 
   const preview = useCallback(async (): Promise<void> => {
     if (!template) return;
@@ -361,15 +395,13 @@ export function DocumentTemplateEditor(): ReactNode {
     setError(null);
     try {
       const blob = await previewDocument(template.documentType, language, draft);
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      pdf.show(blob, t('editor.previewTitle', { name: template.name }));
     } catch {
       setError(t('editor.previewError'));
     } finally {
       setBusy(null);
     }
-  }, [template, language, draft, t]);
+  }, [template, language, draft, t, pdf]);
 
   const selectLanguage = useCallback(
     (target: string): void => {
@@ -407,117 +439,142 @@ export function DocumentTemplateEditor(): ReactNode {
 
   const typeLabel = type ? translateIn(type.moduleId, type.labelKey) : '';
 
+  const builder =
+    puckConfig && template && type ? (
+      <div className={cn('cms-page-builder', fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4')}>
+        {/* The canvas's one border: no card around it (Common Region, issue #1532). */}
+        <div className={cn('overflow-hidden rounded-md border', fullscreen ? 'min-h-0 flex-1' : 'min-h-[560px]')}>
+          {/* The edited tree's language is what a block draws in, as the PDF
+              prints it (issue #888), read through `useBlockRenderEnvironment`. */}
+          <BlockRenderEnvironmentProvider value={canvasEnvironment}>
+            <DocumentSampleProvider value={type.sample}>
+              <DocumentCollectionsProvider value={type.collections ?? []} language={language}>
+                <Puck
+                  key={`${id}:${language}:${epoch}`}
+                  config={puckConfig}
+                  data={draft}
+                  onChange={setDraft}
+                  plugins={editorPlugins}
+                  viewports={PUCK_LEGACY_VIEWPORTS}
+                  dnd={PUCK_LEGACY_DND}
+                  overrides={{
+                    headerActions: () => (
+                      <PageBuilderHeaderActions
+                        fullscreen={fullscreen}
+                        onToggleFullscreen={(): void => setFullscreen((value) => !value)}
+                        currentData={draft}
+                        onClearCanvas={(): void => {
+                          setDraft(EMPTY);
+                          setEpoch((n) => n + 1);
+                        }}
+                        t={tCore}
+                      />
+                    ),
+                    componentOverlay: ({ children, hover, isSelected, componentId, componentType }) => (
+                      <PageBuilderOverlayBridge hover={hover} isSelected={isSelected} componentId={componentId} componentType={componentType}>
+                        {children}
+                      </PageBuilderOverlayBridge>
+                    ),
+                  }}
+                />
+              </DocumentCollectionsProvider>
+            </DocumentSampleProvider>
+          </BlockRenderEnvironmentProvider>
+        </div>
+      </div>
+    ) : error ? null : (
+      <div
+        className="flex min-h-[560px] items-center justify-center rounded-md border text-sm text-muted-foreground"
+        role="status"
+        aria-busy="true"
+      >
+        {t('editor.loading')}
+      </div>
+    );
+
   return (
     <>
-      <PageHeader
-        back={{
-          label: tCore('common.action.back'),
-          to: template ? `/document-templates?type=${encodeURIComponent(template.documentType)}` : '/document-templates',
-        }}
-        title={template?.name ?? t('editor.title')}
-        description={
-          template
-            ? `${typeLabel} · ${template.salesChannelName ?? t('page.allChannels')}`
-            : undefined
-        }
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {template?.isDefault ? <Badge>{t('page.default')}</Badge> : null}
-            {canWrite ? <UnsavedChangesHint dirty={dirty} /> : null}
-            <Button variant="outline" size="sm" disabled={!template || busy !== null} onClick={() => void preview()}>
-              {busy === 'preview' ? t('editor.previewing') : t('editor.preview')}
-            </Button>
-            {canWrite && template ? (
-              <>
-                <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void toggleDefault()}>
-                  {template.isDefault ? t('page.clearDefault') : t('page.setDefault')}
-                </Button>
-                <Button size="sm" disabled={busy !== null} onClick={() => void save()}>
-                  {busy === 'save' ? t('editor.saving') : t('editor.save')}
-                </Button>
-              </>
-            ) : null}
-          </div>
-        }
-      />
-      {!canWrite ? (
-        <Alert className="mb-4">
-          <AlertDescription>{t('editor.readOnly')}</AlertDescription>
-        </Alert>
-      ) : null}
-      {error ? (
-        <Alert variant="destructive" className="mb-4" role="alert">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {notice ? (
-        <Alert className="mb-4" role="status">
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      ) : null}
-      {template && type ? (
-        <div className="mb-4 flex flex-wrap items-start gap-4">
-          <LanguageSwitcher
-            languages={languages}
-            current={language}
-            stored={Object.keys(template.content.languages)}
-            copyFrom={copyFrom?.language ?? null}
-            onSelect={(target) => unsavedGuard.confirm(() => selectLanguage(target))}
-            onStart={startLanguage}
-          />
-          <MergeFieldsPanel variables={type.variables} />
-        </div>
-      ) : null}
-      <Card>
-        <CardContent>
-          <div className={cn('cms-page-builder space-y-3', fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4')}>
-            <div className={cn('overflow-hidden rounded-md border', fullscreen ? 'min-h-0 flex-1' : 'min-h-[560px]')}>
-              {puckConfig && template && type ? (
-                // The edited tree's language is what a block draws in, as the PDF
-                // prints it (issue #888), read through `useBlockRenderEnvironment`.
-                <BlockRenderEnvironmentProvider value={canvasEnvironment}>
-                <DocumentSampleProvider value={type.sample}>
-                  <DocumentCollectionsProvider value={type.collections ?? []} language={language}>
-                  <Puck
-                    key={`${id}:${language}:${epoch}`}
-                    config={puckConfig}
-                    data={draft}
-                    onChange={setDraft}
-                    plugins={editorPlugins}
-                    viewports={PUCK_LEGACY_VIEWPORTS}
-                    dnd={PUCK_LEGACY_DND}
-                    overrides={{
-                      headerActions: () => (
-                        <PageBuilderHeaderActions
-                          fullscreen={fullscreen}
-                          onToggleFullscreen={(): void => setFullscreen((value) => !value)}
-                          currentData={draft}
-                          onClearCanvas={(): void => {
-                            setDraft(EMPTY);
-                            setEpoch((n) => n + 1);
-                          }}
-                          t={tCore}
-                        />
-                      ),
-                      componentOverlay: ({ children, hover, isSelected, componentId, componentType }) => (
-                        <PageBuilderOverlayBridge hover={hover} isSelected={isSelected} componentId={componentId} componentType={componentType}>
-                          {children}
-                        </PageBuilderOverlayBridge>
-                      ),
-                    }}
-                  />
-                  </DocumentCollectionsProvider>
-                </DocumentSampleProvider>
-                </BlockRenderEnvironmentProvider>
-              ) : (
-                <div className="flex min-h-[560px] items-center justify-center text-sm text-muted-foreground">
-                  {error ? null : t('editor.loading')}
+      <PageBuilderEditorLayout
+        header={
+          <>
+            <PageHeader
+              back={{ label: tCore('common.action.back'), to: listPath }}
+              title={template?.name ?? t('editor.title')}
+              titleActions={template?.isDefault ? <Badge>{t('page.default')}</Badge> : undefined}
+              description={template ? `${typeLabel} · ${template.salesChannelName ?? t('page.allChannels')}` : undefined}
+              actions={
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {canWrite ? <UnsavedChangesHint dirty={dirty} /> : null}
+                  <InlineStatus {...status.props} data-testid="document-template-status" />
+                  <Button
+                    variant="outline"
+                    disabled={!template || busy !== null}
+                    aria-busy={busy === 'preview' || undefined}
+                    onClick={() => void preview()}
+                  >
+                    {busy === 'preview' ? t('editor.previewing') : t('editor.preview')}
+                  </Button>
+                  {canWrite && template ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        disabled={busy !== null}
+                        aria-busy={busy === 'default' || undefined}
+                        onClick={() => void toggleDefault()}
+                      >
+                        {template.isDefault ? t('page.clearDefault') : t('page.setDefault')}
+                      </Button>
+                      <SaveButtonGroup
+                        onSave={() => void save()}
+                        onSaveAndExit={() => void saveAndExit()}
+                        saving={busy === 'save'}
+                        disabled={busy !== null && busy !== 'save'}
+                        saveLabel={t('editor.save')}
+                        savingLabel={t('editor.saving')}
+                        saveAndExitLabel={tCore('common.action.saveAndExit')}
+                      />
+                    </>
+                  ) : null}
                 </div>
-              )}
+              }
+            />
+            {!canWrite ? (
+              <Alert>
+                <AlertDescription>{t('editor.readOnly')}</AlertDescription>
+              </Alert>
+            ) : null}
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                  <span>{error}</span>
+                  {template === null ? (
+                    <Button variant="outline" size="sm" onClick={() => void navigate('/document-templates')}>
+                      {tCore('common.action.back')}
+                    </Button>
+                  ) : null}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+          </>
+        }
+        canvasBar={
+          template && type ? (
+            <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+              <LanguageSwitcher
+                languages={languages}
+                current={language}
+                stored={Object.keys(template.content.languages)}
+                copyFrom={copyFrom?.language ?? null}
+                onSelect={(target) => unsavedGuard.confirm(() => selectLanguage(target))}
+                onStart={startLanguage}
+              />
+              <MergeFieldsPanel variables={type.variables} />
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          ) : undefined
+        }
+        builderLabel={typeLabel || undefined}
+        builder={builder}
+      />
       {conflict ? (
         <ModalDialog
           title={t('editor.conflict.title')}
@@ -541,12 +598,8 @@ export function DocumentTemplateEditor(): ReactNode {
           <p>{t('editor.conflict.body')}</p>
         </ModalDialog>
       ) : null}
+      <PdfPreviewDialog preview={pdf.preview} onClose={pdf.close} />
       {unsavedGuard.dialog}
-      {template === null && error ? (
-        <Button variant="outline" onClick={() => { navigate('/document-templates'); }}>
-          {tCore('common.action.back')}
-        </Button>
-      ) : null}
     </>
   );
 }
