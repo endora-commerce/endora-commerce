@@ -228,3 +228,23 @@ describe('every preset tree names declared blocks (T092)', () => {
     expect(inner(first)).not.toBe(inner(second));
   });
 });
+
+/**
+ * Issue #1437 (UX audit 2026-11-17, DS-03) — the presets list sat in a bordered,
+ * tinted box above the drawer's blocks, so each preset button was a frame inside
+ * a frame. The list is unboxed now and set off from the blocks below it by one
+ * rule; the preset buttons stay bordered, like the drawer's own block items
+ * (Similarity: same function, same look).
+ */
+describe('section presets — no frame around the list (DS-03)', () => {
+  it('draws no box around the presets, only a rule below them', async () => {
+    stubEditorApi(vi.mocked(apiClient));
+    await mountPageBuilderEditor(page(), { language: 'pl' });
+    const panel = presetsPanel();
+    expect(panel.className).not.toMatch(/(^|\s)border(\s|$)|\brounded|\bbg-/);
+    expect(panel.className).toMatch(/\bborder-b\b/);
+    for (const button of within(panel).getAllByRole('button', { hidden: true })) {
+      expect(button.className).toMatch(/(^|\s)border(\s|$)/);
+    }
+  });
+});
