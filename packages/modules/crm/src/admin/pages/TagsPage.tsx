@@ -25,6 +25,7 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { errorMessage } from '../lib/labels.js';
+import { CrmConfigurationTabs } from '../components/CrmConfigurationTabs.js';
 
 /** The colour a new tag starts with — the neutral the seeded statuses use. */
 const DEFAULT_COLOR = '#64748b';
@@ -102,6 +103,7 @@ export function TagsPage(): ReactNode {
           the list is empty, when the empty state's Add is the view's one
           primary (Von Restorff). */}
       <PageHeader title={t('tags.title')} actions={tags !== null && tags.length > 0 ? addButton : undefined} />
+      <CrmConfigurationTabs />
 
       {/* Mounted before it has text, so the announcement is reliable. */}
       <p role="status" className="sr-only">

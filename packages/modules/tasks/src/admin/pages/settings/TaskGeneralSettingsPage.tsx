@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
-import { Alert, AlertDescription, Button, Card, CardContent, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  InlineStatus,
+  Label,
+  PageHeader,
+  Select,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../../api.js';
 import { errorMessage } from '../../lib/labels.js';
-import { TASK_WORKFLOW_PATH } from '../../lib/settings-paths.js';
+import { TaskConfigurationTabs } from '../../components/TaskConfigurationTabs.js';
 
 /** Every zone the runtime knows, and UTC — the server validates the same way (`isIanaTimeZone`). */
 function knownTimeZones(current: string | null): string[] {
@@ -19,6 +30,10 @@ function knownTimeZones(current: string | null): string[] {
  * `GET` / `PUT /tasks/settings/time-zone`, the configurators' screen
  * (`tasks:configure`). The server refuses a zone it does not know, in its own
  * words.
+ *
+ * **The configuration's *General* tab** since issue #1557 (UX audit WORK-06):
+ * one field is one short card under the strip, not a page of its own with a
+ * description and a back link. The result shows beside Save.
  */
 export function TaskGeneralSettingsPage(): ReactNode {
   const t = useTranslation('tasks');
@@ -30,7 +45,7 @@ export function TaskGeneralSettingsPage(): ReactNode {
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
+  const status = useInlineStatus();
   const [error, setError] = useState<string | null>(null);
   const zones = useMemo(() => knownTimeZones(stored), [stored]);
 
@@ -55,12 +70,12 @@ export function TaskGeneralSettingsPage(): ReactNode {
   const save = async (): Promise<void> => {
     setBusy(true);
     setError(null);
-    setNotice('');
+    status.clear();
     try {
       const { timeZone } = await tasksApi.setTimeZone(chosen);
       setStored(timeZone);
       setChosen(timeZone);
-      setNotice(t('settings.saved'));
+      status.show(t('settings.saved'));
     } catch (failure) {
       setError(errorMessage(failure, t('settings.saveError')));
     } finally {
@@ -70,11 +85,8 @@ export function TaskGeneralSettingsPage(): ReactNode {
 
   return (
     <>
-      <PageHeader
-        title={t('settings.title')}
-        description={t('settings.description')}
-        back={{ label: t('settings.back'), to: TASK_WORKFLOW_PATH }}
-      />
+      <PageHeader title={t('settings.title')} />
+      <TaskConfigurationTabs />
 
       {loading ? (
         <p role="status" className="text-sm text-muted-foreground">
@@ -99,7 +111,10 @@ export function TaskGeneralSettingsPage(): ReactNode {
                 value={chosen}
                 disabled={busy}
                 aria-describedby={hintId}
-                onChange={(event): void => setChosen(event.target.value)}
+                onChange={(event): void => {
+                  setChosen(event.target.value);
+                  status.clear();
+                }}
               >
                 {zones.map((zone) => (
                   <option key={zone} value={zone}>
@@ -111,18 +126,18 @@ export function TaskGeneralSettingsPage(): ReactNode {
                 {t('settings.timeZoneHint')}
               </p>
             </div>
-            <Button
-              type="button"
-              className="min-h-11 sm:min-h-8"
-              disabled={busy || chosen === stored}
-              aria-busy={busy}
-              onClick={(): void => void save()}
-            >
-              {t('settings.save')}
-            </Button>
-            <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
-              {notice}
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                className="min-h-11 sm:min-h-8"
+                disabled={busy || chosen === stored}
+                aria-busy={busy}
+                onClick={(): void => void save()}
+              >
+                {t('settings.save')}
+              </Button>
+              <InlineStatus {...status.props} />
+            </div>
             {error ? (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>

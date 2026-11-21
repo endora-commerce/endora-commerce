@@ -14,6 +14,15 @@
  * dynamic-import factory, so none of the screens is in the admin's entry chunk.
  */
 import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import {
+  LEGACY_PROJECT_CONFIGURATION_PATHS,
+  PROJECT_CONFIGURATION_PATH,
+  PROJECT_LOSS_REASONS_PATH,
+  PROJECT_ROLES_PATH,
+  PROJECT_TEMPLATE_NEW_PATH,
+  PROJECT_TEMPLATES_PATH,
+  projectTemplatePath,
+} from './lib/configuration-paths.js';
 
 /** The code that opens the list and one Project; `GET /projects` and `GET /projects/:id` enforce it. */
 const READ_PERMISSION = 'projects:read';
@@ -47,34 +56,42 @@ export const contributions: AdminContributions = {
       component: () => import('./pages/ProjectCreate.js'),
       requiredPermission: WRITE_PERMISSION,
     },
-    // User Story 3 — Templates. Declared before `/:id`, whose segment would
-    // otherwise also match `templates`.
+    // The configuration (issue #1557): User Story 3's Templates as its first
+    // tab, at the sidebar row's own address, then the Template editor and
+    // User Story 4's two dictionaries under it. All declared before `/:id`,
+    // whose segment would otherwise also match `settings`.
     {
-      path: `${PROJECTS_PATH}/templates`,
+      path: PROJECT_TEMPLATES_PATH,
       component: () => import('./pages/TemplatesList.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
     {
-      path: `${PROJECTS_PATH}/templates/new`,
+      path: PROJECT_TEMPLATE_NEW_PATH,
       component: () => import('./pages/TemplateEditor.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
     {
-      path: `${PROJECTS_PATH}/templates/:id`,
+      path: projectTemplatePath(':id'),
       component: () => import('./pages/TemplateEditor.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
-    // User Story 4 — the two dictionaries. Declared before `/:id` too.
     {
-      path: `${PROJECTS_PATH}/roles`,
+      path: PROJECT_ROLES_PATH,
       component: () => import('./pages/RolesPage.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
     {
-      path: `${PROJECTS_PATH}/loss-reasons`,
+      path: PROJECT_LOSS_REASONS_PATH,
       component: () => import('./pages/LossReasonsPage.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
+    // The same screens' addresses before #1557, kept as redirects for
+    // bookmarks and links already sent; on the code of the screens they open.
+    ...LEGACY_PROJECT_CONFIGURATION_PATHS.map((path) => ({
+      path,
+      component: () => import('./pages/ProjectConfigurationRedirect.js'),
+      requiredPermission: CONFIGURE_PERMISSION,
+    })),
     // User Story 10 — analytics. Declared before `/:id` too.
     {
       path: `${PROJECTS_PATH}/analytics`,
@@ -107,27 +124,13 @@ export const contributions: AdminContributions = {
       requiredPermission: ANALYTICS_PERMISSION,
     },
     {
-      to: `${PROJECTS_PATH}/templates`,
-      labelKey: 'nav.templates.label',
-      icon: 'Layers',
+      // The one configuration row (issue #1557), where Templates' stood; Task
+      // configuration (430) follows it.
+      to: PROJECT_CONFIGURATION_PATH,
+      labelKey: 'nav.configuration.label',
+      icon: 'Settings',
       section: 'work',
       weight: 400,
-      requiredPermission: CONFIGURE_PERMISSION,
-    },
-    {
-      to: `${PROJECTS_PATH}/roles`,
-      labelKey: 'nav.roles.label',
-      icon: 'Users',
-      section: 'work',
-      weight: 410,
-      requiredPermission: CONFIGURE_PERMISSION,
-    },
-    {
-      to: `${PROJECTS_PATH}/loss-reasons`,
-      labelKey: 'nav.lossReasons.label',
-      icon: 'Tag',
-      section: 'work',
-      weight: 420,
       requiredPermission: CONFIGURE_PERMISSION,
     },
   ],

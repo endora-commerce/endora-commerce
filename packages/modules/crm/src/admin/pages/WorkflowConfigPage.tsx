@@ -29,6 +29,7 @@ import { crmApi, type OrderStatusOption } from '../api.js';
 import { boardFieldLabel } from '../lib/board-fields.js';
 import { errorMessage, workflowStatusLabel } from '../lib/labels.js';
 import { useServerReorder } from '../lib/use-server-reorder.js';
+import { CrmConfigurationTabs } from '../components/CrmConfigurationTabs.js';
 import { OrderStatusMappings } from './workflow/OrderStatusMappings.js';
 import { StatusDialog, type StatusDialogSubmit } from './workflow/StatusDialog.js';
 import { StatusesTable } from './workflow/StatusesTable.js';
@@ -176,7 +177,13 @@ export function WorkflowConfigPage(): ReactNode {
     }
   };
 
-  const header = <PageHeader title={t('workflow.title')} />;
+  // The configuration's tab strip (issue #1557): the tag list is its other tab.
+  const header = (
+    <>
+      <PageHeader title={t('workflow.title')} />
+      <CrmConfigurationTabs />
+    </>
+  );
 
   if (workflow === null) {
     return (

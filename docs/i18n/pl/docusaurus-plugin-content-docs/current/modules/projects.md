@@ -36,9 +36,12 @@ przez operatora w ten sam sposób.
 
 Projekty są w menu bocznym w sekcji **Projekty i zadania → Projekty**
 (`/projects`), dla administratorów, którzy mogą przeglądać projekty. Ich
-konfiguracja jest w tej samej sekcji, dla administratorów, którzy mogą
-konfigurować projekty: **Szablony** (`/projects/templates`), **Role projektowe**
-(`/projects/roles`) i **Powody utraty** (`/projects/loss-reasons`). Jest tam też
+konfiguracja to jedna pozycja tej samej sekcji, **Konfiguracja projektów**, dla
+administratorów, którzy mogą konfigurować projekty: trzy karty, **Szablony**
+(`/projects/settings`), **Role** (`/projects/settings/roles`) i **Powody
+utraty** (`/projects/settings/loss-reasons`). Dotychczasowe adresy,
+`/projects/templates`, `/projects/roles` i `/projects/loss-reasons`, nadal
+otwierają te same karty. Jest tam też
 **Analityka** (`/projects/analytics`), dla administratorów, którzy mogą
 przeglądać analitykę projektów (zob. *Analityka*).
 
@@ -163,7 +166,7 @@ organizacji — wyłącznie wśród projektów, które możesz zobaczyć.
 Bez uprawnienia do tworzenia i prowadzenia projektów ekran jest tylko do
 odczytu: etapy, przebieg i historia są widoczne, ale niczego nie można zmienić.
 
-**Szablony** (`/projects/templates`) wymienia szablony według nazwy z liczbą
+**Szablony** (`/projects/settings`) wymienia szablony według nazwy z liczbą
 etapów; zarchiwizowane są pokazywane na życzenie, oznaczone jako
 *Zarchiwizowany*. Ekran szablonu — albo *Nowy szablon* — pozwala edytować jego
 nazwę, domyślny opis i role projektowe oraz etapy z tymi samymi polami,
@@ -336,7 +339,7 @@ uprawnieniami oraz reguły z sekcji *Kto widzi projekt*. Bycie członkiem
 projektu, w dowolnej roli, jest jednym ze sposobów, by projekt *widzieć*, ale
 nigdy sposobem, by go zmieniać.
 
-**Role projektowe** (`/projects/roles`) wymieniają wszystkie role z nazwą w
+**Role** (`/projects/settings/roles`) wymieniają wszystkie role z nazwą w
 każdym języku panelu administracyjnego. *Handlowiec* i *Kierownik Projektu* są
 dostępne od początku i oznaczone jako **Wbudowana**.
 
@@ -357,7 +360,7 @@ dostępne od początku i oznaczone jako **Wbudowana**.
 
 ## Powody utraty
 
-**Powody utraty** (`/projects/loss-reasons`) to powody, z jakich projekt może
+**Powody utraty** (`/projects/settings/loss-reasons`) to powody, z jakich projekt może
 zostać zamknięty jako utracony; jeden z nich trzeba wybrać przy zamykaniu
 projektu. *Cena*, *Wybór konkurencji*, *Anulowany przez klienta*, *Brak
 decyzji* i *Inny powód* są dostępne od początku i oznaczone jako **Wbudowany**.
