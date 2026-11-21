@@ -336,6 +336,8 @@
   "digest.off": "Dzienne podsumowanie wyłączone.",
   "digest.error": "Nie udało się wczytać ustawienia dziennego podsumowania.",
   "digest.saveError": "Nie udało się zapisać ustawienia dziennego podsumowania.",
+  "digest.summary.off": "Dzienne podsumowanie: wyłączone",
+  "digest.summary.on": "Dzienne podsumowanie: włączone, {hour}",
   "settings.title": "Ogólne ustawienia zadań",
   "settings.description": "Kalendarz, według którego liczone są zadania.",
   "settings.link": "Ustawienia ogólne",

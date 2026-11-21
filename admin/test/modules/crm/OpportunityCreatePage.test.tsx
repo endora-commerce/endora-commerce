@@ -103,6 +103,20 @@ describe('OpportunityCreatePage', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
+  it('marks the required fields the kit way, with no prose note (#1564)', async () => {
+    renderPage();
+    expect(screen.getByLabelText(en('opportunity.field.title'), { exact: false })).toHaveAttribute('aria-required', 'true');
+    expect(screen.getByLabelText(en('opportunity.field.currency'), { exact: false })).toHaveAttribute(
+      'aria-required',
+      'true',
+    );
+    // The kit Combobox has no `aria-required` yet; its hint is linked, and so is an error.
+    expect(screen.getByLabelText(en('opportunity.field.organization'))).toHaveAccessibleDescription(
+      en('opportunity.field.organizationHint'),
+    );
+    expect(screen.queryByText(/marked \* are required/i)).toBeNull();
+  });
+
   it('creates an opportunity from the three required fields and opens it', async () => {
     renderPage();
     await userEvent.type(
