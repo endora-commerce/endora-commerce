@@ -167,7 +167,7 @@
   "editor.secretIsSet": "Secret value is set (write-only, never displayed)",
   "activation.on": "On",
   "activation.off": "Switched off",
-  "activation.managedOnPlatformScreen": "This is the module's on/off switch. It is managed on the Modules screen, together with what this deployment offers.",
+  "activation.managedOnPlatformScreen": "Switched on and off on the Modules screen.",
   "activation.openPlatformScreen": "Open Modules",
   "editor.readOnlyReason": "The module that owns these settings is switched off. Their stored values are kept and become editable again when it is switched on.",
   "nav.settings.label": "Settings",

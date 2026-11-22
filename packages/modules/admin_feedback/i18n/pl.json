@@ -1,7 +1,7 @@
 {
   "settingGroups.admin_feedback.name": "Opinie",
   "settingLabels.admin_feedback.module_enabled.name": "Moduł opinii włączony",
-  "settingLabels.admin_feedback.module_enabled.description": "Pokazuje link „Wyślij opinię” i wysyła opinie do Endory. Gdy jest wyłączone, linku nie ma i nic nie jest wysyłane.",
+  "settingLabels.admin_feedback.module_enabled.description": "Pokazuje link „Wyślij opinię”, który wysyła opinię do Endory.",
   "settingLabels.admin_feedback.relay_url.name": "Adres przekaźnika opinii",
   "settingLabels.admin_feedback.relay_url.description": "Adres, na który trafiają opinie. Domyślny prowadzi do wsparcia Endory; pusty wyłącza wysyłanie.",
   "actions.openAdminFeedbackSettings.label": "Ustawienia opinii",

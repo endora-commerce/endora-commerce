@@ -243,7 +243,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   // 2026-11-21 after `promotions.page.description` was cut (#1436).
   '_i18n:fulfilment.hint': 119,
   '_i18n:pageBuilder.fieldText.editorName.hint': 81,
-  '_i18n:platform.commandHooks.outbox.hint': 94,
   '_i18n:returns.detail.settlement.charge.hint': 200,
   'catalog:productsList.bulkEdit.archive.hint': 123,
   'catalog:productsList.bulkEdit.restore.hint': 112,

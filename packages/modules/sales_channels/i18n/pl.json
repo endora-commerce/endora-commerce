@@ -33,7 +33,7 @@
   "identity.section.storefront": "Sklep",
   "identity.code.label": "Kod",
   "identity.code.placeholder": "serwis-a",
-  "identity.code.lockedHelp": "Ustalany przy tworzeniu kanału; nie można go zmienić.",
+  "identity.code.lockedHelp": "Nadawany przy tworzeniu; nie można go zmienić.",
   "identity.name.label": "Nazwa wyświetlana (en-US)",
   "identity.name.placeholder": "Serwis A",
   "identity.theme.label": "Motyw sklepu",
