@@ -14,6 +14,7 @@ import '@puckeditor/core/puck.css';
 // values + no preflight, so it cannot restyle admin chrome.
 import '@endora-commerce/cms-components/styles.css';
 import {
+  CMS_CONTENT_DEFAULT_PROPS,
   defaultPageBuilderConfig,
   withCmsPageRoot,
   withMissingBlockPlaceholders,
@@ -26,6 +27,7 @@ import {
   filterConfigByContext,
   isSectionBackgroundField,
   PageBuilderContentLocaleProvider,
+  withContentDefaultProps,
   type BrandColorRole,
   type PageBuilderContext,
 } from '@endora-commerce/page-builder-core';
@@ -539,6 +541,8 @@ export interface PageBuilderEditorConfigInput {
   storedBlockNames?: readonly string[];
   /** Wrap the canvas in the CMS page max-width container (pages only). */
   pageContainer?: boolean;
+  /** The content language being edited: a dropped block's copy defaults are seeded in it (#1684). */
+  contentLocale?: string | null;
 }
 
 /** `null` when `scope` has no such key: a missing key resolves to its `<scope>.<key>` placeholder. */
@@ -606,7 +610,8 @@ export function buildPageBuilderEditorConfig(input: PageBuilderEditorConfigInput
   // R17 (T200): the fields the page builder owns are translated once, in the `core` bundle.
   const sharedFieldLabel = (key: string): string | undefined =>
     scopedOrUndefined(translateInScope, 'core', `pageBuilder.sharedFields.${key}`);
-  return applyPageBuilderTranslations(rooted, t, blockLabel, fieldLabel, sharedFieldLabel);
+  const translated = applyPageBuilderTranslations(rooted, t, blockLabel, fieldLabel, sharedFieldLabel);
+  return withContentDefaultProps(translated, input.contentLocale, CMS_CONTENT_DEFAULT_PROPS);
 }
 
 export function PageBuilderEditor({
@@ -860,6 +865,7 @@ export function PageBuilderEditor({
         contributed: contributedEditors ?? NO_CONTRIBUTED_EDITORS,
         storedBlockNames: storedBlockNamesKey === '' ? [] : storedBlockNamesKey.split('\n'),
         pageContainer,
+        contentLocale: activeLanguage,
       }),
     [
       descriptor,
@@ -870,6 +876,7 @@ export function PageBuilderEditor({
       context,
       storedBlockNamesKey,
       contributedEditors,
+      activeLanguage,
     ],
   );
   const lastValidDataRef = useRef(editorData);

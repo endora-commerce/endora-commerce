@@ -2,7 +2,7 @@
 // (feature 014).
 
 import type { ComponentConfig, Config } from '@puckeditor/core';
-import { definePageBuilderComponent, ownerOf, withHideOn } from '@endora-commerce/page-builder-core';
+import { definePageBuilderComponent, ownerOf, withHideOn, type ContentDefaultPropsMap } from '@endora-commerce/page-builder-core';
 import { Accordion } from './components/Accordion.js';
 import { AnnouncementBar } from './components/AnnouncementBar.js';
 import { BackgroundPanel } from './components/BackgroundPanel.js';
@@ -24,7 +24,7 @@ import { Icons } from './components/Icons.js';
 import { Image } from './components/Image.js';
 import { InsertBlock } from './components/InsertBlock.js';
 import { InsertTemplate } from './components/InsertTemplate.js';
-import { LatestPosts } from './components/LatestPosts.js';
+import { LATEST_POSTS_CONTENT_DEFAULT_PROPS, LatestPosts } from './components/LatestPosts.js';
 import { LinkList } from './components/LinkList.js';
 import { LinkTile } from './components/LinkTile.js';
 import { LogoStrip } from './components/LogoStrip.js';
@@ -175,6 +175,15 @@ export { BUTTON_LOOK_FIELDS } from './fields/shared-fields.js';
  * `defaultExpanded: true` — which is what all four sections wrote — is
  * indistinguishable from omitting the field. Deleting it is behaviour-preserving.
  */
+/**
+ * Every bundled block's default props that are content, not settings (#1684):
+ * an editor seeds them in the edited content language with
+ * `withContentDefaultProps(config, locale, CMS_CONTENT_DEFAULT_PROPS)`.
+ */
+export const CMS_CONTENT_DEFAULT_PROPS: ContentDefaultPropsMap = {
+  ...LATEST_POSTS_CONTENT_DEFAULT_PROPS,
+};
+
 export const defaultPageBuilderConfig: Config = {
   components: {
     // Feature 163, plan § Owner ruling 2026-10-23: the one block carrying section settings, top level only.

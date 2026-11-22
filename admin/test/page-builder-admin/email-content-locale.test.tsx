@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import { cleanup, screen } from '@testing-library/react';
 import { useContentDefault } from '@endora-commerce/page-builder-core';
+import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
 import { renderWithI18n } from '../helpers/render-with-i18n';
 import { shippedCoreBundle } from '../helpers/core-bundle';
 
@@ -53,7 +54,13 @@ describe('the e-mail builder seeds content in the e-mail\'s language (#1684)', (
     ['en-US', 'pl', 'Read more'],
   ] as const)('a %s e-mail edited in the %s admin', async (previewLanguage, language, expected) => {
     renderWithI18n(
-      <EmailEditorPane data={EMPTY} onChange={() => undefined} editorKey="pb1684" previewLanguage={previewLanguage} />,
+      withSession(
+        <EmailEditorPane data={EMPTY} onChange={() => undefined} editorKey="pb1684" previewLanguage={previewLanguage} />,
+        {
+          session: adminSession({ permissions: ['*'], preferredLanguage: language }),
+          presence: modulePresence({ present: ['transactional_emails'] }),
+        },
+      ),
       shippedCoreBundle(language),
       { language },
     );

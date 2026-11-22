@@ -5,12 +5,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SUPPORTED_LANGUAGES } from '@endora-commerce/contracts/platform-language';
 import {
   PAGE_BUILDER_CONTENT_DEFAULTS,
-  PageBuilderContentLocaleProvider,
   contentDefaultFor,
-  useContentDefault,
   withContentDefaultProps,
   type PageBuilderContentDefaultKey,
-} from './content-defaults.js';
+} from './content-defaults-table.js';
+import { PageBuilderContentLocaleProvider, useContentDefault } from './content-defaults.js';
 
 /**
  * Issue #1684 (UX audit, follow-up to #1680) — the content the page builder

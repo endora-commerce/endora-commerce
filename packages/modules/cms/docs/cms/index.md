@@ -1186,7 +1186,7 @@ desktop. A breakpoint without its own value takes the one below it.
   language of the content you are editing, the one picked in the language tabs above the
   canvas: "Read more" on an English page, "Czytaj więcej" on a Polish one. A language without
   its own starting text gets "Read more". The summary is saved with the page, so edit it like
-  any other text.
+  any other text. The e-mail builder does the same, in the e-mail's language.
 - **Where the "read more" sits.** With the cursor in a "read more" passage, **Read more
   position** in the rich-text toolbar puts its summary — the text or the chevron — at the
   **Start** of the line (the default), in the **Center** or at the **End**. **Show the revealed

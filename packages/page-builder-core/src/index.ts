@@ -170,12 +170,13 @@ export {
 // Issue #1684 — the content the builder seeds into a document, in the edited content locale.
 export {
   PAGE_BUILDER_CONTENT_DEFAULTS,
-  PageBuilderContentLocaleProvider,
   contentDefaultFor,
-  useContentDefault,
+  withContentDefaultProps,
   type ContentDefault,
+  type ContentDefaultPropsMap,
   type PageBuilderContentDefaultKey,
-} from './fields/content-defaults.js';
+} from './fields/content-defaults-table.js';
+export { PageBuilderContentLocaleProvider, useContentDefault } from './fields/content-defaults.js';
 // Feature 163, T195 — the host's image picker (the admin's asset library), for the rich text's image dialog.
 export {
   PageBuilderImagePickerProvider,

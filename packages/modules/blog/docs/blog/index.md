@@ -361,7 +361,7 @@ channel in the page's language:
 | Number of posts | How many posts, 1–12 (default 6). On the **Data** tab. |
 | Category | Only posts of this category; empty for all. On the **Data** tab, picked from the blog's categories (the block keeps storing the category's slug, so a block saved before is unchanged). |
 | Layout | Carousel (with the carousel options: slides per view per breakpoint, gap, effect, arrows and dots) or grid (columns per breakpoint). |
-| Read-more label | The text of the link on each card. |
+| Read-more label | The text of the link on each card. A new block starts with it in the language of the content you are editing: "Read more" on an English page, "Czytaj więcej" on a Polish one. |
 
 Each card shows the main image (2:1), the primary category, the title and the
 read-more link.
