@@ -47,7 +47,7 @@ import { usePlatformVersion } from '../lib/platform-info/usePlatformVersion.js';
 import { getPromptCapability, listUnseenPromptRequests } from '../lib/prompt-actions/api.js';
 import { PromptModePanel } from './prompt-actions/PromptModePanel.js';
 import { useGlobalSearch } from '../lib/global-search/useGlobalSearch.js';
-import { Badge } from '@endora-commerce/admin-kit/ui';
+import { Badge, Separator } from '@endora-commerce/admin-kit/ui';
 import { SpeechToTextButton } from './SpeechToTextButton.js';
 import type { PromptActionRequestDto } from '@endora-commerce/contracts';
 
@@ -1196,7 +1196,6 @@ export function AppShell(): ReactNode {
           to="/"
           end
           className="b2b-sidebar__brand"
-          style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
           aria-label={t('appShell.brand.dashboardLink')}
           title={brandTooltip}
         >
@@ -1377,7 +1376,7 @@ export function AppShell(): ReactNode {
                           }
                         >
                           <Icon size={16} />
-                          <span style={{ flex: 1 }}>{label}</span>
+                          <span className="flex-1">{label}</span>
                         </NavLink>
                         <PinToggleButton
                           label={label}
@@ -1457,7 +1456,7 @@ export function AppShell(): ReactNode {
       </div>
 
       {/* ============ Main column (topbar + content) ============ */}
-      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="flex min-w-0 flex-col">
         <div className="b2b-topbar">
           {isMobile ? (
             <button
@@ -1472,13 +1471,12 @@ export function AppShell(): ReactNode {
           ) : null}
           <div className={isCmsRoute ? 'b2b-topbar__crumbs-inner b2b-page b2b-page--wide' : 'b2b-topbar__crumbs'}>
             {crumbs.map((c, i) => (
-              <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span key={i} className="inline-flex items-center gap-1.5">
                 {i > 0 ? <ChevronRight size={12} className="crumb-sep" /> : null}
                 {c.href ? (
                   <NavLink
                     to={c.href}
                     className="crumb-link"
-                    style={{ color: 'inherit', textDecoration: 'none' }}
                   >
                     {c.labelKey !== undefined ? tScoped(c.labelScope ?? 'core', c.labelKey) : c.literal}
                   </NavLink>
@@ -1517,7 +1515,7 @@ export function AppShell(): ReactNode {
               control (Jakob's Law, Similarity); it returns once there is a
               help destination to point it at.
             */}
-            <div style={{ width: 1, height: 22, background: 'var(--border-color)', margin: '0 4px' }} />
+            <Separator orientation="vertical" className="mx-1 h-5.5" />
             {/*
               Feature 019 / FR-017 — language picker. Same backend round-trip
               as ProfilePage's language section, exposed inline so the user
@@ -1530,7 +1528,6 @@ export function AppShell(): ReactNode {
                 className="b2b-avatar"
                 title={`${fullName || me.adminUser.email} — ${t('appShell.profileMenu.profile')}`}
                 aria-label={t('appShell.profileMenu.profile')}
-                style={{ textDecoration: 'none', cursor: 'pointer' }}
               >
                 {(fullName || me.adminUser.email).slice(0, 2).toUpperCase()}
               </NavLink>
@@ -1538,7 +1535,7 @@ export function AppShell(): ReactNode {
           </div>
         </div>
         <PreferencesSaveNotice />
-        <main className="b2b-main" style={{ flex: 1, overflow: 'auto' }}>
+        <main className="b2b-main flex-1 overflow-auto">
           <div className="b2b-impersonation-slot" data-impersonation-banner />
           {/* Issue #140 — a session whose role is null reaches no gated
               surface, so the shell says why instead of showing an empty panel. */}
@@ -2212,9 +2209,9 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
         onClick={(): void => activate(it.to)}
       >
         <Icon size={16} aria-hidden="true" />
-        <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="min-w-0 flex-1">
           <div>{label}</div>
-          {sub ? <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{sub}</div> : null}
+          {sub ? <div className="text-[11px] text-muted-foreground">{sub}</div> : null}
         </div>
         {it.badge ? <Badge variant="secondary">{it.badge}</Badge> : null}
         {/* The pin state, in the option's accessible name — the visual cue
@@ -2292,7 +2289,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
         aria-label={t('appShell.palette.title')}
       >
         <div className="b2b-palette__input">
-          <Search size={18} style={{ color: 'var(--fg-muted)' }} aria-hidden="true" />
+          <Search size={18} className="text-muted-foreground" aria-hidden="true" />
           <input
             ref={inputRef}
             role="combobox"
@@ -2339,7 +2336,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
         </div>
         <div className="b2b-palette__list" aria-busy={recordsLoading}>
           {nothingAtAll ? (
-            <div style={{ padding: 32, textAlign: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>
+            <div className="p-8 text-center text-[13px] text-muted-foreground">
               {t('appShell.search.noMatches')}
             </div>
           ) : (
@@ -2357,11 +2354,12 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
               })}
               {recordsLoading ? (
                 <div
-                  className="b2b-palette__item"
+                  // `cursor-default!`: the unlayered `.b2b-palette__item` rule sets
+                  // `cursor: pointer`, which an unmarked utility cannot outrank.
+                  className="b2b-palette__item cursor-default! text-muted-foreground"
                   aria-hidden="true"
                   data-palette-note=""
                   data-testid="palette-records-searching"
-                  style={{ color: 'var(--fg-muted)', cursor: 'default' }}
                 >
                   <Search size={16} />
                   <div>{t('appShell.palette.records.searching')}</div>
@@ -2380,7 +2378,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
                         <div className="b2b-palette__group" id={headingId}>
                           {group.label}
                           {group.hasMore ? (
-                            <span style={{ marginLeft: 8, fontWeight: 400 }}>
+                            <span className="ml-2 font-normal">
                               · {t('appShell.palette.records.more')}
                             </span>
                           ) : null}
@@ -2400,9 +2398,8 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
                             role="option"
                             aria-selected={false}
                             aria-disabled="true"
-                            className="b2b-palette__item"
+                            className="b2b-palette__item cursor-default! text-muted-foreground"
                             data-palette-note=""
-                            style={{ color: 'var(--fg-muted)', cursor: 'default' }}
                           >
                             <div>{t('appShell.palette.records.unavailable', { label: group.label })}</div>
                           </div>

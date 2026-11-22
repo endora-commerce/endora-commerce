@@ -36,7 +36,7 @@ export function AdminBootSkeleton({ label }: { readonly label: string }): ReactN
           ))}
         </div>
       </div>
-      <div aria-hidden="true" style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <div aria-hidden="true" className="flex min-w-0 flex-col">
         <div className="b2b-topbar">
           <Bar className="h-4 w-40" />
         </div>
