@@ -6,6 +6,7 @@
   "error.load": "Failed to load.",
   "common.loading": "Loading…",
   "list.page.title": "Comparisons",
+  "list.toolbar.label": "Filter comparisons",
   "list.filter.salesChannelId": "Sales channel id",
   "list.filter.uuidOptional": "uuid (optional)",
   "list.filter.owner": "Owner",

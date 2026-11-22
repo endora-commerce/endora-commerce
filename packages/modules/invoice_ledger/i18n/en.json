@@ -6,6 +6,7 @@
   "tabs.routing": "Routing",
   "deliveries.page.title": "Invoice ledger deliveries",
   "deliveries.page.subtitle": "Copy status for invoices sent to the active ledger vendor.",
+  "deliveries.toolbar.label": "Filter deliveries",
   "routing.page.title": "Invoice ledger routing",
   "routing.page.subtitle": "Numbering source and KSeF routing for the invoice ledger.",
   "nav.routing.label": "Ledger routing",

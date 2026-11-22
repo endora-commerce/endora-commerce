@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, RefreshCw, Users } from 'lucide-react';
-import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, EmptyState, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable } from '@endora-commerce/admin-kit/components';
+import { RefreshCw, Users } from 'lucide-react';
+import { ApiError, apiClient, cn, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { Button, Checkbox, EmptyState, Input, Label } from '@endora-commerce/admin-kit/ui';
+import { ListPage, ResponsiveTable, type ListPageLoad } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 interface OnlineCustomer {
@@ -16,12 +16,21 @@ interface OnlineCustomer {
 
 const MIN_INTERVAL_SEC = 2;
 
+/**
+ * The buyers signed in right now, from `Session.lastSeenAt`.
+ *
+ * The kit's `ListPage` since issue #1749. The refresh controls are the toolbar
+ * row, and a refresh — by hand or on the timer — keeps the rows on screen
+ * rather than flashing the skeleton, which would make a polled list flicker
+ * every few seconds. A customer's name is the link to them; the endpoint
+ * answers the whole presence set, so there is no pager.
+ */
 export function OnlineCustomers(): ReactNode {
   const t = useTranslation('customers');
   const { language } = useTranslationContext();
   const [rows, setRows] = useState<OnlineCustomer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
+  const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   // Auto-refresh: opt-in, with a configurable interval (seconds). The presence
@@ -32,16 +41,17 @@ export function OnlineCustomers(): ReactNode {
   const [intervalSec, setIntervalSec] = useState(15);
 
   const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
+    setLoad((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading' }));
+    setRefreshing(true);
     try {
       const res = await apiClient.get<{ data: OnlineCustomer[] }>('/api/v1/admin/customers/online');
       setRows(res.data);
       setLastRefreshed(new Date());
+      setLoad({ kind: 'ready' });
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('online.error'));
+      setLoad({ kind: 'error', message: err instanceof ApiError ? err.envelope.error.message : t('online.error') });
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   }, [t]);
 
@@ -67,11 +77,8 @@ export function OnlineCustomers(): ReactNode {
 
   const controls = (
     <div className="flex flex-wrap items-end gap-4">
-      <label className="flex items-center gap-2 text-sm">
-        <Checkbox
-          checked={autoRefresh}
-          onChange={(e) => setAutoRefresh(e.target.checked)}
-        />
+      <label className="flex min-h-9 items-center gap-2 text-sm">
+        <Checkbox checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
         {t('online.autoRefresh')}
       </label>
       <div className="space-y-1">
@@ -89,76 +96,54 @@ export function OnlineCustomers(): ReactNode {
           className="w-24"
         />
       </div>
-      <Button variant="outline" onClick={() => void refresh()} disabled={loading}>
-        <RefreshCw className={loading ? 'animate-spin' : undefined} />
+      <Button variant="outline" onClick={() => void refresh()} disabled={refreshing} aria-busy={refreshing || undefined}>
+        <RefreshCw aria-hidden="true" className={cn(refreshing && 'animate-spin motion-reduce:animate-none')} />
         {t('online.refresh')}
       </Button>
+      {lastRefreshed ? (
+        <p className="self-center text-xs text-muted-foreground">
+          {t('online.refreshedAt', { time: formatDateTime(lastRefreshed.toISOString(), language) })}
+        </p>
+      ) : null}
     </div>
   );
 
   return (
-    <>
-      <PageHeader
-        title={t('online.title')}
-        description={t('online.description')}
-        actions={controls}
+    <ListPage
+      title={t('online.title')}
+      description={t('online.description')}
+      toolbar={controls}
+      count={t('online.count', { count: rows.length })}
+      load={load}
+      onRetry={() => void refresh()}
+    >
+      <ResponsiveTable
+        data={rows}
+        keyExtractor={(c) => c.id}
+        // Issue #1448 (DS-15): the page's one region, so the kit block; Refresh
+        // is in the toolbar, so the block names it rather than repeating it.
+        emptyState={<EmptyState icon={<Users size={20} />} title={t('online.empty')} description={t('online.emptyBody')} />}
+        columns={[
+          {
+            id: 'name',
+            header: t('list.column.customer'),
+            primary: true,
+            // The name is the way in; an *Open* button in every row only repeated it.
+            render: (c) => (
+              <Link to={`/customers/${c.id}`} className="font-medium text-primary hover:underline">
+                {c.firstName} {c.lastName}
+              </Link>
+            ),
+            meta: (c) => <span className="font-mono text-xs text-muted-foreground">{c.email}</span>,
+          },
+          {
+            id: 'lastSeen',
+            header: t('online.column.lastSeen'),
+            render: (c) => formatDateTime(c.lastSeenAt, language),
+          },
+        ]}
       />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {lastRefreshed ? (
-        <p className="mb-2 text-xs text-muted-foreground">
-          {t('online.refreshedAt', { time: formatDateTime(lastRefreshed.toISOString(), language) })}
-        </p>
-      ) : null}
-
-      <Card>
-        <CardContent>
-          {loading && rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('online.loading')}</p>
-          ) : rows.length === 0 ? (
-            // Issue #1448 (DS-15): the page's one region, so the kit block; Refresh
-            // is in the header, so the block names it rather than repeating it.
-            <EmptyState icon={<Users size={20} />} title={t('online.empty')} description={t('online.emptyBody')} />
-          ) : (
-            <ResponsiveTable
-              data={rows}
-              keyExtractor={(c) => c.id}
-              columns={[
-                {
-                  id: 'name',
-                  header: t('list.column.customer'),
-                  primary: true,
-                  render: (c) => (
-                    <span className="font-medium">
-                      {c.firstName} {c.lastName}
-                    </span>
-                  ),
-                  meta: (c) => <span className="font-mono text-xs text-muted-foreground">{c.email}</span>,
-                },
-                {
-                  id: 'lastSeen',
-                  header: t('online.column.lastSeen'),
-                  render: (c) => formatDateTime(c.lastSeenAt, language),
-                },
-              ]}
-              renderActions={(c) => (
-                <Button asChild variant="outline" size="sm" className="min-h-11">
-                  <Link to={`/customers/${c.id}`}>
-                    {t('list.action.open')}
-                    <ArrowRight />
-                  </Link>
-                </Button>
-              )}
-            />
-          )}
-        </CardContent>
-      </Card>
-    </>
+    </ListPage>
   );
 }
 

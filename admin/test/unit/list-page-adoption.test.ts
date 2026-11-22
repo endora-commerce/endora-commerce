@@ -48,19 +48,13 @@ const SCANNED = [
 const NOT_YET_ON_LIST_PAGE: Record<string, string> = {
   'packages/admin-shell/src/modules/platform/CommandHooksPage.tsx': 'shell',
   'packages/modules/catalog/src/admin/pages/ProductsList.tsx': 'catalog',
-  'packages/modules/cms/src/admin/pages/HooksPage.tsx': 'content',
-  'packages/modules/comparisons/src/admin/pages/ComparisonsListPage.tsx': 'sales',
-  'packages/modules/credentials/src/admin/pages/CredentialsPage.tsx': 'shell',
   'packages/modules/crm/src/admin/pages/OpportunitiesList.tsx': 'work',
   'packages/modules/crm/src/admin/pages/TagsPage.tsx': 'work',
   'packages/modules/custom_fields/src/admin/pages/CustomFieldsPage.tsx': 'shell',
-  'packages/modules/customers/src/admin/pages/OnlineCustomers.tsx': 'sales',
-  'packages/modules/dictionaries/src/admin/pages/AuditPage.tsx': 'shell',
   'packages/modules/inventory/src/admin/pages/AvailabilityNotificationsPage.tsx': 'catalog',
   'packages/modules/inventory/src/admin/pages/InventoryPage.tsx': 'catalog',
   'packages/modules/inventory/src/admin/pages/LowStockPage.tsx': 'catalog',
   'packages/modules/inventory/src/admin/pages/WarehousesList.tsx': 'catalog',
-  'packages/modules/invoice_ledger/src/admin/pages/LedgerDeliveriesPage.tsx': 'sales',
   'packages/modules/newsletter/src/admin/pages/AutomationsPage.tsx': 'content',
   'packages/modules/newsletter/src/admin/pages/BlocksPage.tsx': 'content',
   'packages/modules/newsletter/src/admin/pages/CampaignsPage.tsx': 'content',
@@ -77,7 +71,6 @@ const NOT_YET_ON_LIST_PAGE: Record<string, string> = {
   'packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx': 'sales',
   'packages/modules/returns/src/admin/pages/ReturnReasonsPage.tsx': 'sales',
   'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 'sales',
-  'packages/modules/sales_channels/src/admin/pages/SalesChannelsListPage.tsx': 'shell',
   'packages/modules/tasks/src/admin/pages/MyTasksPage.tsx': 'work',
   'packages/modules/tasks/src/admin/pages/TasksPage.tsx': 'work',
   'packages/modules/tasks/src/admin/pages/settings/TaskPrioritiesPage.tsx': 'work',
@@ -90,7 +83,7 @@ const NOT_YET_ON_LIST_PAGE: Record<string, string> = {
  * The backlog's size when the ratchet landed, less what has moved since. It
  * only ever goes down, with the entries above.
  */
-const BACKLOG_CEILING = 38;
+const BACKLOG_CEILING = 31;
 
 /** Screens with a header and a table that are not a list of records. */
 const NOT_A_LIST: Record<string, string> = {
@@ -100,6 +93,8 @@ const NOT_A_LIST: Record<string, string> = {
   'packages/modules/catalog/src/admin/pages/CategoriesTree.tsx': 'a tree editor, not a paged list',
   'packages/modules/catalog/src/admin/pages/ProductEditor.tsx': "a product's editor; the tables are its variants and units",
   'packages/modules/cms/src/admin/pages/BrandPage.tsx': 'the brand settings editor',
+  'packages/modules/cms/src/admin/pages/HooksPage.tsx':
+    "a master-detail screen: the hook list beside the selected hook's attached blocks, already on the kit states",
   'packages/modules/comparisons/src/admin/pages/ComparisonDetailPage.tsx': "one comparison's detail; the table is its products",
   'packages/modules/import_export/src/admin/pages/ImportExportPage.tsx': 'the import/export centre: forms beside a job history',
   'packages/modules/inventory/src/admin/pages/StockImportWizard.tsx': 'a stock-import wizard; the table previews the file',
