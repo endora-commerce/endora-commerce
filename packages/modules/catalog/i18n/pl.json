@@ -4,7 +4,7 @@
   "productsList.title": "Produkty",
   "productsList.action.newProduct": "Nowy produkt",
   "productsList.error.load": "Nie udało się wczytać.",
-  "productsList.loading": "Wczytywanie…",
+  "productsList.count": "Produkty: {count}",
   "productsList.tab.all": "Wszystkie",
   "productsList.tab.active": "Aktywne",
   "productsList.tab.inactive": "Nieaktywne",

@@ -1162,6 +1162,11 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
   *Retry* — the Tasks, Projects and Opportunities lists' *Remove filter*. Pinned in
   `admin/test/kit/kit-list-page-refresh.test.tsx`. `ResponsiveTable`'s `label` names the table where
   the heading alone does not say what it lists (the settings lists under their configuration tabs).
+- **A list with row selection** passes `ResponsiveTable` `isRowSelected` (issue #1749): the selected
+  rows, and the cards on a phone, carry `data-state="selected"` and draw in the kit's selected tint.
+  The checked checkbox stays the sign; the tint only groups the selection (never colour alone). Give
+  the select column `primary`, so a phone's card keeps the checkbox beside the name. Pinned in
+  `admin/test/kit/kit-responsive-table-selected.test.tsx`; the products list is the first adopter.
 - Pinned in `admin/test/kit/kit-list-page.test.tsx`, including an axe pass; the three first
   adopters are `CustomersList`, `OrganizationsList` and `CartsList`.
 - **A value edited from the row** (issue #1501, SHELL-14) is a `StatusChangeControl` with

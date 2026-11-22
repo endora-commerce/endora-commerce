@@ -4,7 +4,7 @@
   "productsList.title": "Products",
   "productsList.action.newProduct": "New product",
   "productsList.error.load": "Failed to load.",
-  "productsList.loading": "Loading…",
+  "productsList.count": "Products: {count}",
   "productsList.tab.all": "All",
   "productsList.tab.active": "Active",
   "productsList.tab.inactive": "Inactive",
