@@ -1,10 +1,7 @@
-import { StrictMode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, within } from '@testing-library/react';
-import { AuthProvider } from '@endora-commerce/admin-kit/lib';
 import type { CustomFieldDefinitionDto, CustomFieldEntityTypeInfo } from '@endora-commerce/contracts';
-import { renderWithI18n } from '../../helpers/render-with-i18n';
-import { adminSession } from '../../helpers/render-with-session';
+import { findEditor, renderCustomFieldsRoutes } from './routes-harness';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
 import coreEn from '../../../../packages/modules/_i18n/i18n/en.json';
 
@@ -58,6 +55,9 @@ vi.mock('../../../../packages/modules/custom_fields/src/admin/api/custom-fields-
 const { CustomFieldsPage } = await import(
   '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldsPage'
 );
+const { CustomFieldEditorPage } = await import(
+  '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldEditorPage'
+);
 const { VALUE_TYPES } = await import(
   '../../../../packages/modules/custom_fields/src/admin/components/DefinitionForm'
 );
@@ -67,22 +67,18 @@ describe('DefinitionForm — no Page Builder type (feature 172, FR-002)', () => 
     expect(VALUE_TYPES).not.toContain('page_builder');
   });
 
-  it('offers no Page Builder type in the create dialog, for any record type', async () => {
-    renderWithI18n(
-      <StrictMode>
-        <AuthProvider initial={adminSession({ permissions: ['custom_fields:read', 'custom_fields:write'] })}>
-          <CustomFieldsPage />
-        </AuthProvider>
-      </StrictMode>,
-      { custom_fields: en as Record<string, string>, core: coreEn as Record<string, string> },
+  it('offers no Page Builder type in the create form, for any record type', async () => {
+    renderCustomFieldsRoutes(
+      { CustomFieldsPage, CustomFieldEditorPage },
+      { bundle: { custom_fields: en as Record<string, string>, core: coreEn as Record<string, string> } },
     );
     await screen.findByText('po_number');
-    fireEvent.click(screen.getByRole('button', { name: 'New field' }));
-    const dialog = await screen.findByRole('dialog', { name: 'New field' });
+    fireEvent.click(screen.getByRole('link', { name: 'New field' }));
+    const editor = await findEditor('New field');
     for (const recordType of ['organization', 'order']) {
-      fireEvent.change(within(dialog).getByLabelText('Record type'), { target: { value: recordType } });
+      fireEvent.change(within(editor).getByLabelText('Record type'), { target: { value: recordType } });
       const offered = Array.from(
-        (within(dialog).getByLabelText('Type') as HTMLSelectElement).options,
+        (within(editor).getByLabelText('Type') as HTMLSelectElement).options,
         (option) => option.value,
       );
       expect(offered.length).toBeGreaterThan(0);

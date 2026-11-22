@@ -1,11 +1,8 @@
-import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { AuthProvider } from '@endora-commerce/admin-kit/lib';
 import type { CustomFieldDefinitionDto } from '@endora-commerce/contracts';
-import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { askAudienceChange, audienceButton, chooseRowAction } from './row-actions';
-import { adminSession } from '../../helpers/render-with-session';
+import { findEditor, renderCustomFieldsRoutes } from './routes-harness';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
 import pl from '../../../../packages/modules/custom_fields/i18n/pl.json';
@@ -20,6 +17,8 @@ import { CARRY_ENTITY_TYPES, carryDefinition, sentence } from './carry-fixtures'
  * the action it confirms (owner ruling V1, 2026-10-21, T065) — sends exactly
  * what the action sent before
  * (`specs/162-custom-fields-value-carry/contracts/admin-surfaces.md` §1.4).
+ * Since issue #1804 the editor is a page of its own, so the warning it asks
+ * is a dialog over that page, as the table's is over the list.
  */
 
 type Bundle = Record<string, string>;
@@ -79,6 +78,9 @@ vi.mock('../../../../packages/modules/custom_fields/src/admin/api/custom-fields-
 const { CustomFieldsPage } = await import(
   '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldsPage'
 );
+const { CustomFieldEditorPage } = await import(
+  '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldEditorPage'
+);
 
 let nativeDialogs: Array<ReturnType<typeof vi.spyOn>>;
 
@@ -106,14 +108,7 @@ async function renderPage(
   bundle: Bundle = EN,
   core: Bundle = coreEn as Bundle,
 ): Promise<void> {
-  renderWithI18n(
-    <StrictMode>
-      <AuthProvider initial={adminSession({ permissions: ['custom_fields:read', 'custom_fields:write'] })}>
-        <CustomFieldsPage />
-      </AuthProvider>
-    </StrictMode>,
-    { custom_fields: bundle, core },
-  );
+  renderCustomFieldsRoutes({ CustomFieldsPage, CustomFieldEditorPage }, { bundle: { custom_fields: bundle, core } });
   const recordType = sentence(bundle, 'customFields.form.entity');
   await waitFor(() =>
     expect(within(screen.getByLabelText(recordType)).getAllByRole('option').map((o) => o.textContent)).toContain(
@@ -129,8 +124,11 @@ async function renderPage(
 async function openEditor(key = 'region', bundle: Bundle = EN): Promise<HTMLElement> {
   const title = sentence(bundle, 'customFields.editor.title', { key });
   await chooseRowAction(key, 'edit', bundle);
-  return screen.findByRole('dialog', { name: title });
+  return findEditor(title);
 }
+
+/** The editor page of `region`, after the warning over it was answered. */
+const regionEditor = (): Promise<HTMLElement> => findEditor(sentence(EN, 'customFields.editor.title', { key: 'region' }));
 
 /** The warning lists exactly these "<type> · <key>" lines. */
 function expectCounterparts(warning: HTMLElement, lines: string[]): void {
@@ -160,33 +158,28 @@ describe('CustomFieldsPage — drift warnings', () => {
       expect(REQUESTS()).toBe(0);
       fireEvent.click(within(warning).getByRole('button', { name: CANCEL }));
       // The editor comes back as it was, the removal not asked again in the row.
-      const editor = await screen.findByRole('dialog', { name: sentence(EN, 'customFields.editor.title', { key: 'region' }) });
+      const editor = await regionEditor();
       expect(within(editor).getByRole('group', { name: 'South' })).toBeInTheDocument();
       expect(REQUESTS()).toBe(0);
     });
 
-    it('describes the editor by the warning while it stands, and says it appeared', async () => {
+    it('asks in a dialog of its own over the editor, described by the warning, and gives focus back on Cancel', async () => {
       await renderPage('order');
-      const dialog = await openEditor();
-      const announcement = within(dialog).getByTestId('drift-announcement');
-      // Mounted, empty, before there is anything to say — so the swap is announced.
-      expect(announcement).toHaveAttribute('role', 'status');
-      expect(announcement).toHaveTextContent('');
-      expect(dialog).not.toHaveAttribute('aria-describedby');
-
-      fireEvent.click(within(within(dialog).getByRole('group', { name: 'South' })).getByRole('button', { name: 'Remove' }));
+      const editor = await openEditor();
+      const remove = within(within(editor).getByRole('group', { name: 'South' })).getByRole('button', { name: 'Remove' });
+      remove.focus();
+      fireEvent.click(remove);
       const warning = await screen.findByRole('dialog', { name: WARNING });
-      expect(warning).toBe(dialog);
-      expect(announcement).toHaveTextContent(WARNING);
+      expect(screen.getAllByRole('dialog')).toHaveLength(1);
+      expect(editor).not.toContainElement(warning);
       expect(warning).toHaveAccessibleDescription(expect.stringContaining(BODY));
       expect(warning).toHaveAccessibleDescription(expect.stringContaining('Quote request · region'));
-      // Focus still starts on the answer that changes nothing.
+      // Focus starts on the answer that changes nothing.
       expect(within(warning).getByRole('button', { name: CANCEL })).toHaveFocus();
 
       fireEvent.click(within(warning).getByRole('button', { name: CANCEL }));
-      await screen.findByRole('dialog', { name: sentence(EN, 'customFields.editor.title', { key: 'region' }) });
-      expect(announcement).toHaveTextContent('');
-      expect(dialog).not.toHaveAttribute('aria-describedby');
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await waitFor(() => expect(remove).toHaveFocus());
     });
 
     it('removes the option exactly as before on Remove option anyway', async () => {
@@ -202,9 +195,12 @@ describe('CustomFieldsPage — drift warnings', () => {
       // The re-read answers the definition without "south".
       db.definitions = [QR_REGION, { ...ORDER_REGION, options: [ORDER_REGION.options[0]!] }, ORDER_NOTE];
       fireEvent.click(within(warning).getByRole('button', { name: REMOVE_OPTION_ANYWAY }));
-      const editor = await screen.findByRole('dialog', { name: sentence(EN, 'customFields.editor.title', { key: 'region' }) });
+      const editor = await regionEditor();
       await waitFor(() => expect(within(editor).queryByRole('group', { name: 'South' })).toBeNull());
-      const heading = within(editor).getByRole('heading', { name: sentence(EN, 'customFields.editor.section.options') });
+      // Named by the section and its *Applies immediately* badge (issue #1804).
+      const heading = within(editor).getByRole('heading', {
+        name: new RegExp(`^${sentence(EN, 'customFields.editor.section.options')}`),
+      });
       expect(heading).toHaveFocus();
     });
 
@@ -234,7 +230,7 @@ describe('CustomFieldsPage — drift warnings', () => {
       expect(icon).not.toHaveClass('text-destructive');
       expect(icon).toHaveClass('text-amber-700');
       fireEvent.click(within(warning).getByRole('button', { name: CANCEL }));
-      const editor = await screen.findByRole('dialog', { name: sentence(EN, 'customFields.editor.title', { key: 'region' }) });
+      const editor = await regionEditor();
       expect(within(within(editor).getByRole('group', { name: 'Add option' })).getByLabelText('Stored value')).toHaveValue('east');
       expect(REQUESTS()).toBe(0);
     });
@@ -285,7 +281,7 @@ describe('CustomFieldsPage — drift warnings', () => {
     });
   });
 
-  describe('changing the audience in the edit dialog (issue #447)', () => {
+  describe('changing the audience in the editor (issue #447)', () => {
     async function askFromDialog(): Promise<{ dialog: HTMLElement }> {
       await renderPage('order');
       const dialog = await openEditor();
@@ -297,13 +293,14 @@ describe('CustomFieldsPage — drift warnings', () => {
       return { dialog };
     }
 
-    it('asks first, naming the source, and sends nothing on Cancel — the dialog keeps the choice', async () => {
+    it('asks first, naming the source, and sends nothing on Cancel — the editor keeps the choice', async () => {
       await askFromDialog();
       const warning = screen.getByRole('dialog', { name: WARNING });
       expectCounterparts(warning, ['Quote request · region']);
       expect(within(warning).getByRole('button', { name: CANCEL })).toHaveFocus();
       fireEvent.click(within(warning).getByRole('button', { name: CANCEL }));
-      const dialog = await screen.findByRole('dialog', { name: sentence(EN, 'customFields.editor.title', { key: 'region' }) });
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: WARNING })).toBeNull());
+      const dialog = await regionEditor();
       expect(within(dialog).getByLabelText(sentence(EN, 'customFields.audience.label'))).toHaveValue('customer');
       expect(REQUESTS()).toBe(0);
     });
@@ -429,10 +426,12 @@ describe('CustomFieldsPage — drift warnings', () => {
       fireEvent.click(within(within(dialog).getByRole('group', { name: 'South' })).getByRole('button', { name: 'Remove' }));
       await expectNoAxeViolations(await screen.findByRole('dialog', { name: WARNING }));
       fireEvent.keyDown(document, { key: 'Escape' });
-      // Escape answers the warning, not the editor under it.
-      expect(await screen.findByRole('dialog', { name: sentence(EN, 'customFields.editor.title', { key: 'region' }) })).toBeInTheDocument();
-      fireEvent.keyDown(document, { key: 'Escape' });
+      // Escape answers the warning; the editor page under it stays.
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(await regionEditor()).toBeInTheDocument();
+      // Nothing changed, so the way back asks nothing.
+      fireEvent.click(screen.getByRole('link', { name: sentence(EN, 'customFields.title') }));
+      await screen.findByRole('row', { name: /region/ });
 
       await chooseRowAction('region', 'delete', EN);
       await expectNoAxeViolations(await screen.findByRole('dialog', { name: WARNING }));

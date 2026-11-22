@@ -1,12 +1,11 @@
-import { StrictMode, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ApiError, AuthProvider } from '@endora-commerce/admin-kit/lib';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 import type { CustomFieldDefinitionDto, CustomFieldEntityTypeInfo } from '@endora-commerce/contracts';
-import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { chooseRowAction } from './row-actions';
-import { adminSession } from '../../helpers/render-with-session';
+import { currentAddress, findEditor, renderCustomFieldsRoutes } from './routes-harness';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
 import coreEn from '../../../../packages/modules/_i18n/i18n/en.json';
@@ -14,10 +13,12 @@ import pl from '../../../../packages/modules/custom_fields/i18n/pl.json';
 import corePl from '../../../../packages/modules/_i18n/i18n/pl.json';
 
 /**
- * Feature 157 (T055, US3) — an existing definition is edited on
- * `/custom-fields` in a dialog (`specs/157-custom-fields-list-filters/contracts/admin-surfaces.md` §3).
- * The save sends only what the operator changed (threat model F-6); option
- * actions go through the option sub-routes one at a time.
+ * Feature 157 (T055, US3) — an existing definition is edited
+ * (`specs/157-custom-fields-list-filters/contracts/admin-surfaces.md` §3), since
+ * issue #1804 on its own page, `/custom-fields/:id`, reached from the row's
+ * *Edit*. The save sends only what the operator changed (threat model F-6);
+ * option actions go through the option sub-routes one at a time, under the
+ * section's *Applies immediately*.
  */
 
 const ENTITY_TYPES: CustomFieldEntityTypeInfo[] = [
@@ -64,6 +65,8 @@ const TIER = definition({
 const NORTH_ID = REGION.options[0]!.id!;
 const SOUTH_ID = REGION.options[1]!.id!;
 
+/** While the editor page reads its definition, `get` answers the fixture; afterwards the case's own mock. */
+const pageLoad = vi.hoisted(() => ({ active: false }));
 const client = vi.hoisted(() => ({
   update: vi.fn(),
   get: vi.fn(),
@@ -75,8 +78,10 @@ const client = vi.hoisted(() => ({
 vi.mock('../../../../packages/modules/custom_fields/src/admin/api/custom-fields-client', () => ({
   customFieldsClient: {
     listEntityTypes: async () => ENTITY_TYPES,
-    list: async (entityType?: string) => (entityType === 'customer' ? [TIER] : entityType === 'order' ? [REGION] : []),
-    get: (...args: unknown[]) => client.get(...args),
+    list: async (entityType?: string) =>
+      entityType === undefined ? [REGION, TIER] : entityType === 'customer' ? [TIER] : entityType === 'order' ? [REGION] : [],
+    get: (...args: unknown[]) =>
+      pageLoad.active ? Promise.resolve([REGION, TIER].find((d) => d.id === args[0])) : client.get(...args),
     create: async () => ({}),
     update: (...args: unknown[]) => client.update(...args),
     remove: async () => ({}),
@@ -103,6 +108,9 @@ vi.mock('../../../../packages/modules/custom_fields/src/admin/components/Definit
 
 const { CustomFieldsPage } = await import(
   '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldsPage'
+);
+const { CustomFieldEditorPage } = await import(
+  '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldEditorPage'
 );
 
 const BUNDLE = { custom_fields: en, core: coreEn as Record<string, string> };
@@ -139,13 +147,9 @@ async function openEditor(
 ): Promise<HTMLElement> {
   const text = language === 'pl' ? plText : (k: string, p: Record<string, string> = {}): string =>
     (en as Record<string, string>)[k]!.replace(/\{(\w+)\}/g, (_m, name: string) => p[name] ?? '');
-  renderWithI18n(
-    <StrictMode>
-      <AuthProvider initial={adminSession({ permissions: ['custom_fields:read', 'custom_fields:write'] })}>
-        <CustomFieldsPage />
-      </AuthProvider>
-    </StrictMode>,
-    language === 'pl' ? PL_BUNDLE : BUNDLE,
+  renderCustomFieldsRoutes(
+    { CustomFieldsPage, CustomFieldEditorPage },
+    { bundle: language === 'pl' ? PL_BUNDLE : BUNDLE, language },
   );
   const recordType = text('customFields.form.entity');
   const orderLabel = text('customFields.entity.order');
@@ -154,78 +158,87 @@ async function openEditor(
   );
   fireEvent.change(screen.getByLabelText(recordType), { target: { value: entityType } });
   const title = text('customFields.editor.title', { key });
+  pageLoad.active = true;
   await chooseRowAction(key, 'edit', (language === 'pl' ? pl : en) as Record<string, string>);
-  return screen.findByRole('dialog', { name: title });
+  const editor = await findEditor(title);
+  pageLoad.active = false;
+  return editor;
 }
 
-function save(dialog: HTMLElement): void {
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+/** Back on the list after the editor is done: the form is gone and the address is the list's. */
+async function backOnList(): Promise<void> {
+  await waitFor(() => expect(screen.queryByRole('form')).toBeNull());
+  expect(currentAddress()).toMatch(/^\/custom-fields\?entityType=/);
+}
+
+function save(editor: HTMLElement): void {
+  fireEvent.click(within(editor).getByRole('button', { name: 'Save' }));
 }
 
 /** The definition's own label inputs: option rows carry inputs of the same names. */
-function labels(dialog: HTMLElement): HTMLElement {
-  return within(dialog).getByRole('group', { name: 'Labels' });
+function labels(editor: HTMLElement): HTMLElement {
+  return within(editor).getByRole('group', { name: 'Labels' });
 }
 
-function optionRow(dialog: HTMLElement, label: string): HTMLElement {
-  return within(dialog).getByRole('group', { name: label });
+function optionRow(editor: HTMLElement, label: string): HTMLElement {
+  return within(editor).getByRole('group', { name: label });
 }
 
 describe('CustomFieldsPage — the definition editor', () => {
   it('shows key, entity type and value type as read-only text and offers no value-type control (US3-8)', async () => {
-    const dialog = await openEditor();
-    expect(within(dialog).getByText('region')).toBeInTheDocument();
-    expect(within(dialog).getByText('Order')).toBeInTheDocument();
-    expect(within(dialog).getByText('Single choice')).toBeInTheDocument();
-    // The audience and — since feature 175 — the admin access are the dialog's
+    const editor = await openEditor();
+    expect(within(editor).getByText('region')).toBeInTheDocument();
+    expect(within(editor).getByText('Order')).toBeInTheDocument();
+    expect(within(editor).getByText('Single choice')).toBeInTheDocument();
+    // The audience and — since feature 175 — the admin access are the editor's
     // only selects (issue #447); type and record type are text.
-    const selects = within(dialog).getAllByRole('combobox');
+    const selects = within(editor).getAllByRole('combobox');
     expect(selects).toHaveLength(2);
     expect(selects[0]).toHaveAccessibleName('Who can see the value');
     expect(selects[1]).toHaveAccessibleName('Admin access');
-    expect(within(dialog).queryByDisplayValue('region')).toBeNull();
+    expect(within(editor).queryByDisplayValue('region')).toBeNull();
   });
 
   it('sends one PATCH holding only the changed label (F-6, US3-4)', async () => {
-    const dialog = await openEditor();
-    fireEvent.change(within(labels(dialog)).getByLabelText('Polish label'), { target: { value: 'Region PL' } });
-    save(dialog);
+    const editor = await openEditor();
+    fireEvent.change(within(labels(editor)).getByLabelText('Polish label'), { target: { value: 'Region PL' } });
+    save(editor);
     await waitFor(() => expect(client.update).toHaveBeenCalledTimes(1));
     const [id, body] = client.update.mock.calls[0]!;
     expect(id).toBe(REGION.id);
     expect(body).toEqual({ label: { en: 'Region', pl: 'Region PL' } });
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await backOnList();
   });
 
   it('sends nothing when nothing changed', async () => {
-    const dialog = await openEditor();
-    save(dialog);
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const editor = await openEditor();
+    save(editor);
+    await backOnList();
     expect(client.update).not.toHaveBeenCalled();
   });
 
   it('turns the list-filter option on (US3-1)', async () => {
-    const dialog = await openEditor();
-    fireEvent.click(within(dialog).getByLabelText('Use as list filter'));
-    save(dialog);
+    const editor = await openEditor();
+    fireEvent.click(within(editor).getByLabelText('Use as list filter'));
+    save(editor);
     await waitFor(() => expect(client.update).toHaveBeenCalledWith(REGION.id, { listFilter: true }));
   });
 
   it('shows the required notice before saving and sends { required: true } (US3-7, FR-003b)', async () => {
-    const dialog = await openEditor();
-    expect(within(dialog).queryByText(/Existing records keep loading/)).toBeNull();
-    const required = within(dialog).getByLabelText('Required');
+    const editor = await openEditor();
+    expect(within(editor).queryByText(/Existing records keep loading/)).toBeNull();
+    const required = within(editor).getByLabelText('Required');
     fireEvent.click(required);
-    expect(within(dialog).getByText(/Existing records keep loading/)).toBeInTheDocument();
+    expect(within(editor).getByText(/Existing records keep loading/)).toBeInTheDocument();
     expect(required).toHaveAccessibleDescription(/Existing records keep loading/);
     expect(client.update).not.toHaveBeenCalled();
-    save(dialog);
+    save(editor);
     await waitFor(() => expect(client.update).toHaveBeenCalledWith(REGION.id, { required: true }));
   });
 
   it('offers no list-filter toggle for an entity type without the option (US3-2)', async () => {
-    const dialog = await openEditor('customer', 'tier');
-    expect(within(dialog).queryByLabelText('Use as list filter')).toBeNull();
+    const editor = await openEditor('customer', 'tier');
+    expect(within(editor).queryByLabelText('Use as list filter')).toBeNull();
   });
 
   it('hands the behaviour block the edited definition and its entity type entry', async () => {
@@ -243,8 +256,8 @@ describe('CustomFieldsPage — the definition editor', () => {
   });
 
   it('adds an option with its value and labels', async () => {
-    const dialog = await openEditor();
-    const add = within(dialog).getByRole('group', { name: 'Add option' });
+    const editor = await openEditor();
+    const add = within(editor).getByRole('group', { name: 'Add option' });
     fireEvent.change(within(add).getByLabelText('Stored value'), { target: { value: 'east' } });
     fireEvent.change(within(add).getByLabelText('Default label'), { target: { value: 'East' } });
     fireEvent.change(within(add).getByLabelText('Polish label'), { target: { value: 'Wschód' } });
@@ -261,8 +274,8 @@ describe('CustomFieldsPage — the definition editor', () => {
   });
 
   it('relabels an option without sending its value, which is read-only text', async () => {
-    const dialog = await openEditor();
-    const row = optionRow(dialog, 'North');
+    const editor = await openEditor();
+    const row = optionRow(editor, 'North');
     expect(within(row).getByText('north')).toBeInTheDocument();
     expect(within(row).queryByDisplayValue('north')).toBeNull();
     const polish = within(row).getByLabelText('Polish label');
@@ -273,13 +286,13 @@ describe('CustomFieldsPage — the definition editor', () => {
   });
 
   it('moves an option up by patching the sortOrder of the two that swapped, and announces it', async () => {
-    const dialog = await openEditor();
-    fireEvent.click(within(optionRow(dialog, 'South')).getByRole('button', { name: 'Move up' }));
+    const editor = await openEditor();
+    fireEvent.click(within(optionRow(editor, 'South')).getByRole('button', { name: 'Move up' }));
     await waitFor(() => expect(client.updateOption).toHaveBeenCalledTimes(2));
     expect(client.updateOption).toHaveBeenCalledWith(REGION.id, SOUTH_ID, { sortOrder: 0 });
     expect(client.updateOption).toHaveBeenCalledWith(REGION.id, NORTH_ID, { sortOrder: 1 });
     await waitFor(() =>
-      expect(within(dialog).getByText('“South” moved up to position 1 of 2.')).toHaveAttribute('role', 'status'),
+      expect(within(editor).getByText('“South” moved up to position 1 of 2.')).toHaveAttribute('role', 'status'),
     );
   });
 
@@ -291,15 +304,15 @@ describe('CustomFieldsPage — the definition editor', () => {
       ],
     });
     client.get.mockResolvedValue(reordered);
-    const dialog = await openEditor();
-    const south = optionRow(dialog, 'South');
+    const editor = await openEditor();
+    const south = optionRow(editor, 'South');
     const moveUp = within(south).getByRole('button', { name: 'Move up' });
     moveUp.focus();
     fireEvent.click(moveUp);
     await waitFor(() => expect(client.get).toHaveBeenCalled());
     // South is first now, so its Move up is disabled and focus lands on its Move down.
     await waitFor(() =>
-      expect(within(optionRow(dialog, 'South')).getByRole('button', { name: 'Move down' })).toHaveFocus(),
+      expect(within(optionRow(editor, 'South')).getByRole('button', { name: 'Move down' })).toHaveFocus(),
     );
   });
 
@@ -311,8 +324,8 @@ describe('CustomFieldsPage — the definition editor', () => {
     });
     client.get.mockResolvedValue(saved);
     const user = userEvent.setup();
-    const dialog = await openEditor();
-    const row = optionRow(dialog, 'North');
+    const editor = await openEditor();
+    const row = optionRow(editor, 'North');
     const defaultLabel = within(row).getByLabelText('Default label');
     const english = within(row).getByLabelText('English label');
     await user.click(defaultLabel);
@@ -329,8 +342,8 @@ describe('CustomFieldsPage — the definition editor', () => {
       finish({ id: NORTH_ID, value: 'north' });
     });
     await waitFor(() => expect(client.get).toHaveBeenCalled());
-    await waitFor(() => expect(within(dialog).getByRole('group', { name: 'Northern' })).toHaveAttribute('aria-busy', 'false'));
-    const rowAfter = within(dialog).getByRole('group', { name: 'Northern' });
+    await waitFor(() => expect(within(editor).getByRole('group', { name: 'Northern' })).toHaveAttribute('aria-busy', 'false'));
+    const rowAfter = within(editor).getByRole('group', { name: 'Northern' });
     expect(within(rowAfter).getByLabelText('English label')).toBe(english);
     expect(english).toHaveFocus();
     expect(english).toHaveValue('North area');
@@ -338,12 +351,12 @@ describe('CustomFieldsPage — the definition editor', () => {
     expect(within(rowAfter).getByText('Saved')).toHaveAttribute('role', 'status');
   });
 
-  it('keeps focus in the dialog, on the next control, when Tab leaves a Polish label (G1)', async () => {
+  it('keeps focus in the editor, on the next control, when Tab leaves a Polish label (G1)', async () => {
     let finish!: (value: unknown) => void;
     client.updateOption.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
     const user = userEvent.setup();
-    const dialog = await openEditor();
-    const row = optionRow(dialog, 'North');
+    const editor = await openEditor();
+    const row = optionRow(editor, 'North');
     await user.type(within(row).getByLabelText('Polish label'), 'Północ');
     await user.tab();
     const isDefault = within(row).getByLabelText('Default');
@@ -352,7 +365,7 @@ describe('CustomFieldsPage — the definition editor', () => {
       finish({ id: NORTH_ID, value: 'north' });
     });
     await waitFor(() => expect(client.get).toHaveBeenCalled());
-    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    expect(editor).toContainElement(document.activeElement as HTMLElement);
     expect(isDefault).toHaveFocus();
   });
 
@@ -368,15 +381,15 @@ describe('CustomFieldsPage — the definition editor', () => {
       ],
     });
     client.get.mockResolvedValue(stored);
-    const dialog = await openEditor();
-    fireEvent.click(within(optionRow(dialog, 'South')).getByRole('button', { name: 'Move up' }));
+    const editor = await openEditor();
+    fireEvent.click(within(optionRow(editor, 'South')).getByRole('button', { name: 'Move up' }));
     await waitFor(() => expect(client.get).toHaveBeenCalledWith(REGION.id));
     await waitFor(() =>
       expect(
-        within(optionRow(dialog, 'South')).getByText('The option could not be changed.'),
+        within(optionRow(editor, 'South')).getByText('The option could not be changed.'),
       ).toBeInTheDocument(),
     );
-    const order = within(dialog)
+    const order = within(editor)
       .getAllByRole('group')
       .map((group) => group.getAttribute('aria-label'))
       .filter((name) => name === 'North' || name === 'South');
@@ -384,33 +397,36 @@ describe('CustomFieldsPage — the definition editor', () => {
   });
 
   it('announces the required notice through a live region mounted before it has text (G7)', async () => {
-    const dialog = await openEditor();
-    const region = within(dialog).getByTestId('required-notice');
+    const editor = await openEditor();
+    const region = within(editor).getByTestId('required-notice');
     expect(region).toHaveAttribute('role', 'status');
     expect(region).toBeEmptyDOMElement();
-    fireEvent.click(within(dialog).getByLabelText('Required'));
+    fireEvent.click(within(editor).getByLabelText('Required'));
     expect(region).toHaveTextContent(/Existing records keep loading/);
-    expect(within(dialog).getByLabelText('Required')).toHaveAttribute('aria-describedby', region.id);
+    expect(within(editor).getByLabelText('Required')).toHaveAttribute('aria-describedby', region.id);
   });
 
   it('renders the editor in Polish — option rows, notices, refusal — with text that wraps (G9)', async () => {
     client.removeOption.mockRejectedValue(
       new ApiError(409, { error: { code: 'CUSTOM_FIELD_OPTION_IN_USE' as never, message: 'in use', details: { value: 'north' } } }),
     );
-    const dialog = await openEditor('order', 'region', 'pl');
-    expect(within(dialog).getByText(plText('customFields.editor.optionsNote'))).toHaveClass('break-words');
-    const row = optionRow(dialog, 'North');
+    const editor = await openEditor('order', 'region', 'pl');
+    // Issue #1804 — the section says its changes apply at once, in the kit's badge.
+    expect(
+      within(editor).getByRole('heading', { name: new RegExp(plText('customFields.editor.section.options')) }),
+    ).toHaveTextContent((corePl as Record<string, string>)['saveSession.immediateBadge']!);
+    const row = optionRow(editor, 'North');
     const polish = plText('customFields.editor.labelIn', {
-      language: new Intl.DisplayNames(['en'], { type: 'language' }).of('pl')!,
+      language: new Intl.DisplayNames(['pl'], { type: 'language' }).of('pl')!,
     });
     expect(within(row).getByLabelText(polish)).toHaveClass('min-w-0');
-    fireEvent.click(within(dialog).getByLabelText(plText('customFields.form.required')));
-    expect(within(dialog).getByTestId('required-notice')).toHaveTextContent(plText('customFields.editor.requiredNotice'));
-    expect(within(dialog).getByTestId('required-notice')).toHaveClass('break-words');
+    fireEvent.click(within(editor).getByLabelText(plText('customFields.form.required')));
+    expect(within(editor).getByTestId('required-notice')).toHaveTextContent(plText('customFields.editor.requiredNotice'));
+    expect(within(editor).getByTestId('required-notice')).toHaveClass('break-words');
     const remove = plText('customFields.editor.option.remove');
     fireEvent.click(within(row).getByRole('button', { name: remove }));
-    fireEvent.click(within(optionRow(dialog, 'North')).getByRole('button', { name: remove }));
-    const refusal = await within(optionRow(dialog, 'North')).findByText(
+    fireEvent.click(within(optionRow(editor, 'North')).getByRole('button', { name: remove }));
+    const refusal = await within(optionRow(editor, 'North')).findByText(
       plText('customFields.editor.option.inUse', { label: 'North' }),
     );
     expect(refusal).toHaveClass('break-words');
@@ -421,15 +437,15 @@ describe('CustomFieldsPage — the definition editor', () => {
       options: [{ ...REGION.options[0]!, isDefault: true }, REGION.options[1]!],
     });
     client.get.mockResolvedValue(withDefault);
-    const dialog = await openEditor();
-    // The table read holds no default; the dialog re-reads after an option action.
-    fireEvent.click(within(optionRow(dialog, 'North')).getByLabelText('Default'));
+    const editor = await openEditor();
+    // The page's read holds no default; the editor re-reads after an option action.
+    fireEvent.click(within(optionRow(editor, 'North')).getByLabelText('Default'));
     await waitFor(() => expect(client.get).toHaveBeenCalled());
-    await waitFor(() => expect(within(optionRow(dialog, 'North')).getByLabelText('Default')).toBeChecked());
+    await waitFor(() => expect(within(optionRow(editor, 'North')).getByLabelText('Default')).toBeChecked());
     client.updateOption.mockClear();
-    fireEvent.click(within(optionRow(dialog, 'South')).getByLabelText('Default'));
+    fireEvent.click(within(optionRow(editor, 'South')).getByLabelText('Default'));
     expect(
-      await within(optionRow(dialog, 'South')).findByText(
+      await within(optionRow(editor, 'South')).findByText(
         'A single-choice field can start with one default option only. Clear “North” first.',
       ),
     ).toBeInTheDocument();
@@ -437,8 +453,8 @@ describe('CustomFieldsPage — the definition editor', () => {
   });
 
   it('refuses a new option whose stored value is already used, before anything is sent (issue #447)', async () => {
-    const dialog = await openEditor();
-    const add = within(dialog).getByRole('group', { name: 'Add option' });
+    const editor = await openEditor();
+    const add = within(editor).getByRole('group', { name: 'Add option' });
     fireEvent.change(within(add).getByLabelText('Stored value'), { target: { value: ' north ' } });
     fireEvent.change(within(add).getByLabelText('Default label'), { target: { value: 'North again' } });
     fireEvent.click(within(add).getByRole('button', { name: 'Add option' }));
@@ -448,16 +464,16 @@ describe('CustomFieldsPage — the definition editor', () => {
   });
 
   it('marks an option as the default with one patch holding only isDefault', async () => {
-    const dialog = await openEditor();
-    fireEvent.click(within(optionRow(dialog, 'South')).getByLabelText('Default'));
+    const editor = await openEditor();
+    fireEvent.click(within(optionRow(editor, 'South')).getByLabelText('Default'));
     await waitFor(() => expect(client.updateOption).toHaveBeenCalledTimes(1));
     expect(client.updateOption).toHaveBeenCalledWith(REGION.id, SOUTH_ID, { isDefault: true });
   });
 
   it('saves an option label on Enter', async () => {
     const user = userEvent.setup();
-    const dialog = await openEditor();
-    const polish = within(optionRow(dialog, 'South')).getByLabelText('Polish label');
+    const editor = await openEditor();
+    const polish = within(optionRow(editor, 'South')).getByLabelText('Polish label');
     await user.type(polish, 'Południe{Enter}');
     await waitFor(() =>
       expect(client.updateOption).toHaveBeenCalledWith(REGION.id, SOUTH_ID, { label: { en: 'South', pl: 'Południe' } }),
@@ -465,19 +481,19 @@ describe('CustomFieldsPage — the definition editor', () => {
   });
 
   it('says option changes apply at once, and Cancel becomes Close after one', async () => {
-    const dialog = await openEditor();
-    expect(within(dialog).getByText('Option changes are saved as soon as you make them.')).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-    fireEvent.click(within(optionRow(dialog, 'North')).getByLabelText('Default'));
-    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument());
-    expect(within(dialog).queryByRole('button', { name: 'Cancel' })).toBeNull();
+    const editor = await openEditor();
+    expect(within(editor).getByRole('heading', { name: /Options/ })).toHaveTextContent('Applies immediately');
+    expect(within(editor).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    fireEvent.click(within(optionRow(editor, 'North')).getByLabelText('Default'));
+    await waitFor(() => expect(within(editor).getByRole('button', { name: 'Close' })).toBeInTheDocument());
+    expect(within(editor).queryByRole('button', { name: 'Cancel' })).toBeNull();
   });
 
-  it('removes an unused option after an in-dialog confirmation', async () => {
-    const dialog = await openEditor();
-    fireEvent.click(within(optionRow(dialog, 'South')).getByRole('button', { name: 'Remove' }));
+  it('removes an unused option after an in-row confirmation', async () => {
+    const editor = await openEditor();
+    fireEvent.click(within(optionRow(editor, 'South')).getByRole('button', { name: 'Remove' }));
     expect(client.removeOption).not.toHaveBeenCalled();
-    const row = optionRow(dialog, 'South');
+    const row = optionRow(editor, 'South');
     expect(within(row).getByText('Remove the option “South”?')).toBeInTheDocument();
     // Keep takes the trigger's place and the focus.
     expect(within(row).getByRole('button', { name: 'Keep' })).toHaveFocus();
@@ -486,10 +502,10 @@ describe('CustomFieldsPage — the definition editor', () => {
   });
 
   it('returns focus to Remove when the confirmation is kept', async () => {
-    const dialog = await openEditor();
-    fireEvent.click(within(optionRow(dialog, 'South')).getByRole('button', { name: 'Remove' }));
-    fireEvent.click(within(optionRow(dialog, 'South')).getByRole('button', { name: 'Keep' }));
-    expect(within(optionRow(dialog, 'South')).getByRole('button', { name: 'Remove' })).toHaveFocus();
+    const editor = await openEditor();
+    fireEvent.click(within(optionRow(editor, 'South')).getByRole('button', { name: 'Remove' }));
+    fireEvent.click(within(optionRow(editor, 'South')).getByRole('button', { name: 'Keep' }));
+    expect(within(optionRow(editor, 'South')).getByRole('button', { name: 'Remove' })).toHaveFocus();
     expect(client.removeOption).not.toHaveBeenCalled();
   });
 
@@ -503,56 +519,62 @@ describe('CustomFieldsPage — the definition editor', () => {
   ] as const) {
     it(`names an option in use by its label, in its own sentence — ${shape} (US3-6)`, async () => {
       client.removeOption.mockRejectedValue(error);
-      const dialog = await openEditor();
-      fireEvent.click(within(optionRow(dialog, 'North')).getByRole('button', { name: 'Remove' }));
-      fireEvent.click(within(optionRow(dialog, 'North')).getByRole('button', { name: 'Remove' }));
+      const editor = await openEditor();
+      fireEvent.click(within(optionRow(editor, 'North')).getByRole('button', { name: 'Remove' }));
+      fireEvent.click(within(optionRow(editor, 'North')).getByRole('button', { name: 'Remove' }));
       expect(
-        await within(optionRow(dialog, 'North')).findByText(
+        await within(optionRow(editor, 'North')).findByText(
           "The option “North” can't be removed because some records still use it. Change their value first.",
         ),
       ).toBeInTheDocument();
-      expect(within(dialog).queryByText(/Option north is in use/)).toBeNull();
-      expect(within(dialog).queryByText(/CUSTOM_FIELD_/)).toBeNull();
+      expect(within(editor).queryByText(/Option north is in use/)).toBeNull();
+      expect(within(editor).queryByText(/CUSTOM_FIELD_/)).toBeNull();
     });
   }
 
-  it('keeps the dialog open with the server sentence when the save is refused', async () => {
+  it('stays on the editor with the server sentence when the save is refused', async () => {
     client.update.mockRejectedValue(
       new ApiError(422, { error: { code: 'CUSTOM_FIELD_DEFINITION_INVALID', message: 'The label is too long.' } }),
     );
-    const dialog = await openEditor();
-    fireEvent.change(within(labels(dialog)).getByLabelText('Default label'), { target: { value: 'Area' } });
-    save(dialog);
-    expect(await within(dialog).findByText('The label is too long.')).toBeInTheDocument();
-    expect(screen.getByRole('dialog')).toBe(dialog);
+    const editor = await openEditor();
+    fireEvent.change(within(labels(editor)).getByLabelText('Default label'), { target: { value: 'Area' } });
+    save(editor);
+    expect(await within(editor).findByText('The label is too long.')).toBeInTheDocument();
+    expect(screen.getByRole('form', { name: 'Edit region' })).toBe(editor);
+    expect(currentAddress()).toBe(`/custom-fields/${REGION.id}`);
   });
 
-  it('asks for a default label in the dialog, never through the browser', async () => {
-    const dialog = await openEditor();
-    const input = within(labels(dialog)).getByLabelText('Default label');
+  it('asks for a default label in the editor, never through the browser', async () => {
+    const editor = await openEditor();
+    const input = within(labels(editor)).getByLabelText('Default label');
     expect(input).not.toBeRequired();
     fireEvent.change(input, { target: { value: '  ' } });
-    save(dialog);
-    expect(await within(dialog).findByText('Enter a default label.')).toBeInTheDocument();
+    save(editor);
+    expect(await within(editor).findByText('Enter a default label.')).toBeInTheDocument();
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(client.update).not.toHaveBeenCalled();
   });
 
-  it('ignores Escape while saving', async () => {
+  it('marks Save busy while saving, sends once, and leaves for the list without asking', async () => {
     let finish!: (value: unknown) => void;
     client.update.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
-    const dialog = await openEditor();
-    fireEvent.click(within(dialog).getByLabelText('Use as list filter'));
-    save(dialog);
+    const editor = await openEditor();
+    fireEvent.click(within(editor).getByLabelText('Use as list filter'));
+    save(editor);
     await waitFor(() => expect(client.update).toHaveBeenCalledTimes(1));
-    fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    const button = within(editor).getByRole('button', { name: 'Save' });
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(button).toBeDisabled();
+    save(editor);
+    expect(client.update).toHaveBeenCalledTimes(1);
     finish(REGION);
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await backOnList();
+    // The guard does not ask on the way out of a save.
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('has no axe violations with the dialog open', async () => {
-    const dialog = await openEditor();
-    await expectNoAxeViolations(dialog);
+  it('has no axe violations on the editor page', async () => {
+    const editor = await openEditor();
+    await expectNoAxeViolations(editor);
   });
 });
