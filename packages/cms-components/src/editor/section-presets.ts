@@ -9,6 +9,7 @@ import { MediaText } from '../components/MediaText.js';
 import { Section } from '../components/SectionBlock.js';
 import { plainTextToDoc } from '../components/section-parts.js';
 import { Statement } from '../components/Statement.js';
+import type { SectionPresetCopy } from './section-preset-copy.js';
 
 /**
  * Section presets (`specs/163-page-builder-marketing-pages/` FR-042, research
@@ -20,13 +21,13 @@ import { Statement } from '../components/Statement.js';
  * ruling 2026-10-23*: the section settings — anchor, scheme, background,
  * spacing, width — live on the Section), with the Section's neutral defaults.
  *
- * A builder takes the editor's translator for `cms`' `presets.*` keys, so the
- * placeholder copy is in the admin's language. The copy is generic on purpose
- * (FR-040): it describes the pattern, never a site or an industry.
+ * A builder takes the placeholder copy already resolved in the **content
+ * language being edited** — a row of `SECTION_PRESET_COPY`
+ * (`section-preset-copy.ts`), picked by the editor with `contentDefaultsIn`
+ * (issue #1684, research R-22 as amended). The copy is content seeded into the
+ * document, not admin chrome: only the preset's name and description below are
+ * `cms` bundle keys, in the admin's language.
  */
-
-/** `cms`' translator, scoped to the admin's language. */
-export type PresetTranslate = (key: string) => string;
 
 export type SectionPresetId = 'hero' | 'mediaText' | 'ctaCard' | 'downloads' | 'featureGrid' | 'statement';
 
@@ -35,8 +36,8 @@ export interface SectionPreset {
   /** `cms` keys of the preset's name and one-line description in the panel. */
   labelKey: string;
   descriptionKey: string;
-  /** A fresh tree, with new ids, every call. */
-  build: (t: PresetTranslate) => ComponentData;
+  /** A fresh tree, with new ids, every call, carrying `copy` — the content language's row. */
+  build: (copy: SectionPresetCopy) => ComponentData;
 }
 
 function newId(type: string): string {
@@ -64,77 +65,77 @@ function inSection(block: ComponentData, settings?: Record<string, unknown>): Co
   };
 }
 
-function heroPreset(t: PresetTranslate): ComponentData {
+function heroPreset({ hero: copy }: SectionPresetCopy): ComponentData {
   // The hero has its own height and inner spacing, so its Section adds none.
   return inSection({
     type: 'cms.Hero',
     props: {
       ...defaults(Hero),
       id: newId('cms.Hero'),
-      eyebrow: t('presets.hero.eyebrow'),
-      title: plainTextToInlineRichText(t('presets.hero.title')),
-      body: plainTextToDoc(t('presets.hero.body')),
+      eyebrow: copy.eyebrow,
+      title: plainTextToInlineRichText(copy.title),
+      body: plainTextToDoc(copy.body),
       buttons: [
-        button(t('presets.hero.primaryButton'), 'primary', 'solid'),
-        button(t('presets.hero.secondaryButton'), 'primary', 'outline'),
+        button(copy.primaryButton, 'primary', 'solid'),
+        button(copy.secondaryButton, 'primary', 'outline'),
       ],
     },
   }, { spaceTop: 'none', spaceBottom: 'none' });
 }
 
-function mediaTextPreset(t: PresetTranslate): ComponentData {
+function mediaTextPreset({ mediaText: copy }: SectionPresetCopy): ComponentData {
   return inSection({
     type: 'cms.MediaText',
     props: {
       ...defaults(MediaText),
       id: newId('cms.MediaText'),
-      heading: plainTextToInlineRichText(t('presets.mediaText.heading')),
-      body: plainTextToDoc(t('presets.mediaText.body')),
-      buttons: [button(t('presets.mediaText.button'), 'primary', 'solid')],
+      heading: plainTextToInlineRichText(copy.heading),
+      body: plainTextToDoc(copy.body),
+      buttons: [button(copy.button, 'primary', 'solid')],
     },
   });
 }
 
-function ctaCardPreset(t: PresetTranslate): ComponentData {
+function ctaCardPreset({ ctaCard: copy }: SectionPresetCopy): ComponentData {
   return inSection({
     type: 'cms.CtaCard',
     props: {
       ...defaults(CtaCard),
       id: newId('cms.CtaCard'),
-      heading: plainTextToInlineRichText(t('presets.ctaCard.heading')),
-      body: plainTextToDoc(t('presets.ctaCard.body')),
-      buttons: [button(t('presets.ctaCard.button'), 'primary', 'solid')],
+      heading: plainTextToInlineRichText(copy.heading),
+      body: plainTextToDoc(copy.body),
+      buttons: [button(copy.button, 'primary', 'solid')],
     },
   });
 }
 
-function downloadTile(t: PresetTranslate, n: 1 | 2 | 3): ComponentData {
+function downloadTile(file: SectionPresetCopy['downloads']['files'][number], linkLabel: string): ComponentData {
   return {
     type: 'cms.DownloadTile',
     props: {
       ...defaults(DownloadTile),
       id: newId('cms.DownloadTile'),
-      title: t(`presets.downloads.file${n}.title`),
-      subtitle: t(`presets.downloads.file${n}.subtitle`),
-      linkLabel: t('presets.downloads.linkLabel'),
+      title: file.title,
+      subtitle: file.subtitle,
+      linkLabel,
     },
   };
 }
 
-function downloadsPreset(t: PresetTranslate): ComponentData {
+function downloadsPreset({ downloads: copy }: SectionPresetCopy): ComponentData {
   return inSection({
     type: 'cms.ContentSlider',
     props: {
       ...defaults(ContentSlider),
       id: newId('cms.ContentSlider'),
-      header: { heading: plainTextToInlineRichText(t('presets.downloads.heading')), lead: t('presets.downloads.lead') },
+      header: { heading: plainTextToInlineRichText(copy.heading), lead: copy.lead },
       slidesPerView: { base: 1.15, tablet: 2, desktop: 3 },
-      slides: [downloadTile(t, 1), downloadTile(t, 2), downloadTile(t, 3)],
+      slides: copy.files.map((file) => downloadTile(file, copy.linkLabel)),
     },
   });
 }
 
-function featureGridPreset(t: PresetTranslate): ComponentData {
+function featureGridPreset({ featureGrid: copy }: SectionPresetCopy): ComponentData {
   const base = defaults(FeatureList);
   const icons = ((base['items'] as Array<{ icon?: string }> | undefined) ?? []).map((item) => item.icon);
   return inSection({
@@ -142,25 +143,25 @@ function featureGridPreset(t: PresetTranslate): ComponentData {
     props: {
       ...base,
       id: newId('cms.FeatureList'),
-      heading: plainTextToInlineRichText(t('presets.featureGrid.heading')),
+      heading: plainTextToInlineRichText(copy.heading),
       columns: { base: 1, tablet: 2, desktop: 3 },
-      items: ([1, 2, 3] as const).map((n, index) => ({
+      items: copy.items.map((item, index) => ({
         ...(icons[index] ? { icon: icons[index] } : {}),
-        title: plainTextToInlineRichText(t(`presets.featureGrid.item${n}.title`)),
-        body: plainTextToDoc(t(`presets.featureGrid.item${n}.body`)),
+        title: plainTextToInlineRichText(item.title),
+        body: plainTextToDoc(item.body),
       })),
     },
   });
 }
 
-function statementPreset(t: PresetTranslate): ComponentData {
+function statementPreset({ statement: copy }: SectionPresetCopy): ComponentData {
   return inSection({
     type: 'cms.Statement',
     props: {
       ...defaults(Statement),
       id: newId('cms.Statement'),
-      heading: plainTextToInlineRichText(t('presets.statement.heading')),
-      body: plainTextToDoc(t('presets.statement.body')),
+      heading: plainTextToInlineRichText(copy.heading),
+      body: plainTextToDoc(copy.body),
     },
   });
 }

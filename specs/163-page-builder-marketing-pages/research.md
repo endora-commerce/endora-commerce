@@ -803,6 +803,17 @@ effects CSS covers.
 **Alternative rejected**: presets seeded as CMS templates. That needs a new seed port, and
 "apply template" would replace the page instead of inserting a section.
 
+**Amended (issue #1684, 2026-11-22).** Placeholder copy a preset inserts is operator content
+seeded into the document, not admin chrome. The storefront prints it as stored. It therefore
+follows the *edited content language*, not the admin language. Each preset reads that language
+through `PageBuilderContentLocaleProvider` (page-builder-core, PR #1790) and takes its copy from a
+per-language table beside `section-presets.ts`, falling back to `en` for a language with no row.
+Preset functions take the resolved content strings in place of `t`. The `cms` bundle's
+`presets.*` keys keep only the drawer's own chrome (preset names, descriptions, status).
+**Alternative rejected**: an admin-kit hook that loads a second shipped bundle and translates in
+it. That is new kit API and a second request per editor, it limits content languages to the admin
+bundles that ship, and it handles content as if it were admin chrome.
+
 ---
 
 ## R-23. Performance budget is met without image resizing

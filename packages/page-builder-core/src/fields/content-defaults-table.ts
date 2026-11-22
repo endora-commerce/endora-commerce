@@ -31,10 +31,23 @@ export type PageBuilderContentDefaultKey = keyof (typeof PAGE_BUILDER_CONTENT_DE
 /** Looks one content default up in the content locale the host names. */
 export type ContentDefault = (key: PageBuilderContentDefaultKey) => string;
 
+/**
+ * The row of a per-language content-defaults `table` for the BCP-47 `locale`
+ * (`pl-PL`, `pl`) — the English row for a language the platform ships no row
+ * for, never the admin's. The one lookup every content default goes through:
+ * this file's own table, and a module's table of the content it seeds (the
+ * cms section presets' placeholder copy).
+ */
+export function contentDefaultsIn<Row>(
+  table: Readonly<Record<SupportedLanguage, Row>>,
+  locale: string | null | undefined,
+): Row {
+  return table[supportedLanguageOf(locale)];
+}
+
 /** The default `key` in the BCP-47 `locale` (`pl-PL`, `pl`), English when it has none. */
 export function contentDefaultFor(locale: string | null | undefined, key: PageBuilderContentDefaultKey): string {
-  const table: Record<PageBuilderContentDefaultKey, string> = PAGE_BUILDER_CONTENT_DEFAULTS[supportedLanguageOf(locale)];
-  return table[key];
+  return contentDefaultsIn<Record<PageBuilderContentDefaultKey, string>>(PAGE_BUILDER_CONTENT_DEFAULTS, locale)[key];
 }
 
 /** Which default props of which block are content defaults: block name → prop → key. */
