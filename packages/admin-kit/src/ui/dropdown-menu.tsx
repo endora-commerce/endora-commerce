@@ -51,16 +51,17 @@ export const DropdownMenuContent = forwardRef<
 ));
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
-const ITEM_CLASSES = cn(
-  'relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5',
-  'text-sm outline-none transition-colors',
+// A plain string, not a `cn()` call: a module-level call is an import-time
+// side effect, which this package's `sideEffects: false` forbids (#175).
+const ITEM_CLASSES =
+  'relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 ' +
+  'text-sm outline-none transition-colors ' +
   // Radix moves `data-highlighted` with both pointer and keyboard, so the
   // two navigation modes cannot disagree about which item is current.
-  'focus:bg-accent focus:text-accent-foreground',
-  'data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground',
-  'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-  '[&_svg]:size-4 [&_svg]:shrink-0',
-);
+  'focus:bg-accent focus:text-accent-foreground ' +
+  'data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground ' +
+  'data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ' +
+  '[&_svg]:size-4 [&_svg]:shrink-0';
 
 export const DropdownMenuItem = forwardRef<
   ElementRef<typeof DropdownMenuPrimitive.Item>,
