@@ -136,14 +136,17 @@ export async function registerTransactionalEmailsAdminRoutes(
   });
 
   // --- Email definitions --------------------------------------------------
-  app.get(base, { preHandler: requireAdmin(READ) }, async () => ({
-    data: { items: await service.list() },
+  // Issue #1809 — the e-mails are named in the language the response is read in.
+  app.get(base, { preHandler: requireAdmin(READ) }, async (request) => ({
+    data: { items: await service.list(await request.responseLanguage()) },
   }));
 
   app.get(`${base}/:code`, { preHandler: requireAdmin(READ) }, async (request) => {
     const { code } = request.params as { code: string };
     const q = transactionalEmailDetailQuerySchema.parse(request.query);
-    return { data: await service.getDetail(code, q.salesChannelId ?? null, q.language) };
+    return {
+      data: await service.getDetail(code, q.salesChannelId ?? null, q.language, await request.responseLanguage()),
+    };
   });
 
   app.put(`${base}/:code/content`, { preHandler: requireAdmin(WRITE) }, async (request) => {
@@ -187,7 +190,7 @@ export async function registerTransactionalEmailsAdminRoutes(
     const result = await commandBus.run(
       makeSetTransactionalEmailActiveCommand({ code, active: body.active }, defaults),
     );
-    return { data: await service.summary(result.code) };
+    return { data: await service.summary(result.code, await request.responseLanguage()) };
   });
 
   app.post(`${base}/:code/preview`, { preHandler: requireAdmin(READ) }, async (request) => {

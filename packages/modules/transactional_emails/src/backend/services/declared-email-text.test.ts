@@ -73,7 +73,7 @@ function serviceOver(i18n: AdminI18nTranslatePort | null = translator, email = r
   const defaults = new EmailDefaultsRegistry();
   defaults.register(
     'return_guest_submitted',
-    { defaultSubject: {}, defaultContent: {}, languages: ['en-US'], nonDeactivatable: { reason: REASON } },
+    { defaultSubject: {}, defaultContent: {}, nonDeactivatable: { reason: REASON } },
     'returns',
   );
   return new TransactionalEmailService({
