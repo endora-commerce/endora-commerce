@@ -771,10 +771,8 @@ function ScopeState(props: {
   t: Translate;
 }): ReactElement | null {
   const { t } = props;
-  if (props.channelId === null) {
-    return <p className="text-sm text-muted-foreground">{t('brand.scope.globalHint')}</p>;
-  }
-  if (props.loading) return null;
+  // Global scope: the channel picker's hint already says what it edits.
+  if (props.channelId === null || props.loading) return null;
   const reset = props.canEdit ? (
     <Button type="button" variant="outline" size="sm" disabled={props.busy} onClick={props.onReset}>
       {t('brand.scope.reset')}

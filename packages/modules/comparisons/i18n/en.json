@@ -22,7 +22,7 @@
   "list.column.open": "Open",
   "list.loadMore": "Load more",
   "detail.page.title": "Comparison detail",
-  "detail.pricesNote": "Prices here are the sales channel’s standard prices, not the customer’s negotiated ones — the customer sees their own. Products restricted to other organizations are listed here in full.",
+  "detail.pricesNote": "Prices are the channel's standard ones, not the customer's negotiated prices; products restricted to other organizations are included.",
   "detail.owner": "Owner",
   "detail.salesChannel": "Sales channel",
   "detail.displayMode": "Display mode",

@@ -161,7 +161,9 @@ describe('BrandPage', () => {
     await loaded();
 
     expect(brandReads()[0]).toBe(BRAND_PATH);
-    expect(screen.getByText(copy('brand.scope.globalHint'))).toBeTruthy();
+    // The global scope is said once, by the channel picker's hint.
+    expect(screen.getByText(copy('brand.scope.channelHint'))).toBeTruthy();
+    expect(screen.queryByText(copy('brand.scope.inherits'))).toBeNull();
     expect(colorTrigger(copy('brand.colors.primary')).disabled).toBe(false);
     expect(screen.getByRole('button', { name: copy('common.save') })).toBeTruthy();
   });

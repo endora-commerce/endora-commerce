@@ -50,6 +50,7 @@ const CUT: readonly Cut[] = [
   { bundle: 'cms', key: 'brand.spacing.hint', reader: CMS },
   { bundle: 'cms', key: 'brand.preview.hint', reader: CMS },
   { bundle: 'cms', key: 'brand.layout.tierHint', reader: CMS },
+  { bundle: 'cms', key: 'brand.scope.globalHint', reader: CMS },
   { bundle: 'blog', key: 'postEditor.description.edit', reader: BLOG },
   { bundle: 'blog', key: 'categoryEditor.description.default', reader: BLOG },
   { bundle: 'forms', key: 'list.description', reader: FORMS },
@@ -84,7 +85,6 @@ const CUT: readonly Cut[] = [
 
 /** Kept on screen as a description or a hint, so each must fit the one clamped line. */
 const ONE_LINERS: readonly { bundle: string; key: string }[] = [
-  { bundle: 'cms', key: 'brand.scope.globalHint' },
   { bundle: 'cms', key: 'brand.layout.scaleHint' },
   { bundle: 'cms', key: 'pageEditor.languageVersion.help' },
   { bundle: 'cms', key: 'pageEditor.breadcrumbs.parentHelp' },
@@ -97,6 +97,9 @@ const ONE_LINERS: readonly { bundle: string; key: string }[] = [
   { bundle: 'blog', key: 'categoryEditor.description.system' },
   { bundle: 'forms', key: 'inspector.shareHint' },
   { bundle: 'megamenu', key: 'itemConfig.clickNavigatesHelp' },
+  { bundle: 'blog', key: 'postEditor.archiveHint' },
+  { bundle: 'blog', key: 'author.hint' },
+  { bundle: 'blog', key: 'urlKeys.hint' },
   { bundle: 'megamenu', key: 'list.activeRule' },
   { bundle: 'transactional_emails', key: 'branding.description' },
   { bundle: 'document_templates', key: 'page.description' },
