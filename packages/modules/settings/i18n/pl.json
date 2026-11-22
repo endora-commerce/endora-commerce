@@ -167,7 +167,7 @@
   "editor.secretIsSet": "Sekret jest ustawiony (tylko do zapisu, nigdy nie jest wyświetlany)",
   "activation.on": "Włączony",
   "activation.off": "Wyłączony",
-  "activation.managedOnPlatformScreen": "To jest przełącznik włączania modułu. Zarządza się nim na ekranie Moduły, razem z tym, co udostępnia ta instalacja.",
+  "activation.managedOnPlatformScreen": "Włącza się go i wyłącza na ekranie Moduły.",
   "activation.openPlatformScreen": "Otwórz Moduły",
   "editor.readOnlyReason": "Moduł, do którego należą te ustawienia, jest wyłączony. Zapisane wartości są zachowane i będą ponownie edytowalne po jego włączeniu.",
   "nav.settings.label": "Ustawienia",

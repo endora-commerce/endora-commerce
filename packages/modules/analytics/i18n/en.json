@@ -18,7 +18,7 @@
   "column.day": "Day",
   "settingGroups.analytics.name": "Analytics",
   "settingLabels.analytics.reporting_time_zone.name": "Reporting time zone",
-  "settingLabels.analytics.reporting_time_zone.description": "The IANA time zone (e.g. Europe/Warsaw) in which reports count days and months. Default UTC.",
+  "settingLabels.analytics.reporting_time_zone.description": "IANA time zone for counting days and months, e.g. Europe/Warsaw. Default: UTC.",
   "actions.openAnalytics.keywords": "analytics, events, report",
   "settingLabels.analytics.enabled.name": "Analytics enabled"
 }

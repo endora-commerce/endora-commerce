@@ -425,7 +425,8 @@ installer creates your administrator that way.
 The account gets the `platform_admin` role — every permission — unless you pass `--role=<code>` naming
 a role that already exists; the role itself is created on the first run. Running the command again
 for an e-mail that already exists resets that account's password, name and role, which is also how
-a lost password is recovered. If you have no shell on the machine the platform runs on, ask whoever
+a lost password is recovered. It is also how an account that holds no role gets one when no other
+administrator can sign in to assign it on the Users screen. If you have no shell on the machine the platform runs on, ask whoever
 operates it to create the account for you.
 
 ## The storefront

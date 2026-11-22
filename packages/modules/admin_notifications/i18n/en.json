@@ -1,5 +1,5 @@
 {
   "settingGroups.admin_notifications.name": "Admin notifications",
   "settingLabels.admin_notifications.enabled.name": "Admin notifications enabled",
-  "settingLabels.admin_notifications.enabled.description": "Switches the admin notification centre on or off. Nothing is deleted while it is off."
+  "settingLabels.admin_notifications.enabled.description": "Shows the notification centre. Switching it off deletes nothing."
 }

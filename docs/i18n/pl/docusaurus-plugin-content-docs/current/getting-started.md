@@ -436,7 +436,8 @@ powłoki — instalator tworzy Twojego administratora właśnie w ten sposób.
 Konto otrzymuje rolę `platform_admin` — wszystkie uprawnienia — chyba że przekażesz `--role=<code>`
 z kodem istniejącej już roli; sama rola powstaje przy pierwszym uruchomieniu. Ponowne uruchomienie
 polecenia dla istniejącego adresu e-mail ustawia na nowo hasło, imię i nazwisko oraz rolę tego
-konta — w ten sposób odzyskuje się też utracone hasło. Jeśli nie masz dostępu do powłoki na
+konta — w ten sposób odzyskuje się też utracone hasło. Tak też konto bez roli dostaje rolę, gdy żaden inny
+administrator nie może się zalogować, by przypisać ją na ekranie Użytkownicy. Jeśli nie masz dostępu do powłoki na
 maszynie, na której działa platforma, poproś o utworzenie konta osobę, która nią zarządza.
 
 ## Sklep

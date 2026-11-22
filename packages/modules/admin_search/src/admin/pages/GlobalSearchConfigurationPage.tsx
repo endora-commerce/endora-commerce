@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { RotateCcw } from 'lucide-react';
+import { ArrowRight, RotateCcw } from 'lucide-react';
 import type {
   AdminSearchConfigurationEntityView,
   AdminSearchConfigurationView,
@@ -145,10 +145,12 @@ export function GlobalSearchConfigurationPage(): ReactNode {
       <PageHeader
         title={t('page.configuration.title')}
       />
-      <p className="mb-4 text-sm text-muted-foreground">
-        {t('page.configuration.settingsNote')}{' '}
-        <Link className="underline underline-offset-2" to="/settings">
+      {/* UX audit text-to-cut (#1567): the length and result limits live in
+          Settings; one link says so, without a sentence restating it. */}
+      <p className="mb-4 text-sm">
+        <Link className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline" to="/settings">
           {t('page.configuration.settingsLink')}
+          <ArrowRight className="size-3.5" aria-hidden="true" />
         </Link>
       </p>
 
