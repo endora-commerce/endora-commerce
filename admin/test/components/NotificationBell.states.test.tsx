@@ -82,7 +82,8 @@ function renderBell(feed: AdminNotificationItem[]): void {
 }
 
 function bellButton(): HTMLElement {
-  return screen.getByRole('button', { name: /Notifications/ });
+  // `hidden`: an open modal menu hides the rest of the page from the tree.
+  return screen.getByRole('button', { name: /Notifications/, hidden: true });
 }
 
 /** Radix opens a menu on `pointerdown`, not on `click` (#1783). */

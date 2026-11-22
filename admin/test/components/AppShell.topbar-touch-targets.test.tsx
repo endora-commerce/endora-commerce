@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { adminSession, everyDeclaredModule, modulePresence, withSession } from '../helpers/render-with-session';
@@ -100,14 +101,16 @@ function renderShell(mobile: boolean): HTMLElement {
   setMobileViewport(mobile);
   renderWithI18n(
     withSession(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route index element={<div>Home content</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: everyDeclaredModule() }) },
+      <AppLanguageContext.Provider value={{ language: 'en', setLanguage: () => {} }}>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route index element={<div>Home content</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </AppLanguageContext.Provider>,
+      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: [...everyDeclaredModule(), 'admin_notifications'] }) },
     ),
     coreBundle,
   );

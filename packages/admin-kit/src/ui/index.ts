@@ -34,6 +34,10 @@ export {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  // Issue #1783 — the top-bar language picker's pick-one-of-N menu.
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './dropdown-menu.js';

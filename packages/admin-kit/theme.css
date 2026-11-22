@@ -881,6 +881,25 @@ body,
   background: var(--danger);
   box-shadow: 0 0 0 2px var(--surface);
 }
+/* Issue #1784 — on a coarse pointer every top-bar control is a 44 × 44 px
+   target (Fitts's Law; WCAG 2.5.5), from this one rule rather than a size per
+   button, so a control added to the bar later inherits it. A mouse keeps the
+   34 px density above. The icon buttons and the language pill are transparent
+   until hovered, so the box itself grows; the avatar keeps its 28 px circle
+   and grows its target with padding the gradient does not paint. The bar is
+   56 px tall, so nothing shifts vertically. Held by
+   admin/test/components/AppShell.topbar-touch-targets.test.tsx. */
+@media (pointer: coarse) {
+  .b2b-topbar__menu-btn,
+  .b2b-topbar__actions :is(button, a[href]) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .b2b-topbar__actions .b2b-avatar {
+    padding: 8px;
+    background-clip: content-box;
+  }
+}
 
 /* ============================================================
    Page header
@@ -1467,7 +1486,6 @@ body,
   .b2b-lang-picker__label {
     display: none;
   }
-  .b2b-main .b2b-topbar__icon-btn,
   .b2b-main button[type="submit"] {
     min-height: 44px;
     min-width: 44px;

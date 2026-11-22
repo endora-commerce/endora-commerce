@@ -983,6 +983,35 @@ same way (Jakob's Law). It sits first in the `PageHeader` actions.
 - **The screen keeps the choice.** Tasks remembers it per admin (`useListViewModePreference`). CRM keeps
   it in the address (`/crm/opportunities?view=board`), so both views share one address and its filters.
 
+## Menus — `DropdownMenu`, and a pick-one menu with `DropdownMenuRadioItem`
+
+Issue #1783. Every admin menu is the portalled Radix `DropdownMenu` (`./ui`), so it is never clipped
+and keeps one keyboard contract: focus moves into the menu when it opens, arrow keys and Home/End
+walk its entries, typing jumps to an entry, Escape closes it and gives focus back to the trigger.
+Do not hand-roll a `role="menu"` panel. The top bar's notification bell and language picker use it.
+
+```tsx
+<DropdownMenu>
+  <DropdownMenuTrigger asChild><button aria-label={t('appShell.languageIndicator.label')}>…</button></DropdownMenuTrigger>
+  <DropdownMenuContent>
+    <DropdownMenuRadioGroup value={language} onValueChange={pick}>
+      <DropdownMenuRadioItem value="en" textValue={t('…option.en')}>🇬🇧 EN English</DropdownMenuRadioItem>
+    </DropdownMenuRadioGroup>
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+- **`DropdownMenuRadioItem`** is a `menuitemradio` whose `aria-checked` follows the group's `value`.
+  Its check mark is hidden from assistive technology, which hears the checked state instead. Pass
+  `textValue` when the entry's text does not start with the word a user would type, for example
+  after a flag or a code.
+- **`DropdownMenuLabel`** is a heading inside the panel. Point the content's `aria-labelledby` at it
+  when the trigger's own name would be a poor name for the menu, for example a count.
+- **Tests open a menu with `pointerdown`**, not `click`:
+  `fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })`, or `userEvent.click`. While a modal
+  menu is open the rest of the page is hidden from the accessibility tree, so query the trigger with
+  `{ hidden: true }`.
+
 ## Known rough edge
 
 `./i18n` publishes `resolve` (the translation resolver) under that bare name, because it

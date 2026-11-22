@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { ApiError, cn, useAuth } from '@endora-commerce/admin-kit/lib';
-import { InlineStatus } from '@endora-commerce/admin-kit/ui';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+  InlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import {
   useAppLanguage,
   setPreferredLanguage,
@@ -16,6 +23,10 @@ import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
  * admin can switch the UI language from any screen. It is the one place the
  * preference is set: the profile's own language card was removed (issue #1553,
  * UX audit SHELL-17), because it repeated this menu with a second Save.
+ *
+ * The menu is the kit's `DropdownMenu` (issue #1783): arrow keys, Home/End,
+ * type-ahead on the language name, Escape giving focus back to the trigger —
+ * the contract every other admin menu keeps (Jakob's Law).
  */
 interface LanguageOption {
   code: SupportedAdminLanguage;
@@ -43,21 +54,16 @@ export function LanguagePicker(): ReactNode {
   const errorId = useId();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
-  // Close the menu and dismiss save feedback on outside click or Escape.
+  // A save error outlives the menu, which Radix dismisses itself; dismiss the
+  // error the same two ways while the menu is closed — outside click, Escape.
   useEffect(() => {
-    if (!open && !saveFailed) return;
+    if (!saveFailed || open) return;
     const onPointer = (e: MouseEvent): void => {
       const node = wrapperRef.current;
-      if (node && !node.contains(e.target as Node)) {
-        setOpen(false);
-        setSaveFailed(false);
-      }
+      if (node && !node.contains(e.target as Node)) setSaveFailed(false);
     };
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        setOpen(false);
-        setSaveFailed(false);
-      }
+      if (e.key === 'Escape') setSaveFailed(false);
     };
     document.addEventListener('mousedown', onPointer);
     document.addEventListener('keydown', onKey);
@@ -66,6 +72,17 @@ export function LanguagePicker(): ReactNode {
       document.removeEventListener('keydown', onKey);
     };
   }, [open, saveFailed]);
+
+  const onOpenChange = useCallback(
+    (next: boolean): void => {
+      // Busy, the trigger is `aria-disabled` rather than `disabled`, so it can
+      // take focus back from the menu; it is this guard that keeps it shut.
+      if (next && submitting) return;
+      if (next) setSaveFailed(false);
+      setOpen(next);
+    },
+    [submitting],
+  );
 
   const pick = useCallback(
     async (next: SupportedAdminLanguage): Promise<void> => {
@@ -103,36 +120,60 @@ export function LanguagePicker(): ReactNode {
 
   return (
     <div ref={wrapperRef} className="relative mx-1.5">
-      <button
-        type="button"
-        title={t('appShell.languageIndicator.label')}
-        aria-label={t('appShell.languageIndicator.label')}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-describedby={saveFailed ? errorId : undefined}
-        disabled={submitting}
-        onClick={(): void => {
-          if (!open) setSaveFailed(false);
-          setOpen((v) => !v);
-        }}
-        // A pill, not `.b2b-topbar__icon-btn`: that class fixes the box at
-        // 34×34px, which clips the flag + code + chevron triplet. Same height,
-        // colours and hover as the icon buttons beside it; the width grows.
-        className={cn(
-          'inline-flex h-[34px] cursor-pointer items-center gap-1.5 rounded-[var(--r-sm)] border border-transparent px-2.5',
-          'text-[11px] font-semibold leading-none tracking-[0.5px] text-[var(--fg-muted)] transition-colors',
-          'hover:bg-[var(--surface-sunken)] hover:text-[var(--fg)]',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          'disabled:cursor-default',
-          open && 'bg-[var(--surface-sunken)]',
-        )}
-      >
-        <span aria-hidden="true" className="text-sm leading-none">
-          {flagFor(language)}
-        </span>
-        <span className="b2b-lang-picker__label">{language.toUpperCase()}</span>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
+      <DropdownMenu open={open} onOpenChange={onOpenChange}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            title={t('appShell.languageIndicator.label')}
+            aria-label={t('appShell.languageIndicator.label')}
+            aria-describedby={saveFailed ? errorId : undefined}
+            aria-disabled={submitting || undefined}
+            // A pill, not `.b2b-topbar__icon-btn`: that class fixes the box at
+            // 34×34px, which clips the flag + code + chevron triplet. Same height,
+            // colours and hover as the icon buttons beside it; the width grows.
+            // On a coarse pointer the top bar's shared rule makes it 44 px (#1784).
+            className={cn(
+              'inline-flex h-[34px] cursor-pointer items-center gap-1.5 rounded-[var(--r-sm)] border border-transparent px-2.5',
+              'text-[11px] font-semibold leading-none tracking-[0.5px] text-[var(--fg-muted)] transition-colors',
+              'hover:bg-[var(--surface-sunken)] hover:text-[var(--fg)]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'aria-disabled:cursor-default',
+              open && 'bg-[var(--surface-sunken)]',
+            )}
+          >
+            <span aria-hidden="true" className="text-sm leading-none">
+              {flagFor(language)}
+            </span>
+            <span className="b2b-lang-picker__label">{language.toUpperCase()}</span>
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
+        </DropdownMenuTrigger>
+        {/* Radix names the menu by its trigger: "UI language". */}
+        <DropdownMenuContent className="min-w-[180px]">
+          <DropdownMenuRadioGroup
+            value={language}
+            onValueChange={(next): void => {
+              void pick(next as SupportedAdminLanguage);
+            }}
+          >
+            {LANGUAGES.map(({ code, labelKey, flag }) => (
+              <DropdownMenuRadioItem
+                key={code}
+                value={code}
+                // Type-ahead matches the name, not the flag the entry starts with.
+                textValue={t(labelKey)}
+                className="text-[13px]"
+              >
+                <span aria-hidden="true" className="text-base leading-none">
+                  {flag}
+                </span>
+                <span className="text-[11px] font-semibold tracking-[0.5px]">{code.toUpperCase()}</span>
+                <span>{t(labelKey)}</span>
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <div className="absolute right-0 top-[calc(100%+4px)] z-[60] flex w-max max-w-[min(20rem,calc(100vw-16px))] flex-col items-end gap-1">
         <InlineStatus
           id={errorId}
@@ -144,42 +185,6 @@ export function LanguagePicker(): ReactNode {
         >
           {saveFailed ? t('appShell.languageIndicator.saveFailed') : null}
         </InlineStatus>
-        {open && (
-          <div
-            role="menu"
-            aria-label={t('appShell.languageIndicator.label')}
-            className="min-w-[180px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
-          >
-            {LANGUAGES.map(({ code, labelKey, flag }) => {
-              const active = code === language;
-              return (
-                <button
-                  key={code}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={active}
-                  onClick={(): void => {
-                    void pick(code);
-                  }}
-                  className={cn(
-                    'flex w-full items-center justify-between gap-2 rounded-sm px-2.5 py-1.5 text-left text-[13px]',
-                    'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:outline-none',
-                    active && 'bg-muted',
-                  )}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <span aria-hidden="true" className="text-base leading-none">
-                      {flag}
-                    </span>
-                    <span className="text-[11px] font-semibold tracking-[0.5px]">{code.toUpperCase()}</span>
-                    <span>{t(labelKey)}</span>
-                  </span>
-                  {active ? <Check size={14} aria-hidden="true" /> : null}
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
     </div>
   );
