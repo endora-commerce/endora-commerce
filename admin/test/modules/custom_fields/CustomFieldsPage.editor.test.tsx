@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { ApiError, AuthProvider } from '@endora-commerce/admin-kit/lib';
 import type { CustomFieldDefinitionDto, CustomFieldEntityTypeInfo } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { chooseRowAction } from './row-actions';
 import { adminSession } from '../../helpers/render-with-session';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
@@ -153,7 +154,7 @@ async function openEditor(
   );
   fireEvent.change(screen.getByLabelText(recordType), { target: { value: entityType } });
   const title = text('customFields.editor.title', { key });
-  fireEvent.click(await screen.findByRole('button', { name: title }));
+  await chooseRowAction(key, 'edit', (language === 'pl' ? pl : en) as Record<string, string>);
   return screen.findByRole('dialog', { name: title });
 }
 

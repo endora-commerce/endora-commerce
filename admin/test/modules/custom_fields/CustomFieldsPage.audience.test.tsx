@@ -5,6 +5,8 @@ import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { adminSession } from '../../helpers/render-with-session';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
 import pl from '../../../../packages/modules/custom_fields/i18n/pl.json';
+import coreEn from '../../../../packages/modules/_i18n/i18n/en.json';
+import { askAudienceChange, audienceButton } from './row-actions';
 
 /**
  * A custom-field definition declares who its values are answered to, and the
@@ -52,7 +54,9 @@ const { CustomFieldsPage } = await import(
 );
 
 // The shipped English copy, so the assertions below read what an operator reads.
-const BUNDLE = { custom_fields: en };
+const EN = en as Record<string, string>;
+const CORE = coreEn as Record<string, string>;
+const BUNDLE = { custom_fields: EN, core: CORE };
 const NEW_FIELD_AUDIENCE = 'Who can see the value';
 
 /** The page reads `useAuth` for its write controls; this operator may write. */
@@ -109,11 +113,12 @@ describe('CustomFieldsPage — the audience of a definition', () => {
 
   it('shows the audience of an existing field and lets it be changed', async () => {
     renderWithI18n(page, BUNDLE);
-    const rowSelect = (await screen.findByLabelText(
-      'Who can see the value of po_number',
-    )) as HTMLSelectElement;
-    expect(rowSelect.value).toBe('customer');
-    fireEvent.change(rowSelect, { target: { value: 'internal' } });
+    await screen.findByText('po_number');
+    // A value edited from the row is the kit StatusChangeControl (issue #1749): shown, then changed in a dialog.
+    expect(audienceButton('po_number', EN, CORE).closest('div')).toHaveTextContent('Customer — shown to the customer');
+    const confirm = await askAudienceChange('po_number', EN, CORE);
+    expect(update).not.toHaveBeenCalled();
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Change to Internal — administrators only' }));
     await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
     expect(update).toHaveBeenCalledWith(EXISTING.id, { audience: 'internal' });
   });
