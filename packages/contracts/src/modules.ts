@@ -2193,8 +2193,15 @@ export const ModuleListItemStateSchema = z.enum([
 
 export const ModuleListItemSchema = z.object({
   id: z.string(),
+  /** The module's name and description, in the language the response is read in (issue #1809). */
   name: z.string(),
   description: z.string().nullable(),
+  /**
+   * Why the module cannot be switched off — its manifest's `activation.reason`,
+   * in the language the response is read in — or `null` for a module that can
+   * be (issue #1809). Optional on the wire so an older server still parses.
+   */
+  nonDeactivatableReason: z.string().nullable().optional(),
   version: z.object({
     registered: z.string().nullable(),
     onDisk: z.string().nullable(),

@@ -6,5 +6,7 @@
   "settingGroups.payment_methods.name": "Payment methods",
   "errors.PAYMENT_METHOD_IN_USE": "Payment method \"{paymentMethodCode}\" cannot be deleted: {paymentCount} payment(s) reference it. Set its status to \"inactive\" instead.",
   "errors.PAYMENT_METHOD_USAGE_UNKNOWN": "This payment method cannot be deleted: the \"{module}\" module is switched off, so the platform cannot tell whether any payment references it. Switch the module on and try again, or set the method's status to \"inactive\".",
-  "settingLabels.payment_methods.enabled.name": "Payment methods enabled"
+  "settingLabels.payment_methods.enabled.name": "Payment methods enabled",
+  "module.name": "Payment methods",
+  "module.description": "Payment method definitions and per-channel availability."
 }

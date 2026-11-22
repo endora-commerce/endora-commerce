@@ -20,5 +20,7 @@
   "settingLabels.search.reindex_interval_minutes.name": "Częstotliwość reindeksacji produktów (minuty)",
   "settingLabels.search.reindex_interval_minutes.description": "Jak często przebudowywany jest indeks wyszukiwania każdego kanału. 0 wyłącza okresową przebudowę.",
   "settingLabels.search.index_task_timeout_seconds.name": "Limit czasu zadania indeksowania (sekundy)",
-  "settingLabels.search.index_task_timeout_seconds.description": "Jak długo czekać na zadanie indeksowania, zanim zostanie zgłoszone jako trwające. Zwiększ dla dużych katalogów."
+  "settingLabels.search.index_task_timeout_seconds.description": "Jak długo czekać na zadanie indeksowania, zanim zostanie zgłoszone jako trwające. Zwiększ dla dużych katalogów.",
+  "module.name": "Wyszukiwarka",
+  "module.description": "Indeksy Meilisearch dla każdego kanału, okno podpowiedzi i opcjonalne wyszukiwanie wspierane przez LLM."
 }

@@ -166,5 +166,8 @@
   "customFields.editor.notFound": "To pole już nie istnieje. Mogło zostać usunięte.",
   "customFields.editor.readOnly": "Możesz przeglądać to pole, ale nie możesz go zmieniać.",
   "customFields.saved.created": "Utworzono pole „{label}”.",
-  "customFields.saved.updated": "Zapisano pole „{label}”."
+  "customFields.saved.updated": "Zapisano pole „{label}”.",
+  "module.name": "Pola dodatkowe",
+  "module.description": "Pola dodatkowe definiowane w trakcie działania dla podstawowych encji, niezależnie od ich typu.",
+  "module.nonDeactivatableReason": "Mechanizm rozszerzania platformy; bez niego wartości pól dodatkowych zapisane przy każdej encji stają się niedostępne."
 }

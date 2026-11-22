@@ -89,5 +89,7 @@
   "productSeo.loadFailed": "The SEO meta tags could not be loaded.",
   "productSeo.retry": "Try again",
   "productLink.editInEditor": "Edit this product's SEO in the product editor",
-  "productLink.hint": "A product's SEO meta tags are edited on its SEO tab, at the scope chosen in the product editor."
+  "productLink.hint": "A product's SEO meta tags are edited on its SEO tab, at the scope chosen in the product editor.",
+  "module.name": "SEO",
+  "module.description": "SEO metadata, the generated sitemap, the search engine robots settings and llms.txt. Switching it off withdraws the default robots directive from every storefront response, so a sales channel set to noindex becomes indexable again; custom robots.txt instructions and llms.txt are withdrawn with it."
 }

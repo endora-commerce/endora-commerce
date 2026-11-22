@@ -31,5 +31,7 @@
   "methods.fields.statusDefault": "Default ({status})",
   "methods.columns.statuses": "Order status on success / failure",
   "methods.statusGroup": "Order status changes",
-  "settingLabels.delivery_methods.enabled.name": "Delivery methods enabled"
+  "settingLabels.delivery_methods.enabled.name": "Delivery methods enabled",
+  "module.name": "Delivery methods",
+  "module.description": "Shipping/delivery method definitions and per-channel availability."
 }

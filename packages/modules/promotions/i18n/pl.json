@@ -58,5 +58,7 @@
   "errors.PROMOTION_RULE_NAME_TAKEN": "Reguła o nazwie {name} już istnieje. Wybierz inną nazwę.",
   "errors.PROMOTION_RULE_IN_USE": "Promocje, które korzystają z tej reguły: {promotionCount}. Odłącz od nich regułę, zanim ją usuniesz.",
   "errors.PROMOTION_ATTRIBUTE_NOT_ELIGIBLE": "Atrybutu {attributeKey} nie można używać w regułach promocyjnych. Włącz to dla atrybutu w katalogu albo wybierz inny atrybut.",
-  "settingLabels.promotions.enabled.name": "Promocje włączone"
+  "settingLabels.promotions.enabled.name": "Promocje włączone",
+  "module.name": "Promocje",
+  "module.description": "Silnik reguł promocji: kreator reguł, akcje, kupony, limity i statystyki."
 }

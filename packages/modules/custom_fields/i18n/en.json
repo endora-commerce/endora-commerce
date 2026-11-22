@@ -166,5 +166,8 @@
   "customFields.editor.notFound": "This field no longer exists. It may have been deleted.",
   "customFields.editor.readOnly": "You can view this field but not change it.",
   "customFields.saved.created": "Field “{label}” created.",
-  "customFields.saved.updated": "Field “{label}” saved."
+  "customFields.saved.updated": "Field “{label}” saved.",
+  "module.name": "Custom fields",
+  "module.description": "Entity-agnostic runtime custom fields for core entities.",
+  "module.nonDeactivatableReason": "The platform's extensibility mechanism; the custom values already stored against every host entity become unreachable without it."
 }

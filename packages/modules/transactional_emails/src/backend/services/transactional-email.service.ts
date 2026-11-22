@@ -11,6 +11,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  LANGUAGE_FALLBACK,
   SUPPORTED_LANGUAGES,
   type AdminI18nTranslatePort,
   type EmailVariableDescriptor,
@@ -305,31 +306,80 @@ export class TransactionalEmailService implements TransactionalEmailSender {
     return { deactivatable: reason === null, nonDeactivatableReason: reason };
   }
 
+  /**
+   * Issue #1809 — one of the sending module's declared sentences in the
+   * reader's language: the name and description from its manifest, the
+   * protection reason from its defaults. They are platform prose and the
+   * response's reader has a language, so the backend translates
+   * (`specs/conventions/module-i18n.md`, case 1), from the sending module's
+   * bundle under `transactionalEmails.<code>.<field>`. English, no reader, no
+   * resolver, a missing entry and a refusing resolver all answer the declared
+   * English: a list is never rendered with a key in it.
+   */
+  private async declaredText(
+    email: Pick<TransactionalEmail, 'code' | 'ownerModule'>,
+    field: 'name' | 'description' | 'reason',
+    declared: string,
+    reader: SupportedLanguage | undefined,
+  ): Promise<string> {
+    const translator = this.translator;
+    if (!translator || !reader || reader === LANGUAGE_FALLBACK) return declared;
+    const key = `transactionalEmails.${email.code}.${field}`;
+    try {
+      const value = await translator.translate(email.ownerModule, key, reader);
+      return value === `${email.ownerModule}.${key}` || value === '' ? declared : value;
+    } catch {
+      return declared;
+    }
+  }
+
+  /** The name, description and protection of one e-mail, in the reader's language. */
+  private async declaredFor(
+    email: TransactionalEmail,
+    reader: SupportedLanguage | undefined,
+  ): Promise<{ name: string; description: string | null; deactivatable: boolean; nonDeactivatableReason: string | null }> {
+    const protection = this.protectionOf(email.code);
+    return {
+      name: await this.declaredText(email, 'name', email.name, reader),
+      description:
+        email.description === null ? null : await this.declaredText(email, 'description', email.description, reader),
+      deactivatable: protection.deactivatable,
+      nonDeactivatableReason:
+        protection.nonDeactivatableReason === null
+          ? null
+          : await this.declaredText(email, 'reason', protection.nonDeactivatableReason, reader),
+    };
+  }
+
   private async summarize(
     em: EntityManager,
     email: TransactionalEmail,
+    reader?: SupportedLanguage,
   ): Promise<TransactionalEmailSummary> {
     const globalCount = await em.count(TransactionalEmailContent, { emailId: email.id, salesChannelId: null });
     const channelCount = await em.count(TransactionalEmailContent, { emailId: email.id, salesChannelId: { $ne: null } });
+    const { name, deactivatable, nonDeactivatableReason } = await this.declaredFor(email, reader);
     return {
       code: email.code,
-      name: email.name,
+      name,
       ownerModule: email.ownerModule,
       group: email.groupCode,
       active: email.active,
       languages: email.languages,
       hasGlobalOverride: globalCount > 0,
       hasChannelOverride: channelCount > 0,
-      ...this.protectionOf(email.code),
+      deactivatable,
+      nonDeactivatableReason,
     };
   }
 
-  async list(): Promise<TransactionalEmailSummary[]> {
+  /** `reader` is the language the response is read in (issue #1809); absent reads English. */
+  async list(reader?: SupportedLanguage): Promise<TransactionalEmailSummary[]> {
     const em = this.emFactory();
     const emails = await em.find(TransactionalEmail, {}, { orderBy: { name: 'asc' } });
     const out: TransactionalEmailSummary[] = [];
     for (const e of emails) {
-      out.push(await this.summarize(em, e));
+      out.push(await this.summarize(em, e, reader));
     }
     return out;
   }
@@ -344,11 +394,11 @@ export class TransactionalEmailService implements TransactionalEmailSender {
    * the auth guard put there, and discarding those to re-read one row is a
    * wider blast radius than the question needs.
    */
-  async summary(code: string): Promise<TransactionalEmailSummary> {
+  async summary(code: string, reader?: SupportedLanguage): Promise<TransactionalEmailSummary> {
     const em = this.emFactory();
     const email = await em.findOne(TransactionalEmail, { code }, { refresh: true });
     if (!email) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Transactional email "${code}" not found.`);
-    return this.summarize(em, email);
+    return this.summarize(em, email, reader);
   }
 
   private async loadEmailOrThrow(em: EntityManager, code: string): Promise<TransactionalEmail> {
@@ -357,7 +407,16 @@ export class TransactionalEmailService implements TransactionalEmailSender {
     return email;
   }
 
-  async getDetail(code: string, salesChannelId: string | null, language?: string): Promise<TransactionalEmailDetail> {
+  /**
+   * `language` is the content language being edited; `reader` is the language
+   * the admin reads the screen in (issue #1809), which names the e-mail.
+   */
+  async getDetail(
+    code: string,
+    salesChannelId: string | null,
+    language?: string,
+    reader?: SupportedLanguage,
+  ): Promise<TransactionalEmailDetail> {
     const em = this.emFactory();
     const email = await this.loadEmailOrThrow(em, code);
     const lang = language ?? email.languages[0] ?? 'en-US';
@@ -379,12 +438,13 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       version: resolved.version,
     };
 
+    const declared = await this.declaredFor(email, reader);
     return {
       code: email.code,
-      name: email.name,
+      name: declared.name,
       ownerModule: email.ownerModule,
       group: email.groupCode,
-      description: email.description,
+      description: declared.description,
       active: email.active,
       languages: email.languages,
       variables: await this.localizedVariables(email, lang),
@@ -393,7 +453,8 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       default: { subject: email.defaultSubject[lang] ?? '', content: defaultContentTree as PuckDataTree },
       hasGlobalOverride: globalCount > 0,
       hasChannelOverride: channelCount > 0,
-      ...this.protectionOf(email.code),
+      deactivatable: declared.deactivatable,
+      nonDeactivatableReason: declared.nonDeactivatableReason,
     };
   }
 

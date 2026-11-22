@@ -1,0 +1,5 @@
+{
+  "module.name": "Auth",
+  "module.description": "Authentication primitives — session cookies, bearer-token resolution, and request actor binding.",
+  "module.nonDeactivatableReason": "Resolves the actor for every request and owns the requireAdmin guard; switched off, the platform has no admin surface and no customer sessions."
+}

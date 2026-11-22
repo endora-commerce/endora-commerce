@@ -4,7 +4,8 @@ import type { DictionaryLanguagesPageResponse } from '@endora-commerce/contracts
 import { ApiError, apiClient, statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog, StatusTransitionGraph, useConfirmDialog } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { orderStatusName } from '../lib/status-name.js';
 import { ORDER_STATUS_DEFAULT_COLOR } from '@endora-commerce/contracts';
 import { StatusColorPicker } from '../components/StatusColorPicker.js';
 
@@ -49,14 +50,13 @@ interface ActiveLanguage {
   label: string;
 }
 
-/** Resolve the admin-facing label: default name → English → first → code. */
-function statusLabel(s: StatusDef): string {
-  return s.defaultName || s.name['en'] || Object.values(s.name)[0] || s.code;
-}
 
 export function OrderStatusConfigPage(): ReactNode {
   const t = useTranslation('core');
   const tOrders = useTranslation('orders');
+  const { language } = useTranslationContext();
+  // Issue #1809 — the operator's name for the status in the admin's language.
+  const statusLabel = useCallback((s: StatusDef): string => orderStatusName(s, language), [language]);
   const [graph, setGraph] = useState<StatusGraph | null>(null);
   const [languages, setLanguages] = useState<ActiveLanguage[]>([]);
   const [loading, setLoading] = useState(true);

@@ -30,6 +30,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | Moduł | Wiążąca | Co to oznacza |
 | --- | --- | --- |
 | `auth` | tylko bramkowanie | rozwiązuje `requireAdmin`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
+| `_i18n` | nie | degrades-without `adminI18nService` — Lista modułów podaje nazwę, opis i powód blokady każdego modułu po angielsku, z jego manifestu, niezależnie od języka, w którym administrator czyta ekran. |
 | `mfa` | nie | degrades-without `mfaDeactivationGuardPort` — Nic nie jest sprawdzane: moduł, który jest już wyłączony, nie ma wymogu dla administratorów, który trzeba by chronić, a ponowne włączenie nigdy nie jest odrzucane. |
 | `mfa` | nie | degrades-without `mfaEnrolmentCountPort` — Okno dezaktywacji pokazuje wszystkie skutki oprócz liczby użytkowników, którzy mają obecnie drugi składnik uwierzytelniania; ta liczba jest oznaczona jako niedostępna. |
 

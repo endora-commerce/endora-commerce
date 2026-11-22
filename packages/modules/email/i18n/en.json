@@ -1,0 +1,5 @@
+{
+  "module.name": "Email",
+  "module.description": "Mailer abstraction with Console / SMTP drivers for transactional email.",
+  "module.nonDeactivatableReason": "The outbound transport every message leaves through. A business configures a driver; it does not switch the transport off."
+}

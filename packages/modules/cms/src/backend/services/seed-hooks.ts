@@ -10,6 +10,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { CmsHook } from '../entities/cms-hook.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { LANGUAGE_FALLBACK, type SupportedLanguage } from '@endora-commerce/contracts';
 
 export interface SeededHook {
   code: string;
@@ -46,6 +47,50 @@ export const SEEDED_HOOKS: ReadonlyArray<SeededHook> = [
   { code: 'register.top', name: 'Register Page Top' },
   { code: 'register.bottom', name: 'Register Page Bottom' },
 ];
+
+const SEEDED_BY_CODE = new Map(SEEDED_HOOKS.map((hook) => [hook.code, hook]));
+
+/** The `cms` bundle key holding a seeded hook's name or description. */
+export function seededHookKey(code: string, field: 'name' | 'description'): string {
+  return `seededHooks.${code}.${field}`;
+}
+
+/** Looks a key up in this module's bundle; answers `cms.<key>` (or the key) when it has none. */
+export type CmsBundleTranslate = (key: string, language: SupportedLanguage) => Promise<string>;
+
+/**
+ * A hook as the admin reads it, in the reader's language (issue #1809).
+ *
+ * A seeded hook's name and description are **platform prose** while they are
+ * the text this file seeded, and **operator content** once an operator has
+ * changed them (`specs/conventions/module-i18n.md`, the four kinds). The
+ * column is one string, so the seeded English is what it holds; a response the
+ * backend can resolve a language for translates that value from this module's
+ * bundle and passes anything else — an edited value, a custom hook — through as
+ * stored. English is the stored text itself, and a missing key or a failed
+ * lookup answers it too: a hook list must never render a key.
+ */
+export async function localizeSeededHook<
+  T extends { code: string; name: string; description: string | null; isSystem: boolean },
+>(hook: T, language: SupportedLanguage, translate: CmsBundleTranslate): Promise<T> {
+  const seed = hook.isSystem ? SEEDED_BY_CODE.get(hook.code) : undefined;
+  if (!seed || language === LANGUAGE_FALLBACK) return hook;
+  const translated = async (field: 'name' | 'description', stored: string): Promise<string> => {
+    const key = seededHookKey(hook.code, field);
+    try {
+      const text = await translate(key, language);
+      return text === key || text === `cms.${key}` || text === '' ? stored : text;
+    } catch {
+      return stored;
+    }
+  };
+  const name = hook.name === seed.name ? await translated('name', hook.name) : hook.name;
+  const description =
+    seed.description !== undefined && hook.description === seed.description
+      ? await translated('description', hook.description)
+      : hook.description;
+  return { ...hook, name, description };
+}
 
 export interface SeedHooksReconcileResult {
   inserted: number;

@@ -13,5 +13,8 @@
   "adminRoles.permission.platform.command_outbox.manage": "Retry failed command outbox deliveries",
   "actions.openCommandOutbox.label": "Command outbox",
   "actions.openCommandOutbox.description": "Failed and waiting deliveries to other modules, and retrying them",
-  "actions.openCommandOutbox.keywords": "deliveries, failed deliveries, dead letter"
+  "actions.openCommandOutbox.keywords": "deliveries, failed deliveries, dead letter",
+  "module.name": "Module lifecycle",
+  "module.description": "Platform-internal subsystem that orchestrates install / uninstall / enable / disable / status across every domain module.",
+  "module.nonDeactivatableReason": "Owns the presence machinery and the activation switches themselves; switched off, there is no way back on."
 }

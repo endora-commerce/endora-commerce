@@ -39,8 +39,8 @@ const BUNDLE = {
 };
 
 const STATUSES = [
-  { code: 'pending', name: { en: 'Pending' } },
-  { code: 'shipped', name: { en: 'Shipped' } },
+  { code: 'pending', name: { en: 'Pending', pl: 'Oczekujące' } },
+  { code: 'shipped', name: { en: 'Shipped', pl: 'Wysłane' } },
 ];
 
 function Harness(props: { onDone?: () => void }): ReactElement {
@@ -64,13 +64,17 @@ function Harness(props: { onDone?: () => void }): ReactElement {
   );
 }
 
-async function openDialog(props: { onDone?: () => void } = {}): Promise<ReturnType<typeof userEvent.setup>> {
+async function openDialog(
+  props: { onDone?: () => void } = {},
+  language: 'en' | 'pl' = 'en',
+): Promise<ReturnType<typeof userEvent.setup>> {
   const user = userEvent.setup();
   renderWithI18n(
     <StrictMode>
       <Harness {...props} />
     </StrictMode>,
     BUNDLE,
+    { language },
   );
   await user.click(screen.getByRole('button', { name: 'Change status' }));
   return user;
@@ -81,6 +85,14 @@ beforeEach(() => {
 });
 
 describe('OrdersBulkStatusDialog (#1474)', () => {
+  // Issue #1809 — the target statuses were offered by their English names in a Polish admin.
+  it("offers the target statuses in the admin's language", async () => {
+    await openDialog({}, 'pl');
+    const select = screen.getByLabelText('orders.bulk.targetStatus');
+    expect(within(select).getByRole('option', { name: 'Oczekujące' })).toBeInTheDocument();
+    expect(within(select).queryByRole('option', { name: 'Pending' })).toBeNull();
+  });
+
   it('is a modal dialog named by its title, opening on the status select', async () => {
     await openDialog();
     const dialog = screen.getByRole('dialog', { name: 'Change status for 2 orders' });

@@ -547,5 +547,10 @@
   "actions.openTaskTags.keywords": "tags, labels",
   "actions.openTaskGeneralSettings.keywords": "settings, time zone",
   "settingGroups.tasks.name": "Tasks",
-  "settingLabels.tasks.enabled.name": "Tasks enabled"
+  "settingLabels.tasks.enabled.name": "Tasks enabled",
+  "transactionalEmails.tasks_task_reminder.name": "Task reminder",
+  "transactionalEmails.tasks_task_reminder.description": "Sent to each recipient of a task reminder at its moment — a time someone chose, or a set time before the task is due — when they may still see the task and it is still open.",
+  "transactionalEmails.tasks_daily_digest.name": "Daily task digest",
+  "transactionalEmails.tasks_daily_digest.description": "Sent once a day, at the hour each person chose, to everyone who turned the digest on, listing their open assigned tasks due that day or overdue. Not sent on a day with no such task.",
+  "module.description": "Tasks assigned to admin users, with statuses, priorities, tags, comments, attachments, sub-tasks, reminders and a board, which any module can own through an opaque context."
 }

@@ -17,12 +17,14 @@ import {
   putCmsBrandTokensRequestSchema,
   putCmsPageContentRequestSchema,
   type CmsBrandTokensAdminRead,
+  type CmsHookSummary,
 } from '@endora-commerce/contracts';
 import type { ColorPaletteAuditContext, ColorPaletteWriter } from './plugin.js';
 import type { CmsPageService } from './services/cms-page-service.js';
 import type { PageBuilderRegistry } from './services/page-builder-registry.js';
 import type { CmsBlockService } from './services/cms-block-service.js';
 import type { CmsHookService } from './services/cms-hook-service.js';
+import { localizeSeededHook, type CmsBundleTranslate } from './services/seed-hooks.js';
 import type { CmsTemplateService } from './services/cms-template-service.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { PageBuilderTranslationService } from './services/translation/page-builder-translation.service.js';
@@ -47,6 +49,11 @@ export async function registerCmsAdminRoutes(
     requireAdmin: RequireAdminFactory;
     translation: PageBuilderTranslationService;
     brandTokensService: CmsBrandTokensService;
+    /**
+     * Issue #1809 — a seeded hook's name and description in the request's
+     * language (`localizeSeededHook`). Absent: the stored text, as before.
+     */
+    hookText?: CmsBundleTranslate;
   },
 ): Promise<void> {
   const requireRead = deps.requireAdmin('cms.read');
@@ -371,23 +378,31 @@ export async function registerCmsAdminRoutes(
     },
   );
 
+  // Issue #1809 — every hook response names a seeded hook in the reader's language.
+  const localizeHook = async <T extends CmsHookSummary>(request: FastifyRequest, hook: T): Promise<T> => {
+    const translate = deps.hookText;
+    if (!translate) return hook;
+    return localizeSeededHook(hook, await request.responseLanguage(), translate);
+  };
+
   app.get('/api/v1/admin/cms/hooks', { preHandler: requireRead }, async (request) => {
     const query = (request.query ?? {}) as Record<string, string | undefined>;
-    return deps.hookService.list({
+    const out = await deps.hookService.list({
       ...(query['salesChannelId'] ? { salesChannelId: query['salesChannelId'] } : {}),
     });
+    return { ...out, data: await Promise.all(out.data.map((hook) => localizeHook(request, hook))) };
   });
 
   app.post('/api/v1/admin/cms/hooks', { preHandler: requireWrite }, async (request, reply) => {
     const body = createCmsHookRequestSchema.parse(request.body);
     const hook = await deps.hookService.create(body);
-    return reply.code(201).send({ data: hook });
+    return reply.code(201).send({ data: await localizeHook(request, hook) });
   });
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/cms/hooks/:id',
     { preHandler: requireRead },
-    async (request) => ({ data: await deps.hookService.get(request.params.id) }),
+    async (request) => ({ data: await localizeHook(request, await deps.hookService.get(request.params.id)) }),
   );
 
   app.patch<{ Params: { id: string } }>(
@@ -395,7 +410,7 @@ export async function registerCmsAdminRoutes(
     { preHandler: requireWrite },
     async (request) => {
       const body = patchCmsHookRequestSchema.parse(request.body);
-      return { data: await deps.hookService.patch(request.params.id, body) };
+      return { data: await localizeHook(request, await deps.hookService.patch(request.params.id, body)) };
     },
   );
 

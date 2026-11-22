@@ -37,5 +37,8 @@
   "groups.message.saved": "Customer group “{code}” saved.",
   "groups.message.deleted": "Customer group deleted.",
   "nav.customerGroups.label": "Customer groups",
-  "actions.openCustomerGroups.keywords": "customer, group, segment"
+  "actions.openCustomerGroups.keywords": "customer, group, segment",
+  "module.name": "Customer accounts",
+  "module.description": "Customer (B2B) account records, including organization membership and role.",
+  "module.nonDeactivatableReason": "The identity a buyer signs in as; no customer-side path — registration, login, cart, order or account — exists without it."
 }

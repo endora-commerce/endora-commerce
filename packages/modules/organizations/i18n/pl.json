@@ -370,5 +370,16 @@
   "settingLabels.organizations.notifications.new_registration_recipients.name": "Odbiorcy powiadomień o rejestracji organizacji",
   "settingLabels.organizations.notifications.new_registration_recipients.description": "Do 50 adresów powiadamianych o każdej nowej organizacji. Pusta lista: tylko powiadomienie w panelu.",
   "settingLabels.organizations.hierarchy.credit_inheritance_mode.name": "Tryb dziedziczenia limitu kredytowego",
-  "settingLabels.organizations.hierarchy.credit_inheritance_mode.description": "Jak podorganizacje bez własnego limitu korzystają z limitu nadrzędnej: wspólna pula lub kopia dla każdej."
+  "settingLabels.organizations.hierarchy.credit_inheritance_mode.description": "Jak podorganizacje bez własnego limitu korzystają z limitu nadrzędnej: wspólna pula lub kopia dla każdej.",
+  "transactionalEmails.email_verification.name": "Weryfikacja adresu e-mail",
+  "transactionalEmails.email_verification.reason": "Potrzebny do założenia konta lub odzyskania do niego dostępu — po wyłączeniu odbiorca nie ma jak dokończyć procesu, a żaden zastępczy e-mail nie jest wysyłany.",
+  "transactionalEmails.organization_invitation.name": "Zaproszenie do organizacji",
+  "transactionalEmails.organization_invitation.reason": "Potrzebny do założenia konta lub odzyskania do niego dostępu — po wyłączeniu odbiorca nie ma jak dokończyć procesu, a żaden zastępczy e-mail nie jest wysyłany.",
+  "transactionalEmails.customer_password_reset.name": "Reset hasła (klient)",
+  "transactionalEmails.customer_password_reset.reason": "Potrzebny do założenia konta lub odzyskania do niego dostępu — po wyłączeniu odbiorca nie ma jak dokończyć procesu, a żaden zastępczy e-mail nie jest wysyłany.",
+  "transactionalEmails.new_org_registration.name": "Rejestracja nowej organizacji (administrator)",
+  "transactionalEmails.organization_approved.name": "Weryfikacja organizacji (klient)",
+  "transactionalEmails.organization_rejected.name": "Odrzucenie rejestracji organizacji (klient)",
+  "module.description": "Organizacje B2B: członkowie, adresy, przypisani handlowcy, proces moderacji i warunki handlowe właściwe dla organizacji.",
+  "module.nonDeactivatableReason": "Jedyna jednostka podziału danych — przez nią przechodzi każda encja przypisana do organizacji, każde członkostwo i każdy klient dokonujący zakupów; po wyłączeniu platforma nie ma żadnej organizacji."
 }

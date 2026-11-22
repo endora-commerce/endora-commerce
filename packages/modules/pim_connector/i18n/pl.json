@@ -5,5 +5,8 @@
   "localeMapping.unmapped": "Język źródłowy {locale} (kanał źródłowy: {sourceChannel}) nie jest zmapowany; jego wartości nie zostały zapisane dla {products} produktów.",
   "localeMapping.skipped.not_a_member": "Produkt nie jest sprzedawany w docelowym kanale sprzedaży, więc ten cel pominięto.",
   "localeMapping.skipped.language_not_offered": "Docelowy kanał sprzedaży nie oferuje tego języka, więc ten cel pominięto.",
-  "fieldPath.wholeFieldOnly": "Ochrona dotyczy całego pola. Część ścieżki wskazująca język lub kanał jest niedozwolona."
+  "fieldPath.wholeFieldOnly": "Ochrona dotyczy całego pola. Część ścieżki wskazująca język lub kanał jest niedozwolona.",
+  "module.name": "Wspólna warstwa konektorów PIM",
+  "module.description": "Wspólne zachowania konektorów PIM: wzajemne wykluczanie, słownictwo przebiegów i problemów, zasady mapowania wersji językowych (język źródłowy na kanał i język, język źródłowy dla wartości globalnych) i ochrona całych pól.",
+  "module.nonDeactivatableReason": "Wspólny rejestr konektorów PIM musi być dostępny, żeby można było odmówić włączenia konektora PIM, gdy aktywny jest już inny."
 }

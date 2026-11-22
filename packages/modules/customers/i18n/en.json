@@ -146,5 +146,8 @@
   "settingLabels.customers.deletion_retention_days.name": "Customer deletion retention window (days)",
   "settingLabels.customers.deletion_retention_days.description": "Days a deleted customer account can be restored before its data is anonymised. Default 365.",
   "settingLabels.customers.presence_freshness_minutes.name": "Online customers freshness (minutes)",
-  "settingLabels.customers.presence_freshness_minutes.description": "A customer counts as online if their session was active within this many minutes. Default 10."
+  "settingLabels.customers.presence_freshness_minutes.description": "A customer counts as online if their session was active within this many minutes. Default 10.",
+  "transactionalEmails.customer_password_reset_by_admin.name": "Password reset started by an administrator (customer)",
+  "transactionalEmails.customer_password_reset_by_admin.reason": "Required to regain access to an account — switching it off leaves the customer with no way to set a new password, and no fallback email is sent.",
+  "module.description": "Customer lifecycle business logic: registration, self-service, blocking, impersonation, groups, deletion, and presence."
 }

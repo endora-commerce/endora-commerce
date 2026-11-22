@@ -205,5 +205,11 @@
   "settingLabels.orders.reorder_enabled.name": "Reordering enabled",
   "settingLabels.orders.reorder_enabled.description": "A past order can be placed again.",
   "settingLabels.orders.confirmation_recipients.name": "Order confirmation recipients",
-  "settingLabels.orders.confirmation_recipients.description": "Extra addresses that receive a confirmation of every order placed."
+  "settingLabels.orders.confirmation_recipients.description": "Extra addresses that receive a confirmation of every order placed.",
+  "transactionalEmails.order_confirmation.name": "Order confirmation",
+  "transactionalEmails.order_comment.name": "Order comment notification",
+  "transactionalEmails.reorder_created.name": "Reorder created",
+  "transactionalEmails.admin_created_order.name": "Admin-created order",
+  "module.description": "Order placement, lifecycle, and history.",
+  "module.nonDeactivatableReason": "The order is the transaction this platform exists to record."
 }

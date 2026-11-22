@@ -161,5 +161,8 @@
   "settingLabels.assets.private_url_ttl_sec.name": "Private signed-URL TTL (seconds)",
   "settingLabels.assets.soft_delete_retention_days.name": "Soft-delete retention before hard-delete (days)",
   "settingLabels.assets.local.public_url_base.name": "Local FS — public URL base (no trailing slash)",
-  "settingLabels.assets.local.public_url_base.description": "Public URL prefix for asset files, e.g. a CDN. Empty: built from PUBLIC_API_BASE_URL."
+  "settingLabels.assets.local.public_url_base.description": "Public URL prefix for asset files, e.g. a CDN. Empty: built from PUBLIC_API_BASE_URL.",
+  "module.name": "Assets library",
+  "module.description": "Storage adapter registry (local / S3 / GCS), asset upload, and reference tracking.",
+  "module.nonDeactivatableReason": "Media storage. Product images, CMS media and e-mail assets all resolve here, and \"we do not want files\" is not a business decision."
 }

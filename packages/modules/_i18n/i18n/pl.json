@@ -2864,5 +2864,8 @@
   "appShell.section.access": "Dostęp",
   "appShell.section.platform": "Platforma",
   "profile.tabs.profile": "Profil",
-  "profile.tabs.security": "Bezpieczeństwo"
+  "profile.tabs.security": "Bezpieczeństwo",
+  "module.name": "Tłumaczenia panelu",
+  "module.description": "Język panelu administracyjnego wybrany przez każdego użytkownika i pakiety tłumaczeń poszczególnych modułów. Gdy brakuje tłumaczenia, platforma pokazuje tekst po angielsku (FR-013 / FR-016).",
+  "module.nonDeactivatableReason": "Stąd pochodzi każdy tekst widoczny dla użytkownika na każdej powierzchni, także etykiety na ekranie platformy, na którym włącza się i wyłącza moduły."
 }

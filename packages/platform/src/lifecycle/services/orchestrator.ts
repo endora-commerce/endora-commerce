@@ -973,10 +973,13 @@ export class ModuleLifecycleOrchestrator {
         const depDisabled = entry.manifest.dependencies.some((d) => !enabledSet.has(d));
         if (depDisabled) flags.push('dep-disabled');
       }
+      const activation = entry.manifest.activation;
       out.push({
         id,
         name: entry.manifest.name,
         description: entry.manifest.description ?? null,
+        // Issue #1809 — the lock reason, so the list can carry it translated.
+        nonDeactivatableReason: activation && 'nonDeactivatable' in activation ? activation.reason : null,
         version: {
           registered: row?.version ?? null,
           onDisk: entry.manifest.version,
@@ -996,6 +999,7 @@ export class ModuleLifecycleOrchestrator {
         id,
         name: id,
         description: null,
+        nonDeactivatableReason: null,
         version: {
           registered: row.version,
           onDisk: null,

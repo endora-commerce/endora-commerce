@@ -93,16 +93,36 @@ const BUNDLE = {
   ...shippedModuleBundle('orders', 'en'),
 };
 
-function renderPage(): { container: HTMLElement } {
+function renderPage(language: 'en' | 'pl' = 'en'): { container: HTMLElement } {
   return renderWithI18n(
     <MemoryRouter>
       <OrderStatusConfigPage />
     </MemoryRouter>,
     BUNDLE,
+    { language },
   );
 }
 
 describe('OrderStatusConfigPage', () => {
+  // Issue #1809 — the list named every status by its default (English) name in a Polish admin.
+  it("names the statuses in the admin's language", async () => {
+    getSpy.mockResolvedValue({
+      data: {
+        ...GRAPH,
+        statuses: [
+          { ...GRAPH.statuses[0], name: { en: 'New', pl: 'Nowy' }, defaultName: 'New' },
+          { ...GRAPH.statuses[1], name: { en: 'Pending', pl: 'Oczekujące' }, defaultName: 'Pending' },
+          { ...GRAPH.statuses[2], name: { en: 'Cancelled', pl: 'Anulowane' }, defaultName: 'Cancelled' },
+        ],
+      },
+    });
+    renderPage('pl');
+    // The row's own actions are named by the status, so they say which name it is shown by.
+    expect(await screen.findByRole('button', { name: 'Edit status Oczekujące' })).toBeInTheDocument();
+    expect(screen.getAllByText('Nowy').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Pending')).toBeNull();
+  });
+
   it('names its icon buttons and the actions column in words, not developer ids (#1475)', async () => {
     const { container } = renderPage();
     expect(await screen.findByRole('button', { name: 'Edit status Pending' })).toBeInTheDocument();

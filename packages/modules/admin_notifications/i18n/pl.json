@@ -1,5 +1,7 @@
 {
   "settingGroups.admin_notifications.name": "Powiadomienia administratorów",
   "settingLabels.admin_notifications.enabled.name": "Powiadomienia administratorów włączone",
-  "settingLabels.admin_notifications.enabled.description": "Pokazuje centrum powiadomień. Wyłączenie niczego nie usuwa."
+  "settingLabels.admin_notifications.enabled.description": "Pokazuje centrum powiadomień. Wyłączenie niczego nie usuwa.",
+  "module.name": "Powiadomienia panelu",
+  "module.description": "Lista powiadomień pod dzwonkiem w górnym pasku panelu. Ogólna, więc wpisy może dodawać każdy moduł."
 }

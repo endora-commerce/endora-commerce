@@ -41,6 +41,7 @@ import {
   type ActivationPropagation,
 } from './commands/activation.commands.js';
 import type { RequireAdminFactory } from '../kernel/ports/require-admin.js';
+import { localizeModuleListItem, type ModuleBundleTranslate } from './module-text.js';
 
 /**
  * Read-only admin surface for the lifecycle subsystem (feature 018 / E-1).
@@ -65,6 +66,11 @@ const toPresenceDto = toModulePresenceDto;
 export interface LifecycleAdminDeps {
   orchestrator: ModuleLifecycleOrchestrator;
   requireAdmin: RequireAdminFactory;
+  /**
+   * Issue #1809 — each module's own bundle, for its name, description and lock
+   * reason in the reader's language. Absent: the manifests' English.
+   */
+  translate?: ModuleBundleTranslate;
 }
 
 export async function registerLifecycleAdminRoutes(
@@ -90,7 +96,10 @@ export async function registerLifecycleAdminRoutes(
       if (query.flag) {
         modules = modules.filter((m) => m.flags.includes(query.flag!));
       }
-      return { modules };
+      const language = await request.responseLanguage();
+      return {
+        modules: await Promise.all(modules.map((m) => localizeModuleListItem(m, language, deps.translate))),
+      };
     },
   );
 }

@@ -24,6 +24,7 @@ import {
   segmentOf,
   slugOf,
 } from '../src/new-module/spec.js';
+import { bundleEntries } from '../src/new-module/emit.js';
 
 const MINIMAL = {
   id: 'demo_widgets',
@@ -267,5 +268,15 @@ describe('the specification it produces', () => {
       module: 'demo_widgets',
       label: 'View widgets',
     });
+  });
+});
+
+// Issue #1809 — Platform → Modules reads a module's name and description from its own bundle.
+describe('the scaffolded bundle', () => {
+  it('carries the module name and description the manifest declares', () => {
+    const spec = buildScaffoldSpec(MINIMAL);
+    const entries = new Map(bundleEntries(spec));
+    expect(entries.get('module.name')).toBe(spec.name);
+    expect(entries.get('module.description')).toBe(spec.description);
   });
 });

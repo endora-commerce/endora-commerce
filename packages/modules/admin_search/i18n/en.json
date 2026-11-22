@@ -46,5 +46,7 @@
   "settingLabels.admin_search.results_per_entity.name": "Results per record type",
   "settingLabels.admin_search.results_per_entity.description": "How many records of each type the command palette shows (1–10).",
   "settingLabels.admin_search.entity_fields.name": "Searchable fields",
-  "settingLabels.admin_search.entity_fields.description": "Which fields each record type is searched by. Edited on the Global search configuration screen."
+  "settingLabels.admin_search.entity_fields.description": "Which fields each record type is searched by. Edited on the Global search configuration screen.",
+  "module.name": "Global search",
+  "module.description": "Find organizations, customers, orders, quote requests, sales opportunities, products, categories, projects and tasks from the admin command palette, with configurable searchable fields."
 }

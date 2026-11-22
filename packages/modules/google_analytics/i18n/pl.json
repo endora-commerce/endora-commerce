@@ -66,5 +66,7 @@
   "settingLabels.google_analytics.server_side_api_secret.name": "Sekret API Measurement Protocol",
   "settingLabels.google_analytics.server_side_api_secret.description": "Sekret API GA4 Measurement Protocol, z Administracja → Strumienie danych. Zaszyfrowany; tylko do zapisu.",
   "settingLabels.google_analytics.require_consent.name": "Wymagaj zgody na analitykę",
-  "settingLabels.google_analytics.require_consent.description": "Google Analytics czeka w trybie Consent Mode v2, aż odwiedzający wyrazi zgodę."
+  "settingLabels.google_analytics.require_consent.description": "Google Analytics czeka w trybie Consent Mode v2, aż odwiedzający wyrazi zgodę.",
+  "module.name": "Google Analytics",
+  "module.description": "Integracja z Google Analytics 4: włączanie i identyfikator pomiaru w każdym kanale sprzedaży, e-commerce rozszerzony, konfigurowalne zdarzenia własne i opcjonalne tagowanie po stronie serwera."
 }

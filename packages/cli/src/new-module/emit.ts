@@ -1430,7 +1430,11 @@ function titleOfActionId(actionId: string): string {
  * invent one — it names `i18n/pl.json` in its next steps instead.
  */
 export function bundleEntries(spec: ModuleScaffoldSpec): readonly (readonly [string, string])[] {
-  const entries: Array<readonly [string, string]> = [['module.name', spec.name]];
+  // Issue #1809 — Platform → Modules names and describes a module from its own bundle.
+  const entries: Array<readonly [string, string]> = [
+    ['module.name', spec.name],
+    ['module.description', spec.description],
+  ];
   for (const permission of spec.permissions) {
     entries.push([`adminRoles.permission.${permission.code}`, permission.label]);
   }

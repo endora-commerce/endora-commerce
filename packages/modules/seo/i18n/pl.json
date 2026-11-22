@@ -89,5 +89,7 @@
   "productSeo.loadFailed": "Nie udało się wczytać meta tagów SEO.",
   "productSeo.retry": "Spróbuj ponownie",
   "productLink.editInEditor": "Edytuj SEO tego produktu w edytorze produktu",
-  "productLink.hint": "Meta tagi SEO produktu edytuje się na jego karcie SEO, w zakresie wybranym w edytorze produktu."
+  "productLink.hint": "Meta tagi SEO produktu edytuje się na jego karcie SEO, w zakresie wybranym w edytorze produktu.",
+  "module.name": "SEO",
+  "module.description": "Metadane SEO, generowana mapa witryny, ustawienia dla robotów wyszukiwarek i llms.txt. Wyłączenie usuwa domyślną dyrektywę dla robotów z każdej odpowiedzi sklepu, więc kanał sprzedaży ustawiony na noindex znów może być indeksowany; własne instrukcje robots.txt i llms.txt też przestają być serwowane."
 }

@@ -46,5 +46,7 @@
   "settingLabels.admin_search.results_per_entity.name": "Wyniki na typ rekordu",
   "settingLabels.admin_search.results_per_entity.description": "Ile rekordów każdego typu pokazuje paleta poleceń (1–10).",
   "settingLabels.admin_search.entity_fields.name": "Przeszukiwane pola",
-  "settingLabels.admin_search.entity_fields.description": "Po których polach przeszukiwany jest każdy typ rekordu. Edytowane na ekranie konfiguracji wyszukiwania globalnego."
+  "settingLabels.admin_search.entity_fields.description": "Po których polach przeszukiwany jest każdy typ rekordu. Edytowane na ekranie konfiguracji wyszukiwania globalnego.",
+  "module.name": "Wyszukiwanie globalne",
+  "module.description": "Wyszukuj organizacje, klientów, zamówienia, zapytania ofertowe, szanse sprzedaży, produkty, kategorie, projekty i zadania z palety poleceń, w konfigurowalnych polach."
 }

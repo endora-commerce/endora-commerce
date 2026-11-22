@@ -67,5 +67,7 @@
   "settingGroups.compare.name": "Compare",
   "settingLabels.comparisons.enabled.name": "Product comparison enabled",
   "settingLabels.compare.max_products.name": "Maximum products per comparison",
-  "settingLabels.compare.max_products.description": "Most products a customer can place in one comparison (1–16). Default 4."
+  "settingLabels.compare.max_products.description": "Most products a customer can place in one comparison (1–16). Default 4.",
+  "module.name": "Compare products",
+  "module.description": "Customer-facing product comparison feature with shareable links and PDF export."
 }

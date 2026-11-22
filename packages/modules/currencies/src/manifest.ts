@@ -12,6 +12,8 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
 export const manifest = defineModuleManifest({
   id: 'currencies',
   docs: { dir: 'docs' },
+  // Issue #1809 — the module's name, description and lock reason in Polish for Platform → Modules.
+  i18n: { bundlesDir: 'i18n' },
   name: 'Currencies',
   description:
     'Currency reference data and per-channel currency configuration.',

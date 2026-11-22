@@ -17,7 +17,7 @@ import type {
 } from '@endora-commerce/contracts';
 
 import { PageBuilderRegistry, type PageBuilderBreakpointsResolver, type ColorPaletteResolver } from './services/page-builder-registry.js';
-import { reconcileSeededHooks } from './services/seed-hooks.js';
+import { reconcileSeededHooks, type CmsBundleTranslate } from './services/seed-hooks.js';
 import { resolvePageBuilderBreakpointsFromEnv } from '../manifest.js';
 import { CmsPageService, type ReservedSlugSegmentsResolver } from './services/cms-page-service.js';
 import type { CmsAssetVisibility } from './services/linkable-assets.js';
@@ -105,6 +105,12 @@ export interface CmsModuleOptions {
    * A composition that passes nothing refuses every such save.
    */
   assets?: CmsAssetVisibility;
+  /**
+   * Issue #1809 — this module's bundle, for the seeded hooks' names in the
+   * request's language. A composition that passes nothing answers the stored
+   * text.
+   */
+  hookText?: CmsBundleTranslate;
 }
 
 export interface CmsModuleHandle {
@@ -280,6 +286,7 @@ export function cmsModule(options: CmsModuleOptions): {
       requireAdmin: options.requireAdmin,
       translation,
       brandTokensService,
+      ...(options.hookText ? { hookText: options.hookText } : {}),
     });
     await registerCmsStorefrontRoutes(app, { storefrontResolver, brandTokensService });
   };

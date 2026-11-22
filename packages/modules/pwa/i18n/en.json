@@ -148,5 +148,7 @@
   "settingLabels.pwa.vapid_private_key.description": "Private VAPID key that signs push messages. Stored encrypted; write-only.",
   "settingLabels.pwa.fcm_service_account.name": "FCM service account (JSON)",
   "settingLabels.pwa.fcm_service_account.description": "Optional Firebase service-account JSON for FCM push. Stored encrypted; write-only.",
-  "settingLabels.pwa.enabled.name": "Progressive Web App enabled"
+  "settingLabels.pwa.enabled.name": "Progressive Web App enabled",
+  "module.name": "Progressive web app",
+  "module.description": "Installability, static-asset caching, controlled service-worker updates, and provider-agnostic push notifications for the storefront and admin."
 }

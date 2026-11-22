@@ -1,0 +1,5 @@
+{
+  "module.name": "Uwierzytelnianie",
+  "module.description": "Podstawy uwierzytelniania — ciasteczka sesji, rozpoznawanie tokenów Bearer i przypisywanie aktora do żądania.",
+  "module.nonDeactivatableReason": "Rozpoznaje aktora każdego żądania i dostarcza strażnika requireAdmin; po wyłączeniu platforma nie ma panelu administracyjnego ani sesji klientów."
+}

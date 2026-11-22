@@ -3,5 +3,8 @@
   "actions.openTaxes.label": "Taxes",
   "actions.openTaxes.description": "Manage tax rates and the rules they apply to",
   "actions.openTaxes.keywords": "tax, taxes, rate, rates",
-  "settingGroups.taxes.name": "Taxes"
+  "settingGroups.taxes.name": "Taxes",
+  "module.name": "Taxes",
+  "module.description": "Tax rate configuration and order tax computation.",
+  "module.nonDeactivatableReason": "Absent, every price becomes tax-free with no operator-visible signal and the invoice carries a wrong figure. A platform that cannot compute tax cannot state a lawful price."
 }

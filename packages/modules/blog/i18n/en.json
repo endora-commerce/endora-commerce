@@ -482,5 +482,7 @@
   "settingLabels.blog.latest_count.name": "Latest posts on the blog index",
   "settingLabels.blog.latest_count.description": "How many newest posts the blog index page shows (1–20).",
   "settingLabels.blog.posts_per_page.name": "Posts per page in Category and Tag views",
-  "settingLabels.blog.posts_per_page.description": "Posts per page on Category and Tag pages (1–100)."
+  "settingLabels.blog.posts_per_page.description": "Posts per page on Category and Tag pages (1–100).",
+  "module.name": "Blog",
+  "module.description": "Multi-channel, multi-language blog with categories, tags, and Page Builder posts."
 }

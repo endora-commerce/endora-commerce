@@ -1,5 +1,8 @@
 {
   "erp_connector.nav.label": "Konektory ERP",
   "erp_connector.nav.description": "Wspólna warstwa konektorów ERP",
-  "errors.ERP_CONNECTOR_ALREADY_ACTIVE": "Inny connector ERP jest już aktywny ({activeModuleId}). Najpierw go wyłącz."
+  "errors.ERP_CONNECTOR_ALREADY_ACTIVE": "Inny connector ERP jest już aktywny ({activeModuleId}). Najpierw go wyłącz.",
+  "module.name": "Wspólna warstwa konektorów ERP",
+  "module.description": "Wspólne zachowania konektorów ERP: wzajemne wykluczanie i słownictwo zadań synchronizacji.",
+  "module.nonDeactivatableReason": "Wspólny rejestr konektorów ERP musi być dostępny, żeby można było odmówić włączenia konektora ERP, gdy aktywny jest już inny."
 }
