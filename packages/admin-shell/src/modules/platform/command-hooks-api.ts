@@ -28,9 +28,12 @@ export async function getCommandHookPlan(): Promise<CommandHookPlanResponse> {
 export async function listCommandOutbox(query: {
   status: CommandOutboxStatus;
   cursor?: string | null;
+  /** The page size, 1–`COMMAND_OUTBOX_PAGE_MAX`; the server's default when left out. */
+  limit?: number;
 }): Promise<CommandOutboxListResponse> {
   const params = new URLSearchParams({ status: query.status });
   if (query.cursor) params.set('cursor', query.cursor);
+  if (query.limit !== undefined) params.set('limit', String(query.limit));
   return apiClient.get<CommandOutboxListResponse>(`/api/v1/admin/command-outbox?${params.toString()}`);
 }
 
