@@ -281,6 +281,13 @@ function ScopedProductEditor({
    * (issue #1610). `null` is "not known" (the URL named a scope, or the read failed).
    */
   const rememberedRef = useRef<{ productId: string; key: string } | null>(null);
+  /**
+   * False once the editor has unmounted. A read resolving after that starts no preference timer:
+   * the unmount has already cleared the timer, and a new one would write once the editor is gone
+   * (issue #1610). A flag, not a bump of `requestRef`, so StrictMode's simulated remount keeps
+   * the first read.
+   */
+  const mountedRef = useRef(false);
   /** The last valid-scope list, kept while a scope loads so the switcher stays usable. */
   const validRef = useRef<ValidScopes | null>(null);
 
@@ -405,7 +412,7 @@ function ScopedProductEditor({
           prefTimerRef.current = null;
           const openedKey = scopeKey(opened);
           const remembered = rememberedRef.current;
-          if (remembered?.productId !== productId || remembered.key !== openedKey) {
+          if (mountedRef.current && (remembered?.productId !== productId || remembered.key !== openedKey)) {
             prefTimerRef.current = setTimeout(() => {
               rememberedRef.current = { productId, key: openedKey };
               void putEditorPreference(productId, opened);
@@ -489,12 +496,13 @@ function ScopedProductEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlKey]);
 
-  useEffect(
-    () => (): void => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return (): void => {
+      mountedRef.current = false;
       if (prefTimerRef.current) clearTimeout(prefTimerRef.current);
-    },
-    [],
-  );
+    };
+  }, []);
 
   // A staged change of a subject an immediate action removed is dropped and said (§3).
   useEffect(() => {
