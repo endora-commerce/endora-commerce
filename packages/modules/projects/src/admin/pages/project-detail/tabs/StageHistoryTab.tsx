@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { ProjectStageEntry } from '@endora-commerce/contracts';
 import { formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi } from '../../../api.js';
 import { errorMessage } from '../../../lib/labels.js';
 import type { ProjectTabProps } from '../tabs.js';
@@ -15,6 +15,7 @@ import type { ProjectTabProps } from '../tabs.js';
  * made on this screen is in the list without a reload.
  */
 export function StageHistoryTab({ project }: ProjectTabProps): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('projects');
   const [entries, setEntries] = useState<ProjectStageEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +73,7 @@ export function StageHistoryTab({ project }: ProjectTabProps): ReactNode {
         <li key={entry.id} className="space-y-0.5 border-l-2 pl-3">
           <p className="text-sm font-medium [overflow-wrap:anywhere]">{describe(entry)}</p>
           <p className="text-xs text-muted-foreground">
-            {entry.actor?.name ?? t('history.system')} · <time dateTime={entry.at}>{formatDateTime(entry.at)}</time>
+            {entry.actor?.name ?? t('history.system')} · <time dateTime={entry.at}>{formatDateTime(entry.at, language)}</time>
           </p>
           {entry.notes.map((note) => (
             <p key={note} className="text-xs text-muted-foreground">

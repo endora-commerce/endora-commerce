@@ -489,12 +489,12 @@ export function RfqList(): ReactNode {
           #{rfqNumber(r)}
         </Link>
       ),
-      meta: (r) => formatDateTime(r.updatedAt),
+      meta: (r) => formatDateTime(r.updatedAt, language),
     },
     updated: {
       id: 'updated',
       header: t('rfq.list.column.updated'),
-      render: (r) => formatDateTime(r.updatedAt),
+      render: (r) => formatDateTime(r.updatedAt, language),
     },
     org: {
       id: 'org',

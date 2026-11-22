@@ -4,7 +4,7 @@ import { CheckCircle2 } from 'lucide-react';
 import { Alert, AlertDescription, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { DownloadAction } from '../components/DownloadAction.js';
 import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   productFeedsClient,
   RUN_ISSUE_PAGE_LIMIT,
@@ -38,6 +38,7 @@ const ISSUE_CAP_HINT = 1000;
 
 export function FeedRunDetailPage(): ReactNode {
   const t = useTranslation('product_feeds');
+  const { language } = useTranslationContext();
   const { feedId, runId } = useParams<{ feedId: string; runId: string }>();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('product_feeds:write');
@@ -107,12 +108,12 @@ export function FeedRunDetailPage(): ReactNode {
   return (
     <div>
       <PageHeader
-        title={t('runs.detail.title', { date: formatDateTime(started) })}
+        title={t('runs.detail.title', { date: formatDateTime(started, language) })}
         description={`${t(`runs.trigger.${run.trigger}`)} · ${
           run.durationMs === null ? '—' : `${Math.round(run.durationMs / 100) / 10}s`
         } · ${t('runs.detail.templateState', {
           name: feed.feedTemplateName,
-          date: formatDateTime(run.createdAt),
+          date: formatDateTime(run.createdAt, language),
         })}`}
         back={{ label: feed.name, to: `/product-feeds/${feed.id}` }}
         actions={

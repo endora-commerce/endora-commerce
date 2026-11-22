@@ -26,7 +26,7 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { feedDeliveryClient } from '../api.js';
 import {
   duplicateHeaderNames,
@@ -89,6 +89,7 @@ function choiceFor(config: FeedDeliveryConfig | null): ProtocolChoice {
 }
 
 export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
+  const { language } = useTranslationContext();
   const { feedId } = props;
   const t = useTranslation('product_feeds');
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -267,13 +268,13 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
           )}
         </span>
       ),
-      meta: (row) => formatDateTime(row.startedAt),
+      meta: (row) => formatDateTime(row.startedAt, language),
     },
     {
       id: 'startedAt',
       header: t('delivery.history.startedAt'),
       hideOnMobile: true,
-      render: (row) => formatDateTime(row.startedAt),
+      render: (row) => formatDateTime(row.startedAt, language),
     },
     {
       id: 'target',

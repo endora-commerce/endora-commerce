@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CircleCheck, CircleX, RotateCcw } from 'lucide-react';
 import type { ProjectDetail, ProjectStage, ProjectStageGateOpenTasksDetails } from '@endora-commerce/contracts';
-import { ApiError, cn } from '@endora-commerce/admin-kit/lib';
+import { ApiError, cn, formatDate } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi } from '../api.js';
@@ -177,7 +177,7 @@ export function StageBar(props: StageBarProps): ReactNode {
         <div className="space-y-1 text-sm">
           <p>
             {t(project.state === 'completed' ? 'stageBar.closed.completed' : 'stageBar.closed.lost', {
-              date: new Date(project.closedAt).toLocaleDateString(language),
+              date: formatDate(project.closedAt, language),
               stage: current?.name ?? '',
             })}
           </p>

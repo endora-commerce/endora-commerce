@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Info, Loader2 } from 'lucide-react';
 import type { FeedTaxonomyCheck, FeedTaxonomyRevision, TaxonomyProviderCode } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, PageHeader, TabPanel, Tabs } from '@endora-commerce/admin-kit/ui';
-import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { formatDate, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { feedTaxonomiesClient } from '../taxonomy-api.js';
 import { RevisionImpactDrawer } from '../components/RevisionImpactDrawer.js';
@@ -403,14 +403,6 @@ function revisionLabelOf(
 ): string {
   const match = revisions?.find((revision) => revision.id === check.installedTaxonomyId);
   return match?.revision ?? '';
-}
-
-function formatDate(value: string, language: string): string {
-  try {
-    return new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(new Date(value));
-  } catch {
-    return value.slice(0, 10);
-  }
 }
 
 /**

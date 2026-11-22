@@ -26,14 +26,13 @@ import {
   type ListFilterSnapshot,
   type ProductListTab,
 } from '../lib/resolve-product-selection.js';
-import { ApiError, apiClient, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, formatDate, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import {
   ListToolbar,
   ListToolbarSearch,
   PaginationFooter,
   SavedViewsControl,
-  adminLanguageToLocale,
   useConfirmDialog,
 } from '@endora-commerce/admin-kit/components';
 import {
@@ -852,7 +851,7 @@ function relTime(iso: string, t: ReturnType<typeof useTranslation>, language: st
   // days take the same Polish form ("dni"), as on the dashboard's activity feed.
   if (diff < 86400 * 2) return t('productsList.updated.yesterday');
   if (diff < 86400 * 7) return t('productsList.updated.daysAgo', { count: Math.floor(diff / 86400) });
-  return d.toLocaleDateString(adminLanguageToLocale(language), { month: 'short', day: 'numeric' });
+  return formatDate(iso, language);
 }
 
 /**

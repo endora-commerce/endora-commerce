@@ -196,7 +196,7 @@ export function AttachmentsTab(props: OpportunityTabProps): ReactNode {
                 </TableCell>
                 <TableCell>{attachment.uploadedBy.name}</TableCell>
                 <TableCell className="whitespace-nowrap">
-                  {formatDateTime(attachment.createdAt)}
+                  {formatDateTime(attachment.createdAt, language)}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">

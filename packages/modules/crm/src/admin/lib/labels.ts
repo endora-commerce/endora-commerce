@@ -63,10 +63,9 @@ export function moneyLabel(amount: string | null | undefined, currency: string):
 
 /**
  * A `YYYY-MM-DD` calendar date as the admin writes every date (#1567): the
- * medium date of `language`, the admin UI language — the browser's locale
- * only where a caller does not pass it yet.
+ * medium date of `language`, the admin UI language.
  */
-export function calendarDateLabel(date: string | null | undefined, language?: string): string {
+export function calendarDateLabel(date: string | null | undefined, language: string): string {
   return formatDate(date, language);
 }
 

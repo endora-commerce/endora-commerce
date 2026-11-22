@@ -394,6 +394,7 @@ function Outbox({
   canManage: boolean;
   names: ReadonlyMap<string, string>;
 }): ReactNode {
+  const { language } = useTranslationContext();
   const tLifecycle = useTranslation('_lifecycle');
   const { bundle, fallbackBundle } = useTranslationContext();
   const statusId = useId();
@@ -642,10 +643,10 @@ function Outbox({
                           </>
                         )}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs">{formatDateTime(item.createdAt)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs">{formatDateTime(item.createdAt, language)}</TableCell>
                       {secondDate !== null && (
                         <TableCell className="whitespace-nowrap text-xs">
-                          {formatDateTime(secondDate === 'deadAt' ? item.deadAt : item.availableAt)}
+                          {formatDateTime(secondDate === 'deadAt' ? item.deadAt : item.availableAt, language)}
                         </TableCell>
                       )}
                       {showRetry && (

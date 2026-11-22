@@ -13,7 +13,7 @@ import {
   useListPagination,
   type ListPageLoad,
 } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { cartApprovalStatusLabels, cartStatusLabels } from '../lib/labels.js';
 
 type StatusFilter = '' | (typeof cartStatusLabels.values)[number];
@@ -62,6 +62,7 @@ const APPROVAL_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'wa
  * paged, and the screen showed its first 50 carts and nothing else).
  */
 export default function CartsList(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('carts');
   const pager = useListPagination({ scope: 'carts', maxPageSize: MAX_PAGE_SIZE });
   const { resetPage, syncTotal } = pager;
@@ -193,7 +194,7 @@ export default function CartsList(): ReactNode {
                 {ownerName(c)}
               </Link>
             ),
-            meta: (c) => formatDateTime(c.lastActivityAt),
+            meta: (c) => formatDateTime(c.lastActivityAt, language),
           },
           {
             id: 'org',

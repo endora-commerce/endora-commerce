@@ -9,6 +9,7 @@ import {
   type FieldProtectionSource,
   type FieldProtectionView,
 } from '@endora-commerce/admin-kit/field-protection';
+import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Feature 091, P4b — `@endora-commerce/admin-kit/field-protection` is the kit's.
@@ -86,7 +87,9 @@ function harness(options: {
 }
 
 function renderTree(ui: ReactElement): ReturnType<typeof render> {
-  const wrapper = ({ children }: { children: ReactNode }): ReactElement => <>{children}</>;
+  const wrapper = ({ children }: { children: ReactNode }): ReactElement => (
+    <AppLanguageContext.Provider value={{ language: 'en', setLanguage: () => {} }}>{children}</AppLanguageContext.Provider>
+  );
   return render(ui, { wrapper });
 }
 

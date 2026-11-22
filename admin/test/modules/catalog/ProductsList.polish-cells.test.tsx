@@ -123,7 +123,8 @@ describe('ProductsList cells speak the admin language (issue #501)', () => {
     expect(within(gamma).getByText('3 dni temu')).toBeTruthy();
 
     const delta = await rowOf('Delta');
-    const date = new Date(OLD).toLocaleDateString('pl-PL', { month: 'short', day: 'numeric' });
+    // Older than a week: the kit's medium date in the admin language (#1776).
+    const date = new Intl.DateTimeFormat('pl', { dateStyle: 'medium' }).format(new Date(OLD));
     expect(within(delta).getByText(date)).toBeTruthy();
 
     const epsilon = await rowOf('Epsilon');

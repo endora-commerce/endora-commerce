@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { unitPriceDisplayText, type ComparisonAdminDetail } from '@endora-commerce/contracts';
-import { ApiError } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { ApiError, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   Alert,
   AlertDescription,
@@ -37,6 +37,7 @@ import { getComparisonDetail } from '../api/comparisons-client.js';
  */
 export default function ComparisonDetailPage(): ReactNode {
   const t = useTranslation('comparisons');
+  const { language } = useTranslationContext();
   const { id } = useParams<{ id: string }>();
   const back = { label: t('list.page.title'), to: '/comparisons' };
   const [detail, setDetail] = useState<ComparisonAdminDetail | null>(null);
@@ -108,8 +109,8 @@ export default function ComparisonDetailPage(): ReactNode {
             <code className="font-mono text-xs">{detail.shareToken}</code>
           </div>
           <div className="text-muted-foreground">
-            {t('detail.created')} {new Date(detail.createdAt).toLocaleString()} · {t('detail.updated')}{' '}
-            {new Date(detail.updatedAt).toLocaleString()}
+            {t('detail.created')} {formatDateTime(detail.createdAt, language)} · {t('detail.updated')}{' '}
+            {formatDateTime(detail.updatedAt, language)}
           </div>
         </CardContent>
       </Card>

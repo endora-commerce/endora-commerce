@@ -6,13 +6,13 @@ import { boardFieldLabel, boardFieldOptionLabel } from '../lib/board-fields.js';
 import { calendarDateLabel, moneyLabel } from '../lib/labels.js';
 import { AssigneeName } from './AssigneeName.js';
 import { TagChips } from '@endora-commerce/admin-kit/components';
+import { formatDate } from '@endora-commerce/admin-kit/lib';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
-const instantLabel = (iso: string | null | undefined): string | null => {
-  if (!iso) return null;
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString();
+const instantLabel = (iso: string | null | undefined, language: string): string | null => {
+  if (!iso || Number.isNaN(new Date(iso).getTime())) return null;
+  return formatDate(iso, language);
 };
 
 /**
@@ -29,13 +29,13 @@ function fieldText(
   if (field.source === 'builtin') {
     switch (field.key) {
       case 'expectedCloseDate':
-        return item.expectedCloseDate ? calendarDateLabel(item.expectedCloseDate) : null;
+        return item.expectedCloseDate ? calendarDateLabel(item.expectedCloseDate, language) : null;
       case 'createdAt':
-        return instantLabel(item.createdAt);
+        return instantLabel(item.createdAt, language);
       case 'updatedAt':
-        return instantLabel(item.updatedAt);
+        return instantLabel(item.updatedAt, language);
       case 'closedAt':
-        return instantLabel(item.closedAt);
+        return instantLabel(item.closedAt, language);
       case 'source':
         return typeof stored === 'string' ? boardFieldOptionLabel(field, stored, language, t) : null;
       case 'linkedOrders':
@@ -51,7 +51,7 @@ function fieldText(
     case 'boolean':
       return typeof stored === 'boolean' ? t(stored ? 'customFields.value.yes' : 'customFields.value.no') : null;
     case 'date':
-      return typeof stored === 'string' ? calendarDateLabel(stored) : null;
+      return typeof stored === 'string' ? calendarDateLabel(stored, language) : null;
     case 'select':
       return boardFieldOptionLabel(field, String(stored), language, t);
     case 'multiselect':

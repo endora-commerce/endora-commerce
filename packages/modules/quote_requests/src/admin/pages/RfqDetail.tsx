@@ -41,7 +41,7 @@ import {
   unitPriceDisplayText,
   type LineGroup,
 } from '@endora-commerce/contracts';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { deadlineForDays, isValidityDaysInvalid, rfqValidity } from '../validity.js';
 import { useRfqNumberFormat } from '../number-format.js';
@@ -221,6 +221,7 @@ const STATUS_VARIANT: Record<
 };
 
 export function RfqDetail(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const { confirm, confirmDialog } = useConfirmDialog();
   const format = useRfqNumberFormat();
@@ -602,20 +603,20 @@ export function RfqDetail(): ReactNode {
                 {' · '}
               </span>
             ) : null}
-            {t('rfq.detail.meta.created', { date: formatDateTime(rfq.createdAt) })}
+            {t('rfq.detail.meta.created', { date: formatDateTime(rfq.createdAt, language) })}
             {rfq.submittedAt
-              ? ` · ${t('rfq.detail.meta.submitted', { date: formatDateTime(rfq.submittedAt) })}`
+              ? ` · ${t('rfq.detail.meta.submitted', { date: formatDateTime(rfq.submittedAt, language) })}`
               : ''}
             {/* Three different sentences about three different dates: the
                 status the expiry worker set, a deadline still ahead, and one
                 already behind. The last used to render as "expires <date>",
                 which reads as a promise the platform is no longer keeping. */}
             {rfq.expiredAt
-              ? ` · ${t('rfq.detail.meta.expired', { date: formatDateTime(rfq.expiredAt) })}`
+              ? ` · ${t('rfq.detail.meta.expired', { date: formatDateTime(rfq.expiredAt, language) })}`
               : validity.kind === 'active'
-                ? ` · ${t('rfq.detail.meta.expires', { date: formatDateTime(validity.expiresAt) })}`
+                ? ` · ${t('rfq.detail.meta.expires', { date: formatDateTime(validity.expiresAt, language) })}`
                 : validity.kind === 'lapsed'
-                  ? ` · ${t('rfq.detail.meta.validityEnded', { date: formatDateTime(validity.expiresAt) })}`
+                  ? ` · ${t('rfq.detail.meta.validityEnded', { date: formatDateTime(validity.expiresAt, language) })}`
                   : ''}
           </span>
         }
@@ -648,7 +649,7 @@ export function RfqDetail(): ReactNode {
           <AlertDescription>
             <p className="font-medium">
               {t('rfq.detail.validity.lapsed.headline', {
-                date: formatDateTime(validity.expiresAt),
+                date: formatDateTime(validity.expiresAt, language),
               })}
             </p>
             <p className="mt-1">
@@ -1179,6 +1180,7 @@ function ModifyCard({
   /** Issue #1469 — this card's save, for the leave dialog's *Save and continue*. */
   saveRef?: { current: (() => Promise<boolean>) | null } | undefined;
 }): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const tGroups = useTranslation('quote_requests');
   const groupLabels = useQuoteLineGroupLabels();
@@ -1505,7 +1507,7 @@ function ModifyCard({
           Number(typedDays) === 0
             ? 'rfq.detail.validity.help.previewImmediate'
             : 'rfq.detail.validity.help.preview',
-          { date: formatDateTime(previewDeadline.toISOString()) },
+          { date: formatDateTime(previewDeadline.toISOString(), language) },
         )
       : currentValidity.kind === 'none'
         ? t('rfq.detail.validity.help.keepNone')
@@ -1513,7 +1515,7 @@ function ModifyCard({
             currentValidity.kind === 'active'
               ? 'rfq.detail.validity.help.keepActive'
               : 'rfq.detail.validity.help.keepLapsed',
-            { date: formatDateTime(currentValidity.expiresAt) },
+            { date: formatDateTime(currentValidity.expiresAt, language) },
           );
 
   return (

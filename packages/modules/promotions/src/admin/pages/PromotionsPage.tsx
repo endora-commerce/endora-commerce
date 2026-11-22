@@ -14,7 +14,7 @@ import {
   type ListPageLoad,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import type { PromotionListResponse } from '@endora-commerce/contracts';
 
 type AdminPromotion = PromotionListResponse['data'][number];
@@ -41,6 +41,7 @@ function effectValue(p: AdminPromotion): string {
  * row's other actions in its menu.
  */
 export const PromotionsPage = (): ReactNode => {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const tp = useTranslation('promotions');
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -154,8 +155,8 @@ export const PromotionsPage = (): ReactNode => {
       render: (p) => (
         <span className="text-xs text-muted-foreground">
           {tp('list.validRange', {
-            from: p.validFrom ? formatDateTime(p.validFrom) : '—',
-            until: p.validUntil ? formatDateTime(p.validUntil) : '—',
+            from: p.validFrom ? formatDateTime(p.validFrom, language) : '—',
+            until: p.validUntil ? formatDateTime(p.validUntil, language) : '—',
           })}
         </span>
       ),

@@ -4,7 +4,7 @@ import type { ShipmentStatus } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, AlertTitle, Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section } from '@endora-commerce/admin-kit/ui';
 import type { BadgeProps } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, selectZoneContributions, useAdminContributions } from '@endora-commerce/admin-kit/zones';
 
 interface ShipmentRow {
@@ -89,6 +89,7 @@ export function OrderShipmentsTab(props: {
   orderId: string;
   deliveryMethodCode: string;
 }): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const [rows, setRows] = useState<ShipmentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -234,7 +235,7 @@ export function OrderShipmentsTab(props: {
                       </Badge>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{s.externalReference ?? '—'}</TableCell>
-                    <TableCell>{formatDateTime(s.createdAt)}</TableCell>
+                    <TableCell>{formatDateTime(s.createdAt, language)}</TableCell>
                     <TableCell className="text-destructive">{s.failureReason ?? ''}</TableCell>
                     {showRowActions ? (
                       <TableCell>

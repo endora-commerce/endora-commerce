@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom';
 import { ArrowRight, Scale } from 'lucide-react';
 import { scopeNoticeOf, type ComparisonAdminListItem, type ScopeNoticeCode } from '@endora-commerce/contracts';
-import { ApiError, useAuth, useModulePresence } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { ApiError, useAuth, useModulePresence, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   Alert,
   AlertDescription,
@@ -35,6 +35,7 @@ import { listComparisons } from '../api/comparisons-client.js';
  */
 export default function ComparisonsListPage(): ReactNode {
   const t = useTranslation('comparisons');
+  const { language } = useTranslationContext();
   const { hasPermission } = useAuth();
   const { isPresent } = useModulePresence();
   const showPdfTemplate = isPresent('document_templates') && hasPermission('document_templates:read');
@@ -217,7 +218,7 @@ export default function ComparisonsListPage(): ReactNode {
                       </TableCell>
                       <TableCell>{c.productCount}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(c.createdAt).toLocaleString()}
+                        {formatDateTime(c.createdAt, language)}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button asChild variant="ghost" size="sm">

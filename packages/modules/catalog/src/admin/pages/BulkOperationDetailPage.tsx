@@ -11,7 +11,7 @@ import {
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient, cn, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, InlineStatus, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { lookupProductLabels, type ProductLabel } from '../lib/product-labels.js';
 import { bulkOperationLogText } from '../lib/bulk-operation-log-text.js';
 import { isUnchangedResult } from '../lib/bulk-result-outcome.js';
@@ -72,6 +72,7 @@ const KNOWN_OPERATION_TYPES = new Set<string>([
 type ProductInfo = ProductLabel;
 
 export function BulkOperationDetailPage(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('catalog');
   const { confirm, confirmDialog } = useConfirmDialog();
   const { id = '' } = useParams<{ id: string }>();
@@ -291,12 +292,12 @@ export function BulkOperationDetailPage(): ReactNode {
             <Field label={t('bulkOperations.detail.field.requestedBy')}>
               <span className="font-mono text-xs">{op.requestedByAdminUserId}</span>
             </Field>
-            <Field label={t('bulkOperations.column.created')}>{formatDateTime(op.createdAt)}</Field>
+            <Field label={t('bulkOperations.column.created')}>{formatDateTime(op.createdAt, language)}</Field>
             <Field label={t('bulkOperations.detail.field.started')}>
-              {op.startedAt ? formatDateTime(op.startedAt) : '—'}
+              {op.startedAt ? formatDateTime(op.startedAt, language) : '—'}
             </Field>
             <Field label={t('bulkOperations.detail.field.finished')}>
-              {op.finishedAt ? formatDateTime(op.finishedAt) : '—'}
+              {op.finishedAt ? formatDateTime(op.finishedAt, language) : '—'}
             </Field>
             <Field label={t('bulkOperations.detail.changedFields')}>
               {op.touchedFields.length > 0 ? op.touchedFields.join(', ') : '—'}
@@ -314,7 +315,7 @@ export function BulkOperationDetailPage(): ReactNode {
             <ul className="space-y-1 font-mono text-xs">
               {op.logs.map((entry, idx) => (
                 <li key={idx} className="flex flex-wrap gap-2">
-                  <span className="text-muted-foreground">{formatDateTime(entry.ts)}</span>
+                  <span className="text-muted-foreground">{formatDateTime(entry.ts, language)}</span>
                   <span className={cn('uppercase', LOG_LEVEL_CLASS[entry.level])}>{entry.level}</span>
                   <span className={LOG_LEVEL_CLASS[entry.level]}>{bulkOperationLogText(t, entry)}</span>
                 </li>

@@ -16,7 +16,7 @@ import {
   useListPagination,
   type ListPageLoad,
 } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Bulk actions ("Akcje masowe") — feature: queued product bulk-edit.
@@ -87,6 +87,7 @@ function operationTypeLabel(
 }
 
 export function BulkOperationsPage(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('catalog');
   const pager = useListPagination({ scope: 'catalog-bulk-operations', maxPageSize: MAX_PAGE_SIZE });
   const { resetPage, syncTotal } = pager;
@@ -221,14 +222,14 @@ export function BulkOperationsPage(): ReactNode {
                 {operationTypeLabel(op, t)}
               </Link>
             ),
-            meta: (op) => formatDateTime(op.createdAt),
+            meta: (op) => formatDateTime(op.createdAt, language),
           },
           {
             id: 'created',
             header: t('bulkOperations.column.created'),
             hideOnMobile: true,
             className: 'whitespace-nowrap',
-            render: (op) => formatDateTime(op.createdAt),
+            render: (op) => formatDateTime(op.createdAt, language),
           },
           {
             id: 'status',

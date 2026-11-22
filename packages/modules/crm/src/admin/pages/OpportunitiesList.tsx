@@ -349,13 +349,13 @@ export function OpportunitiesList(): ReactNode {
     {
       id: 'expectedClose',
       header: t('opportunity.list.col.expectedClose'),
-      render: (row) => calendarDateLabel(row.expectedCloseDate),
+      render: (row) => calendarDateLabel(row.expectedCloseDate, language),
     },
     {
       id: 'created',
       header: t('opportunity.list.col.created'),
       hideOnMobile: true,
-      render: (row) => formatDateTime(row.createdAt),
+      render: (row) => formatDateTime(row.createdAt, language),
     },
   ];
 

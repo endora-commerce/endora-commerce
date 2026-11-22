@@ -8,7 +8,7 @@ import type {
   WebhookListResponse,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   Alert,
   AlertDescription,
@@ -50,6 +50,7 @@ import { useDeliverableEventTypes } from '../use-deliverable-event-types.js';
  * under the list, unchanged.
  */
 export default function WebhooksPage(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const { confirm, confirmDialog } = useConfirmDialog();
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
@@ -351,7 +352,7 @@ export default function WebhooksPage(): ReactNode {
                     <TableCell className="max-w-[240px] truncate text-xs text-muted-foreground">
                       {d.lastError ?? '—'}
                     </TableCell>
-                    <TableCell>{formatDateTime(d.createdAt)}</TableCell>
+                    <TableCell>{formatDateTime(d.createdAt, language)}</TableCell>
                     <TableCell>
                       {d.status === 'failed' || d.status === 'dead_lettered' ? (
                         <Button

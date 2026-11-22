@@ -16,7 +16,7 @@ import {
   useListPagination,
   type ListPageLoad,
 } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 const STATUSES = ['active', 'blocked', 'deleted'] as const;
 type StatusFilter = '' | (typeof STATUSES)[number];
@@ -57,6 +57,7 @@ function customerName(c: AdminCustomerListItem): string {
  * always paged, and the screen showed its first 20 rows and nothing else).
  */
 export function CustomersList(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('customers');
   const { hasPermission } = useAuth();
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -280,7 +281,7 @@ export function CustomersList(): ReactNode {
               id: 'created',
               header: t('list.column.created'),
               hideOnMobile: true,
-              render: (c) => formatDateTime(c.createdAt),
+              render: (c) => formatDateTime(c.createdAt, language),
             },
           ]}
         />

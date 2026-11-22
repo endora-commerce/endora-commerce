@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '../../ui/alert.js';
 import { Badge } from '../../ui/badge.js';
 import { Button } from '../../ui/button.js';
 import { Label } from '../../ui/label.js';
+import { useTranslationContext } from '../../i18n/TranslationProvider.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { EditorSection, useEditorSectionChrome, type EditorSectionChrome } from '../../ui/editor-section.js';
 import { ModalDialog } from '../modal-dialog/ModalDialog.js';
@@ -118,6 +119,7 @@ export interface CommentThreadProps<C extends RecordComment = RecordComment> {
 export function CommentThread<C extends RecordComment = RecordComment>(props: CommentThreadProps<C>): ReactNode {
   const { api, kind, copy, canWrite, onCountChange, onEntries } = props;
   const t = useTranslation('core');
+  const { language } = useTranslationContext();
   const inherited = useEditorSectionChrome();
   const chrome = props.chrome ?? inherited;
   const { me } = useAuth();
@@ -250,7 +252,7 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                     <span className="text-sm font-medium text-foreground">{item.author.name}</span>
-                    <time dateTime={item.createdAt}>{(props.formatTime ?? formatDateTime)(item.createdAt)}</time>
+                    <time dateTime={item.createdAt}>{props.formatTime ? props.formatTime(item.createdAt) : formatDateTime(item.createdAt, language)}</time>
                     {item.editedAt && !deleted ? (
                       <Badge variant="outline" className="font-normal">
                         {t('comments.edited')}

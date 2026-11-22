@@ -16,6 +16,8 @@ import {
   type EditorSectionChrome,
   type EditorSectionHeading,
 } from '../ui/editor-section.js';
+import { useAppLanguage } from '../i18n/app-language-context.js';
+import { formatDateTime } from '../lib/format.js';
 import { describeFieldPath } from './describe-path.js';
 import { useFieldProtection } from './use-field-protection.js';
 import type { FieldProtectionSource } from './types.js';
@@ -41,6 +43,7 @@ export function FieldProtectionSummary({
   titleAs,
 }: FieldProtectionSummaryProps): ReactNode {
   const protection = useFieldProtection(source);
+  const { language } = useAppLanguage();
   if (!protection.available) return null;
 
   const t = source.t;
@@ -82,7 +85,9 @@ export function FieldProtectionSummary({
         {synced && !Number.isNaN(synced.getTime()) ? (
           <span>
             {t('fieldProtection.lastSyncedAt')}:{' '}
-            <time dateTime={protection.lastSyncedAt ?? undefined}>{synced.toLocaleString()}</time>
+            <time dateTime={protection.lastSyncedAt ?? undefined}>
+              {formatDateTime(protection.lastSyncedAt, language)}
+            </time>
           </span>
         ) : null}
       </div>
