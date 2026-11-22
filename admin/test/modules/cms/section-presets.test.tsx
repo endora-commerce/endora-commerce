@@ -301,10 +301,10 @@ describe('section presets insert their copy in the content language (#1684)', ()
     async (id) => {
       const tree = await insertPreset(id, 'pl');
       expect(tree).toContain(POLISH_HEADLINE[id]);
-      for (const text of copyStrings('pl', id)) expect(tree).toContain(JSON.stringify(text).slice(1, -1));
+      for (const text of copyStrings('pl', id)) expect(tree).toContain(JSON.stringify(text));
       const polish = new Set(copyStrings('pl', id));
       for (const text of copyStrings('en', id).filter((value) => !polish.has(value))) {
-        expect(tree).not.toContain(JSON.stringify(text).slice(1, -1));
+        expect(tree).not.toContain(JSON.stringify(text));
       }
     },
     30_000,
@@ -314,7 +314,7 @@ describe('section presets insert their copy in the content language (#1684)', ()
     '%s: a content language with no row gets the English copy',
     async (id) => {
       const tree = await insertPreset(id, 'de-DE');
-      for (const text of copyStrings('en', id)) expect(tree).toContain(JSON.stringify(text).slice(1, -1));
+      for (const text of copyStrings('en', id)) expect(tree).toContain(JSON.stringify(text));
       expect(tree).not.toContain(POLISH_HEADLINE[id]);
     },
     30_000,

@@ -38,16 +38,17 @@ export type ContentDefault = (key: PageBuilderContentDefaultKey) => string;
  * this file's own table, and a module's table of the content it seeds (the
  * cms section presets' placeholder copy).
  */
-export function contentDefaultsIn<Row>(
-  table: Readonly<Record<SupportedLanguage, Row>>,
+export function contentDefaultsIn<Table extends Readonly<Record<SupportedLanguage, unknown>>>(
+  table: Table,
   locale: string | null | undefined,
-): Row {
+): Table[SupportedLanguage] {
   return table[supportedLanguageOf(locale)];
 }
 
 /** The default `key` in the BCP-47 `locale` (`pl-PL`, `pl`), English when it has none. */
 export function contentDefaultFor(locale: string | null | undefined, key: PageBuilderContentDefaultKey): string {
-  return contentDefaultsIn<Record<PageBuilderContentDefaultKey, string>>(PAGE_BUILDER_CONTENT_DEFAULTS, locale)[key];
+  const row: Record<PageBuilderContentDefaultKey, string> = contentDefaultsIn(PAGE_BUILDER_CONTENT_DEFAULTS, locale);
+  return row[key];
 }
 
 /** Which default props of which block are content defaults: block name → prop → key. */
