@@ -142,6 +142,22 @@ describe('the editor scope in the URL (feature 174, FR-056)', () => {
     ]);
   });
 
+  it('a read still in flight when the editor closes writes no preference afterwards (#1610)', async () => {
+    // The one-Save file's "Save in the scope guard" case ends while the Retail read is in flight;
+    // that read used to resolve after unmount, start the 500 ms timer anew and write into the
+    // next case's request log.
+    let answer: (() => void) | undefined;
+    setUpEditorApi({
+      read: (scope: ScopeRef) => new Promise((resolve) => (answer = () => resolve(defaultRead(scope)))),
+    });
+    const view = renderEditor(ProductEditor, { url: url(`?scope=channel&channel=${CH_VIP}`) });
+    await waitFor(() => expect(answer).toBeDefined());
+    view.unmount();
+    answer!();
+    await pastTheDebounce();
+    expect(preferenceWrites()).toEqual([]);
+  });
+
   it('keeps the tab in the URL across a scope change', async () => {
     const view = renderEditor(ProductEditor, { url: url('?scope=global&tab=media') });
     await screen.findByRole('option', { name: 'B2B VIP' });
