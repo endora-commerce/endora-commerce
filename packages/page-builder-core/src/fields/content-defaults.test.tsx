@@ -8,6 +8,7 @@ import {
   PageBuilderContentLocaleProvider,
   contentDefaultFor,
   useContentDefault,
+  withContentDefaultProps,
   type PageBuilderContentDefaultKey,
 } from './content-defaults.js';
 
@@ -69,5 +70,33 @@ describe('page-builder content defaults (#1684)', () => {
 
   it('answers English outside a provider, so a host that names no locale keeps today\'s content', () => {
     expect(read(<Probe name="readMore.summary" />)).toBe('Read more');
+  });
+
+  it('the latest-posts read-more label has a default in each language', () => {
+    expect(contentDefaultFor('pl-PL', 'latestPosts.readMoreLabel')).toBe('Czytaj więcej');
+    expect(contentDefaultFor('en-US', 'latestPosts.readMoreLabel')).toBe('Read more');
+  });
+});
+
+describe('withContentDefaultProps (#1684)', () => {
+  const config = {
+    components: {
+      'blog.LatestPosts': { render: () => null, defaultProps: { readMoreLabel: 'Read more', limit: 6 } },
+      'cms.Text': { render: () => null, defaultProps: { text: 'Text' } },
+    },
+  };
+  const map = { 'blog.LatestPosts': { readMoreLabel: 'latestPosts.readMoreLabel' } } as const;
+
+  it('seeds the mapped default props of a block in the content locale, and leaves the rest', () => {
+    const localized = withContentDefaultProps(config, 'pl-PL', map);
+    expect(localized.components['blog.LatestPosts'].defaultProps).toEqual({ readMoreLabel: 'Czytaj więcej', limit: 6 });
+    expect(localized.components['cms.Text']).toBe(config.components['cms.Text']);
+    // The input config is not changed.
+    expect(config.components['blog.LatestPosts'].defaultProps.readMoreLabel).toBe('Read more');
+  });
+
+  it('ignores a mapped block the config does not offer', () => {
+    const localized = withContentDefaultProps({ components: {} }, 'pl', map);
+    expect(localized.components).toEqual({});
   });
 });

@@ -1,8 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, waitFor } from '@testing-library/react';
-import type { Data } from '@puckeditor/core';
+import type { ComponentConfig, Data } from '@puckeditor/core';
+import type { CmsPageBuilderDescriptor } from '@endora-commerce/contracts';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
-import { fieldsPanel, mountPageBuilderEditor, selectOutlineItem, shippedBundles, stubEditorApi } from './page-builder-editor-harness';
+import {
+  editorDescriptor,
+  fieldsPanel,
+  mountPageBuilderEditor,
+  selectOutlineItem,
+  shippedBundles,
+  stubEditorApi,
+} from './page-builder-editor-harness';
+import { buildPageBuilderEditorConfig } from '../../../../packages/modules/cms/src/admin/components/PageBuilderEditor';
 
 /**
  * Issue #1684 (UX audit, follow-up to #1680) — the rich-text toolbar's *Read
@@ -85,4 +94,24 @@ describe('the read-more summary follows the edited content language (#1684)', ()
   it('an English page edited in a Polish admin gets an English summary', async () => {
     expect(await insertReadMore('pl', 'en-US')).toBe('Read more');
   }, 30_000);
+});
+
+describe('a block dropped from the drawer starts with its copy in the edited content language (#1684)', () => {
+  const EN = shippedBundles('en') as unknown as Record<string, Record<string, string>>;
+  const readMoreLabel = (contentLocale: string | null): unknown => {
+    const config = buildPageBuilderEditorConfig({
+      descriptor: editorDescriptor() as unknown as CmsPageBuilderDescriptor,
+      context: 'cms',
+      t: (key) => EN['cms']?.[key] ?? key,
+      translateInScope: (scope, key) => EN[scope]?.[key] ?? `${scope}.${key}`,
+      contentLocale,
+    });
+    return ((config.components['blog.LatestPosts'] as ComponentConfig).defaultProps as Record<string, unknown>)['readMoreLabel'];
+  };
+
+  it('blog.LatestPosts\' read-more label', () => {
+    expect(readMoreLabel('pl-PL')).toBe('Czytaj więcej');
+    expect(readMoreLabel('en-US')).toBe('Read more');
+    expect(readMoreLabel(null)).toBe('Read more');
+  });
 });
