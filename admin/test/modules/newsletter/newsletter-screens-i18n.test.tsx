@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { shippedCoreBundle, shippedModuleBundle } from '../../helpers/core-bundle';
 import { orphanLabels } from '../../helpers/orphan-labels';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 
 /**
  * Issue #1463 (UX audit CONTENT-05) — eight of the newsletter's nine screens
@@ -139,12 +140,16 @@ describe.each(['en', 'pl'] as const)('newsletter screens in %s (#1463)', (langua
   };
 
   function mount(path: string, route: string, element: ReactElement): HTMLElement {
+    // Under the real session provider: a paged list remembers the admin's page size (#1749).
     return renderWithI18n(
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path={route} element={element} />
-        </Routes>
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path={route} element={element} />
+          </Routes>
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       bundle,
       { language },
     ).container;
@@ -264,9 +269,12 @@ describe.each(['en', 'pl'] as const)('newsletter screens in %s (#1463)', (langua
   it('a new e-mail block labels its code and name', async () => {
     mount('/newsletter/blocks', '/newsletter/blocks', <BlocksPage />);
     await waitFor(() => expect(newsletterClient.listBlocks).toHaveBeenCalled());
+    // The editor is no longer drawn open above the list (#1749): New block opens it.
+    expect(await screen.findByText(key('emailBlocks.empty'))).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: key('emailBlocks.field.code') })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: key('emailBlocks.new.title') }));
     expect(screen.getByRole('textbox', { name: key('emailBlocks.field.code') })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: key('emailBlocks.field.name') })).toBeInTheDocument();
-    expect(screen.getByText(key('emailBlocks.empty'))).toBeInTheDocument();
   });
 
   it('the sending provider labels the sender and the throttle', async () => {

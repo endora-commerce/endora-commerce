@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { answerConfirm } from '../../helpers/confirm-dialog';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 
@@ -120,7 +121,8 @@ describe('newsletter deletes ask first (#1464)', () => {
   });
 
   it('subscriber: names the address and says it stays unmailable', async () => {
-    renderWithI18n(<SubscribersPage />, bundle('en'));
+    // Under the real session provider: the list remembers the admin's page size (#1749).
+    renderWithI18n(withSession(<SubscribersPage />, { session: adminSession({ permissions: ['*'] }) }), bundle('en'));
     const dialog = await clickDelete('ann@example.test');
 
     expect(dialog).toHaveTextContent('ann@example.test');

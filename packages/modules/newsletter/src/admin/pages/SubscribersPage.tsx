@@ -1,14 +1,33 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Users } from 'lucide-react';
 import type { ScopeNoticeCode, SubscriberSummary } from '@endora-commerce/contracts';
-import { ScopeNotice, useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import {
+  ListPage,
+  ListToolbar,
+  ListToolbarSearch,
+  ResponsiveTable,
+  ScopeNotice,
+  useConfirmDialog,
+  useDebouncedValue,
+  useListPagination,
+  type ListPageLoad,
+} from '@endora-commerce/admin-kit/components';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
-import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, FormField, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EmptyState, Input } from '@endora-commerce/admin-kit/ui';
 import { newsletterClient } from '../api/newsletter-client.js';
 import { describeDeleteError } from '../describe-delete-error.js';
 import { subscriberStatusLabels } from '../lib/labels.js';
 
+/** `GET …/newsletter/subscribers` serves at most 200 rows a page (`subscriberListQuerySchema`). */
+const MAX_PAGE_SIZE = 200;
+
+/**
+ * The newsletter subscribers. The kit's `ListPage` since issue #1749: the
+ * search and the tag filter are the toolbar row and run as the operator types
+ * (one request per pause), the subscriber count is the list's count, and the
+ * pager pages the whole list — the screen used to show the first 50 and stop.
+ */
 export function SubscribersPage(): React.ReactElement {
   const { hasPermission } = useAuth();
   const t = useTranslation('newsletter');
@@ -16,34 +35,47 @@ export function SubscribersPage(): React.ReactElement {
   const { language } = useTranslationContext();
   const { confirm, confirmDialog } = useConfirmDialog();
   const canWrite = hasPermission('newsletter:write');
+  const pager = useListPagination({ scope: 'newsletter-subscribers', maxPageSize: MAX_PAGE_SIZE });
+  const { resetPage, syncTotal } = pager;
+  const { page, pageSize } = pager.query;
   const [items, setItems] = useState<SubscriberSummary[]>([]);
   const [total, setTotal] = useState(0);
   // Feature 087 — an empty list is not the same statement as "there are no
   // subscribers", and only the server knows which one it just made.
   const [scopeNotice, setScopeNotice] = useState<ScopeNoticeCode | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [q, setQ] = useState('');
   const [tag, setTag] = useState('');
-  // Until the first answer the list is unknown, not empty (#1448).
-  const [loaded, setLoaded] = useState(false);
+  const query = useDebouncedValue(q.trim());
+  const tagQuery = useDebouncedValue(tag.trim());
   const searchRef = useRef<HTMLInputElement>(null);
-  const filtered = q.trim() !== '' || tag.trim() !== '';
-
-  const load = useCallback(() => {
-    newsletterClient
-      .listSubscribers({ page: 1, pageSize: 50, ...(q ? { q } : {}), ...(tag ? { tag } : {}) })
-      .then((res) => {
-        setItems(res.items);
-        setTotal(res.total);
-        setScopeNotice(res.scopeNotice);
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoaded(true));
-  }, [q, tag]);
+  // "Nothing matches" is decided from what the rows were asked for, not from what is still being typed.
+  const filtered = query !== '' || tagQuery !== '';
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let alive = true;
+    setLoad((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading' }));
+    newsletterClient
+      .listSubscribers({ page, pageSize, ...(query ? { q: query } : {}), ...(tagQuery ? { tag: tagQuery } : {}) })
+      .then((res) => {
+        if (!alive) return;
+        setItems(res.items);
+        setTotal(res.total);
+        syncTotal(res.total);
+        setScopeNotice(res.scopeNotice);
+        setLoad({ kind: 'ready' });
+      })
+      .catch((err: unknown) => {
+        if (alive) setLoad({ kind: 'error', message: err instanceof Error ? err.message : String(err) });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [page, pageSize, query, tagQuery, reloadKey, syncTotal]);
+
+  const reload = useCallback((): void => setReloadKey((key) => key + 1), []);
 
   if (!hasPermission('newsletter:read')) {
     return (
@@ -53,11 +85,17 @@ export function SubscribersPage(): React.ReactElement {
     );
   }
 
-  const exportHref = newsletterClient.subscribersExportUrl({ ...(q ? { q } : {}), ...(tag ? { tag } : {}) });
+  const exportHref = newsletterClient.subscribersExportUrl({ ...(query ? { q: query } : {}), ...(tagQuery ? { tag: tagQuery } : {}) });
+
+  const clearFilters = (): void => {
+    setQ('');
+    setTag('');
+    resetPage();
+  };
 
   /** Issue #1464 — a delete asks first, and runs inside the dialog. */
   async function confirmDelete(subscriber: SubscriberSummary): Promise<void> {
-    setError(null);
+    setActionError(null);
     await confirm({
       title: t('delete.subscriber.title'),
       message: t('delete.subscriber.message', { email: subscriber.email }),
@@ -65,123 +103,126 @@ export function SubscribersPage(): React.ReactElement {
       destructive: true,
       action: async () => {
         await newsletterClient.deleteSubscriber(subscriber.id);
-        load();
+        reload();
       },
       describeError: describeDeleteError(t),
     });
   }
 
   async function action(fn: () => Promise<unknown>): Promise<void> {
+    setActionError(null);
     try {
       await fn();
-      load();
+      reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setActionError(err instanceof Error ? err.message : String(err));
     }
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeader
+    <>
+      <ListPage
         title={t('subscribers.title')}
-        description={t(`subscribers.count.${new Intl.PluralRules(language).select(total)}`, {
+        toolbar={
+          <ListToolbar
+            className="min-w-0 flex-1"
+            label={t('subscribers.toolbar')}
+            search={
+              <ListToolbarSearch
+                ref={searchRef}
+                label={t('subscribers.search')}
+                value={q}
+                onValueChange={(next): void => {
+                  setQ(next);
+                  resetPage();
+                }}
+              />
+            }
+            filters={
+              <Input
+                aria-label={t('subscribers.tagFilter')}
+                placeholder={t('subscribers.tagFilter')}
+                className="w-40"
+                value={tag}
+                onChange={(e): void => {
+                  setTag(e.target.value);
+                  resetPage();
+                }}
+              />
+            }
+            actions={
+              <Button asChild variant="outline">
+                <a href={exportHref}>{t('subscribers.export')}</a>
+              </Button>
+            }
+            filtersActive={q.trim() !== '' || tag.trim() !== ''}
+            onClearFilters={clearFilters}
+          />
+        }
+        count={t(`subscribers.count.${new Intl.PluralRules(language).select(total)}`, {
           count: new Intl.NumberFormat(language).format(total),
         })}
-      />
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      <div className="flex flex-wrap items-end gap-3">
-        <FormField label={t('subscribers.search')} className="w-full max-w-xs">
-          <Input ref={searchRef} type="search" value={q} onChange={(e) => setQ(e.target.value)} />
-        </FormField>
-        <FormField label={t('subscribers.tagFilter')} className="w-full max-w-xs">
-          <Input value={tag} onChange={(e) => setTag(e.target.value)} />
-        </FormField>
-        <Button asChild variant="outline" className="ml-auto">
-          <a href={exportHref}>{t('subscribers.export')}</a>
-        </Button>
-      </div>
-      <Card>
-        <CardContent className="p-0">
-          <table className="w-full text-sm">
-            <thead className="border-b text-left text-muted-foreground">
-              <tr>
-                <th className="p-3 font-medium">{t('subscribers.column.email')}</th>
-                <th className="p-3 font-medium">{t('common.column.status')}</th>
-                <th className="p-3 font-medium">{t('subscribers.column.tags')}</th>
-                <th className="p-3 font-medium">{t('subscribers.column.source')}</th>
-                {canWrite ? <th className="p-3 font-medium">{t('common.actions')}</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((s) => (
-                <tr key={s.id} className="border-b last:border-0 hover:bg-muted/40">
-                  <td className="p-3 font-medium">{s.email}</td>
-                  <td className="p-3">{subscriberStatusLabels.label(t, s.status)}</td>
-                  <td className="p-3 text-xs">{s.tags.join(', ') || '—'}</td>
-                  <td className="p-3 text-xs">{s.source ?? '—'}</td>
-                  {canWrite ? (
-                    <td className="p-3">
-                      {s.status === 'active' ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            void action(async () => {
-                              const detail = await newsletterClient.getSubscriber(s.id);
-                              await newsletterClient.unsubscribe(s.id, detail.version);
-                            })
-                          }
-                        >
-                          {t('subscribers.action.unsubscribe')}
-                        </Button>
-                      ) : null}
-                      <Button variant="ghost" size="sm" onClick={() => void confirmDelete(s)}>
-                        {tc('common.action.delete')}
+        notice={
+          actionError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{actionError}</AlertDescription>
+            </Alert>
+          ) : null
+        }
+        load={load}
+        onRetry={reload}
+        pagination={pager.footer(total)}
+      >
+        <ResponsiveTable
+          data={items}
+          keyExtractor={(s) => s.id}
+          emptyState={
+            // The server's scope notice says why first (feature 087);
+            // otherwise "nobody yet" and "nobody matches" are two
+            // situations with two next steps (#1448, DS-15).
+            scopeNotice ? (
+              <ScopeNotice notice={scopeNotice} />
+            ) : filtered ? (
+              <EmptyState variant="no-results" title={t('subscribers.empty')} onClearFilters={clearFilters} focusAfterClear={searchRef} />
+            ) : (
+              <EmptyState icon={<Users size={20} />} title={t('subscribers.emptyState.title')} description={t('subscribers.emptyState.body')} />
+            )
+          }
+          columns={[
+            { id: 'email', header: t('subscribers.column.email'), primary: true, render: (s) => <span className="font-medium">{s.email}</span> },
+            { id: 'status', header: t('common.column.status'), render: (s) => subscriberStatusLabels.label(t, s.status) },
+            { id: 'tags', header: t('subscribers.column.tags'), render: (s) => <span className="text-xs">{s.tags.join(', ') || '—'}</span> },
+            { id: 'source', header: t('subscribers.column.source'), hideOnMobile: true, render: (s) => <span className="text-xs">{s.source ?? '—'}</span> },
+          ]}
+          {...(canWrite
+            ? {
+                renderActions: (s: SubscriberSummary) => (
+                  <div className="flex justify-end gap-1">
+                    {s.status === 'active' ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          void action(async () => {
+                            const detail = await newsletterClient.getSubscriber(s.id);
+                            await newsletterClient.unsubscribe(s.id, detail.version);
+                          })
+                        }
+                      >
+                        {t('subscribers.action.unsubscribe')}
                       </Button>
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-              {loaded && items.length === 0 ? (
-                <tr>
-                  <td colSpan={canWrite ? 5 : 4}>
-                    {/* The server's scope notice says why first (feature 087);
-                        otherwise "nobody yet" and "nobody matches" are two
-                        situations with two next steps (#1448, DS-15). */}
-                    {scopeNotice ? (
-                      <div className="p-3">
-                        <ScopeNotice notice={scopeNotice} />
-                      </div>
-                    ) : filtered ? (
-                      <EmptyState
-                        variant="no-results"
-                        title={t('subscribers.empty')}
-                        onClearFilters={() => {
-                          setQ('');
-                          setTag('');
-                        }}
-                        focusAfterClear={searchRef}
-                      />
-                    ) : (
-                      <EmptyState
-                        icon={<Users size={20} />}
-                        title={t('subscribers.emptyState.title')}
-                        description={t('subscribers.emptyState.body')}
-                      />
-                    )}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+                    ) : null}
+                    <Button variant="ghost" size="sm" onClick={() => void confirmDelete(s)}>
+                      {tc('common.action.delete')}
+                    </Button>
+                  </div>
+                ),
+              }
+            : {})}
+        />
+      </ListPage>
       {confirmDialog}
-    </div>
+    </>
   );
 }
 
