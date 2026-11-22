@@ -291,8 +291,6 @@
   "workflow.col.code": "Code",
   "workflow.col.kind": "Kind",
   "workflow.col.position": "Position",
-  "reorder.moveUp": "Move {name} up",
-  "reorder.moveDown": "Move {name} down",
   "reorder.stale": "Someone else changed this list while you were reordering it. It has been reloaded; move the row again.",
   "reorder.failed": "The new order could not be saved, so the list is back as it was.",
   "workflow.col.inUse": "Opportunities",

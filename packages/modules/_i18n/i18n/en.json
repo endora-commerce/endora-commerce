@@ -1936,6 +1936,8 @@
   "promotions.value.freeDelivery": "free delivery",
   "reorder.groupLabel": "Reorder",
   "reorder.moveDown": "Move down",
+  "reorder.moveRowDown": "Move {name} down",
+  "reorder.moveRowUp": "Move {name} up",
   "reorder.moveUp": "Move up",
   "reorder.saving": "Saving order…",
   "returns.action.exportCsv": "Export CSV",

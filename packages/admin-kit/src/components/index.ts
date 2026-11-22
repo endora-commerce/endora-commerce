@@ -171,6 +171,11 @@ export type { KanbanBoardLabels, KanbanBoardProps, KanbanCardRenderState, Kanban
 export { ReorderAnnouncer } from './reorder/ReorderAnnouncer.js';
 export type { ReorderAnnouncerProps } from './reorder/ReorderAnnouncer.js';
 export { moveItem, useReorderList } from './reorder/useReorderList.js';
+// Issue #1633 — a configuration list reordered by one server call: the optimistic move, the rollback, ORDER_STALE.
+export { ReorderControls } from './reorder/ReorderControls.js';
+export type { ReorderControlsProps } from './reorder/ReorderControls.js';
+export { useServerReorder } from './reorder/useServerReorder.js';
+export type { ReorderableRow, ReorderNotice, UseServerReorderOptions, UseServerReorderResult } from './reorder/useServerReorder.js';
 // Feature 159 — named, ordered line groups: the editor and its section reorder hook.
 export { LineGroupsEditor, SplitLineDialog, canSplitLine, splitLineInto } from './line-groups/index.js';
 export type { LineGroupsEditorGroup, LineGroupsEditorLabels, LineGroupsEditorLine, LineGroupsEditorLineSlots, LineGroupsEditorProps, LineGroupsEditorSection, SplitLineDialogLabels, SplitLineDialogProps, SplitLineDialogTarget } from './line-groups/index.js';

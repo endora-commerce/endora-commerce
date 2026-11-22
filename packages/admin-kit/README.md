@@ -10,7 +10,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 | Subpath | What it is |
 | --- | --- |
 | `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header` (`PageHeader`, see below), `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `empty-state` (`EmptyState`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `tabs` (`Tabs`, `TabPanel`, `RecordTabs`, see below), `editor-section` (`EditorSection`, see below), `separator` |
-| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `ListToolbar` with `ListToolbarSearch` and `FilterChip` (see below), `ViewModeToggle` (see below), `RowActionMenu`, `DetailHeaderActions` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
+| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `ListToolbar` with `ListToolbarSearch` and `FilterChip` (see below), `ViewModeToggle` (see below), `RowActionMenu`, `DetailHeaderActions` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `useServerReorder` with `ReorderControls` (see below), `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
 | `./contributions` | the declaration types, re-exported from `@endora-commerce/contracts` so a module needs one import for the shapes and not two |
@@ -982,6 +982,37 @@ same way (Jakob's Law). It sits first in the `PageHeader` actions.
   alone. `onChange` is not called for the view already on screen.
 - **The screen keeps the choice.** Tasks remembers it per admin (`useListViewModePreference`). CRM keeps
   it in the address (`/crm/opportunities?view=board`), so both views share one address and its filters.
+
+## A list the server orders — `useServerReorder` and `ReorderControls`
+
+Issue #1633, extracted from CRM and Tasks (#1560). For a configuration list whose order the server
+keeps and changes in one batch (`PUT …/order` with the whole list): the CRM workflow statuses, the
+Tasks statuses and priorities. A list ordered only on the client uses `useReorderList` instead.
+
+```tsx
+const reorder = useServerReorder({
+  rows: ordered, // { code, weight } rows, in list order
+  show: setRows,
+  save: async (orderedCodes) => setRows(await api.reorder(orderedCodes)),
+  reload: async () => setRows(await api.list()),
+  staleMessage: t('reorder.stale'),
+  failedMessage: (error) => errorMessage(error, t('reorder.failed')),
+});
+// per row:
+<ReorderControls name={row.name} isFirst={i === 0} isLast={i === rows.length - 1}
+  disabled={reorder.busy} onMove={(delta) => reorder.move(row.code, delta)} />
+```
+
+- **The row moves at once.** Weights are rewritten in steps of ten, so a table sorted by weight shows
+  the move before the server answers. One save carries the whole list.
+- **A refusal puts the list back** and sets `notice` to `{ kind: 'failed' }`. A 409 `ORDER_STALE` (the
+  list changed under the operator) reloads it and sets `{ kind: 'stale' }`. The screen shows `notice`
+  in an `Alert` beside the table.
+- **One move at a time.** `busy` is true while a save is in flight, and `move` ignores calls until it
+  settles. `ReorderControls` then sets `aria-disabled` rather than `disabled`, so the focus stays on
+  the button as the row moves under it.
+- The controls are `TouchReorderButtons` on a touch screen and two arrow buttons on a pointer screen.
+  Their names are `core` copy that names the row (`reorder.moveRowUp`, `reorder.moveRowDown`).
 
 ## Known rough edge
 
