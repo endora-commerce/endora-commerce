@@ -117,8 +117,9 @@ describe('OrderStatusConfigPage', () => {
       },
     });
     renderPage('pl');
-    expect(await screen.findByText('Nowy')).toBeInTheDocument();
-    expect(screen.getByText('Oczekujące')).toBeInTheDocument();
+    // The row's own actions are named by the status, so they say which name it is shown by.
+    expect(await screen.findByRole('button', { name: 'Edit status Oczekujące' })).toBeInTheDocument();
+    expect(screen.getAllByText('Nowy').length).toBeGreaterThan(0);
     expect(screen.queryByText('Pending')).toBeNull();
   });
 
