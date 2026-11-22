@@ -6,10 +6,11 @@ import { SUPPORTED_LANGUAGES } from '@endora-commerce/contracts/platform-languag
 import {
   PAGE_BUILDER_CONTENT_DEFAULTS,
   contentDefaultFor,
+  contentDefaultsIn,
   withContentDefaultProps,
   type PageBuilderContentDefaultKey,
 } from './content-defaults-table.js';
-import { PageBuilderContentLocaleProvider, useContentDefault } from './content-defaults.js';
+import { PageBuilderContentLocaleProvider, useContentDefault, useContentLocale } from './content-defaults.js';
 
 /**
  * Issue #1684 (UX audit, follow-up to #1680) — the content the page builder
@@ -97,5 +98,41 @@ describe('withContentDefaultProps (#1684)', () => {
   it('ignores a mapped block the config does not offer', () => {
     const localized = withContentDefaultProps({ components: {} }, 'pl', map);
     expect(localized.components).toEqual({});
+  });
+});
+
+/**
+ * Issue #1684, section presets — a module that seeds more content than this
+ * table holds (the cms section presets' placeholder copy) keeps its own
+ * per-language table and reads its row through the same lookup, in the content
+ * locale the provider names.
+ */
+describe('contentDefaultsIn and useContentLocale (#1684)', () => {
+  const table = { en: { greeting: 'Hello' }, pl: { greeting: 'Cześć' } } as const;
+
+  it.each([
+    ['pl-PL', 'Cześć'],
+    ['en', 'Hello'],
+    // A language with no row is English, never another language.
+    ['de', 'Hello'],
+    [null, 'Hello'],
+  ])('answers the row of the content locale %j', (locale, expected) => {
+    expect(contentDefaultsIn(table, locale).greeting).toBe(expected);
+  });
+
+  it('is the lookup the page builder\'s own defaults go through', () => {
+    expect(contentDefaultsIn(PAGE_BUILDER_CONTENT_DEFAULTS, 'pl')['readMore.summary']).toBe(
+      contentDefaultFor('pl', 'readMore.summary'),
+    );
+  });
+
+  function LocaleProbe(): ReactElement {
+    return <output>{useContentLocale() ?? '(none)'}</output>;
+  }
+
+  it('reads the locale the provider names, and none outside one', () => {
+    expect(read(<PageBuilderContentLocaleProvider locale="pl-PL"><LocaleProbe /></PageBuilderContentLocaleProvider>)).toBe('pl-PL');
+    act(() => root?.unmount());
+    expect(read(<LocaleProbe />)).toBe('(none)');
   });
 });
