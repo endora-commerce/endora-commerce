@@ -92,7 +92,7 @@ function openWithPointer(): HTMLElement {
   return screen.getByRole('menu');
 }
 
-/** The feed's rows — every menu entry but the header's "Mark all read". */
+/** The feed's rows — every menu entry but the footer's "Mark all read". */
 function rows(): HTMLElement[] {
   return within(screen.getByRole('menu'))
     .getAllByRole('menuitem')
@@ -200,6 +200,40 @@ describe('NotificationBell — the kit DropdownMenu keyboard contract (#1783)', 
     await userEvent.keyboard('{Enter}');
     expect(markReadSpy).toHaveBeenCalledExactlyOnceWith('n-7');
     await waitFor(() => expect(screen.getByText('Task page')).toBeInTheDocument());
+  });
+
+  it('lands keyboard focus on the newest notification, so Enter twice cannot mark everything read', async () => {
+    renderBell([entry({ id: 'a', title: 'Newest' }), entry({ id: 'b', title: 'Older' })]);
+    bellButton().focus();
+    await userEvent.keyboard('{Enter}');
+    expect(focused()).toBe(rows()[0]);
+    expect(focused()).toHaveTextContent('Newest');
+    await userEvent.keyboard('{Enter}');
+    expect(markAllReadSpy).not.toHaveBeenCalled();
+    expect(markReadSpy).toHaveBeenCalledExactlyOnceWith('a');
+  });
+
+  it('puts "Mark all read" last, after a separator, where End reaches it', async () => {
+    renderBell([entry({ id: 'a' }), entry({ id: 'b' })]);
+    bellButton().focus();
+    await userEvent.keyboard('{Enter}');
+    const menu = screen.getByRole('menu');
+    const entries = within(menu).getAllByRole('menuitem');
+    const markAll = within(menu).getByRole('menuitem', { name: 'Mark all read' });
+    expect(entries.at(-1)).toBe(markAll);
+    expect(markAll.previousElementSibling).toHaveAttribute('role', 'separator');
+    await userEvent.keyboard('{End}');
+    expect(focused()).toBe(markAll);
+    await userEvent.keyboard('{Enter}');
+    expect(markAllReadSpy).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+  });
+
+  it('offers no "Mark all read" when nothing is unread', () => {
+    renderBell([entry({ isRead: true })]);
+    const menu = openWithPointer();
+    expect(within(menu).queryByRole('menuitem', { name: 'Mark all read' })).toBeNull();
+    expect(within(menu).queryByRole('separator')).toBeNull();
   });
 
   it('keeps the menu open after "Mark all read", so the result is visible where it was asked for', async () => {

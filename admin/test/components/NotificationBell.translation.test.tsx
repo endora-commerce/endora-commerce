@@ -96,10 +96,10 @@ function openBell(language: 'en' | 'pl', feed: AdminNotificationItem[]): HTMLEle
     screen.getByRole('button', { name: language === 'pl' ? /^Powiadomienia/ : /^Notifications/ }),
     { button: 0, ctrlKey: false },
   );
-  // One entry, after the header's "Mark all read" — the feed's only row is last.
+  // One entry, before the footer's "Mark all read" — the feed's only row is first.
   const entries = screen.getAllByRole('menuitem');
   expect(entries).toHaveLength(2);
-  return entries.at(-1)!;
+  return entries[0]!;
 }
 
 const MENTION = {

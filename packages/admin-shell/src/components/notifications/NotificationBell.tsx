@@ -8,6 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@endora-commerce/admin-kit/ui';
 import { notificationText } from './notification-text.js';
@@ -87,24 +88,10 @@ export function NotificationBell(): ReactElement {
           sideOffset={6}
           className="w-[340px] max-w-[calc(100vw-24px)] rounded-lg p-0 shadow-lg"
         >
-          <div className="flex items-center justify-between gap-2 border-b border-border bg-muted px-3.5 py-1.5">
+          <div className="border-b border-border bg-muted px-3.5 py-1.5">
             <DropdownMenuLabel id={titleId} className="p-0 text-sm font-semibold text-foreground">
               {t('appShell.notifications.title')}
             </DropdownMenuLabel>
-            {unreadCount > 0 ? (
-              <DropdownMenuItem
-                className="h-7 px-2 text-xs font-medium text-muted-foreground"
-                // Marking all read keeps the panel open, so the rows losing
-                // their unread mark is seen where it was asked for.
-                onSelect={(event): void => {
-                  event.preventDefault();
-                  void markAllRead();
-                }}
-              >
-                <CheckCheck aria-hidden="true" />
-                {t('appShell.notifications.markAllRead')}
-              </DropdownMenuItem>
-            ) : null}
           </div>
           <div className="max-h-[360px] overflow-y-auto">
             {items.length === 0 ? (
@@ -143,6 +130,28 @@ export function NotificationBell(): ReactElement {
               })
             )}
           </div>
+          {unreadCount > 0 ? (
+            <>
+              <DropdownMenuSeparator className="m-0" />
+              {/*
+                The footer, not the header: as the last entry, focus opening
+                the bell with Enter lands on the newest notification, so a
+                second Enter cannot wipe the unread state; End reaches it.
+              */}
+              <DropdownMenuItem
+                className="m-1 justify-center text-xs font-medium text-muted-foreground"
+                // Marking all read keeps the panel open, so the rows losing
+                // their unread mark is seen where it was asked for.
+                onSelect={(event): void => {
+                  event.preventDefault();
+                  void markAllRead();
+                }}
+              >
+                <CheckCheck aria-hidden="true" />
+                {t('appShell.notifications.markAllRead')}
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
