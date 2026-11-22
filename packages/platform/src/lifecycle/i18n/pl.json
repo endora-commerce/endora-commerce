@@ -13,5 +13,8 @@
   "adminRoles.permission.platform.command_outbox.manage": "Ponawianie nieudanych dostarczeń",
   "actions.openCommandOutbox.label": "Kolejka dostarczeń",
   "actions.openCommandOutbox.description": "Nieudane i oczekujące dostarczenia do innych modułów oraz ich ponawianie",
-  "actions.openCommandOutbox.keywords": "outbox, kolejka dostarczeń, dostarczenia, nieudane, ponów, ponowienie"
+  "actions.openCommandOutbox.keywords": "outbox, kolejka dostarczeń, dostarczenia, nieudane, ponów, ponowienie",
+  "module.name": "Cykl życia modułów",
+  "module.description": "Wewnętrzny podsystem platformy, który instaluje, odinstalowuje, włącza i wyłącza wszystkie moduły domenowe oraz raportuje ich stan.",
+  "module.nonDeactivatableReason": "Odpowiada za obecność modułów i za same przełączniki ich włączania; po wyłączeniu nie byłoby jak niczego z powrotem włączyć."
 }

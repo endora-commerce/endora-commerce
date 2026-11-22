@@ -1,4 +1,8 @@
-import type { MfaDeactivationGuardPort, MfaEnrolmentCountPort } from '@endora-commerce/contracts';
+import type {
+  AdminI18nTranslatePort,
+  MfaDeactivationGuardPort,
+  MfaEnrolmentCountPort,
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '../kernel/index.js';
 import { lazyPort } from '../kernel/index.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
@@ -180,6 +184,11 @@ export function registerModule(ctx: ModuleContext): void {
         await registerLifecycleAdminRoutes(app, {
           orchestrator,
           requireAdmin: cradle.requireAdmin,
+          // Issue #1809 — each module's name, description and lock reason in the
+          // reader's language. `_i18n` is non-deactivatable; a refusal still
+          // answers the manifest's English, since this route is ungated.
+          translate: (moduleId, key, language) =>
+            lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate(moduleId, key, language),
         });
       }
     },

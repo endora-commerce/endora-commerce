@@ -75,11 +75,16 @@ async function buildTestApp(opts: {
   orchestrator: ModuleLifecycleOrchestrator;
   authorize: boolean;
   permission?: string;
+  translate?: (moduleId: string, key: string, language: 'en' | 'pl') => Promise<string>;
 }): Promise<FastifyInstance> {
   const app = Fastify();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
-  registerErrorEnvelope(app);
+  // The reader's language, as the admin ladder would answer it: here, the header's first tag.
+  registerErrorEnvelope(app, {
+    resolvePreferredLanguage: async (request) =>
+      String(request.headers['accept-language'] ?? '').startsWith('pl') ? 'pl' : 'en',
+  });
 
   const requireAdmin = (perm?: string) => async (_req: unknown, reply: { code: (n: number) => unknown; send: (b: unknown) => unknown }) => {
     if (!opts.authorize) {
@@ -101,6 +106,7 @@ async function buildTestApp(opts: {
   await registerLifecycleAdminRoutes(app, {
     orchestrator: opts.orchestrator,
     requireAdmin: requireAdmin as never,
+    ...(opts.translate ? { translate: opts.translate } : {}),
   });
   await app.ready();
   return app;
@@ -169,5 +175,59 @@ describe('GET /api/v1/admin/modules — admin HTTP contract (E-1)', () => {
       url: '/api/v1/admin/modules',
     });
     expect(res.statusCode).toBe(401);
+  });
+});
+
+/**
+ * Issue #1809 — the module list in the reader's language: each module's name,
+ * description and lock reason from its own bundle, the manifest's English when
+ * the bundle has none, and the id beside them unchanged.
+ */
+describe('GET /api/v1/admin/modules — in the reader’s language (issue #1809)', () => {
+  const PL: Record<string, string> = {
+    'auth.module.name': 'Uwierzytelnianie',
+    'auth.module.description': 'Podstawy uwierzytelniania.',
+    'auth.module.nonDeactivatableReason': 'Rozpoznaje aktora każdego żądania.',
+  };
+  const rows: ModuleListItem[] = [
+    {
+      ...sampleModules[0]!,
+      description: 'Authentication primitives.',
+      nonDeactivatableReason: 'Resolves the actor for every request.',
+    },
+    sampleModules[1]!,
+  ];
+
+  async function list(acceptLanguage: string): Promise<ModuleListItem[]> {
+    const app = await buildTestApp({
+      orchestrator: buildOrchestratorStub(rows),
+      authorize: true,
+      translate: async (moduleId, key, language) =>
+        (language === 'pl' ? PL[`${moduleId}.${key}`] : undefined) ?? `${moduleId}.${key}`,
+    });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/modules',
+      headers: { 'accept-language': acceptLanguage },
+    });
+    expect(res.statusCode).toBe(200);
+    return ModuleListResponseSchema.parse(res.json()).modules;
+  }
+
+  it('names, describes and explains a module in Polish for a Polish reader', async () => {
+    const [auth, blog] = await list('pl-PL');
+    expect(auth).toMatchObject({
+      id: 'auth',
+      name: 'Uwierzytelnianie',
+      description: 'Podstawy uwierzytelniania.',
+      nonDeactivatableReason: 'Rozpoznaje aktora każdego żądania.',
+    });
+    // No Polish entry: the manifest's English.
+    expect(blog?.name).toBe('Blog');
+  });
+
+  it('answers the manifest English for an English reader', async () => {
+    const [auth] = await list('en-US');
+    expect(auth).toMatchObject({ name: 'Auth', nonDeactivatableReason: 'Resolves the actor for every request.' });
   });
 });

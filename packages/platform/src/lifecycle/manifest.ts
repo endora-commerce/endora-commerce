@@ -60,6 +60,20 @@ export const manifest = defineModuleManifest({
    */
   nonBindingDependencies: [
     {
+      moduleId: '_i18n',
+      name: 'adminI18nService',
+      kind: 'degrades-without',
+      whenAbsent:
+        'The module list names, describes and explains every module in its manifest\'s ' +
+        'English, whatever language the administrator reads the screen in.',
+      reason:
+        'GET /api/v1/admin/modules names each module, describes it and says why it cannot be ' +
+        'switched off in the language the response is read in (issue #1809). The sentences are ' +
+        "each module's manifest prose and their translations are in that module's own bundle, " +
+        'which `_i18n` resolves. Non-binding because this is the sentinel manifest the install ' +
+        'order starts from, and the route is ungated: a lookup that fails answers the English.',
+    },
+    {
       moduleId: 'mfa',
       name: 'mfaDeactivationGuardPort',
       kind: 'degrades-without',
