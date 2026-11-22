@@ -3,7 +3,7 @@ import { KeyRound, Plus } from 'lucide-react';
 import type { ApiKey, ApiKeyListResponse } from '@endora-commerce/contracts';
 import { Link } from 'react-router-dom';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   Badge,
   Button,
@@ -34,6 +34,7 @@ import { API_KEYS_NEW_PATH } from '../paths.js';
  */
 export default function ApiKeysPage(): ReactNode {
   const t = useTranslation('core');
+  const { language } = useTranslationContext();
   const { confirm, confirmDialog } = useConfirmDialog();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
@@ -161,10 +162,10 @@ export default function ApiKeysPage(): ReactNode {
                       <span className="text-xs text-muted-foreground">{t('apiKeys.binding.unbound')}</span>
                     )}
                   </TableCell>
-                  <TableCell>{k.expiresAt ? formatDateTime(k.expiresAt) : '—'}</TableCell>
+                  <TableCell>{k.expiresAt ? formatDateTime(k.expiresAt, language) : '—'}</TableCell>
                   <TableCell className="font-mono text-xs">…{k.lastFour}</TableCell>
-                  <TableCell>{formatDateTime(k.lastUsedAt)}</TableCell>
-                  <TableCell>{formatDateTime(k.createdAt)}</TableCell>
+                  <TableCell>{formatDateTime(k.lastUsedAt, language)}</TableCell>
+                  <TableCell>{formatDateTime(k.createdAt, language)}</TableCell>
                   <TableCell className="text-right">
                     {/* A revoked key has nothing left to do: no menu rather than an empty one. */}
                     {k.status === 'active' ? (

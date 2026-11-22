@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import type { AdminZoneName } from '@endora-commerce/contracts';
-import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
+import { AdminZone, useRecordTabZone } from '@endora-commerce/admin-kit/zones';
 import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 import type { RenderResult } from '@testing-library/react';
 import { setMobileViewport } from '../../setup';
@@ -19,9 +21,11 @@ import { MODULE_ADMIN_CONTRIBUTIONS } from '../../../src/modules.generated.js';
  * `backend/test/integration/tasks/off-state.test.ts`. This file owns the other
  * half: no sidebar entry and no screen while the module is absent, or for an
  * operator without the code each route enforces, and both back when the module
- * and the code are — and the *Tasks* panel the module contributes to an Order's,
- * a Quote Request's and an Opportunity's screen (`specs/165-task-management/`
- * User Story 6, T065), which follows the module's presence the same way. The
+ * and the code are — and the *Tasks* panel the module contributes to an Order's
+ * and a Quote Request's screen (`specs/165-task-management/` User Story 6,
+ * T065), and the *Tasks* tab it contributes to an Opportunity's
+ * (`specs/183-record-tab-contributions/` FR-015), which follow the module's
+ * presence the same way. The
  * Projects side of the same absence — no *Tasks* tab and
  * no Stage Task editor — is `projects/ProjectDetail.tasks-tab.test.tsx`.
  *
@@ -94,17 +98,51 @@ const routes = entry?.contributions.routes ?? [];
 
 const bundle = {
   ...passthroughBundle('core', ['appShell.brand.text', 'appShell.section.work', 'app.moduleScreenLoading', 'app.notFound']),
-  ...passthroughBundle('tasks', [...(entry?.contributions.nav ?? []).map((item) => item.labelKey), 'panel.title']),
+  ...passthroughBundle('tasks', [
+    ...(entry?.contributions.nav ?? []).map((item) => item.labelKey),
+    'panel.title',
+    'recordTab.label',
+  ]),
 };
 
 const RECORD_ID = '00000000-0000-4000-8000-0000000000c7';
 
-/** The three record screens' zones and what each hands its contributors. */
+/** The two record screens' sidebar zones and what each hands its contributors. */
 const RECORD_ZONES = [
   { zone: 'order.detail.sidebar', props: { orderId: RECORD_ID } },
   { zone: 'quote_request.detail.sidebar', props: { quoteRequestId: RECORD_ID } },
-  { zone: 'opportunity.detail.sidebar', props: { opportunityId: RECORD_ID } },
 ] as const;
+
+/** The Opportunity screen's strip, reduced to the tabs the zone hands it. */
+function OpportunityStrip(): ReactNode {
+  const zone = useRecordTabZone('opportunity.detail.tabs', { opportunityId: RECORD_ID }, { reservedIds: ['overview'] });
+  return (
+    <ul aria-label="strip">
+      {zone.tabs.map((tab) => (
+        <li key={tab.id}>{tab.label}</li>
+      ))}
+    </ul>
+  );
+}
+
+function renderOpportunityStrip(): RenderResult {
+  return renderWithI18n(
+    withSession(
+      <MemoryRouter>
+        <OpportunityStrip />
+      </MemoryRouter>,
+      {
+        session: adminSession({ permissions: [...permissions] }),
+        presence: modulePresence({ present: [...presentModules] }),
+        contributions: MODULE_ADMIN_CONTRIBUTIONS,
+      },
+    ),
+    bundle,
+  );
+}
+
+const tasksCalls = (): unknown[][] =>
+  vi.mocked(apiClient.get).mock.calls.filter((call) => String(call[0]).startsWith('/api/v1/admin/tasks'));
 
 /** One record screen's zone alone, filled from every module's contributions. */
 function renderZone(record: (typeof RECORD_ZONES)[number]): RenderResult {
@@ -234,7 +272,38 @@ describe('tasks admin surface', () => {
     }
   });
 
-  it('puts the Tasks panel on an Order, a Quote Request and an Opportunity only while present (US6, T065)', async () => {
+  it('puts the Tasks tab on an Opportunity only while present and readable, and asks nothing otherwise (183 FR-015)', async () => {
+    permissions = new Set(READ_AND_WRITE);
+    presentModules = new Set(['tasks']);
+    const on = renderOpportunityStrip();
+    expect(await screen.findByText('recordTab.label')).toBeInTheDocument();
+    await waitFor(() => expect(tasksCalls().map((call) => String(call[0]))).toEqual([
+      `/api/v1/admin/tasks/count?linkedKind=opportunity&linkedId=${RECORD_ID}&statusCategory=open`,
+    ]));
+    on.unmount();
+
+    for (const hidden of [
+      { present: [] as string[], codes: READ_AND_WRITE },
+      { present: ['tasks'], codes: ['tasks:write'] },
+    ]) {
+      vi.mocked(apiClient.get).mockClear();
+      presentModules = new Set(hidden.present);
+      permissions = new Set(hidden.codes);
+      const off = renderOpportunityStrip();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(screen.queryByText('recordTab.label')).toBeNull();
+      expect(tasksCalls()).toEqual([]);
+      off.unmount();
+    }
+
+    permissions = new Set(READ_AND_WRITE);
+    presentModules = new Set(['tasks']);
+    const back = renderOpportunityStrip();
+    expect(await screen.findByText('recordTab.label')).toBeInTheDocument();
+    back.unmount();
+  });
+
+  it('puts the Tasks panel on an Order and a Quote Request only while present (US6, T065)', async () => {
     permissions = new Set(READ_AND_WRITE);
     for (const record of RECORD_ZONES) {
       presentModules = new Set(['tasks']);

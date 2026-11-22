@@ -1,7 +1,7 @@
 {
   "settingGroups.admin_feedback.name": "Feedback",
   "settingLabels.admin_feedback.module_enabled.name": "Feedback module enabled",
-  "settingLabels.admin_feedback.module_enabled.description": "Shows the “Send feedback” link and sends feedback to Endora. While off there is no link and nothing is sent.",
+  "settingLabels.admin_feedback.module_enabled.description": "Shows the “Send feedback” link, which sends feedback to Endora.",
   "settingLabels.admin_feedback.relay_url.name": "Feedback relay address",
   "settingLabels.admin_feedback.relay_url.description": "Where feedback is sent. Keep the default to reach Endora support; leave empty to stop sending.",
   "actions.openAdminFeedbackSettings.label": "Feedback settings",

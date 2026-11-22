@@ -292,8 +292,6 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
 
   return (
     <EditorSection title={t('defaultPreferences.title')} className="mb-4" contentClassName="space-y-4">
-      <p className="text-xs text-muted-foreground">{t('defaultPreferences.description')}</p>
-
       {shownError ? (
         <Alert variant="destructive">
           <AlertDescription>{shownError}</AlertDescription>

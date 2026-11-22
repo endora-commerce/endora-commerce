@@ -22,7 +22,7 @@ import {
   useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { DetailHeaderActions, ModalDialog, RowActionMenuItem } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   cartApprovalStatusLabels,
   cartAuditActionLabels,
@@ -98,6 +98,7 @@ type DetailError = { text: string } | { key: 'carts.detail.loadFailed' };
 export default function CartDetail(): ReactNode {
   const { id } = useParams<{ id: string }>();
   const t = useTranslation('carts');
+  const { language } = useTranslationContext();
   // The route enforces `carts:reject`; an operator without it is not offered the action.
   const { hasPermission } = useAuth();
   const canReject = hasPermission('carts:reject');
@@ -220,8 +221,8 @@ export default function CartDetail(): ReactNode {
             <div><Label>{t('carts.column.approval')}</Label><Badge>{cartApprovalStatusLabels.label(t, cart.approvalStatus)}</Badge></div>
             <div><Label>{t('carts.column.owner')}</Label><span>{cart.ownerDisplayName ?? t('carts.owner.anonymous')}</span></div>
             <div><Label>{t('carts.column.org')}</Label><span>{cart.organizationDisplayName ?? '—'}</span></div>
-            <div><Label>{t('carts.column.lastActivity')}</Label><span>{formatDateTime(cart.lastActivityAt)}</span></div>
-            <div><Label>{t('carts.column.created')}</Label><span>{formatDateTime(cart.createdAt)}</span></div>
+            <div><Label>{t('carts.column.lastActivity')}</Label><span>{formatDateTime(cart.lastActivityAt, language)}</span></div>
+            <div><Label>{t('carts.column.created')}</Label><span>{formatDateTime(cart.createdAt, language)}</span></div>
             {cart.appliedPromotionCode ? (
               <div><Label>{t('carts.column.coupon')}</Label><Badge variant="secondary">{cart.appliedPromotionCode}</Badge></div>
             ) : null}
@@ -313,7 +314,7 @@ export default function CartDetail(): ReactNode {
               <TableBody>
                 {audit.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell className="text-xs">{formatDateTime(row.occurredAt)}</TableCell>
+                    <TableCell className="text-xs">{formatDateTime(row.occurredAt, language)}</TableCell>
                     <TableCell className="text-xs">
                       <span className="text-muted-foreground">{cartAuditActorLabels.label(t, row.actorType)}</span>
                       {row.actorDisplayName ? ` · ${row.actorDisplayName}` : ''}

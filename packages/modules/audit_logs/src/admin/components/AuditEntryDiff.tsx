@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { AUDIT_ERASED_MARKER } from '@endora-commerce/contracts';
 import { RecordHistoryChangeList } from '@endora-commerce/admin-kit/components';
 import { formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { auditStateOutcome, isIsoTimestamp } from '../lib/audit-log-view.js';
 import { AuditStateView, ErasedValue } from './AuditStateView.js';
 
@@ -71,6 +71,7 @@ export function AuditEntryDiff({ before, after }: { before: unknown; after: unkn
  * timestamp, a list joined by commas; only a nested object stays JSON, compact.
  */
 export function AuditFieldValue({ value }: { value: unknown }): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('audit_logs');
   if (value === AUDIT_ERASED_MARKER) return <ErasedValue />;
   if (value === null || value === undefined || value === '') {
@@ -80,7 +81,7 @@ export function AuditFieldValue({ value }: { value: unknown }): ReactNode {
   if (isIsoTimestamp(value)) {
     return (
       <time dateTime={value} title={value}>
-        {formatDateTime(value)}
+        {formatDateTime(value, language)}
       </time>
     );
   }

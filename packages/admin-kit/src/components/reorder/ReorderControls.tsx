@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
-import { Button } from '@endora-commerce/admin-kit/ui';
-import { TouchReorderButtons } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { Button } from '../../ui/button.js';
+import { TouchReorderButtons } from '../TouchReorderButtons.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 
 export interface ReorderControlsProps {
   /** The row's name, for the controls' accessible names. */
@@ -18,13 +18,14 @@ export interface ReorderControlsProps {
  * Move one row of a configuration list up or down (issue #1560): the kit's
  * `TouchReorderButtons` on a touch screen and a pair of arrow buttons on a
  * pointer screen — the dictionaries' Languages and Countries tabs' pattern.
+ * Pair it with `useServerReorder` (issue #1633).
  *
  * While a reorder is in flight the arrow buttons are `aria-disabled` rather
  * than `disabled`: the row moves under the keyboard user's focus, and a
  * `disabled` button would drop that focus to the page.
  */
 export function ReorderControls(props: ReorderControlsProps): ReactNode {
-  const t = useTranslation('crm');
+  const t = useTranslation('core');
   const { name, isFirst, isLast, disabled, onMove } = props;
   return (
     <>
@@ -42,7 +43,7 @@ export function ReorderControls(props: ReorderControlsProps): ReactNode {
         className="b2b-reorder-desktop-only min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
         disabled={isFirst}
         aria-disabled={disabled || undefined}
-        aria-label={t('reorder.moveUp', { name })}
+        aria-label={t('reorder.moveRowUp', { name })}
         onClick={(): void => {
           if (!disabled) onMove(-1);
         }}
@@ -56,7 +57,7 @@ export function ReorderControls(props: ReorderControlsProps): ReactNode {
         className="b2b-reorder-desktop-only min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
         disabled={isLast}
         aria-disabled={disabled || undefined}
-        aria-label={t('reorder.moveDown', { name })}
+        aria-label={t('reorder.moveRowDown', { name })}
         onClick={(): void => {
           if (!disabled) onMove(1);
         }}

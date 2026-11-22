@@ -30,6 +30,7 @@ import {
   contextAdmits,
   countComponentNames,
   filterConfigByContext,
+  PageBuilderContentLocaleProvider,
   type PageBuilderContext,
 } from '@endora-commerce/page-builder-core';
 import { withMissingBlockPlaceholders } from '@endora-commerce/cms-components';
@@ -1028,6 +1029,8 @@ export function EmailEditorPane({
             <EmailEmbedsProvider value={embeds}>
              <EmailBlockRenderersProvider value={composed.blockRenderers}>
               <div className="email-builder-pane" data-preview-width={CANVAS_WIDTH}>
+                {/* Issue #1684 — what the builder seeds into the e-mail is in its language. */}
+                <PageBuilderContentLocaleProvider locale={previewLanguage}>
                 <Puck
                   key={`${editorKey}:${canvasEpoch}`}
                   config={config}
@@ -1094,6 +1097,7 @@ export function EmailEditorPane({
                     ),
                   }}
                 />
+                </PageBuilderContentLocaleProvider>
               </div>
              </EmailBlockRenderersProvider>
             </EmailEmbedsProvider>

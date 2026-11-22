@@ -4,7 +4,7 @@ import { Download, History, Play } from 'lucide-react';
 import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader, TabPanel, Tabs } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   productFeedsClient,
   type FeedRunDetail,
@@ -34,6 +34,7 @@ const POLL_INTERVAL_MS = 5_000;
  * only the token's sha256, so after a reload the card falls back to the prefix.
  */
 export function ProductFeedDetailPage(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('product_feeds');
   const { feedId } = useParams<{ feedId: string }>();
   const location = useLocation();
@@ -131,13 +132,13 @@ export function ProductFeedDetailPage(): ReactNode {
           )}
         </Link>
       ),
-      meta: (row) => formatDateTime(row.startedAt ?? row.createdAt),
+      meta: (row) => formatDateTime(row.startedAt ?? row.createdAt, language),
     },
     {
       id: 'startedAt',
       header: t('runs.table.startedAt'),
       hideOnMobile: true,
-      render: (row) => muted(row, formatDateTime(row.startedAt ?? row.createdAt)),
+      render: (row) => muted(row, formatDateTime(row.startedAt ?? row.createdAt, language)),
     },
     {
       id: 'trigger',

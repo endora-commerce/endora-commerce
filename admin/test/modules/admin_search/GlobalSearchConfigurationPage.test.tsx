@@ -37,7 +37,6 @@ const { GlobalSearchConfigurationPage } = await import(
 
 const KEYS = [
   'page.configuration.title',
-  'page.configuration.settingsNote',
   'page.configuration.settingsLink',
   'page.configuration.include',
   'page.configuration.fieldsLegend',

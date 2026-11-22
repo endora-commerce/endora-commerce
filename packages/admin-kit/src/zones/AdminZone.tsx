@@ -38,7 +38,11 @@ type ZoneComponentType = ComponentType<Record<string, unknown>>;
 
 const lazyByFactory = new WeakMap<AdminComponentFactory, ZoneComponentType>();
 
-function lazyComponentFor(load: AdminComponentFactory): ZoneComponentType {
+/**
+ * Exported module-internally for `useRecordTabZone`, which renders a record
+ * tab's panel through the same cache — not part of the `./zones` barrel.
+ */
+export function lazyComponentFor(load: AdminComponentFactory): ZoneComponentType {
   const known = lazyByFactory.get(load);
   if (known !== undefined) return known;
   // The registry's factory is `{ default: unknown }` by construction — see the

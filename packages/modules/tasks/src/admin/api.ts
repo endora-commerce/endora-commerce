@@ -101,10 +101,14 @@ export const tasksApi = {
 
   /**
    * `GET /tasks/count` — how many Tasks the list would show under the same
-   * filters, across every page (spec 183). A query of the list's filters only.
+   * filters, across every page (spec 183). A query of the list's filters only;
+   * `signal` aborts a read nobody is waiting for any more.
    */
-  countTasksBy(query: URLSearchParams): Promise<number> {
-    return data(apiClient.get<{ data: TaskCount }>(`${BASE}/count${tail(query)}`)).then((result) => result.count);
+  countTasksBy(query: URLSearchParams, signal?: AbortSignal): Promise<number> {
+    const path = `${BASE}/count${tail(query)}`;
+    return data(
+      signal === undefined ? apiClient.get<{ data: TaskCount }>(path) : apiClient.get<{ data: TaskCount }>(path, { signal }),
+    ).then((result) => result.count);
   },
 
   /** The caller's open Tasks, by due date, undated last — narrowed by the list's filters. */

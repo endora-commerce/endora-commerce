@@ -15,7 +15,7 @@ import {
   Textarea,
   useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import type { AlternativeResolution, ReturnCaseDetail } from '@endora-commerce/contracts';
 import { returnsClient } from '../api/returns-client.js';
 import { ResolutionRadioGroup } from '../components/ResolutionRadioGroup.js';
@@ -91,6 +91,7 @@ export function ConsumerWithdrawalPanel(props: {
   /** Reloads the case. The result is said beside the panel's own buttons (#1472, #1499). */
   onChanged: () => Promise<void>;
 }): ReactNode {
+  const { language } = useTranslationContext();
   const { rc, closed, onChanged } = props;
   const t = useTranslation('returns');
   const tc = useTranslation('core');
@@ -113,7 +114,7 @@ export function ConsumerWithdrawalPanel(props: {
             <dd>{resolutionLabel(consent.resolution)}</dd>
             <dt className="text-muted-foreground">{t('consent.givenAt')}</dt>
             {/* Shown in the browser's zone, which is named beside it (PO ruling on #945, Q2). */}
-            <dd>{`${formatDateTime(consent.at)} (${browserTimeZone()})`}</dd>
+            <dd>{`${formatDateTime(consent.at, language)} (${browserTimeZone()})`}</dd>
             {consent.note ? (
               <>
                 <dt className="text-muted-foreground">{t('consent.evidence')}</dt>

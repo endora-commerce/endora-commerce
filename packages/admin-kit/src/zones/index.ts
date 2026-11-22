@@ -8,7 +8,9 @@
  * `<AdminZone name props />` is the common case, rendering them all with an
  * error boundary and a `Suspense` each; `<RouteTabsZone name props />` is the
  * one place a zone is a **tab strip**, where the count decides whether the
- * strip exists at all (feature 091, P4d).
+ * strip exists at all (feature 091, P4d); `useRecordTabZone(name, props)` is
+ * the host's end of a **record-tab zone**, whose contributions are whole tabs
+ * of the host's own `RecordTabs` (`specs/183-record-tab-contributions/`).
  *
  * **A separate subpath from `./contributions`, and the split is deliberate.**
  * `./contributions` is the contributor's side and is data-only — a module's
@@ -37,5 +39,7 @@ export type {
 export { selectBlockContributions, useBlockContributions } from './use-block-contributions.js';
 export type { BlockContributionContext } from './use-block-contributions.js';
 export { matchesZoneProps, selectZoneContributions, useAdminZone } from './use-admin-zone.js';
+export { useRecordTabZone } from './use-record-tab-zone.js';
+export type { RecordTabZone, RecordTabZoneItem, RecordTabZoneOptions } from './use-record-tab-zone.js';
 export { ZoneErrorBoundary } from './ZoneErrorBoundary.js';
 export type { ZoneErrorBoundaryProps } from './ZoneErrorBoundary.js';

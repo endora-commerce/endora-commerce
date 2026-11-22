@@ -213,7 +213,7 @@ function inOrder(codes: readonly string[]): OpportunityWorkflow {
 describe('WorkflowConfigPage — reordering the statuses (issue #1560)', () => {
   const DEFAULT = ['new', 'qualified', 'negotiation', 'won', 'lost'];
   const moveUp = (code: string, name: string) =>
-    userEvent.click(within(statusRow(code)).getByRole('button', { name: en('reorder.moveUp', { name }) }));
+    userEvent.click(within(statusRow(code)).getByRole('button', { name: core('reorder.moveRowUp', { name }) }));
 
   it('has no position field in the status dialog, and a new status goes last', async () => {
     await renderPage();
@@ -236,7 +236,7 @@ describe('WorkflowConfigPage — reordering the statuses (issue #1560)', () => {
     expect(tableCodes()).toEqual(next);
     expect(putSpy).toHaveBeenCalledTimes(1);
     expect(putSpy).toHaveBeenCalledWith('/api/v1/admin/crm/statuses/order', { orderedCodes: next });
-    const up = within(statusRow('won')).getByRole('button', { name: en('reorder.moveUp', { name: 'Won' }) });
+    const up = within(statusRow('won')).getByRole('button', { name: core('reorder.moveRowUp', { name: 'Won' }) });
     expect(up).toHaveAttribute('aria-disabled', 'true');
     await userEvent.click(up);
     // `aria-disabled` does not block activation: the handler returns early, by keyboard too.

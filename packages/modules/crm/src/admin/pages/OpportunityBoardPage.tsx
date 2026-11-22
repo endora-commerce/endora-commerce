@@ -24,6 +24,7 @@ import { ListToolbar, ListToolbarSearch, ViewModeToggle } from '@endora-commerce
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, MAX_PAGE_LIMIT } from '../api.js';
 import { BoardFieldFilters } from '../components/BoardFieldFilters.js';
+import { OpportunitySavedViews } from '../components/OpportunitySavedViews.js';
 import { OpportunityBoard, type BoardColumnView } from '../components/OpportunityBoard.js';
 import {
   BOARD_MORE_FILTERS,
@@ -173,6 +174,8 @@ export function OpportunityBoardPage(): ReactNode {
   const [columns, setColumns] = useState<BoardColumnView[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** A failure to read the saved views (issue #1734); the control's dialogs keep their own. */
+  const [viewsError, setViewsError] = useState<string | null>(null);
   /** The fields a card shows — the board's own answer; `null` until it has answered once. */
   const [cardFields, setCardFields] = useState<OpportunityBoardCardField[] | null>(null);
   // Keyed by the address's own text, so the filters are the same object until it changes.
@@ -501,7 +504,12 @@ export function OpportunityBoardPage(): ReactNode {
       />
 
       <Card className="mb-4">
-        <CardContent>
+        <CardContent className="space-y-4">
+          {viewsError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{viewsError}</AlertDescription>
+            </Alert>
+          ) : null}
           <ListToolbar
             label={t('opportunity.filter.toolbar')}
             search={
@@ -541,6 +549,7 @@ export function OpportunityBoardPage(): ReactNode {
                 />
               </>
             }
+            actions={<OpportunitySavedViews onError={setViewsError} />}
             moreFiltersActiveCount={hiddenBoardFilterCount(filters, boardFilters.fields, shownFields)}
             filtersActive={filtered}
             onClearFilters={clear}

@@ -52,7 +52,7 @@ function card(slug: string, overrides: Partial<CmsBlogPostCard> = {}): CmsBlogPo
 
 function dom(
   props: Record<string, unknown> = {},
-  options: { posts?: CmsBlogPostCard[]; preview?: boolean } = {},
+  options: { posts?: CmsBlogPostCard[]; preview?: boolean; language?: string } = {},
 ): HTMLElement {
   const merged: Record<string, unknown> = { ...defaults, id: 'latest-1', ...props };
   const request = blogPostsDataRequest({
@@ -63,7 +63,7 @@ function dom(
   const content = [{ type: 'blog.LatestPosts', props: merged }] as Data['content'];
   const host = document.createElement('div');
   host.innerHTML = renderToString(
-    <BlockRenderEnvironmentProvider value={{ language: 'en', preview: options.preview === true }}>
+    <BlockRenderEnvironmentProvider value={{ language: options.language ?? 'en', preview: options.preview === true }}>
       <CmsRenderProvider embeds={{ blocks: {}, templates: {} }} assets={{}} mediaBaseUrl="https://api.example.com">
         <CatalogPreviewProvider data={data}>
           <Render config={config} data={{ root: { props: {} }, content }} />
@@ -329,5 +329,14 @@ describe('blog.LatestPosts card look and header button placement (T189)', () => 
     expect(css).toMatch(/\.cmsc-pb-latest-posts--lg-action-end\.cmsc-pb-carousel__header-content\{[^}]*display:grid/);
     // The zoom does not move under reduced motion.
     expect(css).toMatch(/prefers-reduced-motion:no-preference\)\{[^@]*\.cmsc-pb-latest-posts--zoom\.cmsc-pb-post-card__mediaimg\{transition:transform/);
+  });
+});
+
+describe('blog.LatestPosts read-more label in the page language (#1684)', () => {
+  it('a stored block with no label reads the content default of the language it renders in', () => {
+    const pl = dom({ readMoreLabel: undefined }, { posts: [card('newest')], language: 'pl-PL' });
+    expect(pl.querySelector('a.cmsc-pb-post-card__more')?.textContent).toBe('Czytaj więcej');
+    const en = dom({ readMoreLabel: undefined }, { posts: [card('newest')], language: 'en-US' });
+    expect(en.querySelector('a.cmsc-pb-post-card__more')?.textContent).toBe('Read more');
   });
 });

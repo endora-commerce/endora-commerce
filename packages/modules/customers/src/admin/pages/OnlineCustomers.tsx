@@ -4,7 +4,7 @@ import { ArrowRight, RefreshCw, Users } from 'lucide-react';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, EmptyState, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 interface OnlineCustomer {
   id: string;
@@ -18,6 +18,7 @@ const MIN_INTERVAL_SEC = 2;
 
 export function OnlineCustomers(): ReactNode {
   const t = useTranslation('customers');
+  const { language } = useTranslationContext();
   const [rows, setRows] = useState<OnlineCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +112,7 @@ export function OnlineCustomers(): ReactNode {
 
       {lastRefreshed ? (
         <p className="mb-2 text-xs text-muted-foreground">
-          {t('online.refreshedAt', { time: lastRefreshed.toLocaleTimeString() })}
+          {t('online.refreshedAt', { time: formatDateTime(lastRefreshed.toISOString(), language) })}
         </p>
       ) : null}
 
@@ -142,7 +143,7 @@ export function OnlineCustomers(): ReactNode {
                 {
                   id: 'lastSeen',
                   header: t('online.column.lastSeen'),
-                  render: (c) => formatDateTime(c.lastSeenAt),
+                  render: (c) => formatDateTime(c.lastSeenAt, language),
                 },
               ]}
               renderActions={(c) => (

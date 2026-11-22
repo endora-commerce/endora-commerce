@@ -275,6 +275,25 @@ export const putEmailBrandingRequestSchema = z
   .refine((v) => Object.keys(v).length > 0, { message: 'at least one field required' });
 export type PutEmailBrandingRequest = z.infer<typeof putEmailBrandingRequestSchema>;
 
+/** The branding values a sales channel can set for itself. */
+export const emailBrandingFieldSchema = z.enum(['logoAssetId', 'accentColor', 'headerBlockCode', 'footerBlockCode']);
+export type EmailBrandingField = z.infer<typeof emailBrandingFieldSchema>;
+
+/**
+ * `DELETE /branding` — issue #1588. Removes a sales channel's own value for the
+ * named fields, so the channel inherits the all-channels value again. A channel
+ * is required: the all-channels value has nothing above it to inherit, and
+ * clearing it is not what this operation is for. `fields` is comma-separated.
+ */
+export const resetEmailBrandingQuerySchema = z.object({
+  salesChannelId: z.string().uuid(),
+  fields: z
+    .string()
+    .transform((raw) => raw.split(',').map((field) => field.trim()).filter((field) => field !== ''))
+    .pipe(z.array(emailBrandingFieldSchema).min(1)),
+});
+export type ResetEmailBrandingQuery = z.infer<typeof resetEmailBrandingQuerySchema>;
+
 export const emailScopeQuerySchema = z.object({
   salesChannelId: z.string().uuid().optional(),
 });

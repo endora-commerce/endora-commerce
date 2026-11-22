@@ -88,7 +88,6 @@ const BUNDLE = {
       'priceLists.displayMode.none',
       'priceLists.displayMode.savedSuffix',
       'defaultPreferences.title',
-      'defaultPreferences.description',
       'defaultPreferences.paymentMethod',
       'defaultPreferences.deliveryMethod',
       'defaultPreferences.billingAddress',

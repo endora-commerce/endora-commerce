@@ -282,7 +282,7 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
       case 'manualValue':
         return moneyLabel(String(raw), opportunity.currency);
       case 'expectedCloseDate':
-        return calendarDateLabel(String(raw));
+        return calendarDateLabel(String(raw), language);
       case 'documentKind':
         return t(`value.excluded.kind.${raw === 'quote_request' ? 'quote_request' : 'order'}`);
       case 'documentId': {

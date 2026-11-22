@@ -159,11 +159,16 @@ Other modules can add sections at the end of the card beside the details — the
 project the task is in, for one. Without the
 permission to change tasks the screen is read-only.
 
-**On other records.** The screens of an **opportunity**, an **order** and a
-**quote request** have a **Tasks** section in their sidebar: the tasks linked to it that you
-may see, with their status, assignees and due date, *Add task* — a new task
-already linked to the record — and *Show in the task list*. A task opened or
-added from the panel leads *Back* to the record, also after it is deleted.
+**On other records.** An **opportunity** has a **Tasks** tab, after *Events*:
+the tasks linked to it that you may see, with their status, assignees and due
+date, *Add task* — a new task already linked to the opportunity — and *Show in
+the task list*. The number beside the tab's label is the linked tasks that are
+still **open** (a screen reader announces "Tasks, open: 3"); with none open the
+tab shows no number. The tab's address is `?tab=tasks`, so *Add task* comes back
+to it, and the new task is counted. The screens of an **order** and a **quote
+request** have a **Tasks** section in their sidebar with the same list and
+actions. A task opened or added from the tab or the section leads *Back* to the
+record, also after it is deleted.
 
 **The command palette** (⌘K / CTRL+K) offers *Tasks*, *My tasks*, *New task*,
 *Task statuses and workflow*, *Task priorities* and *Task tags*, each to
@@ -394,7 +399,7 @@ While it is off:
 
 - the *My tasks*, *Tasks* and *Task configuration* entries and every task screen are
   gone from the Admin UI, and so are a project's *Tasks* tab and its stage
-  tasks, the *Tasks* panels of opportunities, orders and quote requests, the
+  tasks, an opportunity's *Tasks* tab, the *Tasks* panels of orders and quote requests, the
   command-palette actions and tasks in the global search;
 - every `/api/v1/admin/tasks…` endpoint answers `503` with the code
   `MODULE_DISABLED`, and its settings cannot be changed;
@@ -452,6 +457,7 @@ does not exist.
 | --- | --- | --- |
 | `GET /` | `tasks:read` | `{ items, nextCursor, prevCursor? }`. Filters: `status`, `statusCategory`, `assignee` (`me`, `none` or an id; any of), `creator` (`me` or an id), `priority` (codes or `none`), `tagId` (every one), `dueFrom`, `dueTo`, `overdue`, `linkedKind` with `linkedId`, `parentId`, `isSubtask`, `hasSubtasks`, `draft` (the caller's own), `private`, `customFieldFilters`, `q`; `sort` (`created`, `number`, `title`, `due`, `priority`, `status`, `updated`) and `dir`; `cursor`, `limit` (at most 100). An unknown status, priority or tag matches nothing. |
 | `GET /mine` | `tasks:read` | `{ data }` — the caller's open, published tasks, by due moment, undated last (at most 500); the same filters. |
+| `GET /count` | `tasks:read` | `{ data: { count } }` — how many tasks `GET /` would list under the same filters, across every page, with the same visibility; no `sort`, `cursor` or `limit`. The opportunity's *Tasks* tab counts `linkedKind=opportunity&linkedId=…&statusCategory=open`. |
 | `GET /board` | `tasks:read` | `{ data: { columns: [{ status, count, items, hasMore }] } }`, one column per status in workflow order; the list's filters and `perColumn` (at most 50, default 25). |
 | `POST /` | `tasks:write` | `{ title, description?, assigneeIds?, dueOn? \| dueAt?, startOn?, priorityCode?, tagIds?, customFieldValues?, context?, parentTaskId?, links?, draft?, private? }` → `201` `{ data: TaskDetail }`. |
 | `GET /:id` | `tasks:read` | `{ data: TaskDetail }` — with `references`, `links`, `subtaskItems`, `relatedTasks`, the caller's `reminders` and `permissions { canChange, canDelete, canPublish }`. |

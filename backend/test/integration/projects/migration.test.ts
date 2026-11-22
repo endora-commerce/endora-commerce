@@ -17,11 +17,15 @@ import { TEST_ADMIN_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.j
  * by definition, not by name, so the assertion is about what an index covers.
  */
 
-/** The 24 tables of the data model: seven of configuration, seventeen of Projects. */
+/**
+ * The 25 tables of the data model: seven of configuration, seventeen of
+ * Projects, and the list's saved views (issue #1734).
+ */
 const TABLES = [
   'project_attachments',
   'project_comments',
   'project_links',
+  'project_list_saved_views',
   'project_loss_reasons',
   'project_member_roles',
   'project_members',
@@ -119,7 +123,7 @@ describe('projects init migration', () => {
     return { projectId, stageId };
   }
 
-  it('creates the 24 tables of the data model and no twenty-fifth', async () => {
+  it('creates the 25 tables of the data model and no twenty-sixth', async () => {
     const found = await rows<{ table_name: string }>(
       `select table_name from information_schema.tables
         where table_schema = current_schema()
@@ -127,7 +131,7 @@ describe('projects init migration', () => {
         order by table_name`,
     );
     expect(found.map((row) => row.table_name)).toEqual(TABLES);
-    expect(TABLES).toHaveLength(24);
+    expect(TABLES).toHaveLength(25);
   });
 
   it('has the columns of `projects`, with their types, nullability and defaults', async () => {

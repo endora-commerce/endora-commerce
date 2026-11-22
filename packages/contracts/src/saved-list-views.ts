@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { uuidSchema } from './common.js';
 
 // Saved list views — the shapes every admin list's saved-view endpoints share
-// (orders, products, quote requests, returns, tasks). Orders keeps its own exported names in
-// `orders.ts`, built on these.
+// (orders, products, quote requests, returns, tasks, CRM Opportunities,
+// Projects). Orders keeps its own exported names in `orders.ts`, built on these.
 
 export const SAVED_LIST_VIEW_NAME_MAX = 160;
 /** UTF-8 bytes of `JSON.stringify(filters)`. */
@@ -177,3 +177,31 @@ export type CreateReturnSavedViewRequest = z.infer<typeof createReturnSavedViewR
 
 export const updateReturnSavedViewRequestSchema = createReturnSavedViewRequestSchema.partial();
 export type UpdateReturnSavedViewRequest = z.infer<typeof updateReturnSavedViewRequestSchema>;
+
+// --- CRM Opportunities and Projects: filters and sort (#1734)
+//
+// Neither list has a column picker, so `visibleColumns` is stripped. On the
+// Opportunities page one view serves the list and the board, as on Tasks: it
+// stores the page's filters, and the board ignores its sort.
+
+export const createOpportunitySavedViewRequestSchema = z.object({
+  name: savedListViewNameSchema,
+  shared: z.boolean(),
+  filters: savedListViewFiltersSchema,
+  sort: savedListViewSortSchema.nullable().optional(),
+});
+export type CreateOpportunitySavedViewRequest = z.infer<typeof createOpportunitySavedViewRequestSchema>;
+
+export const updateOpportunitySavedViewRequestSchema = createOpportunitySavedViewRequestSchema.partial();
+export type UpdateOpportunitySavedViewRequest = z.infer<typeof updateOpportunitySavedViewRequestSchema>;
+
+export const createProjectSavedViewRequestSchema = z.object({
+  name: savedListViewNameSchema,
+  shared: z.boolean(),
+  filters: savedListViewFiltersSchema,
+  sort: savedListViewSortSchema.nullable().optional(),
+});
+export type CreateProjectSavedViewRequest = z.infer<typeof createProjectSavedViewRequestSchema>;
+
+export const updateProjectSavedViewRequestSchema = createProjectSavedViewRequestSchema.partial();
+export type UpdateProjectSavedViewRequest = z.infer<typeof updateProjectSavedViewRequestSchema>;

@@ -76,7 +76,6 @@ const NEGOTIATION_KEYS = [
   'negotiation.organization.label',
   'negotiation.organization.description',
   'negotiation.customer.label',
-  'negotiation.customer.description',
   'negotiation.override.inherit',
   'negotiation.override.allowed',
   'negotiation.override.not_allowed',
@@ -424,8 +423,7 @@ describe('quote_requests contributes the price-negotiation lock to two detail zo
     const en = readBundle('en');
     for (const key of [
       'negotiation.organization.description',
-      'negotiation.customer.description',
-      'negotiation.readOnlyHint',
+          'negotiation.readOnlyHint',
     ]) {
       expect(en[key]!.length, key).toBeLessThanOrEqual(80);
     }

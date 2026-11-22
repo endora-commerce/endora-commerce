@@ -83,6 +83,7 @@ function byScope(templates: readonly DocumentTemplateSummary[]): DocumentTemplat
 
 export function DocumentTemplatesPage(): ReactNode {
   const t = useTranslation('document_templates');
+  const { language } = useTranslationContext();
   const { t: translateIn } = useTranslationContext();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('document_templates:write');
@@ -196,8 +197,8 @@ export function DocumentTemplatesPage(): ReactNode {
       status.show(t('editor.previewing'), 'info');
       try {
         const detail = await getDocumentType(type.code);
-        const language = Object.keys(detail.builtInContent.languages)[0] ?? 'en-US';
-        const blob = await previewDocument(type.code, language, detail.builtInContent.languages[language]);
+        const previewLanguage = Object.keys(detail.builtInContent.languages)[0] ?? 'en-US';
+        const blob = await previewDocument(type.code, previewLanguage, detail.builtInContent.languages[previewLanguage]);
         status.clear();
         pdf.show(blob, t('editor.previewTitle', { name: `${t('page.builtIn')} — ${typeLabel(type)}` }));
       } catch {
@@ -280,7 +281,7 @@ export function DocumentTemplatesPage(): ReactNode {
       id: 'updated',
       header: t('page.column.updated'),
       hideOnMobile: true,
-      render: (row) => (row.kind === 'built_in' ? '—' : formatDateTime(row.template.updatedAt)),
+      render: (row) => (row.kind === 'built_in' ? '—' : formatDateTime(row.template.updatedAt, language)),
     },
   ];
 

@@ -10,7 +10,7 @@ import {
 } from '@endora-commerce/contracts';
 import { useAppLanguage } from '../../i18n/app-language-context.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
-import { formatMoney, withReturnTo } from '../../lib/index.js';
+import { formatDate, formatMoney, withReturnTo } from '../../lib/index.js';
 
 export interface ReferenceTextProps {
   /** The stored text — formatting, tokens and all. */
@@ -105,7 +105,7 @@ export function ReferenceText(props: ReferenceTextProps): ReactNode {
         ? [
             props.orderStatusLabel ? props.orderStatusLabel(order.status) : order.status,
             moneyLabel(order.total, order.currency),
-            new Date(order.placedAt).toLocaleDateString(language),
+            formatDate(order.placedAt, language),
             order.customerName,
           ].filter((fact): fact is string => Boolean(fact))
         : [];

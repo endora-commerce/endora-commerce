@@ -46,7 +46,7 @@ when at least one of them is visible.
 
 | Screen | Where | Permission | What it is for |
 | --- | --- | --- | --- |
-| Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, as a list or, with the **List / Board** switch in the header, as a board. The list has search and filters by state, status, organization, assignee, tags, sales channel, creation date and the custom fields marked as list filters. |
+| Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, as a list or, with the **List / Board** switch in the header, as a board. The list has search and filters by state, status, organization, assignee, tags, sales channel, creation date and the custom fields marked as list filters; both views offer saved views. |
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
 | An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | A header with the status beside the title, a stage bar with the moves allowed from that status, back and forward, a card of its facts on the right, and tabs: *Overview*, **Links** (its orders and quote requests), **Events** (what is planned for it, with reminders), *Notes*, *Messages*, *Attachments* and **Change history**. See *The opportunity's screen*. |
 | Board | **Board** in the *List / Board* switch of **CRM → Opportunities** (`/crm/opportunities?view=board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. The former address `/crm/board` still opens it. |
@@ -130,6 +130,7 @@ whichever tab is open.
 | **Overview** | The description — formatted, and changed in place with its pencil — and the custom fields. |
 | **Links** | *Linked orders* and *Linked quote requests*: link, unlink, the *follow the opportunity's status* switch, **Create order** and **Create quote request**. The tab shows how many documents are linked. |
 | **Events** | What is planned for the opportunity — a call, a meeting, a deadline — as a list and on a calendar of its own, each with an optional reminder. The tab shows how many events have not ended yet. See *Events and reminders*. |
+| **Tasks** | The tasks linked to the opportunity, with *Add task*. The tab shows how many of them are still open. It is added by the **Tasks** module, so it is there only while that module is on and for somebody who may read tasks — see the Tasks module's page. |
 | **Notes**, **Messages** | The two conversations. The **Notes** tab shows how many notes there are; the **Messages** tab shows how many messages you have not read yet. |
 | **Attachments** | The files. The tab shows how many are attached. |
 | **Change history** | Everything that was done to the opportunity, newest first. |
@@ -139,17 +140,26 @@ nothing behind it shows no number — so a number always means there is somethin
 to open. On *Links*, *Notes* and *Attachments* it is the number of items: linked
 documents, notes, files. On *Events* it is the events that have not ended yet.
 On *Messages* it is the messages you have not read — see *Notes and internal
-messages*. The numbers come with the opportunity itself, so they are there
-before any tab is opened, and each follows when you add or remove an item on its
-tab. What a colleague adds in the meantime appears after a reload. A screen
-reader announces each number with what it counts — "Notes, items: 3",
-"Events, upcoming: 2", "Messages, unread: 1".
+messages*. On *Tasks* it is the linked tasks that are still open. The numbers
+come with the opportunity itself, so they are there before any tab is opened,
+and each follows when you add or remove an item on its tab; the *Tasks* number
+is read just after the screen opens, and if it cannot be read the tab simply
+shows none. What a colleague adds in the meantime appears after a reload. A
+screen reader announces each number with what it counts — "Notes, items: 3",
+"Events, upcoming: 2", "Tasks, open: 3", "Messages, unread: 1".
 
 The open tab is part of the address — `/crm/opportunities/:id?tab=links`, and
-likewise `events`, `notes`, `messages`, `attachments` and `history` — so it survives a
-reload and can be sent to a colleague. An address that names no tab, or one
-that does not exist, opens *Overview*. Coming back from **Create order** or
+likewise `events`, `tasks`, `notes`, `messages`, `attachments` and `history` — so it
+survives a reload and can be sent to a colleague. An address that names no tab,
+one that does not exist, or one you cannot see (`tasks` while the Tasks module
+is off), opens *Overview*. Coming back from **Create order** or
 **Create quote request** opens **Links**, where the new document appears.
+
+For module authors: a module adds a tab of its own to this strip — a label, an
+optional count and a panel — through the `opportunity.detail.tabs` admin zone,
+declared with `recordTabComponent()` from `@endora-commerce/admin-kit/contributions`.
+The contributed tabs sit after *Events*; a contributed tab whose id is one of
+the screen's own is not shown. CRM names no contributor and depends on none.
 
 **Back to the opportunity.** Every way an opportunity leads to an order or a
 quote request — the *Links* tab, an order mentioned in a description, a note or
@@ -412,6 +422,27 @@ list filter, or the reverse. **A card field that is not a list filter cannot fil
 link that filtered the list by it is answered with an error naming the field and **Remove this
 filter**, until the option is turned on. The board — its *Show more* included — is unchanged.
 
+### Saved views
+
+The toolbar of **CRM → Opportunities** carries a **Saved views** selector with **Save view** and
+**Delete view** beside it, on the list and on the board alike. They work as on the order, quote
+request and task lists:
+
+- **One view serves both.** A view remembers every filter of the page — those of the list (state,
+  status, custom-field filters), those of the board (the card-field filters) and those the two
+  share — and the list's sort. It does not remember whether you were on the list or the board:
+  choosing a view replaces every filter and the sort and leaves you where you are, so a view saved
+  on the list opens the same opportunities on the board.
+- **A view never widens what you can see.** It stores filter values, never results; the page is
+  then read with *your* permissions and organizations. *Me* as the assignee means whoever applies
+  the view.
+- **Private or shared.** The **Save view** dialog asks for a name (at most 160 characters) and
+  whether to share the view with every administrator who can open the page; a shared view is
+  listed with **(shared)** after its name. You cannot hold two views whose names differ only in
+  letter case or surrounding spaces.
+- **Deleting.** **Delete view** is enabled for your own views; a shared view of someone else's only
+  for an administrator who reaches every organization.
+
 ### For integrators
 
 | Verb + Path | Permission | Purpose |
@@ -419,6 +450,7 @@ filter**, until the option is turned on. The board — its *Show more* included 
 | `GET /api/v1/admin/crm/board` | `crm:read` | One column per status, in workflow order: the status, `count`, `valueTotals` per currency, the first `perColumn` opportunities (default 50, at most 200) and `hasMore`; and `cardFields`, the fields a card shows, in order. Takes the list's filters except `statusCode` and `state` — the assignee and tag filters included, with the same meaning — and `fieldFilters`. |
 | `GET /api/v1/admin/crm/board/card-fields` | `crm:read` | `fields`: the fields a card shows, in order. `available`: every field that can be chosen. `maxFields`: 6. |
 | `PUT /api/v1/admin/crm/board/card-fields` | `crm:configure` | Body `{ "fields": ["builtin:organization", "custom:lead_source"] }` — field references, in order. Answers the configuration as it stands afterwards. `422` for a reference that names no field. |
+| `GET`, `POST /api/v1/admin/crm/opportunities/list-views`; `PATCH`, `DELETE …/list-views/:id` | `crm:read` | The page's saved views: your own and every shared one. A view is `{ name, shared, filters, sort }`; `filters` holds the page's address parameters. `409` `CRM_SAVED_VIEW_NAME_TAKEN` for a name you already use. |
 
 Moving a card is `POST /api/v1/admin/crm/opportunities/:id/transition`; the
 board has no write of its own for it. A column is continued from the list
@@ -1425,9 +1457,9 @@ computed value picks the quote requests up again at its next recalculation.
 
 The **Tasks** module is optional in the same way. While it is switched off a
 task mentioned in a text reads as *Task unavailable*, the `@@` document list
-offers no tasks and an opportunity's screen shows no *Tasks* panel; switched
-back on, the mentions show their tasks again. While it is on, the *Tasks* panel
-in an opportunity's sidebar lists the tasks linked to it that you may
+offers no tasks and an opportunity's screen shows no *Tasks* tab; switched
+back on, the mentions show their tasks again. While it is on, the *Tasks* tab
+of an opportunity lists the tasks linked to it that you may
 see — the Tasks module's own page describes it.
 
 So is the **Projects** module: while it is switched off a project mentioned in a

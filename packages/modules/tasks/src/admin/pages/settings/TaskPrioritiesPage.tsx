@@ -17,15 +17,14 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
+import { ReorderControls, useServerReorder } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../../api.js';
 import { TaskPriorityDeleteDialog } from '../../components/priorities/TaskPriorityDeleteDialog.js';
 import { TaskPriorityDialog, type TaskPriorityDialogSubmit } from '../../components/priorities/TaskPriorityDialog.js';
-import { ReorderControls } from '../../components/reorder/ReorderControls.js';
 import { SettingsEmptyState } from '../../components/SettingsEmptyState.js';
 import { errorMessage, workflowStatusName } from '../../lib/labels.js';
 import { TaskConfigurationTabs } from '../../components/TaskConfigurationTabs.js';
-import { useServerReorder } from '../../lib/use-server-reorder.js';
 
 type DialogState = { kind: 'create' } | { kind: 'edit'; priority: TaskPriorityConfig } | null;
 

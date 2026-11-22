@@ -14,9 +14,9 @@ import {
   SaveButtonGroup,
   useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AssetFieldPicker, ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
-import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
+import { isDraftEqual, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { PageBuilderEditor } from '@endora-commerce/mod-cms/admin-ui';
 import {
   PageBuilderEditorLayout,
@@ -151,6 +151,7 @@ function emptyCanvas(): Data {
 
 export function BlogPostEditor(): ReactNode {
   const t = useTranslation('blog');
+  const { language: adminLanguage } = useTranslationContext();
   const { id } = useParams();
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
@@ -557,7 +558,7 @@ export function BlogPostEditor(): ReactNode {
               <PostStatusBadge status={post.status} active={post.active} />
               <span>
                 {post.publishedAt
-                  ? t('postEditor.publishedAt', { date: new Date(post.publishedAt).toLocaleString() })
+                  ? t('postEditor.publishedAt', { date: formatDateTime(post.publishedAt, adminLanguage) })
                   : t('postEditor.notPublished')}
               </span>
             </div>

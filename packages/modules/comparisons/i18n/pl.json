@@ -22,7 +22,7 @@
   "list.column.open": "Otwórz",
   "list.loadMore": "Wczytaj więcej",
   "detail.page.title": "Szczegóły porównania",
-  "detail.pricesNote": "Ceny w tym widoku to ceny standardowe kanału sprzedaży, a nie ceny wynegocjowane przez klienta — klient widzi swoje. Produkty ograniczone do innych organizacji są tutaj pokazane w całości.",
+  "detail.pricesNote": "Ceny to standardowe ceny kanału, nie wynegocjowane ceny klienta; produkty ograniczone do innych organizacji też są widoczne.",
   "detail.owner": "Właściciel",
   "detail.salesChannel": "Kanał sprzedaży",
   "detail.displayMode": "Tryb wyświetlania",

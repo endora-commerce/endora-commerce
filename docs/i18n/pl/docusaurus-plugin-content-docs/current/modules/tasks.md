@@ -172,13 +172,17 @@ Inne moduły mogą dodawać sekcje na końcu karty obok szczegółów — na prz
 projekt, w którym jest zadanie. Bez uprawnienia do
 zmieniania zadań ekran jest tylko do odczytu.
 
-**Na innych rekordach.** Ekrany **szansy sprzedażowej**, **zamówienia**
-i **zapytania ofertowego** mają w panelu bocznym sekcję **Zadania**: z powiązanymi z nim
-zadaniami, które możesz zobaczyć, z ich statusem, osobami przypisanymi
-i terminem, przyciskiem *Dodaj zadanie* — nowe zadanie od razu powiązane
-z rekordem — oraz *Pokaż na liście zadań*. Zadanie otwarte albo dodane
-z panelu prowadzi przyciskiem *Wstecz* z powrotem do rekordu, także po jego
-usunięciu.
+**Na innych rekordach.** **Szansa sprzedażowa** ma zakładkę **Zadania**, po
+zakładce *Wydarzenia*: z powiązanymi z nią zadaniami, które możesz zobaczyć,
+z ich statusem, osobami przypisanymi i terminem, przyciskiem *Dodaj zadanie* —
+nowe zadanie od razu powiązane z szansą — oraz *Pokaż na liście zadań*. Liczba
+przy nazwie zakładki to powiązane zadania, które są jeszcze **otwarte** (czytnik
+ekranu odczytuje „Zadania, otwarte: 3”); gdy żadne nie jest otwarte, zakładka
+nie pokazuje liczby. Adres zakładki to `?tab=tasks`, więc *Dodaj zadanie* wraca
+na nią, a nowe zadanie jest już policzone. Ekrany **zamówienia** i **zapytania
+ofertowego** mają w panelu bocznym sekcję **Zadania** z tą samą listą
+i przyciskami. Zadanie otwarte albo dodane z zakładki lub z sekcji prowadzi
+przyciskiem *Wstecz* z powrotem do rekordu, także po jego usunięciu.
 
 **Paleta poleceń** (⌘K / CTRL+K) proponuje *Zadania*, *Moje zadania*, *Nowe
 zadanie*, *Statusy i przejścia zadań*, *Priorytety zadań* i *Etykiety zadań*,
@@ -435,7 +439,7 @@ Gdy jest wyłączony:
 
 - z panelu znikają pozycje *Moje zadania*, *Zadania* i *Konfiguracja zadań*
   oraz każdy ekran zadania, a także zakładka *Zadania* projektu i jego zadania
-  etapów, panele *Zadania* szans sprzedażowych, zamówień i zapytań ofertowych,
+  etapów, zakładka *Zadania* szansy sprzedażowej, panele *Zadania* zamówień i zapytań ofertowych,
   akcje palety poleceń i zadania w wyszukiwaniu globalnym;
 - każdy endpoint `/api/v1/admin/tasks…` odpowiada `503` z kodem
   `MODULE_DISABLED`, a jego ustawień nie można zmienić;
@@ -496,6 +500,7 @@ dokładnie tak jak zadanie, które nie istnieje.
 | --- | --- | --- |
 | `GET /` | `tasks:read` | `{ items, nextCursor, prevCursor? }`. Filtry: `status`, `statusCategory`, `assignee` (`me`, `none` albo identyfikator; dowolny z nich), `creator` (`me` albo identyfikator), `priority` (kody albo `none`), `tagId` (każda), `dueFrom`, `dueTo`, `overdue`, `linkedKind` z `linkedId`, `parentId`, `isSubtask`, `hasSubtasks`, `draft` (własne pytającego), `private`, `customFieldFilters`, `q`; `sort` (`created`, `number`, `title`, `due`, `priority`, `status`, `updated`) i `dir`; `cursor`, `limit` (najwyżej 100). Nieznany status, priorytet albo etykieta nie pasuje do niczego. |
 | `GET /mine` | `tasks:read` | `{ data }` — otwarte, opublikowane zadania pytającego, według terminu, bez terminu na końcu (najwyżej 500); te same filtry. |
+| `GET /count` | `tasks:read` | `{ data: { count } }` — ile zadań `GET /` wymieniłby przy tych samych filtrach, na wszystkich stronach, z tą samą widocznością; bez `sort`, `cursor` i `limit`. Zakładka *Zadania* szansy sprzedażowej liczy `linkedKind=opportunity&linkedId=…&statusCategory=open`. |
 | `GET /board` | `tasks:read` | `{ data: { columns: [{ status, count, items, hasMore }] } }`, jedna kolumna na status w kolejności przebiegu; filtry listy i `perColumn` (najwyżej 50, domyślnie 25). |
 | `POST /` | `tasks:write` | `{ title, description?, assigneeIds?, dueOn? \| dueAt?, startOn?, priorityCode?, tagIds?, customFieldValues?, context?, parentTaskId?, links?, draft?, private? }` → `201` `{ data: TaskDetail }`. |
 | `GET /:id` | `tasks:read` | `{ data: TaskDetail }` — z `references`, `links`, `subtaskItems`, `relatedTasks`, przypomnieniami pytającego (`reminders`) i `permissions { canChange, canDelete, canPublish }`. |

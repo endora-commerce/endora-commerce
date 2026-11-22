@@ -3,7 +3,7 @@ import { Bell } from 'lucide-react';
 import { scopeNoticeOf, type ScopeNoticeCode } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime, cn, useSurfaceVisibility, normalize } from '@endora-commerce/admin-kit/lib';
 import { FilterChip, ListToolbar, ListToolbarSearch, ScopeNotice, useConfirmDialog } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   Alert,
   AlertDescription,
@@ -54,6 +54,7 @@ interface ListResponse {
  * status + product, search by SKU or email, and cancel a queued row.
  */
 export function AvailabilityNotificationsPage(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const { confirm, confirmDialog } = useConfirmDialog();
   // The screen's own gate (2026-08-29) — see `InventoryPage` for the reasoning
@@ -247,9 +248,9 @@ export function AvailabilityNotificationsPage(): ReactNode {
                       {availabilityStatusLabels.label(t, r.status)}
                     </span>
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{formatDateTime(r.queuedAt)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatDateTime(r.queuedAt, language)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {r.notifiedAt ? formatDateTime(r.notifiedAt) : '—'}
+                    {r.notifiedAt ? formatDateTime(r.notifiedAt, language) : '—'}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     {canWrite && r.status === 'queued' ? (

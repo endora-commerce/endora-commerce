@@ -55,6 +55,16 @@ projects without a value or a deadline come last either way. The filters and
 the sort are kept in the page's address, so going back to the list, reloading
 it or sending its link to a colleague keeps them.
 
+**Saved views** keep a set of the list's filters and its sort under a name, as
+on the order, quote request and task lists: the **Saved views** selector of the
+toolbar, with **Save view** and **Delete view** beside it. A view is yours
+alone or shared with every administrator who may view projects, and choosing
+one replaces every filter and the sort. It stores filter values, never
+results: the list is then read with *your* reach and visibility, and *My
+projects* means the administrator who applies the view. Only the person who
+saved a view, or an administrator who reaches every Organization, may delete a
+shared one.
+
 **New project** (`/projects/new`) first offers the **templates**: choosing one
 fills in the description and offers the template's roles first to each member,
 and lists the stages the project will get from it — with their workflow, gates,
@@ -680,6 +690,7 @@ project `version`. Re-read the project after a `409`.
 | --- | --- | --- |
 | `GET /api/v1/admin/projects` | `projects:read` | A page of projects and how many the caller may see: `{ items, nextCursor, total }`. Filters: `state` (repeatable), `organizationId`, `memberId` (an administrator's id or `me`), `roleId`, `templateId`, `stageName` (the current stage's name), `q` (number or title), `sort` (`createdAt` — the default, `value`, or `deadline` — the current stage's; projects without one come last either way), `order` (`asc` or `desc`, default `desc`), `cursor`, `limit` (at most 100), and `customFieldFilters` — custom fields marked as list filters, as JSON, the shape the Orders, Quote Requests and Opportunities lists take; a field the list does not offer is `400` `CUSTOM_FIELD_FILTER_UNAVAILABLE`, naming it. |
 | `GET /api/v1/admin/projects/custom-field-filters` | `projects:read` | `{ data: CustomFieldListFilterField[] }` — the project custom fields marked as list filters. |
+| `GET`, `POST /api/v1/admin/projects/list-views`; `PATCH`, `DELETE …/list-views/:id` | `projects:read` | The list's saved views: your own and every shared one. A view is `{ name, shared, filters, sort }`; `filters` holds the list's address parameters. `409` `PROJECT_SAVED_VIEW_NAME_TAKEN` for a name you already use. |
 | `POST /api/v1/admin/projects` | `projects:write` | `201` `{ data: ProjectDetail }`. Without a `templateId`, `stages` is required; with one, the template's structure is copied and `stages` is refused (`422`), and an unknown or archived template is `422` `PROJECT_TEMPLATE_NOT_FOUND`. `customFieldValues` is held to the project's custom fields even when absent — a required one missing is `422` `CUSTOM_FIELD_VALUE_INVALID`, one issue per field, its `path` the field's key. |
 | `GET /api/v1/admin/projects/:id` | `projects:read` | `{ data: ProjectDetail }`, or `404` `PROJECT_NOT_FOUND` — for a project that does not exist and for one the caller may not see alike. |
 | `PATCH /api/v1/admin/projects/:id` | `projects:write` | Title, description, value, start date, `visibility` (`inherit`, `everyone` or `members_and_listed`) and `viewerIds` (the whole list of people listed — who see the project whatever its `visibility`; the Admin UI lists people only with `members_and_listed`), with `version`; `409` `PROJECT_CHANGED` when the project changed since it was read, `422` `PROJECT_MEMBER_INVALID` for a newly listed person who is not an active administrator. A change of who sees the project is audited apart from an edit of its text (`projects.project.visibility_set`, `projects.project.viewers_set`). `customFieldValues` names the fields it changes — the others keep their values, `null` clears one — and is refused like the create's; it is audited on its own (`projects.project.custom_fields_update`). |

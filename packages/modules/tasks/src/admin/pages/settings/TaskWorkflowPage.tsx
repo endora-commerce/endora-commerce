@@ -20,6 +20,7 @@ import {
   ImmediateBadge,
   StatusTransitionGraph,
   type StatusTransitionGraphStatus,
+  useServerReorder,
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../../api.js';
@@ -33,7 +34,6 @@ import {
 } from '../../components/workflow/TaskStatusDialog.js';
 import { TaskStatusesTable } from '../../components/workflow/TaskStatusesTable.js';
 import { errorMessage, workflowStatusName } from '../../lib/labels.js';
-import { useServerReorder } from '../../lib/use-server-reorder.js';
 
 type DialogState = { kind: 'create' } | { kind: 'edit'; status: TaskStatusConfig } | null;
 

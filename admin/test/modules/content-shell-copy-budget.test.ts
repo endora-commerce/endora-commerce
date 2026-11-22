@@ -50,6 +50,7 @@ const CUT: readonly Cut[] = [
   { bundle: 'cms', key: 'brand.spacing.hint', reader: CMS },
   { bundle: 'cms', key: 'brand.preview.hint', reader: CMS },
   { bundle: 'cms', key: 'brand.layout.tierHint', reader: CMS },
+  { bundle: 'cms', key: 'brand.scope.globalHint', reader: CMS },
   { bundle: 'blog', key: 'postEditor.description.edit', reader: BLOG },
   { bundle: 'blog', key: 'categoryEditor.description.default', reader: BLOG },
   { bundle: 'forms', key: 'list.description', reader: FORMS },
@@ -78,11 +79,12 @@ const CUT: readonly Cut[] = [
   { bundle: 'credentials', key: 'page.subtitle', reader: 'modules/credentials/src/admin' },
   { bundle: 'admin_search', key: 'page.configuration.description', reader: ADMIN_SEARCH },
   { bundle: 'admin_search', key: 'page.results.description', reader: ADMIN_SEARCH },
+  // The text-to-cut pass (#1567): the sentence before the Settings link restated it.
+  { bundle: 'admin_search', key: 'page.configuration.settingsNote', reader: ADMIN_SEARCH },
 ];
 
 /** Kept on screen as a description or a hint, so each must fit the one clamped line. */
 const ONE_LINERS: readonly { bundle: string; key: string }[] = [
-  { bundle: 'cms', key: 'brand.scope.globalHint' },
   { bundle: 'cms', key: 'brand.layout.scaleHint' },
   { bundle: 'cms', key: 'pageEditor.languageVersion.help' },
   { bundle: 'cms', key: 'pageEditor.breadcrumbs.parentHelp' },
@@ -95,6 +97,9 @@ const ONE_LINERS: readonly { bundle: string; key: string }[] = [
   { bundle: 'blog', key: 'categoryEditor.description.system' },
   { bundle: 'forms', key: 'inspector.shareHint' },
   { bundle: 'megamenu', key: 'itemConfig.clickNavigatesHelp' },
+  { bundle: 'blog', key: 'postEditor.archiveHint' },
+  { bundle: 'blog', key: 'author.hint' },
+  { bundle: 'blog', key: 'urlKeys.hint' },
   { bundle: 'megamenu', key: 'list.activeRule' },
   { bundle: 'transactional_emails', key: 'branding.description' },
   { bundle: 'document_templates', key: 'page.description' },
@@ -104,8 +109,19 @@ const ONE_LINERS: readonly { bundle: string; key: string }[] = [
   { bundle: 'settings', key: 'search.reindex.description' },
   { bundle: '_i18n', key: 'platform.apiDescription.reference.body' },
   { bundle: '_i18n', key: 'adminUsers.resetPassword.hint' },
-  { bundle: 'admin_search', key: 'page.configuration.settingsNote' },
+  { bundle: 'admin_search', key: 'page.configuration.settingsLink' },
   { bundle: 'mfa', key: 'security.page.description' },
+  // Shortened by the text-to-cut pass (#1567).
+  { bundle: 'settings', key: 'activation.managedOnPlatformScreen' },
+  { bundle: '_i18n', key: 'platform.commandHooks.outbox.hint' },
+  { bundle: '_i18n', key: 'profile.authorHelp' },
+  { bundle: 'admin_users', key: 'roles.twoFactor.help' },
+  { bundle: 'admin_users', key: 'roles.twoFactor.mfaOff' },
+  { bundle: 'sales_channels', key: 'identity.code.lockedHelp' },
+  { bundle: 'sales_channels', key: 'identity.theme.help' },
+  { bundle: 'analytics', key: 'settingLabels.analytics.reporting_time_zone.description' },
+  { bundle: 'admin_notifications', key: 'settingLabels.admin_notifications.enabled.description' },
+  { bundle: 'admin_feedback', key: 'settingLabels.admin_feedback.module_enabled.description' },
 ];
 
 /** The longer explanations, moved behind a `help` ⓘ. */
@@ -170,6 +186,10 @@ describe('CONTENT and SHELL page copy (UX audit DS-02, #1436)', () => {
 
   it.each(LANGUAGES)('fits every kept %s line in the one-line budget', (language) => {
     expect(overBudget(ONE_LINERS, language, ONE_LINE)).toEqual([]);
+  });
+
+  it.each(LANGUAGES)('leaves the command-line remedy to the docs in the %s role-less notice (#1567)', (language) => {
+    expect(bundle('_i18n', language)['appShell.noRole.description']).not.toContain('admin:create');
   });
 
   it.each(LANGUAGES)('fits every %s help text in the help budget', (language) => {

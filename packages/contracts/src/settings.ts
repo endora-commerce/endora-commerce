@@ -552,6 +552,12 @@ export interface SettingsSetValueResult {
   newVersion: string;
 }
 
+/** What a per-channel reset did: the channels whose own value it removed. */
+export interface SettingsResetValuesResult {
+  resetChannelIds: string[];
+  newVersion: string;
+}
+
 /**
  * Container name: `settingsAdminService`. Owner: `settings`.
  *
@@ -584,6 +590,17 @@ export interface SettingsAdminPort {
     expectedVersion: string | null,
     actor: SettingsAdminAuditContext,
   ): Promise<SettingsSetValueResult>;
+  /**
+   * Removes the named channels' own value, so they inherit the platform-wide
+   * value again (issue #1588). The platform-wide value is never touched — that
+   * is a different operation, and an empty subset is refused rather than read
+   * as "all channels".
+   */
+  resetValuesForSubset(
+    code: string,
+    channelCodes: string[],
+    actor: SettingsAdminAuditContext,
+  ): Promise<SettingsResetValuesResult>;
 }
 
 // ---------------------------------------------------------------------------

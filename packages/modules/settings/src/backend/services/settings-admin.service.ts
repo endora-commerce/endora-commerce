@@ -662,6 +662,28 @@ export class SettingsAdminService {
     }
   }
 
+  /**
+   * The published per-channel reset (`SettingsAdminPort`, issue #1588).
+   * `resetValues` reads an empty or absent subset as "clear the platform-wide
+   * value"; a module asking to make a channel inherit again must never reach
+   * that branch by passing a subset that resolved to nothing.
+   */
+  async resetValuesForSubset(
+    code: string,
+    channelCodes: string[],
+    actor: AdminAuditContext,
+  ): Promise<{ resetChannelIds: string[]; newVersion: string }> {
+    if (channelCodes.length === 0) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.SETTING_EMPTY_SUBSET,
+        'A subset reset must target at least one sales channel.',
+      );
+    }
+    const { resetChannelIds, newVersion } = await this.resetValues(code, channelCodes, actor);
+    return { resetChannelIds, newVersion };
+  }
+
   async resetValues(
     code: string,
     channelCodes: string[] | undefined,

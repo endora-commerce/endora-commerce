@@ -12,8 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
+import { ReorderControls } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { ReorderControls } from '../../components/reorder/ReorderControls.js';
 import { workflowStatusLabel } from '../../lib/labels.js';
 
 export interface StatusesTableProps {

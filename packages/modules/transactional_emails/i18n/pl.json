@@ -118,6 +118,8 @@
   "branding.noPermission": "Nie masz uprawnień do przeglądania brandingu maili.",
   "branding.switchScope.title": "Niezapisane zmiany brandingu",
   "branding.switchScope.message": "Zapisać zmiany dla tego zakresu przed przełączeniem, czy je odrzucić?",
+  "branding.inherit.overridden": "Ustawione dla tego kanału",
+  "branding.inherit.action": "Użyj wartości wszystkich kanałów",
   "list.column.name": "Nazwa",
   "list.column.code": "Kod",
   "list.column.module": "Moduł",

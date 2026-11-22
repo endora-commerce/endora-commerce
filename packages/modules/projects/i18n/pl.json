@@ -7,6 +7,7 @@
   "adminRoles.permission.projects:analytics": "Przeglądanie analityki projektów",
   "errors.PROJECT_NOT_FOUND": "Ten projekt nie istnieje lub nie jest dla Ciebie dostępny.",
   "errors.PROJECT_HAS_LINKS": "Do tego projektu są podpięte dokumenty. Odepnij je przed usunięciem projektu.",
+  "errors.PROJECT_SAVED_VIEW_NAME_TAKEN": "Masz już zapisany widok o tej nazwie na liście projektów. Wybierz inną nazwę.",
   "errors.PROJECT_ORGANIZATION_OUT_OF_SCOPE": "Jedna z organizacji jest dla Ciebie niedostępna.",
   "errors.PROJECT_STAGE_CURRENT": "Projekt jest na tym etapie, więc nie można go usunąć.",
   "errors.PROJECT_STAGE_LAST": "Projekt musi mieć co najmniej jeden etap, więc jedynego etapu nie można usunąć.",

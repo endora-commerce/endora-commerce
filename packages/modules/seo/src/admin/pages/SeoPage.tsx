@@ -4,7 +4,7 @@ import type { SeoEntityType, SitemapChannelStatus } from '@endora-commerce/contr
 import { ApiError, apiBaseUrl, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { CategorySelect, ProductPicker } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { SeoMetaScopeEditor } from './SeoMetaScopeEditor.js';
 import { isUuidShape } from '@endora-commerce/contracts';
 
@@ -36,6 +36,7 @@ export function SeoPage(): ReactNode {
 }
 
 function SitemapCard(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const [rows, setRows] = useState<SitemapChannelStatus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,7 +193,7 @@ function SitemapCard(): ReactNode {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {row.generatedAt ? formatDateTime(row.generatedAt) : '—'}
+                      {row.generatedAt ? formatDateTime(row.generatedAt, language) : '—'}
                     </TableCell>
                     <TableCell className="text-right">
                       {row.urlCount?.toLocaleString() ?? '—'}

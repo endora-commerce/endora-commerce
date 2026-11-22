@@ -487,11 +487,34 @@ export const AdminZoneNameSchema = z.enum([
    * empty zone renders nothing at all. Props: {@link OpportunityDetailZoneProps},
    * the Opportunity's id and nothing else (Z3).
    *
-   * The first contributors are `projects`' Project and `tasks`' Tasks (issues
-   * #1452 and #1526, UX audit DS-20 and WORK-12); `crm` names no contributor
-   * and gains no edge.
+   * The first contributor is `projects`' Project (issue #1452, UX audit
+   * DS-20); `tasks`' Tasks sat here until they became a tab of the record in
+   * `opportunity.detail.tabs` (`specs/183-record-tab-contributions/`, issue
+   * #1526, WORK-12). `crm` names no contributor and gains no edge.
    */
   'opportunity.detail.sidebar',
+  /**
+   * The tabs other modules add to an Opportunity's tab strip — the first
+   * **record-tab zone** (`specs/183-record-tab-contributions/contracts/record-tab-zone.md`).
+   *
+   * A record-tab zone is a member listed in {@link RECORD_TAB_ZONE_NAMES}:
+   * its contributions are **whole tabs** of the host's `RecordTabs`, each one
+   * button with a label and an optional count, plus one panel, and every
+   * contribution carries {@link RecordTabDeclarationSchema} data in `tab`
+   * (RT1, RT2). The host draws the strip, decides where in it the contributed
+   * tabs go — here after Events and before Notes, "what is planned for it" —
+   * and owns `?tab=`; the contributions order themselves by weight, then
+   * module id. It enumerates the zone with `useRecordTabZone(name, props)`,
+   * which decides both presence axes, the permission and `match` before any
+   * chunk or count loads, so a tab the reader cannot see costs nothing (RT3,
+   * RT4). A contributed id that equals a host tab's id is not drawn.
+   *
+   * Mounted **once** per Opportunity. Props: {@link OpportunityDetailZoneProps},
+   * the Opportunity's id and nothing else (Z3). The first contributor is
+   * `tasks`' *Tasks* tab, counting the open Tasks; `crm` names no contributor
+   * and gains no edge.
+   */
+  'opportunity.detail.tabs',
   /**
    * The per-row action cell of the order detail's Delivery tab.
    *
@@ -710,6 +733,27 @@ export const AdminZoneNameSchema = z.enum([
 ])
 
 export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
+
+/**
+ * The members of {@link AdminZoneNameSchema} that are **record-tab zones**
+ * (`specs/183-record-tab-contributions/` research R1): their contributions
+ * are whole tabs of a host's record tab strip, not panels of a stack.
+ *
+ * Closed and exported, so the contribution schema (tab data required here and
+ * forbidden elsewhere) and the kit's helper types (`zoneComponent` refuses
+ * these, `recordTabComponent` takes nothing else) tell the two kinds apart
+ * from one list rather than from a second registry. One member per host,
+ * named `<host>.detail.tabs` (Z13, Z14).
+ */
+export const RECORD_TAB_ZONE_NAMES = ['opportunity.detail.tabs'] as const satisfies readonly AdminZoneName[];
+
+/** A zone whose contributions are whole tabs of the host's record tab strip. */
+export type RecordTabZoneName = (typeof RECORD_TAB_ZONE_NAMES)[number];
+
+/** Whether `zone` is a record-tab zone. */
+export function isRecordTabZoneName(zone: string): zone is RecordTabZoneName {
+  return (RECORD_TAB_ZONE_NAMES as readonly string[]).includes(zone);
+}
 
 // ---------------------------------------------------------------------------
 // Zone props
@@ -1128,6 +1172,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'quote_request.detail.sidebar': QuoteRequestDetailZoneProps;
   'opportunity.detail.after': OpportunityDetailZoneProps;
   'opportunity.detail.sidebar': OpportunityDetailZoneProps;
+  'opportunity.detail.tabs': OpportunityDetailZoneProps;
   'order.shipment.row.actions': OrderShipmentRowZoneProps;
   'order.shipments.tab.actions': OrderShipmentsActionsZoneProps;
   'order.entry.tabs': OrderEntryTabsZoneProps;
@@ -1195,11 +1240,49 @@ export const AdminNavDeclarationSchema = z.object({
 });
 
 /**
+ * A tab id: lowercase, URL-safe, short — it is part of the host's `?tab=`, so
+ * renaming one breaks every link somebody saved.
+ */
+const recordTabIdRe = /^[a-z][a-z0-9-]{0,31}$/;
+
+/**
+ * The tab a contribution to a record-tab zone adds to the host's strip
+ * (`specs/183-record-tab-contributions/data-model.md`, FR-002).
+ *
+ * Both keys are resolved in the **contributing** module's bundle — the module
+ * is the registry entry's key (D-142), never a declared field.
+ * `countLabelKey` is a template taking `{label}` and `{count}` that starts
+ * with `{label}` (WCAG 2.5.3, as the kit's `TabItem.countLabel`); absent, the
+ * kit names a counted tab "<label>, items: <n>".
+ */
+export const RecordTabDeclarationSchema = z.object({
+  id: z.string().regex(recordTabIdRe, 'Tab id must be a lowercase URL token of at most 32 characters'),
+  labelKey: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(translationKeyRe, 'Translation key must be dot-separated camelCase namespaces'),
+  countLabelKey: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(translationKeyRe, 'Translation key must be dot-separated camelCase namespaces')
+    .optional(),
+});
+
+export type RecordTabDeclaration = z.infer<typeof RecordTabDeclarationSchema>;
+
+/**
  * The data half of a contribution into another module's screen.
  *
  * A contribution declares **one** zone, so a component appearing in two zones
  * is two contributions — and only the one that needs narrowing carries a
  * {@link AdminZoneContributionSchema.shape.match}.
+ *
+ * `tab` is present exactly when the zone is a record-tab zone
+ * ({@link RECORD_TAB_ZONE_NAMES}) and absent on every other one (FR-003): a
+ * tab declared on a stack zone would render nowhere, and a record tab without
+ * one has no label for the host's strip.
  */
 export const AdminZoneContributionSchema = z.object({
   zone: AdminZoneNameSchema,
@@ -1226,6 +1309,24 @@ export const AdminZoneContributionSchema = z.object({
   match: z
     .record(z.string(), z.union([z.string(), z.array(z.string()).readonly()]))
     .optional(),
+  /** The tab this contribution adds — on a record-tab zone, and only there. */
+  tab: RecordTabDeclarationSchema.optional(),
+}).superRefine((contribution, context) => {
+  const tabZone = isRecordTabZoneName(contribution.zone);
+  if (tabZone && contribution.tab === undefined) {
+    context.addIssue({
+      code: 'custom',
+      path: ['tab'],
+      message: `A contribution to the record-tab zone '${contribution.zone}' must declare its tab`,
+    });
+  }
+  if (!tabZone && contribution.tab !== undefined) {
+    context.addIssue({
+      code: 'custom',
+      path: ['tab'],
+      message: `'${contribution.zone}' is not a record-tab zone; a tab declared there renders nowhere`,
+    });
+  }
 });
 
 /**
@@ -1279,9 +1380,25 @@ export interface AdminRouteDeclaration extends z.infer<typeof AdminRouteDeclarat
 /** A sidebar entry a module adds. */
 export type AdminNavDeclaration = z.infer<typeof AdminNavDeclarationSchema>;
 
+/**
+ * A lazily-loaded count loader for a record tab (`specs/183-record-tab-contributions/`
+ * research R4).
+ *
+ * Structural, on {@link AdminComponentFactory}'s terms: the kit's
+ * `recordTabComponent()` constrains the default export to
+ * `(props: AdminZoneProps<Z>, signal: AbortSignal) => Promise<number>`.
+ */
+export type AdminCountFactory = () => Promise<{ readonly default: unknown }>;
+
 /** A contribution a module makes into a zone another module's screen renders. */
 export interface AdminZoneContribution extends z.infer<typeof AdminZoneContributionSchema> {
   readonly component: AdminComponentFactory;
+  /**
+   * The tab's count, for a contribution to a record-tab zone — a second
+   * dynamic-import factory, fetched only for a tab that survives presence and
+   * permission, so a tab nobody may see downloads nothing (091 FR-013).
+   */
+  readonly count?: AdminCountFactory;
 }
 
 /**

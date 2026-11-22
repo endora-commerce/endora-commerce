@@ -45,7 +45,7 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 
 | Ekran | Gdzie | Uprawnienie | Do czego służy |
 | --- | --- | --- | --- |
-| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, jako lista albo — przełącznikiem **Lista / Tablica** w nagłówku — jako tablica. Lista ma wyszukiwanie i filtry: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży, data utworzenia i pola niestandardowe oznaczone jako filtry listy. |
+| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, jako lista albo — przełącznikiem **Lista / Tablica** w nagłówku — jako tablica. Lista ma wyszukiwanie i filtry: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży, data utworzenia i pola niestandardowe oznaczone jako filtry listy; oba widoki mają zapisane widoki. |
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
 | Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Nagłówek ze statusem obok tytułu, pasek etapów z dozwolonymi z tego statusu zmianami — wstecz i dalej — panel informacji po prawej oraz karty: *Przegląd*, **Powiązania** (zamówienia i zapytania ofertowe szansy), **Wydarzenia** (to, co dla niej zaplanowano, z przypomnieniami), *Notatki*, *Wiadomości*, *Załączniki* i **Historia zmian**. Zobacz *Ekran szansy sprzedażowej*. |
 | Tablica | **Tablica** w przełączniku *Lista / Tablica* ekranu **CRM → Szanse sprzedażowe** (`/crm/opportunities?view=board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. Dawny adres `/crm/board` nadal ją otwiera. |
@@ -131,6 +131,7 @@ karty.
 | **Przegląd** | Opis — sformatowany i zmieniany na miejscu jego ołówkiem — oraz pola niestandardowe. |
 | **Powiązania** | *Powiązane zamówienia* i *Powiązane zapytania ofertowe*: wiązanie, odłączanie, przełącznik *Podąża za szansą*, przyciski **Utwórz zamówienie** i **Utwórz zapytanie ofertowe**. Na karcie widać liczbę powiązanych dokumentów. |
 | **Wydarzenia** | To, co zaplanowano dla szansy — rozmowa, spotkanie, termin — jako lista i we własnym kalendarzu, każde z opcjonalnym przypomnieniem. Na karcie widać liczbę wydarzeń, które jeszcze się nie zakończyły. Zobacz *Wydarzenia i przypomnienia*. |
+| **Zadania** | Zadania powiązane z szansą, z przyciskiem *Dodaj zadanie*. Na karcie widać, ile z nich jest jeszcze otwartych. Kartę dodaje moduł **Zadania**, jest więc widoczna tylko wtedy, gdy ten moduł jest włączony, i tylko dla osoby, która może odczytywać zadania — zobacz stronę modułu Zadania. |
 | **Notatki**, **Wiadomości** | Dwie rozmowy. Na karcie **Notatki** widać liczbę notatek, a na karcie **Wiadomości** — liczbę wiadomości, których jeszcze nie przeczytałeś. |
 | **Załączniki** | Pliki. Na karcie widać liczbę załączonych plików. |
 | **Historia zmian** | Wszystko, co zrobiono z szansą, od najnowszych zmian. |
@@ -141,19 +142,31 @@ otworzyć. Na kartach *Powiązania*, *Notatki* i *Załączniki* jest to liczba
 pozycji: powiązanych dokumentów, notatek, plików. Na karcie *Wydarzenia* —
 liczba wydarzeń, które jeszcze się nie zakończyły. Na karcie *Wiadomości* —
 liczba wiadomości, których jeszcze nie przeczytałeś; zobacz *Notatki i
-wiadomości wewnętrzne*. Liczby przychodzą razem z szansą, są więc widoczne,
-zanim otworzysz którąkolwiek kartę, a każda zmienia się, gdy dodasz lub usuniesz
-pozycję na jej karcie. To, co w tym czasie doda ktoś inny, pojawi się po
-odświeżeniu strony. Czytnik ekranu odczytuje każdą liczbę razem z tym, co ona
-liczy — „Notatki, liczba pozycji: 3”, „Wydarzenia, nadchodzące: 2”,
+wiadomości wewnętrzne*. Na karcie *Zadania* — liczba powiązanych zadań, które
+są jeszcze otwarte. Liczby przychodzą razem z szansą, są więc widoczne, zanim
+otworzysz którąkolwiek kartę, a każda zmienia się, gdy dodasz lub usuniesz
+pozycję na jej karcie; liczba na karcie *Zadania* jest odczytywana tuż po
+otwarciu ekranu, a jeśli nie uda się jej odczytać, karta po prostu jej nie
+pokazuje. To, co w tym czasie doda ktoś inny, pojawi się po odświeżeniu strony.
+Czytnik ekranu odczytuje każdą liczbę razem z tym, co ona liczy — „Notatki,
+liczba pozycji: 3”, „Wydarzenia, nadchodzące: 2”, „Zadania, otwarte: 3”,
 „Wiadomości, nieprzeczytane: 1”.
 
 Otwarta karta jest częścią adresu — `/crm/opportunities/:id?tab=links`,
-i odpowiednio `events`, `notes`, `messages`, `attachments` oraz `history` — dzięki czemu
-zostaje po odświeżeniu strony i można ją wysłać innej osobie. Adres bez nazwy
-karty albo z nazwą karty, która nie istnieje, otwiera *Przegląd*. Powrót z
+i odpowiednio `events`, `tasks`, `notes`, `messages`, `attachments` oraz `history` — dzięki
+czemu zostaje po odświeżeniu strony i można ją wysłać innej osobie. Adres bez
+nazwy karty, z nazwą karty, która nie istnieje, albo karty, której nie widzisz
+(`tasks`, gdy moduł Zadania jest wyłączony), otwiera *Przegląd*. Powrót z
 ekranu **Utwórz zamówienie** albo **Utwórz zapytanie ofertowe** otwiera kartę
 **Powiązania**, na której pojawia się nowy dokument.
+
+Dla autorów modułów: moduł dodaje do tego paska własną kartę — etykietę,
+opcjonalną liczbę i panel — przez strefę panelu administracyjnego
+`opportunity.detail.tabs`, deklarowaną funkcją `recordTabComponent()`
+z `@endora-commerce/admin-kit/contributions`. Dodane karty stoją po karcie
+*Wydarzenia*; karta, której identyfikator jest identyfikatorem jednej z kart
+samego ekranu, nie jest pokazywana. CRM nie wymienia żadnego modułu, który
+dodaje karty, i od żadnego nie zależy.
 
 **Powrót do szansy.** Każda droga, którą szansa prowadzi do zamówienia albo
 zapytania ofertowego — karta *Powiązania*, zamówienie wspomniane w opisie,
@@ -424,6 +437,27 @@ filtrem listy — albo odwrotnie. **Pole karty, które nie jest filtrem listy, n
 link, który filtrował nim listę, dostaje błąd z nazwą pola i przyciskiem **Usuń ten filtr**, dopóki
 opcja nie zostanie włączona. Tablica — łącznie z *Pokaż więcej* — działa bez zmian.
 
+### Zapisane widoki
+
+Pasek narzędzi **CRM → Szanse sprzedażowe** ma listę wyboru **Zapisane widoki** z przyciskami
+**Zapisz widok** i **Usuń widok** obok — tak samo na liście i na tablicy. Działają jak na listach
+zamówień, zapytań ofertowych i zadań:
+
+- **Jeden widok dla obu.** Widok zapamiętuje wszystkie filtry strony — filtry listy (stan, status,
+  filtry pól niestandardowych), filtry tablicy (filtry pól karty) i te, które obie mają wspólne —
+  oraz sortowanie listy. Nie zapamiętuje, czy byłeś na liście, czy na tablicy: wybór widoku
+  zastępuje wszystkie filtry i sortowanie i zostawia cię tam, gdzie jesteś, więc widok zapisany na
+  liście otwiera na tablicy te same szanse.
+- **Widok nigdy nie poszerza tego, co widzisz.** Przechowuje wartości filtrów, nigdy wyniki; strona
+  jest potem odczytywana z *twoimi* uprawnieniami i organizacjami. *Ja* jako handlowiec oznacza
+  tego, kto stosuje widok.
+- **Prywatny albo udostępniony.** Okno **Zapisz widok** pyta o nazwę (najwyżej 160 znaków) i o to,
+  czy udostępnić widok każdemu administratorowi, który może otworzyć stronę; udostępniony widok ma
+  po nazwie dopisek **(udostępniony)**. Nie możesz mieć dwóch widoków, których nazwy różnią się
+  tylko wielkością liter albo spacjami na początku i końcu.
+- **Usuwanie.** **Usuń widok** jest dostępne dla twoich własnych widoków; cudzy udostępniony widok
+  może usunąć tylko administrator, który ma dostęp do każdej organizacji.
+
 ### Dla integratorów
 
 | Metoda + ścieżka | Uprawnienie | Cel |
@@ -431,6 +465,7 @@ opcja nie zostanie włączona. Tablica — łącznie z *Pokaż więcej* — dzia
 | `GET /api/v1/admin/crm/board` | `crm:read` | Po jednej kolumnie dla każdego statusu, w kolejności przepływu: status, `count`, `valueTotals` dla każdej waluty, pierwsze `perColumn` szans (domyślnie 50, najwyżej 200) oraz `hasMore`; a także `cardFields` — pola widoczne na karcie, w kolejności. Przyjmuje filtry listy z wyjątkiem `statusCode` i `state` — także filtr handlowca i filtr etykiet, w tym samym znaczeniu — oraz `fieldFilters`. |
 | `GET /api/v1/admin/crm/board/card-fields` | `crm:read` | `fields`: pola widoczne na karcie, w kolejności. `available`: wszystkie pola, które można wybrać. `maxFields`: 6. |
 | `PUT /api/v1/admin/crm/board/card-fields` | `crm:configure` | Treść `{ "fields": ["builtin:organization", "custom:lead_source"] }` — odwołania do pól, w kolejności. W odpowiedzi konfiguracja po zmianie. `422` dla odwołania, które nie wskazuje żadnego pola. |
+| `GET`, `POST /api/v1/admin/crm/opportunities/list-views`; `PATCH`, `DELETE …/list-views/:id` | `crm:read` | Zapisane widoki strony: twoje własne i każdy udostępniony. Widok to `{ name, shared, filters, sort }`; `filters` zawiera parametry adresu strony. `409` `CRM_SAVED_VIEW_NAME_TAKEN` dla nazwy, której już używasz. |
 
 Przeniesienie karty to `POST /api/v1/admin/crm/opportunities/:id/transition`;
 tablica nie ma do tego własnej operacji zapisu. Kolejne karty kolumny pochodzą
@@ -1488,10 +1523,10 @@ Wartość wyliczana uwzględni zapytania ofertowe przy najbliższym przeliczeniu
 
 Moduł **Zadania** jest opcjonalny w ten sam sposób. Gdy jest wyłączony, zadanie
 wspomniane w tekście jest pokazywane jako *Zadanie niedostępne*, lista
-dokumentów pod `@@` nie proponuje zadań, a ekran szansy nie pokazuje panelu
+dokumentów pod `@@` nie proponuje zadań, a ekran szansy nie pokazuje karty
 *Zadania*; po ponownym włączeniu wzmianki znów pokazują swoje zadania. Gdy moduł
-jest włączony, panel *Zadania* w panelu bocznym ekranu szansy wymienia powiązane z nią
-zadania, które możesz zobaczyć — opisuje go strona modułu Zadania.
+jest włączony, karta *Zadania* ekranu szansy wymienia powiązane z nią
+zadania, które możesz zobaczyć — opisuje ją strona modułu Zadania.
 
 Tak samo moduł **Projekty**: gdy jest wyłączony, projekt wspomniany w tekście
 jest pokazywany jako *Projekt niedostępny*, a lista dokumentów pod `@@` nie

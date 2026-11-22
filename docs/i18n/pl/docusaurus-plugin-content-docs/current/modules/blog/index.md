@@ -365,7 +365,7 @@ opublikowane wpisy kanału sprzedaży strony w jej języku:
 | Liczba wpisów | Ile wpisów, 1–12 (domyślnie 6). Na karcie **Data**. |
 | Kategoria | Tylko wpisy z tej kategorii; puste oznacza wszystkie. Na karcie **Data**, wybierana spośród kategorii bloga (blok nadal zapisuje slug kategorii, więc blok zapisany wcześniej się nie zmienia). |
 | Układ | Karuzela (z opcjami karuzeli: liczba slajdów w widoku dla każdego progu, odstęp, efekt, strzałki i kropki) albo siatka (liczba kolumn dla każdego progu). |
-| Etykieta „czytaj więcej” | Tekst linku na każdej karcie. |
+| Etykieta „czytaj więcej” | Tekst linku na każdej karcie. Nowy blok dostaje go w języku edytowanej treści: „Read more” na stronie angielskiej, „Czytaj więcej” na polskiej. |
 
 Każda karta pokazuje obraz główny (2:1), kategorię główną, tytuł i link
 „czytaj więcej”.

@@ -534,7 +534,7 @@ export function OrderDetail(): ReactNode {
             </Badge>
           </>
         }
-        description={<span>{t('orderDetail.placedAt', { date: formatDateTime(order.placedAt) })}</span>}
+        description={<span>{t('orderDetail.placedAt', { date: formatDateTime(order.placedAt, language) })}</span>}
         actions={(() => {
           // Issue #1497 (SALES-12) — one primary per view (`DetailHeaderActions`).
           // The order's next step is its invoice: *Issue invoice* is the one
@@ -974,7 +974,7 @@ export function OrderDetail(): ReactNode {
                     {comments.map((c) => (
                       <li key={c.id} className="py-3 text-sm first:pt-0 last:pb-0" data-testid="order-comment">
                         <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{formatDateTime(c.createdAt)}</span>
+                          <span>{formatDateTime(c.createdAt, language)}</span>
                           {c.systemNote ? (
                             <span>{tOrders('orderDetail.comments.systemAuthor')}</span>
                           ) : c.authorCustomerAccountId ? (

@@ -30,12 +30,14 @@ import {
   ListToolbarSearch,
   PaginationFooter,
   ResponsiveTable,
+  SavedViewsControl,
   customFieldDisplayName,
   customFieldFilterRefusal,
   toCustomFieldFiltersParam,
   useCustomFieldListFilterFields,
   withCustomFieldFilter,
   type ResponsiveColumn,
+  type SavedViewState,
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi, type ProjectListParams, type ProjectSort } from '../api.js';
@@ -47,8 +49,10 @@ import {
   NO_FILTERS,
   SORTS,
   STATES,
+  fromSavedProjectView,
   hiddenFilterCount,
   readListAddress,
+  toSavedProjectView,
   writeListAddress,
   type Filters,
   type ListAddress,
@@ -58,6 +62,8 @@ import {
 /** The most rows `GET /projects` answers in one page (`PROJECT_LIST_LIMIT_MAX`). */
 const MAX_PAGE_LIMIT = 100;
 const PAGE_SIZES: readonly PageSizeOption[] = [10, 20, 50, 100];
+/** The list's saved views (issue #1734). */
+const VIEWS_ENDPOINT = '/api/v1/admin/projects/list-views';
 
 const SEARCH_DEBOUNCE_MS = 300;
 /** The first page's trail: one instance, so a derived empty trail is the same value every render. */
@@ -151,6 +157,8 @@ export function ProjectsList(): ReactNode {
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** A failure to read the saved views; the control's dialogs keep their own. */
+  const [viewsError, setViewsError] = useState<string | null>(null);
   /** The custom-field filter the server refused, until the operator removes it. */
   const [refusedCustomField, setRefusedCustomField] = useState<string | null>(null);
   const [offeredCustomFields, setOfferedCustomFields] = useState<OfferedCustomFields | null>(null);
@@ -300,6 +308,15 @@ export function ProjectsList(): ReactNode {
     update((current) => ({ ...current, filters: NO_FILTERS }));
   };
 
+  /** What *Save view* stores: the filters and the sort in the address (issue #1734). */
+  const savedState = useMemo<SavedViewState>(() => toSavedProjectView({ filters, sort }), [filters, sort]);
+
+  /** A chosen view replaces every filter and the sort; what the list no longer takes is dropped. */
+  const applyView = (state: SavedViewState): void => {
+    const next = fromSavedProjectView(state);
+    setSearchParams((current) => (next.toString() === current.toString() ? current : next), { replace: true });
+  };
+
   const changeCustomField = useCallback(
     (key: string, filter: CustomFieldFilter | null): void =>
       update((current) => ({
@@ -437,7 +454,12 @@ export function ProjectsList(): ReactNode {
 
       {canFilterCustomFields ? <CustomFieldFilterSource onOffered={setOfferedCustomFields} /> : null}
       <Card className="mb-4">
-        <CardContent>
+        <CardContent className="space-y-4">
+          {viewsError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{viewsError}</AlertDescription>
+            </Alert>
+          ) : null}
           <ListToolbar
             label={t('list.filter.toolbar')}
             search={
@@ -495,22 +517,30 @@ export function ProjectsList(): ReactNode {
               </>
             }
             actions={
-              <Select
-                id="projects-sort"
-                aria-label={t('list.sort')}
-                className="w-auto"
-                value={sort}
-                onChange={(event): void => {
-                  const next = event.target.value as SortOption;
-                  update((current) => ({ ...current, sort: next }));
-                }}
-              >
-                {SORTS.map((option) => (
-                  <option key={option} value={option}>
-                    {t(`list.sortOption.${option.replace(':', '.')}`)}
-                  </option>
-                ))}
-              </Select>
+              <>
+                <Select
+                  id="projects-sort"
+                  aria-label={t('list.sort')}
+                  className="w-auto"
+                  value={sort}
+                  onChange={(event): void => {
+                    const next = event.target.value as SortOption;
+                    update((current) => ({ ...current, sort: next }));
+                  }}
+                >
+                  {SORTS.map((option) => (
+                    <option key={option} value={option}>
+                      {t(`list.sortOption.${option.replace(':', '.')}`)}
+                    </option>
+                  ))}
+                </Select>
+                <SavedViewsControl
+                  endpoint={VIEWS_ENDPOINT}
+                  current={savedState}
+                  onApply={applyView}
+                  onError={setViewsError}
+                />
+              </>
             }
             moreFilters={
               <>

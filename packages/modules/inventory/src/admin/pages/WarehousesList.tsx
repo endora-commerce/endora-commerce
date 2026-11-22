@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import type { Warehouse } from '@endora-commerce/contracts';
 import { Plus, Warehouse as WarehouseIcon } from 'lucide-react';
 import { ApiError, formatDateTime, cn, useSurfaceVisibility, normalize } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { FilterChip, ListToolbar, ListToolbarSearch } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
@@ -24,6 +24,7 @@ import { warehousesClient } from '../api/warehouses-client.js';
  * WarehousesList — admin landing for warehouse identity (feature 010 / US1).
  */
 export function WarehousesList(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   // The screen's own gate (2026-08-29) — see `InventoryPage` for the reasoning
   // in full. Until then this list answered to `orders:read`, so anybody who
@@ -179,7 +180,7 @@ export function WarehousesList(): ReactNode {
                       {r.active ? t('warehouses.status.active') : t('warehouses.status.inactive')}
                     </span>
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{formatDateTime(r.updatedAt)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatDateTime(r.updatedAt, language)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

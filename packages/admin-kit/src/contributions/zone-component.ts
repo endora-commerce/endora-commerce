@@ -24,6 +24,8 @@ import type {
   AdminZoneName,
   AdminZoneProps,
   PermissionRequirement,
+  RecordTabDeclaration,
+  RecordTabZoneName,
 } from '@endora-commerce/contracts';
 import type { ComponentType } from 'react';
 
@@ -62,8 +64,18 @@ export interface ZoneComponentOptions {
 }
 
 /**
+ * Every zone whose contributions are panels of a stack — every member except a
+ * record-tab zone, whose contributions are whole tabs and are declared with
+ * {@link recordTabComponent} (`specs/183-record-tab-contributions/` R3).
+ */
+export type StackZoneName = Exclude<AdminZoneName, RecordTabZoneName>;
+
+/**
  * Declare a contribution to `zone`, with its component type-checked against
  * that zone's props.
+ *
+ * A record-tab zone is refused at compile time: its contributions need tab
+ * data, which this helper does not take.
  *
  * ```ts
  * zoneComponent('product.editor.field.after', () => import('./FieldProtection.js'), {
@@ -72,7 +84,7 @@ export interface ZoneComponentOptions {
  * })
  * ```
  */
-export function zoneComponent<Z extends AdminZoneName>(
+export function zoneComponent<Z extends StackZoneName>(
   zone: Z,
   load: () => Promise<{ readonly default: AdminZoneComponent<Z> }>,
   options: ZoneComponentOptions = {},
@@ -87,6 +99,65 @@ export function zoneComponent<Z extends AdminZoneName>(
       ? {}
       : { requiredPermission: options.requiredPermission }),
     ...(options.match === undefined ? {} : { match: options.match }),
+    component: load,
+  };
+}
+
+/**
+ * A record tab's count loader, for the zone it contributes to: called with the
+ * zone's props and a signal the renderer aborts when the read is superseded or
+ * the host unmounts. It calls only the contributor's own API, honours
+ * `signal`, and resolves to a non-negative integer or rejects
+ * (`specs/183-record-tab-contributions/contracts/record-tab-zone.md` RT2).
+ */
+export type RecordTabCounter<Z extends AdminZoneName> = (
+  props: AdminZoneProps<Z>,
+  signal: AbortSignal,
+) => Promise<number>;
+
+/** Everything a record tab declares beyond its zone and its panel. */
+export interface RecordTabComponentOptions<Z extends RecordTabZoneName> extends ZoneComponentOptions {
+  /** The tab's id (part of `?tab=`), and its label keys in the contributor's own bundle. */
+  readonly tab: RecordTabDeclaration;
+  /**
+   * The tab's count, as its own chunk: imported only for a tab the reader can
+   * see, and run once per mount and per change of the zone props. Omitted, the
+   * tab shows no count.
+   */
+  readonly count?: () => Promise<{ readonly default: RecordTabCounter<Z> }>;
+}
+
+/**
+ * Declare a whole tab of a host's record tab strip, with its panel and its
+ * count loader type-checked against the zone's props.
+ *
+ * ```ts
+ * recordTabComponent('opportunity.detail.tabs', () => import('./zones/OpportunityTasksTab.js'), {
+ *   tab: { id: 'tasks', labelKey: 'recordTab.label', countLabelKey: 'recordTab.countLabel' },
+ *   count: () => import('./zones/opportunity-task-count.js'),
+ *   weight: 100,
+ *   requiredPermission: 'tasks:read',
+ * })
+ * ```
+ *
+ * Only a record-tab zone is accepted — a stack zone is a compile error — and,
+ * like {@link zoneComponent}, it carries no runtime behaviour: the factories
+ * pass through untouched.
+ */
+export function recordTabComponent<Z extends RecordTabZoneName>(
+  zone: Z,
+  load: () => Promise<{ readonly default: AdminZoneComponent<Z> }>,
+  options: RecordTabComponentOptions<Z>,
+): AdminZoneContribution {
+  return {
+    zone,
+    weight: options.weight ?? 0,
+    ...(options.requiredPermission === undefined
+      ? {}
+      : { requiredPermission: options.requiredPermission }),
+    ...(options.match === undefined ? {} : { match: options.match }),
+    tab: options.tab,
+    ...(options.count === undefined ? {} : { count: options.count }),
     component: load,
   };
 }

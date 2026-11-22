@@ -179,7 +179,7 @@ export function AttachmentsTab(props: ProjectTabProps): ReactNode {
                   {fileSizeLabel(attachment.sizeBytes, language)}
                 </TableCell>
                 <TableCell>{attachment.uploadedBy.name}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatDateTime(attachment.createdAt)}</TableCell>
+                <TableCell className="whitespace-nowrap">{formatDateTime(attachment.createdAt, language)}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
                     <Button
