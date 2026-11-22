@@ -360,7 +360,6 @@
   "tags.emptyBody": "Add the first one to start labelling opportunities.",
   "tags.col.tag": "Tag",
   "tags.col.usage": "Opportunities (visible to you)",
-  "tags.col.actions": "Actions",
   "tags.edit": "Edit the tag {name}",
   "tags.delete": "Delete the tag {name}",
   "tags.dialog.createTitle": "New tag",
