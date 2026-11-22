@@ -317,6 +317,8 @@ export const manifest = defineModuleManifest({
   errorCodes: [
     { code: 'PROJECT_NOT_FOUND' },
     { code: 'PROJECT_HAS_LINKS' },
+    // Issue #1734 — a saved view of the Projects list named as one its owner has.
+    { code: 'PROJECT_SAVED_VIEW_NAME_TAKEN' },
     { code: 'PROJECT_ORGANIZATION_IN_USE' },
     { code: 'PROJECT_RECORD_NOT_FOUND' },
     { code: 'PROJECT_RECORD_ALREADY_LINKED' },

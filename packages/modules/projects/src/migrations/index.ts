@@ -16,6 +16,7 @@ import { Migration20261027T172441ProjectsValueChanges } from './20261027T172441_
 import { Migration20261028T143448ProjectsReferenceKinds } from './20261028T143448_projects_reference_kinds.js';
 import { Migration20261114T145439ProjectsStageAlertInterrupted } from './20261114T145439_projects_stage_alert_interrupted.js';
 import { Migration20261114T153132ProjectsConfigurationVersions } from './20261114T153132_projects_configuration_versions.js';
+import { Migration20261122T074256ProjectsListSavedViews } from './20261122T074256_projects_list_saved_views.js';
 
 export const migrations = [
   Migration20261026T144350ProjectsInit,
@@ -24,6 +25,7 @@ export const migrations = [
   Migration20261028T143448ProjectsReferenceKinds,
   Migration20261114T145439ProjectsStageAlertInterrupted,
   Migration20261114T153132ProjectsConfigurationVersions,
+  Migration20261122T074256ProjectsListSavedViews,
 ];
 
 export {
@@ -33,4 +35,5 @@ export {
   Migration20261028T143448ProjectsReferenceKinds,
   Migration20261114T145439ProjectsStageAlertInterrupted,
   Migration20261114T153132ProjectsConfigurationVersions,
+  Migration20261122T074256ProjectsListSavedViews,
 };

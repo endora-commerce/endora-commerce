@@ -49,6 +49,7 @@
   "errors.CRM_ATTACHMENT_TOO_LARGE": "Plik jest za duży: załącznik może mieć najwyżej {maxMb} MB.",
   "errors.CRM_ATTACHMENT_NOT_PRIVATE": "Załącznik musi być plikiem prywatnym. Prześlij go do biblioteki mediów jako prywatny.",
   "errors.CRM_TAG_NAME_TAKEN": "Etykieta o nazwie „{name}” już istnieje.",
+  "errors.CRM_SAVED_VIEW_NAME_TAKEN": "Masz już zapisany widok o tej nazwie na liście szans sprzedażowych. Wybierz inną nazwę.",
   "errors.CRM_MESSAGE_IMMUTABLE": "Wiadomości nie można zmienić ani usunąć po wysłaniu.",
   "auditLog.crm.opportunity.create": "Utworzono szansę sprzedażową",
   "auditLog.crm.opportunity.update": "Zaktualizowano szansę sprzedażową",

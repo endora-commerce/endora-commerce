@@ -386,6 +386,8 @@ export const manifest = defineModuleManifest({
     // `tokens`; the asset travels as scalar `details`.
     { code: 'CRM_ATTACHMENT_NOT_PRIVATE' },
     { code: 'CRM_TAG_NAME_TAKEN' },
+    // Issue #1734 — a saved view of the Opportunities page named as one its owner has.
+    { code: 'CRM_SAVED_VIEW_NAME_TAKEN' },
     { code: 'CRM_MESSAGE_IMMUTABLE' },
     // One sentence per broken rule: the raise carries the rule as its refusal
     // token (`details.code`) beside `details.rule`, which the contract names.

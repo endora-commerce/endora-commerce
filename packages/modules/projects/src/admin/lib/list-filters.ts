@@ -138,3 +138,47 @@ export function hiddenFilterCount(filters: Filters, options: { customFields: boo
   const folded = [filters.roleId !== '', filters.templateId !== '', filters.stageName.trim() !== ''].filter(Boolean).length;
   return folded + (options.customFields ? Object.keys(filters.customFields).length : 0);
 }
+
+/** A saved view's state, as the kit's `SavedViewsControl` stores and applies it. */
+export interface SavedProjectView {
+  filters: Record<string, unknown>;
+  sort?: { field: string; dir: 'asc' | 'desc' } | null;
+}
+
+/**
+ * A saved view of the list (issue #1734): the filters under the names the
+ * address carries them by — one value as text, a repeated one as a list — and
+ * the sort apart, `null` for the default one. "Only mine" is `memberId=me`, so
+ * a shared view means whoever applies it.
+ */
+export function toSavedProjectView(address: ListAddress): SavedProjectView {
+  const params = writeListAddress({ filters: address.filters, sort: DEFAULT_SORT });
+  const filters: Record<string, unknown> = {};
+  for (const name of new Set(params.keys())) {
+    const values = params.getAll(name);
+    filters[name] = values.length === 1 ? values[0] : values;
+  }
+  const [field, dir] = address.sort.split(':') as [string, 'asc' | 'desc'];
+  return { filters, sort: address.sort === DEFAULT_SORT ? null : { field, dir } };
+}
+
+/**
+ * The address a saved view stands for. It goes through {@link readListAddress},
+ * so what the list no longer takes — an unknown state, an id that is not one,
+ * a key or a sort it does not know — is dropped rather than sent.
+ */
+export function fromSavedProjectView(view: SavedProjectView): URLSearchParams {
+  const raw = new URLSearchParams();
+  for (const [name, value] of Object.entries(view.filters)) {
+    const values = Array.isArray(value) ? value : [value];
+    for (const entry of values) if (typeof entry === 'string' && entry !== '') raw.append(name, entry);
+  }
+  if (view.sort) {
+    raw.set('sort', view.sort.field);
+    raw.set('order', view.sort.dir);
+  }
+  const address = readListAddress(raw);
+  // A field the list does not sort by reads as the default; a known field keeps only its offered direction.
+  const asked = view.sort ? `${view.sort.field}:${view.sort.dir}` : DEFAULT_SORT;
+  return writeListAddress({ ...address, sort: isSort(asked) ? asked : DEFAULT_SORT });
+}

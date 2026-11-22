@@ -46,6 +46,7 @@ import {
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, MAX_PAGE_LIMIT, type OpportunityListParams, type OpportunitySort } from '../api.js';
 import { AssigneeName } from '../components/AssigneeName.js';
+import { OpportunitySavedViews } from '../components/OpportunitySavedViews.js';
 import {
   LIST_MORE_FILTERS,
   LIST_PRIMARY_FILTERS,
@@ -162,6 +163,8 @@ export function OpportunitiesList(): ReactNode {
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** A failure to read the saved views (issue #1734); the control's dialogs keep their own. */
+  const [viewsError, setViewsError] = useState<string | null>(null);
   const [statuses, setStatuses] = useState<OpportunityWorkflowStatus[]>([]);
   const sequence = useRef(0);
   /** The key of a custom-field filter the server refused, until it is removed. */
@@ -400,7 +403,12 @@ export function OpportunitiesList(): ReactNode {
       />
 
       <Card className="mb-4">
-        <CardContent>
+        <CardContent className="space-y-4">
+          {viewsError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{viewsError}</AlertDescription>
+            </Alert>
+          ) : null}
           <ListToolbar
             label={t('opportunity.filter.toolbar')}
             search={
@@ -455,21 +463,24 @@ export function OpportunitiesList(): ReactNode {
               </>
             }
             actions={
-              <Select
-                id="crm-opportunity-sort"
-                aria-label={t('opportunity.list.sort')}
-                className="w-auto"
-                value={sort}
-                onChange={(event): void =>
-                  update((previous) => withListSort(previous, event.target.value as OpportunityListSort))
-                }
-              >
-                {OPPORTUNITY_LIST_SORTS.map((option) => (
-                  <option key={option} value={option}>
-                    {t(`opportunity.list.sortOption.${option.replace(':', '.')}`)}
-                  </option>
-                ))}
-              </Select>
+              <>
+                <Select
+                  id="crm-opportunity-sort"
+                  aria-label={t('opportunity.list.sort')}
+                  className="w-auto"
+                  value={sort}
+                  onChange={(event): void =>
+                    update((previous) => withListSort(previous, event.target.value as OpportunityListSort))
+                  }
+                >
+                  {OPPORTUNITY_LIST_SORTS.map((option) => (
+                    <option key={option} value={option}>
+                      {t(`opportunity.list.sortOption.${option.replace(':', '.')}`)}
+                    </option>
+                  ))}
+                </Select>
+                <OpportunitySavedViews onError={setViewsError} onApply={(): void => setRefusedKey(null)} />
+              </>
             }
             moreFilters={
               <>

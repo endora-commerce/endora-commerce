@@ -13,9 +13,8 @@ const PAGES = [
   'orders/src/admin/pages/OrdersList.tsx',
   'catalog/src/admin/pages/ProductsList.tsx',
   'quote_requests/src/admin/pages/RfqList.tsx',
-  // Issue #1734.
-  'crm/src/admin/pages/OpportunitiesList.tsx',
-  'crm/src/admin/pages/OpportunityBoardPage.tsx',
+  // Issue #1734 — the Opportunities page's list and board share one wrapper.
+  'crm/src/admin/components/OpportunitySavedViews.tsx',
   'projects/src/admin/pages/ProjectsList.tsx',
 ];
 // A bare `confirm(` is deliberately not matched: the product list's bulk-delete

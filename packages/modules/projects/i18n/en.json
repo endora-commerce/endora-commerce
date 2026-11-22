@@ -7,6 +7,7 @@
   "adminRoles.permission.projects:analytics": "View project analytics",
   "errors.PROJECT_NOT_FOUND": "This project does not exist or is not available to you.",
   "errors.PROJECT_HAS_LINKS": "This project has linked records. Unlink them before deleting the project.",
+  "errors.PROJECT_SAVED_VIEW_NAME_TAKEN": "You already have a saved view with this name on the project list. Choose a different name.",
   "errors.PROJECT_ORGANIZATION_OUT_OF_SCOPE": "One of the organizations is not available to you.",
   "errors.PROJECT_STAGE_CURRENT": "The project is in this stage, so it cannot be deleted.",
   "errors.PROJECT_STAGE_LAST": "A project needs at least one stage, so its only stage cannot be deleted.",
