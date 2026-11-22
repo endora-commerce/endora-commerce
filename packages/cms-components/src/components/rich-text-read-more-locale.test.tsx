@@ -17,6 +17,16 @@ vi.hoisted(() => {
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+// ProseMirror scrolls the caret into view after `focus()`, measuring a `Range`,
+// which jsdom does not lay out; answer an empty rectangle rather than throwing.
+function stubRangeRects(): void {
+  const empty = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) };
+  const proto = Range.prototype as unknown as Record<string, unknown>;
+  proto['getClientRects'] ??= () => ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] });
+  proto['getBoundingClientRect'] ??= () => empty;
+}
+stubRangeRects();
+
 /**
  * Issue #1684 — the toolbar's *Read more passage* button seeds the passage's
  * summary in the content locale being edited, which the host names through
