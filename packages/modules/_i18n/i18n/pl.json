@@ -1935,6 +1935,8 @@
   "promotions.value.freeDelivery": "darmowa dostawa",
   "reorder.groupLabel": "Zmiana kolejności",
   "reorder.moveDown": "Przenieś niżej",
+  "reorder.moveRowDown": "Przesuń „{name}” w dół",
+  "reorder.moveRowUp": "Przesuń „{name}” w górę",
   "reorder.moveUp": "Przenieś wyżej",
   "reorder.saving": "Zapisywanie kolejności…",
   "returns.action.exportCsv": "Eksport CSV",
