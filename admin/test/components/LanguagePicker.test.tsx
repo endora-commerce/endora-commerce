@@ -126,7 +126,8 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
       'gap-1',
     );
     expect(wrapper).not.toHaveAttribute('style');
-    expect(trigger().parentElement).toHaveClass('relative');
+    expect(trigger().parentElement).toHaveClass('relative', 'mx-1.5');
+    expect(trigger().parentElement).not.toHaveAttribute('style');
     expect(status).toBeEmptyDOMElement();
     expect(status).toHaveAttribute('aria-live', 'polite');
     expect(status).toHaveAttribute('aria-atomic', 'true');
