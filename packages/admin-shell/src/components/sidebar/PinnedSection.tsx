@@ -156,7 +156,7 @@ export function PinnedSection({
                 className={({ isActive }): string => cn('b2b-nav-item', isActive && 'is-active')}
               >
                 <Icon size={16} />
-                <span style={{ flex: 1 }}>{label}</span>
+                <span className="flex-1">{label}</span>
               </NavLink>
               <span id={sourceId} className="sr-only">
                 {sourceOf(pin.sectionKey)}
