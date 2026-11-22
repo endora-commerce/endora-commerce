@@ -78,7 +78,7 @@ export function CarryDriftSentence({
     .join(', ');
   return (
     <span className="mt-2 flex items-start gap-2 break-words">
-      <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden="true" />
+      <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-700" aria-hidden="true" />
       <span>
         {t('customFields.carry.warning.body')} {lines}
       </span>
