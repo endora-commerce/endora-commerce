@@ -28,6 +28,8 @@ import lifecyclePl from '../../../../packages/platform/src/lifecycle/i18n/pl.jso
 
 let planAnswer: () => Promise<CommandHookPlanResponse>;
 let listAnswer: (status: CommandOutboxStatus, cursor: string | null) => Promise<CommandOutboxListResponse>;
+/** Every list request's `limit`, in order: the kit pager's page size (issue #1749). */
+const limits: Array<number | undefined> = [];
 const retry = vi.fn<(id: string) => Promise<{ item: CommandOutboxListItem }>>();
 
 vi.mock('../../../../packages/admin-shell/src/modules/platform/command-hooks-api', async (importOriginal) => {
@@ -36,9 +38,10 @@ vi.mock('../../../../packages/admin-shell/src/modules/platform/command-hooks-api
   return {
     ...actual,
     getCommandHookPlan: vi.fn(() => planAnswer()),
-    listCommandOutbox: vi.fn((query: { status: CommandOutboxStatus; cursor?: string | null }) =>
-      listAnswer(query.status, query.cursor ?? null),
-    ),
+    listCommandOutbox: vi.fn((query: { status: CommandOutboxStatus; cursor?: string | null; limit?: number }) => {
+      limits.push(query.limit);
+      return listAnswer(query.status, query.cursor ?? null);
+    }),
     retryCommandOutboxEntry: (id: string) => retry(id),
   };
 });
@@ -160,6 +163,7 @@ beforeEach(() => {
   planAnswer = async () => PLAN;
   listAnswer = async (status) => ({ items: status === 'dead' ? DEAD : [], nextCursor: null });
   retry.mockReset();
+  limits.length = 0;
 });
 
 describe.each(['en', 'pl'] as const)('CommandHooksPage, %s', (language) => {
@@ -288,7 +292,7 @@ describe('CommandHooksPage — outbox permissions and retry', () => {
     expect(within(screen.getByRole('table')).getAllByRole('row').slice(1)).toHaveLength(3);
   });
 
-  it('filters by status and loads the next page through the cursor', async () => {
+  it('filters by status, and pages through the cursor with the kit pager (issue #1749)', async () => {
     const asked: Array<[CommandOutboxStatus, string | null]> = [];
     listAnswer = async (status, cursor) => {
       asked.push([status, cursor]);
@@ -309,14 +313,41 @@ describe('CommandHooksPage — outbox permissions and retry', () => {
     // A pending row is not offered a retry: only a dead one is.
     expect(within(table).queryByRole('button', { name: /retry/i })).toBeNull();
 
-    await userEvent.click(screen.getByRole('button', { name: core('en', 'platform.commandHooks.outbox.loadMore') }));
-    await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row').slice(1)).toHaveLength(2));
+    // Next sends the cursor and shows the next page in place of this one.
+    await userEvent.click(screen.getByRole('button', { name: core('en', 'common.pagination.next') }));
+    await waitFor(() => expect(asked.at(-1)).toEqual(['pending', '41']));
+    await waitFor(() => expect(bodyRows()[0]!.textContent).not.toContain('0000000000p1'));
+    expect(bodyRows()).toHaveLength(1);
+    expect(screen.getByRole('button', { name: core('en', 'common.pagination.next') })).toBeDisabled();
+
+    // Previous walks back to the first page.
+    await userEvent.click(screen.getByRole('button', { name: core('en', 'common.pagination.previous') }));
+    await waitFor(() => expect(asked.at(-1)).toEqual(['pending', null]));
     expect(asked).toEqual([
       ['dead', null],
       ['pending', null],
       ['pending', '41'],
+      ['pending', null],
     ]);
-    expect(screen.queryByRole('button', { name: core('en', 'platform.commandHooks.outbox.loadMore') })).toBeNull();
+    // Every request carries the pager's page size, within the endpoint's 1–100.
+    expect(limits.every((limit) => typeof limit === 'number' && limit >= 1 && limit <= 100)).toBe(true);
+    // Load more is gone with its copy (issue #1749).
+    expect(screen.queryByRole('button', { name: /load more/i })).toBeNull();
+  });
+
+  it('goes back to the first page when the status changes', async () => {
+    const asked: Array<[CommandOutboxStatus, string | null]> = [];
+    listAnswer = async (status, cursor) => {
+      asked.push([status, cursor]);
+      if (status !== 'dead') return { items: [], nextCursor: null };
+      return cursor === null ? { items: [DEAD[0]!], nextCursor: '41' } : { items: [DEAD[1]!], nextCursor: null };
+    };
+    renderPage('outbox');
+    await screen.findByRole('table');
+    await userEvent.click(screen.getByRole('button', { name: core('en', 'common.pagination.next') }));
+    await waitFor(() => expect(asked.at(-1)).toEqual(['dead', '41']));
+    await userEvent.selectOptions(screen.getByLabelText(core('en', 'platform.commandHooks.outbox.status.label')), 'pending');
+    await waitFor(() => expect(asked.at(-1)).toEqual(['pending', null]));
   });
 });
 
@@ -344,7 +375,9 @@ describe('CommandHooksPage — loading, empty and error states', () => {
     let release: (value: CommandOutboxListResponse) => void = () => undefined;
     listAnswer = () => new Promise((resolve) => (release = resolve));
     renderPage('outbox');
-    expect(await screen.findByText(core('en', 'platform.commandHooks.outbox.loading'))).toBeTruthy();
+    // The kit list page (issue #1749): its skeleton, and *Loading…* in the count's live region.
+    expect(await screen.findByTestId('list-page-skeleton')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toBe(core('en', 'common.state.loading'));
     release({ items: [], nextCursor: null });
     const empty = await screen.findByText(core('en', 'platform.commandHooks.outbox.empty.dead'));
     expect(empty.closest('[data-empty-state="no-data"]')).not.toBeNull();
@@ -480,12 +513,13 @@ describe('CommandHooksPage — the outbox list (review 5–11, ruling 4)', () =>
     expect(headers).not.toContain(core('en', 'platform.commandHooks.outbox.column.deadAt'));
   });
 
-  it('captions the table with its status', async () => {
+  it('names the table by its status', async () => {
     renderPage('outbox');
-    const table = await screen.findByRole('table');
-    expect(table.querySelector('caption')?.textContent).toBe(
-      core('en', 'platform.commandHooks.outbox.caption').replace('{status}', core('en', 'platform.commandHooks.outbox.status.dead')),
+    const name = core('en', 'platform.commandHooks.outbox.caption').replace(
+      '{status}',
+      core('en', 'platform.commandHooks.outbox.status.dead'),
     );
+    expect(await screen.findByRole('table', { name })).toBeTruthy();
   });
 
   it('tells a reader without .manage why there is no Retry', async () => {
@@ -515,27 +549,86 @@ describe('CommandHooksPage — the outbox list (review 5–11, ruling 4)', () =>
     expect(bodyRows()).toHaveLength(3);
   });
 
-  it('keeps Load more focusable while busy, shows its failure beside it, and focuses the first new row', async () => {
+  it('shows a failed page as the list error, with Try again asking for the same page', async () => {
     let second: 'fail' | 'ok' = 'fail';
+    const asked: Array<string | null> = [];
     listAnswer = async (status, cursor) => {
       if (status !== 'dead') return { items: [], nextCursor: null };
+      asked.push(cursor);
       if (cursor === null) return { items: [DEAD[0]!], nextCursor: '41' };
       if (second === 'fail') throw new ApiError(500, { error: { code: 'INTERNAL', message: 'Page two failed.' } });
       return { items: [DEAD[1]!], nextCursor: null };
     };
     renderPage('outbox');
     await screen.findByRole('table');
-    const more = screen.getByRole('button', { name: core('en', 'platform.commandHooks.outbox.loadMore') });
-    await userEvent.click(more);
+    await userEvent.click(screen.getByRole('button', { name: core('en', 'common.pagination.next') }));
     expect(await screen.findByText('Page two failed.')).toBeTruthy();
-    // Inline, not the page-level alert above the table.
-    expect(screen.getByText('Page two failed.').closest('[data-load-more]')).not.toBeNull();
     second = 'ok';
-    await userEvent.click(screen.getByRole('button', { name: core('en', 'platform.commandHooks.outbox.loadMore') }));
-    await waitFor(() => expect(bodyRows()).toHaveLength(2));
-    await waitFor(() => expect(document.activeElement).toBe(bodyRows()[1]));
-    expect(screen.queryByText('Page two failed.')).toBeNull();
-    expect(screen.getByText(core('en', 'platform.commandHooks.outbox.end'))).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: core('en', 'platform.commandHooks.tryAgain') }));
+    await screen.findByRole('table');
+    await waitFor(() => expect(bodyRows()[0]!.textContent).toContain('hook-unregistered'));
+    expect(asked).toEqual([null, '41', '41']);
+  });
+});
+
+describe('CommandHooksPage — a retry that empties the page on screen (issue #1749)', () => {
+  /** The results region the kit list page hands the screen. */
+  const results = (): HTMLElement => screen.getByRole('table').closest<HTMLElement>('[tabindex="-1"]')!;
+
+  it('re-requests page 2 when its last row is retried, steps back rather than show an empty page, and focuses the results', async () => {
+    const asked: Array<string | null> = [];
+    let retried = false;
+    listAnswer = async (status, cursor) => {
+      if (status !== 'dead') return { items: [], nextCursor: null };
+      asked.push(cursor);
+      if (cursor === null) return { items: [DEAD[0]!], nextCursor: retried ? null : '41' };
+      return { items: retried ? [] : [DEAD[1]!], nextCursor: null };
+    };
+    retry.mockImplementation(async (id) => {
+      retried = true;
+      return { item: row({ id, status: 'pending', attempts: 0, deadAt: null }) };
+    });
+    renderPage('outbox');
+    await screen.findByRole('table');
+    await userEvent.click(screen.getByRole('button', { name: core('en', 'common.pagination.next') }));
+    await waitFor(() => expect(bodyRows()[0]!.textContent).toContain('hook-unregistered'));
+
+    await userEvent.click(within(bodyRows()[0]!).getByRole('button', { name: /retry/i }));
+    await waitFor(() => expect(asked).toEqual([null, '41', '41', null]));
+    await waitFor(() => expect(bodyRows()[0]!.textContent).toContain('ACME_ERP_DOWN'));
+    expect(bodyRows()).toHaveLength(1);
+    expect(screen.queryByText(core('en', 'platform.commandHooks.outbox.empty.dead'))).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(results()));
+    expect(screen.getByText(core('en', 'platform.commandHooks.outbox.retried'))).toBeTruthy();
+  });
+
+  it('re-requests page 1 when its only row is retried while a next page exists, and focuses the results', async () => {
+    const asked: Array<string | null> = [];
+    let retried = false;
+    listAnswer = async (status, cursor) => {
+      if (status !== 'dead') return { items: [], nextCursor: null };
+      asked.push(cursor);
+      return retried ? { items: [DEAD[1]!], nextCursor: null } : { items: [DEAD[0]!], nextCursor: '41' };
+    };
+    retry.mockImplementation(async (id) => {
+      retried = true;
+      return { item: row({ id, status: 'pending', attempts: 0, deadAt: null }) };
+    });
+    renderPage('outbox');
+    await screen.findByRole('table');
+    await userEvent.click(within(bodyRows()[0]!).getByRole('button', { name: /retry/i }));
+    await waitFor(() => expect(asked).toEqual([null, null]));
+    await waitFor(() => expect(bodyRows()[0]!.textContent).toContain('hook-unregistered'));
+    expect(screen.queryByText(core('en', 'platform.commandHooks.outbox.empty.dead'))).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(results()));
+  });
+
+  it('ships no Load more copy and no unused outbox key in either language', () => {
+    for (const bundle of [CORE.en, CORE.pl]) {
+      for (const key of ['loadMore', 'loadingMore', 'end', 'loading', 'column.actions']) {
+        expect(bundle[`platform.commandHooks.outbox.${key}`], key).toBeUndefined();
+      }
+    }
   });
 });
 

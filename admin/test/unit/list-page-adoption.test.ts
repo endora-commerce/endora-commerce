@@ -45,15 +45,13 @@ const SCANNED = [
  * The adoption backlog: list screens not yet on `ListPage`. Repo-relative
  * file → the audit area it belongs to. Shrink-only — see the header.
  */
-const NOT_YET_ON_LIST_PAGE: Record<string, string> = {
-  'packages/admin-shell/src/modules/platform/CommandHooksPage.tsx': 'shell',
-};
+const NOT_YET_ON_LIST_PAGE: Record<string, string> = {};
 
 /**
  * The backlog's size when the ratchet landed, less what has moved since. It
  * only ever goes down, with the entries above.
  */
-const BACKLOG_CEILING = 1;
+const BACKLOG_CEILING = 0;
 
 /** Screens with a header and a table that are not a list of records. */
 const NOT_A_LIST: Record<string, string> = {
