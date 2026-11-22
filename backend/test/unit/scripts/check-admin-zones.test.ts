@@ -98,6 +98,25 @@ describe('check-admin-zones — the site walks', () => {
     ]);
   });
 
+  it('reads a zone name off useRecordTabZone, the record-tab renderer (spec 183 RT6)', () => {
+    // A host that enumerates a record-tab zone renders it: the strip it draws
+    // is the contributions' tabs, so without this the member it mounts would
+    // read as `unrendered-zone`.
+    const source = [
+      `const a = useRecordTabZone('${ZONE}', { opportunityId }, { reservedIds });`,
+      'const b = useRecordTabZone(ZONE_NAME, { opportunityId });',
+    ].join('\n');
+    expect(zoneRenderSites(source, 'f.tsx').map((site) => [site.zone, site.via])).toEqual([
+      [ZONE, 'useRecordTabZone'],
+      [null, 'useRecordTabZone'],
+    ]);
+  });
+
+  it('reads a contribution spelled with recordTabComponent', () => {
+    const source = `recordTabComponent('${ZONE}', () => import('./T.js'), { tab: { id: 't', labelKey: 'a.b' } });`;
+    expect(zoneContributionSites(source, 'f.ts', 'blog').map((site) => site.zone)).toEqual([ZONE]);
+  });
+
   it('reads a visibility gate only through a predicate bound in the same file', () => {
     const source = [
       'const isVisible = useSurfaceVisibility();',
@@ -147,6 +166,59 @@ describe('check-admin-zones — one red proof per finding', () => {
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.message).toContain('price_lists');
+  });
+
+  it('contribution-to-unrendered-zone: a record tab no host enumerates', () => {
+    const findings = adminZoneFindings(
+      baseline({
+        declarations: declarationSource([ZONE, OTHER_ZONE]),
+        files: [
+          ...baseline().files,
+          {
+            path: 'packages/modules/tasks/src/admin/index.ts',
+            source: `export const contributions = { zones: [recordTabComponent('${OTHER_ZONE}', () => import('./T.js'), { tab: { id: 't', labelKey: 'a.b' } })] };`,
+            roles: ['host'],
+            owner: 'tasks',
+          },
+        ],
+      }),
+      'contribution-to-unrendered-zone',
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('tasks');
+  });
+
+  it('a record-tab zone enumerated by its host is rendered', () => {
+    const fixture = baseline({
+      declarations: declarationSource([ZONE, OTHER_ZONE]),
+      files: [
+        ...baseline().files,
+        {
+          path: 'packages/modules/crm/src/admin/pages/OpportunityDetail.tsx',
+          source: `const zone = useRecordTabZone('${OTHER_ZONE}', { opportunityId }, { reservedIds });`,
+          roles: ['host'],
+          owner: 'crm',
+        },
+      ],
+    });
+    expect(adminZoneFindings(fixture, 'unrendered-zone')).toEqual([]);
+  });
+
+  it('computed-zone-name: a record-tab zone enumerated through a constant', () => {
+    const findings = adminZoneFindings(
+      baseline({
+        files: [
+          ...baseline().files,
+          {
+            path: 'packages/modules/crm/src/admin/pages/OpportunityDetail.tsx',
+            source: 'const zone = useRecordTabZone(ZONE_NAME, props);',
+            roles: ['host'],
+          },
+        ],
+      }),
+      'computed-zone-name',
+    );
+    expect(findings).toHaveLength(1);
   });
 
   it('unpublished-zone: a host naming a string the enum does not carry', () => {
