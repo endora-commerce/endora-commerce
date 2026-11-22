@@ -316,14 +316,19 @@ offsets the scroll target by its sticky header
 
 The block drawer offers ready-made sections — hero, media and text,
 call-to-action card, downloads, feature grid and statement — assembled from
-the blocks above with neutral placeholder copy in the editor's language.
+the blocks above with neutral placeholder copy. The drawer names the presets
+in your admin language, but the copy a preset inserts is page content, so it is
+written in the content language you are editing: a Polish page gets Polish
+copy in an English admin. A content language with no copy of its own gets
+the English.
 Each preset is a Section holding its block. Inserting one adds it at the top
 level, after the selected block's top-level Section or at the end of the page,
 without replacing the canvas; when the selected block is in a Section of a
 Section group, the preset goes into that group, after its Section; everything in it is then edited like any other block. The presets
 are code (`packages/cms-components/src/editor/section-presets.ts`), versioned
-with the blocks they build, and their copy is in the `cms` bundle under
-`presets.*`.
+with the blocks they build. Their placeholder copy is a per-language table
+beside them (`section-preset-copy.ts`); only their names and descriptions are
+in the `cms` bundle under `presets.*`.
 
 ### Parent page and breadcrumbs
 

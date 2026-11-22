@@ -23,9 +23,18 @@ export function PageBuilderContentLocaleProvider({
   return <ContentLocaleContext.Provider value={locale ?? null}>{children}</ContentLocaleContext.Provider>;
 }
 
+/**
+ * The content locale the nearest `PageBuilderContentLocaleProvider` names, or
+ * `null` outside one. For a module that seeds content from its own table:
+ * `contentDefaultsIn(table, useContentLocale())`.
+ */
+export function useContentLocale(): string | null {
+  return useContext(ContentLocaleContext);
+}
+
 /** The content defaults in the edited content locale (see `PAGE_BUILDER_CONTENT_DEFAULTS`). */
 export function useContentDefault(): ContentDefault {
-  const locale = useContext(ContentLocaleContext);
+  const locale = useContentLocale();
   return useCallback<ContentDefault>((key) => contentDefaultFor(locale, key), [locale]);
 }
 

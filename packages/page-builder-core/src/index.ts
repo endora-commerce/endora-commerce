@@ -171,12 +171,13 @@ export {
 export {
   PAGE_BUILDER_CONTENT_DEFAULTS,
   contentDefaultFor,
+  contentDefaultsIn,
   withContentDefaultProps,
   type ContentDefault,
   type ContentDefaultPropsMap,
   type PageBuilderContentDefaultKey,
 } from './fields/content-defaults-table.js';
-export { PageBuilderContentLocaleProvider, useContentDefault } from './fields/content-defaults.js';
+export { PageBuilderContentLocaleProvider, useContentDefault, useContentLocale } from './fields/content-defaults.js';
 // Feature 163, T195 — the host's image picker (the admin's asset library), for the rich text's image dialog.
 export {
   PageBuilderImagePickerProvider,

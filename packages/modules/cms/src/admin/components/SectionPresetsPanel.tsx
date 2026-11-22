@@ -8,7 +8,8 @@ import {
   presetBlockNames,
   type SectionPreset,
 } from '@endora-commerce/cms-components/editor/section-presets';
-import { isTopLevelParent } from '@endora-commerce/page-builder-core';
+import { SECTION_PRESET_COPY } from '@endora-commerce/cms-components/editor/section-preset-copy';
+import { contentDefaultsIn, isTopLevelParent, useContentLocale } from '@endora-commerce/page-builder-core';
 import { usePageBuilderPuck } from '@endora-commerce/page-builder-core/editor';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -47,12 +48,15 @@ function insertionPoint(puck: PuckApi): { zone: string; index: number } {
  * The block drawer's "Section presets" list (`specs/163-page-builder-marketing-pages/`
  * FR-042, research R-22): six ready-made sections, inserted with Puck's
  * `insert` action at the top level and then filled with the preset's tree, so
- * the page around them is kept and one undo removes the whole section. A
+ * the page around them is kept and one undo removes the whole section. The
+ * panel's own copy is in the admin's language; the placeholder copy a preset
+ * inserts is content, in the content language being edited (issue #1684). A
  * preset whose blocks this editor does not offer (another context) is not
  * listed; with none left, the panel is not rendered.
  */
 export function SectionPresetsPanel(): ReactElement | null {
   const t = useTranslation('cms');
+  const contentLocale = useContentLocale();
   const getPuck = useGetPuck();
   const components = usePageBuilderPuck((s) => s.config.components);
   const [status, setStatus] = useState('');
@@ -62,7 +66,7 @@ export function SectionPresetsPanel(): ReactElement | null {
   const available = useMemo(
     () =>
       SECTION_PRESETS.filter((preset) =>
-        presetBlockNames(preset.build(() => '')).every((name) => name in components),
+        presetBlockNames(preset.build(SECTION_PRESET_COPY.en)).every((name) => name in components),
       ),
     [components],
   );
@@ -70,7 +74,7 @@ export function SectionPresetsPanel(): ReactElement | null {
 
   const insert = (preset: SectionPreset): void => {
     const puck = getPuck();
-    const tree: ComponentData = preset.build((key) => t(key));
+    const tree: ComponentData = preset.build(contentDefaultsIn(SECTION_PRESET_COPY, contentLocale));
     const { zone: destinationZone, index: destinationIndex } = insertionPoint(puck);
     puck.dispatch({
       type: 'insert',

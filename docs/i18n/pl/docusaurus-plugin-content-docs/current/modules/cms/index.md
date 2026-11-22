@@ -327,15 +327,20 @@ przesuwa cel przewijania o wysokość przyklejonego nagłówka
 
 Szuflada bloków oferuje gotowe sekcje — hero, media i tekst, kartę wezwania do
 działania, pliki do pobrania, siatkę funkcji i hasło — złożone z powyższych
-bloków, z neutralnym tekstem przykładowym w języku edytora. Każda gotowa
+bloków, z neutralnym tekstem przykładowym. Szuflada nazywa gotowe sekcje
+w języku panelu administracyjnego, ale tekst wstawiany przez gotową sekcję
+jest treścią strony, więc powstaje w edytowanym języku treści: strona
+po polsku dostaje polski tekst także w angielskim panelu. Język treści bez
+własnego tekstu dostaje angielski. Każda gotowa
 sekcja to sekcja z jednym blokiem. Wstawienie dodaje ją na najwyższym
 poziomie, za sekcją zaznaczonego bloku albo na końcu strony, nie zastępując
 zawartości; gdy zaznaczony blok stoi w sekcji grupy sekcji, gotowa sekcja
 trafia do tej grupy, za jego sekcję; potem
 wszystko w niej edytuje się jak każdy inny blok. Gotowe sekcje są kodem
 (`packages/cms-components/src/editor/section-presets.ts`), wersjonowanym
-razem z blokami, z których się składają, a ich teksty są w pakiecie
-tłumaczeń `cms` pod `presets.*`.
+razem z blokami, z których się składają. Ich tekst przykładowy jest
+w tabeli dla każdego języka obok nich (`section-preset-copy.ts`); w pakiecie
+tłumaczeń `cms` pod `presets.*` są tylko ich nazwy i opisy.
 
 ### Strona nadrzędna i ścieżka nawigacji
 

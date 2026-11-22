@@ -7,7 +7,9 @@ import { apiClient } from '@endora-commerce/admin-kit/lib';
 import {
   SECTION_PRESETS,
   presetBlockNames,
+  type SectionPresetId,
 } from '@endora-commerce/cms-components/editor/section-presets';
+import { SECTION_PRESET_COPY } from '@endora-commerce/cms-components/editor/section-preset-copy';
 import {
   editorDescriptor,
   mountPageBuilderEditor,
@@ -20,8 +22,10 @@ import {
 /**
  * Feature 163, T092 — **section presets** (`specs/163-page-builder-marketing-pages/`
  * FR-042, research R-22): six ready-made sections in the editor's block drawer,
- * inserted into the page, not over it, with placeholder copy from `cms`' bundle
- * in the admin's language.
+ * inserted into the page, not over it. Their names and descriptions in the
+ * drawer are admin chrome, in the admin's language; the placeholder copy they
+ * insert is content, in the content language being edited (issue #1684,
+ * research R-22 as amended).
  *
  * Mounted in the real `PageBuilderEditor` (see the harness). The insertion
  * point is after the selected block's top-level section, or the end of the page
@@ -89,7 +93,7 @@ describe('section presets in the block drawer (T092)', () => {
 
   it('inserts "Downloads" as a Section holding a Carousel of three download tiles after the selected section, keeping the page', async () => {
     stubEditorApi(vi.mocked(apiClient));
-    const editor = await mountPageBuilderEditor(page(), { language: 'pl' });
+    const editor = await mountPageBuilderEditor(page(), { language: 'pl', activeLanguage: 'pl' });
     await selectOutlineItem(0);
 
     const downloads = within(presetsPanel()).getByRole('button', {
@@ -112,13 +116,12 @@ describe('section presets in the block drawer (T092)', () => {
     expect(slides.map((slide) => slide.type)).toEqual(['cms.DownloadTile', 'cms.DownloadTile', 'cms.DownloadTile']);
     expect(new Set(slides.map((slide) => slide.props.id)).size).toBe(3);
 
-    // The copy is `cms`' Polish, not the English.
+    // The copy is the Polish content copy, not the English.
     expect(plainText((carousel.props['header'] as { heading: unknown }).heading)).toBe(
-      PL['cms']?.['presets.downloads.heading'],
+      SECTION_PRESET_COPY.pl.downloads.heading,
     );
-    expect(slides[0]?.props['title']).toBe(PL['cms']?.['presets.downloads.file1.title']);
-    expect(slides[0]?.props['title']).not.toBe(EN['cms']?.['presets.downloads.file1.title']);
-    expect(slides[0]?.props['linkLabel']).toBe(PL['cms']?.['presets.downloads.linkLabel']);
+    expect(slides[0]?.props['title']).toBe('Broszura');
+    expect(slides[0]?.props['linkLabel']).toBe('Pobierz');
 
     // The insertion is announced.
     expect(within(presetsPanel()).getByRole('status', { hidden: true }).textContent).toContain(
@@ -172,7 +175,7 @@ describe('section presets in the block drawer (T092)', () => {
     expect(content[2]?.type).toBe('cms.Section');
     const statement = (content[2]?.props['content'] as ComponentData[])[0];
     expect(statement?.type).toBe('cms.Statement');
-    expect(plainText(statement?.props['heading'])).toBe(EN['cms']?.['presets.statement.heading']);
+    expect(plainText(statement?.props['heading'])).toBe(SECTION_PRESET_COPY.en.statement.heading);
   });
 });
 
@@ -180,15 +183,16 @@ describe('every preset tree names declared blocks (T092)', () => {
   const declared = new Set(
     (editorDescriptor()['components'] as Array<{ name: string }>).map((component) => component.name),
   );
-  const t = (key: string): string => EN['cms']?.[key] ?? `cms.${key}`;
+  const copy = SECTION_PRESET_COPY.en;
 
   it.each(SECTION_PRESETS.map((preset) => [preset.id, preset] as const))('%s', (_id, preset) => {
-    const tree = preset.build(t);
+    const tree = preset.build(copy);
     for (const name of presetBlockNames(tree)) expect(declared, name).toContain(name);
-    // Its copy keys all exist, in both languages.
-    expect(JSON.stringify(tree)).not.toContain('cms.presets.');
-    expect(EN['cms']?.[preset.labelKey]).toBeDefined();
-    expect(PL['cms']?.[preset.descriptionKey]).toBeDefined();
+    // Its drawer chrome exists, in both languages.
+    for (const bundle of [EN, PL]) {
+      expect(bundle['cms']?.[preset.labelKey]).toBeDefined();
+      expect(bundle['cms']?.[preset.descriptionKey]).toBeDefined();
+    }
   });
 
   it('the source\'s tree literals are declared names, which is what `check:block-names` reads', () => {
@@ -203,7 +207,7 @@ describe('every preset tree names declared blocks (T092)', () => {
 
   it('each preset is one top-level cms.Section holding its block (T113)', () => {
     for (const preset of SECTION_PRESETS) {
-      const tree = preset.build(t);
+      const tree = preset.build(copy);
       expect(tree.type, preset.id).toBe('cms.Section');
       const content = tree.props['content'] as ComponentData[];
       expect(content, preset.id).toHaveLength(1);
@@ -214,15 +218,15 @@ describe('every preset tree names declared blocks (T092)', () => {
   // T117: the Section's settings are its own top-level props.
   it('sets the Section\'s settings as its top-level props, never as a `section` object', () => {
     for (const preset of SECTION_PRESETS) {
-      expect(preset.build(t).props, preset.id).not.toHaveProperty('section');
+      expect(preset.build(copy).props, preset.id).not.toHaveProperty('section');
     }
-    const hero = SECTION_PRESETS.find((preset) => preset.id === 'hero')!.build(t);
+    const hero = SECTION_PRESETS.find((preset) => preset.id === 'hero')!.build(copy);
     expect(hero.props).toMatchObject({ spaceTop: 'none', spaceBottom: 'none' });
   });
 
   it('builds a fresh tree with new ids each time', () => {
     const hero = SECTION_PRESETS.find((preset) => preset.id === 'hero')!;
-    const [first, second] = [hero.build(t), hero.build(t)];
+    const [first, second] = [hero.build(copy), hero.build(copy)];
     expect(first.props.id).not.toBe(second.props.id);
     const inner = (tree: ComponentData) => (tree.props['content'] as ComponentData[])[0]!.props.id;
     expect(inner(first)).not.toBe(inner(second));
@@ -246,5 +250,81 @@ describe('section presets — no frame around the list (DS-03)', () => {
     for (const button of within(panel).getAllByRole('button', { hidden: true })) {
       expect(button.className).toMatch(/(^|\s)border(\s|$)/);
     }
+  });
+});
+
+/**
+ * Issue #1684 — the placeholder copy a preset inserts is operator content
+ * seeded into the document, printed on the storefront as stored, so it follows
+ * the **content language being edited** (`PageBuilderContentLocaleProvider`),
+ * not the admin language, and is English for a language with no row.
+ */
+describe('section presets insert their copy in the content language (#1684)', () => {
+  /** Every string a language's copy row holds for one preset. */
+  function copyStrings(language: 'en' | 'pl', id: SectionPresetId): string[] {
+    const strings: string[] = [];
+    const walk = (value: unknown): void => {
+      if (typeof value === 'string') strings.push(value);
+      else if (value && typeof value === 'object') Object.values(value).forEach(walk);
+    };
+    walk(SECTION_PRESET_COPY[language][id]);
+    return strings;
+  }
+
+  async function insertPreset(id: SectionPresetId, activeLanguage: string): Promise<string> {
+    stubEditorApi(vi.mocked(apiClient));
+    const editor = await mountPageBuilderEditor(page(), { language: 'en', activeLanguage });
+    const label = EN['cms']?.[SECTION_PRESETS.find((preset) => preset.id === id)!.labelKey] ?? 'missing';
+    const button = within(presetsPanel(EN))
+      .getAllByRole('button', { hidden: true })
+      .find((candidate) => candidate.querySelector('[data-preset-label]')?.textContent === label);
+    if (!button) throw new Error(`no "${label}" preset`);
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    await waitFor(() => expect(editor.latest()?.content).toHaveLength(3));
+    return JSON.stringify(editor.latest()?.content[2]);
+  }
+
+  /** One string per preset, written out, so the table cannot answer for itself. */
+  const POLISH_HEADLINE: Record<SectionPresetId, string> = {
+    hero: 'Jasny nagłówek tej strony',
+    mediaText: 'Opowiedz historię swojej oferty',
+    ctaCard: 'Gotowy na kolejny krok?',
+    downloads: 'Pliki do pobrania',
+    featureGrid: 'Dlaczego warto z nami współpracować',
+    statement: 'Krótka deklaracja tego, co Cię wyróżnia.',
+  };
+
+  it.each(SECTION_PRESETS.map((preset) => preset.id))(
+    '%s: a Polish page in an English admin gets the Polish copy',
+    async (id) => {
+      const tree = await insertPreset(id, 'pl');
+      expect(tree).toContain(POLISH_HEADLINE[id]);
+      for (const text of copyStrings('pl', id)) expect(tree).toContain(JSON.stringify(text));
+      const polish = new Set(copyStrings('pl', id));
+      for (const text of copyStrings('en', id).filter((value) => !polish.has(value))) {
+        expect(tree).not.toContain(JSON.stringify(text));
+      }
+    },
+    30_000,
+  );
+
+  it.each(SECTION_PRESETS.map((preset) => preset.id))(
+    '%s: a content language with no row gets the English copy',
+    async (id) => {
+      const tree = await insertPreset(id, 'de-DE');
+      for (const text of copyStrings('en', id)) expect(tree).toContain(JSON.stringify(text));
+      expect(tree).not.toContain(POLISH_HEADLINE[id]);
+    },
+    30_000,
+  );
+});
+
+describe('the cms bundle keeps only the presets drawer chrome (#1684)', () => {
+  it.each([['en', EN], ['pl', PL]] as const)('%s', (_language, bundle) => {
+    const keys = Object.keys(bundle['cms'] ?? {}).filter((key) => key.startsWith('presets.'));
+    expect(keys.length).toBeGreaterThan(0);
+    for (const key of keys) expect(key).toMatch(/^presets\.(panel\.[a-z]+|[a-zA-Z]+\.(label|description))$/);
   });
 });
