@@ -275,6 +275,19 @@ function ScopedProductEditor({
   const skipGuardRef = useRef(false);
   const pendingNoteRef = useRef<string | null>(null);
   const prefTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * The scope the operator's stored preference is known to hold, per product: read from it, or
+   * last written to it. A load at that scope writes nothing — it would write the same scope back
+   * (issue #1610). `null` is "not known" (the URL named a scope, or the read failed).
+   */
+  const rememberedRef = useRef<{ productId: string; key: string } | null>(null);
+  /**
+   * False once the editor has unmounted. A read resolving after that starts no preference timer:
+   * the unmount has already cleared the timer, and a new one would write once the editor is gone
+   * (issue #1610). A flag, not a bump of `requestRef`, so StrictMode's simulated remount keeps
+   * the first read.
+   */
+  const mountedRef = useRef(false);
   /** The last valid-scope list, kept while a scope loads so the switcher stays usable. */
   const validRef = useRef<ValidScopes | null>(null);
 
@@ -396,7 +409,15 @@ function ScopedProductEditor({
           const spoken = [note, where].filter(Boolean).join(' ');
           if (spoken) announce(spoken);
           if (prefTimerRef.current) clearTimeout(prefTimerRef.current);
-          prefTimerRef.current = setTimeout(() => void putEditorPreference(productId, opened), 500);
+          prefTimerRef.current = null;
+          const openedKey = scopeKey(opened);
+          const remembered = rememberedRef.current;
+          if (mountedRef.current && (remembered?.productId !== productId || remembered.key !== openedKey)) {
+            prefTimerRef.current = setTimeout(() => {
+              rememberedRef.current = { productId, key: openedKey };
+              void putEditorPreference(productId, opened);
+            }, 500);
+          }
           if (options.field) {
             const field = options.field;
             setTimeout(() => document.getElementById(fieldDomId(field))?.focus(), 0);
@@ -430,7 +451,14 @@ function ScopedProductEditor({
     if (urlScope) return undefined;
     let cancelled = false;
     void getEditorPreference(productId)
-      .catch(() => null)
+      .then(
+        (pref) => {
+          // No stored preference opens Global, so Global is what it holds in effect.
+          rememberedRef.current = { productId, key: scopeKey(pref ?? GLOBAL) };
+          return pref;
+        },
+        () => null,
+      )
       .then((pref) => {
         if (!cancelled) setSearchParams((prev) => searchWithScope(prev, pref ?? GLOBAL), { replace: true });
       });
@@ -468,12 +496,13 @@ function ScopedProductEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlKey]);
 
-  useEffect(
-    () => (): void => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return (): void => {
+      mountedRef.current = false;
       if (prefTimerRef.current) clearTimeout(prefTimerRef.current);
-    },
-    [],
-  );
+    };
+  }, []);
 
   // A staged change of a subject an immediate action removed is dropped and said (§3).
   useEffect(() => {
