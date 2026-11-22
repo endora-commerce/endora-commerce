@@ -71,6 +71,10 @@ const PASSTHROUGH = passthroughBundle('catalog', [
   'productContent.noEditor.title',
   'productContent.noEditor.description',
   'productContent.readOnly',
+  'contentLanguages.failed',
+  'contentLanguages.noChannels',
+  'contentLanguages.outside.list',
+  'contentLanguages.outside.notice',
 ]);
 const BUNDLE = {
   catalog: {
@@ -153,6 +157,9 @@ function stubApi(content: { languages: Record<string, unknown> } | null): void {
     if (path === `/api/v1/admin/catalog/products/${PRODUCT_ID}`) {
       return { data: { id: PRODUCT_ID, name: { 'en-US': 'Cordless drill', 'pl-PL': 'Wiertarka' } } };
     }
+    // #1507 — the languages offered are the sales channels' together.
+    if (path.startsWith('/api/v1/admin/sales-channels?')) return { items: [{ code: 'b2b', defaultLanguage: 'en-US' }] };
+    if (path === '/api/v1/admin/sales-channels/b2b') return { code: 'b2b', languages: ['en-US', 'pl-PL'] };
     throw new Error(`unexpected GET ${path}`);
   });
   putSpy.mockImplementation(async (_path: string, body: { content: unknown }) => ({
@@ -178,7 +185,7 @@ describe('ProductContentPage (feature 172)', () => {
     await waitFor(() => expect(screen.getByTestId('editor-language').textContent).toBe('en-US'));
     expect(screen.getByTestId('editor-data').textContent).toContain('stored-en');
     expect(screen.getByText('Buying guide — Cordless drill')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'productContent.action.back' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Cordless drill' }).getAttribute('href')).toBe(
       `/catalog/products/${PRODUCT_ID}?tab=attributes`,
     );
   });
@@ -195,15 +202,28 @@ describe('ProductContentPage (feature 172)', () => {
     expect(screen.getAllByRole('tab').filter((t) => t.tabIndex === 0)).toEqual([tab]);
   });
 
-  it('offers en-US, pl-PL and a language only the stored content carries (FR-021)', async () => {
+  it('offers the sales channels’ languages, then a stored one no channel offers, flagged and not edited (FR-021, #1507)', async () => {
     stubApi({ languages: { 'de-DE': tree('stored-de') } });
     renderPage({});
     await waitFor(() => expect(screen.getByRole('tab', { name: 'de-DE' })).toBeTruthy());
-    expect(screen.getByRole('tab', { name: 'en-US' })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: 'pl-PL' })).toBeTruthy();
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['en-US', 'pl-PL', 'de-DE']);
+    expect(screen.getByText('contentLanguages.outside.list')).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: 'de-DE' }));
+    await waitFor(() => expect(screen.getByText('contentLanguages.outside.notice')).toBeTruthy());
+    expect(screen.queryByTestId('editor-language')).toBeNull();
+  });
+
+  it('falls back to the stored languages and the admin’s own, and says so, when the channels cannot be read (#1507)', async () => {
+    stubApi({ languages: { 'de-DE': tree('stored-de') } });
+    const base = getSpy.getMockImplementation();
+    getSpy.mockImplementation(async (path: string) => {
+      if (path.startsWith('/api/v1/admin/sales-channels')) throw new Error('down');
+      return base?.(path);
+    });
+    renderPage({});
+    await waitFor(() => expect(screen.getByText('contentLanguages.failed')).toBeTruthy());
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['de-DE', 'en-US']);
     await waitFor(() => expect(screen.getByTestId('editor-language').textContent).toBe('de-DE'));
-    expect(screen.getByTestId('editor-data').textContent).toContain('stored-de');
   });
 
   it('saves every edited language in one PUT, and only on Save (FR-021, FR-025)', async () => {
@@ -230,7 +250,7 @@ describe('ProductContentPage (feature 172)', () => {
     renderPage({});
     await waitFor(() => expect(screen.getByText('stub-edit')).toBeTruthy());
     fireEvent.click(screen.getByText('stub-edit'));
-    fireEvent.click(screen.getByRole('link', { name: 'productContent.action.back' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Cordless drill' }));
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('product editor')).toBeNull();
   });
@@ -253,6 +273,7 @@ describe('ProductContentPage (feature 172)', () => {
     renderPage({});
     await waitFor(() => expect(screen.getByText('productContent.error.notAvailable')).toBeTruthy());
     expect(screen.queryByTestId('editor-stub')).toBeNull();
+    // The product's name is not known here, so the way back says "Product".
     expect(screen.getByRole('link', { name: 'productContent.action.back' })).toBeTruthy();
   });
 

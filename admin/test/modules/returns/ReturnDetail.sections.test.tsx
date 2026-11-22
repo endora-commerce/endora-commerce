@@ -39,7 +39,6 @@ const BUNDLE = passthroughBundle('returns', [
   'comments.internalBadge',
   'clauses.acceptedTitle',
   'clauses.revisionOf',
-  'detail.back',
 ]);
 
 const RC = {
@@ -110,8 +109,8 @@ describe('ReturnDetail — the way back (#1549, SALES-27)', () => {
     renderDetail();
     await screen.findByText('First note');
     const heading = screen.getByRole('heading', { level: 1 });
-    const back = within(heading.closest('header')!).getByRole('link', { name: 'detail.back' });
+    const back = within(heading.closest('header')!).getByRole('link', { name: 'core.returns.title' });
     expect(back).toHaveAttribute('href', '/returns');
-    expect(screen.getAllByRole('link', { name: 'detail.back' })).toHaveLength(1);
+    expect(screen.getAllByRole('link', { name: 'core.returns.title' })).toHaveLength(1);
   });
 });

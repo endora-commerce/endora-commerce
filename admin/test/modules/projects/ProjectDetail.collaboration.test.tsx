@@ -312,6 +312,9 @@ describe('ProjectDetail — the collaboration tabs', () => {
 });
 
 describe('ProjectDetail — the description', () => {
+  /** The description is a fact edited in place — the kit's `InlineEdit` (issue #1525). */
+  const EDIT_DESCRIPTION = (): string => core('common.inlineEdit.edit', { field: en('overview.description') });
+
   it('draws the description with its references as chips', async () => {
     current = detail({ description: `Start with [[task:${TASK_ID}]].`, references: [TASK_REFERENCE] });
     await renderPage();
@@ -327,14 +330,14 @@ describe('ProjectDetail — the description', () => {
     await renderPage();
     const panel = await screen.findByRole('tabpanel');
     // The tab panel is drawn before the Overview inside it: find the button rather than get it.
-    await userEvent.click(await within(panel).findByRole('button', { name: en('overview.editDescription') }));
+    await userEvent.click(await within(panel).findByRole('button', { name: EDIT_DESCRIPTION() }));
     const field = within(panel).getByLabelText(en('overview.description'));
     // The field focuses itself with the caret after the text, but the editor applies that focus in
     // an animation frame, which a loaded runner can delay past the first keystroke: the text then
     // landed in front (issue #250). Wait for the focus, then type where the caret is.
     await waitFor(() => expect(field).toHaveFocus());
     await userEvent.keyboard(' Then the lights.');
-    await userEvent.click(within(panel).getByRole('button', { name: en('overview.saveDescription') }));
+    await userEvent.click(within(panel).getByRole('button', { name: core('common.action.save') }));
     await waitFor(() =>
       expect(patchSpy).toHaveBeenCalledWith(DETAIL_PATH, {
         description: 'Racking and lighting for the new hall. Then the lights.',
@@ -349,7 +352,7 @@ describe('ProjectDetail — the description', () => {
     await renderPage({ permissions: ['projects:read'] });
     const panel = await screen.findByRole('tabpanel');
     expect(await within(panel).findByText('Racking and lighting for the new hall.')).toBeTruthy();
-    expect(within(panel).queryByRole('button', { name: en('overview.editDescription') })).toBeNull();
+    expect(within(panel).queryByRole('button', { name: EDIT_DESCRIPTION() })).toBeNull();
   });
 });
 

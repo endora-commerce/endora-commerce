@@ -42,9 +42,9 @@ const REGISTRY = [{ moduleId: 'projects', contributions: projects.contributions 
 const RECORD_ID = '00000000-0000-4000-8000-0000000000c7';
 
 const ZONES = [
-  { zone: 'order.detail.after', kind: 'order', props: { orderId: RECORD_ID } },
-  { zone: 'quote_request.detail.after', kind: 'quote_request', props: { quoteRequestId: RECORD_ID } },
-  { zone: 'opportunity.detail.after', kind: 'opportunity', props: { opportunityId: RECORD_ID } },
+  { zone: 'order.detail.sidebar', kind: 'order', props: { orderId: RECORD_ID } },
+  { zone: 'quote_request.detail.sidebar', kind: 'quote_request', props: { quoteRequestId: RECORD_ID } },
+  { zone: 'opportunity.detail.sidebar', kind: 'opportunity', props: { opportunityId: RECORD_ID } },
   { zone: 'task.detail.after', kind: 'task', props: { taskId: RECORD_ID } },
 ] as const;
 
@@ -94,6 +94,14 @@ describe('projects contributes the Project panel', () => {
       expect(getSpy).toHaveBeenCalledWith(`/api/v1/admin/projects/records/${entry.kind}/${RECORD_ID}/project`);
     });
   }
+
+  it('writes the Stage deadline as the admin writes every date — the medium date of the UI language (#1567)', async () => {
+    renderZone(ZONES[2]);
+    const heading = await screen.findByRole('heading', { name: en('panel.title') });
+    const panel = heading.closest('section') as HTMLElement;
+    // `2026-11-05`, not `11/5/2026` beside the Tasks panel's `Nov 22, 2026`.
+    expect(within(panel).getByText(en('panel.deadline', { date: 'Nov 5, 2026' }))).toBeInTheDocument();
+  });
 
   it('renders nothing at all for a record in no Project, or in one the reader may not see (404)', async () => {
     answer = () =>

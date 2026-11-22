@@ -2,10 +2,10 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { Link } from 'react-router-dom';
 import { Download, Inbox, Trash2 } from 'lucide-react';
 import type { FormEntrySummary, FormSummary } from '@endora-commerce/contracts';
-import { ModalDialog, ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
+import { ListPage, ModalDialog, ResponsiveTable, type ListPageLoad, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, Checkbox, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Checkbox, EmptyState } from '@endora-commerce/admin-kit/ui';
 import { entriesApi, formsApi, type EntryFilterParams } from '../api.js';
 import {
   EntryFilters,
@@ -45,6 +45,10 @@ function paramsOf(values: EntryFilterValues): EntryFilterParams {
  *
  * The scope is the server's: an administrator confined to some organisations simply sees fewer
  * entries, and never an anonymous one (FR-046).
+ *
+ * The kit's list page (issues #1439 DS-05, #1440 DS-06): the filters are a toolbar row above the
+ * results, not a card header. The endpoint pages by keyset and answers no total, so older entries
+ * stay a *Load more* step under the table rather than a numbered pager.
  */
 export function EntriesListPage(): ReactNode {
   const t = useTranslation('forms');
@@ -190,75 +194,77 @@ export function EntriesListPage(): ReactNode {
     )
   ) : null;
 
+  const listLoad: ListPageLoad =
+    load.kind === 'error' ? { kind: 'error', message: t('entries.loadError') } : { kind: load.kind };
   return (
-    <div className="space-y-4">
-      <PageHeader title={t('entries.title')} actions={exportControl} />
-      <Card>
-        <CardHeader className="border-b border-border p-4">
-          <EntryFilters values={filters} forms={forms} onChange={setFilters} searchRef={searchRef} />
-        </CardHeader>
-        <CardContent className="space-y-4 p-4" aria-busy={load.kind === 'loading' || undefined}>
-          {actionError ? (
+    <>
+      <ListPage
+        title={t('entries.title')}
+        actions={exportControl}
+        toolbar={
+          <EntryFilters className="min-w-0 flex-1" values={filters} forms={forms} onChange={setFilters} searchRef={searchRef} />
+        }
+        notice={
+          actionError ? (
             <Alert variant="destructive">
               <AlertDescription>{actionError}</AlertDescription>
             </Alert>
-          ) : null}
-          {load.kind === 'loading' ? <p className="py-6 text-center text-sm text-muted-foreground">{t('entries.loading')}</p> : null}
-          {load.kind === 'error' ? (
-            <Alert variant="destructive">
-              <AlertDescription>{t('entries.loadError')}</AlertDescription>
-            </Alert>
-          ) : null}
-          {load.kind === 'ready' ? (
-            <>
-              {canWrite && items.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id={`${id}-select-all`}
-                      checked={allSelected}
-                      onChange={(event) => setSelected(event.target.checked ? new Set(items.map((entry) => entry.id)) : new Set())}
-                    />
-                    <label htmlFor={`${id}-select-all`} className="text-sm">
-                      {t('entries.selectAll')}
-                    </label>
-                  </div>
-                  {selected.size > 0 ? (
-                    <Button type="button" variant="destructive" size="sm" onClick={() => setConfirmDelete(true)}>
-                      <Trash2 size={14} aria-hidden="true" />
-                      {t('entries.deleteSelected', { count: selected.size })}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-              <ResponsiveTable
-                columns={columns}
-                data={load.items}
-                keyExtractor={(entry) => entry.id}
-                emptyState={
-                  isFiltered(filters) ? (
-                    <EmptyState
-                      variant="no-results"
-                      title={t('entries.emptyFiltered')}
-                      onClearFilters={() => setFilters(NO_ENTRY_FILTERS)}
-                      focusAfterClear={searchRef}
-                    />
-                  ) : (
-                    <EmptyState icon={<Inbox size={20} />} title={t('entries.empty.title')} description={t('entries.empty.body')} />
-                  )
-                }
+          ) : null
+        }
+        load={listLoad}
+        onRetry={reload}
+      >
+        {canWrite && items.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={`${id}-select-all`}
+                checked={allSelected}
+                onChange={(event) => setSelected(event.target.checked ? new Set(items.map((entry) => entry.id)) : new Set())}
               />
-              {load.nextCursor ? (
-                <div className="flex justify-center">
-                  <Button type="button" variant="outline" disabled={load.loadingMore} onClick={() => void loadMore()}>
-                    {t('entries.loadMore')}
-                  </Button>
-                </div>
-              ) : null}
-            </>
-          ) : null}
-        </CardContent>
-      </Card>
+              <label htmlFor={`${id}-select-all`} className="text-sm">
+                {t('entries.selectAll')}
+              </label>
+            </div>
+            {selected.size > 0 ? (
+              <Button type="button" variant="destructive" size="sm" onClick={() => setConfirmDelete(true)}>
+                <Trash2 size={14} aria-hidden="true" />
+                {t('entries.deleteSelected', { count: selected.size })}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        <ResponsiveTable
+          columns={columns}
+          data={items}
+          keyExtractor={(entry) => entry.id}
+          emptyState={
+            isFiltered(filters) ? (
+              <EmptyState
+                variant="no-results"
+                title={t('entries.emptyFiltered')}
+                onClearFilters={() => setFilters(NO_ENTRY_FILTERS)}
+                focusAfterClear={searchRef}
+              />
+            ) : (
+              <EmptyState icon={<Inbox size={20} />} title={t('entries.empty.title')} description={t('entries.empty.body')} />
+            )
+          }
+        />
+        {load.kind === 'ready' && load.nextCursor ? (
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={load.loadingMore}
+              aria-busy={load.loadingMore || undefined}
+              onClick={() => void loadMore()}
+            >
+              {t('entries.loadMore')}
+            </Button>
+          </div>
+        ) : null}
+      </ListPage>
       {confirmDelete ? (
         <ModalDialog
           title={t('entries.deleteDialog.title', { count: selected.size })}
@@ -278,7 +284,7 @@ export function EntriesListPage(): ReactNode {
           <p className="text-sm">{t('entries.deleteDialog.body')}</p>
         </ModalDialog>
       ) : null}
-    </div>
+    </>
   );
 }
 

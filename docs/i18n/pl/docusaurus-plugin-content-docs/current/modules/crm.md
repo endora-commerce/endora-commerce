@@ -272,11 +272,12 @@ pola. Jego naciśnięcie zamienia to jedno pole w kontrolkę edycji, z przyciska
 | **Opis** | Własna sekcja na karcie *Przegląd*. | Edytor formatowania (zob. *Tekst sformatowany*); zapisuje **Ctrl+Enter** (**Cmd+Enter** na Macu) albo **Zapisz**. |
 | **Planowana data zamknięcia** | Panel informacji. | Data. |
 | **Osoba kontaktowa** | Panel informacji. | Proponowane są tylko osoby z organizacji szansy. |
+| **Handlowiec** | Panel informacji. | Wybranie osoby jeszcze jej nie przypisuje: przypisuje **Zapisz**. Wyczyszczony wybór zdejmuje przypisanie. |
 | **Kanał sprzedaży** | Panel informacji. | |
 | **Wartość** — kwota | Panel informacji. | Tylko gdy wartość jest **wpisana ręcznie**. Wartość wyliczana nie ma ołówka: najpierw trzeba przełączyć sposób jej ustalania. |
 
-Handlowca, etykiety i sposób ustalania wartości już wcześniej zmieniało się na
-miejscu i tak zostaje. Organizacji, waluty, źródła, numeru ani dat rekordu nie
+Etykiety i sposób ustalania wartości już wcześniej zmieniało się na miejscu
+i tak zostaje. Organizacji, waluty, źródła, numeru ani dat rekordu nie
 można zmienić i nie mają ołówka. Pola niestandardowe mają nadal własną sekcję
 i własny przycisk **Zapisz pola niestandardowe** (zob. *Pola niestandardowe*).
 
@@ -644,9 +645,10 @@ W Admin UI:
   jest jej.
 - **Na ekranie szansy** pole *Handlowiec* — w panelu informacji po prawej —
   pokazuje, kto ją prowadzi.
-  Posiadacz uprawnienia `crm:write` zmienia to w tym samym miejscu: wybranie
-  osoby od razu przypisuje jej szansę, a wyczyszczenie pola zostawia szansę
-  nieprzypisaną. Niczego nie trzeba zapisywać.
+  Posiadacz uprawnienia `crm:write` zmienia to w tym samym miejscu ołówkiem,
+  jak każdą inną informację: wybierz osobę albo wyczyść pole, aby zostawić
+  szansę nieprzypisaną, i naciśnij **Zapisz**. Odmowa — osoba została
+  w międzyczasie dezaktywowana — pojawia się pod polem, które zachowuje wybór.
 - **Na liście** jest kolumna *Handlowiec*, a lista i tablica mają filtr
   *Handlowiec*: **Dowolny**, **Moje**, **Nieprzypisane** albo **Wybrana
   osoba…** — ta ostatnia opcja dodaje pole wyboru osoby.
@@ -1488,7 +1490,7 @@ Moduł **Zadania** jest opcjonalny w ten sam sposób. Gdy jest wyłączony, zada
 wspomniane w tekście jest pokazywane jako *Zadanie niedostępne*, lista
 dokumentów pod `@@` nie proponuje zadań, a ekran szansy nie pokazuje panelu
 *Zadania*; po ponownym włączeniu wzmianki znów pokazują swoje zadania. Gdy moduł
-jest włączony, panel *Zadania* na końcu ekranu szansy wymienia powiązane z nią
+jest włączony, panel *Zadania* w panelu bocznym ekranu szansy wymienia powiązane z nią
 zadania, które możesz zobaczyć — opisuje go strona modułu Zadania.
 
 Tak samo moduł **Projekty**: gdy jest wyłączony, projekt wspomniany w tekście
@@ -2199,7 +2201,8 @@ włączenie CRM przywraca definicje i wszystkie zapisane wartości.
 
 ## Szanse sprzedażowe na ekranie organizacji
 
-Ekran organizacji kończy się panelem **Otwarte szanse sprzedażowe**: szanse
+Karta **Sprzedaż** organizacji zawiera, po handlowcach, sekcję **Otwarte szanse
+sprzedażowe**: szanse
 prowadzone z tą organizacją, które nie zostały jeszcze wygrane ani przegrane, od
 najnowszej — każda z numerem i tytułem (odnośnik do szansy), statusem i
 wartością. **Nowa szansa** otwiera formularz tworzenia z wybraną już
@@ -2211,6 +2214,8 @@ organizacją.
   listy szans.
 - Osoba ograniczona do wybranych organizacji widzi panel tylko na ekranach tych
   organizacji — tak jak każdą inną listę szans.
+- Karta Sprzedaż jest widoczna dla osoby, która może przypisywać handlowców
+  albo widzi tę sekcję, więc do jej otwarcia wystarczy samo `crm:read`.
 - Gdy CRM jest wyłączony, ekran organizacji nie pokazuje niczego z CRM — ani
   panelu, ani nagłówka, ani żadnego zapytania.
 
@@ -2220,8 +2225,8 @@ wpis pozostaje, ale bez tytułu i bez odnośnika.
 
 ## Szansa na ekranie zamówienia i zapytania ofertowego
 
-Ekran zamówienia kończy się panelem **Powiązana szansa**, niezależnie od
-otwartej karty.
+Ekran zamówienia ma w panelu bocznym, obok kart, sekcję **Powiązana szansa**,
+widoczną niezależnie od otwartej karty.
 
 - **Zamówienie powiązane z szansą** pokazuje numer i tytuł szansy (odnośnik do
   niej), jej status, przypisanego handlowca i wartość.
@@ -2238,9 +2243,10 @@ otwartej karty.
     można powiązać z ekranu samej szansy.
 - Panel widzi każdy, kto ma uprawnienie `crm:read`. Bez niego oraz przy
   wyłączonym CRM ekran zamówienia wygląda dokładnie tak jak bez modułu — bez
-  panelu, nagłówka, pustego miejsca i bez żadnego zapytania.
+  panelu, nagłówka, pustego miejsca i bez żadnego zapytania. Gdy nic innego
+  nie wypełnia panelu bocznego, ekran nie ma go wcale.
 
-**Ekran zapytania ofertowego kończy się takim samym panelem**, dla zapytania
+**Panel boczny ekranu zapytania ofertowego zawiera taki sam panel**, dla zapytania
 ofertowego: pokazuje szansę, z którą jest ono powiązane, albo — osobie z
 `crm:write` — *Powiąż z szansą* i *Utwórz szansę*, które niosą zapytanie
 ofertowe zamiast zamówienia. Kto jest na tym ekranie, ma `rfqs:handle`, którego
@@ -2261,9 +2267,10 @@ tworzenia przyjmuje w adresie `linkDocumentKind=order` albo `quote_request` i
 `linkDocumentId=<id dokumentu>` obok `organizationId`.
 
 Dla autorów modułów: panel jest wkładem CRM do stref Admin UI
-`order.detail.after` i `quote_request.detail.after`, które osadzają moduły
-Zamówienia i Zapytania ofertowe i do których może wnosić każdy moduł. Żaden z
-nich nie importuje CRM ani nie deklaruje od niego zależności.
+`order.detail.sidebar` i `quote_request.detail.sidebar`, a sekcja organizacji —
+do strefy `organization.detail.sales`; osadzają je moduły Zamówienia, Zapytania
+ofertowe i Organizacje i może do nich wnosić każdy moduł. Żaden z nich nie
+importuje CRM ani nie deklaruje od niego zależności.
 
 ## Własna logika przy zmianie statusu
 

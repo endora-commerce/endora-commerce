@@ -1,8 +1,8 @@
 import { useId, type ComponentProps, type ReactNode } from 'react';
 import { FORM_ENTRY_STATUSES, type FormEntryStatus, type FormSummary } from '@endora-commerce/contracts';
-import { SalesChannelPicker } from '@endora-commerce/admin-kit/components';
+import { ListToolbar, ListToolbarSearch, SalesChannelPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { Badge, Button, Checkbox, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Badge, Input, Label, MultiSelect, Select } from '@endora-commerce/admin-kit/ui';
 
 /**
  * The entries list's filters (`specs/170-forms-module/` FR-050, contracts/admin-surfaces.md §4):
@@ -10,8 +10,9 @@ import { Badge, Button, Checkbox, Input, Label, Select } from '@endora-commerce/
  * the sales channel and a search over the submitter's e-mail and the text answers. Controlled: the
  * list owns the values and reads again on every change.
  *
- * Every control is a labelled native one — the statuses a fieldset of checkboxes, the dates native
- * date inputs — so each is reachable and operable with the keyboard alone.
+ * Every control has an accessible name — the search, the form and the statuses by `aria-label` in
+ * the toolbar row, the folded ones by a visible label — and the dates are native date inputs, so
+ * each is reachable and operable with the keyboard alone.
  */
 
 export interface EntryFilterValues {
@@ -47,6 +48,11 @@ export function endOfDay(day: string): string | undefined {
   return day === '' ? undefined : new Date(`${day}T23:59:59.999`).toISOString();
 }
 
+/** How many of the folded filters — the channel and the two dates — narrow the list. */
+export function moreFiltersActiveCount(values: EntryFilterValues): number {
+  return [values.salesChannelId !== null, values.from !== '', values.to !== ''].filter(Boolean).length;
+}
+
 export interface EntryFiltersProps {
   readonly values: EntryFilterValues;
   /** The forms to choose from; empty when the reader may not list forms. */
@@ -55,25 +61,42 @@ export interface EntryFiltersProps {
   /** The search box, so a screen can return focus to it (after *Clear filters*, WCAG 2.4.3). */
   // Typed off the kit's `Input`, whose React types this package does not share.
   readonly searchRef?: ComponentProps<typeof Input>['ref'];
+  readonly className?: string;
 }
 
-export function EntryFilters({ values, forms, onChange, searchRef }: EntryFiltersProps): ReactNode {
+/**
+ * The kit's `ListToolbar` (issue #1440, UX audit DS-06): the search, the form and the statuses —
+ * what triage starts from — always visible; the channel and the date range behind *More filters*,
+ * which counts the ones in use while it is closed (Hick's Law, Zeigarnik). *Clear all filters*
+ * ends the row while anything narrows the list, and hands focus back to the search.
+ */
+export function EntryFilters({ values, forms, onChange, searchRef, className }: EntryFiltersProps): ReactNode {
   const t = useTranslation('forms');
   const id = useId();
   const set = (patch: Partial<EntryFilterValues>): void => onChange({ ...values, ...patch });
-  const toggle = (status: FormEntryStatus, on: boolean): void =>
-    set({ statuses: FORM_ENTRY_STATUSES.filter((candidate) => (candidate === status ? on : values.statuses.includes(candidate))) });
+  const statusOptions = FORM_ENTRY_STATUSES.map((status) => ({ value: status, label: t(`entryStatus.${status}`) }));
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-56 flex-1 space-y-1">
-          <Label htmlFor={`${id}-q`}>{t('entries.filter.search')}</Label>
-          <Input ref={searchRef} id={`${id}-q`} type="search" value={values.q} onChange={(event) => set({ q: event.target.value })} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${id}-form`}>{t('entries.filter.form')}</Label>
-          <Select id={`${id}-form`} value={values.formId} onChange={(event) => set({ formId: event.target.value })}>
+    <ListToolbar
+      {...(className !== undefined ? { className } : {})}
+      label={t('entries.toolbar')}
+      search={
+        <ListToolbarSearch
+          ref={searchRef}
+          label={t('entries.filter.search')}
+          placeholder={t('entries.filter.search')}
+          value={values.q}
+          onValueChange={(q) => set({ q })}
+        />
+      }
+      filters={
+        <>
+          <Select
+            aria-label={t('entries.filter.form')}
+            className="w-auto"
+            value={values.formId}
+            onChange={(event) => set({ formId: event.target.value })}
+          >
             <option value="">{t('entries.filter.allForms')}</option>
             {forms.map((form) => (
               <option key={form.id} value={form.id}>
@@ -81,63 +104,55 @@ export function EntryFilters({ values, forms, onChange, searchRef }: EntryFilter
               </option>
             ))}
           </Select>
-        </div>
-        <div className="min-w-48 space-y-1">
-          <Label htmlFor={`${id}-channel`}>{t('entries.filter.channel')}</Label>
-          <SalesChannelPicker
-            id={`${id}-channel`}
-            value={values.salesChannelId}
-            onChange={(salesChannelId) => set({ salesChannelId })}
-            ariaLabel={t('entries.filter.channel')}
+          <MultiSelect
+            className="w-44"
+            ariaLabel={t('entries.filter.status')}
+            placeholder={t('entries.filter.status')}
+            options={statusOptions}
+            selected={[...values.statuses]}
+            onChange={(next) =>
+              set({ statuses: FORM_ENTRY_STATUSES.filter((status) => next.includes(status)) })
+            }
           />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${id}-from`}>{t('entries.filter.from')}</Label>
-          <Input
-            id={`${id}-from`}
-            type="date"
-            value={values.from}
-            max={values.to || undefined}
-            onChange={(event) => set({ from: event.target.value })}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${id}-to`}>{t('entries.filter.to')}</Label>
-          <Input
-            id={`${id}-to`}
-            type="date"
-            value={values.to}
-            min={values.from || undefined}
-            onChange={(event) => set({ to: event.target.value })}
-          />
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <fieldset className="flex flex-wrap items-center gap-3">
-          <legend className="sr-only">{t('entries.filter.status')}</legend>
-          <span aria-hidden="true" className="text-sm font-medium">
-            {t('entries.filter.status')}
-          </span>
-          {FORM_ENTRY_STATUSES.map((status) => (
-            <div key={status} className="flex items-center gap-1.5">
-              <Checkbox
-                id={`${id}-status-${status}`}
-                checked={values.statuses.includes(status)}
-                onChange={(event) => toggle(status, event.target.checked)}
-              />
-              <Label htmlFor={`${id}-status-${status}`} className="font-normal">
-                {t(`entryStatus.${status}`)}
-              </Label>
-            </div>
-          ))}
-        </fieldset>
-        {isFiltered(values) ? (
-          <Button type="button" variant="ghost" size="sm" onClick={() => onChange(NO_ENTRY_FILTERS)}>
-            {t('entries.filter.clear')}
-          </Button>
-        ) : null}
-      </div>
-    </div>
+        </>
+      }
+      moreFiltersActiveCount={moreFiltersActiveCount(values)}
+      moreFilters={
+        <>
+          <div className="space-y-1">
+            <Label htmlFor={`${id}-channel`}>{t('entries.filter.channel')}</Label>
+            <SalesChannelPicker
+              id={`${id}-channel`}
+              value={values.salesChannelId}
+              onChange={(salesChannelId) => set({ salesChannelId })}
+              ariaLabel={t('entries.filter.channel')}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={`${id}-from`}>{t('entries.filter.from')}</Label>
+            <Input
+              id={`${id}-from`}
+              type="date"
+              value={values.from}
+              max={values.to || undefined}
+              onChange={(event) => set({ from: event.target.value })}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={`${id}-to`}>{t('entries.filter.to')}</Label>
+            <Input
+              id={`${id}-to`}
+              type="date"
+              value={values.to}
+              min={values.from || undefined}
+              onChange={(event) => set({ to: event.target.value })}
+            />
+          </div>
+        </>
+      }
+      filtersActive={isFiltered(values)}
+      onClearFilters={() => onChange(NO_ENTRY_FILTERS)}
+    />
   );
 }
 

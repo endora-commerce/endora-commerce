@@ -42,10 +42,10 @@ export function EntryNotes({ notes, canWrite, onAdd }: EntryNotesProps): ReactNo
 
   return (
     <Card role="region" aria-labelledby={`${id}-title`}>
-      <CardHeader className="p-4 pb-2">
+      <CardHeader>
         <CardTitle id={`${id}-title`}>{t('entry.notes')}</CardTitle>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
+      <CardContent>
         <div className="space-y-3">
           {notes.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('entry.noNotes')}</p>

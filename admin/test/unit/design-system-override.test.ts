@@ -48,9 +48,13 @@
  *     rather than a baked literal. A utility this package's build never saw is
  *     what resolves against the client's `:root`, and if the token were inlined
  *     as a value the whole seam would be gone;
- *  2. the **class vocabulary** arrived with the tokens: `.b2b-btn`, one of the
- *     137 classes 70 files in `packages/` render and no instance should define
- *     (T129, R4.4).
+ *  2. the **class vocabulary** arrived with the tokens: `.b2b-badge`, one of
+ *     the classes module packages render and no instance should define (T129,
+ *     R4.4).
+ *
+ *     Until issue #1502 retired the legacy buttons this named `.b2b-btn`; the
+ *     class went with its last renderer, so the assertion moved to a class the
+ *     vocabulary still publishes.
  *
  *     Until T128 this assertion named `.badge--warning`, described here as
  *     *"one of the 22 classes a module package renders"*. It was not: that
@@ -66,7 +70,7 @@
  *     had flattened it to a literal would still emit `.bg-primary`, would still
  *     satisfy the control, and would have taken the seam away in silence;
  *  4. **the class override reaches through cascade order** (T129a). The
- *     instance writes `.b2b-btn { border-radius: 2px }` in the same slot, and
+ *     instance writes `.b2b-badge { border-radius: 2px }` in the same slot, and
  *     both rules are in the compiled stylesheet with the client's last. Order
  *     and not membership: a set-shaped assertion passes over a stylesheet in
  *     which the client's rule came first and never rendered;
@@ -120,8 +124,8 @@ const PACKAGE_PRIMARY = 'var(--accent-h) var(--accent-s) var(--accent-l)';
 const PACKAGE_ACCENT_HUE = '248';
 const CLIENT_ACCENT_HUE = '262';
 /** The class the overriding instance rewrites, and the value it gives it. */
-const OVERRIDDEN_CLASS = 'b2b-btn';
-const CLIENT_BUTTON_RADIUS = '2px';
+const OVERRIDDEN_CLASS = 'b2b-badge';
+const CLIENT_RADIUS = '2px';
 
 /**
  * The instance's own stylesheet — R2.3's four lines, minus the generated
@@ -144,7 +148,7 @@ function stylesheetOf(overrides: boolean): string {
           '}',
           '',
           `.${OVERRIDDEN_CLASS} {`,
-          `  border-radius: ${CLIENT_BUTTON_RADIUS};`,
+          `  border-radius: ${CLIENT_RADIUS};`,
           '}',
         ]
       : []),
@@ -175,7 +179,7 @@ function writeInstance(dir: string, overrides: boolean): void {
       '// is the whole failure this fixture is for.\n' +
       'export const Screen = () => (\n' +
       '  <div className="bg-primary">\n' +
-      `    <button type="button" className="${OVERRIDDEN_CLASS}" />\n` +
+      `    <span className="${OVERRIDDEN_CLASS}" />\n` +
       '  </div>\n' +
       ');\n',
     'utf8',
@@ -220,7 +224,7 @@ function declarationsUnder(
  * Every `border-radius` a rule for one selector declares, in **source order**.
  *
  * The class half's assertion is about order and nothing else: the design system
- * defines `.b2b-btn` and the instance defines it again, later, and CSS resolves
+ * defines `.b2b-badge` and the instance defines it again, later, and CSS resolves
  * that by cascade position. A set-shaped assertion would pass over a compiled
  * stylesheet in which the client's rule came *first* and never rendered.
  */
@@ -261,8 +265,8 @@ describe('the design system belongs to a package and an instance overrides it by
     // (2) the **class vocabulary** arrived with the tokens (T129, R4.4). It
     // replaces the assertion this file carried until T128, which named one of
     // the 23 shim classes and was therefore asserting the presence of dead
-    // surface. `.b2b-btn` is one of the 137 that 70 files in `packages/` really
-    // render, and nothing in the instance defines it.
+    // surface. `.b2b-badge` is one module packages really render, and nothing
+    // in the instance defines it.
     expect(radiiOf(css, OVERRIDDEN_CLASS).length).toBeGreaterThan(0);
   }, 180_000);
 
@@ -298,13 +302,13 @@ describe('the design system belongs to a package and an instance overrides it by
     // a stylesheet in which the client's rule came first and never rendered.
     const overriddenRadii = radiiOf(overridden, OVERRIDDEN_CLASS);
     expect(overriddenRadii.length).toBeGreaterThan(1);
-    expect(overriddenRadii.at(-1)).toBe(CLIENT_BUTTON_RADIUS);
+    expect(overriddenRadii.at(-1)).toBe(CLIENT_RADIUS);
 
     // (5) the control, which overrides nothing, gets the package's defaults —
     // and never the client's. Without it, (3) and (4) are satisfied by any
     // stylesheet that happens to carry those values for some other reason.
     expect(declarationsUnder(defaulted, ':root', '--accent-h')).toEqual([PACKAGE_ACCENT_HUE]);
-    expect(radiiOf(defaulted, OVERRIDDEN_CLASS)).not.toContain(CLIENT_BUTTON_RADIUS);
+    expect(radiiOf(defaulted, OVERRIDDEN_CLASS)).not.toContain(CLIENT_RADIUS);
     expect(radiiOf(defaulted, OVERRIDDEN_CLASS).length).toBe(1);
 
     // And the token override reaches `:root` alone. A client restyling the

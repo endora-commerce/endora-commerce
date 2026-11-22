@@ -111,6 +111,7 @@ describe('tasks off-state (Constitution XVII)', () => {
     const urls = derived.map((probe) => `${probe.method} ${probe.url.replace(API, '')}`);
     for (const expected of [
       'GET ',
+      'GET /count',
       'POST ',
       `DELETE /${ID}`,
       'GET /workflow',

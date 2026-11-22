@@ -104,6 +104,8 @@ async function moveTo(status: string): Promise<void> {
   await openMoveMenu();
   await userEvent.click(within(screen.getByRole('group', { name: MOVE_LABEL })).getByRole('button', { name: status }));
 }
+/** A fact's pencil — the kit's `InlineEdit` (issue #1525). */
+const EDIT = (field: string): string => core('common.inlineEdit.edit', { field: en(field) });
 /** The status is said once, in the title (issue #1566). */
 const title = (): HTMLElement => screen.getByRole('heading', { level: 1 });
 /** The history is a tab of its own (issue #1524). */
@@ -212,36 +214,60 @@ describe('TaskDetail — writing', () => {
     expect(await openMoveMenu()).toEqual([STATUS.cancelled.name]);
   });
 
-  it('moves focus into the editor when it opens and back to Edit when it closes (WCAG 2.4.3)', async () => {
+  it('edits the title where it is read: the focus moves into it and back to its pencil (WCAG 2.4.3, #1525)', async () => {
     await renderPage();
-    await userEvent.click(screen.getByRole('button', { name: en('detail.edit') }));
-    await waitFor(() => expect(screen.getByLabelText(new RegExp(en('field.title')))).toHaveFocus());
+    await userEvent.click(screen.getByRole('button', { name: EDIT('field.title') }));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: en('field.title') })).toHaveFocus());
     await userEvent.click(screen.getByRole('button', { name: core('common.action.cancel') }));
-    await waitFor(() => expect(screen.getByRole('button', { name: en('detail.edit') })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole('button', { name: EDIT('field.title') })).toHaveFocus());
+    expect(patchSpy).not.toHaveBeenCalled();
   });
 
-  it('focuses the title when the edit is saved without one, its error as its description (WCAG 3.3.1, #512)', async () => {
+  it('refuses an empty title without a request, its error as its description (WCAG 3.3.1, #512)', async () => {
     await renderPage();
-    await userEvent.click(screen.getByRole('button', { name: en('detail.edit') }));
-    const title = screen.getByLabelText(new RegExp(en('field.title')));
+    await userEvent.click(screen.getByRole('button', { name: EDIT('field.title') }));
+    const title = screen.getByRole('textbox', { name: en('field.title') });
     await userEvent.clear(title);
     await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
-    await waitFor(() => expect(title).toHaveFocus());
     expect(title).toHaveAccessibleDescription(en('create.error.title'));
     expect(patchSpy).not.toHaveBeenCalled();
   });
 
-  it('edits the details in place and sends only what changed', async () => {
+  it('saves the title alone on Enter, and gives the focus back to its pencil', async () => {
     patchSpy.mockResolvedValue({ data: taskDetail({ title: 'Order the galvanised racking' }) });
     await renderPage();
-    await userEvent.click(screen.getByRole('button', { name: en('detail.edit') }));
-    const title = screen.getByLabelText(new RegExp(en('field.title')));
+    await userEvent.click(screen.getByRole('button', { name: EDIT('field.title') }));
+    const title = screen.getByRole('textbox', { name: en('field.title') });
     await userEvent.clear(title);
-    await userEvent.type(title, 'Order the galvanised racking');
-    await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
+    await userEvent.type(title, 'Order the galvanised racking{Enter}');
     expect(patchSpy).toHaveBeenCalledWith(TASK_PATH, { title: 'Order the galvanised racking' });
     expect(await screen.findByRole('heading', { name: /Order the galvanised racking/ })).toBeTruthy();
-    await waitFor(() => expect(screen.getByRole('button', { name: en('detail.edit') })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole('button', { name: EDIT('field.title') })).toHaveFocus());
+  });
+
+  it('has no page-wide Edit form: every fact of the Details has its own pencil (#1525, WORK-03)', async () => {
+    await renderPage();
+    const details = screen.getByRole('region', { name: en('detail.details') });
+    expect(within(details).queryByRole('button', { name: /^Edit$/ })).toBeNull();
+    for (const field of ['field.description', 'field.dueOn', 'field.startOn', 'field.priority', 'field.tags', 'field.assignee']) {
+      expect(within(details).getByRole('button', { name: EDIT(field) })).toBeInTheDocument();
+    }
+  });
+
+  it("shows a field's refusal under it, in the server's words, and keeps the draft", async () => {
+    patchSpy.mockRejectedValue(
+      new ApiError(422, { error: { code: 'VALIDATION_FAILED', message: 'The start date cannot be after the due date.' } }),
+    );
+    await renderPage();
+    await userEvent.click(screen.getByRole('button', { name: EDIT('field.startOn') }));
+    const start = screen.getByLabelText(en('field.startOn'));
+    await userEvent.clear(start);
+    await userEvent.type(start, '2026-12-24');
+    await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
+    const details = screen.getByRole('region', { name: en('detail.details') });
+    expect(await within(details).findByRole('alert')).toHaveTextContent('The start date cannot be after the due date.');
+    expect(start).toHaveValue('2026-12-24');
+    expect(start).toHaveAccessibleDescription('The start date cannot be after the due date.');
   });
 
   it('assigns the Task to the caller in one step', async () => {
@@ -281,9 +307,9 @@ describe('TaskDetail — writing', () => {
     expect(await screen.findByText('tasks list screen')).toBeTruthy();
   });
 
-  it('keeps Delete apart from Edit: in the page header, not in the Details section (issue #527)', async () => {
+  it('keeps Delete apart from the facts it edits: in the page header, not in the Details section (issue #527)', async () => {
     await renderPage();
-    const edit = await screen.findByRole('button', { name: en('detail.edit') });
+    const edit = await screen.findByRole('button', { name: EDIT('field.description') });
     const del = screen.getByRole('button', { name: en('detail.delete') });
     const details = screen.getByRole('region', { name: en('detail.details') });
     expect(details).toContainElement(edit);
@@ -306,7 +332,7 @@ describe('TaskDetail — writing', () => {
   it('offers no Delete for a Task whose record does not let the caller remove it, and says why (T147)', async () => {
     current = taskDetail({ context: { ...taskDetail().context!, canChangeTasks: false } });
     await renderPage();
-    expect(await screen.findByRole('button', { name: en('detail.edit') })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: EDIT('field.description') })).toBeTruthy();
     expect(screen.queryByRole('button', { name: en('detail.delete') })).toBeNull();
     expect(screen.getByText(en('detail.deleteNotAllowed'))).toBeTruthy();
   });
@@ -315,7 +341,7 @@ describe('TaskDetail — writing', () => {
     await renderPage(['tasks:read']);
     expect(screen.queryByRole('button', { name: MOVE_LABEL })).toBeNull();
     expect(screen.getAllByText(STATUS.todo.name).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('button', { name: en('detail.edit') })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Edit / })).toBeNull();
     expect(screen.queryByRole('button', { name: en('detail.delete') })).toBeNull();
     expect(screen.getByText(en('detail.readOnly'))).toBeTruthy();
   });

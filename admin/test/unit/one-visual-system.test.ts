@@ -33,12 +33,12 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
-/** The screens #1492 names, migrated, then the inventory and pwa modules' remaining screens. Repo-relative. */
+/**
+ * The screens #1492 names, migrated, then the inventory and pwa modules' remaining screens.
+ * The catalog screens it named are held by `MIGRATED_DIRS` since slice S15, and the shell's
+ * since slice S16. Repo-relative.
+ */
 const MIGRATED = [
-  'packages/modules/catalog/src/admin/components/ProductInventoryTab.tsx',
-  'packages/modules/catalog/src/admin/components/PackagingUnitsEditor.tsx',
-  'packages/modules/catalog/src/admin/pages/ProductsList.tsx',
-  'packages/modules/catalog/src/admin/pages/ProductEditor.tsx',
   'packages/modules/inventory/src/admin/pages/InventoryPage.tsx',
   'packages/modules/inventory/src/admin/zones/ChannelWarehouses.tsx',
   'packages/modules/inventory/src/admin/pages/AvailabilityNotificationsPage.tsx',
@@ -48,15 +48,6 @@ const MIGRATED = [
   'packages/modules/inventory/src/admin/pages/WarehousesList.tsx',
   'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx',
   'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx',
-  // Issue #1437 (DS-03): one form card of sections and a language card, on kit primitives.
-  'packages/admin-shell/src/modules/profile/ProfilePage.tsx',
-  // The command palette's prompt mode (#1492). `AppShell.tsx` is still to come.
-  'packages/admin-shell/src/components/prompt-actions/PromptModePanel.tsx',
-  'packages/admin-shell/src/components/prompt-actions/PromptPlanPreview.tsx',
-  // The catalog bulk operations (#1492, UX audit slice S14): the bulk edit dialog and both pages.
-  'packages/modules/catalog/src/admin/components/ProductsBulkEditDialog.tsx',
-  'packages/modules/catalog/src/admin/pages/BulkOperationsPage.tsx',
-  'packages/modules/catalog/src/admin/pages/BulkOperationDetailPage.tsx',
 ] as const;
 
 /**
@@ -68,8 +59,12 @@ const MIGRATED_DIRS = [
   // The kit is held whole: a screen built from it inherits what it draws.
   'packages/admin-kit/src/components',
   'packages/admin-kit/src/ui',
-  // The Home dashboard, with #1556.
-  'packages/admin-shell/src/modules/home',
+  // The whole shell — the AppShell frame, its top bar menus, the sign-in screen,
+  // the boot skeleton, Home (#1556), Profile (#1437) and the prompt mode — since
+  // #1492 slice S16.
+  'packages/admin-shell/src',
+  // The whole catalog admin, with the product editor and create form (#1492, UX audit slice S15).
+  'packages/modules/catalog/src/admin',
   'packages/modules/import_export/src/admin',
   'packages/modules/price_lists/src/admin',
   'packages/modules/product_feeds/src/admin',
@@ -111,6 +106,8 @@ const DRAWER_FRAME =
   'the frame of a side drawer: no kit drawer exists and no-hand-rolled-overlays.test.ts ledgers it (DRAWER); what is inside it is kit';
 const SCRIM =
   'the scrim of an alertdialog that no-hand-rolled-overlays.test.ts ledgers for its move to ConfirmDialog (follow-up to #1444)';
+const PALETTE_SCRIM =
+  "the scrim of the ⌘K command palette, a combobox dialog with its own keyboard model that no-hand-rolled-overlays.test.ts ledgers";
 const COMPUTED =
   'a dimension computed at run time (a bar width, a tree indent), which no Tailwind utility can express';
 
@@ -124,8 +121,14 @@ const DATA_COLOUR_STYLE = /style=\{\{ (?:backgroundColor|background|color|border
 const DRAWER_CLASSES = /\bb2b-(?:scrim|drawer(?:--[a-z]+|__[a-z]+)?)\b/g;
 const SCRIM_CLASS = /\bb2b-scrim\b/g;
 const COMPUTED_STYLE = /style=\{\{ (?:width|paddingLeft): `\$\{[^}]+\}(?:%|px)` \}\}/;
+/** A tree row's indent written as a number of pixels from its depth (`depth * 24 + 8`). */
+const TREE_INDENT_STYLE = /style=\{\{ paddingLeft: depth \* \d+ \+ \d+ \}\}/;
 
 const EXCEPTIONS: Record<string, Exception[]> = {
+  // The search mode and the prompt mode each draw the palette over its scrim.
+  'packages/admin-shell/src/components/AppShell.tsx': [
+    { kind: 'classes', pattern: SCRIM_CLASS, count: 2, reason: PALETTE_SCRIM },
+  ],
   'packages/admin-kit/src/components/product-browser/ProductBrowserDialog.tsx': [
     { kind: 'classes', pattern: DRAWER_CLASSES, count: 6, reason: DRAWER_FRAME },
     // The type filter cycles through the product types (feature 145), so it is
@@ -137,6 +140,9 @@ const EXCEPTIONS: Record<string, Exception[]> = {
   ],
   'packages/admin-kit/src/components/category-tree-picker/CategoryTreeNodeRow.tsx': [
     { kind: 'styles', pattern: COMPUTED_STYLE, count: 1, reason: COMPUTED },
+  ],
+  'packages/modules/catalog/src/admin/pages/CategoriesTree.tsx': [
+    { kind: 'styles', pattern: TREE_INDENT_STYLE, count: 1, reason: COMPUTED },
   ],
   'packages/admin-kit/src/components/kanban/MoveToMenu.tsx': [
     { kind: 'styles', pattern: DATA_COLOUR_STYLE, count: 1, reason: DATA_COLOUR },

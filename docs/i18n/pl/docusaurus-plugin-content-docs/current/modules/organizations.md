@@ -1358,9 +1358,14 @@ otwartą zakładkę (`?tab=members`, `commerce`, `tax`, `sales`), więc link mo�
 | --- | --- |
 | **Przegląd** | Moderację (status i dozwolone dla niego działania), adres rejestrowy, hierarchię, pola własne |
 | **Członkowie i role** | Członków, **Dodaj członka** i role |
-| **Handel** | Kanały sprzedaży, e-maile z potwierdzeniem zamówienia, ograniczenia, strategię realizacji, obowiązujące cenniki oraz panele dodawane przez inne moduły (tryb wyświetlania cen, domyślne ustawienia zamówień, płatników, negocjację cen, szanse sprzedaży CRM, projekty) |
+| **Handel** | Kanały sprzedaży, e-maile z potwierdzeniem zamówienia, ograniczenia, strategię realizacji, obowiązujące cenniki oraz panele dodawane przez inne moduły (tryb wyświetlania cen, domyślne ustawienia zamówień, płatników, negocjację cen) |
 | **Podatki** | Numer podatkowy i status VAT z **Zmień numer podatkowy**, **Zmień status VAT…** albo, dla organizacji osobistej, **Zamień na firmę**; dalej weryfikację VAT |
-| **Sprzedaż** | Opiekunów handlowych. Widoczna tylko z `organizations:assign-sales-rep` |
+| **Sprzedaż** | Opiekunów handlowych (z `organizations:assign-sales-rep`), a po nich panele dodawane przez inne moduły o sprzedaży tej organizacji (szanse sprzedaży CRM, projekty). Widoczna tylko wtedy, gdy jest w niej któraś z tych części |
+
+Dla autorów modułów: panele zakładki Handel to strefa panelu administracyjnego
+`organization.detail.after`, a zakładki Sprzedaż — `organization.detail.sales`, która przekazuje
+wkładowi `{ organizationId }` i żadnej sesji zapisu — zakładka Sprzedaż nie należy do jednego
+przycisku Zapisz tego ekranu. Wkłady do `organization.detail.after` działają bez zmian.
 
 Przełączenie zakładki zachowuje każdą niezapisaną zmianę. Zakładka z niezapisanymi zmianami ma
 kropkę, a czytnik ekranu słyszy przy jej nazwie „niezapisane zmiany”.

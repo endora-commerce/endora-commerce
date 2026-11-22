@@ -84,10 +84,14 @@ describe('EntriesListPage', () => {
     await screen.findByText('grace@example.com');
     await userEvent.selectOptions(screen.getByLabelText(en('entries.filter.form')), FORM_ID);
     await waitFor(() => expect(lastQuery().get('formId')).toBe(FORM_ID));
-    const statuses = screen.getByRole('group', { name: en('entries.filter.status') });
+    await userEvent.click(screen.getByRole('button', { name: en('entries.filter.status') }));
+    const statuses = screen.getByRole('listbox');
     await userEvent.click(within(statuses).getByLabelText(en('entryStatus.new')));
     await userEvent.click(within(statuses).getByLabelText(en('entryStatus.spam')));
     await waitFor(() => expect(lastQuery().getAll('status')).toEqual(['new', 'spam']));
+    // The date range and the channel are the long tail, folded behind *More filters* (Hick's Law).
+    expect(screen.queryByLabelText(en('entries.filter.from'))).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'More filters' }));
     await userEvent.type(screen.getByLabelText(en('entries.filter.from')), '2026-10-01');
     await waitFor(() => expect(lastQuery().get('submittedFrom')).toBe(new Date('2026-10-01T00:00:00').toISOString()));
     await userEvent.type(screen.getByLabelText(en('entries.filter.to')), '2026-10-31');
@@ -119,6 +123,30 @@ describe('EntriesListPage', () => {
     expect(await screen.findByText(en('entries.empty.title'))).toBeTruthy();
     expect((screen.getByLabelText(en('entries.filter.search')) as HTMLInputElement).value).toBe('');
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('entries.filter.search'))));
+  });
+
+  it('filters in a toolbar row named as a search landmark, not in a card header (issue #1440, DS-06)', async () => {
+    renderForms(<EntriesListPage />, { path: '/forms/entries', pattern: '/forms/entries', permissions: READ });
+    await screen.findByText('grace@example.com');
+    const toolbar = screen.getByRole('search', { name: en('entries.toolbar') });
+    expect(within(toolbar).getByLabelText(en('entries.filter.search'))).toBeTruthy();
+    expect(within(toolbar).getByLabelText(en('entries.filter.form'))).toBeTruthy();
+    expect(within(toolbar).getByRole('button', { name: en('entries.filter.status') })).toBeTruthy();
+    expect(toolbar.closest('[data-slot="card"]')).toBeNull();
+  });
+
+  it('counts the folded filters in use on the closed disclosure, and clears every filter from the toolbar', async () => {
+    renderForms(<EntriesListPage />, { path: '/forms/entries', pattern: '/forms/entries', permissions: READ });
+    await screen.findByText('grace@example.com');
+    const toolbar = screen.getByRole('search', { name: en('entries.toolbar') });
+    await userEvent.click(within(toolbar).getByRole('button', { name: 'More filters' }));
+    await userEvent.type(within(toolbar).getByLabelText(en('entries.filter.from')), '2026-10-01');
+    await userEvent.click(within(toolbar).getByRole('button', { name: 'Fewer filters' }));
+    expect(within(toolbar).getByRole('button', { name: 'More filters (1)' })).toBeTruthy();
+    await userEvent.click(within(toolbar).getByRole('button', { name: 'Clear all filters' }));
+    await waitFor(() => expect(lastQuery().get('submittedFrom')).toBeNull());
+    expect(within(toolbar).getByRole('button', { name: 'More filters' })).toBeTruthy();
+    expect(document.activeElement).toBe(within(toolbar).getByLabelText(en('entries.filter.search')));
   });
 
   it('shows older entries a step at a time, by the cursor the page answered', async () => {

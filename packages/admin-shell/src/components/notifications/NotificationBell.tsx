@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck } from 'lucide-react';
 import { useTranslationContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { cn } from '@endora-commerce/admin-kit/lib';
+import { Button } from '@endora-commerce/admin-kit/ui';
 import { notificationText } from './notification-text.js';
 import { useAdminNotifications, type AdminNotificationItem } from './useAdminNotifications.js';
 
@@ -64,15 +66,19 @@ export function NotificationBell(): ReactElement {
   };
 
   const badge = formatUnreadBadge(unreadCount);
+  const buttonName =
+    unreadCount > 0
+      ? t('appShell.topbar.notificationsUnread', { count: unreadCount })
+      : t('appShell.topbar.notifications');
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div className="relative">
       <button
         ref={buttonRef}
         type="button"
         className="b2b-topbar__icon-btn"
-        title={t('appShell.topbar.notifications')}
-        aria-label={t('appShell.topbar.notifications')}
+        title={buttonName}
+        aria-label={buttonName}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(): void => {
@@ -81,27 +87,42 @@ export function NotificationBell(): ReactElement {
         }}
       >
         <Bell size={16} />
-        {badge ? <span style={BADGE_STYLE}>{badge}</span> : null}
+        {badge ? (
+          <span
+            aria-hidden="true"
+            className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-destructive px-[5px] py-0.5 text-center text-[10px] font-semibold leading-none text-destructive-foreground"
+          >
+            {badge}
+          </span>
+        ) : null}
       </button>
       {open ? (
-        <div ref={dropdownRef} style={DROPDOWN_STYLE} role="menu">
-          <div style={DROPDOWN_HEADER_STYLE}>
-            <strong>{t('appShell.notifications.title')}</strong>
+        <div
+          ref={dropdownRef}
+          role="menu"
+          aria-label={t('appShell.notifications.title')}
+          className="absolute right-0 top-[calc(100%+6px)] z-[100] w-[340px] max-w-[calc(100vw-24px)] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg"
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-border bg-muted px-3.5 py-2">
+            <strong className="text-sm">{t('appShell.notifications.title')}</strong>
             {unreadCount > 0 ? (
-              <button
+              <Button
                 type="button"
-                style={MARK_ALL_BTN}
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-muted-foreground"
                 onClick={(): void => void markAllRead()}
-                title={t('appShell.notifications.markAllRead')}
               >
-                <CheckCheck size={14} />
+                <CheckCheck aria-hidden="true" />
                 {t('appShell.notifications.markAllRead')}
-              </button>
+              </Button>
             ) : null}
           </div>
-          <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+          <div className="max-h-[360px] overflow-y-auto">
             {items.length === 0 ? (
-              <div style={EMPTY_STYLE}>{t('appShell.notifications.empty')}</div>
+              <p className="m-0 px-3.5 py-6 text-center text-[13px] text-muted-foreground">
+                {t('appShell.notifications.empty')}
+              </p>
             ) : (
               items.map((it) => {
                 const body = notificationText(bundles, it.bodyMessage, it.body);
@@ -110,25 +131,25 @@ export function NotificationBell(): ReactElement {
                     key={it.id}
                     type="button"
                     role="menuitem"
-                    style={{ ...ROW_STYLE, ...(it.isRead ? ROW_READ_STYLE : ROW_UNREAD_STYLE) }}
+                    className={cn(
+                      'block w-full border-b border-l-[3px] border-b-border py-2.5 pl-[11px] pr-3.5 text-left text-sm',
+                      'hover:bg-accent focus-visible:bg-accent focus-visible:outline-none',
+                      it.isRead ? 'border-l-transparent' : 'border-l-primary',
+                    )}
                     onClick={(): void => handleClick(it)}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ fontWeight: it.isRead ? 400 : 600, flex: 1 }}>
+                    <div className="flex justify-between gap-2">
+                      <span className={cn('flex-1', it.isRead ? 'font-normal' : 'font-semibold')}>
+                        {it.isRead ? null : (
+                          <span className="sr-only">{t('appShell.notifications.unread')} </span>
+                        )}
                         {notificationText(bundles, it.titleMessage, it.title)}
                       </span>
-                      <time
-                        style={{ fontSize: 11, color: 'var(--text-muted, #888)' }}
-                        dateTime={it.createdAt}
-                      >
-                        {formatRelative(it.createdAt)}
+                      <time className="text-[11px] text-muted-foreground" dateTime={it.createdAt}>
+                        {formatRelative(it.createdAt, bundles.language)}
                       </time>
                     </div>
-                    {body ? (
-                      <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', marginTop: 2 }}>
-                        {body}
-                      </div>
-                    ) : null}
+                    {body ? <div className="mt-0.5 text-xs text-muted-foreground">{body}</div> : null}
                   </button>
                 );
               })
@@ -146,90 +167,20 @@ function formatUnreadBadge(n: number): string | null {
   return String(n);
 }
 
-function formatRelative(iso: string): string {
-  const then = new Date(iso).getTime();
-  const now = Date.now();
-  const diffMin = Math.round((now - then) / 60_000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m`;
+/**
+ * How long ago an entry was written, in the reader's language and the narrow
+ * form the row has room for ("5m ago", "5 min temu"). Under a minute it is
+ * "now" ("teraz"); beyond that the count is always a number, so a Polish reader
+ * sees "2 dni temu" rather than "przedwczoraj" next to "3 dni temu".
+ */
+export function formatRelative(iso: string, language: string, now: number = Date.now()): string {
+  const diffMin = Math.round((now - new Date(iso).getTime()) / 60_000);
+  if (diffMin < 1) {
+    return new Intl.RelativeTimeFormat(language, { numeric: 'auto', style: 'narrow' }).format(0, 'second');
+  }
+  const format = new Intl.RelativeTimeFormat(language, { numeric: 'always', style: 'narrow' });
+  if (diffMin < 60) return format.format(-diffMin, 'minute');
   const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h`;
-  const diffDay = Math.round(diffHr / 24);
-  return `${diffDay}d`;
+  if (diffHr < 24) return format.format(-diffHr, 'hour');
+  return format.format(-Math.round(diffHr / 24), 'day');
 }
-
-const BADGE_STYLE: CSSProperties = {
-  position: 'absolute',
-  top: 2,
-  right: 2,
-  background: '#dc2626',
-  color: '#fff',
-  borderRadius: 999,
-  fontSize: 10,
-  lineHeight: 1,
-  padding: '2px 5px',
-  fontWeight: 600,
-  minWidth: 16,
-  textAlign: 'center',
-};
-
-const DROPDOWN_STYLE: CSSProperties = {
-  position: 'absolute',
-  right: 0,
-  top: 'calc(100% + 6px)',
-  width: 340,
-  maxWidth: 'calc(100vw - 24px)',
-  background: 'var(--bg-surface, #fff)',
-  border: '1px solid var(--border-color, #e5e7eb)',
-  borderRadius: 8,
-  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
-  zIndex: 100,
-  overflow: 'hidden',
-};
-
-const DROPDOWN_HEADER_STYLE: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '10px 14px',
-  borderBottom: '1px solid var(--border-color, #e5e7eb)',
-  background: 'var(--bg-muted, #fafafa)',
-};
-
-const MARK_ALL_BTN: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 4,
-  fontSize: 12,
-  color: 'var(--text-muted, #555)',
-  background: 'none',
-  border: 'none',
-  cursor: 'pointer',
-};
-
-const ROW_STYLE: CSSProperties = {
-  display: 'block',
-  width: '100%',
-  textAlign: 'left',
-  padding: '10px 14px',
-  borderBottom: '1px solid var(--border-color, #e5e7eb)',
-  background: 'none',
-  cursor: 'pointer',
-};
-
-const ROW_UNREAD_STYLE: CSSProperties = {
-  borderLeft: '3px solid #2563eb',
-  paddingLeft: 11,
-};
-
-const ROW_READ_STYLE: CSSProperties = {
-  borderLeft: '3px solid transparent',
-  paddingLeft: 11,
-};
-
-const EMPTY_STYLE: CSSProperties = {
-  padding: '24px 14px',
-  textAlign: 'center',
-  color: 'var(--text-muted, #888)',
-  fontSize: 13,
-};

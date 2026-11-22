@@ -252,6 +252,11 @@ module is on, the category's **Price display mode**, contributed by that module 
 buttons. The **Main image** sits below them and applies at once, outside Save. In the new-category form the slug is
 made from the name as you type it; type your own to stop that.
 
+The category has a **name for every language your active sales channels offer**, one field each, all shown at
+once. A name stored in a language no active channel offers any more stays in the editor, read-only and marked
+**Not in any channel**; saving keeps it unchanged. If the channels' languages cannot be read, the editor says so
+and offers the languages the category already has, plus your admin language.
+
 The editor has **one Save** for all of it. Changing the price display mode only stages it: it is no longer saved
 the moment you choose it. Save reads "Save" while there is nothing to save and "Save 2 changes" once there is,
 counting the category's own changes and the display mode together.

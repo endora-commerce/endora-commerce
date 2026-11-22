@@ -60,7 +60,7 @@ const PRODUCT = { id: 'prod-1', sku: 'SKU-1', slug: 'p1', status: 'active', type
 
 const BUNDLE = passthroughBundle('core', [
   'rfqCreate.submit',
-  'rfqCreate.back',
+  'rfq.list.title',
   'common.action.back',
   'rfqCreate.items.quickSearch',
   'rfqCreate.field.agreedUnitPrice',
@@ -172,16 +172,16 @@ describe('RfqCreatePage opened with an origin', () => {
 
   it('leads back to where it came from', async () => {
     renderPage({ returnTo: RETURN_TO });
-    // Not "Back to quote requests": it does not lead there.
+    // Not "Quote requests": it does not lead there.
     expect(screen.getByRole('link', { name: /common.action.back/ })).toHaveAttribute('href', RETURN_TO);
-    expect(screen.queryByRole('link', { name: /rfqCreate.back/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /rfq.list.title/ })).toBeNull();
   });
 
   it.each(['https://evil.example/x', '//evil.example/x'])(
     'does not follow a return address that leaves the application: %s',
     async (returnTo) => {
       renderPage({ returnTo });
-      expect(screen.getByRole('link', { name: /rfqCreate.back/ })).toHaveAttribute('href', '/quote-requests');
+      expect(screen.getByRole('link', { name: /rfq.list.title/ })).toHaveAttribute('href', '/quote-requests');
     },
   );
 

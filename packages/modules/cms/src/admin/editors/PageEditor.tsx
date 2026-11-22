@@ -677,7 +677,7 @@ export function PageEditor(): ReactNode {
       header={
         <>
           <PageHeader
-            back={{ label: t('common.back'), to: '/cms/pages' }}
+            back={{ label: t('pagesList.title'), to: '/cms/pages' }}
             title={isNew ? t('pageEditor.title.new') : form.name || t('pageEditor.title.edit')}
             titleActions={statusBadge ? <Badge variant={statusBadge.variant}>{t(statusBadge.labelKey)}</Badge> : undefined}
             actions={

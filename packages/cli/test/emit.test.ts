@@ -294,6 +294,15 @@ describe('the admin layer', () => {
     );
   });
 
+  it('draws its card on the kit padding, without the `pt-6` workaround (#1502)', () => {
+    // `CardContent` drops its top padding only after a `CardHeader`, so a
+    // header-less card is already padded on all four sides. `pt-6` on top of
+    // that drew 24 px above 16 px sides, and every scaffolded module inherited
+    // it.
+    expect(page).toContain('<CardContent>{body}</CardContent>');
+    expect(page).not.toMatch(/\bpt-6\b/);
+  });
+
   it('joins the section the author named, and invents none', () => {
     expect(index).toContain("section: 'catalog'");
     expect(emit({ ...FULL, admin: 'system' }).get('src/admin/index.ts')).toContain(

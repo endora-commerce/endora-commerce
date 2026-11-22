@@ -147,6 +147,9 @@ Two hard framing rules before anything else:
 - Same importance → identical radius, padding, weight and colour. If two things look the same
   they must behave the same.
 - Never style a non-interactive element like a link or a button.
+- One function, one wording. A back link names its destination as that screen titles itself
+  ("Orders"), never "Back to orders", "All orders" or a bare "Back"; a generic "Back" is right
+  only when the caller chose the destination (a `returnTo`) and the screen cannot name it.
 
 ### Law of Uniform Connectedness
 > Visually connected elements are perceived as more related than merely nearby ones.

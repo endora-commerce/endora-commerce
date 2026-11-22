@@ -78,6 +78,9 @@ function read(scope: ScopeRef) {
 
 function extra(path: string): unknown {
   if (path === `${BASE}/content`) return { data: CONTENT_LIST };
+  // #1507 — the cards chip the sales channels' languages together.
+  if (path.startsWith('/api/v1/admin/sales-channels?')) return { items: [{ code: 'retail', defaultLanguage: 'en-US' }] };
+  if (path === '/api/v1/admin/sales-channels/retail') return { code: 'retail', languages: ['en-US', 'pl-PL'] };
   if (path === '/api/v1/admin/catalog/attribute-sets') {
     return { data: [{ id: SET_ID, code: 'tools', isSystem: false }, { id: OTHER_SET_ID, code: 'garden', isSystem: false }] };
   }
@@ -132,12 +135,14 @@ describe('Attributes tab — content attribute cards (feature 172 on the 174 edi
     renderEditor(ProductEditor, { url: AT_G, permissions: PERMISSIONS, contributions: CONTRIBUTIONS });
     await waitFor(() => expect(cards()).toHaveLength(2));
     expect(cards().map((card) => card.getAttribute('data-content-attribute'))).toEqual(['banner', 'buying_guide']);
-    for (const card of cards()) expect(card.style.gridColumn).toBe('1 / -1');
+    // Spans the grid through `col-span-full` since UX audit slice S15 (#1492); jsdom has no stylesheet.
+    for (const card of cards()) expect(card).toHaveClass('col-span-full');
 
     const guide = cards()[1]!;
     expect(within(guide).getByText('Buying guide')).toBeTruthy();
     expect(within(guide).getByText(fill('productContent.card.filled', { language: 'en-US' }))).toBeTruthy();
-    expect(within(guide).getByText(fill('productContent.card.empty', { language: 'pl-PL' }))).toBeTruthy();
+    // The channels' languages arrive after the content list (#1507).
+    expect(await within(guide).findByText(fill('productContent.card.empty', { language: 'pl-PL' }))).toBeTruthy();
     expect(within(guide).getByText(fill('productContent.card.summary', { blocks: 3, excerpt: 'Choosing the right drill' }))).toBeTruthy();
     const edit = await within(guide).findByRole('link', { name: en['productContent.card.edit']! });
     expect(edit.getAttribute('href')).toBe(`/catalog/products/${PRODUCT_ID}/content/buying_guide`);

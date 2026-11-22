@@ -36,7 +36,11 @@ const { NotificationBell } =
   await import('../../../packages/admin-shell/src/components/notifications/NotificationBell');
 
 const EN: Bundle = {
-  core: { 'appShell.topbar.notifications': 'Notifications' },
+  core: {
+    'appShell.topbar.notifications': 'Notifications',
+    'appShell.topbar.notificationsUnread': 'Notifications, {count} unread',
+    'appShell.notifications.unread': 'Unread',
+  },
   crm: {
     'notifications.mention.title': '{author} mentioned you in opportunity {number}',
     'notifications.mention.body': 'Open opportunity {number} to read on',
@@ -45,7 +49,11 @@ const EN: Bundle = {
 };
 
 const PL: Bundle = {
-  core: { 'appShell.topbar.notifications': 'Powiadomienia' },
+  core: {
+    'appShell.topbar.notifications': 'Powiadomienia',
+    'appShell.topbar.notificationsUnread': 'Powiadomienia, nieprzeczytane: {count}',
+    'appShell.notifications.unread': 'Nieprzeczytane',
+  },
   crm: {
     'notifications.mention.title': '{author} wspomina o Tobie w szansie {number}',
     'notifications.mention.body': 'Otwórz szansę {number}, aby czytać dalej',
@@ -83,7 +91,8 @@ function openBell(language: 'en' | 'pl', feed: AdminNotificationItem[]): HTMLEle
     </TranslationProvider>,
   );
   fireEvent.click(
-    screen.getByRole('button', { name: language === 'pl' ? 'Powiadomienia' : 'Notifications' }),
+    // Every entry here is unread, so the name carries the count (#1492, S16).
+    screen.getByRole('button', { name: language === 'pl' ? /^Powiadomienia/ : /^Notifications/ }),
   );
   return screen.getByRole('menuitem');
 }

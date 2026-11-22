@@ -214,7 +214,7 @@
   "list.menu.taxIdScope": "Zakres unikalności NIP",
   "taxIdScope.title": "Zakres unikalności NIP",
   "taxIdScope.description": "Czy ten sam numer podatkowy może mieć więcej niż jedna organizacja.",
-  "taxIdScope.back": "Wróć do organizacji",
+  "taxIdScope.back": "Organizacje",
   "taxIdScope.loading": "Wczytywanie zakresu unikalności NIP…",
   "taxIdScope.loadError": "Nie udało się wczytać zakresu unikalności NIP.",
   "taxIdScope.forbidden": "Nie masz uprawnień do zakresu unikalności NIP. Może go zobaczyć administrator platformy z uprawnieniem Zarządzanie zakresem unikalności NIP.",

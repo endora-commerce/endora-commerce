@@ -7,6 +7,7 @@ import {
   RecordHistoryQuerySchema,
   TaskAssigneeLookupQuerySchema,
   TaskContextLookupQuerySchema,
+  TaskCountQuerySchema,
   TaskDocumentLookupQuerySchema,
   TaskListQuerySchema,
   TaskMentionableLookupQuerySchema,
@@ -64,7 +65,7 @@ export function refuseUnofferedCustomField(error: unknown): never {
  * its context hidden, or another admin's draft or private Task — answers 404
  * `TASK_NOT_FOUND`, the same as a missing one, and is absent from every list.
  *
- * The static paths (`/mine`, `/lookups/…`, `/custom-field-filters`) are
+ * The static paths (`/mine`, `/count`, `/lookups/…`, `/custom-field-filters`) are
  * static routes, which the router matches before `/:id`, so none is ever read
  * as an id.
  */
@@ -79,6 +80,14 @@ export async function registerTaskRoutes(app: FastifyInstance, deps: TaskRoutesD
       .list(query, await request.responseLanguage(), cardFields ? { cardFields } : {})
       .catch(refuseUnofferedCustomField);
   });
+
+  // How many rows the list would answer under the same filters, across every
+  // page (`specs/183-record-tab-contributions/contracts/task-count-api.md`).
+  app.get(`${API}/count`, { preHandler: requireAdmin('tasks:read') }, async (request) => ({
+    data: {
+      count: await tasks.count(TaskCountQuerySchema.parse(request.query ?? {})).catch(refuseUnofferedCustomField),
+    },
+  }));
 
   // The `task` custom fields the list offers as filters (FR-007).
   app.get(`${API}/custom-field-filters`, { preHandler: requireAdmin('tasks:read') }, async () => ({

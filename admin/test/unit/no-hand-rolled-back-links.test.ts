@@ -28,6 +28,14 @@
  *
  * `LEDGER` is two-way, per file: an unlisted finding fails, and so does an
  * entry whose count no longer matches — migrating a screen deletes its entry.
+ *
+ * The label of the `back` link is the wording rule of the follow-up to #1549:
+ * it names the destination, as that screen names itself — "Organizations",
+ * never "Back to organizations", "All warehouses" or a bare "Back" (Law of
+ * Similarity: one function, one wording; Jakob's Law: the breadcrumb
+ * convention). The generic `common.action.back` ("Back" / "Wstecz") is kept
+ * for a destination only the caller knows — `?returnTo=` — and is required
+ * there, since the screen cannot name it. `backLabelFindings` checks that.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -151,6 +159,114 @@ export function handRolledBackLinks(file: string, source: string): string[] {
   return found;
 }
 
+/** The generic label — and the only one allowed when the destination is `?returnTo=`. */
+const GENERIC_BACK_KEY = 'common.action.back';
+/** Wording that says "go back" instead of naming where to: EN and PL openings. */
+const BACK_WORDING = /^(?:back|go back|return to|all|wstecz|wróć|powrót|wszystkie)(?=\s|$)/i;
+
+type Bundles = (namespace: string) => { en: Record<string, string>; pl: Record<string, string> } | null;
+
+/** The JSON bundles a `useTranslation(namespace)` reads: `core` is `_i18n`, the rest a module id. */
+function moduleBundles(namespace: string): ReturnType<Bundles> {
+  const dir = path.join(repoRoot, 'packages/modules', namespace === 'core' ? '_i18n' : namespace, 'i18n');
+  if (!existsSync(path.join(dir, 'en.json'))) return null;
+  const read = (lang: string): Record<string, string> =>
+    JSON.parse(readFileSync(path.join(dir, `${lang}.json`), 'utf8')) as Record<string, string>;
+  return { en: read('en'), pl: read('pl') };
+}
+
+/** Each object literal a `back` expression can evaluate to — through `?:` and parentheses. */
+function backObjects(node: ts.Node): ts.ObjectLiteralExpression[] {
+  if (ts.isParenthesizedExpression(node)) return backObjects(node.expression);
+  if (ts.isConditionalExpression(node)) return [...backObjects(node.whenTrue), ...backObjects(node.whenFalse)];
+  if (ts.isObjectLiteralExpression(node)) return [node];
+  return [];
+}
+
+function propertyOf(object: ts.ObjectLiteralExpression, name: string): ts.Expression | null {
+  for (const property of object.properties) {
+    if (ts.isPropertyAssignment(property) && property.name.getText() === name) return property.initializer;
+  }
+  return null;
+}
+
+/** `t('key')` calls under `node`, as `[function, key]`. */
+function translationCalls(node: ts.Node): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  const visit = (child: ts.Node): void => {
+    if (ts.isCallExpression(child) && ts.isIdentifier(child.expression)) {
+      const first = child.arguments[0];
+      if (first !== undefined && ts.isStringLiteralLike(first)) out.push([child.expression.text, first.text]);
+    }
+    ts.forEachChild(child, visit);
+  };
+  visit(node);
+  return out;
+}
+
+/**
+ * `file:line kind key` for every PageHeader `back` label that does not name its destination:
+ * `generic-label` (a bare "Back" to a known screen), `named-returnTo` (a destination only
+ * `?returnTo=` knows, given a name), `back-wording` ("Back to …", "All …") and `unresolved`
+ * (a key absent from the bundle its translation function reads).
+ */
+export function backLabelFindings(file: string, source: string, bundles: Bundles = moduleBundles): string[] {
+  if (!/<PageHeader\b/.test(source)) return [];
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const namespaces = new Map<string, string>();
+  const found: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      ts.isCallExpression(node.initializer) &&
+      node.initializer.expression.getText(sf) === 'useTranslation'
+    ) {
+      const first = node.initializer.arguments[0];
+      if (first && ts.isStringLiteralLike(first) && !namespaces.has(node.name.text)) namespaces.set(node.name.text, first.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  const objects: ts.ObjectLiteralExpression[] = [];
+  const collect = (node: ts.Node): void => {
+    if (tagOf(node) === 'PageHeader') {
+      const opening = ts.isJsxElement(node) ? node.openingElement : (node as ts.JsxSelfClosingElement);
+      for (const attribute of opening.attributes.properties) {
+        if (!ts.isJsxAttribute(attribute) || attribute.name.getText(sf) !== 'back') continue;
+        const initializer = attribute.initializer;
+        if (!initializer || !ts.isJsxExpression(initializer) || !initializer.expression) continue;
+        let value: ts.Node = initializer.expression;
+        if (ts.isIdentifier(value)) value = initializerOf(sf, value.text) ?? value;
+        for (const object of backObjects(value)) if (!objects.includes(object)) objects.push(object);
+      }
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(sf);
+  for (const object of objects) {
+    const label = propertyOf(object, 'label');
+    const to = propertyOf(object, 'to');
+    if (!label || !to) continue;
+    const toReturnTo = /returnTo/.test(to.getText(sf));
+    const line = sf.getLineAndCharacterOfPosition(object.getStart(sf)).line + 1;
+    const calls = translationCalls(label);
+    const generic = calls.some(([, key]) => key === GENERIC_BACK_KEY);
+    if (generic && !toReturnTo) found.push(`${file}:${line} generic-label ${GENERIC_BACK_KEY}`);
+    if (!generic && toReturnTo) found.push(`${file}:${line} named-returnTo ${to.getText(sf)}`);
+    for (const [fn, key] of calls) {
+      if (key === GENERIC_BACK_KEY) continue;
+      const bundle = bundles(namespaces.get(fn) ?? '');
+      const en = bundle?.en[key];
+      const pl = bundle?.pl[key];
+      if (en === undefined || pl === undefined) found.push(`${file}:${line} unresolved ${key}`);
+      else if (BACK_WORDING.test(en) || BACK_WORDING.test(pl)) found.push(`${file}:${line} back-wording ${key}`);
+    }
+  }
+  return found;
+}
+
 function findings(): Record<string, string[]> {
   const found: Record<string, string[]> = {};
   for (const root of roots()) {
@@ -212,5 +328,57 @@ describe('the way back is the PageHeader back prop, not a hand-made link (#1549)
       .filter(([file, entry]) => (found[file]?.length ?? 0) !== entry.count)
       .map(([file, entry]) => `${file}: ledger ${entry.count}, found ${found[file]?.length ?? 0}`);
     expect(stale, 'a migrated screen deletes its ledger entry').toEqual([]);
+  });
+});
+
+describe('the back label names its destination; "Back" only for ?returnTo= (follow-up of #1549)', () => {
+  const bundles: Bundles = (namespace) =>
+    namespace === 'm'
+      ? {
+          en: { 'list.title': 'Organizations', 'x.back': 'Back to organizations', 'x.all': 'All entries', 'r.title': 'Returns' },
+          pl: { 'list.title': 'Organizacje', 'x.back': 'Wróć do organizacji', 'x.all': 'Wszystkie wpisy', 'r.title': 'Zwroty' },
+        }
+      : null;
+  const page = (back: string): string =>
+    `const t = useTranslation('m');\nconst tCore = useTranslation('core');\nconst el = <PageHeader title="x" back={${back}} />;`;
+
+  it('accepts the destination name, a record name and Back to a returnTo', () => {
+    expect(backLabelFindings('a.tsx', page("{ label: t('list.title'), to: '/o' }"), bundles)).toEqual([]);
+    expect(backLabelFindings('a.tsx', page("{ label: feed.name, to: `/f/${feed.id}` }"), bundles)).toEqual([]);
+    // A destination whose name merely starts like the wording ("Returns") is a name.
+    expect(backLabelFindings('a.tsx', page("{ label: t('r.title'), to: '/r' }"), bundles)).toEqual([]);
+    expect(
+      backLabelFindings(
+        'a.tsx',
+        page("returnTo ? { label: tCore('common.action.back'), to: returnTo } : { label: t('list.title'), to: '/o' }"),
+        bundles,
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses "Back to …", "All …", a bare Back to a known screen and a name for a returnTo', () => {
+    expect(backLabelFindings('a.tsx', page("{ label: t('x.back'), to: '/o' }"), bundles)).toEqual([
+      'a.tsx:3 back-wording x.back',
+    ]);
+    expect(backLabelFindings('a.tsx', page("{ label: t('x.all'), to: '/o' }"), bundles)).toEqual([
+      'a.tsx:3 back-wording x.all',
+    ]);
+    expect(backLabelFindings('a.tsx', page("{ label: tCore('common.action.back'), to: '/o' }"), bundles)).toEqual([
+      'a.tsx:3 generic-label common.action.back',
+    ]);
+    expect(backLabelFindings('a.tsx', page("{ label: t('list.title'), to: returnTo }"), bundles)).toEqual([
+      'a.tsx:3 named-returnTo returnTo',
+    ]);
+    expect(backLabelFindings('a.tsx', page("{ label: t('missing'), to: '/o' }"), bundles)).toEqual([
+      'a.tsx:3 unresolved missing',
+    ]);
+  });
+
+  it('holds on every admin screen', () => {
+    const offending: string[] = [];
+    for (const root of roots()) {
+      for (const file of walk(root)) offending.push(...backLabelFindings(file, readFileSync(path.join(repoRoot, file), 'utf8')));
+    }
+    expect(offending, 'name the destination (packages/admin-kit/README.md, PageHeader back)').toEqual([]);
   });
 });
