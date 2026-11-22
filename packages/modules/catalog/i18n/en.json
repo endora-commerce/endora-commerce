@@ -375,7 +375,7 @@
   "inventoryTab.lowStock.title": "Low-stock threshold",
   "inventoryTab.fulfilment.title": "Fulfilment strategy",
   "inventoryTab.lowStock.help": "Leave empty to use the warehouse or global default.",
-  "inventoryTab.lowStock.placeholder": "Inherit from warehouse / global",
+  "inventoryTab.lowStock.placeholder": "Inherited",
   "inventoryTab.lowStock.error": "Could not save low-stock threshold.",
   "inventoryTab.lowStock.modeCumulative": "Single threshold across all warehouses",
   "inventoryTab.lowStock.modePerWarehouse": "Per-warehouse threshold",

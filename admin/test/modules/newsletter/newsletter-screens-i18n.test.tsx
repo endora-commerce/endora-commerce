@@ -220,6 +220,17 @@ describe.each(['en', 'pl'] as const)('newsletter screens in %s (#1463)', (langua
     expect(screen.getByRole('link', { name: key('subscribers.export') })).toBeInTheDocument();
   });
 
+  // Issue #1808 (item 5) — the search box was an empty field: its name reached
+  // a screen reader, but a sighted operator saw nothing saying what it searches.
+  it('the subscriber search shows what it searches by', async () => {
+    mount('/newsletter/subscribers', '/newsletter/subscribers', <SubscribersPage />);
+    await screen.findByText('ann@example.test');
+    expect(screen.getByRole('searchbox', { name: key('subscribers.search') })).toHaveAttribute(
+      'placeholder',
+      key('subscribers.search'),
+    );
+  });
+
   // Issue #1448 (DS-15): "no subscribers yet" and "no subscriber matches these
   // filters" are two empty states; only the second offers Clear filters.
   it('the subscriber list says nobody has subscribed yet on an unfiltered empty list', async () => {

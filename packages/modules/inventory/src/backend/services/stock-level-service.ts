@@ -334,10 +334,10 @@ export class StockLevelService {
         thresholds,
       });
 
-      const productName =
-        (typeof product.name === 'object' && product.name !== null
-          ? Object.values(product.name)[0]
-          : product.sku) ?? product.sku;
+      // The Global name, one string since feature 174 (FR-031); the SKU only
+      // when it is empty. Reading it as a per-locale map showed the SKU on
+      // every row (issue #1808).
+      const productName = product.name || product.sku;
 
       const mode = product.lowStockThresholdMode;
 
@@ -405,7 +405,7 @@ export class StockLevelService {
       items.push({
         productId,
         productSku: product.sku,
-        productName: String(productName),
+        productName,
         manageStock: product.manageStock,
         backorderEnabled: product.backorderEnabled,
         lowStockThreshold: topLevelThreshold,

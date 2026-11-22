@@ -2120,7 +2120,7 @@
   "rfq.detail.minimum.packagingUnit": "Below minimum ({minimum} × {packagingUnitName})",
   "rfq.detail.minimum.packagingUnitUnnamed": "Below minimum ({minimum} packaging units)",
   "rfq.detail.minimum.pieces": "Below minimum ({minimum} pcs)",
-  "rfq.detail.modify.addLine": "+ Add line",
+  "rfq.detail.modify.addLine": "Add line",
   "rfq.detail.modify.agreedUnitPrice": "Agreed unit price",
   "rfq.detail.modify.error.atLeastOneLine": "At least one line is required.",
   "rfq.detail.modify.error.save": "Modify failed.",

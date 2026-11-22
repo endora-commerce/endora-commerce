@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import type { BlogCategoryTreeNode as TreeNode } from '@endora-commerce/contracts';
 import { Badge, Button } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -97,6 +98,7 @@ export function CategoryTreeNode({
             size="sm"
             onClick={() => onAddChild(node.id)}
           >
+            <Plus aria-hidden="true" />
             {t('categoryTree.addChild')}
           </Button>
         ) : null}

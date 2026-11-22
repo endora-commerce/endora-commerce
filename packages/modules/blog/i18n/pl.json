@@ -56,7 +56,7 @@
   "categoryEditor.slugPlaceholder": "poradniki",
   "categoryEditor.title.edit": "Edytuj kategorię bloga",
   "categoryEditor.title.new": "Nowa kategoria bloga",
-  "categoryTree.addChild": "+ Podkategoria",
+  "categoryTree.addChild": "Dodaj podkategorię",
   "categoryTree.deleteConfirm": "Usunąć kategorię \"{slug}\"?",
   "categoryTree.newCategory": "Nowa kategoria",
   "categoryTree.title": "Kategorie bloga",

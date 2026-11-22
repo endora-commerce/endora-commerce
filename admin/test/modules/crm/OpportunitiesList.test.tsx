@@ -216,3 +216,28 @@ describe('OpportunitiesList', () => {
     expect(screen.getByRole('button', { name: core('common.action.retry') })).toBeInTheDocument();
   });
 });
+
+/**
+ * Issue #1808 (item 3) — two adjacent filters read "All states" / "All
+ * statuses", and nothing told the operator which was which. They filter
+ * different things: the state is the outcome (open, won, lost), the status the
+ * stage in the configured workflow. Each now says what it filters.
+ */
+describe('OpportunitiesList — the state and status filters say what they filter (issue #1808)', () => {
+  it('names the state filter by open/closed and the status filter by the workflow', async () => {
+    await renderList();
+    const state = screen.getByRole('combobox', { name: 'Open or closed' });
+    const status = screen.getByRole('combobox', { name: 'Workflow status' });
+    expect(within(state).getAllByRole('option')[0]).toHaveTextContent('Open and closed');
+    expect(within(status).getAllByRole('option')[0]).toHaveTextContent('All workflow statuses');
+  });
+
+  it('keeps the number and the organization on one line', async () => {
+    await renderList();
+    const row = screen.getByText('Fleet renewal').closest('tr') as HTMLElement;
+    const number = within(row).getByRole('link', { name: 'OPP-000001' }).closest('td') as HTMLElement;
+    const organization = within(row).getByText('Acme').closest('td') as HTMLElement;
+    expect(number).toHaveClass('whitespace-nowrap');
+    expect(organization).toHaveClass('whitespace-nowrap');
+  });
+});

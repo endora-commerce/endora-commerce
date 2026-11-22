@@ -6,7 +6,7 @@
   "actions.newSalesChannel.description": "Configure a new storefront sales channel",
   "list.page.title": "Sales channels",
   "list.error.load": "Failed to load sales channels.",
-  "list.action.newChannel": "+ New channel",
+  "list.action.newChannel": "New channel",
   "list.filter.activeOnly": "Show active channels only",
   "list.toolbar.label": "Filter sales channels",
   "list.count": "Sales channels: {count}",

@@ -12,6 +12,7 @@ import {
   History,
   Loader2,
   PencilLine,
+  Plus,
   Send,
   Split,
   XCircle,
@@ -1748,6 +1749,7 @@ function ModifyCard({
             size="sm"
             onClick={(): void => addLine(null)}
           >
+            <Plus aria-hidden="true" />
             {t('rfq.detail.modify.addLine')}
           </Button>
         </div>

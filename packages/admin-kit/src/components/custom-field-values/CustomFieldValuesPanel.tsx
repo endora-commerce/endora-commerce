@@ -16,6 +16,8 @@ import { EditorSection, type EditorSectionChrome, type EditorSectionHeading } fr
 import { Label } from '../../ui/label.js';
 import { Select } from '../../ui/select.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { useTranslationContext } from '../../i18n/TranslationProvider.js';
+import { resolveCustomFieldLabel } from '../custom-field-filters/custom-field-filter-chips.js';
 import { INERT_SAVE_SESSION, useSaveParticipant } from '../../save-session/SaveSessionProvider.js';
 import type { SaveParticipantHandlers } from '../../save-session/session-store.js';
 
@@ -48,7 +50,8 @@ export interface CustomFieldValuesPanelProps {
   fieldErrors?: Readonly<Record<string, string>>;
   /**
    * The language field and option labels are shown in, falling back to the
-   * definition's default label. `en` when omitted, as before the prop existed.
+   * definition's default label. The admin's own language when omitted (issue #1808;
+   * it was `en`, which showed a Polish operator the default label).
    */
   language?: string;
   /**
@@ -171,13 +174,17 @@ export function CustomFieldValuesPanel({
   save,
   onChange,
   fieldErrors,
-  language = 'en',
+  language: languageProp,
   saveSession,
   readOnly = false,
   chrome,
   titleAs,
 }: CustomFieldValuesPanelProps): ReactNode {
   const t = useTranslation('core');
+  // Issue #1808 — with no `language` the labels follow the admin's own language: a host that
+  // passed none showed a Polish operator the default label, which may be the field's code.
+  const { language: adminLanguage } = useTranslationContext();
+  const language = languageProp ?? adminLanguage;
   const [defs, setDefs] = useState<CustomFieldDefinitionDto[]>([]);
   const [draft, setDraft] = useState<Record<string, unknown>>(values);
   // What the standalone panel compares its draft against (issue #1007): the bag it loaded, then
@@ -309,7 +316,7 @@ export function CustomFieldValuesPanel({
       {
         key: d.key,
         text: t('customFields.nonEditableRefusal', {
-          label: d.label[language] ?? d.labelDefault,
+          label: resolveCustomFieldLabel(d.label, d.labelDefault, language),
           level: t(`customFields.adminAccess.${level}`),
           message,
         }),
@@ -343,7 +350,7 @@ export function CustomFieldValuesPanel({
         if (levelOf(d) === 'read') {
           return (
             <div key={d.id} className="space-y-1">
-              <Label>{d.label[language] ?? d.labelDefault}</Label>
+              <Label>{resolveCustomFieldLabel(d.label, d.labelDefault, language)}</Label>
               <p id={`cf-${d.key}`} aria-readonly="true" className="text-sm">
                 {formatReadValue(d, current[d.key], language, t)}
               </p>
@@ -354,7 +361,7 @@ export function CustomFieldValuesPanel({
         return (
           <div key={d.id} className="space-y-1">
             <Label htmlFor={`cf-${d.key}`}>
-              {d.label[language] ?? d.labelDefault}
+              {resolveCustomFieldLabel(d.label, d.labelDefault, language)}
               {d.required && <span className="text-destructive"> *</span>}
             </Label>
             {renderInput(d, current[d.key], (v) => set(d.key, v), language)}
@@ -410,7 +417,7 @@ function formatReadValue(
   if (value === undefined || value === null || value === '') return '—';
   const optionLabel = (v: unknown): string => {
     const option = def.options.find((o) => o.value === v);
-    return option ? (option.label[language] ?? option.labelDefault) : String(v);
+    return option ? resolveCustomFieldLabel(option.label, option.labelDefault, language) : String(v);
   };
   switch (def.valueType) {
     case 'boolean':
@@ -470,7 +477,7 @@ function renderInput(
           <option value="">—</option>
           {def.options.map((o) => (
             <option key={o.id ?? o.value} value={o.value}>
-              {o.label[language] ?? o.labelDefault}
+              {resolveCustomFieldLabel(o.label, o.labelDefault, language)}
             </option>
           ))}
         </Select>
@@ -492,7 +499,7 @@ function renderInput(
                   )
                 }
               />
-              {o.label[language] ?? o.labelDefault}
+              {resolveCustomFieldLabel(o.label, o.labelDefault, language)}
             </label>
           ))}
         </div>

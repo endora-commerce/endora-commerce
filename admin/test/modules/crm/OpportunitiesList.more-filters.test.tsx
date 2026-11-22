@@ -128,8 +128,8 @@ describe('OpportunitiesList — More filters (issue #1505)', () => {
     const more = await screen.findByRole('button', { name: 'More filters' });
     expect(screen.getByRole('search', { name: 'Filter opportunities' })).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Search' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'State' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Status' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Open or closed' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Workflow status' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Assignee' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Organization')).toBeNull();
     expect(screen.queryByLabelText('Sales channel')).toBeNull();

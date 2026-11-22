@@ -35,7 +35,7 @@ const PALETTE_EXEMPTIONS: PaletteLedger = {
   },
   blog: {
     '/blog/categories/new':
-      'Create form opened from the category tree (*New category*, *+ Child* with a parent id); the palette carries the tree.',
+      'Create form opened from the category tree (*New category*, *Add subcategory* with a parent id); the palette carries the tree.',
   },
   cms: {
     '/cms': 'Legacy alias rendering the same page list as /cms/pages, which open-pages advertises.',

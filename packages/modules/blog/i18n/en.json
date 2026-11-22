@@ -56,7 +56,7 @@
   "categoryEditor.slugPlaceholder": "guides",
   "categoryEditor.title.edit": "Edit blog category",
   "categoryEditor.title.new": "New blog category",
-  "categoryTree.addChild": "+ Child",
+  "categoryTree.addChild": "Add subcategory",
   "categoryTree.deleteConfirm": "Delete category \"{slug}\"?",
   "categoryTree.newCategory": "New category",
   "categoryTree.title": "Blog categories",

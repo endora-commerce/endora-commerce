@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { SEED_PRODUCT_101_ID, SEED_PRODUCT_101_SKU } from '../../helpers/seed-catalog.js';
 
 /**
  * Admin inventory stock-level routes — feature 010 US2 contract.
@@ -69,6 +69,20 @@ describe('Admin inventory stock-level routes (feature 010 US2)', () => {
     };
     expect(body.items.length).toBeGreaterThan(0);
     expect(body.items[0]?.productId).toBe(SEED_PRODUCT_101_ID);
+  });
+
+  it('names each roster row by the product name, not its SKU (issue #1808)', async () => {
+    // The catalog port returns the Global name as one string (feature 174); the
+    // roster read it as a per-locale map and fell back to the SKU every time.
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/inventory/levels?productId=${SEED_PRODUCT_101_ID}`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { items: Array<{ productSku: string; productName: string }> };
+    expect(body.items[0]?.productSku).toBe(SEED_PRODUCT_101_SKU);
+    expect(body.items[0]?.productName).toBe('Example simple product');
   });
 
   it('sets an absolute on-hand value for (product, warehouse)', async () => {
