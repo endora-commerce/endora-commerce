@@ -20,6 +20,7 @@
   "feeds.runs.empty.subtitle": "Wygeneruj feed raz, a potem skopiuj link do panelu dostawcy.",
   "feeds.loadFailed": "Nie udało się wczytać listy feedów.",
   "feeds.retry": "Spróbuj ponownie",
+  "feeds.count": "Feedy: {count}",
   "feeds.table.name": "Feed",
   "feeds.table.channel": "Kanał sprzedaży",
   "feeds.table.language": "Język",

@@ -1,26 +1,24 @@
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Loader2, Plus, Trash2, Truck } from 'lucide-react';
 import { ApiError, formatMoney, useAuth } from '@endora-commerce/admin-kit/lib';
-import { ModalDialog, useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
+import {
+  ListPage,
+  ModalDialog,
+  ResponsiveTable,
+  useConfirmDialog,
+  useRemovalFocus,
+  type ListPageLoad,
+} from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
   EmptyState,
   FormField,
   InlineStatus,
   Input,
-  PageHeader,
   Select,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
@@ -44,6 +42,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
   // then takes the method's id instead.
   const [methods, setMethods] = useState<DeliveryMethodOption[] | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   // The code every write route enforces (`requireAdmin('returns:write')`): a read-only
   // operator sees the list but is offered no write it would be refused.
@@ -56,12 +55,11 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
   const removalFocus = useRemovalFocus(rows ?? [], rowId, rows !== null);
 
   const refresh = useCallback(async (): Promise<void> => {
-    setError(null);
     try {
       setRows(await returnsClient.deliveryMethods());
+      setLoadError(null);
     } catch (err) {
-      setRows((prev) => prev ?? []);
-      setError(err instanceof ApiError ? err.envelope.error.message : tr('admin.loadFailed'));
+      setLoadError(err instanceof ApiError ? err.envelope.error.message : tr('admin.loadFailed'));
     }
   }, [tr]);
 
@@ -139,9 +137,16 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
   );
   const nothingYet = rows !== null && rows.length === 0;
 
+  const listLoad: ListPageLoad =
+    rows !== null ? { kind: 'ready' } : loadError ? { kind: 'error', message: loadError } : { kind: 'loading' };
+  const failure = error ?? (rows !== null ? loadError : null);
+  // While the list loads, or when it cannot be read, the id is all there is.
+  const shownName = (r: ReturnDeliveryMethodDto): string =>
+    nameOf(r) ?? (methods === null || methods === undefined ? r.deliveryMethodId : tr('methods.unknownMethod'));
+
   return (
-    <div className="space-y-4">
-      <PageHeader
+    <>
+      <ListPage
         title={t('returns.methods.title')}
         actions={
           canWrite && rows !== null && !nothingYet ? (
@@ -151,80 +156,77 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
             </>
           ) : null
         }
-      />
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {rows !== null && (
-        <Card>
-          <CardContent>
-            {rows.length === 0 ? (
-              <EmptyState
-                icon={<Truck size={20} />}
-                title={tr('methods.empty.title')}
-                description={tr('methods.empty.description')}
-                action={canWrite ? newMethod : null}
-              />
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{tr('methods.col.method')}</TableHead>
-                    <TableHead className="text-right">{tr('methods.col.cost')}</TableHead>
-                    <TableHead>{tr('methods.col.active')}</TableHead>
-                    {canWrite ? <TableHead /> : null}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((r) => {
-                    const name = nameOf(r);
-                    // While the list loads, or when it cannot be read, the id is all there is.
-                    const shown = name ?? (methods === null || methods === undefined ? r.deliveryMethodId : tr('methods.unknownMethod'));
-                    return (
-                      <TableRow key={r.id}>
-                        <TableCell className={name === null && !methods ? 'font-mono text-xs' : undefined}>{shown}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {r.returnCost === 0 ? tr('methods.free') : formatMoney(r.returnCost, r.currency)}
-                        </TableCell>
-                        <TableCell>
-                          <Switch
-                            checked={r.isActive}
-                            busy={busyId === r.id}
-                            disabled={!canWrite}
-                            aria-label={tr('methods.activeLabel', { method: shown })}
-                            onCheckedChange={(next) => {
-                              setBusyId(r.id);
-                              void run(() => returnsClient.updateDeliveryMethod(r.id, { isActive: next })).finally(() =>
-                                setBusyId(null),
-                              );
-                            }}
-                          />
-                        </TableCell>
-                        {canWrite ? (
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              ref={removalFocus.targetRef(r)}
-                              aria-label={tr('methods.delete', { method: shown })}
-                              onClick={() => remove(r, shown)}
-                            >
-                              <Trash2 className="size-4" aria-hidden="true" />
-                            </Button>
-                          </TableCell>
-                        ) : null}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      )}
+        count={tr('methods.count', { count: rows?.length ?? 0 })}
+        notice={
+          failure ? (
+            <Alert variant="destructive">
+              <AlertDescription>{failure}</AlertDescription>
+            </Alert>
+          ) : null
+        }
+        load={listLoad}
+        onRetry={(): void => void refresh()}
+      >
+        <ResponsiveTable
+          data={rows ?? []}
+          keyExtractor={rowId}
+          emptyState={
+            <EmptyState
+              icon={<Truck size={20} />}
+              title={tr('methods.empty.title')}
+              description={tr('methods.empty.description')}
+              action={canWrite ? newMethod : null}
+            />
+          }
+          columns={[
+            {
+              id: 'method',
+              header: tr('methods.col.method'),
+              primary: true,
+              render: (r) => (
+                <span className={nameOf(r) === null && !methods ? 'font-mono text-xs' : undefined}>{shownName(r)}</span>
+              ),
+            },
+            {
+              id: 'cost',
+              header: tr('methods.col.cost'),
+              className: 'text-right tabular-nums',
+              render: (r) => (r.returnCost === 0 ? tr('methods.free') : formatMoney(r.returnCost, r.currency)),
+            },
+            {
+              id: 'active',
+              header: tr('methods.col.active'),
+              render: (r) => (
+                <Switch
+                  checked={r.isActive}
+                  busy={busyId === r.id}
+                  disabled={!canWrite}
+                  aria-label={tr('methods.activeLabel', { method: shownName(r) })}
+                  onCheckedChange={(next) => {
+                    setBusyId(r.id);
+                    void run(() => returnsClient.updateDeliveryMethod(r.id, { isActive: next })).finally(() => setBusyId(null));
+                  }}
+                />
+              ),
+            },
+          ]}
+          {...(canWrite
+            ? {
+                renderActions: (r: ReturnDeliveryMethodDto) => (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    ref={removalFocus.targetRef(r)}
+                    aria-label={tr('methods.delete', { method: shownName(r) })}
+                    onClick={() => remove(r, shownName(r))}
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                  </Button>
+                ),
+              }
+            : {})}
+        />
+      </ListPage>
 
       {canWrite && creating ? (
         <NewDeliveryMethodDialog
@@ -240,7 +242,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
         />
       ) : null}
       {confirmDialog}
-    </div>
+    </>
   );
 }
 

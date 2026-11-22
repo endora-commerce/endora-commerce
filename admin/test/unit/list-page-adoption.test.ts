@@ -49,26 +49,15 @@ const NOT_YET_ON_LIST_PAGE: Record<string, string> = {
   'packages/admin-shell/src/modules/platform/CommandHooksPage.tsx': 'shell',
   'packages/modules/catalog/src/admin/pages/ProductsList.tsx': 'catalog',
   'packages/modules/custom_fields/src/admin/pages/CustomFieldsPage.tsx': 'shell',
-  'packages/modules/inventory/src/admin/pages/AvailabilityNotificationsPage.tsx': 'catalog',
-  'packages/modules/inventory/src/admin/pages/InventoryPage.tsx': 'catalog',
-  'packages/modules/inventory/src/admin/pages/LowStockPage.tsx': 'catalog',
-  'packages/modules/inventory/src/admin/pages/WarehousesList.tsx': 'catalog',
-  'packages/modules/orders/src/admin/pages/OrderStatusConfigPage.tsx': 'sales',
   'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx': 'catalog',
   'packages/modules/price_lists/src/admin/pages/PriceBooksPage.tsx': 'catalog',
-  'packages/modules/product_feeds/src/admin/pages/FeedTemplatesListPage.tsx': 'catalog',
-  'packages/modules/product_feeds/src/admin/pages/ProductFeedsListPage.tsx': 'catalog',
-  'packages/modules/returns/src/admin/pages/ReturnClausesPage.tsx': 'sales',
-  'packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx': 'sales',
-  'packages/modules/returns/src/admin/pages/ReturnReasonsPage.tsx': 'sales',
-  'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 'sales',
 };
 
 /**
  * The backlog's size when the ratchet landed, less what has moved since. It
  * only ever goes down, with the entries above.
  */
-const BACKLOG_CEILING = 16;
+const BACKLOG_CEILING = 5;
 
 /** Screens with a header and a table that are not a list of records. */
 const NOT_A_LIST: Record<string, string> = {
@@ -86,11 +75,17 @@ const NOT_A_LIST: Record<string, string> = {
   'packages/modules/invoices/src/admin/pages/InvoiceDetail.tsx': "one invoice's detail; the table is its lines",
   'packages/modules/newsletter/src/admin/pages/CampaignStats.tsx': "one campaign's statistics",
   'packages/modules/orders/src/admin/pages/OrderDetail.tsx': "one order's detail; the table is its lines",
+  'packages/modules/orders/src/admin/pages/OrderStatusConfigPage.tsx':
+    'a workflow editor: the statuses, edited in their rows, above the transition graph',
+  'packages/modules/product_feeds/src/admin/pages/FeedTemplatesListPage.tsx':
+    "two named regions by design (DS-03, #1437): the operator's templates, and the platform's shelf to copy from",
   'packages/modules/product_feeds/src/admin/pages/ProductFeedDetailPage.tsx': "one feed's detail and its deliveries",
   'packages/modules/promotions/src/admin/pages/PromotionEditPage.tsx': "a promotion's editor",
   'packages/modules/quick_order/src/admin/pages/QuickOrderOnBehalfPage.tsx': 'an order-entry form; the table is the lines being entered',
   'packages/modules/quote_requests/src/admin/pages/RfqDetail.tsx': "one quote request's detail; the table is its lines",
   'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': "one return's detail; the table is its lines",
+  'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx':
+    'a workflow editor: the statuses and their e-mail settings above the transition graph',
   'packages/modules/seo/src/admin/pages/SeoPage.tsx': 'two tool panels: the sitemap status and the meta editor',
 };
 

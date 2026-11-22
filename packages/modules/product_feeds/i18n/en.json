@@ -20,6 +20,7 @@
   "feeds.runs.empty.subtitle": "Generate the feed once, then copy the link into your provider.",
   "feeds.loadFailed": "The feed list could not be loaded.",
   "feeds.retry": "Try again",
+  "feeds.count": "Feeds: {count}",
   "feeds.table.name": "Feed",
   "feeds.table.channel": "Sales channel",
   "feeds.table.language": "Language",

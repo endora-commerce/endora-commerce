@@ -1,26 +1,24 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { ListChecks, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
-import { ModalDialog, useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
+import {
+  ListPage,
+  ModalDialog,
+  ResponsiveTable,
+  useConfirmDialog,
+  useRemovalFocus,
+  type ListPageLoad,
+} from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
   EmptyState,
   FormField,
   InlineStatus,
   Input,
-  PageHeader,
   Select,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
@@ -35,7 +33,13 @@ const APPLIES_TO = ['both', 'return', 'complaint'] as const;
 /** Stable, module-level: `useRemovalFocus` keys its targets by it. */
 const reasonId = (r: ReturnReasonDto): string => r.id;
 
-/** Managed return/complaint reasons (feature 046, US7; translated in #1472). */
+/**
+ * Managed return/complaint reasons (feature 046, US7; translated in #1472).
+ *
+ * The kit's `ListPage` since issue #1749. A row keeps its active switch and its
+ * two icon actions; a first load that fails is the list's error with *Retry*,
+ * a failed write is said above the rows. Reasons are answered whole — no pager.
+ */
 export function ReturnReasonsPage(): ReactNode {
   const t = useTranslation('core');
   const tr = useTranslation('returns');
@@ -43,6 +47,7 @@ export function ReturnReasonsPage(): ReactNode {
   // `null` until the first answer, so the empty state does not flash while loading.
   const [rows, setRows] = useState<ReturnReasonDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // The dialog open: `reason: null` creates, a reason edits it (owner decision 2026-11-21).
   const [dialog, setDialog] = useState<{ reason: ReturnReasonDto | null } | null>(null);
   // An edit's dialog gives focus back to the row's Edit that opened it.
@@ -58,12 +63,11 @@ export function ReturnReasonsPage(): ReactNode {
   const removalFocus = useRemovalFocus(rows ?? [], reasonId, rows !== null);
 
   const refresh = useCallback(async (): Promise<void> => {
-    setError(null);
     try {
       setRows(await returnsClient.reasons());
+      setLoadError(null);
     } catch (err) {
-      setRows((prev) => prev ?? []);
-      setError(err instanceof ApiError ? err.envelope.error.message : tr('admin.loadFailed'));
+      setLoadError(err instanceof ApiError ? err.envelope.error.message : tr('admin.loadFailed'));
     }
   }, [tr]);
 
@@ -130,9 +134,13 @@ export function ReturnReasonsPage(): ReactNode {
   );
   const nothingYet = rows !== null && rows.length === 0;
 
+  const listLoad: ListPageLoad =
+    rows !== null ? { kind: 'ready' } : loadError ? { kind: 'error', message: loadError } : { kind: 'loading' };
+  const failure = error ?? (rows !== null ? loadError : null);
+
   return (
-    <div className="space-y-4">
-      <PageHeader
+    <>
+      <ListPage
         title={t('returns.reasons.title')}
         description={t('returns.reasons.description')}
         actions={
@@ -143,92 +151,90 @@ export function ReturnReasonsPage(): ReactNode {
             </>
           ) : null
         }
-      />
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {rows !== null && (
-        <Card>
-          <CardContent>
-            {rows.length === 0 ? (
-              <EmptyState
-                icon={<ListChecks size={20} />}
-                title={tr('reasons.empty.title')}
-                description={tr('reasons.empty.description')}
-                action={canWrite ? newReason : null}
-              />
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{tr('reasons.col.label')}</TableHead>
-                    <TableHead>{tr('reasons.col.appliesTo')}</TableHead>
-                    <TableHead className="text-right">{tr('reasons.col.weight')}</TableHead>
-                    <TableHead>{tr('reasons.col.active')}</TableHead>
-                    {canWrite ? <TableHead /> : null}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((r) => (
-                    <TableRow key={r.id}>
-                      <TableCell>
-                        <span className="flex flex-wrap items-center gap-2">
-                          <span>{nameOf(r)}</span>
-                          <MissingNames names={r.label} />
-                        </span>
-                      </TableCell>
-                      <TableCell>{tr(`reasons.appliesTo.${r.appliesTo}`)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.weight}</TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={r.isActive}
-                          busy={busyId === r.id}
-                          disabled={!canWrite}
-                          aria-label={tr('reasons.activeLabel', { label: nameOf(r) })}
-                          onCheckedChange={(next) => {
-                            setBusyId(r.id);
-                            void run(() => returnsClient.updateReason(r.id, { isActive: next })).finally(() =>
-                              setBusyId(null),
-                            );
-                          }}
-                        />
-                      </TableCell>
-                      {canWrite ? (
-                        <TableCell className="text-right whitespace-nowrap">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={tr('reasons.edit', { label: nameOf(r) })}
-                            onClick={(event) => {
-                              status.clear();
-                              editReturnRef.current = event.currentTarget;
-                              setDialog({ reason: r });
-                            }}
-                          >
-                            <Pencil className="size-4" aria-hidden="true" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            ref={removalFocus.targetRef(r)}
-                            aria-label={tr('reasons.delete', { label: nameOf(r) })}
-                            onClick={() => remove(r)}
-                          >
-                            <Trash2 className="size-4" aria-hidden="true" />
-                          </Button>
-                        </TableCell>
-                      ) : null}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      )}
+        count={tr('reasons.count', { count: rows?.length ?? 0 })}
+        notice={
+          failure ? (
+            <Alert variant="destructive">
+              <AlertDescription>{failure}</AlertDescription>
+            </Alert>
+          ) : null
+        }
+        load={listLoad}
+        onRetry={(): void => void refresh()}
+      >
+        <ResponsiveTable
+          data={rows ?? []}
+          keyExtractor={reasonId}
+          emptyState={
+            <EmptyState
+              icon={<ListChecks size={20} />}
+              title={tr('reasons.empty.title')}
+              description={tr('reasons.empty.description')}
+              action={canWrite ? newReason : null}
+            />
+          }
+          columns={[
+            {
+              id: 'label',
+              header: tr('reasons.col.label'),
+              primary: true,
+              render: (r) => (
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>{nameOf(r)}</span>
+                  <MissingNames names={r.label} />
+                </span>
+              ),
+            },
+            { id: 'appliesTo', header: tr('reasons.col.appliesTo'), render: (r) => tr(`reasons.appliesTo.${r.appliesTo}`) },
+            { id: 'weight', header: tr('reasons.col.weight'), className: 'text-right tabular-nums', render: (r) => r.weight },
+            {
+              id: 'active',
+              header: tr('reasons.col.active'),
+              render: (r) => (
+                <Switch
+                  checked={r.isActive}
+                  busy={busyId === r.id}
+                  disabled={!canWrite}
+                  aria-label={tr('reasons.activeLabel', { label: nameOf(r) })}
+                  onCheckedChange={(next) => {
+                    setBusyId(r.id);
+                    void run(() => returnsClient.updateReason(r.id, { isActive: next })).finally(() => setBusyId(null));
+                  }}
+                />
+              ),
+            },
+          ]}
+          {...(canWrite
+            ? {
+                renderActions: (r: ReturnReasonDto) => (
+                  <span className="whitespace-nowrap">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={tr('reasons.edit', { label: nameOf(r) })}
+                      onClick={(event) => {
+                        status.clear();
+                        editReturnRef.current = event.currentTarget;
+                        setDialog({ reason: r });
+                      }}
+                    >
+                      <Pencil className="size-4" aria-hidden="true" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      ref={removalFocus.targetRef(r)}
+                      aria-label={tr('reasons.delete', { label: nameOf(r) })}
+                      onClick={() => remove(r)}
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    </Button>
+                  </span>
+                ),
+              }
+            : {})}
+        />
+      </ListPage>
 
       {canWrite && dialog ? (
         <ReasonDialog
@@ -244,7 +250,7 @@ export function ReturnReasonsPage(): ReactNode {
         />
       ) : null}
       {confirmDialog}
-    </div>
+    </>
   );
 }
 interface ReasonDialogProps {
