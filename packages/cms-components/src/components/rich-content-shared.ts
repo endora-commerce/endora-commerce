@@ -330,8 +330,8 @@ export const readMoreNode = Node.create({
  *
  * `summary` is content seeded into the document, not UI copy: it is saved with
  * the page and shown on the storefront, so it is not read from the field text
- * in the operator's admin language (#1680). Seeding it from the edited content
- * locale is tracked in a follow-up issue (#1684).
+ * in the operator's admin language (#1680). The toolbar seeds it in the edited
+ * content locale, through `useContentDefault` (#1684).
  */
 export function readMoreContent(summary: string): JSONContent {
   return {

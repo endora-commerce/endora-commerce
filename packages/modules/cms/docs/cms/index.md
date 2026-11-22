@@ -1182,6 +1182,11 @@ desktop. A breakpoint without its own value takes the one below it.
 
 ### "Read more" placement, accordion look and highlight colours
 
+- **The summary of a new "read more".** **Read more passage** (⋯) starts the summary in the
+  language of the content you are editing, the one picked in the language tabs above the
+  canvas: "Read more" on an English page, "Czytaj więcej" on a Polish one. A language without
+  its own starting text gets "Read more". The summary is saved with the page, so edit it like
+  any other text.
 - **Where the "read more" sits.** With the cursor in a "read more" passage, **Read more
   position** in the rich-text toolbar puts its summary — the text or the chevron — at the
   **Start** of the line (the default), in the **Center** or at the **End**. **Show the revealed

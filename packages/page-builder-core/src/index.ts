@@ -167,6 +167,15 @@ export {
   type PageBuilderFieldTextKey,
   type PageBuilderFieldTextResolver,
 } from './fields/field-text.js';
+// Issue #1684 — the content the builder seeds into a document, in the edited content locale.
+export {
+  PAGE_BUILDER_CONTENT_DEFAULTS,
+  PageBuilderContentLocaleProvider,
+  contentDefaultFor,
+  useContentDefault,
+  type ContentDefault,
+  type PageBuilderContentDefaultKey,
+} from './fields/content-defaults.js';
 // Feature 163, T195 — the host's image picker (the admin's asset library), for the rich text's image dialog.
 export {
   PageBuilderImagePickerProvider,

@@ -25,6 +25,7 @@ import {
   countComponentNames,
   filterConfigByContext,
   isSectionBackgroundField,
+  PageBuilderContentLocaleProvider,
   type BrandColorRole,
   type PageBuilderContext,
 } from '@endora-commerce/page-builder-core';
@@ -1207,6 +1208,9 @@ export function PageBuilderEditor({
               brandColors={brandColors}
             >
               <PreviewBrandTokensProvider tokens={descriptor?.brandTokens ?? null}>
+              {/* Issue #1684 — what the builder seeds into the document (the
+                  read-more summary) is in the content language being edited. */}
+              <PageBuilderContentLocaleProvider locale={activeLanguage}>
               <Puck
                 key={`${contentKey ?? 'pb'}:${canvasEpoch}`}
                 config={config}
@@ -1220,6 +1224,7 @@ export function PageBuilderEditor({
                 overrides={puckOverrides}
                 fieldTransforms={INLINE_RICH_TEXT_FIELD_TRANSFORMS}
               />
+              </PageBuilderContentLocaleProvider>
               </PreviewBrandTokensProvider>
             </PageBuilderColorPaletteProvider>
           </AdminCatalogPreviewProvider>
