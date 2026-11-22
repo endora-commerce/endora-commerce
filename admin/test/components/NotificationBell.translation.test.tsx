@@ -90,11 +90,16 @@ function openBell(language: 'en' | 'pl', feed: AdminNotificationItem[]): HTMLEle
       </MemoryRouter>
     </TranslationProvider>,
   );
-  fireEvent.click(
+  // Radix opens the menu on `pointerdown`, not on `click` (#1783).
+  fireEvent.pointerDown(
     // Every entry here is unread, so the name carries the count (#1492, S16).
     screen.getByRole('button', { name: language === 'pl' ? /^Powiadomienia/ : /^Notifications/ }),
+    { button: 0, ctrlKey: false },
   );
-  return screen.getByRole('menuitem');
+  // One entry, before the footer's "Mark all read" — the feed's only row is first.
+  const entries = screen.getAllByRole('menuitem');
+  expect(entries).toHaveLength(2);
+  return entries[0]!;
 }
 
 const MENTION = {

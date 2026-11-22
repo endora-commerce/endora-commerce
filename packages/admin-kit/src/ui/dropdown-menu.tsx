@@ -1,5 +1,6 @@
 import { forwardRef, type ComponentPropsWithoutRef, type ElementRef } from 'react';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
+import { Check } from 'lucide-react';
 import { cn } from '../lib/utils.js';
 
 /**
@@ -21,6 +22,7 @@ export const DropdownMenu = DropdownMenuPrimitive.Root;
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 export const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 export const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
+export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 export const DropdownMenuContent = forwardRef<
   ElementRef<typeof DropdownMenuPrimitive.Content>,
@@ -49,6 +51,18 @@ export const DropdownMenuContent = forwardRef<
 ));
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
+// A plain string, not a `cn()` call: a module-level call is an import-time
+// side effect, which this package's `sideEffects: false` forbids (#175).
+const ITEM_CLASSES =
+  'relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 ' +
+  'text-sm outline-none transition-colors ' +
+  // Radix moves `data-highlighted` with both pointer and keyboard, so the
+  // two navigation modes cannot disagree about which item is current.
+  'focus:bg-accent focus:text-accent-foreground ' +
+  'data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground ' +
+  'data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ' +
+  '[&_svg]:size-4 [&_svg]:shrink-0';
+
 export const DropdownMenuItem = forwardRef<
   ElementRef<typeof DropdownMenuPrimitive.Item>,
   ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & { destructive?: boolean }
@@ -56,14 +70,7 @@ export const DropdownMenuItem = forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5',
-      'text-sm outline-none transition-colors',
-      // Radix moves `data-highlighted` with both pointer and keyboard, so the
-      // two navigation modes cannot disagree about which item is current.
-      'focus:bg-accent focus:text-accent-foreground',
-      'data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground',
-      'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-      '[&_svg]:size-4 [&_svg]:shrink-0',
+      ITEM_CLASSES,
       destructive &&
         'text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive',
       className,
@@ -72,6 +79,29 @@ export const DropdownMenuItem = forwardRef<
   />
 ));
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
+
+/**
+ * One choice of a pick-one-of-N menu (issue #1783): a `menuitemradio` whose
+ * `aria-checked` Radix keeps in step with the enclosing
+ * `DropdownMenuRadioGroup`'s `value`. The check mark at the end is drawn for
+ * the checked entry only and is hidden from assistive technology, which hears
+ * the state instead. Pass `textValue` when the entry's text does not start with
+ * the word a typist would type (a flag, a code before the name).
+ */
+export const DropdownMenuRadioItem = forwardRef<
+  ElementRef<typeof DropdownMenuPrimitive.RadioItem>,
+  ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>
+>(({ className, children, ...props }, ref) => (
+  <DropdownMenuPrimitive.RadioItem ref={ref} className={cn(ITEM_CLASSES, 'pr-8', className)} {...props}>
+    {children}
+    <span aria-hidden="true" className="absolute right-2 flex size-4 items-center justify-center">
+      <DropdownMenuPrimitive.ItemIndicator>
+        <Check />
+      </DropdownMenuPrimitive.ItemIndicator>
+    </span>
+  </DropdownMenuPrimitive.RadioItem>
+));
+DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName;
 
 export const DropdownMenuLabel = forwardRef<
   ElementRef<typeof DropdownMenuPrimitive.Label>,

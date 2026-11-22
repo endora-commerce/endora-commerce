@@ -151,7 +151,7 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
 
     await select('pl');
     expect(trigger()).toHaveTextContent('PL');
-    expect(trigger()).toBeDisabled();
+    expect(trigger()).toHaveAttribute('aria-disabled', 'true');
     expect(trigger()).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(order).toEqual(['save']);
@@ -159,9 +159,9 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
 
     save.resolve();
     await waitFor(() => expect(order).toEqual(['save', 'refresh']));
-    expect(trigger()).toBeDisabled();
+    expect(trigger()).toHaveAttribute('aria-disabled', 'true');
     refresh.resolve();
-    await waitFor(() => expect(trigger()).not.toBeDisabled());
+    await waitFor(() => expect(trigger()).not.toHaveAttribute('aria-disabled'));
     expect(trigger()).toHaveTextContent('PL');
     expect(screen.getByRole('status')).toBe(status);
     expect(status).toBeEmptyDOMElement();
@@ -176,7 +176,7 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
 
     await select('pl');
     await waitFor(() => expect(refreshSpy).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(trigger()).not.toBeDisabled());
+    await waitFor(() => expect(trigger()).not.toHaveAttribute('aria-disabled'));
 
     expect(saveSpy).toHaveBeenCalledExactlyOnceWith('pl');
     expect(trigger()).toHaveTextContent('PL');
@@ -200,7 +200,7 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
         expect(status).toHaveTextContent("Couldn't save your language preference. Try again.");
       }
       expect(trigger()).toHaveTextContent(initialLanguage.toUpperCase());
-      expect(trigger()).not.toBeDisabled();
+      expect(trigger()).not.toHaveAttribute('aria-disabled');
       expect(refreshSpy).not.toHaveBeenCalled();
       expect(status).toHaveAttribute('data-tone', 'error');
       expect(status).toHaveAttribute('aria-live', 'polite');
@@ -233,13 +233,13 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
     await select('pl');
     expect(saveSpy).toHaveBeenCalledTimes(2);
     expect(trigger()).toHaveTextContent('PL');
-    expect(trigger()).toBeDisabled();
+    expect(trigger()).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByRole('status')).toBe(status);
     expect(status).toBeEmptyDOMElement();
     expect(trigger()).not.toHaveAttribute('aria-describedby');
     retry.resolve();
 
-    await waitFor(() => expect(trigger()).not.toBeDisabled());
+    await waitFor(() => expect(trigger()).not.toHaveAttribute('aria-disabled'));
     expect(trigger()).toHaveTextContent('PL');
     expect(status).toBeEmptyDOMElement();
     expect(refreshSpy).toHaveBeenCalledTimes(1);
@@ -336,8 +336,11 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
     expect(root.querySelectorAll('[style]')).toHaveLength(0);
 
     await userEvent.click(trigger());
-    expect(screen.getByRole('menu')).toBeInTheDocument();
+    const menu = screen.getByRole('menu');
     expect(root.querySelectorAll('[style]')).toHaveLength(0);
+    // The panel itself is portalled and positioned by Radix, whose inline
+    // placement is not ours to draw; every entry inside it is Tailwind.
+    expect(menu.querySelectorAll('[style]')).toHaveLength(0);
   });
 
   it('cannot start a duplicate request while a save is pending', async () => {
@@ -345,13 +348,103 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
     saveSpy.mockImplementation(() => pending.promise);
     renderPicker();
     await select('pl');
-    expect(trigger()).toBeDisabled();
+    expect(trigger()).toHaveAttribute('aria-disabled', 'true');
 
-    fireEvent.click(trigger());
+    // Busy, the trigger stays focusable (focus returns to it from the menu) but
+    // opens for neither a pointer nor a key — the two ways Radix opens a menu.
+    fireEvent.pointerDown(trigger(), { button: 0, ctrlKey: false });
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    fireEvent.keyDown(trigger(), { key: 'Enter' });
+    fireEvent.keyDown(trigger(), { key: 'ArrowDown' });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(trigger()).toHaveAttribute('aria-expanded', 'false');
     expect(saveSpy).toHaveBeenCalledTimes(1);
     pending.resolve();
-    await waitFor(() => expect(trigger()).not.toBeDisabled());
+    await waitFor(() => expect(trigger()).not.toHaveAttribute('aria-disabled'));
     expect(refreshSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('LanguagePicker — the kit DropdownMenu keyboard contract (#1783)', () => {
+  function focused(): Element | null {
+    return document.activeElement;
+  }
+
+  function item(name: RegExp): HTMLElement {
+    return within(screen.getByRole('menu')).getByRole('menuitemradio', { name });
+  }
+
+  it('opens from the keyboard and moves focus into the menu', async () => {
+    renderPicker();
+    trigger().focus();
+    await userEvent.keyboard('{Enter}');
+
+    const menu = screen.getByRole('menu', { name: bundles.en['appShell.languageIndicator.label']! });
+    expect(trigger()).toHaveAttribute('aria-expanded', 'true');
+    expect(menu.contains(focused())).toBe(true);
+    expect(focused()).toHaveAttribute('role', 'menuitemradio');
+  });
+
+  it('walks the entries with the arrow keys, Home and End', async () => {
+    renderPicker();
+    trigger().focus();
+    await userEvent.keyboard('{ArrowDown}');
+    await waitFor(() => expect(focused()).toBe(item(/English/)));
+
+    await userEvent.keyboard('{ArrowDown}');
+    expect(focused()).toBe(item(/Polish/));
+    await userEvent.keyboard('{Home}');
+    expect(focused()).toBe(item(/English/));
+    await userEvent.keyboard('{End}');
+    expect(focused()).toBe(item(/Polish/));
+    await userEvent.keyboard('{ArrowUp}');
+    expect(focused()).toBe(item(/English/));
+  });
+
+  it('jumps to an entry by typing the start of its language name', async () => {
+    renderPicker();
+    trigger().focus();
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('p');
+    expect(focused()).toBe(item(/Polish/));
+  });
+
+  it('closes on Escape and gives focus back to the trigger', async () => {
+    renderPicker();
+    trigger().focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(trigger()).toHaveAttribute('aria-expanded', 'false');
+    expect(focused()).toBe(trigger());
+  });
+
+  it('marks the current language as the checked entry', async () => {
+    renderPicker('pl');
+    await userEvent.click(trigger());
+    const [first, second] = within(screen.getByRole('menu')).getAllByRole('menuitemradio');
+    expect(first).toHaveAttribute('aria-checked', 'false');
+    expect(second).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('saves the entry chosen with Enter and keeps focus on the trigger while saving', async () => {
+    const pending = deferred<void>();
+    saveSpy.mockImplementation(() => pending.promise);
+    renderPicker();
+    trigger().focus();
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{End}{Enter}');
+
+    expect(saveSpy).toHaveBeenCalledExactlyOnceWith('pl');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(trigger()).toHaveAttribute('aria-disabled', 'true');
+    // A disabled button cannot hold focus, so a keyboard user would be dropped
+    // on <body> mid-save; the busy trigger is `aria-disabled` instead.
+    await waitFor(() => expect(focused()).toBe(trigger()));
+    pending.resolve();
+    await waitFor(() => expect(trigger()).not.toHaveAttribute('aria-disabled'));
+    expect(focused()).toBe(trigger());
   });
 });
