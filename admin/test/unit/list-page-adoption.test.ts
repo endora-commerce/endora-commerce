@@ -48,42 +48,27 @@ const SCANNED = [
 const NOT_YET_ON_LIST_PAGE: Record<string, string> = {
   'packages/admin-shell/src/modules/platform/CommandHooksPage.tsx': 'shell',
   'packages/modules/catalog/src/admin/pages/ProductsList.tsx': 'catalog',
-  'packages/modules/crm/src/admin/pages/OpportunitiesList.tsx': 'work',
-  'packages/modules/crm/src/admin/pages/TagsPage.tsx': 'work',
   'packages/modules/custom_fields/src/admin/pages/CustomFieldsPage.tsx': 'shell',
   'packages/modules/inventory/src/admin/pages/AvailabilityNotificationsPage.tsx': 'catalog',
   'packages/modules/inventory/src/admin/pages/InventoryPage.tsx': 'catalog',
   'packages/modules/inventory/src/admin/pages/LowStockPage.tsx': 'catalog',
   'packages/modules/inventory/src/admin/pages/WarehousesList.tsx': 'catalog',
-  'packages/modules/newsletter/src/admin/pages/AutomationsPage.tsx': 'content',
-  'packages/modules/newsletter/src/admin/pages/BlocksPage.tsx': 'content',
-  'packages/modules/newsletter/src/admin/pages/CampaignsPage.tsx': 'content',
-  'packages/modules/newsletter/src/admin/pages/SubscribersPage.tsx': 'content',
   'packages/modules/orders/src/admin/pages/OrderStatusConfigPage.tsx': 'sales',
   'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx': 'catalog',
   'packages/modules/price_lists/src/admin/pages/PriceBooksPage.tsx': 'catalog',
   'packages/modules/product_feeds/src/admin/pages/FeedTemplatesListPage.tsx': 'catalog',
   'packages/modules/product_feeds/src/admin/pages/ProductFeedsListPage.tsx': 'catalog',
-  'packages/modules/projects/src/admin/components/DictionaryScreen.tsx': 'work',
-  'packages/modules/projects/src/admin/pages/ProjectsList.tsx': 'work',
-  'packages/modules/projects/src/admin/pages/TemplatesList.tsx': 'work',
   'packages/modules/returns/src/admin/pages/ReturnClausesPage.tsx': 'sales',
   'packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx': 'sales',
   'packages/modules/returns/src/admin/pages/ReturnReasonsPage.tsx': 'sales',
   'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 'sales',
-  'packages/modules/tasks/src/admin/pages/MyTasksPage.tsx': 'work',
-  'packages/modules/tasks/src/admin/pages/TasksPage.tsx': 'work',
-  'packages/modules/tasks/src/admin/pages/settings/TaskPrioritiesPage.tsx': 'work',
-  'packages/modules/tasks/src/admin/pages/settings/TaskTagsPage.tsx': 'work',
-  'packages/modules/transactional_emails/src/admin/pages/EmailBlocksPage.tsx': 'content',
-  'packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage.tsx': 'content',
 };
 
 /**
  * The backlog's size when the ratchet landed, less what has moved since. It
  * only ever goes down, with the entries above.
  */
-const BACKLOG_CEILING = 31;
+const BACKLOG_CEILING = 16;
 
 /** Screens with a header and a table that are not a list of records. */
 const NOT_A_LIST: Record<string, string> = {

@@ -11,24 +11,13 @@ import {
   type ProjectTemplateSummary,
 } from '@endora-commerce/contracts';
 import { useAuth, usePageSizePreference, type PageSizeOption } from '@endora-commerce/admin-kit/lib';
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Card,
-  CardContent,
-  EmptyState,
-  Input,
-  Label,
-  PageHeader,
-  Select,
-} from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EmptyState, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldListFilters,
   FilterChip,
   ListToolbar,
+  ListPage,
   ListToolbarSearch,
-  PaginationFooter,
   ResponsiveTable,
   SavedViewsControl,
   customFieldDisplayName,
@@ -36,6 +25,7 @@ import {
   toCustomFieldFiltersParam,
   useCustomFieldListFilterFields,
   withCustomFieldFilter,
+  type ListPageLoad,
   type ResponsiveColumn,
   type SavedViewState,
 } from '@endora-commerce/admin-kit/components';
@@ -116,6 +106,10 @@ function CustomFieldFilterSource({ onOffered }: { onOffered: (offered: OfferedCu
  * another screen can link to a narrowed list. A parameter the list does not
  * take is ignored; a Role or Template the choices no longer hold is dropped
  * from the address once they are read.
+ *
+ * The kit's `ListPage` since issue #1749: the toolbar is a row, not a card; a
+ * reload is `busy` over the rows on screen; a custom-field filter the server
+ * refuses is the list's error, with *Remove filter* as its way out.
  */
 export function ProjectsList(): ReactNode {
   const t = useTranslation('projects');
@@ -444,230 +438,207 @@ export function ProjectsList(): ReactNode {
     />
   );
 
+  const listLoad: ListPageLoad =
+    refusedCustomField !== null
+      ? {
+          kind: 'error',
+          message: tCore('customFieldFilters.error.unavailable', {
+            field: customFieldDisplayName(customFieldFields, refusedCustomField, language),
+          }),
+          action: (
+            <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={removeRefusedCustomField}>
+              {tCore('customFieldFilters.error.remove')}
+            </Button>
+          ),
+        }
+      : error
+        ? { kind: 'error', message: error }
+        : loaded
+          ? { kind: 'ready' }
+          : { kind: 'loading' };
+
   return (
     <>
-      <PageHeader
+      {canFilterCustomFields ? <CustomFieldFilterSource onOffered={setOfferedCustomFields} /> : null}
+      <ListPage
         title={t('list.title')}
         // With nothing listed the empty state carries the one action.
         actions={canWrite && (rows.length > 0 || filtered || !loaded) ? newProject : undefined}
-      />
-
-      {canFilterCustomFields ? <CustomFieldFilterSource onOffered={setOfferedCustomFields} /> : null}
-      <Card className="mb-4">
-        <CardContent className="space-y-4">
-          {viewsError ? (
-            <Alert variant="destructive">
-              <AlertDescription>{viewsError}</AlertDescription>
-            </Alert>
-          ) : null}
-          <ListToolbar
-            label={t('list.filter.toolbar')}
-            search={
-              <ListToolbarSearch
-                ref={searchRef}
-                id="projects-search"
-                label={t('list.search')}
-                placeholder={t('list.searchPlaceholder')}
-                maxLength={SEARCH_MAX}
-                value={search}
-                onValueChange={setSearch}
-              />
-            }
-            filters={
-              <>
-                <Select
-                  id="projects-state"
-                  aria-label={t('list.filter.state')}
-                  className="w-auto"
-                  value={filters.state}
-                  onChange={(event): void => change({ state: event.target.value as ProjectState | '' })}
-                >
-                  <option value="">{t('list.filter.stateAll')}</option>
-                  {STATES.map((state) => (
-                    <option key={state} value={state}>
-                      {t(`state.${state}`)}
-                    </option>
-                  ))}
-                </Select>
-                <div className="w-full sm:w-56">
-                  <OrganizationLookup
-                    id="projects-organization"
-                    ariaLabel={t('list.filter.organization')}
-                    value={filters.organizationId}
-                    onChange={(organizationId): void => change({ organizationId })}
-                    placeholder={t('list.filter.organizationPlaceholder')}
-                  />
-                </div>
-                {/* "My projects" and a member are one filter: choosing one clears the other. */}
-                <FilterChip
-                  pressed={filters.mine}
-                  onPressedChange={(next): void => change(next ? { mine: true, memberId: null } : { mine: false })}
-                >
-                  {t('list.filter.mine')}
-                </FilterChip>
-                <div className="w-full sm:w-56">
-                  <AdminUserLookup
-                    id="projects-member"
-                    ariaLabel={t('list.filter.member')}
-                    value={filters.memberId}
-                    onChange={(memberId): void => change(memberId ? { memberId, mine: false } : { memberId: null })}
-                    placeholder={t('list.filter.memberPlaceholder')}
-                  />
-                </div>
-              </>
-            }
-            actions={
-              <>
-                <Select
-                  id="projects-sort"
-                  aria-label={t('list.sort')}
-                  className="w-auto"
-                  value={sort}
-                  onChange={(event): void => {
-                    const next = event.target.value as SortOption;
-                    update((current) => ({ ...current, sort: next }));
-                  }}
-                >
-                  {SORTS.map((option) => (
-                    <option key={option} value={option}>
-                      {t(`list.sortOption.${option.replace(':', '.')}`)}
-                    </option>
-                  ))}
-                </Select>
-                <SavedViewsControl
-                  endpoint={VIEWS_ENDPOINT}
-                  current={savedState}
-                  onApply={applyView}
-                  onError={setViewsError}
+        toolbar={
+          <div className="min-w-0 flex-1 space-y-3">
+            {viewsError ? (
+              <Alert variant="destructive">
+                <AlertDescription>{viewsError}</AlertDescription>
+              </Alert>
+            ) : null}
+            <ListToolbar
+              label={t('list.filter.toolbar')}
+              search={
+                <ListToolbarSearch
+                  ref={searchRef}
+                  id="projects-search"
+                  label={t('list.search')}
+                  placeholder={t('list.searchPlaceholder')}
+                  maxLength={SEARCH_MAX}
+                  value={search}
+                  onValueChange={setSearch}
                 />
-              </>
-            }
-            moreFilters={
-              <>
-                <div className="space-y-1">
-                  <Label htmlFor="projects-role">{t('list.filter.role')}</Label>
+              }
+              filters={
+                <>
                   <Select
-                    id="projects-role"
-                    value={filters.roleId}
-                    onChange={(event): void => change({ roleId: event.target.value })}
+                    id="projects-state"
+                    aria-label={t('list.filter.state')}
+                    className="w-auto"
+                    value={filters.state}
+                    onChange={(event): void => change({ state: event.target.value as ProjectState | '' })}
                   >
-                    <option value="">{t('list.filter.roleAll')}</option>
-                    {(roles ?? []).map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.archivedAt ? t('overview.archivedRole', { role: role.label }) : role.label}
+                    <option value="">{t('list.filter.stateAll')}</option>
+                    {STATES.map((state) => (
+                      <option key={state} value={state}>
+                        {t(`state.${state}`)}
                       </option>
                     ))}
                   </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="projects-template">{t('list.filter.template')}</Label>
-                  <Select
-                    id="projects-template"
-                    value={filters.templateId}
-                    onChange={(event): void => change({ templateId: event.target.value })}
+                  <div className="w-full sm:w-56">
+                    <OrganizationLookup
+                      id="projects-organization"
+                      ariaLabel={t('list.filter.organization')}
+                      value={filters.organizationId}
+                      onChange={(organizationId): void => change({ organizationId })}
+                      placeholder={t('list.filter.organizationPlaceholder')}
+                    />
+                  </div>
+                  {/* "My projects" and a member are one filter: choosing one clears the other. */}
+                  <FilterChip
+                    pressed={filters.mine}
+                    onPressedChange={(next): void => change(next ? { mine: true, memberId: null } : { mine: false })}
                   >
-                    <option value="">{t('list.filter.templateAll')}</option>
-                    {(templates ?? []).map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.archivedAt ? `${template.name} (${t('templates.list.archived')})` : template.name}
+                    {t('list.filter.mine')}
+                  </FilterChip>
+                  <div className="w-full sm:w-56">
+                    <AdminUserLookup
+                      id="projects-member"
+                      ariaLabel={t('list.filter.member')}
+                      value={filters.memberId}
+                      onChange={(memberId): void => change(memberId ? { memberId, mine: false } : { memberId: null })}
+                      placeholder={t('list.filter.memberPlaceholder')}
+                    />
+                  </div>
+                </>
+              }
+              actions={
+                <>
+                  <Select
+                    id="projects-sort"
+                    aria-label={t('list.sort')}
+                    className="w-auto"
+                    value={sort}
+                    onChange={(event): void => {
+                      const next = event.target.value as SortOption;
+                      update((current) => ({ ...current, sort: next }));
+                    }}
+                  >
+                    {SORTS.map((option) => (
+                      <option key={option} value={option}>
+                        {t(`list.sortOption.${option.replace(':', '.')}`)}
                       </option>
                     ))}
                   </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="projects-stage-name">{t('list.filter.stageName')}</Label>
-                  <Input
-                    id="projects-stage-name"
-                    type="search"
-                    value={stageSearch}
-                    maxLength={PROJECT_STAGE_NAME_MAX}
-                    placeholder={t('list.filter.stageNamePlaceholder')}
-                    onChange={(event): void => setStageSearch(event.target.value)}
+                  <SavedViewsControl
+                    endpoint={VIEWS_ENDPOINT}
+                    current={savedState}
+                    onApply={applyView}
+                    onError={setViewsError}
                   />
-                </div>
-                {canFilterCustomFields && offeredCustomFields ? (
-                  <CustomFieldListFilters
-                    idPrefix="projects"
-                    fields={offeredCustomFields.fields}
-                    value={filters.customFields}
-                    onChange={changeCustomField}
-                    language={language}
-                    status={offeredCustomFields.status}
-                    onRetry={offeredCustomFields.reload}
-                  />
-                ) : null}
-              </>
-            }
-            moreFiltersActiveCount={hiddenFilterCount(
-              { ...filters, stageName: stageSearch },
-              { customFields: canFilterCustomFields },
-            )}
-            filtersActive={filtered}
-            onClearFilters={clear}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent aria-busy={loading}>
-          {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
-          <p role="status" className="sr-only">
-            {loading && loaded ? t('list.loading') : ''}
-          </p>
-          {refusedCustomField !== null ? (
-            <Alert variant="destructive">
-              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-                <span>
-                  {tCore('customFieldFilters.error.unavailable', {
-                    field: customFieldDisplayName(customFieldFields, refusedCustomField, language),
-                  })}
-                </span>
-                <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={removeRefusedCustomField}>
-                  {tCore('customFieldFilters.error.remove')}
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : error ? (
-            <Alert variant="destructive">
-              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-                <span>{error}</span>
-                <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
-                  {tCore('common.action.retry')}
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : !loaded ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              {t('list.loading')}
-            </p>
-          ) : (
-            <>
-              <ResponsiveTable
-                data={rows}
-                columns={columns}
-                keyExtractor={(row): string => row.id}
-                emptyState={emptyState}
-              />
-              {total > 0 ? (
-                <PaginationFooter
-                  page={trail.length}
-                  pageSize={pageSize}
-                  total={total}
-                  pageSizes={PAGE_SIZES}
-                  onPageSizeChange={(next): void => {
-                    setPageSize(next);
-                    setTrail(() => NO_CURSORS);
-                  }}
-                  onPrev={(): void => setTrail((previous) => previous.slice(0, -1))}
-                  onNext={(): void => {
-                    if (nextCursor && !loading) setTrail((previous) => [...previous, nextCursor]);
-                  }}
-                />
-              ) : null}
-            </>
-          )}
-        </CardContent>
-      </Card>
+                </>
+              }
+              moreFilters={
+                <>
+                  <div className="space-y-1">
+                    <Label htmlFor="projects-role">{t('list.filter.role')}</Label>
+                    <Select
+                      id="projects-role"
+                      value={filters.roleId}
+                      onChange={(event): void => change({ roleId: event.target.value })}
+                    >
+                      <option value="">{t('list.filter.roleAll')}</option>
+                      {(roles ?? []).map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.archivedAt ? t('overview.archivedRole', { role: role.label }) : role.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="projects-template">{t('list.filter.template')}</Label>
+                    <Select
+                      id="projects-template"
+                      value={filters.templateId}
+                      onChange={(event): void => change({ templateId: event.target.value })}
+                    >
+                      <option value="">{t('list.filter.templateAll')}</option>
+                      {(templates ?? []).map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.archivedAt ? `${template.name} (${t('templates.list.archived')})` : template.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="projects-stage-name">{t('list.filter.stageName')}</Label>
+                    <Input
+                      id="projects-stage-name"
+                      type="search"
+                      value={stageSearch}
+                      maxLength={PROJECT_STAGE_NAME_MAX}
+                      placeholder={t('list.filter.stageNamePlaceholder')}
+                      onChange={(event): void => setStageSearch(event.target.value)}
+                    />
+                  </div>
+                  {canFilterCustomFields && offeredCustomFields ? (
+                    <CustomFieldListFilters
+                      idPrefix="projects"
+                      fields={offeredCustomFields.fields}
+                      value={filters.customFields}
+                      onChange={changeCustomField}
+                      language={language}
+                      status={offeredCustomFields.status}
+                      onRetry={offeredCustomFields.reload}
+                    />
+                  ) : null}
+                </>
+              }
+              moreFiltersActiveCount={hiddenFilterCount(
+                { ...filters, stageName: stageSearch },
+                { customFields: canFilterCustomFields },
+              )}
+              filtersActive={filtered}
+              onClearFilters={clear}
+            />
+          </div>
+        }
+        count={t('list.count', { count: total })}
+        load={listLoad}
+        busy={loading && loaded}
+        onRetry={(): void => void load()}
+        pagination={{
+          page: trail.length,
+          pageSize,
+          total,
+          pageSizes: PAGE_SIZES,
+          onPageSizeChange: (next): void => {
+            setPageSize(next);
+            setTrail(() => NO_CURSORS);
+          },
+          onPrev: (): void => setTrail((previous) => previous.slice(0, -1)),
+          onNext: (): void => {
+            if (nextCursor && !loading) setTrail((previous) => [...previous, nextCursor]);
+          },
+        }}
+      >
+        <ResponsiveTable data={rows} columns={columns} keyExtractor={(row): string => row.id} emptyState={emptyState} />
+      </ListPage>
     </>
   );
 }

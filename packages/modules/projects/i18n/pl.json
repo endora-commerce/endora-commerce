@@ -43,6 +43,7 @@
   "state.completed": "Zrealizowany",
   "state.lost": "Utracony",
   "list.title": "Projekty",
+  "list.count": "Projekty: {count}",
   "list.new": "Nowy projekt",
   "list.search": "Szukaj",
   "list.searchPlaceholder": "Numer lub tytuł",
