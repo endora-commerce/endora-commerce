@@ -4,6 +4,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { AuthProvider } from '@endora-commerce/admin-kit/lib';
 import type { CustomFieldDefinitionDto, CustomFieldEntityTypeInfo } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { chooseRowAction } from './row-actions';
 import { adminSession } from '../../helpers/render-with-session';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
 import pl from '../../../../packages/modules/custom_fields/i18n/pl.json';
@@ -230,7 +231,7 @@ describe('definition editor — admin access (FR-036, SD-2)', () => {
   it('sends only the changed admin access on edit', async () => {
     renderPage();
     await screen.findByText('acquisition_source');
-    fireEvent.click(screen.getByRole('button', { name: COPY['customFields.editor.title']!.replace('{key}', 'acquisition_source') }));
+    await chooseRowAction('acquisition_source', 'edit', COPY);
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText(COPY['customFields.adminAccess.label']!), { target: { value: 'hidden' } });
     fireEvent.click(within(dialog).getByRole('button', { name: COPY['customFields.editor.save']! }));
@@ -242,7 +243,7 @@ describe('definition editor — admin access (FR-036, SD-2)', () => {
   it('sends the unticked surface on edit', async () => {
     renderPage();
     await screen.findByText('acquisition_source');
-    fireEvent.click(screen.getByRole('button', { name: COPY['customFields.editor.title']!.replace('{key}', 'acquisition_source') }));
+    await chooseRowAction('acquisition_source', 'edit', COPY);
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByLabelText(COPY['customFields.customerInput.surface.organization.register']!));
     fireEvent.click(within(dialog).getByRole('button', { name: COPY['customFields.editor.save']! }));
