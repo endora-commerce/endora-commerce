@@ -31,8 +31,10 @@ options and every stored value come back unchanged when the module is switched o
 ## Creating a field
 
 Choose the record type on **Custom fields**, then press **New field** above the table (or **Add a
-field** when the type has none yet). The field is defined completely in one dialog — the same form
-that later edits it, with the same sections in the same order:
+field** when the type has none yet). The field is defined completely on its own page — the same form
+that later edits it, with the same sections in the same order. The page has its own address
+(`/custom-fields/new`), so it can be bookmarked or opened from the command palette (⌘K / CTRL+K,
+**New custom field**):
 
 1. **Definition**
    - **Record type** — preset to the type the page shows; any type this screen manages can be
@@ -64,31 +66,37 @@ that later edits it, with the same sections in the same order:
      help line, offered only for quote requests, orders and opportunities. See
      [Carrying values between quote requests, orders and opportunities](#carrying-values-between-quote-requests-orders-and-opportunities).
 
-**Add field** creates the field with everything above in one step. Before anything is sent the
-dialog checks the key's format, the default label, that every option has a stored value used by no
-other option and a default label, and the number of default options; each problem is said next to
-the field it concerns, and focus moves to the first one. A refusal from the server is shown the same
-way — a key already used on the record type at the key, for example — and the dialog keeps
-everything you entered.
+**Add field**, in the bar at the bottom of the page, creates the field with everything above in one
+step. Before anything is sent the page checks the key's format, the default label, that every option
+has a stored value used by no other option and a default label, and the number of default options;
+each problem is said next to the field it concerns, and focus moves to the first one. A refusal from
+the server is shown the same way — a key already used on the record type at the key, for example —
+and the page keeps everything you entered. Once the field is created you are back on the list of its
+record type, with the new field selected and a confirmation beside **New field**.
 
-**Delete** (the bin) asks in place before a field is deleted. Creating, editing and deleting fields
-needs the `custom_fields:write` permission; an administrator with `custom_fields:read` only sees the
-table, without any control that changes it.
+**Leaving with unsaved changes.** If you leave the page by the **Custom fields** link above the
+title, the sidebar or the browser's Back button after changing something, the page asks whether to
+discard the changes or stay. **Cancel** leaves without asking: pressing it is the decision.
+
+**Delete**, in a row's actions menu, asks before a field is deleted. Creating, editing and deleting
+fields needs the `custom_fields:write` permission. An administrator with `custom_fields:read` only
+sees the table, without any control that changes it, and can open a field to read its definition.
 
 ## Editing a field
 
-Each row of the table has an **Edit** button (the pencil). It opens the same form as **New field**.
-The record type, the key and the type are shown as fixed text; the rest can be changed:
+Click a field's label in the table, or choose **Edit** in the row's actions menu. The field opens
+on its own page (`/custom-fields/<id>`), in the same form as **New field**. The record type, the key
+and the type are shown as fixed text; the rest can be changed:
 
 - **Labels** — the default label (required) and the label per admin language.
-- **Options** of a choice field — each option is changed on its own, at once, without pressing
-  **Save**:
+- **Options** of a choice field — the section is marked **Applies immediately**: each option is
+  changed on its own, at once, without pressing **Save**:
   - its default label and its label per language, saved when you leave the field or press Enter;
   - **Default**, the option preselected for a new record — on a *Single choice* field, clear the
     current default before marking another;
   - **Move up** / **Move down**, which changes the order the option is offered in;
-  - **Remove**, after a confirmation inside the dialog. An option that any record still holds
-    cannot be removed: the dialog says so at the option, naming it by its label, and asks you to
+  - **Remove**, after a confirmation in the option's row. An option that any record still holds
+    cannot be removed: the page says so at the option, naming it by its label, and asks you to
     change those records' value first;
   - **Add option**, with its stored value — not one another option already uses — and labels.
   An option's **stored value** never changes — it is what records hold — so relabelling an option
@@ -104,10 +112,14 @@ The record type, the key and the type are shown as fixed text; the rest can be c
 - **Carry value to …**, where the record type offers it — one checkbox per target, each with its
   own help line.
 
-Option changes are saved as soon as you make them, so once one is made the dialog's **Cancel**
-reads **Close**. **Save** sends only what you changed, and nothing at all when nothing changed. If the change is
-refused, the dialog stays open with the reason. Every change is recorded in the audit log as a
-change to the field.
+Option changes are saved as soon as you make them, so once one is made **Cancel** reads **Close**,
+and leaving the page never asks about them. **Save** sends only what you changed, and nothing at all
+when nothing changed; either way you are back on the list, with the field selected. If the change is
+refused, the page stays open with the reason beside **Save**. Every change is recorded in the audit
+log as a change to the field.
+
+A field of a record type another module manages (product attributes, for example) opens read-only,
+with a link to the screen where it is managed.
 
 **What cannot change.** The key, the record type and the type are fixed once the field exists. To change
 them, create a new field. An option still in use cannot be removed. No edit ever changes a value a
@@ -277,7 +289,7 @@ records created in the meantime are not filled in afterwards.
 ### When the option can be turned on
 
 **Carry value to …** is accepted only when the target record type has a field with the same key
-that can hold the value. Otherwise saving is refused, the dialog stays open, and the
+that can hold the value. Otherwise saving is refused, the page stays open, and the
 message names the reason:
 
 | Refusal | Means |
@@ -307,7 +319,7 @@ values from carrying, the screen warns you and lists every field on the other si
 
 | You are about to | The warning appears when | The button that goes ahead |
 | --- | --- | --- |
-| remove an option (**Remove** in the dialog) | a field carrying into this one has that option | **Remove option anyway** |
+| remove an option (**Remove** on the field's page) | a field carrying into this one has that option | **Remove option anyway** |
 | add an option (**Add option**) | this field carries to a field that lacks it | **Add option anyway** |
 | change *Who can see the value* in the table | this field would become *Customer* while a field carrying into it is *Internal*, or *Internal* while it carries to a *Customer* field | **Change audience anyway** |
 | delete the field (the bin) | it carries to, or receives from, any field | **Delete field anyway** |

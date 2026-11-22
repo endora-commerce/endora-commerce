@@ -75,7 +75,6 @@
   "customFields.editor.option.moveDown": "„{label}” przesunięto w dół na pozycję {position} z {count}.",
   "customFields.editor.option.failed": "Nie udało się zmienić opcji.",
   "customFields.listFilter.no": "Nie",
-  "customFields.editor.optionsNote": "Zmiany opcji zapisują się od razu.",
   "customFields.editor.close": "Zamknij",
   "customFields.editor.option.saved": "Zapisano",
   "customFields.editor.option.inUse": "Nie można usunąć opcji „{label}”, bo używają jej niektóre rekordy. Najpierw zmień ich wartość.",
@@ -159,5 +158,13 @@
   "customFields.form.requiredAccessReason": "Pole tylko do odczytu lub ukryte nie może być wymagane. Najpierw ustaw je jako edytowalne.",
   "customFields.badge.registration": "Rejestracja",
   "customFields.badge.read": "Tylko do odczytu",
-  "customFields.badge.hidden": "Ukryte"
+  "customFields.badge.hidden": "Ukryte",
+  "actions.newCustomField.label": "Nowe pole niestandardowe",
+  "actions.newCustomField.description": "Zdefiniuj nowe pole dla typu rekordu.",
+  "actions.newCustomField.keywords": "pole, niestandardowe, dodaj, nowe",
+  "customFields.editor.titlePending": "Edytuj pole",
+  "customFields.editor.notFound": "To pole już nie istnieje. Mogło zostać usunięte.",
+  "customFields.editor.readOnly": "Możesz przeglądać to pole, ale nie możesz go zmieniać.",
+  "customFields.saved.created": "Utworzono pole „{label}”.",
+  "customFields.saved.updated": "Zapisano pole „{label}”."
 }

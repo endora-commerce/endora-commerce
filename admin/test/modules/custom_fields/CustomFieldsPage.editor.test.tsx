@@ -496,7 +496,7 @@ describe('CustomFieldsPage — the definition editor', () => {
     const row = optionRow(editor, 'South');
     expect(within(row).getByText('Remove the option “South”?')).toBeInTheDocument();
     // Keep takes the trigger's place and the focus.
-    expect(within(row).getByRole('button', { name: 'Keep' })).toHaveFocus();
+    await waitFor(() => expect(within(row).getByRole('button', { name: 'Keep' })).toHaveFocus());
     fireEvent.click(within(row).getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(client.removeOption).toHaveBeenCalledWith(REGION.id, SOUTH_ID));
   });

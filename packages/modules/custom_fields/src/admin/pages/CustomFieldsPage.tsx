@@ -1,14 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ListPlus, Plus, TriangleAlert } from 'lucide-react';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { customFieldsClient } from '../api/custom-fields-client.js';
 import { CarryDriftDialog, CarryDriftSentence } from '../components/CarryDriftWarning.js';
-import { DefinitionEditorDialog } from '../components/DefinitionEditorDialog.js';
 import { AUDIENCES } from '../components/DefinitionForm.js';
 import { carryCounterpartsBrokenBy, type CarryCounterpart, type DefinitionChange } from '../lib/carry-drift.js';
 import { entityTypeLabelKey, incompatibilitySentence, refusalSentence } from '../lib/carry-labels.js';
-import { Alert, AlertDescription, Badge, Button, EmptyState, Label, Select } from '@endora-commerce/admin-kit/ui';
+import {
+  DEFAULT_ENTITY_TYPE,
+  ENTITY_TYPE_PARAM,
+  FALLBACK_ENTITY_TYPES,
+  editPath,
+  newPath,
+  savedFieldFrom,
+} from '../lib/routes.js';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  EmptyState,
+  InlineStatus,
+  Label,
+  Select,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import {
   ListPage,
   ResponsiveTable,
@@ -31,24 +48,6 @@ import {
   type SupportedEntityType,
 } from '@endora-commerce/contracts';
 
-/**
- * Pre-API fallback so the page renders before the entity-types fetch resolves.
- * Only types that declare no owner module: a type that follows a module (a
- * Quote Request follows `quote_requests`, an Opportunity `crm`) is offered once
- * the server says it is, never before.
- */
-const FALLBACK_ENTITY_TYPES: CustomFieldEntityTypeInfo[] = (
-  ['category', 'order', 'organization', 'customer'] as SupportedEntityType[]
-).map((entityType) => ({
-  entityType,
-  labelKey: `customFields.entity.${entityType}`,
-  // The list-filter option is offered only once the server says the type has it.
-  listFilter: false,
-  // So are the carry options (feature 162).
-  carryTargets: [],
-  // And the buyer input surfaces (feature 175).
-  customerInputSurfaces: [],
-}));
 /** A row's identity, for the focus that follows a deletion; module-level so it is stable. */
 const definitionId = (definition: CustomFieldDefinitionDto): string => definition.id;
 
@@ -63,8 +62,12 @@ interface PendingTableChange {
 
 /**
  * Custom-field definition management (feature 055). The definitions of one
- * entity type in a table; a field is created and edited in the one definition
- * form `DefinitionEditorDialog` renders for both (feature 157, issue #447).
+ * entity type in a table — the type is the address's `entityType` query; a
+ * field is created and edited in the one definition form on its own page,
+ * `/custom-fields/new` and `/custom-fields/:id` (issue #1804, the kit README's
+ * five-field rule; the form is feature 157's, issue #447). Back from a save,
+ * the saved field's link takes the focus and the result is announced beside
+ * *New field*.
  * Every write control — create, edit, delete, audience — is offered only to an
  * operator holding `custom_fields:write`; a reader sees the table.
  *
@@ -76,8 +79,8 @@ interface PendingTableChange {
  * only once some type offers a carry target.
  *
  * The frame is the kit `ListPage` (issue #1749, DS-05): *New field* in the
- * header, the record-type select as the toolbar, the announced count, the kit
- * skeleton and Retry. A row's Edit and Delete are its `RowActionMenu`, Delete
+ * header (a link to the create page), the record-type select as the toolbar,
+ * the announced count, the kit skeleton and Retry. A row's Edit and Delete are its `RowActionMenu`, Delete
  * last and confirmed once — in the kit dialog, or in the drift warning when it
  * breaks a carry. The audience is a `StatusChangeControl` (README *A value
  * edited from the row*), whose confirm step carries the drift warning.
@@ -97,7 +100,28 @@ export function CustomFieldsPage(): ReactNode {
   const [entityTypes, setEntityTypes] = useState<CustomFieldEntityTypeInfo[]>(
     FALLBACK_ENTITY_TYPES,
   );
-  const [entityType, setEntityType] = useState<SupportedEntityType>('organization');
+  // The record type is the address's (issue #1804), so the editor's way back
+  // and a shared link land on the type they were about.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const entityType = (searchParams.get(ENTITY_TYPE_PARAM) || DEFAULT_ENTITY_TYPE) as SupportedEntityType;
+  const setEntityType = useCallback(
+    (next: SupportedEntityType): void =>
+      setSearchParams(
+        (previous) => {
+          const params = new URLSearchParams(previous);
+          params.set(ENTITY_TYPE_PARAM, next);
+          return params;
+        },
+        { replace: true },
+      ),
+    [setSearchParams],
+  );
+  const navigate = useNavigate();
+  const location = useLocation();
+  /** A save on the editor page: the sentence beside *New field*, and the row that takes the focus. */
+  const status = useInlineStatus();
+  const [arrived] = useState(() => savedFieldFrom(location.state));
+  const rowLinks = useRef(new Map<string, HTMLAnchorElement>());
   const [rows, setRows] = useState<CustomFieldDefinitionDto[]>([]);
   /** The record type the rows on screen belong to; another one means its read is still on the way. */
   const [loadedFor, setLoadedFor] = useState<SupportedEntityType | null>(null);
@@ -116,10 +140,6 @@ export function CustomFieldsPage(): ReactNode {
   const entityTypeInfo = entityTypes.find((i) => i.entityType === entityType);
   const managedBy = entityTypeInfo?.managedBy;
   const editable = canWrite && !managedBy;
-  const [editing, setEditing] = useState<CustomFieldDefinitionDto | null>(null);
-
-  /** The create dialog is open (issue #447). */
-  const [creating, setCreating] = useState(false);
 
   // Feature 162 — every type's definitions, for the carry marks and warnings.
   // `null` until read (or when the read failed): no mark is shown on a guess.
@@ -226,6 +246,23 @@ export function CustomFieldsPage(): ReactNode {
 
   const ready = loadedFor === entityType && loadError === null;
   const removalFocus = useRemovalFocus(rows, definitionId, ready);
+
+  /**
+   * Back from the editor page with a save (issue #1804): once its type's rows
+   * are on screen, the saved field's link takes the focus and the sentence is
+   * announced beside *New field*. The history entry's hand-off is dropped
+   * at once, so a reload of the list neither refocuses nor repeats it.
+   */
+  const settledArrival = useRef(false);
+  useEffect(() => {
+    if (arrived === null || settledArrival.current || !ready) return;
+    settledArrival.current = true;
+    void navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+    const shown = rows.find((row) => row.id === arrived.id);
+    const name = shown ? resolveCustomFieldLabel(shown.label, shown.labelDefault, language) : arrived.key;
+    status.show(t(arrived.created ? 'customFields.saved.created' : 'customFields.saved.updated', { label: name }));
+    rowLinks.current.get(arrived.id)?.focus();
+  }, [arrived, ready, rows, navigate, location.pathname, location.search, language, status, t]);
   /** The row menu's trigger is the row's focus target once a neighbour is deleted. */
   const rowMenuRef =
     (d: CustomFieldDefinitionDto) =>
@@ -277,10 +314,6 @@ export function CustomFieldsPage(): ReactNode {
     return counterparts.length === 0 ? null : <CarryDriftSentence counterparts={counterparts} typeLabel={typeLabel} />;
   };
 
-  /** A new field's position among its type's fields: after every one the page knows of. */
-  const sortOrderFor = (type: SupportedEntityType): number =>
-    known.filter((definition) => definition.entityType === type).length;
-
   const columns: ResponsiveColumn<CustomFieldDefinitionDto>[] = [
     {
       id: 'key',
@@ -297,13 +330,26 @@ export function CustomFieldsPage(): ReactNode {
       // admin access; the badges say which ones a buyer fills in at
       // registration and which ones the admin panel does not offer for editing.
       render: (d) => {
-        const label = resolveCustomFieldLabel(d.label, d.labelDefault, language);
+        // The record's name is the link to it (README *List pages*); the editor
+        // shows a reader or a managed type the field without offering it.
+        const label = (
+          <Link
+            to={editPath(d.id)}
+            ref={(element): void => {
+              if (element === null) rowLinks.current.delete(d.id);
+              else rowLinks.current.set(d.id, element);
+            }}
+            className="min-w-0 break-words font-medium underline-offset-4 hover:underline"
+          >
+            {resolveCustomFieldLabel(d.label, d.labelDefault, language)}
+          </Link>
+        );
         const access = d.adminAccess ?? 'edit';
         const collected = (d.customerInput ?? []).length > 0;
         if (!collected && access === 'edit') return label;
         return (
           <span className="flex flex-wrap items-center gap-1">
-            <span className="min-w-0 break-words">{label}</span>
+            {label}
             {collected ? <Badge variant="secondary">{t('customFields.badge.registration')}</Badge> : null}
             {access !== 'edit' ? <Badge variant="outline">{t(`customFields.badge.${access}`)}</Badge> : null}
           </span>
@@ -409,7 +455,7 @@ export function CustomFieldsPage(): ReactNode {
   const actions = (d: CustomFieldDefinitionDto): ReactNode => (
     <div ref={rowMenuRef(d)}>
       <RowActionMenu label={t('customFields.table.actions', { key: d.key })}>
-        <RowActionMenuItem onSelect={() => setEditing(d)}>{t('customFields.table.edit')}</RowActionMenuItem>
+        <RowActionMenuItem onSelect={() => void navigate(editPath(d.id))}>{t('customFields.table.edit')}</RowActionMenuItem>
         <RowActionMenuSeparator />
         <RowActionMenuItem destructive onSelect={() => askDelete(d)}>
           {t('customFields.table.deleteAction')}
@@ -431,18 +477,23 @@ export function CustomFieldsPage(): ReactNode {
         title={t('customFields.title')}
         description={t('customFields.description')}
         actions={
-          editable ? (
-            <Button
-              ref={(element) => {
-                removalFocus.createRef.current = element;
-              }}
-              className="min-h-11 sm:min-h-9"
-              onClick={(): void => setCreating(true)}
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              {t('customFields.form.newField')}
-            </Button>
-          ) : null
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Mounted before it has text, so the editor's result is announced (WCAG 4.1.3). */}
+            <InlineStatus {...status.props} />
+            {editable ? (
+              <Button asChild className="min-h-11 sm:min-h-9">
+                <Link
+                  to={newPath(entityType)}
+                  ref={(element) => {
+                    removalFocus.createRef.current = element;
+                  }}
+                >
+                  <Plus className="size-4" aria-hidden="true" />
+                  {t('customFields.form.newField')}
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         }
         toolbar={
           <div className="space-y-1">
@@ -512,8 +563,8 @@ export function CustomFieldsPage(): ReactNode {
               title={t('customFields.table.empty')}
               action={
                 editable ? (
-                  <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setCreating(true)}>
-                    {t('customFields.table.emptyAction')}
+                  <Button asChild className="min-h-11 sm:min-h-9" variant="outline">
+                    <Link to={newPath(entityType)}>{t('customFields.table.emptyAction')}</Link>
                   </Button>
                 ) : null
               }
@@ -521,47 +572,6 @@ export function CustomFieldsPage(): ReactNode {
           }
         />
       </ListPage>
-
-      {/* Dialog vs route under the five-field rule, and option actions vs one Save: #1804. */}
-      {creating && editable ? (
-        <DefinitionEditorDialog
-          mode="create"
-          entityType={entityType}
-          sortOrderFor={sortOrderFor}
-          entityTypes={entityTypes}
-          definitions={known}
-          onClose={() => setCreating(false)}
-          onSaved={(createdFor) => {
-            setCreating(false);
-            if (createdFor === entityType) {
-              void reload();
-              return;
-            }
-            // The new field is shown among the fields of the type it was created for,
-            // which the type switch reads; the carry marks need every type read again.
-            setEntityType(createdFor);
-            if (offersCarry) void loadAll();
-          }}
-        />
-      ) : null}
-
-      {editing && entityTypeInfo ? (
-        <DefinitionEditorDialog
-          definition={editing}
-          entityTypeInfo={entityTypeInfo}
-          entityTypes={entityTypes}
-          definitions={known}
-          onClose={() => {
-            setEditing(null);
-            // Option actions apply at once, so a cancelled dialog may still have changed the row.
-            void reload();
-          }}
-          onSaved={() => {
-            setEditing(null);
-            void reload();
-          }}
-        />
-      ) : null}
 
       {pendingChange ? (
         <CarryDriftDialog

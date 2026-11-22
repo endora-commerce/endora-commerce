@@ -34,7 +34,7 @@ const ENTITY_TYPES: CustomFieldEntityTypeInfo[] = [
     listFilter: false,
     carryTargets: [],
     customerInputSurfaces: [],
-    managedBy: { module: 'catalog', route: '/catalog/attributes', labelKey: 'customFields.managedBy.catalogAttributes' },
+    managedBy: { moduleId: 'catalog', route: '/catalog/attributes', labelKey: 'customFields.managedBy.catalogAttributes' },
   },
 ];
 

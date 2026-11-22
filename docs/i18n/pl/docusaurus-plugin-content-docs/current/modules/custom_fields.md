@@ -33,9 +33,10 @@ modułu.
 ## Tworzenie pola
 
 Wybierz typ rekordu na ekranie **Pola niestandardowe** i naciśnij **Nowe pole** nad tabelą (albo
-**Dodaj pole**, gdy typ nie ma jeszcze żadnego pola). Pole definiuje się w całości w jednym oknie —
-tym samym formularzu, w którym później się je edytuje, z tymi samymi sekcjami w tej samej
-kolejności:
+**Dodaj pole**, gdy typ nie ma jeszcze żadnego pola). Pole definiuje się w całości na osobnej
+stronie — w tym samym formularzu, w którym później się je edytuje, z tymi samymi sekcjami w tej samej
+kolejności. Strona ma własny adres (`/custom-fields/new`), więc można ją dodać do zakładek albo
+otworzyć z palety poleceń (⌘K / CTRL+K, **Nowe pole niestandardowe**):
 
 1. **Definicja**
    - **Typ rekordu** — wstępnie ustawiony na typ widoczny na stronie; można wybrać każdy typ
@@ -71,36 +72,44 @@ kolejności:
      sprzedażowych. Zob. sekcję *Przenoszenie wartości między zapytaniami ofertowymi, zamówieniami
      i szansami sprzedażowymi* poniżej.
 
-Przycisk **Dodaj pole** tworzy pole ze wszystkim powyżej w jednym kroku. Zanim cokolwiek zostanie
-wysłane, okno sprawdza format klucza, etykietę domyślną, to, czy każda opcja ma zapisaną wartość
-nieużywaną przez inną opcję i etykietę domyślną, oraz liczbę opcji domyślnych; każdy problem jest
-opisany przy polu, którego dotyczy, a fokus przechodzi do pierwszego z nich. Odmowa serwera jest
-pokazywana tak samo — na przykład klucz użyty już w danym typie rekordu przy kluczu — a okno
-zachowuje wszystko, co wpisano.
+Przycisk **Dodaj pole** na pasku u dołu strony tworzy pole ze wszystkim powyżej w jednym kroku.
+Zanim cokolwiek zostanie wysłane, strona sprawdza format klucza, etykietę domyślną, to, czy każda
+opcja ma zapisaną wartość nieużywaną przez inną opcję i etykietę domyślną, oraz liczbę opcji
+domyślnych; każdy problem jest opisany przy polu, którego dotyczy, a fokus przechodzi do pierwszego
+z nich. Odmowa serwera jest pokazywana tak samo — na przykład klucz użyty już w danym typie rekordu
+przy kluczu — a strona zachowuje wszystko, co wpisano. Po utworzeniu pola wracasz do listy jego typu
+rekordu, z zaznaczonym nowym polem i potwierdzeniem obok **Nowe pole**.
 
-**Usuń** (kosz) prosi o potwierdzenie w miejscu, zanim pole zostanie usunięte. Tworzenie, edycja i
-usuwanie pól wymaga uprawnienia `custom_fields:write`; administrator z samym `custom_fields:read`
-widzi tylko tabelę, bez żadnych kontrolek, które ją zmieniają.
+**Wyjście z niezapisanymi zmianami.** Jeśli po zmianie czegokolwiek opuścisz stronę linkiem **Pola
+niestandardowe** nad tytułem, przez menu boczne albo przyciskiem Wstecz przeglądarki, strona zapyta,
+czy odrzucić zmiany, czy zostać. **Anuluj** wychodzi bez pytania: jego naciśnięcie jest decyzją.
+
+**Usuń** w menu akcji wiersza prosi o potwierdzenie, zanim pole zostanie usunięte. Tworzenie, edycja
+i usuwanie pól wymaga uprawnienia `custom_fields:write`. Administrator z samym `custom_fields:read`
+widzi tylko tabelę, bez żadnych kontrolek, które ją zmieniają, i może otworzyć pole, żeby odczytać
+jego definicję.
 
 ## Edycja pola
 
-Każdy wiersz tabeli ma przycisk **Edytuj** (ołówek). Otwiera ten sam formularz co **Nowe pole**. Typ
-rekordu, klucz i typ są pokazane jako stały tekst; resztę można zmienić:
+Kliknij etykietę pola w tabeli albo wybierz **Edytuj** w menu akcji wiersza. Pole otwiera się na
+osobnej stronie (`/custom-fields/<id>`), w tym samym formularzu co **Nowe pole**. Typ rekordu, klucz
+i typ są pokazane jako stały tekst; resztę można zmienić:
 
 - **Etykiety** — domyślną (wymaganą) i etykietę w każdym języku panelu.
-- **Opcje** pola wyboru — każdą opcję zmienia się osobno, od razu, bez naciskania **Zapisz**:
+- **Opcje** pola wyboru — sekcja jest oznaczona **Działa od razu**: każdą opcję zmienia się
+  osobno, od razu, bez naciskania **Zapisz**:
   - jej etykietę domyślną i etykiety w poszczególnych językach, zapisywane po opuszczeniu pola lub
     naciśnięciu Enter;
   - **Domyślna** — opcja wstępnie wybrana dla nowego rekordu; w polu *Pojedynczego wyboru* najpierw
     odznacz bieżącą opcję domyślną, a potem zaznacz inną;
   - **Przesuń w górę** / **Przesuń w dół** — zmienia kolejność, w jakiej opcja jest oferowana;
-  - **Usuń** — po potwierdzeniu w oknie. Opcji, którą ma jeszcze którykolwiek rekord, nie można
-    usunąć: okno mówi o tym przy opcji, podając jej etykietę, i prosi, by najpierw zmienić wartość
-    tych rekordów;
+  - **Usuń** — po potwierdzeniu w wierszu opcji. Opcji, którą ma jeszcze którykolwiek rekord, nie
+    można usunąć: strona mówi o tym przy opcji, podając jej etykietę, i prosi, by najpierw zmienić
+    wartość tych rekordów;
   - **Dodaj opcję** — z zapisaną wartością, której nie używa inna opcja, i etykietami.
   **Zapisana wartość** opcji nigdy się nie zmienia — to ją przechowują rekordy — więc zmiana
   etykiety opcji nie psuje żadnego rekordu ani filtra.
-- **Wymagane** — po włączeniu okno wyjaśnia skutki: istniejące rekordy zachowują swoje wartości,
+- **Wymagane** — po włączeniu formularz wyjaśnia skutki: istniejące rekordy zachowują swoje wartości,
   a rekord bez wartości tego pola będzie jej wymagał przy następnej edycji jego pól
   niestandardowych. Nic nie jest uzupełniane automatycznie.
 - **Kto widzi wartość** — ten sam wybór, który daje kolumna *Widoczne dla* w tabeli. Zmiana, po
@@ -111,10 +120,14 @@ rekordu, klucz i typ są pokazane jako stały tekst; resztę można zmienić:
 - **Przenoś wartość do: …**, tam gdzie typ rekordu na to pozwala — jedno pole wyboru na każdy typ
   docelowy, każde z własną linią pomocy.
 
-Zmiany opcji zapisują się od razu, więc po pierwszej z nich przycisk **Anuluj** w oknie zmienia się
-w **Zamknij**. **Zapisz** wysyła tylko to, co zmieniono, a gdy nic się nie zmieniło — nic. Jeśli zmiana zostanie
-odrzucona, okno pozostaje otwarte z podanym powodem. Każda zmiana trafia do dziennika audytu jako
-zmiana pola.
+Zmiany opcji zapisują się od razu, więc po pierwszej z nich przycisk **Anuluj** zmienia się
+w **Zamknij**, a wyjście ze strony nigdy o nie nie pyta. **Zapisz** wysyła tylko to, co zmieniono,
+a gdy nic się nie zmieniło — nic; w obu przypadkach wracasz do listy z zaznaczonym polem. Jeśli
+zmiana zostanie odrzucona, strona pozostaje otwarta z podanym powodem obok **Zapisz**. Każda zmiana
+trafia do dziennika audytu jako zmiana pola.
+
+Pole typu rekordu, którym zarządza inny moduł (na przykład atrybuty produktów), otwiera się tylko do
+odczytu, z linkiem do ekranu, na którym się nim zarządza.
 
 **Czego nie da się zmienić.** Klucz, typ rekordu i typ są stałe po utworzeniu pola; żeby je zmienić,
 utwórz nowe pole. Opcji w użyciu nie można usunąć. Żadna edycja nie zmienia wartości, którą rekord
@@ -290,8 +303,8 @@ utworzone w międzyczasie nie są później uzupełniane.
 ### Kiedy można włączyć opcję
 
 **Przenoś wartość do: …** zostaje przyjęte tylko wtedy, gdy docelowy typ rekordu ma pole o tym samym
-kluczu, które może przyjąć wartość. W przeciwnym razie zapis jest odrzucany, okno pozostaje
-otwarte, a komunikat podaje powód:
+kluczu, które może przyjąć wartość. W przeciwnym razie zapis jest odrzucany, strona pozostaje
+otwarta, a komunikat podaje powód:
 
 | Odmowa | Znaczenie |
 | --- | --- |
@@ -320,7 +333,7 @@ postaci *typ rekordu · klucz*:
 
 | Zamierzasz | Ostrzeżenie pojawia się, gdy | Przycisk, który kontynuuje |
 | --- | --- | --- |
-| usunąć opcję (**Usuń** w oknie) | pole przenoszące wartość do tego pola ma tę opcję | **Usuń opcję mimo to** |
+| usunąć opcję (**Usuń** na stronie pola) | pole przenoszące wartość do tego pola ma tę opcję | **Usuń opcję mimo to** |
 | dodać opcję (**Dodaj opcję**) | to pole przenosi wartość do pola, które tej opcji nie ma | **Dodaj opcję mimo to** |
 | zmienić w tabeli, *kto widzi wartość* | to pole stałoby się widoczne dla *Klienta*, a przenosi do niego pole *Wewnętrzne*, albo stałoby się *Wewnętrzne*, a przenosi do pola widocznego dla *Klienta* | **Zmień widoczność mimo to** |
 | usunąć pole (kosz) | pole przenosi wartość do jakiegokolwiek pola lub ją od niego przyjmuje | **Usuń pole mimo to** |

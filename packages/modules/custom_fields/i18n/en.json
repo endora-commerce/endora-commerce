@@ -75,7 +75,6 @@
   "customFields.editor.option.moveDown": "“{label}” moved down to position {position} of {count}.",
   "customFields.editor.option.failed": "The option could not be changed.",
   "customFields.listFilter.no": "No",
-  "customFields.editor.optionsNote": "Option changes are saved as soon as you make them.",
   "customFields.editor.close": "Close",
   "customFields.editor.option.saved": "Saved",
   "customFields.editor.option.inUse": "The option “{label}” can't be removed because some records still use it. Change their value first.",
@@ -159,5 +158,13 @@
   "customFields.form.requiredAccessReason": "A read-only or hidden field cannot be required. Make it editable first.",
   "customFields.badge.registration": "Registration",
   "customFields.badge.read": "Read-only",
-  "customFields.badge.hidden": "Hidden"
+  "customFields.badge.hidden": "Hidden",
+  "actions.newCustomField.label": "New custom field",
+  "actions.newCustomField.description": "Define a new field on a record type.",
+  "actions.newCustomField.keywords": "field, custom, add",
+  "customFields.editor.titlePending": "Edit field",
+  "customFields.editor.notFound": "This field no longer exists. It may have been deleted.",
+  "customFields.editor.readOnly": "You can view this field but not change it.",
+  "customFields.saved.created": "Field “{label}” created.",
+  "customFields.saved.updated": "Field “{label}” saved."
 }

@@ -1,0 +1,5 @@
+---
+'@endora-commerce/mod-custom-fields': minor
+---
+
+The custom-field definition editor has its own page instead of a dialog over the list (issue #1804): `/custom-fields/new` creates a field and `/custom-fields/<id>` edits one. Both addresses can be bookmarked or shared, and the command palette has a new **New custom field** action. The page has a link back to the list, keeps Save in the sticky bar at the bottom, and asks before you leave with unsaved changes, including with the browser's Back button. After a save you are back on the list of the field's record type, with the field selected and a confirmation shown. The list keeps the selected record type in its address (`?entityType=`), and each field's label links to its page. On an existing field, option changes are still saved as soon as you make them, and the Options section is now marked **Applies immediately**. An administrator without `custom_fields:write`, or a field whose record type another module manages, sees the field read-only. Removed bundle key: `customFields.editor.optionsNote`.

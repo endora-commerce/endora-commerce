@@ -134,6 +134,19 @@ export const manifest = defineModuleManifest({
       keywordsKey: 'actions.openCustomFields.keywords',
       weight: 240,
     },
+    // Issue #1804 — the definition editor has its own route, so creating a
+    // field is one palette step away.
+    {
+      id: 'new-custom-field',
+      labelKey: 'actions.newCustomField.label',
+      descriptionKey: 'actions.newCustomField.description',
+      icon: 'Plus',
+      targetRoute: '/custom-fields/new',
+      requiredPermission: 'custom_fields:write',
+      keywords: ['custom field', 'new', 'create', 'attribute'],
+      keywordsKey: 'actions.newCustomField.keywords',
+      weight: 241,
+    },
   ],
   // Feature 074 (Constitution XVII), test C3 — platform primitive. The flag
   // used to rest on `organizations` declaring this module; ruling 2 withdraws
