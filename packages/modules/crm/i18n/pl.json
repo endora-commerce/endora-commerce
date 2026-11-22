@@ -360,7 +360,6 @@
   "tags.emptyBody": "Dodaj pierwszą, aby zacząć oznaczać szanse.",
   "tags.col.tag": "Etykieta",
   "tags.col.usage": "Szanse (widoczne dla Ciebie)",
-  "tags.col.actions": "Akcje",
   "tags.edit": "Edytuj etykietę {name}",
   "tags.delete": "Usuń etykietę {name}",
   "tags.dialog.createTitle": "Nowa etykieta",
