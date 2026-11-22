@@ -404,7 +404,7 @@ describe('CustomFieldsPage — drift warnings', () => {
       await waitFor(() => expect(client.createOption).toHaveBeenCalledTimes(1));
     });
 
-    it('names the change, not destructive, on the row audience control's confirm step', async () => {
+    it('names the change, not destructive, on the confirm step of the row audience control', async () => {
       await renderPage('order', bundle, core);
       const confirm = await askAudienceChange('region', bundle, core);
       const proceed = within(confirm).getByRole('button', {
