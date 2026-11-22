@@ -8615,6 +8615,13 @@
       }
     },
     "/api/v1/admin/transactional-emails/branding": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
       "get": {
         "responses": {
           "200": {

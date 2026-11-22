@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter } from 'react-router-dom';
-import type { EmailBranding, PutEmailBrandingRequest } from '@endora-commerce/contracts';
+import type { EmailBranding, EmailBrandingField, PutEmailBrandingRequest } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import en from '../../../../packages/modules/transactional_emails/i18n/en.json';
 import core from '../../../../packages/modules/_i18n/i18n/en.json';
@@ -50,10 +50,19 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   };
 });
 
+const resetBranding = vi.fn(async (salesChannelId: string, fields: readonly EmailBrandingField[]): Promise<EmailBranding> => {
+  const current = brandingFor.get(salesChannelId)!;
+  const global = brandingFor.get(null)!;
+  const next = { ...current };
+  for (const field of fields) next[field] = global[field];
+  return next;
+});
+
 vi.mock('../../../../packages/modules/transactional_emails/src/admin/api/transactional-emails-client', () => ({
   transactionalEmailsClient: {
     branding: (id: string | null) => branding(id),
     putBranding: (id: string | null, body: PutEmailBrandingRequest) => putBranding(id, body),
+    resetBranding: (id: string, fields: readonly EmailBrandingField[]) => resetBranding(id, fields),
   },
 }));
 
@@ -98,6 +107,7 @@ beforeEach(() => {
   brandingFor.set(CHANNEL.id, resolved({ salesChannelId: CHANNEL.id, source: 'channel' }));
   branding.mockClear();
   putBranding.mockClear();
+  resetBranding.mockClear();
 });
 
 describe('reachability (Principle XVI)', () => {
@@ -218,5 +228,62 @@ describe('EmailBrandingPage', () => {
     brandingFor.set(null, resolved({}));
     await userEvent.click(screen.getByRole('button', { name: core['common.action.retry'] }));
     expect(await screen.findByRole('group', { name: en['branding.logo'] })).toBeTruthy();
+  });
+
+  // Issue #1588 — a channel that sets its own value can go back to inheriting
+  // the all-channels one; the one Save removes the channel's value.
+  describe('"Use all-channels value"', () => {
+    async function openChannel(): Promise<void> {
+      await renderPage();
+      const scope = await screen.findByRole('combobox', { name: en['editor.scope'] });
+      await screen.findByRole('option', { name: 'Hurt PL' });
+      await userEvent.selectOptions(scope, CHANNEL.id);
+      await waitFor(() => expect(branding).toHaveBeenCalledWith(CHANNEL.id));
+    }
+
+    beforeEach(() => {
+      brandingFor.set(null, resolved({ accentColor: '#0a7e5c' }));
+      brandingFor.set(CHANNEL.id, resolved({ salesChannelId: CHANNEL.id, source: 'channel', accentColor: '#c2410c' }));
+    });
+
+    it('is offered only for a field the channel sets differently, and never for all channels', async () => {
+      await renderPage();
+      await screen.findByRole('group', { name: en['branding.accent'] });
+      expect(screen.queryByRole('button', { name: en['branding.inherit.action'] })).toBeNull();
+
+      const scope = screen.getByRole('combobox', { name: en['editor.scope'] });
+      await screen.findByRole('option', { name: 'Hurt PL' });
+      await userEvent.selectOptions(scope, CHANNEL.id);
+      const accent = await screen.findByRole('group', { name: en['branding.accent'] });
+      expect(await within(accent).findByRole('button', { name: en['branding.inherit.action'] })).toBeTruthy();
+      expect(within(accent).getByText(en['branding.inherit.overridden'])).toBeTruthy();
+      const logo = screen.getByRole('group', { name: en['branding.logo'] });
+      expect(within(logo).queryByRole('button', { name: en['branding.inherit.action'] })).toBeNull();
+    });
+
+    it('stages the all-channels value, and Save removes the channel override instead of copying it', async () => {
+      await openChannel();
+      const accent = await screen.findByRole('group', { name: en['branding.accent'] });
+      expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
+      await userEvent.click(await within(accent).findByRole('button', { name: en['branding.inherit.action'] }));
+
+      expect(within(accent).queryByRole('button', { name: en['branding.inherit.action'] })).toBeNull();
+      expect((saveButton() as HTMLButtonElement).disabled).toBe(false);
+      // The control went with the click, so focus moves on to Save rather than to the page.
+      expect(document.activeElement).toBe(saveButton());
+      await userEvent.click(saveButton());
+
+      await waitFor(() => expect(resetBranding).toHaveBeenCalledWith(CHANNEL.id, ['accentColor']));
+      expect(putBranding).not.toHaveBeenCalled();
+      expect(await screen.findByRole('status')).toHaveProperty('textContent', en['branding.saved']);
+      expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('is not offered without the write permission', async () => {
+      permissions = ['transactional_emails:read'];
+      await openChannel();
+      await screen.findByRole('group', { name: en['branding.accent'] });
+      expect(screen.queryByRole('button', { name: en['branding.inherit.action'] })).toBeNull();
+    });
   });
 });

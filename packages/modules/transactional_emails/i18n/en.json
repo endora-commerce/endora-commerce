@@ -118,6 +118,8 @@
   "branding.noPermission": "You do not have permission to view email branding.",
   "branding.switchScope.title": "Unsaved branding changes",
   "branding.switchScope.message": "Save the changes for this scope before switching, or discard them?",
+  "branding.inherit.overridden": "Set for this channel",
+  "branding.inherit.action": "Use all-channels value",
   "list.column.name": "Name",
   "list.column.code": "Code",
   "list.column.module": "Module",
