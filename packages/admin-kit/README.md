@@ -1208,6 +1208,8 @@ const pager = useCursorPagination({ scope: 'invoices', maxPageSize: 200 });
   toolbar, for a list that is one of a module's sections — Invoices beside its templates.
 - `CursorPagination` (record history) stays for cursor lists that are not a `ListPage`. Pinned in
   `admin/test/kit/kit-list-page.test.tsx`; the first adopter is `InvoicesList`.
+- The **`tabs`** slot is the band between the header and the toolbar: section tabs, or what a list
+  shows above its filters — the inventory list's KPI strip (#1749).
 
 ### Search as you type — `useDebouncedValue`
 

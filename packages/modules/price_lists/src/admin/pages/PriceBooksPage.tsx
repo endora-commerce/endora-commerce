@@ -12,26 +12,24 @@ import type {
   PriceBookType,
 } from '@endora-commerce/contracts';
 import {
+  ListPage,
   ListToolbar,
   ListToolbarSearch,
-  PaginationFooter,
   ResponsiveTable,
   RowActionMenu,
   RowActionMenuItem,
   RowActionMenuSeparator,
+  type ListPageLoad,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth, usePageSizePreference, type PageSizeOption } from '@endora-commerce/admin-kit/lib';
 import {
-  Alert,
-  AlertDescription,
   Badge,
   Button,
   Combobox,
   EmptyState,
   Label,
-  PageHeader,
   Select,
   buttonVariants,
   type ComboboxOption,
@@ -96,6 +94,8 @@ export function PriceBooksPage(): ReactNode {
   const filtered = FILTER_KEYS.some((key) => params.get(key));
 
   const [state, setState] = useState<ListState>({ kind: 'loading' });
+  // The last page answered: a filter or page change refreshes over it (`busy`), the skeleton is for the first load.
+  const [answer, setAnswer] = useState<PriceBookListResponse | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [deleting, setDeleting] = useState<PriceBookSummary | null>(null);
   const [searchText, setSearchText] = useState(search);
@@ -145,7 +145,9 @@ export function PriceBooksPage(): ReactNode {
         pageSize,
       })
       .then((answer) => {
-        if (!cancelled) setState({ kind: 'ready', answer });
+        if (cancelled) return;
+        setState({ kind: 'ready', answer });
+        setAnswer(answer);
       })
       .catch((err: unknown) => {
         if (!cancelled) setState({ kind: 'error', message: t('priceBooks.list.error.load'), detail: errorMessage(err, '') });
@@ -231,11 +233,33 @@ export function PriceBooksPage(): ReactNode {
     setParams(new URLSearchParams(), { replace: true });
   };
 
-  const total = state.kind === 'ready' ? state.answer.meta.totalCount : 0;
+  const total = answer?.meta.totalCount ?? 0;
+
+  const listLoad: ListPageLoad =
+    state.kind === 'error'
+      ? {
+          kind: 'error',
+          message: (
+            <>
+              {state.message}
+              {state.detail ? <span className="block text-xs">{state.detail}</span> : null}
+            </>
+          ),
+          // The feature's own wording, *Try again* (FR-032), in place of the kit's *Retry*.
+          action: (
+            <Button type="button" variant="outline" size="sm" onClick={(): void => setAttempt((n) => n + 1)}>
+              <RotateCcw aria-hidden="true" />
+              {t('priceBooks.common.retry')}
+            </Button>
+          ),
+        }
+      : answer === null
+        ? { kind: 'loading' }
+        : { kind: 'ready' };
 
   return (
     <>
-      <PageHeader
+      <ListPage
         title={t('priceBooks.list.title')}
         description={t('priceBooks.list.description')}
         actions={
@@ -254,106 +278,78 @@ export function PriceBooksPage(): ReactNode {
             ) : null}
           </>
         }
-      />
-
-      <ListFilters
-        search={searchText}
-        onSearch={setSearchText}
-        searchRef={searchRef}
-        type={type}
-        status={status}
-        currency={currency}
-        channelId={channelId}
-        audienceKind={audienceKind}
-        memberId={memberId}
-        currencies={currencies}
-        channels={channels.map((c) => ({ id: c.id, name: localizedName(c.name, c.code) }))}
-        groups={groups}
-        onFilter={setFilter}
-        onClear={clearFilters}
-        filtered={filtered}
-        foldedCount={foldedFilterCount(params)}
-      />
-
-      <p role="status" className="sr-only">
-        {state.kind === 'loading'
-          ? t('priceBooks.list.loading')
-          : state.kind === 'ready'
-            ? t('priceBooks.list.loaded', { count: state.answer.data.length })
-            : ''}
-      </p>
-
-      {state.kind === 'loading' ? (
-        <div data-testid="price-books-loading" aria-busy="true" className="space-y-2">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-10 rounded bg-muted motion-safe:animate-pulse" aria-hidden="true" />
-          ))}
-        </div>
-      ) : state.kind === 'error' ? (
-        <Alert variant="destructive">
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-            <span>
-              {state.message}
-              {state.detail ? <span className="block text-xs">{state.detail}</span> : null}
-            </span>
-            <Button type="button" variant="outline" size="sm" onClick={(): void => setAttempt((n) => n + 1)}>
-              <RotateCcw aria-hidden="true" />
-              {t('priceBooks.common.retry')}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <div className="rounded-md border">
-          <ResponsiveTable
-            columns={columns}
-            data={state.answer.data}
-            keyExtractor={(book) => book.id}
-            renderActions={(book) =>
-              mayChange(book) ? (
-                <RowActionMenu label={t('priceBooks.list.actionsFor', { name: book.name })}>
-                  <RowActionMenuItem onSelect={(): void => void navigate(`/price-lists/${book.id}`)}>
-                    {t('priceBooks.list.open')}
-                  </RowActionMenuItem>
-                  <RowActionMenuSeparator />
-                  <RowActionMenuItem destructive onSelect={(): void => setDeleting(book)}>
-                    {t('priceBooks.delete.action')}
-                  </RowActionMenuItem>
-                </RowActionMenu>
-              ) : null
-            }
-            emptyState={
-              filtered ? (
-                <EmptyState
-                  variant="no-results"
-                  title={t('priceBooks.list.emptyFiltered.title')}
-                  description={t('priceBooks.list.emptyFiltered.body')}
-                  onClearFilters={clearFilters}
-                  focusAfterClear={searchRef}
-                />
-              ) : (
-                <EmptyState
-                  icon={<BookOpen size={20} />}
-                  title={t('priceBooks.list.empty.title')}
-                  description={t('priceBooks.list.empty.body')}
-                />
-              )
-            }
+        toolbar={
+          <ListFilters
+            search={searchText}
+            onSearch={setSearchText}
+            searchRef={searchRef}
+            type={type}
+            status={status}
+            currency={currency}
+            channelId={channelId}
+            audienceKind={audienceKind}
+            memberId={memberId}
+            currencies={currencies}
+            channels={channels.map((c) => ({ id: c.id, name: localizedName(c.name, c.code) }))}
+            groups={groups}
+            onFilter={setFilter}
+            onClear={clearFilters}
+            filtered={filtered}
+            foldedCount={foldedFilterCount(params)}
           />
-          {total > 0 ? (
-            <PaginationFooter
-              page={page - 1}
-              pageSize={pageSize}
-              total={total}
-              onPageSizeChange={(next): void => {
-                setPageSize(next);
-                setFilter({ page: null });
-              }}
-              onPrev={(): void => setFilter({ page: page > 2 ? String(page - 1) : null })}
-              onNext={(): void => setFilter({ page: String(page + 1) })}
-            />
-          ) : null}
-        </div>
-      )}
+        }
+        count={t('priceBooks.list.loaded', { count: answer?.data.length ?? 0 })}
+        load={listLoad}
+        busy={state.kind === 'loading' && answer !== null}
+        onRetry={(): void => setAttempt((n) => n + 1)}
+        pagination={{
+          page: page - 1,
+          pageSize,
+          total,
+          onPageSizeChange: (next): void => {
+            setPageSize(next);
+            setFilter({ page: null });
+          },
+          onPrev: (): void => setFilter({ page: page > 2 ? String(page - 1) : null }),
+          onNext: (): void => setFilter({ page: String(page + 1) }),
+        }}
+      >
+        <ResponsiveTable
+          columns={columns}
+          data={answer?.data ?? []}
+          keyExtractor={(book) => book.id}
+          renderActions={(book) =>
+            mayChange(book) ? (
+              <RowActionMenu label={t('priceBooks.list.actionsFor', { name: book.name })}>
+                <RowActionMenuItem onSelect={(): void => void navigate(`/price-lists/${book.id}`)}>
+                  {t('priceBooks.list.open')}
+                </RowActionMenuItem>
+                <RowActionMenuSeparator />
+                <RowActionMenuItem destructive onSelect={(): void => setDeleting(book)}>
+                  {t('priceBooks.delete.action')}
+                </RowActionMenuItem>
+              </RowActionMenu>
+            ) : null
+          }
+          emptyState={
+            filtered ? (
+              <EmptyState
+                variant="no-results"
+                title={t('priceBooks.list.emptyFiltered.title')}
+                description={t('priceBooks.list.emptyFiltered.body')}
+                onClearFilters={clearFilters}
+                focusAfterClear={searchRef}
+              />
+            ) : (
+              <EmptyState
+                icon={<BookOpen size={20} />}
+                title={t('priceBooks.list.empty.title')}
+                description={t('priceBooks.list.empty.body')}
+              />
+            )
+          }
+        />
+      </ListPage>
 
       {deleting ? (
         <DeleteBookDialog
@@ -462,7 +458,7 @@ function ListFilters(props: {
 
   return (
     <ListToolbar
-      className="mb-4"
+      className="min-w-0 flex-1"
       label={t('priceBooks.list.filters.label')}
       search={
         <ListToolbarSearch

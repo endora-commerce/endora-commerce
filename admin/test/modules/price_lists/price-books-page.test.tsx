@@ -252,8 +252,10 @@ describe('price-book list — states', () => {
   it('shows a loading state with a polite status while the list is on its way', async () => {
     api.get.mockImplementation(async (url: string) => (url.split('?')[0] === B ? new Promise(() => undefined) : route(url)));
     mountScreen({ path: '/price-lists', session: PLATFORM_ADMIN });
-    expect(await screen.findByRole('status')).toHaveTextContent('Loading price books…');
-    expect(screen.getByTestId('price-books-loading')).toHaveAttribute('aria-busy', 'true');
+    // The kit ListPage (#1749): the skeleton in a busy results region, loading said in the count's live region.
+    const skeleton = await screen.findByTestId('list-page-skeleton');
+    expect(skeleton.closest('[aria-busy="true"]')).not.toBeNull();
+    expect(screen.getAllByRole('status').some((region) => region.textContent === 'Loading…')).toBe(true);
   });
 
   it('shows the empty state with one action to create the first book', async () => {

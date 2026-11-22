@@ -38,7 +38,10 @@ export interface ListPageProps {
   actions?: ReactNode;
   /**
    * Section tabs under the header (`RouteTabs`) — for a list that is one of a
-   * module's sections, as Invoices sits beside its templates (issue #1664).
+   * module's sections, as Invoices sits beside its templates (issue #1664). The
+   * slot is the band between the header and the toolbar, so it also holds what
+   * a list shows above its filters: the inventory's KPI strip, a disclosure
+   * opened from the header (issue #1749).
    */
   tabs?: ReactNode;
   /**

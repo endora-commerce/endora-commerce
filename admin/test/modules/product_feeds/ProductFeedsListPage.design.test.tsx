@@ -139,10 +139,12 @@ describe('ProductFeedsListPage — design-system alignment', () => {
     renderPage();
     await waitFor(() => expect(document.querySelector('[aria-busy="true"]')).not.toBeNull());
     const busy = document.querySelector('[aria-busy="true"]') as HTMLElement;
-    // The kit Card since #1492 (CAT-17), and the loading line is announced.
+    // The kit Card since #1492 (CAT-17); since #1749 the kit ListPage's skeleton,
+    // with the loading announced through the list's count region.
     expect(busy.matches('.rounded-lg.border.bg-card')).toBe(true);
     expect(busy.className).not.toMatch(/\bb2b-/);
-    expect(busy.querySelector('[role="status"]')?.textContent).toContain('feeds.table.status');
+    expect(busy.querySelector('[data-testid="list-page-skeleton"]')).not.toBeNull();
+    expect(screen.getAllByRole('status').some((region) => /common\.state\.loading/.test(region.textContent ?? ''))).toBe(true);
   });
 
   it('puts the feed table on the same card surface every other admin list uses', async () => {

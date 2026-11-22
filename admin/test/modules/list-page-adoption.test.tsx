@@ -60,6 +60,8 @@ interface Subject {
   load: () => Promise<ComponentType>;
   /** The module whose bundle the screen reads. */
   module: string;
+  /** The modules present beyond it — a screen gated on another module's presence. */
+  present?: string[];
   /** The page title's key in that bundle. */
   titleKey: string;
   /** Answers for a ready list, by URL prefix — the first match wins. */
@@ -207,6 +209,20 @@ const SUBJECTS: Record<string, Subject> = {
     },
     row: 'buyer@example.com',
   },
+  LowStockPage: {
+    load: async () => (await import('../../../packages/modules/inventory/src/admin/pages/LowStockPage')).LowStockPage,
+    module: '_i18n',
+    present: ['inventory'],
+    titleKey: 'inventory.lowStock.title',
+    listUrl: '/api/v1/admin/inventory/low-stock',
+    ready: {
+      '/api/v1/admin/inventory/low-stock': () => ({
+        items: [{ productId: 'p1', productSku: 'SKU-1', productName: 'Oak chair', cumulativeOnHand: 1, lowStockThreshold: 2 }],
+      }),
+    },
+    row: 'Oak chair',
+    count: (b) => fill(b['inventory.lowStock.count']!, { count: 1 }),
+  },
   CampaignsPage: {
     load: async () => (await import('../../../packages/modules/newsletter/src/admin/pages/CampaignsPage')).CampaignsPage,
     module: 'newsletter',
@@ -254,7 +270,7 @@ const SUBJECTS: Record<string, Subject> = {
   },
 };
 
-function mount(Page: ComponentType, module: string): ReturnType<typeof userEvent.setup> {
+function mount(Page: ComponentType, module: string, present: string[] = []): ReturnType<typeof userEvent.setup> {
   const user = userEvent.setup();
   const bundle: Bundle = { core, [module]: readBundle(module) };
   renderWithI18n(
@@ -262,7 +278,7 @@ function mount(Page: ComponentType, module: string): ReturnType<typeof userEvent
       <MemoryRouter>
         <Page />
       </MemoryRouter>,
-      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: [module] }) },
+      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: [module, ...present] }) },
     ),
     bundle,
   );
@@ -300,7 +316,7 @@ describe.each(Object.entries(SUBJECTS))('%s is the kit ListPage (#1749)', (_name
 
   it('draws the kit skeleton in a busy results region while the list loads', async () => {
     getSpy.mockImplementation(() => new Promise(() => {}));
-    mount(await subject.load(), subject.module);
+    mount(await subject.load(), subject.module, subject.present);
     const skeleton = await screen.findByTestId('list-page-skeleton');
     expect(skeleton.closest('[aria-busy="true"]')).not.toBeNull();
     expect(liveTexts()).toContain(core['common.state.loading']!);
@@ -317,7 +333,7 @@ describe.each(Object.entries(SUBJECTS))('%s is the kit ListPage (#1749)', (_name
       if (!match) throw new Error(`unexpected url ${url}`);
       return routes[match]!(url);
     });
-    const user = mount(await subject.load(), subject.module);
+    const user = mount(await subject.load(), subject.module, subject.present);
     const alert = await screen.findByRole('alert');
     expect(screen.queryByText(subject.row)).toBeNull();
     expect(alert).toHaveTextContent('The list is unavailable.');
@@ -328,7 +344,7 @@ describe.each(Object.entries(SUBJECTS))('%s is the kit ListPage (#1749)', (_name
 
   it('shows the rows, announces the count, under one page heading', async () => {
     answer(subject.ready);
-    mount(await subject.load(), subject.module);
+    mount(await subject.load(), subject.module, subject.present);
     await expectReady(subject, bundle);
     const headings = screen.getAllByRole('heading', { level: 1 });
     expect(headings).toHaveLength(1);

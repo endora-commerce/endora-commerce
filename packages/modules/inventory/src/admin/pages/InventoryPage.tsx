@@ -12,24 +12,15 @@ import type {
   StockLevelRow,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient, usePageSizePreference, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
-import { FilterChip, ListToolbar, ListToolbarSearch, PaginationFooter } from '@endora-commerce/admin-kit/components';
 import {
-  Alert,
-  AlertDescription,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  EmptyState,
-  PageHeader,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@endora-commerce/admin-kit/ui';
+  FilterChip,
+  ListPage,
+  ListToolbar,
+  ListToolbarSearch,
+  ResponsiveTable,
+  type ListPageLoad,
+} from '@endora-commerce/admin-kit/components';
+import { Button, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { cn } from '@endora-commerce/admin-kit/lib';
 import { productInventoryHref, stockDisplayBandLabels, stockDisplayBandTone } from '../lib/labels.js';
@@ -51,6 +42,11 @@ interface KpiResponse {
  * Per-product roster from `GET /api/v1/admin/inventory/levels`.
  * Per-row edit lands in the product editor's Inventory tab; the import
  * wizard ships in US7.
+ *
+ * The roster is the kit's `ListPage` since issue #1749: the KPI strip sits in
+ * the band under the header, the toolbar is the row above the results rather
+ * than a strip inside their card, and a filter or page change refreshes over
+ * the rows on screen (`busy`) — the skeleton is for the first load.
  */
 export function InventoryPage(): ReactNode {
   const t = useTranslation('core');
@@ -87,6 +83,7 @@ export function InventoryPage(): ReactNode {
   const [rows, setRows] = useState<StockLevelRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'low' | 'out'>(() => {
@@ -130,6 +127,7 @@ export function InventoryPage(): ReactNode {
       setKpis(kpiRes.data);
       setRows(rosterRes.items);
       setTotal(rosterRes.total);
+      setLoadedOnce(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('inventory.error.load'));
     } finally {
@@ -167,9 +165,12 @@ export function InventoryPage(): ReactNode {
     return <div className="b2b-page">{t('inventory.noPermission')}</div>;
   }
 
+  const firstLoad = loading && !loadedOnce;
+  const listLoad: ListPageLoad = error ? { kind: 'error', message: error } : firstLoad ? { kind: 'loading' } : { kind: 'ready' };
+
   return (
     <div className="b2b-page b2b-page--wide">
-      <PageHeader
+      <ListPage
         title={t('inventory.page.title')}
         actions={
           canWrite && !noData ? (
@@ -180,157 +181,148 @@ export function InventoryPage(): ReactNode {
             </Button>
           ) : null
         }
-      />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {/* Issue #1492 (CAT-17): kit cards and Tailwind spacing, one look with the toolbar's card. */}
-      <dl className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label={t('inventory.stat.tracked')} value={(kpis?.totalProductsTracked ?? 0).toLocaleString()} />
-        <Stat label={t('inventory.stat.totalOnHand')} value={(kpis?.totalOnHand ?? 0).toLocaleString()} />
-        <Stat label={t('inventory.stat.outOfStock')} value={String(kpis?.outOfStockCount ?? 0)} tone="danger" />
-        <Stat label={t('inventory.stat.lowStock')} value={String(kpis?.lowStockCount ?? 0)} tone="warn" />
-      </dl>
-
-      {kpis && kpis.perWarehouseTotals.length > 0 ? (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle>{t('inventory.perWarehouseTotals')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="flex flex-wrap gap-6">
-              {kpis.perWarehouseTotals.map((row) => (
-                <div key={row.warehouseId}>
-                  <dt className="text-xs uppercase text-muted-foreground">{row.warehouseCode}</dt>
-                  <dd className="text-xl font-semibold tabular-nums">{row.onHand.toLocaleString()}</dd>
-                </div>
-              ))}
+        // The band under the header: the KPI strip and the per-warehouse totals.
+        tabs={
+          <>
+            {/* Issue #1492 (CAT-17): kit cards and Tailwind spacing. */}
+            <dl className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Stat label={t('inventory.stat.tracked')} value={(kpis?.totalProductsTracked ?? 0).toLocaleString()} />
+              <Stat label={t('inventory.stat.totalOnHand')} value={(kpis?.totalOnHand ?? 0).toLocaleString()} />
+              <Stat label={t('inventory.stat.outOfStock')} value={String(kpis?.outOfStockCount ?? 0)} tone="danger" />
+              <Stat label={t('inventory.stat.lowStock')} value={String(kpis?.lowStockCount ?? 0)} tone="warn" />
             </dl>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <Card className="overflow-hidden">
-        {/* Issue #1440 (DS-06) — the kit toolbar. The two stock chips are exclusive:
-            pressing one releases the other, because the API takes one stock filter. */}
-        <ListToolbar
-          label={t('inventory.toolbar.label')}
-          className="border-b border-border px-3 py-2.5"
-          search={
-            <ListToolbarSearch
-              ref={searchRef}
-              label={t('inventory.search.label')}
-              placeholder={t('inventory.search.placeholder')}
-              value={query}
-              onValueChange={setQuery}
-            />
-          }
-          filters={
-            <>
-              <FilterChip
-                icon={<AlertCircle size={12} />}
-                pressed={statusFilter === 'low'}
-                onPressedChange={(next): void => setStatusFilter(next ? 'low' : 'all')}
-              >
-                {t('inventory.stat.lowStock')}
-              </FilterChip>
-              <FilterChip
-                icon={<AlertCircle size={12} />}
-                pressed={statusFilter === 'out'}
-                onPressedChange={(next): void => setStatusFilter(next ? 'out' : 'all')}
-              >
-                {t('inventory.stat.outOfStock')}
-              </FilterChip>
-            </>
-          }
-        />
-
-        {loading ? (
-          <p role="status" className="p-8 text-sm text-muted-foreground">
-            {t('inventory.loading')}
-          </p>
-        ) : filtered.length === 0 ? (
-          filtersActive ? (
-            <EmptyState
-              variant="no-results"
-              title={t('inventory.empty')}
-              onClearFilters={clearFilters}
-              focusAfterClear={searchRef}
-            />
-          ) : (
-            <EmptyState
-              icon={<Boxes size={20} />}
-              title={t('inventory.noData.title')}
-              description={canWrite ? t('inventory.noData.body') : t('inventory.noData.bodyReadOnly')}
-              action={
-                canWrite ? (
-                  <Button asChild>
-                    <Link to="/inventory/import">
-                      <Upload aria-hidden="true" /> {t('inventory.action.import')}
-                    </Link>
-                  </Button>
-                ) : null
-              }
-            />
-          )
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('inventory.column.product')}</TableHead>
-                <TableHead>{t('inventory.column.sku')}</TableHead>
-                <TableHead className="text-right">{t('inventory.column.cumulativeOnHand')}</TableHead>
-                <TableHead>{t('inventory.column.perWarehouse')}</TableHead>
-                <TableHead>{t('inventory.column.displayBand')}</TableHead>
-                <TableHead className="w-[1%]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((r) => (
-                <TableRow key={r.productId}>
-                  <TableCell>{r.productName}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{r.productSku}</TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">
-                    {r.cumulativeOnHand.toLocaleString()}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      {r.perWarehouse.map((w) => (
-                        <span key={w.warehouseId} className="b2b-badge" title={w.warehouseId}>
-                          {w.warehouseCode}: {w.onHand.toLocaleString()}
-                        </span>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className={stockDisplayBandTone(r.displayBand)}>
-                      {stockDisplayBandLabels.label(t, r.displayBand)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <Button asChild variant="ghost" size="sm">
-                      <Link to={productInventoryHref(r.productId)}>{t('inventory.action.editStock')}</Link>
+            {kpis && kpis.perWarehouseTotals.length > 0 ? (
+              <Card className="mb-4">
+                <CardHeader>
+                  <CardTitle>{t('inventory.perWarehouseTotals')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <dl className="flex flex-wrap gap-6">
+                    {kpis.perWarehouseTotals.map((row) => (
+                      <div key={row.warehouseId}>
+                        <dt className="text-xs uppercase text-muted-foreground">{row.warehouseCode}</dt>
+                        <dd className="text-xl font-semibold tabular-nums">{row.onHand.toLocaleString()}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </CardContent>
+              </Card>
+            ) : null}
+          </>
+        }
+        toolbar={
+          // Issue #1440 (DS-06) — the kit toolbar. The two stock chips are exclusive:
+          // pressing one releases the other, because the API takes one stock filter.
+          <ListToolbar
+            label={t('inventory.toolbar.label')}
+            className="min-w-0 flex-1"
+            search={
+              <ListToolbarSearch
+                ref={searchRef}
+                label={t('inventory.search.label')}
+                placeholder={t('inventory.search.placeholder')}
+                value={query}
+                onValueChange={setQuery}
+              />
+            }
+            filters={
+              <>
+                <FilterChip
+                  icon={<AlertCircle size={12} />}
+                  pressed={statusFilter === 'low'}
+                  onPressedChange={(next): void => setStatusFilter(next ? 'low' : 'all')}
+                >
+                  {t('inventory.stat.lowStock')}
+                </FilterChip>
+                <FilterChip
+                  icon={<AlertCircle size={12} />}
+                  pressed={statusFilter === 'out'}
+                  onPressedChange={(next): void => setStatusFilter(next ? 'out' : 'all')}
+                >
+                  {t('inventory.stat.outOfStock')}
+                </FilterChip>
+              </>
+            }
+          />
+        }
+        count={t('inventory.count', { count: total })}
+        load={listLoad}
+        busy={loading && !firstLoad}
+        onRetry={(): void => void refresh()}
+        pagination={{
+          page,
+          pageSize,
+          total,
+          onPageSizeChange: setPageSize,
+          onPrev: (): void => setPage((p) => Math.max(0, p - 1)),
+          onNext: (): void => setPage((p) => p + 1),
+        }}
+      >
+        <ResponsiveTable
+          data={filtered}
+          keyExtractor={(r) => r.productId}
+          emptyState={
+            filtersActive ? (
+              <EmptyState variant="no-results" title={t('inventory.empty')} onClearFilters={clearFilters} focusAfterClear={searchRef} />
+            ) : (
+              <EmptyState
+                icon={<Boxes size={20} />}
+                title={t('inventory.noData.title')}
+                description={canWrite ? t('inventory.noData.body') : t('inventory.noData.bodyReadOnly')}
+                action={
+                  canWrite ? (
+                    <Button asChild>
+                      <Link to="/inventory/import">
+                        <Upload aria-hidden="true" /> {t('inventory.action.import')}
+                      </Link>
                     </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-
-        <PaginationFooter
-          page={page}
-          pageSize={pageSize}
-          total={total}
-          onPageSizeChange={setPageSize}
-          onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
-          onNext={(): void => setPage((p) => p + 1)}
+                  ) : null
+                }
+              />
+            )
+          }
+          columns={[
+            { id: 'product', header: t('inventory.column.product'), primary: true, render: (r) => r.productName, meta: (r) => r.productSku },
+            {
+              id: 'sku',
+              header: t('inventory.column.sku'),
+              hideOnMobile: true,
+              className: 'font-mono text-xs text-muted-foreground',
+              render: (r) => r.productSku,
+            },
+            {
+              id: 'onHand',
+              header: t('inventory.column.cumulativeOnHand'),
+              className: 'text-right font-semibold tabular-nums',
+              render: (r) => r.cumulativeOnHand.toLocaleString(),
+            },
+            {
+              id: 'perWarehouse',
+              header: t('inventory.column.perWarehouse'),
+              hideOnMobile: true,
+              render: (r) => (
+                <div className="flex flex-wrap gap-2">
+                  {r.perWarehouse.map((w) => (
+                    <span key={w.warehouseId} className="b2b-badge" title={w.warehouseId}>
+                      {w.warehouseCode}: {w.onHand.toLocaleString()}
+                    </span>
+                  ))}
+                </div>
+              ),
+            },
+            {
+              id: 'band',
+              header: t('inventory.column.displayBand'),
+              render: (r) => <span className={stockDisplayBandTone(r.displayBand)}>{stockDisplayBandLabels.label(t, r.displayBand)}</span>,
+            },
+          ]}
+          renderActions={(r) => (
+            <Button asChild variant="ghost" size="sm">
+              <Link to={productInventoryHref(r.productId)}>{t('inventory.action.editStock')}</Link>
+            </Button>
+          )}
         />
-      </Card>
+      </ListPage>
     </div>
   );
 }

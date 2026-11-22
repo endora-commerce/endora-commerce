@@ -6,12 +6,10 @@ import {
   AlertDescription,
   Badge,
   Button,
-  Card,
-  CardContent,
   Checkbox,
+  EmptyState,
   Input,
   Label,
-  PageHeader,
   Select,
   TabPanel,
   Textarea,
@@ -19,11 +17,13 @@ import {
 import {
   ConfirmDialog,
   ContentLanguageTabs,
+  ListPage,
   ModalDialog,
   ResponsiveTable,
   RowActionMenu,
   RowActionMenuItem,
   SalesChannelPicker,
+  type ListPageLoad,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
@@ -117,9 +117,12 @@ export function ReturnClausesPage(): ReactNode {
     { id: 'updated', header: tr('clauses.col.updated'), hideOnMobile: true, render: (c) => formatDateTime(c.updatedAt, language) },
   ];
 
+  const listLoad: ListPageLoad =
+    clauses !== null ? { kind: 'ready' } : error ? { kind: 'error', message: error } : { kind: 'loading' };
+
   return (
-    <div className="space-y-4">
-      <PageHeader
+    <>
+      <ListPage
         title={tr('clauses.title')}
         actions={
           <Button ref={addRef} size="sm" onClick={() => setEditing({ clause: null })}>
@@ -127,37 +130,33 @@ export function ReturnClausesPage(): ReactNode {
             {tr('clauses.add')}
           </Button>
         }
-      />
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      <Card>
-        <CardContent>
-          {clauses === null ? null : (
-            <ResponsiveTable
-              data={clauses}
-              keyExtractor={(c) => c.id}
-              columns={columns}
-              emptyState={
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <FileCheck className="size-4" aria-hidden="true" />
-                  {tr('clauses.empty')}
-                </p>
-              }
-              renderActions={(c) => (
-                <RowActionMenu label={tr('clauses.actions', { label: c.label[LANGUAGE_FALLBACK] ?? '' })}>
-                  <RowActionMenuItem onSelect={() => setEditing({ clause: c })}>{tr('clauses.edit')}</RowActionMenuItem>
-                  <RowActionMenuItem destructive onSelect={() => setDeleting(c)}>
-                    {tr('clauses.delete')}
-                  </RowActionMenuItem>
-                </RowActionMenu>
-              )}
-            />
+        count={tr('clauses.count', { count: clauses?.length ?? 0 })}
+        notice={
+          clauses !== null && error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null
+        }
+        load={listLoad}
+        onRetry={() => void refresh()}
+      >
+        <ResponsiveTable
+          data={clauses ?? []}
+          keyExtractor={(c) => c.id}
+          columns={columns}
+          // Issue #1749: the kit block, not a bare grey sentence (DS-15); the one Add is in the header.
+          emptyState={<EmptyState icon={<FileCheck size={20} />} title={tr('clauses.empty')} />}
+          renderActions={(c) => (
+            <RowActionMenu label={tr('clauses.actions', { label: c.label[LANGUAGE_FALLBACK] ?? '' })}>
+              <RowActionMenuItem onSelect={() => setEditing({ clause: c })}>{tr('clauses.edit')}</RowActionMenuItem>
+              <RowActionMenuItem destructive onSelect={() => setDeleting(c)}>
+                {tr('clauses.delete')}
+              </RowActionMenuItem>
+            </RowActionMenu>
           )}
-        </CardContent>
-      </Card>
+        />
+      </ListPage>
 
       {editing && (
         <ClauseDialog
@@ -191,7 +190,7 @@ export function ReturnClausesPage(): ReactNode {
           }
         />
       )}
-    </div>
+    </>
   );
 }
 
