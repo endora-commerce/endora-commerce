@@ -10,7 +10,13 @@ import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SettingNotRegistered, SettingOutOfScopeForChannel } from '@endora-commerce/platform/kernel';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
-import type { SettingsAdminAuditContext, SettingsAdminPort } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  type EmailBrandingField,
+  type SettingsAdminAuditContext,
+  type SettingsAdminPort,
+} from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { TRANSACTIONAL_EMAILS_SETTING_CODES } from '../../manifest.js';
 
@@ -167,4 +173,34 @@ export class BrandingService {
     }
     return this.resolve(salesChannelId);
   }
+
+  /**
+   * Remove a sales channel's own value for each named field, so the channel
+   * inherits the all-channels value again (issue #1588). The all-channels value
+   * is not copied in: a copy would stop the channel following a later change.
+   */
+  async reset(
+    salesChannelId: string,
+    fields: readonly EmailBrandingField[],
+    actor: SettingsAdminAuditContext,
+  ): Promise<ResolvedBranding> {
+    if (!this.writeDeps) {
+      throw new Error('Branding write is not configured.');
+    }
+    const channel = await this.writeDeps.emFactory().findOne(SalesChannel, { id: salesChannelId });
+    if (!channel) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Sales channel ${salesChannelId} not found.`);
+    }
+    for (const field of fields) {
+      await this.writeDeps.admin.resetValuesForSubset(SETTING_CODE_OF_FIELD[field], [channel.code], actor);
+    }
+    return this.resolve(salesChannelId);
+  }
 }
+
+const SETTING_CODE_OF_FIELD: Readonly<Record<EmailBrandingField, string>> = {
+  logoAssetId: TRANSACTIONAL_EMAILS_SETTING_CODES.LOGO_ASSET_ID,
+  accentColor: TRANSACTIONAL_EMAILS_SETTING_CODES.ACCENT_COLOR,
+  headerBlockCode: TRANSACTIONAL_EMAILS_SETTING_CODES.HEADER_BLOCK_CODE,
+  footerBlockCode: TRANSACTIONAL_EMAILS_SETTING_CODES.FOOTER_BLOCK_CODE,
+};

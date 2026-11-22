@@ -269,6 +269,8 @@ describe('EmailBrandingPage', () => {
 
       expect(within(accent).queryByRole('button', { name: en['branding.inherit.action'] })).toBeNull();
       expect((saveButton() as HTMLButtonElement).disabled).toBe(false);
+      // The control went with the click, so focus moves on to Save rather than to the page.
+      expect(document.activeElement).toBe(saveButton());
       await userEvent.click(saveButton());
 
       await waitFor(() => expect(resetBranding).toHaveBeenCalledWith(CHANNEL.id, ['accentColor']));
