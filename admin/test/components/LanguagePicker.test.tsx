@@ -324,6 +324,21 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
     expect(saveSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('styles the trigger, the error and the open menu without inline styles', async () => {
+    saveSpy.mockRejectedValue(new Error('Save failed'));
+    renderPicker();
+    const root = trigger().parentElement!;
+    await select('pl');
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(bundles.en[errorKey]!));
+    // Opening the menu clears the error, so check the error state first.
+    expect(root).not.toHaveAttribute('style');
+    expect(root.querySelectorAll('[style]')).toHaveLength(0);
+
+    await userEvent.click(trigger());
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(root.querySelectorAll('[style]')).toHaveLength(0);
+  });
+
   it('cannot start a duplicate request while a save is pending', async () => {
     const pending = deferred<void>();
     saveSpy.mockImplementation(() => pending.promise);
