@@ -43,15 +43,21 @@ export function LanguagePicker(): ReactNode {
   const errorId = useId();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
-  // Close on outside click and on Escape, matching standard menu behaviour.
+  // Close the menu and dismiss save feedback on outside click or Escape.
   useEffect(() => {
-    if (!open) return;
+    if (!open && !saveFailed) return;
     const onPointer = (e: MouseEvent): void => {
       const node = wrapperRef.current;
-      if (node && !node.contains(e.target as Node)) setOpen(false);
+      if (node && !node.contains(e.target as Node)) {
+        setOpen(false);
+        setSaveFailed(false);
+      }
     };
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') {
+        setOpen(false);
+        setSaveFailed(false);
+      }
     };
     document.addEventListener('mousedown', onPointer);
     document.addEventListener('keydown', onKey);
@@ -59,7 +65,7 @@ export function LanguagePicker(): ReactNode {
       document.removeEventListener('mousedown', onPointer);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, saveFailed]);
 
   const pick = useCallback(
     async (next: SupportedAdminLanguage): Promise<void> => {
@@ -75,10 +81,12 @@ export function LanguagePicker(): ReactNode {
         saved = true;
         await refresh();
       } catch (err) {
-        if (!saved) setSaveFailed(true);
-        // Roll back the optimistic flip so the UI doesn't lie about what the
-        // server stored. A failed save gets inline feedback, not a modal.
-        setLanguage(previous);
+        if (!saved) {
+          setSaveFailed(true);
+          // Roll back only when the preference save failed; a refresh failure
+          // must not undo the language the server already stored.
+          setLanguage(previous);
+        }
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
           console.warn(
@@ -103,7 +111,10 @@ export function LanguagePicker(): ReactNode {
         aria-expanded={open}
         aria-describedby={saveFailed ? errorId : undefined}
         disabled={submitting}
-        onClick={(): void => setOpen((v) => !v)}
+        onClick={(): void => {
+          if (!open) setSaveFailed(false);
+          setOpen((v) => !v);
+        }}
         // Custom pill style — the topbar's icon-btn class fixes the box at
         // 34×34px which clips the flag + code + chevron triplet. Match the
         // same hover treatment but let the width grow to fit the content.
@@ -139,20 +150,7 @@ export function LanguagePicker(): ReactNode {
         <span className="b2b-lang-picker__label">{language.toUpperCase()}</span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
-      <div
-        style={{
-          position: 'absolute',
-          top: 'calc(100% + 4px)',
-          right: 0,
-          zIndex: 60,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          gap: 4,
-          width: 'max-content',
-          maxWidth: 'min(20rem, calc(100vw - 16px))',
-        }}
-      >
+      <div className="absolute right-0 top-[calc(100%+4px)] z-[60] flex w-max max-w-[min(20rem,calc(100vw-16px))] flex-col items-end gap-1">
         <InlineStatus
           id={errorId}
           tone="error"

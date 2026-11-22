@@ -221,7 +221,7 @@
   "appShell.impersonation.notice": "Every action you take is audit-logged against your admin account.",
   "appShell.impersonation.title": "Impersonating {customer}",
   "appShell.languageIndicator.label": "UI language",
-  "appShell.languageIndicator.saveFailed": "Could not save your language preference. Please try again.",
+  "appShell.languageIndicator.saveFailed": "Couldn't save your language preference. Try again.",
   "appShell.mobileMenu.close": "Close menu",
   "appShell.mobileMenu.open": "Open menu",
   "appShell.mobileMenu.title": "Navigation",

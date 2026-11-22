@@ -112,6 +112,21 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
   it('mounts an empty, polite live region before any save', () => {
     renderPicker();
     const status = screen.getByRole('status');
+    const wrapper = status.parentElement!;
+    expect(wrapper).toHaveClass(
+      'absolute',
+      'right-0',
+      'top-[calc(100%+4px)]',
+      'z-[60]',
+      'flex',
+      'w-max',
+      'max-w-[min(20rem,calc(100vw-16px))]',
+      'flex-col',
+      'items-end',
+      'gap-1',
+    );
+    expect(wrapper).not.toHaveAttribute('style');
+    expect(trigger().parentElement).toHaveStyle({ position: 'relative' });
     expect(status).toBeEmptyDOMElement();
     expect(status).toHaveAttribute('aria-live', 'polite');
     expect(status).toHaveAttribute('aria-atomic', 'true');
@@ -152,6 +167,22 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
     expect(trigger()).not.toHaveAttribute('aria-describedby');
   });
 
+  it('keeps the saved language without save-error feedback when refresh fails', async () => {
+    saveSpy.mockResolvedValue();
+    refreshSpy.mockRejectedValue(new Error('Refresh failed'));
+    renderPicker();
+    const status = screen.getByRole('status');
+
+    await select('pl');
+    await waitFor(() => expect(refreshSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(trigger()).not.toBeDisabled());
+
+    expect(saveSpy).toHaveBeenCalledExactlyOnceWith('pl');
+    expect(trigger()).toHaveTextContent('PL');
+    expect(status).toBeEmptyDOMElement();
+    expect(trigger()).not.toHaveAttribute('aria-describedby');
+  });
+
   it.each(['en', 'pl'] as const)(
     'rolls back and announces a refused save in %s without refreshing',
     async (initialLanguage) => {
@@ -164,6 +195,9 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
 
       await select(next);
       await waitFor(() => expect(status).toHaveTextContent(bundles[initialLanguage][errorKey]!));
+      if (initialLanguage === 'en') {
+        expect(status).toHaveTextContent("Couldn't save your language preference. Try again.");
+      }
       expect(trigger()).toHaveTextContent(initialLanguage.toUpperCase());
       expect(trigger()).not.toBeDisabled();
       expect(refreshSpy).not.toHaveBeenCalled();
@@ -186,7 +220,7 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent('Network request failed');
   });
 
-  it('clears the old error only when a genuine retry starts and keeps it clear on success', async () => {
+  it('clears the old error on reopening and keeps it clear on a successful retry', async () => {
     const retry = deferred<void>();
     saveSpy.mockRejectedValueOnce(new Error('First save failed'));
     saveSpy.mockImplementationOnce(() => retry.promise);
@@ -227,7 +261,7 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
     expect(refreshSpy).not.toHaveBeenCalled();
   });
 
-  it('does not save or clear an existing failure when selecting the current language', async () => {
+  it('does not save when selecting the current language after reopening', async () => {
     saveSpy.mockRejectedValue(new Error('Save failed'));
     renderPicker();
     const status = screen.getByRole('status');
@@ -237,9 +271,57 @@ describe('LanguagePicker — preferred-language save feedback (#1769)', () => {
     await select('en');
     expect(saveSpy).toHaveBeenCalledTimes(1);
     expect(refreshSpy).not.toHaveBeenCalled();
-    expect(status).toHaveTextContent(bundles.en[errorKey]!);
-    expect(trigger()).toHaveAttribute('aria-describedby', status.id);
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status).toBeEmptyDOMElement();
+    expect(trigger()).not.toHaveAttribute('aria-describedby');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('dismisses a save error with Escape while keeping the live region mounted', async () => {
+    saveSpy.mockRejectedValue(new Error('Save failed'));
+    renderPicker();
+    const status = screen.getByRole('status');
+    await select('pl');
+    await waitFor(() => expect(status).toHaveTextContent(bundles.en[errorKey]!));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status).toBeEmptyDOMElement();
+    expect(trigger()).not.toHaveAttribute('aria-describedby');
+    expect(trigger()).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('dismisses a save error on an outside click while keeping the live region mounted', async () => {
+    saveSpy.mockRejectedValue(new Error('Save failed'));
+    renderPicker();
+    const status = screen.getByRole('status');
+    await select('pl');
+    await waitFor(() => expect(status).toHaveTextContent(bundles.en[errorKey]!));
+
+    fireEvent.mouseDown(document.body);
+
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status).toBeEmptyDOMElement();
+    expect(trigger()).not.toHaveAttribute('aria-describedby');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('dismisses a save error when reopening the menu without starting another save', async () => {
+    saveSpy.mockRejectedValue(new Error('Save failed'));
+    renderPicker();
+    const status = screen.getByRole('status');
+    await select('pl');
+    await waitFor(() => expect(status).toHaveTextContent(bundles.en[errorKey]!));
+
+    await userEvent.click(trigger());
+
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status).toBeEmptyDOMElement();
+    expect(trigger()).not.toHaveAttribute('aria-describedby');
+    expect(saveSpy).toHaveBeenCalledTimes(1);
   });
 
   it('cannot start a duplicate request while a save is pending', async () => {
