@@ -8,6 +8,8 @@
   "list.error.load": "Failed to load sales channels.",
   "list.action.newChannel": "+ New channel",
   "list.filter.activeOnly": "Show active channels only",
+  "list.toolbar.label": "Filter sales channels",
+  "list.count": "Sales channels: {count}",
   "list.loading": "Loading sales channels…",
   "list.empty": "No channels match the filter.",
   "list.noData.title": "No sales channels yet",

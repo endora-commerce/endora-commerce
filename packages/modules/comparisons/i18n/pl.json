@@ -6,6 +6,7 @@
   "error.load": "Nie udało się wczytać.",
   "common.loading": "Wczytywanie…",
   "list.page.title": "Porównania",
+  "list.toolbar.label": "Filtruj porównania",
   "list.filter.salesChannelId": "Id kanału sprzedaży",
   "list.filter.uuidOptional": "uuid (opcjonalnie)",
   "list.filter.owner": "Właściciel",

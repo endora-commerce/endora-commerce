@@ -8,6 +8,8 @@
   "list.error.load": "Nie udało się wczytać kanałów sprzedaży.",
   "list.action.newChannel": "+ Nowy kanał",
   "list.filter.activeOnly": "Pokaż tylko aktywne kanały",
+  "list.toolbar.label": "Filtruj kanały sprzedaży",
+  "list.count": "Kanały sprzedaży: {count}",
   "list.loading": "Wczytywanie kanałów sprzedaży…",
   "list.empty": "Żaden kanał nie pasuje do filtra.",
   "list.noData.title": "Nie ma jeszcze kanałów sprzedaży",

@@ -8,7 +8,17 @@ import type {
   UpdateConfiguration,
 } from '@endora-commerce/contracts';
 import { Badge, Button, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import {
+  ListPage,
+  ResponsiveTable,
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+  useConfirmDialog,
+  useRemovalFocus,
+  type ListPageLoad,
+  type ResponsiveColumn,
+} from '@endora-commerce/admin-kit/components';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { credentialsClient } from '../api/credentials-client.js';
@@ -19,12 +29,21 @@ import { ConfigurationPreviewModal } from '../../admin-ui/ConfigurationPreviewMo
  * Credentials management page (feature 058 US1).
  *
  * Lists configurations (secrets masked), supports create/edit via the dynamic
- * `ConfigurationForm`, delete via `window.confirm`, and a read-only preview.
- * Inert configurations (unregistered type) render read-only.
+ * `ConfigurationForm`, a confirmed delete, and a read-only preview. Inert
+ * configurations (unregistered type) render read-only.
+ *
+ * The list is the kit's `ListPage` (issue #1749): the name opens the
+ * configuration, *Preview*, *Edit* and *Delete* are the row's menu — *Delete*
+ * last, confirmed, its request run inside the dialog so a refusal (a setting
+ * still uses it) is read there. The endpoint answers every configuration,
+ * unpaged: a deployment holds a few dozen at most, so the screen shows no pager.
  *
  * `initialMode` lets the `/credentials/new` route (the command-palette
  * "New credential configuration" action) land straight on the empty form.
  */
+/** Stable, module-level: `useRemovalFocus` keys its targets by it. */
+const rowId = (row: ConfigurationDto): string => row.id;
+
 export interface CredentialsPageProps {
   initialMode?: 'list' | 'new';
 }
@@ -35,13 +54,12 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
   const navigate = useNavigate();
   const [types, setTypes] = useState<ConfigurationTypeDescriptor[]>([]);
   const [items, setItems] = useState<ConfigurationDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
   const [mode, setMode] = useState<'list' | 'new' | 'edit'>(initialMode);
   const [editing, setEditing] = useState<ConfigurationDto | null>(null);
   const [preview, setPreview] = useState<ConfigurationDto | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [listError, setListError] = useState<string | null>(null);
 
   const messageFor = useCallback(
     (err: unknown): string => {
@@ -70,18 +88,20 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
   );
 
   const reload = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setListError(null);
+    // A reload after a save keeps the rows on screen rather than flashing the skeleton.
+    setLoad((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading' }));
     try {
       const [ts, list] = await Promise.all([credentialsClient.listTypes(), credentialsClient.list()]);
       setTypes(ts);
       setItems(list);
+      setLoad({ kind: 'ready' });
     } catch (err) {
-      setListError(messageFor(err));
-    } finally {
-      setLoading(false);
+      setLoad({ kind: 'error', message: messageFor(err) });
     }
   }, [messageFor]);
+
+  // After a delete, focus goes to the next row's name, or to New once the list is empty (WCAG 2.4.3).
+  const removalFocus = useRemovalFocus(items, rowId, load.kind === 'ready');
 
   useEffect(() => {
     void reload();
@@ -125,18 +145,44 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
   };
 
   const onDelete = async (row: ConfigurationDto): Promise<void> => {
-    const ok = await confirm({ message: t('page.deleteConfirm'), confirmLabel: t('action.delete'), destructive: true });
+    // The request runs inside the dialog: a configuration a setting still
+    // references is refused there, with the settings to detach (FR-012).
+    const ok = await confirm({
+      message: t('page.deleteConfirm'),
+      confirmLabel: t('action.delete'),
+      destructive: true,
+      action: () => credentialsClient.delete(row.code),
+      describeError: messageFor,
+      returnFocusTo: removalFocus.returnFocusTo(row),
+    });
     if (!ok) return;
-    try {
-      await credentialsClient.delete(row.code);
-      await reload();
-    } catch (err) {
-      setListError(messageFor(err));
-    }
+    // The row goes in place rather than through a reload, so the row focus moved to stays mounted.
+    setItems((current) => current.filter((candidate) => candidate.id !== row.id));
+  };
+
+  const openEdit = (row: ConfigurationDto): void => {
+    setEditing(row);
+    setFormError(null);
+    setMode('edit');
   };
 
   const columns: ResponsiveColumn<ConfigurationDto>[] = [
-    { id: 'name', header: t('table.name'), primary: true, render: (r) => r.name },
+    {
+      id: 'name',
+      header: t('table.name'),
+      primary: true,
+      // The name opens the configuration: its editor, or — for an inert one, which cannot be edited — its preview.
+      render: (r) => (
+        <button
+          ref={removalFocus.targetRef(r)}
+          type="button"
+          className="rounded-sm text-left font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={(): void => (r.inert ? setPreview(r) : openEdit(r))}
+        >
+          {r.name}
+        </button>
+      ),
+    },
     { id: 'code', header: t('table.code'), render: (r) => <code className="text-xs">{r.code}</code> },
     {
       id: 'type',
@@ -170,6 +216,9 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
 
   const newButton = (
     <Button
+      ref={(element) => {
+        removalFocus.createRef.current = element;
+      }}
       onClick={() => {
         setEditing(null);
         setFormError(null);
@@ -183,15 +232,17 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
   // Issue #1448 (DS-15): while there is no configuration, the empty state's
   // New configuration is the view's one primary; the header does not repeat it
   // (Von Restorff). With no type to create, the empty state says why instead.
-  const noData = !loading && listError === null && items.length === 0;
+  const noData = load.kind === 'ready' && items.length === 0;
 
   return (
-    <div>
-      <PageHeader title={t('page.title')} actions={noData ? null : newButton} />
-
-      {listError ? <p className="mb-3 text-sm text-destructive">{listError}</p> : null}
-
-      {loading ? null : (
+    <>
+      <ListPage
+        title={t('page.title')}
+        actions={noData ? null : newButton}
+        count={t('page.count', { count: items.length })}
+        load={load}
+        onRetry={() => void reload()}
+      >
         <ResponsiveTable
           columns={columns}
           data={items}
@@ -205,29 +256,19 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
             />
           }
           renderActions={(r) => (
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPreview(r)}>
-                {t('action.preview')}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={r.inert}
-                onClick={() => {
-                  setEditing(r);
-                  setFormError(null);
-                  setMode('edit');
-                }}
-              >
+            <RowActionMenu label={t('action.menu', { name: r.name })}>
+              <RowActionMenuItem onSelect={() => setPreview(r)}>{t('action.preview')}</RowActionMenuItem>
+              <RowActionMenuItem disabled={r.inert} onSelect={() => openEdit(r)}>
                 {t('action.edit')}
-              </Button>
-              <Button variant="destructive" size="sm" onClick={() => void onDelete(r)}>
+              </RowActionMenuItem>
+              <RowActionMenuSeparator />
+              <RowActionMenuItem destructive onSelect={() => void onDelete(r)}>
                 {t('action.delete')}
-              </Button>
-            </div>
+              </RowActionMenuItem>
+            </RowActionMenu>
           )}
         />
-      )}
+      </ListPage>
 
       <ConfigurationPreviewModal
         open={preview !== null}
@@ -235,7 +276,7 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
         onClose={() => setPreview(null)}
       />
       {confirmDialog}
-    </div>
+    </>
   );
 }
 

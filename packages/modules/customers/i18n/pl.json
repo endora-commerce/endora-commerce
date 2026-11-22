@@ -81,6 +81,7 @@
   "online.emptyBody": "Odśwież, aby sprawdzić ponownie, lub włącz automatyczne odświeżanie.",
   "online.column.lastSeen": "Ostatnio widziany",
   "online.refresh": "Odśwież",
+  "online.count": "Teraz online: {count}",
   "online.autoRefresh": "Automatyczne odświeżanie",
   "online.intervalLabel": "Interwał (sekundy)",
   "online.refreshedAt": "Zaktualizowano {time}",

@@ -1,31 +1,46 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CheckCircle2, ClipboardCopy, RefreshCw } from 'lucide-react';
 import { ApiError, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EmptyState, InlineStatus, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { ListPage, ResponsiveTable, type ListPageLoad } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import type { DictionaryOrphanRow } from '@endora-commerce/contracts';
 import { dictionaryClient } from '../api/client.js';
 
+const rowKey = (row: DictionaryOrphanRow): string => `${row.dictionary}:${row.tableName}:${row.columnName}:${row.code}`;
+
+/**
+ * The orphan-reference audit: every stored code no dictionary entry answers
+ * for any more, grouped by where it is stored.
+ *
+ * The kit's `ListPage` since issue #1749. The report's tools — refresh, copy
+ * as CSV, invalidate the cache — are the toolbar row, their results said beside
+ * them (`InlineStatus`, DEC-12 a) rather than in a banner; the number of groups
+ * is the list's count. The report is computed whole, so there is no pager.
+ */
 export function DictionaryAuditPage(): ReactNode {
   const t = useTranslation('dictionaries');
   const { language } = useTranslationContext();
   const [rows, setRows] = useState<DictionaryOrphanRow[]>([]);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
+  const [refreshing, setRefreshing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const status = useInlineStatus();
+  const { show: showStatus, clear: clearStatus } = status;
 
   const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
+    setLoad((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading' }));
+    setRefreshing(true);
     try {
       const res = await dictionaryClient.getOrphanAudit();
       setRows(res.data);
       setGeneratedAt(res.meta.generatedAt);
+      setLoad({ kind: 'ready' });
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('audit.error.load'));
+      setLoad({ kind: 'error', message: err instanceof ApiError ? err.envelope.error.message : t('audit.error.load') });
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   }, [t]);
 
@@ -36,112 +51,80 @@ export function DictionaryAuditPage(): ReactNode {
   const csv = useMemo(() => toCsv(rows), [rows]);
 
   const copyCsv = useCallback(async (): Promise<void> => {
+    setActionError(null);
+    clearStatus();
     try {
       await navigator.clipboard.writeText(csv);
-      setInfo(t('audit.info.copied'));
+      showStatus(t('audit.info.copied'));
     } catch {
-      setError(t('audit.error.copy'));
+      setActionError(t('audit.error.copy'));
     }
-  }, [csv, t]);
+  }, [csv, t, showStatus, clearStatus]);
 
   const invalidateCache = useCallback(async (): Promise<void> => {
-    setError(null);
+    setActionError(null);
+    clearStatus();
     try {
       await dictionaryClient.invalidateCache();
-      setInfo(t('audit.info.invalidated'));
+      showStatus(t('audit.info.invalidated'));
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('audit.error.invalidate'));
+      setActionError(err instanceof ApiError ? err.envelope.error.message : t('audit.error.invalidate'));
     }
-  }, [t]);
+  }, [t, showStatus, clearStatus]);
 
   return (
-    <>
-      <PageHeader
-        title={t('audit.page.title')}
-        description={t('audit.page.description')}
-      />
-
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" onClick={() => void refresh()} disabled={loading}>
-          <RefreshCw />
-          {t('audit.refresh')}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => void copyCsv()} disabled={rows.length === 0}>
-          <ClipboardCopy />
-          {t('audit.copyCsv')}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => void invalidateCache()}>
-          <RefreshCw />
-          {t('audit.invalidateCache')}
-        </Button>
-        {generatedAt ? (
-          <span className="text-sm text-muted-foreground">
-            {t('audit.generatedAt', { date: formatDateTime(generatedAt, language) })}
-          </span>
-        ) : null}
-      </div>
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert live="polite" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <CardTitle>{t('audit.orphanReferences')}</CardTitle>
-          <Badge variant={rows.length === 0 ? 'outline' : 'destructive'}>
-            {loading ? t('audit.loading') : t('audit.groupCount', { count: rows.length })}
-          </Badge>
-        </CardHeader>
-        <CardContent>
-          {/* Issue #1448 (DS-15): a clean report is the card's whole body, so it is
-              the kit block — not an empty table with one grey row. It is claimed
-              only for a report that loaded: a failed load says so in the alert. */}
-          {rows.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('audit.column.dictionary')}</TableHead>
-                  <TableHead>{t('audit.column.consumer')}</TableHead>
-                  <TableHead>{t('audit.column.table')}</TableHead>
-                  <TableHead>{t('audit.column.column')}</TableHead>
-                  <TableHead>{t('audit.column.code')}</TableHead>
-                  <TableHead className="text-right">{t('audit.column.rows')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={`${row.dictionary}:${row.tableName}:${row.columnName}:${row.code}`}>
-                    <TableCell>{row.dictionary}</TableCell>
-                    <TableCell>{row.consumer}</TableCell>
-                    <TableCell>{row.tableName}</TableCell>
-                    <TableCell>{row.columnName}</TableCell>
-                    <TableCell className="font-mono text-xs">{row.code}</TableCell>
-                    <TableCell className="text-right">{row.count}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : loading ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              {t('audit.loadingReport')}
-            </p>
-          ) : generatedAt !== null ? (
-            <EmptyState
-              icon={<CheckCircle2 size={20} />}
-              title={t('audit.empty')}
-              description={t('audit.emptyBody')}
-            />
+    <ListPage
+      title={t('audit.page.title')}
+      description={t('audit.page.description')}
+      toolbar={
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" onClick={() => void refresh()} disabled={refreshing} aria-busy={refreshing || undefined}>
+            <RefreshCw aria-hidden="true" />
+            {t('audit.refresh')}
+          </Button>
+          <Button type="button" variant="outline" onClick={() => void copyCsv()} disabled={rows.length === 0}>
+            <ClipboardCopy aria-hidden="true" />
+            {t('audit.copyCsv')}
+          </Button>
+          <Button type="button" variant="outline" onClick={() => void invalidateCache()}>
+            <RefreshCw aria-hidden="true" />
+            {t('audit.invalidateCache')}
+          </Button>
+          <InlineStatus {...status.props} />
+          {generatedAt ? (
+            <span className="text-sm text-muted-foreground">
+              {t('audit.generatedAt', { date: formatDateTime(generatedAt, language) })}
+            </span>
           ) : null}
-        </CardContent>
-      </Card>
-    </>
+        </div>
+      }
+      count={t('audit.groupCount', { count: rows.length })}
+      notice={
+        actionError ? (
+          <Alert variant="destructive">
+            <AlertDescription>{actionError}</AlertDescription>
+          </Alert>
+        ) : null
+      }
+      load={load}
+      onRetry={() => void refresh()}
+    >
+      <ResponsiveTable
+        data={rows}
+        keyExtractor={rowKey}
+        // Issue #1448 (DS-15): a clean report is the region's whole body, so it is
+        // the kit block — not an empty table with one grey row.
+        emptyState={<EmptyState icon={<CheckCircle2 size={20} />} title={t('audit.empty')} description={t('audit.emptyBody')} />}
+        columns={[
+          { id: 'dictionary', header: t('audit.column.dictionary'), primary: true, render: (row) => row.dictionary, meta: (row) => row.consumer },
+          { id: 'consumer', header: t('audit.column.consumer'), hideOnMobile: true, render: (row) => row.consumer },
+          { id: 'table', header: t('audit.column.table'), render: (row) => row.tableName },
+          { id: 'column', header: t('audit.column.column'), render: (row) => row.columnName },
+          { id: 'code', header: t('audit.column.code'), render: (row) => <span className="font-mono text-xs">{row.code}</span> },
+          { id: 'rows', header: t('audit.column.rows'), className: 'text-right', render: (row) => row.count },
+        ]}
+      />
+    </ListPage>
   );
 }
 

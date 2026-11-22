@@ -81,6 +81,7 @@
   "online.emptyBody": "Refresh to check again, or turn on auto-refresh.",
   "online.column.lastSeen": "Last seen",
   "online.refresh": "Refresh",
+  "online.count": "Online now: {count}",
   "online.autoRefresh": "Auto-refresh",
   "online.intervalLabel": "Interval (seconds)",
   "online.refreshedAt": "Updated {time}",

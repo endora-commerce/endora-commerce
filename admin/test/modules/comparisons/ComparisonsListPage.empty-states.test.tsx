@@ -90,6 +90,7 @@ describe('ComparisonsListPage — empty states (#1448)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'common.emptyState.clearFilters' }));
     expect(owner.value).toBe('');
     expect(await screen.findByText('b2b')).toBeTruthy();
-    await waitFor(() => expect(listComparisons.mock.calls.at(-1)![0]).toEqual({}));
+    // No filter is sent any more — only the page size of the kit pager (#1749).
+    await waitFor(() => expect(Object.keys(listComparisons.mock.calls.at(-1)![0] as object)).toEqual(['limit']));
   });
 });
