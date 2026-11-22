@@ -240,7 +240,8 @@ export function checkTextBudget(input: {
  */
 export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   // Measured with `--print-baseline` on `origin/master` 2026-11-20 (issue #1451); re-measured
-  // 2026-11-21 after `promotions.page.description` was cut (#1436).
+  // 2026-11-21 after `promotions.page.description` was cut (#1436), and 2026-11-22 after
+  // `product_feeds:feeds.settings.priceBook.hint` was cut (#1567).
   '_i18n:fulfilment.hint': 119,
   '_i18n:pageBuilder.fieldText.editorName.hint': 81,
   '_i18n:platform.commandHooks.outbox.hint': 94,
@@ -252,7 +253,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'product_feeds:checks.reason.transport.hint': 140,
   'product_feeds:delivery.empty.subtitle': 121,
   'product_feeds:feeds.empty.subtitle': 90,
-  'product_feeds:feeds.settings.priceBook.hint': 98,
   'product_feeds:templates.startingPoint.hint': 103,
   'seo:productLink.hint': 95,
 };
