@@ -6,7 +6,7 @@
   "actions.openSearchEngineRobots.description": "Otwórz Ustawienia, aby wybrać, czy wyszukiwarki mogą indeksować kanał sprzedaży (domyślne robots, noindex)",
   "settingGroups.seo.name": "SEO",
   "settingLabels.seo.enabled.name": "SEO włączone",
-  "settingLabels.seo.enabled.description": "Gdy wyłączone, sklep nie wysyła domyślnej dyrektywy robots: kanał z noindex znów staje się indeksowalny, a llms.txt znika.",
+  "settingLabels.seo.enabled.description": "Gdy wyłączone, sklep nie wysyła domyślnej dyrektywy robots ani llms.txt: kanał z noindex znów staje się indeksowalny.",
   "settingLabels.seo.default_robots.name": "Domyślne robots",
   "settingLabels.seo.default_robots.description": "Co wyszukiwarki wiedzą o każdej stronie sklepu. Tylko dodaje ograniczenia i działa w ciągu kilku minut.",
   "settingLabels.seo.robots_txt_custom.name": "Własne instrukcje robots.txt",

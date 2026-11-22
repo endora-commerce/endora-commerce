@@ -6,7 +6,7 @@
   "actions.openSearchEngineRobots.description": "Open Settings to choose whether search engines may index a sales channel (default robots, noindex)",
   "settingGroups.seo.name": "SEO",
   "settingLabels.seo.enabled.name": "SEO enabled",
-  "settingLabels.seo.enabled.description": "While off, the storefront sends no default robots directive: a channel set to noindex becomes indexable again.",
+  "settingLabels.seo.enabled.description": "While off, the storefront sends no default robots directive or llms.txt: a channel on noindex becomes indexable again.",
   "settingLabels.seo.default_robots.name": "Default robots",
   "settingLabels.seo.default_robots.description": "What search engines are told about every storefront page. It only adds restrictions and applies within minutes.",
   "settingLabels.seo.robots_txt_custom.name": "Custom robots.txt instructions",

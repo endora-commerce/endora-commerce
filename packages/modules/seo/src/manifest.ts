@@ -37,7 +37,7 @@ export const manifest = defineModuleManifest({
         code: 'seo.enabled',
         name: 'SEO enabled',
         description:
-          'While off, the storefront sends no default robots directive: a channel set to noindex becomes indexable again.',
+          'While off, the storefront sends no default robots directive or llms.txt: a channel on noindex becomes indexable again.',
         groupCode: 'seo',
         valueType: 'boolean',
         defaultValue: true,

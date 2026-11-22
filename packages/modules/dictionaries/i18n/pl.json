@@ -117,7 +117,7 @@
   "currency.deleteConfirm": "Usunąć walutę {code}?",
   "language.deleteConfirm": "Usunąć język {code}?",
   "page.title": "Słownik",
-  "page.description": "Kraje, waluty i języki używane w sklepie i w panelu.",
+  "page.description": "Kraje, waluty i języki używane w sklepie.",
   "tabs.label": "Sekcje słownika",
   "tab.countries": "Kraje",
   "tab.currencies": "Waluty",

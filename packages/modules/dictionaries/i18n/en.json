@@ -117,7 +117,7 @@
   "currency.deleteConfirm": "Delete currency {code}?",
   "language.deleteConfirm": "Delete language {code}?",
   "page.title": "Dictionary",
-  "page.description": "Countries, currencies and languages used across the storefront and the admin.",
+  "page.description": "Countries, currencies and languages your shop uses.",
   "tabs.label": "Dictionary sections",
   "tab.countries": "Countries",
   "tab.currencies": "Currencies",

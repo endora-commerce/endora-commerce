@@ -82,7 +82,7 @@
   "feeds.settings.priceBook.missing": "Price book that no longer exists",
   "feeds.settings.priceBook.current": "Current price book",
   "feeds.settings.priceBook.unavailable": "Would not publish for this feed",
-  "feeds.settings.priceBook.hint": "The feed uses the book's prices: one in force now, for everyone, in this channel and its currency.",
+  "feeds.settings.priceBook.hint": "Pick a book in force now, for everyone, in this channel and its currency.",
   "feeds.settings.priceBook.loadFailed": "The price books could not be loaded, so the price book cannot be changed now. Reload the page to try again.",
   "feeds.settings.priceBook.needPriceListsRead": "Choosing a price book needs the permission to view price lists.",
   "feeds.settings.priceBook.reason.not_found": "no longer exists",

@@ -82,7 +82,7 @@
   "feeds.settings.priceBook.missing": "Cennik, który już nie istnieje",
   "feeds.settings.priceBook.current": "Bieżący cennik",
   "feeds.settings.priceBook.unavailable": "Nie publikowałby dla tego feedu",
-  "feeds.settings.priceBook.hint": "Feed użyje cen z cennika. Tylko cennik obowiązujący teraz, dla wszystkich, w tym kanale i walucie.",
+  "feeds.settings.priceBook.hint": "Wybierz cennik obowiązujący teraz, dla wszystkich, w tym kanale i jego walucie.",
   "feeds.settings.priceBook.loadFailed": "Nie udało się wczytać cenników, więc nie można teraz zmienić cennika. Odśwież stronę, aby spróbować ponownie.",
   "feeds.settings.priceBook.needPriceListsRead": "Wybór cennika wymaga uprawnienia do przeglądania cenników.",
   "feeds.settings.priceBook.reason.not_found": "już nie istnieje",

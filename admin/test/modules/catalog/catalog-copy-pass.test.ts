@@ -42,6 +42,14 @@ const DELETED: ReadonlyArray<readonly [module: string, key: string]> = [
   ['catalog', 'packagingUnits.minOrderUnitsHelp'],
   ['seo', 'productSeo.help'],
   ['product_feeds', 'delivery.field.passiveMode.help'],
+  // The rest of the list, removed with their screens' redesign (CAT-01, CAT-02, CAT-08, CAT-13).
+  ['catalog', 'productEditor.scope.editing'],
+  ['catalog', 'inventoryTab.stockMgmt.disableManageStockHelp'],
+  ['catalog', 'productsList.bulk.editPrice'],
+  ['catalog', 'productsList.bulk.editPriceUnavailable'],
+  ['catalog', 'categories.page.description'],
+  ['catalog', 'bulkOperations.subtitle'],
+  ['price_lists', 'priceBooks.create.description'],
 ];
 
 const NOTE = 80;
@@ -87,7 +95,7 @@ const SHORTENED: ReadonlyArray<readonly [module: string, key: string, max: numbe
   ['custom_fields', 'customFields.audience.help', BODY],
   ['custom_fields', 'customFields.carry.help', BODY],
   // Product feeds
-  ['product_feeds', 'feeds.settings.priceBook.hint', BODY],
+  ['product_feeds', 'feeds.settings.priceBook.hint', NOTE],
   ['product_feeds', 'delivery.ftp.plaintextWarning', BODY],
   ['product_feeds', 'delivery.field.headers.secretNote', BODY],
   // SEO and search. The four `settingLabels.seo.*.description` keys are not here: their
@@ -101,6 +109,8 @@ const SHORTENED: ReadonlyArray<readonly [module: string, key: string, max: numbe
   ['import_export', 'importProfiles.mapping.hint', NOTE],
   ['import_export', 'empty', NOTE],
   ['assets_library', 'detail.permalink.help', 60],
+  // Dictionaries (CAT §4): the hard-coded description moved to i18n at ≤ 60.
+  ['dictionaries', 'page.description', 60],
 ];
 
 /** Every `PageHeader` description and subtitle on the area's screens: one line, ≤ 80 (CAT-13). */
