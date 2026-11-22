@@ -41,13 +41,10 @@ describe('kit — formatDate / formatDateTime', () => {
   });
 });
 
-describe('kit — formatDateTime takes the admin language, always (#1776)', () => {
-  it('has no browser-locale fallback: the language is a required argument', () => {
-    // @ts-expect-error — the admin language is required; there is no browser-locale fallback.
-    const unsupported = (): string => formatDateTime('2026-11-17T09:00:00.000Z');
-    expect(typeof unsupported).toBe('function');
-    // @ts-expect-error — the same for a calendar date.
-    const unsupportedDate = (): string => formatDate('2026-11-25');
-    expect(typeof unsupportedDate).toBe('function');
+describe('kit — the no-language form is deprecated, not removed (#1776)', () => {
+  it('still answers with the browser locale for consumers outside this repository', () => {
+    const iso = '2026-11-17T09:00:00.000Z';
+    expect(formatDateTime(iso)).toBe(new Date(iso).toLocaleString());
+    expect(formatDate('2026-11-25')).toBe(new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(2026, 10, 25)));
   });
 });
