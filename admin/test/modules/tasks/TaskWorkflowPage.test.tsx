@@ -161,7 +161,7 @@ describe('TaskWorkflowPage — one save model per card (issue #1559, WORK-08)', 
 
 describe('TaskWorkflowPage — reordering the statuses (issue #1560)', () => {
   const moveDown = (code: string, name: string) =>
-    userEvent.click(within(statusRow(code)).getByRole('button', { name: en('reorder.moveDown', { name }) }));
+    userEvent.click(within(statusRow(code)).getByRole('button', { name: core('reorder.moveRowDown', { name }) }));
 
   it('moves the row at once and sends one PUT of the whole order, every move waiting until it settles', async () => {
     let answer: (value: { data: TaskWorkflow }) => void = () => {};
@@ -177,7 +177,7 @@ describe('TaskWorkflowPage — reordering the statuses (issue #1560)', () => {
     expect(putSpy).toHaveBeenCalledWith(`${API}/statuses/order`, {
       orderedCodes: ['in_progress', 'todo', 'done', 'cancelled'],
     });
-    const down = within(statusRow('done')).getByRole('button', { name: en('reorder.moveDown', { name: 'Done' }) });
+    const down = within(statusRow('done')).getByRole('button', { name: core('reorder.moveRowDown', { name: 'Done' }) });
     expect(down).toHaveAttribute('aria-disabled', 'true');
     await userEvent.click(down);
     // `aria-disabled` does not block activation: the handler returns early, by keyboard too.
@@ -215,9 +215,9 @@ describe('TaskWorkflowPage — reordering the statuses (issue #1560)', () => {
 
   it('offers no move up on the first row and no move down on the last', async () => {
     await renderPage();
-    expect(within(statusRow('todo')).getByRole('button', { name: en('reorder.moveUp', { name: 'To do' }) })).toBeDisabled();
+    expect(within(statusRow('todo')).getByRole('button', { name: core('reorder.moveRowUp', { name: 'To do' }) })).toBeDisabled();
     expect(
-      within(statusRow('cancelled')).getByRole('button', { name: en('reorder.moveDown', { name: 'Cancelled' }) }),
+      within(statusRow('cancelled')).getByRole('button', { name: core('reorder.moveRowDown', { name: 'Cancelled' }) }),
     ).toBeDisabled();
   });
 });

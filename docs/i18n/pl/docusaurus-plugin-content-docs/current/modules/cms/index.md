@@ -1246,6 +1246,11 @@ komputerze. Próg bez własnej wartości przyjmuje wartość progu niższego.
 
 ### Położenie „czytaj więcej”, wygląd akordeonu i kolory wyróżnień
 
+- **Podsumowanie nowego „czytaj więcej”.** **Fragment „Czytaj więcej”** (⋯) wstawia podsumowanie
+  w języku edytowanej treści, czyli tym wybranym na kartach języków nad obszarem roboczym:
+  „Read more” na stronie angielskiej, „Czytaj więcej” na polskiej. Język bez własnego tekstu
+  początkowego dostaje „Read more”. Podsumowanie zapisuje się razem ze stroną, więc można je
+  edytować jak każdy inny tekst. Kreator e-maili działa tak samo, w języku e-maila.
 - **Gdzie stoi „czytaj więcej”.** Gdy kursor jest we fragmencie „czytaj więcej”, pole
   **Położenie „czytaj więcej”** na pasku narzędzi tekstu sformatowanego ustawia jego
   podsumowanie — tekst albo strzałkę — na **Początku** wiersza (domyślnie), na **Środku** albo

@@ -76,10 +76,7 @@ describe('FulfilmentStrategyPicker — the kit renders it from the shipped `core
     );
     expect(screen.getByLabelText('Warehouse-picking strategy')).toBeTruthy();
     expect(
-      screen.getByText(
-        'How warehouses are picked to fulfil order lines. Precedence: product → ' +
-          'organization → sales channel → platform default.',
-      ),
+      screen.getByText('Precedence: product → organization → sales channel → platform default.'),
     ).toBeTruthy();
     expectNoRawKeys(en.container);
     en.unmount();

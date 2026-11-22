@@ -153,6 +153,7 @@ import type { CrmOpportunityValueChange as CrmOpportunityValueChangeRow } from '
 import type { CrmStatusPropagation as CrmStatusPropagationRow } from '../../../packages/modules/crm/src/backend/entities/crm-status-propagation.entity.js';
 import type { CrmTag as CrmTagRow } from '../../../packages/modules/crm/src/backend/entities/crm-tag.entity.js';
 import type { CrmValueCountingStatus as CrmValueCountingStatusRow } from '../../../packages/modules/crm/src/backend/entities/crm-value-counting-status.entity.js';
+import type { CrmOpportunityListSavedView as CrmOpportunityListSavedViewRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-list-saved-view.entity.js';
 import type { Form as FormRow } from '../../../packages/modules/forms/src/backend/entities/form.entity.js';
 import type { FormVersion as FormVersionRow } from '../../../packages/modules/forms/src/backend/entities/form-version.entity.js';
 import type { FormEntry as FormEntryRow } from '../../../packages/modules/forms/src/backend/entities/form-entry.entity.js';
@@ -1117,6 +1118,7 @@ export const CrmOpportunityValueChange = classNamed<CrmOpportunityValueChangeRow
 export const CrmStatusPropagation = classNamed<CrmStatusPropagationRow>(installedModuleEntities, 'crm', 'CrmStatusPropagation');
 export const CrmTag = classNamed<CrmTagRow>(installedModuleEntities, 'crm', 'CrmTag');
 export const CrmValueCountingStatus = classNamed<CrmValueCountingStatusRow>(installedModuleEntities, 'crm', 'CrmValueCountingStatus');
+export const CrmOpportunityListSavedView = classNamed<CrmOpportunityListSavedViewRow>(installedModuleEntities, 'crm', 'CrmOpportunityListSavedView');
 // `tasks` — every class of the module (`specs/165-task-management/` T014).
 export const Form = classNamed<FormRow>(installedModuleEntities, 'forms', 'Form');
 export const FormVersion = classNamed<FormVersionRow>(installedModuleEntities, 'forms', 'FormVersion');
@@ -1155,6 +1157,7 @@ export type CrmOpportunityValueChange = CrmOpportunityValueChangeRow;
 export type CrmStatusPropagation = CrmStatusPropagationRow;
 export type CrmTag = CrmTagRow;
 export type CrmValueCountingStatus = CrmValueCountingStatusRow;
+export type CrmOpportunityListSavedView = CrmOpportunityListSavedViewRow;
 export type Form = FormRow;
 export type FormVersion = FormVersionRow;
 export type FormEntry = FormEntryRow;

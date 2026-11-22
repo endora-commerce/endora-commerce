@@ -642,12 +642,12 @@ export function OrdersList(): ReactNode {
           #{o.businessId}
         </Link>
       ),
-      meta: (o) => formatDateTime(o.placedAt),
+      meta: (o) => formatDateTime(o.placedAt, language),
     },
     placedAt: {
       id: 'placedAt',
       header: t('orders.column.placedAt'),
-      render: (o) => formatDateTime(o.placedAt),
+      render: (o) => formatDateTime(o.placedAt, language),
     },
     salesChannel: {
       id: 'salesChannel',

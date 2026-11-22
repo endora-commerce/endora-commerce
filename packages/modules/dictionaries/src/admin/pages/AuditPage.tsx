@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CheckCircle2, ClipboardCopy, RefreshCw } from 'lucide-react';
-import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { ApiError, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import type { DictionaryOrphanRow } from '@endora-commerce/contracts';
 import { dictionaryClient } from '../api/client.js';
 
 export function DictionaryAuditPage(): ReactNode {
   const t = useTranslation('dictionaries');
+  const { language } = useTranslationContext();
   const [rows, setRows] = useState<DictionaryOrphanRow[]>([]);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,7 +76,7 @@ export function DictionaryAuditPage(): ReactNode {
         </Button>
         {generatedAt ? (
           <span className="text-sm text-muted-foreground">
-            {t('audit.generatedAt', { date: new Date(generatedAt).toLocaleString() })}
+            {t('audit.generatedAt', { date: formatDateTime(generatedAt, language) })}
           </span>
         ) : null}
       </div>

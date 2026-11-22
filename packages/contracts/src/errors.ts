@@ -1249,6 +1249,8 @@ export const ERROR_CODES = {
   CRM_ATTACHMENT_NOT_PRIVATE: 'CRM_ATTACHMENT_NOT_PRIVATE',
   /** Another CRM tag already has this name, whatever its case. */
   CRM_TAG_NAME_TAKEN: 'CRM_TAG_NAME_TAKEN',
+  /** A saved Opportunities view name its owner already uses, case-insensitively (#1734). */
+  CRM_SAVED_VIEW_NAME_TAKEN: 'CRM_SAVED_VIEW_NAME_TAKEN',
   /** A message on an Opportunity cannot be edited or deleted once sent. */
   CRM_MESSAGE_IMMUTABLE: 'CRM_MESSAGE_IMMUTABLE',
 
@@ -1308,6 +1310,8 @@ export const ERROR_CODES = {
   PROJECT_NOT_FOUND: 'PROJECT_NOT_FOUND',
   /** A Project with linked records cannot be deleted; unlink them first. */
   PROJECT_HAS_LINKS: 'PROJECT_HAS_LINKS',
+  /** A saved Projects list view name its owner already uses, case-insensitively (#1734). */
+  PROJECT_SAVED_VIEW_NAME_TAKEN: 'PROJECT_SAVED_VIEW_NAME_TAKEN',
   /** An Organization outside the caller's reach, or one that does not exist — indistinguishable. */
   PROJECT_ORGANIZATION_OUT_OF_SCOPE: 'PROJECT_ORGANIZATION_OUT_OF_SCOPE',
   /** The Stage the Project is in cannot be deleted. */

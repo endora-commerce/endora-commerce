@@ -4,14 +4,18 @@ import {
   SAVED_LIST_VIEW_FILTERS_MAX_BYTES,
   SAVED_LIST_VIEW_NAME_MAX,
   SAVED_LIST_VIEW_TOKEN_MAX,
+  createOpportunitySavedViewRequestSchema,
   createProductSavedViewRequestSchema,
+  createProjectSavedViewRequestSchema,
   createQuoteRequestSavedViewRequestSchema,
   createReturnSavedViewRequestSchema,
   hasForbiddenNameCharacters,
   savedListViewNameKey,
   savedListViewNameSchema,
   savedListViewSchema,
+  updateOpportunitySavedViewRequestSchema,
   updateProductSavedViewRequestSchema,
+  updateProjectSavedViewRequestSchema,
   updateQuoteRequestSavedViewRequestSchema,
   updateReturnSavedViewRequestSchema,
 } from './saved-list-views.js';
@@ -181,6 +185,43 @@ describe('quote-request saved-view requests (R-9)', () => {
     expect(updateQuoteRequestSavedViewRequestSchema.parse({ name: ' b ' })).toEqual({ name: 'b' });
   });
 });
+
+for (const [label, create, update] of [
+  ['opportunity', createOpportunitySavedViewRequestSchema, updateOpportunitySavedViewRequestSchema],
+  ['project', createProjectSavedViewRequestSchema, updateProjectSavedViewRequestSchema],
+] as const) {
+  describe(`${label} saved-view requests (#1734)`, () => {
+    it('keeps filters and sort, and strips visibleColumns — the list has no column picker', () => {
+      const parsed = create.parse({
+        ...BASE_CREATE,
+        filters: { state: 'open' },
+        sort: { field: 'createdAt', dir: 'asc' },
+        visibleColumns: ['number'],
+      });
+      expect(parsed).toEqual({
+        name: 'Unpaid EU',
+        shared: false,
+        filters: { state: 'open' },
+        sort: { field: 'createdAt', dir: 'asc' },
+      });
+    });
+
+    it('takes sort as null or absent — the list then opens in its default order', () => {
+      expect(create.safeParse(BASE_CREATE).success).toBe(true);
+      expect(create.safeParse({ ...BASE_CREATE, sort: null }).success).toBe(true);
+    });
+
+    it('requires shared and refuses filters over 8 KB', () => {
+      expect(create.safeParse({ name: 'a', filters: {} }).success).toBe(false);
+      expect(create.safeParse({ ...BASE_CREATE, filters: filtersOfBytes(8193) }).success).toBe(false);
+    });
+
+    it('is partial on update', () => {
+      expect(update.parse({})).toEqual({});
+      expect(update.parse({ name: ' b ' })).toEqual({ name: 'b' });
+    });
+  });
+}
 
 describe('return saved-view requests (#312)', () => {
   const SORT = { field: 'submittedAt', dir: 'desc' } as const;

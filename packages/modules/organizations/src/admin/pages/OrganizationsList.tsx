@@ -15,7 +15,7 @@ import {
   useListPagination,
   type ListPageLoad,
 } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 const STATUSES = ['pending_verification', 'active', 'blocked', 'rejected'] as const;
 type StatusFilter = '' | (typeof STATUSES)[number];
@@ -50,6 +50,7 @@ export function organizationsListPath(filters: {
  * screen offered no way past them except the search).
  */
 export function OrganizationsList(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const own = useTranslation('organizations');
   // Feature 154 — creating an Organization is `customers:manage`, as the
@@ -235,7 +236,7 @@ export function OrganizationsList(): ReactNode {
             id: 'registered',
             header: t('organizations.column.registered'),
             hideOnMobile: true,
-            render: (o) => formatDateTime(o.createdAt),
+            render: (o) => formatDateTime(o.createdAt, language),
           },
         ]}
       />

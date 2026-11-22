@@ -72,9 +72,10 @@ export function refundMethodChoices(input: {
 export function authorizedText(
   rc: Pick<ReturnCaseDetail, 'authorizedAt' | 'authorizedBy'>,
   tr: (key: string, params?: Record<string, string | number>) => string,
+  language: string,
 ): string {
   if (!rc.authorizedAt) return tr('detail.notAuthorized');
-  const at = formatDateTime(rc.authorizedAt);
+  const at = formatDateTime(rc.authorizedAt, language);
   if (!rc.authorizedBy?.adminUserId) return tr('detail.authorizedUnknown', { at });
   if (rc.authorizedBy.name === null) return tr('detail.authorizedByFormer', { at });
   return tr('detail.authorizedBy', { at, name: rc.authorizedBy.name });
@@ -409,9 +410,9 @@ export function ReturnDetail(): ReactNode {
         <CardContent>
           <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
             <dt className="text-muted-foreground">{tr('detail.submitted')}</dt>
-            <dd>{formatDateTime(rc.submittedAt)}</dd>
+            <dd>{formatDateTime(rc.submittedAt, language)}</dd>
             <dt className="text-muted-foreground">{tr('detail.authorized')}</dt>
-            <dd>{authorizedText(rc, tr)}</dd>
+            <dd>{authorizedText(rc, tr, language)}</dd>
             {rc.resolutionType === 'settled_outside' && (
               <>
                 <dt className="text-muted-foreground">{tr('detail.settledOutsideNote')}</dt>
@@ -854,7 +855,7 @@ export function ReturnDetail(): ReactNode {
                 <li key={c.id} className="space-y-1 py-2 text-sm first:pt-0">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>{tr(`comments.author.${c.authorKind}`)}</span>
-                    <span>{formatDateTime(c.createdAt)}</span>
+                    <span>{formatDateTime(c.createdAt, language)}</span>
                     {!c.isCustomerVisible && <Badge variant="outline">{tr('comments.internalBadge')}</Badge>}
                     {/* "requested", not "sent": delivery is asynchronous and may fail (FR-A50). */}
                     {c.notifyCustomer === true && (
@@ -939,6 +940,7 @@ export function ReturnDetail(): ReactNode {
  * the personal part says when it was erased, so an empty card is not mistaken for none.
  */
 function PurchaseAndContact({ rc }: { rc: ReturnCaseDetail }): ReactNode {
+  const { language } = useTranslationContext();
   const tr = useTranslation('returns');
   const address = rc.returnAddress;
   return (
@@ -957,7 +959,7 @@ function PurchaseAndContact({ rc }: { rc: ReturnCaseDetail }): ReactNode {
         {rc.personalDataErasedAt ? (
           <Alert>
             <ShieldOff className="size-4" aria-hidden="true" />
-            <AlertDescription>{tr('detail.erased', { date: formatDateTime(rc.personalDataErasedAt) })}</AlertDescription>
+            <AlertDescription>{tr('detail.erased', { date: formatDateTime(rc.personalDataErasedAt, language) })}</AlertDescription>
           </Alert>
         ) : (
           <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
@@ -1007,20 +1009,21 @@ function PurchaseAndContact({ rc }: { rc: ReturnCaseDetail }): ReactNode {
  * due for erasure. The two dates are the backend's: `null` while the case is open.
  */
 function GuestLines({ rc }: { rc: ReturnCaseDetail }): ReactNode {
+  const { language } = useTranslationContext();
   const tr = useTranslation('returns');
   return (
     <ul className="space-y-1 text-sm md:col-span-2">
-      {rc.contactVerifiedAt && <li>{tr('detail.guest.verifiedEmail', { date: formatDateTime(rc.contactVerifiedAt) })}</li>}
+      {rc.contactVerifiedAt && <li>{tr('detail.guest.verifiedEmail', { date: formatDateTime(rc.contactVerifiedAt, language) })}</li>}
       {!rc.personalDataErasedAt && (
         <>
           <li>
             {rc.trackingLinkValidUntil
-              ? tr('detail.guest.linkValidUntil', { date: formatDateTime(rc.trackingLinkValidUntil) })
+              ? tr('detail.guest.linkValidUntil', { date: formatDateTime(rc.trackingLinkValidUntil, language) })
               : tr('detail.guest.linkWhileOpen')}
           </li>
           <li>
             {rc.guestDataErasureDueAt
-              ? tr('detail.guest.erasureDue', { date: formatDateTime(rc.guestDataErasureDueAt) })
+              ? tr('detail.guest.erasureDue', { date: formatDateTime(rc.guestDataErasureDueAt, language) })
               : tr('detail.guest.erasureAfterClose')}
           </li>
         </>
@@ -1153,6 +1156,7 @@ function LineAttachments({ rc, itemId, productName }: { rc: ReturnCaseDetail; it
  * case's own route. A file tied to a line is shown with that line instead.
  */
 function AttachmentsCard({ rc }: { rc: ReturnCaseDetail }): ReactNode {
+  const { language } = useTranslationContext();
   const tr = useTranslation('returns');
   const caseFiles = caseLevelAttachments(rc);
   const hasLineFiles = (rc.attachments ?? []).length > caseFiles.length;
@@ -1165,7 +1169,7 @@ function AttachmentsCard({ rc }: { rc: ReturnCaseDetail }): ReactNode {
         {caseFiles.length === 0 ? (
           <p className="text-muted-foreground">
             {rc.personalDataErasedAt
-              ? tr('attachments.erased', { date: formatDateTime(rc.personalDataErasedAt) })
+              ? tr('attachments.erased', { date: formatDateTime(rc.personalDataErasedAt, language) })
               : hasLineFiles
                 ? tr('attachments.allOnLines')
                 : tr('attachments.none')}
@@ -1185,7 +1189,7 @@ function AttachmentsCard({ rc }: { rc: ReturnCaseDetail }): ReactNode {
                       <FileText className="size-4 text-muted-foreground" aria-hidden="true" />
                       <AttachmentLink rc={rc} attachment={a} />
                       <span className="text-xs text-muted-foreground">
-                        {tr('attachments.size', { size: (a.sizeBytes / 1024).toFixed(0) })} · {formatDateTime(a.createdAt)}
+                        {tr('attachments.size', { size: (a.sizeBytes / 1024).toFixed(0) })} · {formatDateTime(a.createdAt, language)}
                       </span>
                     </li>
                   ))}
@@ -1202,7 +1206,8 @@ function AttachmentsCard({ rc }: { rc: ReturnCaseDetail }): ReactNode {
 /** 180 FR-B31 (design review R-5.6) — every clause shown, as the customer saw it. */
 function AcceptedClausesCard({ rc }: { rc: ReturnCaseDetail }): ReactNode {
   const tr = useTranslation('returns');
-  const language = rc.acceptedClauses[0]?.language ?? '';
+  const { language } = useTranslationContext();
+  const clauseLanguage = rc.acceptedClauses[0]?.language ?? '';
   return (
     <Card>
       <CardHeader>
@@ -1211,7 +1216,7 @@ function AcceptedClausesCard({ rc }: { rc: ReturnCaseDetail }): ReactNode {
       <CardContent className="space-y-2 text-sm">
         {rc.clausesAcceptedAt && (
           <p className="text-muted-foreground">
-            {tr('clauses.acceptedAt', { at: formatDateTime(rc.clausesAcceptedAt), language })}
+            {tr('clauses.acceptedAt', { at: formatDateTime(rc.clausesAcceptedAt, language), language: clauseLanguage })}
           </p>
         )}
         {/* Issue #1437 (DS-03): one disclosure row per clause, divided by a rule, not a box each. */}

@@ -22,12 +22,12 @@ import {
   ModalDialog,
   StatusTransitionGraph,
   type StatusTransitionGraphStatus,
+  useServerReorder,
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, type OrderStatusOption } from '../api.js';
 import { boardFieldLabel } from '../lib/board-fields.js';
 import { errorMessage, workflowStatusLabel } from '../lib/labels.js';
-import { useServerReorder } from '../lib/use-server-reorder.js';
 import { CrmConfigurationTabs } from '../components/CrmConfigurationTabs.js';
 import {
   VALUE_COUNTING_HASH,

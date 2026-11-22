@@ -7,6 +7,7 @@ import {
   patchEmailTemplateRequestSchema,
   previewEmailRequestSchema,
   putEmailBrandingRequestSchema,
+  resetEmailBrandingQuerySchema,
   putEmailBlockContentRequestSchema,
   putEmailContentQuerySchema,
   putEmailContentRequestSchema,
@@ -121,6 +122,14 @@ export async function registerTransactionalEmailsAdminRoutes(
     const q = emailScopeQuerySchema.parse(request.query);
     const body = putEmailBrandingRequestSchema.parse(request.body);
     const data = await branding.update(q.salesChannelId ?? null, body, {
+      actorAdminUserId: resolveAdminUserId(request),
+    });
+    return { data };
+  });
+  // Issue #1588 — a sales channel goes back to the all-channels value.
+  app.delete(`${base}/branding`, { preHandler: requireAdmin(WRITE) }, async (request) => {
+    const q = resetEmailBrandingQuerySchema.parse(request.query);
+    const data = await branding.reset(q.salesChannelId, q.fields, {
       actorAdminUserId: resolveAdminUserId(request),
     });
     return { data };

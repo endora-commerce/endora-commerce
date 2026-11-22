@@ -73,7 +73,7 @@ export function OrdersPanel({ customerId }: { customerId: string }): ReactNode {
                 <span>
                   {o.total} {o.currency}
                 </span>
-                <span className="text-muted-foreground">{formatDateTime(o.placedAt)}</span>
+                <span className="text-muted-foreground">{formatDateTime(o.placedAt, language)}</span>
               </li>
             ))}
           </ul>

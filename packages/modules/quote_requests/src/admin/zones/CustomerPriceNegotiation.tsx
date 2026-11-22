@@ -85,7 +85,6 @@ export function CustomerPriceNegotiation({
   };
 
   const groupName = `quote-price-negotiation-customer-${customerId}`;
-  const descriptionId = `${groupName}-description`;
   const hintId = `${groupName}-hint`;
   const effectiveId = `${groupName}-effective`;
 
@@ -110,18 +109,13 @@ export function CustomerPriceNegotiation({
       <fieldset
         className="space-y-2"
         disabled={!canManage || loading || saving}
-        aria-describedby={[
-          descriptionId,
-          showEffective ? effectiveId : null,
-          canManage ? null : hintId,
-        ]
-          .filter((id): id is string => id !== null)
-          .join(' ')}
+        aria-describedby={
+          [showEffective ? effectiveId : null, canManage ? null : hintId]
+            .filter((id): id is string => id !== null)
+            .join(' ') || undefined
+        }
       >
         <legend className="text-sm font-medium">{t('negotiation.customer.label')}</legend>
-        <p id={descriptionId} className="text-sm text-muted-foreground">
-          {t('negotiation.customer.description')}
-        </p>
         <div className="flex flex-wrap gap-4">
           {OVERRIDES.map((value) => {
             const id = `${groupName}-${value}`;

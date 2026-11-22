@@ -61,7 +61,7 @@ import {
   Textarea,
   useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 /** The VAT validation panel's heading — where the moderation notice's link lands. */
 const VAT_VALIDATION_HEADING_ID = 'organization-vat-validation';
@@ -190,6 +190,7 @@ export function OrganizationDetail(): ReactNode {
 }
 
 function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const own = useTranslation('organizations');
   const isVisible = useSurfaceVisibility();
@@ -544,7 +545,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
               <>
                 {' '}
                 · {t('organizations.detail.updatedLabel')}{' '}
-                <time dateTime={org.updatedAt}>{formatDateTime(org.updatedAt)}</time>
+                <time dateTime={org.updatedAt}>{formatDateTime(org.updatedAt, language)}</time>
               </>
             ) : null}
           </span>

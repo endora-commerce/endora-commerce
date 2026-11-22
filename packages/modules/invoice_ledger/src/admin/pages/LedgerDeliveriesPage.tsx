@@ -9,13 +9,14 @@ import { Alert, AlertDescription, Button, EmptyState, PageHeader, Select } from 
 import { RouteTabsZone } from '@endora-commerce/admin-kit/zones';
 import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { invoiceLedgerAdminClient } from '../api/ledger-client.js';
 import { mergeLedgerDeliveryPages } from './merge-delivery-pages.js';
 
 const RETRYABLE: readonly InvoiceLedgerDeliveryStatus[] = ['failed', 'dead'];
 
 export function LedgerDeliveriesPage(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('invoice_ledger');
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('invoice_ledger:write');
@@ -97,7 +98,7 @@ export function LedgerDeliveriesPage(): ReactNode {
       id: 'updated',
       header: t('deliveries.column.updated'),
       hideOnMobile: true,
-      render: (row) => formatDateTime(row.updatedAt),
+      render: (row) => formatDateTime(row.updatedAt, language),
     },
   ];
 

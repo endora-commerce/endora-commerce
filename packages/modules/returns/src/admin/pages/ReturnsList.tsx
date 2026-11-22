@@ -23,7 +23,7 @@ import {
   type ResponsiveColumn,
   type SavedViewState,
 } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient } from '../api/returns-client.js';
 
 import type { AdminReturnRow, ReturnStatusDto } from '@endora-commerce/contracts';
@@ -51,6 +51,7 @@ function statusName(s: ReturnStatusDto): string {
 
 /** Returns / RMA admin list (feature 046, US8). */
 export function ReturnsList(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const tr = useTranslation('returns');
   // Issue #1500 — the kit pager, fitted to what the endpoint serves.
@@ -294,7 +295,7 @@ export function ReturnsList(): ReactNode {
           {r.reference}
         </Link>
       ),
-      meta: (r) => formatDateTime(r.submittedAt),
+      meta: (r) => formatDateTime(r.submittedAt, language),
     },
     {
       id: 'kind',
@@ -384,7 +385,7 @@ export function ReturnsList(): ReactNode {
       id: 'submitted',
       header: t('returns.col.submitted'),
       hideOnMobile: true,
-      render: (r) => formatDateTime(r.submittedAt),
+      render: (r) => formatDateTime(r.submittedAt, language),
     },
   ];
 

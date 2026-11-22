@@ -160,12 +160,12 @@ describe('TaskPrioritiesPage — reordering (issue #1560)', () => {
     let answer: (value: { data: TaskPriorityConfig[] }) => void = () => {};
     putSpy.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
     await renderPage();
-    await userEvent.click(within(priorityRow('low')).getByRole('button', { name: en('reorder.moveUp', { name: 'Low' }) }));
+    await userEvent.click(within(priorityRow('low')).getByRole('button', { name: core('reorder.moveRowUp', { name: 'Low' }) }));
 
     expect(tableCodes()).toEqual(['urgent', 'high', 'low', 'normal']);
     expect(putSpy).toHaveBeenCalledTimes(1);
     expect(putSpy).toHaveBeenCalledWith(`${API}/priorities/order`, { orderedCodes: ['urgent', 'high', 'low', 'normal'] });
-    const up = within(priorityRow('high')).getByRole('button', { name: en('reorder.moveUp', { name: 'High' }) });
+    const up = within(priorityRow('high')).getByRole('button', { name: core('reorder.moveRowUp', { name: 'High' }) });
     expect(up).toHaveAttribute('aria-disabled', 'true');
     await userEvent.click(up);
     up.focus();
@@ -180,7 +180,7 @@ describe('TaskPrioritiesPage — reordering (issue #1560)', () => {
   it('puts the list back and says so when the server refuses the move', async () => {
     putSpy.mockRejectedValue(new ApiError(500, { error: { code: 'INTERNAL', message: 'Boom.' } }));
     await renderPage();
-    await userEvent.click(within(priorityRow('urgent')).getByRole('button', { name: en('reorder.moveDown', { name: 'Urgent' }) }));
+    await userEvent.click(within(priorityRow('urgent')).getByRole('button', { name: core('reorder.moveRowDown', { name: 'Urgent' }) }));
     expect(await screen.findByText('Boom.')).toBeInTheDocument();
     expect(tableCodes()).toEqual(['urgent', 'high', 'normal', 'low']);
   });
@@ -189,7 +189,7 @@ describe('TaskPrioritiesPage — reordering (issue #1560)', () => {
     putSpy.mockRejectedValue(new ApiError(409, { error: { code: 'ORDER_STALE', message: 'Stale.' } }));
     await renderPage();
     getSpy.mockResolvedValue({ data: inOrder(['low', 'urgent', 'high', 'normal']) });
-    await userEvent.click(within(priorityRow('urgent')).getByRole('button', { name: en('reorder.moveDown', { name: 'Urgent' }) }));
+    await userEvent.click(within(priorityRow('urgent')).getByRole('button', { name: core('reorder.moveRowDown', { name: 'Urgent' }) }));
     expect(await screen.findByText(en('reorder.stale'))).toBeInTheDocument();
     await waitFor(() => expect(tableCodes()).toEqual(['low', 'urgent', 'high', 'normal']));
   });

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   boardAddressRedirect,
+  fromSavedOpportunityView,
   readListFilters,
   readListSort,
   readOpportunityView,
+  toSavedOpportunityView,
   withBoardFilters,
   withListFilters,
   withListSort,
@@ -127,5 +129,74 @@ describe('the board\'s former address', () => {
     expect(boardAddressRedirect('?assignee=me&f.custom:lead_source.in=referral')).toBe(
       '/crm/opportunities?assignee=me&f.custom%3Alead_source.in=referral&view=board',
     );
+  });
+});
+
+/**
+ * Issue #1734 — a saved view of the Opportunities page. One view serves the
+ * list and the board, as the address does: it stores every filter of both
+ * views and the list's sort, never the view itself, and applying it replaces
+ * every filter and the sort while the page stays in the view it is in.
+ */
+describe('a saved view of the page', () => {
+  const EVERYTHING =
+    `view=board&sort=value:desc&q=a&organizationId=${ORG}&assignee=me&tagId=t1&tagId=t2` +
+    '&state=open&status=won&cf.segment.in=smb&f.custom:vip.is=true';
+
+  it('stores every filter of both views and the list sort, and not the view', () => {
+    expect(toSavedOpportunityView(params(EVERYTHING))).toEqual({
+      filters: {
+        q: 'a',
+        organizationId: ORG,
+        assignee: 'me',
+        tagId: ['t1', 't2'],
+        state: 'open',
+        status: 'won',
+        'cf.segment.in': 'smb',
+        'f.custom:vip.is': 'true',
+      },
+      sort: { field: 'value', dir: 'desc' },
+    });
+  });
+
+  it('stores no sort for the default order, and nothing the page does not read', () => {
+    expect(toSavedOpportunityView(params('state=lost&page=2&colour=red'))).toEqual({
+      filters: { state: 'lost' },
+      sort: null,
+    });
+  });
+
+  it('applies a view: every filter and the sort replaced, the view kept', () => {
+    const next = fromSavedOpportunityView(
+      {
+        filters: { state: 'won', tagId: ['t1', 't2'], 'f.custom:vip.is': 'true', 'cf.segment.in': 'smb' },
+        sort: { field: 'expectedCloseDate', dir: 'asc' },
+      },
+      params(`view=board&q=old&organizationId=${ORG}&state=open&sort=value:desc`),
+    );
+    expect(next.get('view')).toBe('board');
+    expect(next.get('q')).toBeNull();
+    expect(next.get('organizationId')).toBeNull();
+    expect(next.get('state')).toBe('won');
+    expect(next.getAll('tagId')).toEqual(['t1', 't2']);
+    expect(next.get('f.custom:vip.is')).toBe('true');
+    expect(next.get('cf.segment.in')).toBe('smb');
+    expect(readListSort(next)).toBe('expectedCloseDate:asc');
+  });
+
+  it('drops what the page does not read: an unknown key, a non-text value, a sort it does not offer', () => {
+    const next = fromSavedOpportunityView(
+      { filters: { colour: 'red', state: 7, q: 'kept' }, sort: { field: 'title', dir: 'asc' } },
+      params('sort=value:desc'),
+    );
+    expect(next.toString()).toBe('q=kept');
+  });
+
+  it('reopens the address it was saved from', () => {
+    const saved = toSavedOpportunityView(params(EVERYTHING));
+    const reopened = fromSavedOpportunityView(saved, params('view=board'));
+    expect(readListFilters(reopened)).toEqual(readListFilters(params(EVERYTHING)));
+    expect(readListSort(reopened)).toBe('value:desc');
+    expect(reopened.get('f.custom:vip.is')).toBe('true');
   });
 });

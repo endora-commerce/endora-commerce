@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { SalesChannelListResponse } from '@endora-commerce/contracts';
 import { AssetFieldPicker, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
@@ -16,7 +16,15 @@ import {
   Select,
 } from '@endora-commerce/admin-kit/ui';
 import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
-import { brandingPatch, draftOfBranding, type BrandingDraft } from '../components/branding-draft.js';
+import {
+  brandingWrite,
+  draftOfBranding,
+  inheritField,
+  overridden,
+  withEdit,
+  type BrandingDraft,
+  type BrandingDraftField,
+} from '../components/branding-draft.js';
 import { channelDisplayName } from '../lib/labels.js';
 
 const READ_PERMISSION = 'transactional_emails:read';
@@ -42,7 +50,10 @@ function messageOf(error: unknown, fallback: string): string {
  * The values are settings the module owns, read and written per scope: *All
  * channels* is the default, and a sales channel overrides only what is changed
  * while it is selected (`brandingPatch` sends the difference, never the
- * inherited value back). One Save for the screen (FR-083). Switching the scope
+ * inherited value back). A field the channel sets differently offers "Use
+ * all-channels value" (issue #1588), staged like any edit: Save then removes the
+ * channel's own value instead of copying the all-channels one in. One Save for
+ * the screen (FR-083). Switching the scope
  * or leaving the page with unsaved edits asks Save / Discard / Stay through the
  * kit's one unsaved-changes guard (issue #1606), titled for this screen; the
  * scope switch says what it asks about.
@@ -59,13 +70,15 @@ export function EmailBrandingPage(): ReactNode {
   const [channelId, setChannelId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<BrandingDraft | null>(null);
   const [draft, setDraft] = useState<BrandingDraft | null>(null);
+  /** The all-channels values a channel inherits; `null` for the all-channels scope. */
+  const [allChannels, setAllChannels] = useState<BrandingDraft | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const patch = loaded && draft ? brandingPatch(loaded, draft) : null;
-  const dirty = patch !== null;
+  const write = loaded && draft ? brandingWrite(loaded, draft) : null;
+  const dirty = write !== null;
 
   useEffect(() => {
     if (!canRead) return undefined;
@@ -85,11 +98,17 @@ export function EmailBrandingPage(): ReactNode {
     async (scope: string | null): Promise<void> => {
       setLoaded(null);
       setDraft(null);
+      setAllChannels(null);
       setLoadError(null);
       try {
-        const next = draftOfBranding(await transactionalEmailsClient.branding(scope));
+        const [own, inherited] = await Promise.all([
+          transactionalEmailsClient.branding(scope),
+          scope === null ? Promise.resolve(null) : transactionalEmailsClient.branding(null),
+        ]);
+        const next = draftOfBranding(own);
         setLoaded(next);
         setDraft(next);
+        setAllChannels(inherited === null ? null : draftOfBranding(inherited));
       } catch (error) {
         setLoadError(messageOf(error, t('branding.loadError')));
       }
@@ -101,21 +120,49 @@ export function EmailBrandingPage(): ReactNode {
     if (canRead) void load(channelId);
   }, [canRead, channelId, load]);
 
-  const edit = (change: Partial<BrandingDraft>): void => {
+  const edit = (change: Partial<Pick<BrandingDraft, BrandingDraftField>>): void => {
     setSaved(false);
     setSaveError(null);
-    setDraft((current) => (current ? { ...current, ...change } : current));
+    setDraft((current) => (current ? withEdit(current, change) : current));
+  };
+
+  // "Use all-channels value" goes with the click that staged it, so focus moves to Save —
+  // the next step, enabled by that click — rather than falling to the page (WCAG 2.4.3).
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
+  const focusSaveNext = useRef(false);
+  useEffect(() => {
+    if (!focusSaveNext.current) return;
+    focusSaveNext.current = false;
+    saveButtonRef.current?.focus();
+  }, [draft]);
+
+  const inherit = (field: BrandingDraftField): void => {
+    if (!allChannels) return;
+    setSaved(false);
+    setSaveError(null);
+    focusSaveNext.current = true;
+    setDraft((current) => (current ? inheritField(current, allChannels, field) : current));
   };
 
   const save = async (): Promise<boolean> => {
-    if (!patch || !canWrite) return false;
+    if (!write || !canWrite) return false;
     setSaving(true);
     setSaveError(null);
     setSaved(false);
     try {
-      const next = draftOfBranding(await transactionalEmailsClient.putBranding(channelId, patch));
-      setLoaded(next);
-      setDraft(next);
+      let stored: BrandingDraft | null = null;
+      // A reset exists only in a channel's scope; the all-channels scope never stages one.
+      if (write.reset.length > 0 && channelId !== null) {
+        stored = draftOfBranding(await transactionalEmailsClient.resetBranding(channelId, write.reset));
+        // Recorded before the next write, so a write that then fails leaves only itself unsaved.
+        setLoaded(stored);
+        setDraft((current) => (current ? { ...current, inherit: [] } : current));
+      }
+      if (write.put !== null) {
+        stored = draftOfBranding(await transactionalEmailsClient.putBranding(channelId, write.put));
+        setLoaded(stored);
+      }
+      if (stored !== null) setDraft(stored);
       setSaved(true);
       return true;
     } catch (error) {
@@ -146,6 +193,34 @@ export function EmailBrandingPage(): ReactNode {
     guard.confirm(() => switchScope(scope), { message: t('branding.switchScope.message') });
   };
 
+  /**
+   * Beside a field the channel sets differently: a note saying so, and — for an
+   * operator who may write — the way back to the all-channels value.
+   */
+  const inheritControls = (field: BrandingDraftField): { labelAddon?: ReactNode; action?: ReactNode } => {
+    if (channelId === null || allChannels === null || draft === null) return {};
+    if (!overridden(draft, allChannels, field)) return {};
+    return {
+      labelAddon: <span className="text-xs text-muted-foreground">{t('branding.inherit.overridden')}</span>,
+      ...(canWrite
+        ? {
+            action: (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto p-0"
+                onClick={() => inherit(field)}
+                disabled={saving}
+              >
+                {t('branding.inherit.action')}
+              </Button>
+            ),
+          }
+        : {}),
+    };
+  };
+
   if (!canRead) {
     return (
       <Alert>
@@ -166,6 +241,7 @@ export function EmailBrandingPage(): ReactNode {
             <div className="flex items-center gap-3">
               <InlineStatus>{saved ? t('branding.saved') : null}</InlineStatus>
               <Button
+                ref={saveButtonRef}
                 type="button"
                 onClick={() => void save()}
                 disabled={!dirty || saving}
@@ -223,7 +299,12 @@ export function EmailBrandingPage(): ReactNode {
             </div>
           ) : (
             <>
-              <FormField label={t('branding.logo')} hint={t('branding.logo.hint')} group>
+              <FormField
+                label={t('branding.logo')}
+                hint={t('branding.logo.hint')}
+                group
+                {...inheritControls('logoAssetId')}
+              >
                 <AssetFieldPicker
                   value={draft.logoAssetId}
                   onChange={(logoAssetId) => edit({ logoAssetId })}
@@ -234,7 +315,12 @@ export function EmailBrandingPage(): ReactNode {
                   ariaLabel={t('branding.logo')}
                 />
               </FormField>
-              <FormField label={t('branding.accent')} hint={t('branding.accent.hint')} group>
+              <FormField
+                label={t('branding.accent')}
+                hint={t('branding.accent.hint')}
+                group
+                {...inheritControls('accentColor')}
+              >
                 <ColorPicker
                   value={draft.accentColor}
                   onChange={(accentColor) => edit({ accentColor })}

@@ -26,7 +26,7 @@ import {
   SalesChannelPicker,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { LANGUAGE_FALLBACK, SUPPORTED_LANGUAGES, type ReturnCaseClauseDto } from '@endora-commerce/contracts';
 import { returnsClient, type ClauseBody } from '../api/returns-client.js';
 
@@ -69,6 +69,7 @@ function filled(values: Record<string, string>): Record<string, string> {
  */
 export function ReturnClausesPage(): ReactNode {
   const tr = useTranslation('returns');
+  const { language } = useTranslationContext();
   const [clauses, setClauses] = useState<ReturnCaseClauseDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ clause: ReturnCaseClauseDto | null } | null>(null);
@@ -113,7 +114,7 @@ export function ReturnClausesPage(): ReactNode {
     { id: 'mode', header: tr('clauses.col.mode'), render: (c) => tr(`clauses.mode.${c.mode}`) },
     { id: 'active', header: tr('clauses.col.active'), render: (c) => (c.isActive ? tr('clauses.yes') : tr('clauses.no')) },
     { id: 'revision', header: tr('clauses.col.revision'), hideOnMobile: true, render: (c) => c.revision },
-    { id: 'updated', header: tr('clauses.col.updated'), hideOnMobile: true, render: (c) => formatDateTime(c.updatedAt) },
+    { id: 'updated', header: tr('clauses.col.updated'), hideOnMobile: true, render: (c) => formatDateTime(c.updatedAt, language) },
   ];
 
   return (

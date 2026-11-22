@@ -3,7 +3,7 @@ import { RotateCw, Trash2 } from 'lucide-react';
 import { formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, EditorSection } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   deleteProductUrlRedirect,
   describeKeyInLanguage,
@@ -23,6 +23,7 @@ import { sectionTitle } from './editor/SectionBadge.js';
  * Deleting applies at once, so the heading carries "Applies immediately" (FR-070).
  */
 export function ProductUrlRedirects({ productId, canWrite }: { productId: string; canWrite: boolean }): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('catalog');
   // The section's id; `EditorSection` names its heading `${sectionId}-title`.
   const sectionId = useId();
@@ -110,7 +111,7 @@ export function ProductUrlRedirects({ productId, canWrite }: { productId: string
             return (
               <li key={r.id} className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="font-mono">{label}</span>
-                <span className="text-xs text-muted-foreground">{formatDateTime(r.createdAt)}</span>
+                <span className="text-xs text-muted-foreground">{formatDateTime(r.createdAt, language)}</span>
                 {canWrite ? (
                   <Button
                     type="button"

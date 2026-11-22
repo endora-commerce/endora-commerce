@@ -89,10 +89,14 @@ export interface MountedEditor extends RenderResult {
   latest: () => Data | null;
 }
 
-/** Mounts `PageBuilderEditor` over `data`, in `<StrictMode>`, signed in, in `language`. */
+/**
+ * Mounts `PageBuilderEditor` over `data`, in `<StrictMode>`, signed in, in the
+ * admin `language`; `activeLanguage` is the content language being edited
+ * (issue #1684), which the hosts pass and the harness omits unless asked.
+ */
 export async function mountPageBuilderEditor(
   data: Data,
-  { language = 'en' }: { language?: 'en' | 'pl' } = {},
+  { language = 'en', activeLanguage }: { language?: 'en' | 'pl'; activeLanguage?: string } = {},
 ): Promise<MountedEditor> {
   let latest: Data | null = null;
   const ui: ReactElement = (
@@ -102,6 +106,7 @@ export async function mountPageBuilderEditor(
           <PageBuilderEditor
             data={data}
             contentKey="pb163-harness"
+            {...(activeLanguage === undefined ? {} : { activeLanguage })}
             onChange={(next): void => {
               latest = next;
             }}

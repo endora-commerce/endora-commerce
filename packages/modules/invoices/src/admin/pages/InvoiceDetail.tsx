@@ -8,7 +8,7 @@ import type {
 import { apiBaseUrl, apiClient, ApiError, cn, formatDateTime, formatMoney, sendInvoiceEmailMessage, useAuth, useDetailResource } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, PageHeader, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { DetailHeaderActions, RowActionMenuItem } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
@@ -19,6 +19,7 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warn
 
 /** Single-invoice detail view: snapshot data, line items, VAT summary, PDF. */
 export function InvoiceDetail(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const { id = '' } = useParams<{ id: string }>();
   const { hasPermission } = useAuth();
@@ -201,7 +202,7 @@ export function InvoiceDetail(): ReactNode {
               <Section title={t('invoiceDetail.section.details')}>
                 <dl className="space-y-1 text-sm">
                   <Row label={t('invoiceDetail.field.kind')} value={t(`invoices.kind.${invoice.kind}`)} />
-                  <Row label={t('invoiceDetail.field.issuedAt')} value={formatDateTime(invoice.issuedAt)} />
+                  <Row label={t('invoiceDetail.field.issuedAt')} value={formatDateTime(invoice.issuedAt, language)} />
                   <Row label={t('invoiceDetail.field.saleDate')} value={invoice.saleDate ?? '—'} />
                   <Row label={t('invoiceDetail.field.paymentDueDate')} value={invoice.paymentDueDate ?? '—'} />
                   <Row label={t('invoiceDetail.field.paymentMethod')} value={invoice.paymentMethod ?? '—'} />

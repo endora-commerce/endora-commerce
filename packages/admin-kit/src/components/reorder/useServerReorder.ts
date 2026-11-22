@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { ApiError } from '../../lib/api-client.js';
 
 /** A row a batch reorder moves: held by its code, listed by its weight. */
 export interface ReorderableRow {
@@ -40,7 +40,7 @@ export interface UseServerReorderResult {
 
 /**
  * The batch reorder of a configuration list (issue #1560, the architect's
- * ruling): the row moves at once (optimistic), **one** `PUT …/order` carries
+ * ruling; in the kit since issue #1633): the row moves at once (optimistic), **one** `PUT …/order` carries
  * the whole list, a refusal puts the list back as it was and says so, and a
  * 409 `ORDER_STALE` — the list changed under the operator — reloads it and
  * says that instead. The screen's weights are rewritten in the new order, so

@@ -12,9 +12,9 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
+import { ReorderControls } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { workflowStatusName } from '../../lib/labels.js';
-import { ReorderControls } from '../reorder/ReorderControls.js';
 
 export interface TaskStatusesTableProps {
   statuses: readonly TaskStatusConfig[];

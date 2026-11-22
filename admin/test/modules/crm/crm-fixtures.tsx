@@ -260,8 +260,9 @@ export const TASK_ID = '00000000-0000-4000-8000-0000000000c3';
 export const OTHER_ADMIN_ID = '00000000-0000-4000-8000-0000000000ab';
 
 /**
- * CRM's own lookup endpoints (`contracts/admin-api.md` §10a), as a test's GET
- * stub answers them — or `undefined` for any other path, so a stub falls
+ * CRM's own lookup endpoints (`contracts/admin-api.md` §10a), and the
+ * Opportunities page's saved views, as a test's GET stub answers them — or
+ * `undefined` for any other path, so a stub falls
  * through to its own cases. The pickers of every CRM screen read these and
  * nothing of another module's.
  */
@@ -272,6 +273,9 @@ export function crmLookupResponse(path: string): Promise<unknown> | undefined {
   const matching = <T extends { name: string }>(rows: T[]): T[] =>
     rows.filter((row) => row.name.toLowerCase().includes(q));
   switch (route) {
+    // The Opportunities page's saved views (issue #1734): none saved.
+    case '/api/v1/admin/crm/opportunities/list-views':
+      return Promise.resolve({ data: [] });
     case '/api/v1/admin/crm/lookups/organizations':
       return Promise.resolve({ data: matching([{ id: ORGANIZATION_ID, name: 'Acme' }]) });
     case '/api/v1/admin/crm/lookups/sales-channels':

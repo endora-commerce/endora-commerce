@@ -385,7 +385,7 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
   // pickers show the current value (#1517).
   const info: Array<[string, ReactNode]> = [
     [t('detail.field.email'), c.email],
-    [t('detail.field.created'), formatDateTime(c.createdAt)],
+    [t('detail.field.created'), formatDateTime(c.createdAt, adminLanguage)],
     [
       t('detail.field.status'),
       c.deleted ? (
@@ -396,7 +396,7 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
         <Badge>{t('status.active')}</Badge>
       ),
     ],
-    [t('detail.field.lastLogin'), c.lastLoginAt ? formatDateTime(c.lastLoginAt) : t('list.none')],
+    [t('detail.field.lastLogin'), c.lastLoginAt ? formatDateTime(c.lastLoginAt, adminLanguage) : t('list.none')],
     // Issue #652 (D-292) — read-only: only the buyer changes it, on the storefront.
     // Issue #1328 — by name, in the admin's language; the tag stays as secondary text.
     [

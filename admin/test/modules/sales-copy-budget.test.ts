@@ -56,6 +56,14 @@ const CUT: readonly Cut[] = [
   { bundle: 'organizations', key: 'create.description', reader: 'organizations' },
   { bundle: 'organizations', key: 'changeTaxId.page.description', reader: 'organizations' },
   { bundle: 'organizations', key: 'convertToCompany.page.description', reader: 'organizations' },
+  // #1567 (the report's §4 *Text to cut*, panel descriptions and hints): lines that say what
+  // the screen beside them already shows — the invoices list's developer note, the customer
+  // negotiation override's restatement of its own options, the default-preferences panel's
+  // list of its own four fields, and the roles section's definition of a role.
+  { bundle: '_i18n', key: 'invoices.description', reader: 'invoices' },
+  { bundle: 'quote_requests', key: 'negotiation.customer.description', reader: 'quote_requests' },
+  { bundle: '_i18n', key: 'defaultPreferences.description', reader: 'quick_order' },
+  { bundle: 'organizations', key: 'roles.tab.description', reader: 'organizations' },
 ];
 
 /** Kept on screen, so each must fit the one clamped line. */
@@ -68,6 +76,24 @@ const ONE_LINERS: readonly { bundle: string; key: string }[] = [
   { bundle: 'customer_accounts', key: 'groups.page.description' },
   { bundle: 'organizations', key: 'taxIdScope.description' },
   { bundle: 'organizations', key: 'create.hint.inviteMembers' },
+  // #1567: hints and notices shortened to the one line they are read in passing.
+  { bundle: 'quote_requests', key: 'negotiation.readOnlyHint' },
+  { bundle: '_i18n', key: 'fulfilment.hint' },
+  { bundle: 'organizations', key: 'detail.orderConfirmationEmailsHint' },
+  { bundle: '_i18n', key: 'organizations.detail.hierarchyParentHint' },
+  { bundle: '_i18n', key: 'organizations.salesReps.empty' },
+  { bundle: '_i18n', key: 'orderCreate.hint.salesChannel' },
+  { bundle: '_i18n', key: 'rfqCreate.hint.salesChannel' },
+  { bundle: '_i18n', key: 'promotions.edit.ruleCopyHint' },
+  { bundle: 'orders', key: 'pendingEffects.description' },
+];
+
+/** Notice bodies: a sentence or two, not the paragraph they were. */
+const NOTICE = 120;
+
+const NOTICES: readonly { bundle: string; key: string }[] = [
+  { bundle: '_i18n', key: 'orderDetail.shipments.carrierNotContacted.body' },
+  { bundle: 'returns', key: 'settlement.refundMethodDiffers' },
 ];
 
 const modulesRoot = resolve(process.cwd(), '../packages/modules');
@@ -114,6 +140,14 @@ describe('SALES page copy (UX audit DS-02, #1436)', () => {
       key: `${name}:${key}`,
       length: bundle(name, language)[key]?.length ?? Number.NaN,
     })).filter(({ length }) => !(length <= ONE_LINE));
+    expect(over).toEqual([]);
+  });
+
+  it.each(LANGUAGES)('keeps every %s notice body within two short sentences', (language) => {
+    const over = NOTICES.map(({ bundle: name, key }) => ({
+      key: `${name}:${key}`,
+      length: bundle(name, language)[key]?.length ?? Number.NaN,
+    })).filter(({ length }) => !(length <= NOTICE));
     expect(over).toEqual([]);
   });
 });

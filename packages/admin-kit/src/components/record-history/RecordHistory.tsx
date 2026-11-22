@@ -3,6 +3,7 @@ import { ArrowRight, History } from 'lucide-react';
 import { ApiError, cn, formatDateTime } from '../../lib/index.js';
 import { Alert, AlertDescription } from '../../ui/alert.js';
 import { Button } from '../../ui/button.js';
+import { useTranslationContext } from '../../i18n/TranslationProvider.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { EditorSection, useEditorSectionChrome, type EditorSectionChrome } from '../../ui/editor-section.js';
 
@@ -256,6 +257,7 @@ export function RecordHistory<E extends RecordHistoryEntryShape>(props: RecordHi
   const { history, copy } = props;
   const { entries, loading, error, nextCursor, truncated, notice, load } = history;
   const t = useTranslation('core');
+  const { language } = useTranslationContext();
   const inherited = useEditorSectionChrome();
   const chrome = props.chrome ?? inherited;
   // The host's heading names a section; a card standing alone names itself.
@@ -318,7 +320,7 @@ export function RecordHistory<E extends RecordHistoryEntryShape>(props: RecordHi
                   <p className="text-xs text-muted-foreground">
                     <span>{actor(entry)}</span>
                     {' · '}
-                    <time dateTime={entry.actedAt}>{(props.formatTime ?? formatDateTime)(entry.actedAt)}</time>
+                    <time dateTime={entry.actedAt}>{props.formatTime ? props.formatTime(entry.actedAt) : formatDateTime(entry.actedAt, language)}</time>
                   </p>
                 </div>
                 {props.renderLead?.(entry, changes)}

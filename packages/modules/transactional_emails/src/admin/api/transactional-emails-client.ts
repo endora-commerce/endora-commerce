@@ -5,6 +5,7 @@ import type {
   EmailBlockDetail,
   EmailBlockSummary,
   EmailBranding,
+  EmailBrandingField,
   EmailPageBuilderDescriptor,
   EmailTemplateDetail,
   EmailTemplateSummary,
@@ -90,6 +91,11 @@ export const transactionalEmailsClient = {
     unwrap(apiClient.get<Wrap<EmailBranding>>(`${BASE}/branding${scopeQs(salesChannelId)}`)),
   putBranding: (salesChannelId: string | null, body: PutEmailBrandingRequest): Promise<EmailBranding> =>
     unwrap(apiClient.put<Wrap<EmailBranding>>(`${BASE}/branding${scopeQs(salesChannelId)}`, body)),
+  /** Issue #1588 — the channel inherits the all-channels value of each field again. */
+  resetBranding: (salesChannelId: string, fields: readonly EmailBrandingField[]): Promise<EmailBranding> => {
+    const params = new URLSearchParams({ salesChannelId, fields: fields.join(',') });
+    return unwrap(apiClient.delete<Wrap<EmailBranding>>(`${BASE}/branding?${params.toString()}`));
+  },
 
   // Blocks
   listBlocks: (salesChannelId?: string): Promise<{ items: EmailBlockSummary[] }> =>

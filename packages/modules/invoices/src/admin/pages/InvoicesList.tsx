@@ -18,7 +18,7 @@ import {
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
 import { InvoiceSectionTabs } from '../components/InvoiceSectionTabs.js';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   invoiceKindSchema,
   type AdminInvoiceListItem,
@@ -46,6 +46,7 @@ const STATUS_VARIANT: Record<AdminInvoice['status'], 'default' | 'secondary' | '
  * by cursor and answers no total (#1120).
  */
 export function InvoicesList(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const ti = useTranslation('invoices');
   const filterId = useId();
@@ -227,14 +228,14 @@ export function InvoicesList(): ReactNode {
           {i.number}
         </Link>
       ),
-      meta: (i) => formatDateTime(i.issuedAt),
+      meta: (i) => formatDateTime(i.issuedAt, language),
     },
     { id: 'kind', header: t('invoices.columns.kind'), render: (i) => t(`invoices.kind.${i.kind}`) },
     {
       id: 'issued',
       header: t('invoices.columns.issued'),
       hideOnMobile: true,
-      render: (i) => formatDateTime(i.issuedAt),
+      render: (i) => formatDateTime(i.issuedAt, language),
     },
     {
       id: 'order',
@@ -270,7 +271,6 @@ export function InvoicesList(): ReactNode {
   return (
     <ListPage
       title={t('invoices.title')}
-      description={t('invoices.description')}
       // The templates button is gone: it is a tab now.
       tabs={<InvoiceSectionTabs />}
       load={load}

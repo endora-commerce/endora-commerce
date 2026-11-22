@@ -18,6 +18,7 @@ import { Migration20261009T163307CrmOpportunityMessageReads } from './20261009T1
 import { Migration20261027T020030CrmOpportunityReferenceDocuments } from './20261027T020030_crm_opportunity_reference_documents.js';
 import { Migration20261028T143444CrmOpportunityReferenceKinds } from './20261028T143444_crm_opportunity_reference_kinds.js';
 import { Migration20261109T163616CrmOpportunityValueChanges } from './20261109T163616_crm_opportunity_value_changes.js';
+import { Migration20261122T074243CrmOpportunityListSavedViews } from './20261122T074243_crm_opportunity_list_saved_views.js';
 
 export const migrations = [
   Migration20261005T132439CrmInit,
@@ -28,6 +29,7 @@ export const migrations = [
   Migration20261027T020030CrmOpportunityReferenceDocuments,
   Migration20261028T143444CrmOpportunityReferenceKinds,
   Migration20261109T163616CrmOpportunityValueChanges,
+  Migration20261122T074243CrmOpportunityListSavedViews,
 ];
 
 export {
@@ -39,4 +41,5 @@ export {
   Migration20261027T020030CrmOpportunityReferenceDocuments,
   Migration20261028T143444CrmOpportunityReferenceKinds,
   Migration20261109T163616CrmOpportunityValueChanges,
+  Migration20261122T074243CrmOpportunityListSavedViews,
 };

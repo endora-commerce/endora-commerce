@@ -3,8 +3,10 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { ComponentConfig, Fields, PuckComponent } from '@puckeditor/core';
 import {
+  contentDefaultFor,
   createAspectRatioField,
   createColorField,
+  PAGE_BUILDER_CONTENT_DEFAULTS,
   isAspectToken,
   normalizeResponsive,
   PB_DATA_METADATA,
@@ -12,6 +14,7 @@ import {
   resolveResponsive,
   withHideOn,
   type BreakpointTier,
+  type ContentDefaultPropsMap,
   type ResponsiveProp,
 } from '@endora-commerce/page-builder-core';
 import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
@@ -265,7 +268,9 @@ function LatestPostsBody({
     blogPostsDataRequest({ limit: props.limit, categorySlug: props.categorySlug }),
   );
   const posts = data ?? [];
-  const readMoreLabel = props.readMoreLabel ?? 'Read more';
+  // #1684 — a stored block with no label gets the content default of the page's language.
+  const { language } = useBlockRenderEnvironment();
+  const readMoreLabel = props.readMoreLabel ?? contentDefaultFor(language, 'latestPosts.readMoreLabel');
 
   if (loading || posts.length === 0) {
     // Customers never see a placeholder: the storefront resolved the posts on the server.
@@ -485,7 +490,8 @@ const latestPostsConfig: ComponentConfig<{ props: LatestPostsProps }> = {
     categorySlug: '',
     layout: 'carousel',
     columns: DEFAULT_COLUMNS,
-    readMoreLabel: 'Read more',
+    // #1684 — the English; an editor seeds it in the edited content language (`LATEST_POSTS_CONTENT_DEFAULT_PROPS`).
+    readMoreLabel: PAGE_BUILDER_CONTENT_DEFAULTS.en['latestPosts.readMoreLabel'],
     slidesPerView: { base: 1.15, tablet: 2, desktop: 3 },
     gap: 's',
     effect: 'slide',
@@ -525,3 +531,12 @@ const latestPostsConfig: ComponentConfig<{ props: LatestPostsProps }> = {
 };
 
 export const LatestPosts = withHideOn(latestPostsConfig);
+
+/**
+ * The latest posts' default props that are content (#1684): a host building
+ * an editor config seeds them in the edited content language with
+ * `withContentDefaultProps`.
+ */
+export const LATEST_POSTS_CONTENT_DEFAULT_PROPS = {
+  'blog.LatestPosts': { readMoreLabel: 'latestPosts.readMoreLabel' },
+} as const satisfies ContentDefaultPropsMap;

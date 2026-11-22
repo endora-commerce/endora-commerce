@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 const RANGE_OPTION_VALUES = [7, 30, 90] as const;
 
@@ -29,6 +29,7 @@ interface SummaryEnvelope {
 
 export default function AnalyticsPage(): ReactNode {
   const t = useTranslation('analytics');
+  const { language } = useTranslationContext();
   const RANGE_OPTIONS = [
     { value: 7, label: t('range.7days') },
     { value: 30, label: t('range.30days') },
@@ -76,8 +77,8 @@ export default function AnalyticsPage(): ReactNode {
         title={t('page.title')}
         description={
           <>
-            {t('page.descriptionPrefix')} {formatDateTime(window.fromIso)} –{' '}
-            {formatDateTime(window.toIso)}.
+            {t('page.descriptionPrefix')} {formatDateTime(window.fromIso, language)} –{' '}
+            {formatDateTime(window.toIso, language)}.
           </>
         }
         actions={

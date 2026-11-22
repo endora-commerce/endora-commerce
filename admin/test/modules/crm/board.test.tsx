@@ -545,8 +545,11 @@ describe('OpportunityBoardPage — loading, failure and more cards', () => {
   });
 
   it('says the workflow could not be loaded when there are no lanes to draw', async () => {
-    getSpy.mockImplementation(() =>
-      Promise.reject(new ApiError(500, { error: { code: 'INTERNAL', message: 'Boom.' } })),
+    // Everything but the saved views fails; their own failure is a separate notice.
+    getSpy.mockImplementation((path: string) =>
+      path === '/api/v1/admin/crm/opportunities/list-views'
+        ? Promise.resolve({ data: [] })
+        : Promise.reject(new ApiError(500, { error: { code: 'INTERNAL', message: 'Boom.' } })),
     );
     renderCrm(<OpportunityBoardPage />, { path: '/crm/board', pattern: '/crm/board' });
     expect(await screen.findByText('Boom.')).toBeInTheDocument();

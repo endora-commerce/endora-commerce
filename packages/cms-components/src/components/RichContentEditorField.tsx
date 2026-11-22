@@ -7,6 +7,7 @@ import {
   EMPHASIS_VARIANTS,
   normalizeAnchor,
   PAGE_BUILDER_FIELD_TEXT,
+  useContentDefault,
   useFieldText,
   useImagePicker,
   type EmphasisVariant,
@@ -499,6 +500,8 @@ function Toolbar({
   const [imageOpen, setImageOpen] = useState(false);
   const [anchorOpen, setAnchorOpen] = useState(false);
   const text = useFieldText();
+  // Content seeded into the document is in the edited content locale (#1684), not the admin's.
+  const contentDefault = useContentDefault();
 
   if (!editor) return null;
 
@@ -687,7 +690,7 @@ function Toolbar({
         <ToolbarButton
           title={text('richText.readMore')}
           active={editor.isActive('readMore')}
-          onClick={() => editor.chain().focus().insertContent(readMoreContent('Read more')).run()}
+          onClick={() => editor.chain().focus().insertContent(readMoreContent(contentDefault('readMore.summary'))).run()}
         >
           ⋯
         </ToolbarButton>

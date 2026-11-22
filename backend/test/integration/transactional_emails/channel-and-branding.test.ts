@@ -197,4 +197,91 @@ describe('transactional emails — per-channel + branding (US2)', () => {
     expect(channelHtml).not.toContain('background-color:#0a7e5c');
     expect(channelHtml).toContain(`src="${logoUrlPrefix}`);
   });
+  /**
+   * Issue #1588 — a sales channel that once overrode a branding value could
+   * never inherit the all-channels value again: the API had no way to remove
+   * the channel's own value. `DELETE /branding?salesChannelId=…&fields=…`
+   * removes the named fields' per-channel values, and only those.
+   */
+  it('resets named branding fields of a channel back to the all-channels value', async () => {
+    const putGlobal = await h.app.inject({
+      method: 'PUT',
+      url: `${BASE}/branding`,
+      cookies: ADMIN_COOKIE,
+      payload: { accentColor: '#111111', headerBlockCode: 'global_header' },
+    });
+    expect(putGlobal.statusCode).toBe(200);
+    const putChannel = await h.app.inject({
+      method: 'PUT',
+      url: `${BASE}/branding?salesChannelId=${channelId}`,
+      cookies: ADMIN_COOKIE,
+      payload: { accentColor: '#222222', headerBlockCode: 'channel_header' },
+    });
+    expect(putChannel.statusCode).toBe(200);
+
+    const reset = await h.app.inject({
+      method: 'DELETE',
+      url: `${BASE}/branding?salesChannelId=${channelId}&fields=accentColor`,
+      cookies: ADMIN_COOKIE,
+    });
+    expect(reset.statusCode).toBe(200);
+    const after = (reset.json() as { data: { accentColor: string; headerBlockCode: string } }).data;
+    expect(after.accentColor).toBe('#111111');
+    // A field not named keeps the channel's own value.
+    expect(after.headerBlockCode).toBe('channel_header');
+
+    const channelGet = await h.app.inject({
+      method: 'GET',
+      url: `${BASE}/branding?salesChannelId=${channelId}`,
+      cookies: ADMIN_COOKIE,
+    });
+    expect((channelGet.json() as { data: { accentColor: string } }).data.accentColor).toBe('#111111');
+
+    // The channel follows the all-channels value from now on.
+    await h.app.inject({
+      method: 'PUT',
+      url: `${BASE}/branding`,
+      cookies: ADMIN_COOKIE,
+      payload: { accentColor: '#333333' },
+    });
+    const followed = await h.app.inject({
+      method: 'GET',
+      url: `${BASE}/branding?salesChannelId=${channelId}`,
+      cookies: ADMIN_COOKIE,
+    });
+    expect((followed.json() as { data: { accentColor: string } }).data.accentColor).toBe('#333333');
+
+    const globalGet = await h.app.inject({ method: 'GET', url: `${BASE}/branding`, cookies: ADMIN_COOKIE });
+    expect((globalGet.json() as { data: { accentColor: string } }).data.accentColor).toBe('#333333');
+  });
+
+  it('refuses a branding reset without a channel, without fields, or for an unknown channel', async () => {
+    const noChannel = await h.app.inject({
+      method: 'DELETE',
+      url: `${BASE}/branding?fields=accentColor`,
+      cookies: ADMIN_COOKIE,
+    });
+    expect(noChannel.statusCode).toBe(400);
+
+    const noFields = await h.app.inject({
+      method: 'DELETE',
+      url: `${BASE}/branding?salesChannelId=${channelId}`,
+      cookies: ADMIN_COOKIE,
+    });
+    expect(noFields.statusCode).toBe(400);
+
+    const unknownField = await h.app.inject({
+      method: 'DELETE',
+      url: `${BASE}/branding?salesChannelId=${channelId}&fields=accentColor,salesChannelId`,
+      cookies: ADMIN_COOKIE,
+    });
+    expect(unknownField.statusCode).toBe(400);
+
+    const unknownChannel = await h.app.inject({
+      method: 'DELETE',
+      url: `${BASE}/branding?salesChannelId=${randomUUID()}&fields=accentColor`,
+      cookies: ADMIN_COOKIE,
+    });
+    expect(unknownChannel.statusCode).toBe(404);
+  });
 });

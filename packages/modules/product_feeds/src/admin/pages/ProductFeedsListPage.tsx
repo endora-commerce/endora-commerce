@@ -4,7 +4,7 @@ import { Download, Play, Plus, Rss, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, RowActionMenu, RowActionMenuItem, RowActionMenuSeparator, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { productFeedsClient, type ProductFeedDto } from '../api.js';
 import { FeedSectionTabs } from '../components/FeedSectionTabs.js';
 import { FeedStatusBadge } from '../components/FeedStatusBadge.js';
@@ -28,6 +28,7 @@ import { FeedStatusBadge } from '../components/FeedStatusBadge.js';
 const POLL_INTERVAL_MS = 5_000;
 
 export function ProductFeedsListPage(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('product_feeds');
   const { confirm, confirmDialog } = useConfirmDialog();
   const navigate = useNavigate();
@@ -130,7 +131,7 @@ export function ProductFeedsListPage(): ReactNode {
           <div className="flex flex-col gap-0.5">
             <FeedStatusBadge status={row.isRunning ? 'running' : row.lastRun.status} />
             <span className="text-xs text-muted-foreground">
-              {row.lastRun.finishedAt ? formatDateTime(row.lastRun.finishedAt) : ''}
+              {row.lastRun.finishedAt ? formatDateTime(row.lastRun.finishedAt, language) : ''}
             </span>
             {row.lastRun.failureCode && (
               // The reason inline — an operator should not have to open a run to
@@ -163,7 +164,7 @@ export function ProductFeedsListPage(): ReactNode {
       // operator reading "every 15 minutes" needs to see it in the same glance.
       render: (row) => (
         <div className="flex flex-col gap-0.5">
-          <span>{row.nextRunAt ? formatDateTime(row.nextRunAt) : t('feeds.table.manualOnly')}</span>
+          <span>{row.nextRunAt ? formatDateTime(row.nextRunAt, language) : t('feeds.table.manualOnly')}</span>
           {row.scheduleTooTightWarning && (
             <span className="text-xs text-[var(--warn)]">
               {t('feeds.table.scheduleTooTight')}

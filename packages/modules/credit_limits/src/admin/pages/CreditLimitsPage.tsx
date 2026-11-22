@@ -31,7 +31,7 @@ import {
   type ListPageLoad,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { moneyDifference, type CreditLimitListResponse, type CreditLimitView } from '@endora-commerce/contracts';
 import { DEEP_LINK_PARAM, deepLinkedOrganization } from '../deep-link.js';
 
@@ -53,6 +53,7 @@ const nameOf = (organizationId: string, name: string | null | undefined): string
  * off screen, is gone.
  */
 export function CreditLimitsPage(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const tc = useTranslation('credit_limits');
   const pager = useListPagination({ scope: 'credit-limits', maxPageSize: MAX_PAGE_SIZE });
@@ -160,7 +161,7 @@ export function CreditLimitsPage(): ReactNode {
       id: 'grantedAt',
       header: t('creditLimits.column.grantedAt'),
       hideOnMobile: true,
-      render: (r) => <span className="text-xs text-muted-foreground">{formatDateTime(r.grantedAt)}</span>,
+      render: (r) => <span className="text-xs text-muted-foreground">{formatDateTime(r.grantedAt, language)}</span>,
     },
   ];
 
@@ -401,6 +402,7 @@ function AdjustForm({
   limit: CreditLimitView;
   onAdjust: (input: { grantedAmount: number; reason?: string; allowOverAllocation: boolean }) => void;
 }): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const [grantedAmount, setGrantedAmount] = useState(String(limit.grantedAmount));
   const [reason, setReason] = useState('');
@@ -436,7 +438,7 @@ function AdjustForm({
                   </Link>
                 </TableCell>
                 <TableCell>{formatMoney(r.amount, limit.currency)}</TableCell>
-                <TableCell>{formatDateTime(r.createdAt)}</TableCell>
+                <TableCell>{formatDateTime(r.createdAt, language)}</TableCell>
               </TableRow>
             ))}
           </TableBody>

@@ -8,7 +8,7 @@
  * same rule as the control itself, and the reason a host needs no condition of
  * its own around the mount.
  */
-import type { ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
 import { Boxes, Lock, ShieldCheck } from 'lucide-react';
 
 import {
@@ -16,6 +16,8 @@ import {
   type EditorSectionChrome,
   type EditorSectionHeading,
 } from '../ui/editor-section.js';
+import { AppLanguageContext } from '../i18n/app-language-context.js';
+import { formatDateTime } from '../lib/format.js';
 import { describeFieldPath } from './describe-path.js';
 import { useFieldProtection } from './use-field-protection.js';
 import type { FieldProtectionSource } from './types.js';
@@ -41,6 +43,10 @@ export function FieldProtectionSummary({
   titleAs,
 }: FieldProtectionSummaryProps): ReactNode {
   const protection = useFieldProtection(source);
+  // A guarded read, not `useAppLanguage()` (which throws): an integration may
+  // render this zone without the admin's language context, and the date then
+  // falls back to the browser's locale rather than taking the zone down (#1776).
+  const language = useContext(AppLanguageContext)?.language;
   if (!protection.available) return null;
 
   const t = source.t;
@@ -82,7 +88,9 @@ export function FieldProtectionSummary({
         {synced && !Number.isNaN(synced.getTime()) ? (
           <span>
             {t('fieldProtection.lastSyncedAt')}:{' '}
-            <time dateTime={protection.lastSyncedAt ?? undefined}>{synced.toLocaleString()}</time>
+            <time dateTime={protection.lastSyncedAt ?? undefined}>
+              {formatDateTime(protection.lastSyncedAt, language)}
+            </time>
           </span>
         ) : null}
       </div>

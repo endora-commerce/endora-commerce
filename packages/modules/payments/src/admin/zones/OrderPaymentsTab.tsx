@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 type PaymentStatus =
   | 'awaiting_payment'
@@ -161,6 +161,7 @@ export type OrderPaymentsTabProps = AdminZoneProps<'order.detail.payment'>;
 
 export function OrderPaymentsTab(props: OrderPaymentsTabProps): ReactNode {
   const t = useTranslation('core');
+  const { language } = useTranslationContext();
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,7 +230,7 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps): ReactNode {
                       {t(`orderDetail.paymentStatus.${e.status}`)}
                     </Badge>
                   </TableCell>
-                  <TableCell>{e.at ? formatDateTime(e.at) : '—'}</TableCell>
+                  <TableCell>{e.at ? formatDateTime(e.at, language) : '—'}</TableCell>
                   <TableCell className="font-mono text-xs">{e.reference ?? '—'}</TableCell>
                   <TableCell className="text-destructive">{e.failure ?? ''}</TableCell>
                 </TableRow>
@@ -259,7 +260,7 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps): ReactNode {
                 <TableRow key={inv.id}>
                   <TableCell className="font-medium">{inv.number}</TableCell>
                   <TableCell>{t(`orderDetail.invoices.kind.${inv.kind}`)}</TableCell>
-                  <TableCell>{formatDateTime(inv.issuedAt)}</TableCell>
+                  <TableCell>{formatDateTime(inv.issuedAt, language)}</TableCell>
                   <TableCell className="tabular-nums">{money(inv.total, inv.currency)}</TableCell>
                   <TableCell>
                     <Badge variant={INVOICE_STATUS_VARIANT[inv.status]}>

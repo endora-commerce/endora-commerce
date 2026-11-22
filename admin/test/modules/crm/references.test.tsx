@@ -207,7 +207,9 @@ describe('an Order a text refers to (specs/158-crm-opportunity-inline-editing/, 
     const chip = number.closest('[data-order-reference]') as HTMLElement;
     expect(chip).toHaveTextContent('Paid');
     expect(chip).toHaveTextContent(/1[\s\u00a0\u202f]?234[.,]50/);
-    expect(chip).toHaveTextContent(new Date('2026-10-01T09:30:00.000Z').toLocaleDateString('en'));
+    expect(chip).toHaveTextContent(
+      new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date('2026-10-01T09:30:00.000Z')),
+    );
     expect(chip).toHaveTextContent('Acme sp. z o.o.');
   });
 

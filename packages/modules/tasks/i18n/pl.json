@@ -463,8 +463,6 @@
   "workflow.col.code": "Kod",
   "workflow.col.category": "Kategoria",
   "workflow.col.position": "Pozycja",
-  "reorder.moveUp": "Przesuń „{name}” w górę",
-  "reorder.moveDown": "Przesuń „{name}” w dół",
   "reorder.stale": "Ktoś inny zmienił tę listę w trakcie zmiany kolejności. Lista została wczytana ponownie; przesuń wiersz jeszcze raz.",
   "reorder.failed": "Nie udało się zapisać nowej kolejności, więc lista wróciła do poprzedniej.",
   "workflow.col.inUse": "Zadania (widoczne dla Ciebie)",

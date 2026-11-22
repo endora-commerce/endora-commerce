@@ -3,7 +3,7 @@ import { TriangleAlert } from 'lucide-react';
 import type { OrganizationTaxIdValidationRecord } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, EditorSection, InlineStatus, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   attemptNotes,
   newestRegistrationRow,
@@ -57,6 +57,7 @@ function useProviderLabel(): (provider: Provider) => string {
  * `legalName` + bumps `version` atomically.
  */
 export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const tm = useTranslation('organizations');
   const providerLabel = useProviderLabel();
@@ -154,7 +155,7 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
           ) : null}
           {props.summary.validatedAt ? (
             <span className="text-muted-foreground">
-              · {formatDateTime(props.summary.validatedAt)}
+              · {formatDateTime(props.summary.validatedAt, language)}
             </span>
           ) : null}
         </div>
@@ -201,7 +202,7 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
               <TableBody>
                 {items.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="text-xs">{formatDateTime(r.createdAt)}</TableCell>
+                    <TableCell className="text-xs">{formatDateTime(r.createdAt, language)}</TableCell>
                     <TableCell className="text-xs">{tm(`vatValidation.origin.${r.origin}`)}</TableCell>
                     <TableCell className="text-xs">{providerLabel(r.provider)}</TableCell>
                     <TableCell>
@@ -264,6 +265,7 @@ function RegistrationDetails({ row }: { row: ValidationRecord }): ReactNode {
  * an icon **and** the word, never colour alone (WCAG 1.4.1).
  */
 function RegistrySnapshotCard({ row }: { row: ValidationRecord }): ReactNode {
+  const { language } = useTranslationContext();
   const tm = useTranslation('organizations');
   const providerLabel = useProviderLabel();
   const rows = registryComparisonRows(row);
@@ -278,7 +280,7 @@ function RegistrySnapshotCard({ row }: { row: ValidationRecord }): ReactNode {
       <p className="mt-1 mb-2 text-xs text-muted-foreground">
         {tm('vatValidation.registry.fetchedFrom', {
           source: providerLabel(details?.dataSource ?? row.provider),
-          when: formatDateTime(details?.fetchedAt ?? row.createdAt),
+          when: formatDateTime(details?.fetchedAt ?? row.createdAt, language),
         })}
       </p>
       {!hasRegistryData ? (
