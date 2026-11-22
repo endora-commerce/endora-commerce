@@ -45,14 +45,14 @@ export function FormPreview({ formId, language, version, stale }: FormPreviewPro
 
   return (
     <Card role="region" aria-labelledby="forms-preview-title">
-      <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 border-b border-border p-4">
+      <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 border-b border-border">
         <div className="space-y-1">
           <CardTitle id="forms-preview-title">{t('preview.title')}</CardTitle>
           {stale ? <CardDescription className="text-xs">{t('preview.stale')}</CardDescription> : null}
         </div>
         <Badge variant="outline">{language}</Badge>
       </CardHeader>
-      <CardContent className="p-4" aria-busy={state.kind === 'loading' || undefined}>
+      <CardContent aria-busy={state.kind === 'loading' || undefined}>
         {state.kind === 'loading' ? <p className="text-sm text-muted-foreground">{t('preview.loading')}</p> : null}
         {state.kind === 'error' ? <p className="text-sm text-destructive">{t('preview.loadError')}</p> : null}
         {state.kind === 'ready' ? (

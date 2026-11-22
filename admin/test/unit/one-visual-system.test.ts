@@ -33,12 +33,11 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
-/** The screens #1492 names, migrated, then the inventory and pwa modules' remaining screens. Repo-relative. */
+/**
+ * The screens #1492 names, migrated, then the inventory and pwa modules' remaining screens.
+ * The catalog screens it named are held by `MIGRATED_DIRS` since slice S15. Repo-relative.
+ */
 const MIGRATED = [
-  'packages/modules/catalog/src/admin/components/ProductInventoryTab.tsx',
-  'packages/modules/catalog/src/admin/components/PackagingUnitsEditor.tsx',
-  'packages/modules/catalog/src/admin/pages/ProductsList.tsx',
-  'packages/modules/catalog/src/admin/pages/ProductEditor.tsx',
   'packages/modules/inventory/src/admin/pages/InventoryPage.tsx',
   'packages/modules/inventory/src/admin/zones/ChannelWarehouses.tsx',
   'packages/modules/inventory/src/admin/pages/AvailabilityNotificationsPage.tsx',
@@ -53,10 +52,6 @@ const MIGRATED = [
   // The command palette's prompt mode (#1492). `AppShell.tsx` is still to come.
   'packages/admin-shell/src/components/prompt-actions/PromptModePanel.tsx',
   'packages/admin-shell/src/components/prompt-actions/PromptPlanPreview.tsx',
-  // The catalog bulk operations (#1492, UX audit slice S14): the bulk edit dialog and both pages.
-  'packages/modules/catalog/src/admin/components/ProductsBulkEditDialog.tsx',
-  'packages/modules/catalog/src/admin/pages/BulkOperationsPage.tsx',
-  'packages/modules/catalog/src/admin/pages/BulkOperationDetailPage.tsx',
 ] as const;
 
 /**
@@ -70,6 +65,8 @@ const MIGRATED_DIRS = [
   'packages/admin-kit/src/ui',
   // The Home dashboard, with #1556.
   'packages/admin-shell/src/modules/home',
+  // The whole catalog admin, with the product editor and create form (#1492, UX audit slice S15).
+  'packages/modules/catalog/src/admin',
   'packages/modules/import_export/src/admin',
   'packages/modules/price_lists/src/admin',
   'packages/modules/product_feeds/src/admin',
@@ -124,6 +121,8 @@ const DATA_COLOUR_STYLE = /style=\{\{ (?:backgroundColor|background|color|border
 const DRAWER_CLASSES = /\bb2b-(?:scrim|drawer(?:--[a-z]+|__[a-z]+)?)\b/g;
 const SCRIM_CLASS = /\bb2b-scrim\b/g;
 const COMPUTED_STYLE = /style=\{\{ (?:width|paddingLeft): `\$\{[^}]+\}(?:%|px)` \}\}/;
+/** A tree row's indent written as a number of pixels from its depth (`depth * 24 + 8`). */
+const TREE_INDENT_STYLE = /style=\{\{ paddingLeft: depth \* \d+ \+ \d+ \}\}/;
 
 const EXCEPTIONS: Record<string, Exception[]> = {
   'packages/admin-kit/src/components/product-browser/ProductBrowserDialog.tsx': [
@@ -137,6 +136,9 @@ const EXCEPTIONS: Record<string, Exception[]> = {
   ],
   'packages/admin-kit/src/components/category-tree-picker/CategoryTreeNodeRow.tsx': [
     { kind: 'styles', pattern: COMPUTED_STYLE, count: 1, reason: COMPUTED },
+  ],
+  'packages/modules/catalog/src/admin/pages/CategoriesTree.tsx': [
+    { kind: 'styles', pattern: TREE_INDENT_STYLE, count: 1, reason: COMPUTED },
   ],
   'packages/admin-kit/src/components/kanban/MoveToMenu.tsx': [
     { kind: 'styles', pattern: DATA_COLOUR_STYLE, count: 1, reason: DATA_COLOUR },

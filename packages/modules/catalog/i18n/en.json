@@ -1346,7 +1346,7 @@
   "packagingUnits.readOnly": "Read-only: you can see the packaging units but not change them.",
   "productEditor.saved": "Saved.",
   "productEditor.error.load": "The product could not be loaded.",
-  "productEditor.error.nameRequired": "At least one locale name is required.",
+  "productEditor.error.nameRequired": "Enter a name.",
   "productEditor.error.save": "Save failed.",
   "productEditor.error.delete": "Delete failed.",
   "productEditor.error.duplicate": "Duplicate failed.",

@@ -164,7 +164,6 @@ const bundle = {
     // same one `admin_users`' and `audit_logs`' screens are in. Only the two
     // sidebar labels moved into the package.
     'promotions.page.title',
-    'promotions.page.description',
     'promotions.edit.titleNew',
     'promotionStats.title',
     'promotionRules.page.title',

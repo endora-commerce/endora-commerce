@@ -110,7 +110,8 @@ export function LinkedOpportunityPanel(props: LinkedOpportunityPanelProps): Reac
             </Link>{' '}
             <span>{opportunity.title}</span>
           </p>
-          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
+          {/* One fact under another: the panel is a section of a 20rem sidebar (#1452). */}
+          <dl className="grid gap-y-3">
             <div>
               <dt className="text-muted-foreground">{t('orderPanel.field.status')}</dt>
               <dd>

@@ -4,11 +4,10 @@ import { BASE, CH_RETAIL, PRODUCT_ID, api, defaultRead, en, renderEditor, setUpE
 
 /**
  * Issue #501, item 5 — in the scope map the content of a channel row's cells
- * touched the next row's border. `.b2b-tbl tbody td` is `padding: 0 12px`, sized
- * for one-line rows centred in `--row-h`; the map's cells are top-aligned and
- * hold several lines (a field list, reset buttons, links), so they need vertical
- * padding of their own — and so does the row header, which no `.b2b-tbl` rule
- * styles at all.
+ * touched the next row's border. The table's cells were sized for one-line rows;
+ * the map's cells are top-aligned and hold several lines (a field list, reset
+ * buttons, links), so they need vertical padding of their own — and so does the
+ * row header.
  */
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
@@ -46,11 +45,11 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-const hasVerticalPadding = (cell: HTMLElement): boolean => {
-  const top = Number.parseFloat(cell.style.paddingTop || '0');
-  const bottom = Number.parseFloat(cell.style.paddingBottom || '0');
-  return top > 0 && bottom > 0;
-};
+// Since UX audit slice S15 (#1492) the cells are the kit's `TableCell` / `TableHead` with a
+// Tailwind padding utility, not an inline style: jsdom has no stylesheet, so the class is the
+// observable.
+const hasVerticalPadding = (cell: HTMLElement): boolean =>
+  [...cell.classList].some((name) => /^py-[1-9]/.test(name));
 
 describe('scope map cells keep their content inside the row (issue #501)', () => {
   it('pads every body cell and row header vertically', async () => {

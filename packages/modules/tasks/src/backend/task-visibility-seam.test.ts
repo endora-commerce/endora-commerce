@@ -224,7 +224,7 @@ const RULE_SCOPED_READ_LEDGER: Readonly<Record<string, number>> = {
   'services/task-asset-references.ts': 5,
   'services/task-commands.ts': 10,
   'services/task-history-service.ts': 1,
-  'services/task-service.ts': 21,
+  'services/task-service.ts': 22,
   'services/task-visibility.ts': 0,
   'services/task-reassignment.ts': 1,
   'services/time-zone-rederive-service.ts': 5,

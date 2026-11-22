@@ -25,7 +25,7 @@ describe('ProductCreateForm — SKU', () => {
       </MemoryRouter>,
       passthroughBundle('catalog', ['productEditor.field.sku', 'productEditor.field.sku.createHint']),
     );
-    const sku = await screen.findByLabelText('productEditor.field.sku');
+    const sku = await screen.findByRole('textbox', { name: 'productEditor.field.sku' });
     expect(sku).toHaveAccessibleDescription('productEditor.field.sku.createHint');
   });
 });

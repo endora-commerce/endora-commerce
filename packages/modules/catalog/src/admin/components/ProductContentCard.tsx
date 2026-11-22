@@ -57,8 +57,7 @@ export function ProductContentCard({
     <section
       data-content-attribute={attributeKey}
       aria-label={label}
-      className="rounded-md border p-4"
-      style={{ gridColumn: '1 / -1' }}
+      className="col-span-full rounded-md border p-4"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
@@ -66,7 +65,7 @@ export function ProductContentCard({
               like the fields beside it, not an `h3` — the tab has no `h2` for it to sit under, so
               the heading skipped a level. The region keeps its name for landmark navigation. */}
           <p className="text-sm font-medium">
-            {label} <span className="b2b-mono" style={{ opacity: 0.6 }}>({attributeKey})</span>
+            {label} <span className="font-mono font-normal text-muted-foreground">({attributeKey})</span>
           </p>
           <ul className="flex flex-wrap gap-2" aria-label={t('productContent.card.languages')}>
             {languages.map((language) => (

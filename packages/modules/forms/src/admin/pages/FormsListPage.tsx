@@ -1,36 +1,28 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ClipboardList, Plus } from 'lucide-react';
 import { FORM_STATUSES, type FormStatus, type FormSummary } from '@endora-commerce/contracts';
 import {
-  PaginationFooter,
+  ListPage,
+  ListToolbar,
+  ListToolbarSearch,
   ResponsiveTable,
   RowActionMenu,
   RowActionMenuItem,
   RowActionMenuSeparator,
+  useListPagination,
+  type ListPageLoad,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  EmptyState,
-  Input,
-  Label,
-  PageHeader,
-  Select,
-} from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EmptyState, Select } from '@endora-commerce/admin-kit/ui';
 import { formsApi } from '../api.js';
 import { DeleteFormDialog, FormStatusBadge, FormWarningList } from '../components/FormStatus.js';
 import { errorMessage } from '../lib/errors.js';
 
-const PAGE_SIZES = [10, 20, 50, 100] as const;
-type PageSize = (typeof PAGE_SIZES)[number];
+/** The largest page the forms list endpoint serves (`formListQuerySchema`). */
+const MAX_PAGE_SIZE = 100;
 
 type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; items: FormSummary[]; total: number };
 
@@ -40,6 +32,10 @@ type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; items: Fo
  * by text and status. The row actions — open, duplicate, close or reopen, delete — are offered to a
  * holder of `forms:write`; each write names the revision it read (R-26), so the row's form is read
  * fresh before it is changed.
+ *
+ * The kit's list page (issues #1439 DS-05, #1440 DS-06): the search and the status filter are a
+ * toolbar row above the results, not a card header, and the pager is the kit's, remembering the
+ * administrator's page size.
  */
 export function FormsListPage(): ReactNode {
   const t = useTranslation('forms');
@@ -47,13 +43,12 @@ export function FormsListPage(): ReactNode {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('forms:write');
-  const searchId = useId();
   const searchRef = useRef<HTMLInputElement>(null);
-  const statusId = useId();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<FormStatus | ''>('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<PageSize>(20);
+  const pagination = useListPagination({ scope: 'forms', maxPageSize: MAX_PAGE_SIZE });
+  const { page, pageSize } = pagination.query;
+  const { resetPage, syncTotal } = pagination;
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<{ form: FormSummary; revision: number } | null>(null);
@@ -63,7 +58,9 @@ export function FormsListPage(): ReactNode {
     formsApi
       .list({ q: q.trim() || undefined, status: status || undefined, page, pageSize })
       .then((result) => {
-        if (alive) setLoad({ kind: 'ready', items: result.items, total: result.total });
+        if (!alive) return;
+        setLoad({ kind: 'ready', items: result.items, total: result.total });
+        syncTotal(result.total);
       })
       .catch(() => {
         if (alive) setLoad({ kind: 'error' });
@@ -71,7 +68,7 @@ export function FormsListPage(): ReactNode {
     return () => {
       alive = false;
     };
-  }, [q, status, page, pageSize]);
+  }, [q, status, page, pageSize, syncTotal]);
 
   useEffect(() => reload(), [reload]);
 
@@ -125,7 +122,7 @@ export function FormsListPage(): ReactNode {
   const clearFilters = (): void => {
     setQ('');
     setStatus('');
-    setPage(1);
+    resetPage();
   };
   const createLink = (
     <Button asChild className="min-h-11 sm:min-h-9">
@@ -138,36 +135,37 @@ export function FormsListPage(): ReactNode {
   // With no form at all the empty state carries the one create action; a second
   // filled button for the same thing in the header would compete (Von Restorff).
   const nothingYet = load.kind === 'ready' && load.total === 0 && !filtered;
+  const listLoad: ListPageLoad =
+    load.kind === 'error' ? { kind: 'error', message: t('list.loadError') } : { kind: load.kind };
   return (
-    <div className="space-y-4">
-      <PageHeader
+    <>
+      <ListPage
         title={t('list.title')}
         actions={canWrite && !nothingYet ? createLink : null}
-      />
-      <Card>
-        <CardHeader className="border-b border-border p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-56 flex-1 space-y-1">
-              <Label htmlFor={searchId}>{t('list.search')}</Label>
-              <Input
+        toolbar={
+          <ListToolbar
+            className="min-w-0 flex-1"
+            label={t('list.toolbar')}
+            search={
+              <ListToolbarSearch
                 ref={searchRef}
-                id={searchId}
-                type="search"
+                label={t('list.search')}
+                placeholder={t('list.search')}
                 value={q}
-                onChange={(event) => {
-                  setQ(event.target.value);
-                  setPage(1);
+                onValueChange={(next) => {
+                  setQ(next);
+                  resetPage();
                 }}
               />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor={statusId}>{t('list.status')}</Label>
+            }
+            filters={
               <Select
-                id={statusId}
+                aria-label={t('list.status')}
+                className="w-auto"
                 value={status}
                 onChange={(event) => {
                   setStatus(event.target.value as FormStatus | '');
-                  setPage(1);
+                  resetPage();
                 }}
               >
                 <option value="">{t('list.allStatuses')}</option>
@@ -177,86 +175,66 @@ export function FormsListPage(): ReactNode {
                   </option>
                 ))}
               </Select>
-            </div>
-            <p aria-live="polite" className="ml-auto self-center text-sm text-muted-foreground">
-              {load.kind === 'ready' ? t('list.count', { count: load.total }) : ''}
-            </p>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4 p-4" aria-busy={load.kind === 'loading' || undefined}>
-          {actionError ? (
+            }
+            filtersActive={filtered}
+            onClearFilters={clearFilters}
+          />
+        }
+        count={load.kind === 'ready' ? t('list.count', { count: load.total }) : null}
+        notice={
+          actionError ? (
             <Alert variant="destructive">
               <AlertDescription>{actionError}</AlertDescription>
             </Alert>
-          ) : null}
-          {load.kind === 'loading' ? <p className="py-6 text-center text-sm text-muted-foreground">{t('list.loading')}</p> : null}
-          {load.kind === 'error' ? (
-            <Alert variant="destructive">
-              <AlertDescription>{t('list.loadError')}</AlertDescription>
-            </Alert>
-          ) : null}
-          {load.kind === 'ready' ? (
-            <>
-              <ResponsiveTable
-                columns={columns}
-                data={load.items}
-                keyExtractor={(form) => form.id}
-                emptyState={
-                  filtered ? (
-                    <EmptyState
-                      variant="no-results"
-                      title={t('list.emptyFiltered')}
-                      onClearFilters={clearFilters}
-                      focusAfterClear={searchRef}
-                    />
-                  ) : (
-                    <EmptyState
-                      icon={<ClipboardList size={20} />}
-                      title={t('list.empty.title')}
-                      description={canWrite ? t('list.empty.body') : t('list.empty.bodyReadOnly')}
-                      action={canWrite ? createLink : null}
-                    />
-                  )
-                }
-                {...(canWrite
-                  ? {
-                      renderActions: (form: FormSummary) => (
-                        <RowActionMenu label={t('list.actions', { name: form.name })}>
-                          <RowActionMenuItem onSelect={() => { navigate(`/forms/${form.id}`); }}>{t('list.open')}</RowActionMenuItem>
-                          <RowActionMenuItem onSelect={() => void act(form, 'duplicate')}>{t('list.duplicate')}</RowActionMenuItem>
-                          {form.status === 'published' ? (
-                            <RowActionMenuItem onSelect={() => void act(form, 'close')}>{t('list.close')}</RowActionMenuItem>
-                          ) : null}
-                          {form.status === 'closed' ? (
-                            <RowActionMenuItem onSelect={() => void act(form, 'reopen')}>{t('list.reopen')}</RowActionMenuItem>
-                          ) : null}
-                          <RowActionMenuSeparator />
-                          <RowActionMenuItem destructive onSelect={() => void act(form, 'delete')}>
-                            {t('list.delete')}
-                          </RowActionMenuItem>
-                        </RowActionMenu>
-                      ),
-                    }
-                  : {})}
+          ) : null
+        }
+        load={listLoad}
+        onRetry={reload}
+        pagination={load.kind === 'ready' ? pagination.footer(load.total) : null}
+      >
+        <ResponsiveTable
+          columns={columns}
+          data={load.kind === 'ready' ? load.items : []}
+          keyExtractor={(form) => form.id}
+          emptyState={
+            filtered ? (
+              <EmptyState
+                variant="no-results"
+                title={t('list.emptyFiltered')}
+                onClearFilters={clearFilters}
+                focusAfterClear={searchRef}
               />
-              {load.total > 0 ? (
-                <PaginationFooter<PageSize>
-                  page={page - 1}
-                  pageSize={pageSize}
-                  total={load.total}
-                  pageSizes={PAGE_SIZES}
-                  onPageSizeChange={(next) => {
-                    setPageSize(next);
-                    setPage(1);
-                  }}
-                  onPrev={() => setPage((current) => Math.max(1, current - 1))}
-                  onNext={() => setPage((current) => current + 1)}
-                />
-              ) : null}
-            </>
-          ) : null}
-        </CardContent>
-      </Card>
+            ) : (
+              <EmptyState
+                icon={<ClipboardList size={20} />}
+                title={t('list.empty.title')}
+                description={canWrite ? t('list.empty.body') : t('list.empty.bodyReadOnly')}
+                action={canWrite ? createLink : null}
+              />
+            )
+          }
+          {...(canWrite
+            ? {
+                renderActions: (form: FormSummary) => (
+                  <RowActionMenu label={t('list.actions', { name: form.name })}>
+                    <RowActionMenuItem onSelect={() => { navigate(`/forms/${form.id}`); }}>{t('list.open')}</RowActionMenuItem>
+                    <RowActionMenuItem onSelect={() => void act(form, 'duplicate')}>{t('list.duplicate')}</RowActionMenuItem>
+                    {form.status === 'published' ? (
+                      <RowActionMenuItem onSelect={() => void act(form, 'close')}>{t('list.close')}</RowActionMenuItem>
+                    ) : null}
+                    {form.status === 'closed' ? (
+                      <RowActionMenuItem onSelect={() => void act(form, 'reopen')}>{t('list.reopen')}</RowActionMenuItem>
+                    ) : null}
+                    <RowActionMenuSeparator />
+                    <RowActionMenuItem destructive onSelect={() => void act(form, 'delete')}>
+                      {t('list.delete')}
+                    </RowActionMenuItem>
+                  </RowActionMenu>
+                ),
+              }
+            : {})}
+        />
+      </ListPage>
       {deleting ? (
         <DeleteFormDialog
           name={deleting.form.name}
@@ -269,7 +247,7 @@ export function FormsListPage(): ReactNode {
           }}
         />
       ) : null}
-    </div>
+    </>
   );
 }
 

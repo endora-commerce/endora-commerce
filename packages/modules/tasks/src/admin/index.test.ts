@@ -64,9 +64,9 @@ describe('tasks admin contributions', () => {
 
   it('contributes the Tasks panel to an Order, a Quote Request and an Opportunity (165 US6)', () => {
     expect((contributions.zones ?? []).map((zone) => [zone.zone, zone.weight, zone.requiredPermission])).toEqual([
-      ['order.detail.after', 660, 'tasks:read'],
-      ['quote_request.detail.after', 660, 'tasks:read'],
-      ['opportunity.detail.after', 660, 'tasks:read'],
+      ['order.detail.sidebar', 660, 'tasks:read'],
+      ['quote_request.detail.sidebar', 660, 'tasks:read'],
+      ['opportunity.detail.sidebar', 660, 'tasks:read'],
     ]);
   });
 

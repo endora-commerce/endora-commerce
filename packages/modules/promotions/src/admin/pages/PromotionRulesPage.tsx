@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
-import { RuleBuilder, type RuleAttributeField } from '@endora-commerce/admin-kit/components';
+import { RuleBuilder, useConfirmDialog, type RuleAttributeField } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { PromotionRule, PromotionRuleRecord } from '@endora-commerce/contracts';
 import { promotionRulesClient, promotionsClient } from '../api/promotions-client.js';
@@ -21,6 +21,7 @@ export const PromotionRulesPage = (): ReactNode => {
   const [description, setDescription] = useState<string | null>(null);
   const [attributeFields, setAttributeFields] = useState<RuleAttributeField[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const refresh = useCallback(() => {
     void promotionRulesClient.list().then(setRows).catch(() => setRows([]));
@@ -70,15 +71,20 @@ export const PromotionRulesPage = (): ReactNode => {
     }
   };
 
-  const remove = async (id: string): Promise<void> => {
+  // A rule's removal asks first (WCAG 3.3.4): it is one quiet icon on the row, and a
+  // mis-click on it must not cost the operator a rule they built.
+  const remove = async (r: PromotionRuleRecord): Promise<void> => {
     setError(null);
-    try {
-      await promotionRulesClient.remove(id);
-      if (editingId === id) resetForm();
-      refresh();
-    } catch (e) {
-      setError(e instanceof ApiError ? e.envelope.error.message : t('promotions.error.delete'));
-    }
+    const ok = await confirm({
+      message: t('promotionRules.deleteConfirm', { name: r.name }),
+      confirmLabel: t('common.action.delete'),
+      destructive: true,
+      action: () => promotionRulesClient.remove(r.id),
+      describeError: (e) => (e instanceof ApiError ? e.envelope.error.message : t('promotions.error.delete')),
+    });
+    if (!ok) return;
+    if (editingId === r.id) resetForm();
+    refresh();
   };
 
   return (
@@ -126,8 +132,19 @@ export const PromotionRulesPage = (): ReactNode => {
                     <Button type="button" variant="outline" size="sm" onClick={() => startEdit(r)}>
                       <Pencil /> {t('common.action.edit')}
                     </Button>
-                    <Button type="button" variant="destructive" size="sm" onClick={() => void remove(r.id)}>
-                      <Trash2 /> {t('promotions.action.delete')}
+                    {/* DS-07 (#1441): a row's removal is a ghost icon in the destructive tone,
+                        named after its row, never a filled red button — the builder's Save
+                        stays the one filled action on the screen (Von Restorff). */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive max-lg:h-11 max-lg:w-11"
+                      aria-label={t('promotionRules.action.deleteNamed', { name: r.name })}
+                      title={t('promotionRules.action.deleteNamed', { name: r.name })}
+                      onClick={() => void remove(r)}
+                    >
+                      <Trash2 aria-hidden="true" />
                     </Button>
                   </div>
                 </li>
@@ -136,6 +153,7 @@ export const PromotionRulesPage = (): ReactNode => {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 };

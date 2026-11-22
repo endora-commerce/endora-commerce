@@ -189,7 +189,6 @@ export const PromotionsPage = (): ReactNode => {
     <>
       <ListPage
         title={t('promotions.page.title')}
-        description={t('promotions.page.description')}
         actions={
           canWrite ? (
             <Button asChild>

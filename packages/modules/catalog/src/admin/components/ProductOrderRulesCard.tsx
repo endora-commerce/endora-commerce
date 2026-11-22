@@ -42,7 +42,7 @@ export function ProductOrderRulesCard({ productType }: { productType: string }):
           )}
         />
       </ScopedFieldGrid>
-      {!minimumEligible ? <p className="b2b-help">{t('orderRules.minimum.notApplicable')}</p> : null}
+      {!minimumEligible ? <p className="text-xs text-muted-foreground">{t('orderRules.minimum.notApplicable')}</p> : null}
     </EditorSection>
   );
 }

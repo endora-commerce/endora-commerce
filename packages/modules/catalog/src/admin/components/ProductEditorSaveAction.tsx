@@ -1,7 +1,7 @@
 import { useContext, type ReactNode } from 'react';
 import { Save } from 'lucide-react';
 import { StickyFormActions } from '@endora-commerce/admin-kit/components';
-import { InlineStatus, type InlineStatusProps } from '@endora-commerce/admin-kit/ui';
+import { Button, InlineStatus, type InlineStatusProps } from '@endora-commerce/admin-kit/ui';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
@@ -50,9 +50,9 @@ export function ProductEditorSaveAction(props: ProductEditorSaveActionProps): Re
             {status.children}
           </InlineStatus>
         )}
-        <button
+        <Button
           type="button"
-          className="b2b-btn b2b-btn--primary max-lg:min-h-11 max-lg:w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+          className="max-lg:min-h-11 max-lg:w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
           // aria-disabled, not disabled: focus stays on Save after it has saved (WCAG 2.4.3).
           aria-disabled={inert}
           aria-describedby="product-save-note"
@@ -62,7 +62,7 @@ export function ProductEditorSaveAction(props: ProductEditorSaveActionProps): Re
             onSave();
           }}
         >
-          <Save size={14} aria-hidden="true" />
+          <Save aria-hidden="true" />
           {saving
             ? t('productEditor.save.saving')
             : stagedCount > 0
@@ -71,7 +71,7 @@ export function ProductEditorSaveAction(props: ProductEditorSaveActionProps): Re
                 })
               : t('productEditor.save.action')}{' '}
           <span className="sr-only">{t('productEditor.save.atScope', { scope: scopeWords })}</span>
-        </button>
+        </Button>
         <span id="product-save-note" className="text-xs text-muted-foreground max-lg:text-center">
           {stagedCount === 0 ? t('productEditor.save.noChanges') : ''}
         </span>

@@ -250,7 +250,9 @@ zewnętrznego: wymień dostawcę w swojej polityce prywatności.
 
 **Zgłoszenia z formularzy** pokazują wszystkie zgłoszenia, które możesz zobaczyć, od najnowszych.
 Można je filtrować według formularza, statusu, daty i kanału sprzedaży oraz przeszukiwać e-mail
-osoby wysyłającej i odpowiedzi tekstowe.
+osoby wysyłającej i odpowiedzi tekstowe. Wyszukiwarka, formularz i status są zawsze widoczne na pasku
+nad listą; kanał sprzedaży i daty są pod *Więcej filtrów*, gdzie po zwinięciu widać, ile z nich
+jest użytych. *Wyczyść wszystkie filtry* usuwa je wszystkie.
 
 Zgłoszenie zawiera odpowiedzi na pola, które były widoczne, formularz i wersję, kanał sprzedaży,
 język, stronę, z której je wysłano, czas, zgody z pokazanymi tekstami, a gdy wysłał je zalogowany

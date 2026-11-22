@@ -44,9 +44,9 @@ const REGISTRY = [{ moduleId: 'tasks', contributions: tasks.contributions }];
 const RECORD_ID = '00000000-0000-4000-8000-0000000000c7';
 
 const ZONES = [
-  { zone: 'order.detail.after', kind: 'order', props: { orderId: RECORD_ID } },
-  { zone: 'quote_request.detail.after', kind: 'quote_request', props: { quoteRequestId: RECORD_ID } },
-  { zone: 'opportunity.detail.after', kind: 'opportunity', props: { opportunityId: RECORD_ID } },
+  { zone: 'order.detail.sidebar', kind: 'order', props: { orderId: RECORD_ID } },
+  { zone: 'quote_request.detail.sidebar', kind: 'quote_request', props: { quoteRequestId: RECORD_ID } },
+  { zone: 'opportunity.detail.sidebar', kind: 'opportunity', props: { opportunityId: RECORD_ID } },
 ] as const;
 
 const linked = [

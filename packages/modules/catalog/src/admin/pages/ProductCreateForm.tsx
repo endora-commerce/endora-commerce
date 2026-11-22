@@ -1,8 +1,19 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Save } from 'lucide-react';
 import { ApiError, apiClient, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Input, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  FormField,
+  Input,
+  PageHeader,
+  Select,
+  Textarea,
+} from '@endora-commerce/admin-kit/ui';
 import { CategoryTreePicker, StickyFormActions } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -20,6 +31,12 @@ interface AttributeSet {
   id: string;
   code: string;
   isSystem: boolean;
+}
+
+/** The create form's own required fields, said beside each (`FormField` `error`). */
+interface FieldErrors {
+  sku?: string;
+  name?: string;
 }
 
 interface Category {
@@ -46,6 +63,9 @@ export function ProductCreateForm(): ReactNode {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const skuRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
   const dirty = sku !== '' || name !== '' || description !== '' || categoryIds.length > 0;
   useUnsavedChangesPrompt(dirty && !saving);
 
@@ -70,12 +90,14 @@ export function ProductCreateForm(): ReactNode {
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
     setError(null);
-    if (sku.trim() === '') {
-      setError(t('productEditor.error.skuRequired'));
-      return;
-    }
-    if (name.trim() === '') {
-      setError(t('productEditor.error.nameRequired'));
+    // Said beside the field it concerns and focused there (WCAG 3.3.1), not in a banner above.
+    const missing: FieldErrors = {
+      ...(sku.trim() === '' ? { sku: t('productEditor.error.skuRequired') } : {}),
+      ...(name.trim() === '' ? { name: t('productEditor.error.nameRequired') } : {}),
+    };
+    setFieldErrors(missing);
+    if (missing.sku !== undefined || missing.name !== undefined) {
+      (missing.sku !== undefined ? skuRef : nameRef).current?.focus();
       return;
     }
     setSaving(true);
@@ -107,9 +129,9 @@ export function ProductCreateForm(): ReactNode {
           actions={
             <StickyFormActions>
               {/* Full width in the mobile bottom bar, where the thumb already is (Fitts's Law). */}
-              <button type="submit" className="b2b-btn b2b-btn--primary max-lg:w-full" disabled={saving}>
-                <Save size={14} aria-hidden="true" /> {t('productEditor.save.action')}
-              </button>
+              <Button type="submit" className="max-lg:min-h-11 max-lg:w-full" disabled={saving} aria-busy={saving || undefined}>
+                <Save aria-hidden="true" /> {t('productEditor.save.action')}
+              </Button>
             </StickyFormActions>
           }
         />
@@ -118,17 +140,14 @@ export function ProductCreateForm(): ReactNode {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
-        <div className="b2b-card">
-          <div className="b2b-card__body b2b-col" style={{ gap: 18 }}>
-            <p className="b2b-help">{t('productEditor.create.help')}</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(14rem, 1fr))', gap: 12 }}>
-              <div>
-                <Label htmlFor="sku">{t('productEditor.field.sku')}</Label>
-                <Input id="sku" value={sku} onChange={(e): void => setSku(e.target.value)} aria-required="true" aria-describedby="sku-hint" />
-                <p id="sku-hint" className="b2b-help">{t('productEditor.field.sku.createHint')}</p>
-              </div>
-              <div>
-                <Label htmlFor="ptype">{t('productEditor.field.type')}</Label>
+        <Card>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">{t('productEditor.create.help')}</p>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-4">
+              <FormField label={t('productEditor.field.sku')} hint={t('productEditor.field.sku.createHint')} error={fieldErrors.sku} required>
+                <Input ref={skuRef} id="sku" value={sku} onChange={(e): void => setSku(e.target.value)} />
+              </FormField>
+              <FormField label={t('productEditor.field.type')}>
                 <Select id="ptype" value={type} onChange={(e): void => setType(e.target.value as (typeof PRODUCT_TYPES)[number])}>
                   {PRODUCT_TYPES.map((pt) => (
                     <option key={pt} value={pt}>
@@ -136,9 +155,8 @@ export function ProductCreateForm(): ReactNode {
                     </option>
                   ))}
                 </Select>
-              </div>
-              <div>
-                <Label htmlFor="pvis">{t('productEditor.field.visibility')}</Label>
+              </FormField>
+              <FormField label={t('productEditor.field.visibility')}>
                 <Select id="pvis" value={visibility} onChange={(e): void => setVisibility(e.target.value as (typeof VISIBILITIES)[number])}>
                   {VISIBILITIES.map((v) => (
                     <option key={v} value={v}>
@@ -146,9 +164,8 @@ export function ProductCreateForm(): ReactNode {
                     </option>
                   ))}
                 </Select>
-              </div>
-              <div>
-                <Label htmlFor="pattrset">{t('productEditor.field.attributeSet')}</Label>
+              </FormField>
+              <FormField label={t('productEditor.field.attributeSet')}>
                 <Select id="pattrset" value={attributeSetId} onChange={(e): void => setAttributeSetId(e.target.value)}>
                   {sets.length === 0 ? <option value="">{t('productEditor.attributeSet.loading')}</option> : null}
                   {sets.map((s) => (
@@ -158,9 +175,8 @@ export function ProductCreateForm(): ReactNode {
                     </option>
                   ))}
                 </Select>
-              </div>
-              <div>
-                <Label htmlFor="pstatus">{t('productEditor.field.status')}</Label>
+              </FormField>
+              <FormField label={t('productEditor.field.status')}>
                 <Select id="pstatus" value={status} onChange={(e): void => setStatus(e.target.value as (typeof STATUSES)[number])}>
                   {STATUSES.map((s) => (
                     <option key={s} value={s}>
@@ -168,22 +184,20 @@ export function ProductCreateForm(): ReactNode {
                     </option>
                   ))}
                 </Select>
-              </div>
+              </FormField>
             </div>
-            <div>
-              <Label htmlFor="pname">{t('productEditor.field.name')}</Label>
-              <Input id="pname" value={name} onChange={(e): void => setName(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="pdesc">{t('productEditor.field.description')}</Label>
-              <textarea id="pdesc" rows={3} className="b2b-field" value={description} onChange={(e): void => setDescription(e.target.value)} />
-            </div>
-            <div>
-              <div className="b2b-label">{t('productEditor.section.categories')}</div>
+            <FormField label={t('productEditor.field.name')} error={fieldErrors.name} required>
+              <Input ref={nameRef} id="pname" value={name} onChange={(e): void => setName(e.target.value)} />
+            </FormField>
+            <FormField label={t('productEditor.field.description')}>
+              <Textarea id="pdesc" rows={3} value={description} onChange={(e): void => setDescription(e.target.value)} />
+            </FormField>
+            {/* A tree of checkboxes, no single labellable control: a named group (FormField `group`). */}
+            <FormField label={t('productEditor.section.categories')} group>
               <CategoryTreePicker categories={categories} selectedIds={categoryIds} onChange={setCategoryIds} loading={loading} />
-            </div>
-          </div>
-        </div>
+            </FormField>
+          </CardContent>
+        </Card>
       </form>
     </div>
   );

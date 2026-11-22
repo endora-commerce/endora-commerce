@@ -206,6 +206,7 @@
   "list.rowMenu.label": "Akcje zapytania ofertowego {number}",
   "list.rowMenu.organization": "Otwórz organizację",
   "detail.tabs.label": "Sekcje zapytania ofertowego",
+  "detail.sidebar.label": "Powiązane działania",
   "settingLabels.quote_requests.enabled.name": "Zapytania ofertowe włączone",
   "settingLabels.quote_requests.expiry_days.name": "Automatyczne wygasanie oczekujących po (dniach)",
   "settingLabels.quote_requests.expiry_days.description": "Po ilu dniach bez aktywności oczekujące zapytanie wygasa. 0: nigdy.",

@@ -1,7 +1,18 @@
 import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, CircleSlash, RotateCcw, Trash2 } from 'lucide-react';
-import { apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, EditorSection } from '@endora-commerce/admin-kit/ui';
+import { apiClient, cn, useAuth } from '@endora-commerce/admin-kit/lib';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  EditorSection,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { ScopeRef } from '@endora-commerce/contracts';
@@ -230,14 +241,14 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
 
   // Mounted before it carries text so an outcome is announced (WCAG 4.1.3).
   const liveRegion = (
-    <p role="status" aria-live="polite" className="b2b-help" style={{ margin: 0 }}>
+    <p role="status" aria-live="polite" className="m-0 text-xs text-muted-foreground">
       {status}
     </p>
   );
 
   if (loading) {
     return (
-      <p role="status" aria-live="polite" className="b2b-help" aria-busy="true">
+      <p role="status" aria-live="polite" className="text-xs text-muted-foreground" aria-busy="true">
         {t('productEditor.scopeOverview.loading')}
       </p>
     );
@@ -265,11 +276,10 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
   }
 
   /** Sticky row headers keep the channel in view while the languages scroll (D11). */
-  const stickyRowHeader = { position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1 } as const;
-  // `.b2b-tbl tbody td` is `padding: 0 12px`, sized for one-line rows centred in `--row-h`.
-  // These cells are top-aligned and hold several lines, so they carry their own vertical
-  // padding — and the row header, which no `.b2b-tbl` rule styles, the same (issue #501).
-  const bodyCell = { verticalAlign: 'top', padding: '8px 12px' } as const;
+  const stickyRowHeader = 'sticky left-0 z-[1] bg-card';
+  // These cells are top-aligned and hold several lines, so they carry vertical padding of their
+  // own — and the row header the same (issue #501).
+  const bodyCell = 'px-3 py-2 align-top';
 
   return (
     // Issue #1490 (UX audit CAT-11): no second "Scope map" heading — the drawer's title (issue #1510,
@@ -284,12 +294,12 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
         description={t('productEditor.scopeOverview.help')}
       >
         {!canWrite ? (
-          <p className="b2b-help" style={{ margin: 0 }}>
+          <p className="m-0 text-xs text-muted-foreground">
             {t('productEditor.scopeOverview.readOnly')}
           </p>
         ) : null}
         {actionError ? (
-          <p role="alert" className="text-sm text-destructive" style={{ margin: 0 }}>
+          <p role="alert" className="m-0 text-sm text-destructive">
             {actionError}
           </p>
         ) : null}
@@ -311,35 +321,37 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
             role="region"
             tabIndex={0}
             aria-label={t('productEditor.scopeOverview.tableRegion')}
-            style={{ overflowX: 'auto' }}
+            className="overflow-x-auto rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <table className="b2b-tbl" style={{ width: '100%' }}>
+            {/* The kit's row and cell primitives in a bare `<table>`: the kit `Table` brings its own
+                scroll frame, and this region has to be the one that scrolls, since it is the one a
+                keyboard user can focus (WCAG 2.1.1). */}
+            <table className="w-full text-sm">
               <caption className="sr-only">{t('productEditor.scopeOverview.title')}</caption>
-              <thead>
-                <tr>
-                  <th scope="col" style={stickyRowHeader}>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead scope="col" className={stickyRowHeader}>
                     {t('productEditor.scopeOverview.channelColumn')}
-                  </th>
-                  <th scope="col">{t('productEditor.scopeOverview.wholeChannelColumn')}</th>
+                  </TableHead>
+                  <TableHead scope="col">{t('productEditor.scopeOverview.wholeChannelColumn')}</TableHead>
                   {overview.languages.map((code) => (
-                    <th key={code} scope="col" style={{ verticalAlign: 'top' }}>
-                      {/* A language tag in its canonical case (`de-DE`), not the header style's
-                          upper case: the theme's `thead th` rule outranks a class on the `th`,
-                          so the span opts out (issue #501). Monospace, as on Dictionaries. */}
+                    <TableHead key={code} scope="col" className="align-top">
+                      {/* A language tag in its canonical case (`de-DE`), never upper-cased by a
+                          header style (issue #501). Monospace, as on Dictionaries. */}
                       <span className="font-semibold normal-case font-mono">{code}</span>
-                    </th>
+                    </TableHead>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {overview.channels.map((channel) => {
                   const name = pickLocalized(channel.name, language);
                   const globalName = t('productEditor.scope.global');
                   const rowFields =
                     overview.channelRows.find((r) => r.channelId === channel.channelId)?.overriddenFields ?? [];
                   return (
-                    <tr key={channel.channelId}>
-                      <th scope="row" style={{ ...stickyRowHeader, ...bodyCell, textAlign: 'left' }}>
+                    <TableRow key={channel.channelId} className="hover:bg-transparent">
+                      <th scope="row" className={cn(stickyRowHeader, bodyCell, 'text-left font-normal')}>
                         <span className="font-semibold">{name}</span>
                         {links && channel.isMember ? (
                           <>
@@ -358,7 +370,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                           </>
                         ) : null}
                       </th>
-                      <td style={bodyCell}>
+                      <TableCell className={bodyCell}>
                         {rowFields.length > 0 ? (
                           <FieldList
                             fields={rowFields}
@@ -381,9 +393,9 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                             t={t}
                           />
                         ) : (
-                          <span className="b2b-help">{t('productEditor.scopeOverview.nothingSetChannel')}</span>
+                          <span className="text-xs text-muted-foreground">{t('productEditor.scopeOverview.nothingSetChannel')}</span>
                         )}
-                      </td>
+                      </TableCell>
                       {overview.languages.map((code) => {
                         const cell = overview.cells.find(
                           (c) => c.channelId === channel.channelId && c.languageCode === code,
@@ -391,7 +403,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                         const offered = channel.isMember && channel.languages.includes(code);
                         const scopeName = `${name} · ${code}`;
                         return (
-                          <td key={code} style={bodyCell}>
+                          <TableCell key={code} className={bodyCell}>
                             {cell && offered ? (
                               <OverviewCell
                                 cell={cell}
@@ -405,15 +417,15 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                                 t={t}
                               />
                             ) : (
-                              <span className="b2b-help">{t('productEditor.scopeOverview.notOffered')}</span>
+                              <span className="text-xs text-muted-foreground">{t('productEditor.scopeOverview.notOffered')}</span>
                             )}
-                          </td>
+                          </TableCell>
                         );
                       })}
-                    </tr>
+                    </TableRow>
                   );
                 })}
-              </tbody>
+              </TableBody>
             </table>
           </div>
         )}
@@ -421,7 +433,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
 
       <EditorSection as="h3" title={t('productEditor.scopeOverview.orphans.title')}>
         {overview.orphans.length === 0 ? (
-          <p className="b2b-help" style={{ margin: 0 }}>
+          <p className="m-0 text-xs text-muted-foreground">
             {t('productEditor.scopeOverview.orphans.none')}
           </p>
         ) : (
@@ -429,7 +441,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
             <Alert variant="warning" role="note">
               <AlertDescription>{t('productEditor.scopeOverview.orphans.help')}</AlertDescription>
             </Alert>
-            <ul className="b2b-col" style={{ gap: 6, margin: 0, paddingLeft: 0, listStyle: 'none' }}>
+            <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
               {overview.orphans.map((orphan, index) => (
                 <OrphanItem
                   key={`${orphan.field}|${orphan.channelId ?? ''}|${orphan.languageCode ?? ''}|${index}`}
@@ -563,24 +575,24 @@ function OverviewCell({
       fieldLabel(field)
     );
   return (
-    <div className="b2b-col" style={{ gap: 4 }}>
+    <div className="flex flex-col gap-1">
       {links ? (
         <ScopeLink links={links} scope={here}>
           {t('productEditor.scopeOverview.editAt', { scope: hereWords })}
         </ScopeLink>
       ) : null}
-      <span className="b2b-row" style={{ gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      <span className="flex flex-wrap items-center gap-1.5">
         <span className="font-medium">{t(`productEditor.scopeControls.statusValue.${cell.effectiveStatus}`)}</span>
-        <span className="b2b-row b2b-help" style={{ gap: 4, alignItems: 'center', margin: 0 }}>
-          {cell.available ? <CheckCircle2 size={13} aria-hidden="true" /> : <CircleSlash size={13} aria-hidden="true" />}
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          {cell.available ? <CheckCircle2 className="size-3.5" aria-hidden="true" /> : <CircleSlash className="size-3.5" aria-hidden="true" />}
           {cell.available ? t('productEditor.scopeOverview.live') : t('productEditor.scopeOverview.notLive')}
         </span>
       </span>
-      <span className="b2b-help" style={{ margin: 0 }}>
+      <span className="text-xs text-muted-foreground">
         {t(STATUS_SOURCE_KEYS[cell.statusSource])}
       </span>
       {cell.overriddenFields.length > 0 ? (
-        <ul style={{ margin: 0, paddingLeft: 0, listStyle: 'none' }} className="b2b-col">
+        <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {cell.overriddenFields.map(({ field, level }) => {
             // A channel or language value is reset in its own header, not here.
             const request =
@@ -588,9 +600,9 @@ function OverviewCell({
                 ? resetRequestFor({ field, level, channelId: cell.channelId, languageCode: cell.languageCode })
                 : null;
             return (
-              <li key={`${field}|${level}`} className="b2b-row" style={{ gap: 6, alignItems: 'center' }}>
+              <li key={`${field}|${level}`} className="flex items-center gap-1.5">
                 <span>
-                  {fieldName(field)} <span className="b2b-help">· {t(LEVEL_KEYS[level])}</span>
+                  {fieldName(field)} <span className="text-xs text-muted-foreground">· {t(LEVEL_KEYS[level])}</span>
                 </span>
                 {request ? (
                   <ResetButton
@@ -611,8 +623,8 @@ function OverviewCell({
         </ul>
       ) : null}
       {missing.length > 0 ? (
-        <p className="b2b-row text-sm" style={{ gap: 4, alignItems: 'flex-start', margin: 0 }}>
-          <AlertTriangle size={13} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+        <p className="m-0 flex items-start gap-1 text-sm">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
           <span>
             {t('productEditor.scopeOverview.incomplete', { missing: missing.map((m) => fieldLabel(m)).join(', ') })}
           </span>
@@ -642,11 +654,11 @@ function FieldList({
   t: Translate;
 }): ReactNode {
   return (
-    <ul style={{ margin: 0, paddingLeft: 0, listStyle: 'none', gap: 4 }} className="b2b-col">
+    <ul className="m-0 flex list-none flex-col gap-1 p-0">
       {fields.map((field) => {
         const request = resetFor(field);
         return (
-          <li key={field} className="b2b-row" style={{ gap: 8, alignItems: 'center' }}>
+          <li key={field} className="flex items-center gap-2">
             <span>{fieldLabel(field)}</span>
             {request ? (
               <ResetButton
@@ -687,9 +699,8 @@ function ResetButton({
       title={label}
       disabled={busy}
       onClick={onClick}
-      style={{ minHeight: 24, minWidth: 24 }}
     >
-      <RotateCcw size={12} aria-hidden="true" /> {t('productEditor.scopeOverview.reset', { parent })}
+      <RotateCcw aria-hidden="true" /> {t('productEditor.scopeOverview.reset', { parent })}
     </Button>
   );
 }
@@ -720,10 +731,10 @@ function OrphanItem({
   const request = canWrite ? orphanDeleteRequest(orphan) : null;
   const field = fieldLabel(orphan.field);
   return (
-    <li className="b2b-row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+    <li className="flex flex-wrap items-center gap-2">
       <span>
         <span className="font-medium">{field}</span> — {scope}:{' '}
-        <span className="b2b-help">{t(ORPHAN_REASON_KEYS[orphan.reason])}</span>
+        <span className="text-xs text-muted-foreground">{t(ORPHAN_REASON_KEYS[orphan.reason])}</span>
       </span>
       {request ? (
         <Button
@@ -735,7 +746,7 @@ function OrphanItem({
           disabled={busy}
           onClick={(): void => onDelete(request)}
         >
-          <Trash2 size={12} aria-hidden="true" /> {t('productEditor.scopeOverview.orphans.delete')}
+          <Trash2 aria-hidden="true" /> {t('productEditor.scopeOverview.orphans.delete')}
         </Button>
       ) : null}
     </li>

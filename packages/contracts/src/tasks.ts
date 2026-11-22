@@ -353,6 +353,18 @@ export const TaskBoardQuerySchema = z
   .refine(linkedBothOrNeither, LINKED_MESSAGE);
 export type TaskBoardQuery = z.infer<typeof TaskBoardQuerySchema>;
 
+/**
+ * `GET /tasks/count` (`specs/183-record-tab-contributions/contracts/task-count-api.md`)
+ * — the list's filters and nothing else: no paging, sorting or card values. The
+ * count is how many rows `GET /tasks` would answer under the same filters for
+ * the same caller, across all pages.
+ */
+export const TaskCountQuerySchema = z
+  .object({ ...taskFilterShape })
+  .strict()
+  .refine(linkedBothOrNeither, LINKED_MESSAGE);
+export type TaskCountQuery = z.infer<typeof TaskCountQuerySchema>;
+
 /** The fields `POST /tasks` and `PATCH /tasks/:id` share. */
 const taskFieldShape = {
   title: titleSchema,
@@ -998,6 +1010,10 @@ export const TaskDetailResponseSchema = dataEnvelope(TaskDetailSchema);
 /** `GET /tasks/mine` — the caller's open Tasks, by due date, undated last; at most {@link TASK_MINE_MAX}. */
 export const MyTasksResponseSchema = dataEnvelope(z.array(TaskSummarySchema));
 export const TaskBoardResponseSchema = dataEnvelope(TaskBoardSchema);
+/** `GET /tasks/count` — the Tasks the caller may see under the filters, across all pages. */
+export const TaskCountSchema = z.object({ count: z.number().int().nonnegative() });
+export type TaskCount = z.infer<typeof TaskCountSchema>;
+export const TaskCountResponseSchema = dataEnvelope(TaskCountSchema);
 export const TaskStatusChangeResponseSchema = dataEnvelope(TaskStatusChangeResultSchema);
 export const TaskAssigneeLookupResponseSchema = dataEnvelope(z.array(TaskAssigneeOptionSchema));
 export const TaskMentionableLookupResponseSchema = dataEnvelope(z.array(TaskAssigneeOptionSchema));

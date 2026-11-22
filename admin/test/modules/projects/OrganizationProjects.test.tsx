@@ -1,14 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
-import { INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import { ORGANIZATION_ID, PROJECT_ID, en, renderProjects, summary } from './projects-fixtures';
 
 /**
  * Projects' panel on the Organization screen (`specs/163-projects-and-tasks/`,
  * User Story 11 — task T133; `contracts/admin-surfaces.md` §3, §7).
  *
- * `organizations` mounts `organization.detail.after` and knows nothing of who
+ * `organizations` mounts `organization.detail.sales` and knows nothing of who
  * fills it. Projects contributes one panel, behind `projects:read`: the
  * Organization's Projects the reader may see — the list endpoint applies
  * Organization reach and visibility — each with its state and current Stage
@@ -46,7 +45,7 @@ function renderZone(
 ): HTMLElement {
   cleanup();
   const { container } = renderProjects(
-    <AdminZone name="organization.detail.after" props={{ organizationId: ORGANIZATION_ID, saveSession: INERT_SAVE_SESSION }} />,
+    <AdminZone name="organization.detail.sales" props={{ organizationId: ORGANIZATION_ID }} />,
     {
       permissions: options.permissions ?? ['projects:read', 'projects:write'],
       present: options.present ?? ['projects', 'organizations'],
@@ -83,7 +82,7 @@ beforeEach(() => {
 
 describe('projects contributes the organization detail zone', () => {
   it('declares the contribution on projects:read, behind a dynamic import', () => {
-    const zone = (projects.contributions.zones ?? []).find((entry) => entry.zone === 'organization.detail.after');
+    const zone = (projects.contributions.zones ?? []).find((entry) => entry.zone === 'organization.detail.sales');
     expect(zone).toBeDefined();
     expect(zone?.requiredPermission).toBe('projects:read');
     expect(zone?.weight).toBe(650);

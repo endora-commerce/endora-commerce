@@ -12,6 +12,8 @@ import type {
   PriceBookType,
 } from '@endora-commerce/contracts';
 import {
+  ListToolbar,
+  ListToolbarSearch,
   PaginationFooter,
   ResponsiveTable,
   RowActionMenu,
@@ -28,7 +30,6 @@ import {
   Button,
   Combobox,
   EmptyState,
-  Input,
   Label,
   PageHeader,
   Select,
@@ -269,7 +270,9 @@ export function PriceBooksPage(): ReactNode {
         channels={channels.map((c) => ({ id: c.id, name: localizedName(c.name, c.code) }))}
         groups={groups}
         onFilter={setFilter}
-        onClear={filtered ? clearFilters : null}
+        onClear={clearFilters}
+        filtered={filtered}
+        foldedCount={foldedFilterCount(params)}
       />
 
       <p role="status" className="sr-only">
@@ -366,7 +369,23 @@ export function PriceBooksPage(): ReactNode {
   );
 }
 
-/** The filter bar: every control writes one URL parameter. */
+/** The filters folded behind *More filters*; search, type, status and currency stay in view. */
+const FOLDED_FILTER_KEYS = ['channelId', 'audienceKind', 'memberId'] as const;
+
+/**
+ * How many folded filters the address uses — the *More filters (n)* count
+ * (issue #1440). A member counts on its own: it narrows the list further than
+ * its audience kind does.
+ */
+export function foldedFilterCount(params: URLSearchParams): number {
+  return FOLDED_FILTER_KEYS.filter((key) => params.get(key)).length;
+}
+
+/**
+ * The filter bar: every control writes one URL parameter. Search and the
+ * three filters operators reach for most stay in view; channel, audience and
+ * member are folded behind *More filters* (Hick's Law, issue #1440).
+ */
 function ListFilters(props: {
   readonly search: string;
   readonly onSearch: (text: string) => void;
@@ -380,18 +399,53 @@ function ListFilters(props: {
   readonly channels: readonly { id: string; name: string }[];
   readonly groups: readonly PriceBookTargetCustomerGroup[];
   readonly onFilter: (changes: Record<string, string | null>) => void;
-  readonly onClear: (() => void) | null;
+  readonly onClear: () => void;
+  /** Whether any filter, the search included, narrows the list. */
+  readonly filtered: boolean;
+  /** How many folded filters are in use. */
+  readonly foldedCount: number;
   /** The search box, so a screen can return focus to it (after *Clear filters*, WCAG 2.4.3). */
-  // Typed off the kit's `Input`, whose React types this package does not share.
-  readonly searchRef?: ComponentProps<typeof Input>['ref'];
+  // Typed off the kit's search box, whose React types this package does not share.
+  readonly searchRef?: ComponentProps<typeof ListToolbarSearch>['ref'];
 }): ReactNode {
   const t = useTranslation('price_lists');
   const base = useId();
-  const select = (
+  const options = (
+    anyLabel: string,
+    choices: readonly { value: string; label: string }[],
+  ): ReactNode => (
+    <>
+      <option value="">{anyLabel}</option>
+      {choices.map((choice) => (
+        <option key={choice.value} value={choice.value}>
+          {choice.label}
+        </option>
+      ))}
+    </>
+  );
+  /** A filter in view: no visible label, so its "no filter" choice names what it filters. */
+  const primary = (
+    key: string,
+    label: string,
+    anyLabel: string,
+    value: string | null,
+    choices: readonly { value: string; label: string }[],
+  ): ReactNode => (
+    <Select
+      aria-label={label}
+      className="w-auto"
+      value={value ?? ''}
+      onChange={(event): void => props.onFilter({ [key]: event.target.value || null })}
+    >
+      {options(anyLabel, choices)}
+    </Select>
+  );
+  /** A folded filter: a labelled cell in the *More filters* panel. */
+  const folded = (
     key: string,
     label: string,
     value: string | null,
-    options: readonly { value: string; label: string }[],
+    choices: readonly { value: string; label: string }[],
     extra: Record<string, string | null> = {},
   ): ReactNode => (
     <div className="space-y-1">
@@ -401,69 +455,77 @@ function ListFilters(props: {
         value={value ?? ''}
         onChange={(event): void => props.onFilter({ [key]: event.target.value || null, ...extra })}
       >
-        <option value="">{t('priceBooks.list.filters.any')}</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
+        {options(t('priceBooks.list.filters.any'), choices)}
       </Select>
     </div>
   );
 
   return (
-    <form
-      role="search"
-      aria-label={t('priceBooks.list.filters.label')}
-      className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-      onSubmit={(event): void => event.preventDefault()}
-    >
-      <div className="space-y-1 sm:col-span-2">
-        <Label htmlFor={`${base}-search`}>{t('priceBooks.list.filters.search')}</Label>
-        <Input
+    <ListToolbar
+      className="mb-4"
+      label={t('priceBooks.list.filters.label')}
+      search={
+        <ListToolbarSearch
           ref={props.searchRef}
-          id={`${base}-search`}
-          type="search"
+          label={t('priceBooks.list.filters.search')}
           value={props.search}
-          onChange={(event): void => props.onSearch(event.target.value)}
+          onValueChange={props.onSearch}
         />
-      </div>
-      {select('type', t('priceBooks.list.filters.type'), props.type, BOOK_TYPES.map((v) => ({ value: v, label: typeLabel(t, v) })))}
-      {select(
-        'status',
-        t('priceBooks.list.filters.status'),
-        props.status,
-        BOOK_STATUSES.map((v) => ({ value: v, label: statusLabel(t, v) })),
-      )}
-      {select('currency', t('priceBooks.list.filters.currency'), props.currency, props.currencies.map((c) => ({ value: c.code, label: c.code })))}
-      {select('channelId', t('priceBooks.list.filters.channel'), props.channelId, props.channels.map((c) => ({ value: c.id, label: c.name })))}
-      {select(
-        'audienceKind',
-        t('priceBooks.list.filters.audience'),
-        props.audienceKind,
-        AUDIENCE_KINDS.map((v) => ({ value: v, label: audienceLabel(t, v) })),
-        { memberId: null },
-      )}
-      {props.audienceKind === 'customer_groups'
-        ? select(
-            'memberId',
-            t('priceBooks.list.filters.member'),
-            props.memberId,
-            props.groups.map((g) => ({ value: g.id, label: g.name })),
-          )
-        : null}
-      {props.audienceKind === 'organizations' ? (
-        <OrganizationMemberFilter memberId={props.memberId} onChange={(id): void => props.onFilter({ memberId: id })} />
-      ) : null}
-      {props.onClear ? (
-        <div className="flex items-end">
-          <Button type="button" variant="ghost" onClick={props.onClear}>
-            <X aria-hidden="true" />
-            {t('priceBooks.list.filters.clear')}
-          </Button>
-        </div>
-      ) : null}
-    </form>
+      }
+      filters={
+        <>
+          {primary(
+            'type',
+            t('priceBooks.list.filters.type'),
+            t('priceBooks.list.filters.anyType'),
+            props.type,
+            BOOK_TYPES.map((v) => ({ value: v, label: typeLabel(t, v) })),
+          )}
+          {primary(
+            'status',
+            t('priceBooks.list.filters.status'),
+            t('priceBooks.list.filters.anyStatus'),
+            props.status,
+            BOOK_STATUSES.map((v) => ({ value: v, label: statusLabel(t, v) })),
+          )}
+          {primary(
+            'currency',
+            t('priceBooks.list.filters.currency'),
+            t('priceBooks.list.filters.anyCurrency'),
+            props.currency,
+            props.currencies.map((c) => ({ value: c.code, label: c.code })),
+          )}
+        </>
+      }
+      moreFilters={
+        <>
+          {folded('channelId', t('priceBooks.list.filters.channel'), props.channelId, props.channels.map((c) => ({ value: c.id, label: c.name })))}
+          {folded(
+            'audienceKind',
+            t('priceBooks.list.filters.audience'),
+            props.audienceKind,
+            AUDIENCE_KINDS.map((v) => ({ value: v, label: audienceLabel(t, v) })),
+            { memberId: null },
+          )}
+          {props.audienceKind === 'customer_groups'
+            ? folded(
+                'memberId',
+                t('priceBooks.list.filters.member'),
+                props.memberId,
+                props.groups.map((g) => ({ value: g.id, label: g.name })),
+              )
+            : null}
+          {props.audienceKind === 'organizations' ? (
+            <OrganizationMemberFilter memberId={props.memberId} onChange={(id): void => props.onFilter({ memberId: id })} />
+          ) : null}
+        </>
+      }
+      moreFiltersActiveCount={props.foldedCount}
+      // A shared or bookmarked address shows what narrows it.
+      defaultMoreFiltersOpen={props.foldedCount > 0}
+      filtersActive={props.filtered}
+      onClearFilters={props.onClear}
+    />
   );
 }
 
