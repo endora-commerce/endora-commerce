@@ -1053,6 +1053,8 @@ export const PROJECTS_ERROR_CODES = [
   'PROJECT_DICTIONARY_NAME_TAKEN',
   /** The uploaded file is larger than {@link PROJECT_ATTACHMENT_MAX_BYTES}. */
   'PROJECT_ATTACHMENT_TOO_LARGE',
+  /** A saved view of the Projects list named as one its owner already has, case-insensitively (#1734). */
+  'PROJECT_SAVED_VIEW_NAME_TAKEN',
 ] as const;
 export type ProjectsErrorCode = (typeof PROJECTS_ERROR_CODES)[number];
 

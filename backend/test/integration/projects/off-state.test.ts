@@ -74,6 +74,12 @@ describe('projects off-state (Constitution XVII)', () => {
         { url: API, cookies: admin },
         { url: `${API}/${ID}`, cookies: admin },
         { url: `${API}/${ID}/stage-history`, cookies: admin },
+        // Issue #1734 — the Projects list's saved views; the write probes send a
+        // body the schema refuses or name a view that does not exist.
+        { url: `${API}/list-views`, cookies: admin },
+        write('POST', `${API}/list-views`, { name: '' }),
+        write('PATCH', `${API}/list-views/${ID}`, { shared: true }),
+        write('DELETE', `${API}/list-views/${ID}`, undefined),
         { url: `${API}/roles`, cookies: admin },
         { url: `${API}/loss-reasons`, cookies: admin },
         write('POST', API),

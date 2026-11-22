@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SORT, NO_FILTERS, readListAddress, writeListAddress } from './list-filters.js';
+import {
+  DEFAULT_SORT,
+  NO_FILTERS,
+  fromSavedProjectView,
+  readListAddress,
+  toSavedProjectView,
+  writeListAddress,
+} from './list-filters.js';
 
 /**
  * The Projects list's filters as the address carries them (issue #454).
@@ -104,5 +111,43 @@ describe('writeListAddress', () => {
   it('leaves out blank search text', () => {
     const written = writeListAddress({ filters: { ...NO_FILTERS, q: '   ', stageName: ' ' }, sort: DEFAULT_SORT });
     expect(written.toString()).toBe('');
+  });
+});
+
+/**
+ * Issue #1734 — a saved view of the Projects list stores the filters under the
+ * names the address carries them by, and the sort apart; applying one goes
+ * through the address reader, so a value the list no longer takes is dropped
+ * rather than sent. "Only mine" is stored as `memberId=me`, so it means the
+ * administrator who applies the view.
+ */
+describe('a saved view of the list', () => {
+  it('stores the filters under their address names and the sort apart', () => {
+    expect(
+      toSavedProjectView(read(`q=PRJ-7&state=lost&memberId=me&roleId=${ROLE}&stageName=Build&sort=value&order=asc`)),
+    ).toEqual({
+      filters: { q: 'PRJ-7', state: 'lost', memberId: 'me', roleId: ROLE, stageName: 'Build' },
+      sort: { field: 'value', dir: 'asc' },
+    });
+  });
+
+  it('stores no sort for the default order', () => {
+    expect(toSavedProjectView(read(`organizationId=${ORGANIZATION}`))).toEqual({
+      filters: { organizationId: ORGANIZATION },
+      sort: null,
+    });
+  });
+
+  it('reopens the address it was saved from', () => {
+    const query = `q=PRJ-7&state=completed&organizationId=${ORGANIZATION}&memberId=${MEMBER}&templateId=${TEMPLATE}&sort=deadline&order=desc`;
+    expect(readListAddress(fromSavedProjectView(toSavedProjectView(read(query))))).toEqual(read(query));
+  });
+
+  it('drops what the list does not take: an unknown state, an id that is not one, an unknown key or sort', () => {
+    const applied = fromSavedProjectView({
+      filters: { state: 'archived', templateId: 'not-an-id', colour: 'red', stageName: 'Build', q: 42 },
+      sort: { field: 'title', dir: 'asc' },
+    });
+    expect(applied.toString()).toBe('stageName=Build');
   });
 });

@@ -50,6 +50,7 @@ const TABLES = [
   'crm_opportunity_attachments',
   'crm_opportunity_comments',
   'crm_opportunity_events',
+  'crm_opportunity_list_saved_views',
   'crm_opportunity_links',
   'crm_opportunity_message_reads',
   'crm_opportunity_references',
@@ -88,7 +89,7 @@ describe('crm init migration', () => {
     return found.map((row) => row.indexdef.replace(/\s+/g, ' '));
   }
 
-  it('creates the seventeen tables of the data model and no eighteenth', async () => {
+  it('creates the eighteen tables of the data model and no nineteenth', async () => {
     const found = await rows<{ table_name: string }>(
       `select table_name from information_schema.tables
         where table_schema = current_schema() and table_name like 'crm\\_%' order by table_name`,
