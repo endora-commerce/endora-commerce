@@ -135,7 +135,8 @@ describe('Attributes tab — content attribute cards (feature 172 on the 174 edi
     renderEditor(ProductEditor, { url: AT_G, permissions: PERMISSIONS, contributions: CONTRIBUTIONS });
     await waitFor(() => expect(cards()).toHaveLength(2));
     expect(cards().map((card) => card.getAttribute('data-content-attribute'))).toEqual(['banner', 'buying_guide']);
-    for (const card of cards()) expect(card.style.gridColumn).toBe('1 / -1');
+    // Spans the grid through `col-span-full` since UX audit slice S15 (#1492); jsdom has no stylesheet.
+    for (const card of cards()) expect(card).toHaveClass('col-span-full');
 
     const guide = cards()[1]!;
     expect(within(guide).getByText('Buying guide')).toBeTruthy();

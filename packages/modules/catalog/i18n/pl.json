@@ -1346,7 +1346,7 @@
   "packagingUnits.readOnly": "Tylko do odczytu: widzisz jednostki opakowań, ale nie możesz ich zmieniać.",
   "productEditor.saved": "Zapisano.",
   "productEditor.error.load": "Nie udało się wczytać produktu.",
-  "productEditor.error.nameRequired": "Podaj nazwę w co najmniej jednym języku.",
+  "productEditor.error.nameRequired": "Wpisz nazwę.",
   "productEditor.error.save": "Nie udało się zapisać.",
   "productEditor.error.delete": "Nie udało się usunąć.",
   "productEditor.error.duplicate": "Nie udało się zduplikować.",
