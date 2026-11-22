@@ -204,6 +204,7 @@
   "list.rowMenu.label": "Actions for quote request {number}",
   "list.rowMenu.organization": "Open organization",
   "detail.tabs.label": "Quote request sections",
+  "detail.sidebar.label": "Related work",
   "settingLabels.quote_requests.enabled.name": "Quote requests enabled",
   "settingLabels.quote_requests.expiry_days.name": "Auto-expire pending after (days)",
   "settingLabels.quote_requests.expiry_days.description": "Days without activity before a pending quote request expires. 0: never.",

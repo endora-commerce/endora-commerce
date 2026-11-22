@@ -1420,9 +1420,14 @@ open tab (`?tab=members`, `commerce`, `tax`, `sales`), so a link can open one di
 | --- | --- |
 | **Overview** | Moderation (the status and the actions it allows), the registered address, the hierarchy, custom fields |
 | **Members & roles** | The members, **Add member**, and the roles |
-| **Commerce** | Sales channels, order-confirmation e-mails, restrictions, fulfilment strategy, the price books that apply, and the panels other modules add (price display mode, ordering defaults, payers, price negotiation, CRM opportunities, projects) |
+| **Commerce** | Sales channels, order-confirmation e-mails, restrictions, fulfilment strategy, the price books that apply, and the panels other modules add (price display mode, ordering defaults, payers, price negotiation) |
 | **Tax** | The tax ID and VAT status with **Change tax ID…**, **Change VAT status…** or, for a personal organization, **Convert to company…**; then VAT validation |
-| **Sales** | The sales representatives. Shown only with `organizations:assign-sales-rep` |
+| **Sales** | The sales representatives (with `organizations:assign-sales-rep`), then the panels other modules add about selling to the organization (CRM opportunities, projects). Shown only while one of them is there |
+
+For module authors: the Commerce tab's panels are the admin zone `organization.detail.after`, and
+the Sales tab's are `organization.detail.sales`, which hands a contribution `{ organizationId }`
+and no save session — the Sales tab is not part of the screen's one Save. Contributions to
+`organization.detail.after` keep working unchanged.
 
 Switching tabs keeps every unsaved change. A tab that holds unsaved changes shows a dot, and a
 screen reader hears "unsaved changes" with the tab's name.

@@ -1147,6 +1147,13 @@ entry on the order, as history. Migration
   module names no contributor. With nothing contributed — no such module, the
   module switched off, or a person without the panel's permission — the zone
   renders nothing and the screen is exactly the one without it.
+- **The order screen's sidebar** — the admin zone `order.detail.sidebar` is
+  mounted once, in a sidebar card beside the tabs, and hands a contribution the
+  same `{ orderId }`. Each contribution is a section of that one card. The
+  sidebar is drawn only while something fills it, so with nothing contributed
+  the screen has one column, exactly as without the zone. The CRM, Projects and
+  Tasks modules contribute the linked opportunity, the project and the tasks
+  here; contributions to `order.detail.after` keep working unchanged.
 
 ## Global search
 

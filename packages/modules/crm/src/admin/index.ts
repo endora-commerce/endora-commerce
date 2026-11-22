@@ -168,8 +168,8 @@ export const contributions: AdminContributions = {
   // Panels CRM adds to screens other modules own. Each is one line: the zone,
   // the chunk, the code the panel's own reads enforce.
   zones: [
-    zoneComponent('organization.detail.after', () => import('./zones/OrganizationOpportunities.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
-    zoneComponent('order.detail.after', () => import('./zones/OrderOpportunity.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
-    zoneComponent('quote_request.detail.after', () => import('./zones/QuoteRequestOpportunity.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
+    zoneComponent('organization.detail.sales', () => import('./zones/OrganizationOpportunities.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
+    zoneComponent('order.detail.sidebar', () => import('./zones/OrderOpportunity.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
+    zoneComponent('quote_request.detail.sidebar', () => import('./zones/QuoteRequestOpportunity.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
   ],
 };

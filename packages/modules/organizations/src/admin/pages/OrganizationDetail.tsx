@@ -46,7 +46,7 @@ import {
   customFieldErrorsOf,
   type FulfilmentStrategyValue,
 } from '@endora-commerce/admin-kit/components';
-import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import {
   Alert,
   AlertDescription,
@@ -205,11 +205,15 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   // tax-ID change: only while `organizations` is present.
   const canChangeVatStatus = isVisible({ module: 'organizations', requiredPermission: 'customers:manage' });
   const [changingVatStatus, setChangingVatStatus] = useState(false);
-  // The Sales tab's one section gates itself on this code (`OrganizationSalesRepsTab`); the
-  // tab is offered on the same answer, so it is never an empty tab.
+  // The Sales tab holds the host's sales-rep section, which gates itself on this code
+  // (`OrganizationSalesRepsTab`), and the `organization.detail.sales` zone (issue #1452, UX
+  // audit DS-20). The tab is offered while either has something to show (Z15), so it is never
+  // an empty tab, and `?tab=sales` falls back to Overview when neither does.
   const canSeeSalesReps = isVisible({ module: 'organizations', requiredPermission: 'organizations:assign-sales-rep' });
+  const salesContributions = useAdminZone('organization.detail.sales', { organizationId: id });
+  const salesTabShown = canSeeSalesReps || salesContributions.length > 0;
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = organizationTabOf(searchParams.get('tab'), canSeeSalesReps);
+  const tab = organizationTabOf(searchParams.get('tab'), salesTabShown);
   const selectTab = useCallback(
     (next: OrganizationTab): void => {
       setSearchParams(
@@ -460,7 +464,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         ? document.getElementById('orderConfEmails')
         : zoneRef.current?.querySelector<HTMLElement>('select, input, textarea'));
     const owner = target?.closest<HTMLElement>('[data-org-tab]')?.dataset['orgTab'];
-    if (owner !== undefined) selectTab(organizationTabOf(owner, canSeeSalesReps));
+    if (owner !== undefined) selectTab(organizationTabOf(owner, salesTabShown));
     setTimeout(() => target?.focus(), 0);
   };
 
@@ -500,7 +504,6 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       </Alert>
     );
 
-  const salesTabShown = canSeeSalesReps;
   // Zeigarnik: a tab says it holds what the page Save has not written yet. The custom fields are
   // Overview's; every other host change and every zone panel is Commerce's.
   const customFieldCount = canManage ? changedCustomFields(edits.customFieldValues, org.customFieldValues ?? {}) : 0;
@@ -709,12 +712,12 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
               choice**: this member carries no prop that could tell two mounts apart, so a
               second one would render every contribution twice. Contributions arrive ordered by
               their declared weight (`price_lists` 200, `quick_order` 300, `credit_limits` 450, `related_payers` and
-              `quote_requests` 500, `crm` 600, `projects` 650).
+              `quote_requests` 500).
 
               Issue #1515 — inside the Commerce tab's card, so its sections are sections, not
-              cards (no `chrome="card"`). DS-20 (#1452) will let a contribution name its tab;
-              until then they all sit here. The wrapper draws the one rule above the first of
-              them and nothing at all when the zone renders nothing.
+              cards (no `chrome="card"`). A panel about who sells to the organization names
+              `organization.detail.sales` instead (DS-20, #1452). The wrapper draws the one rule
+              above the first of them and nothing at all when the zone renders nothing.
 
               Feature 180, WP-7 — the panels here take part in this screen's one Save. Re-keyed
               when a version conflict discarded every change, so each panel reads its stored
@@ -793,6 +796,11 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         {salesTabShown ? (
           <div hidden={tab !== 'sales'} data-org-tab="sales" className="space-y-(--section-gap)">
             <OrganizationSalesRepsTab organizationId={org.id} />
+            {/* Issue #1452 (UX audit DS-20) — what other modules say about selling to this
+                organization (`crm` 600, `projects` 650). Sections, not cards; outside the
+                Commerce one Save, so the zone carries no save session. An empty zone renders
+                nothing at all. */}
+            <AdminZone name="organization.detail.sales" props={{ organizationId: org.id }} chrome="section" />
           </div>
         ) : null}
       </RecordTabs>

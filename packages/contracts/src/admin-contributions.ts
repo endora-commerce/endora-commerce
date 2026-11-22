@@ -347,8 +347,29 @@ export const AdminZoneNameSchema = z.enum([
    * `unrendered-zone` refusal is computed per member, so one host's mount would
    * cover another host's absence. `customer.detail.after` is the twin, and the
    * cost of keeping them apart is one four-line wrapper in `quick_order`.
+   *
+   * It is the **Commerce** tab's stack: a panel about how the organization
+   * buys belongs here; a panel about who sells to it belongs in
+   * `organization.detail.sales` (issue #1452, UX audit DS-20).
    */
   'organization.detail.after',
+  /**
+   * The **body** of the organization detail's Sales tab, after the host's own
+   * sales-rep section.
+   *
+   * Mounted **once** per organization, and named from the host's own word for
+   * the place (Z14): `organizations`' `OrganizationDetail.tsx` calls the tab
+   * `sales`. Props: {@link OrganizationDetailSalesZoneProps} — the id and **no**
+   * save session, because the Sales tab is not part of the Commerce tab's one
+   * Save, and a zone of such a host carries no handle.
+   *
+   * The tab is shown while the admin may assign sales reps **or**
+   * `useAdminZone(name, props).length > 0` (Z15), so it is never drawn empty.
+   * The first contributors are `crm`'s opportunities and `projects`' projects
+   * of the organization, which sat in the Commerce tab until issue #1452 (UX
+   * audit DS-20); `organizations` names no contributor and gains no edge.
+   */
+  'organization.detail.sales',
   /**
    * The stack of panels a customer's detail screen ends with.
    *
@@ -389,10 +410,27 @@ export const AdminZoneNameSchema = z.enum([
    *
    * It is not `order.detail.payment`: that member is the body of one tab and
    * is named for what fills it. This one is for a module that has something to
-   * say about the order as a whole. The first contributor is `crm`'s
-   * linked-opportunity panel; `orders` names no contributor and gains no edge.
+   * say about the order as a whole: content about the record that needs the
+   * page's width. A short fact list belongs in `order.detail.sidebar`, where
+   * `crm`, `projects` and `tasks` moved in issue #1452 (UX audit DS-20); this
+   * member stays declared and rendered for the contributors that keep it.
    */
   'order.detail.after',
+  /**
+   * The order detail's sidebar card.
+   *
+   * Mounted **once** per order. Every contribution is a **section** of one
+   * card — an `EditorSection` takes the zone's `chrome="section"` — never a
+   * card in a card, and it has a sidebar's width (20rem). The host draws the
+   * sidebar column only while `useAdminZone(name, props).length > 0`, so an
+   * empty zone leaves the screen identical to one without the member. Props:
+   * {@link OrderDetailZoneProps}, the order's id and nothing else (Z3).
+   *
+   * The first contributors are `crm`'s linked opportunity, `projects`' Project
+   * and `tasks`' Tasks (issue #1452, UX audit DS-20); `orders` names no
+   * contributor and gains no edge.
+   */
+  'order.detail.sidebar',
   /**
    * The stack of panels a quote request's detail screen ends with.
    *
@@ -404,10 +442,26 @@ export const AdminZoneNameSchema = z.enum([
    * without the member. Props: {@link QuoteRequestDetailZoneProps}, the
    * request's id and nothing else (Z3).
    *
-   * The first contributor is `crm`'s linked-opportunity panel;
-   * `quote_requests` names no contributor and gains no edge.
+   * Content about the record that needs the page's width; a short fact list
+   * belongs in `quote_request.detail.sidebar`, where `crm`, `projects` and
+   * `tasks` moved in issue #1452 (UX audit DS-20). This member stays declared
+   * and rendered for the contributors that keep it.
    */
   'quote_request.detail.after',
+  /**
+   * The quote request detail's sidebar card.
+   *
+   * Mounted **once** per quote request, on `order.detail.sidebar`'s terms and
+   * for its reasons: every contribution is a section of one card, and the
+   * column is drawn only while the zone has a contribution. Props:
+   * {@link QuoteRequestDetailZoneProps}, the request's id and nothing else
+   * (Z3).
+   *
+   * The first contributors are `crm`'s linked opportunity, `projects`' Project
+   * and `tasks`' Tasks (issue #1452, UX audit DS-20); `quote_requests` names no
+   * contributor and gains no edge.
+   */
+  'quote_request.detail.sidebar',
   /**
    * The stack of panels an Opportunity's detail screen ends with.
    *
@@ -418,11 +472,26 @@ export const AdminZoneNameSchema = z.enum([
    * without the member. Props: {@link OpportunityDetailZoneProps}, the
    * Opportunity's id and nothing else (Z3).
    *
-   * The first contributor is `projects`' Project panel
-   * (`specs/163-projects-and-tasks/contracts/admin-surfaces.md` §3); `crm`
-   * names no contributor and gains no edge.
+   * Content about the record that needs the page's width; a short fact list
+   * belongs in `opportunity.detail.sidebar`, where `projects` and `tasks`
+   * moved in issue #1452 (UX audit DS-20, WORK-12). This member stays declared
+   * and rendered for the contributors that keep it.
    */
   'opportunity.detail.after',
+  /**
+   * The panels other modules add about an Opportunity, last in its sidebar.
+   *
+   * Mounted **once** per Opportunity, as the last sections of the
+   * `OpportunitySidebar` card, on `task.detail.after`'s terms: every
+   * contribution is a **section** of that card, never a card in a card, and an
+   * empty zone renders nothing at all. Props: {@link OpportunityDetailZoneProps},
+   * the Opportunity's id and nothing else (Z3).
+   *
+   * The first contributors are `projects`' Project and `tasks`' Tasks (issues
+   * #1452 and #1526, UX audit DS-20 and WORK-12); `crm` names no contributor
+   * and gains no edge.
+   */
+  'opportunity.detail.sidebar',
   /**
    * The per-row action cell of the order detail's Delivery tab.
    *
@@ -611,6 +680,10 @@ export const AdminZoneNameSchema = z.enum([
    * The first contributor is `projects`' Project panel
    * (`specs/163-projects-and-tasks/contracts/admin-surfaces.md` §3); `tasks`
    * names no contributor and gains no edge.
+   *
+   * This is the Task's **sidebar** zone, the twin of `order.detail.sidebar`
+   * and `opportunity.detail.sidebar`; it keeps its `.after` name because a
+   * rename is a removal, breaking for contributors (issue #1452).
    */
   'task.detail.after',
   /**
@@ -819,6 +892,17 @@ export interface OrganizationDetailZoneProps {
   readonly organizationId: string;
   /** Feature 180 — the organization screen's one Save (FR-002, FR-060). */
   readonly saveSession: EditorSaveSessionHandle;
+}
+
+/**
+ * A zone mounted once as the body of an organization detail's Sales tab.
+ *
+ * The organization's id and nothing else. Not {@link OrganizationDetailZoneProps}:
+ * the Sales tab is outside the Commerce tab's one Save, so the mount carries no
+ * save session and a contribution that reaches for one is a `tsc` error.
+ */
+export interface OrganizationDetailSalesZoneProps {
+  readonly organizationId: string;
 }
 
 /**
@@ -1035,11 +1119,15 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'product.editor.seo': ProductEditorSeoZoneProps;
   'sales_channel.editor.after': SalesChannelEditorZoneProps;
   'organization.detail.after': OrganizationDetailZoneProps;
+  'organization.detail.sales': OrganizationDetailSalesZoneProps;
   'customer.detail.after': CustomerDetailZoneProps;
   'order.detail.payment': OrderDetailZoneProps;
   'order.detail.after': OrderDetailZoneProps;
+  'order.detail.sidebar': OrderDetailZoneProps;
   'quote_request.detail.after': QuoteRequestDetailZoneProps;
+  'quote_request.detail.sidebar': QuoteRequestDetailZoneProps;
   'opportunity.detail.after': OpportunityDetailZoneProps;
+  'opportunity.detail.sidebar': OpportunityDetailZoneProps;
   'order.shipment.row.actions': OrderShipmentRowZoneProps;
   'order.shipments.tab.actions': OrderShipmentsActionsZoneProps;
   'order.entry.tabs': OrderEntryTabsZoneProps;

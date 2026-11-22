@@ -132,8 +132,8 @@ export const contributions: AdminContributions = {
   // panel's read enforces. The record's owner names no contributor, and the
   // zone renderer leaves the panel out while this module is off.
   zones: [
-    zoneComponent('order.detail.after', () => import('./zones/OrderTasksPanel.js'), { weight: 660, requiredPermission: READ_PERMISSION }),
-    zoneComponent('quote_request.detail.after', () => import('./zones/QuoteRequestTasksPanel.js'), { weight: 660, requiredPermission: READ_PERMISSION }),
-    zoneComponent('opportunity.detail.after', () => import('./zones/OpportunityTasksPanel.js'), { weight: 660, requiredPermission: READ_PERMISSION }),
+    zoneComponent('order.detail.sidebar', () => import('./zones/OrderTasksPanel.js'), { weight: 660, requiredPermission: READ_PERMISSION }),
+    zoneComponent('quote_request.detail.sidebar', () => import('./zones/QuoteRequestTasksPanel.js'), { weight: 660, requiredPermission: READ_PERMISSION }),
+    zoneComponent('opportunity.detail.sidebar', () => import('./zones/OpportunityTasksPanel.js'), { weight: 660, requiredPermission: READ_PERMISSION }),
   ],
 };

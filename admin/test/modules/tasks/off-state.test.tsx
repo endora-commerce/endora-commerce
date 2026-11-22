@@ -101,9 +101,9 @@ const RECORD_ID = '00000000-0000-4000-8000-0000000000c7';
 
 /** The three record screens' zones and what each hands its contributors. */
 const RECORD_ZONES = [
-  { zone: 'order.detail.after', props: { orderId: RECORD_ID } },
-  { zone: 'quote_request.detail.after', props: { quoteRequestId: RECORD_ID } },
-  { zone: 'opportunity.detail.after', props: { opportunityId: RECORD_ID } },
+  { zone: 'order.detail.sidebar', props: { orderId: RECORD_ID } },
+  { zone: 'quote_request.detail.sidebar', props: { quoteRequestId: RECORD_ID } },
+  { zone: 'opportunity.detail.sidebar', props: { opportunityId: RECORD_ID } },
 ] as const;
 
 /** One record screen's zone alone, filled from every module's contributions. */
