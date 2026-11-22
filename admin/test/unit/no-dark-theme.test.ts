@@ -33,6 +33,7 @@ const ADMIN_SOURCES = [
   'packages/admin-kit/theme.css',
   'packages/admin-kit/src',
   'packages/admin-shell/src',
+  'packages/page-builder-admin/src',
   'packages/modules/*/src/admin/*',
 ];
 const THEMEABLE = /\.(?:tsx?|css|html)$/;
@@ -46,6 +47,12 @@ const DARK_THEME: ReadonlyArray<readonly [string, RegExp]> = [
   ['a `dark` variant definition', /@custom-variant\s+dark\b/],
   ['a `dark` class toggled on an element', /classList\.(?:add|toggle)\(\s*['"]dark['"]/],
 ];
+
+/**
+ * A `dark:` utility for the samples below, spelled so Tailwind's scanner — which
+ * reads `admin/test` as well — does not find one in this file and compile it.
+ */
+const dark = (utility: string): string => ['dark', utility].join(':');
 
 function sources(): string[] {
   const out = execFileSync('git', ['ls-files', '--', ...ADMIN_SOURCES], { cwd: repoRoot, encoding: 'utf8' });
@@ -73,8 +80,8 @@ describe('the Admin UI carries no dark theme (#1810)', () => {
     expect(darkThemeIn('.dark {\n  --background: 0 0% 0%;\n}', 'theme.css')).toEqual(['a `.dark` selector']);
     expect(darkThemeIn('html.dark .card { color: red; }', 'theme.css')).toEqual(['a `.dark` selector']);
     expect(darkThemeIn('.btn--dark { color: red; }', 'theme.css')).toEqual([]);
-    expect(darkThemeIn("'bg-amber-50 dark:bg-amber-950'", 'Page.tsx')).toEqual(['a `dark:` variant']);
-    expect(darkThemeIn("'md:dark:text-white'", 'Page.tsx')).toEqual(['a `dark:` variant']);
+    expect(darkThemeIn(`'bg-amber-50 ${dark('bg-amber-950')}'`, 'Page.tsx')).toEqual(['a `dark:` variant']);
+    expect(darkThemeIn(`'md:${dark('text-white')}'`, 'Page.tsx')).toEqual(['a `dark:` variant']);
     expect(darkThemeIn('@media (prefers-color-scheme: dark) {}', 'theme.css')).toEqual(['a `prefers-color-scheme` rule']);
     expect(darkThemeIn('@custom-variant dark (&:where(.dark, .dark *));', 'index.css')).toEqual([
       'a `.dark` selector',
