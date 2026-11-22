@@ -19,15 +19,29 @@ export function localizedText(
 
 /**
  * A return status as the screens name it — the backend's own order
- * (`resolveReturnStatusName`): its name in `language`, else its
+ * (`resolveReturnStatusName`): its name in `language`, else a non-empty entry of
+ * the same primary language (`pl-PL` for `pl`, `pl` for `pl-PL`), else its
  * language-independent default name, else its code. Never another language.
+ *
+ * The names are operator content stored per language, so the admin reads all of
+ * them and picks one (`specs/conventions/module-i18n.md`); an admin read's
+ * `statusLabel` is the default name and is only the fallback for a status the
+ * graph no longer holds (issue #1815).
  */
 export function returnStatusName(
   status: { code: string; name: Readonly<Record<string, string>>; defaultName?: string | null },
   language: string,
 ): string {
   // Defensive: a status read from an older payload may carry no `name` map.
-  return status.name?.[language] || status.defaultName || status.code;
+  const names = status.name ?? {};
+  const exact = names[language];
+  if (exact) return exact;
+  const primary = language.split('-', 1)[0]!.toLowerCase();
+  for (const [key, value] of Object.entries(names)) {
+    const lowered = key.toLowerCase();
+    if (value && (lowered === primary || lowered.startsWith(`${primary}-`))) return value;
+  }
+  return status.defaultName || status.code;
 }
 
 /** A delivery method as the `delivery_methods` admin list returns it, read as is. */

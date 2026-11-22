@@ -25,6 +25,7 @@ import {
 } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient } from '../api/returns-client.js';
+import { returnStatusName } from '../labels.js';
 
 import type { AdminReturnRow, ReturnStatusDto } from '@endora-commerce/contracts';
 
@@ -43,11 +44,6 @@ const KINDS = ['return', 'complaint'] as const;
  * cases gets an empty list, and hiding it would say their scope is narrower.
  */
 const ORIGINS = ['platform', 'off_platform', 'off_platform_customer', 'guest'] as const;
-
-/** Resolve the admin-facing label for a status: default name → English → first → code. */
-function statusName(s: ReturnStatusDto): string {
-  return s.defaultName || s.name['en'] || Object.values(s.name)[0] || s.code;
-}
 
 /** Returns / RMA admin list (feature 046, US8). */
 export function ReturnsList(): ReactNode {
@@ -141,12 +137,13 @@ export function ReturnsList(): ReactNode {
     resetPage();
   }, [resetPage, statusCodes, kindFilter, originFilter, debouncedSearch, sort]);
 
+  // Issue #1815 — the operator's name for the status in the admin's language.
   const statusLabel = useCallback(
-    (code: string): string => {
+    (code: string, fallback?: string): string => {
       const s = statuses.find((x) => x.code === code);
-      return s ? statusName(s) : code;
+      return s ? returnStatusName(s, language) : fallback || code;
     },
-    [statuses],
+    [statuses, language],
   );
 
   const statusColor = useCallback(
@@ -184,7 +181,7 @@ export function ReturnsList(): ReactNode {
   // Status filter options carry the live per-status counts from the list payload.
   const statusOptions: MultiSelectOption[] = statuses.map((s) => ({
     value: s.code,
-    label: `${statusName(s)}${counts[s.code] !== undefined ? ` (${counts[s.code]})` : ''}`,
+    label: `${returnStatusName(s, language)}${counts[s.code] !== undefined ? ` (${counts[s.code]})` : ''}`,
   }));
 
   // Removable summary chips for every applied filter. The search box is not
@@ -325,7 +322,7 @@ export function ReturnsList(): ReactNode {
       header: t('returns.col.status'),
       render: (r) => (
         <Badge style={statusBadgeStyle(statusColor(r.statusCode))}>
-          {r.statusLabel || statusLabel(r.statusCode)}
+          {statusLabel(r.statusCode, r.statusLabel)}
         </Badge>
       ),
     },
