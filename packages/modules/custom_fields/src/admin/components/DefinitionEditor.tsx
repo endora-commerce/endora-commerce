@@ -524,7 +524,7 @@ export function DefinitionEditor(props: DefinitionEditorProps): ReactNode {
       {notice}
       <form ref={formRef} id={formId} aria-label={title} noValidate onSubmit={submit}>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             {props.mode === 'create' ? (
               <DefinitionForm
                 mode="create"
