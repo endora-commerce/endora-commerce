@@ -46,6 +46,7 @@ const { ReturnReasonsPage } = await import('../../../../packages/modules/returns
 const { ReturnDeliveryMethodsPage } = await import(
   '../../../../packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage'
 );
+const { ReturnsList } = await import('../../../../packages/modules/returns/src/admin/pages/ReturnsList');
 const { ReturnStatusesConfigPage } = await import(
   '../../../../packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage'
 );
@@ -419,6 +420,84 @@ describe('ReturnDeliveryMethodsPage in Polish (#1472)', () => {
   });
 });
 
+describe('ReturnDetail status badge in Polish (#1815)', () => {
+  it("names the case's status in the admin's language, not by the default name the case carries", async () => {
+    // The admin read sends `statusLabel` as the status's default (English) name.
+    const CASE = { ...CASE_180, rmaNumber: 'RMA-8', kind: 'return', statusCode: 'authorized', statusLabel: 'Authorized' };
+    api.get.mockImplementation((path: string) => {
+      if (path === '/api/v1/admin/returns/r1') return Promise.resolve({ data: CASE });
+      if (path === '/api/v1/admin/returns/statuses') return Promise.resolve({ data: GRAPH });
+      return Promise.resolve({ data: [] });
+    });
+    renderWithI18n(
+      <MemoryRouter initialEntries={['/returns/r1']}>
+        <Routes>
+          <Route path="/returns/:id" element={<ReturnDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      BUNDLE,
+      { language: 'pl' },
+    );
+    expect(await screen.findByText('Autoryzowany', { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText('Authorized', { exact: true })).toBeNull();
+  });
+});
+
+describe('ReturnsList in Polish (#1815)', () => {
+  const ROW = {
+    id: 'aaaaaaaa-0000-4000-8000-000000000001',
+    rmaNumber: 'RMA-9',
+    reference: 'RMA-9',
+    kind: 'return',
+    orderId: ORDER_ID,
+    statusCode: 'received',
+    // The list read sends the default (English) name.
+    statusLabel: 'Received',
+    totalRefundAmount: 0,
+    currency: 'PLN',
+    submittedAt: '2026-11-01T10:00:00Z',
+    customerAccountId: '00000000-0000-4000-8000-000000000002',
+    customerName: null,
+    organizationName: null,
+    authorizedBy: null,
+  };
+
+  function mount(): void {
+    api.get.mockImplementation((path: string) => {
+      if (path.startsWith('/api/v1/admin/returns?'))
+        return Promise.resolve({ data: { rows: [ROW], total: 1, counts: { received: 1 } } });
+      if (path === '/api/v1/admin/returns/statuses') return Promise.resolve({ data: GRAPH });
+      return Promise.resolve({ data: [] });
+    });
+    renderWithI18n(
+      withSession(
+        <MemoryRouter>
+          <ReturnsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
+      BUNDLE,
+      { language: 'pl' },
+    );
+  }
+
+  it("names each case's status in the admin's language", async () => {
+    mount();
+    expect((await screen.findAllByText('Odebrany', { exact: true })).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Received', { exact: true })).toBeNull();
+  });
+
+  it("offers the status filter in the admin's language", async () => {
+    mount();
+    const user = userEvent.setup();
+    await screen.findAllByText('Odebrany', { exact: true });
+    await user.click(screen.getByRole('button', { name: /^Status/ }));
+    expect(await screen.findByText('Odebrany (1)')).toBeInTheDocument();
+    expect(screen.queryByText('Received (1)')).toBeNull();
+    expect(screen.getByText('Autoryzowany')).toBeInTheDocument();
+  });
+});
+
 describe('ReturnStatusesConfigPage in Polish (#1472)', () => {
   function mount(): void {
     api.get.mockImplementation((path: string) => {
@@ -444,6 +523,9 @@ describe('ReturnStatusesConfigPage in Polish (#1472)', () => {
     const table = (await screen.findByText('received')).closest('table')!;
     expect(within(table).getByText('Odebrany')).toBeTruthy();
     expect(within(table).getByText('Autoryzowany')).toBeTruthy();
+    // Issue #1815 — nowhere on the page, the transition graph and the row actions included.
+    expect(screen.queryByText('Received', { exact: true })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Edytuj status: Odebrany' })).toBeInTheDocument();
   });
 
   it('derives the new status code from its name through labelled kit fields', async () => {
