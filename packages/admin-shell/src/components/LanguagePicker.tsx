@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { ApiError, cn, useAuth } from '@endora-commerce/admin-kit/lib';
+import { InlineStatus } from '@endora-commerce/admin-kit/ui';
 import {
   useAppLanguage,
   setPreferredLanguage,
@@ -38,17 +39,25 @@ export function LanguagePicker(): ReactNode {
   const { refresh } = useAuth();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const errorId = useId();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
-  // Close on outside click and on Escape, matching standard menu behaviour.
+  // Close the menu and dismiss save feedback on outside click or Escape.
   useEffect(() => {
-    if (!open) return;
+    if (!open && !saveFailed) return;
     const onPointer = (e: MouseEvent): void => {
       const node = wrapperRef.current;
-      if (node && !node.contains(e.target as Node)) setOpen(false);
+      if (node && !node.contains(e.target as Node)) {
+        setOpen(false);
+        setSaveFailed(false);
+      }
     };
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') {
+        setOpen(false);
+        setSaveFailed(false);
+      }
     };
     document.addEventListener('mousedown', onPointer);
     document.addEventListener('keydown', onKey);
@@ -56,23 +65,28 @@ export function LanguagePicker(): ReactNode {
       document.removeEventListener('mousedown', onPointer);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, saveFailed]);
 
   const pick = useCallback(
     async (next: SupportedAdminLanguage): Promise<void> => {
       setOpen(false);
       if (next === language || submitting) return;
       const previous = language;
+      setSaveFailed(false);
       setSubmitting(true);
       setLanguage(next);
+      let saved = false;
       try {
         await setPreferredLanguage(next);
+        saved = true;
         await refresh();
       } catch (err) {
-        // Roll back the optimistic flip so the UI doesn't lie about what the
-        // server stored. Logging only — a transient failure here shouldn't
-        // produce a modal; the user can pick the language again.
-        setLanguage(previous);
+        if (!saved) {
+          setSaveFailed(true);
+          // Roll back only when the preference save failed; a refresh failure
+          // must not undo the language the server already stored.
+          setLanguage(previous);
+        }
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
           console.warn(
@@ -95,8 +109,12 @@ export function LanguagePicker(): ReactNode {
         aria-label={t('appShell.languageIndicator.label')}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-describedby={saveFailed ? errorId : undefined}
         disabled={submitting}
-        onClick={(): void => setOpen((v) => !v)}
+        onClick={(): void => {
+          if (!open) setSaveFailed(false);
+          setOpen((v) => !v);
+        }}
         // A pill, not `.b2b-topbar__icon-btn`: that class fixes the box at
         // 34×34px, which clips the flag + code + chevron triplet. Same height,
         // colours and hover as the icon buttons beside it; the width grows.
@@ -115,42 +133,54 @@ export function LanguagePicker(): ReactNode {
         <span className="b2b-lang-picker__label">{language.toUpperCase()}</span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
-      {open && (
-        <div
-          role="menu"
-          aria-label={t('appShell.languageIndicator.label')}
-          className="absolute right-0 top-[calc(100%+4px)] z-[60] min-w-[180px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+      <div className="absolute right-0 top-[calc(100%+4px)] z-[60] flex w-max max-w-[min(20rem,calc(100vw-16px))] flex-col items-end gap-1">
+        <InlineStatus
+          id={errorId}
+          tone="error"
+          className={cn(
+            'm-0',
+            saveFailed && 'max-w-full rounded-md border border-border bg-popover p-2 shadow-md',
+          )}
         >
-          {LANGUAGES.map(({ code, labelKey, flag }) => {
-            const active = code === language;
-            return (
-              <button
-                key={code}
-                type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                onClick={(): void => {
-                  void pick(code);
-                }}
-                className={cn(
-                  'flex w-full items-center justify-between gap-2 rounded-sm px-2.5 py-1.5 text-left text-[13px]',
-                  'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:outline-none',
-                  active && 'bg-muted',
-                )}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <span aria-hidden="true" className="text-base leading-none">
-                    {flag}
+          {saveFailed ? t('appShell.languageIndicator.saveFailed') : null}
+        </InlineStatus>
+        {open && (
+          <div
+            role="menu"
+            aria-label={t('appShell.languageIndicator.label')}
+            className="min-w-[180px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+          >
+            {LANGUAGES.map(({ code, labelKey, flag }) => {
+              const active = code === language;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={active}
+                  onClick={(): void => {
+                    void pick(code);
+                  }}
+                  className={cn(
+                    'flex w-full items-center justify-between gap-2 rounded-sm px-2.5 py-1.5 text-left text-[13px]',
+                    'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:outline-none',
+                    active && 'bg-muted',
+                  )}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span aria-hidden="true" className="text-base leading-none">
+                      {flag}
+                    </span>
+                    <span className="text-[11px] font-semibold tracking-[0.5px]">{code.toUpperCase()}</span>
+                    <span>{t(labelKey)}</span>
                   </span>
-                  <span className="text-[11px] font-semibold tracking-[0.5px]">{code.toUpperCase()}</span>
-                  <span>{t(labelKey)}</span>
-                </span>
-                {active ? <Check size={14} aria-hidden="true" /> : null}
-              </button>
-            );
-          })}
-        </div>
-      )}
+                  {active ? <Check size={14} aria-hidden="true" /> : null}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
