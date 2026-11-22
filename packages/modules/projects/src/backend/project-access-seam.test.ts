@@ -58,6 +58,9 @@ const SQL_WITHOUT_RULE_SCOPED_TABLES: Readonly<Record<string, string>> = {
     'Project Roles and loss reasons — global dictionaries (`@GlobalEntity`); whether one is in use is asked of ' +
     '`role-service` / `loss-reason-service`.',
   'services/project-number.ts': 'Draws the next Project number from its sequence — no row of any Project.',
+  'services/project-list-view-service.ts':
+    "An administrator's saved list views (`@GlobalEntity`, issue #1734): the per-owner advisory lock and the " +
+    'name probe of `project_list_saved_views` — no row of any Project.',
   'services/role-locks.ts':
     'Advisory locks keyed by a Role id and the existence check of Project Roles, a global dictionary ' +
     '(`@GlobalEntity`) — no row of any Project (issue #453).',
