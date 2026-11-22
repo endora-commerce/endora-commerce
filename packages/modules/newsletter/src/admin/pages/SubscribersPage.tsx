@@ -131,6 +131,7 @@ export function SubscribersPage(): React.ReactElement {
               <ListToolbarSearch
                 ref={searchRef}
                 label={t('subscribers.search')}
+                placeholder={t('subscribers.search')}
                 value={q}
                 onValueChange={(next): void => {
                   setQ(next);

@@ -2125,7 +2125,7 @@
   "rfq.detail.minimum.packagingUnit": "Poniżej minimum ({minimum} × {packagingUnitName})",
   "rfq.detail.minimum.packagingUnitUnnamed": "Poniżej minimum (jednostki opakowania: {minimum})",
   "rfq.detail.minimum.pieces": "Poniżej minimum ({minimum} szt.)",
-  "rfq.detail.modify.addLine": "+ Dodaj pozycję",
+  "rfq.detail.modify.addLine": "Dodaj pozycję",
   "rfq.detail.modify.agreedUnitPrice": "Uzgodniona cena jednostkowa",
   "rfq.detail.modify.error.atLeastOneLine": "Wymagana jest co najmniej jedna pozycja.",
   "rfq.detail.modify.error.save": "Modyfikacja nie powiodła się.",

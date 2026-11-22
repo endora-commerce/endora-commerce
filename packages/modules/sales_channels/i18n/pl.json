@@ -6,7 +6,7 @@
   "actions.newSalesChannel.description": "Skonfiguruj nowy kanał sprzedaży witryny",
   "list.page.title": "Kanały sprzedaży",
   "list.error.load": "Nie udało się wczytać kanałów sprzedaży.",
-  "list.action.newChannel": "+ Nowy kanał",
+  "list.action.newChannel": "Nowy kanał",
   "list.filter.activeOnly": "Pokaż tylko aktywne kanały",
   "list.toolbar.label": "Filtruj kanały sprzedaży",
   "list.count": "Kanały sprzedaży: {count}",

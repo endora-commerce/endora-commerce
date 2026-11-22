@@ -308,6 +308,8 @@ export function OpportunitiesList(): ReactNode {
       id: 'number',
       header: t('opportunity.list.col.number'),
       primary: true,
+      // Issue #1808 — "OPP-000002" wrapped onto two lines at 1525 px.
+      className: 'whitespace-nowrap',
       render: (row) => (
         <Link
           to={`/crm/opportunities/${row.id}`}
@@ -333,7 +335,14 @@ export function OpportunitiesList(): ReactNode {
       id: 'organization',
       header: t('opportunity.list.col.organization'),
       hideOnMobile: true,
-      render: (row) => row.organization.name,
+      // One line, cut with an ellipsis past 16rem; the full name stays in the
+      // text a screen reader reads and in the tooltip (issue #1808).
+      className: 'whitespace-nowrap',
+      render: (row) => (
+        <span className="block max-w-64 truncate" title={row.organization.name}>
+          {row.organization.name}
+        </span>
+      ),
     },
     {
       id: 'status',

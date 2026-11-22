@@ -375,7 +375,7 @@
   "inventoryTab.lowStock.title": "Próg niskiego stanu",
   "inventoryTab.fulfilment.title": "Strategia realizacji",
   "inventoryTab.lowStock.help": "Puste pole oznacza domyślny próg magazynu lub globalny.",
-  "inventoryTab.lowStock.placeholder": "Dziedzicz z magazynu / globalnego",
+  "inventoryTab.lowStock.placeholder": "Dziedziczony",
   "inventoryTab.lowStock.error": "Nie udało się zapisać progu niskiego stanu.",
   "inventoryTab.lowStock.modeCumulative": "Wspólny próg dla wszystkich magazynów",
   "inventoryTab.lowStock.modePerWarehouse": "Próg dla każdego magazynu z osobna",
