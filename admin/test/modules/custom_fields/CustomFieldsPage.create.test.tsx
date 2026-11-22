@@ -4,6 +4,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { ApiError, AuthProvider } from '@endora-commerce/admin-kit/lib';
 import type { CustomFieldDefinitionDto, CustomFieldEntityTypeInfo } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { chooseRowAction } from './row-actions';
 import { adminSession } from '../../helpers/render-with-session';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
@@ -425,7 +426,7 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
 describe('CustomFieldsPage — the audience in the edit dialog (issue #447)', () => {
   it('offers the audience in the dialog and sends it with the save', async () => {
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit po_number' }));
+    await chooseRowAction('po_number', 'edit', EN);
     const dialog = await screen.findByRole('dialog', { name: 'Edit po_number' });
     const audience = within(dialog).getByLabelText('Who can see the value');
     expect(audience).toHaveValue('customer');

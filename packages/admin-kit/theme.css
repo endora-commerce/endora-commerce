@@ -1546,6 +1546,9 @@ body,
   flex-direction: column;
   gap: 8px;
 }
+.b2b-responsive-card[data-state='selected'] {
+  background: hsl(var(--muted));
+}
 .b2b-responsive-card__headline {
   font-weight: 600;
   font-size: 14px;

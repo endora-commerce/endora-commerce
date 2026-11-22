@@ -4,6 +4,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { AuthProvider } from '@endora-commerce/admin-kit/lib';
 import type { CustomFieldDefinitionDto } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { askAudienceChange, audienceButton, chooseRowAction } from './row-actions';
 import { adminSession } from '../../helpers/render-with-session';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
@@ -31,6 +32,11 @@ const REMOVE_OPTION_ANYWAY = sentence(EN, 'customFields.carry.warning.proceedRem
 const DELETE_FIELD_ANYWAY = sentence(EN, 'customFields.carry.warning.proceedDeleteField');
 const ADD_OPTION_ANYWAY = sentence(EN, 'customFields.carry.warning.proceedAddOption');
 const CHANGE_AUDIENCE_ANYWAY = sentence(EN, 'customFields.carry.warning.proceedChangeAudience');
+const CORE_EN = coreEn as Bundle;
+/** The audience control's confirm button for a move to customer-visible (issue #1749). */
+const CHANGE_TO_CUSTOMER = sentence(CORE_EN, 'common.statusChange.confirm', {
+  status: sentence(EN, 'customFields.audience.customer'),
+});
 
 /** Internal, offers north + south, carries to the Order field of the same key. */
 const QR_REGION = carryDefinition('00000000-0000-4000-8000-0000000d0001', { carryTo: ['order'] });
@@ -122,7 +128,7 @@ async function renderPage(
 
 async function openEditor(key = 'region', bundle: Bundle = EN): Promise<HTMLElement> {
   const title = sentence(bundle, 'customFields.editor.title', { key });
-  fireEvent.click(await screen.findByRole('button', { name: title }));
+  await chooseRowAction(key, 'edit', bundle);
   return screen.findByRole('dialog', { name: title });
 }
 
@@ -247,33 +253,35 @@ describe('CustomFieldsPage — drift warnings', () => {
     });
   });
 
+  /**
+   * The row's audience is the kit `StatusChangeControl` (issue #1749, README
+   * *A value edited from the row*): its confirm step is the one question, and
+   * the warning stands on it — never a second dialog after it.
+   */
   describe('making the target visible to customers under an internal source', () => {
-    const audienceOf = (): HTMLSelectElement =>
-      screen.getByLabelText(sentence(EN, 'customFields.audience.rowLabel', { key: 'region' })) as HTMLSelectElement;
-
-    it('asks first and leaves the audience as it was on Cancel', async () => {
+    it('warns on the confirm step, naming the source, and sends nothing on Back and Cancel', async () => {
       await renderPage('order');
-      fireEvent.change(audienceOf(), { target: { value: 'customer' } });
-      const warning = await screen.findByRole('dialog', { name: WARNING });
-      expectCounterparts(warning, ['Quote request · region']);
-      // Read with the title as focus enters the dialog on Cancel.
-      expect(warning).toHaveAccessibleDescription(expect.stringContaining(BODY));
-      expect(warning).toHaveAccessibleDescription(expect.stringContaining('Quote request · region'));
-      expect(within(warning).getByRole('button', { name: CANCEL })).toHaveFocus();
-      expect(warning.querySelector('svg')).not.toHaveClass('text-destructive');
-      fireEvent.click(within(warning).getByRole('button', { name: CANCEL }));
+      const confirm = await askAudienceChange('region', EN, CORE_EN);
+      expect(within(confirm).getByText(BODY, { exact: false })).toBeInTheDocument();
+      // Read with the summary as focus enters the confirm step.
+      expect(confirm).toHaveAccessibleDescription(expect.stringContaining(BODY));
+      expect(confirm).toHaveAccessibleDescription(expect.stringContaining('Quote request · region'));
+      expect(screen.getAllByRole('dialog')).toHaveLength(1);
+      fireEvent.click(within(confirm).getByRole('button', { name: sentence(CORE_EN, 'common.action.back') }));
+      const choose = await screen.findByRole('dialog', { name: sentence(EN, 'customFields.audience.rowLabel', { key: 'region' }) });
+      fireEvent.click(within(choose).getByRole('button', { name: sentence(CORE_EN, 'common.action.cancel') }));
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-      expect(audienceOf().value).toBe('internal');
+      expect(audienceButton('region', EN, CORE_EN).closest('div')).toHaveTextContent(sentence(EN, 'customFields.audience.internal'));
       expect(REQUESTS()).toBe(0);
     });
 
-    it('sends the audience exactly as before on Change audience anyway', async () => {
+    it('sends the audience exactly as before once the change is confirmed, asking nothing more', async () => {
       await renderPage('order');
-      fireEvent.change(audienceOf(), { target: { value: 'customer' } });
-      const warning = await screen.findByRole('dialog', { name: WARNING });
-      fireEvent.click(within(warning).getByRole('button', { name: CHANGE_AUDIENCE_ANYWAY }));
+      const confirm = await askAudienceChange('region', EN, CORE_EN);
+      fireEvent.click(within(confirm).getByRole('button', { name: CHANGE_TO_CUSTOMER }));
       await waitFor(() => expect(client.update).toHaveBeenCalledTimes(1));
       expect(client.update).toHaveBeenCalledWith(ORDER_REGION.id, { audience: 'customer' });
+      expect(screen.queryByRole('dialog', { name: WARNING })).toBeNull();
     });
   });
 
@@ -311,8 +319,10 @@ describe('CustomFieldsPage — drift warnings', () => {
   describe('deleting a definition that is part of an enabled carry', () => {
     it('asks once, in the warning, and sends nothing on Cancel', async () => {
       await renderPage('order');
-      fireEvent.click(screen.getByRole('button', { name: sentence(EN, 'customFields.table.delete', { key: 'region' }) }));
+      await chooseRowAction('region', 'delete', EN);
       const warning = await screen.findByRole('dialog', { name: WARNING });
+      // The warning is the one question: no kit confirmation before or beside it.
+      expect(screen.getAllByRole('dialog')).toHaveLength(1);
       expect(within(warning).getByText(sentence(EN, 'customFields.table.deleteConfirm', { key: 'region' }))).toBeInTheDocument();
       expectCounterparts(warning, ['Quote request · region']);
       expect(warning).toHaveAccessibleDescription(
@@ -327,12 +337,22 @@ describe('CustomFieldsPage — drift warnings', () => {
 
     it('deletes exactly as before on Delete field anyway', async () => {
       await renderPage('quote_request');
-      fireEvent.click(screen.getByRole('button', { name: sentence(EN, 'customFields.table.delete', { key: 'region' }) }));
+      await chooseRowAction('region', 'delete', EN);
       const warning = await screen.findByRole('dialog', { name: WARNING });
       expectCounterparts(warning, ['Order · region']);
       fireEvent.click(within(warning).getByRole('button', { name: DELETE_FIELD_ANYWAY }));
       await waitFor(() => expect(client.remove).toHaveBeenCalledTimes(1));
       expect(client.remove).toHaveBeenCalledWith(QR_REGION.id);
+    });
+
+    it('says a refused deletion above the rows, which stay on screen (issue #1749)', async () => {
+      client.remove.mockRejectedValue(new Error('boom'));
+      await renderPage('quote_request');
+      await chooseRowAction('region', 'delete', EN);
+      const warning = await screen.findByRole('dialog', { name: WARNING });
+      fireEvent.click(within(warning).getByRole('button', { name: DELETE_FIELD_ANYWAY }));
+      expect(await screen.findByText(sentence(EN, 'customFields.error.action'))).toBeInTheDocument();
+      expect(screen.getByRole('row', { name: /region/ })).toBeInTheDocument();
     });
   });
 
@@ -384,18 +404,19 @@ describe('CustomFieldsPage — drift warnings', () => {
       await waitFor(() => expect(client.createOption).toHaveBeenCalledTimes(1));
     });
 
-    it('reads "change audience anyway", not destructive, for an audience change', async () => {
+    it('names the change, not destructive, on the confirm step of the row audience control', async () => {
       await renderPage('order', bundle, core);
-      fireEvent.change(screen.getByLabelText(say('customFields.audience.rowLabel', { key: 'region' })), {
-        target: { value: 'customer' },
+      const confirm = await askAudienceChange('region', bundle, core);
+      const proceed = within(confirm).getByRole('button', {
+        name: sentence(core, 'common.statusChange.confirm', { status: say('customFields.audience.customer') }),
       });
-      const warning = await screen.findByRole('dialog', { name: title() });
-      expectButtons(warning, 'customFields.carry.warning.proceedChangeAudience', false);
+      expect(proceed).not.toHaveClass('bg-destructive');
+      expect(confirm).toHaveAccessibleDescription(expect.stringContaining(say('customFields.carry.warning.body')));
     });
 
     it('reads "delete field anyway", destructive, for deleting a field a carry needs', async () => {
       await renderPage('quote_request', bundle, core);
-      fireEvent.click(screen.getByRole('button', { name: say('customFields.table.delete', { key: 'region' }) }));
+      await chooseRowAction('region', 'delete', bundle);
       const warning = await screen.findByRole('dialog', { name: title() });
       expectButtons(warning, 'customFields.carry.warning.proceedDeleteField', true);
     });
@@ -413,27 +434,28 @@ describe('CustomFieldsPage — drift warnings', () => {
       fireEvent.keyDown(document, { key: 'Escape' });
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
-      fireEvent.click(screen.getByRole('button', { name: sentence(EN, 'customFields.table.delete', { key: 'region' }) }));
+      await chooseRowAction('region', 'delete', EN);
       await expectNoAxeViolations(await screen.findByRole('dialog', { name: WARNING }));
       expect(REQUESTS()).toBe(0);
     });
   });
 
   describe('a change that breaks nothing', () => {
-    it('asks nothing when the audience change is one the rule allows', async () => {
+    it('warns of nothing when the audience change is one the rule allows', async () => {
       await renderPage('quote_request');
-      fireEvent.change(screen.getByLabelText(sentence(EN, 'customFields.audience.rowLabel', { key: 'region' })), {
-        target: { value: 'customer' },
-      });
+      const confirm = await askAudienceChange('region', EN, CORE_EN);
+      expect(within(confirm).queryByText(BODY, { exact: false })).toBeNull();
+      fireEvent.click(within(confirm).getByRole('button', { name: CHANGE_TO_CUSTOMER }));
       await waitFor(() => expect(client.update).toHaveBeenCalledWith(QR_REGION.id, { audience: 'customer' }));
       expect(screen.queryByRole('dialog', { name: WARNING })).toBeNull();
     });
 
-    it('keeps the in-row confirmation for a deletion no carry depends on', async () => {
+    it('confirms a deletion no carry depends on in the kit confirmation, not the warning', async () => {
       await renderPage('order');
-      fireEvent.click(screen.getByRole('button', { name: sentence(EN, 'customFields.table.delete', { key: 'note' }) }));
+      await chooseRowAction('note', 'delete', EN);
+      const confirm = await screen.findByRole('dialog');
       expect(screen.queryByRole('dialog', { name: WARNING })).toBeNull();
-      expect(screen.getByText(sentence(EN, 'customFields.table.deleteConfirm', { key: 'note' }))).toBeInTheDocument();
+      expect(confirm).toHaveAccessibleDescription(sentence(EN, 'customFields.table.deleteConfirm', { key: 'note' }));
     });
 
     it('keeps the in-row confirmation for an option no source holds', async () => {

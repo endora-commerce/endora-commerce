@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { CheckCircle2, Inbox, RotateCcw, Webhook } from 'lucide-react';
 import {
   COMMAND_OUTBOX_LISTED_STATUSES,
+  COMMAND_OUTBOX_PAGE_MAX,
   ERROR_CODES,
   type CommandHookPlanAction,
   type CommandHookPlanItem,
@@ -23,14 +24,14 @@ import {
   PageHeader,
   RouteTabs,
   Select,
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
 } from '@endora-commerce/admin-kit/ui';
+import {
+  ListPage,
+  ResponsiveTable,
+  useCursorPagination,
+  type ListPageLoad,
+  type ResponsiveColumn,
+} from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   COMMAND_OUTBOX_MANAGE,
@@ -161,11 +162,19 @@ export function CommandHooksPage({ tab }: { tab: Tab }): ReactNode {
     return <Navigate to={OUTBOX_PATH} replace />;
   }
 
+  // A strip of one tab is not a choice, so it is only drawn for two.
+  const tabStrip = tabs.length > 1 ? <RouteTabs tabs={tabs} className="mb-4" /> : null;
+
+  // The outbox is a list of records, so it is the kit list page (issue #1749);
+  // the plan tab and the refusals keep the plain header.
+  if (tab === 'outbox' && canReadOutbox) {
+    return <Outbox t={t} canManage={hasPermission(COMMAND_OUTBOX_MANAGE)} names={names} tabs={tabStrip} />;
+  }
+
   return (
     <>
       <PageHeader title={t('platform.commandHooks.title')} />
-      {/* A strip of one tab is not a choice, so it is only drawn for two. */}
-      {tabs.length > 1 && <RouteTabs tabs={tabs} className="mb-4" />}
+      {tabStrip}
       {tab === 'plan' ? (
         canReadPlan ? (
           <ExecutionPlan t={t} names={names} />
@@ -174,8 +183,6 @@ export function CommandHooksPage({ tab }: { tab: Tab }): ReactNode {
             <AlertDescription>{t('platform.commandHooks.plan.forbidden')}</AlertDescription>
           </Alert>
         )
-      ) : canReadOutbox ? (
-        <Outbox t={t} canManage={hasPermission(COMMAND_OUTBOX_MANAGE)} names={names} />
       ) : (
         <Alert variant="warning">
           <AlertDescription className="flex flex-wrap items-center gap-2">
@@ -382,67 +389,78 @@ function PhaseHooks({
 // Outbox
 // ---------------------------------------------------------------------------
 
-/** Where focus goes once the list has re-rendered (designer review 2, 7). */
-type FocusTarget = { kind: 'retry'; id: string } | { kind: 'row'; id: string } | { kind: 'empty' } | { kind: 'end' };
+/**
+ * Where focus goes once the list has re-rendered (designer review 2): the
+ * neighbour's Retry, the empty state, or — when a retry emptied a page that is
+ * asked again — the results region (issue #1749).
+ */
+type FocusTarget = { kind: 'retry'; id: string } | { kind: 'empty' } | { kind: 'results' };
 
+/**
+ * The outbox tab, on the kit `ListPage` with the kit cursor pager (issue #1749).
+ * The cursor is the last row's `sequence`, so retrying rows away does not shift
+ * the next page, and the page on screen stays bounded — where *Load more* grew
+ * one list without end. Review rule 7 governed how a *Load more* had to behave;
+ * the kit pager replaces that control.
+ */
 function Outbox({
   t,
   canManage,
   names,
+  tabs,
 }: {
   t: Translate;
   canManage: boolean;
   names: ReadonlyMap<string, string>;
+  tabs: ReactNode;
 }): ReactNode {
   const { language } = useTranslationContext();
   const tLifecycle = useTranslation('_lifecycle');
   const { bundle, fallbackBundle } = useTranslationContext();
   const statusId = useId();
+  const pager = useCursorPagination({ scope: 'command-outbox', maxPageSize: COMMAND_OUTBOX_PAGE_MAX });
+  const { cursor, limit } = pager.query;
+  const { page: pageIndex, syncPage, resetPage } = pager;
   const [status, setStatus] = useState<ListedStatus>('dead');
   const [attempt, setAttempt] = useState(0);
   const [items, setItems] = useState<CommandOutboxListItem[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  /** The selected status has answered once: later reads are a refresh over its rows. */
+  const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [moreError, setMoreError] = useState<string | null>(null);
-  const [loadedMore, setLoadedMore] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const retryButtons = useRef(new Map<string, HTMLButtonElement>());
-  const rows = useRef(new Map<string, HTMLTableRowElement>());
   const emptyRef = useRef<HTMLDivElement | null>(null);
-  const endRef = useRef<HTMLParagraphElement | null>(null);
+  const resultsRef = useRef<HTMLDivElement | null>(null);
   const pendingFocus = useRef<FocusTarget | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setItems([]);
-    setNextCursor(null);
     setLoadError(null);
-    setMoreError(null);
-    setLoadedMore(false);
-    setRetryError(null);
-    setNotice(null);
-    listCommandOutbox({ status })
+    listCommandOutbox({ status, cursor, limit })
       .then((page) => {
         if (cancelled) return;
+        syncPage({ cursor: page.nextCursor, hasMore: page.nextCursor !== null }, page.items.length);
+        // A later page that came back empty steps back one page, which is asked
+        // next: the screen keeps loading rather than draw an empty page.
+        if (page.items.length === 0 && pageIndex > 0) return;
         setItems(page.items);
-        setNextCursor(page.nextCursor);
+        setLoaded(true);
+        setLoading(false);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setLoadError(errorText(err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (cancelled) return;
+        setLoadError(errorText(err));
+        setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [status, attempt]);
+  }, [status, cursor, limit, attempt, pageIndex, syncPage]);
 
   // Apply a deliberate focus move once the rows it names are on screen.
   useEffect(() => {
@@ -452,41 +470,45 @@ function Outbox({
     const element =
       target.kind === 'retry'
         ? retryButtons.current.get(target.id)
-        : target.kind === 'row'
-          ? rows.current.get(target.id)
-          : target.kind === 'empty'
-            ? emptyRef.current
-            : endRef.current;
+        : target.kind === 'empty'
+          ? emptyRef.current
+          : resultsRef.current;
     element?.focus();
-  }, [items, loading, nextCursor]);
+  }, [items, loading]);
 
-  const loadMore = useCallback(async (): Promise<void> => {
-    if (nextCursor === null || loadingMore) return;
-    setLoadingMore(true);
-    setMoreError(null);
-    try {
-      const page = await listCommandOutbox({ status, cursor: nextCursor });
-      const first = page.items[0];
-      pendingFocus.current = first ? { kind: 'row', id: first.id } : { kind: 'end' };
-      setItems((current) => [...current, ...page.items]);
-      setNextCursor(page.nextCursor);
-      setLoadedMore(true);
-    } catch (err) {
-      setMoreError(errorText(err));
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [loadingMore, nextCursor, status]);
+  const footer = pager.footer(items.length);
 
-  /** Take `id` off the list and send focus to its neighbour, or to the empty state. */
+  /** A status is a view of its own: page 1, a fresh skeleton, and no message from the last one. */
+  const changeStatus = (next: ListedStatus): void => {
+    setStatus(next);
+    resetPage();
+    setLoaded(false);
+    setNotice(null);
+    setRetryError(null);
+  };
+
+  /**
+   * Take `id` off the page and send focus to its neighbour's Retry. The last
+   * row of a page that is not the whole list asks for the same page again —
+   * the next rows move up, or the pager steps back — with focus on the results;
+   * the last row of the whole list leaves the empty state, which takes focus.
+   */
   const dropRow = useCallback(
     (id: string): void => {
       const index = items.findIndex((item) => item.id === id);
       const neighbour = items[index + 1] ?? items[index - 1];
-      pendingFocus.current = neighbour ? { kind: 'retry', id: neighbour.id } : { kind: 'empty' };
-      setItems((current) => current.filter((item) => item.id !== id));
+      if (neighbour) {
+        pendingFocus.current = { kind: 'retry', id: neighbour.id };
+        setItems((current) => current.filter((item) => item.id !== id));
+      } else if (pageIndex > 0 || footer.hasNext) {
+        pendingFocus.current = { kind: 'results' };
+        setAttempt((n) => n + 1);
+      } else {
+        pendingFocus.current = { kind: 'empty' };
+        setItems((current) => current.filter((item) => item.id !== id));
+      }
     },
-    [items],
+    [footer.hasNext, items, pageIndex],
   );
 
   const retry = useCallback(
@@ -527,180 +549,181 @@ function Outbox({
   const secondDate: 'deadAt' | 'availableAt' | null =
     status === 'dead' ? 'deadAt' : status === 'pending' ? 'availableAt' : null;
 
-  let announcement: string;
-  if (loading) announcement = t('platform.commandHooks.outbox.loading');
-  else if (notice !== null) announcement = notice;
-  else if (loadError !== null) announcement = '';
-  else announcement = t('platform.commandHooks.outbox.count', { count: items.length });
+  const columns: ResponsiveColumn<CommandOutboxListItem>[] = [
+    {
+      id: 'action',
+      header: t('platform.commandHooks.outbox.column.action'),
+      primary: true,
+      className: cn('font-mono text-xs', WRAP),
+      render: (item) => item.action,
+    },
+    {
+      id: 'object',
+      header: t('platform.commandHooks.outbox.column.object'),
+      className: 'text-xs',
+      render: (item) => (
+        <>
+          <div>{item.objectType}</div>
+          <div className={cn('font-mono text-muted-foreground', WRAP)}>{item.objectId}</div>
+        </>
+      ),
+    },
+    {
+      id: 'handler',
+      header: t('platform.commandHooks.outbox.column.handler'),
+      className: 'text-xs',
+      render: (item) => (
+        <>
+          <ModuleName id={item.hookModule} names={names} />
+          <div className={cn('font-mono text-muted-foreground', WRAP)}>{item.hookId}</div>
+        </>
+      ),
+    },
+    {
+      id: 'attempts',
+      header: t('platform.commandHooks.outbox.column.attempts'),
+      className: 'text-right tabular-nums',
+      render: (item) => item.attempts,
+    },
+    {
+      id: 'failure',
+      header: t('platform.commandHooks.outbox.column.failure'),
+      className: cn('max-w-xs text-xs', WRAP),
+      render: (item) => {
+        if (item.lastErrorCode === null) {
+          return <span className="text-muted-foreground">{t('platform.commandHooks.outbox.noFailure')}</span>;
+        }
+        const label = failureOf(item);
+        return (
+          <>
+            {label !== null && <div>{label}</div>}
+            <code className="font-mono">{item.lastErrorCode}</code>
+            {item.lastErrorClass !== null && <div className="font-mono text-muted-foreground">{item.lastErrorClass}</div>}
+          </>
+        );
+      },
+    },
+    {
+      id: 'created',
+      header: t('platform.commandHooks.outbox.column.created'),
+      className: 'whitespace-nowrap text-xs',
+      render: (item) => formatDateTime(item.createdAt, language),
+    },
+    ...(secondDate === null
+      ? []
+      : [
+          {
+            id: secondDate,
+            header:
+              secondDate === 'deadAt'
+                ? t('platform.commandHooks.outbox.column.deadAt')
+                : t('platform.commandHooks.outbox.column.availableAt'),
+            className: 'whitespace-nowrap text-xs',
+            render: (item: CommandOutboxListItem) =>
+              formatDateTime(secondDate === 'deadAt' ? item.deadAt : item.availableAt, language),
+          },
+        ]),
+  ];
+
+  // Retry is a visible button, not a `RowActionMenu` item: it is the row's one
+  // task and nothing destructive, so a menu would put the screen's only job one
+  // click deep — and review rule 2's focus contract is written against it.
+  const retryButton = (item: CommandOutboxListItem): ReactNode => (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      ref={(element: HTMLButtonElement | null) => {
+        if (element) retryButtons.current.set(item.id, element);
+        else retryButtons.current.delete(item.id);
+      }}
+      aria-disabled={retrying !== null}
+      aria-busy={retrying === item.id}
+      aria-label={t('platform.commandHooks.outbox.retryLabel', {
+        action: item.action,
+        handler: `${item.hookModule}#${item.hookId}`,
+      })}
+      onClick={() => void retry(item.id)}
+    >
+      <RotateCcw className="size-3.5" aria-hidden="true" />
+      {retrying === item.id ? t('platform.commandHooks.outbox.retrying') : t('platform.commandHooks.outbox.retry')}
+    </Button>
+  );
+
+  const load: ListPageLoad =
+    loadError !== null
+      ? {
+          kind: 'error',
+          message: loadError,
+          // Review rule: a load error offers *Try again*, which asks for the same page.
+          action: (
+            <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+              {t('platform.commandHooks.tryAgain')}
+            </Button>
+          ),
+        }
+      : loaded
+        ? { kind: 'ready' }
+        : { kind: 'loading' };
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">{t('platform.commandHooks.outbox.hint')}</p>
-
-      <div className="flex max-w-xs flex-col gap-1">
-        <Label htmlFor={statusId}>{t('platform.commandHooks.outbox.status.label')}</Label>
-        <Select id={statusId} value={status} onChange={(event) => setStatus(event.target.value as ListedStatus)}>
-          {COMMAND_OUTBOX_LISTED_STATUSES.map((value) => (
-            <option key={value} value={value}>
-              {t(STATUS_LABEL_KEY[value])}
-            </option>
-          ))}
-        </Select>
-      </div>
-
-      {/* One live region, mounted before it has text (WCAG 4.1.3): loading, the
-          result count and a retry's outcome are all announced from here. */}
-      <div role="status" aria-live="polite" className="text-sm text-muted-foreground">
-        {announcement}
-      </div>
-      {loadError !== null && <LoadError message={loadError} onRetry={() => setAttempt((n) => n + 1)} t={t} />}
-      {retryError !== null && (
-        <Alert variant="destructive">
-          <AlertDescription>{retryError}</AlertDescription>
-        </Alert>
-      )}
-
-      {loading || loadError !== null ? null : items.length === 0 ? (
-        // Issue #1448 (DS-15): the tab's whole body, so the kit block. Each status
-        // is a view of its own, not a filter, so there is nothing to clear. The
-        // wrapper takes focus when the last row is retried away (WCAG 2.4.3).
-        <Card ref={emptyRef} tabIndex={-1} className="outline-none">
-          <EmptyState
-            icon={status === 'dead' ? <CheckCircle2 size={20} /> : <Inbox size={20} />}
-            title={t(EMPTY_KEY[status])}
-          />
-        </Card>
-      ) : (
-        <Card>
-          <CardContent>
-            {!canManage && status === 'dead' && (
-              <p className="mb-3 text-sm text-muted-foreground">
-                {t('platform.commandHooks.outbox.manageHint', {
-                  permission: tLifecycle('adminRoles.permission.platform.command_outbox.manage'),
-                })}
-              </p>
-            )}
-            <Table>
-              <TableCaption className="sr-only">
-                {t('platform.commandHooks.outbox.caption', { status: statusLabel })}
-              </TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('platform.commandHooks.outbox.column.action')}</TableHead>
-                  <TableHead>{t('platform.commandHooks.outbox.column.object')}</TableHead>
-                  <TableHead>{t('platform.commandHooks.outbox.column.handler')}</TableHead>
-                  <TableHead className="text-right">{t('platform.commandHooks.outbox.column.attempts')}</TableHead>
-                  <TableHead>{t('platform.commandHooks.outbox.column.failure')}</TableHead>
-                  <TableHead>{t('platform.commandHooks.outbox.column.created')}</TableHead>
-                  {secondDate !== null && (
-                    <TableHead>
-                      {secondDate === 'deadAt'
-                        ? t('platform.commandHooks.outbox.column.deadAt')
-                        : t('platform.commandHooks.outbox.column.availableAt')}
-                    </TableHead>
-                  )}
-                  {showRetry && (
-                    <TableHead className="text-right">{t('platform.commandHooks.outbox.column.actions')}</TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item) => {
-                  const label = failureOf(item);
-                  const handler = `${item.hookModule}#${item.hookId}`;
-                  return (
-                    <TableRow
-                      key={item.id}
-                      data-outbox-id={item.id}
-                      tabIndex={-1}
-                      className="outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      ref={(element) => {
-                        if (element) rows.current.set(item.id, element);
-                        else rows.current.delete(item.id);
-                      }}
-                    >
-                      {/* eslint-disable-next-line no-restricted-syntax -- a command id is this screen's subject, shown as code */}
-                      <TableCell className={`font-mono text-xs ${WRAP}`}>{item.action}</TableCell>
-                      <TableCell className="text-xs">
-                        <div>{item.objectType}</div>
-                        <div className={`font-mono text-muted-foreground ${WRAP}`}>{item.objectId}</div>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        <ModuleName id={item.hookModule} names={names} />
-                        <div className={`font-mono text-muted-foreground ${WRAP}`}>{item.hookId}</div>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{item.attempts}</TableCell>
-                      <TableCell className={`max-w-xs text-xs ${WRAP}`}>
-                        {item.lastErrorCode === null ? (
-                          <span className="text-muted-foreground">{t('platform.commandHooks.outbox.noFailure')}</span>
-                        ) : (
-                          <>
-                            {label !== null && <div>{label}</div>}
-                            <code className="font-mono">{item.lastErrorCode}</code>
-                            {item.lastErrorClass !== null && (
-                              <div className="font-mono text-muted-foreground">{item.lastErrorClass}</div>
-                            )}
-                          </>
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs">{formatDateTime(item.createdAt, language)}</TableCell>
-                      {secondDate !== null && (
-                        <TableCell className="whitespace-nowrap text-xs">
-                          {formatDateTime(secondDate === 'deadAt' ? item.deadAt : item.availableAt, language)}
-                        </TableCell>
-                      )}
-                      {showRetry && (
-                        <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            ref={(element: HTMLButtonElement | null) => {
-                              if (element) retryButtons.current.set(item.id, element);
-                              else retryButtons.current.delete(item.id);
-                            }}
-                            aria-disabled={retrying !== null}
-                            aria-busy={retrying === item.id}
-                            aria-label={t('platform.commandHooks.outbox.retryLabel', { action: item.action, handler })}
-                            onClick={() => void retry(item.id)}
-                          >
-                            <RotateCcw className="size-3.5" aria-hidden="true" />
-                            {retrying === item.id
-                              ? t('platform.commandHooks.outbox.retrying')
-                              : t('platform.commandHooks.outbox.retry')}
-                          </Button>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {!loading && loadError === null && (nextCursor !== null || moreError !== null || loadedMore) && (
-        <div data-load-more className="flex flex-wrap items-center gap-3">
-          {nextCursor !== null && (
-            <Button
-              type="button"
-              variant="outline"
-              aria-disabled={loadingMore}
-              aria-busy={loadingMore}
-              onClick={() => void loadMore()}
-            >
-              {loadingMore ? t('platform.commandHooks.outbox.loadingMore') : t('platform.commandHooks.outbox.loadMore')}
-            </Button>
-          )}
-          {moreError !== null && <p className="text-sm text-destructive">{moreError}</p>}
-          {nextCursor === null && loadedMore && (
-            <p ref={endRef} tabIndex={-1} className="text-sm text-muted-foreground outline-none">
-              {t('platform.commandHooks.outbox.end')}
+    <ListPage
+      title={t('platform.commandHooks.title')}
+      tabs={tabs}
+      toolbar={
+        <div className="flex max-w-xs flex-col gap-1">
+          <Label htmlFor={statusId}>{t('platform.commandHooks.outbox.status.label')}</Label>
+          <Select id={statusId} value={status} onChange={(event) => changeStatus(event.target.value as ListedStatus)}>
+            {COMMAND_OUTBOX_LISTED_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {t(STATUS_LABEL_KEY[value])}
+              </option>
+            ))}
+          </Select>
+        </div>
+      }
+      // One live region (review rule): the count, or a retry's outcome in its place.
+      count={notice ?? t('platform.commandHooks.outbox.count', { count: items.length })}
+      notice={
+        <>
+          <p className="text-sm text-muted-foreground">{t('platform.commandHooks.outbox.hint')}</p>
+          {!canManage && status === 'dead' && items.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {t('platform.commandHooks.outbox.manageHint', {
+                permission: tLifecycle('adminRoles.permission.platform.command_outbox.manage'),
+              })}
             </p>
           )}
-        </div>
-      )}
-    </div>
+          {retryError !== null && (
+            <Alert variant="destructive">
+              <AlertDescription>{retryError}</AlertDescription>
+            </Alert>
+          )}
+        </>
+      }
+      load={load}
+      busy={loading && loaded}
+      resultsRef={resultsRef}
+      pagination={footer}
+    >
+      <ResponsiveTable
+        label={t('platform.commandHooks.outbox.caption', { status: statusLabel })}
+        columns={columns}
+        data={items}
+        keyExtractor={(item) => item.id}
+        {...(showRetry ? { renderActions: retryButton } : {})}
+        emptyState={
+          // Each status is a view of its own, not a filter, so there is nothing
+          // to clear. The wrapper takes focus when the last row is retried away
+          // (WCAG 2.4.3).
+          <div ref={emptyRef} tabIndex={-1} className="outline-none">
+            <EmptyState
+              icon={status === 'dead' ? <CheckCircle2 size={20} /> : <Inbox size={20} />}
+              title={t(EMPTY_KEY[status])}
+            />
+          </div>
+        }
+      />
+    </ListPage>
   );
 }

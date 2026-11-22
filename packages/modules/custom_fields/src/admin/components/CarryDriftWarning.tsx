@@ -58,6 +58,34 @@ export function CarryDriftNotice({ counterparts, typeLabel, lead, id, destructiv
   );
 }
 
+/**
+ * The warning as one inline sentence, for a question asked by something else —
+ * the row audience control's confirm step (issue #1749), which renders it
+ * inside its summary sentence. Phrasing content only, so it can sit in a `<p>`.
+ */
+export function CarryDriftSentence({
+  counterparts,
+  typeLabel,
+}: Pick<CarryDriftNoticeProps, 'counterparts' | 'typeLabel'>): ReactNode {
+  const t = useTranslation('custom_fields');
+  const lines = counterparts
+    .map((counterpart) =>
+      t('customFields.carry.warning.counterpart', {
+        entityType: typeLabel(counterpart.entityType),
+        key: shownKey(counterpart.key),
+      }),
+    )
+    .join(', ');
+  return (
+    <span className="mt-2 flex items-start gap-2 break-words">
+      <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden="true" />
+      <span>
+        {t('customFields.carry.warning.body')} {lines}
+      </span>
+    </span>
+  );
+}
+
 export interface CarryDriftDialogProps extends Omit<CarryDriftNoticeProps, 'id' | 'destructive'> {
   onCancel: () => void;
   onProceed: () => void;
