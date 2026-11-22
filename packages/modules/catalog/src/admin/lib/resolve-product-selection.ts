@@ -45,10 +45,34 @@ export function productListTabQuery(tab: ProductListTab): ProductListTabQuery {
   }
 }
 
+/** Issue #1624 — the list's stock filter; `all` is no filter. */
+export type ProductListStockFilter = 'all' | 'low' | 'out';
+
 export interface ListFilterSnapshot {
   status: ProductListTab;
   type: 'all' | 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
   q: string;
+  /** Issue #1624 — a category id (the category and its descendants); `''` is no filter. */
+  categoryId: string;
+  /** Issue #1624 — a sales-channel id; `''` is no filter. */
+  salesChannelId: string;
+  stock: ProductListStockFilter;
+}
+
+/**
+ * Issue #1624 — the category, channel and stock filters as the list endpoint's
+ * query parameters and `resolve-ids`' body fields, which carry the same names:
+ * the one place both requests take them from, so the selection cannot drift
+ * from the list it was made on.
+ */
+export function productListNarrowing(
+  snapshot: Pick<ListFilterSnapshot, 'categoryId' | 'salesChannelId' | 'stock'>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (snapshot.categoryId) out['categoryId'] = snapshot.categoryId;
+  if (snapshot.salesChannelId) out['salesChannelId'] = snapshot.salesChannelId;
+  if (snapshot.stock !== 'all') out['stock'] = snapshot.stock;
+  return out;
 }
 
 interface ResolveProductIdsResponse {
@@ -67,7 +91,7 @@ export function resolveProductSelectionBody(snapshot: ListFilterSnapshot): Recor
   if (snapshot.type !== 'all') body['type'] = snapshot.type;
   const trimmed = snapshot.q.trim();
   if (trimmed) body['q'] = trimmed;
-  return body;
+  return { ...body, ...productListNarrowing(snapshot) };
 }
 
 /**

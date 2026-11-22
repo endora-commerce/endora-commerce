@@ -29,7 +29,7 @@ w obu przypadkach każda cena podaje swoją walutę. Niepoprawny kod jest odrzuc
 | `GET /api/v1/catalog/categories/:id/content` | storefront | Treść strony jednej kategorii, dobrana do języka wywołującego |
 | `GET /api/v1/catalog/filters?q` | storefront | Atrybuty, po których można filtrować w aktywnym kanale sprzedaży, z liczbą produktów przy każdej opcji, liczoną wśród produktów widocznych dla wywołującego; z `q` — wśród produktów pasujących do tego zapytania tekstowego (tych samych, które zwraca `GET /api/v1/catalog/products?q`) |
 | `GET /api/v1/catalog/sitemap.xml` | roboty wyszukiwarek | Mapa witryny dla SEO |
-| `GET /api/v1/admin/catalog/products?status&archived` | administrator | Lista produktów w panelu. `status` to `active` albo `inactive` (każda inna wartość: `400 VALIDATION_FAILED`); `archived` to `exclude` (domyślnie), `include` albo `only` — dawne `includeArchived=1` oznacza `include`. `counts` to `{ all, active, inactive, archived }` — zob. *Status produktu i archiwizacja* |
+| `GET /api/v1/admin/catalog/products?status&archived&categoryId&salesChannelId&stock` | administrator | Lista produktów w panelu. `status` to `active` albo `inactive` (każda inna wartość: `400 VALIDATION_FAILED`); `archived` to `exclude` (domyślnie), `include` albo `only` — dawne `includeArchived=1` oznacza `include`. `counts` to `{ all, active, inactive, archived }` — zob. *Status produktu i archiwizacja*. `categoryId`, `salesChannelId` i `stock` zawężają listę — zob. *Filtrowanie listy produktów* |
 | `GET /api/v1/admin/catalog/products/:id` | administrator | Szczegóły produktu |
 | `POST /api/v1/admin/catalog/products` | administrator | Utworzenie produktu (`type` nie można zmienić po utworzeniu; `sku` można edytować) |
 | `PATCH /api/v1/admin/catalog/products/:id` | administrator | Aktualizacja (łącznie z `sku`); zapisuje wpis audytu ze stateBefore / stateAfter; odrzuca z `409 SKU_ALREADY_EXISTS` (token `held_by_product` albo `held_by_variant`, `details.sku`), gdy nowe SKU należy już do innego produktu albo wariantu |
@@ -284,6 +284,37 @@ licząc razem własne zmiany kategorii i tryb prezentacji.
 `product_categories`, `sales_channel_products`, `product_assets` oraz `ProductListSavedView`
 (`product_list_saved_views`, zapisane widoki listy produktów).
 
+## Filtrowanie listy produktów
+
+Obok pola wyszukiwania pasek narzędzi listy produktów ma do czterech filtrów:
+
+- **Rodzaj** — prosty, konfigurowalny, grupowy, zestaw albo wirtualny.
+- **Kategoria** — wybrana kategoria i wszystkie kategorie pod nią.
+- **Kanał sprzedaży** — produkty przypisane do tego kanału. Widoczny tylko wtedy, gdy jest
+  więcej niż jeden kanał.
+- **Stan magazynowy** — **Niski stan** albo **Brak w magazynie**, w tym samym znaczeniu co na
+  liście Magazyn. *Brak w magazynie* to produkt, którego stan jest śledzony, a łączna ilość na
+  stanie we wszystkich magazynach wynosi 0. *Niski stan* to produkt, którego stan jest śledzony,
+  który ma próg niskiego stanu i którego łączna ilość na stanie jest większa od 0 i nie większa niż
+  ten próg. Produkt bez żadnego zapisu stanu nie należy do żadnej z tych grup. Widoczny tylko
+  wtedy, gdy moduł Magazyn jest włączony.
+
+Filtry łączą się ze sobą, z zakładkami statusu i z wyszukiwaniem. **Wyczyść filtry** przy pustym
+wyniku zeruje je wszystkie poza zakładką.
+
+**Zaznaczenie wszystkich pasujących korzysta z tych samych filtrów.** Gdy zaznaczysz wszystkie
+pasujące produkty (pasek nad tabelą), edycja zbiorcza i usuwanie działają dokładnie na produktach,
+które pokazuje przefiltrowana lista, nigdy na produktach spoza filtra.
+
+Dla integracji `GET /api/v1/admin/catalog/products` i
+`POST /api/v1/admin/catalog/products/resolve-ids` przyjmują te same trzy filtry: `categoryId`
+(identyfikator kategorii), `salesChannelId` (identyfikator kanału sprzedaży) i `stock` (`low` albo
+`out`) — na liście jako parametry zapytania, a w `resolve-ids` jako pola treści żądania. Błędna
+wartość daje `400 VALIDATION_FAILED` ze wskazaniem pola. Lista zwraca obok strony pole
+`stockFilterAvailable`: `false`, gdy moduł Magazyn jest wyłączony, a wtedy żądanie z `stock` daje
+`503 MODULE_DISABLED` zamiast pominąć filtr. Kształty to `adminProductListFiltersSchema`
+i `resolveProductIdsRequestSchema` w `@endora-commerce/contracts`.
+
 ## Zapisane widoki
 
 Zapisany widok to nazwany zestaw filtrów listy produktów, który administrator może ponownie
@@ -294,11 +325,10 @@ zastosować jednym wyborem.
 Na pasku narzędzi listy produktów jest lista wyboru **Zapisane widoki**, której pierwsza pozycja to
 **— Wybierz widok —**, a obok niej dwa przyciski: **Zapisz widok** i **Usuń widok**.
 
-- **Co zapamiętuje widok.** Status, rodzaj i wyszukiwany tekst, czyli jedyne filtry listy.
-  Wybranie widoku ustawia status, rodzaj i wyszukiwanie na wartości z widoku (wartość, której
-  lista już nie oferuje, wczytuje się jako *Wszystkie*), odrzuca to, co zmieniono i nie
-  zapisano, czyści zaznaczenie wierszy i wraca na pierwszą stronę. Aby filtrować według stanu
-  magazynowego, użyj listy Magazyn.
+- **Co zapamiętuje widok.** Status, wyszukiwany tekst i wszystkie filtry: rodzaj, kategorię,
+  kanał sprzedaży i stan magazynowy. Wybranie widoku ustawia je wszystkie na wartości z widoku
+  (wartość, której lista już nie oferuje, wczytuje się jako *Wszystkie*), odrzuca to, co zmieniono
+  i nie zapisano, czyści zaznaczenie wierszy i wraca na pierwszą stronę.
 - **Zapisywanie.** **Zapisz widok** otwiera jedno okno z polem **Nazwa** i polem wyboru
   **Udostępnij wszystkim administratorom, którzy mają dostęp do tej listy**. Pole wyboru jest na
   początku odznaczone, więc nowy widok jest prywatny, dopóki go nie zaznaczysz. Nazwa jest
@@ -344,7 +374,8 @@ Na pasku narzędzi listy produktów jest lista wyboru **Zapisane widoki**, któr
   Unicode), `shared` (wartość logiczna) i `filters` (obiekt, najwyżej 8192 bajty jako JSON
   w UTF-8). Lista produktów nie ma sortowania ani wyboru kolumn, więc widok nie przechowuje `sort`
   ani `visibleColumns`; te klucze są pomijane. Panel administracyjny zapisuje `filters` jako
-  `{ status?, type?, q? }`, tylko te różne od domyślnych. Wszystko poza tymi granicami to
+  `{ status?, archived?, type?, q?, categoryId?, salesChannelId?, stock? }`, tylko te różne od
+  domyślnych. Wszystko poza tymi granicami to
   `400 VALIDATION_FAILED`. Kształty to `createProductSavedViewRequestSchema` i
   `updateProductSavedViewRequestSchema` w `@endora-commerce/contracts`.
 - **Dwie flagi zależne od wywołującego.** Każdy widok w odpowiedzi ma `ownedByCaller` i

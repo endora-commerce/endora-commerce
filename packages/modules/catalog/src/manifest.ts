@@ -317,6 +317,21 @@ export const manifest = defineModuleManifest({
         'product- and warehouse-level chain, as on a deployment without the module.',
     },
     {
+      // Issue #1624 — the admin products list's *Low stock* / *Out of stock* filter.
+      moduleId: 'inventory',
+      name: 'inventoryStockReadPort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'the products list offers no stock filter, and a list or select-all that names one is refused',
+      reason:
+        'Issue #1624. The stock filter is `inventory`’s SQL predicate over this module’s own ' +
+        'stock settings, embedded in the list statement, and a bulk edit or delete started from "select all matching" acts ' +
+        'on exactly what the filter resolves — so a filter silently dropped while `inventory` is ' +
+        'off would select the whole catalogue. The list probes presence only to say whether the ' +
+        'filter is offered; the predicate call is not probed, and its gate refuses. Not ' +
+        '`dependencies`: `inventory` declares this module, and this module is non-deactivatable.',
+    },
+    {
       moduleId: 'search',
       // The full reindex an attribute's `searchable` flip runs, resolved by
       // this module since `specs/117-instance-bring-up/` Phase 6 — it was

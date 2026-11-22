@@ -30,7 +30,7 @@ otherwise; every price names its currency either way. A malformed code is refuse
 | `GET /api/v1/catalog/categories/:id/content` | storefront | One category's page content, resolved to the caller's language |
 | `GET /api/v1/catalog/filters?q` | storefront | Filterable attributes for the active Sales Channel, with option counts over the products the caller may see; with `q`, over the products that text query matches (the same matches as `GET /api/v1/catalog/products?q`) |
 | `GET /api/v1/catalog/sitemap.xml` | crawlers | SEO sitemap |
-| `GET /api/v1/admin/catalog/products?status&archived` | admin | Admin product list. `status` is `active` or `inactive` (any other value: `400 VALIDATION_FAILED`); `archived` is `exclude` (default), `include` or `only` — the legacy `includeArchived=1` means `include`. `counts` is `{ all, active, inactive, archived }` — see *Product status and archiving* |
+| `GET /api/v1/admin/catalog/products?status&archived&categoryId&salesChannelId&stock` | admin | Admin product list. `status` is `active` or `inactive` (any other value: `400 VALIDATION_FAILED`); `archived` is `exclude` (default), `include` or `only` — the legacy `includeArchived=1` means `include`. `counts` is `{ all, active, inactive, archived }` — see *Product status and archiving*. `categoryId`, `salesChannelId` and `stock` narrow the list — see *Filtering the product list* |
 | `GET /api/v1/admin/catalog/products/:id` | admin | Product detail |
 | `POST /api/v1/admin/catalog/products` | admin | Create product (`type` immutable post-create; `sku` is editable) |
 | `PATCH /api/v1/admin/catalog/products/:id` | admin | Update (incl. `sku`); writes an audit row with stateBefore / stateAfter; refuses with `409 SKU_ALREADY_EXISTS` (token `held_by_product` or `held_by_variant`, `details.sku`) if the new SKU already belongs to another product or a variant |
@@ -279,6 +279,38 @@ counting the category's own changes and the display mode together.
 `ProductListSavedView` (`product_list_saved_views`, the product list's saved
 views).
 
+## Filtering the product list
+
+Beside the search box, the product list's toolbar has up to four filters:
+
+- **Type** — simple, configurable, grouped, bundle or virtual.
+- **Category** — the category you choose and every category below it.
+- **Sales channel** — the products assigned to that channel. Shown only when there is
+  more than one channel.
+- **Stock** — **Low stock** or **Out of stock**, with the same meaning as on the
+  Inventory list. *Out of stock* is a product whose stock is tracked and whose total
+  on-hand quantity across warehouses is 0. *Low stock* is a product whose stock is
+  tracked, which has a low-stock threshold, and whose total on-hand quantity is above 0
+  and at or below that threshold. A product with no stock record is neither. Shown only
+  while the Inventory module is on.
+
+The filters combine with each other, with the status tabs and with the search.
+**Clear filters** in an empty result resets all of them except the tab.
+
+**Select all matching uses the same filters.** When you select every product that
+matches (the banner above the table), Bulk edit and Delete act on exactly the products
+the filtered list shows, never on products outside the filter.
+
+For integrations, `GET /api/v1/admin/catalog/products` and
+`POST /api/v1/admin/catalog/products/resolve-ids` take the same three filters:
+`categoryId` (a category id), `salesChannelId` (a sales-channel id) and `stock`
+(`low` or `out`) — as query parameters on the list and as body fields on
+`resolve-ids`. A malformed value answers `400 VALIDATION_FAILED` naming the field. The
+list answers `stockFilterAvailable` beside its page: `false` while the Inventory module
+is off, and then a request that names `stock` answers `503 MODULE_DISABLED` instead of
+ignoring the filter. The shapes are `adminProductListFiltersSchema` and
+`resolveProductIdsRequestSchema` in `@endora-commerce/contracts`.
+
 ## Saved views
 
 A saved view is a named set of product-list filters that an admin can apply
@@ -290,11 +322,11 @@ The product list's toolbar carries a **Saved views** selector, whose first
 entry is **— Select a view —**, and two buttons beside it: **Save view** and
 **Delete view**.
 
-- **What a view remembers.** The status, the type and the search text, which are
-  the list's only filters. Choosing a view sets status, type and search to the
-  view's values (a value the list no longer offers loads as *All*), discards
-  anything you had changed and not saved, clears the row selection and goes back
-  to the first page. To filter by stock, use the Inventory list.
+- **What a view remembers.** The status, the search text and every filter: type,
+  category, sales channel and stock. Choosing a view sets them all to the view's
+  values (a value the list no longer offers loads as *All*), discards anything you
+  had changed and not saved, clears the row selection and goes back to the first
+  page.
 - **Saving.** **Save view** opens one dialog with a **Name** field and a
   **Share with every admin who can open this list** checkbox. The checkbox
   starts unchecked, so a new view is private unless you tick it. The name is
@@ -345,7 +377,8 @@ entry is **— Select a view —**, and two buttons beside it: **Save view** and
   characters), `shared` (boolean) and `filters` (an object, at most 8192 bytes
   as UTF-8 JSON). The product list has no sort or column control, so a view
   stores no `sort` or `visibleColumns`; those keys are dropped. The Admin UI
-  writes `filters` as `{ status?, type?, q? }`, only the non-default ones.
+  writes `filters` as `{ status?, archived?, type?, q?, categoryId?, salesChannelId?, stock? }`,
+  only the non-default ones.
   Anything outside those bounds is `400 VALIDATION_FAILED`. The shapes are
   `createProductSavedViewRequestSchema` and
   `updateProductSavedViewRequestSchema` in `@endora-commerce/contracts`.

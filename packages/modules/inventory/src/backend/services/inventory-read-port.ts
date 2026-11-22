@@ -194,6 +194,37 @@ export class InventoryStockReadService implements InventoryStockReadPort {
       };
     });
   }
+
+  /**
+   * Issue #1624 — the Inventory list's low / out definitions
+   * (`StockLevelService.listRoster`) as a correlated predicate for `catalog`'s
+   * products list. Correlated on `stock_levels`' leading `product_id` index
+   * column, so it is one index probe per candidate row, inside the caller's
+   * statement — nothing is loaded into the process.
+   */
+  stockStatePredicate(
+    state: 'low' | 'out',
+    columns: { productId: string; manageStock: string; lowStockThreshold: string },
+  ): { sql: string; params: string[] } {
+    const productId = quotedColumn(columns.productId);
+    const manageStock = quotedColumn(columns.manageStock);
+    const threshold = quotedColumn(columns.lowStockThreshold);
+    // `count(*) > 0`: an aggregate without `group by` answers one row even over
+    // no rows, and a product with no stock row is neither low nor out.
+    const stocked = `select 1 from stock_levels sl where sl.product_id = ${productId} having count(*) > 0`;
+    if (state === 'out') {
+      return {
+        sql: `(${manageStock} is not false and exists (${stocked} and coalesce(sum(sl.on_hand), 0) <= 0))`,
+        params: [],
+      };
+    }
+    return {
+      sql:
+        `(${manageStock} is not false and ${threshold} is not null and exists (${stocked} ` +
+        `and sum(sl.on_hand) > 0 and sum(sl.on_hand) <= ${threshold}))`,
+      params: [],
+    };
+  }
 }
 
 export function toWarehouseRecord(warehouse: Warehouse): WarehouseRecord {
@@ -237,4 +268,16 @@ export function toWarehouseChannelAssignmentRecord(
     sortOrder: assignment.sortOrder,
     createdAt: assignment.createdAt,
   };
+}
+
+/**
+ * A caller's column reference, accepted only as one or two double-quoted
+ * lower-case identifiers (`"id"`, `"products"."id"`), so the predicate above can
+ * splice it without a request value ever reaching the SQL.
+ */
+export function quotedColumn(ref: string): string {
+  if (!/^"[a-z_][a-z0-9_]*"(\."[a-z_][a-z0-9_]*")?$/.test(ref)) {
+    throw new Error(`inventoryStockReadPort: "${ref}" is not a quoted column reference.`);
+  }
+  return ref;
 }

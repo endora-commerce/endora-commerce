@@ -521,6 +521,28 @@ export interface InventoryStockReadPort {
   unreleasedAllocationsForOrderItems(
     orderItemIds: readonly string[],
   ): Promise<Array<{ orderItemId: string; warehouseId: string; quantity: number }>>;
+  /**
+   * The Inventory list's *Low stock* / *Out of stock* as a SQL predicate over
+   * the caller's own product row, for `catalog`'s admin products list to place
+   * inside its statement so the database filters and pages (issue #1624; the
+   * owner allowed cross-module subqueries through a port, ruling on #955).
+   *
+   * `columns` names the caller's columns as quoted identifiers — for example
+   * `"products"."id"` — and anything else is refused, so nothing a request
+   * carries can reach the SQL. The predicate reads `stock_levels`, summed over
+   * warehouses and variants, and never names the caller's table itself:
+   *
+   * - `out` — stock is managed and the cumulative on-hand is 0 or less;
+   * - `low` — stock is managed, a threshold is set, and the cumulative on-hand
+   *   is above 0 and at or below it.
+   *
+   * A product with no stock row matches neither. Executes nothing; `?` in `sql`
+   * binds `params` in order.
+   */
+  stockStatePredicate(
+    state: 'low' | 'out',
+    columns: { productId: string; manageStock: string; lowStockThreshold: string },
+  ): { sql: string; params: string[] };
 }
 
 // --- the bulk import surface -------------------------------------------------

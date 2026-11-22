@@ -448,14 +448,30 @@ describe('the tab → request mapping (pure)', () => {
   });
 
   it('resolve-ids always names the archived mode — its own default is include', () => {
-    expect(resolveProductSelectionBody({ status: 'all', type: 'all', q: '' })).toEqual({ archived: 'exclude' });
-    expect(resolveProductSelectionBody({ status: 'inactive', type: 'simple', q: ' chair ' })).toEqual({
+    const none = { categoryId: '', salesChannelId: '', stock: 'all' } as const;
+    expect(resolveProductSelectionBody({ status: 'all', type: 'all', q: '', ...none })).toEqual({ archived: 'exclude' });
+    expect(resolveProductSelectionBody({ status: 'inactive', type: 'simple', q: ' chair ', ...none })).toEqual({
       archived: 'exclude',
       status: 'inactive',
       type: 'simple',
       q: 'chair',
     });
-    expect(resolveProductSelectionBody({ status: 'archived', type: 'all', q: '' })).toEqual({ archived: 'only' });
+    expect(resolveProductSelectionBody({ status: 'archived', type: 'all', q: '', ...none })).toEqual({ archived: 'only' });
+  });
+
+  it('resolve-ids carries the category, channel and stock filters the list applied (issue #1624)', () => {
+    const category = '00000000-0000-4000-8000-0000000000c1';
+    const channel = '00000000-0000-4000-8000-0000000000d1';
+    expect(
+      resolveProductSelectionBody({
+        status: 'all',
+        type: 'all',
+        q: '',
+        categoryId: category,
+        salesChannelId: channel,
+        stock: 'out',
+      }),
+    ).toEqual({ archived: 'exclude', categoryId: category, salesChannelId: channel, stock: 'out' });
   });
 
   it('a saved view keeps the Archived tab as its own key, and a removed status opens All', () => {
