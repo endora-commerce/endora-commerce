@@ -3,15 +3,18 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ListChecks, Plus, SlidersHorizontal } from 'lucide-react';
 import { TASK_LIST_LIMIT_MAX, TASK_LIST_SORTS, type TaskSummary } from '@endora-commerce/contracts';
 import { useAuth, useListViewModePreference, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EmptyState, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import {
-  CursorPagination,
+  ListPage,
   ResponsiveTable,
+  fitPageSize,
+  pageSizesUpTo,
   SavedViewsControl,
   ViewModeToggle,
   customFieldFilterRefusal,
   writeCustomFieldFilterParams,
   withoutCustomFieldFilter,
+  type ListPageLoad,
   type SavedViewState,
 } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -60,12 +63,17 @@ const SORT_OPTIONS = TASK_LIST_SORTS.flatMap((sort) =>
  *
  * The list is keyset-paged and knows no total, so it pages by the cursors it
  * was given; changing anything it asks for starts again from the first page.
+ *
+ * The list view is the kit's `ListPage` since issue #1749 — the filters a
+ * toolbar row rather than a card, the cursor pager the kit's footer, a refresh
+ * `busy` over the rows on screen, and a filter the server refuses an error
+ * whose way out is *Remove filter*. The board keeps the same header and
+ * filters above it.
  */
 export function TasksPage(): ReactNode {
   const t = useTranslation('tasks');
   /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
   const searchRef = useRef<HTMLInputElement>(null);
-  const tCore = useTranslation('core');
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('tasks:write');
   const canConfigure = hasPermission('tasks:configure');
@@ -187,143 +195,131 @@ export function TasksPage(): ReactNode {
 
   const showNewInHeader = canWrite && (mode === 'board' || rows.length > 0 || filtered || !loaded);
 
-  return (
+  const headerActions = (
     <>
-      <PageHeader
-        title={t('list.title')}
+      <ViewModeToggle mode={mode} onChange={setMode} />
+      {canConfigure && mode === 'board' ? (
+        <Button variant="outline" className="min-h-11 sm:min-h-9" asChild>
+          <Link to={`${TASK_WORKFLOW_PATH}#${BOARD_CARD_ANCHOR}`}>
+            <SlidersHorizontal aria-hidden="true" />
+            {t('board.configureCard')}
+          </Link>
+        </Button>
+      ) : null}
+      {showNewInHeader ? newTask : null}
+    </>
+  );
+
+  const toolbar = (
+    <div className="min-w-0 flex-1 space-y-3">
+      {viewsError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{viewsError}</AlertDescription>
+        </Alert>
+      ) : null}
+      {/* Mounted before it has text, so the notice is announced (WCAG 4.1.3). */}
+      <p id="tasks-views-notice" role="status" className={staleNotice ? 'text-sm text-muted-foreground' : 'sr-only'}>
+        {staleNotice ?? ''}
+      </p>
+      <TaskFilters
+        idPrefix="tasks"
+        searchRef={searchRef}
+        params={params}
+        onChange={navigate}
+        statuses={vocabulary.workflow?.statuses ?? []}
+        priorities={vocabulary.priorities ?? []}
+        customFields={customFields}
+        filtered={filtered}
+        onClear={clear}
         actions={
           <>
-            <ViewModeToggle mode={mode} onChange={setMode} />
-            {canConfigure && mode === 'board' ? (
-              <Button variant="outline" className="min-h-11 sm:min-h-9" asChild>
-                <Link to={`${TASK_WORKFLOW_PATH}#${BOARD_CARD_ANCHOR}`}>
-                  <SlidersHorizontal aria-hidden="true" />
-                  {t('board.configureCard')}
-                </Link>
-              </Button>
+            {mode === 'list' ? (
+              <Select
+                id="tasks-sort"
+                aria-label={t('list.sort.label')}
+                className="w-auto"
+                value={`${sort.sort}:${sort.dir}`}
+                onChange={(event): void => {
+                  const [field, dir] = event.target.value.split(':');
+                  navigate(withFilter(withFilter(params, 'sort', field ?? null), 'dir', dir ?? null));
+                }}
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {t(`list.sort.${option.replace(':', '.')}`)}
+                  </option>
+                ))}
+              </Select>
             ) : null}
-            {showNewInHeader ? newTask : null}
+            <SavedViewsControl endpoint={VIEWS_ENDPOINT} current={savedState} onApply={applyView} onError={setViewsError} />
           </>
         }
       />
+    </div>
+  );
 
-      <Card className="mb-4">
-        <CardContent className="space-y-4">
-          {viewsError ? (
-            <Alert variant="destructive">
-              <AlertDescription>{viewsError}</AlertDescription>
-            </Alert>
-          ) : null}
-          {/* Mounted before it has text, so the notice is announced (WCAG 4.1.3). */}
-          <p id="tasks-views-notice" role="status" className={staleNotice ? 'text-sm text-muted-foreground' : 'sr-only'}>
-            {staleNotice ?? ''}
-          </p>
-          <TaskFilters
-            idPrefix="tasks"
-            searchRef={searchRef}
-            params={params}
-            onChange={navigate}
-            statuses={vocabulary.workflow?.statuses ?? []}
-            priorities={vocabulary.priorities ?? []}
-            customFields={customFields}
-            filtered={filtered}
-            onClear={clear}
-            actions={
-              <>
-                {mode === 'list' ? (
-                  <Select
-                    id="tasks-sort"
-                    aria-label={t('list.sort.label')}
-                    className="w-auto"
-                    value={`${sort.sort}:${sort.dir}`}
-                    onChange={(event): void => {
-                      const [field, dir] = event.target.value.split(':');
-                      navigate(withFilter(withFilter(params, 'sort', field ?? null), 'dir', dir ?? null));
-                    }}
-                  >
-                    {SORT_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {t(`list.sort.${option.replace(':', '.')}`)}
-                      </option>
-                    ))}
-                  </Select>
-                ) : null}
-                <SavedViewsControl endpoint={VIEWS_ENDPOINT} current={savedState} onApply={applyView} onError={setViewsError} />
-              </>
-            }
-          />
-        </CardContent>
-      </Card>
-
-      {refusedCustomField ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-            <span>{t('filter.customFieldRefused', { field: refusedCustomField })}</span>
-            <Button
-              className="min-h-11 sm:min-h-8"
-              variant="outline"
-              size="sm"
-              onClick={(): void =>
-                navigate(writeCustomFieldFilterParams(params, withoutCustomFieldFilter(customFilters(params), refusedCustomField)))
-              }
-            >
-              {t('filter.customFieldRemove')}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {mode === 'board' ? (
+  if (mode === 'board') {
+    return (
+      <>
+        <PageHeader title={t('list.title')} actions={headerActions} />
+        <div className="mb-4">{toolbar}</div>
         <TaskBoard query={boardQuery} workflow={vocabulary.workflow} filtered={filtered} />
-      ) : (
-        <Card>
-          <CardContent aria-busy={loading}>
-            {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
-            <p role="status" className="sr-only">
-              {loading && loaded ? t('list.loading') : ''}
-            </p>
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-                  <span>{error}</span>
-                  <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
-                    {tCore('common.action.retry')}
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            ) : !loaded ? (
-              <p role="status" className="text-sm text-muted-foreground">
-                {t('list.loading')}
-              </p>
-            ) : (
-              <>
-                <ResponsiveTable data={rows} columns={columns} keyExtractor={(row): string => row.id} emptyState={emptyState} />
-                {rows.length > 0 || trail.length > 0 ? (
-                  <CursorPagination
-                    page={trail.length + 1}
-                    pageSize={pageSize}
-                    maxPageSize={TASK_LIST_LIMIT_MAX}
-                    hasPrevious={trail.length > 0}
-                    hasNext={nextCursor !== null}
-                    busy={loading}
-                    onPageSizeChange={(next): void => {
-                      setPageSize(next);
-                      setTrail([]);
-                    }}
-                    onPrevious={(): void => setTrail((previous) => previous.slice(0, -1))}
-                    onNext={(): void => {
-                      if (nextCursor) setTrail((previous) => [...previous, nextCursor]);
-                    }}
-                  />
-                ) : null}
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </>
+      </>
+    );
+  }
+
+  const removeRefused = (): void => {
+    if (refusedCustomField === null) return;
+    navigate(writeCustomFieldFilterParams(params, withoutCustomFieldFilter(customFilters(params), refusedCustomField)));
+  };
+  const listLoad: ListPageLoad = refusedCustomField
+    ? {
+        kind: 'error',
+        message: t('filter.customFieldRefused', { field: refusedCustomField }),
+        action: (
+          <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={removeRefused}>
+            {t('filter.customFieldRemove')}
+          </Button>
+        ),
+      }
+    : error
+      ? { kind: 'error', message: error }
+      : loaded
+        ? { kind: 'ready' }
+        : { kind: 'loading' };
+
+  return (
+    <ListPage
+      title={t('list.title')}
+      actions={headerActions}
+      toolbar={toolbar}
+      load={listLoad}
+      busy={loading && loaded}
+      onRetry={(): void => void load()}
+      pagination={{
+        mode: 'cursor',
+        page: trail.length,
+        pageSize: fitPageSize(pageSize, PAGE_SIZES),
+        pageSizes: PAGE_SIZES,
+        rowCount: rows.length,
+        hasNext: nextCursor !== null,
+        onPageSizeChange: (next): void => {
+          setPageSize(next);
+          setTrail([]);
+        },
+        onPrev: (): void => setTrail((previous) => previous.slice(0, -1)),
+        onNext: (): void => {
+          if (nextCursor && !loading) setTrail((previous) => [...previous, nextCursor]);
+        },
+      }}
+    >
+      <ResponsiveTable data={rows} columns={columns} keyExtractor={(row): string => row.id} emptyState={emptyState} />
+    </ListPage>
   );
 }
+
+/** The rows-per-page choices the tasks endpoint serves (`TASK_LIST_LIMIT_MAX`). */
+const PAGE_SIZES = pageSizesUpTo(TASK_LIST_LIMIT_MAX);
 
 /** The default export the route declaration's dynamic-import factory resolves. */
 export default TasksPage;

@@ -32,6 +32,8 @@ export interface ResponsiveTableProps<T> {
   onRowClick?: (row: T) => void;
   /** Force horizontal scroll wrapper instead of cards on mobile. */
   mode?: 'auto' | 'table-scroll';
+  /** The table's accessible name, where the page heading alone does not say what it lists. */
+  label?: string;
 }
 
 export function ResponsiveTable<T>(props: ResponsiveTableProps<T>): ReactNode {
@@ -43,6 +45,7 @@ export function ResponsiveTable<T>(props: ResponsiveTableProps<T>): ReactNode {
     renderActions,
     onRowClick,
     mode = 'auto',
+    label,
   } = props;
   const tier = useViewportTier();
   const primaryColumns = columns.filter((c) => c.primary);
@@ -59,7 +62,7 @@ export function ResponsiveTable<T>(props: ResponsiveTableProps<T>): ReactNode {
 
   if (tier === 'desktop' || mode === 'table-scroll') {
     const table = (
-      <Table>
+      <Table aria-label={label}>
         <TableHeader>
           <TableRow>
             {columns.map((col) => (

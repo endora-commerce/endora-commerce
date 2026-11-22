@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { RotateCw } from 'lucide-react';
 import { Alert, AlertDescription } from '../../ui/alert.js';
 import { Button } from '../../ui/button.js';
 import { Card, CardContent } from '../../ui/card.js';
 import { PageHeader } from '../../ui/page-header.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { cn } from '../../lib/utils.js';
 import type { PageSizeOption } from '../../lib/page-size-options.js';
 import {
   PaginationFooter,
@@ -14,11 +15,13 @@ import {
 
 /**
  * Where a list's data is. `error` carries the message to show — the server's
- * own when it gave one; the kit's generic copy otherwise.
+ * own when it gave one; the kit's generic copy otherwise — and, for a failure
+ * that asking again cannot fix (a filter the server refuses), its own way out
+ * in `action`, shown in place of *Retry*.
  */
 export type ListPageLoad =
   | { kind: 'loading' }
-  | { kind: 'error'; message?: ReactNode }
+  | { kind: 'error'; message?: ReactNode; action?: ReactNode }
   | { kind: 'ready' };
 
 export interface ListPageProps {
@@ -53,8 +56,22 @@ export interface ListPageProps {
   /** A message about an action taken on the list — above the results, inside their region. */
   notice?: ReactNode;
   load: ListPageLoad;
+  /**
+   * A refresh in flight over rows already on screen — after a filter change,
+   * a save, a poll. The rows stay, the results region is `aria-busy` and the
+   * count's live region says *Loading…*; the skeleton is for the first load
+   * only, so a refresh loses neither the scroll position nor the focus
+   * (ux-laws §6.1).
+   */
+  busy?: boolean;
   /** Offered beside a load error; the error has no way out without it. */
   onRetry?: () => void;
+  /**
+   * The results region, for a screen that sends focus to the results — after
+   * removing a refused filter, say (WCAG 2.4.3). Given, the region takes
+   * `tabIndex={-1}`: focusable from script, never a tab stop.
+   */
+  resultsRef?: Ref<HTMLDivElement>;
   /**
    * The pager — `useListPagination(...).footer(total)`, or
    * `useCursorPagination(...).footer(rowCount)` for a cursor-paged endpoint
@@ -78,9 +95,11 @@ const SKELETON_ROWS = ['a', 'b', 'c', 'd', 'e'] as const;
  * README's "List pages" section.
  */
 export function ListPage(props: ListPageProps): ReactNode {
-  const { title, description, help, actions, tabs, toolbar, count, notice, load, onRetry, pagination, children } = props;
+  const { title, description, help, actions, tabs, toolbar, count, notice, load, busy, onRetry, resultsRef, pagination, children } =
+    props;
   const t = useTranslation('core');
   const loading = load.kind === 'loading';
+  const refreshing = load.kind === 'ready' && busy === true;
 
   return (
     <>
@@ -89,11 +108,15 @@ export function ListPage(props: ListPageProps): ReactNode {
       <div className="mb-4 flex flex-wrap items-end gap-3">
         {toolbar}
         <p role="status" aria-live="polite" className="ml-auto self-center text-sm text-muted-foreground">
-          {loading ? t('common.state.loading') : load.kind === 'ready' ? count : null}
+          {loading || refreshing ? t('common.state.loading') : load.kind === 'ready' ? count : null}
         </p>
       </div>
-      <Card aria-busy={loading || undefined}>
-        <CardContent className="space-y-4 p-4">
+      <Card aria-busy={loading || refreshing || undefined}>
+        <CardContent
+          ref={resultsRef}
+          tabIndex={resultsRef ? -1 : undefined}
+          className={cn('space-y-4 p-4', resultsRef && 'focus:outline-none')}
+        >
           {notice}
           {loading ? (
             <div aria-hidden="true" className="space-y-3" data-testid="list-page-skeleton">
@@ -106,7 +129,9 @@ export function ListPage(props: ListPageProps): ReactNode {
             <Alert variant="destructive">
               <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
                 <span>{load.message ?? t('common.list.loadError')}</span>
-                {onRetry ? (
+                {load.action ? (
+                  load.action
+                ) : onRetry ? (
                   <Button type="button" variant="outline" size="sm" onClick={onRetry}>
                     <RotateCw size={14} aria-hidden="true" />
                     {t('common.action.retry')}

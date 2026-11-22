@@ -2,21 +2,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Pencil, Plus, Tags, Trash2 } from 'lucide-react';
 import type { TaskTag } from '@endora-commerce/contracts';
 import { statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
-import {
-  Alert,
-  AlertDescription,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  PageHeader,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@endora-commerce/admin-kit/ui';
+import { Badge, Button } from '@endora-commerce/admin-kit/ui';
+import { ListPage, ResponsiveTable, type ListPageLoad } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../../api.js';
 import { TaskTagDeleteDialog } from '../../components/tags/TaskTagDeleteDialog.js';
@@ -37,10 +24,12 @@ type DialogState = { kind: 'create' } | { kind: 'edit'; tag: TaskTag } | null;
  *
  * After every write the list is read again, so the usage counts are the
  * server's.
+ *
+ * The kit's `ListPage` since issue #1749. A row's two actions stay ghost icon
+ * buttons naming the tag; the list is answered whole, so there is no pager.
  */
 export function TaskTagsPage(): ReactNode {
   const t = useTranslation('tasks');
-  const tCore = useTranslation('core');
   const [tags, setTags] = useState<TaskTag[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -80,9 +69,16 @@ export function TaskTagsPage(): ReactNode {
   // The one place for Add (issue #1562, WORK-13): the header's filled button,
   // as on the CRM and Projects dictionaries — hidden while the list is empty,
   // where the empty state's own Add is the view's one primary (Von Restorff).
-  const header = (
+  const listLoad: ListPageLoad =
+    tags !== null
+      ? { kind: 'ready' }
+      : loading
+        ? { kind: 'loading' }
+        : { kind: 'error', message: loadError ?? t('tags.error.load') };
+
+  return (
     <>
-      <PageHeader
+      <ListPage
         title={t('tags.title')}
         actions={
           tags !== null && tags.length > 0 ? (
@@ -92,40 +88,17 @@ export function TaskTagsPage(): ReactNode {
             </Button>
           ) : undefined
         }
-      />
-      <TaskConfigurationTabs />
-    </>
-  );
-
-  if (tags === null) {
-    return (
-      <>
-        {header}
-        {loading ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            {tCore('common.state.loading')}
-          </p>
-        ) : (
-          <Alert variant="destructive">
-            <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-              <span>{loadError ?? t('tags.error.load')}</span>
-              <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
-                {tCore('common.action.retry')}
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-      </>
-    );
-  }
-
-  return (
-    <>
-      {header}
-
-      <Card className="mb-4">
-        <CardContent>
-          {tags.length === 0 ? (
+        tabs={<TaskConfigurationTabs />}
+        count={t('tags.count', { count: tags?.length ?? 0 })}
+        load={listLoad}
+        busy={loading && tags !== null}
+        onRetry={(): void => void load()}
+      >
+        <ResponsiveTable
+          label={t('tags.title')}
+          data={tags ?? []}
+          keyExtractor={(tag): string => tag.id}
+          emptyState={
             <SettingsEmptyState
               icon={<Tags size={20} />}
               title={t('tags.empty.title')}
@@ -133,55 +106,44 @@ export function TaskTagsPage(): ReactNode {
               actionLabel={t('tags.add')}
               onAction={openCreate}
             />
-          ) : (
-            <Table aria-label={t('tags.title')}>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('tags.col.name')}</TableHead>
-                  <TableHead className="text-right">{t('tags.col.usage')}</TableHead>
-                  <TableHead>
-                    <span className="sr-only">{t('workflow.col.actions')}</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tags.map((tag) => (
-                  <TableRow key={tag.id}>
-                    <TableCell>
-                      <Badge className="font-medium" style={statusBadgeStyle(tag.color)}>
-                        {tag.name}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{tag.usageCount}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
-                          variant="ghost"
-                          size="sm"
-                          aria-label={t('tags.editLabel', { name: tag.name })}
-                          onClick={(): void => setDialog({ kind: 'edit', tag })}
-                        >
-                          <Pencil aria-hidden="true" />
-                        </Button>
-                        <Button
-                          className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
-                          variant="ghost"
-                          size="sm"
-                          aria-label={t('tags.deleteLabel', { name: tag.name })}
-                          onClick={(): void => setPendingDelete(tag)}
-                        >
-                          <Trash2 aria-hidden="true" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          }
+          columns={[
+            {
+              id: 'name',
+              header: t('tags.col.name'),
+              primary: true,
+              render: (tag) => (
+                <Badge className="font-medium" style={statusBadgeStyle(tag.color)}>
+                  {tag.name}
+                </Badge>
+              ),
+            },
+            { id: 'usage', header: t('tags.col.usage'), className: 'text-right tabular-nums', render: (tag) => tag.usageCount },
+          ]}
+          renderActions={(tag) => (
+            <div className="flex justify-end gap-1">
+              <Button
+                className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
+                variant="ghost"
+                size="sm"
+                aria-label={t('tags.editLabel', { name: tag.name })}
+                onClick={(): void => setDialog({ kind: 'edit', tag })}
+              >
+                <Pencil aria-hidden="true" />
+              </Button>
+              <Button
+                className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
+                variant="ghost"
+                size="sm"
+                aria-label={t('tags.deleteLabel', { name: tag.name })}
+                onClick={(): void => setPendingDelete(tag)}
+              >
+                <Trash2 aria-hidden="true" />
+              </Button>
+            </div>
           )}
-        </CardContent>
-      </Card>
+        />
+      </ListPage>
 
       {dialog ? (
         <TaskTagDialog

@@ -1153,6 +1153,15 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
   (DS-15, #1448, the kit `EmptyState`). Both slot into `toolbar` and `emptyState` when they land.
 - **`help`** goes to `PageHeader`'s ⓘ, for a list whose header needs a longer explanation than a
   one-line `description` (the Modules screen, #1520).
+- **A refresh over rows on screen is `busy`, not `loading`** (issue #1749). `load: { kind: 'loading' }`
+  draws the skeleton, which is for the first load only; a filter change, a save or a poll that keeps
+  the rows passes `busy` instead — the results region is `aria-busy` and the count's live region says
+  *Loading…* (ux-laws §6.1). **`resultsRef`** hands the screen the results region (`tabIndex={-1}`), for
+  a screen that sends focus to the results — after removing a refused filter (WCAG 2.4.3). An error a
+  retry cannot fix carries its own way out, `{ kind: 'error', message, action }`, shown in place of
+  *Retry* — the Tasks, Projects and Opportunities lists' *Remove filter*. Pinned in
+  `admin/test/kit/kit-list-page-refresh.test.tsx`. `ResponsiveTable`'s `label` names the table where
+  the heading alone does not say what it lists (the settings lists under their configuration tabs).
 - Pinned in `admin/test/kit/kit-list-page.test.tsx`, including an axe pass; the three first
   adopters are `CustomersList`, `OrganizationsList` and `CartsList`.
 - **A value edited from the row** (issue #1501, SHELL-14) is a `StatusChangeControl` with

@@ -3,8 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { CircleCheck, Plus } from 'lucide-react';
 import type { TaskSummary } from '@endora-commerce/contracts';
 import { useAuth, useListViewModePreference } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable, ViewModeToggle } from '@endora-commerce/admin-kit/components';
+import { Button, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { ListPage, ResponsiveTable, ViewModeToggle, type ListPageLoad } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../api.js';
 import { useDigestDisclosure } from '../components/DigestControl.js';
@@ -42,12 +42,15 @@ const IMPLIED = new URLSearchParams([
  * (`specs/165-task-management/` User Story 7) is a closed disclosure in the
  * header that says its state, so the list is the first thing below the title
  * (issue #1563).
+ *
+ * The list view is the kit's `ListPage` since issue #1749: the filters a
+ * toolbar row, a reload `busy` over the rows on screen. It is the server's
+ * answer of up to 500, so there is no pager.
  */
 export function MyTasksPage(): ReactNode {
   const t = useTranslation('tasks');
   /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
   const searchRef = useRef<HTMLInputElement>(null);
-  const tCore = useTranslation('core');
   const { hasPermission } = useAuth();
   const customFields = hasPermission(CUSTOM_FIELDS_READ_PERMISSION);
   const canWrite = hasPermission('tasks:write');
@@ -101,101 +104,93 @@ export function MyTasksPage(): ReactNode {
 
   const clear = (): void => navigate(new URLSearchParams());
 
-  return (
+  const headerActions = (
     <>
-      <PageHeader
-        title={t('mine.title')}
-        actions={
-          <>
-            {digest.trigger}
-            <ViewModeToggle mode={mode} onChange={setMode} />
-            <Button className="min-h-11 sm:min-h-9" variant="outline" asChild>
-              <Link to="/tasks">{t('mine.all')}</Link>
-            </Button>
-          </>
+      {digest.trigger}
+      <ViewModeToggle mode={mode} onChange={setMode} />
+      <Button className="min-h-11 sm:min-h-9" variant="outline" asChild>
+        <Link to="/tasks">{t('mine.all')}</Link>
+      </Button>
+    </>
+  );
+
+  const filters = (
+    <div className="min-w-0 flex-1">
+      <TaskFilters
+        idPrefix="tasks-mine"
+        searchRef={searchRef}
+        params={params}
+        onChange={navigate}
+        statuses={vocabulary.workflow?.statuses.filter((status) => status.category === 'open') ?? []}
+        priorities={vocabulary.priorities ?? []}
+        implied={{ assignee: true, statusCategory: true, draft: true }}
+        customFields={customFields}
+        filtered={filtered}
+        onClear={clear}
+      />
+    </div>
+  );
+
+  if (mode === 'board') {
+    return (
+      <>
+        <PageHeader title={t('mine.title')} actions={headerActions} />
+        {/* The caller's own daily digest (User Story 7, FR-036), opened from its summary in the header (#1563). */}
+        {digest.panel}
+        <div className="mb-4">{filters}</div>
+        <TaskBoard query={boardQuery} workflow={vocabulary.workflow} filtered={filtered} />
+      </>
+    );
+  }
+
+  const listLoad: ListPageLoad = error ? { kind: 'error', message: error } : rows === null ? { kind: 'loading' } : { kind: 'ready' };
+
+  return (
+    <ListPage
+      title={t('mine.title')}
+      actions={headerActions}
+      // The caller's own daily digest (User Story 7, FR-036), opened from its
+      // summary in the header (#1563) — the slot under the header.
+      tabs={digest.panel}
+      toolbar={filters}
+      count={t('mine.count', { count: rows?.length ?? 0 })}
+      load={listLoad}
+      busy={loading && rows !== null}
+      onRetry={(): void => void load()}
+    >
+      <ResponsiveTable
+        data={rows ?? []}
+        columns={columns}
+        keyExtractor={(row): string => row.id}
+        emptyState={
+          filtered ? (
+            <EmptyState
+              variant="no-results"
+              title={t('list.noResults.title')}
+              description={t('list.noResults.body')}
+              onClearFilters={clear}
+              focusAfterClear={searchRef}
+            />
+          ) : (
+            <EmptyState
+              icon={<CircleCheck size={20} />}
+              title={t('mine.empty.title')}
+              description={t('mine.empty.body')}
+              action={
+                canWrite ? (
+                  <Button className="min-h-11 sm:min-h-9" asChild>
+                    <Link to="/tasks/new">
+                      <Plus aria-hidden="true" />
+                      {t('list.new')}
+                    </Link>
+                  </Button>
+                ) : null
+              }
+            />
+          )
         }
       />
-
-      {/* The caller's own daily digest (User Story 7, FR-036), opened from its summary in the header (#1563). */}
-      {digest.panel}
-
-      <Card className="mb-4">
-        <CardContent className="space-y-4">
-          <TaskFilters
-            idPrefix="tasks-mine"
-            searchRef={searchRef}
-            params={params}
-            onChange={navigate}
-            statuses={vocabulary.workflow?.statuses.filter((status) => status.category === 'open') ?? []}
-            priorities={vocabulary.priorities ?? []}
-            implied={{ assignee: true, statusCategory: true, draft: true }}
-            customFields={customFields}
-            filtered={filtered}
-            onClear={clear}
-          />
-        </CardContent>
-      </Card>
-
-      {mode === 'board' ? (
-        <TaskBoard query={boardQuery} workflow={vocabulary.workflow} filtered={filtered} />
-      ) : (
-        <Card>
-          <CardContent aria-busy={loading}>
-            {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3), as on the Tasks screen. */}
-            <p role="status" className="sr-only">
-              {loading && rows !== null ? t('mine.loading') : ''}
-            </p>
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-                  <span>{error}</span>
-                  <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
-                    {tCore('common.action.retry')}
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            ) : rows === null ? (
-              <p role="status" className="text-sm text-muted-foreground">
-                {t('mine.loading')}
-              </p>
-            ) : (
-              <ResponsiveTable
-                data={rows}
-                columns={columns}
-                keyExtractor={(row): string => row.id}
-                emptyState={
-                  filtered ? (
-                    <EmptyState
-                      variant="no-results"
-                      title={t('list.noResults.title')}
-                      description={t('list.noResults.body')}
-                      onClearFilters={clear}
-      focusAfterClear={searchRef}
-                    />
-                  ) : (
-                    <EmptyState
-                      icon={<CircleCheck size={20} />}
-                      title={t('mine.empty.title')}
-                      description={t('mine.empty.body')}
-                      action={
-                        canWrite ? (
-                          <Button className="min-h-11 sm:min-h-9" asChild>
-                            <Link to="/tasks/new">
-                              <Plus aria-hidden="true" />
-                              {t('list.new')}
-                            </Link>
-                          </Button>
-                        ) : null
-                      }
-                    />
-                  )
-                }
-              />
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </>
+    </ListPage>
   );
 }
 

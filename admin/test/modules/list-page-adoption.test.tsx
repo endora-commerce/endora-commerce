@@ -207,6 +207,51 @@ const SUBJECTS: Record<string, Subject> = {
     },
     row: 'buyer@example.com',
   },
+  CampaignsPage: {
+    load: async () => (await import('../../../packages/modules/newsletter/src/admin/pages/CampaignsPage')).CampaignsPage,
+    module: 'newsletter',
+    titleKey: 'campaigns.title',
+    listUrl: '/api/v1/admin/newsletter/campaigns',
+    ready: {
+      '/api/v1/admin/newsletter/campaigns': () => ({
+        data: { items: [{ id: 'cmp1', name: 'November', subject: 'Autumn offer', targetType: 'all', status: 'draft' }] },
+      }),
+    },
+    row: 'November',
+    count: (b) => fill(b['campaigns.count']!, { count: 1 }),
+  },
+  SubscribersPage: {
+    load: async () => (await import('../../../packages/modules/newsletter/src/admin/pages/SubscribersPage')).SubscribersPage,
+    module: 'newsletter',
+    titleKey: 'subscribers.title',
+    listUrl: '/api/v1/admin/newsletter/subscribers',
+    ready: {
+      '/api/v1/admin/newsletter/subscribers': () => ({
+        data: {
+          items: [{ id: 's1', email: 'ann@example.test', status: 'active', tags: [], source: null }],
+          total: 1,
+          page: 1,
+          pageSize: 25,
+        },
+      }),
+    },
+    row: 'ann@example.test',
+    count: (b) => fill(b['subscribers.count.one']!, { count: 1 }),
+  },
+  EmailTemplatesPage: {
+    load: async () =>
+      (await import('../../../packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage')).EmailTemplatesPage,
+    module: 'transactional_emails',
+    titleKey: 'templates.title',
+    listUrl: '/api/v1/admin/transactional-emails/templates',
+    ready: {
+      '/api/v1/admin/transactional-emails/templates': () => ({
+        data: { items: [{ id: 't1', code: 'layout', name: 'Layout', scope: 'global', isSystem: false }] },
+      }),
+    },
+    row: 'Layout',
+    count: (b) => fill(b['templates.count']!, { count: 1 }),
+  },
 };
 
 function mount(Page: ComponentType, module: string): ReturnType<typeof userEvent.setup> {

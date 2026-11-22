@@ -19,20 +19,19 @@ import {
   AlertDescription,
   Badge,
   Button,
-  Card,
-  CardContent,
   EmptyState,
-  PageHeader,
   Select,
 } from '@endora-commerce/admin-kit/ui';
 import {
-  CursorPagination,
   CustomFieldListFilters,
+  ListPage,
   ListToolbar,
   ListToolbarSearch,
   ResponsiveTable,
   customFieldDisplayName,
   customFieldFilterRefusal,
+  fitPageSize,
+  pageSizesUpTo,
   pruneRemovedOptions,
   readCustomFieldFilterParams,
   toCustomFieldFiltersParam,
@@ -41,6 +40,7 @@ import {
   writeCustomFieldFilterParams,
   TagChips,
   ViewModeToggle,
+  type ListPageLoad,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -105,6 +105,9 @@ function hasFilters(filters: Filters): boolean {
 /** No cursor followed yet: the first page. */
 const FIRST_PAGE: readonly string[] = [];
 
+/** The rows-per-page choices the list endpoint serves. */
+const PAGE_SIZES = pageSizesUpTo(MAX_PAGE_LIMIT);
+
 /**
  * The Opportunities list (`specs/143-crm-sales-opportunities/`, User Story 1 —
  * FR-003 – FR-005): every Opportunity the operator may see, filtered by text,
@@ -121,6 +124,10 @@ const FIRST_PAGE: readonly string[] = [];
  * `cf.<key>.<op>` and reach the server as `custom:<key>` references in
  * `fieldFilters`; a filter the server refuses is reported by name with a way
  * to remove it. The board and its card-field filters are untouched.
+ *
+ * The kit's `ListPage` since issue #1749: the toolbar a row, not a card; a
+ * reload `busy` over the rows on screen; a refused filter the list's error,
+ * its way out *Remove filter*, after which focus goes to the results region.
  *
  * Since issue #1558 (UX audit WORK-07, DEC-13) the list is the *List* view of
  * the one Opportunities page, the board its *Board* view (`?view=board`).
@@ -388,22 +395,36 @@ export function OpportunitiesList(): ReactNode {
     />
   );
 
-  return (
-    <>
-      <PageHeader
-        title={t('opportunity.list.title')}
-        actions={
-          <>
-            <ViewModeToggle mode="list" onChange={setView} />
-            {/* With nothing listed the empty state carries the one action; two
-                filled buttons for the same thing would compete. */}
-            {canWrite && (rows.length > 0 || filtered || !loaded) ? newOpportunity : null}
-          </>
+  const listLoad: ListPageLoad =
+    refusedKey !== null
+      ? {
+          kind: 'error',
+          message: tCore('customFieldFilters.error.unavailable', { field: refusedName }),
+          action: (
+            <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={removeRefused}>
+              {tCore('customFieldFilters.error.remove')}
+            </Button>
+          ),
         }
-      />
+      : error
+        ? { kind: 'error', message: error }
+        : loaded
+          ? { kind: 'ready' }
+          : { kind: 'loading' };
 
-      <Card className="mb-4">
-        <CardContent className="space-y-4">
+  return (
+    <ListPage
+      title={t('opportunity.list.title')}
+      actions={
+        <>
+          <ViewModeToggle mode="list" onChange={setView} />
+          {/* With nothing listed the empty state carries the one action; two
+              filled buttons for the same thing would compete. */}
+          {canWrite && (rows.length > 0 || filtered || !loaded) ? newOpportunity : null}
+        </>
+      }
+      toolbar={
+        <div className="min-w-0 flex-1 space-y-3">
           {viewsError ? (
             <Alert variant="destructive">
               <AlertDescription>{viewsError}</AlertDescription>
@@ -508,65 +529,28 @@ export function OpportunitiesList(): ReactNode {
             filtersActive={filtered}
             onClearFilters={clear}
           />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent ref={resultsRef} tabIndex={-1} className="focus:outline-none" aria-busy={loading}>
-          {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
-          <p role="status" className="sr-only">
-            {loading && loaded ? t('opportunity.list.loading') : ''}
-          </p>
-          {refusedKey !== null ? (
-            <Alert variant="destructive">
-              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-                <span>{tCore('customFieldFilters.error.unavailable', { field: refusedName })}</span>
-                <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={removeRefused}>
-                  {tCore('customFieldFilters.error.remove')}
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : error ? (
-            <Alert variant="destructive">
-              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-                <span>{error}</span>
-                <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load(true)}>
-                  {tCore('common.action.retry')}
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : !loaded ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              {t('opportunity.list.loading')}
-            </p>
-          ) : (
-            <>
-              <ResponsiveTable
-                data={rows}
-                columns={columns}
-                keyExtractor={(row): string => row.id}
-                emptyState={emptyState}
-              />
-              {rows.length > 0 || trail.length > 0 ? (
-                <CursorPagination
-                  page={trail.length + 1}
-                  pageSize={pageSize}
-                  maxPageSize={MAX_PAGE_LIMIT}
-                  hasPrevious={trail.length > 0}
-                  hasNext={nextCursor !== null}
-                  busy={loading}
-                  onPageSizeChange={setPageSize}
-                  onPrevious={(): void => setTrail((previous) => previous.slice(0, -1))}
-                  onNext={(): void => {
-                    if (nextCursor) setTrail((previous) => [...previous, nextCursor]);
-                  }}
-                />
-              ) : null}
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </>
+        </div>
+      }
+      load={listLoad}
+      busy={loading && loaded}
+      onRetry={(): void => void load(true)}
+      resultsRef={resultsRef}
+      pagination={{
+        mode: 'cursor',
+        page: trail.length,
+        pageSize: fitPageSize(pageSize, PAGE_SIZES),
+        pageSizes: PAGE_SIZES,
+        rowCount: rows.length,
+        hasNext: nextCursor !== null,
+        onPageSizeChange: setPageSize,
+        onPrev: (): void => setTrail((previous) => previous.slice(0, -1)),
+        onNext: (): void => {
+          if (nextCursor && !loading) setTrail((previous) => [...previous, nextCursor]);
+        },
+      }}
+    >
+      <ResponsiveTable data={rows} columns={columns} keyExtractor={(row): string => row.id} emptyState={emptyState} />
+    </ListPage>
   );
 }
 

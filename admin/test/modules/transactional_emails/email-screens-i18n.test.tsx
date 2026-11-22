@@ -133,18 +133,23 @@ describe.each(['en', 'pl'] as const)('transactional e-mail screens in %s (#1463)
     expect(within(row).getByText(key('scope.channel'))).toBeInTheDocument();
     expect(within(row).queryByText('channel')).toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: key('blocks.title') })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: key('create.field.code') })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: key('create.field.name') })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: key('blocks.create') })).toBeInTheDocument();
+    // The create form is a dialog behind the header's Create block, not a card open above the list (#1749).
+    expect(screen.queryByRole('textbox', { name: key('create.field.code') })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: key('blocks.create') }));
+    const dialog = screen.getByRole('dialog', { name: key('blocks.create') });
+    expect(within(dialog).getByRole('textbox', { name: key('create.field.code') })).toBeInTheDocument();
+    expect(within(dialog).getByRole('textbox', { name: key('create.field.name') })).toBeInTheDocument();
   });
 
   it('e-mail templates label the create form and name each template’s scope', async () => {
     render(<EmailTemplatesPage />);
     const row = (await screen.findByRole('link', { name: 'Layout' })).closest('tr')!;
     expect(within(row).getByText(key('scope.global'))).toBeInTheDocument();
-    expect(within(row).getByRole('button', { name: core['common.action.delete']! })).toBeInTheDocument();
+    // A row's Delete is in its menu, named by the template (#1749).
+    expect(within(row).getByRole('button', { name: key('templates.rowActions').replace('{name}', 'Layout') })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: key('templates.title') })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: key('create.field.code') })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: key('templates.create') })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: key('templates.create') }));
+    const dialog = screen.getByRole('dialog', { name: key('templates.create') });
+    expect(within(dialog).getByRole('textbox', { name: key('create.field.code') })).toBeInTheDocument();
   });
 });
