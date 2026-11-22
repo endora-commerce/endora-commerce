@@ -39,7 +39,7 @@ import { ProfilePage } from './modules/profile/ProfilePage.js';
 function NotFoundPage(): ReactNode {
   const t = useTranslation('core');
   return (
-    <div className="rounded-md border border-amber-500/40 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+    <div className="rounded-md border border-amber-500/40 bg-amber-50 p-4 text-amber-900">
       {t('app.notFound')}
     </div>
   );

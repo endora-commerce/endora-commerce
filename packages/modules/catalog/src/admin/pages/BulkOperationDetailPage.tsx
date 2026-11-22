@@ -56,7 +56,7 @@ const OUTCOME_BADGE: Record<
 
 const LOG_LEVEL_CLASS: Record<BulkOperationLogEntry['level'], string> = {
   info: 'text-foreground',
-  warn: 'text-amber-600 dark:text-amber-500',
+  warn: 'text-amber-600',
   error: 'text-destructive',
 };
 

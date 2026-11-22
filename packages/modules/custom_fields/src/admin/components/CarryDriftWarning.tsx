@@ -38,7 +38,7 @@ export function CarryDriftNotice({ counterparts, typeLabel, lead, id, destructiv
           className={
             destructive
               ? 'mt-0.5 size-4 shrink-0 text-destructive'
-              : 'mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400'
+              : 'mt-0.5 size-4 shrink-0 text-amber-700'
           }
           aria-hidden="true"
         />

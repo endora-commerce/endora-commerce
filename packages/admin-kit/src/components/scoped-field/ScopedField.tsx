@@ -314,7 +314,7 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
   }
   if (staged) {
     badges.push(
-      <span key="staged" className={cn(badgeClass, 'border-amber-500/50 text-amber-800 dark:text-amber-200')}>
+      <span key="staged" className={cn(badgeClass, 'border-amber-500/50 text-amber-800')}>
         <Pencil className="size-3" aria-hidden="true" />
         {t('scopedField.badge.unsaved')}
       </span>,

@@ -26,15 +26,16 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
-/** The Admin UI's sources. Repo-relative globs. */
+/** The Admin UI's sources: repo-relative pathspecs, then the extensions that can carry a theme. */
 const ADMIN_SOURCES = [
-  'admin/src/**/*.{ts,tsx,css}',
+  'admin/src',
   'admin/index.html',
   'packages/admin-kit/theme.css',
-  'packages/admin-kit/src/**/*.{ts,tsx,css}',
-  'packages/admin-shell/src/**/*.{ts,tsx,css}',
-  'packages/modules/*/src/admin/**/*.{ts,tsx,css}',
+  'packages/admin-kit/src',
+  'packages/admin-shell/src',
+  'packages/modules/*/src/admin/*',
 ];
+const THEMEABLE = /\.(?:tsx?|css|html)$/;
 
 /** What a dark theme is made of, each with the reason it is refused. */
 const DARK_THEME: ReadonlyArray<readonly [string, RegExp]> = [
@@ -48,7 +49,7 @@ const DARK_THEME: ReadonlyArray<readonly [string, RegExp]> = [
 
 function sources(): string[] {
   const out = execFileSync('git', ['ls-files', '--', ...ADMIN_SOURCES], { cwd: repoRoot, encoding: 'utf8' });
-  return out.split('\n').filter((file) => file !== '' && !/\.test\.tsx?$/.test(file));
+  return out.split('\n').filter((file) => THEMEABLE.test(file) && !/\.test\.tsx?$/.test(file));
 }
 
 function darkThemeIn(text: string, file: string): string[] {

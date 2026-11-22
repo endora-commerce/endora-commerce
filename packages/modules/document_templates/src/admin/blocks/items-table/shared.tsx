@@ -21,7 +21,7 @@ export function FieldName({ field, path }: { field: DocumentFieldDefinition | un
   const t = useTranslation('document_templates');
   if (field) return <span>{field.label}</span>;
   return (
-    <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400" title={t('itemsTable.columns.unknownFieldHint')}>
+    <span className="inline-flex items-center gap-1 text-amber-700" title={t('itemsTable.columns.unknownFieldHint')}>
       <span aria-hidden="true">⚠</span>
       {t('itemsTable.columns.unknownField')}
       <span className="sr-only"> ({path}): {t('itemsTable.columns.unknownFieldHint')}</span>

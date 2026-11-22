@@ -362,7 +362,7 @@ export function PageBuilderTranslateAction({
               })}
             </p>
             {openScope.kind === 'canvas' && source !== CURRENT && !canvasEmpty ? (
-              <p className="text-sm text-amber-700 dark:text-amber-400">{t('pageBuilder.translate.replaceWarning')}</p>
+              <p className="text-sm text-amber-700">{t('pageBuilder.translate.replaceWarning')}</p>
             ) : null}
             {/* Mounted before it has text, so a failure is announced. */}
             <p className="text-sm text-destructive" role="alert">

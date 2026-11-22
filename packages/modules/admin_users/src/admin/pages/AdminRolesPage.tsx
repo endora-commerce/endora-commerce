@@ -525,7 +525,7 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
             {props.mfaPresent && props.role.twoFactorNotice ? (
               <p
                 role="status"
-                className="flex items-start gap-1 text-xs font-medium text-amber-800 dark:text-amber-300"
+                className="flex items-start gap-1 text-xs font-medium text-amber-800"
               >
                 <AlertTriangle aria-hidden="true" className="mt-px size-3.5 shrink-0" />
                 <span>

@@ -149,10 +149,10 @@ describe('useChartColors', () => {
         bar: 'hsl(243, 75%, 59%)',
       });
       root.style.setProperty('--primary', '0 0% 0%');
-      root.classList.add('dark');
+      root.classList.add('instance-brand');
       await waitFor(() => expect(result.current.bar).toBe('hsl(0, 0%, 0%)'));
     } finally {
-      root.classList.remove('dark');
+      root.classList.remove('instance-brand');
       for (const name of ['--foreground', '--muted-foreground', '--border', '--primary']) root.style.removeProperty(name);
     }
   });
