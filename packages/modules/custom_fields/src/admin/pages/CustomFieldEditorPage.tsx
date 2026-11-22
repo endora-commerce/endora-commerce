@@ -70,6 +70,10 @@ export function CustomFieldEditorPage(): ReactNode {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [allLoading, setAllLoading] = useState(false);
   const sequence = useRef(0);
+  // Read through a ref: a new translator (the bundle arriving) must not read
+  // the page again, which would remount the form under what is being typed.
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const load = useCallback(async (): Promise<void> => {
     const current = ++sequence.current;
@@ -90,12 +94,12 @@ export function CustomFieldEditorPage(): ReactNode {
     if (definition instanceof Error) {
       setState({
         kind: 'error',
-        message: definition instanceof ApiError ? definition.envelope.error.message : t('customFields.error.load'),
+        message: definition instanceof ApiError ? definition.envelope.error.message : tRef.current('customFields.error.load'),
       });
       return;
     }
     setState({ kind: 'ready', loaded: { entityTypes, definitions, definition } });
-  }, [id, isNew, t]);
+  }, [id, isNew]);
 
   useEffect(() => {
     void load();
