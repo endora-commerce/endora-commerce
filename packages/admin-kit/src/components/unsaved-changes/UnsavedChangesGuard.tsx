@@ -24,13 +24,14 @@ import { ModalDialog } from '../modal-dialog/ModalDialog.js';
  *   screen's own error. Without `onSave` the choice is Discard or Stay.
  *
  * The blocked activation is **replayed** — the same link or tab is clicked
- * again — so the guard needs no router and keeps whatever the link does
- * (a basename, `state`, `replace`). A navigation the screen makes itself
- * (`navigate()` behind a button) is not a click; wrap it in `confirm(action)`.
+ * again — so the guard keeps whatever the link does (a basename, `state`,
+ * `replace`). A navigation the screen makes itself (`navigate()` behind a
+ * button) is not a click; wrap it in `confirm(action)`.
  *
- * The browser's own unload dialog cannot be replaced, and Back / Forward is not
- * blockable under the admin's component `<BrowserRouter>` (no data router, so
- * no `useBlocker`): those two keep the browser's behaviour.
+ * The browser's Back / Forward to another screen is asked about the same way
+ * (issue #1605) under the admin's data router (`AdminRoot`); under a component
+ * router it keeps the browser's behaviour. The browser's own unload dialog
+ * cannot be replaced.
  */
 export interface UnsavedChangesGuardOptions {
   /** Whether the screen holds changes that a navigation would lose. */
@@ -84,13 +85,14 @@ export interface UnsavedChangesGuard {
 
 export function useUnsavedChangesGuard(options: UnsavedChangesGuardOptions): UnsavedChangesGuard {
   const { dirty, onSave, onDiscard, guardTabsOutside, title, message } = options;
-  const [pending, setPending] = useState<{ proceed: () => void; ask: UnsavedChangesAsk } | null>(null);
+  /** `release` lets go of a blocked Back / Forward when the navigation does not go ahead. */
+  const [pending, setPending] = useState<{ proceed: () => void; release?: () => void; ask: UnsavedChangesAsk } | null>(null);
   const [saving, setSaving] = useState(false);
 
   useLeaveInterception(
     dirty,
-    (replay) => {
-      setPending({ proceed: replay, ask: {} });
+    (replay, cancel) => {
+      setPending({ proceed: replay, release: cancel, ask: {} });
       return false;
     },
     { guardTabsOutside },
@@ -109,7 +111,9 @@ export function useUnsavedChangesGuard(options: UnsavedChangesGuardOptions): Uns
 
   const stay = (): void => {
     const onStay = pending?.ask.onStay;
+    const release = pending?.release;
     setPending(null);
+    release?.();
     onStay?.();
   };
   const discard = (): void => {
@@ -121,6 +125,7 @@ export function useUnsavedChangesGuard(options: UnsavedChangesGuardOptions): Uns
   const save = onSave
     ? async (): Promise<void> => {
         const proceed = pending?.proceed;
+        const release = pending?.release;
         setSaving(true);
         let ok = false;
         try {
@@ -132,6 +137,7 @@ export function useUnsavedChangesGuard(options: UnsavedChangesGuardOptions): Uns
           setPending(null);
         }
         if (ok) proceed?.();
+        else release?.();
       }
     : undefined;
 

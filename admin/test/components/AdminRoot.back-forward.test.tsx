@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { useState, type ReactNode } from 'react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 
+import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import { useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
 import { AdminRoot } from '../../../packages/admin-shell/src/AdminRoot';
 
@@ -30,14 +31,14 @@ function Editor(): ReactNode {
 
 vi.mock('../../../packages/admin-shell/src/App', () => ({
   App: (): ReactNode => (
-    <>
+    <TranslationProvider language="en" initialBundle={{}}>
       <LocationProbe />
       <Link to="/editor">open editor</Link>
       <Routes>
         <Route path="/" element={<p>home</p>} />
         <Route path="/editor" element={<Editor />} />
       </Routes>
-    </>
+    </TranslationProvider>
   ),
 }));
 
