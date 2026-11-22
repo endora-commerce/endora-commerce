@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import { createRef, type ReactElement, type ReactNode } from 'react';
-import { ListPage, type ListPageLoad } from '@endora-commerce/admin-kit/components';
+import { ListPage, ResponsiveTable, type ListPageLoad } from '@endora-commerce/admin-kit/components';
 import { renderWithI18n } from '../helpers/render-with-i18n';
 import { shippedCoreBundle } from '../helpers/core-bundle';
 import { expectNoAxeViolations } from '../helpers/axe';
@@ -18,6 +18,8 @@ import { adminSession, withSession } from '../helpers/render-with-session';
  *   sends focus to the results (after removing a refused filter, WCAG 2.4.3).
  * - an error's `action` — a way out other than *Retry*, for a failure that
  *   asking again cannot fix (a filter the server refuses).
+ * - `ResponsiveTable`'s `label` — the table's accessible name, which the
+ *   settings lists gave their hand-drawn `<Table aria-label>`.
  */
 
 const en = shippedCoreBundle('en');
@@ -118,5 +120,19 @@ describe('ListPage — an error with its own way out (action)', () => {
       en,
     );
     await expectNoAxeViolations(container);
+  });
+});
+
+describe('ResponsiveTable — its accessible name (label)', () => {
+  it('names the table when given a label, and leaves it unnamed otherwise', () => {
+    const rows = [{ id: 'a', name: 'Urgent' }];
+    const columns = [{ id: 'name', header: 'Name', primary: true, render: (row: { name: string }) => row.name }];
+    const { rerender } = renderWithI18n(
+      wrap(<ResponsiveTable label="Task priorities" data={rows} columns={columns} keyExtractor={(row) => row.id} />),
+      en,
+    );
+    expect(screen.getByRole('table', { name: 'Task priorities' })).toBeInTheDocument();
+    rerender(wrap(<ResponsiveTable data={rows} columns={columns} keyExtractor={(row) => row.id} />));
+    expect(screen.getByRole('table')).not.toHaveAttribute('aria-label');
   });
 });
