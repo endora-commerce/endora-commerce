@@ -93,7 +93,7 @@ describe('Organizations list — paging (#1473)', () => {
     await userEvent.click(await screen.findByRole('button', { name: pl.core!['common.pagination.next']! }));
     await screen.findByRole('link', { name: 'Firma 41' });
     expect(getSpy).toHaveBeenLastCalledWith('/api/v1/admin/organizations?page=3&pageSize=20');
-    expect(screen.getByRole('button', { name: pl.core!['common.pagination.next']! })).toBeDisabled();
+    expect(screen.getByRole('button', { name: pl.core!['common.pagination.next']! })).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('opens an organization from its name, with no separate Open button in each row', async () => {

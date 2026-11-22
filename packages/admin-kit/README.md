@@ -1216,6 +1216,19 @@ const pager = useCursorPagination({ scope: 'invoices', maxPageSize: 200 });
 - The **`tabs`** slot is the band between the header and the toolbar: section tabs, or what a list
   shows above its filters — the inventory list's KPI strip (#1749).
 
+### Pager focus at the ends of the range
+
+Issue #1803. Previous and Next — in `PaginationFooter` (both modes) and in `CursorPagination` — are
+`aria-disabled` at the ends of the range and while a cursor page is fetched, never `disabled`.
+A keyboard user who presses Next onto the last page keeps focus on Next; a `disabled` button
+would drop that focus to `<body>` (WCAG 2.2 SC 2.4.3). The button stays a tab stop, is announced
+as unavailable (SC 4.1.2), looks dimmed, and ignores the press, so `onNext` / `onPrev` are never
+called past the range. The range summary (*Showing 21–40 of 45*, or *Page N* in
+`CursorPagination`) is a polite live region, so the page change is announced to the user whose
+focus did not move (SC 4.1.3). A test asserting the end of the range checks
+`toHaveAttribute('aria-disabled', 'true')`, not `toBeDisabled()`. Pinned in
+`admin/test/kit/kit-pagination-footer.test.tsx`.
+
 ### Search as you type — `useDebouncedValue`
 
 Issue #1495 (UX audit CONTENT-13). A list's search runs while the operator types, never only on

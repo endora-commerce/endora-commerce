@@ -130,7 +130,7 @@ describe('InvoicesList (issue #1664)', () => {
     expect(screen.queryByRole('link', { name: 'FV/1/2026' })).toBeNull();
     expect(listCalls().at(-1)!.get('cursor')).toBe('c-2');
     expect(screen.getByText(fill(core['common.pagination.showingRangeOpen']!, { start: 21, end: 22 }))).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: core['common.pagination.next']! })).toBeDisabled();
+    expect(screen.getByRole('button', { name: core['common.pagination.next']! })).toHaveAttribute('aria-disabled', 'true');
 
     await userEvent.click(screen.getByRole('button', { name: core['common.pagination.previous']! }));
     expect(await screen.findByRole('link', { name: 'FV/1/2026' })).toBeInTheDocument();

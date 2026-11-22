@@ -161,7 +161,7 @@ describe('useListPagination', () => {
     await userEvent.click(screen.getByRole('button', { name: core['common.pagination.next']! }));
     expect(pager.query).toEqual({ page: 3, pageSize: 20 });
     expect(screen.getByText('Showing 41–45 of 45')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: core['common.pagination.next']! })).toBeDisabled();
+    expect(screen.getByRole('button', { name: core['common.pagination.next']! })).toHaveAttribute('aria-disabled', 'true');
     await userEvent.click(screen.getByRole('button', { name: core['common.pagination.previous']! }));
     expect(pager.query.page).toBe(2);
   });
@@ -224,10 +224,10 @@ describe('useCursorPagination', () => {
     let pager!: CursorListPagination;
     renderWithI18n(wrap(<CursorHarness rows={20} onPager={(p) => (pager = p)} />), en);
     expect(pager.query).toEqual({ cursor: null, limit: 20 });
-    expect(next()).toBeDisabled();
-    expect(previous()).toBeDisabled();
+    expect(next()).toHaveAttribute('aria-disabled', 'true');
+    expect(previous()).toHaveAttribute('aria-disabled', 'true');
     act(() => pager.syncPage({ cursor: 'c-2', hasMore: true }, 20));
-    expect(next()).toBeEnabled();
+    expect(next()).not.toHaveAttribute('aria-disabled');
     expect(screen.getByText('Showing 1–20 of more than 20')).toBeInTheDocument();
     expect(screen.getByText(fill(core['cursorPagination.page']!, { page: 1 }))).toBeInTheDocument();
     // No total, so no "of Y" anywhere.
@@ -248,12 +248,12 @@ describe('useCursorPagination', () => {
     act(() => pager.syncPage({ cursor: null, hasMore: false }, 5));
     // The last page: the range, and no claim about a total.
     expect(screen.getByText('Showing 41–45')).toBeInTheDocument();
-    expect(next()).toBeDisabled();
+    expect(next()).toHaveAttribute('aria-disabled', 'true');
     await userEvent.click(previous());
     expect(pager.query.cursor).toBe('c-2');
     await userEvent.click(previous());
     expect(pager.query.cursor).toBeNull();
-    expect(previous()).toBeDisabled();
+    expect(previous()).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('does not skip a page when Next is pressed again before the page answers', async () => {
@@ -261,7 +261,7 @@ describe('useCursorPagination', () => {
     renderWithI18n(wrap(<CursorHarness rows={20} onPager={(p) => (pager = p)} />), en);
     act(() => pager.syncPage({ cursor: 'c-2', hasMore: true }, 20));
     await userEvent.click(next());
-    expect(next()).toBeDisabled();
+    expect(next()).toHaveAttribute('aria-disabled', 'true');
     expect(pager.page).toBe(1);
   });
 
