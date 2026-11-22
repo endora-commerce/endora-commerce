@@ -20,14 +20,6 @@ function classesOf(element: Element): string[] {
   return (element.getAttribute('class') ?? '').split(/\s+/).filter(Boolean);
 }
 
-/** The declarations of one rule, e.g. `.b2b-card__body`, as written in theme.css. */
-function ruleBody(selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = new RegExp(`(?:^|\\n)${escaped}\\s*\\{([^}]*)\\}`).exec(themeCss);
-  if (!match) throw new Error(`theme.css declares no rule for ${selector}`);
-  return match[1] ?? '';
-}
-
 describe('density tokens (DS-04)', () => {
   it.each([
     ['--card-pad', '16px'],
@@ -41,13 +33,51 @@ describe('density tokens (DS-04)', () => {
     expect(themeCss).toMatch(new RegExp(`\\n\\s*${token}:\\s*${value};`));
   });
 
-  it('the deprecated .b2b-card* classes read the same tokens', () => {
-    expect(ruleBody('.b2b-card__body')).toContain('var(--card-pad)');
-    expect(ruleBody('.b2b-card__head')).toContain('var(--card-pad)');
-    expect(ruleBody('.b2b-card__title')).toContain('var(--fs-section-title)');
-    expect(ruleBody('.b2b-card__sub')).toContain('var(--fs-hint)');
-    expect(ruleBody('.b2b-card__foot')).toContain('var(--card-pad-sm)');
-    expect(themeCss).toMatch(/@deprecated[^*]*\.b2b-card|\.b2b-card[^*]*@deprecated/);
+});
+
+/**
+ * Issue #1502 (SHELL-18, UX audit slice S17): the second card system is gone,
+ * together with the legacy buttons, fields, table and layout helpers whose last
+ * renderer issue #1492 moved onto the kit. A rule left for a class nothing
+ * renders is a second design system a module can still reach for.
+ */
+describe('retired legacy vocabulary (#1502)', () => {
+  const rules = themeCss.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it.each([
+    'b2b-card',
+    'b2b-card--clickable',
+    'b2b-card__head',
+    'b2b-card__title',
+    'b2b-card__sub',
+    'b2b-card__body',
+    'b2b-card__body--flush',
+    'b2b-card__foot',
+    'b2b-btn',
+    'b2b-btn--primary',
+    'b2b-btn--default',
+    'b2b-btn--ghost',
+    'b2b-btn--sm',
+    'b2b-btn--lg',
+    'b2b-field',
+    'b2b-field--addon',
+    'b2b-input-wrap',
+    'b2b-select',
+    'b2b-label',
+    'b2b-help',
+    'b2b-tbl',
+    'b2b-row',
+    'b2b-col',
+    'b2b-mono',
+  ])('theme.css no longer defines .%s', (name) => {
+    expect(rules).not.toMatch(new RegExp(`\\.${name}(?![\\w-])`));
+  });
+
+  it('keeps the vocabulary the ruling left standing', () => {
+    // #1670/#1691: badges, tabs, the page frame and the drawer/scrim stay.
+    for (const name of ['b2b-badge', 'b2b-tabs', 'b2b-page', 'b2b-scrim']) {
+      expect(rules).toMatch(new RegExp(`\\.${name}(?![\\w-])`));
+    }
   });
 });
 

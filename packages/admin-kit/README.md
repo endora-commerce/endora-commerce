@@ -522,11 +522,12 @@ fixed step, so a client's redeclaration reaches every card.
 </Card>
 ```
 
-`.b2b-card` and its `__head` / `__title` / `__sub` / `__body` / `__body--flush` / `__foot` /
-`--clickable` classes are **deprecated** and still published (D-219): they read the same tokens,
-so the two look alike while the call sites move. Do not add new ones. The behaviour is pinned in
-`admin/test/kit/kit-card.test.tsx`, which also refuses a `CardContent` with `pt-6` and a
-`CardTitle` wrapping its own heading.
+`Card` is the only card: issue #1502 removed `.b2b-card` and its `__head` / `__title` / `__sub` /
+`__body` / `__body--flush` / `__foot` / `--clickable` classes from `theme.css`, together with the
+legacy `.b2b-btn*`, `.b2b-field*`, `.b2b-select`, `.b2b-label`, `.b2b-help`, `.b2b-tbl`, `.b2b-row`,
+`.b2b-col` and `.b2b-mono` (this package's `CHANGELOG.md` entry for #1502 maps each to its
+replacement). The behaviour is pinned in `admin/test/kit/kit-card.test.tsx`, which also refuses a
+`CardContent` with `pt-6` and a `CardTitle` wrapping its own heading.
 
 ## Sections — `EditorSection` and the `chrome` prop
 

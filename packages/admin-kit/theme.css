@@ -40,7 +40,7 @@
  *     @import "./tailwind.generated.css";
  *
  *     :root { --accent-h: 262; }
- *     .b2b-btn { border-radius: 2px; }
+ *     .b2b-badge { border-radius: 2px; }
  *
  * The token half works because every semantic token in the mapping block below
  * is an indirection — `--color-primary: hsl(var(--primary))` — so a utility this
@@ -222,9 +222,9 @@ body,
 
   /*
    * Card and section density (issue #1438, DS-04). The kit's `Card` reads them
-   * as `p-(--card-pad)` and `text-(length:--fs-section-title)`, and the
-   * deprecated `.b2b-card*` classes read the same ones, so the two draw the
-   * same box. Write a gap or a size from these rather than a Tailwind step.
+   * as `p-(--card-pad)` and `text-(length:--fs-section-title)`; it is the one
+   * card since issue #1502 retired `.b2b-card*`. Write a gap or a size from
+   * these rather than a Tailwind step.
    */
   --card-pad: 16px;        /* inside a card: header, content, footer */
   --card-pad-sm: 12px;     /* a compact strip: a card footer, a toolbar row */
@@ -959,114 +959,10 @@ body,
 }
 
 /* ============================================================
-   Buttons (used inside in-scope pages alongside shadcn ones)
+   Form controls. The legacy `.b2b-btn`, `.b2b-field`, `.b2b-label`,
+   `.b2b-help` and `.b2b-select` were retired in issue #1502 — render the
+   kit's `Button`, `Input`, `Textarea`, `Select` and `FormField`.
    ============================================================ */
-.b2b-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  gap: 6px;
-  height: var(--field-h);
-  padding: 0 14px;
-  border-radius: var(--r-sm);
-  font-weight: 500; font-size: 13px;
-  white-space: nowrap;
-  border: 1px solid transparent;
-  background: var(--surface);
-  color: var(--fg);
-  font-family: inherit;
-  cursor: pointer;
-  user-select: none;
-  transition: background .12s ease, border-color .12s ease, box-shadow .12s ease, color .12s ease;
-}
-.b2b-btn:focus-visible {
-  outline: none; box-shadow: 0 0 0 3px var(--ring-color);
-}
-.b2b-btn[disabled] { opacity: .5; cursor: not-allowed; pointer-events: none; }
-
-.b2b-btn--primary {
-  background: var(--primary-color); color: var(--primary-fg);
-  border-color: hsl(var(--accent-h) var(--accent-s) calc(var(--accent-l) - 8%));
-  box-shadow: var(--sh-1), inset 0 1px 0 rgba(255,255,255,0.18);
-}
-.b2b-btn--primary:hover { background: var(--primary-hover); }
-.b2b-btn--primary:active { background: var(--primary-active); }
-
-.b2b-btn--default {
-  background: var(--surface);
-  border-color: var(--border-strong);
-  color: var(--fg);
-  box-shadow: var(--sh-1);
-}
-.b2b-btn--default:hover { background: var(--surface-sunken); }
-
-.b2b-btn--ghost {
-  background: transparent; border-color: transparent; color: var(--fg-muted);
-}
-.b2b-btn--ghost:hover { background: var(--surface-sunken); color: var(--fg); }
-
-.b2b-btn--sm { height: 28px; padding: 0 10px; font-size: 12px; border-radius: var(--r-xs); }
-.b2b-btn--lg { height: 40px; padding: 0 18px; font-size: 14px; }
-
-/* ============================================================
-   Field / Input
-   ============================================================ */
-.b2b-field {
-  display: block;
-  width: 100%;
-  height: var(--field-h);
-  padding: 0 var(--field-pad);
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 13px;
-  transition: border-color .12s, box-shadow .12s;
-}
-textarea.b2b-field {
-  height: auto; padding: 8px var(--field-pad);
-  resize: vertical; min-height: 80px; line-height: 1.5;
-}
-.b2b-field:hover { border-color: var(--fg-subtle); }
-.b2b-field:focus {
-  outline: none; border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px var(--ring-color);
-}
-.b2b-field::placeholder { color: var(--fg-subtle); }
-.b2b-field--addon { padding-left: 32px; }
-
-.b2b-input-wrap { position: relative; }
-.b2b-input-wrap > svg.lead, .b2b-input-wrap > svg.trail {
-  position: absolute; top: 50%; transform: translateY(-50%);
-  width: 16px; height: 16px; color: var(--fg-subtle); pointer-events: none;
-}
-.b2b-input-wrap > svg.lead { left: 10px; }
-.b2b-input-wrap > svg.trail { right: 10px; }
-
-.b2b-label {
-  display: block;
-  font-size: 12px; font-weight: 500;
-  color: var(--fg);
-  margin-bottom: 6px;
-}
-.b2b-help {
-  font-size: 12px; color: var(--fg-muted); margin-top: 4px;
-}
-
-/* Select (native, restyled).
-   MODIFIER ONLY — it strips the browser chrome and draws the chevron, but every
-   visible property (height, border, radius, background, focus ring) comes from
-   `.b2b-field`. Applied alone it yields a borderless control that reads as
-   plain text, so always pair the two: `class="b2b-field b2b-select"`.
-   React code should reach for the `Select` primitive instead
-   (`packages/admin-kit/src/ui/select.tsx`), which bundles both. */
-.b2b-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b636d' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  padding-right: 30px;
-}
-
 /* Checkbox */
 .b2b-cbx {
   appearance: none; width: 16px; height: 16px;
@@ -1109,51 +1005,9 @@ textarea.b2b-field {
 .b2b-switch input:checked + i { background: var(--primary-color); }
 .b2b-switch input:checked + i::before { transform: translateX(14px); }
 
-/* ============================================================
-   Card / surface
-   ============================================================ */
-/*
- * @deprecated — `.b2b-card`, `.b2b-card--clickable`, `.b2b-card__head`,
- * `__title`, `__sub`, `__body`, `__body--flush` and `__foot` (issue #1438,
- * DS-04; owner decision DEC-03). Render the kit's `Card` from
- * `@endora-commerce/admin-kit/ui` instead — `CardHeader`, `CardTitle`
- * (an `h2`), `CardContent`, `CardFooter`, and `<Card flush>` for a table.
- *
- * The classes stay published (D-219: their names are part of what a module
- * renders), and they read the same density tokens as `Card`, so the two
- * systems look alike before the code converges. They are removed only in a
- * release that says so.
- */
-.b2b-card {
-  background: var(--surface);
-  border: 1px solid var(--border-color);
-  border-radius: var(--r-lg);
-  box-shadow: var(--sh-1);
-}
-.b2b-card--clickable {
-  display: block;
-  cursor: pointer;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
-}
-.b2b-card--clickable:hover {
-  border-color: var(--border-strong, var(--fg-muted));
-  box-shadow: var(--sh-2, var(--sh-1));
-  transform: translateY(-1px);
-}
-.b2b-card__head {
-  padding: var(--card-pad-sm) var(--card-pad);
-  border-bottom: 1px solid var(--border-subtle);
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-}
-.b2b-card__title { font-size: var(--fs-section-title); font-weight: 600; color: var(--fg); }
-.b2b-card__sub { font-size: var(--fs-hint); color: var(--fg-muted); margin-top: 2px; }
-.b2b-card__body { padding: var(--card-pad); }
-.b2b-card__body--flush { padding: 0; }
-.b2b-card__foot {
-  padding: var(--card-pad-sm) var(--card-pad); border-top: 1px solid var(--border-subtle);
-  background: var(--surface-muted); border-radius: 0 0 var(--r-lg) var(--r-lg);
-  display: flex; align-items: center; justify-content: space-between;
-}
+/* `.b2b-card*` was retired in issue #1502 (SHELL-18) — render the kit's
+   `Card`, `CardHeader`, `CardTitle`, `CardContent`, `CardFooter` and
+   `<Card flush>` from `@endora-commerce/admin-kit/ui`. */
 
 /* ============================================================
    Badge / Pill / Status
@@ -1181,36 +1035,6 @@ textarea.b2b-field {
   content: ""; width: 6px; height: 6px; border-radius: 50%;
   background: currentColor; flex-shrink: 0;
 }
-
-/* ============================================================
-   Table
-   ============================================================ */
-.b2b-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
-.b2b-tbl thead th {
-  position: sticky; top: 0;
-  text-align: left;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--fg-muted);
-  background: var(--surface-muted);
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border-color);
-  height: 36px;
-  white-space: nowrap;
-  z-index: 2;
-}
-.b2b-tbl tbody td {
-  padding: 0 12px;
-  height: var(--row-h);
-  border-bottom: 1px solid var(--border-subtle);
-  color: var(--fg);
-  vertical-align: middle;
-}
-.b2b-tbl tbody tr { transition: background .08s; }
-.b2b-tbl tbody tr:hover { background: var(--surface-muted); }
-.b2b-tbl tbody tr:last-child td { border-bottom: none; }
 
 /* Empty state */
 .b2b-empty {
@@ -1319,8 +1143,6 @@ textarea.b2b-field {
 }
 .b2b-savebar__msg { font-size: 13px; flex: 1; }
 .b2b-savebar__msg b { color: #fff; }
-.b2b-savebar .b2b-btn--ghost { color: #d7d9dc; }
-.b2b-savebar .b2b-btn--ghost:hover { background: rgba(255,255,255,.06); color: #fff; }
 @keyframes b2b-slide-up {
   from { transform: translateY(8px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
@@ -1525,10 +1347,7 @@ textarea.b2b-field {
 /* ============================================================
    Misc helpers (used by in-scope pages)
    ============================================================ */
-.b2b-row { display: flex; align-items: center; gap: 12px; }
-.b2b-col { display: flex; flex-direction: column; gap: 8px; }
 .b2b-muted { color: var(--fg-muted); }
-.b2b-mono { font-family: var(--ff-mono); }
 
 .b2b-thumb {
   border-radius: var(--r-sm);
@@ -1648,10 +1467,8 @@ textarea.b2b-field {
   .b2b-lang-picker__label {
     display: none;
   }
-  .b2b-main button.b2b-btn,
   .b2b-main .b2b-topbar__icon-btn,
-  .b2b-main button[type="submit"],
-  .b2b-main a.b2b-btn {
+  .b2b-main button[type="submit"] {
     min-height: 44px;
     min-width: 44px;
   }
@@ -1683,15 +1500,6 @@ textarea.b2b-field {
   .b2b-grid--cols-2 {
     grid-template-columns: 1fr !important;
   }
-  .b2b-page .b2b-row:not(.b2b-kpi-grid) {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .b2b-page .b2b-row .b2b-field,
-  .b2b-page .b2b-row select.b2b-field {
-    max-width: none !important;
-    width: 100%;
-  }
   .b2b-impersonation-slot {
     flex-shrink: 0;
   }
@@ -1701,8 +1509,7 @@ textarea.b2b-field {
   .b2b-touch-reorder {
     display: flex;
   }
-  .b2b-table-wrap,
-  .b2b-tbl {
+  .b2b-table-wrap {
     display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -1762,7 +1569,6 @@ textarea.b2b-field {
   gap: 8px;
   margin-top: 4px;
 }
-.b2b-responsive-card__actions .b2b-btn,
 .b2b-responsive-card__actions button {
   min-height: 44px;
   min-width: 44px;
