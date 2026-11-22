@@ -14,6 +14,7 @@ import {
   bulkUpdateProductsRequestSchema,
   type ScopeWarning,
   resolveProductIdsRequestSchema,
+  adminProductListFiltersSchema,
   createAttributeRequestSchema,
   createAttributeSetRequestSchema,
   createCategoryRequestSchema,
@@ -641,12 +642,30 @@ export async function registerCatalogAdminRoutes(
           : undefined;
       const search = q['q']?.trim();
       const categorySlug = q['categorySlug']?.trim();
+      // Issue #1624 — category, channel and stock, the same filters `resolve-ids`
+      // takes, so "select all matching" selects what this page lists. An empty
+      // parameter is no filter; a malformed one is refused, never ignored.
+      const narrowing: Record<string, string> = {};
+      for (const key of ['categoryId', 'salesChannelId', 'stock'] as const) {
+        const value = q[key]?.trim();
+        if (value) narrowing[key] = value;
+      }
+      const filters = adminProductListFiltersSchema.safeParse(narrowing);
+      if (!filters.success) {
+        const field = String(filters.error.issues[0]?.path[0] ?? 'query');
+        throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `Invalid product list filter "${field}".`, {
+          field,
+        });
+      }
       const result = await adminService.listProducts({
         archived,
         ...(status ? { status } : {}),
         ...(type ? { type } : {}),
         ...(search ? { q: search } : {}),
         ...(categorySlug ? { categorySlug } : {}),
+        ...(filters.data.categoryId ? { categoryId: filters.data.categoryId } : {}),
+        ...(filters.data.salesChannelId ? { salesChannelId: filters.data.salesChannelId } : {}),
+        ...(filters.data.stock ? { stock: filters.data.stock } : {}),
         ...(q['page'] ? { page: Number.parseInt(q['page'], 10) } : {}),
         ...(q['pageSize'] ? { pageSize: Number.parseInt(q['pageSize'], 10) } : {}),
       });
@@ -662,6 +681,9 @@ export async function registerCatalogAdminRoutes(
           limit: result.items.length,
         },
         counts: result.counts,
+        // Issue #1624 — `false` while `inventory` is off: a `stock` filter would
+        // then be refused, so the admin does not offer it.
+        stockFilterAvailable: adminService.stockFilterAvailable(),
       };
     },
   );
@@ -682,6 +704,10 @@ export async function registerCatalogAdminRoutes(
         ...(body.status ? { status: body.status } : {}),
         ...(body.type ? { type: body.type } : {}),
         ...(body.q ? { q: body.q } : {}),
+        // Issue #1624 — the list's narrowing filters, applied by the same clause.
+        ...(body.categoryId ? { categoryId: body.categoryId } : {}),
+        ...(body.salesChannelId ? { salesChannelId: body.salesChannelId } : {}),
+        ...(body.stock ? { stock: body.stock } : {}),
       });
       return { data: result };
     },

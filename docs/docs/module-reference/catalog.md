@@ -47,6 +47,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `api_keys` | no | degrades-without `requireBoundApiKey` — the external catalog namespace stops accepting machine-to-machine callers |
 | `inventory` | no | degrades-without `inventoryAvailabilityPort` — product listings and the external catalog namespace stop carrying an availability band |
 | `inventory` | no | degrades-without `inventoryProductThresholdWritePort` — a duplicated product does not inherit the source’s per-warehouse low-stock thresholds |
+| `inventory` | no | refuses-without `inventoryStockReadPort` — the products list offers no stock filter, and a list or select-all that names one is refused |
 | `prompt_actions` | no | contributes-to `promptActionBulkProgressRegistry` |
 | `prompt_actions` | no | contributes-to `promptActionToolRegistry` |
 | `search` | no | degrades-without `searchQueryPort` — the storefront product listing is served from PostgreSQL instead of the search index |

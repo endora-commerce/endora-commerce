@@ -1,4 +1,4 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
+import type { EntityManager, Knex } from '@mikro-orm/postgresql';
 import { randomUUID } from 'crypto';
 import { LockMode, UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
@@ -18,6 +18,7 @@ import {
   type UpdateProductRequest,
   type ProductArchivedMode,
   type ProductStatus,
+  type ProductStockFilter,
   type ScopeCompletenessGateMode,
   type ScopeWarning,
   type UpdateVariantRequest,
@@ -82,6 +83,84 @@ export type CatalogWarehouseThresholdCopy = (input: {
   sourceProductId: string;
   targetProductId: string;
 }) => Promise<{ copied: number } | 'not-present'>;
+
+/**
+ * The admin products list's filters (feature 163, issue #1624), as
+ * {@link CatalogAdminService.listProducts} and
+ * {@link CatalogAdminService.resolveProductIds} take them.
+ */
+export interface AdminProductListQuery {
+  /**
+   * Feature 163 (FR-113, R30.4) — which archived products are listed, on
+   * `archived_at` and independently of the status. Default `exclude`.
+   */
+  archived?: ProductArchivedMode;
+  status?: ProductStatus;
+  type?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
+  q?: string;
+  /** Legacy: restrict to products in this category (by slug) or any descendant. */
+  categorySlug?: string;
+  /** Issue #1624 — restrict to products in this category or any descendant. */
+  categoryId?: string;
+  /** Issue #1624 — restrict to products bound to this sales channel. */
+  salesChannelId?: string;
+  /** Issue #1624 — the Inventory list's *Low stock* / *Out of stock*. */
+  stock?: ProductStockFilter;
+}
+
+/**
+ * A PostgreSQL array literal of uuids, bound as **one** parameter
+ * (`= any(?::uuid[])`), so a large id set never meets the driver's limit on
+ * bound parameters. Every element is a uuid read from the database.
+ */
+function uuidArrayLiteral(ids: Iterable<string>): string {
+  return `{${[...ids].join(',')}}`;
+}
+
+/**
+ * Issue #1624 — the stock filter as a `products` predicate, over `inventory`'s
+ * per-product on-hand totals. The Inventory list's definitions
+ * (`StockLevelService.listRoster`): *out* is a managed product whose cumulative
+ * on-hand is 0 or less; *low* is a managed product with a threshold whose
+ * cumulative on-hand is above 0 and at or below it. A product with no stock row
+ * is neither, as it is absent from the Inventory list.
+ */
+function stockStateClause(
+  state: ProductStockFilter,
+  totals: ReadonlyArray<{ productId: string; onHand: number }>,
+): { sql: string; bindings: string[] } {
+  if (state === 'out') {
+    return {
+      sql: '"products"."manage_stock" is not false and "products"."id" = any(?::uuid[])',
+      bindings: [uuidArrayLiteral(totals.filter((t) => t.onHand <= 0).map((t) => t.productId))],
+    };
+  }
+  const stocked = totals.filter((t) => t.onHand > 0);
+  return {
+    sql:
+      '"products"."manage_stock" is not false and "products"."low_stock_threshold" is not null and exists (' +
+      'select 1 from unnest(?::uuid[], ?::bigint[]) as s(product_id, on_hand) ' +
+      'where s.product_id = "products"."id" and s.on_hand <= "products"."low_stock_threshold")',
+    bindings: [
+      uuidArrayLiteral(stocked.map((t) => t.productId)),
+      `{${stocked.map((t) => String(Math.trunc(t.onHand))).join(',')}}`,
+    ],
+  };
+}
+
+/**
+ * Issue #1624 — what the admin products list's stock filter reads from `inventory`.
+ *
+ * `available()` is the presence probe the list answers as `stockFilterAvailable`,
+ * so the admin offers the filter only while it can be applied. `onHandTotals()`
+ * is the gated port call and is **not** probed: with `inventory` off it throws
+ * `ModuleDisabledError` (503), because a stock filter that is silently ignored
+ * would hand "select all matching" the whole catalogue (`refuses-without`).
+ */
+export interface CatalogStockFilterSource {
+  available(): boolean;
+  onHandTotals(): Promise<Array<{ productId: string; onHand: number }>>;
+}
 
 /**
  * Feature 174 (FR-119, T151) — `seo`'s product metadata copied at every scope a duplicate's
@@ -291,7 +370,18 @@ export class CatalogAdminService {
     private readonly assets?: LinkableAssetReader,
     /** Feature 174 (FR-119) — `seo`'s metadata copy for a duplicate, presence-decided by the wiring. */
     private readonly copySeoProductMeta?: CatalogSeoProductMetaCopy,
+    /**
+     * Issue #1624 — the admin list's stock filter. Optional so fixtures keep
+     * constructing the service; a stock filter without it fails loudly rather
+     * than being ignored.
+     */
+    private readonly stockFilter?: CatalogStockFilterSource,
   ) {}
+
+  /** Issue #1624 — whether the admin list can apply a stock filter right now. */
+  stockFilterAvailable(): boolean {
+    return this.stockFilter?.available() ?? false;
+  }
 
   #requireAssets(): LinkableAssetReader {
     if (!this.assets) {
@@ -1680,22 +1770,7 @@ export class CatalogAdminService {
 
   // --- Read methods (admin lists / detail) --------------------------------
 
-  async listProducts(
-    options: {
-      /**
-       * Feature 163 (FR-113, R30.4) — which archived products are listed, on
-       * `archived_at` and independently of the status. Default `exclude`.
-       */
-      archived?: ProductArchivedMode;
-      status?: ProductStatus;
-      type?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
-      q?: string;
-      /** When set, restrict to products in this category or any descendant. */
-      categorySlug?: string;
-      page?: number;
-      pageSize?: number;
-    } = {},
-  ): Promise<{
+  async listProducts(options: AdminProductListQuery & { page?: number; pageSize?: number } = {}): Promise<{
     items: Product[];
     page: number;
     pageSize: number;
@@ -1706,49 +1781,25 @@ export class CatalogAdminService {
     const page = Math.max(0, options.page ?? 0);
     const pageSize = Math.min(Math.max(1, options.pageSize ?? 20), 500);
     const archivedMode = options.archived ?? 'exclude';
-
-    // Feature 163 (R30.4) — the status and the archived mode are two independent
-    // filters: `status` reads the status column, `archived` reads `archived_at`.
-    const where: Record<string, unknown> = { deletedAt: null };
-    if (options.status) where['status'] = options.status;
-    if (archivedMode === 'exclude') where['archivedAt'] = null;
-    else if (archivedMode === 'only') where['archivedAt'] = { $ne: null };
-    if (options.type) {
-      where['type'] = options.type;
-    }
-
-    const categoryProductIds = options.categorySlug?.trim()
-      ? await this.productIdsInCategoryTree(em, options.categorySlug.trim())
-      : null;
-    if (categoryProductIds && categoryProductIds.size === 0) {
-      return { items: [], page, pageSize, total: 0, counts: await this.#productListCounts(em) };
-    }
-    if (categoryProductIds) {
-      where['id'] = { $in: [...categoryProductIds] };
-    }
+    const trimmedQ = options.q?.trim();
+    const narrowed =
+      Boolean(trimmedQ) ||
+      Boolean(options.categorySlug?.trim()) ||
+      options.categoryId !== undefined ||
+      options.salesChannelId !== undefined ||
+      options.stock !== undefined;
 
     let items: Product[];
     let total: number;
-    const trimmedQ = options.q?.trim();
-    if (trimmedQ || categoryProductIds) {
-      // Text search and/or category filter: page via knex, then re-hydrate.
+    if (narrowed) {
+      // Text search and/or a narrowing filter: page via knex, then re-hydrate.
+      const applyFilters = await this.#adminListFilters(em, options);
+      if (!applyFilters) {
+        return { items: [], page, pageSize, total: 0, counts: await this.#productListCounts(em) };
+      }
       const knex = em.getKnex();
       const baseQuery = knex('products').where((qb) => {
-        qb.whereNull('deleted_at');
-        if (options.status) qb.where('status', options.status);
-        if (archivedMode === 'exclude') qb.whereNull('archived_at');
-        else if (archivedMode === 'only') qb.whereNotNull('archived_at');
-        if (options.type) qb.where('type', options.type);
-        if (categoryProductIds) qb.whereIn('id', [...categoryProductIds]);
-        if (trimmedQ) {
-          const needle = `%${trimmedQ.toLowerCase()}%`;
-          qb.andWhere((inner) => {
-            inner
-              .whereRaw('LOWER("sku") LIKE ?', [needle])
-              .orWhereRaw('LOWER("slug") LIKE ?', [needle])
-              .orWhereRaw('LOWER("name"::text) LIKE ?', [needle]);
-          });
-        }
+        applyFilters(qb);
       });
       // Both pages run through `em.execute(builder)` rather than by awaiting
       // the builder: a knex handle carries no transaction context, so the page
@@ -1776,6 +1827,13 @@ export class CatalogAdminService {
         items = ids.map((id) => byId.get(id)).filter((p): p is Product => Boolean(p));
       }
     } else {
+      // Feature 163 (R30.4) — the status and the archived mode are two independent
+      // filters: `status` reads the status column, `archived` reads `archived_at`.
+      const where: Record<string, unknown> = { deletedAt: null };
+      if (options.status) where['status'] = options.status;
+      if (archivedMode === 'exclude') where['archivedAt'] = null;
+      else if (archivedMode === 'only') where['archivedAt'] = { $ne: null };
+      if (options.type) where['type'] = options.type;
       [items, total] = await em.findAndCount(Product, where, {
         orderBy: { createdAt: 'desc', id: 'desc' },
         offset: page * pageSize,
@@ -1784,6 +1842,86 @@ export class CatalogAdminService {
     }
 
     return { items, page, pageSize, total, counts: await this.#productListCounts(em) };
+  }
+
+  /**
+   * The admin list's filters as one clause, shared by {@link listProducts} and
+   * {@link resolveProductIds} so "select all matching" resolves exactly the rows
+   * the list shows (issue #1624 — the selection once ignored the category).
+   *
+   * Answers `null` when a filter is known to match nothing (an unknown or empty
+   * category), so the caller can skip the query.
+   *
+   * - **Category** — the category and its descendants, by id or by the legacy
+   *   slug; both given means both apply.
+   * - **Sales channel** — the kernel's membership subquery (Principle XII), placed
+   *   inside the statement so the page is cut after the channel narrows it.
+   * - **Stock** — `inventory`'s cumulative on-hand per product, compared with this
+   *   module's own `manage_stock` and `low_stock_threshold`, which is how the
+   *   Inventory list defines *Low stock* and *Out of stock*. With `inventory` off
+   *   the port's gate throws and the request answers 503: never ignored.
+   */
+  async #adminListFilters(
+    em: EntityManager,
+    options: AdminProductListQuery,
+  ): Promise<((qb: Knex.QueryBuilder) => void) | null> {
+    const archivedMode = options.archived ?? 'exclude';
+    const trimmedQ = options.q?.trim();
+
+    let categoryProductIds: Set<string> | null = null;
+    const categorySlug = options.categorySlug?.trim();
+    if (categorySlug) {
+      categoryProductIds = await this.productIdsInCategoryTree(em, categorySlug);
+    }
+    if (options.categoryId !== undefined) {
+      const byId = await this.#productIdsInCategoryTreeOf(
+        em,
+        await em.findOne(Category, { id: options.categoryId, deletedAt: null }),
+      );
+      categoryProductIds = categoryProductIds
+        ? new Set([...categoryProductIds].filter((id) => byId.has(id)))
+        : byId;
+    }
+    if (categoryProductIds && categoryProductIds.size === 0) return null;
+
+    let channelSubquery: { sql: string; params: string[] } | null = null;
+    if (options.salesChannelId !== undefined) {
+      if (!this.salesChannelMembership) {
+        throw new Error('CatalogAdminService: the channel membership accessor is not wired — a channel filter cannot be applied.');
+      }
+      channelSubquery = this.salesChannelMembership.entityIdsInChannelSubquery(options.salesChannelId, 'product');
+    }
+
+    let stockClause: { sql: string; bindings: string[] } | null = null;
+    if (options.stock !== undefined) {
+      if (!this.stockFilter) {
+        throw new Error('CatalogAdminService: the stock filter is not wired — a stock filter cannot be applied.');
+      }
+      stockClause = stockStateClause(options.stock, await this.stockFilter.onHandTotals());
+    }
+
+    return (qb) => {
+      // Mirror the list's base rules: soft-deleted rows are never listed or
+      // selectable; the status and the archived mode are independent filters
+      // (feature 163, R30.4).
+      qb.whereNull('deleted_at');
+      if (options.status) qb.where('status', options.status);
+      if (archivedMode === 'exclude') qb.whereNull('archived_at');
+      else if (archivedMode === 'only') qb.whereNotNull('archived_at');
+      if (options.type) qb.where('type', options.type);
+      if (categoryProductIds) qb.whereRaw('"products"."id" = any(?::uuid[])', [uuidArrayLiteral(categoryProductIds)]);
+      if (channelSubquery) qb.whereRaw(`"products"."id" in (${channelSubquery.sql})`, channelSubquery.params);
+      if (stockClause) qb.whereRaw(stockClause.sql, stockClause.bindings);
+      if (trimmedQ) {
+        const needle = `%${trimmedQ.toLowerCase()}%`;
+        qb.andWhere((inner) => {
+          inner
+            .whereRaw('LOWER("sku") LIKE ?', [needle])
+            .orWhereRaw('LOWER("slug") LIKE ?', [needle])
+            .orWhereRaw('LOWER("name"::text) LIKE ?', [needle]);
+        });
+      }
+    };
   }
 
   /**
@@ -1819,53 +1957,23 @@ export class CatalogAdminService {
 
   /**
    * Feature 033 — return all product ids matching list filters (no pagination).
-   * Reuses the same filter semantics as {@link listProducts}.
+   * The filters are {@link listProducts}' own clause ({@link #adminListFilters}).
    */
-  async resolveProductIds(
-    options: {
-      /** Feature 163 (R30.4) — as {@link listProducts}; the route's default is `include`. */
-      archived?: ProductArchivedMode;
-      status?: ProductStatus;
-      type?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
-      q?: string;
-    } = {},
-  ): Promise<{ productIds: string[]; total: number }> {
+  async resolveProductIds(options: AdminProductListQuery = {}): Promise<{ productIds: string[]; total: number }> {
     const maxSelectionSize = Number(process.env['CATALOG_MAX_RESOLVE_IDS'] ?? 10_000);
     const em = this.emFactory();
-    const trimmedQ = options.q?.trim();
     const knex = em.getKnex();
-    const archivedMode = options.archived ?? 'exclude';
-
-    const applyListFilters = (qb: ReturnType<typeof knex>): ReturnType<typeof knex> => {
-      // Mirror listProducts: soft-deleted rows are never selectable; the status
-      // and the archived mode are independent filters (feature 163, R30.4).
-      qb.whereNull('deleted_at');
-      if (options.status) {
-        qb.where('status', options.status);
-      }
-      if (archivedMode === 'exclude') qb.whereNull('archived_at');
-      else if (archivedMode === 'only') qb.whereNotNull('archived_at');
-      if (options.type) {
-        qb.where('type', options.type);
-      }
-      if (trimmedQ) {
-        const needle = `%${trimmedQ.toLowerCase()}%`;
-        qb.andWhere((inner) => {
-          inner
-            .whereRaw('LOWER("sku") LIKE ?', [needle])
-            .orWhereRaw('LOWER("slug") LIKE ?', [needle])
-            .orWhereRaw('LOWER("name"::text) LIKE ?', [needle]);
-        });
-      }
-      return qb;
-    };
+    const applyFilters = await this.#adminListFilters(em, options);
+    if (!applyFilters) return { productIds: [], total: 0 };
+    const filtered = (): Knex.QueryBuilder =>
+      knex('products').where((qb) => {
+        applyFilters(qb);
+      });
 
     // `em.execute(builder)`, not an awaited builder — see `listProducts`
     // (issue #207); the filters are assembled at runtime, so the builder stays
     // and `execute` supplies the EntityManager's transaction context.
-    const countRows = (await em.execute(
-      applyListFilters(knex('products')).clone().count('* as count'),
-    )) as Array<{ count: string | number }>;
+    const countRows = (await em.execute(filtered().count('* as count'))) as Array<{ count: string | number }>;
     const total = Number(countRows[0]?.count ?? 0);
 
     if (total > maxSelectionSize) {
@@ -1877,9 +1985,7 @@ export class CatalogAdminService {
       );
     }
 
-    const idRows = (await em.execute(
-      applyListFilters(knex('products')).clone().orderBy('created_at', 'desc').select('id'),
-    )) as Array<{ id: string }>;
+    const idRows = (await em.execute(filtered().orderBy('created_at', 'desc').select('id'))) as Array<{ id: string }>;
 
     const productIds = idRows.map((r) => r.id);
     return { productIds, total: productIds.length };
@@ -1912,7 +2018,10 @@ export class CatalogAdminService {
     em: EntityManager,
     categorySlug: string,
   ): Promise<Set<string>> {
-    const root = await em.findOne(Category, { slug: categorySlug, deletedAt: null });
+    return this.#productIdsInCategoryTreeOf(em, await em.findOne(Category, { slug: categorySlug, deletedAt: null }));
+  }
+
+  async #productIdsInCategoryTreeOf(em: EntityManager, root: Category | null): Promise<Set<string>> {
     if (!root) return new Set();
 
     const all: string[] = [root.id];
@@ -1928,8 +2037,8 @@ export class CatalogAdminService {
     }
 
     const rows = await em.execute<{ product_id: string }[]>(
-      `select product_id from product_categories where category_id in (${all.map(() => '?').join(',')})`,
-      all,
+      `select product_id from product_categories where category_id = any(?::uuid[])`,
+      [uuidArrayLiteral(all)],
     );
     return new Set(rows.map((r) => r.product_id));
   }

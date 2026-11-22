@@ -37,6 +37,7 @@ import {
   CatalogAdminService,
   type CatalogWarehouseThresholdCopy,
   type CatalogSeoProductMetaCopy,
+  type CatalogStockFilterSource,
   type CatalogEventBus,
 } from './services/catalog-admin.service.js';
 import { CatalogAttributeReadService } from './services/catalog-attribute-read.service.js';
@@ -235,6 +236,12 @@ export interface CatalogModuleOptions {
    */
   copySeoProductMeta?: CatalogSeoProductMetaCopy;
   /**
+   * Issue #1624 — the admin products list's stock filter over `inventory`'s
+   * on-hand totals. `refuses-without`: a stock filter while `inventory` is off
+   * answers 503 rather than being ignored.
+   */
+  stockFilter?: CatalogStockFilterSource;
+  /**
    * Feature 022 / 163 / 174 — the platform's languages: read by the value
    * resolver, the scope overview (the active languages of a product in no
    * channel) and the scoped-values read (each channel language's name).
@@ -424,6 +431,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       completenessGate,
       options.assets,
       options.copySeoProductMeta,
+      options.stockFilter,
     );
     // Feature 163 — scoped values per channel and channel × language. Needs the
     // membership accessor for FR-014 and the C4 warning, like the overrides.

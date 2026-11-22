@@ -521,6 +521,17 @@ export interface InventoryStockReadPort {
   unreleasedAllocationsForOrderItems(
     orderItemIds: readonly string[],
   ): Promise<Array<{ orderItemId: string; warehouseId: string; quantity: number }>>;
+  /**
+   * The cumulative on-hand of every product holding at least one stock row,
+   * summed across warehouses and variants — the figure the Inventory list's
+   * *Low stock* and *Out of stock* filters compare (issue #1624).
+   *
+   * Asked by `catalog`'s admin products list, which owns the other half of
+   * those definitions (whether a product manages stock, and its threshold) and
+   * may not read this module's tables. A product with no stock row is absent,
+   * as it is absent from the Inventory list.
+   */
+  onHandTotalsByProduct(): Promise<Array<{ productId: string; onHand: number }>>;
 }
 
 // --- the bulk import surface -------------------------------------------------

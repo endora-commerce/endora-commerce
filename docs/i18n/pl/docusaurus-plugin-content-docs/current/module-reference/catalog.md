@@ -47,6 +47,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `api_keys` | nie | degrades-without `requireBoundApiKey` — zewnętrzne API katalogu przestaje przyjmować wywołania od systemów zewnętrznych |
 | `inventory` | nie | degrades-without `inventoryAvailabilityPort` — listy produktów i zewnętrzne API katalogu przestają podawać przedział dostępności |
 | `inventory` | nie | degrades-without `inventoryProductThresholdWritePort` — zduplikowany produkt nie dziedziczy progów niskiego stanu magazynowego ze źródła |
+| `inventory` | nie | refuses-without `inventoryStockReadPort` — lista produktów nie oferuje filtra stanu magazynowego, a lista lub zaznaczenie wszystkich, które go podają, są odrzucane |
 | `prompt_actions` | nie | contributes-to `promptActionBulkProgressRegistry` |
 | `prompt_actions` | nie | contributes-to `promptActionToolRegistry` |
 | `search` | nie | degrades-without `searchQueryPort` — listy produktów w sklepie są pobierane z PostgreSQL zamiast z indeksu wyszukiwarki |

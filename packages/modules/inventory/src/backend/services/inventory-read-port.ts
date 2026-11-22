@@ -194,6 +194,18 @@ export class InventoryStockReadService implements InventoryStockReadPort {
       };
     });
   }
+
+  /**
+   * Issue #1624 — the per-product sum the Inventory list's low / out filters
+   * compare, for `catalog`'s products list to apply the same definitions. The
+   * statement is the landing KPIs' own (`StockLevelService.getKpis`).
+   */
+  async onHandTotalsByProduct(): Promise<Array<{ productId: string; onHand: number }>> {
+    const rows = (await this.emFactory().execute(
+      `select product_id, sum(on_hand) as on_hand from stock_levels group by product_id`,
+    )) as Array<{ product_id: string; on_hand: string | number | null }>;
+    return rows.map((row) => ({ productId: row.product_id, onHand: Number(row.on_hand ?? 0) }));
+  }
 }
 
 export function toWarehouseRecord(warehouse: Warehouse): WarehouseRecord {

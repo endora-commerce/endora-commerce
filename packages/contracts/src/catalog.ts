@@ -878,10 +878,40 @@ export const MAX_RESOLVE_SELECTION_SIZE = 10_000;
 export const productArchivedModeSchema = z.enum(['exclude', 'include', 'only']);
 export type ProductArchivedMode = z.infer<typeof productArchivedModeSchema>;
 
+/**
+ * Issue #1624 — the admin products list's stock filter, with the Inventory
+ * list's two definitions: `out` is a product whose stock is managed and whose
+ * cumulative on-hand is 0 or less; `low` is one whose stock is managed, which
+ * has a low-stock threshold, and whose cumulative on-hand is above 0 and at or
+ * below it. Both read only products that hold a stock row.
+ */
+export const productStockFilterSchema = z.enum(['low', 'out']);
+export type ProductStockFilter = z.infer<typeof productStockFilterSchema>;
+
+/**
+ * Issue #1624 — the narrowing filters the admin products list
+ * (`GET /api/v1/admin/catalog/products`, as query parameters) and its selection
+ * (`POST …/products/resolve-ids`, in the body) share, so "select all matching"
+ * resolves exactly the products the filtered list shows.
+ *
+ * - `categoryId` — the category and every descendant;
+ * - `salesChannelId` — products bound to that channel;
+ * - `stock` — {@link productStockFilterSchema}. Refused with `503
+ *   MODULE_DISABLED` while `inventory` is off, never ignored; the list answers
+ *   `stockFilterAvailable: false` beside its page so a client does not offer it.
+ */
+export const adminProductListFiltersSchema = z.object({
+  categoryId: uuidSchema.optional(),
+  salesChannelId: uuidSchema.optional(),
+  stock: productStockFilterSchema.optional(),
+});
+export type AdminProductListFilters = z.infer<typeof adminProductListFiltersSchema>;
+
 export const resolveProductIdsRequestSchema = z.object({
   status: productStatusSchema.optional(),
   type: productTypeSchema.optional(),
   q: z.string().trim().min(1).optional(),
+  ...adminProductListFiltersSchema.shape,
   /** Legacy: `true` means `archived: 'include'`. `archived` wins when both are sent. */
   includeArchived: z.boolean().optional(),
   /** Feature 163 (R30.4) — absent: `includeArchived`, else `include`, as before. */

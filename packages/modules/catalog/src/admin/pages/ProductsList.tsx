@@ -20,12 +20,15 @@ import type { ProductLabel } from '../lib/product-labels.js';
 import { ArchivedPill, ProductStatusPill } from '../components/ProductStatusPills.js';
 import {
   BULK_EDIT_HARD_MAX,
+  productListNarrowing,
   productListTabFromUrl,
   productListTabQuery,
   resolveProductSelection,
   type ListFilterSnapshot,
+  type ProductListStockFilter,
   type ProductListTab,
 } from '../lib/resolve-product-selection.js';
+import { pickLocalized } from '../lib/scope-overview.js';
 import { ApiError, apiClient, formatDate, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import {
@@ -91,6 +94,86 @@ function emptySelection(): ProductListSelection {
 }
 
 const TYPE_OPTIONS: TypeFilter[] = ['all', 'simple', 'configurable', 'grouped', 'bundle', 'virtual'];
+const STOCK_OPTIONS: readonly ProductListStockFilter[] = ['low', 'out'];
+
+/** A category as `GET /admin/catalog/categories` lists it — the fields the filter reads. */
+interface CategoryOptionSource {
+  id: string;
+  parentCategoryId: string | null;
+  name: Record<string, string>;
+  sortOrder: number;
+}
+
+/** A sales channel as `GET /admin/sales-channels` lists it. */
+interface ChannelOptionSource {
+  id: string;
+  code: string;
+  name: Record<string, string> | string;
+}
+
+/**
+ * The category tree as one flat option list, each child under its parent and
+ * indented by its depth (issue #1624), whatever order the API answers in. A
+ * category whose parent is not in the list is shown as a root.
+ */
+export function categoryFilterOptions(
+  categories: readonly CategoryOptionSource[],
+  language: string,
+): Array<{ id: string; label: string }> {
+  const known = new Set(categories.map((c) => c.id));
+  const childrenOf = new Map<string | null, CategoryOptionSource[]>();
+  for (const c of categories) {
+    const parent = c.parentCategoryId !== null && known.has(c.parentCategoryId) ? c.parentCategoryId : null;
+    childrenOf.set(parent, [...(childrenOf.get(parent) ?? []), c]);
+  }
+  const out: Array<{ id: string; label: string }> = [];
+  const walk = (parent: string | null, depth: number): void => {
+    const level = [...(childrenOf.get(parent) ?? [])].sort(
+      (a, b) =>
+        a.sortOrder - b.sortOrder ||
+        pickLocalized(a.name, language).localeCompare(pickLocalized(b.name, language), language),
+    );
+    for (const c of level) {
+      out.push({ id: c.id, label: `${'\u2014 '.repeat(depth)}${pickLocalized(c.name, language)}` });
+      walk(c.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return out;
+}
+
+/** An answer that is not a category list is no category list (the select is left out). */
+function categorySources(value: unknown): CategoryOptionSource[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (c): c is CategoryOptionSource =>
+      typeof c === 'object' &&
+      c !== null &&
+      typeof (c as CategoryOptionSource).id === 'string' &&
+      'parentCategoryId' in c &&
+      typeof (c as CategoryOptionSource).name === 'object',
+  );
+}
+
+function channelSources(value: unknown): ChannelOptionSource[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (c): c is ChannelOptionSource =>
+      typeof c === 'object' &&
+      c !== null &&
+      typeof (c as ChannelOptionSource).id === 'string' &&
+      typeof (c as ChannelOptionSource).code === 'string',
+  );
+}
+
+function channelOptionLabel(channel: ChannelOptionSource, language: string): string {
+  const name = typeof channel.name === 'string' ? channel.name : pickLocalized(channel.name, language);
+  return name || channel.code;
+}
+
+function isStockFilter(value: unknown): value is ProductListStockFilter {
+  return value === 'all' || (typeof value === 'string' && (STOCK_OPTIONS as readonly string[]).includes(value));
+}
 
 /**
  * Products list (feature 008).
@@ -101,18 +184,21 @@ const TYPE_OPTIONS: TypeFilter[] = ['all', 'simple', 'configurable', 'grouped', 
  * appears when rows are selected. Table view only — the grid variant
  * was explicitly out of scope for this redesign.
  *
- * Issue #1455 (CAT-02) removed every control that looked live and was not:
- * the Category and Channel chips (no handler — the list's selection resolver
- * cannot narrow by either yet), the Stock chip (it emptied the list whatever
- * was in stock — the list payload carries no stock; the Inventory list filters
- * by it), the always-disabled *Edit price*, and a per-row "more" icon that
- * opened nothing. A control that looks like the working ones must work like
- * them (Law of Similarity).
+ * Issue #1455 (CAT-02) removed every control that looked live and was not,
+ * among them the Category, Channel and Stock chips. Issue #1624 brings the three
+ * back as real filters: labelled selects whose values the list endpoint applies
+ * and "select all matching" resolves under, so a bulk action never reaches a
+ * product the filtered list did not show. The Channel select appears only when
+ * there is a choice to make; the Stock select only while the list says the
+ * filter can be applied (`stockFilterAvailable` — false while the inventory
+ * module is off).
  */
 interface ProductsResponse {
   data: AdminProduct[];
   pagination: { page: number; pageSize: number; total: number };
   counts: ProductListCounts;
+  /** Issue #1624 — whether a `stock` filter would be applied (false while inventory is off). */
+  stockFilterAvailable?: boolean;
 }
 
 /** `all` / `active` / `inactive` count non-archived products. */
@@ -180,6 +266,13 @@ export function ProductsList(): ReactNode {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the navigation itself
   }, [location.key]);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  // Issue #1624 — `''` / `all` is no filter.
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [channelFilter, setChannelFilter] = useState('');
+  const [stockFilter, setStockFilter] = useState<ProductListStockFilter>('all');
+  const [stockFilterAvailable, setStockFilterAvailable] = useState(false);
+  const [categories, setCategories] = useState<CategoryOptionSource[]>([]);
+  const [channels, setChannels] = useState<ChannelOptionSource[]>([]);
   // A saved view that held the removed `draft` status opens on All (owner P-2 → A);
   // said once, when it is applied, until the operator picks a tab or dismisses it.
   const [legacyDraftView, setLegacyDraftView] = useState(false);
@@ -227,6 +320,11 @@ export function ProductsList(): ReactNode {
       if (typeFilter !== 'all') params.set('type', typeFilter);
       const trimmed = debouncedQuery.trim();
       if (trimmed) params.set('q', trimmed);
+      for (const [key, value] of Object.entries(
+        productListNarrowing({ categoryId: categoryFilter, salesChannelId: channelFilter, stock: stockFilter }),
+      )) {
+        params.set(key, value);
+      }
       params.set('page', String(page));
       params.set('pageSize', String(pageSize));
       const res = await apiClient.get<ProductsResponse>(
@@ -235,23 +333,54 @@ export function ProductsList(): ReactNode {
       setRows(res.data);
       setTotal(res.pagination.total);
       setCounts(res.counts);
+      setStockFilterAvailable(res.stockFilterAvailable === true);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('productsList.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, typeFilter, debouncedQuery, page, pageSize, t]);
+  }, [statusFilter, typeFilter, categoryFilter, channelFilter, stockFilter, debouncedQuery, page, pageSize, t]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Issue #1624 — the options of the Category and Channel filters, read once.
+  // A list that cannot be read leaves its select out rather than empty.
+  useEffect(() => {
+    let cancelled = false;
+    void (async (): Promise<void> => {
+      const [categoryRes, channelRes] = await Promise.all([
+        apiClient
+          .get<{ data?: unknown }>('/api/v1/admin/catalog/categories')
+          .catch((): { data?: unknown } => ({})),
+        // The sales-channels list answers `{ items }`, not `{ data }`.
+        apiClient
+          .get<{ items?: unknown }>('/api/v1/admin/sales-channels')
+          .catch((): { items?: unknown } => ({})),
+      ]);
+      if (cancelled) return;
+      setCategories(categorySources(categoryRes?.data));
+      setChannels(channelSources(channelRes?.items));
+    })();
+    return (): void => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A stock filter the list can no longer apply is dropped, not kept invisible.
+  useEffect(() => {
+    if (!loading && !stockFilterAvailable && stockFilter !== 'all') setStockFilter('all');
+  }, [loading, stockFilterAvailable, stockFilter]);
+
+  const categoryOptions = useMemo(() => categoryFilterOptions(categories, language), [categories, language]);
 
   // Reset to the first page whenever the result-shaping inputs change so
   // the user never lands on an out-of-range page. Page-size, status, type,
   // and the (debounced) text query all reshape the result set.
   useEffect(() => {
     setPage(0);
-  }, [statusFilter, typeFilter, debouncedQuery, pageSize]);
+  }, [statusFilter, typeFilter, categoryFilter, channelFilter, stockFilter, debouncedQuery, pageSize]);
 
   // Feature 033 — changing filters invalidates collection-wide selection (FR-006).
   useEffect(() => {
@@ -259,10 +388,10 @@ export function ProductsList(): ReactNode {
     setBulkEditOpen(false);
     setBulkEditProductIds([]);
     setSelectionError(null);
-  }, [statusFilter, typeFilter, debouncedQuery]);
+  }, [statusFilter, typeFilter, categoryFilter, channelFilter, stockFilter, debouncedQuery]);
 
-  // Feature 147 (#289): a saved view stores status, type and search — the
-  // list's only filters (FR-010).
+  // Feature 147 (#289): a saved view stores the list's filters (FR-010) —
+  // status, type and search, and since issue #1624 category, channel and stock.
   const toSavedViewState = (): SavedViewState => {
     const trimmed = query.trim();
     return {
@@ -270,6 +399,7 @@ export function ProductsList(): ReactNode {
         ...savedViewTabFilters(statusFilter),
         ...(typeFilter !== 'all' ? { type: typeFilter } : {}),
         ...(trimmed ? { q: trimmed } : {}),
+        ...productListNarrowing({ categoryId: categoryFilter, salesChannelId: channelFilter, stock: stockFilter }),
       },
     };
   };
@@ -285,6 +415,9 @@ export function ProductsList(): ReactNode {
     setStatusFilter(savedViewTab(f));
     setLegacyDraftView(f['status'] === 'draft');
     setTypeFilter(isTypeFilter(f['type']) ? f['type'] : 'all');
+    setCategoryFilter(typeof f['categoryId'] === 'string' ? f['categoryId'] : '');
+    setChannelFilter(typeof f['salesChannelId'] === 'string' ? f['salesChannelId'] : '');
+    setStockFilter(isStockFilter(f['stock']) ? f['stock'] : 'all');
     setQuery(q);
     setDebouncedQuery(q);
     setPage(0);
@@ -297,8 +430,11 @@ export function ProductsList(): ReactNode {
       status: statusFilter,
       type: typeFilter,
       q: debouncedQuery,
+      categoryId: categoryFilter,
+      salesChannelId: channelFilter,
+      stock: stockFilter,
     }),
-    [statusFilter, typeFilter, debouncedQuery],
+    [statusFilter, typeFilter, debouncedQuery, categoryFilter, channelFilter, stockFilter],
   );
 
   const filtered = rows;
@@ -307,11 +443,19 @@ export function ProductsList(): ReactNode {
   // filters match nothing", and the two send the operator different ways. The
   // status strip is a set of tabs, not a filter: an empty tab says which status
   // it holds, and *Clear filters* resets the search and the type, never the tab.
-  const filtersActive = debouncedQuery.trim() !== '' || typeFilter !== 'all';
+  const filtersActive =
+    debouncedQuery.trim() !== '' ||
+    typeFilter !== 'all' ||
+    categoryFilter !== '' ||
+    channelFilter !== '' ||
+    stockFilter !== 'all';
   const clearFilters = (): void => {
     setQuery('');
     setDebouncedQuery('');
     setTypeFilter('all');
+    setCategoryFilter('');
+    setChannelFilter('');
+    setStockFilter('all');
   };
   const searchRef = useRef<HTMLInputElement>(null);
   const restoreFromBar = canWrite && statusFilter === 'archived';
@@ -577,21 +721,66 @@ export function ProductsList(): ReactNode {
               />
             }
             filters={
-              // A labelled select, not a chip that cycles through six values on
-              // each press: the operator sees every type and picks one (Jakob's Law).
-              <Select
-                aria-label={t('productsList.filter.type')}
-                value={typeFilter === 'all' ? '' : typeFilter}
-                onChange={(e): void => setTypeFilter(isTypeFilter(e.target.value) ? e.target.value : 'all')}
-                className="w-auto"
-              >
-                <option value="">{t('productsList.filter.typeAll')}</option>
-                {TYPE_OPTIONS.filter((type) => type !== 'all').map((type) => (
-                  <option key={type} value={type}>
-                    {t(`productEditor.type.${type}`)}
-                  </option>
-                ))}
-              </Select>
+              <>
+                {/* Labelled selects, not chips that cycle through values on each
+                    press: the operator sees every option and picks one (Jakob's Law). */}
+                <Select
+                  aria-label={t('productsList.filter.type')}
+                  value={typeFilter === 'all' ? '' : typeFilter}
+                  onChange={(e): void => setTypeFilter(isTypeFilter(e.target.value) ? e.target.value : 'all')}
+                  className="w-auto"
+                >
+                  <option value="">{t('productsList.filter.typeAll')}</option>
+                  {TYPE_OPTIONS.filter((type) => type !== 'all').map((type) => (
+                    <option key={type} value={type}>
+                      {t(`productEditor.type.${type}`)}
+                    </option>
+                  ))}
+                </Select>
+                {categoryOptions.length > 0 ? (
+                  <Select
+                    aria-label={t('productsList.filter.category')}
+                    value={categoryFilter}
+                    onChange={(e): void => setCategoryFilter(e.target.value)}
+                    className="w-auto max-w-[16rem]"
+                  >
+                    <option value="">{t('productsList.filter.categoryAll')}</option>
+                    {categoryOptions.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </Select>
+                ) : null}
+                {/* One channel is no choice (Hick's Law); a saved view's channel still shows. */}
+                {channels.length > 1 || channelFilter !== '' ? (
+                  <Select
+                    aria-label={t('productsList.filter.channel')}
+                    value={channelFilter}
+                    onChange={(e): void => setChannelFilter(e.target.value)}
+                    className="w-auto"
+                  >
+                    <option value="">{t('productsList.filter.channelAll')}</option>
+                    {channels.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {channelOptionLabel(c, language)}
+                      </option>
+                    ))}
+                  </Select>
+                ) : null}
+                {stockFilterAvailable ? (
+                  <Select
+                    aria-label={t('productsList.filter.stock')}
+                    value={stockFilter === 'all' ? '' : stockFilter}
+                    onChange={(e): void => setStockFilter(isStockFilter(e.target.value) ? e.target.value : 'all')}
+                    className="w-auto"
+                  >
+                    <option value="">{t('productsList.filter.stockAll')}</option>
+                    <option value="low">{t('productsList.filter.stockLow')}</option>
+                    <option value="out">{t('productsList.filter.stockOut')}</option>
+                  </Select>
+                ) : null}
+              </>
             }
             actions={
               <SavedViewsControl
