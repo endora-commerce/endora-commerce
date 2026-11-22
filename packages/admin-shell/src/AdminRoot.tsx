@@ -10,10 +10,17 @@
  * sharpest: every module screen is `lazy()` inside `ModuleRoute`, and React
  * Router 7's default `startTransition` update leaves `useLocation()` on the
  * previous module while `history` has already moved, so the URL changes and the
- * outlet does not. A project that mounts `<BrowserRouter>` without
+ * outlet does not. A project that mounts a router without
  * `useTransitions={false}` gets an admin whose sidebar navigates
  * nowhere, with no error anywhere — and until this component existed, every
  * instance's `main.tsx` had to carry that flag from memory.
+ *
+ * The router is a **data router** (`createBrowserRouter`, issue #1605), not a
+ * component `<BrowserRouter>`: only a data router offers a blocker, and the
+ * blocker is what lets the unsaved-changes guard ask before the browser's Back
+ * / Forward leaves a dirty screen. The whole app is the element of one splat
+ * route, so the shell's own `<Routes>` stay descendant routes and match, link
+ * and resolve relative paths exactly as they did.
  *
  * R1.4 is the second reason and it is a bound rather than a preference: the
  * wiring `endora new instance` writes is capped, and a client's entry point is
@@ -28,8 +35,8 @@
  * stay exported for a project composing its own tree; this is the default, not
  * the only door.
  */
-import { StrictMode, type ReactNode } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { StrictMode, useLayoutEffect, useState, type ReactNode } from 'react';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 import { App } from './App.js';
 import { AuthProvider } from '@endora-commerce/admin-kit/lib';
@@ -79,8 +86,34 @@ function bundleBase(): string | undefined {
   return (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL;
 }
 
+type AdminRouter = ReturnType<typeof createBrowserRouter>;
+
 export function AdminRoot({ contributions, basename }: AdminRootProps): ReactNode {
   const under = basename ?? routerBasename(bundleBase());
+  // A data router listens to `history` from the moment it is created, so it is created in an
+  // effect and disposed in its cleanup — never in render, where a discarded render would leave
+  // a second router listening. A layout effect, so the first paint already has the router.
+  const [router, setRouter] = useState<AdminRouter | null>(null);
+  useLayoutEffect(() => {
+    const created = createBrowserRouter(
+      [
+        {
+          path: '*',
+          element: (
+            <AuthProvider>
+              <App contributions={contributions} />
+            </AuthProvider>
+          ),
+        },
+      ],
+      under === undefined ? {} : { basename: under },
+    );
+    setRouter(created);
+    return (): void => {
+      created.dispose();
+    };
+  }, [contributions, under]);
+  if (router === null) return null;
   return (
     <StrictMode>
       {/*
@@ -93,11 +126,7 @@ export function AdminRoot({ contributions, basename }: AdminRootProps): ReactNod
         spelling at runtime, which is why the peer floor is past the rename;
         `admin/test/components/AdminRoot.transitions.test.tsx` holds it.
       */}
-      <BrowserRouter useTransitions={false} {...(under === undefined ? {} : { basename: under })}>
-        <AuthProvider>
-          <App contributions={contributions} />
-        </AuthProvider>
-      </BrowserRouter>
+      <RouterProvider router={router} useTransitions={false} />
     </StrictMode>
   );
 }

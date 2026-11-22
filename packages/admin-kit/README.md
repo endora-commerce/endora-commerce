@@ -310,7 +310,8 @@ const guard = useUnsavedChangesGuard({ dirty, onSave: save, onDiscard: reset });
 
 - **What it intercepts**: `beforeunload` (the browser's own prompt — it cannot be replaced); every
   same-origin link click, the sidebar and Back links included, in the capture phase before React
-  Router; with `guardTabsOutside`, a `role="tab"` outside the given element; and whatever the screen
+  Router; the browser's Back / Forward to another screen (#1605); with `guardTabsOutside`, a
+  `role="tab"` outside the given element; and whatever the screen
   routes through **`confirm(action)`** — its own `navigate()` calls and any in-screen switch that
   would reload over the draft (a channel or a language select).
 - **What it asks**: *Save and continue* (the one primary action; the navigation goes ahead only if
@@ -325,9 +326,11 @@ const guard = useUnsavedChangesGuard({ dirty, onSave: save, onDiscard: reset });
   draw a second dialog for the switch.
 - **The blocked link or tab is replayed**, not re-routed: the same element is clicked again with the
   guard stood down, so the guard needs no router and keeps whatever the link does.
-- **Not interceptable here**: Back / Forward. The admin mounts a component `<BrowserRouter>`, not a
-  data router, so React Router's `useBlocker` is unavailable; that would take moving `AdminRoot` to
-  `createBrowserRouter`.
+- **Back / Forward** go through React Router's blocker, which only a data router has: `AdminRoot`
+  mounts `createBrowserRouter`. Under a component router (a project's own `<BrowserRouter>`, a
+  test's `<MemoryRouter>`) the guard skips them and the browser's behaviour stays. A history step
+  that changes only the query stays on the screen and is the screen's to ask about (the product
+  editor's scope switch does, through `confirm`).
 - **`dirty` is the draft against the last saved version**, never "the operator typed something":
   compare what a save would send, so a canvas that re-emits an equal tree, or a field typed and
   cleared again, is not an edit.
