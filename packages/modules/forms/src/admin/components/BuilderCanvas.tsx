@@ -161,7 +161,7 @@ export function BuilderCanvas(props: BuilderCanvasProps): ReactNode {
               hook.onDrop(event);
             }}
           >
-            <CardHeader className="flex-row flex-wrap items-center gap-2 space-y-0 border-b border-border px-4 py-3">
+            <CardHeader className="flex-row flex-wrap items-center gap-2 space-y-0 border-b border-border py-(--card-pad-sm)">
               <button
                 {...reorder.getSectionHandleProps(section.id)}
                 className="inline-flex h-9 w-7 cursor-grab items-center justify-center rounded text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
@@ -226,7 +226,7 @@ export function BuilderCanvas(props: BuilderCanvasProps): ReactNode {
                 </Button>
               ) : null}
             </CardHeader>
-            <CardContent className="space-y-3 p-4">
+            <CardContent className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 <TranslatableText
                   id={titleId}

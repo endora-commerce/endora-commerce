@@ -187,7 +187,7 @@ export function NotificationsPanel(props: NotificationsPanelProps): ReactNode {
 
   return (
     <Card>
-      <CardContent className="space-y-6 p-6">
+      <CardContent className="space-y-6">
         {translating ? (
           <p className="flex items-start gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
             <Lock size={14} aria-hidden="true" className="mt-0.5 shrink-0" />

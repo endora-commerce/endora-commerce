@@ -146,7 +146,7 @@ export function EntryDetailPage(): ReactNode {
         </div>
         <div className="space-y-4">
           <Card>
-            <CardContent className="space-y-2 p-4">
+            <CardContent className="space-y-2">
               {canWrite ? (
                 <div className="space-y-1">
                   <Label htmlFor={statusId}>{t('entry.status')}</Label>

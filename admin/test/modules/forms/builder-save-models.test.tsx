@@ -212,4 +212,16 @@ describe('FormBuilderPage — the content-language bar (CONTENT-22)', () => {
     const locked = screen.getByText(en('language.structureLocked', { language: 'pl-PL', default: LANGUAGE }));
     expect(bar!.contains(locked)).toBe(true);
   });
+
+  it('is page state over every tab, so its tabs name no panel (issue #1445, DS-12)', async () => {
+    renderForms(<FormBuilderPage />, { path: `/forms/${FORM_ID}`, pattern: '/forms/:id' });
+    const strip = await screen.findByRole('tablist', { name: 'Content language' });
+    // The language switches the fields, settings and notifications tabs alike: there is no one
+    // panel to name, and a tab naming one that is not there would mislead (ContentLanguageTabs' `idBase`).
+    const tabs = within(strip).getAllByRole('tab');
+    expect(tabs).toHaveLength(2);
+    for (const tab of tabs) expect(tab.hasAttribute('aria-controls')).toBe(false);
+    // One tab in the tab order (roving tabindex), as on every kit strip.
+    expect(tabs.filter((tab) => tab.getAttribute('tabindex') === '0')).toHaveLength(1);
+  });
 });
