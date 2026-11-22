@@ -28,6 +28,7 @@ import {
   CrmStatusPropagation,
   CrmTag,
   CrmValueCountingStatus,
+  CrmOpportunityListSavedView,
 } from '../../helpers/package-entities.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { createCrmOpportunity } from '../../helpers/seed-crm.js';
@@ -50,8 +51,8 @@ const TABLES = [
   'crm_opportunity_attachments',
   'crm_opportunity_comments',
   'crm_opportunity_events',
-  'crm_opportunity_list_saved_views',
   'crm_opportunity_links',
+  'crm_opportunity_list_saved_views',
   'crm_opportunity_message_reads',
   'crm_opportunity_references',
   'crm_opportunity_status_history',
@@ -394,6 +395,7 @@ describe('crm init migration', () => {
       CrmStatusPropagation,
       CrmTag,
       CrmValueCountingStatus,
+      CrmOpportunityListSavedView,
     ];
     expect(classes).toHaveLength(TABLES.length);
     const em = h.em();
