@@ -32,12 +32,18 @@
  * 160 made it 14: deleting the old price-list screens left `b2b-badge--info`
  * unrendered until P2's price-book editor.
  *
- * The other 11 entries are not `b2b-*` at all and are outside D-219's headline
+ * The other 10 entries are not `b2b-*` at all and are outside D-219's headline
  * count for a reason each names: a class a third-party library renders, a class
  * the application sets on `document`, or a descendant selector whose block has
  * no live renderer. (13 until issue #1494 deleted the page-builder header's
  * two DOM-injected slots, `cms-pb-header-left` and `cms-pb-header-leading`,
- * together with the portal that created them.)
+ * together with the portal that created them; `lead` and `trail` went when
+ * issue #1502 deleted the legacy field's icon wrapper, `b2b-input-wrap`.)
+ *
+ * Issue #1502 (UX audit slice S17) is the first drain of the `b2b-*` half: the
+ * card, button, field, label, help, select, table and row/column/mono helpers
+ * lost their last renderer in issue #1492 and were deleted from `theme.css`
+ * rather than carried.
  */
 export type UnrenderedClassLedger = Readonly<Record<string, string>>;
 
@@ -53,76 +59,30 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
   'b2b-badge--outline':
     'the count badge the product browser\'s status tabs rendered until issue #1445 moved them to the kit `Tabs`, whose count is `b2b-badge`; catalog `ProductStatusPills` still names it inside a tone ternary the check does not read as a render',
   'b2b-badge--solid': 'a badge variant no screen renders; drains with the badge vocabulary',
-  'b2b-btn':
-    'the legacy button the product editor\'s Save, its field menus and the new-product form rendered until issue #1492 (UX audit slice S15) moved them to the kit `Button`; the last renderer',
-  'b2b-btn--default':
-    'the outline button the last screens rendered until issue #1492 moved them to the kit `Button variant="outline"`',
-  'b2b-btn--ghost':
-    'the ghost button the product editor\'s field menu rendered until issue #1492 (UX audit slice S15); the kit `Button variant="ghost"` replaces it',
-  'b2b-btn--lg': 'a button size no screen renders; the tree uses the default and `--sm`',
-  'b2b-btn--primary':
-    'the primary button the product editor\'s Save and the new-product form rendered until issue #1492 (UX audit slice S15); the kit `Button` (default variant) replaces it',
-  'b2b-btn--sm':
-    'the small button the bulk operations screens rendered until issue #1492 (UX audit slice S14) moved them to the kit `Button size="sm"`',
-  'b2b-card':
-    'the card the new-product form rendered until issue #1492 (UX audit slice S15) (#1502: its last renderer) moved it to the kit `Card`; slice S17 deletes the block',
-  'b2b-card--clickable':
-    'the whole-card link the Home KPI tiles rendered until issue #1492 moved them to the kit `Card` with a `Link` inside',
-  'b2b-card__body':
-    'the card body the new-product form rendered until issue #1492 (UX audit slice S15); the kit `CardContent` replaces it',
-  'b2b-card__body--flush':
-    'the flush card body the Home cards rendered until issue #1492; the kit `<Card flush>` replaces it',
-  'b2b-card__foot':
-    'the card footer band `PaginationFooter` rendered until issue #1492 drew it in Tailwind from the same tokens; the kit `CardFooter` is the primitive',
-  'b2b-card__head':
-    'the card header the Home cards rendered until issue #1492; the kit `CardHeader` replaces it',
-  'b2b-card__sub':
-    'the card subtitle the Home activity card rendered until issue #1492; the kit `CardDescription` replaces it',
-  'b2b-card__title':
-    'the card title the Home cards rendered until issue #1492; the kit `CardTitle` (an `h2`) replaces it',
   'b2b-cbx':
     'the checkbox skin the bulk edit dialog rendered until issue #1492 (UX audit slice S14) moved it to the kit `Checkbox`',
-  'b2b-col':
-    'the column stack the product editor\'s scope map and the new-product form rendered until issue #1492 (UX audit slice S15); Tailwind `flex flex-col gap-*` replaces it',
-  'b2b-field':
-    'the text-area skin the new-product form rendered until issue #1492 (UX audit slice S15); the kit `Textarea` replaces it',
-  'b2b-field--addon':
-    'the search field with a leading icon the product browser rendered until issue #1492; the toolbar\'s `ListToolbarSearch` replaces it',
   'b2b-filterbar':
     'the filter bar the product browser rendered until issue #1492 moved it to Tailwind and `ListToolbarSearch`; the kit `ListToolbar` is the primitive',
   'b2b-filterbar__search': 'the search slot of `b2b-filterbar`, which nothing renders',
   'b2b-grid--cols-2':
     'the two-column form grid the profile screen rendered until issue #1437 moved it to a Tailwind `grid`; no other screen renders it',
-  'b2b-help':
-    'the help-text helper the product editor rendered until issue #1492 (UX audit slice S15); Tailwind `text-xs text-muted-foreground` and the kit `FormField` hint replace it',
   'b2b-home-dashboard-grid':
     'the Home dashboard\'s two-column grid until issue #1492 made it a Tailwind `grid`; its mobile rule goes with it',
-  'b2b-input-wrap':
-    'the icon wrapper of `b2b-field--addon`, which nothing renders since issue #1492',
   'b2b-kpi-grid':
-    'the Home KPI row until issue #1492 made it a Tailwind `grid`; the mobile `.b2b-row:not(.b2b-kpi-grid)` exclusion names it too',
-  'b2b-label':
-    'the field label the new-product form\'s categories rendered until issue #1492 (UX audit slice S15); the kit `FormField` label replaces it',
+    'the Home KPI row until issue #1492 made it a Tailwind `grid`; its mobile rule goes with it',
   'b2b-locale-strip':
     'the language switcher this styled is not in the admin; its `button` child rule goes with it',
   'b2b-matrix': 'a price-matrix block with no renderer; `b2b-matrix-wrap` and `cell-input` are its parts',
   'b2b-matrix-wrap': 'the scroll wrapper of `b2b-matrix`, which nothing renders',
   'b2b-muted':
     'the muted text helper the bulk edit dialog rendered until issue #1492 (UX audit slice S14); Tailwind `text-muted-foreground` replaces it',
-  'b2b-mono':
-    'the monospace helper the product content card rendered until issue #1492 (UX audit slice S15); Tailwind `font-mono` replaces it',
   'b2b-nav-badge': 'a sidebar counter badge no nav item renders',
-  'b2b-row':
-    'the row helper the product editor\'s scope map rendered until issue #1492 (UX audit slice S15); Tailwind `flex items-center gap-*` replaces it; the mobile `.b2b-row:not(.b2b-kpi-grid)` rule goes with it',
   'b2b-savebar': 'a sticky save bar superseded by `b2b-sticky-form-actions`',
   'b2b-savebar__msg': 'the message slot of `b2b-savebar`, which nothing renders',
-  'b2b-select': 'a select skin no screen renders; the kit `ui/select` primitive is what is used',
   'b2b-stock-pill': 'an inventory pill no screen renders',
   'b2b-switch': 'a toggle skin no screen renders; the kit primitive is what is used',
   'b2b-thumb':
     'the stock-alert thumbnail on Home until issue #1556 drew it on the sunken-surface token in Tailwind',
-  'b2b-tbl':
-    'the legacy table the scope map rendered until issue #1492 (UX audit slice S15) moved it to the kit `TableHeader` / `TableRow` / `TableHead` / `TableCell`; the last renderer',
   'b2b-table-wrap':
     'a table wrapper no screen renders; `b2b-table-scroll` is the one the mobile shell uses',
   'b2b-tag-pill': 'a tag pill no screen renders',
@@ -138,11 +98,9 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
     'repository; the design system styles it because the host embeds the editor',
   'cell-input': 'a descendant of `b2b-matrix`, which nothing renders',
   'cell--num': 'a numeric-cell modifier under `b2b-matrix`, which nothing renders',
-  lead: 'the leading-icon descendant of `b2b-input-wrap`, which nothing renders since issue #1492',
   bar: 'a descendant of a chart block whose renderer is gone',
   dot: 'a descendant of a status block whose renderer is gone',
   lo: 'a descendant modifier of a stock indicator whose renderer is gone',
-  trail: 'a descendant of a breadcrumb block whose renderer is gone',
   x: 'a descendant close affordance whose renderer is gone',
   zero: 'a descendant empty-state modifier whose renderer is gone',
   'row-h': 'a descendant row-height modifier whose renderer is gone',
