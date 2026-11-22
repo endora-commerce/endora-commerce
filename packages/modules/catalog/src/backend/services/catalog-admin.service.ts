@@ -118,48 +118,23 @@ function uuidArrayLiteral(ids: Iterable<string>): string {
 }
 
 /**
- * Issue #1624 — the stock filter as a `products` predicate, over `inventory`'s
- * per-product on-hand totals. The Inventory list's definitions
- * (`StockLevelService.listRoster`): *out* is a managed product whose cumulative
- * on-hand is 0 or less; *low* is a managed product with a threshold whose
- * cumulative on-hand is above 0 and at or below it. A product with no stock row
- * is neither, as it is absent from the Inventory list.
- */
-function stockStateClause(
-  state: ProductStockFilter,
-  totals: ReadonlyArray<{ productId: string; onHand: number }>,
-): { sql: string; bindings: string[] } {
-  if (state === 'out') {
-    return {
-      sql: '"products"."manage_stock" is not false and "products"."id" = any(?::uuid[])',
-      bindings: [uuidArrayLiteral(totals.filter((t) => t.onHand <= 0).map((t) => t.productId))],
-    };
-  }
-  const stocked = totals.filter((t) => t.onHand > 0);
-  return {
-    sql:
-      '"products"."manage_stock" is not false and "products"."low_stock_threshold" is not null and exists (' +
-      'select 1 from unnest(?::uuid[], ?::bigint[]) as s(product_id, on_hand) ' +
-      'where s.product_id = "products"."id" and s.on_hand <= "products"."low_stock_threshold")',
-    bindings: [
-      uuidArrayLiteral(stocked.map((t) => t.productId)),
-      `{${stocked.map((t) => String(Math.trunc(t.onHand))).join(',')}}`,
-    ],
-  };
-}
-
-/**
- * Issue #1624 — what the admin products list's stock filter reads from `inventory`.
+ * Issue #1624 — what the admin products list's stock filter asks of `inventory`.
  *
  * `available()` is the presence probe the list answers as `stockFilterAvailable`,
- * so the admin offers the filter only while it can be applied. `onHandTotals()`
- * is the gated port call and is **not** probed: with `inventory` off it throws
+ * so the admin offers the filter only while it can be applied. `predicate()` is
+ * the gated port call and is **not** probed: with `inventory` off it throws
  * `ModuleDisabledError` (503), because a stock filter that is silently ignored
- * would hand "select all matching" the whole catalogue (`refuses-without`).
+ * would hand "select all matching" the whole catalogue (`refuses-without`). The
+ * predicate is SQL placed inside this module's statement — the Inventory list's
+ * definitions, owned by `inventory`, over this module's own columns — so the
+ * database filters and pages; this module never names `inventory`'s tables.
  */
 export interface CatalogStockFilterSource {
   available(): boolean;
-  onHandTotals(): Promise<Array<{ productId: string; onHand: number }>>;
+  predicate(
+    state: ProductStockFilter,
+    columns: { productId: string; manageStock: string; lowStockThreshold: string },
+  ): { sql: string; params: string[] };
 }
 
 /**
@@ -1856,10 +1831,10 @@ export class CatalogAdminService {
    *   slug; both given means both apply.
    * - **Sales channel** — the kernel's membership subquery (Principle XII), placed
    *   inside the statement so the page is cut after the channel narrows it.
-   * - **Stock** — `inventory`'s cumulative on-hand per product, compared with this
-   *   module's own `manage_stock` and `low_stock_threshold`, which is how the
-   *   Inventory list defines *Low stock* and *Out of stock*. With `inventory` off
-   *   the port's gate throws and the request answers 503: never ignored.
+   * - **Stock** — `inventory`'s predicate for the Inventory list's *Low stock* /
+   *   *Out of stock*, correlated on this module's `products` columns and placed
+   *   in the statement like the channel subquery. With `inventory` off the
+   *   port's gate throws and the request answers 503: never ignored.
    */
   async #adminListFilters(
     em: EntityManager,
@@ -1892,12 +1867,16 @@ export class CatalogAdminService {
       channelSubquery = this.salesChannelMembership.entityIdsInChannelSubquery(options.salesChannelId, 'product');
     }
 
-    let stockClause: { sql: string; bindings: string[] } | null = null;
+    let stockClause: { sql: string; params: string[] } | null = null;
     if (options.stock !== undefined) {
       if (!this.stockFilter) {
         throw new Error('CatalogAdminService: the stock filter is not wired — a stock filter cannot be applied.');
       }
-      stockClause = stockStateClause(options.stock, await this.stockFilter.onHandTotals());
+      stockClause = this.stockFilter.predicate(options.stock, {
+        productId: '"products"."id"',
+        manageStock: '"products"."manage_stock"',
+        lowStockThreshold: '"products"."low_stock_threshold"',
+      });
     }
 
     return (qb) => {
@@ -1911,7 +1890,7 @@ export class CatalogAdminService {
       if (options.type) qb.where('type', options.type);
       if (categoryProductIds) qb.whereRaw('"products"."id" = any(?::uuid[])', [uuidArrayLiteral(categoryProductIds)]);
       if (channelSubquery) qb.whereRaw(`"products"."id" in (${channelSubquery.sql})`, channelSubquery.params);
-      if (stockClause) qb.whereRaw(stockClause.sql, stockClause.bindings);
+      if (stockClause) qb.whereRaw(stockClause.sql, stockClause.params);
       if (trimmedQ) {
         const needle = `%${trimmedQ.toLowerCase()}%`;
         qb.andWhere((inner) => {

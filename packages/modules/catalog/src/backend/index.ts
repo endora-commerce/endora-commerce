@@ -465,7 +465,7 @@ export function registerModule(ctx: ModuleContext): void {
   /**
    * Issue #1624 — the admin products list's stock filter. `catalog` declares
    * `inventoryStockReadPort` `refuses-without`: `available()` is the probe the
-   * list answers as `stockFilterAvailable`, and `onHandTotals()` is deliberately
+   * list answers as `stockFilterAvailable`, and `predicate()` is deliberately
    * **not** probed — with `inventory` off the gate throws and the filtered list,
    * or the selection resolved from it, answers 503. Ignoring the filter instead
    * would let "select all matching" reach the whole catalogue.
@@ -473,7 +473,7 @@ export function registerModule(ctx: ModuleContext): void {
   const inventoryStockRead = lazyPort<InventoryStockReadPort>(ctx, 'inventoryStockReadPort');
   const stockFilter: CatalogStockFilterSource = {
     available: () => effectiveState.isPresent('inventory'),
-    onHandTotals: () => inventoryStockRead.onHandTotalsByProduct(),
+    predicate: (state, columns) => inventoryStockRead.stockStatePredicate(state, columns),
   };
 
   /**

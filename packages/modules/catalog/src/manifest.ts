@@ -324,11 +324,11 @@ export const manifest = defineModuleManifest({
       whenAbsent:
         'the products list offers no stock filter, and a list or select-all that names one is refused',
       reason:
-        'Issue #1624. The stock filter compares `inventory`’s on-hand totals with this module’s ' +
-        'own stock settings, and a bulk edit or delete started from "select all matching" acts ' +
+        'Issue #1624. The stock filter is `inventory`’s SQL predicate over this module’s own ' +
+        'stock settings, embedded in the list statement, and a bulk edit or delete started from "select all matching" acts ' +
         'on exactly what the filter resolves — so a filter silently dropped while `inventory` is ' +
         'off would select the whole catalogue. The list probes presence only to say whether the ' +
-        'filter is offered; the totals call is not probed, and its gate refuses. Not ' +
+        'filter is offered; the predicate call is not probed, and its gate refuses. Not ' +
         '`dependencies`: `inventory` declares this module, and this module is non-deactivatable.',
     },
     {
