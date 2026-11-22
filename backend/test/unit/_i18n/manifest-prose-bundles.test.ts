@@ -1,7 +1,7 @@
-import { dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SUPPORTED_LANGUAGES } from '@endora-commerce/contracts';
-import { loadModuleBundles } from '@endora-commerce/mod-i18n/backend';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
@@ -23,6 +23,17 @@ import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifest
  * `nonDeactivatable` reason lives in the sending module's registered defaults,
  * so its pair is pinned beside those defaults, in that module).
  */
+/**
+ * A registered module's bundle in one language, read from where its manifest
+ * declares it. Read as plain JSON rather than through `_i18n`'s loader: the
+ * subject is every module's files, not the loader, whose own shape test is
+ * `registered-bundles-shape.test.ts`.
+ */
+function bundleOf(entry: (typeof REGISTERED_MANIFESTS)[number], language: string): Record<string, string> | undefined {
+  const path = join(dirname(entry.filePath), entry.manifest.i18n!.bundlesDir, `${language}.json`);
+  return existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as Record<string, string>) : undefined;
+}
+
 interface Expected {
   readonly key: string;
   readonly english: string;
@@ -54,14 +65,13 @@ describe('manifest prose in every shipped language (issue #1809)', () => {
     'module "%s" ships its manifest prose in English and Polish',
     (_id, entry) => {
       expect(entry.manifest.i18n, 'declares no bundles directory').toBeDefined();
-      const loaded = loadModuleBundles(entry.manifest.id, dirname(entry.filePath), entry.manifest.i18n!.bundlesDir);
       const problems: string[] = [];
       for (const { key, english } of expectedOf(entry)) {
-        const en = loaded.byLanguage.get('en')?.[key];
+        const en = bundleOf(entry, 'en')?.[key];
         if (en !== english) problems.push(`en.json ${key}: ${JSON.stringify(en)} is not the manifest's ${JSON.stringify(english)}`);
         for (const language of SUPPORTED_LANGUAGES) {
           if (language === 'en') continue;
-          const text = loaded.byLanguage.get(language)?.[key];
+          const text = bundleOf(entry, language)?.[key];
           if (!text || text.trim() === '') problems.push(`${language}.json ${key}: missing`);
         }
       }

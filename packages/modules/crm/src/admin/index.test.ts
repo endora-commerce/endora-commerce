@@ -277,10 +277,14 @@ describe('crm admin copy', () => {
     // (issue #884), held repo-wide by `backend/test/unit/_i18n/setting-group-names.test.ts`.
     // `settingLabels` is the ninth: a setting's name and description, read by
     // the same screen as `settingLabels.<setting code>.name|description`
-    // (issue #1522).
+    // (issue #1522). `transactionalEmails` is the tenth: an e-mail's name and
+    // description, which `transactional_emails` reads on the server as
+    // `transactionalEmails.<code>.name|description` from the sending module's
+    // bundle (issue #1809), held repo-wide by
+    // `backend/test/unit/_i18n/manifest-prose-bundles.test.ts`.
     const own = Object.keys(en).filter(
       (key) =>
-        !/^(nav|actions|adminRoles|errors|auditLog|notifications|adminSearch|settingGroups|settingLabels)\./.test(
+        !/^(nav|actions|adminRoles|errors|auditLog|notifications|adminSearch|settingGroups|settingLabels|transactionalEmails)\./.test(
           key,
         ),
     );
