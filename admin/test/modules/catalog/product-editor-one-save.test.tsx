@@ -261,6 +261,17 @@ describe('the product editor’s one Save with a zone participant (feature 180)'
     expect(await screen.findByText('product list')).toBeInTheDocument();
   });
 
+  it('an operator slower than the preference debounce still writes the panel only (#1610)', async () => {
+    open();
+    await screen.findByLabelText(en['productEditor.field.name']!);
+    // The editor remembers the scope 500 ms after a load; past it, a write of the scope already
+    // remembered would sit in this window. The case used to flake on a loaded machine only.
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    await stageProbe();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(writes()).toEqual(['/probe']));
+  });
+
   it('a panel-only change: a scope switch asks first, and Stay keeps scope and change (OQ-4 = A)', async () => {
     const view = open();
     await stageProbe();

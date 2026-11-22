@@ -98,6 +98,50 @@ describe('the editor scope in the URL (feature 174, FR-056)', () => {
     );
   });
 
+  // Issue #1610 — the preference is written 500 ms after a load. Opening at the scope it
+  // already holds wrote that same scope back, once per open, and on a slow run the write landed
+  // inside the one-Save tests' "nothing else was written" window. Waiting past the debounce
+  // makes the old write certain, so these cases are deterministic rather than load-dependent.
+  const preferenceWrites = (): unknown[][] => api.put.mock.calls.filter(([path]) => path === `${BASE}/editor-preference`);
+  const pastTheDebounce = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 700));
+
+  it('opening at the remembered scope does not write it back (#1610)', async () => {
+    setUpEditorApi({ preference: { level: 'channel', channelId: CH_VIP } });
+    renderEditor(ProductEditor);
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(`${BASE}/scoped-values?channelId=${CH_VIP}`));
+    await pastTheDebounce();
+    expect(preferenceWrites()).toEqual([]);
+  });
+
+  it('opening at Global with no preference stored writes none (#1610)', async () => {
+    renderEditor(ProductEditor);
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(`${BASE}/scoped-values`));
+    await pastTheDebounce();
+    expect(preferenceWrites()).toEqual([]);
+  });
+
+  it('a scope the URL names is still remembered, the preference not having been read', async () => {
+    renderEditor(ProductEditor, { url: url(`?scope=channel&channel=${CH_VIP}`) });
+    await waitFor(() =>
+      expect(preferenceWrites()).toEqual([[`${BASE}/editor-preference`, { lastChannelId: CH_VIP, lastLanguageCode: null }]]),
+    );
+  });
+
+  it('switching away and back to the remembered scope writes both moves', async () => {
+    setUpEditorApi({ preference: { level: 'channel', channelId: CH_VIP } });
+    const view = renderEditor(ProductEditor);
+    await screen.findByRole('option', { name: 'Retail PL' });
+    await waitFor(() => expect(currentSearch(view).get('channel')).toBe(CH_VIP));
+    fireEvent.change(screen.getByLabelText(en['productEditor.scope.channelSelect']!), { target: { value: CH_RETAIL } });
+    await waitFor(() => expect(preferenceWrites()).toHaveLength(1), { timeout: 2000 });
+    fireEvent.change(screen.getByLabelText(en['productEditor.scope.channelSelect']!), { target: { value: CH_VIP } });
+    await waitFor(() => expect(preferenceWrites()).toHaveLength(2), { timeout: 2000 });
+    expect(preferenceWrites().map(([, body]) => body)).toEqual([
+      { lastChannelId: CH_RETAIL, lastLanguageCode: null },
+      { lastChannelId: CH_VIP, lastLanguageCode: null },
+    ]);
+  });
+
   it('keeps the tab in the URL across a scope change', async () => {
     const view = renderEditor(ProductEditor, { url: url('?scope=global&tab=media') });
     await screen.findByRole('option', { name: 'B2B VIP' });
