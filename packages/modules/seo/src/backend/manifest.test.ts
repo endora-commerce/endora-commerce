@@ -171,6 +171,8 @@ describe('seo manifest — what switching the module off withdraws (FR-033)', ()
   it('says so on the activation setting', () => {
     expect(activation?.description).toMatch(/sends no default robots directive/);
     expect(activation?.description).toMatch(CONSEQUENCE);
+    // Switching the module off also stops serving llms.txt; the English must say so as the Polish does.
+    expect(activation?.description).toMatch(/llms\.txt/);
   });
 });
 
