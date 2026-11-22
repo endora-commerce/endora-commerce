@@ -114,6 +114,12 @@ describe('crm off-state (Constitution XVII)', () => {
     { method: 'GET', route: `${API}/opportunities` },
     // `specs/157-custom-fields-list-filters/` — the list's offered custom-field filters.
     { method: 'GET', route: `${API}/opportunities/custom-field-filters` },
+    // Issue #1734 — the Opportunities page's saved views; the write probes send
+    // a body the schema refuses or name a view that does not exist.
+    { method: 'GET', route: `${API}/opportunities/list-views` },
+    { method: 'POST', route: `${API}/opportunities/list-views`, payload: { name: '' } },
+    { method: 'PATCH', route: `${API}/opportunities/list-views/:id`, payload: { shared: true } },
+    { method: 'DELETE', route: `${API}/opportunities/list-views/:id` },
     { method: 'POST', route: `${API}/opportunities`, payload: { title: 'Off', organizationId: ID, currency: 'PLN' } },
     { method: 'GET', route: `${API}/opportunities/:id` },
     { method: 'PATCH', route: `${API}/opportunities/:id`, payload: { title: 'Off' } },

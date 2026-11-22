@@ -769,6 +769,18 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Issue #642 (#86) added the refusal token `not_private` for a library file that is not private, ' +
       'which was `422 VALIDATION_FAILED` with an English literal; the code itself is unchanged.',
   },
+  CRM_SAVED_VIEW_NAME_TAKEN: {
+    to: 'crm',
+    reason:
+      'Minted with saved views on the CRM Opportunities page (issue #1734): a saved view of the page ' +
+      'named as one its owner already has, case-insensitively. One raise site, `OpportunityListViewService`.',
+  },
+  PROJECT_SAVED_VIEW_NAME_TAKEN: {
+    to: 'projects',
+    reason:
+      'Minted with saved views on the Projects list (issue #1734): a saved view of the list named as one ' +
+      'its owner already has, case-insensitively. One raise site, `ProjectListViewService`.',
+  },
   TASK_VIEW_NAME_TAKEN: {
     to: 'tasks',
     reason:

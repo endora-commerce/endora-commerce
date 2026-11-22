@@ -56,6 +56,17 @@ lub terminu bieżącego etapu; projekty bez wartości lub terminu są zawsze na
 końcu. Filtry i sortowanie są zapisane w adresie strony, więc powrót do listy,
 jej odświeżenie albo wysłanie odnośnika współpracownikowi je zachowuje.
 
+**Zapisane widoki** przechowują zestaw filtrów listy i jej sortowanie pod
+nazwą, tak jak na listach zamówień, zapytań ofertowych i zadań: lista wyboru
+**Zapisane widoki** na pasku narzędzi, z przyciskami **Zapisz widok** i **Usuń
+widok** obok. Widok jest tylko twój albo udostępniony każdemu administratorowi,
+który może przeglądać projekty, a jego wybór zastępuje wszystkie filtry i
+sortowanie. Przechowuje wartości filtrów, nigdy wyniki: lista jest potem
+odczytywana z *twoim* zasięgiem i widocznością, a *Moje projekty* oznaczają
+administratora, który stosuje widok. Cudzy udostępniony widok może usunąć tylko
+osoba, która go zapisała, albo administrator mający dostęp do każdej
+organizacji.
+
 **Nowy projekt** (`/projects/new`) najpierw proponuje **szablony**: wybór
 szablonu wypełnia opis, proponuje każdemu członkowi najpierw role szablonu i
 wymienia etapy, które projekt z niego dostanie — z przebiegiem, blokadami,
@@ -704,6 +715,7 @@ odczytaj projekt ponownie.
 | --- | --- | --- |
 | `GET /api/v1/admin/projects` | `projects:read` | Strona projektów oraz liczba projektów widocznych dla wywołującego: `{ items, nextCursor, total }`. Filtry: `state` (powtarzalny), `organizationId`, `memberId` (identyfikator administratora lub `me`), `roleId`, `templateId`, `stageName` (nazwa bieżącego etapu), `q` (numer lub tytuł), `sort` (`createdAt` — domyślnie, `value` albo `deadline` — termin bieżącego etapu; projekty bez wartości lub terminu są zawsze na końcu), `order` (`asc` lub `desc`, domyślnie `desc`), `cursor`, `limit` (najwyżej 100) oraz `customFieldFilters` — pola niestandardowe oznaczone jako filtry listy, jako JSON, w kształcie przyjmowanym przez listy zamówień, zapytań ofertowych i szans sprzedażowych; pole, którego lista nie oferuje, to `400` `CUSTOM_FIELD_FILTER_UNAVAILABLE` z jego nazwą. |
 | `GET /api/v1/admin/projects/custom-field-filters` | `projects:read` | `{ data: CustomFieldListFilterField[] }` — pola niestandardowe projektów oznaczone jako filtry listy. |
+| `GET`, `POST /api/v1/admin/projects/list-views`; `PATCH`, `DELETE …/list-views/:id` | `projects:read` | Zapisane widoki listy: twoje własne i każdy udostępniony. Widok to `{ name, shared, filters, sort }`; `filters` zawiera parametry adresu listy. `409` `PROJECT_SAVED_VIEW_NAME_TAKEN` dla nazwy, której już używasz. |
 | `POST /api/v1/admin/projects` | `projects:write` | `201` `{ data: ProjectDetail }`. Bez `templateId` pole `stages` jest wymagane; z nim struktura szablonu jest kopiowana, a `stages` jest odrzucane (`422`), zaś nieznany lub zarchiwizowany szablon to `422` `PROJECT_TEMPLATE_NOT_FOUND`. `customFieldValues` jest sprawdzane względem pól niestandardowych projektu także wtedy, gdy go brak — brak pola wymaganego to `422` `CUSTOM_FIELD_VALUE_INVALID`, po jednym problemie na pole, z kluczem pola w `path`. |
 | `GET /api/v1/admin/projects/:id` | `projects:read` | `{ data: ProjectDetail }` albo `404` `PROJECT_NOT_FOUND` — tak samo dla projektu, który nie istnieje, jak dla takiego, którego wywołujący nie może zobaczyć. |
 | `PATCH /api/v1/admin/projects/:id` | `projects:write` | Tytuł, opis, wartość, data rozpoczęcia, `visibility` (`inherit`, `everyone` albo `members_and_listed`) i `viewerIds` (cała lista dopisanych osób — widzą one projekt bez względu na `visibility`; panel administracyjny dopisuje osoby tylko przy `members_and_listed`), razem z `version`; `409` `PROJECT_CHANGED`, gdy projekt zmienił się od odczytu, `422` `PROJECT_MEMBER_INVALID` dla nowo dopisanej osoby, która nie jest aktywnym administratorem. Zmiana tego, kto widzi projekt, trafia do dziennika zdarzeń osobno od zmiany treści (`projects.project.visibility_set`, `projects.project.viewers_set`). `customFieldValues` wymienia pola, które zmienia — pozostałe zachowują wartości, `null` czyści pole — i jest odrzucane tak jak przy tworzeniu; trafia do dziennika zdarzeń osobno (`projects.project.custom_fields_update`). |

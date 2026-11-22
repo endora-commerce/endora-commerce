@@ -62,6 +62,7 @@ import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmLookupRoutes } from './routes/routes.lookups.js';
 import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
 import { registerCrmTagRoutes } from './routes/routes.tags.js';
+import { registerCrmListViewRoutes } from './routes/routes.list-views.js';
 import { registerCrmTransitionRoutes } from './routes/routes.transitions.js';
 import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
 import { AnalyticsService } from './services/analytics-service.js';
@@ -111,6 +112,7 @@ import {
 } from './services/order-status-propagation-service.js';
 import { registerOpportunitySalesChannelAttributions } from './services/sales-channel-attributions.js';
 import { TagService } from './services/tag-service.js';
+import { OpportunityListViewService } from './services/opportunity-list-view-service.js';
 import { WorkflowConfigService } from './services/workflow-config-service.js';
 import { WorkflowReadService } from './services/workflow-read-service.js';
 import { eventReminderTick, startEventReminders } from './workers/event-reminder-worker.js';
@@ -135,6 +137,7 @@ import { CrmOpportunityTag } from './entities/crm-opportunity-tag.entity.js';
 import { CrmOrderStatusMapping } from './entities/crm-order-status-mapping.entity.js';
 import { CrmStatusPropagation } from './entities/crm-status-propagation.entity.js';
 import { CrmTag } from './entities/crm-tag.entity.js';
+import { CrmOpportunityListSavedView } from './entities/crm-opportunity-list-saved-view.entity.js';
 import { CrmValueCountingStatus } from './entities/crm-value-counting-status.entity.js';
 
 /**
@@ -952,6 +955,26 @@ export function registerModule(ctx: ModuleContext): void {
   });
   // --- end of Lookups ----------------------------------------------------------
 
+  // --- Saved views (issue #1734) -------------------------------------------------
+  // Named presets of the Opportunities page's filters and sort, one set for the
+  // list and the board, on feature 147's rules (`specs/147-saved-views/`). A
+  // view is an administrator's own UI configuration, not a domain write, so it
+  // does not run through the Command Bus (feature 147 research R-14). One
+  // service, one `ctx.routes`, this one section.
+  ctx.di.register({
+    crmOpportunityListViewService: ctx
+      .asFunction(({ emFactory }: CrmCradle) => new OpportunityListViewService(emFactory, ctx.log))
+      .singleton(),
+  });
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<CrmCradle & { readonly crmOpportunityListViewService: OpportunityListViewService }>();
+    await registerCrmListViewRoutes(app, {
+      listViewService: cradle.crmOpportunityListViewService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  // --- end of Saved views --------------------------------------------------------
+
   // --- Attachment upload (research N-F1) ----------------------------------------
   // One request that stores a file in the media library and attaches it, gated
   // by `crm:write` alone: the library's own upload endpoint asks for the
@@ -1410,16 +1433,17 @@ function readOrderStatusChange(payload: unknown): OrderStatusChange | null {
  * the package is installed; a missing array is answered with zero entities
  * registered and no error anywhere.
  *
- * Seventeen classes, the whole schema of the module: the Opportunity
+ * Eighteen classes, the whole schema of the module: the Opportunity
  * (`@OrgScoped`), its ten children (`@TransitivelyScoped` through it) and
- * six global tables (`@GlobalEntity`). Thirteen were here before the
+ * seven global tables (`@GlobalEntity`). Thirteen were here before the
  * first user story, so that no story changed a generated registry; the
  * fourteenth, `CrmOpportunityEvent`, came with User Stories 21 and 22. The
  * fifteenth and sixteenth came with the unread count of the Messages tab: a
  * ninth child, `CrmOpportunityMessageRead`, and a sixth global table of one
  * row, `CrmMessageReadBaseline`. The seventeenth, a tenth child,
  * `CrmOpportunityValueChange`, holds the values the platform audit log no
- * longer carries (issue #470).
+ * longer carries (issue #470). The eighteenth, a seventh global table,
+ * `CrmOpportunityListSavedView`, holds the page's saved views (issue #1734).
  */
 export const entities = [
   CrmMessageReadBaseline,
@@ -1428,6 +1452,7 @@ export const entities = [
   CrmOpportunityComment,
   CrmOpportunityEvent,
   CrmOpportunityLink,
+  CrmOpportunityListSavedView,
   CrmOpportunityMessageRead,
   CrmOpportunityReference,
   CrmOpportunityStatus,

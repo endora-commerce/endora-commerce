@@ -45,7 +45,7 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 
 | Ekran | Gdzie | Uprawnienie | Do czego służy |
 | --- | --- | --- | --- |
-| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, jako lista albo — przełącznikiem **Lista / Tablica** w nagłówku — jako tablica. Lista ma wyszukiwanie i filtry: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży, data utworzenia i pola niestandardowe oznaczone jako filtry listy. |
+| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, jako lista albo — przełącznikiem **Lista / Tablica** w nagłówku — jako tablica. Lista ma wyszukiwanie i filtry: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży, data utworzenia i pola niestandardowe oznaczone jako filtry listy; oba widoki mają zapisane widoki. |
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
 | Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Nagłówek ze statusem obok tytułu, pasek etapów z dozwolonymi z tego statusu zmianami — wstecz i dalej — panel informacji po prawej oraz karty: *Przegląd*, **Powiązania** (zamówienia i zapytania ofertowe szansy), **Wydarzenia** (to, co dla niej zaplanowano, z przypomnieniami), *Notatki*, *Wiadomości*, *Załączniki* i **Historia zmian**. Zobacz *Ekran szansy sprzedażowej*. |
 | Tablica | **Tablica** w przełączniku *Lista / Tablica* ekranu **CRM → Szanse sprzedażowe** (`/crm/opportunities?view=board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. Dawny adres `/crm/board` nadal ją otwiera. |
@@ -437,6 +437,27 @@ filtrem listy — albo odwrotnie. **Pole karty, które nie jest filtrem listy, n
 link, który filtrował nim listę, dostaje błąd z nazwą pola i przyciskiem **Usuń ten filtr**, dopóki
 opcja nie zostanie włączona. Tablica — łącznie z *Pokaż więcej* — działa bez zmian.
 
+### Zapisane widoki
+
+Pasek narzędzi **CRM → Szanse sprzedażowe** ma listę wyboru **Zapisane widoki** z przyciskami
+**Zapisz widok** i **Usuń widok** obok — tak samo na liście i na tablicy. Działają jak na listach
+zamówień, zapytań ofertowych i zadań:
+
+- **Jeden widok dla obu.** Widok zapamiętuje wszystkie filtry strony — filtry listy (stan, status,
+  filtry pól niestandardowych), filtry tablicy (filtry pól karty) i te, które obie mają wspólne —
+  oraz sortowanie listy. Nie zapamiętuje, czy byłeś na liście, czy na tablicy: wybór widoku
+  zastępuje wszystkie filtry i sortowanie i zostawia cię tam, gdzie jesteś, więc widok zapisany na
+  liście otwiera na tablicy te same szanse.
+- **Widok nigdy nie poszerza tego, co widzisz.** Przechowuje wartości filtrów, nigdy wyniki; strona
+  jest potem odczytywana z *twoimi* uprawnieniami i organizacjami. *Ja* jako handlowiec oznacza
+  tego, kto stosuje widok.
+- **Prywatny albo udostępniony.** Okno **Zapisz widok** pyta o nazwę (najwyżej 160 znaków) i o to,
+  czy udostępnić widok każdemu administratorowi, który może otworzyć stronę; udostępniony widok ma
+  po nazwie dopisek **(udostępniony)**. Nie możesz mieć dwóch widoków, których nazwy różnią się
+  tylko wielkością liter albo spacjami na początku i końcu.
+- **Usuwanie.** **Usuń widok** jest dostępne dla twoich własnych widoków; cudzy udostępniony widok
+  może usunąć tylko administrator, który ma dostęp do każdej organizacji.
+
 ### Dla integratorów
 
 | Metoda + ścieżka | Uprawnienie | Cel |
@@ -444,6 +465,7 @@ opcja nie zostanie włączona. Tablica — łącznie z *Pokaż więcej* — dzia
 | `GET /api/v1/admin/crm/board` | `crm:read` | Po jednej kolumnie dla każdego statusu, w kolejności przepływu: status, `count`, `valueTotals` dla każdej waluty, pierwsze `perColumn` szans (domyślnie 50, najwyżej 200) oraz `hasMore`; a także `cardFields` — pola widoczne na karcie, w kolejności. Przyjmuje filtry listy z wyjątkiem `statusCode` i `state` — także filtr handlowca i filtr etykiet, w tym samym znaczeniu — oraz `fieldFilters`. |
 | `GET /api/v1/admin/crm/board/card-fields` | `crm:read` | `fields`: pola widoczne na karcie, w kolejności. `available`: wszystkie pola, które można wybrać. `maxFields`: 6. |
 | `PUT /api/v1/admin/crm/board/card-fields` | `crm:configure` | Treść `{ "fields": ["builtin:organization", "custom:lead_source"] }` — odwołania do pól, w kolejności. W odpowiedzi konfiguracja po zmianie. `422` dla odwołania, które nie wskazuje żadnego pola. |
+| `GET`, `POST /api/v1/admin/crm/opportunities/list-views`; `PATCH`, `DELETE …/list-views/:id` | `crm:read` | Zapisane widoki strony: twoje własne i każdy udostępniony. Widok to `{ name, shared, filters, sort }`; `filters` zawiera parametry adresu strony. `409` `CRM_SAVED_VIEW_NAME_TAKEN` dla nazwy, której już używasz. |
 
 Przeniesienie karty to `POST /api/v1/admin/crm/opportunities/:id/transition`;
 tablica nie ma do tego własnej operacji zapisu. Kolejne karty kolumny pochodzą

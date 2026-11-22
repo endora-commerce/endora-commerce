@@ -63,6 +63,7 @@ import { ProjectTemplateStageMove } from './entities/project-template-stage-move
 import { ProjectTemplateStageTask } from './entities/project-template-stage-task.entity.js';
 import { ProjectValueChange } from './entities/project-value-change.entity.js';
 import { ProjectViewer } from './entities/project-viewer.entity.js';
+import { ProjectListSavedView } from './entities/project-list-saved-view.entity.js';
 import { registerAnalyticsRoutes } from './routes/routes.analytics.js';
 import { registerAttachmentRoutes } from './routes/routes.attachments.js';
 import { registerCommentRoutes } from './routes/routes.comments.js';
@@ -71,6 +72,7 @@ import { registerHistoryRoutes } from './routes/routes.history.js';
 import { registerLinkRoutes } from './routes/routes.links.js';
 import { registerLookupRoutes } from './routes/routes.lookups.js';
 import { registerProjectRoutes } from './routes/routes.projects.js';
+import { registerProjectListViewRoutes } from './routes/routes.list-views.js';
 import { registerStageTaskRoutes } from './routes/routes.stage-tasks.js';
 import { registerStageRoutes } from './routes/routes.stages.js';
 import { registerTemplateRoutes } from './routes/routes.templates.js';
@@ -96,6 +98,7 @@ import { createProjectNotifier, type ProjectNotifier } from './services/project-
 import { ProjectReadPortService } from './services/project-read-port.js';
 import { reportingTimeZoneOf } from './services/reporting-time-zone.js';
 import { ProjectReadService } from './services/project-read-service.js';
+import { ProjectListViewService } from './services/project-list-view-service.js';
 import { ProjectService } from './services/project-service.js';
 import { ProjectStageGuardRegistry } from './services/project-stage-guard-registry.js';
 import type { ProjectTasks } from './services/project-tasks.js';
@@ -151,6 +154,7 @@ interface ProjectsCradle {
   readonly projectsAttachmentService: ProjectAttachmentService;
   readonly projectsHistoryService: ProjectHistoryService;
   readonly projectsAnalyticsService: ProjectAnalyticsService;
+  readonly projectsListViewService: ProjectListViewService;
 }
 
 /** What the deadline-alert section registers and reads (User Story 8). */
@@ -766,6 +770,19 @@ export function registerModule(ctx: ModuleContext): void {
   });
   // --- end of Analytics ---------------------------------------------------------------
 
+  // --- Saved views (issue #1734) ------------------------------------------------------
+  // Named presets of the Projects list's filters and sort, on feature 147's rules
+  // (`specs/147-saved-views/`). A view is an administrator's own UI configuration,
+  // not a domain write, so it does not run through the Command Bus (feature 147
+  // research R-14), and it is no row of any Project, so it is outside
+  // `ProjectAccess`: applying one re-runs the list under the applier's visibility.
+  ctx.di.register({
+    projectsListViewService: ctx
+      .asFunction(({ emFactory }: ProjectsCradle) => new ProjectListViewService(emFactory, ctx.log))
+      .singleton(),
+  });
+  // --- end of Saved views -------------------------------------------------------------
+
   // --- Routes ------------------------------------------------------------------------
   ctx.routes(async (app) => {
     const cradle = ctx.cradle<ProjectsCradle>();
@@ -821,6 +838,10 @@ export function registerModule(ctx: ModuleContext): void {
       analyticsService: cradle.projectsAnalyticsService,
       requireAdmin: cradle.requireAdmin,
     });
+    await registerProjectListViewRoutes(app, {
+      listViewService: cradle.projectsListViewService,
+      requireAdmin: cradle.requireAdmin,
+    });
   });
   // --- end of Routes -----------------------------------------------------------------
 }
@@ -831,10 +852,11 @@ export function registerModule(ctx: ModuleContext): void {
  * the package is installed; a missing array is answered with zero entities
  * registered and no error anywhere.
  *
- * Twenty-four classes, the whole schema of the module
+ * Twenty-five classes, the whole schema of the module
  * (`specs/163-projects-and-tasks/data-model.md` §2): the configuration is
  * `@GlobalEntity`, everything a Project owns is `@RuleScoped` and read only
- * through `ProjectAccess`.
+ * through `ProjectAccess`. The twenty-fifth, `ProjectListSavedView`, holds the
+ * list's saved views (issue #1734): an administrator's own row, `@GlobalEntity`.
  */
 export const entities = [
   // Configuration (`@GlobalEntity`).
@@ -846,6 +868,8 @@ export const entities = [
   ProjectTemplateStageTask,
   ProjectTemplateStageMove,
   ProjectMessageReadBaseline,
+  // An administrator's saved list views (`@GlobalEntity`, issue #1734).
+  ProjectListSavedView,
   // A Project and what it owns (`@RuleScoped`).
   Project,
   ProjectOrganization,

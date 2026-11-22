@@ -49,6 +49,7 @@
   "errors.CRM_ATTACHMENT_TOO_LARGE": "The file is too large: an attachment may be at most {maxMb} MB.",
   "errors.CRM_ATTACHMENT_NOT_PRIVATE": "An attachment must be a private file. Upload it to the media library as private.",
   "errors.CRM_TAG_NAME_TAKEN": "A tag named \"{name}\" already exists.",
+  "errors.CRM_SAVED_VIEW_NAME_TAKEN": "You already have a saved view with this name on the opportunity list. Choose a different name.",
   "errors.CRM_MESSAGE_IMMUTABLE": "A message cannot be changed or deleted once it is sent.",
   "auditLog.crm.opportunity.create": "Opportunity created",
   "auditLog.crm.opportunity.update": "Opportunity updated",
