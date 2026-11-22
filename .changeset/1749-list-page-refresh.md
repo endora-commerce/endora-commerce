@@ -8,4 +8,6 @@
 - `resultsRef` — a ref to the results region, which then takes `tabIndex={-1}`, for a screen that moves focus to the results.
 - `ListPageLoad`'s `error` variant takes `action`, a way out shown in place of *Retry* (for example *Remove filter* when the server refuses a filter).
 
+`ResponsiveTable` takes an optional `label`, the table's accessible name.
+
 Existing callers are unaffected.
