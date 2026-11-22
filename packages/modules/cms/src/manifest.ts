@@ -122,8 +122,7 @@ const settings = defineModuleSettingsManifest({
     {
       code: CMS_PAGE_BUILDER_SETTING_CODES.TRANSLATION_ENABLED,
       name: 'Translation enabled',
-      description:
-        'Shows the Translate button in the Page Builder. The canvas text is sent to the provider of the chosen model.',
+      description: 'Shows Translate in the Page Builder; canvas text is sent to the provider.',
       groupCode: 'cms_page_builder',
       valueType: 'boolean',
       defaultValue: false,
@@ -131,8 +130,7 @@ const settings = defineModuleSettingsManifest({
     {
       code: CMS_PAGE_BUILDER_SETTING_CODES.TRANSLATION_LLM_CREDENTIALS,
       name: 'Translation credentials',
-      description:
-        'The LLM configuration (Credentials screen) the Translate button uses. Required for the button to work.',
+      description: 'LLM credential used by Translate. Required.',
       groupCode: 'cms_page_builder',
       valueType: 'credential_ref',
       configurationType: 'llm',
@@ -141,8 +139,7 @@ const settings = defineModuleSettingsManifest({
     {
       code: CMS_PAGE_BUILDER_SETTING_CODES.TRANSLATION_MAX_SOURCE_CHARACTERS,
       name: 'Translation size limit (characters)',
-      description:
-        'Most characters one Translate click may send (1 000–200 000). Longer content is refused before sending.',
+      description: 'Max characters per Translate click (1 000–200 000).',
       groupCode: 'cms_page_builder',
       valueType: 'number',
       defaultValue: CMS_TRANSLATION_DEFAULT_MAX_SOURCE_CHARACTERS,
@@ -163,8 +160,7 @@ const settings = defineModuleSettingsManifest({
     {
       code: CMS_SETTING_CODES.CONTACT_FORM_RECIPIENTS,
       name: 'Contact form recipients',
-      description:
-        'Up to 10 addresses that receive Contact form messages. While empty, the form says it is unavailable.',
+      description: 'Up to 10 recipient addresses. Empty: the form is unavailable.',
       groupCode: 'cms_contact_form',
       valueType: 'string_list',
       defaultValue: [],
