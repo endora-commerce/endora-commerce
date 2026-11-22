@@ -159,5 +159,8 @@
   "customFields.form.requiredAccessReason": "A read-only or hidden field cannot be required. Make it editable first.",
   "customFields.badge.registration": "Registration",
   "customFields.badge.read": "Read-only",
-  "customFields.badge.hidden": "Hidden"
+  "customFields.badge.hidden": "Hidden",
+  "module.name": "Custom fields",
+  "module.description": "Entity-agnostic runtime custom fields for core entities.",
+  "module.nonDeactivatableReason": "The platform's extensibility mechanism; the custom values already stored against every host entity become unreachable without it."
 }

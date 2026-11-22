@@ -396,5 +396,21 @@
   "statusConfig.saved": "Status saved.",
   "names.missing": "Missing: {languages}",
   "names.language.en": "English",
-  "names.language.pl": "Polish"
+  "names.language.pl": "Polish",
+  "transactionalEmails.return_authorized.name": "Return authorized",
+  "transactionalEmails.return_rejected.name": "Return rejected",
+  "transactionalEmails.return_new_case.name": "New return or complaint (to the shop)",
+  "transactionalEmails.return_submitted.name": "Return or complaint received (to the customer)",
+  "transactionalEmails.return_comment_added.name": "Message on a return or complaint (to the customer)",
+  "transactionalEmails.return_status_entered.name": "Return or complaint status changed (to the customer)",
+  "transactionalEmails.return_guest_verification.name": "Confirm the e-mail address of a guest complaint (to the guest)",
+  "transactionalEmails.return_guest_verification.reason": "The only way a guest can start a complaint.",
+  "transactionalEmails.return_guest_submitted.name": "Complaint received (to a guest)",
+  "transactionalEmails.return_guest_submitted.reason": "The guest's only lasting way back to the case.",
+  "transactionalEmails.return_guest_comment_added.name": "Message on a complaint (to a guest)",
+  "transactionalEmails.return_guest_status_entered.name": "Complaint status changed (to a guest)",
+  "transactionalEmails.return_guest_authorized.name": "Complaint authorized (to a guest)",
+  "transactionalEmails.return_guest_rejected.name": "Complaint rejected (to a guest)",
+  "transactionalEmails.return_guest_link_reissued.name": "New tracking link for a complaint (to a guest)",
+  "module.description": "Return/complaint (RMA) case management, settlement, and refunds."
 }

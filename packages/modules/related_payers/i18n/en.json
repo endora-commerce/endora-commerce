@@ -172,5 +172,22 @@
   "queue.status.rejected": "Request from {sender} rejected. The buyer sees your reason.",
   "queue.status.assigned": "Organization assigned to the request from {sender}.",
   "queue.status.created": "Organization created and linked for the request from {sender}.",
-  "queue.status.invited": "Invitation sent to {email}."
+  "queue.status.invited": "Invitation sent to {email}.",
+  "transactionalEmails.related_payer_order_placed.name": "Order billed to a related payer",
+  "transactionalEmails.related_payer_order_placed.description": "Sent to each member of the paying Organization who may view the orders it pays for, when an order billed to it is placed and the payer link asks for the payer to be told.",
+  "transactionalEmails.related_payer_order_cancelled.name": "Order billed to a related payer cancelled",
+  "transactionalEmails.related_payer_order_cancelled.description": "Sent to the same people as the placement e-mail when an order billed to their Organization is cancelled, and only when the payer link asks for the payer to be told (RP-17).",
+  "transactionalEmails.related_payer_request_received.name": "Payer request received",
+  "transactionalEmails.related_payer_request_received.description": "Sent to each member of the requested payer Organization who may approve payer requests, when a buyer asks it to pay for its orders. Never sent to the contact e-mail the buyer typed (FR-042).",
+  "transactionalEmails.related_payer_request_decided.name": "Payer request decided",
+  "transactionalEmails.related_payer_request_decided.description": "Sent to the buyer who sent a payer request and to the members who manage payers, when the request is accepted or rejected. The outcome and any reason are on the account Payers screen.",
+  "transactionalEmails.related_payer_invitation_received.name": "Invitation from a payer received",
+  "transactionalEmails.related_payer_invitation_received.description": "Sent to each member of the invited buyer Organization who manages payers, when a payer offers to pay for its orders (US6). Never sent to the contact e-mail the payer typed.",
+  "transactionalEmails.related_payer_invitation_to_register.name": "Invitation to register (related payers)",
+  "transactionalEmails.related_payer_invitation_to_register.description": "Sent to the contact e-mail of a payer request or invitation whose tax ID has no account, when the store invites it to register (FR-044). Its link pre-fills the tax ID on the registration form; nothing is created until the registration is approved.",
+  "transactionalEmails.related_payer_request_expired.name": "Payer request expired",
+  "transactionalEmails.related_payer_request_expired.description": "Sent to the member who sent a payer request or invitation when it expires without a decision (RP-20). A withdrawn request sends nothing.",
+  "transactionalEmails.related_payer_link_revoked.name": "Payer link revoked",
+  "transactionalEmails.related_payer_link_revoked.description": "Sent to the other side when a payer link is revoked: to the buyer`s payer managers when the payer revoked it, to the payer`s approvers when the buyer did, and to both when an operator or an integration did (FR-050).",
+  "module.description": "Lets a buyer organization place orders paid and invoiced by another organization of the store: payer links, their approval workflow and the payer choice at checkout."
 }

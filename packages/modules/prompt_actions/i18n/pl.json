@@ -45,5 +45,7 @@
   "settingLabels.prompt_actions.llm_credentials.name": "Dane dostępowe LLM",
   "settingLabels.prompt_actions.llm_credentials.description": "Konfiguracja LLM (ekran Dane dostępowe), której używa asystent. Wymagana do jego włączenia.",
   "settingLabels.prompt_actions.bulk_limit.name": "Limit operacji zbiorczej",
-  "settingLabels.prompt_actions.bulk_limit.description": "Najwięcej rekordów, które może zmienić jedno polecenie. Większe plany są blokowane."
+  "settingLabels.prompt_actions.bulk_limit.description": "Najwięcej rekordów, które może zmienić jedno polecenie. Większe plany są blokowane.",
+  "module.name": "Polecenia w języku naturalnym",
+  "module.description": "Tryb poleceń w języku naturalnym w palecie poleceń: model LLM interpretuje polecenie operatora, pokazuje plan i wykonuje go przez istniejące usługi modułów po wyraźnym potwierdzeniu."
 }

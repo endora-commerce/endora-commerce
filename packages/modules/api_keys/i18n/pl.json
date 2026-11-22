@@ -11,5 +11,7 @@
   "errors.API_KEY_SERVICE_ACCOUNT_INACTIVE.removed": "Konto serwisowe zostało usunięte, więc klucz API nie może działać w jego imieniu. Wybierz inne konto.",
   "actions.openApiKeys.keywords": "klucze api, integracja",
   "settingGroups.api_keys.name": "Klucze API",
-  "settingLabels.api_keys.enabled.name": "Klucze API włączone"
+  "settingLabels.api_keys.enabled.name": "Klucze API włączone",
+  "module.name": "Klucze API",
+  "module.description": "Klucze API (tokeny Bearer) dla integracji i webhooków."
 }

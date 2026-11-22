@@ -28,5 +28,7 @@
   "organizationPanel.available": "Dostępne",
   "organizationPanel.reservations": "Aktywne rezerwacje",
   "organizationPanel.overdrawn": "Rezerwacje przekraczają limit o {amount}. Nowe zamówienia z płatnością odroczoną są odrzucane.",
-  "settingLabels.credit_limits.enabled.name": "Limity kredytowe włączone"
+  "settingLabels.credit_limits.enabled.name": "Limity kredytowe włączone",
+  "module.name": "Limity kredytowe",
+  "module.description": "Limity kredytowe organizacji i ich sprawdzanie przy składaniu zamówienia."
 }

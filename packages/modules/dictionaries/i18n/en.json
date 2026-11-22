@@ -190,5 +190,8 @@
   "error.reorder": "The order could not be changed. Try again.",
   "error.association": "The country link could not be updated. Try again.",
   "error.primary": "The primary country could not be changed. Try again.",
-  "error.hasDependentsHint": "Deactivate the entry instead, or first remove the records that use it."
+  "error.hasDependentsHint": "Deactivate the entry instead, or first remove the records that use it.",
+  "module.name": "Dictionary",
+  "module.description": "Cross-module registry of countries, languages, and currencies — backs every dropdown, validator, and address-form picker on the storefront and admin.",
+  "module.nonDeactivatableReason": "The shared reference-data primitive — countries, units, document types — that every other surface validates and renders against."
 }

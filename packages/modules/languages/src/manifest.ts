@@ -11,6 +11,8 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
 export const manifest = defineModuleManifest({
   id: 'languages',
   docs: { dir: 'docs' },
+  // Issue #1809 — the module's name, description and lock reason in Polish for Platform → Modules.
+  i18n: { bundlesDir: 'i18n' },
   name: 'Languages',
   description:
     'Storefront/admin language catalog and per-channel locale routing.',

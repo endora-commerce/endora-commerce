@@ -188,5 +188,13 @@
   "settingLabels.carts.abandonment.inactivity_minutes.name": "Próg porzucenia koszyka (minuty)",
   "settingLabels.carts.abandonment.inactivity_minutes.description": "Po ilu minutach bezczynności aktywny koszyk uznaje się za porzucony. Domyślnie 10080 (7 dni).",
   "settingLabels.carts.abandonment.notification_recipient.name": "Odbiorca powiadomień o porzuceniu",
-  "settingLabels.carts.abandonment.notification_recipient.description": "Adres powiadamiany o każdym porzuconym koszyku. Pusty: brak powiadomień."
+  "settingLabels.carts.abandonment.notification_recipient.description": "Adres powiadamiany o każdym porzuconym koszyku. Pusty: brak powiadomień.",
+  "transactionalEmails.cart_approval_requested.name": "Koszyk przekazany do akceptacji",
+  "transactionalEmails.cart_approval_requested.description": "Wysyłany do każdego członka organizacji, który akceptuje koszyki, gdy ktoś z niej przekaże koszyk do akceptacji.",
+  "transactionalEmails.cart_approved.name": "Koszyk zaakceptowany",
+  "transactionalEmails.cart_approved.description": "Wysyłany do kupującego, gdy osoba akceptująca koszyki w jego organizacji zaakceptuje jego koszyk.",
+  "transactionalEmails.cart_rejected.name": "Koszyk odrzucony",
+  "transactionalEmails.cart_rejected.description": "Wysyłany do kupującego, gdy osoba akceptująca koszyki w jego organizacji odrzuci jego koszyk — razem z powodem.",
+  "module.description": "Koszyk: zbieranie pozycji, ceny, cykl życia i akceptacja.",
+  "module.nonDeactivatableReason": "Koszyk, przez który przechodzi każda ścieżka zamawiania — zamówienie, szybkie zamówienie i zapytanie ofertowe."
 }

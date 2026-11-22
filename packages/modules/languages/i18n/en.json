@@ -1,0 +1,5 @@
+{
+  "module.name": "Languages",
+  "module.description": "Storefront/admin language catalog and per-channel locale routing.",
+  "module.nonDeactivatableReason": "The locale scope every localized surface and every translation bundle resolves against."
+}

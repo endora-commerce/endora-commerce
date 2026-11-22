@@ -63,5 +63,6 @@
   "settingLabels.quick_order.one_click_buy_enabled.name": "One-click buy enabled",
   "settingLabels.quick_order.one_click_buy_enabled.description": "Buyers with all default ordering preferences set see “Buy in one click” on product pages.",
   "settingLabels.quick_order.import_max_rows.name": "Import row limit",
-  "settingLabels.quick_order.import_max_rows.description": "Most rows one CSV or Excel quick-order import accepts."
+  "settingLabels.quick_order.import_max_rows.description": "Most rows one CSV or Excel quick-order import accepts.",
+  "module.description": "Bulk Cart / Quote Request import (CSV + Excel, with variants), quick product search, reorder, default ordering preferences, and one-click buy."
 }

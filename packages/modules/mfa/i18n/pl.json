@@ -67,5 +67,7 @@
   "settingLabels.mfa.storefront.google_enabled.name": "Sklep — logowanie przez Google",
   "settingLabels.mfa.storefront.google_enabled.description": "Klienci mogą logować się przez Google.",
   "settingLabels.mfa.storefront.microsoft_enabled.name": "Sklep — logowanie przez Microsoft",
-  "settingLabels.mfa.storefront.microsoft_enabled.description": "Klienci mogą logować się przez Microsoft."
+  "settingLabels.mfa.storefront.microsoft_enabled.description": "Klienci mogą logować się przez Microsoft.",
+  "module.name": "Weryfikacja dwuetapowa",
+  "module.description": "Weryfikacja dwuetapowa (TOTP i kody odzyskiwania) oraz logowanie przez Google i Microsoft, z włączaniem i wymuszaniem w wybranych zakresach i resetem przez administratora."
 }

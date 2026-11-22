@@ -9,5 +9,7 @@
   "settingGroups.webhooks.name": "Webhooks",
   "settingLabels.webhooks.enabled.name": "Webhooks enabled",
   "settingLabels.webhooks.delivery_retention_days.name": "Delivery history retention (days)",
-  "settingLabels.webhooks.delivery_retention_days.description": "Days a finished webhook delivery is kept before deletion (1–3650). Default 365."
+  "settingLabels.webhooks.delivery_retention_days.description": "Days a finished webhook delivery is kept before deletion (1–3650). Default 365.",
+  "module.name": "Webhooks",
+  "module.description": "Outbound webhook subscription registry and dispatcher."
 }

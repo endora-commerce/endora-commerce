@@ -1650,5 +1650,8 @@
   "attributeSets.rowActions": "Akcje dla zestawu {code}",
   "attributeSets.manage.title": "Atrybuty zestawu {code}",
   "attributeSets.error.load": "Nie udało się wczytać zestawów atrybutów.",
-  "attributeSets.field.codePlaceholder": "elektronika"
+  "attributeSets.field.codePlaceholder": "elektronika",
+  "module.name": "Katalog",
+  "module.description": "Produkty, warianty, kategorie, atrybuty, zestawy atrybutów, galeria, załączniki, powiązania i pakiety.",
+  "module.nonDeactivatableReason": "Produkty, warianty i kategorie. Platforma handlowa bez katalogu to inny produkt, a nie okrojona wersja tego samego."
 }

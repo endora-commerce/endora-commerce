@@ -37,5 +37,8 @@
   "groups.message.saved": "Grupa klientów „{code}” została zapisana.",
   "groups.message.deleted": "Grupa klientów została usunięta.",
   "nav.customerGroups.label": "Grupy klientów",
-  "actions.openCustomerGroups.keywords": "klient, grupa, segment"
+  "actions.openCustomerGroups.keywords": "klient, grupa, segment",
+  "module.name": "Konta klientów",
+  "module.description": "Konta klientów (B2B), w tym przynależność do organizacji i rola.",
+  "module.nonDeactivatableReason": "Tożsamość, pod którą loguje się kupujący; bez niej nie istnieje żadna ścieżka po stronie klienta — rejestracja, logowanie, koszyk, zamówienie ani konto."
 }

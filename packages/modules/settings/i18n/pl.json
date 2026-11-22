@@ -213,5 +213,8 @@
   "settingLabels.storefront.product_card.show_add_to_cart.name": "Pokazuj „Dodaj do koszyka” na kartach produktów",
   "settingLabels.storefront.product_card.show_add_to_cart.description": "Pokazuje „Dodaj do koszyka” na kartach produktów, jeśli motyw sklepu go wyświetla.",
   "settingLabels.storefront.product_card.show_add_to_shopping_list.name": "Pokazuj „Dodaj do listy zakupów” na kartach produktów",
-  "settingLabels.storefront.product_card.show_add_to_shopping_list.description": "Pokazuje „Dodaj do listy zakupów” na kartach produktów, jeśli motyw sklepu go wyświetla."
+  "settingLabels.storefront.product_card.show_add_to_shopping_list.description": "Pokazuje „Dodaj do listy zakupów” na kartach produktów, jeśli motyw sklepu go wyświetla.",
+  "module.name": "Ustawienia",
+  "module.description": "Rejestr ustawień modułów, ich ekran w panelu i odczyt wartości.",
+  "module.nonDeactivatableReason": "Miejsce konfiguracji wszystkich pozostałych modułów. Wyłączony moduł nie ma edytowalnej konfiguracji, więc po wyłączeniu tego na platformie nie dałoby się niczego skonfigurować."
 }

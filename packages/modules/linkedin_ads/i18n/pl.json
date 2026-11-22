@@ -56,5 +56,7 @@
   "settingLabels.linkedin_ads.server_side_enabled.name": "Konwersje po stronie serwera",
   "settingLabels.linkedin_ads.server_side_enabled.description": "Raportuje konwersje z serwera przez Conversions API. Wymaga tokenu dostępu.",
   "settingLabels.linkedin_ads.access_token.name": "Token dostępu Conversions API",
-  "settingLabels.linkedin_ads.access_token.description": "Token OAuth dla Conversions API. Przechowywany zaszyfrowany; tylko do zapisu."
+  "settingLabels.linkedin_ads.access_token.description": "Token OAuth dla Conversions API. Przechowywany zaszyfrowany; tylko do zapisu.",
+  "module.name": "LinkedIn Ads",
+  "module.description": "Integracja z LinkedIn Ads: Insight Tag w każdym kanale sprzedaży, śledzenie zależne od zgód, konfigurowalne konwersje i opcjonalne raportowanie po stronie serwera przez Conversions API."
 }

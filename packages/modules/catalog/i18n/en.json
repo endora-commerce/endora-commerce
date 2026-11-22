@@ -1650,5 +1650,8 @@
   "attributeSets.rowActions": "Actions for {code}",
   "attributeSets.manage.title": "Attributes of {code}",
   "attributeSets.error.load": "Failed to load attribute sets.",
-  "attributeSets.field.codePlaceholder": "electronics"
+  "attributeSets.field.codePlaceholder": "electronics",
+  "module.name": "Catalog",
+  "module.description": "Products, variants, categories, attributes, attribute sets, gallery, attachments, links, and bundles.",
+  "module.nonDeactivatableReason": "Products, variants and categories. A commerce platform without a catalogue is a different product, not a reduced one."
 }

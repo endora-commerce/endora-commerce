@@ -3053,5 +3053,7 @@
   "seededHooks.login.top.name": "Login Page Top",
   "seededHooks.login.bottom.name": "Login Page Bottom",
   "seededHooks.register.top.name": "Register Page Top",
-  "seededHooks.register.bottom.name": "Register Page Bottom"
+  "seededHooks.register.bottom.name": "Register Page Bottom",
+  "module.name": "CMS",
+  "module.description": "Pages, blocks, templates, and hooks for content management."
 }

@@ -370,5 +370,16 @@
   "settingLabels.organizations.notifications.new_registration_recipients.name": "New Organization registration — email recipients",
   "settingLabels.organizations.notifications.new_registration_recipients.description": "Up to 50 addresses e-mailed about every new organization. Empty: in-app notification only.",
   "settingLabels.organizations.hierarchy.credit_inheritance_mode.name": "Credit inheritance mode (organization hierarchy)",
-  "settingLabels.organizations.hierarchy.credit_inheritance_mode.description": "How sub-organizations without a limit use the parent's credit: one shared pool or a copy each."
+  "settingLabels.organizations.hierarchy.credit_inheritance_mode.description": "How sub-organizations without a limit use the parent's credit: one shared pool or a copy each.",
+  "transactionalEmails.email_verification.name": "Email verification",
+  "transactionalEmails.email_verification.reason": "Required to create or regain access to an account — switching it off leaves the recipient with no way to complete the flow, and no fallback email is sent.",
+  "transactionalEmails.organization_invitation.name": "Organization invitation",
+  "transactionalEmails.organization_invitation.reason": "Required to create or regain access to an account — switching it off leaves the recipient with no way to complete the flow, and no fallback email is sent.",
+  "transactionalEmails.customer_password_reset.name": "Password reset (customer)",
+  "transactionalEmails.customer_password_reset.reason": "Required to create or regain access to an account — switching it off leaves the recipient with no way to complete the flow, and no fallback email is sent.",
+  "transactionalEmails.new_org_registration.name": "New organization registration (admin)",
+  "transactionalEmails.organization_approved.name": "Organization verified (customer)",
+  "transactionalEmails.organization_rejected.name": "Organization registration rejected (customer)",
+  "module.description": "B2B organization records, members, addresses, sales-rep assignment, moderation lifecycle, and per-org commercial scoping.",
+  "module.nonDeactivatableReason": "The single unit of tenancy — every organization-scoped entity, membership and transacting customer resolves through it; switched off, the platform has no tenant."
 }

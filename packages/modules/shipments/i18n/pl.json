@@ -5,5 +5,7 @@
   "settingLabels.shipments.enabled.description": "Włącza i wyłącza tworzenie przesyłek, aktualizacje przewoźników i historię przesyłek. Wyłączenie niczego nie usuwa.",
   "errors.SHIPMENT_ALREADY_GENERATED": "Ta przesyłka została już pomyślnie wygenerowana.",
   "errors.SHIPMENT_ALREADY_GENERATED.generate": "To zamówienie ma już pomyślnie wygenerowaną przesyłkę, więc nie ma czego generować.",
-  "errors.SHIPMENT_ALREADY_GENERATED.mark_failed": "Ta przesyłka została już pomyślnie wygenerowana, więc nie można oznaczyć jej jako nieudanej."
+  "errors.SHIPMENT_ALREADY_GENERATED.mark_failed": "Ta przesyłka została już pomyślnie wygenerowana, więc nie można oznaczyć jej jako nieudanej.",
+  "transactionalEmails.shipment_created.name": "Utworzenie przesyłki",
+  "module.description": "Zapis przesyłki i jej cykl życia: order_created / shipment_created / receive_shipment."
 }

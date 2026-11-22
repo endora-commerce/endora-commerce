@@ -11,6 +11,8 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
 export const manifest = defineModuleManifest({
   id: 'auth',
   docs: { dir: 'docs' },
+  // Issue #1809 — the module's name, description and lock reason in Polish for Platform → Modules.
+  i18n: { bundlesDir: 'i18n' },
   name: 'Auth',
   description:
     'Authentication primitives — session cookies, bearer-token resolution, and request actor binding.',

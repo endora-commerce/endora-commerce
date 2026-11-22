@@ -19,5 +19,8 @@
   "auditLog.field.changedCustomFields": "Changed custom fields",
   "auditLog.value.empty": "empty",
   "auditLog.value.true": "Yes",
-  "auditLog.value.false": "No"
+  "auditLog.value.false": "No",
+  "module.name": "Audit logs",
+  "module.description": "Append-only audit log for sensitive admin and customer actions (values of anonymised subjects are erased in place).",
+  "module.nonDeactivatableReason": "Sight of the write trail. The writing is the platform's own, so this module owns the viewer, and hiding who did what is a governance regression."
 }

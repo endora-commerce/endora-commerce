@@ -194,5 +194,7 @@
   "itemsTable.columns.editShort": "Edytuj",
   "actions.openDocumentTemplates.keywords": "szablon pdf, szablon faktury, porównanie, szablon oferty, zapytanie ofertowe pdf",
   "settingGroups.document_templates.name": "Szablony dokumentów",
-  "settingLabels.document_templates.enabled.name": "Szablony dokumentów włączone"
+  "settingLabels.document_templates.enabled.name": "Szablony dokumentów włączone",
+  "module.name": "Szablony dokumentów",
+  "module.description": "Projektuj w kreatorze stron dokumenty PDF tworzone przez platformę — np. porównanie produktów, fakturę czy zapytanie ofertowe — dla każdego typu dokumentu, języka i kanału sprzedaży."
 }

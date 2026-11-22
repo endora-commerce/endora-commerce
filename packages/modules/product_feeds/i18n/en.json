@@ -707,5 +707,7 @@
   "settingLabels.product_feeds.taxonomy_source_url_meta_pl.name": "Meta category list (Polish)",
   "settingLabels.product_feeds.taxonomy_source_url_meta_pl.description": "Address of Meta's Polish product category file. https only.",
   "settingLabels.product_feeds.taxonomy_revision_retention_count.name": "Category lists kept per provider",
-  "settingLabels.product_feeds.taxonomy_revision_retention_count.description": "Category list revisions kept per provider. Lists still in use are never deleted."
+  "settingLabels.product_feeds.taxonomy_revision_retention_count.description": "Category list revisions kept per provider. Lists still in use are never deleted.",
+  "module.name": "Product feeds",
+  "module.description": "Publishes the catalogue of a sales channel as a provider-shaped feed file (Google Merchant Center, Meta, Amazon, eBay, Allegro) at a stable tokenised URL, on a per-feed schedule."
 }

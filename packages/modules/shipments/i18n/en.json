@@ -5,5 +5,7 @@
   "settingLabels.shipments.enabled.description": "Switches shipment creation, carrier updates and shipment history on or off. Nothing is deleted while it is off.",
   "errors.SHIPMENT_ALREADY_GENERATED": "This shipment has already been generated successfully.",
   "errors.SHIPMENT_ALREADY_GENERATED.generate": "This order already has a successfully generated shipment, so there is nothing to generate.",
-  "errors.SHIPMENT_ALREADY_GENERATED.mark_failed": "This shipment has already been generated successfully, so it cannot be marked as failed."
+  "errors.SHIPMENT_ALREADY_GENERATED.mark_failed": "This shipment has already been generated successfully, so it cannot be marked as failed.",
+  "transactionalEmails.shipment_created.name": "Shipment created",
+  "module.description": "Shipment record and the order_created / shipment_created / receive_shipment lifecycle."
 }

@@ -55,5 +55,7 @@
   "settingLabels.meta_ads.pixel_id.name": "Identyfikator piksela",
   "settingLabels.meta_ads.pixel_id.description": "Identyfikator Meta Pixel z Menedżera zdarzeń. Pusty: kanał nie jest śledzony.",
   "settingLabels.meta_ads.require_consent.name": "Wymagaj zgody na analitykę",
-  "settingLabels.meta_ads.require_consent.description": "Nic związanego z Meta nie działa, dopóki odwiedzający nie zaakceptuje cookies."
+  "settingLabels.meta_ads.require_consent.description": "Nic związanego z Meta nie działa, dopóki odwiedzający nie zaakceptuje cookies.",
+  "module.name": "Meta Ads",
+  "module.description": "Integracja z Meta Ads: Meta Pixel w każdym kanale sprzedaży, śledzenie zależne od zgód, standardowe zdarzenia handlowe i konfigurowalne zdarzenia własne."
 }

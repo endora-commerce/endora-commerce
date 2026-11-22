@@ -547,5 +547,10 @@
   "actions.openTaskTags.keywords": "etykiety, etykieta",
   "actions.openTaskGeneralSettings.keywords": "ustawienia, strefa czasowa",
   "settingGroups.tasks.name": "Zadania",
-  "settingLabels.tasks.enabled.name": "Zadania włączone"
+  "settingLabels.tasks.enabled.name": "Zadania włączone",
+  "transactionalEmails.tasks_task_reminder.name": "Przypomnienie o zadaniu",
+  "transactionalEmails.tasks_task_reminder.description": "Wysyłany do każdego odbiorcy przypomnienia o zadaniu w jego momencie — w wybranym czasie albo określony czas przed terminem — jeśli nadal może widzieć zadanie, a zadanie jest otwarte.",
+  "transactionalEmails.tasks_daily_digest.name": "Dzienne podsumowanie zadań",
+  "transactionalEmails.tasks_daily_digest.description": "Wysyłany raz dziennie, o godzinie wybranej przez każdą osobę, do wszystkich, którzy włączyli podsumowanie: lista ich otwartych przypisanych zadań z terminem na ten dzień lub przeterminowanych. Nie jest wysyłany w dni bez takich zadań.",
+  "module.description": "Zadania przypisane administratorom: statusy, priorytety, tagi, komentarze, załączniki, podzadania, przypomnienia i tablica; każdy moduł może przypisać zadanie do swojego rekordu przez nieprzezroczysty kontekst."
 }

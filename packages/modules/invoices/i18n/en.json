@@ -123,5 +123,7 @@
   "settingLabels.invoices.storefront_base_url.name": "Storefront base URL (for invoice email links)",
   "settingLabels.invoices.storefront_base_url.description": "Base URL of invoice download links in e-mails, e.g. https://shop.example.com. Empty: no links.",
   "settingLabels.invoices.document_templates_grant_done.name": "Document template access granted",
-  "settingLabels.invoices.document_templates_grant_done.description": "Set by the platform after a one-time permission migration. Not meant to be changed."
+  "settingLabels.invoices.document_templates_grant_done.description": "Set by the platform after a one-time permission migration. Not meant to be changed.",
+  "transactionalEmails.invoice_issued.name": "Invoice issued",
+  "module.description": "Invoice generation, numbering, corrections, and email delivery; invoice PDF layouts are designed in Document templates."
 }

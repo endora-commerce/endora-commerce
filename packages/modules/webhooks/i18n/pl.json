@@ -9,5 +9,7 @@
   "settingGroups.webhooks.name": "Webhooki",
   "settingLabels.webhooks.enabled.name": "Webhooki włączone",
   "settingLabels.webhooks.delivery_retention_days.name": "Przechowywanie historii dostarczeń (dni)",
-  "settingLabels.webhooks.delivery_retention_days.description": "Przez ile dni zakończone dostarczenie webhooka jest przechowywane (1–3650). Domyślnie 365."
+  "settingLabels.webhooks.delivery_retention_days.description": "Przez ile dni zakończone dostarczenie webhooka jest przechowywane (1–3650). Domyślnie 365.",
+  "module.name": "Webhooki",
+  "module.description": "Rejestr subskrypcji wychodzących webhooków i ich wysyłka."
 }

@@ -670,5 +670,8 @@
   "actions.openProjectTemplates.keywords": "projekt, szablony, szablon",
   "actions.openProjectAnalytics.keywords": "projekt, analityka, raport",
   "actions.openProjectRoles.keywords": "projekt, role, zespół",
-  "actions.openProjectLossReasons.keywords": "projekt, utrata, powody"
+  "actions.openProjectLossReasons.keywords": "projekt, utrata, powody",
+  "transactionalEmails.projects_stage_deadline_alert.name": "Alert o terminie etapu",
+  "transactionalEmails.projects_stage_deadline_alert.description": "Wysyłany do każdego członka projektu, który może go widzieć, w dniu alertu o terminie bieżącego etapu — określoną liczbę dni przed terminem etapu.",
+  "module.description": "Projekty dla jednej lub wielu organizacji, prowadzone przez etapy projektu przez członków pełniących role w projekcie."
 }

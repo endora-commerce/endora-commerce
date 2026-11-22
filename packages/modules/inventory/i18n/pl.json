@@ -60,5 +60,8 @@
   "settingLabels.inventory.global_threshold_low.name": "Globalny próg niskiego stanu",
   "settingLabels.inventory.global_threshold_low.description": "Ilość, od której produkt ma niski stan. Poniżej jest niedostępny.",
   "settingLabels.inventory.allow_negative_stock.name": "Zezwalaj na zamówienia poniżej stanu (stan ujemny)",
-  "settingLabels.inventory.allow_negative_stock.description": "Pozwala zamawiać poniżej dostępnego stanu produkty z włączonym zamawianiem na brak."
+  "settingLabels.inventory.allow_negative_stock.description": "Pozwala zamawiać poniżej dostępnego stanu produkty z włączonym zamawianiem na brak.",
+  "transactionalEmails.low_stock_alert.name": "Alert o niskim stanie magazynowym",
+  "transactionalEmails.availability_back_in_stock.name": "Powiadomienie o ponownej dostępności",
+  "module.description": "Stany w wielu magazynach, strategia realizacji i sposoby pokazywania dostępności w sklepie."
 }

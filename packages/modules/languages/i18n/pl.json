@@ -1,0 +1,5 @@
+{
+  "module.name": "Języki",
+  "module.description": "Katalog języków sklepu i panelu oraz kierowanie do wersji językowych w kanałach sprzedaży.",
+  "module.nonDeactivatableReason": "Zakres języków, według którego działa każda zlokalizowana powierzchnia i każdy pakiet tłumaczeń."
+}

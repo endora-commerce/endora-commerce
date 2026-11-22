@@ -31,5 +31,7 @@
   "methods.fields.statusDefault": "Domyślny ({status})",
   "methods.columns.statuses": "Status zamówienia po sukcesie / porażce",
   "methods.statusGroup": "Zmiany statusu zamówienia",
-  "settingLabels.delivery_methods.enabled.name": "Metody dostawy włączone"
+  "settingLabels.delivery_methods.enabled.name": "Metody dostawy włączone",
+  "module.name": "Metody dostawy",
+  "module.description": "Definicje metod wysyłki i dostawy oraz ich dostępność w kanałach sprzedaży."
 }

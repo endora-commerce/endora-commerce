@@ -9,5 +9,7 @@
   "errors.PAYMENT_REFUNDED": "Ta płatność została zwrócona, więc nie można jej ponowić.",
   "errors.PAYMENT_SETTLED_OUT_OF_BAND": "To zamówienie jest rozliczane poza bramką płatności, więc nie ma czego ponawiać.",
   "settingGroups.payments.name": "Płatności",
-  "settingLabels.payments.enabled.name": "Płatności włączone"
+  "settingLabels.payments.enabled.name": "Płatności włączone",
+  "transactionalEmails.payment_status_changed.name": "Zmiana statusu płatności",
+  "module.description": "Obsługa płatności na platformie: wbudowane adaptery (przelew, płatność przy odbiorze osobistym, limit kredytowy, bramka), zapis płatności przy każdym zamówieniu i proces rozliczenia, do którego podłączają się integracje z operatorami płatności. Po wyłączeniu zamówienie nie oferuje żadnej metody płatności, a sklep nie przyjmuje zamówień."
 }

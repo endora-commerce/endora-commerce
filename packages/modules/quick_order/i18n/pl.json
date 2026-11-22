@@ -63,5 +63,6 @@
   "settingLabels.quick_order.one_click_buy_enabled.name": "Zakup jednym kliknięciem włączony",
   "settingLabels.quick_order.one_click_buy_enabled.description": "Kupujący z ustawionymi domyślnymi preferencjami widzą „Kup jednym kliknięciem” na stronach produktów.",
   "settingLabels.quick_order.import_max_rows.name": "Limit wierszy importu",
-  "settingLabels.quick_order.import_max_rows.description": "Najwięcej wierszy przyjmowanych w jednym imporcie CSV lub Excel."
+  "settingLabels.quick_order.import_max_rows.description": "Najwięcej wierszy przyjmowanych w jednym imporcie CSV lub Excel.",
+  "module.description": "Masowy import do koszyka lub zapytania ofertowego (CSV i Excel, z wariantami), szybkie wyszukiwanie produktów, ponowne zamówienie, domyślne preferencje zamawiania i zakup jednym kliknięciem."
 }

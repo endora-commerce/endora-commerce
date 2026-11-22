@@ -45,5 +45,7 @@
   "settingLabels.prompt_actions.llm_credentials.name": "LLM credentials",
   "settingLabels.prompt_actions.llm_credentials.description": "The LLM configuration (Credentials screen) the assistant uses. Required to turn it on.",
   "settingLabels.prompt_actions.bulk_limit.name": "Bulk operation limit",
-  "settingLabels.prompt_actions.bulk_limit.description": "Most records a single prompt may change. Larger plans are blocked before they run."
+  "settingLabels.prompt_actions.bulk_limit.description": "Most records a single prompt may change. Larger plans are blocked before they run.",
+  "module.name": "Prompt actions",
+  "module.description": "Natural-language prompt mode for the admin command palette: interpret an operator instruction with an LLM, preview the plan, execute it through existing module services after explicit confirmation."
 }

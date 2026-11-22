@@ -67,5 +67,7 @@
   "settingLabels.mfa.storefront.google_enabled.name": "Storefront — Google sign-in",
   "settingLabels.mfa.storefront.google_enabled.description": "Customers may sign in with Google.",
   "settingLabels.mfa.storefront.microsoft_enabled.name": "Storefront — Microsoft sign-in",
-  "settingLabels.mfa.storefront.microsoft_enabled.description": "Customers may sign in with Microsoft."
+  "settingLabels.mfa.storefront.microsoft_enabled.description": "Customers may sign in with Microsoft.",
+  "module.name": "MFA",
+  "module.description": "Two-step verification (TOTP + recovery codes) and Google/Microsoft sign-in, with per-scope enablement/enforcement and admin reset."
 }

@@ -3053,5 +3053,7 @@
   "seededHooks.login.top.name": "Strona logowania — góra",
   "seededHooks.login.bottom.name": "Strona logowania — dół",
   "seededHooks.register.top.name": "Strona rejestracji — góra",
-  "seededHooks.register.bottom.name": "Strona rejestracji — dół"
+  "seededHooks.register.bottom.name": "Strona rejestracji — dół",
+  "module.name": "CMS",
+  "module.description": "Strony, bloki, szablony i haki do zarządzania treścią."
 }

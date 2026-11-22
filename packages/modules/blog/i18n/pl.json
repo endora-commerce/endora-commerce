@@ -482,5 +482,7 @@
   "settingLabels.blog.latest_count.name": "Najnowsze wpisy na stronie głównej bloga",
   "settingLabels.blog.latest_count.description": "Ile najnowszych wpisów pokazuje strona główna bloga (1–20).",
   "settingLabels.blog.posts_per_page.name": "Wpisy na stronę w widokach kategorii i tagów",
-  "settingLabels.blog.posts_per_page.description": "Liczba wpisów na stronę w widokach kategorii i tagów (1–100)."
+  "settingLabels.blog.posts_per_page.description": "Liczba wpisów na stronę w widokach kategorii i tagów (1–100).",
+  "module.name": "Blog",
+  "module.description": "Blog dla wielu kanałów i języków, z kategoriami, tagami i wpisami tworzonymi w kreatorze stron."
 }

@@ -11,6 +11,8 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
 export const manifest = defineModuleManifest({
   id: 'email',
   name: 'Email',
+  // Issue #1809 — the module's name, description and lock reason in Polish for Platform → Modules.
+  i18n: { bundlesDir: 'i18n' },
   description:
     'Mailer abstraction with Console / SMTP drivers for transactional email.',
   version: '1.0.0',

@@ -808,5 +808,8 @@
   "settingLabels.crm.auto_create_from_quote_requests.name": "Create an opportunity for every new quote request",
   "settingLabels.crm.auto_create_from_quote_requests.description": "Every new quote request gets a linked sales opportunity. Needs Quote requests. Off by default.",
   "settingLabels.crm.board_card_fields.name": "Fields shown on a board card",
-  "settingLabels.crm.board_card_fields.description": "Fields a card on the opportunity board shows, at most six. Edited on the CRM workflow screen."
+  "settingLabels.crm.board_card_fields.description": "Fields a card on the opportunity board shows, at most six. Edited on the CRM workflow screen.",
+  "transactionalEmails.crm_event_reminder.name": "Event reminder",
+  "transactionalEmails.crm_event_reminder.description": "Sent to the person a sales opportunity is assigned to when the reminder of one of its events is due and they are not in the admin panel to see the notification.",
+  "module.description": "Sales opportunities with a configurable status workflow that linked orders follow."
 }

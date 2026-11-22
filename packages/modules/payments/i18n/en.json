@@ -9,5 +9,7 @@
   "errors.PAYMENT_REFUNDED": "This payment has been refunded, so it cannot be retried.",
   "errors.PAYMENT_SETTLED_OUT_OF_BAND": "This order is settled outside the payment gateway, so there is nothing to retry.",
   "settingGroups.payments.name": "Payments",
-  "settingLabels.payments.enabled.name": "Payments enabled"
+  "settingLabels.payments.enabled.name": "Payments enabled",
+  "transactionalEmails.payment_status_changed.name": "Payment status changed",
+  "module.description": "The platform payment capability: the built-in payment adapters (bank transfer, in-person pickup, credit limit, gateway), the payment record every order carries, and the settlement lifecycle that PSP integrations plug into. Switched off, checkout offers no payment method and the shop takes no orders."
 }

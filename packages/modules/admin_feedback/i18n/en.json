@@ -8,5 +8,7 @@
   "actions.openAdminFeedbackSettings.description": "Decide whether administrators can send feedback to Endora, and where it goes",
   "errors.ADMIN_FEEDBACK_NOT_CONFIGURED": "Sending feedback is switched off on this instance.",
   "errors.ADMIN_FEEDBACK_DELIVERY_FAILED": "Your feedback could not be delivered. Try again later.",
-  "actions.openAdminFeedbackSettings.keywords": "feedback, report, support"
+  "actions.openAdminFeedbackSettings.keywords": "feedback, report, support",
+  "module.name": "Feedback",
+  "module.description": "Send feedback from the admin to the makers of Endora Commerce: a message, a contact address and what the instance knows about itself, relayed as one e-mail and stored nowhere."
 }

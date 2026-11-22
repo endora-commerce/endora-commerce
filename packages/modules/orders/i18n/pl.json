@@ -207,5 +207,11 @@
   "settingLabels.orders.reorder_enabled.name": "Ponowne zamawianie włączone",
   "settingLabels.orders.reorder_enabled.description": "Wcześniejsze zamówienie można złożyć ponownie.",
   "settingLabels.orders.confirmation_recipients.name": "Odbiorcy potwierdzeń zamówień",
-  "settingLabels.orders.confirmation_recipients.description": "Dodatkowe adresy, które dostają potwierdzenie każdego złożonego zamówienia."
+  "settingLabels.orders.confirmation_recipients.description": "Dodatkowe adresy, które dostają potwierdzenie każdego złożonego zamówienia.",
+  "transactionalEmails.order_confirmation.name": "Potwierdzenie zamówienia",
+  "transactionalEmails.order_comment.name": "Powiadomienie o komentarzu do zamówienia",
+  "transactionalEmails.reorder_created.name": "Utworzenie ponownego zamówienia",
+  "transactionalEmails.admin_created_order.name": "Zamówienie utworzone przez administratora",
+  "module.description": "Składanie zamówień, ich cykl życia i historia.",
+  "module.nonDeactivatableReason": "Zamówienie to transakcja, której zapisywanie jest celem tej platformy."
 }

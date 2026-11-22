@@ -597,5 +597,8 @@
   "settingLabels.pricing.unauthenticated_display_mode.name": "Unauthenticated price display mode",
   "settingLabels.pricing.unauthenticated_display_mode.description": "How prices show to visitors who are not signed in. Set none to hide prices until login.",
   "settingLabels.pricing.show_list_price.name": "Show list price beside the buyer price",
-  "settingLabels.pricing.show_list_price.description": "A buyer whose price is below the catalogue price sees both on product pages and cards."
+  "settingLabels.pricing.show_list_price.description": "A buyer whose price is below the catalogue price sees both on product pages and cards.",
+  "module.name": "Price lists",
+  "module.description": "Price books — base, catalogue, buyer and sale prices per currency, sales channel and audience — and price display modes.",
+  "module.nonDeactivatableReason": "B2B is contract pricing. Absent, every buyer silently pays base price, which makes the platform a B2C shop rather than a reduced B2B one."
 }

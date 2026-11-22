@@ -60,5 +60,8 @@
   "settingLabels.inventory.global_threshold_low.name": "Global low-stock threshold",
   "settingLabels.inventory.global_threshold_low.description": "Quantity at or above which a product counts as low stock. Below it, out of stock.",
   "settingLabels.inventory.allow_negative_stock.name": "Allow ordering below stock (negative stock)",
-  "settingLabels.inventory.allow_negative_stock.description": "Lets products with backorder switched on be ordered below available stock."
+  "settingLabels.inventory.allow_negative_stock.description": "Lets products with backorder switched on be ordered below available stock.",
+  "transactionalEmails.low_stock_alert.name": "Low stock alert",
+  "transactionalEmails.availability_back_in_stock.name": "Back in stock notification",
+  "module.description": "Multi-warehouse stock levels, fulfilment strategy, and storefront display modes."
 }

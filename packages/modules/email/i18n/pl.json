@@ -1,0 +1,5 @@
+{
+  "module.name": "E-mail",
+  "module.description": "Warstwa wysyłki z obsługą konsoli i SMTP dla e-maili transakcyjnych.",
+  "module.nonDeactivatableReason": "Kanał, którym wychodzi każda wiadomość. Firma konfiguruje sposób wysyłki, ale nie wyłącza samej wysyłki."
+}

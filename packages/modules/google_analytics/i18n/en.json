@@ -66,5 +66,7 @@
   "settingLabels.google_analytics.server_side_api_secret.name": "Measurement Protocol API secret",
   "settingLabels.google_analytics.server_side_api_secret.description": "GA4 Measurement Protocol API secret, from Admin → Data Streams. Stored encrypted; write-only.",
   "settingLabels.google_analytics.require_consent.name": "Require analytics consent",
-  "settingLabels.google_analytics.require_consent.description": "Google Analytics waits in Consent Mode v2 until the visitor consents."
+  "settingLabels.google_analytics.require_consent.description": "Google Analytics waits in Consent Mode v2 until the visitor consents.",
+  "module.name": "Google Analytics",
+  "module.description": "Google Analytics 4 integration: per-sales-channel activation and Measurement ID, Enhanced Ecommerce, configurable custom events, and optional server-side tagging."
 }
