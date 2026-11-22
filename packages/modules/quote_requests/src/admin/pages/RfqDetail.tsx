@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import type { AdminPrepareCustomerBasketResponse } from '@endora-commerce/contracts';
 import { apiClient, ApiError, cn, formatDateTime, isDraftEqual, readReturnTo, useDetailResource, useModulePresence } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, DetailSkeleton, EditorSection, Input, Label, PageHeader, RecordTabs, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, EditorSection, Input, Label, PageHeader, RecordTabs, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldValuesPanel,
   DetailHeaderActions,
@@ -42,7 +42,7 @@ import {
   type LineGroup,
 } from '@endora-commerce/contracts';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { deadlineForDays, isValidityDaysInvalid, rfqValidity } from '../validity.js';
 import { useRfqNumberFormat } from '../number-format.js';
 import type { ReferenceAmount } from '../reference-difference.js';
@@ -253,6 +253,9 @@ export function RfqDetail(): ReactNode {
   }, []);
   // Feature 153 — the quote PDF dialog (download or send) and its outcome line.
   const tPdf = useTranslation('quote_requests');
+  // Issue #1452 (UX audit DS-20) — the sidebar column is drawn only while something fills
+  // it: with every contributor off, or refused, the screen is the single column it was.
+  const sidebarShown = useAdminZone('quote_request.detail.sidebar', { quoteRequestId: id ?? '' }).length > 0 && id !== undefined;
   // Feature 159 — the Overview's section headings and summaries.
   const summaryText = useSectionSummaryText();
   const { isPresent } = useModulePresence();
@@ -691,266 +694,282 @@ export function RfqDetail(): ReactNode {
           ←/→/Home/End, every tab controlling the one panel. `overflow-hidden`
           rounds the strip's corners, but it also clips the Modify tab's
           product-picker dropdown, so the clip is dropped while Modify is open. */}
-      <RecordTabs
-        className={cn('mb-4', tab !== 'modify' && 'overflow-hidden')}
-        items={[
-          { value: 'overview', label: t('rfq.detail.tabs.overview'), icon: <ClipboardList /> },
-          ...(!isTerminal
-            ? [
-                {
-                  value: 'modify' as const,
-                  label: t('rfq.detail.tabs.modify'),
-                  icon: <PencilLine />,
-                  // Issue #1469 — the tab holds the unsaved draft: a dot, and these words.
-                  unsaved: draftOpen ? t('rfq.detail.tabs.modifyUnsaved') : undefined,
-                },
-              ]
-            : []),
-          { value: 'history', label: t('rfq.detail.tabs.history'), icon: <History /> },
-        ]}
-        value={tab}
-        onValueChange={setTab}
-        idBase="rfq-detail"
-        aria-label={tPdf('detail.tabs.label')}
-        panelProps={resource.busyProps}
+      <DetailSidebarLayout
+        sidebar={
+          sidebarShown && id !== undefined ? (
+            // Issue #1452 (UX audit DS-20) — what other modules say about the request, as
+            // sections of one card at a sidebar's width; never a card in a card.
+            <aside aria-label={tPdf('detail.sidebar.label')} className="mb-4 min-w-0 lg:col-start-2 lg:row-start-1">
+              <Card>
+                <CardContent className="space-y-(--section-gap)">
+                  <AdminZone name="quote_request.detail.sidebar" props={{ quoteRequestId: id }} chrome="section" />
+                </CardContent>
+              </Card>
+            </aside>
+          ) : null
+        }
       >
-        {tab !== 'modify' ? (
-        <div className="divide-y divide-border [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
-          {tab === 'overview' ? (
-            <>
-              <div className="grid gap-6 md:grid-cols-2">
-                <Section title={t('rfq.detail.sections.organization')}>
-                  {rfq.organization ? (
-                    <div className="space-y-1 text-sm">
-                      <p className="font-medium">{rfq.organization.name}</p>
-                      {rfq.organization.legalName &&
-                      rfq.organization.legalName !== rfq.organization.name ? (
-                        <p className="text-muted-foreground">{rfq.organization.legalName}</p>
-                      ) : null}
-                      {rfq.organization.isPersonal ? (
-                        <p className="text-muted-foreground">{t('rfq.detail.org.individualCustomer')}</p>
-                      ) : rfq.organization.taxId ? (
+        <RecordTabs
+          className={cn('mb-4', tab !== 'modify' && 'overflow-hidden', sidebarShown && 'min-w-0 lg:col-start-1')}
+          items={[
+            { value: 'overview', label: t('rfq.detail.tabs.overview'), icon: <ClipboardList /> },
+            ...(!isTerminal
+              ? [
+                  {
+                    value: 'modify' as const,
+                    label: t('rfq.detail.tabs.modify'),
+                    icon: <PencilLine />,
+                    // Issue #1469 — the tab holds the unsaved draft: a dot, and these words.
+                    unsaved: draftOpen ? t('rfq.detail.tabs.modifyUnsaved') : undefined,
+                  },
+                ]
+              : []),
+            { value: 'history', label: t('rfq.detail.tabs.history'), icon: <History /> },
+          ]}
+          value={tab}
+          onValueChange={setTab}
+          idBase="rfq-detail"
+          aria-label={tPdf('detail.tabs.label')}
+          panelProps={resource.busyProps}
+        >
+          {tab !== 'modify' ? (
+          <div className="divide-y divide-border [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
+            {tab === 'overview' ? (
+              <>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Section title={t('rfq.detail.sections.organization')}>
+                    {rfq.organization ? (
+                      <div className="space-y-1 text-sm">
+                        <p className="font-medium">{rfq.organization.name}</p>
+                        {rfq.organization.legalName &&
+                        rfq.organization.legalName !== rfq.organization.name ? (
+                          <p className="text-muted-foreground">{rfq.organization.legalName}</p>
+                        ) : null}
+                        {rfq.organization.isPersonal ? (
+                          <p className="text-muted-foreground">{t('rfq.detail.org.individualCustomer')}</p>
+                        ) : rfq.organization.taxId ? (
+                          <p className="text-muted-foreground">
+                            {t('rfq.detail.org.taxId')}: <strong>{rfq.organization.taxId}</strong>
+                          </p>
+                        ) : null}
                         <p className="text-muted-foreground">
-                          {t('rfq.detail.org.taxId')}: <strong>{rfq.organization.taxId}</strong>
+                          {t('rfq.detail.org.vat')}:{' '}
+                          {t(`rfq.detail.vatStatus.${rfq.organization.vatStatus}`)}
                         </p>
-                      ) : null}
-                      <p className="text-muted-foreground">
-                        {t('rfq.detail.org.vat')}:{' '}
-                        {t(`rfq.detail.vatStatus.${rfq.organization.vatStatus}`)}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        <code className="font-mono text-xs">{rfq.organizationId}</code>
                       </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      <code className="font-mono text-xs">{rfq.organizationId}</code>
-                    </p>
-                  )}
-                </Section>
-                <Section title={t('rfq.detail.sections.customer')}>
-                  {rfq.customer ? (
-                    <div className="space-y-1 text-sm">
-                      <p className="font-medium">
-                        {`${rfq.customer.firstName ?? ''} ${rfq.customer.lastName ?? ''}`.trim() ||
-                          rfq.customer.email}
+                    )}
+                  </Section>
+                  <Section title={t('rfq.detail.sections.customer')}>
+                    {rfq.customer ? (
+                      <div className="space-y-1 text-sm">
+                        <p className="font-medium">
+                          {`${rfq.customer.firstName ?? ''} ${rfq.customer.lastName ?? ''}`.trim() ||
+                            rfq.customer.email}
+                        </p>
+                        <p className="text-muted-foreground">
+                          <a className="underline underline-offset-2" href={`mailto:${rfq.customer.email}`}>
+                            {rfq.customer.email}
+                          </a>
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        <code className="font-mono text-xs">{rfq.customerAccountId}</code>
                       </p>
-                      <p className="text-muted-foreground">
-                        <a className="underline underline-offset-2" href={`mailto:${rfq.customer.email}`}>
-                          {rfq.customer.email}
-                        </a>
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      <code className="font-mono text-xs">{rfq.customerAccountId}</code>
-                    </p>
-                  )}
-                </Section>
-              </div>
+                    )}
+                  </Section>
+                </div>
 
-              {rfq.headerNote ? (
-                <Section title={t('rfq.detail.sections.buyerNote')}>
-                  <p className="text-sm">{rfq.headerNote}</p>
-                </Section>
-              ) : null}
+                {rfq.headerNote ? (
+                  <Section title={t('rfq.detail.sections.buyerNote')}>
+                    <p className="text-sm">{rfq.headerNote}</p>
+                  </Section>
+                ) : null}
 
-              <Section title={t('rfq.detail.sections.items')}>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('rfq.detail.column.product')}</TableHead>
-                      <TableHead>{t('rfq.detail.column.qty')}</TableHead>
-                      <TableHead>{t('rfq.detail.reference.column.reference')}</TableHead>
-                      <TableHead>{t('rfq.detail.reference.column.proposed')}</TableHead>
-                      <TableHead>{t('rfq.detail.reference.column.difference')}</TableHead>
-                      <TableHead>{t('rfq.detail.column.agreed')}</TableHead>
-                      <TableHead className="text-right">{t('rfq.detail.column.lineTotal')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {overviewSections(rfq).flatMap((section) => [
-                      section.heading !== null ? (
-                        <TableRow key={`heading-${section.key}`}>
-                          <TableHead colSpan={7} scope="colgroup" className="font-semibold text-foreground">
-                            {section.heading === '' ? tPdf('lineGroups.ungrouped') : section.heading}
-                          </TableHead>
-                        </TableRow>
-                      ) : null,
-                      ...section.items.map((it) => {
-                      const lineTotal =
-                        it.agreedUnitPrice !== null
-                          ? Number(lineAmountHalfUp(it.agreedUnitPrice, it.quantity))
-                          : it.desiredUnitPrice !== null
-                            ? Number(lineAmountHalfUp(it.desiredUnitPrice, it.quantity))
-                            : null;
-                      const reference = referenceViewOf(it, currentPrices);
-                      const proposal = proposalOf(it);
-                      return (
-                        // Top-aligned: the minimum badge under the quantity must not lift it
-                        // above the other cells' first line (U4).
-                        <TableRow key={it.id} className="[&>td]:align-top">
-                          <TableCell>
-                            <strong>{it.productName}</strong>
-                            {it.variantLabel ? <small> ({it.variantLabel})</small> : null}
-                            {it.lineNote ? (
-                              <div className="text-xs text-muted-foreground">{it.lineNote}</div>
-                            ) : null}
-                          </TableCell>
-                          <TableCell>
-                            <div className="tabular-nums">{it.quantity}</div>
-                            <MinimumWarningBadge
-                              warning={it.minimumWarning}
-                              packagingUnitName={it.packagingUnitName}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <ReferenceCell view={reference} perBaseUnit={Boolean(it.packagingUnitName)} />
-                          </TableCell>
-                          <TableCell className="tabular-nums">
-                            {proposal !== null ? format.unitAmount(proposal) : '—'}
-                          </TableCell>
-                          <TableCell>
-                            <DifferenceCell
-                              price={proposal}
-                              currency={it.lineCurrency}
-                              reference={referencePriceOf(reference)}
-                            />
-                          </TableCell>
-                          <TableCell className="tabular-nums">
-                            {it.agreedUnitPrice !== null ? format.unitAmount(it.agreedUnitPrice) : '—'}
-                          </TableCell>
-                          <TableCell className="tabular-nums text-right">
-                            {lineTotal !== null
-                              ? format.money(lineTotal, it.lineCurrency)
-                              : '—'}
-                          </TableCell>
-                        </TableRow>
+                <Section title={t('rfq.detail.sections.items')}>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('rfq.detail.column.product')}</TableHead>
+                        <TableHead>{t('rfq.detail.column.qty')}</TableHead>
+                        <TableHead>{t('rfq.detail.reference.column.reference')}</TableHead>
+                        <TableHead>{t('rfq.detail.reference.column.proposed')}</TableHead>
+                        <TableHead>{t('rfq.detail.reference.column.difference')}</TableHead>
+                        <TableHead>{t('rfq.detail.column.agreed')}</TableHead>
+                        <TableHead className="text-right">{t('rfq.detail.column.lineTotal')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {overviewSections(rfq).flatMap((section) => [
+                        section.heading !== null ? (
+                          <TableRow key={`heading-${section.key}`}>
+                            <TableHead colSpan={7} scope="colgroup" className="font-semibold text-foreground">
+                              {section.heading === '' ? tPdf('lineGroups.ungrouped') : section.heading}
+                            </TableHead>
+                          </TableRow>
+                        ) : null,
+                        ...section.items.map((it) => {
+                        const lineTotal =
+                          it.agreedUnitPrice !== null
+                            ? Number(lineAmountHalfUp(it.agreedUnitPrice, it.quantity))
+                            : it.desiredUnitPrice !== null
+                              ? Number(lineAmountHalfUp(it.desiredUnitPrice, it.quantity))
+                              : null;
+                        const reference = referenceViewOf(it, currentPrices);
+                        const proposal = proposalOf(it);
+                        return (
+                          // Top-aligned: the minimum badge under the quantity must not lift it
+                          // above the other cells' first line (U4).
+                          <TableRow key={it.id} className="[&>td]:align-top">
+                            <TableCell>
+                              <strong>{it.productName}</strong>
+                              {it.variantLabel ? <small> ({it.variantLabel})</small> : null}
+                              {it.lineNote ? (
+                                <div className="text-xs text-muted-foreground">{it.lineNote}</div>
+                              ) : null}
+                            </TableCell>
+                            <TableCell>
+                              <div className="tabular-nums">{it.quantity}</div>
+                              <MinimumWarningBadge
+                                warning={it.minimumWarning}
+                                packagingUnitName={it.packagingUnitName}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <ReferenceCell view={reference} perBaseUnit={Boolean(it.packagingUnitName)} />
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {proposal !== null ? format.unitAmount(proposal) : '—'}
+                            </TableCell>
+                            <TableCell>
+                              <DifferenceCell
+                                price={proposal}
+                                currency={it.lineCurrency}
+                                reference={referencePriceOf(reference)}
+                              />
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {it.agreedUnitPrice !== null ? format.unitAmount(it.agreedUnitPrice) : '—'}
+                            </TableCell>
+                            <TableCell className="tabular-nums text-right">
+                              {lineTotal !== null
+                                ? format.money(lineTotal, it.lineCurrency)
+                                : '—'}
+                            </TableCell>
+                          </TableRow>
+                        );
+                        }),
+                        section.heading !== null ? (
+                          <TableRow key={`summary-${section.key}`}>
+                            <TableCell colSpan={7}>
+                              <SectionSummary
+                                text={summaryText(
+                                  sectionTotals(
+                                    section.items.map((it) => ({
+                                      net: it.agreedUnitPrice !== null ? Number(lineAmountHalfUp(it.agreedUnitPrice, it.quantity)) : null,
+                                      reference: referenceTotalOf(referenceViewOf(it, currentPrices), it.quantity),
+                                    })),
+                                    taxRate,
+                                  ),
+                                  currency,
+                                )}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ) : null,
+                      ])}
+                    </TableBody>
+                    {total !== null ? (
+                      <tfoot className="border-t [&_td]:p-2 [&_th]:p-2">
+                        {taxRate > 0 ? (
+                          <>
+                            <tr>
+                              <th colSpan={6} className="text-right">
+                                {t('rfq.detail.netLabel')}
+                              </th>
+                              <td className="tabular-nums text-right">
+                                {format.money(total, currency)}
+                              </td>
+                            </tr>
+                            <tr>
+                              <th colSpan={6} className="text-right">
+                                {t('rfq.detail.taxLabel', { rate: (taxRate * 100).toFixed(0) })}
+                              </th>
+                              <td className="tabular-nums text-right">
+                                {format.money(taxTotal ?? 0, currency)}
+                              </td>
+                            </tr>
+                          </>
+                        ) : null}
+                        <tr>
+                          <th colSpan={6} className="text-right font-semibold">
+                            {taxRate > 0 ? t('rfq.detail.grossLabel') : t('rfq.detail.totalLabel')}
+                          </th>
+                          <td className="tabular-nums text-right font-semibold">
+                            {format.money(grossTotal ?? total, currency)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    ) : null}
+                  </Table>
+                </Section>
+                {/* Feature 055 — operator-defined custom fields for this quote request. */}
+                {!isTerminal ? (
+                  <CustomFieldValuesPanel
+                    entityType="quote_request"
+                    values={rfq.customFieldValues ?? {}}
+                    save={async (values): Promise<void> => {
+                      await apiClient.patch(
+                        `/api/v1/admin/quote-requests/${rfq.id}`,
+                        { customFieldValues: values },
+                        { headers: { 'If-Match': `"${rfq.version}"` } },
                       );
-                      }),
-                      section.heading !== null ? (
-                        <TableRow key={`summary-${section.key}`}>
-                          <TableCell colSpan={7}>
-                            <SectionSummary
-                              text={summaryText(
-                                sectionTotals(
-                                  section.items.map((it) => ({
-                                    net: it.agreedUnitPrice !== null ? Number(lineAmountHalfUp(it.agreedUnitPrice, it.quantity)) : null,
-                                    reference: referenceTotalOf(referenceViewOf(it, currentPrices), it.quantity),
-                                  })),
-                                  taxRate,
-                                ),
-                                currency,
-                              )}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ) : null,
-                    ])}
-                  </TableBody>
-                  {total !== null ? (
-                    <tfoot className="border-t [&_td]:p-2 [&_th]:p-2">
-                      {taxRate > 0 ? (
-                        <>
-                          <tr>
-                            <th colSpan={6} className="text-right">
-                              {t('rfq.detail.netLabel')}
-                            </th>
-                            <td className="tabular-nums text-right">
-                              {format.money(total, currency)}
-                            </td>
-                          </tr>
-                          <tr>
-                            <th colSpan={6} className="text-right">
-                              {t('rfq.detail.taxLabel', { rate: (taxRate * 100).toFixed(0) })}
-                            </th>
-                            <td className="tabular-nums text-right">
-                              {format.money(taxTotal ?? 0, currency)}
-                            </td>
-                          </tr>
-                        </>
-                      ) : null}
-                      <tr>
-                        <th colSpan={6} className="text-right font-semibold">
-                          {taxRate > 0 ? t('rfq.detail.grossLabel') : t('rfq.detail.totalLabel')}
-                        </th>
-                        <td className="tabular-nums text-right font-semibold">
-                          {format.money(grossTotal ?? total, currency)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  ) : null}
-                </Table>
+                      await refresh();
+                    }}
+                  />
+                ) : null}
+              </>
+            ) : null}
+
+            {tab === 'history' ? (
+              <Section title={t('rfq.detail.history.title')}>
+                <RfqHistory key={historyNonce} quoteRequestId={rfq.id} />
               </Section>
-              {/* Feature 055 — operator-defined custom fields for this quote request. */}
-              {!isTerminal ? (
-                <CustomFieldValuesPanel
-                  entityType="quote_request"
-                  values={rfq.customFieldValues ?? {}}
-                  save={async (values): Promise<void> => {
-                    await apiClient.patch(
-                      `/api/v1/admin/quote-requests/${rfq.id}`,
-                      { customFieldValues: values },
-                      { headers: { 'If-Match': `"${rfq.version}"` } },
-                    );
-                    await refresh();
-                  }}
-                />
-              ) : null}
-            </>
-          ) : null}
-
-          {tab === 'history' ? (
-            <Section title={t('rfq.detail.history.title')}>
-              <RfqHistory key={historyNonce} quoteRequestId={rfq.id} />
-            </Section>
-          ) : null}
-        </div>
-        ) : null}
-
-        {/* Issue #1469 — mounted while the request can be modified and only
-            hidden on the other tabs, so a tab switch keeps the draft. It sits
-            inside the one panel; hidden, it is not exposed on another tab. */}
-        {!isTerminal && modifyOpened ? (
-          <div hidden={tab !== 'modify'} data-testid="rfq-modify-panel">
-            <ModifyCard
-              key={modifyEpoch}
-              rfq={rfq}
-              currentPrices={currentPrices}
-              onSaved={async (): Promise<void> => {
-                setModifySaved(t('rfq.detail.modify.info.saved'));
-                await refresh();
-                setModifyDirty(false);
-                setModifyEpoch((n) => n + 1);
-              }}
-              setError={setError}
-              savedMessage={modifySaved}
-              onEdited={clearModifySaved}
-              focusValidityNonce={validityFocusNonce}
-              remounted={modifyEpoch > 0}
-              onDirtyChange={setModifyDirty}
-              saveRef={modifySaveRef}
-            />
+            ) : null}
           </div>
-        ) : null}
-      </RecordTabs>
+          ) : null}
+
+          {/* Issue #1469 — mounted while the request can be modified and only
+              hidden on the other tabs, so a tab switch keeps the draft. It sits
+              inside the one panel; hidden, it is not exposed on another tab. */}
+          {!isTerminal && modifyOpened ? (
+            <div hidden={tab !== 'modify'} data-testid="rfq-modify-panel">
+              <ModifyCard
+                key={modifyEpoch}
+                rfq={rfq}
+                currentPrices={currentPrices}
+                onSaved={async (): Promise<void> => {
+                  setModifySaved(t('rfq.detail.modify.info.saved'));
+                  await refresh();
+                  setModifyDirty(false);
+                  setModifyEpoch((n) => n + 1);
+                }}
+                setError={setError}
+                savedMessage={modifySaved}
+                onEdited={clearModifySaved}
+                focusValidityNonce={validityFocusNonce}
+                remounted={modifyEpoch > 0}
+                onDirtyChange={setModifyDirty}
+                saveRef={modifySaveRef}
+              />
+            </div>
+          ) : null}
+        </RecordTabs>
+      </DetailSidebarLayout>
 
       {/* Panels other modules add to this screen. The host knows none of them;
           with nobody contributing this renders nothing at all. At page level each
@@ -1744,6 +1763,22 @@ function ModifyCard({
           </Button>
         }
       />
+    </div>
+  );
+}
+
+/**
+ * The tabs alone, or the tabs and a sidebar beside them (issue #1452, UX audit
+ * DS-20) — the grid of the Task detail screen. With no sidebar it adds no element,
+ * so the screen is the single column it was. In DOM order the sidebar follows
+ * the tabs, so the main content comes first on a narrow screen.
+ */
+function DetailSidebarLayout({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }): ReactNode {
+  if (sidebar === null) return children;
+  return (
+    <div className="grid items-start gap-x-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      {children}
+      {sidebar}
     </div>
   );
 }

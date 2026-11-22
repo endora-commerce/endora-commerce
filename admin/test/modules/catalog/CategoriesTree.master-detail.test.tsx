@@ -48,6 +48,9 @@ const { CategoriesTree } = await import('../../../../packages/modules/catalog/sr
 const read = (path: string): Record<string, string> =>
   JSON.parse(readFileSync(resolve(process.cwd(), path), 'utf8')) as Record<string, string>;
 const en = read('../packages/modules/catalog/i18n/en.json');
+// #1507 — the name field per content language; the channels are not mocked here, so the
+// form falls back to the admin's own locale (en-US).
+const NAME_EN = en['categories.field.nameIn']!.replace('{language}', 'English (United States)');
 const coreEn = read('../packages/modules/_i18n/i18n/en.json');
 const bundle = { catalog: en, core: coreEn };
 
@@ -153,7 +156,7 @@ describe('CategoriesTree — the editor panel (#1507)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Furniture' }));
     const heading = await screen.findByRole('heading', { name: tr('categories.panel.editTitle', { name: 'Furniture' }) });
     await waitFor(() => expect(document.activeElement).toBe(heading));
-    const form = screen.getByLabelText(en['categories.field.nameEn']!).closest('form') as HTMLElement;
+    const form = screen.getByLabelText(NAME_EN).closest('form') as HTMLElement;
     expect(form.closest('table')).toBeNull();
     expect(rowOf('Furniture').getAttribute('data-state')).toBe('selected');
     expect(screen.getByRole('button', { name: 'Furniture' }).getAttribute('aria-expanded')).toBe('true');
@@ -164,10 +167,10 @@ describe('CategoriesTree — the editor panel (#1507)', () => {
     const name = await screen.findByRole('button', { name: 'Furniture' });
     name.focus();
     fireEvent.click(name);
-    const form = (await screen.findByLabelText(en['categories.field.nameEn']!)).closest('form') as HTMLElement;
+    const form = (await screen.findByLabelText(NAME_EN)).closest('form') as HTMLElement;
     fireEvent.click(within(form).getByRole('button', { name: en['categories.action.cancel']! }));
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Furniture' })));
-    expect(screen.queryByLabelText(en['categories.field.nameEn']!)).toBeNull();
+    expect(screen.queryByLabelText(NAME_EN)).toBeNull();
   });
 
   it('"+" opens the create form for a subcategory in the panel, the slug following the name', async () => {
@@ -177,7 +180,7 @@ describe('CategoriesTree — the editor panel (#1507)', () => {
     expect(
       await screen.findByRole('heading', { name: tr('categories.panel.createChildTitle', { name: 'Furniture' }) }),
     ).toBeTruthy();
-    const nameInput = screen.getByLabelText(en['categories.field.nameEn']!);
+    const nameInput = screen.getByLabelText(NAME_EN);
     expect(nameInput.closest('table')).toBeNull();
     fireEvent.change(nameInput, { target: { value: 'Office chairs' } });
     expect((screen.getByLabelText(en['categories.field.slug']!) as HTMLInputElement).value).toBe('office-chairs');
@@ -193,13 +196,13 @@ describe('CategoriesTree — the editor panel (#1507)', () => {
   it('asks through the kit dialog before another category opens over unsaved changes', async () => {
     renderTree();
     fireEvent.click(await screen.findByRole('button', { name: 'Furniture' }));
-    fireEvent.change(await screen.findByLabelText(en['categories.field.nameEn']!), { target: { value: 'Furniture & decor' } });
+    fireEvent.change(await screen.findByLabelText(NAME_EN), { target: { value: 'Furniture & decor' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lighting' }));
 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(tr('categories.guard.title', { name: 'Furniture' }))).toBeTruthy();
     fireEvent.click(within(dialog).getByTestId('unsaved-changes-stay'));
-    expect((screen.getByLabelText(en['categories.field.nameEn']!) as HTMLInputElement).value).toBe('Furniture & decor');
+    expect((screen.getByLabelText(NAME_EN) as HTMLInputElement).value).toBe('Furniture & decor');
 
     // "+" on another row is the same switch.
     fireEvent.click(screen.getByRole('button', { name: tr('categories.action.newChildOf', { name: 'Lighting' }) }));
@@ -213,7 +216,7 @@ describe('CategoriesTree — the editor panel (#1507)', () => {
   it('has no axe violations with the editor open', async () => {
     renderTree();
     fireEvent.click(await screen.findByRole('button', { name: 'Furniture' }));
-    await screen.findByLabelText(en['categories.field.nameEn']!);
+    await screen.findByLabelText(NAME_EN);
     await expectNoAxeViolations(document.body);
   });
 });

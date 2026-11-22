@@ -8078,6 +8078,15 @@
         }
       }
     },
+    "/api/v1/admin/tasks/count": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/tasks/custom-field-filters": {
       "get": {
         "responses": {

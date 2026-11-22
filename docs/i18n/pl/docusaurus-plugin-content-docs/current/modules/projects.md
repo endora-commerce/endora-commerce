@@ -91,12 +91,14 @@ usuwany: ekran to mówi, a rekordy trzeba najpierw odłączyć.
 
 Jego zakładki:
 
-- **Przegląd** — opis — z odwołaniami wyświetlanymi jako łącza, edytowany
-  przyciskiem *Edytuj opis* (zob. *Notatki, wiadomości i odwołania*) — data
-  rozpoczęcia, **kto widzi projekt** i członkowie według ról. Administrator, który może tworzyć i prowadzić projekty, zmienia
-  tu, kto widzi projekt — te same trzy możliwości co w *Nowym projekcie* — i
-  zapisuje to przyciskiem *Zapisz widoczność*; pozostali widzą, jakie jest to
-  ustawienie i kto jest dopisany.
+- **Przegląd** — opis z odwołaniami wyświetlanymi jako łącza (zob. *Notatki,
+  wiadomości i odwołania*), data rozpoczęcia, **kto widzi projekt** i członkowie
+  według ról. Administrator, który może tworzyć i prowadzić projekty, zmienia
+  opis, datę rozpoczęcia i to, kto widzi projekt, tam, gdzie są wyświetlane:
+  ołówek obok każdego z nich otwiera to jedno pole z przyciskami **Zapisz**
+  i **Anuluj**, a zapis wysyła tylko to pole. Widoczność oferuje te same trzy
+  możliwości co w *Nowym projekcie*. Pozostali widzą, jakie jest każde z nich
+  i kto jest dopisany.
 - **Etapy** — jeden wiersz na etap, z planowanym czasem trwania, rolami
   odpowiedzialnymi i terminem. *Edytuj* otwiera jeden etap naraz: nazwę, kolor,
   planowany czas trwania, role odpowiedzialne, dni alertów, blokadę zakończenia,
@@ -145,12 +147,13 @@ Jego zakładki:
   którego projekt już nie ma, są opisane właśnie tak.
 
 **Na ekranach dokumentów należących do projektu** — zamówienia, zapytania
-ofertowego, szansy sprzedażowej, zadania — panel **Projekt** wskazuje projekt,
+ofertowego, szansy sprzedażowej, zadania — sekcja **Projekt** w panelu bocznym
+ekranu wskazuje projekt,
 do którego dokument należy: jego numer jako odnośnik, tytuł, stan oraz bieżący
 etap z terminem. Dokument spoza projektów albo z projektu, którego nie możesz
 zobaczyć, nie pokazuje żadnego panelu.
 
-**Na ekranie organizacji** panel **Projekty** wymienia projekty tej organizacji,
+**Na ekranie organizacji** sekcja **Projekty** na karcie **Sprzedaż** wymienia projekty tej organizacji,
 które możesz zobaczyć, od najnowszych — dziesięć najnowszych; gdy jest ich
 więcej, panel podaje, ile ich jest, i prowadzi odnośnikiem *Wszystkie projekty*
 do listy projektów zawężonej do tej organizacji — każdy z numerem jako odnośnikiem, tytułem, stanem i

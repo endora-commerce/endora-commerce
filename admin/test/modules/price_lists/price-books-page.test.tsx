@@ -161,18 +161,64 @@ describe('price-book list — filters in the URL', () => {
     const user = userEvent.setup();
     mountScreen({ path: '/price-lists', session: PLATFORM_ADMIN });
     await table();
-    await user.selectOptions(screen.getByLabelText('Type'), 'sale');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Type' }), 'sale');
     await waitFor(() => expect(currentParams().get('type')).toBe('sale'));
     await waitFor(() => expect(listRequests().at(-1)!.getAll('type')).toEqual(['sale']));
-    await user.selectOptions(screen.getByLabelText('Status'), 'draft');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'draft');
     await waitFor(() => expect(currentParams().get('status')).toBe('draft'));
+    await user.click(screen.getByRole('button', { name: 'More filters' }));
     await user.selectOptions(screen.getByLabelText('Audience'), 'customer_groups');
     await user.selectOptions(await screen.findByLabelText('Member'), IDS.group.VIP);
     await waitFor(() => expect(currentParams().get('memberId')).toBe(IDS.group.VIP));
-    await user.selectOptions(screen.getByLabelText('Currency'), 'EUR');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Currency' }), 'EUR');
     await user.selectOptions(screen.getByLabelText('Sales channel'), IDS.channel);
     await waitFor(() => expect(currentParams().get('channelId')).toBe(IDS.channel));
     expect(listRequests().at(-1)!.get('currency')).toBe('EUR');
+  });
+
+  it('keeps search and three filters in view and folds the rest behind More filters (Hick, #1440)', async () => {
+    const user = userEvent.setup();
+    mountScreen({ path: '/price-lists', session: PLATFORM_ADMIN });
+    await table();
+    const toolbar = screen.getByRole('search', { name: 'Filter price books' });
+    expect(within(toolbar).getByRole('searchbox', { name: 'Search by name' })).toBeInTheDocument();
+    for (const name of ['Type', 'Status', 'Currency']) {
+      expect(within(toolbar).getByRole('combobox', { name })).toBeInTheDocument();
+    }
+    // A primary filter has no visible label, so its "no filter" choice names what it filters.
+    expect(within(toolbar).getByRole('combobox', { name: 'Type' })).toHaveDisplayValue('All types');
+    expect(within(toolbar).getByRole('combobox', { name: 'Status' })).toHaveDisplayValue('All statuses');
+    expect(within(toolbar).getByRole('combobox', { name: 'Currency' })).toHaveDisplayValue('All currencies');
+    expect(within(toolbar).queryByLabelText('Sales channel')).toBeNull();
+    expect(within(toolbar).queryByLabelText('Audience')).toBeNull();
+    const more = within(toolbar).getByRole('button', { name: 'More filters' });
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    await user.click(more);
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    expect(within(toolbar).getByLabelText('Sales channel')).toBeInTheDocument();
+    expect(within(toolbar).getByLabelText('Audience')).toBeInTheDocument();
+    // No filter is in use, so there is nothing to clear.
+    expect(within(toolbar).queryByRole('button', { name: 'Clear all filters' })).toBeNull();
+  });
+
+  it('opens the folded filters when the address uses one, and counts them once folded', async () => {
+    const user = userEvent.setup();
+    mountScreen({
+      path: `/price-lists?channelId=${IDS.channel}&audienceKind=customer_groups&memberId=${IDS.group.VIP}`,
+      session: PLATFORM_ADMIN,
+    });
+    await table();
+    // A shared link shows what narrows it.
+    expect(await screen.findByLabelText('Sales channel')).toHaveValue(IDS.channel);
+    await user.click(screen.getByRole('button', { name: 'Fewer filters' }));
+    expect(screen.getByRole('button', { name: 'More filters (3)' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('Sales channel')).toBeNull();
+  });
+
+  it('does not count the primary filters or the search as folded', async () => {
+    mountScreen({ path: '/price-lists?type=sale&status=draft&currency=EUR&search=acme', session: PLATFORM_ADMIN });
+    await table();
+    expect(screen.getByRole('button', { name: 'More filters' })).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('searches by name from the address and clears every filter at once', async () => {
@@ -182,8 +228,10 @@ describe('price-book list — filters in the URL', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Search by name' }), 'acme');
     await waitFor(() => expect(currentParams().get('search')).toBe('acme'));
     await waitFor(() => expect(listRequests().at(-1)!.get('search')).toBe('acme'));
-    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    await user.click(screen.getByRole('button', { name: 'Clear all filters' }));
     await waitFor(() => expect([...currentParams().keys()]).toEqual([]));
+    // The button goes with the filters; focus moves to the search box (WCAG 2.4.3).
+    expect(document.activeElement).toBe(screen.getByRole('searchbox', { name: 'Search by name' }));
   });
 
   it('searches members through the scope-filtered targets', async () => {
@@ -221,11 +269,19 @@ describe('price-book list — states', () => {
     books = [];
     mountScreen({ path: '/price-lists?currency=EUR', session: PLATFORM_ADMIN });
     expect(await screen.findByText('No price book matches these filters')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Clear filters' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Clear all filters' })).toBeInTheDocument();
     // Clearing from the empty state puts focus on the search box, not <body> (WCAG 2.4.3).
     const block = document.querySelector<HTMLElement>('[data-empty-state="no-results"]')!;
     await userEvent.click(within(block).getByRole('button', { name: 'Clear filters' }));
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Search by name')));
+    await waitFor(() => expect([...currentParams().keys()]).toEqual([]));
+  });
+
+  it('has no axe violations with the folded filters open', async () => {
+    const { container } = mountScreen({ path: '/price-lists?audienceKind=organizations', session: PLATFORM_ADMIN });
+    await rowOf('Acme screws');
+    await screen.findByRole('combobox', { name: 'Member' });
+    await expectNoAxeViolations(container);
   });
 
   it('says the list could not be loaded and tries again on request', async () => {
@@ -251,5 +307,8 @@ describe('price-book list — states', () => {
     const base = (await within(await table()).findByRole('link', { name: 'Base prices PLN' })).closest('tr')!;
     expect(within(base).getByText('Ceny bazowe — PLN')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Nowy cennik' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Typ' })).toHaveDisplayValue('Wszystkie typy');
+    expect(screen.getByRole('combobox', { name: 'Stan' })).toHaveDisplayValue('Wszystkie stany');
+    expect(screen.getByRole('combobox', { name: 'Waluta' })).toHaveDisplayValue('Wszystkie waluty');
   });
 });

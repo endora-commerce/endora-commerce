@@ -15,6 +15,7 @@ import type {
   TaskBoardCardConfig,
   TaskComment,
   TaskContextOption,
+  TaskCount,
   TaskDeleteResult,
   TaskDigestSubscription,
   TaskDetail,
@@ -96,6 +97,14 @@ export const tasksApi = {
   /** `GET /tasks` with a query the screen built from its address (`lib/task-filters.ts`). */
   listTasksBy(query: URLSearchParams): Promise<TaskListResponse> {
     return apiClient.get<TaskListResponse>(`${BASE}${tail(query)}`);
+  },
+
+  /**
+   * `GET /tasks/count` — how many Tasks the list would show under the same
+   * filters, across every page (spec 183). A query of the list's filters only.
+   */
+  countTasksBy(query: URLSearchParams): Promise<number> {
+    return data(apiClient.get<{ data: TaskCount }>(`${BASE}/count${tail(query)}`)).then((result) => result.count);
   },
 
   /** The caller's open Tasks, by due date, undated last — narrowed by the list's filters. */

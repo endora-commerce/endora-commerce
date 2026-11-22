@@ -86,12 +86,19 @@ export interface VisibilityControlProps {
   value: VisibilityValue;
   onChange: (value: VisibilityValue) => void;
   disabled?: boolean;
+  /** The id of the chosen option — where an `InlineEdit` puts the focus when it opens. */
+  id?: string;
+  /**
+   * The id of a label drawn outside — an `InlineEdit`'s — that names the
+   * choices; given, the control draws no heading of its own.
+   */
+  labelledBy?: string;
 }
 
 export function VisibilityControl(props: VisibilityControlProps): ReactNode {
   const t = useTranslation('projects');
   const base = useId();
-  const legendId = `${base}-legend`;
+  const legendId = props.labelledBy ?? `${base}-legend`;
   const effectId = `${base}-effect`;
   const listedId = `${base}-listed`;
   const { value } = props;
@@ -99,11 +106,13 @@ export function VisibilityControl(props: VisibilityControlProps): ReactNode {
   return (
     <div className="space-y-3">
       <div role="radiogroup" aria-labelledby={legendId} aria-describedby={effectId} className="space-y-1">
-        <h3 id={legendId} className="text-base font-semibold">
-          {t('visibility.section')}
-        </h3>
+        {props.labelledBy ? null : (
+          <h3 id={legendId} className="text-base font-semibold">
+            {t('visibility.section')}
+          </h3>
+        )}
         {CHOICES.map((choice) => {
-          const id = `${base}-${choice}`;
+          const id = props.id !== undefined && value.visibility === choice ? props.id : `${base}-${choice}`;
           return (
             <label key={choice} htmlFor={id} className="flex min-h-11 items-center gap-2 text-sm sm:min-h-9">
               <input

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
-import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ApiError, cn, useAuth } from '@endora-commerce/admin-kit/lib';
 import { InlineStatus } from '@endora-commerce/admin-kit/ui';
 import {
   useAppLanguage,
@@ -102,7 +102,7 @@ export function LanguagePicker(): ReactNode {
   );
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', margin: '0 6px' }}>
+    <div ref={wrapperRef} className="relative mx-1.5">
       <button
         type="button"
         title={t('appShell.languageIndicator.label')}
@@ -115,36 +115,19 @@ export function LanguagePicker(): ReactNode {
           if (!open) setSaveFailed(false);
           setOpen((v) => !v);
         }}
-        // Custom pill style — the topbar's icon-btn class fixes the box at
-        // 34×34px which clips the flag + code + chevron triplet. Match the
-        // same hover treatment but let the width grow to fit the content.
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          height: 34,
-          padding: '0 10px',
-          border: '1px solid transparent',
-          borderRadius: 'var(--r-sm)',
-          background: open ? 'var(--surface-sunken)' : 'transparent',
-          color: 'var(--fg-muted)',
-          fontWeight: 600,
-          fontSize: 11,
-          letterSpacing: 0.5,
-          lineHeight: 1,
-          cursor: submitting ? 'default' : 'pointer',
-          transition: 'background .12s, color .12s',
-        }}
-        onMouseEnter={(e): void => {
-          e.currentTarget.style.background = 'var(--surface-sunken)';
-          e.currentTarget.style.color = 'var(--fg)';
-        }}
-        onMouseLeave={(e): void => {
-          if (!open) e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = 'var(--fg-muted)';
-        }}
+        // A pill, not `.b2b-topbar__icon-btn`: that class fixes the box at
+        // 34×34px, which clips the flag + code + chevron triplet. Same height,
+        // colours and hover as the icon buttons beside it; the width grows.
+        className={cn(
+          'inline-flex h-[34px] cursor-pointer items-center gap-1.5 rounded-[var(--r-sm)] border border-transparent px-2.5',
+          'text-[11px] font-semibold leading-none tracking-[0.5px] text-[var(--fg-muted)] transition-colors',
+          'hover:bg-[var(--surface-sunken)] hover:text-[var(--fg)]',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'disabled:cursor-default',
+          open && 'bg-[var(--surface-sunken)]',
+        )}
       >
-        <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1 }}>
+        <span aria-hidden="true" className="text-sm leading-none">
           {flagFor(language)}
         </span>
         <span className="b2b-lang-picker__label">{language.toUpperCase()}</span>
@@ -154,7 +137,10 @@ export function LanguagePicker(): ReactNode {
         <InlineStatus
           id={errorId}
           tone="error"
-          className={saveFailed ? 'm-0 max-w-full rounded-md border border-border bg-background p-2 shadow-md' : 'm-0'}
+          className={cn(
+            'm-0',
+            saveFailed && 'max-w-full rounded-md border border-border bg-popover p-2 shadow-md',
+          )}
         >
           {saveFailed ? t('appShell.languageIndicator.saveFailed') : null}
         </InlineStatus>
@@ -162,14 +148,7 @@ export function LanguagePicker(): ReactNode {
           <div
             role="menu"
             aria-label={t('appShell.languageIndicator.label')}
-            style={{
-              minWidth: 180,
-              background: 'var(--surface, white)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 6,
-              boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
-              padding: 4,
-            }}
+            className="min-w-[180px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
           >
             {LANGUAGES.map(({ code, labelKey, flag }) => {
               const active = code === language;
@@ -182,32 +161,20 @@ export function LanguagePicker(): ReactNode {
                   onClick={(): void => {
                     void pick(code);
                   }}
-                  style={{
-                    display: 'flex',
-                    width: '100%',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '6px 10px',
-                    background: active ? 'var(--surface-2, rgba(0,0,0,0.04))' : 'transparent',
-                    border: 'none',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    textAlign: 'left',
-                    color: 'inherit',
-                    gap: 8,
-                  }}
+                  className={cn(
+                    'flex w-full items-center justify-between gap-2 rounded-sm px-2.5 py-1.5 text-left text-[13px]',
+                    'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:outline-none',
+                    active && 'bg-muted',
+                  )}
                 >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <span aria-hidden="true" style={{ fontSize: 16, lineHeight: 1 }}>
+                  <span className="inline-flex items-center gap-2">
+                    <span aria-hidden="true" className="text-base leading-none">
                       {flag}
                     </span>
-                    <span style={{ fontWeight: 600, fontSize: 11, letterSpacing: 0.5 }}>
-                      {code.toUpperCase()}
-                    </span>
+                    <span className="text-[11px] font-semibold tracking-[0.5px]">{code.toUpperCase()}</span>
                     <span>{t(labelKey)}</span>
                   </span>
-                  {active ? <Check size={14} /> : null}
+                  {active ? <Check size={14} aria-hidden="true" /> : null}
                 </button>
               );
             })}

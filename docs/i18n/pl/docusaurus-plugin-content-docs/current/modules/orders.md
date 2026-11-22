@@ -1075,6 +1075,12 @@ jako historię. Migracja `20261110T143322_orders_order_external_references.ts` t
   własnych wkładach do panelu administracyjnego; ten moduł nie wymienia żadnego z nich. Gdy nikt
   nic nie wnosi — nie ma takiego modułu, moduł jest wyłączony albo osoba nie ma uprawnienia
   wymaganego przez panel — strefa nie renderuje niczego, a ekran jest dokładnie taki jak bez niej.
+- **Panel boczny ekranu zamówienia** — strefa panelu administracyjnego `order.detail.sidebar` jest
+  osadzona raz, w karcie panelu bocznego obok zakładek, i przekazuje wkładowi ten sam
+  `{ orderId }`. Każdy wkład jest sekcją tej jednej karty. Panel boczny jest rysowany tylko wtedy,
+  gdy coś go wypełnia, więc gdy nikt nic nie wnosi, ekran ma jedną kolumnę — dokładnie taki jak bez
+  strefy. Moduły CRM, Projekty i Zadania wnoszą tu powiązaną szansę, projekt i zadania; wkłady do
+  `order.detail.after` działają bez zmian.
 
 ## Wyszukiwanie globalne
 

@@ -226,6 +226,13 @@ describe('the assignee on the create form', () => {
 });
 
 describe('the assignee on the opportunity', () => {
+  /**
+   * The assignee is one fact of the sidebar edited as its neighbours are — the
+   * kit's `InlineEdit` (issue #1525, UX audit WORK-03): the name, a pencil
+   * named "Edit Assignee", and only then the lookup with *Save* and *Cancel*.
+   */
+  const EDIT = (): string => core('common.inlineEdit.edit', { field: en('assignment.label') });
+
   async function renderDetail(permissions?: readonly string[]): Promise<HTMLElement> {
     renderCrm(<OpportunityDetail />, {
       path: `/crm/opportunities/${OPPORTUNITY_ID}`,
@@ -233,57 +240,74 @@ describe('the assignee on the opportunity', () => {
       ...(permissions ? { permissions } : {}),
     });
     await screen.findByRole('heading', { level: 1, name: /Fleet renewal/ });
-    // One labelled fact of the sidebar — a group, not a landmark (User Story 20).
-    return screen.findByRole('group', { name: en('assignment.label') });
+    return screen.findByRole('complementary', { name: en('opportunity.section.details') });
+  }
+
+  async function openLookup(sidebar: HTMLElement): Promise<HTMLElement> {
+    await userEvent.click(within(sidebar).getByRole('button', { name: EDIT() }));
+    const lookup = within(sidebar).getByLabelText(en('assignment.label'));
+    await waitFor(() => expect(lookup).toHaveFocus());
+    return lookup;
   }
 
   it('names the assignee, and marks one who has been deactivated', async () => {
     current = detail({ assignee: GONE });
-    const section = await renderDetail(['crm:read', 'orders:read']);
-    expect(within(section).getByText('Piotr Zielony')).toBeInTheDocument();
-    expect(within(section).getByText(en('assignment.inactive'))).toBeInTheDocument();
+    const sidebar = await renderDetail(['crm:read', 'orders:read']);
+    expect(within(sidebar).getByText(en('assignment.label'))).toBeInTheDocument();
+    expect(within(sidebar).getAllByText('Piotr Zielony').length).toBeGreaterThan(0);
+    expect(within(sidebar).getByText(en('assignment.inactive'))).toBeInTheDocument();
     // A reader is shown who holds it and offered nothing to change.
-    expect(within(section).queryByRole('combobox')).toBeNull();
+    expect(within(sidebar).queryByRole('button', { name: EDIT() })).toBeNull();
+    expect(within(sidebar).queryByRole('combobox')).toBeNull();
   });
 
   it('says so when nobody holds it', async () => {
     current = detail({ assignee: null });
-    const section = await renderDetail(['crm:read', 'orders:read']);
-    expect(within(section).getByText(en('assignment.unassigned'))).toBeInTheDocument();
+    const sidebar = await renderDetail(['crm:read', 'orders:read']);
+    expect(within(sidebar).getByText(en('assignment.unassigned'))).toBeInTheDocument();
   });
 
-  it('reassigns to the person chosen and shows the answer', async () => {
+  it('shows no always-open lookup: the name and a pencil, like every other fact (WORK-03)', async () => {
+    const sidebar = await renderDetail();
+    expect(within(sidebar).queryByRole('combobox')).toBeNull();
+    expect(within(sidebar).getByRole('button', { name: EDIT() })).toBeInTheDocument();
+  });
+
+  it('reassigns to the person chosen on Save, shows the answer and returns the focus to the pencil', async () => {
     postSpy.mockResolvedValue({
       data: detail({ assignee: { id: OTHER_ADMIN_ID, name: 'Piotr Zielony', active: true }, version: 2 }),
     });
-    const section = await renderDetail();
-    expect(within(section).getByLabelText(en('assignment.change'))).toHaveValue('Anna Nowak');
-    await userEvent.click(within(section).getByLabelText(en('assignment.change')));
+    const sidebar = await renderDetail();
+    const lookup = await openLookup(sidebar);
+    await userEvent.click(lookup);
     await userEvent.click(await screen.findByRole('option', { name: /Piotr Zielony/ }));
+    // Choosing is not yet assigning: the one Save is.
+    expect(postSpy).not.toHaveBeenCalled();
+    await userEvent.click(within(sidebar).getByRole('button', { name: core('common.action.save') }));
 
     await waitFor(() =>
       expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/assign`, { adminUserId: OTHER_ADMIN_ID }),
     );
-    await waitFor(() =>
-      expect(within(section).getByLabelText(en('assignment.change'))).toHaveValue('Piotr Zielony'),
-    );
-    expect(within(section).getByText(en('assignment.saved'))).toHaveAttribute('role', 'status');
+    await waitFor(() => expect(within(sidebar).getByRole('button', { name: EDIT() })).toHaveFocus());
+    expect(within(sidebar).getAllByText('Piotr Zielony').length).toBeGreaterThan(0);
+    expect(
+      within(sidebar).getByText(core('common.inlineEdit.saved', { field: en('assignment.label') })),
+    ).toHaveAttribute('role', 'status');
   });
 
-  it('unassigns when the choice is cleared', async () => {
+  it('unassigns when the choice is cleared and saved', async () => {
     postSpy.mockResolvedValue({ data: detail({ assignee: null, version: 2 }) });
-    const section = await renderDetail();
-    // The picker offers Clear once its own read of the assignees has landed, which can be after
-    // the Opportunity is on screen (issue #841).
+    const sidebar = await renderDetail();
+    await openLookup(sidebar);
+    // The picker offers Clear once its own read of the assignees has landed (issue #841).
     await userEvent.click(
-      await within(section).findByRole('button', { name: core('common.combobox.clearSelection') }),
+      await within(sidebar).findByRole('button', { name: core('common.combobox.clearSelection') }),
     );
+    await userEvent.click(within(sidebar).getByRole('button', { name: core('common.action.save') }));
     await waitFor(() =>
       expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/assign`, { adminUserId: null }),
     );
-    await waitFor(() =>
-      expect(within(section).getByText(en('assignment.cleared'))).toHaveAttribute('role', 'status'),
-    );
+    await waitFor(() => expect(within(sidebar).getByText(en('assignment.unassigned'))).toBeInTheDocument());
   });
 
   it('unassigns a deactivated assignee the lookup no longer returns (issue #846)', async () => {
@@ -296,28 +320,44 @@ describe('the assignee on the opportunity', () => {
         : answer(path),
     );
     postSpy.mockResolvedValue({ data: detail({ assignee: null, version: 2 }) });
-    const section = await renderDetail();
-    expect(within(section).getByLabelText(en('assignment.change'))).toHaveValue('Piotr Zielony');
+    const sidebar = await renderDetail();
+    await openLookup(sidebar);
     await waitFor(() => expect(queriesOf('/api/v1/admin/crm/lookups/assignees').length).toBeGreaterThan(0));
 
     await userEvent.click(
-      within(section).getByRole('button', { name: core('common.combobox.clearSelection') }),
+      within(sidebar).getByRole('button', { name: core('common.combobox.clearSelection') }),
     );
+    await userEvent.click(within(sidebar).getByRole('button', { name: core('common.action.save') }));
     await waitFor(() =>
       expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/assign`, { adminUserId: null }),
     );
   });
 
-  it('shows the refusal and keeps the assignee when the person cannot be assigned', async () => {
+  it('Cancel sends nothing and keeps the assignee', async () => {
+    const sidebar = await renderDetail();
+    const lookup = await openLookup(sidebar);
+    await userEvent.click(lookup);
+    await userEvent.click(await screen.findByRole('option', { name: /Piotr Zielony/ }));
+    await userEvent.click(within(sidebar).getByRole('button', { name: core('common.action.cancel') }));
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(within(sidebar).queryByRole('combobox')).toBeNull();
+    await waitFor(() => expect(within(sidebar).getByRole('button', { name: EDIT() })).toHaveFocus());
+  });
+
+  it('shows the refusal under the lookup, tied to it, and keeps the choice for another try', async () => {
     postSpy.mockRejectedValue(
       new ApiError(422, {
         error: { code: 'CRM_ASSIGNEE_INVALID', message: 'This person cannot be assigned.' },
       }),
     );
-    const section = await renderDetail();
-    await userEvent.click(within(section).getByLabelText(en('assignment.change')));
+    const sidebar = await renderDetail();
+    const lookup = await openLookup(sidebar);
+    await userEvent.click(lookup);
     await userEvent.click(await screen.findByRole('option', { name: /Piotr Zielony/ }));
-    expect(await within(section).findByRole('alert')).toHaveTextContent('This person cannot be assigned.');
-    expect(within(section).getByLabelText(en('assignment.change'))).toHaveValue('Anna Nowak');
+    await userEvent.click(within(sidebar).getByRole('button', { name: core('common.action.save') }));
+    expect(await within(sidebar).findByRole('alert')).toHaveTextContent('This person cannot be assigned.');
+    const after = within(sidebar).getByLabelText(en('assignment.label'));
+    expect(after).toHaveAccessibleDescription('This person cannot be assigned.');
+    expect(after).toHaveAttribute('aria-invalid', 'true');
   });
 });

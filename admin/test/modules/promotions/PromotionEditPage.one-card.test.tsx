@@ -237,6 +237,21 @@ describe('PromotionEditPage — coupons (SALES-23)', () => {
     expect(within(coupons).getByLabelText(en('promotions.generator.limitScope'))).toBeInTheDocument();
   });
 
+  // #1441 (DS-07, slice S1): the editor's one filled action is the sticky Save. The coupons'
+  // own Add and Generate write immediately, beside it, so they are outline — two more filled
+  // buttons in the view would cancel the Save out (Von Restorff).
+  it('leaves the sticky Save the only filled button: the coupon Add and Generate are outline', async () => {
+    await renderEditor();
+    const coupons = screen.getByRole('region', { name: new RegExp(en('promotions.coupons.title')) });
+    for (const name of [en('promotions.coupons.add'), en('promotions.generator.generate')]) {
+      const button = within(coupons).getByRole('button', { name });
+      expect(button, name).toHaveClass('border-input');
+      expect(button, name).not.toHaveClass('bg-primary');
+    }
+    expect(within(coupons).getAllByRole('button').filter((b) => b.classList.contains('bg-primary'))).toEqual([]);
+    expect(within(saveBar()).getByRole('button', { name: en('promotions.edit.save') })).toHaveClass('bg-primary');
+  });
+
   it('shows a new promotion only the coupons heading and one line, no controls', async () => {
     stubApi({ kind: 'all' });
     renderAt('/promotions/new');

@@ -88,7 +88,7 @@ export function EntryDetailPage(): ReactNode {
   if (load.kind === 'missing' || load.kind === 'error') {
     return (
       <div className="space-y-4">
-        <PageHeader title={t('entry.titleUnknown')} back={{ label: t('entry.back'), to: ENTRIES_PATH }} />
+        <PageHeader title={t('entry.titleUnknown')} back={{ label: t('entries.title'), to: ENTRIES_PATH }} />
         <Alert variant="destructive">
           <AlertDescription>{load.kind === 'missing' ? t('entry.notFound') : t('entry.loadError')}</AlertDescription>
         </Alert>
@@ -127,7 +127,7 @@ export function EntryDetailPage(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        back={{ label: t('entry.back'), to: ENTRIES_PATH }}
+        back={{ label: t('entries.title'), to: ENTRIES_PATH }}
         title={t('entry.title', { form: entry.formName })}
         description={t('entry.sentAt', { date: time.format(new Date(entry.submittedAt)) })}
         actions={
@@ -146,7 +146,7 @@ export function EntryDetailPage(): ReactNode {
         </div>
         <div className="space-y-4">
           <Card>
-            <CardContent className="space-y-2 p-4">
+            <CardContent className="space-y-2">
               {canWrite ? (
                 <div className="space-y-1">
                   <Label htmlFor={statusId}>{t('entry.status')}</Label>

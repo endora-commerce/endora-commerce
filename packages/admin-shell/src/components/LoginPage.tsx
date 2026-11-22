@@ -63,7 +63,7 @@ export function LoginPage(): ReactNode {
   // `mfaRequired`. Mirrors the login card layout (Principle IX).
   if (mfaChallengeId) {
     return (
-      <div className="grid min-h-screen place-items-center bg-muted/40 px-4 py-8" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
+      <div className="grid min-h-screen place-items-center bg-muted/40 px-4 pt-8 [padding-bottom:max(2rem,env(safe-area-inset-bottom))]">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -130,7 +130,7 @@ export function LoginPage(): ReactNode {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-muted/40 px-4 py-8" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
+    <div className="grid min-h-screen place-items-center bg-muted/40 px-4 pt-8 [padding-bottom:max(2rem,env(safe-area-inset-bottom))]">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">

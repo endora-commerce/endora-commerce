@@ -194,7 +194,7 @@ describe('book header — not found, accessibility, Polish', () => {
   it('answers an unknown or hidden book with the not-found page', async () => {
     mountScreen({ path: '/price-lists/00000000-0000-4000-8000-0000000404ff', session: PLATFORM_ADMIN });
     expect(await screen.findByRole('heading', { name: 'Price book not found' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to price books' })).toHaveAttribute('href', '/price-lists');
+    expect(screen.getByRole('link', { name: 'Price books' })).toHaveAttribute('href', '/price-lists');
   });
 
   it('has no axe violations', async () => {

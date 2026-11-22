@@ -446,6 +446,7 @@
   "import.unresolved.notice": "{count} fields could not be matched to anything in this shop. Fill them in before this template is used.",
   "templates.export": "Export…",
   "runs.detail.title": "Run of {date}",
+  "runs.detail.feedFallback": "Product feed",
   "runs.detail.templateState": "Template: {name}, as of {date}",
   "runs.detail.download": "Download file",
   "runs.detail.loadFailed": "This run could not be loaded.",

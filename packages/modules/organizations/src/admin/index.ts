@@ -8,7 +8,9 @@
  * override at 200, `quick_order`'s ordering defaults at 300 and `carts`'
  * approval policy at 400. `sales_channels`' channel membership at 100 left in
  * feature 154: the Organization's sales channels are this module's own panel
- * now, behind the customer permissions.
+ * now, behind the customer permissions. It also renders
+ * `organization.detail.sales`, the body of its Sales tab, where `crm` and
+ * `projects` contribute (issue #1452, UX audit DS-20).
  * The publication is what freed this directory to move —
  * `check:admin-registrations` counts routes and nav entries and a zone is
  * neither, so a host may move whether or not its contributors have.

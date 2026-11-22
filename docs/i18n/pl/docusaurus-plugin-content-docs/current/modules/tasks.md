@@ -144,13 +144,15 @@ numer zadania, jego tytuł, status oraz *Szkic* albo *Prywatne*, gdy zadanie
 nim jest. Szkic pokazuje swojemu autorowi *Opublikuj*; autor zadania bez
 rekordu może włączać i wyłączać *Prywatne*. Poniżej są trzy karty:
 
-- **Szczegóły** — *Przenieś do…* obok *Edytuj*, z propozycją tylko tych
-  przejść, na które pozwala przebieg; opis z odwołaniami jako odnośnikami;
-  osoby przypisane, termin z godziną, data rozpoczęcia, priorytet i etykiety,
-  zmieniane przyciskiem *Edytuj* i zapisywane razem; *Przypisz do mnie*; kto
+- **Szczegóły** — *Przenieś do…*, z propozycją tylko tych przejść, na które
+  pozwala przebieg; opis z odwołaniami jako odnośnikami; termin z godziną, data
+  rozpoczęcia, priorytet, etykiety i osoby przypisane, każde zmieniane tam,
+  gdzie jest wyświetlane: ołówek obok otwiera to jedno pole z przyciskami
+  **Zapisz** i **Anuluj**, a zapis wysyła tylko to pole, tak jak w szansie
+  sprzedaży. Tytuł ma swój ołówek obok nagłówka. *Przypisz do mnie*; kto
   i kiedy utworzył zadanie oraz kiedy zostało zakończone; a także **pola
   niestandardowe** zadania. *Usuń zadanie*, u góry ekranu i z dala
-  od *Edytuj*, pyta przed usunięciem i podaje, ile zadanie ma podzadań: stają się one zadaniami głównymi, nie są
+  od pól, pyta przed usunięciem i podaje, ile zadanie ma podzadań: stają się one zadaniami głównymi, nie są
   usuwane. Przycisk nie jest dostępny dla zadania rekordu, którego nie możesz
   zmieniać — projektu, którego nie możesz edytować — a ekran wyjaśnia dlaczego.
 - **Podzadania** — ile jest zrobionych z ilu, każde ze statusem, osobami
@@ -171,7 +173,7 @@ projekt, w którym jest zadanie. Bez uprawnienia do
 zmieniania zadań ekran jest tylko do odczytu.
 
 **Na innych rekordach.** Ekrany **szansy sprzedażowej**, **zamówienia**
-i **zapytania ofertowego** kończą się panelem **Zadania**: powiązanymi z nim
+i **zapytania ofertowego** mają w panelu bocznym sekcję **Zadania**: z powiązanymi z nim
 zadaniami, które możesz zobaczyć, z ich statusem, osobami przypisanymi
 i terminem, przyciskiem *Dodaj zadanie* — nowe zadanie od razu powiązane
 z rekordem — oraz *Pokaż na liście zadań*. Zadanie otwarte albo dodane

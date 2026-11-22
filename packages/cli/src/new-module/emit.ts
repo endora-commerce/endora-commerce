@@ -1294,7 +1294,7 @@ function adminPage(spec: ModuleScaffoldSpec): string {
   lines.push('        </Alert>');
   lines.push('      )}');
   lines.push('      <Card>');
-  lines.push('        <CardContent className="pt-6">{body}</CardContent>');
+  lines.push('        <CardContent>{body}</CardContent>');
   lines.push('      </Card>');
   lines.push('    </div>');
   lines.push('  );');

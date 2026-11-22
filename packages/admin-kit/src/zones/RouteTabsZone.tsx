@@ -28,7 +28,8 @@
  *
  * The contributions themselves go through `<AdminZone>` — same lazy-component
  * cache, same `ZoneErrorBoundary` per contributor, same `Suspense`, same order.
- * The strip supplies only the chrome. So a contributed tab that throws takes
+ * The strip supplies only the chrome — `RouteTabStrip`, the same markup
+ * `RouteTabs` draws. So a contributed tab that throws takes
  * itself out of the strip and leaves the others (Z8), and a strip whose chunks
  * are still in flight renders an empty `tablist` for a moment rather than
  * pushing the host's content around. The **count** is known before any chunk is
@@ -42,7 +43,7 @@
 import type { ReactNode } from 'react';
 import type { AdminZoneName, AdminZoneProps } from '@endora-commerce/contracts';
 
-import { cn } from '../lib/utils.js';
+import { RouteTabStrip } from '../ui/route-tabs.js';
 import { AdminZone } from './AdminZone.js';
 import { useAdminZone } from './use-admin-zone.js';
 
@@ -75,10 +76,8 @@ export function RouteTabsZone<Z extends AdminZoneName>({
   const tabs = useAdminZone(name, props);
   if (tabs.length < MINIMUM_TABS) return null;
   return (
-    <div className={cn('b2b-tabs-scroll', className)}>
-      <div className="b2b-tabs" role="tablist">
-        <AdminZone name={name} props={props} />
-      </div>
-    </div>
+    <RouteTabStrip className={className}>
+      <AdminZone name={name} props={props} />
+    </RouteTabStrip>
   );
 }

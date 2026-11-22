@@ -303,6 +303,23 @@ export class TaskService {
   }
 
   /**
+   * `GET /tasks/count` (`specs/183-record-tab-contributions/` research R5) —
+   * how many rows the list would answer under `query`'s filters, across every
+   * page. The list's own conditions, the visibility pre-filter first, so the
+   * count and the list never disagree. One aggregate, not cached.
+   */
+  async count(query: TaskBoardFilters, scope?: TaskVisibilityScope): Promise<number> {
+    const filter = await this.#where(query, scope ?? (await this.deps.visibility.scope()));
+    if (filter === null) return 0;
+    const rows = (await this.deps.emFactory().execute(
+      `select count(*)::int as "n" from "tasks" t
+        ${filter.sql.length > 0 ? `where ${filter.sql.join(' and ')}` : ''}`,
+      filter.params,
+    )) as Array<{ n: number }>;
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  /**
    * How many Tasks the caller may see in each status under `query`'s filters —
    * the board's one grouped count (research R-11). The list's own conditions,
    * so a column's count is the list's total for that status.

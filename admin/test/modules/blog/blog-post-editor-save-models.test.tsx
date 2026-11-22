@@ -248,7 +248,7 @@ describe('BlogPostEditor — author, tags and related items join the one Save (#
     await loaded();
     await pickEverything();
 
-    fireEvent.click(screen.getByRole('link', { name: copy('postEditor.backToList') }));
+    fireEvent.click(screen.getByRole('link', { name: copy('postList.title') }));
     fireEvent.click(await screen.findByRole('button', { name: core['form.unsavedChanges.discard']! }));
 
     expect(await screen.findByText('Post list')).toBeTruthy();

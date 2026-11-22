@@ -1594,8 +1594,16 @@ contribution `{ quoteRequestId }`. A module adds a panel by declaring
 contributions; this module names no contributor and imports none. With nothing
 contributed — no such module, the module switched off, or a person without the
 panel's permission — the zone renders nothing and the screen is exactly the one
-without it. The CRM module contributes the opportunity a quote request is
-linked to.
+without it.
+
+The admin zone `quote_request.detail.sidebar` is mounted once, in a sidebar
+card beside the tabs, and hands a contribution the same `{ quoteRequestId }`.
+Each contribution is a section of that one card. The sidebar is drawn only
+while something fills it, so with nothing contributed the screen has one
+column, exactly as without the zone. The CRM, Projects and Tasks modules
+contribute the opportunity a quote request is linked to, its project and its
+tasks here; contributions to `quote_request.detail.after` keep working
+unchanged.
 
 ## Global search
 

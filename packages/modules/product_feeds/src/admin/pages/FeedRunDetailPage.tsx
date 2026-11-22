@@ -74,7 +74,7 @@ export function FeedRunDetailPage(): ReactNode {
       <div>
         <PageHeader
           title={t('runs.detail.title', { date: '' })}
-          back={{ label: t('page.title'), to: `/product-feeds/${feedId ?? ''}` }}
+          back={{ label: t('runs.detail.feedFallback'), to: `/product-feeds/${feedId ?? ''}` }}
         />
         {error !== null ? (
           <Alert variant="destructive">

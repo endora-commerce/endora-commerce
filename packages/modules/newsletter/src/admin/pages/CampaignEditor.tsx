@@ -10,7 +10,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { ApiError, isDraftEqual, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
-import { ConfirmDialog, UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
+import { ConfirmDialog, UnsavedChangesHint, useChannelLanguages, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
@@ -35,7 +35,6 @@ import {
 import { newsletterVariables } from '../email-variables.js';
 import { newsletterClient } from '../api/newsletter-client.js';
 import { campaignTargetLabels } from '../lib/labels.js';
-import { useChannelLanguages } from '../lib/use-channel-languages.js';
 import { TagChoice } from '../components/TagChoice.js';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
@@ -303,7 +302,7 @@ export function CampaignEditor(): React.ReactElement {
   });
 
   // Issue #1463 — the languages the shop's channels offer, not a free-text code.
-  const languages = useChannelLanguages(language);
+  const { languages } = useChannelLanguages(language);
 
   if (!hasPermission('newsletter:read')) {
     return (

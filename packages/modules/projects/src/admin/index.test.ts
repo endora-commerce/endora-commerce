@@ -65,11 +65,11 @@ describe('projects admin contributions', () => {
 
   it('contributes the Project panel to the four record screens and the Organization’s Projects to its screen, on projects:read, at weight 650 (User Stories 6, 11)', () => {
     expect((contributions.zones ?? []).map((zone) => [zone.zone, zone.weight, zone.requiredPermission])).toEqual([
-      ['order.detail.after', 650, 'projects:read'],
-      ['quote_request.detail.after', 650, 'projects:read'],
-      ['opportunity.detail.after', 650, 'projects:read'],
+      ['order.detail.sidebar', 650, 'projects:read'],
+      ['quote_request.detail.sidebar', 650, 'projects:read'],
+      ['opportunity.detail.sidebar', 650, 'projects:read'],
       ['task.detail.after', 650, 'projects:read'],
-      ['organization.detail.after', 650, 'projects:read'],
+      ['organization.detail.sales', 650, 'projects:read'],
     ]);
     for (const zone of contributions.zones ?? []) expect(typeof zone.component, zone.zone).toBe('function');
   });

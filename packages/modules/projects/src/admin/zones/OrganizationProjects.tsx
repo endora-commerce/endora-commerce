@@ -10,7 +10,7 @@ import { StateBadge } from '../components/StateBadge.js';
 
 /**
  * Projects' panel on the Organization screen — the contribution to
- * `organization.detail.after` (`specs/163-projects-and-tasks/`, User Story 11;
+ * `organization.detail.sales` (`specs/163-projects-and-tasks/`, User Story 11;
  * `contracts/admin-surfaces.md` §3, §7).
  *
  * The Organization's Projects the reader may see, newest first, each with its
@@ -33,7 +33,7 @@ type State =
   | { phase: 'failed' }
   | { phase: 'ready'; rows: ProjectSummary[]; total: number };
 
-export type OrganizationProjectsProps = AdminZoneProps<'organization.detail.after'>;
+export type OrganizationProjectsProps = AdminZoneProps<'organization.detail.sales'>;
 
 export function OrganizationProjects({ organizationId }: OrganizationProjectsProps): ReactNode {
   const t = useTranslation('projects');

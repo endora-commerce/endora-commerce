@@ -9,7 +9,7 @@ import { moneyLabel } from '../lib/labels.js';
 
 /**
  * CRM's panel on the Organization screen — the contribution to
- * `organization.detail.after`
+ * `organization.detail.sales`
  * (`specs/143-crm-sales-opportunities/contracts/admin-surfaces.md` §5).
  *
  * The Organization's **open** Opportunities, newest first, each with its
@@ -28,7 +28,7 @@ type State =
   | { phase: 'failed' }
   | { phase: 'ready'; rows: OpportunitySummary[]; hasMore: boolean };
 
-export type OrganizationOpportunitiesProps = AdminZoneProps<'organization.detail.after'>;
+export type OrganizationOpportunitiesProps = AdminZoneProps<'organization.detail.sales'>;
 
 export function OrganizationOpportunities({ organizationId }: OrganizationOpportunitiesProps): ReactNode {
   const t = useTranslation('crm');

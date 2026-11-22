@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 import type { AdminZoneProps } from '@endora-commerce/contracts';
 import { ProjectPanel } from './ProjectPanel.js';
 
-/** `projects`' contribution to `order.detail.after`: the Project the record is in (User Story 6). */
-export function OrderProjectPanel({ orderId }: AdminZoneProps<'order.detail.after'>): ReactNode {
+/** `projects`' contribution to `order.detail.sidebar`: the Project the record is in (User Story 6). */
+export function OrderProjectPanel({ orderId }: AdminZoneProps<'order.detail.sidebar'>): ReactNode {
   return <ProjectPanel kind="order" recordId={orderId} />;
 }
 

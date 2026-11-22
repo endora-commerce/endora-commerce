@@ -96,7 +96,7 @@ export function PriceBookPage(): ReactNode {
         <h1 className="text-xl font-semibold">{t('priceBooks.book.notFound.title')}</h1>
         <p className="text-sm text-muted-foreground">{t('priceBooks.book.notFound.body')}</p>
         <Link to="/price-lists" className={buttonVariants({ variant: 'outline' })}>
-          {t('priceBooks.common.backToList')}
+          {t('priceBooks.list.title')}
         </Link>
       </div>
     );
@@ -124,7 +124,7 @@ export function PriceBookPage(): ReactNode {
     <>
       <PageHeader
         title={book.name}
-        back={{ label: t('priceBooks.common.backToList'), to: '/price-lists' }}
+        back={{ label: t('priceBooks.list.title'), to: '/price-lists' }}
         description={
           <span className="inline-flex flex-wrap items-center gap-2">
             {book.isSystem ? <Badge variant="secondary">{t('priceBooks.list.base', { currency: book.currencyCode })}</Badge> : null}

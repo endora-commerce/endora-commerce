@@ -227,7 +227,7 @@ export function FieldInspector(props: FieldInspectorProps): ReactNode {
 
   return (
     <Card role="region" aria-labelledby={id('title')} className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 border-b border-border p-4">
+      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 border-b border-border">
         <div className="flex min-w-0 items-center gap-2">
           <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
             <TypeIcon size={16} aria-hidden="true" />
@@ -243,7 +243,7 @@ export function FieldInspector(props: FieldInspectorProps): ReactNode {
           </Button>
         )}
       </CardHeader>
-      <CardContent className="space-y-6 p-4">
+      <CardContent className="space-y-6">
         {translating ? (
           <p className="flex items-start gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
             <Lock size={14} aria-hidden="true" className="mt-0.5 shrink-0" />

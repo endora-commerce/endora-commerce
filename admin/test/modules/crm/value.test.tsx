@@ -230,6 +230,47 @@ describe('the value of an Opportunity', () => {
   });
 });
 
+/**
+ * The sidebar is a 20rem column (UX audit #1567): the figure was a flex item
+ * beside the mode switch, and the display's `overflow-wrap: anywhere` let it
+ * shrink until `42 000,00 zł` stood one character per line and the mode badge
+ * was a narrow vertical box. The figure is one unbroken line; the badge and the
+ * switch wrap below it rather than squeeze it.
+ */
+describe('the value in a narrow column', () => {
+  it('keeps the amount on one line and stacks the switch below the figure instead of beside it', async () => {
+    await openOpportunity();
+    const value = await section(en('value.title'));
+    const amount = within(value).getByText(/^12\s500,00\s*zł$/);
+    expect(amount).toHaveClass('whitespace-nowrap', 'tabular-nums');
+
+    // The nearest box holding both the figure and the switch stacks them: it
+    // is not a flex row in which the switch could squeeze the figure.
+    const switchButton = within(value).getByRole('button', { name: en('value.switch.toComputed') });
+    let common: HTMLElement | null = switchButton.parentElement;
+    while (common && !common.contains(amount)) common = common.parentElement;
+    expect(common).not.toBeNull();
+    expect(common!.classList.contains('flex') && !common!.classList.contains('flex-col')).toBe(false);
+  });
+});
+
+describe('the dates of the sidebar', () => {
+  it('writes the deadline and the Record dates in the admin UI language, as the rest of the admin does', async () => {
+    current = detail({
+      createdAt: '2026-11-17T09:00:27.000Z',
+      updatedAt: '2026-11-17T09:00:27.000Z',
+      expectedCloseDate: '2026-11-25',
+    });
+    await openOpportunity({ language: 'en' });
+    // A calendar date is the medium date of the language — not `11/25/2026`.
+    expect(await screen.findByText('Nov 25, 2026')).toBeInTheDocument();
+    const expected = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(
+      new Date('2026-11-17T09:00:27.000Z'),
+    );
+    expect(await screen.findAllByText(expected)).toHaveLength(2);
+  });
+});
+
 describe('Quote Requests on an Opportunity', () => {
   it('links one found through CRM`s own lookup — never through the quote desk`s list', async () => {
     postSpy.mockResolvedValue({ data: quoteLink() });

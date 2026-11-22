@@ -201,7 +201,7 @@ export function BulkOperationDetailPage(): ReactNode {
     }
   }, [op, refresh, t, confirm, clearUndoStatus, showUndoStatus]);
 
-  const back = { label: t('bulkOperations.detail.back'), to: '/catalog/bulk-operations' };
+  const back = { label: t('bulkOperations.title'), to: '/catalog/bulk-operations' };
 
   if (loading && !op) {
     return (

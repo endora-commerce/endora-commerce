@@ -574,7 +574,7 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
             <Label htmlFor="couponCode">{t('promotions.coupons.code')}</Label>
             <Input id="couponCode" value={code} onChange={(e) => setCode(e.target.value)} className="w-64" />
           </div>
-          <Button type="button" disabled={code.trim() === ''} onClick={() => void add()}>
+          <Button type="button" variant="outline" disabled={code.trim() === ''} onClick={() => void add()}>
             {t('promotions.coupons.add')}
           </Button>
         </div>

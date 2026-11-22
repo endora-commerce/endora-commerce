@@ -62,7 +62,6 @@ const tree = (marker: string): Record<string, unknown> => ({
 
 const PASSTHROUGH = passthroughBundle('catalog', [
   'categoryContent.page.description',
-  'categoryContent.action.back',
   'categoryContent.action.save',
   'categoryContent.action.saving',
   'categoryContent.success.save',
@@ -73,6 +72,10 @@ const PASSTHROUGH = passthroughBundle('catalog', [
   'categoryContent.noEditor.title',
   'categoryContent.noEditor.description',
   'categoryContent.readOnly',
+  'contentLanguages.failed',
+  'contentLanguages.noChannels',
+  'contentLanguages.outside.list',
+  'contentLanguages.outside.notice',
 ]);
 // The one key with a parameter, spelled as a template so the interpolation is
 // what the assertion reads.
@@ -306,6 +309,45 @@ describe('CategoryContentPage', () => {
     fireEvent.click(save);
     await waitFor(() => expect(screen.getByText('categoryContent.error.save')).toBeTruthy());
     expect(region.textContent).toBe('');
+  });
+
+  // #1507 (UX audit CAT-05, ruling Q3) — the strip offers the sales channels' languages
+  // together; a stored language no channel offers stays, flagged and not editable.
+  function stubChannels(languages: string[]): void {
+    const base = getSpy.getMockImplementation();
+    getSpy.mockImplementation(async (path: string) => {
+      if (path.startsWith('/api/v1/admin/sales-channels?')) return { items: [{ code: 'b2b', defaultLanguage: 'pl-PL' }] };
+      if (path === '/api/v1/admin/sales-channels/b2b') return { code: 'b2b', languages };
+      return base?.(path);
+    });
+  }
+
+  it('offers the sales channels’ languages, then a stored one no channel offers, flagged', async () => {
+    stubApi({ languages: { 'pl-PL': tree('stored-pl'), 'fr-FR': tree('stored-fr') } });
+    stubChannels(['pl-PL', 'de-DE']);
+    renderPage({});
+
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'fr-FR' })).toBeTruthy());
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['de-DE', 'pl-PL', 'en-US', 'fr-FR']);
+    expect(screen.getByText('contentLanguages.outside.list')).toBeTruthy();
+  });
+
+  it('shows no canvas for a flagged language and saves its stored document back unchanged', async () => {
+    stubApi({ languages: { 'pl-PL': tree('stored-pl'), 'fr-FR': tree('stored-fr') } });
+    stubChannels(['pl-PL']);
+    renderPage({});
+
+    await waitFor(() => expect(screen.getByTestId('editor-language').textContent).toBe('pl-PL'));
+    fireEvent.click(screen.getByText('stub-edit'));
+    fireEvent.click(screen.getByRole('tab', { name: 'fr-FR' }));
+    await waitFor(() => expect(screen.getByText('contentLanguages.outside.notice')).toBeTruthy());
+    expect(screen.queryByTestId('editor-stub')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'categoryContent.action.save' }));
+    await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
+    expect(putSpy.mock.calls[0]?.[1]).toEqual({
+      content: { languages: { 'pl-PL': tree('edited-pl-PL'), 'fr-FR': tree('stored-fr') } },
+    });
   });
 
   it('names no Page Builder owner in its own source', async () => {

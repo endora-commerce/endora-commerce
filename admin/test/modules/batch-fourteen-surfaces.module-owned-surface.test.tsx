@@ -229,6 +229,8 @@ const SUBJECTS: readonly Subject[] = [
     zones: ['settings.setting.after'],
     mounts: [
       ['organizations/src/admin/pages/OrganizationDetail.tsx', 'organization.detail.after'],
+      // Issue #1452 (UX audit DS-20) — the body of the Sales tab.
+      ['organizations/src/admin/pages/OrganizationDetail.tsx', 'organization.detail.sales'],
     ],
     surfaceDirectories: ['organizations'],
     locked: true,

@@ -57,6 +57,9 @@ const { ApiError } = await vi.importActual<typeof import('@endora-commerce/admin
 const read = (path: string): Record<string, string> =>
   JSON.parse(readFileSync(resolve(process.cwd(), path), 'utf8')) as Record<string, string>;
 const en = read('../packages/modules/catalog/i18n/en.json');
+// #1507 — the name field per content language; the channels are not mocked here, so the
+// form falls back to the admin's own locale (en-US).
+const NAME_EN = en['categories.field.nameIn']!.replace('{language}', 'English (United States)');
 const coreEn = read('../packages/modules/_i18n/i18n/en.json');
 const priceListsEn = read('../packages/modules/price_lists/i18n/en.json');
 const bundle = { catalog: en, core: coreEn, price_lists: priceListsEn };
@@ -89,7 +92,7 @@ function renderTree(options: { present?: boolean; permissions?: readonly string[
 
 /** The edit form of the open category. */
 function form(): HTMLElement {
-  return screen.getByLabelText(en['categories.field.nameEn']!).closest('form') as HTMLElement;
+  return screen.getByLabelText(NAME_EN).closest('form') as HTMLElement;
 }
 
 /** The row's name opens the category in the editor panel (#1507). */
@@ -152,7 +155,7 @@ describe('category editor — one Save covers the display mode (feature 180, WP-
   it('writes the category first, then the display mode', async () => {
     renderTree();
     await openEdit();
-    fireEvent.change(screen.getByLabelText(en['categories.field.nameEn']!), { target: { value: 'Furniture & decor' } });
+    fireEvent.change(screen.getByLabelText(NAME_EN), { target: { value: 'Furniture & decor' } });
     await chooseMode('net_only');
     expect(saveButton()).toHaveTextContent('Save 2 changes');
     fireEvent.click(saveButton());
@@ -197,7 +200,7 @@ describe('category editor — one Save covers the display mode (feature 180, WP-
     );
     renderTree();
     await openEdit();
-    fireEvent.change(screen.getByLabelText(en['categories.field.nameEn']!), { target: { value: 'Furniture & decor' } });
+    fireEvent.change(screen.getByLabelText(NAME_EN), { target: { value: 'Furniture & decor' } });
     await chooseMode('net_only');
     fireEvent.click(saveButton());
 
@@ -270,7 +273,7 @@ describe('category editor — price_lists not installed (feature 180, US5)', () 
   it('shows no display-mode row and sends no pricing request', async () => {
     renderTree({ present: false });
     fireEvent.click(await screen.findByRole('button', { name: 'Furniture' }));
-    await screen.findByLabelText(en['categories.field.nameEn']!);
+    await screen.findByLabelText(NAME_EN);
     expect(screen.queryByLabelText(MODE_LABEL)).toBeNull();
     expect(getSpy.mock.calls.map((call) => String(call[0])).filter((url) => url.includes('/pricing/'))).toEqual([]);
     expect(saveButton()).toHaveTextContent(/^Save$/);

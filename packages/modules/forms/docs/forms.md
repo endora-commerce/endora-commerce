@@ -242,7 +242,9 @@ content: name the provider in your privacy notice.
 ## Entries
 
 **Form entries** lists every entry you may see, newest first. Filter it by form, status, date and
-sales channel, and search the submitter's e-mail and the text answers.
+sales channel, and search the submitter's e-mail and the text answers. The search, the form and the status
+are always in the toolbar above the list; the sales channel and the dates are under *More filters*,
+which shows how many of them are in use while it is closed. *Clear all filters* resets them all.
 
 An entry holds the answers to the fields that were shown, the form and version, the sales
 channel, the language, the page it was sent from, the time, the consents with the texts shown,

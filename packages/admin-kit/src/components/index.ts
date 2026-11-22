@@ -191,6 +191,8 @@ export type { ProductPickerProps } from './product-picker/ProductPicker.js';
 export { ScopePicker } from './scope-picker/ScopePicker.js';
 export type { ScopePickerProps, ScopePickerValue } from './scope-picker/ScopePicker.js';
 export { fetchScopeSalesChannel, listScopeSalesChannels } from './scope-picker/sales-channels-api.js';
+export { contentLanguageName, loadChannelLanguages, offerContentLanguages, useChannelLanguages } from './channel-languages/channel-languages.js';
+export type { ChannelLanguagesState, ContentLanguageOffer, ContentLanguageOfferDegraded } from './channel-languages/channel-languages.js';
 export { SalesChannelPicker } from './sales-channel-picker/SalesChannelPicker.js';
 export type { SalesChannelPickerProps } from './sales-channel-picker/SalesChannelPicker.js';
 export {
@@ -215,6 +217,10 @@ export { FilterChip } from './list-toolbar/FilterChip.js';
 export type { FilterChipProps } from './list-toolbar/FilterChip.js';
 export { ListToolbar, ListToolbarSearch } from './list-toolbar/ListToolbar.js';
 export type { AppliedFilter, ListToolbarProps, ListToolbarSearchProps } from './list-toolbar/ListToolbar.js';
+export { InlineEdit, InlineEditPencil } from './inline-edit/InlineEdit.js';
+export type { InlineEditorProps, InlineEditProps } from './inline-edit/InlineEdit.js';
+export { InlineEditTitle } from './inline-edit/InlineEditTitle.js';
+export type { InlineEditTitleProps } from './inline-edit/InlineEditTitle.js';
 // Issue #1558 (UX audit WORK-07) — the *List | Board* switch, moved from Tasks.
 export { ViewModeToggle } from './view-mode-toggle/ViewModeToggle.js';
 export type { ViewModeToggleProps } from './view-mode-toggle/ViewModeToggle.js';

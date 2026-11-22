@@ -135,14 +135,14 @@ export const contributions: AdminContributions = {
     },
   ],
   // User Story 6 — the Project a record is in, on that record's own screen.
-  // One panel, four zones; each is one line: the zone, the chunk, the code the
+  // One panel, four zones — three of them sidebars (issue #1452); each is one line: the zone, the chunk, the code the
   // panel's read enforces. The record's owner names no contributor.
   zones: [
-    zoneComponent('order.detail.after', () => import('./zones/OrderProjectPanel.js'), { weight: 650, requiredPermission: READ_PERMISSION }),
-    zoneComponent('quote_request.detail.after', () => import('./zones/QuoteRequestProjectPanel.js'), { weight: 650, requiredPermission: READ_PERMISSION }),
-    zoneComponent('opportunity.detail.after', () => import('./zones/OpportunityProjectPanel.js'), { weight: 650, requiredPermission: READ_PERMISSION }),
+    zoneComponent('order.detail.sidebar', () => import('./zones/OrderProjectPanel.js'), { weight: 650, requiredPermission: READ_PERMISSION }),
+    zoneComponent('quote_request.detail.sidebar', () => import('./zones/QuoteRequestProjectPanel.js'), { weight: 650, requiredPermission: READ_PERMISSION }),
+    zoneComponent('opportunity.detail.sidebar', () => import('./zones/OpportunityProjectPanel.js'), { weight: 650, requiredPermission: READ_PERMISSION }),
     zoneComponent('task.detail.after', () => import('./zones/TaskProjectPanel.js'), { weight: 650, requiredPermission: READ_PERMISSION }),
     // User Story 11 — the Organization's Projects on the Organization screen.
-    zoneComponent('organization.detail.after', () => import('./zones/OrganizationProjects.js'), { weight: 650, requiredPermission: READ_PERMISSION }),
+    zoneComponent('organization.detail.sales', () => import('./zones/OrganizationProjects.js'), { weight: 650, requiredPermission: READ_PERMISSION }),
   ],
 };

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Pencil, Send, Trash2, UserCheck } from 'lucide-react';
+import { Send, Trash2 } from 'lucide-react';
 import {
   TASK_TITLE_MAX,
   type RecordHistoryEntry,
@@ -16,7 +16,6 @@ import {
   Button,
   Card,
   CardContent,
-  Input,
   Label,
   PageHeader,
   RecordTabs,
@@ -24,18 +23,16 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import {
   ConfirmDialog,
+  InlineEditTitle,
   MoveToMenu,
   RecordHistory,
   recordHistoryChanges,
-  ReferenceText,
-  TagChips,
   useRecordHistory,
   type RecordHistoryChange,
 } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../api.js';
-import { AssigneePicker, type ChosenAssignee } from '../components/AssigneePicker.js';
 import { ContextSection } from '../components/ContextSection.js';
 import { LinkedRecordsSection } from '../components/LinkedRecordsSection.js';
 import { RemindersSection } from '../components/RemindersSection.js';
@@ -45,11 +42,10 @@ import { SubtasksSection } from '../components/SubtasksSection.js';
 import { TaskAttachments } from '../components/TaskAttachments.js';
 import { TaskComments } from '../components/TaskComments.js';
 import { TaskCustomFields } from '../components/TaskCustomFields.js';
-import { dueOf, TaskFieldInputs, taskFieldValuesOf, usePriorities, type TaskFieldValues } from '../components/TaskFieldInputs.js';
+import { TaskFacts } from '../components/TaskFacts.js';
+import { usePriorities } from '../components/TaskFieldInputs.js';
 import { useCurrentAdmin } from '../lib/current-admin.js';
 import { calendarDateLabel, errorMessage, momentLabel } from '../lib/labels.js';
-import { useEditorFocus } from '../lib/use-editor-focus.js';
-import { useFocusFirstInvalid } from '../lib/use-focus-first-invalid.js';
 import { searchForTaskTab, taskTabFromSearch, type TaskTab } from '../lib/task-tabs.js';
 
 const LIST_PATH = '/tasks';
@@ -127,8 +123,6 @@ export function TaskDetail(): ReactNode {
   const [notice, setNotice] = useState('');
   /** After a move that closed the Task: how many of its visible sub-tasks are still open (FR-028). */
   const [openSubtasks, setOpenSubtasks] = useState(0);
-  const [editing, setEditing] = useState(false);
-  const editFocus = useEditorFocus(editing);
   /** The *Move to…* menu's wrapper: its trigger takes focus back after a move (the chosen target unmounts). */
   const moveMenuRef = useRef<HTMLDivElement>(null);
   const detailsHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -212,6 +206,25 @@ export function TaskDetail(): ReactNode {
     } finally {
       setBusy(false);
     }
+  };
+
+  /**
+   * One field saved where it is shown (`TaskFacts`, the title): the answer is
+   * the Task as it is now. A refusal is the field's to show, under it, in the
+   * server's sentence — so it is thrown, not put in the page's banner.
+   */
+  const saveField = async (body: UpdateTaskBody): Promise<void> => {
+    setWriteError(null);
+    setNotice('');
+    setOpenSubtasks(0);
+    let next: TaskDetailData;
+    try {
+      next = await tasksApi.updateTask(id, body);
+    } catch (failure) {
+      throw new Error(errorMessage(failure, t('detail.saveError')));
+    }
+    setTask(next);
+    setHistoryVersion((version) => version + 1);
   };
 
   // Opened from another screen that named its own address (a record's *Tasks*
@@ -326,22 +339,28 @@ export function TaskDetail(): ReactNode {
 
   return (
     <>
-      <PageHeader
+      {/* The title is edited where it is read, as on an Opportunity (issue #1525, WORK-03). */}
+      <InlineEditTitle
         className="[&>div:first-child]:min-w-0 [&_h1]:flex-wrap"
-        title={
-          <span className="flex flex-wrap items-center gap-2 [overflow-wrap:anywhere]">
-            <span>{task.title}</span>
+        value={task.title}
+        label={t('field.title')}
+        canEdit={canWrite}
+        maxLength={TASK_TITLE_MAX}
+        validate={(draft): string | null => (draft === '' ? t('create.error.title') : null)}
+        save={(title): Promise<void> => saveField({ title })}
+        beside={
+          <>
             <StatusBadge status={task.status} />
             {task.draft ? <Badge variant="outline">{t('detail.draftBadge')}</Badge> : null}
             {task.private ? <Badge variant="secondary">{t('detail.privateBadge')}</Badge> : null}
-          </span>
+          </>
         }
         description={<span>{task.number}</span>}
         back={back}
         actions={
-          // Delete sits in the page header, apart from the frequent Edit in
+          // Delete sits in the page header, apart from the facts edited in
           // the Details section (issue #527), as on a Project and an Opportunity.
-          (canWrite || mayDeletePrivate) && mayDelete && task.permissions.canDelete && !editing ? (
+          (canWrite || mayDeletePrivate) && mayDelete && task.permissions.canDelete ? (
             <Button
               type="button"
               variant="outline"
@@ -403,34 +422,18 @@ export function TaskDetail(): ReactNode {
                 >
                   {t('detail.details')}
                 </h2>
-                {canWrite && !editing ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* The status itself is the title's badge; here only the move (issue #1566). */}
-                    {moveTargets.length > 0 ? (
-                      <div ref={moveMenuRef}>
-                        <MoveToMenu
-                          title={task.title}
-                          targets={moveTargets}
-                          busy={busy}
-                          onMove={(code): void => {
-                            refocusMove.current = true;
-                            void changeStatus(code);
-                          }}
-                        />
-                      </div>
-                    ) : null}
-                    <Button
-                      ref={editFocus.openerRef}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="min-h-11 sm:min-h-8"
-                      disabled={busy}
-                      onClick={(): void => setEditing(true)}
-                    >
-                      <Pencil aria-hidden="true" />
-                      {t('detail.edit')}
-                    </Button>
+                {/* The status itself is the title's badge; here only the move (issue #1566). */}
+                {canWrite && moveTargets.length > 0 ? (
+                  <div ref={moveMenuRef}>
+                    <MoveToMenu
+                      title={task.title}
+                      targets={moveTargets}
+                      busy={busy}
+                      onMove={(code): void => {
+                        refocusMove.current = true;
+                        void changeStatus(code);
+                      }}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -446,7 +449,7 @@ export function TaskDetail(): ReactNode {
                 </p>
               )}
               {/* Only its Creator says whether a Task is private, and a Task of a record never is (FR-038). */}
-              {canWrite && mine && task.context === null && !editing ? (
+              {canWrite && mine && task.context === null ? (
                 <div className="space-y-1">
                   {/* Issue #1607 — the kit `Switch`. Blocked, it stays focusable and is described by
                       why (`disabledReason`), which a natively disabled control would never let a
@@ -477,121 +480,22 @@ export function TaskDetail(): ReactNode {
                 </div>
               ) : null}
 
-              {editing ? (
-                <TaskEditForm
-                  editorRef={editFocus.editorRef}
-                  task={task}
-                  busy={busy}
-                  onCancel={(): void => {
-                    setEditing(false);
-                    setWriteError(null);
-                  }}
-                  onSave={async (body): Promise<void> => {
-                    if (Object.keys(body).length === 0) {
-                      setEditing(false);
-                      return;
-                    }
-                    if (await write(body, () => t('detail.saved'))) setEditing(false);
-                  }}
-                />
-              ) : (
-                <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-                  <div className="space-y-0.5 sm:col-span-2">
-                    <dt className="text-xs font-medium text-muted-foreground">{t('field.description')}</dt>
-                    <dd className="[overflow-wrap:anywhere]">
-                      {task.description.trim() ? (
-                        <ReferenceText text={task.description} references={task.references} />
-                      ) : (
-                        <span className="text-muted-foreground">{t('detail.noDescription')}</span>
-                      )}
-                    </dd>
-                  </div>
-                  <div className="space-y-0.5">
-                    <dt className="text-xs font-medium text-muted-foreground">
-                      {task.dueAt ? t('field.dueAt') : t('field.dueOn')}
-                    </dt>
-                    <dd className={task.overdue ? 'font-medium text-destructive' : undefined}>
-                      {task.dueAt
-                        ? momentLabel(task.dueAt, language)
-                        : task.dueOn
-                          ? calendarDateLabel(task.dueOn, language)
-                          : t('list.noDueDate')}
-                      {task.overdue ? ` · ${t('list.overdue')}` : null}
-                    </dd>
-                  </div>
-                  <div className="space-y-0.5">
-                    <dt className="text-xs font-medium text-muted-foreground">{t('field.startOn')}</dt>
-                    <dd>{task.startOn ? calendarDateLabel(task.startOn, language) : t('detail.noStartDate')}</dd>
-                  </div>
-                  <div className="space-y-0.5">
-                    <dt className="text-xs font-medium text-muted-foreground">{t('field.priority')}</dt>
-                    <dd>
-                      {task.priority ? (
-                        <span className="inline-flex items-center gap-1.5">
-                          <span
-                            aria-hidden="true"
-                            className="inline-block size-2 rounded-full"
-                            style={{ backgroundColor: task.priority.color }}
-                          />
-                          {task.priority.name}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">{t('field.priorityNone')}</span>
-                      )}
-                    </dd>
-                  </div>
-                  <div className="space-y-0.5">
-                    <dt className="text-xs font-medium text-muted-foreground">{t('field.tags')}</dt>
-                    <dd>
-                      {task.tags.length > 0 ? (
-                        <TagChips tags={task.tags} />
-                      ) : (
-                        <span className="text-muted-foreground">{t('detail.noTags')}</span>
-                      )}
-                    </dd>
-                  </div>
-                  <div className="space-y-0.5">
-                    <dt className="text-xs font-medium text-muted-foreground">{t('field.assignee')}</dt>
-                    <dd className="flex flex-wrap items-center gap-2">
-                      {task.assignees.length > 0 ? (
-                        <ul aria-label={t('field.assignee')} className="flex flex-wrap gap-x-3 gap-y-1 [overflow-wrap:anywhere]">
-                          {task.assignees.map((person) => (
-                            <li key={person.id}>
-                              {person.name}
-                              {person.active ? null : (
-                                <span className="text-muted-foreground"> ({t('detail.inactive')})</span>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <span className="text-muted-foreground">{t('list.unassigned')}</span>
-                      )}
-                      {canWrite && me && !assignedToMe ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="min-h-11 px-2 sm:min-h-8"
-                          disabled={busy}
-                          onClick={(): void => void assignToMe()}
-                        >
-                          <UserCheck aria-hidden="true" />
-                          {t('detail.assignToMe')}
-                        </Button>
-                      ) : null}
-                    </dd>
-                  </div>
-                  <div className="space-y-0.5 text-xs text-muted-foreground sm:col-span-2">
-                    <p>
-                      {task.createdBy
-                        ? t('detail.createdBy', { name: task.createdBy.name, date: momentLabel(task.createdAt, language) })
-                        : t('detail.createdOn', { date: momentLabel(task.createdAt, language) })}
-                    </p>
-                    {task.completedAt ? <p>{t('detail.completedAt', { date: momentLabel(task.completedAt, language) })}</p> : null}
-                  </div>
-                </dl>
-              )}
+              <TaskFacts
+                task={task}
+                canWrite={canWrite}
+                priorities={priorities}
+                save={saveField}
+                assignToMe={me && !assignedToMe ? (): void => void assignToMe() : null}
+                busy={busy}
+              />
+              <div className="space-y-0.5 text-xs text-muted-foreground">
+                <p>
+                  {task.createdBy
+                    ? t('detail.createdBy', { name: task.createdBy.name, date: momentLabel(task.createdAt, language) })
+                    : t('detail.createdOn', { date: momentLabel(task.createdAt, language) })}
+                </p>
+                {task.completedAt ? <p>{t('detail.completedAt', { date: momentLabel(task.completedAt, language) })}</p> : null}
+              </div>
 
               {/* The record's own fields are details of it too (WORK-04): a section here, not a card. */}
               <TaskCustomFields
@@ -719,116 +623,6 @@ export function TaskDetail(): ReactNode {
         />
       ) : null}
     </>
-  );
-}
-
-interface TaskEditFormProps {
-  /** The form's container: its first control takes focus when it opens. */
-  editorRef: RefObject<HTMLDivElement | null>;
-  task: TaskDetailData;
-  busy: boolean;
-  onCancel: () => void;
-  /** Only the fields that changed; empty when nothing did. */
-  onSave: (body: UpdateTaskBody) => Promise<void>;
-}
-
-/** The Task's title, assignees and the fields of `TaskFieldInputs`, edited together. */
-function TaskEditForm(props: TaskEditFormProps): ReactNode {
-  const { task, busy } = props;
-  const t = useTranslation('tasks');
-  const tCore = useTranslation('core');
-  const ids = { title: useId(), assignee: useId() };
-  const [title, setTitle] = useState(task.title);
-  const [fields, setFields] = useState<TaskFieldValues>(() => taskFieldValuesOf(task));
-  const [assignees, setAssignees] = useState<ChosenAssignee[]>(
-    task.assignees.map((person) => ({ id: person.id, name: person.name })),
-  );
-  const [missingTitle, setMissingTitle] = useState(false);
-  const invalid = useFocusFirstInvalid(props.editorRef);
-
-  const save = (): void => {
-    if (title.trim() === '') {
-      setMissingTitle(true);
-      invalid.refuse();
-      return;
-    }
-    const due = dueOf(fields);
-    const before = dueOf(taskFieldValuesOf(task));
-    const dueChanged = due.dueAt !== before.dueAt || due.dueOn !== before.dueOn;
-    const tagIds = [...fields.tagIds];
-    const body: UpdateTaskBody = {
-      ...(title.trim() !== task.title ? { title: title.trim() } : {}),
-      ...(fields.description !== task.description ? { description: fields.description } : {}),
-      ...(dueChanged
-        ? due.dueAt !== null
-          ? { dueAt: due.dueAt }
-          : { dueOn: due.dueOn, ...(task.dueAt !== null ? { dueAt: null } : {}) }
-        : {}),
-      ...((fields.startOn || null) !== task.startOn ? { startOn: fields.startOn || null } : {}),
-      ...((fields.priorityCode || null) !== (task.priority?.code ?? null)
-        ? { priorityCode: fields.priorityCode || null }
-        : {}),
-      ...([...tagIds].sort().join(',') !== task.tags.map((tag) => tag.id).sort().join(',') ? { tagIds } : {}),
-      ...(assignees.map((chosen) => chosen.id).join(',') !== task.assignees.map((person) => person.id).join(',')
-        ? { assigneeIds: assignees.map((chosen) => chosen.id) }
-        : {}),
-    };
-    void props.onSave(body);
-  };
-
-  return (
-    <div ref={props.editorRef} className="space-y-4">
-      <div className="space-y-1">
-        <Label htmlFor={ids.title}>
-          {t('field.title')}
-          <span aria-hidden="true" className="text-destructive">
-            {' *'}
-          </span>
-        </Label>
-        <Input
-          id={ids.title}
-          value={title}
-          maxLength={TASK_TITLE_MAX}
-          required
-          aria-invalid={missingTitle}
-          aria-describedby={missingTitle ? `${ids.title}-error` : undefined}
-          onChange={(event): void => {
-            setTitle(event.target.value);
-            setMissingTitle(false);
-          }}
-        />
-        {missingTitle ? (
-          <p id={`${ids.title}-error`} className="text-xs text-destructive">
-            {t('create.error.title')}
-          </p>
-        ) : null}
-      </div>
-      <TaskFieldInputs
-        values={fields}
-        onChange={(patch): void => setFields((previous) => ({ ...previous, ...patch }))}
-        taskId={task.id}
-        references={task.references}
-        currentPriority={task.priority ? { code: task.priority.code, name: task.priority.name } : null}
-        disabled={busy}
-      />
-      <div className="space-y-1">
-        <Label htmlFor={task.private ? undefined : ids.assignee}>{t('field.assignee')}</Label>
-        {task.private ? (
-          // A private Task is its Creator's alone (FR-038): no picker of other people.
-          <p className="text-sm text-muted-foreground">{t('create.privateAssignee')}</p>
-        ) : (
-          <AssigneePicker id={ids.assignee} value={assignees} onChange={setAssignees} taskId={task.id} />
-        )}
-      </div>
-      <div className="flex flex-wrap gap-2 border-t pt-3">
-        <Button type="button" className="min-h-11 sm:min-h-9" disabled={busy} aria-busy={busy} onClick={save}>
-          {tCore('common.action.save')}
-        </Button>
-        <Button type="button" variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={props.onCancel}>
-          {tCore('common.action.cancel')}
-        </Button>
-      </div>
-    </div>
   );
 }
 

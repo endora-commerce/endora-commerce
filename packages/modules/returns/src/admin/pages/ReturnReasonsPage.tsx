@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
-import { ListChecks, Loader2, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { ListChecks, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { ModalDialog, useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
 import {
@@ -25,9 +25,10 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient } from '../api/returns-client.js';
-import { localizedText } from '../labels.js';
+import { MissingNames } from '../components/MissingNames.js';
+import { localizedText, mergeNames, nameDraft, primaryName, type NameDraft } from '../labels.js';
 
-import type { ReturnReasonDto } from '@endora-commerce/contracts';
+import { SUPPORTED_LANGUAGES, type ReturnReasonDto } from '@endora-commerce/contracts';
 
 const APPLIES_TO = ['both', 'return', 'complaint'] as const;
 
@@ -42,7 +43,10 @@ export function ReturnReasonsPage(): ReactNode {
   // `null` until the first answer, so the empty state does not flash while loading.
   const [rows, setRows] = useState<ReturnReasonDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  // The dialog open: `reason: null` creates, a reason edits it (owner decision 2026-11-21).
+  const [dialog, setDialog] = useState<{ reason: ReturnReasonDto | null } | null>(null);
+  // An edit's dialog gives focus back to the row's Edit that opened it.
+  const editReturnRef = useRef<HTMLElement | null>(null);
   // The code every write route enforces (`requireAdmin('returns:write')`): a read-only
   // operator sees the list but is offered no write it would be refused.
   const { hasPermission } = useAuth();
@@ -117,7 +121,7 @@ export function ReturnReasonsPage(): ReactNode {
       className="min-h-11 sm:min-h-9"
       onClick={() => {
         status.clear();
-        setCreating(true);
+        setDialog({ reason: null });
       }}
     >
       <Plus size={16} aria-hidden="true" />
@@ -170,7 +174,12 @@ export function ReturnReasonsPage(): ReactNode {
                 <TableBody>
                   {rows.map((r) => (
                     <TableRow key={r.id}>
-                      <TableCell>{nameOf(r)}</TableCell>
+                      <TableCell>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span>{nameOf(r)}</span>
+                          <MissingNames names={r.label} />
+                        </span>
+                      </TableCell>
                       <TableCell>{tr(`reasons.appliesTo.${r.appliesTo}`)}</TableCell>
                       <TableCell className="text-right tabular-nums">{r.weight}</TableCell>
                       <TableCell>
@@ -188,7 +197,19 @@ export function ReturnReasonsPage(): ReactNode {
                         />
                       </TableCell>
                       {canWrite ? (
-                        <TableCell className="text-right">
+                        <TableCell className="text-right whitespace-nowrap">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={tr('reasons.edit', { label: nameOf(r) })}
+                            onClick={(event) => {
+                              status.clear();
+                              editReturnRef.current = event.currentTarget;
+                              setDialog({ reason: r });
+                            }}
+                          >
+                            <Pencil className="size-4" aria-hidden="true" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -209,14 +230,16 @@ export function ReturnReasonsPage(): ReactNode {
         </Card>
       )}
 
-      {canWrite && creating ? (
-        <NewReasonDialog
-          finalFocusRef={removalFocus.createRef}
-          onClose={() => setCreating(false)}
-          onCreated={async () => {
+      {canWrite && dialog ? (
+        <ReasonDialog
+          reason={dialog.reason}
+          finalFocusRef={dialog.reason ? editReturnRef : removalFocus.createRef}
+          onClose={() => setDialog(null)}
+          onSaved={async () => {
+            const created = dialog.reason === null;
             await refresh();
-            setCreating(false);
-            status.show(tr('reasons.added'));
+            setDialog(null);
+            status.show(tr(created ? 'reasons.added' : 'reasons.saved'));
           }}
         />
       ) : null}
@@ -224,41 +247,48 @@ export function ReturnReasonsPage(): ReactNode {
     </div>
   );
 }
-interface NewReasonDialogProps {
-  /** Focused when the dialog closes: the create action drawn at that moment. */
+interface ReasonDialogProps {
+  /** `null` creates a reason; a reason is edited in place. */
+  reason: ReturnReasonDto | null;
+  /** Focused when the dialog closes: the action that opened it. */
   finalFocusRef: RefObject<HTMLElement | null>;
   onClose: () => void;
-  onCreated: () => Promise<void>;
+  onSaved: () => Promise<void>;
 }
 
 /**
- * The new-reason form — three fields, so a dialog rather than a route (DS-05). A missing
- * label is refused at its field; the server's refusal stays in the dialog with what was
- * typed kept (Peak-End).
+ * The reason form — a label per shipped language, what it applies to and its weight, so
+ * a dialog rather than a route (DS-05). One label in either language is enough: the
+ * storefront shows the buyer's language, else English, else the other one. A missing
+ * label is refused at the first field; the server's refusal stays in the dialog with
+ * what was typed kept (Peak-End).
  */
-function NewReasonDialog({ finalFocusRef, onClose, onCreated }: NewReasonDialogProps): ReactNode {
+function ReasonDialog({ reason, finalFocusRef, onClose, onSaved }: ReasonDialogProps): ReactNode {
   const t = useTranslation('core');
   const tr = useTranslation('returns');
   const formId = useId();
-  const [label, setLabel] = useState('');
-  const [appliesTo, setAppliesTo] = useState<string>('both');
-  const [weight, setWeight] = useState(100);
+  const [label, setLabel] = useState<NameDraft>(() => nameDraft(reason?.label));
+  const [appliesTo, setAppliesTo] = useState<string>(reason?.appliesTo ?? 'both');
+  const [weight, setWeight] = useState(reason?.weight ?? 100);
   const [labelError, setLabelError] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const fieldLabel: NameDraft = { en: tr('reasons.field.labelEn'), pl: tr('reasons.field.labelPl') };
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
     setFailure(null);
-    if (!label.trim()) {
+    if (!primaryName(label)) {
       setLabelError(tr('reasons.validation.labelRequired'));
       return;
     }
     setLabelError(null);
     setSaving(true);
     try {
-      await returnsClient.createReason({ label: { en: label.trim() }, appliesTo, weight });
-      await onCreated();
+      const body = { label: mergeNames(reason?.label, label), appliesTo, weight };
+      if (reason) await returnsClient.updateReason(reason.id, body);
+      else await returnsClient.createReason(body);
+      await onSaved();
     } catch (err) {
       setFailure(err instanceof ApiError ? err.envelope.error.message : tr('admin.actionFailed'));
       setSaving(false);
@@ -267,7 +297,7 @@ function NewReasonDialog({ finalFocusRef, onClose, onCreated }: NewReasonDialogP
 
   return (
     <ModalDialog
-      title={tr('reasons.newTitle')}
+      title={reason ? tr('reasons.editTitle') : tr('reasons.newTitle')}
       onClose={onClose}
       busy={saving}
       dismissOnScrim={false}
@@ -279,22 +309,32 @@ function NewReasonDialog({ finalFocusRef, onClose, onCreated }: NewReasonDialogP
           </Button>
           <Button type="submit" form={formId} disabled={saving} aria-busy={saving || undefined}>
             {saving ? <Loader2 size={14} aria-hidden="true" className="motion-safe:animate-spin" /> : null}
-            {tr('reasons.add')}
+            {reason ? t('common.action.save') : tr('reasons.add')}
           </Button>
         </>
       }
     >
       <form id={formId} noValidate className="space-y-4" onSubmit={(e) => void submit(e)}>
-        <FormField label={tr('reasons.field.label')} required error={labelError}>
-          <Input
-            value={label}
-            maxLength={200}
-            onChange={(e) => {
-              setLabel(e.target.value);
-              if (labelError) setLabelError(null);
-            }}
-          />
-        </FormField>
+        {SUPPORTED_LANGUAGES.map((lang, index) => (
+          <FormField
+            key={lang}
+            label={fieldLabel[lang]}
+            // The pair is required, not each field: the refusal is said at the first one.
+            error={index === 0 ? labelError : null}
+            {...(index === SUPPORTED_LANGUAGES.length - 1 ? { hint: tr('reasons.field.labelHint') } : {})}
+          >
+            <Input
+              lang={lang}
+              value={label[lang]}
+              maxLength={200}
+              onChange={(e) => {
+                const value = e.target.value;
+                setLabel((prev) => ({ ...prev, [lang]: value }));
+                if (labelError) setLabelError(null);
+              }}
+            />
+          </FormField>
+        ))}
         <FormField label={tr('reasons.field.appliesTo')}>
           <Select value={appliesTo} onChange={(e) => setAppliesTo(e.target.value)}>
             {APPLIES_TO.map((value) => (

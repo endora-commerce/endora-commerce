@@ -16,7 +16,10 @@ content screen has:
 
 - a **language** switch — content is kept per language, like the category's
   name. Each language has its own document, and a language you leave empty
-  shows the content of another one rather than nothing;
+  shows the content of another one rather than nothing. The switch offers the
+  languages of your active sales channels, then any other language the name or
+  the content is stored in; such a language is listed under the switch as
+  read-only, and its document is kept and saved unchanged but not edited;
 - the **Page Builder** canvas for the selected language;
 - **Save content** — one save stores every language you edited.
 

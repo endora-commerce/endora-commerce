@@ -22,8 +22,9 @@ import { expectNoAxeViolations } from '../../helpers/axe';
  * Common Region), with the page Save the one primary in the header (Von Restorff) and a tab
  * that holds unsaved work marked as such (Zeigarnik).
  *
- * DS-20 (#1452, zone placement) is not merged, so the zone is one mount (Z13) in the Commerce
- * tab, without `chrome="card"`: every contribution renders as a section there.
+ * `organization.detail.after` is one mount (Z13) in the Commerce tab, without `chrome="card"`:
+ * every contribution renders as a section there. Since DS-20 (#1452, zone placement) the Sales
+ * tab has a zone of its own, `organization.detail.sales`, where `crm` and `projects` contribute.
  */
 
 installOffsetParentShim();
@@ -53,6 +54,8 @@ const { OrganizationDetail } = await import(
   '../../../../packages/modules/organizations/src/admin/pages/OrganizationDetail'
 );
 const priceLists = await import('@endora-commerce/mod-price-lists/admin');
+const crm = await import('@endora-commerce/mod-crm/admin');
+const projects = await import('@endora-commerce/mod-projects/admin');
 
 const read = (path: string): Record<string, string> =>
   JSON.parse(readFileSync(resolve(process.cwd(), path), 'utf8')) as Record<string, string>;
@@ -64,7 +67,11 @@ const bundle = {
   core: coreEn,
   organizations: orgEn,
   price_lists: read('../packages/modules/price_lists/i18n/en.json'),
+  crm: read('../packages/modules/crm/i18n/en.json'),
+  projects: read('../packages/modules/projects/i18n/en.json'),
 };
+const crmEn = bundle.crm;
+const projectsEn = bundle.projects;
 const T = (key: string): string => {
   const value = orgEn[key];
   if (value === undefined) throw new Error(`missing organizations key ${key}`);
@@ -117,8 +124,16 @@ function company(): Record<string, unknown> {
   };
 }
 
+type Registry = readonly { moduleId: string; contributions: typeof priceLists.contributions }[];
+const PRICE_LISTS_ONLY: Registry = [{ moduleId: 'price_lists', contributions: priceLists.contributions }];
+const WITH_SALES_CONTRIBUTORS: Registry = [
+  ...PRICE_LISTS_ONLY,
+  { moduleId: 'crm', contributions: crm.contributions },
+  { moduleId: 'projects', contributions: projects.contributions },
+];
+
 function renderDetail(
-  options: { entry?: string; permissions?: readonly string[] } = {},
+  options: { entry?: string; permissions?: readonly string[]; registry?: Registry } = {},
 ): void {
   renderWithSession(
     <MemoryRouter initialEntries={[options.entry ?? `/organizations/${ORG_ID}`]}>
@@ -129,7 +144,7 @@ function renderDetail(
     {
       session: adminSession({ permissions: [...(options.permissions ?? ['*'])] }),
       presence: modulePresence({ present: everyDeclaredModule() }),
-      contributions: [{ moduleId: 'price_lists', contributions: priceLists.contributions }],
+      contributions: [...(options.registry ?? PRICE_LISTS_ONLY)],
       bundle,
     },
   );
@@ -283,10 +298,10 @@ describe('organization detail — one card of tabs (#1515)', () => {
     renderDetail();
     await tabs();
     const heading = screen.getByRole('heading', { level: 1 });
-    const back = within(heading.closest('header')!).getByRole('link', { name: C('organizations.detail.back') });
+    const back = within(heading.closest('header')!).getByRole('link', { name: C('organizations.page.title') });
     expect(back).toHaveAttribute('href', '/organizations');
     const group = document.querySelector<HTMLElement>('[data-slot="detail-header-actions"]')!;
-    expect(within(group).queryByRole('link', { name: C('organizations.detail.back') })).toBeNull();
+    expect(within(group).queryByRole('link', { name: C('organizations.page.title') })).toBeNull();
   });
 
   it('marks the tab that holds unsaved work, and keeps the draft across tabs', async () => {
@@ -313,6 +328,60 @@ describe('organization detail — one card of tabs (#1515)', () => {
       await openTab(user, key);
       await expectNoAxeViolations(document.body);
     }
+  });
+});
+
+describe('organization detail — the Sales tab zone (#1452, DS-20)', () => {
+  const crmTitle = (): string => crmEn['organizationPanel.title']!;
+  const projectsTitle = (): string => projectsEn['organizationPanel.title']!;
+  const salesOnlyContributors = ['customers:read', 'customers:manage', 'crm:read', 'projects:read'];
+
+  it('holds crm’s opportunities and projects’ projects after the sales representatives, not in Commerce', async () => {
+    const user = userEvent.setup();
+    renderDetail({ registry: WITH_SALES_CONTRIBUTORS });
+    const sales = await openTab(user, 'detail.tabs.sales');
+    await within(sales).findByRole('heading', { level: 2, name: crmTitle() });
+    await within(sales).findByRole('heading', { level: 2, name: projectsTitle() });
+    const names = headingNames(sales);
+    const reps = names.findIndex((name) => name.startsWith(C('organizations.salesReps.title')));
+    expect(reps).toBeGreaterThanOrEqual(0);
+    // Weight order after the host's own section: crm 600, projects 650.
+    expect(names.indexOf(crmTitle())).toBeGreaterThan(reps);
+    expect(names.indexOf(projectsTitle())).toBeGreaterThan(names.indexOf(crmTitle()));
+    // Sections of the tab's card, never a card in a card.
+    expect(sales.querySelector('[data-slot="card"]')).toBeNull();
+
+    const commerce = await openTab(user, 'detail.tabs.commerce');
+    await within(commerce).findByLabelText(C('priceLists.displayMode.rowLabel'));
+    expect(headingNames(commerce)).not.toContain(crmTitle());
+    expect(headingNames(commerce)).not.toContain(projectsTitle());
+  });
+
+  it('is offered for the zone alone, without the sales-rep code', async () => {
+    const user = userEvent.setup();
+    renderDetail({ registry: WITH_SALES_CONTRIBUTORS, permissions: salesOnlyContributors });
+    const sales = await openTab(user, 'detail.tabs.sales');
+    await within(sales).findByRole('heading', { level: 2, name: crmTitle() });
+    expect(headingNames(sales).some((name) => name.startsWith(C('organizations.salesReps.title')))).toBe(false);
+  });
+
+  it('is not offered when neither the sales-rep code nor a contribution fills it, and ?tab=sales falls back to Overview', async () => {
+    renderDetail({
+      entry: `/organizations/${ORG_ID}?tab=sales`,
+      registry: WITH_SALES_CONTRIBUTORS,
+      permissions: ['customers:read', 'customers:manage'],
+    });
+    const strip = await tabs();
+    expect(strip.map((tab) => tab.textContent?.trim())).not.toContain(T('detail.tabs.sales'));
+    expect(strip[0]).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('passes axe on Sales with both contributions', async () => {
+    const user = userEvent.setup();
+    renderDetail({ registry: WITH_SALES_CONTRIBUTORS });
+    const sales = await openTab(user, 'detail.tabs.sales');
+    await within(sales).findByRole('heading', { level: 2, name: projectsTitle() });
+    await expectNoAxeViolations(document.body);
   });
 });
 
