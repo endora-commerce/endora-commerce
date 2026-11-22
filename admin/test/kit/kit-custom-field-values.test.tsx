@@ -753,3 +753,60 @@ describe('CustomFieldValuesPanel — a section, not a card (issue #1437, DS-03)'
     expect(await screen.findByRole('heading', { level: 3, name: COPY.title })).toBeTruthy();
   });
 });
+
+/**
+ * Issue #1808 (item 6) — the order detail showed a field by its raw code
+ * (`zrodlo_pozyskania`): the definition's Polish label was there, but the host
+ * passed no `language`, so the panel looked the label up in English and fell
+ * back to the default label, which the operator had typed as the code. With no
+ * `language` the panel now speaks the admin's own language.
+ */
+describe('CustomFieldValuesPanel — the labels follow the admin language (issue #1808)', () => {
+  const sourceField = (): Record<string, unknown> =>
+    definition({
+      entityType: 'order',
+      key: 'zrodlo_pozyskania',
+      label: { pl: 'Źródło pozyskania' },
+      labelDefault: 'zrodlo_pozyskania',
+    });
+
+  it('shows the label in the admin language when the host passes none', async () => {
+    getSpy.mockResolvedValue({ data: [sourceField()] });
+
+    renderWithI18n(
+      <CustomFieldValuesPanel entityType="order" values={{ zrodlo_pozyskania: 'Targi' }} save={async (): Promise<void> => {}} />,
+      bundle,
+      { language: 'pl' },
+    );
+
+    expect(await screen.findByLabelText('Źródło pozyskania')).toHaveValue('Targi');
+    expect(screen.queryByText('zrodlo_pozyskania')).toBeNull();
+  });
+
+  it('falls back to the default label when the language has an empty one', async () => {
+    getSpy.mockResolvedValue({
+      data: [definition({ label: { en: '' }, labelDefault: 'Loyalty tier' })],
+    });
+
+    renderWithI18n(
+      <CustomFieldValuesPanel entityType="customer" values={{}} save={async (): Promise<void> => {}} />,
+      bundle,
+    );
+
+    expect(await screen.findByLabelText('Loyalty tier')).toBeTruthy();
+  });
+
+  it('still honours an explicit `language` over the admin language', async () => {
+    getSpy.mockResolvedValue({
+      data: [definition({ label: { en: 'Loyalty tier', pl: 'Poziom lojalności' } })],
+    });
+
+    renderWithI18n(
+      <CustomFieldValuesPanel entityType="customer" language="en" values={{}} save={async (): Promise<void> => {}} />,
+      bundle,
+      { language: 'pl' },
+    );
+
+    expect(await screen.findByLabelText('Loyalty tier')).toBeTruthy();
+  });
+});
