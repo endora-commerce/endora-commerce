@@ -7643,8 +7643,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_ergonode` leaves): 4822 -> 4574.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: sites 4575 -> 4508.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 4508 -> 4396.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    // **#1749 follow-up: sites -> 7672** — the outbox's hand-rolled table, card and Load-more block leave for the kit ListPage; measured on a pristine worktree (master 30709da32 reads 7685).
-    sites: 7672,
+    // **#1749 (products list on `ListPage`): sites 8536 -> 7675.** The band refused the run: `master` (30709da32) measures 7685, one site of the long drift above the floor, and the list's hand-drawn table cells became `ResponsiveTable` column definitions (-10). Measured on a pristine detached worktree of the branch head; not computed from a delta.
+    // **#1749 follow-up (CustomFieldsPage on `ListPage`), merged with `master` e0733e297: sites 7675 -> 7663.** Measured on a pristine detached worktree of the merge; not computed from a delta.
+    sites: 7663,
     // `manifest-index` is issue #215's shared floor over the module half of the
     // render walk. `design-system` is the `exports` maps' own answer to *"which
     // packages publish `./theme.css`"* against the stylesheets this run opened,

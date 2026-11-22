@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArchiveRestore,
   Package,
@@ -29,35 +29,29 @@ import {
   type ProductListTab,
 } from '../lib/resolve-product-selection.js';
 import { pickLocalized } from '../lib/scope-overview.js';
-import { ApiError, apiClient, formatDate, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, formatDate, useAuth } from '@endora-commerce/admin-kit/lib';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import {
+  ListPage,
   ListToolbar,
   ListToolbarSearch,
-  PaginationFooter,
+  ResponsiveTable,
   SavedViewsControl,
   useConfirmDialog,
+  useListPagination,
 } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
   Button,
-  Card,
   Checkbox,
   EmptyState,
-  PageHeader,
   Select,
   TabPanel,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   Tabs,
   type TabItem,
 } from '@endora-commerce/admin-kit/ui';
-import type { SavedViewState } from '@endora-commerce/admin-kit/components';
+import type { ListPageLoad, ResponsiveColumn, SavedViewState } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 interface AdminProduct {
@@ -252,7 +246,15 @@ export function ProductsList(): ReactNode {
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<ProductListCounts>({ all: 0, active: 0, inactive: 0, archived: 0 });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Issue #1749 — a failed load is the list's state (the kit error with Retry);
+  // a failed action on it (a bulk delete, a saved view) is a notice above the
+  // rows, which stay.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  // The skeleton is for the first load only; a refresh over rows on screen is
+  // `busy`, so the rows, the pager and the focus stay (ux-laws §6.1).
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const requestSeq = useRef(0);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
     productListTabFromUrl(location.pathname, location.search),
@@ -296,8 +298,10 @@ export function ProductsList(): ReactNode {
   }, [bulkEditProductIds, rows]);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [resolvingSelection, setResolvingSelection] = useState(false);
-  const { pageSize, setPageSize } = usePageSizePreference('catalog-products');
-  const [page, setPage] = useState(0);
+  // The endpoint pages from zero and serves up to 500 rows (`listProducts`), so
+  // the request takes the pager's zero-based `page`, not its one-based `query`.
+  const pager = useListPagination({ scope: 'catalog-products', maxPageSize: 500 });
+  const { page, pageSize, resetPage, syncTotal } = pager;
 
   // Debounce the text query so each keystroke doesn't fire a fetch. 250 ms
   // is fast enough to feel live and slow enough to coalesce typing bursts.
@@ -308,8 +312,9 @@ export function ProductsList(): ReactNode {
   }, [query]);
 
   const refresh = useCallback(async (): Promise<void> => {
+    const seq = ++requestSeq.current;
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       // Archived products are hidden by the list's default
@@ -330,16 +335,21 @@ export function ProductsList(): ReactNode {
       const res = await apiClient.get<ProductsResponse>(
         `/api/v1/admin/catalog/products?${params.toString()}`,
       );
+      // A slower answer to an older request does not overwrite a newer one.
+      if (seq !== requestSeq.current) return;
       setRows(res.data);
       setTotal(res.pagination.total);
       setCounts(res.counts);
       setStockFilterAvailable(res.stockFilterAvailable === true);
+      syncTotal(res.pagination.total);
+      setLoadedOnce(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('productsList.error.load'));
+      if (seq !== requestSeq.current) return;
+      setLoadError(err instanceof ApiError ? err.envelope.error.message : t('productsList.error.load'));
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
-  }, [statusFilter, typeFilter, categoryFilter, channelFilter, stockFilter, debouncedQuery, page, pageSize, t]);
+  }, [statusFilter, typeFilter, categoryFilter, channelFilter, stockFilter, debouncedQuery, page, pageSize, syncTotal, t]);
 
   useEffect(() => {
     void refresh();
@@ -378,9 +388,10 @@ export function ProductsList(): ReactNode {
   // Reset to the first page whenever the result-shaping inputs change so
   // the user never lands on an out-of-range page. Page-size, status, type,
   // and the (debounced) text query all reshape the result set.
+  // (A page-size change goes back to the first page inside the pager.)
   useEffect(() => {
-    setPage(0);
-  }, [statusFilter, typeFilter, categoryFilter, channelFilter, stockFilter, debouncedQuery, pageSize]);
+    resetPage();
+  }, [statusFilter, typeFilter, categoryFilter, channelFilter, stockFilter, debouncedQuery, resetPage]);
 
   // Feature 033 — changing filters invalidates collection-wide selection (FR-006).
   useEffect(() => {
@@ -420,7 +431,7 @@ export function ProductsList(): ReactNode {
     setStockFilter(isStockFilter(f['stock']) ? f['stock'] : 'all');
     setQuery(q);
     setDebouncedQuery(q);
-    setPage(0);
+    resetPage();
     setSelection(emptySelection());
     setSelectionError(null);
   };
@@ -461,7 +472,7 @@ export function ProductsList(): ReactNode {
   const restoreFromBar = canWrite && statusFilter === 'archived';
   // No product at all: the empty state's *New product* is the view's one primary
   // action, and the header does not repeat it (Von Restorff).
-  const catalogEmpty = !loading && !error && rows.length === 0 && !filtersActive && statusFilter === 'all';
+  const catalogEmpty = !loading && !loadError && rows.length === 0 && !filtersActive && statusFilter === 'all';
   // A search that finds nothing among live products may be looking for an archived
   // one, which every other tab hides; one step takes the query there.
   const searchArchivedHint =
@@ -599,7 +610,7 @@ export function ProductsList(): ReactNode {
     if (!ok) return;
 
     setDeleting(true);
-    setError(null);
+    setActionError(null);
     // Resolve the full selection (page or "all matching" collection scope —
     // feature 033) before deleting; collect per-item failures (feature 032).
     void runWithResolvedIds(async (ids) => {
@@ -616,7 +627,7 @@ export function ProductsList(): ReactNode {
         }
       }
       if (failed.length > 0) {
-        setError(failed.map((f) => f.message).join(' · '));
+        setActionError(failed.map((f) => f.message).join(' · '));
       } else {
         clearSelection();
       }
@@ -668,9 +679,110 @@ export function ProductsList(): ReactNode {
     />
   );
 
+  const pageCheckbox = (
+    <Checkbox
+      aria-label={t('productsList.selection.selectPage')}
+      checked={allVisibleSelected}
+      ref={(el): void => {
+        if (el) el.indeterminate = someVisibleSelected;
+      }}
+      onChange={toggleAll}
+    />
+  );
+
+  // The product's name is the way in (ListPage, issue #1749): a link, so the
+  // keyboard reaches it too, where the clickable row before reached only a mouse.
+  const columns: ResponsiveColumn<AdminProduct>[] = [
+    {
+      id: 'select',
+      header: pageCheckbox,
+      // Primary, so a phone's card keeps the row's checkbox beside the name.
+      primary: true,
+      className: 'w-8 pl-3.5',
+      render: (r) => (
+        <Checkbox
+          aria-label={t('productsList.selection.selectRow', { name: r.name })}
+          checked={isRowSelected(r.id)}
+          onChange={(): void => toggleOne(r.id)}
+        />
+      ),
+    },
+    {
+      id: 'product',
+      header: t('productsList.column.product'),
+      primary: true,
+      render: (r) => (
+        <div className="flex items-center gap-3">
+          {/* A placeholder until the gallery's base image is listed: decorative, so
+              one neutral tile rather than a colour per id that means nothing. */}
+          <div
+            aria-hidden="true"
+            className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground"
+          >
+            <Package size={16} />
+          </div>
+          <Link
+            to={`/catalog/products/${r.id}`}
+            className="min-w-0 max-w-90 truncate font-medium hover:underline focus-visible:underline"
+          >
+            {r.name}
+          </Link>
+        </div>
+      ),
+      meta: (r) => <span className="font-mono">{r.sku}</span>,
+    },
+    {
+      id: 'sku',
+      header: t('productsList.column.sku'),
+      hideOnMobile: true,
+      className: 'font-mono text-xs text-muted-foreground',
+      render: (r) => r.sku,
+    },
+    {
+      id: 'status',
+      header: t('productsList.column.status'),
+      render: (r) => (
+        <span className="inline-flex flex-wrap gap-1">
+          <ProductStatusPill status={r.status} archived={Boolean(r.archivedAt)} />
+          {/* On the Archived tab every row is archived; the tab already says so. */}
+          {r.archivedAt && statusFilter !== 'archived' ? <ArchivedPill /> : null}
+        </span>
+      ),
+    },
+    {
+      id: 'type',
+      header: t('productsList.column.type'),
+      className: 'text-xs',
+      render: (r) => t(`productEditor.type.${r.type}`),
+    },
+    {
+      id: 'visibility',
+      header: t('productsList.column.visibility'),
+      hideOnMobile: true,
+      className: 'text-xs text-muted-foreground',
+      render: (r) => t(`productEditor.visibility.${r.visibility}`),
+    },
+    {
+      id: 'updated',
+      header: t('productsList.column.updated'),
+      className: 'text-xs text-muted-foreground',
+      render: (r) => relTime(r.updatedAt, t, language),
+    },
+  ];
+
+  const load: ListPageLoad =
+    loading && !loadedOnce
+      ? { kind: 'loading' }
+      : loadError !== null && !loading
+        ? { kind: 'error', message: loadError }
+        : { kind: 'ready' };
+
+  // The kit list page (issue #1749, DS-05): the header with the one *New
+  // product*, the status tabs, the toolbar as a plain row with the count at its
+  // end, and one results card holding the bars, the table and the pager.
   return (
     <div className="b2b-page b2b-page--wide">
-      <PageHeader
+      <ListPage
         title={t('productsList.title')}
         actions={
           <>
@@ -681,19 +793,9 @@ export function ProductsList(): ReactNode {
             {canWrite && !catalogEmpty ? newProductButton : null}
           </>
         }
-      />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {/* Issue #1492 (CAT-17): the kit card, buttons, table and checkboxes, so the list and the
-          product editor it opens draw one radius, one button and one heading scale. */}
-      <Card className="overflow-hidden">
-        <div className="overflow-hidden px-3 pt-1">
+        tabs={
           <Tabs
+            className="mb-4"
             items={STATUS_TABS.map((id): TabItem<StatusFilter> => ({
               value: id,
               label: t(`productsList.tab.${id}`),
@@ -704,13 +806,11 @@ export function ProductsList(): ReactNode {
             idBase="products-list"
             aria-label={t('productsList.tabs.label')}
           />
-        </div>
-
-        {/* Everything below the strip is the selected status's list (issue #1491). */}
-        <TabPanel idBase="products-list" value={statusFilter}>
+        }
+        toolbar={
           <ListToolbar
             label={t('productsList.toolbar.label')}
-            className="border-b border-border px-3 py-2.5"
+            className="min-w-0 flex-1"
             search={
               <ListToolbarSearch
                 ref={searchRef}
@@ -787,243 +887,174 @@ export function ProductsList(): ReactNode {
                 endpoint="/api/v1/admin/catalog/products/list-views"
                 current={toSavedViewState()}
                 onApply={applySavedView}
-                onError={setError}
+                onError={setActionError}
               />
             }
           />
+        }
+        count={t('productsList.count', { count: total })}
+        load={load}
+        busy={loading}
+        onRetry={(): void => void refresh()}
+        notice={
+          <>
+            {actionError ? (
+              <Alert variant="destructive">
+                <AlertDescription>{actionError}</AlertDescription>
+              </Alert>
+            ) : null}
 
-          {/* Mounted before it has text, so the note is announced when a view brings it. */}
-          <div role="status">
-            {legacyDraftView ? (
-              <div
-                data-testid="saved-view-draft-note"
-                className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground"
-              >
-                <span className="flex-1">{t('productsList.savedView.draftRemoved')}</span>
-                <Button type="button" variant="ghost" size="sm" onClick={(): void => setLegacyDraftView(false)}>
-                  {t('productsList.savedView.dismiss')}
+            {/* Mounted before it has text, so the note is announced when a view brings it. */}
+            <div role="status">
+              {legacyDraftView ? (
+                <div
+                  data-testid="saved-view-draft-note"
+                  className="flex items-center gap-2 border-b border-border pb-2 text-xs text-muted-foreground"
+                >
+                  <span className="flex-1">{t('productsList.savedView.draftRemoved')}</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={(): void => setLegacyDraftView(false)}>
+                    {t('productsList.savedView.dismiss')}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
+            {showSelectAllBanner ? (
+              <div className="rounded-md bg-muted px-3 py-2 text-sm">
+                {t('productsList.selection.allPageSelected', { pageCount: filtered.length })}{' '}
+                <Button
+                  type="button"
+                  variant="link"
+                  data-testid="select-all-matching"
+                  className="h-auto p-0"
+                  onClick={selectCollectionMode}
+                >
+                  {t('productsList.selection.selectAllMatching', { total })}
                 </Button>
               </div>
             ) : null}
-          </div>
 
-          {showSelectAllBanner ? (
-            <div className="border-b border-border bg-muted px-3 py-2 text-sm">
-              {t('productsList.selection.allPageSelected', { pageCount: filtered.length })}{' '}
-              <Button
-                type="button"
-                variant="link"
-                data-testid="select-all-matching"
-                className="h-auto p-0"
-                onClick={selectCollectionMode}
-              >
-                {t('productsList.selection.selectAllMatching', { total })}
-              </Button>
-            </div>
-          ) : null}
+            {selectionError ? (
+              <Alert variant="destructive">
+                <AlertDescription>{selectionError}</AlertDescription>
+              </Alert>
+            ) : null}
 
-          {selectionError ? (
-            <Alert variant="destructive" className="mx-3 my-2 w-auto">
-              <AlertDescription>{selectionError}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          {selectedCount > 0 ? (
-            <div className="mx-3 my-2 flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted px-3 py-2 text-sm">
-              <Checkbox
-                aria-label={t('productsList.selection.selectPage')}
-                checked={allVisibleSelected}
-                ref={(el): void => {
-                  if (el) el.indeterminate = someVisibleSelected;
-                }}
-                onChange={toggleAll}
-              />
-              <span className="font-medium" data-testid="selection-summary">
-                {t('productsList.selection.selected', { count: selectedCount })}{' '}
-                {selection.mode === 'collection'
-                  ? t('productsList.selection.scopeCollection')
-                  : t('productsList.selection.scopePage')}
-              </span>
-              <div className="ml-auto flex flex-wrap gap-1.5">
-                {/* On the Archived tab the one thing a selection is for is bringing it
-                    back, so Restore leads as the primary and Bulk edit steps down (Von
-                    Restorff), and Delete stays last (owner P-4 → B). */}
-                {restoreFromBar ? (
+            {/* The bulk bar is the results card's header row (the sales lists' pattern). */}
+            {selectedCount > 0 ? (
+              <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted px-3 py-2 text-sm">
+                {pageCheckbox}
+                <span className="font-medium" data-testid="selection-summary">
+                  {t('productsList.selection.selected', { count: selectedCount })}{' '}
+                  {selection.mode === 'collection'
+                    ? t('productsList.selection.scopeCollection')
+                    : t('productsList.selection.scopePage')}
+                </span>
+                <div className="ml-auto flex flex-wrap gap-1.5">
+                  {/* On the Archived tab the one thing a selection is for is bringing it
+                      back, so Restore leads as the primary and Bulk edit steps down (Von
+                      Restorff), and Delete stays last (owner P-4 → B). */}
+                  {restoreFromBar ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={resolvingSelection}
+                      onClick={(): void => {
+                        void openBulkEdit('confirmArchive');
+                      }}
+                    >
+                      <ArchiveRestore aria-hidden="true" /> {t('productsList.bulk.restore')}
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"
+                    variant={restoreFromBar ? 'outline' : 'default'}
                     disabled={resolvingSelection}
+                    aria-busy={resolvingSelection || undefined}
                     onClick={(): void => {
-                      void openBulkEdit('confirmArchive');
+                      void openBulkEdit();
                     }}
                   >
-                    <ArchiveRestore aria-hidden="true" /> {t('productsList.bulk.restore')}
+                    <PenSquare aria-hidden="true" />{' '}
+                    {resolvingSelection ? t('productsList.selection.resolving') : t('productsList.bulk.edit')}
                   </Button>
-                ) : null}
+                  {/* Outline, in the destructive colour: it asks first, and a filled red button
+                      would compete with the primary (Von Restorff). */}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive"
+                    disabled={deleting || resolvingSelection}
+                    aria-busy={deleting || undefined}
+                    onClick={(): void => void handleBulkDelete()}
+                  >
+                    <Trash2 aria-hidden="true" /> {deleting ? '…' : t('productsList.bulk.delete')}
+                  </Button>
+                </div>
                 <Button
                   type="button"
-                  size="sm"
-                  variant={restoreFromBar ? 'outline' : 'default'}
-                  disabled={resolvingSelection}
-                  aria-busy={resolvingSelection || undefined}
-                  onClick={(): void => {
-                    void openBulkEdit();
-                  }}
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 max-lg:size-11"
+                  aria-label={t('productsList.selection.clear')}
+                  onClick={clearSelection}
                 >
-                  <PenSquare aria-hidden="true" />{' '}
-                  {resolvingSelection
-                    ? t('productsList.selection.resolving')
-                    : t('productsList.bulk.edit')}
-                </Button>
-                {/* Outline, in the destructive colour: it asks first, and a filled red button
-                    would compete with the primary (Von Restorff). */}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive hover:text-destructive"
-                  disabled={deleting || resolvingSelection}
-                  aria-busy={deleting || undefined}
-                  onClick={(): void => void handleBulkDelete()}
-                >
-                  <Trash2 aria-hidden="true" /> {deleting ? '…' : t('productsList.bulk.delete')}
+                  <X aria-hidden="true" />
                 </Button>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8 max-lg:size-11"
-                aria-label={t('productsList.selection.clear')}
-                onClick={clearSelection}
-              >
-                <X aria-hidden="true" />
-              </Button>
-            </div>
-          ) : null}
-
-          {bulkEditOpen && bulkEditProductIds.length > 0 ? (
-            <ProductsBulkEditDialog
-              productIds={bulkEditProductIds}
-              productLabels={bulkEditLabels}
-              selectionScope={selection.mode === 'collection' ? 'collection' : 'page'}
-              // One archive action, the one that changes something: the Archived tab
-              // holds only archived products, every other tab only products that are
-              // not. On the Archived tab Restore lives on the bar (P-4 → B), so the
-              // form opened by Bulk edit offers none.
-              archiveAction={
-                !canWrite
-                  ? null
-                  : statusFilter !== 'archived'
-                    ? 'archive'
-                    : bulkInitialStep === 'confirmArchive'
-                      ? 'restore'
-                      : null
-              }
-              initialStep={bulkInitialStep}
-              onClose={(): void => {
-                setBulkEditOpen(false);
-                setBulkEditProductIds([]);
-              }}
-              onApplied={(): void => {
-                // Refresh the list and drop the selection in the background, but
-                // keep the dialog open: it now shows the queued-acknowledgement
-                // ("sent to the queue, you'll be notified when it finishes") or
-                // the synchronous summary. The user dismisses it via the dialog's
-                // own Close / "View bulk actions" buttons.
-                void refresh();
-                clearSelection();
-              }}
-            />
-          ) : null}
-
-          {loading ? (
-            <p role="status" className="p-8 text-sm text-muted-foreground">
-              {t('productsList.loading')}
-            </p>
-          ) : filtered.length === 0 ? (
-            emptyList
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8 pl-3.5">
-                    <Checkbox
-                      aria-label={t('productsList.selection.selectPage')}
-                      checked={allVisibleSelected}
-                      ref={(el): void => {
-                        if (el) el.indeterminate = someVisibleSelected;
-                      }}
-                      onChange={toggleAll}
-                    />
-                  </TableHead>
-                  <TableHead>{t('productsList.column.product')}</TableHead>
-                  <TableHead>{t('productsList.column.sku')}</TableHead>
-                  <TableHead>{t('productsList.column.status')}</TableHead>
-                  <TableHead>{t('productsList.column.type')}</TableHead>
-                  <TableHead>{t('productsList.column.visibility')}</TableHead>
-                  <TableHead>{t('productsList.column.updated')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((r) => (
-                  <TableRow
-                    key={r.id}
-                    data-state={isRowSelected(r.id) ? 'selected' : undefined}
-                    className="cursor-pointer"
-                    onClick={(): void => { navigate(`/catalog/products/${r.id}`); }}
-                  >
-                    <TableCell className="pl-3.5" onClick={(e): void => e.stopPropagation()}>
-                      <Checkbox
-                        aria-label={t('productsList.selection.selectRow', { name: r.name })}
-                        checked={isRowSelected(r.id)}
-                        onChange={(): void => toggleOne(r.id)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        {/* A placeholder until the gallery's base image is listed: decorative, so
-                            one neutral tile rather than a colour per id that means nothing. */}
-                        <div
-                          aria-hidden="true"
-                          className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground"
-                        >
-                          <Package size={16} />
-                        </div>
-                        <div className="min-w-0 max-w-90 truncate font-medium">{r.name}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{r.sku}</TableCell>
-                    <TableCell>
-                      <span className="flex flex-wrap gap-1">
-                        <ProductStatusPill status={r.status} archived={Boolean(r.archivedAt)} />
-                        {/* On the Archived tab every row is archived; the tab already says so. */}
-                        {r.archivedAt && statusFilter !== 'archived' ? <ArchivedPill /> : null}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs">{t(`productEditor.type.${r.type}`)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {t(`productEditor.visibility.${r.visibility}`)}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {relTime(r.updatedAt, t, language)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-
-          <PaginationFooter
-            page={page}
-            pageSize={pageSize}
-            total={total}
-            onPageSizeChange={setPageSize}
-            onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
-            onNext={(): void => setPage((p) => p + 1)}
+            ) : null}
+          </>
+        }
+        pagination={pager.footer(total)}
+      >
+        {/* Everything the strip selects is this panel's list (issue #1491). */}
+        <TabPanel idBase="products-list" value={statusFilter}>
+          <ResponsiveTable
+            columns={columns}
+            data={filtered}
+            keyExtractor={(r) => r.id}
+            isRowSelected={(r) => isRowSelected(r.id)}
+            emptyState={emptyList}
           />
         </TabPanel>
-      </Card>
+      </ListPage>
+
+      {bulkEditOpen && bulkEditProductIds.length > 0 ? (
+        <ProductsBulkEditDialog
+          productIds={bulkEditProductIds}
+          productLabels={bulkEditLabels}
+          selectionScope={selection.mode === 'collection' ? 'collection' : 'page'}
+          // One archive action, the one that changes something: the Archived tab
+          // holds only archived products, every other tab only products that are
+          // not. On the Archived tab Restore lives on the bar (P-4 → B), so the
+          // form opened by Bulk edit offers none.
+          archiveAction={
+            !canWrite
+              ? null
+              : statusFilter !== 'archived'
+                ? 'archive'
+                : bulkInitialStep === 'confirmArchive'
+                  ? 'restore'
+                  : null
+          }
+          initialStep={bulkInitialStep}
+          onClose={(): void => {
+            setBulkEditOpen(false);
+            setBulkEditProductIds([]);
+          }}
+          onApplied={(): void => {
+            // Refresh the list and drop the selection in the background, but
+            // keep the dialog open: it now shows the queued-acknowledgement
+            // ("sent to the queue, you'll be notified when it finishes") or
+            // the synchronous summary. The user dismisses it via the dialog's
+            // own Close / "View bulk actions" buttons.
+            void refresh();
+            clearSelection();
+          }}
+        />
+      ) : null}
       {confirmDialog}
     </div>
   );

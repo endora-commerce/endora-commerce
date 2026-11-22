@@ -4,6 +4,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { ApiError, AuthProvider } from '@endora-commerce/admin-kit/lib';
 import type { CustomFieldDefinitionDto } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { chooseRowAction } from './row-actions';
 import { adminSession } from '../../helpers/render-with-session';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
 import pl from '../../../../packages/modules/custom_fields/i18n/pl.json';
@@ -104,7 +105,7 @@ const toggle = (entityType: string, bundle: Record<string, string> = EN): string
 
 async function openEditor(key = 'region', bundle: Record<string, string> = EN): Promise<HTMLElement> {
   const title = sentence(bundle, 'customFields.editor.title', { key });
-  fireEvent.click(await screen.findByRole('button', { name: title }));
+  await chooseRowAction(key, 'edit', bundle);
   return screen.findByRole('dialog', { name: title });
 }
 

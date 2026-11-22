@@ -1,15 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ListPlus, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react';
+import { ListPlus, Plus, TriangleAlert } from 'lucide-react';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { customFieldsClient } from '../api/custom-fields-client.js';
-import { CarryDriftDialog } from '../components/CarryDriftWarning.js';
+import { CarryDriftDialog, CarryDriftSentence } from '../components/CarryDriftWarning.js';
 import { DefinitionEditorDialog } from '../components/DefinitionEditorDialog.js';
 import { AUDIENCES } from '../components/DefinitionForm.js';
 import { carryCounterpartsBrokenBy, type CarryCounterpart, type DefinitionChange } from '../lib/carry-drift.js';
 import { entityTypeLabelKey, incompatibilitySentence, refusalSentence } from '../lib/carry-labels.js';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable, resolveCustomFieldLabel, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
+import { Alert, AlertDescription, Badge, Button, EmptyState, Label, Select } from '@endora-commerce/admin-kit/ui';
+import {
+  ListPage,
+  ResponsiveTable,
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+  StatusChangeControl,
+  resolveCustomFieldLabel,
+  useConfirmDialog,
+  useRemovalFocus,
+  type ListPageLoad,
+  type ResponsiveColumn,
+} from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   assessCustomFieldCarry,
@@ -37,6 +49,9 @@ const FALLBACK_ENTITY_TYPES: CustomFieldEntityTypeInfo[] = (
   // And the buyer input surfaces (feature 175).
   customerInputSurfaces: [],
 }));
+/** A row's identity, for the focus that follows a deletion; module-level so it is stable. */
+const definitionId = (definition: CustomFieldDefinitionDto): string => definition.id;
+
 /** A change from the table waiting on the drift warning's answer (feature 162). */
 interface PendingTableChange {
   change: DefinitionChange;
@@ -59,6 +74,13 @@ interface PendingTableChange {
  * before an audience change or a deletion that breaks an enabled carry. Both
  * read the definitions of **every** type — a second, unfiltered list, asked
  * only once some type offers a carry target.
+ *
+ * The frame is the kit `ListPage` (issue #1749, DS-05): *New field* in the
+ * header, the record-type select as the toolbar, the announced count, the kit
+ * skeleton and Retry. A row's Edit and Delete are its `RowActionMenu`, Delete
+ * last and confirmed once — in the kit dialog, or in the drift warning when it
+ * breaks a carry. The audience is a `StatusChangeControl` (README *A value
+ * edited from the row*), whose confirm step carries the drift warning.
  */
 export function CustomFieldsPage(): ReactNode {
   // One namespace, this module's own (feature 091, R8). The screen used to
@@ -79,12 +101,13 @@ export function CustomFieldsPage(): ReactNode {
   const [rows, setRows] = useState<CustomFieldDefinitionDto[]>([]);
   /** The record type the rows on screen belong to; another one means its read is still on the way. */
   const [loadedFor, setLoadedFor] = useState<SupportedEntityType | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  /** The row whose Delete is asking for confirmation. */
-  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
-  const keepDeleteRef = useRef<HTMLButtonElement>(null);
-  /** The row whose Delete takes the focus back once its confirmation is kept. */
-  const returnFocusTo = useRef<string | null>(null);
+  /** The last read of the selected type's definitions failed: the list's own error. */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  /** A read of the selected type is in flight. */
+  const [reading, setReading] = useState(false);
+  /** A write from the table failed; the rows are still valid, so it is a notice above them. */
+  const [actionError, setActionError] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirmDialog();
   const currentEntityType = useRef(entityType);
   currentEntityType.current = entityType;
 
@@ -147,7 +170,8 @@ export function CustomFieldsPage(): ReactNode {
   );
 
   const refresh = useCallback(async (): Promise<void> => {
-    setError(null);
+    setLoadError(null);
+    setReading(true);
     try {
       const listed = await customFieldsClient.list(entityType);
       // A slower read of a record type no longer selected must not replace the current one.
@@ -155,7 +179,10 @@ export function CustomFieldsPage(): ReactNode {
       setRows(listed);
       setLoadedFor(entityType);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('customFields.error.load'));
+      if (currentEntityType.current !== entityType) return;
+      setLoadError(err instanceof ApiError ? err.envelope.error.message : t('customFields.error.load'));
+    } finally {
+      if (currentEntityType.current === entityType) setReading(false);
     }
   }, [entityType, t]);
 
@@ -178,40 +205,77 @@ export function CustomFieldsPage(): ReactNode {
     await Promise.all([refresh(), offersCarry ? loadAll() : Promise.resolve()]);
   }, [refresh, offersCarry, loadAll]);
 
+  /** A write's refusal, as a sentence: a carry refusal is built from `details` (feature 162). */
+  const writeError = useCallback(
+    (err: unknown): string => refusalSentence(t, err, typeLabel, t('customFields.error.action')),
+    [t, typeLabel],
+  );
+
   const run = useCallback(
     async (fn: () => Promise<unknown>): Promise<void> => {
-      setError(null);
+      setActionError(null);
       try {
         await fn();
         await reload();
       } catch (err) {
-        // A carry refusal reads as a sentence built from `details` (feature 162).
-        setError(refusalSentence(t, err, typeLabel, t('customFields.error.action')));
+        setActionError(writeError(err));
       }
     },
-    [reload, t, typeLabel],
+    [reload, writeError],
   );
 
-  /** Runs `proceed` at once, or after the drift warning when `change` breaks an enabled carry. */
-  const guarded = (change: DefinitionChange, proceed: () => void, lead?: string): void => {
-    const counterparts = carryCounterpartsBrokenBy(change, known);
-    if (counterparts.length === 0) {
-      proceed();
+  const ready = loadedFor === entityType && loadError === null;
+  const removalFocus = useRemovalFocus(rows, definitionId, ready);
+  /** The row menu's trigger is the row's focus target once a neighbour is deleted. */
+  const rowMenuRef =
+    (d: CustomFieldDefinitionDto) =>
+    (element: HTMLDivElement | null): void =>
+      removalFocus.targetRef(d)(element?.querySelector('button') ?? null);
+
+  /**
+   * Delete, asked once: in the drift warning when the deletion breaks an
+   * enabled carry, in the kit confirmation otherwise, which runs the request
+   * and keeps itself open with the reason when it is refused.
+   */
+  const askDelete = (d: CustomFieldDefinitionDto): void => {
+    const question = t('customFields.table.deleteConfirm', { key: d.key });
+    const counterparts = carryCounterpartsBrokenBy({ kind: 'delete', definitionId: d.id }, known);
+    if (counterparts.length > 0) {
+      setPendingChange({
+        change: { kind: 'delete', definitionId: d.id },
+        counterparts,
+        lead: question,
+        proceed: () => void run(() => customFieldsClient.remove(d.id)),
+      });
       return;
     }
-    setPendingChange({ change, counterparts, proceed, ...(lead ? { lead } : {}) });
+    void confirm({
+      message: question,
+      confirmLabel: t('customFields.table.deleteAction'),
+      destructive: true,
+      action: () => customFieldsClient.remove(d.id),
+      describeError: writeError,
+      returnFocusTo: removalFocus.returnFocusTo(d),
+    }).then((deleted) => {
+      if (!deleted) return;
+      // In place, not a reload: a reload would unmount the row that just took the focus.
+      setRows((current) => current.filter((row) => row.id !== d.id));
+      if (offersCarry) void loadAll();
+    });
   };
 
-  // Keep takes the place and the focus of Delete; keeping gives it back.
-  useEffect(() => {
-    if (confirmingDelete !== null) {
-      keepDeleteRef.current?.focus();
-      return;
-    }
-    const id = returnFocusTo.current;
-    returnFocusTo.current = null;
-    if (id !== null) document.querySelector<HTMLButtonElement>(`[data-delete-trigger="${id}"]`)?.focus();
-  }, [confirmingDelete]);
+  /**
+   * What an audience change breaks, said on the control's confirm step — the
+   * one question it asks, so the drift warning is never a second one. Phrasing
+   * content only: the control renders it inside its summary sentence.
+   */
+  const audienceConsequence = (d: CustomFieldDefinitionDto, to: string): ReactNode => {
+    const counterparts = carryCounterpartsBrokenBy(
+      { kind: 'audience', definitionId: d.id, audience: to as CustomFieldAudience },
+      known,
+    );
+    return counterparts.length === 0 ? null : <CarryDriftSentence counterparts={counterparts} typeLabel={typeLabel} />;
+  };
 
   /** A new field's position among its type's fields: after every one the page knows of. */
   const sortOrderFor = (type: SupportedEntityType): number =>
@@ -265,23 +329,20 @@ export function CustomFieldsPage(): ReactNode {
         ) : !canWrite ? (
           t(`customFields.audience.${d.audience}`)
         ) : (
-          <Select
-            aria-label={t('customFields.audience.rowLabel', { key: d.key })}
-            value={d.audience}
-            onChange={(e) => {
-              const next = e.target.value as CustomFieldAudience;
-              // The select is the row's stored audience, so a cancelled warning leaves it as it was.
-              guarded({ kind: 'audience', definitionId: d.id, audience: next }, () =>
-                void run(() => customFieldsClient.update(d.id, { audience: next })),
-              );
+          <StatusChangeControl
+            label={t('customFields.audience.rowLabel', { key: d.key })}
+            dialogTitle={t('customFields.audience.rowLabel', { key: d.key })}
+            labelVisuallyHidden
+            current={d.audience}
+            currentLabel={t(`customFields.audience.${d.audience}`)}
+            options={AUDIENCES.map((a) => ({ value: a, label: t(`customFields.audience.${a}`) }))}
+            consequence={(to) => audienceConsequence(d, to)}
+            errorMessage={writeError}
+            onConfirm={async (to) => {
+              await customFieldsClient.update(d.id, { audience: to as CustomFieldAudience });
+              await reload();
             }}
-          >
-            {AUDIENCES.map((a) => (
-              <option key={a} value={a}>
-                {t(`customFields.audience.${a}`)}
-              </option>
-            ))}
-          </Select>
+          />
         ),
     },
     {
@@ -345,170 +406,123 @@ export function CustomFieldsPage(): ReactNode {
     );
   }
 
-  const actions = (d: CustomFieldDefinitionDto): ReactNode =>
-    confirmingDelete === d.id ? (
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          ref={keepDeleteRef}
-          variant="outline"
-          size="sm"
-          className="min-h-11"
-          onClick={() => {
-            returnFocusTo.current = d.id;
-            setConfirmingDelete(null);
-          }}
-        >
-          {t('customFields.table.keep')}
-        </Button>
-        <span className="break-words text-sm">{t('customFields.table.deleteConfirm', { key: d.key })}</span>
-        <Button
-          variant="destructive"
-          size="sm"
-          className="min-h-11"
-          onClick={() => {
-            setConfirmingDelete(null);
-            void run(() => customFieldsClient.remove(d.id));
-          }}
-        >
+  const actions = (d: CustomFieldDefinitionDto): ReactNode => (
+    <div ref={rowMenuRef(d)}>
+      <RowActionMenu label={t('customFields.table.actions', { key: d.key })}>
+        <RowActionMenuItem onSelect={() => setEditing(d)}>{t('customFields.table.edit')}</RowActionMenuItem>
+        <RowActionMenuSeparator />
+        <RowActionMenuItem destructive onSelect={() => askDelete(d)}>
           {t('customFields.table.deleteAction')}
-        </Button>
-      </div>
-    ) : (
-      <div className="flex gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="min-h-11 min-w-11"
-          aria-label={t('customFields.editor.title', { key: d.key })}
-          onClick={() => setEditing(d)}
-        >
-          <Pencil className="size-4" aria-hidden="true" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="min-h-11 min-w-11"
-          data-delete-trigger={d.id}
-          aria-label={t('customFields.table.delete', { key: d.key })}
-          onClick={() => {
-            // A deletion that breaks a carry asks once, in the warning; any other in the row.
-            const counterparts = carryCounterpartsBrokenBy({ kind: 'delete', definitionId: d.id }, known);
-            if (counterparts.length === 0) {
-              setConfirmingDelete(d.id);
-              return;
-            }
-            setPendingChange({
-              change: { kind: 'delete', definitionId: d.id },
-              counterparts,
-              lead: t('customFields.table.deleteConfirm', { key: d.key }),
-              proceed: () => void run(() => customFieldsClient.remove(d.id)),
-            });
-          }}
-        >
-          <Trash2 className="size-4" aria-hidden="true" />
-        </Button>
-      </div>
-    );
+        </RowActionMenuItem>
+      </RowActionMenu>
+    </div>
+  );
+
+  const load: ListPageLoad =
+    loadError !== null
+      ? { kind: 'error', message: loadError }
+      : loadedFor !== entityType
+        ? { kind: 'loading' }
+        : { kind: 'ready' };
 
   return (
-    <div className="space-y-4">
-      <PageHeader title={t('customFields.title')} description={t('customFields.description')} />
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="flex items-end gap-2">
-        <div className="space-y-1">
-          <Label htmlFor="entity">{t('customFields.form.entity')}</Label>
-          <Select
-            id="entity"
-            value={entityType}
-            onChange={(e) => setEntityType(e.target.value as SupportedEntityType)}
-          >
-            {entityTypes.map((info) => (
-              <option key={info.entityType} value={info.entityType}>
-                {t(info.labelKey)}
-              </option>
-            ))}
-          </Select>
-        </div>
-      </div>
-
-      {managedBy && (
-        <Alert>
-          <AlertDescription className="flex flex-wrap items-center gap-2">
-            <span>{t('customFields.managedBy.notice')}</span>
-            <Link to={managedBy.route} className="font-medium underline underline-offset-4">
-              {t(managedBy.labelKey)}
-            </Link>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-          <CardTitle>{t('customFields.table.title')}</CardTitle>
-          {editable ? (
-            <Button className="min-h-11 sm:min-h-9" onClick={(): void => setCreating(true)}>
+    <>
+      <ListPage
+        title={t('customFields.title')}
+        description={t('customFields.description')}
+        actions={
+          editable ? (
+            <Button
+              ref={(element) => {
+                removalFocus.createRef.current = element;
+              }}
+              className="min-h-11 sm:min-h-9"
+              onClick={(): void => setCreating(true)}
+            >
               <Plus className="size-4" aria-hidden="true" />
               {t('customFields.form.newField')}
             </Button>
-          ) : null}
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {offersCarry && allFailed ? (
-            <Alert variant="warning" live="polite">
-              <AlertDescription className="flex flex-wrap items-center gap-2">
-                <span className="break-words">{t('customFields.carry.checksUnavailable')}</span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="min-h-11 sm:min-h-9"
-                  disabled={allLoading}
-                  aria-busy={allLoading}
-                  onClick={(): void => void loadAll()}
-                >
-                  {t('customFields.carry.retry')}
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          {loadedFor !== entityType ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              {t('customFields.table.loading')}
-            </p>
-          ) : (
-            <ResponsiveTable
-              data={rows}
-              columns={columns}
-              keyExtractor={(d): string => d.id}
-              {...(editable ? { renderActions: actions } : {})}
-              emptyState={
-                <EmptyState
-                  icon={<ListPlus size={20} />}
-                  title={t('customFields.table.empty')}
-                  action={
-                    editable ? (
-                      <Button
-                        className="min-h-11 sm:min-h-9"
-                        variant="outline"
-                        onClick={(): void => setCreating(true)}
-                      >
-                        {t('customFields.table.emptyAction')}
-                      </Button>
-                    ) : null
-                  }
-                />
+          ) : null
+        }
+        toolbar={
+          <div className="space-y-1">
+            <Label htmlFor="entity">{t('customFields.form.entity')}</Label>
+            <Select id="entity" value={entityType} onChange={(e) => setEntityType(e.target.value as SupportedEntityType)}>
+              {entityTypes.map((info) => (
+                <option key={info.entityType} value={info.entityType}>
+                  {t(info.labelKey)}
+                </option>
+              ))}
+            </Select>
+          </div>
+        }
+        count={t('customFields.table.count', { count: rows.length })}
+        notice={
+          <>
+            {managedBy ? (
+              <Alert>
+                <AlertDescription className="flex flex-wrap items-center gap-2">
+                  <span>{t('customFields.managedBy.notice')}</span>
+                  <Link to={managedBy.route} className="font-medium underline underline-offset-4">
+                    {t(managedBy.labelKey)}
+                  </Link>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {offersCarry && allFailed ? (
+              <Alert variant="warning" live="polite">
+                <AlertDescription className="flex flex-wrap items-center gap-2">
+                  <span className="break-words">{t('customFields.carry.checksUnavailable')}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-11 sm:min-h-9"
+                    disabled={allLoading}
+                    aria-busy={allLoading}
+                    onClick={(): void => void loadAll()}
+                  >
+                    {t('customFields.carry.retry')}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {actionError ? (
+              <Alert variant="destructive">
+                <AlertDescription>{actionError}</AlertDescription>
+              </Alert>
+            ) : null}
+          </>
+        }
+        load={load}
+        busy={reading && loadedFor === entityType}
+        onRetry={(): void => void reload()}
+        // The definitions endpoint answers a type's whole, bounded list: there is nothing to page.
+        pagination={null}
+      >
+        <ResponsiveTable
+          label={t('customFields.table.title')}
+          data={rows}
+          columns={columns}
+          keyExtractor={definitionId}
+          {...(editable ? { renderActions: actions } : {})}
+          emptyState={
+            <EmptyState
+              icon={<ListPlus size={20} />}
+              title={t('customFields.table.empty')}
+              action={
+                editable ? (
+                  <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setCreating(true)}>
+                    {t('customFields.table.emptyAction')}
+                  </Button>
+                ) : null
               }
             />
-          )}
+          }
+        />
+      </ListPage>
 
-        </CardContent>
-      </Card>
-
+      {/* Dialog vs route under the five-field rule, and option actions vs one Save: #1804. */}
       {creating && editable ? (
         <DefinitionEditorDialog
           mode="create"
@@ -562,7 +576,8 @@ export function CustomFieldsPage(): ReactNode {
           }}
         />
       ) : null}
-    </div>
+      {confirmDialog}
+    </>
   );
 }
 
