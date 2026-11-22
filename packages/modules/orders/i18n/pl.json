@@ -89,7 +89,7 @@
   "blocks.emailBillingAddress.description": "Adres rozliczeniowy zamówienia wraz z etykietą.",
   "blocks.category.order": "Zamówienie",
   "pendingEffects.title": "To zamówienie ma jeszcze niewykonane działania następcze",
-  "pendingEffects.description": "Status zamówienia jest ostateczny, ale poniższe zwolnienia jeszcze nie nastąpiły. Są ponawiane automatycznie; niczego nie trzeba powtarzać.",
+  "pendingEffects.description": "Status jest ostateczny; poniższe zwolnienia są ponawiane automatycznie.",
   "pendingEffects.effect.stockRelease": "Zwolnienie stanu magazynowego",
   "pendingEffects.effect.creditRelease": "Zwolnienie limitu kredytowego",
   "pendingEffects.state.waitingForModule": "oczekuje na włączenie modułu {module}",

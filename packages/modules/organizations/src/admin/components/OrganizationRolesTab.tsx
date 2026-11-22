@@ -150,7 +150,6 @@ function OrganizationRolesPanel({
     // Issue #1515 — a section of the Members & roles tab's card, not a card of its own.
     <EditorSection
       title={t('roles.tab.title')}
-      description={t('roles.tab.description')}
       contentClassName="space-y-4"
       action={
         <div className="flex flex-wrap items-center justify-end gap-2">

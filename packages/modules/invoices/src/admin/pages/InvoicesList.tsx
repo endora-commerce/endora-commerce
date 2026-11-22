@@ -270,7 +270,6 @@ export function InvoicesList(): ReactNode {
   return (
     <ListPage
       title={t('invoices.title')}
-      description={t('invoices.description')}
       // The templates button is gone: it is a tab now.
       tabs={<InvoiceSectionTabs />}
       load={load}

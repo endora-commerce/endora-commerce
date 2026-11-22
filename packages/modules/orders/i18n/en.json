@@ -89,7 +89,7 @@
   "blocks.emailBillingAddress.description": "The order's billing address, with a label.",
   "blocks.category.order": "Order",
   "pendingEffects.title": "This order still has follow-up work outstanding",
-  "pendingEffects.description": "The order's status is final, but the releases below have not happened yet. They are retried automatically; nothing needs to be repeated.",
+  "pendingEffects.description": "Final status reached; the releases below retry automatically.",
   "pendingEffects.effect.stockRelease": "Stock release",
   "pendingEffects.effect.creditRelease": "Credit limit release",
   "pendingEffects.state.waitingForModule": "waiting for the {module} module to be switched on",

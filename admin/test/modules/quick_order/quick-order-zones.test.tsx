@@ -71,7 +71,6 @@ const REGISTRY = [{ moduleId: 'quick_order', contributions: quickOrder.contribut
 
 const BUNDLE = passthroughBundle('core', [
   'defaultPreferences.title',
-  'defaultPreferences.description',
   'defaultPreferences.paymentMethod',
   'defaultPreferences.deliveryMethod',
   'defaultPreferences.billingAddress',
