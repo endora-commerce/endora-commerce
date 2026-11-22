@@ -7,13 +7,16 @@ import {
   type ProjectRole,
   type SupportedLanguage,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Checkbox, EmptyState, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Checkbox, EmptyState, Input, Label } from '@endora-commerce/admin-kit/ui';
 import {
+  ListPage,
+  ListToolbar,
   ModalDialog,
   ResponsiveTable,
   RowActionMenu,
   RowActionMenuItem,
   RowActionMenuSeparator,
+  type ListPageLoad,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -68,10 +71,12 @@ export interface DictionaryScreenProps {
  * confirmation. A built-in row's delete is shown disabled with the reason, so
  * the rule is visible rather than a missing entry. Archived rows are listed on
  * request. Every refusal is shown in the server's words where it was asked.
+ *
+ * The kit's `ListPage` since issue #1749; a dictionary is answered whole, so
+ * there is no pager.
  */
 export function DictionaryScreen({ kind }: DictionaryScreenProps): ReactNode {
   const t = useTranslation('projects');
-  const tCore = useTranslation('core');
   const prefix = PREFIX[kind];
   const [showArchived, setShowArchived] = useState(false);
   const [rows, setRows] = useState<Entry[]>([]);
@@ -95,7 +100,10 @@ export function DictionaryScreen({ kind }: DictionaryScreenProps): ReactNode {
       setRows(entries);
       setLoaded(true);
     } catch (failure) {
-      if (current === sequence.current) setError(errorMessage(failure, t(`${prefix}.loadError`)));
+      if (current === sequence.current) {
+        setLoaded(false);
+        setError(errorMessage(failure, t(`${prefix}.loadError`)));
+      }
     } finally {
       if (current === sequence.current) setLoading(false);
     }
@@ -154,79 +162,76 @@ export function DictionaryScreen({ kind }: DictionaryScreenProps): ReactNode {
   // primary, so the header's goes away (Von Restorff, issue #1562).
   const empty = loaded && rows.length === 0;
 
+  const listLoad: ListPageLoad = error ? { kind: 'error', message: error } : loaded ? { kind: 'ready' } : { kind: 'loading' };
+
   return (
     <>
-      <PageHeader
+      <ListPage
         title={t(`${prefix}.title`)}
         description={DESCRIPTION[kind] ? t(DESCRIPTION[kind]) : undefined}
         actions={empty ? undefined : add}
-      />
-      <ProjectConfigurationTabs />
-
-      <Card>
-        <CardContent className="space-y-4" aria-busy={loading}>
-          <div className="space-y-1">
-            <label htmlFor={`${kind}-archived`} className="flex min-h-11 items-center gap-2 text-sm sm:min-h-9">
-              <Checkbox
-                id={`${kind}-archived`}
-                checked={showArchived}
-                onChange={(event): void => setShowArchived(event.target.checked)}
-              />
-              {t(`${prefix}.showArchived`)}
-            </label>
-            <p className="text-xs text-muted-foreground">{t(`${prefix}.archivedNote`)}</p>
-          </div>
-          {actionError ? (
+        tabs={<ProjectConfigurationTabs />}
+        toolbar={
+          <ListToolbar
+            className="min-w-0 flex-1"
+            label={t('dictionary.toolbar')}
+            filters={
+              <div className="space-y-1">
+                <label htmlFor={`${kind}-archived`} className="flex min-h-11 items-center gap-2 text-sm sm:min-h-9">
+                  <Checkbox
+                    id={`${kind}-archived`}
+                    checked={showArchived}
+                    onChange={(event): void => setShowArchived(event.target.checked)}
+                  />
+                  {t(`${prefix}.showArchived`)}
+                </label>
+                <p className="text-xs text-muted-foreground">{t(`${prefix}.archivedNote`)}</p>
+              </div>
+            }
+          />
+        }
+        count={t('dictionary.count', { count: rows.length })}
+        notice={
+          actionError ? (
             <Alert variant="destructive">
               <AlertDescription>{actionError}</AlertDescription>
             </Alert>
-          ) : null}
-          {error ? (
-            <Alert variant="destructive">
-              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-                <span>{error}</span>
-                <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
-                  {tCore('common.action.retry')}
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : !loaded ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              {t('dictionary.loading')}
-            </p>
-          ) : (
-            <ResponsiveTable
-              data={rows}
-              columns={columns}
-              keyExtractor={(entry): string => entry.id}
-              renderActions={(entry): ReactNode => (
-                <RowActionMenu label={t('dictionary.actionsFor', { name: entry.label })}>
-                  <RowActionMenuItem onSelect={(): void => setEditing(entry)}>{t('dictionary.rename')}</RowActionMenuItem>
-                  {entry.archivedAt ? (
-                    <RowActionMenuItem onSelect={(): void => void setArchived(entry, false)}>
-                      {t('dictionary.restore')}
-                    </RowActionMenuItem>
-                  ) : (
-                    <RowActionMenuItem onSelect={(): void => void setArchived(entry, true)}>
-                      {t('dictionary.archive')}
-                    </RowActionMenuItem>
-                  )}
-                  <RowActionMenuSeparator />
-                  <RowActionMenuItem
-                    destructive
-                    disabled={entry.isSystem}
-                    title={entry.isSystem ? t('dictionary.deleteBuiltIn') : undefined}
-                    onSelect={(): void => setDeleting(entry)}
-                  >
-                    {t('dictionary.delete')}
-                  </RowActionMenuItem>
-                </RowActionMenu>
+          ) : null
+        }
+        load={listLoad}
+        busy={loading && loaded}
+        onRetry={(): void => void load()}
+      >
+        <ResponsiveTable
+          data={rows}
+          columns={columns}
+          keyExtractor={(entry): string => entry.id}
+          renderActions={(entry): ReactNode => (
+            <RowActionMenu label={t('dictionary.actionsFor', { name: entry.label })}>
+              <RowActionMenuItem onSelect={(): void => setEditing(entry)}>{t('dictionary.rename')}</RowActionMenuItem>
+              {entry.archivedAt ? (
+                <RowActionMenuItem onSelect={(): void => void setArchived(entry, false)}>
+                  {t('dictionary.restore')}
+                </RowActionMenuItem>
+              ) : (
+                <RowActionMenuItem onSelect={(): void => void setArchived(entry, true)}>
+                  {t('dictionary.archive')}
+                </RowActionMenuItem>
               )}
-              emptyState={<EmptyState icon={EMPTY_ICON[kind]} title={t(`${prefix}.empty.title`)} action={add} />}
-            />
+              <RowActionMenuSeparator />
+              <RowActionMenuItem
+                destructive
+                disabled={entry.isSystem}
+                title={entry.isSystem ? t('dictionary.deleteBuiltIn') : undefined}
+                onSelect={(): void => setDeleting(entry)}
+              >
+                {t('dictionary.delete')}
+              </RowActionMenuItem>
+            </RowActionMenu>
           )}
-        </CardContent>
-      </Card>
+          emptyState={<EmptyState icon={EMPTY_ICON[kind]} title={t(`${prefix}.empty.title`)} action={add} />}
+        />
+      </ListPage>
 
       {editing ? (
         <EntryDialog

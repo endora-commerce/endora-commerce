@@ -354,6 +354,7 @@
   "assignment.filter.option.person": "A specific person…",
   "assignment.filter.person": "Person",
   "tags.title": "Tags",
+  "tags.count": "Tags: {count}",
   "tags.add": "Add tag",
   "tags.empty": "No tags yet",
   "tags.emptyBody": "Add the first one to start labelling opportunities.",

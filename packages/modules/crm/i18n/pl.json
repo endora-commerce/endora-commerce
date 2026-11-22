@@ -354,6 +354,7 @@
   "assignment.filter.option.person": "Wybrana osoba…",
   "assignment.filter.person": "Osoba",
   "tags.title": "Etykiety",
+  "tags.count": "Etykiety: {count}",
   "tags.add": "Dodaj etykietę",
   "tags.empty": "Nie ma jeszcze etykiet",
   "tags.emptyBody": "Dodaj pierwszą, aby zacząć oznaczać szanse.",

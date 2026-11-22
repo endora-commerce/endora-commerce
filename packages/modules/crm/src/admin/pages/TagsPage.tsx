@@ -7,23 +7,14 @@ import {
   AlertDescription,
   Badge,
   Button,
-  Card,
-  CardContent,
   ColorPicker,
   EmptyState,
   Input,
   Label,
-  PageHeader,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
-import { ModalDialog } from '@endora-commerce/admin-kit/components';
+import { ListPage, ModalDialog, ResponsiveTable, type ListPageLoad } from '@endora-commerce/admin-kit/components';
 import { errorMessage } from '../lib/labels.js';
 import { CrmConfigurationTabs } from '../components/CrmConfigurationTabs.js';
 
@@ -42,6 +33,10 @@ type DialogState = { kind: 'create' } | { kind: 'edit'; tag: OpportunityTag } | 
  * opens on); *using* a tag is done on the Opportunity. Deleting a tag takes it
  * off every Opportunity that carries it, so the confirmation names how many
  * the operator can see — the server's `usageCount`, which counts only those.
+ *
+ * The kit's `ListPage` since issue #1749. A row's two actions stay ghost icon
+ * buttons, each naming the tag (ux-laws: an overflow menu from three); the
+ * list is answered whole, so there is no pager.
  */
 export function TagsPage(): ReactNode {
   const t = useTranslation('crm');
@@ -97,97 +92,81 @@ export function TagsPage(): ReactNode {
     </Button>
   );
 
+  const listLoad: ListPageLoad =
+    error !== null ? { kind: 'error', message: error } : tags === null ? { kind: 'loading' } : { kind: 'ready' };
+
   return (
     <>
       {/* The one place for Add (issue #1562, WORK-13): the header — except while
           the list is empty, when the empty state's Add is the view's one
           primary (Von Restorff). */}
-      <PageHeader title={t('tags.title')} actions={tags !== null && tags.length > 0 ? addButton : undefined} />
-      <CrmConfigurationTabs />
-
-      {/* Mounted before it has text, so the announcement is reliable. */}
-      <p role="status" className="sr-only">
-        {notice}
-      </p>
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-            <span>{error}</span>
-            <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
-              {tCore('common.action.retry')}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card>
-        <CardContent>
-          {tags === null ? (
-            loading ? (
-              <p role="status" className="text-sm text-muted-foreground">
-                {tCore('common.state.loading')}
-              </p>
-            ) : null
-          ) : tags.length === 0 ? (
-            <EmptyState
-              icon={<Tags size={20} />}
-              title={t('tags.empty')}
-              description={t('tags.emptyBody')}
-              action={addButton}
-            />
-          ) : (
-            <Table aria-label={t('tags.title')} aria-busy={loading}>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('tags.col.tag')}</TableHead>
-                  <TableHead className="text-right">{t('tags.col.usage')}</TableHead>
-                  <TableHead className="text-right">
-                    <span className="sr-only">{t('tags.col.actions')}</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tags.map((tag) => (
-                  <TableRow key={tag.id}>
-                    <TableCell>
-                      <Badge className="font-medium" style={statusBadgeStyle(tag.color)}>
-                        {tag.name}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{tag.usageCount}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
-                          aria-label={t('tags.edit', { name: tag.name })}
-                          onClick={(): void => setDialog({ kind: 'edit', tag })}
-                        >
-                          <Pencil aria-hidden="true" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
-                          aria-label={t('tags.delete', { name: tag.name })}
-                          onClick={(): void => {
-                            setDeleteError(null);
-                            setPendingDelete(tag);
-                          }}
-                        >
-                          <Trash2 aria-hidden="true" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+      <ListPage
+        title={t('tags.title')}
+        actions={tags !== null && tags.length > 0 ? addButton : undefined}
+        tabs={<CrmConfigurationTabs />}
+        count={t('tags.count', { count: tags?.length ?? 0 })}
+        notice={
+          // Mounted before it has text, so the announcement is reliable.
+          <p role="status" className="sr-only">
+            {notice}
+          </p>
+        }
+        load={listLoad}
+        busy={loading && tags !== null}
+        onRetry={(): void => void load()}
+      >
+        <ResponsiveTable
+          label={t('tags.title')}
+          data={tags ?? []}
+          keyExtractor={(tag): string => tag.id}
+          emptyState={
+            <EmptyState icon={<Tags size={20} />} title={t('tags.empty')} description={t('tags.emptyBody')} action={addButton} />
+          }
+          columns={[
+            {
+              id: 'tag',
+              header: t('tags.col.tag'),
+              primary: true,
+              render: (tag) => (
+                <Badge className="font-medium" style={statusBadgeStyle(tag.color)}>
+                  {tag.name}
+                </Badge>
+              ),
+            },
+            {
+              id: 'usage',
+              header: t('tags.col.usage'),
+              className: 'text-right tabular-nums',
+              render: (tag) => tag.usageCount,
+            },
+          ]}
+          renderActions={(tag) => (
+            <div className="flex justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
+                aria-label={t('tags.edit', { name: tag.name })}
+                onClick={(): void => setDialog({ kind: 'edit', tag })}
+              >
+                <Pencil aria-hidden="true" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
+                aria-label={t('tags.delete', { name: tag.name })}
+                onClick={(): void => {
+                  setDeleteError(null);
+                  setPendingDelete(tag);
+                }}
+              >
+                <Trash2 aria-hidden="true" />
+              </Button>
+            </div>
           )}
-        </CardContent>
-      </Card>
+        />
+      </ListPage>
 
       {dialog ? (
         <TagDialog

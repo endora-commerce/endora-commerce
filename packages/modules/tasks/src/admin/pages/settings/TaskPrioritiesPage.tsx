@@ -2,22 +2,14 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Flag, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { TaskPriorityConfig } from '@endora-commerce/contracts';
 import { statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button } from '@endora-commerce/admin-kit/ui';
 import {
-  Alert,
-  AlertDescription,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  PageHeader,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@endora-commerce/admin-kit/ui';
-import { ReorderControls, useServerReorder } from '@endora-commerce/admin-kit/components';
+  ListPage,
+  ReorderControls,
+  ResponsiveTable,
+  useServerReorder,
+  type ListPageLoad,
+} from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../../api.js';
 import { TaskPriorityDeleteDialog } from '../../components/priorities/TaskPriorityDeleteDialog.js';
@@ -43,10 +35,13 @@ function byPosition(a: TaskPriorityConfig, b: TaskPriorityConfig): number {
  * that Tasks hold asks which priority, or none, they get.
  *
  * Every write answers the whole list as it stands afterwards.
+ *
+ * The kit's `ListPage` since issue #1749. A row keeps its move, edit and
+ * delete controls inline — moving is what this list is for, and a menu would
+ * hide it; the list is answered whole, so there is no pager.
  */
 export function TaskPrioritiesPage(): ReactNode {
   const t = useTranslation('tasks');
-  const tCore = useTranslation('core');
   const { language } = useAppLanguage();
   const [priorities, setPriorities] = useState<TaskPriorityConfig[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,11 +90,20 @@ export function TaskPrioritiesPage(): ReactNode {
 
   const openCreate = (): void => setDialog({ kind: 'create' });
 
+  const nextWeight = ordered.reduce((max, priority) => Math.max(max, priority.weight), 0) + 10;
+
   // The one place for Add (issue #1562, WORK-13): the header's filled button,
   // hidden while the list is empty, where the empty state's Add stands alone.
-  const header = (
+  const listLoad: ListPageLoad =
+    priorities !== null
+      ? { kind: 'ready' }
+      : loading
+        ? { kind: 'loading' }
+        : { kind: 'error', message: loadError ?? t('priorities.error.load') };
+
+  return (
     <>
-      <PageHeader
+      <ListPage
         title={t('priorities.title')}
         actions={
           priorities !== null && priorities.length > 0 ? (
@@ -109,47 +113,24 @@ export function TaskPrioritiesPage(): ReactNode {
             </Button>
           ) : undefined
         }
-      />
-      <TaskConfigurationTabs />
-    </>
-  );
-
-  if (priorities === null) {
-    return (
-      <>
-        {header}
-        {loading ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            {tCore('common.state.loading')}
-          </p>
-        ) : (
-          <Alert variant="destructive">
-            <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-              <span>{loadError ?? t('priorities.error.load')}</span>
-              <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
-                {tCore('common.action.retry')}
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-      </>
-    );
-  }
-
-  const nextWeight = ordered.reduce((max, priority) => Math.max(max, priority.weight), 0) + 10;
-
-  return (
-    <>
-      {header}
-
-      <Card className="mb-4">
-        <CardContent className="space-y-4">
-          {reorder.notice ? (
+        tabs={<TaskConfigurationTabs />}
+        count={t('priorities.count', { count: ordered.length })}
+        notice={
+          reorder.notice ? (
             <Alert variant={reorder.notice.kind === 'stale' ? 'warning' : 'destructive'} live="assertive">
               <AlertDescription>{reorder.notice.message}</AlertDescription>
             </Alert>
-          ) : null}
-          {ordered.length === 0 ? (
+          ) : null
+        }
+        load={listLoad}
+        busy={loading && priorities !== null}
+        onRetry={(): void => void load()}
+      >
+        <ResponsiveTable
+          label={t('priorities.title')}
+          data={ordered}
+          keyExtractor={(priority): string => priority.code}
+          emptyState={
             <SettingsEmptyState
               icon={<Flag size={20} />}
               title={t('priorities.empty.title')}
@@ -157,69 +138,72 @@ export function TaskPrioritiesPage(): ReactNode {
               actionLabel={t('priorities.add')}
               onAction={openCreate}
             />
-          ) : (
-            <Table aria-label={t('priorities.title')}>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('workflow.col.name')}</TableHead>
-                  <TableHead>{t('workflow.col.code')}</TableHead>
-                  <TableHead className="text-right">{t('workflow.col.position')}</TableHead>
-                  <TableHead className="text-right">{t('workflow.col.inUse')}</TableHead>
-                  <TableHead>
-                    <span className="sr-only">{t('workflow.col.actions')}</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ordered.map((priority, index) => {
-                  const name = workflowStatusName(priority, language);
-                  return (
-                    <TableRow key={priority.code}>
-                      <TableCell>
-                        <Badge className="font-medium" style={statusBadgeStyle(priority.color)}>
-                          {name}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{priority.code}</TableCell>
-                      <TableCell className="text-right tabular-nums">{index + 1}</TableCell>
-                      <TableCell className="text-right tabular-nums">{priority.inUseCount}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <ReorderControls
-                            name={name}
-                            isFirst={index === 0}
-                            isLast={index === ordered.length - 1}
-                            disabled={reorder.busy}
-                            onMove={(delta): void => reorder.move(priority.code, delta)}
-                          />
-                          <Button
-                            className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={t('priorities.editLabel', { name })}
-                            onClick={(): void => setDialog({ kind: 'edit', priority })}
-                          >
-                            <Pencil aria-hidden="true" />
-                          </Button>
-                          <Button
-                            className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={t('priorities.deleteLabel', { name })}
-                            onClick={(): void => setPendingDelete(priority)}
-                          >
-                            <Trash2 aria-hidden="true" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+          }
+          columns={[
+            {
+              id: 'name',
+              header: t('workflow.col.name'),
+              primary: true,
+              render: (priority) => (
+                <Badge className="font-medium" style={statusBadgeStyle(priority.color)}>
+                  {workflowStatusName(priority, language)}
+                </Badge>
+              ),
+            },
+            {
+              id: 'code',
+              header: t('workflow.col.code'),
+              className: 'font-mono text-xs',
+              render: (priority) => priority.code,
+            },
+            {
+              id: 'position',
+              header: t('workflow.col.position'),
+              className: 'text-right tabular-nums',
+              render: (priority) => ordered.indexOf(priority) + 1,
+            },
+            {
+              id: 'inUse',
+              header: t('workflow.col.inUse'),
+              className: 'text-right tabular-nums',
+              render: (priority) => priority.inUseCount,
+            },
+          ]}
+          renderActions={(priority) => {
+            const index = ordered.indexOf(priority);
+            const name = workflowStatusName(priority, language);
+            return (
+              <div className="flex items-center justify-end gap-1">
+                <ReorderControls
+                  name={name}
+                  isFirst={index === 0}
+                  isLast={index === ordered.length - 1}
+                  disabled={reorder.busy}
+                  onMove={(delta): void => reorder.move(priority.code, delta)}
+                />
+                <Button
+                  className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('priorities.editLabel', { name })}
+                  onClick={(): void => setDialog({ kind: 'edit', priority })}
+                >
+                  <Pencil aria-hidden="true" />
+                </Button>
+                <Button
+                  className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('priorities.deleteLabel', { name })}
+                  onClick={(): void => setPendingDelete(priority)}
+                >
+                  <Trash2 aria-hidden="true" />
+                </Button>
+              </div>
+            );
+          }}
+        />
+      </ListPage>
 
       {dialog ? (
         <TaskPriorityDialog
