@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import type { OpportunityDetail } from '@endora-commerce/contracts';
 import { formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Card, CardContent, Input } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { AssigneeSection } from '../../components/AssigneeSection.js';
 import { InlineEdit } from '@endora-commerce/admin-kit/components';
@@ -89,6 +89,7 @@ export interface OpportunitySidebarProps {
 export function OpportunitySidebar(props: OpportunitySidebarProps): ReactNode {
   const { opportunity, canWrite, salesChannelName, onChange, reload, className } = props;
   const t = useTranslation('crm');
+  const { language } = useAppLanguage();
   const contact = opportunity.customerAccount;
   const update = useOpportunityUpdate(opportunity, onChange);
   // Issues #1452 / #1526 (UX audit DS-20, WORK-12) — the panels other modules add about the
@@ -110,7 +111,7 @@ export function OpportunitySidebar(props: OpportunitySidebarProps): ReactNode {
         <InlineEdit<string>
           label={t('opportunity.field.expectedCloseDate')}
           canEdit={canWrite}
-          display={opportunity.expectedCloseDate ? calendarDateLabel(opportunity.expectedCloseDate) : <NotSet />}
+          display={opportunity.expectedCloseDate ? calendarDateLabel(opportunity.expectedCloseDate, language) : <NotSet />}
           initial={(): string => opportunity.expectedCloseDate ?? ''}
           unchanged={(draft): boolean => draft === (opportunity.expectedCloseDate ?? '')}
           save={(draft): Promise<void> => update({ expectedCloseDate: draft === '' ? null : draft })}
@@ -204,14 +205,14 @@ export function OpportunitySidebar(props: OpportunitySidebarProps): ReactNode {
         <dl className="space-y-3">
           <Fact label={t('opportunity.field.number')}>{opportunity.number}</Fact>
           <Fact label={t('opportunity.field.created')}>
-            {formatDateTime(opportunity.createdAt)}
+            {formatDateTime(opportunity.createdAt, language)}
           </Fact>
           <Fact label={t('opportunity.field.updated')}>
-            {formatDateTime(opportunity.updatedAt)}
+            {formatDateTime(opportunity.updatedAt, language)}
           </Fact>
           {opportunity.closedAt ? (
             <Fact label={t('opportunity.field.closed')}>
-              {formatDateTime(opportunity.closedAt)}
+              {formatDateTime(opportunity.closedAt, language)}
             </Fact>
           ) : null}
         </dl>

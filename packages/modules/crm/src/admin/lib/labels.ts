@@ -1,4 +1,4 @@
-import { ApiError, formatMoney } from '@endora-commerce/admin-kit/lib';
+import { ApiError, formatDate, formatMoney } from '@endora-commerce/admin-kit/lib';
 import type { OpportunityWorkflowStatus, PropagationOutcome } from '@endora-commerce/contracts';
 import type { OrderStatusOption } from '../api.js';
 
@@ -61,12 +61,13 @@ export function moneyLabel(amount: string | null | undefined, currency: string):
   return Number.isFinite(value) ? formatMoney(value, currency) : NO_VALUE;
 }
 
-/** A `YYYY-MM-DD` calendar date in the reader's locale, without a time zone shift. */
-export function calendarDateLabel(date: string | null | undefined): string {
-  if (!date) return NO_VALUE;
-  const [year, month, day] = date.split('-').map(Number);
-  if (!year || !month || !day) return date;
-  return new Date(year, month - 1, day).toLocaleDateString();
+/**
+ * A `YYYY-MM-DD` calendar date as the admin writes every date (#1567): the
+ * medium date of `language`, the admin UI language — the browser's locale
+ * only where a caller does not pass it yet.
+ */
+export function calendarDateLabel(date: string | null | undefined, language?: string): string {
+  return formatDate(date, language);
 }
 
 /**

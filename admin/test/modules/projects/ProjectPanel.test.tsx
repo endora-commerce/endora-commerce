@@ -95,6 +95,14 @@ describe('projects contributes the Project panel', () => {
     });
   }
 
+  it('writes the Stage deadline as the admin writes every date — the medium date of the UI language (#1567)', async () => {
+    renderZone(ZONES[2]);
+    const heading = await screen.findByRole('heading', { name: en('panel.title') });
+    const panel = heading.closest('section') as HTMLElement;
+    // `2026-11-05`, not `11/5/2026` beside the Tasks panel's `Nov 22, 2026`.
+    expect(within(panel).getByText(en('panel.deadline', { date: 'Nov 5, 2026' }))).toBeInTheDocument();
+  });
+
   it('renders nothing at all for a record in no Project, or in one the reader may not see (404)', async () => {
     answer = () =>
       Promise.reject(new ApiError(404, { error: { code: 'PROJECT_NOT_FOUND', message: 'Project not found.' } }));

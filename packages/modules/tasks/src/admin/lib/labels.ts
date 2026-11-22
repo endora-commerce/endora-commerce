@@ -1,4 +1,4 @@
-import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { ApiError, formatDate, formatDateTime } from '@endora-commerce/admin-kit/lib';
 
 /** What a cell shows when there is nothing to show. */
 export const NO_VALUE = '—';
@@ -15,42 +15,25 @@ export function errorMessage(error: unknown, fallback: string): string {
 }
 
 /*
- * Dates on the Tasks screens are written one way, in the admin UI language
- * (165 T095): a calendar date as the language's medium date (*Oct 30, 2026*
- * in English), a moment as that date and the short time — never seconds,
- * never the browser's own locale.
+ * Dates on the Tasks screens are written as the admin writes every date (165
+ * T095, #1567) — the kit's `formatDate` / `formatDateTime` in the admin UI
+ * language: a calendar date as the medium date, a moment as that date and the
+ * short time, never seconds, never the browser's own locale.
  */
-const dateFormats = new Map<string, Intl.DateTimeFormat>();
-
-function dateFormat(language: string, withTime: boolean): Intl.DateTimeFormat {
-  const key = `${language}|${withTime ? 'moment' : 'date'}`;
-  let format = dateFormats.get(key);
-  if (!format) {
-    format = new Intl.DateTimeFormat(language, withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' });
-    dateFormats.set(key, format);
-  }
-  return format;
-}
 
 /** A `YYYY-MM-DD` calendar date in the reader's language, without a time-zone shift. */
 export function calendarDateLabel(date: string | null | undefined, language: string): string {
-  if (!date) return NO_VALUE;
-  const [year, month, day] = date.split('-').map(Number);
-  if (!year || !month || !day) return date;
-  return dateFormat(language, false).format(new Date(year, month - 1, day));
+  return formatDate(date, language);
 }
 
 /** A moment (an ISO instant) in the reader's language: its date and its time, without seconds. */
 export function momentLabel(iso: string | null | undefined, language: string): string {
-  if (!iso) return NO_VALUE;
-  const moment = new Date(iso);
-  return Number.isNaN(moment.getTime()) ? iso : dateFormat(language, true).format(moment);
+  return formatDateTime(iso, language);
 }
 
 /** The day of a moment, written as a calendar date is; `null` for what is not a moment. */
 export function instantDateLabel(iso: string, language: string): string | null {
-  const moment = new Date(iso);
-  return Number.isNaN(moment.getTime()) ? null : dateFormat(language, false).format(moment);
+  return Number.isNaN(new Date(iso).getTime()) ? null : formatDate(iso, language);
 }
 
 const SIZE_UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte'] as const;

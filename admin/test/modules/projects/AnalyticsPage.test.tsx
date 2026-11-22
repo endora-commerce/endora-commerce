@@ -208,7 +208,7 @@ describe('the Project analytics screen', () => {
     expect(stat('analytics.summary.completed')).toHaveTextContent('14');
     expect(stat('analytics.summary.lost')).toHaveTextContent('15');
     expect(stat('analytics.summary.rate')).toHaveTextContent('48%');
-    expect(summary).toHaveTextContent(en('analytics.basis', { from: '3/1/2026', to: '3/31/2026', count: 49 }));
+    expect(summary).toHaveTextContent(en('analytics.basis', { from: 'Mar 1, 2026', to: 'Mar 31, 2026', count: 49 }));
   });
 
   it('shows the average duration of completed and of lost Projects', async () => {
@@ -256,7 +256,7 @@ describe('the Project analytics screen', () => {
     };
     expect(option.yAxis.data).toEqual(['Design', 'Build', 'Handover']);
     expect(option.series[0]?.data).toEqual([7, 5, 3]);
-    expect(losses).toHaveTextContent(en('analytics.basis', { from: '3/1/2026', to: '3/31/2026', count: 15 }));
+    expect(losses).toHaveTextContent(en('analytics.basis', { from: 'Mar 1, 2026', to: 'Mar 31, 2026', count: 15 }));
   });
 
   it('lists the loss reasons, and the value lost per currency with the Projects it could not count', async () => {

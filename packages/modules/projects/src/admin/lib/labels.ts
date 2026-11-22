@@ -1,4 +1,4 @@
-import { ApiError, formatMoney } from '@endora-commerce/admin-kit/lib';
+import { ApiError, formatDate, formatMoney } from '@endora-commerce/admin-kit/lib';
 import type { ProjectValue } from '@endora-commerce/contracts';
 
 /** What a cell shows when there is nothing to show. */
@@ -22,12 +22,9 @@ export function valueLabel(value: ProjectValue | null): string {
   return Number.isFinite(amount) ? formatMoney(amount, value.currency) : NO_VALUE;
 }
 
-/** A `YYYY-MM-DD` calendar date in the reader's locale, without a time-zone shift. */
+/** A `YYYY-MM-DD` calendar date in the admin UI language, as the admin writes every date (#1567). */
 export function calendarDateLabel(date: string | null | undefined, language: string): string {
-  if (!date) return NO_VALUE;
-  const [year, month, day] = date.split('-').map(Number);
-  if (!year || !month || !day) return date;
-  return new Date(year, month - 1, day).toLocaleDateString(language);
+  return formatDate(date, language);
 }
 
 /**

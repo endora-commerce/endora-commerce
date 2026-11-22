@@ -65,8 +65,9 @@ export function OpportunityValue(props: OpportunityValueProps): ReactNode {
   const computed = opportunity.valueMode === 'computed';
   const update = useOpportunityUpdate(opportunity, onChange);
   const figure = (
-    <p className="flex flex-wrap items-center gap-2">
-      <span className="text-xl font-semibold tabular-nums">
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      {/* One unbroken line: the display box breaks anywhere, a figure must not (#1567). */}
+      <span className="whitespace-nowrap text-xl font-semibold tabular-nums">
         {moneyLabel(computed ? opportunity.computedValue : opportunity.manualValue, opportunity.currency)}
       </span>
       <Badge variant="outline" className="gap-1 font-normal">
@@ -142,8 +143,12 @@ export function OpportunityValue(props: OpportunityValueProps): ReactNode {
 
   return (
     <div role="group" aria-labelledby={headingId} className="space-y-2" aria-busy={busy}>
-      <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
-        <div className="min-w-0 flex-1 space-y-0.5">
+      {/*
+        * Stacked, not a row: in the 20rem sidebar a row gave the switch its
+        * full width and squeezed the figure to one character per line (#1567).
+        */}
+      <div className="space-y-2">
+        <div className="space-y-0.5">
           <h3 id={headingId} className="text-xs font-normal text-muted-foreground">
             {t('value.title')}
           </h3>
