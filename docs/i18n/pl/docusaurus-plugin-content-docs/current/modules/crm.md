@@ -131,6 +131,7 @@ karty.
 | **Przegląd** | Opis — sformatowany i zmieniany na miejscu jego ołówkiem — oraz pola niestandardowe. |
 | **Powiązania** | *Powiązane zamówienia* i *Powiązane zapytania ofertowe*: wiązanie, odłączanie, przełącznik *Podąża za szansą*, przyciski **Utwórz zamówienie** i **Utwórz zapytanie ofertowe**. Na karcie widać liczbę powiązanych dokumentów. |
 | **Wydarzenia** | To, co zaplanowano dla szansy — rozmowa, spotkanie, termin — jako lista i we własnym kalendarzu, każde z opcjonalnym przypomnieniem. Na karcie widać liczbę wydarzeń, które jeszcze się nie zakończyły. Zobacz *Wydarzenia i przypomnienia*. |
+| **Zadania** | Zadania powiązane z szansą, z przyciskiem *Dodaj zadanie*. Na karcie widać, ile z nich jest jeszcze otwartych. Kartę dodaje moduł **Zadania**, jest więc widoczna tylko wtedy, gdy ten moduł jest włączony, i tylko dla osoby, która może odczytywać zadania — zobacz stronę modułu Zadania. |
 | **Notatki**, **Wiadomości** | Dwie rozmowy. Na karcie **Notatki** widać liczbę notatek, a na karcie **Wiadomości** — liczbę wiadomości, których jeszcze nie przeczytałeś. |
 | **Załączniki** | Pliki. Na karcie widać liczbę załączonych plików. |
 | **Historia zmian** | Wszystko, co zrobiono z szansą, od najnowszych zmian. |
@@ -141,19 +142,31 @@ otworzyć. Na kartach *Powiązania*, *Notatki* i *Załączniki* jest to liczba
 pozycji: powiązanych dokumentów, notatek, plików. Na karcie *Wydarzenia* —
 liczba wydarzeń, które jeszcze się nie zakończyły. Na karcie *Wiadomości* —
 liczba wiadomości, których jeszcze nie przeczytałeś; zobacz *Notatki i
-wiadomości wewnętrzne*. Liczby przychodzą razem z szansą, są więc widoczne,
-zanim otworzysz którąkolwiek kartę, a każda zmienia się, gdy dodasz lub usuniesz
-pozycję na jej karcie. To, co w tym czasie doda ktoś inny, pojawi się po
-odświeżeniu strony. Czytnik ekranu odczytuje każdą liczbę razem z tym, co ona
-liczy — „Notatki, liczba pozycji: 3”, „Wydarzenia, nadchodzące: 2”,
+wiadomości wewnętrzne*. Na karcie *Zadania* — liczba powiązanych zadań, które
+są jeszcze otwarte. Liczby przychodzą razem z szansą, są więc widoczne, zanim
+otworzysz którąkolwiek kartę, a każda zmienia się, gdy dodasz lub usuniesz
+pozycję na jej karcie; liczba na karcie *Zadania* jest odczytywana tuż po
+otwarciu ekranu, a jeśli nie uda się jej odczytać, karta po prostu jej nie
+pokazuje. To, co w tym czasie doda ktoś inny, pojawi się po odświeżeniu strony.
+Czytnik ekranu odczytuje każdą liczbę razem z tym, co ona liczy — „Notatki,
+liczba pozycji: 3”, „Wydarzenia, nadchodzące: 2”, „Zadania, otwarte: 3”,
 „Wiadomości, nieprzeczytane: 1”.
 
 Otwarta karta jest częścią adresu — `/crm/opportunities/:id?tab=links`,
-i odpowiednio `events`, `notes`, `messages`, `attachments` oraz `history` — dzięki czemu
-zostaje po odświeżeniu strony i można ją wysłać innej osobie. Adres bez nazwy
-karty albo z nazwą karty, która nie istnieje, otwiera *Przegląd*. Powrót z
+i odpowiednio `events`, `tasks`, `notes`, `messages`, `attachments` oraz `history` — dzięki
+czemu zostaje po odświeżeniu strony i można ją wysłać innej osobie. Adres bez
+nazwy karty, z nazwą karty, która nie istnieje, albo karty, której nie widzisz
+(`tasks`, gdy moduł Zadania jest wyłączony), otwiera *Przegląd*. Powrót z
 ekranu **Utwórz zamówienie** albo **Utwórz zapytanie ofertowe** otwiera kartę
 **Powiązania**, na której pojawia się nowy dokument.
+
+Dla autorów modułów: moduł dodaje do tego paska własną kartę — etykietę,
+opcjonalną liczbę i panel — przez strefę panelu administracyjnego
+`opportunity.detail.tabs`, deklarowaną funkcją `recordTabComponent()`
+z `@endora-commerce/admin-kit/contributions`. Dodane karty stoją po karcie
+*Wydarzenia*; karta, której identyfikator jest identyfikatorem jednej z kart
+samego ekranu, nie jest pokazywana. CRM nie wymienia żadnego modułu, który
+dodaje karty, i od żadnego nie zależy.
 
 **Powrót do szansy.** Każda droga, którą szansa prowadzi do zamówienia albo
 zapytania ofertowego — karta *Powiązania*, zamówienie wspomniane w opisie,
@@ -1488,10 +1501,10 @@ Wartość wyliczana uwzględni zapytania ofertowe przy najbliższym przeliczeniu
 
 Moduł **Zadania** jest opcjonalny w ten sam sposób. Gdy jest wyłączony, zadanie
 wspomniane w tekście jest pokazywane jako *Zadanie niedostępne*, lista
-dokumentów pod `@@` nie proponuje zadań, a ekran szansy nie pokazuje panelu
+dokumentów pod `@@` nie proponuje zadań, a ekran szansy nie pokazuje karty
 *Zadania*; po ponownym włączeniu wzmianki znów pokazują swoje zadania. Gdy moduł
-jest włączony, panel *Zadania* w panelu bocznym ekranu szansy wymienia powiązane z nią
-zadania, które możesz zobaczyć — opisuje go strona modułu Zadania.
+jest włączony, karta *Zadania* ekranu szansy wymienia powiązane z nią
+zadania, które możesz zobaczyć — opisuje ją strona modułu Zadania.
 
 Tak samo moduł **Projekty**: gdy jest wyłączony, projekt wspomniany w tekście
 jest pokazywany jako *Projekt niedostępny*, a lista dokumentów pod `@@` nie

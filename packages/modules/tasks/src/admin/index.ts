@@ -9,14 +9,20 @@
  *
  * The palette actions are the manifest's (`src/manifest.ts`, §4). The zone
  * `task.detail.after` is mounted by `pages/TaskDetail.tsx`; this module
- * contributes nothing to it. It contributes the *Tasks* panel to an Order's,
- * a Quote Request's and an Opportunity's screen (`specs/165-task-management/`
- * User Story 6, `contracts/admin-surfaces.md` §3).
+ * contributes nothing to it. It contributes the *Tasks* panel to an Order's
+ * and a Quote Request's sidebar (`specs/165-task-management/` User Story 6,
+ * `contracts/admin-surfaces.md` §3), and a *Tasks* tab, counting the open
+ * Tasks, to an Opportunity's tab strip (`specs/183-record-tab-contributions/`
+ * FR-012, FR-013).
  *
  * **This entry exports data and nothing else**; every component is a
  * dynamic-import factory, so none of the screens is in the admin's entry chunk.
  */
-import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import {
+  recordTabComponent,
+  zoneComponent,
+  type AdminContributions,
+} from '@endora-commerce/admin-kit/contributions';
 import {
   LEGACY_TASK_WORKFLOW_PATH,
   TASK_CONFIGURATION_PATH,
@@ -134,6 +140,14 @@ export const contributions: AdminContributions = {
   zones: [
     zoneComponent('order.detail.sidebar', () => import('./zones/OrderTasksPanel.js'), { weight: 660, requiredPermission: READ_PERMISSION }),
     zoneComponent('quote_request.detail.sidebar', () => import('./zones/QuoteRequestTasksPanel.js'), { weight: 660, requiredPermission: READ_PERMISSION }),
-    zoneComponent('opportunity.detail.sidebar', () => import('./zones/OpportunityTasksPanel.js'), { weight: 660, requiredPermission: READ_PERMISSION }),
+    // Spec 183 (owner decision 2026-11-21): on an Opportunity the Tasks are a
+    // tab of the record, with the open Tasks as its count (OQ-1 A). `tasks` is
+    // part of the address (`?tab=tasks`) and is not renamed.
+    recordTabComponent('opportunity.detail.tabs', () => import('./zones/OpportunityTasksTab.js'), {
+      tab: { id: 'tasks', labelKey: 'recordTab.label', countLabelKey: 'recordTab.countLabel' },
+      count: () => import('./zones/opportunity-task-count.js'),
+      weight: 100,
+      requiredPermission: READ_PERMISSION,
+    }),
   ],
 };

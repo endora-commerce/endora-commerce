@@ -130,6 +130,7 @@ whichever tab is open.
 | **Overview** | The description — formatted, and changed in place with its pencil — and the custom fields. |
 | **Links** | *Linked orders* and *Linked quote requests*: link, unlink, the *follow the opportunity's status* switch, **Create order** and **Create quote request**. The tab shows how many documents are linked. |
 | **Events** | What is planned for the opportunity — a call, a meeting, a deadline — as a list and on a calendar of its own, each with an optional reminder. The tab shows how many events have not ended yet. See *Events and reminders*. |
+| **Tasks** | The tasks linked to the opportunity, with *Add task*. The tab shows how many of them are still open. It is added by the **Tasks** module, so it is there only while that module is on and for somebody who may read tasks — see the Tasks module's page. |
 | **Notes**, **Messages** | The two conversations. The **Notes** tab shows how many notes there are; the **Messages** tab shows how many messages you have not read yet. |
 | **Attachments** | The files. The tab shows how many are attached. |
 | **Change history** | Everything that was done to the opportunity, newest first. |
@@ -139,17 +140,26 @@ nothing behind it shows no number — so a number always means there is somethin
 to open. On *Links*, *Notes* and *Attachments* it is the number of items: linked
 documents, notes, files. On *Events* it is the events that have not ended yet.
 On *Messages* it is the messages you have not read — see *Notes and internal
-messages*. The numbers come with the opportunity itself, so they are there
-before any tab is opened, and each follows when you add or remove an item on its
-tab. What a colleague adds in the meantime appears after a reload. A screen
-reader announces each number with what it counts — "Notes, items: 3",
-"Events, upcoming: 2", "Messages, unread: 1".
+messages*. On *Tasks* it is the linked tasks that are still open. The numbers
+come with the opportunity itself, so they are there before any tab is opened,
+and each follows when you add or remove an item on its tab; the *Tasks* number
+is read just after the screen opens, and if it cannot be read the tab simply
+shows none. What a colleague adds in the meantime appears after a reload. A
+screen reader announces each number with what it counts — "Notes, items: 3",
+"Events, upcoming: 2", "Tasks, open: 3", "Messages, unread: 1".
 
 The open tab is part of the address — `/crm/opportunities/:id?tab=links`, and
-likewise `events`, `notes`, `messages`, `attachments` and `history` — so it survives a
-reload and can be sent to a colleague. An address that names no tab, or one
-that does not exist, opens *Overview*. Coming back from **Create order** or
+likewise `events`, `tasks`, `notes`, `messages`, `attachments` and `history` — so it
+survives a reload and can be sent to a colleague. An address that names no tab,
+one that does not exist, or one you cannot see (`tasks` while the Tasks module
+is off), opens *Overview*. Coming back from **Create order** or
 **Create quote request** opens **Links**, where the new document appears.
+
+For module authors: a module adds a tab of its own to this strip — a label, an
+optional count and a panel — through the `opportunity.detail.tabs` admin zone,
+declared with `recordTabComponent()` from `@endora-commerce/admin-kit/contributions`.
+The contributed tabs sit after *Events*; a contributed tab whose id is one of
+the screen's own is not shown. CRM names no contributor and depends on none.
 
 **Back to the opportunity.** Every way an opportunity leads to an order or a
 quote request — the *Links* tab, an order mentioned in a description, a note or
@@ -1425,9 +1435,9 @@ computed value picks the quote requests up again at its next recalculation.
 
 The **Tasks** module is optional in the same way. While it is switched off a
 task mentioned in a text reads as *Task unavailable*, the `@@` document list
-offers no tasks and an opportunity's screen shows no *Tasks* panel; switched
-back on, the mentions show their tasks again. While it is on, the *Tasks* panel
-in an opportunity's sidebar lists the tasks linked to it that you may
+offers no tasks and an opportunity's screen shows no *Tasks* tab; switched
+back on, the mentions show their tasks again. While it is on, the *Tasks* tab
+of an opportunity lists the tasks linked to it that you may
 see — the Tasks module's own page describes it.
 
 So is the **Projects** module: while it is switched off a project mentioned in a

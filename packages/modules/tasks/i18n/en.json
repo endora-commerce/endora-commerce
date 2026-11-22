@@ -367,6 +367,8 @@
   "panel.error": "The tasks could not be loaded.",
   "panel.add": "Add task",
   "panel.all": "Show in the task list",
+  "recordTab.label": "Tasks",
+  "recordTab.countLabel": "{label}, open: {count}",
   "create.link.opportunity": "This task will be linked to the opportunity it was started from.",
   "create.link.order": "This task will be linked to the order it was started from.",
   "create.link.quote_request": "This task will be linked to the quote request it was started from.",

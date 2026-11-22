@@ -62,12 +62,29 @@ describe('tasks admin contributions', () => {
     for (const zone of contributions.zones ?? []) for (const code of [zone.requiredPermission ?? ''].flat()) expect(declared.has(code)).toBe(true);
   });
 
-  it('contributes the Tasks panel to an Order, a Quote Request and an Opportunity (165 US6)', () => {
+  it('contributes the Tasks panel to an Order and a Quote Request, and a Tasks tab to an Opportunity (165 US6, 183 FR-012)', () => {
     expect((contributions.zones ?? []).map((zone) => [zone.zone, zone.weight, zone.requiredPermission])).toEqual([
       ['order.detail.sidebar', 660, 'tasks:read'],
       ['quote_request.detail.sidebar', 660, 'tasks:read'],
-      ['opportunity.detail.sidebar', 660, 'tasks:read'],
+      ['opportunity.detail.tabs', 100, 'tasks:read'],
     ]);
+    // The Opportunity's Tasks moved from its sidebar into a tab of their own.
+    expect((contributions.zones ?? []).filter((zone) => zone.zone === 'opportunity.detail.sidebar')).toEqual([]);
+  });
+
+  it('declares the Opportunity’s Tasks tab with a stable id, a label, an open-count label and a lazy count (183 FR-012, FR-013)', () => {
+    const tab = (contributions.zones ?? []).find((zone) => zone.zone === 'opportunity.detail.tabs');
+    expect(tab?.tab).toEqual({ id: 'tasks', labelKey: 'recordTab.label', countLabelKey: 'recordTab.countLabel' });
+    expect(typeof tab?.count).toBe('function');
+    expect(typeof tab?.component).toBe('function');
+    for (const language of ['en', 'pl'] as const) {
+      const shipped = bundle(language);
+      expect(shipped['recordTab.label'], language).toBeTruthy();
+      // The accessible name starts with the visible label (WCAG 2.5.3) and says what is counted.
+      expect(shipped['recordTab.countLabel'], language).toMatch(/^\{label\}, .+\{count\}$/);
+    }
+    expect(bundle('en')['recordTab.countLabel']).toBe('{label}, open: {count}');
+    expect(bundle('pl')['recordTab.countLabel']).toBe('{label}, otwarte: {count}');
   });
 
   it('labels every nav row in both shipped languages', () => {

@@ -105,8 +105,9 @@
  *   - a zone name reached through a constant (`useAdminZone(ZONE)`), which is
  *     `computed-zone-name` rather than a skip, by design (Z7);
  *   - a contribution built by a helper this file does not know — `zone:` in an
- *     object literal and `zoneComponent('<name>', …)` are the two spellings the
- *     kit publishes, and a third would read as no contribution at all;
+ *     object literal, `zoneComponent('<name>', …)` and
+ *     `recordTabComponent('<name>', …)` are the spellings the kit publishes,
+ *     and another would read as no contribution at all;
  *   - a visibility gate whose predicate reaches the file through an import or a
  *     prop: the binding must be `useSurfaceVisibility()` or `isSurfaceVisible`
  *     in the same file;
@@ -541,8 +542,23 @@ function enumMembers(initializer: ts.Node): string[] {
 const ZONE_RENDERER_TAGS = new Set(['AdminZone', 'RouteTabsZone']);
 
 /**
- * Every `<AdminZone name=…>`, `<RouteTabsZone name=…>` and `useAdminZone(…)` in
- * one source.
+ * The hooks that enumerate a place, each taking the zone as its first
+ * argument: `useAdminZone` for any zone, `useRecordTabZone` for a record-tab
+ * zone, whose contributions are whole tabs of the host's strip
+ * (`specs/183-record-tab-contributions/` research R7). Enumerated for the
+ * renderer tags' reason.
+ */
+const ZONE_RENDERER_HOOKS = new Set(['useAdminZone', 'useRecordTabZone']);
+
+/**
+ * The kit's contribution helpers, each taking the zone as its first argument:
+ * `zoneComponent` for a stack zone, `recordTabComponent` for a record-tab zone.
+ */
+const ZONE_CONTRIBUTION_HELPERS = new Set(['zoneComponent', 'recordTabComponent']);
+
+/**
+ * Every `<AdminZone name=…>`, `<RouteTabsZone name=…>`, `useAdminZone(…)` and
+ * `useRecordTabZone(…)` in one source.
  */
 export function zoneRenderSites(source: string, file: string): ZoneRenderSite[] {
   const parsed = parse(source, file);
@@ -578,11 +594,12 @@ export function zoneRenderSites(source: string, file: string): ZoneRenderSite[] 
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
-      node.expression.text === 'useAdminZone'
+      ZONE_RENDERER_HOOKS.has(node.expression.text)
     ) {
+      const via = node.expression.text;
       const first = node.arguments[0];
-      if (first !== undefined && ts.isStringLiteral(first)) record(node, first.text, 'useAdminZone');
-      else record(node, null, 'useAdminZone');
+      if (first !== undefined && ts.isStringLiteral(first)) record(node, first.text, via);
+      else record(node, null, via);
     }
     ts.forEachChild(node, visit);
   };
@@ -600,11 +617,12 @@ export function zoneContributionSites(
   const found: ZoneContributionSite[] = [];
 
   const visit = (node: ts.Node): void => {
-    // `zoneComponent('<zone>', () => import(…))` — the kit's helper.
+    // `zoneComponent('<zone>', () => import(…))` and
+    // `recordTabComponent('<zone>', …)` — the kit's helpers.
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
-      node.expression.text === 'zoneComponent'
+      ZONE_CONTRIBUTION_HELPERS.has(node.expression.text)
     ) {
       const first = node.arguments[0];
       if (first !== undefined && ts.isStringLiteral(first)) {
@@ -1037,12 +1055,15 @@ async function main(): Promise<void> {
     // `RouteTabsZone` does not contain the substring `AdminZone`, so a spelled
     // pair would have skipped every file that mounts a strip.
     const mentionsRenderer =
-      source.includes('useAdminZone') ||
+      [...ZONE_RENDERER_HOOKS].some((hook) => source.includes(hook)) ||
       [...ZONE_RENDERER_TAGS].some((tag) => source.includes(tag));
     if (!isMechanism && mentionsRenderer) {
       renders.push(...zoneRenderSites(source, key(file)));
     }
-    if (source.includes('zoneComponent') || (source.includes('zone:') && source.includes('component'))) {
+    if (
+      [...ZONE_CONTRIBUTION_HELPERS].some((helper) => source.includes(helper)) ||
+      (source.includes('zone:') && source.includes('component'))
+    ) {
       contributions.push(
         ...zoneContributionSites(source, key(file), layout.moduleIdOfPath(file)),
       );

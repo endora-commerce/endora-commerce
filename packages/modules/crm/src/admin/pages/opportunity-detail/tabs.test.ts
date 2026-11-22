@@ -105,6 +105,15 @@ describe('tabFromSearch', () => {
   it('lets an explicit tab win over the return marker', () => {
     expect(tabFromSearch(search('created=order&tab=notes'))).toBe('notes');
   });
+
+  // Spec 183 FR-011: a contributed tab is selectable while it is visible, and
+  // an id no visible contribution declares is the default tab, as before.
+  it('opens a contributed tab the address names while that tab is visible', () => {
+    expect(tabFromSearch(search('tab=probe'), ['probe'])).toBe('probe');
+    expect(tabFromSearch(search('tab=probe'), [])).toBe(DEFAULT_TAB_ID);
+    expect(tabFromSearch(search('tab=probe'))).toBe(DEFAULT_TAB_ID);
+    expect(tabFromSearch(search('tab=notes'), ['probe'])).toBe('notes');
+  });
 });
 
 describe('searchForTab', () => {
