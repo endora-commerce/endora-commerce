@@ -1148,7 +1148,11 @@ function adminPage(spec: ModuleScaffoldSpec): string {
   const lines: string[] = [];
 
   lines.push(`import { useCallback, useEffect, useState, type ReactNode } from 'react';`);
-  lines.push(`import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';`);
+  lines.push(
+    spec.layers.entities
+      ? `import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';`
+      : `import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';`,
+  );
   lines.push('import {');
   lines.push('  Alert,');
   lines.push('  AlertDescription,');
@@ -1164,7 +1168,11 @@ function adminPage(spec: ModuleScaffoldSpec): string {
     lines.push('  TableRow,');
   }
   lines.push(`} from '@endora-commerce/admin-kit/ui';`);
-  lines.push(`import { useTranslation } from '@endora-commerce/admin-kit/i18n';`);
+  lines.push(
+    spec.layers.entities
+      ? `import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';`
+      : `import { useTranslation } from '@endora-commerce/admin-kit/i18n';`,
+  );
   lines.push('');
   lines.push('/**');
   lines.push(` * ${spec.name} — the module's own admin screen.`);
@@ -1205,6 +1213,8 @@ function adminPage(spec: ModuleScaffoldSpec): string {
   lines.push(`export default function ${component}(): ReactNode {`);
   lines.push(`  const t = useTranslation(${quote(spec.id)});`);
   if (spec.layers.entities) {
+    // Dates in the admin language, never the browser's locale (#1776).
+    lines.push('  const { language } = useTranslationContext();');
     lines.push(`  const [rows, setRows] = useState<readonly ${pascal}Row[]>([]);`);
   } else {
     lines.push(`  const [status, setStatus] = useState<${pascal}Status | null>(null);`);
@@ -1264,7 +1274,7 @@ function adminPage(spec: ModuleScaffoldSpec): string {
     lines.push('            rows.map((row) => (');
     lines.push('              <TableRow key={row.id}>');
     lines.push('                <TableCell>{row.label}</TableCell>');
-    lines.push('                <TableCell>{new Date(row.createdAt).toLocaleString()}</TableCell>');
+    lines.push('                <TableCell>{formatDateTime(row.createdAt, language)}</TableCell>');
     lines.push('              </TableRow>');
     lines.push('            ))');
     lines.push('          )}');

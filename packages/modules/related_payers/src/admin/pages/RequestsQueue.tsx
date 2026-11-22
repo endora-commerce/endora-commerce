@@ -7,7 +7,7 @@ import {
   type RelatedPayerRequestState,
 } from '@endora-commerce/contracts';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   ListPage,
   ListToolbar,
@@ -59,6 +59,7 @@ type QueueDialog =
  * the list in an `InlineStatus`; a dialog's refusal stays in the dialog.
  */
 export function RequestsQueue(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('related_payers');
   const { hasPermission } = useAuth();
   const canManage = hasPermission('related_payers:manage');
@@ -175,7 +176,7 @@ export function RequestsQueue(): ReactNode {
     {
       id: 'createdAt',
       header: t('queue.column.createdAt'),
-      render: (row) => <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(row.createdAt)}</span>,
+      render: (row) => <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(row.createdAt, language)}</span>,
     },
     { id: 'taxId', header: t('queue.column.taxId'), render: (row) => <span className="tabular-nums">{row.taxId}</span> },
     { id: 'counterparty', header: t('queue.column.counterparty'), render: (row) => row.counterpartyName ?? '—' },

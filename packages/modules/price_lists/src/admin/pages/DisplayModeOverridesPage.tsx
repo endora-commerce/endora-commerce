@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Eye, EyeOff, Filter, Save, Settings as SettingsIcon, Trash2 } from 'lucide-react';
 import type { DisplayMode } from '@endora-commerce/contracts';
-import { ApiError, apiClient, normalize, useAuth } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { ApiError, apiClient, normalize, useAuth, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { ListToolbar, ListToolbarSearch } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
@@ -84,6 +84,7 @@ interface ProductRow {
 export function DisplayModeOverridesPage(): ReactNode {
   const t = useTranslation('core');
   const tl = useTranslation('price_lists');
+  const { language } = useTranslationContext();
   // FR-028 (feature 161, Checkpoint 10 ruling): a reader sees every value and
   // no control that would change one — absent, not refused by the server.
   const mayWrite = useAuth().hasPermission('price_lists:write');
@@ -322,7 +323,7 @@ export function DisplayModeOverridesPage(): ReactNode {
                         )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {new Date(row.updatedAt).toLocaleString()}
+                        {formatDateTime(row.updatedAt, language)}
                       </TableCell>
                       {mayWrite ? (
                         <TableCell className="whitespace-nowrap">

@@ -8,7 +8,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { ApiError, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Input, Label } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
 import { errorMessage } from '../lib/labels.js';
 import { stageModel, type StageSide } from '../lib/stage-model.js';
@@ -52,6 +52,7 @@ export interface StageBarProps {
  * each other on a narrow screen; nothing scrolls sideways.
  */
 export function StageBar(props: StageBarProps): ReactNode {
+  const { language } = useTranslationContext();
   const { opportunity, canWrite, onMoved, reload } = props;
   const t = useTranslation('crm');
   const headingId = useId();
@@ -210,7 +211,7 @@ export function StageBar(props: StageBarProps): ReactNode {
       {opportunity.closedKind && opportunity.closedAt ? (
         <p className="text-sm text-muted-foreground">
           {t(`opportunity.status.closed.${opportunity.closedKind}`, {
-            date: formatDateTime(opportunity.closedAt),
+            date: formatDateTime(opportunity.closedAt, language),
           })}
         </p>
       ) : null}

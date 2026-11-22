@@ -28,7 +28,7 @@ import {
   TableRow,
   useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 interface AdminUser {
   id: string;
@@ -73,6 +73,7 @@ function describeApiError(err: unknown, fallback: string): string {
  *   destructive action gets distance, not a filled red button in every row).
  */
 export default function AdminUsersPage(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const { confirm, confirmDialog } = useConfirmDialog();
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -241,7 +242,7 @@ export default function AdminUsersPage(): ReactNode {
                     </TableCell>
                     <TableCell>{t(`adminUsers.status.${u.status}`)}</TableCell>
                     <TableCell>{u.twoFactorEnabled ? t('adminUsers.twoFactorOn') : '—'}</TableCell>
-                    <TableCell>{formatDateTime(u.lastLoginAt)}</TableCell>
+                    <TableCell>{formatDateTime(u.lastLoginAt, language)}</TableCell>
                     <TableCell className="text-right">
                       <RowActionMenu label={t('adminUsers.rowActions', { email: u.email })}>
                         <RowActionMenuItem onSelect={(): void => setResetFor(u)}>

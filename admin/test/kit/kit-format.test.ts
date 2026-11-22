@@ -40,3 +40,11 @@ describe('kit — formatDate / formatDateTime', () => {
     expect(formatDateTime('not a date', 'en')).toBe('not a date');
   });
 });
+
+describe('kit — the no-language form is deprecated, not removed (#1776)', () => {
+  it('still answers with the browser locale for consumers outside this repository', () => {
+    const iso = '2026-11-17T09:00:00.000Z';
+    expect(formatDateTime(iso)).toBe(new Date(iso).toLocaleString());
+    expect(formatDate('2026-11-25')).toBe(new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(2026, 10, 25)));
+  });
+});

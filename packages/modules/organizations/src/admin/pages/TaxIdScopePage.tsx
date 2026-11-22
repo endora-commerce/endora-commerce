@@ -12,7 +12,7 @@ import {
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * `specs/177-tax-id-scope/` (FR-025; `contracts/admin-surfaces.md` §4.1) — the
@@ -50,6 +50,7 @@ const SCOPES: ReadonlyArray<{ value: TaxIdScope; key: 'global' | 'perTreeRoot' }
 const ENDPOINT = '/api/v1/admin/organizations/tax-id-scope';
 
 export function TaxIdScopePage(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('organizations');
   const hintId = useId();
   const [status, setStatus] = useState<ScopeStatus | null>(null);
@@ -217,7 +218,7 @@ export function TaxIdScopePage(): ReactNode {
                 ))}
               </fieldset>
               <p className="text-xs text-muted-foreground">
-                {t('taxIdScope.updatedAt', { date: formatDateTime(status.updatedAt) })}
+                {t('taxIdScope.updatedAt', { date: formatDateTime(status.updatedAt, language) })}
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <Button

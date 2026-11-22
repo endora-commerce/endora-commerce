@@ -1255,12 +1255,16 @@ pinned in its configuration screen's test.
 
 ## Dates — `formatDate` and `formatDateTime`
 
-Every admin date is written one way, in the admin UI language — pass `useAppLanguage().language`,
-never rely on the browser's locale (#1567: one sidebar showed `17.11.2026`, `11/25/2026` and
+Every admin date is written one way, in the admin UI language — pass `useAppLanguage().language`
+(or `useTranslationContext().language`, the same value), never rely on the browser's locale (#1567: one sidebar showed `17.11.2026`, `11/25/2026` and
 `Nov 22, 2026` side by side).
 
 - `formatDate(value, language)` — the language's medium date (*Nov 25, 2026*, *25 lis 2026*). A
   `YYYY-MM-DD` calendar date is read without a time-zone shift; an ISO instant gives its day.
 - `formatDateTime(iso, language)` — that date and the short time, never seconds.
-- Both write `—` for nothing and give back what is not a date. `formatDateTime` without a language
-  still falls back to the browser's `toLocaleString()` for callers not yet migrated.
+- Both write `—` for nothing and give back what is not a date.
+- Always pass the language. The one-argument form is **deprecated** (#1776): it still falls back to
+  the browser's locale for consumers outside this repository, and will be removed in a later
+  release. Inside the repository `admin/test/unit/no-browser-locale-dates.test.ts` refuses it, as
+  well as `toLocaleDateString` / `toLocaleTimeString` in admin code and any `toLocaleString` call
+  not listed there as a number.

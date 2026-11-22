@@ -254,7 +254,8 @@ describe('RfqDetail — the operator sets and changes the validity deadline', ()
     await user.type(field, '14');
 
     const help = document.getElementById(field.getAttribute('aria-describedby') ?? '');
-    const expected = new Date(Date.now() + 14 * 86_400_000).toLocaleString().slice(0, 10);
+    // The kit's medium date in the admin language (#1776); the time is left out of the match.
+    const expected = new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(Date.now() + 14 * 86_400_000));
     expect(help).toHaveTextContent('saving sets the deadline to');
     expect(help?.textContent ?? '').toContain(expected);
   });

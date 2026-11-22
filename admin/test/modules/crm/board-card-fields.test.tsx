@@ -428,6 +428,16 @@ describe('OpportunityBoardPage — the fields a card shows', () => {
     }
   });
 
+  it('writes the card\'s dates in the admin language, not the browser\'s (#1776)', async () => {
+    cardFields = [FIELD.expectedCloseDate, builtin('createdAt', 'date')];
+    renderCrm(<OpportunityBoardPage />, { path: '/crm/board', pattern: '/crm/board', language: 'pl' });
+    await screen.findByRole('link', { name: 'Fleet renewal' });
+    const fleet = within(card('Fleet renewal'));
+    const medium = new Intl.DateTimeFormat('pl', { dateStyle: 'medium' });
+    expect(fleet.getByText(medium.format(new Date(2026, 11, 1)), { exact: false })).toBeInTheDocument();
+    expect(fleet.getByText(medium.format(new Date('2026-10-05T10:00:00.000Z')), { exact: false })).toBeInTheDocument();
+  });
+
   it('offers a filter of its own kind for each field shown, and none for a field that is not', async () => {
     await renderBoard();
     await openMoreFilters();

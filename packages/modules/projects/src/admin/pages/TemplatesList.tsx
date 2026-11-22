@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { formatDate } from '@endora-commerce/admin-kit/lib';
 import { Link } from 'react-router-dom';
 import { Layers, Plus } from 'lucide-react';
 import type { ProjectTemplateSummary } from '@endora-commerce/contracts';
@@ -79,7 +80,7 @@ export function TemplatesList(): ReactNode {
       id: 'updated',
       header: t('templates.list.col.updated'),
       hideOnMobile: true,
-      render: (row) => new Date(row.updatedAt).toLocaleDateString(language),
+      render: (row) => formatDate(row.updatedAt, language),
     },
   ];
 

@@ -12,7 +12,7 @@ import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTit
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { AssetUploader, ModalDialog, StatusChangeControl } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { assetReferenceKindLabels, assetVisibilityLabels } from '../lib/labels.js';
 import {
   assetsLibraryClient,
@@ -100,6 +100,7 @@ function AssetDetailDrawerBody({
   onChanged,
   onClose,
 }: AssetDetailDrawerProps): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('assets_library');
   const canWrite = useAuth().hasPermission('assets.write');
   const [detail, setDetail] = useState<AssetDetail | null>(null);
@@ -634,11 +635,11 @@ function AssetDetailDrawerBody({
                     {previous.sizeBytes} {t('detail.bytes')}
                   </dd>
                   <dt className="text-muted-foreground">{t('detail.previous.replacedAt')}</dt>
-                  <dd>{formatDateTime(previous.replacedAt)}</dd>
+                  <dd>{formatDateTime(previous.replacedAt, language)}</dd>
                   <dt className="text-muted-foreground">{t('detail.previous.replacedBy')}</dt>
                   <dd>{previous.replacedBy?.displayName ?? t('detail.previous.unknownActor')}</dd>
                   <dt className="text-muted-foreground">{t('detail.previous.restorableUntil')}</dt>
-                  <dd>{formatDateTime(previous.restorableUntil)}</dd>
+                  <dd>{formatDateTime(previous.restorableUntil, language)}</dd>
                 </dl>
                 {canWrite ? (
                   <Button
@@ -736,7 +737,7 @@ function AssetDetailDrawerBody({
             {reuse.releasedAt
               ? t('detail.permalink.reuseBody', {
                   permalink: reuse.permalink,
-                  releasedAt: formatDateTime(reuse.releasedAt),
+                  releasedAt: formatDateTime(reuse.releasedAt, language),
                 })
               : t('detail.permalink.reuseBodyNoDate', { permalink: reuse.permalink })}
           </p>

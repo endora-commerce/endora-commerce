@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Trash2, UserPlus } from 'lucide-react';
-import { ApiError, apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, useSurfaceVisibility, formatDate } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Combobox, EditorSection, InlineStatus, type ComboboxOption, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { ImmediateBadge } from '@endora-commerce/admin-kit/components';
 
 /**
@@ -91,6 +91,7 @@ function OrganizationSalesRepsPanel({
 }): ReactNode {
   const t = useTranslation('core');
   const own = useTranslation('organizations');
+  const { language } = useTranslationContext();
   const [rows, setRows] = useState<SalesRepRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -260,7 +261,7 @@ function OrganizationSalesRepsPanel({
                 <TableRow key={r.id}>
                   <TableCell>{r.displayName}</TableCell>
                   <TableCell>{r.email}</TableCell>
-                  <TableCell>{new Date(r.assignedAt).toLocaleDateString('pl-PL')}</TableCell>
+                  <TableCell>{formatDate(r.assignedAt, language)}</TableCell>
                   <TableCell>
                     {/* Icon-only, so it carries its name (WCAG 4.1.2). */}
                     <Button

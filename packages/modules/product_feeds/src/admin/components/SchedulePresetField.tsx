@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { formatDateTime } from '@endora-commerce/admin-kit/lib';
 import {
   SCHEDULE_PRESETS,
   builderFromCron,
@@ -7,7 +8,7 @@ import {
   presetForCron,
 } from '@endora-commerce/contracts';
 import { Input, Label, Select } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { CronBuilderField } from './CronBuilderField.js';
 
 /**
@@ -70,6 +71,7 @@ export function defaultTimezone(): string {
 export function SchedulePresetField(props: SchedulePresetFieldProps): ReactNode {
   const { value, onChange, nextRunAt = null, tooTight = false, disabled = false } = props;
   const t = useTranslation('product_feeds');
+  const { language } = useTranslationContext();
 
   const activePreset = value === null ? NEVER : (presetForCron(value.cron) ?? CUSTOM);
   const [mode, setMode] = useState<string>(activePreset);
@@ -241,7 +243,7 @@ export function SchedulePresetField(props: SchedulePresetFieldProps): ReactNode 
         {mode === NEVER
           ? t('feeds.schedule.nextRun.manual')
           : nextRunAt
-            ? t('feeds.schedule.nextRun', { when: new Date(nextRunAt).toLocaleString() })
+            ? t('feeds.schedule.nextRun', { when: formatDateTime(nextRunAt, language) })
             : t('feeds.schedule.nextRun.unknown')}
       </p>
 

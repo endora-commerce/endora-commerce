@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { AdminOrderExternalReference, OrderExternalReferenceState } from '@endora-commerce/contracts';
 import { formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Badge, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * What each external system reported about the order (issue #1030): the
@@ -25,6 +25,7 @@ export function OrderExternalReferences({
 }: {
   references: readonly AdminOrderExternalReference[] | undefined;
 }): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('orders');
   const rows = references ?? [];
 
@@ -64,7 +65,7 @@ export function OrderExternalReferences({
                     {row.message ?? <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                    {formatDateTime(row.updatedAt)}
+                    {formatDateTime(row.updatedAt, language)}
                   </TableCell>
                 </TableRow>
               ))}

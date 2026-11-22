@@ -23,11 +23,20 @@ function dateFormat(language: string | undefined, withTime: boolean): Intl.DateT
   return format;
 }
 
+/** @deprecated Pass the admin UI language; the browser-locale fallback will be removed (#1776). */
+export function formatDate(value: string | null | undefined): string;
 /**
  * A date in the admin UI language: a `YYYY-MM-DD` calendar date without a
  * time-zone shift, or the day of an ISO instant. The dash for nothing; what is
  * not a date is given back as it came.
+ *
+ * Always pass `language` — the admin UI language (`useTranslationContext().language`
+ * or `useAppLanguage().language`). Calling it without one is **deprecated**: it
+ * falls back to the browser's locale, and the fallback will be removed in a
+ * later release (#1776). Inside this repository a one-argument call fails
+ * `admin/test/unit/no-browser-locale-dates.test.ts`.
  */
+export function formatDate(value: string | null | undefined, language: string | undefined): string;
 export function formatDate(value: string | null | undefined, language?: string): string {
   if (!value) return NO_VALUE;
   const calendar = CALENDAR_DATE.exec(value);
@@ -37,14 +46,24 @@ export function formatDate(value: string | null | undefined, language?: string):
   return Number.isNaN(date.getTime()) ? value : dateFormat(language, false).format(date);
 }
 
+/** @deprecated Pass the admin UI language; the browser-locale fallback will be removed (#1776). */
+export function formatDateTime(iso: string | null | undefined): string;
 /**
- * A moment (an ISO instant). With `language` — the admin UI language — it is
- * the medium date and the short time; without it, the browser's own
- * `toLocaleString()`, kept for the callers not yet passing the language.
+ * A moment (an ISO instant) in the admin UI language: the medium date and the
+ * short time, never seconds. The dash for nothing; what is not a date is given
+ * back as it came.
+ *
+ * Always pass `language`. Calling it without one is **deprecated**: it falls
+ * back to the browser's own `toLocaleString()`, which will be removed in a later
+ * release (#1776). Inside this repository a one-argument call fails
+ * `admin/test/unit/no-browser-locale-dates.test.ts`.
  */
+export function formatDateTime(iso: string | null | undefined, language: string | undefined): string;
 export function formatDateTime(iso: string | null | undefined, language?: string): string {
   if (!iso) return NO_VALUE;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
+  // NUMBER_LEDGER in no-browser-locale-dates.test.ts lists this one call: the
+  // deprecated fallback, kept for consumers outside this repository.
   return language === undefined ? d.toLocaleString() : dateFormat(language, true).format(d);
 }

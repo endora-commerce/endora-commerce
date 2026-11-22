@@ -9,6 +9,8 @@ import {
   type FieldProtectionSource,
   type FieldProtectionView,
 } from '@endora-commerce/admin-kit/field-protection';
+import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
+import { formatDateTime } from '@endora-commerce/admin-kit/lib';
 
 /**
  * Feature 091, P4b — `@endora-commerce/admin-kit/field-protection` is the kit's.
@@ -319,6 +321,25 @@ describe('admin-kit field protection — the summary is a section of its host (i
     const card = container.querySelector('[data-slot="card"]');
     expect(card).not.toBeNull();
     expect(card!.querySelector('h3')).toHaveTextContent('fieldProtection.title');
+  });
+
+  it('writes the last sync in the admin language, and still renders without the language context (#1776)', async () => {
+    const synced = '2026-11-17T09:00:00.000Z';
+    const initial = view({ lastSyncedAt: synced });
+    const inPolish = harness({ label: 'Akeneo', scopeKey: `pl:${PRODUCT_ID}`, initial });
+    const { container } = render(
+      <AppLanguageContext.Provider value={{ language: 'pl', setLanguage: () => {} }}>
+        <FieldProtectionSummary source={inPolish.source} />
+      </AppLanguageContext.Provider>,
+    );
+    await waitFor(() => expect(container.querySelector('time')).toHaveTextContent(formatDateTime(synced, 'pl')));
+
+    // An integration's zone mounted with no AppLanguageContext keeps working:
+    // the date falls back to the browser's locale instead of the zone throwing.
+    const bare = harness({ label: 'Pimcore', scopeKey: `bare:${PRODUCT_ID}`, initial });
+    const { container: bareContainer } = renderTree(<FieldProtectionSummary source={bare.source} />);
+    await waitFor(() => expect(bareContainer.querySelector('time')).toHaveAttribute('dateTime', synced));
+    expect(bareContainer.textContent).toContain('fieldProtection.title');
   });
 });
 

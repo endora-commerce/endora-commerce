@@ -97,6 +97,7 @@ interface AuditLogPage {
 }
 
 export default function AuditLogViewer(): ReactNode {
+  const { language } = useTranslationContext();
   const t = useTranslation('core');
   const ta = useTranslation('audit_logs');
   const { t: translate } = useTranslationContext();
@@ -329,7 +330,7 @@ export default function AuditLogViewer(): ReactNode {
               return (
                 <Fragment key={r.id}>
                   <TableRow>
-                    <TableCell>{formatDateTime(r.actedAt)}</TableCell>
+                    <TableCell>{formatDateTime(r.actedAt, language)}</TableCell>
                     <TableCell>
                       <ActorCell row={r} />
                     </TableCell>

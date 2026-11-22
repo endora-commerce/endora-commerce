@@ -10,7 +10,7 @@ import {
   useConfirmDialog,
 } from '@endora-commerce/admin-kit/components';
 import { Badge, Button, EditorSection, EmptyState, FormField, Input, Select } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Issue #1516 (UX audit 2026-11-17, SALES-14) — the Organization screen's members, as one
@@ -120,6 +120,7 @@ function messageOf(err: unknown, fallback: string): string {
 }
 
 export function OrganizationMembersSection(props: OrganizationMembersSectionProps): ReactNode {
+  const { language } = useTranslationContext();
   const { organizationId, organizationName, isPersonal, members, canManage, onChanged } = props;
   const t = useTranslation('core');
   const own = useTranslation('organizations');
@@ -222,11 +223,11 @@ export function OrganizationMembersSection(props: OrganizationMembersSectionProp
                   <p className="break-all text-sm">{m.email}</p>
                   <p className="text-xs text-muted-foreground">
                     {m.emailVerifiedAt
-                      ? own('members.meta.verified', { date: formatDateTime(m.emailVerifiedAt) })
+                      ? own('members.meta.verified', { date: formatDateTime(m.emailVerifiedAt, language) })
                       : own('members.meta.unverified')}
                     {' · '}
                     {m.lastLoginAt
-                      ? own('members.meta.lastLogin', { date: formatDateTime(m.lastLoginAt) })
+                      ? own('members.meta.lastLogin', { date: formatDateTime(m.lastLoginAt, language) })
                       : own('members.meta.neverLoggedIn')}
                     {m.twoFactorEnabled ? <>{' · '}{own('members.meta.twoFactor')}</> : null}
                   </p>
