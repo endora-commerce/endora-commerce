@@ -253,7 +253,8 @@ describe('TasksPage — the list', () => {
       path.includes('cursor=c2') ? { items: [UNAVAILABLE], nextCursor: null } : { items: [taskSummary()], nextCursor: 'c2' };
     renderTasks(<TasksPage />, { path: '/tasks', pattern: '/tasks' });
     await screen.findByText('Order the racking');
-    const pages = screen.getByRole('navigation', { name: core('cursorPagination.label') });
+    // The kit ListPage's footer (#1749), in cursor mode.
+    const pages = document.querySelector<HTMLElement>('[data-slot="pagination-footer"]')!;
     expect(within(pages).getByText(core('cursorPagination.page', { page: 1 }))).toBeTruthy();
     await userEvent.click(within(pages).getByRole('button', { name: core('common.pagination.next') }));
     expect(await screen.findByText('Sign the handover')).toBeTruthy();
@@ -263,12 +264,12 @@ describe('TasksPage — the list', () => {
     expect(await screen.findByText('Order the racking')).toBeTruthy();
   });
 
-  it('pages with the kit’s CursorPagination: a rows-per-page choice up to the API’s limit, starting again from page one (#512)', async () => {
+  it('pages with the kit’s cursor footer: a rows-per-page choice up to the API’s limit, starting again from page one (#512, #1749)', async () => {
     listAnswer = (path) =>
       path.includes('cursor=c2') ? { items: [UNAVAILABLE], nextCursor: null } : { items: [taskSummary()], nextCursor: 'c2' };
     renderTasks(<TasksPage />, { path: '/tasks', pattern: '/tasks' });
     await screen.findByText('Order the racking');
-    const pages = screen.getByRole('navigation', { name: core('cursorPagination.label') });
+    const pages = document.querySelector<HTMLElement>('[data-slot="pagination-footer"]')!;
     const size = within(pages).getByLabelText(core('common.pagination.rowsPerPage'));
     const offered = within(size).getAllByRole('option').map((option) => Number((option as HTMLOptionElement).value));
     expect(Math.max(...offered)).toBeLessThanOrEqual(100);

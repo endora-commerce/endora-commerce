@@ -96,6 +96,7 @@
   "list.noResults.title": "Żadne zadanie nie pasuje",
   "list.noResults.body": "Zmień filtry lub je wyczyść.",
   "mine.title": "Moje zadania",
+  "mine.count": "Moje otwarte zadania: {count}",
   "mine.all": "Wszystkie zadania",
   "mine.loading": "Wczytywanie Twoich zadań…",
   "mine.error": "Nie udało się wczytać Twoich zadań.",

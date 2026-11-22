@@ -96,6 +96,7 @@
   "list.noResults.title": "No task matches",
   "list.noResults.body": "Change the filters or clear them.",
   "mine.title": "My tasks",
+  "mine.count": "My open tasks: {count}",
   "mine.all": "All tasks",
   "mine.loading": "Loading your tasks…",
   "mine.error": "Your tasks could not be loaded.",

@@ -180,17 +180,19 @@ describe('MyTasksPage', () => {
       return answer(path);
     });
     renderTasks(<MyTasksPage />, { path: '/tasks/mine', pattern: '/tasks/mine' });
-    const table = (await screen.findByText('Sign the handover')).closest('[aria-busy]') as HTMLElement;
-    expect(table).toHaveAttribute('aria-busy', 'false');
+    // The kit ListPage's results region (#1749): busy only while a read is in flight.
+    const row = await screen.findByText('Sign the handover');
+    expect(row.closest('[aria-busy="true"]')).toBeNull();
     await screen.findByRole('option', { name: STATUS.in_progress.name });
     await userEvent.selectOptions(screen.getByLabelText(en('list.filter.status')), 'in_progress');
-    await waitFor(() => expect(table).toHaveAttribute('aria-busy', 'true'));
-    expect(within(table).getByText(en('mine.loading'))).toHaveClass('sr-only');
+    await waitFor(() => expect(row.closest('[aria-busy="true"]')).not.toBeNull());
+    // Said through the list's count region, mounted before it had text.
+    expect(screen.getAllByRole('status').some((region) => region.textContent === core('common.state.loading'))).toBe(true);
     // The rows already shown stay while the new answer is on its way.
     expect(screen.getByText('Sign the handover')).toBeTruthy();
     await act(async () => pending?.({ data: [UNDATED] }));
-    await waitFor(() => expect(table).toHaveAttribute('aria-busy', 'false'));
-    expect(screen.queryByText('Sign the handover')).toBeNull();
+    await waitFor(() => expect(screen.queryByText('Sign the handover')).toBeNull());
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
   });
 
   it('keeps the daily digest out of the way: a closed disclosure in the header that says its state (#1563)', async () => {
