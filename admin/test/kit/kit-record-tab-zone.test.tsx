@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi, type MockInstance } from 'vitest';
 import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { AdminZoneContribution } from '@endora-commerce/contracts';
@@ -153,7 +153,7 @@ async function settle(): Promise<void> {
   });
 }
 
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<typeof console.warn>;
 beforeEach(() => {
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -358,9 +358,9 @@ describe('recordTabComponent — the contributor’s declaration', () => {
     recordTabComponent('order.detail.after', () => Promise.resolve({ default: () => null }), {
       tab: { id: 'tasks', labelKey: 'recordTab.label' },
     });
-    // @ts-expect-error — the count loader is checked against the zone's props.
     recordTabComponent('opportunity.detail.tabs', load, {
       tab: { id: 'tasks', labelKey: 'recordTab.label' },
+      // @ts-expect-error — the count loader is checked against the zone's props.
       count: () => Promise.resolve({ default: (props: { orderId: string }) => Promise.resolve(props.orderId.length) }),
     });
     expectTypeOf<RecordTabCounter<'opportunity.detail.tabs'>>().parameters.toEqualTypeOf<

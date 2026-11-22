@@ -29,11 +29,14 @@ export {
   AdminZoneContributionSchema,
   AdminZoneNameSchema,
   PermissionRequirementSchema,
+  RECORD_TAB_ZONE_NAMES,
+  RecordTabDeclarationSchema,
 } from '@endora-commerce/contracts';
 
 export type {
   AdminComponentFactory,
   AdminContributions,
+  AdminCountFactory,
   AdminNavDeclaration,
   AdminNavSectionName,
   AdminRouteDeclaration,
@@ -45,6 +48,8 @@ export type {
   PermissionRequirement,
   ProductEditorFieldZoneProps,
   ProductEditorZoneProps,
+  RecordTabDeclaration,
+  RecordTabZoneName,
 } from '@endora-commerce/contracts';
 
 /**
@@ -62,5 +67,11 @@ export type {
  * `src/admin/index.ts` must be enumerable without evaluating a React tree, and
  * R2 of `admin-contribution.md` is what that rule protects.
  */
-export { zoneComponent } from './zone-component.js';
-export type { AdminZoneComponent, ZoneComponentOptions } from './zone-component.js';
+export { recordTabComponent, zoneComponent } from './zone-component.js';
+export type {
+  AdminZoneComponent,
+  RecordTabComponentOptions,
+  RecordTabCounter,
+  StackZoneName,
+  ZoneComponentOptions,
+} from './zone-component.js';

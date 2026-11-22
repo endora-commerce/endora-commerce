@@ -1,4 +1,5 @@
 import {
+  Fragment,
   Suspense,
   useCallback,
   useEffect,
@@ -26,7 +27,7 @@ import {
   RecordTabs,
 } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { AdminZone, useRecordTabZone } from '@endora-commerce/admin-kit/zones';
 import { crmApi, type OrderStatusOption } from '../api.js';
 import { salesChannelLabel } from '../components/LookupPickers.js';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
@@ -37,6 +38,8 @@ import { OpportunitySidebar } from './opportunity-detail/OpportunitySidebar.js';
 import { OpportunityTitle } from './opportunity-detail/OpportunityTitle.js';
 import {
   DEFAULT_TAB_ID,
+  EVENTS_TAB_ID,
+  OPPORTUNITY_TAB_IDS,
   OPPORTUNITY_TABS,
   searchForTab,
   tabFromSearch,
@@ -73,6 +76,12 @@ function MetaSeparator(): ReactNode {
  * **The selected tab is in the address** (`?tab=<id>`), so it survives a
  * reload and can be linked to; the default tab is the bare address.
  *
+ * **Other modules add tabs** through the `opportunity.detail.tabs` zone
+ * (`specs/183-record-tab-contributions/`): the contributed tabs sit after
+ * Events and before Notes, each with its own label and count, and this screen
+ * names none of them. A contributed tab the reader cannot see is not in the
+ * strip, and its address opens the default tab.
+ *
  * The outcomes of the last move are kept **here**, between the bar that
  * produces them and the section that shows them: a move's answer carries every
  * Order's outcome, applied ones included, while the Opportunity itself only
@@ -107,7 +116,19 @@ export function OpportunityDetail(): ReactNode {
   const [recent, setRecent] = useState<PropagationOutcome[]>([]);
   const [outcomesShown, setOutcomesShown] = useState(false);
 
-  const activeTab = tabFromSearch(searchParams);
+  const zoneProps = useMemo(() => ({ opportunityId: id }), [id]);
+  const contributed = useRecordTabZone('opportunity.detail.tabs', zoneProps, {
+    reservedIds: OPPORTUNITY_TAB_IDS,
+    fallback: (
+      <p role="status" className="text-sm text-muted-foreground">
+        {tCore('common.state.loading')}
+      </p>
+    ),
+  });
+  const activeTab = tabFromSearch(
+    searchParams,
+    contributed.tabs.map((candidate) => candidate.id),
+  );
 
   const selectTab = useCallback(
     (tabId: string): void => {
@@ -270,8 +291,34 @@ export function OpportunityDetail(): ReactNode {
     setRecent((previous) => previous.filter((item) => item.id !== outcomeId));
   };
 
-  const tab = OPPORTUNITY_TABS.find((candidate) => candidate.id === activeTab) ?? OPPORTUNITY_TABS[0];
+  const hostTab = OPPORTUNITY_TABS.find((candidate) => candidate.id === activeTab);
+  const contributedTab = hostTab ? undefined : contributed.tabs.find((candidate) => candidate.id === activeTab);
+  const tab = hostTab ?? (contributedTab ? undefined : OPPORTUNITY_TABS[0]);
   const TabComponent = tab?.component;
+
+  // A tab's count is read from the Opportunity the page holds; zero draws
+  // nothing. The kit names a counted tab "Notes, items: 3" unless the tab says
+  // what it counts ("Messages, unread: 2").
+  const hostItems = OPPORTUNITY_TABS.map((candidate) => {
+    const label = t(candidate.labelKey);
+    const count = candidate.count?.(opportunity) ?? 0;
+    return {
+      value: candidate.id,
+      label,
+      count,
+      ...(candidate.countLabelKey ? { countLabel: t(candidate.countLabelKey, { label, count }) } : {}),
+    };
+  });
+  // The contributed tabs go after Events — what is planned for the deal — and
+  // each brings its own label and count (none until it is known).
+  const contributedItems = contributed.tabs.map((candidate) => ({
+    value: candidate.id,
+    label: candidate.label,
+    count: candidate.count ?? 0,
+    ...(candidate.countLabel === undefined ? {} : { countLabel: candidate.countLabel }),
+  }));
+  const afterEvents = OPPORTUNITY_TABS.findIndex((candidate) => candidate.id === EVENTS_TAB_ID) + 1;
+  const items = [...hostItems.slice(0, afterEvents), ...contributedItems, ...hostItems.slice(afterEvents)];
 
   return (
     <>
@@ -416,20 +463,8 @@ export function OpportunityDetail(): ReactNode {
 
         <RecordTabs
           className="min-w-0 overflow-hidden lg:col-start-1"
-          // A tab's count is read from the Opportunity the page holds; zero draws
-          // nothing. The kit names a counted tab "Notes, items: 3" unless the tab
-          // says what it counts ("Messages, unread: 2").
-          items={OPPORTUNITY_TABS.map((candidate) => {
-            const label = t(candidate.labelKey);
-            const count = candidate.count?.(opportunity) ?? 0;
-            return {
-              value: candidate.id,
-              label,
-              count,
-              ...(candidate.countLabelKey ? { countLabel: t(candidate.countLabelKey, { label, count }) } : {}),
-            };
-          })}
-          value={tab?.id ?? DEFAULT_TAB_ID}
+          items={items}
+          value={tab?.id ?? contributedTab?.id ?? DEFAULT_TAB_ID}
           onValueChange={selectTab}
           idBase="crm-opportunity"
           aria-label={t('opportunity.tabs.label')}
@@ -450,6 +485,9 @@ export function OpportunityDetail(): ReactNode {
                 reload={reload}
                 orderStatuses={orderStatuses}
               />
+            ) : contributedTab ? (
+              // A contributed panel holds state about one Opportunity too.
+              <Fragment key={opportunity.id}>{contributed.renderPanel(contributedTab.id)}</Fragment>
             ) : null}
           </Suspense>
         </RecordTabs>

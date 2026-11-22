@@ -20,6 +20,11 @@ import type { OrderStatusOption } from '../../api.js';
  *
  * **A tab's `id` is part of an address**: the screen selects a tab from
  * `?tab=<id>`, so an id that is renamed breaks every link somebody saved.
+ *
+ * Other modules add tabs of their own through the `opportunity.detail.tabs`
+ * zone (`specs/183-record-tab-contributions/`); the screen puts them after
+ * Events and before Notes — they are about what is planned for the deal — and
+ * names none of them.
  */
 
 /** What the page hands every tab. */
@@ -128,17 +133,26 @@ export const OPPORTUNITY_TABS: readonly OpportunityTab[] = [
 ];
 
 /**
+ * The ids of this screen's own tabs. A tab another module contributes
+ * (`opportunity.detail.tabs`, `specs/183-record-tab-contributions/`) may not
+ * take one: the screen's own tab wins and the contribution is not drawn.
+ */
+export const OPPORTUNITY_TAB_IDS: readonly string[] = OPPORTUNITY_TABS.map((tab) => tab.id);
+
+/**
  * The tab an address selects.
  *
- * `?tab=<id>` wins when it names a tab. Without it, a visit that comes back
- * from creating a document (`?created=…`, the return address this module hands
- * the Order and Quote Request create screens) lands on the Links tab, where
- * the answer to "was it linked?" is. Anything else — a bare address, an id
- * nobody declares — is the default tab.
+ * `?tab=<id>` wins when it names a tab — one of this screen's, or one of
+ * `contributedIds`, the contributed tabs the reader can see now. Without it, a
+ * visit that comes back from creating a document (`?created=…`, the return
+ * address this module hands the Order and Quote Request create screens) lands
+ * on the Links tab, where the answer to "was it linked?" is. Anything else — a
+ * bare address, an id nobody visible declares — is the default tab, and the
+ * address is left as it is.
  */
-export function tabFromSearch(search: URLSearchParams): string {
+export function tabFromSearch(search: URLSearchParams, contributedIds: readonly string[] = []): string {
   const asked = search.get(TAB_PARAM);
-  if (asked && OPPORTUNITY_TABS.some((tab) => tab.id === asked)) return asked;
+  if (asked && (OPPORTUNITY_TAB_IDS.includes(asked) || contributedIds.includes(asked))) return asked;
   if (search.has('created')) return LINKS_TAB_ID;
   return DEFAULT_TAB_ID;
 }

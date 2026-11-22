@@ -367,6 +367,8 @@
   "panel.error": "Nie udało się wczytać zadań.",
   "panel.add": "Dodaj zadanie",
   "panel.all": "Pokaż na liście zadań",
+  "recordTab.label": "Zadania",
+  "recordTab.countLabel": "{label}, otwarte: {count}",
   "create.link.opportunity": "To zadanie zostanie powiązane z szansą sprzedaży, z której je utworzono.",
   "create.link.order": "To zadanie zostanie powiązane z zamówieniem, z którego je utworzono.",
   "create.link.quote_request": "To zadanie zostanie powiązane z zapytaniem ofertowym, z którego je utworzono.",
