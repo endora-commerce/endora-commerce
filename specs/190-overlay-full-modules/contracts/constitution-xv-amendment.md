@@ -5,12 +5,12 @@ Lands in the documentation pass (WP11), after schema discovery and the admin lay
 **Who writes what (OR-9, owner answer of 2026-11-23).** `specs/189-command-middleware/` lands its
 constitution sentences first, in its own merge request (`contracts/guard-seam-narrowing.md` §6 on
 that branch). They are three: the clause appended to XV's *Overlays are ordinary participants*
-bullet ("… never a guard seam: an overlay module does not decorate a registration a composition
-root supplies …; cross-cutting behaviour on Commands is contributed as declared command
-middleware"), the *declared command middleware* entry and its sentence in XV's *Bounded overridable
+bullet ("… never a guard seam: no module, an overlay module included, decorates the guard seams a
+composition root supplies (`commandBus`, `auditLogService`, `eventBus`, `emFactory`), and
+cross-cutting behaviour on Commands is contributed as declared command middleware"), the *declared command middleware* entry and its sentence in XV's *Bounded overridable
 surface*, and the XIII *Thin layer* sentence. This feature rewrites XV **around** them:
 
-- 189's XV sentences are kept **verbatim**, in the bullets 189 put them in. 190 does not reword,
+- 189's XV sentences are kept **verbatim** (189 §6 requires their substance; 190 keeps the words too), in the bullets 189 put them in. 190 does not reword,
   move or shorten them. If the docs pass finds one of them wrong, it raises that against 189 and
   does not fix it here.
 - **XIII is not edited by this feature.**
@@ -44,7 +44,7 @@ The quoted "current" text below is `master` at `babfae111` plus 189's sentences.
    shadowing is retired, and the sentence has been stale since 2026-09.
 2. **"Overlays are ordinary participants, under the same guards."** Insert, **before** the bullet's
    last sentence (the one 189's clause extends, "… as core — an override swaps an
-   **implementation**, never a guard seam: …"): "An overlay module is a **full module**. It may own
+   **implementation**, never a guard seam: no module … decorates the guard seams …"): "An overlay module is a **full module**. It may own
    entities and migrations, publish a port, and ship admin surfaces and palette actions, under the
    same guards as a module package. Its migrations pass the platform's foreign-schema guard with no
    deployment exemption, and every entity it registers is classified (Principle XI) or the platform
@@ -61,13 +61,14 @@ The quoted "current" text below is `master` at `babfae111` plus 189's sentences.
    **variant the owning module provides**." The sentence after it ("Schema, entity or migration
    overrides of existing core units … are never offered") is unchanged.
 4. **New bullet, "Trust follows origin."** "What a module may contribute across owners is decided by
-   where the platform discovered it (core, the deployment's overlay, or an installed package) and by
-   what the deployment's committed declaration grants it, never by anything the module declares
-   about itself. No origin may decorate a registration an installed package owns." The bullet names
-   no per-mechanism capability. Those live with their owners (189's `contracts/module-origin.md`,
-   188's policy points), so the constitution does not restate a table that two specs own (OR-10).
-   The phrase "what the deployment's committed declaration grants" covers 188's per-package grant
-   of policy participation (owner answer 5 to 188).
+   where the platform discovered it (core, the deployment's overlay, or an installed package),
+   never by anything the module declares about itself. A deployment may grant an installed package
+   one named contribution point in its committed declaration; the grant is a permission at that
+   point only and changes neither the package's origin nor any other point. No origin may decorate
+   a registration an installed package owns, and no module decorates a guard seam." The bullet
+   names no per-mechanism capability. Those live with their owners (189's
+   `contracts/module-origin.md` §4 – §5, 188's policy points and its `policyParticipantGrants`), so
+   the constitution does not restate a table that two specs own (OR-10).
 5. **Rationale.** Replace "(services / routes / config / new modules, schema deferred)" with a
    sentence citing D-297: an instance has no core tree to own a table from, so the premise of the
    deferral (D-106) does not hold there, and one module concept is cheaper than two.

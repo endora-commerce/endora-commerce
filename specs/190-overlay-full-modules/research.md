@@ -199,8 +199,9 @@ outside its gate. *Cross-deployment imports* — the other deployment is not com
 
 **Decision** (revised 2026-11-23 after owner answer 11, OR-10). 190 defines no origin or tier type and
 no derivation. It consumes `ModuleOrigin` and `ModuleEntry.origin` from
-`specs/189-command-middleware/contracts/module-origin.md`. The overlay loader stamps `'deployment'`
-from the root it found the module under, and no manifest field feeds it. 190 adds one invariant and
+`specs/189-command-middleware/contracts/module-origin.md` §1 – §6. The overlay loader stamps
+`'deployment'` through `moduleOriginOf` from discovery `overlay` (which `ModuleIdClaimOrigin`
+keeps), and no manifest field feeds it. 190 adds one invariant and
 tests it (T083): owning schema, a port or an admin layer does not change an overlay's origin
 (FR-091).
 

@@ -87,8 +87,9 @@ never judged by the guard).
 ## 6. Trust tier (consumed, OR-10)
 
 No type here. The module origin `ModuleOrigin = 'core' | 'deployment' | 'package'` and
-`ModuleEntry.origin` are `specs/189-command-middleware/contracts/module-origin.md`'s, and an overlay
-composes with `'deployment'`. The earlier `TrustTier` / `trustTierOf` is withdrawn
+`ModuleEntry.origin` (stamped through `moduleOriginOf`) are
+`specs/189-command-middleware/contracts/module-origin.md`'s, and an overlay composes with
+`'deployment'`. `ModuleIdClaimOrigin` keeps `'overlay'` (discovery provenance, 189 §6). The earlier `TrustTier` / `trustTierOf` is withdrawn
 (`contracts/trust-tier.md` §2). `MigrationOrigin` + `'overlay'` (§2, R-7) is a different union: it
 labels a migration's source and grants nothing.
 

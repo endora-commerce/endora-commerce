@@ -3,12 +3,10 @@
 **Branch**: `spec/190-overlay-full-modules` | **Date**: 2026-11-23 | **Spec**: `specs/190-overlay-full-modules/spec.md`
 **Ruling**: D-297 (retires D-106 for overlays; D-106.2 unchanged; owner clauses OR-1 – OR-13) | **Umbrella**: #1858
 
-**Note**: `update-agent-context.sh` was run on 2026-11-23, after the owner's answers, with
-`SPECIFY_FEATURE_DIRECTORY=specs/190-overlay-full-modules`. `.specify/feature.json` still names
-another feature and was left alone. Its only output is the `AGENTS.md` appendix's *Recent Changes*
-entry and the *Last updated* line. The plan adds no runtime dependency, so *Active Technologies* is
-unchanged. The first draft did not run it, because five sibling specs (186 – 189, 191) were being
-planned in parallel.
+**Note**: `update-agent-context.sh` was run on 2026-11-23 for this feature, but its `AGENTS.md`
+appendix entry is **not** committed on this branch: the lead consolidates the appendix for the
+parallel sibling specs (186 – 191) in one change. The plan adds no runtime dependency, so *Active
+Technologies* is unchanged.
 
 ## Summary
 

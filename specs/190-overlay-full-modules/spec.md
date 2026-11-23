@@ -491,7 +491,9 @@ Because the id is unchanged, the database records no pending migration and no lo
 
 - **FR-090**: An overlay module MUST compose with module origin `deployment` exactly as 189's
   contract derives it, from the root the loader found the module under and never from a manifest
-  field. This feature MUST NOT define a second origin type, tier type or derivation function.
+  field, through 189's `moduleOriginOf` (discovery `overlay` → `deployment`). This feature MUST NOT
+  define a second origin type, tier type or derivation function, and MUST keep `ModuleOrigin` (tier)
+  and `ModuleIdClaimOrigin` (discovery, still `overlay`) apart as 189 §6 does.
 - **FR-091**: An overlay that owns schema, a port or admin surfaces MUST still compose with origin
   `deployment`. Nothing in this feature widens what an installed package may do.
 
@@ -515,8 +517,10 @@ Because the id is unchanged, the database records no pending migration and no lo
   `create-your-first-module`) MUST be updated in English and Polish; the data ladder's *Who* column
   for D1/D2 gains "a deployment overlay".
 - **FR-103**: The same documentation pass MUST cover command middleware (from closed #1842): the
-  ladder lists `admit` / `observe` beside command hooks, marks guard-seam decoration deprecated per
-  #1841, and gives a migration example from a bus wrap (metrics, rate limit) to `observe` / `admit`.
+  ladder lists `admit` / `observe` beside command hooks, marks decoration of the four guard seams
+  (`GUARD_SEAM_REGISTRATIONS`: `commandBus`, `auditLogService`, `eventBus`, `emFactory`) deprecated
+  in 0.113.0 and refused in 0.114.0 per #1841, states that every other root-supplied name stays
+  decoratable, and gives a migration example from a bus wrap (metrics, rate limit) to `observe` / `admit`.
 - **FR-104**: Each implementation change MUST update, in the same merge request, the convention
   sentence it falsifies; FR-102's published pages may follow in the docs pass.
 

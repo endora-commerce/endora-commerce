@@ -105,7 +105,7 @@ built with `DEPLOYMENT=example`.
 - [ ] T079 Integration (`DEPLOYMENT` set in-process): fixture overlay entity + migration applied, cross-tenant read is "not found" [US1]
 - [ ] T080 Acceptance: fixture instance overlay with a table — `setup` green, route works [US1, SC-001]
 - [ ] T081 Convention sentences: `overlay-modules.md` D-106 paragraph → D-297, stale `services/` sentence deleted; `module-migrations.md` overlay paragraph and R2 instance paragraph [FR-101, FR-104]
-- [ ] T083 Test (OR-10, needs 189 P1; see plan C-1): a fixture overlay with one entity, one migration, a `ports.ts` and an admin layer composes with `ModuleEntry.origin === 'deployment'`, the same as a schema-less overlay. No manifest field changes it — `packages/platform/src/overlay/overlay-runtime.test.ts` [FR-090, FR-091]
+- [ ] T083 Test (OR-10, needs 189 P1; see plan C-1): a fixture overlay with one entity, one migration, a `ports.ts` and an admin layer composes with `ModuleEntry.origin === 'deployment'` (via `moduleOriginOf`) while its `ModuleIdClaimOrigin` stays `overlay` and it stays in `deploymentShippedEntries`, the same as a schema-less overlay. No manifest field changes it — `packages/platform/src/overlay/overlay-runtime.test.ts` [FR-090, FR-091]
 - [ ] T082 Dispatch `backend-suite.yml` on the branch (D-198) before merge; changeset platform `minor`
 
 ## Phase 7 — Lifecycle (#1851, US5) — after Phase 6
@@ -144,7 +144,7 @@ built with `DEPLOYMENT=example`.
 - [ ] T130 Constitution XV MINOR amendment with Sync Impact Report, version chained from `master` (C-5). Precondition: 189's XV and XIII sentences are on `master`. Keep them verbatim, place 190's text around them per `contracts/constitution-xv-amendment.md`, and leave XIII untouched (OR-9) [FR-100]
 - [ ] T131 `overlay-modules.md` *Overlay module layout* section [FR-101]
 - [ ] T132 [P] Published pages EN + PL per `contracts/docs-pass.md` table [FR-102]
-- [ ] T133 [P] Ladder: rung 2c command middleware, policy participants, rung 4a guard-seam decoration deprecated/removed, data ladder *Who* D1/D2, bus-wrap → middleware migration example [FR-103]
+- [ ] T133 [P] Ladder: rung 2c command middleware, policy participants, rung 4a decoration of the four `GUARD_SEAM_REGISTRATIONS` deprecated (0.113.0) / refused (0.114.0) with other root names still decoratable, data ladder *Who* D1/D2, bus-wrap → middleware migration example [FR-103]
 - [ ] T134 `check:docs-translations`, `check:doc-snippets`, `check:language`, `check:naming`, `test/unit/docs/`, docs build green; close #1858
 
 ## Dependencies & execution
