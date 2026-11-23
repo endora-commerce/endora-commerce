@@ -119,7 +119,7 @@ export function FeedPriceBookField(props: FeedPriceBookFieldProps): ReactNode {
         {t('feeds.settings.priceBook.hint')}
       </p>
       {/* Mounted empty so the reason is announced when it appears (WCAG 4.1.3). */}
-      <p id={statusId} role="status" aria-live="polite" className={selectedReason ? 'text-xs text-amber-700 dark:text-amber-400' : 'text-xs text-muted-foreground'}>
+      <p id={statusId} role="status" aria-live="polite" className={selectedReason ? 'text-xs text-amber-700' : 'text-xs text-muted-foreground'}>
         {notice}
       </p>
     </div>

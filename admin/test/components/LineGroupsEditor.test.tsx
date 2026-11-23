@@ -73,7 +73,6 @@ interface HarnessProps {
   maxGroups?: number;
   onChange?: (next: { groups: LineGroupsEditorGroup[]; lines: Line[] }) => void;
   renderSummary?: (lines: readonly Line[], section: { kind: 'group' | 'ungrouped'; name: string | null }) => ReactElement;
-  dark?: boolean;
 }
 
 let nextKey = 0;
@@ -82,7 +81,7 @@ function Harness(props: HarnessProps): ReactElement {
   const [groups, setGroups] = useState(props.groups ?? GROUPS);
   const [lines, setLines] = useState(props.lines ?? LINES);
   return (
-    <div className={props.dark ? 'dark' : undefined}>
+    <div>
       <LineGroupsEditor<Line>
         groups={groups}
         lines={lines}
@@ -262,8 +261,8 @@ describe('LineGroupsEditor', () => {
     ]);
   });
 
-  it.each([false, true])('has no automated accessibility violation (dark: %s)', async (dark) => {
-    const { container } = renderEditor({ dark });
+  it('has no automated accessibility violation', async () => {
+    const { container } = renderEditor({});
     await expectNoAxeViolations(container);
   });
 

@@ -455,7 +455,7 @@ export function PageBuilderHeaderActions({
                 {t('pageBuilder.applyTemplate.description')}
               </p>
               {canvasEmpty ? null : (
-                <p id={warningId} className="text-sm text-amber-700 dark:text-amber-400">
+                <p id={warningId} className="text-sm text-amber-700">
                   {t('pageBuilder.applyTemplate.replaceWarning')}
                 </p>
               )}

@@ -200,9 +200,9 @@ async function compileInstance(dir: string): Promise<string> {
  * Every `--primary` the compiled cascade declares **under one selector**, in
  * source order.
  *
- * Selector-aware, and it has to be: the emitted cascade is `:root`, then
- * `.dark`, then the client's `:root`. A flat scan for the last `--primary`
- * answers `.dark`'s in the instance that overrides nothing, which is a true
+ * Selector-aware, and it has to be: the emitted cascade holds the package's
+ * `:root`, then other selectors' rules, then the client's `:root`. A flat scan
+ * for the last `--primary` can answer another selector's, which is a true
  * statement about a rule that has nothing to do with the claim. "The last
  * declaration wins" is a fact about one selector.
  */
@@ -311,10 +311,9 @@ describe('the design system belongs to a package and an instance overrides it by
     expect(radiiOf(defaulted, OVERRIDDEN_CLASS)).not.toContain(CLIENT_RADIUS);
     expect(radiiOf(defaulted, OVERRIDDEN_CLASS).length).toBe(1);
 
-    // And the token override reaches `:root` alone. A client restyling the
-    // light palette has not silently taken the package's dark one with it.
-    expect(declarationsUnder(overridden, '.dark', '--primary')).toEqual(
-      declarationsUnder(defaulted, '.dark', '--primary'),
-    );
+    // And the admin has one theme (#1810): the built stylesheet carries no
+    // `.dark` token block for a client override to miss.
+    expect(declarationsUnder(defaulted, '.dark', '--primary')).toEqual([]);
+    expect(declarationsUnder(overridden, '.dark', '--primary')).toEqual([]);
   }, 180_000);
 });

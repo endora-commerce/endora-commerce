@@ -116,9 +116,9 @@ export function PropagationOutcomes(props: PropagationOutcomesProps): ReactNode 
                   aria-hidden="true"
                   className={
                     tone === 'done'
-                      ? 'mt-0.5 size-4 shrink-0 text-emerald-700 dark:text-emerald-400'
+                      ? 'mt-0.5 size-4 shrink-0 text-emerald-700'
                       : tone === 'refused'
-                        ? 'mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400'
+                        ? 'mt-0.5 size-4 shrink-0 text-amber-700'
                         : 'mt-0.5 size-4 shrink-0 text-muted-foreground'
                   }
                 />

@@ -23,7 +23,7 @@ import {
  *
  * jsdom computes no colours, so axe's `color-contrast` rule is off in the shared helper. The
  * muted text the editor adds (source lines, notes, read-only and inherited controls) is checked
- * here from the theme's tokens instead, in the light and the dark theme: text on the field
+ * here from the theme's tokens instead (the admin has one theme, #1810): text on the field
  * background, on the sunken read-only control and on the page.
  */
 
@@ -72,7 +72,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  document.documentElement.classList.remove('dark');
 });
 
 /**
@@ -140,20 +139,14 @@ describe('the product editor has no axe violations (feature 174, T134, SC-013)',
     await expectNoAxeViolations();
   }, 30_000);
 
-  it('in the dark theme at Channel × language', async () => {
-    document.documentElement.classList.add('dark');
-    renderEditor(ProductEditor, { url: URL_CL });
-    await settled();
-    await expectNoAxeViolations();
-  }, 30_000);
 });
 
 // --- Muted-text contrast from the theme tokens (jsdom cannot measure it) ----------------------
 
 const THEME = readFileSync(resolve(process.cwd(), '../packages/admin-kit/theme.css'), 'utf8');
 
-/** The `--name: H S% L%` channels of one theme block (`:root` or `.dark`). */
-function tokens(selector: ':root' | '.dark'): Record<string, [number, number, number]> {
+/** The `--name: H S% L%` channels of one theme block. */
+function tokens(selector: ':root'): Record<string, [number, number, number]> {
   const start = THEME.search(new RegExp(`^${selector.replace('.', '\\.')}\\s*\\{`, 'm'));
   expect(start, `${selector} block in theme.css`).toBeGreaterThanOrEqual(0);
   const body = THEME.slice(start, THEME.indexOf('}', start));
@@ -179,8 +172,8 @@ function contrast(a: [number, number, number], b: [number, number, number]): num
   return (hi + 0.05) / (lo + 0.05);
 }
 
-describe('muted text in the editor meets 4.5:1 in both themes (SC-013, WCAG 1.4.3)', () => {
-  it.each([':root', '.dark'] as const)('%s: muted text on the field, the read-only control and the page', (selector) => {
+describe('muted text in the editor meets 4.5:1 in the theme (SC-013, WCAG 1.4.3)', () => {
+  it.each([':root'] as const)('%s: muted text on the field, the read-only control and the page', (selector) => {
     const theme = tokens(selector);
     for (const surface of ['card', 'secondary', 'background'] as const) {
       expect(theme['muted-foreground'], 'muted-foreground').toBeDefined();
