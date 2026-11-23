@@ -125,7 +125,8 @@ packages/platform/src/
 │   └── index.ts                        # + CommandRefusedError, handler types, currentCommandMiddlewareOrigin
 ├── kernel/
 │   ├── module-context.ts               # + ctx.commandMiddleware; decorate: P2 warning, P3 refusal
-│   └── compose.ts                      # ModuleEntry.origin; seal the middleware registry; origin map
+│   └── compose.ts                      # ModuleEntry.origin + installedPackageName; seal the middleware
+│                                       #   registry; one origin map for every registry seal (188's too)
 ├── lifecycle/services/module-origin.ts # + moduleOriginOf (discovery → tier, one way; module-origin.md §6)
 ├── overlay/overlay-runtime.ts          # origin: 'deployment'
 ├── packages/package-runtime.ts         # origin: 'core' | 'package' via first-party match

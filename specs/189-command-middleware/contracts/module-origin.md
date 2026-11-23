@@ -29,6 +29,11 @@ export type ModuleOrigin = (typeof MODULE_ORIGINS)[number];
   `package.json` `name` and its `endora.id` equal one entry of
   `FIRST_PARTY_MODULE_PACKAGES`. Otherwise it sets `origin: 'package'`. It keeps
   `installedPackage: true` in both cases.
+- `ModuleEntry` also gains `readonly installedPackageName?: string`: the `name` from the installed
+  package's own `package.json` (not the dependency key it was installed under, so an alias shows
+  its real name). **Only the package loader sets it**; the generated composer and the overlay
+  loader leave it absent. It is what a grant is matched against (§5 item 3). Whichever of 188's P1
+  and 189's P1 lands first adds it, and the other consumes it.
 - `FIRST_PARTY_MODULE_PACKAGES: readonly { moduleId: string; packageName: string }[]` is a
   generated file, `packages/platform/src/packages/first-party-modules.generated.ts`. It is rendered
   by `composer:generate` from the workspace by the rule the CLI's release index uses
@@ -40,8 +45,10 @@ export type ModuleOrigin = (typeof MODULE_ORIGINS)[number];
 - Both loaders compute the value through one function, `moduleOriginOf` (§6), and do not spell the
   mapping themselves.
 - `composeModules` resolves each entry's origin as `entry.origin ?? (entry.overlay ? 'deployment'
-  : entry.installedPackage ? 'package' : 'core')`. It hands the map to the middleware registry's
-  `seal` and to nothing else.
+  : entry.installedPackage ? 'package' : 'core')`. It hands the map to the seal of each contribution
+  registry that reads origin, and to nothing else: the command-middleware registry's `seal` (this
+  feature) and `PolicyRegistry.seal` (`specs/188-policy-points/`). Both receive the same map; neither
+  derives origin itself.
 
 ## 3. What origin does not do
 
@@ -74,14 +81,14 @@ not redefine it. 190 documents them as written here.
 | Concept | Word | Command middleware (189) | Policy points (188) |
 | --- | --- | --- | --- |
 | Trust tier | `origin`: `core` / `deployment` / `package` | `admit`: core + deployment; `observe`: all | participants: core + deployment; a `package` only with a per-package grant (§5) |
-| Per-point grant | §5, in the deployment's `divergence.ts` | none: D-296.3 is not grantable | per 188 (owner ruling of 2026-11-23, 188 row 5) |
-| Ordering | transitive manifest `dependencies`; registration order within a module | `admit` only | `chain` combiner only |
-| Tie-break | `<point>Order` in the deployment's `divergence.ts`, first runs first | `commandMiddlewareOrder: string[]` | per 188 |
-| Unordered pair | composition refusal naming both modules and the remedy | `UnorderedCommandMiddlewareError` | per 188 |
+| Per-point grant | §5, in the deployment's `divergence.ts` | none: D-296.3 is not grantable | `policyParticipantGrants`, per (point, package); ungranted → `PackagePolicyParticipantNotGrantedError`, malformed or stale → `InvalidPolicyParticipantGrantError` |
+| Ordering | transitive manifest `dependencies`; registration order within a module | `admit` only | `chain` combiner only, in origin tiers `core`, then `package`, then `deployment` (the deployment outermost), and by dependencies within a tier |
+| Tie-break | `<point>Order` in the deployment's `divergence.ts`, first runs first | `commandMiddlewareOrder: string[]` | `policyOrder: Record<pointId, string[]>`, within a tier; a mixed-tier entry is refused |
+| Unordered pair | composition refusal naming both modules and the remedy | `UnorderedCommandMiddlewareError` | `UnorderedPolicyParticipantsError`; contradiction `PolicyOrderContradictionError` |
 | Activation | `isPresent(moduleId)` asked per call; absent is skipped | per run | per evaluation |
-| Time budget | platform default plus optional `timeoutMs` under a cap | `admit` 100/500 ms, `observe` 1000/5000 ms | per 188 |
+| Time budget | platform default plus optional `timeoutMs` under a cap | `admit` 100/500 ms, `observe` 1000/5000 ms | per point, `budgetMs`: default 500 ms, bounds 1 to 10 000 ms, per participant, with an abort signal |
 | Failure | fail closed unless the owner declares otherwise | `admit` always fails closed | owner-declared, default `fail-closed` |
-| Report | divergence kind per mechanism, rung from `SEAM_CLASSIFICATION` | `command-middleware`, rung 2 | per 188 |
+| Report | divergence kind per mechanism, rung from `SEAM_CLASSIFICATION` | `command-middleware`, rung 2 | `policy-participant` and `policy-participant-grant`, both rung 3 |
 
 The values of the type are `core`, `deployment` and `package`. A consumer that shows origin (an API
 field, a screen, a log line, a report column) uses these three words. It does not use `overlay`
@@ -110,7 +117,8 @@ its refusal errors. This contract states what a grant **is**, for every point:
    (`PackageDecorationNotOfferedError`, `ForeignDecorationError`). A point that wants grants says so
    in its own specification, and its grant is separate from every other point's.
 3. **A grant names the package the way §2 names a first-party package**: by its module id **and**
-   its installed `package.json` `name`, both of which must match the composed entry. An npm alias
+   its installed `package.json` `name`, both of which must match the composed entry
+   (`ModuleEntry.id` and `ModuleEntry.installedPackageName`, §2). An npm alias
    therefore cannot borrow another package's grant.
 4. **A grant applies to `package` only.** A grant that names a module whose derived origin is
    `core` or `deployment` grants nothing and is refused at composition as misdirected, so that a

@@ -146,17 +146,23 @@ fails for the stated reason first. `[FR-…]` is the trace.
   `packages/platform/src/packages/package-runtime.origin.test.ts` covers a first-party name+id
   giving `core`, an alias whose `package.json` name differs giving `package`, and an id match with a
   wrong name giving `package`. A paid-module fixture (a non-workspace package with an
-  `@endora-commerce/` name) gives `package` (D-296.8). **Grant case** (D-296.10,
-  `contracts/module-origin.md` §5), written by whichever of this P1 and 188's P1 merges second: a
-  package granted policy participants in the divergence declaration still has origin `package` in
-  the origin map, and an `admit` it declares is still refused with `CommandMiddlewareOriginError`.
+  `@endora-commerce/` name) gives `package` (D-296.8). A further
+  `package-runtime.origin.test.ts` case asserts that `installedPackageName` is the installed
+  package's own `name` (an alias shows the real name) and that core and overlay entries leave it
+  absent. **Grant case** (D-296.10, `contracts/module-origin.md` §5), written by whichever of this P1
+  and 188's P1 merges second: a package granted policy participants in the divergence declaration
+  still has origin `package` in the origin map, and an `admit` it declares is still refused with
+  `CommandMiddlewareOriginError`.
   Add a table test for `moduleOriginOf` (`contracts/module-origin.md` §6, all four rows) in
   `packages/platform/src/lifecycle/services/module-origin.test.ts`, and a case that an installed
   first-party package keeps `ModuleIdClaimOrigin` `'package'` (so `deploymentShippedEntries` still
   excludes it) while its `ModuleEntry.origin` is `'core'`. [FR-004]
 - [ ] T041 [US4] GREEN: `moduleOriginOf` beside `ModuleIdClaimOrigin` in
   `packages/platform/src/lifecycle/services/module-origin.ts`, with the one-sentence doc addition
-  on `ModuleIdClaimOrigin` (§6); `ModuleEntry.origin` in `compose.ts`; `origin: moduleOriginOf('overlay', false)` in
+  on `ModuleIdClaimOrigin` (§6); `ModuleEntry.origin` and `ModuleEntry.installedPackageName`
+  (set by the package loader only, from the installed `package.json` `name`; if 188's P1 has already
+  added it, consume it) in `compose.ts`; the same origin map handed to every registry seal that
+  reads it (this registry, and `PolicyRegistry.seal` once 188 lands); `origin: moduleOriginOf('overlay', false)` in
   `packages/platform/src/overlay/overlay-runtime.ts`; the first-party match through
   `moduleOriginOf('package', match)` in `packages/platform/src/packages/package-runtime.ts`; `backend/scripts/generate-composer.ts`
   renders `packages/platform/src/packages/first-party-modules.generated.ts`, imports the
