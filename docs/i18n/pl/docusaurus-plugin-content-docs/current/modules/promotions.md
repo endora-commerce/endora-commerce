@@ -109,6 +109,51 @@ jej nazwy, gdy kuponu nie było — nigdy identyfikator promocji, który trafia 
 | `GET /api/v1/admin/promotions/coupons/:couponId/stats` | Statystyki wykorzystania jednego kuponu |
 | `GET/POST/PUT/DELETE /api/v1/admin/promotion-rules[/:id]` | Biblioteka nazwanych reguł |
 
+## Akcje dostępne dla hooków
+
+Inny moduł — moduł nakładki wdrożenia albo zainstalowany pakiet — może brać udział w opisanych niżej
+zapisach promocji i kuponów przez hook poleceń. Rejestruje hook wobec referencji z
+`PROMOTION_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`) i musi wymienić `promotions` w
+`dependencies` swojego manifestu. Hook `beforeCommit` widzi zapis w niezatwierdzonej transakcji. Może
+zapisywać własne tabele albo uruchomić polecenie przez `ctx.run` i może odrzucić zapis własnym kodem
+błędu, co wycofuje cały zapis. Jak hooki są uruchamiane, porządkowane i odrzucane, opisuje strona
+architektury *Command Bus*.
+
+| Akcja | Referencja | Zapisywana przez | Dane hooka |
+| --- | --- | --- | --- |
+| `promotion.create` | `PROMOTION_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/promotions` | podsumowanie promocji |
+| `promotion.update` | `PROMOTION_HOOKABLE_ACTIONS.update` | `PUT /api/v1/admin/promotions/:id` oraz `POST /api/v1/admin/promotions` z kodem, który już istnieje | podsumowanie promocji, `changedFields`, `activationChange` |
+| `coupon.create_single` | `PROMOTION_HOOKABLE_ACTIONS.createCoupon` | `POST /api/v1/admin/promotions/:id/coupons` | `promotionId`, `couponId`, `code`, `limitScope` |
+| `coupon.generate_batch` | `PROMOTION_HOOKABLE_ACTIONS.generateCouponBatch` | `POST /api/v1/admin/promotions/:id/coupon-batches` | `promotionId`, `batchId`, `generated`, `limitScope`, `codes` |
+
+Podsumowanie promocji to jej identyfikatory, kody i typ — nigdy nazwa, opis, kwoty ani ustawienia
+akcji. Zawiera `promotionId`, `code`, `kind`, `actionType`, `isActive`, `ruleId`, identyfikatory
+kierowania (`organizationId`, `customerGroupId`, `categoryId`, `productId`), `currency`, `validFrom` i
+`validUntil`. Zawiera też `usageLimitScopes`, czyli nazwy limitów, które promocja ustawia (`global`,
+`per_organization`, `per_customer`), bez ich wartości. Nie ma osobnego zapisu aktywacji: włączenie lub
+wyłączenie promocji jest aktualizacją, a `activationChange` ma wartość `activated`, `deactivated` albo
+`null`. Nowa promocja jest przypisywana do domyślnego kanału sprzedaży dopiero po zatwierdzeniu jej
+zapisu, więc hook tego przypisania nie widzi.
+
+Wszystkie cztery akcje oferują obie fazy. Odbiorca `afterCommit` jest obsługiwany przez kolejkę
+dostarczeń platformy po zatwierdzeniu zapisu, co najmniej raz. Jego `data` zawiera tylko
+identyfikatory i kody z zamkniętego zbioru:
+
+- dla promocji `promotionId`, `kind`, `actionType`, `isActive`, `ruleId` i `usageLimitScopes`, a przy
+  aktualizacji także `changedFields` i `activationChange`;
+- dla kuponu `promotionId`, `couponId` i `limitScope`;
+- dla partii `promotionId`, `batchId`, `generated` i `limitScope`.
+
+Kod promocji lub kuponu to dowolny tekst, więc nigdy nie trafia do kolejki dostarczeń. Zmiany
+zgłoszone przez hook trafiają do jedynego wpisu audytu zapisu jako nazwy, w
+`extensions.<moduleId>.changedFields`. Oba zapisy kuponów są rejestrowane wobec swojej promocji
+(`objectType: 'promotion'`), tak jak przed przejściem na polecenia. Żadne ciało żądania HTTP nie
+przenosi jeszcze danych rozszerzeń (`extensions`).
+
+Usunięcie promocji, hurtowa aktywacja kuponów i zapisy nazwanych reguł nie są zadeklarowane jako
+dostępne dla hooków. Nie jest nim też realizacja kuponu, którą złożenie zamówienia zapisuje we
+własnej transakcji.
+
 ## Odmowy
 
 Każda odmowa ma własny kod i zdanie po angielsku i po polsku, które wymienia wartości z `details`.

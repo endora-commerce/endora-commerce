@@ -114,6 +114,55 @@ when no coupon was applied — never the promotion's id, which travels only as
 | `GET /api/v1/admin/promotions/coupons/:couponId/stats` | Usage statistics of one coupon |
 | `GET/POST/PUT/DELETE /api/v1/admin/promotion-rules[/:id]` | Named-rule library |
 
+## Hookable actions
+
+Another module — a deployment's overlay module or an installed package — may
+take part in the promotion and coupon writes below through a command hook. It
+registers the hook against the ref in `PROMOTION_HOOKABLE_ACTIONS`
+(`@endora-commerce/contracts`) and must list `promotions` in its manifest
+`dependencies`. A `beforeCommit` hook sees the write on the uncommitted
+transaction. It may write its own tables or run a Command through `ctx.run`, and
+it may refuse the write with a code of its own, which rolls the whole write
+back. How hooks run, are ordered and are refused is on the *Command Bus*
+architecture page.
+
+| Action | Ref | Written by | Hook data |
+| --- | --- | --- | --- |
+| `promotion.create` | `PROMOTION_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/promotions` | the promotion summary |
+| `promotion.update` | `PROMOTION_HOOKABLE_ACTIONS.update` | `PUT /api/v1/admin/promotions/:id`, and `POST /api/v1/admin/promotions` with a code that already exists | the promotion summary, `changedFields`, `activationChange` |
+| `coupon.create_single` | `PROMOTION_HOOKABLE_ACTIONS.createCoupon` | `POST /api/v1/admin/promotions/:id/coupons` | `promotionId`, `couponId`, `code`, `limitScope` |
+| `coupon.generate_batch` | `PROMOTION_HOOKABLE_ACTIONS.generateCouponBatch` | `POST /api/v1/admin/promotions/:id/coupon-batches` | `promotionId`, `batchId`, `generated`, `limitScope`, `codes` |
+
+The promotion summary is the promotion's ids, codes and type, and never its
+name, description, amounts or action settings. It holds `promotionId`, `code`,
+`kind`, `actionType`, `isActive`, `ruleId`, the targeting ids
+(`organizationId`, `customerGroupId`, `categoryId`, `productId`), `currency`,
+`validFrom` and `validUntil`. It also holds `usageLimitScopes`, which names the
+caps the promotion sets (`global`, `per_organization`, `per_customer`) without
+their limits. There is no separate activation write: switching a promotion on
+or off is an update, and `activationChange` is `activated`, `deactivated` or
+`null`. A new promotion is bound to the default sales channel after its write
+commits, so a hook does not see that binding.
+
+All four actions offer both phases. An `afterCommit` handler is delivered
+through the platform's outbox after the write commits, at least once. Its
+`data` carries ids and codes from a closed set only:
+
+- a promotion's `promotionId`, `kind`, `actionType`, `isActive`, `ruleId` and
+  `usageLimitScopes`, plus `changedFields` and `activationChange` on an update;
+- a coupon's `promotionId`, `couponId` and `limitScope`;
+- a batch's `promotionId`, `batchId`, `generated` and `limitScope`.
+
+A promotion or coupon code is free text, so it never reaches the outbox. A
+hook's noted changes appear in the write's single audit entry as names, under
+`extensions.<moduleId>.changedFields`. Both coupon writes are recorded against
+their promotion (`objectType: 'promotion'`), as they were before they became
+Commands. No HTTP body carries extension input (`extensions`) yet.
+
+The promotion delete, the bulk coupon activation and the named-rule writes are
+not declared hookable. Neither is a coupon's redemption, which order placement
+records in its own transaction.
+
 ## Refusals
 
 Each refusal has its own code and a sentence in English and Polish, which

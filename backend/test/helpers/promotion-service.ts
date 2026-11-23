@@ -5,6 +5,8 @@ import type {
 } from '@endora-commerce/contracts';
 import type { AuditLogService } from '@endora-commerce/platform/composition';
 import type { OrganizationReadPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import { getTenantContext, withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { SalesChannelMembershipService } from '../../src/kernel/sales-channels/sales-channel-membership.service.js';
 import { PromotionService } from '../../../packages/modules/promotions/src/backend/services/promotion-service.js';
 import type { BackendServerHandle } from './test-server.js';
@@ -50,6 +52,7 @@ export function promotionServiceFor(
     dictionaryValidator: DictionaryValidator;
     organizationReadPort: OrganizationReadPort;
     auditLogService: AuditLogService;
+    commandBus: CommandBus;
   };
   return new PromotionService(
     h.em,
@@ -62,7 +65,29 @@ export function promotionServiceFor(
     async (orgId: string) =>
       (await cradle.organizationReadPort.loadEffectiveOrganization(orgId))?.status ?? null,
     cradle.auditLogService,
+    systemScopedWhenUnscoped(cradle.commandBus),
   );
+}
+
+/**
+ * The composed bus, for a suite that calls the service outside any request
+ * (issue #1844).
+ *
+ * The promotion create and edit became Commands, and `CommandBus.run` refuses
+ * without an ambient TenantContext — fail-closed, Principle XI. Production has
+ * one on every path that reaches these writes, the admin routes; the suites
+ * this helper serves seed promotions from a bare test body, which has none.
+ * Such a call runs as the system, under a named reason — the one thing a
+ * suite could not otherwise say — while a call that already has a context
+ * keeps its own actor.
+ */
+export function systemScopedWhenUnscoped(bus: Pick<CommandBus, 'run'>): Pick<CommandBus, 'run'> {
+  return {
+    run: (command) =>
+      getTenantContext()
+        ? bus.run(command)
+        : withSystemScope('test: a promotions suite seeding through PromotionService', () => bus.run(command)),
+  };
 }
 
 /**
