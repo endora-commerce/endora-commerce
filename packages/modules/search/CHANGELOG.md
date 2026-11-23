@@ -1,5 +1,94 @@
 # @endora-commerce/mod-search
 
+## 0.112.0
+
+### Minor Changes
+
+- 9eaa409: Storefront search filters now count the search results, not the whole catalog (issue #1326). Before, a search with no results still showed counts such as "Color (40)".
+
+  - `GET /api/v1/catalog/filters` accepts `q`. With `q`, each option count covers only the products that text query matches, and an empty result returns no filters. The matching products are the same ones `GET /api/v1/catalog/products?q` lists: from the search index when it answers the listing, from the database text match when the listing falls back to it. Counts are still computed in the database, over the products the caller may see. Without `q` nothing changes.
+  - `CatalogQueryService.getFilterDefinitions(ctx, narrowing?)` takes an optional `FilterNarrowing` (`{ q }` or `{ ids }`; `ids: []` means no products).
+  - **Breaking change** for anyone who implements `SearchQueryPort` outside this repository: the port has a new required method, `matchingProductIds({ q }, ctx)`. It returns `{ status: 'ok', ids }` (at most `SEARCH_MATCHING_IDS_MAX`, 1000, in relevance order) or `{ status: 'index-unavailable', reason }`. **What to do:** add the method, applying the same filter as your `listProducts` for the same `q`. Callers of the port need no change.
+
+- 8b29aae: Pricing can name an Organization other than the viewer's. `@endora-commerce/platform/http` exports `pricedAudienceOf(request)` and `providePricingSubjectResolver(resolver)` (type `PricingSubjectResolver`): without a contributed resolver `pricedAudienceOf` equals `productAudienceOf`; with one it adds `ProductAudience.pricingOrganizationId`, which visibility never reads. `ListingPriceViewerContext` gains an optional `displayModeOrganization`, so the price display mode can be resolved for the viewer while the price is resolved for another Organization. The catalogue listing and product page, cross-sell tiles, search hits and type-ahead, comparisons and the storefront resolved-price and display-mode endpoints now price for `pricingOrganizationId ?? organizationId` and resolve the display mode for the viewer. Nothing changes for a request no resolver names a pricing subject for; no new cache key is introduced.
+
+### Patch Changes
+
+- 4b483d8: Corrected setting and module descriptions that no longer matched the code (issue #1335). `search.llm.enabled` now says it needs the `search.llm.embedder_credentials` reference, not the three `embedder.*` settings it replaced. `inventory.low_stock_alert_recipient_email` now says an empty value falls back to the `INVENTORY_LOW_STOCK_RECIPIENT` environment variable, and that no alert is sent when that is unset too. The global search module and its palette action now list projects and tasks among the searchable record types. Both settings now have Polish labels on the Settings screen.
+- 7be07f6: Shorter copy on the catalog screens (issues #1458 and #1459, UX audit CAT-13 and CAT-14), in English and Polish.
+
+  - **Product editor:** the sentences under Gallery, Attachments, Attributes, Categories and SEO that repeated the _Applies immediately_, _Unsaved_ and _Global only_ badges are gone, and so are the notes under _Minimum order quantity_ and the packaging units' minimum. Field notes are one clause; the longer explanation of _Status_, _Publication window_ and _Returnable_ moved behind an ⓘ beside the label. The confirmations for duplicate, archive and restore, the unsaved-changes question and the inventory and order-rules notes are shorter. The SKU field is labelled _SKU_; the create form says once, under it, that it cannot be changed later. The base-price panel explains what a base price is only while the product has none.
+  - **Products list:** shorter bulk-edit hints and archive / restore confirmations.
+  - **Attributes, price lists, warehouses, custom fields, product feeds, import/export, assets:** shorter help texts and notices; the product feed FTP passive mode, the only supported one, is shown as text instead of a disabled one-option select.
+  - **Settings and SEO:** the descriptions of _Completeness check when switching a product on_ and of the LLM search toggle are one or two short sentences, the same English text in the manifest (what the API serves) and in the admin bundle, and so are the two notices above the robots.txt preview.
+
+- df16345: The Settings screen shows less on every row (UX audit SHELL-09, SHELL-23). A row no longer carries a value-type badge, a source badge or a "Default … · 0 per-channel overrides" footer: one muted line appears only when the value in force differs from the default or channels override it. A changed row is marked by a bar at its edge, a switched-off module's group states its read-only reason once, the "Editing for" channel picker sits in the toolbar beside the search, and the hard-coded "system" group badge is gone. Single-line controls sit to the right of the setting's name.
+
+  A setting's description is now at most 120 characters (`check:text-budget`), with the long explanations left to each module's documentation page, and it never falls back to another language: in Polish the screen shows the Polish description or none. Every module that declares settings now ships `settingLabels.<code>.name` and `.description` in English and Polish, so the screen no longer shows English names in Polish. Where a manifest declared one of the shortened descriptions, its `description` is the same shorter sentence.
+
+- 9eee781: The Admin UI in Polish no longer shows four kinds of text in English (issue #1809).
+
+  - **Order statuses** are named in the admin's language on the Orders list, the order detail, the bulk status dialog and the Order statuses screen. The names were always stored per language; the screens read the English one.
+  - **CMS hooks**: the 23 seeded hooks, such as "Search Page Bottom", are named and described in the admin's language until an operator renames them. A renamed or custom hook keeps the operator's text.
+  - **Transactional e-mails**: each e-mail's name, description and the reason it cannot be switched off come from the sending module's bundle (`transactionalEmails.<code>.name`, `.description`, `.reason`), in the language the response is read in.
+  - **Platform → Modules**: each module's name, description and the reason it cannot be switched off come from the module's own bundle (`module.name`, `module.description`, `module.nonDeactivatableReason`). `GET /api/v1/admin/modules` gains an optional `nonDeactivatableReason` field on each row. `auth`, `currencies`, `email` and `languages` now ship translation bundles.
+
+  Each of these falls back to the English declared in code when a bundle has no entry. `endora new module` now writes `module.description` into the scaffolded bundles.
+
+- Updated dependencies [c878440]
+- Updated dependencies [65f9a7b]
+- Updated dependencies [3fdbe86]
+- Updated dependencies [bfc68c7]
+- Updated dependencies [9eaa409]
+- Updated dependencies [1042e2a]
+- Updated dependencies [3872f3d]
+- Updated dependencies [bbfcd80]
+- Updated dependencies [41b598c]
+- Updated dependencies [467b075]
+- Updated dependencies [a56109e]
+- Updated dependencies [c15eb60]
+- Updated dependencies [33db45a]
+- Updated dependencies [074f500]
+- Updated dependencies [cec9beb]
+- Updated dependencies [90320fd]
+- Updated dependencies [42febee]
+- Updated dependencies [98c0411]
+- Updated dependencies [a8261aa]
+- Updated dependencies [f64646d]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [ee6062c]
+- Updated dependencies [4e668b5]
+- Updated dependencies [843ed42]
+- Updated dependencies [6155f4b]
+- Updated dependencies [5850aac]
+- Updated dependencies [8a5725e]
+- Updated dependencies [f915a24]
+- Updated dependencies [8a06dc5]
+- Updated dependencies [9eee781]
+- Updated dependencies [bd47236]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [398e6d2]
+- Updated dependencies [51c5072]
+- Updated dependencies [2e287a5]
+- Updated dependencies [9d6f006]
+- Updated dependencies [49328cf]
+- Updated dependencies [b3d4843]
+- Updated dependencies [f74fe34]
+- Updated dependencies [19eb7c0]
+- Updated dependencies [0fbf186]
+- Updated dependencies [27b977d]
+- Updated dependencies [5e2a12a]
+- Updated dependencies [5518a09]
+- Updated dependencies [5e380e3]
+- Updated dependencies [bfab5bd]
+  - @endora-commerce/platform@0.112.0
+  - @endora-commerce/contracts@0.112.0
+
 ## 0.111.0
 
 ### Patch Changes

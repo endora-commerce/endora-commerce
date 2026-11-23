@@ -1,5 +1,351 @@
 # @endora-commerce/mod-returns
 
+## 0.112.0
+
+### Minor Changes
+
+- 8a06dc5: **Returns: notifications, and complaints about goods bought elsewhere, with attachments and clauses.**
+
+  **Breaking for API callers: `attachmentAssetIds` and the JSON `{ assetId }` attachment body are removed.** They linked any asset id without checking that it existed, belonged to the caller or was a file a case may hold, and nothing displayed the link. Files are now uploaded and stored by `returns` itself.
+
+  - Old: `POST /api/v1/returns` with `{ …, attachmentAssetIds: [assetId] }`, and `POST /api/v1/returns/:id/attachments` with the JSON body `{ assetId }` (`addReturnAttachmentRequestSchema`).
+  - New: upload each file first with `POST /api/v1/returns/uploads` (multipart: `file`, `type` = `photo` | `proof_of_purchase` | `other`), which answers `{ uploadId, … }`. Then file the case with `{ …, attachments: [{ uploadId }] }`. To add a file to a case already filed, post it as multipart (`file`, `type`) to `POST /api/v1/returns/:id/attachments`. Download with `GET /api/v1/returns/:id/attachments/:attachmentId/file` (customer) or `GET /api/v1/admin/returns/:id/attachments/:attachmentId/file` (admin).
+  - `returnAttachmentSchema` no longer carries `assetId`. It now carries `type`, `filename`, `mimeType` and `sizeBytes`. `addReturnAttachmentRequestSchema` is gone; `returnUploadSchema`, `returnAttachmentUploadFieldsSchema` and `RETURN_ATTACHMENT_LIMITS` are new. Limits: JPEG, PNG, WebP or PDF, judged by content; 10 MB per file, 30 MB per submission, 10 files per case. A refused file answers `422 RETURN_ATTACHMENT_REJECTED`.
+  - **Upgrade note:** attachment rows written by the old API keep their `asset_id`. The migration fills in their `organization_id` from their case and types them `other`. They stay in the database but are not listed on the case and cannot be downloaded, because no stored file stands behind them.
+
+  **`@endora-commerce/mod-returns`**
+
+  - **Notifications.** Four transactional e-mails, editable and switchable under _Transactional emails_ (group `returns`), in English and Polish:
+    - `return_new_case`, to the new setting `returns.new_case_recipients` (`string_list`, up to 10 addresses, per sales channel).
+    - `return_submitted`, to the filer.
+    - `return_comment_added`, for a customer-visible comment posted with `notifyCustomer: true`.
+    - `return_status_entered`, for a status marked `notifyCustomerOnEntry`.
+    - Administrators holding `returns:read` also get a bell entry per new case, while `admin_notifications` is present.
+    - Delivery runs on the `returns-notifications` BullMQ queue, after commit.
+    - `GET /api/v1/admin/returns/notification-health` reports channels whose new-case e-mail goes to nobody.
+  - **Who authorized a case.** `return_cases.authorized_by_admin_user_id` is recorded on entering _Authorized_. Existing cases are back-filled from the audit log. The admin list, the detail and the CSV export (`reference`, `authorizedBy`) show it. Every case has a `reference`: the RMA number, else `#` and the first eight characters of the id.
+  - **Complaints without a platform order.** Switched on per channel with `returns.off_platform_complaints_enabled` (default off); `returns.proof_of_purchase_required` makes a proof-of-purchase file mandatory.
+    - `POST /api/v1/returns` accepts `createOffPlatformComplaintRequestSchema`: lines naming a catalogue product or a model name, a purchase date, a contact and a return address. `createReturnCaseRequestSchema` is now the union of the order and the no-order shapes.
+    - Both shapes take an optional `submissionKey`, which makes a repeated submission answer the case already filed (`200` instead of `201`).
+    - Such a case has `orderId: null` and `offPlatform: true`, and is settled by `replacement`, `repair` or the new `settled_outside` (with a mandatory `resolutionNote`). Refund, credit and a corrective invoice answer `422 RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM`.
+    - New refusals: `403 RETURN_OFF_PLATFORM_DISABLED` and `422 RETURN_PROOF_OF_PURCHASE_REQUIRED`.
+    - Admin list filter `origin` (`platform` | `off_platform`).
+    - Summaries carry `offPlatform`, `productLabel`, `lineCount` and `purchaseDate`.
+  - **Clauses.** `GET|POST /api/v1/admin/returns/clauses` and `PATCH|DELETE …/clauses/:id`, plus the _Return and complaint terms_ screen and palette action.
+    - A clause is `must_accept` or `inform_only`, per language, for returns, complaints or both, on one channel or all.
+    - `GET /api/v1/returns/form-config` serves the clauses with the toggles and limits.
+    - A filed case stores the clauses shown with it (`acceptedClauses`, `clausesAcceptedAt`). A missing or outdated acceptance answers `422 RETURN_CLAUSES_NOT_ACCEPTED`.
+  - **Erasing personal data.** On `customer_account.anonymized.v1` the account's cases lose their contact, return address and files (`personalDataErasedAt`). The daily `returns-maintenance` pass catches up on an anonymisation missed while the module was off, and deletes uploads never filed after 24 hours.
+  - **Event** `return_case.created.v1` (`ReturnCaseCreatedEventV1Schema`) is emitted after a case is filed. `ReturnStatusEvent.orderId` may now be `null`.
+  - **Dependencies.** New binding dependencies: `_i18n`, `admin_users`, `assets_library` and `catalog`. `admin_notifications` is a `degrades-without` edge. The package now has a peer dependency on `@fastify/multipart` `^10`.
+  - **Migrations.**
+    - `20261113T145001_returns_authorizer_status_notifications` adds the authorizer and the per-status e-mail flag.
+    - `20261113T155433_returns_off_platform_complaints` makes `return_cases.order_id` nullable, adds the purchase, contact, address, clause, note, submission-key and erasure columns, reshapes `return_case_attachments`, and creates `return_case_clauses`. Rolling it back is refused while a case without a platform order exists.
+
+  **`@endora-commerce/mod-transactional-emails`** publishes `transactionalEmailStatePort` (`TransactionalEmailStatePort.isActive(code)` in contracts). It reports whether a transactional e-mail is switched on, and `false` for an unknown code.
+
+  **`@endora-commerce/admin-kit`** resolves the palette icon `FileCheck`, which `KnownIconNameSchema` now accepts.
+
+- bd47236: **Returns: complaints from guests without a customer account, followed through a private tracking link.**
+
+  **`@endora-commerce/contracts`**
+
+  - **Widened, handle `null`:** `returnCaseSummarySchema.customerAccountId` and `returnCaseDetailSchema.customerAccountId` are now `uuid | null`. `null` means a guest's case, which also has no `organizationId`. An admin consumer that read the field as always set must handle `null`.
+  - `ReturnCaseCreatedEventV1Schema` gains `guest: boolean`, and its `organizationId` is `uuid | null` (`null` exactly when `guest`).
+  - Admin shapes: `adminReturnsListQuerySchema.origin` accepts `off_platform_customer` and `guest` beside `platform` and `off_platform` (unchanged meaning: both kinds bought elsewhere). Summaries and details carry `guest`; details carry `contactVerifiedAt`, `trackingLinkValidUntil` and `guestDataErasureDueAt`; a comment's `authorKind` may be `guest`; an attachment carries `uploadedByGuest`. New `adminEraseGuestDataRequestSchema` (`{ confirm: true }`) and `adminEraseGuestDataResultSchema`.
+  - Guest shapes, new: `guestAvailabilitySchema`, `guestVerificationRequestSchema`, `guestVerificationAcceptedSchema`, `guestSessionRedeemRequestSchema`, `guestSessionSchema`, `guestFormConfigSchema` (180's `returnFormConfigSchema` plus `reasons` — the active complaint reasons, since `GET /api/v1/returns/reasons` needs a customer session — `verifiedEmail`, `sessionExpiresAt` and `confirmationEmailEnabled`), `createGuestComplaintRequestSchema` (`.strict()`: a body naming an account, an organization or an order is refused), `guestCaseFiledSchema`, `guestCaseViewSchema` (which includes `rejectionReason`, `string | null`), `guestCommentRequestSchema`, `guestTrackingAttachmentFieldsSchema` and `guestLimitSchema`.
+  - Error codes: `RETURN_GUEST_COMPLAINTS_DISABLED` (403), `RETURN_GUEST_SESSION_REQUIRED` (401), `RETURN_GUEST_LINK_INVALID` (410), `RETURN_TRACKING_LINK_INVALID` (404), `RETURN_GUEST_LIMIT_REACHED` (429, `details.limit`) and `RETURN_GUEST_DATA_ERASED` (409).
+
+  **`@endora-commerce/mod-returns`**
+
+  - **Complaints from guests.** New per-channel setting `returns.guest_complaints_enabled` (default off), effective only while `returns.off_platform_complaints_enabled` is on for the same channel. A visitor without an account confirms an e-mail address by a one-time link (60 minutes, redeemed by a POST so mail scanners cannot use it up), gets a 24-hour guest session, and files a complaint without a platform order on 180's form. The case has no customer account and no organization and is never attached to an account. Anonymous routes under `/api/v1/returns/guest/*`.
+  - **Tracking link.** Every guest case has one private link, `/api/v1/returns/track*` with the token in the `X-Returns-Tracking-Token` header: read the case, reply and add files while it is open. It stops working 90 days after the case closes, on erasure, or when an administrator sends a new one (`POST /api/v1/admin/returns/:id/guest/tracking-link`, `returns:write`). The link is sealed with the platform's cursor seal, so rotating `SESSION_COOKIE_SECRET` voids every guest link.
+  - **Who sees guest cases.** Only administrators whose tenant scope is unrestricted; for everyone else a guest case is absent from lists, counts, search, export, saved views and the bell, and a direct id answers 404. The admin list filters by the new origins, marks guest rows, and finds a case by its exact contact e-mail; the CSV export gains a `guest` column.
+  - **Retention and erasure.** New global setting `returns.guest_data_retention_days` (default 90, read clamped to 30–3650). The daily `returns-maintenance` sweep erases a guest's contact, return address and files that long after the case enters a terminal status (`closed_at` is now written on terminal entry), and deletes verification records after 7 days. New permission `returns:erase_personal_data` (requires `returns:read`) and `POST /api/v1/admin/returns/:id/guest/erase` erase at once, in any status. Anonymising a customer account does not touch guest cases with the same address.
+  - **E-mails.** Seven transactional templates in English and Polish: `return_guest_verification` and `return_guest_submitted` (neither can be switched off), `return_guest_comment_added`, `return_guest_status_entered`, `return_guest_authorized`, `return_guest_rejected` and `return_guest_link_reissued`. The shop's `return_new_case` names a guest as "{name} (guest)".
+  - **Audit.** Guest writes are Commands recorded with `by: 'guest'`: `return_case.create`, the new `return_case.comment.add_by_guest`, and `return_case.attachment.add`; plus the new `return_case.tracking_link.reissue` and `return_case.guest_data.erase`. No entry holds a guest's contact value, comment text or token.
+  - **Migration** `20261116T104415_returns_guest_complaints` makes `return_cases.customer_account_id` nullable with checks that a guest case has no organization, adds the guest columns to cases, comments and attachments, and creates `return_guest_verifications`. Rolling it back is refused while a guest case exists.
+
+- 8b29aae: A credit resolution on a return of an order paid by a related payer credits the payer (`payerOrganizationId ?? organizationId` from the order's return context) instead of the buyer.
+
+### Patch Changes
+
+- e78d27d: Adds source comments only. Each comment marks a place where the new raw-enum lint rule is waived on purpose. Nothing these packages emit changes.
+- 988436f: Sales admin screens drop the page descriptions that repeated their title or addressed developers (issue #1436, UX audit 2026-11-17, DS-02). The Orders, Customers, Returns, Quote requests, Carts and Organizations lists, the order and quote-request create screens, Order statuses, Return statuses, Payment methods, Credit limits, the promotion editor, Promotion statistics, Order on behalf, New organization, Change tax ID and Convert to company no longer show a description. The payment and delivery method Integrations cards drop their one-line intro.
+
+  Kept descriptions are now one line: Return delivery methods ("A return cost of 0 means the shop pays for the return."), Delivery methods ("Price changes don't affect orders already placed."), Promotion rules, Online customers and Customer groups ("A customer's own group overrides their organization's."). New organization says that members are invited from the organization's page beside its Save, as `create.hint.inviteMembers`.
+
+  Translation keys removed from both `en` and `pl`: `core` `orders.page.description`, `orderCreate.description`, `orderStatusConfig.description`, `rfq.list.description`, `rfqCreate.description`, `organizations.page.description`, `returns.description`, `returns.statuses.description`, `legacyMethods.payment.description`, `legacyMethods.integrations.description`, `legacyMethods.integrations.shippingDescription`, `creditLimits.page.description`, `promotions.edit.description`, `promotionStats.description`, and the unused `rfq.detail.convert.description` and `rfq.detail.approveDescription`; customers `list.description`; carts `carts.page.description`; quick_order `onBehalf.page.description`; organizations `create.description`, `changeTaxId.page.description` and `convertToCompany.page.description`. A deployment that overrides one of these keys can drop the override.
+
+- 4fdc335: More admin screens follow the DS-03 rule that a frame inside a card is a defect unless it is a field (issue #1437, UX audit 2026-11-17).
+
+  - **My profile** is one form card with three sections (identity, author profile, password) under the one Save, and the language preference, which is saved on its own, is the one card beside it. The language Save's result is a status line beside its button, with an icon, in place of a red or green box inside the card. The language select is named by its heading. The screen is on the kit's primitives.
+  - **Organization detail, price display mode** (`price_lists`, `organization.detail.after`): the panel has a heading (_Pricing_) and renders as an `EditorSection`, so it follows the mount — one titled card at page level, a section inside a host card. It was a card without a heading.
+  - **Return detail** (`returns`): comments and the accepted clauses are rows divided by a rule, not a bordered box each.
+  - **Settings** (`settings`): a group's settings are rows divided by a rule inside the group card, not a bordered box each; a changed row keeps its tint and its _Unsaved_ badge.
+  - **Form entry notes** (`forms`): notes are rows divided by a rule, not a bordered box each.
+
+- 28181ed: One card implementation with density tokens (issue #1438, UX audit DS-04; SHELL-18 #1502). This
+  changes how every admin card looks, including the cards third-party modules render.
+
+  - `theme.css` declares `--card-pad` (16px), `--card-pad-sm` (12px), `--card-gap` (16px),
+    `--section-gap` (24px), `--fs-page-title` (20px), `--fs-section-title` (14px) and `--fs-hint`
+    (12px). A client can redeclare them after the import like any other token.
+  - `Card`, `CardHeader`, `CardContent` and `CardFooter` pad with `--card-pad` (16px) instead of
+    `p-6` (24px). `CardContent` drops its top padding only when it follows a `CardHeader`, so a
+    card without a header no longer needs `className="pt-6"`. Every part carries a `data-slot`.
+  - `CardTitle` renders an `h2` by default and takes `as` (`h2`–`h6`, or `div` to stay out of the
+    heading outline); its size is `--fs-section-title` (14px, was 16px). A `CardTitle` that wrapped
+    its own `<h2>` now nests a heading in a heading: pass the `id` to `CardTitle` and drop the inner
+    element. A test that found a card title with `getByText` still does; one that counted headings
+    now counts the card titles too.
+  - `<Card flush>` removes the content padding and clips the corners, for a table that runs to the
+    card's edge. New types: `CardProps`, `CardTitleProps`, `CardTitleElement`.
+  - `.b2b-card`, `.b2b-card--clickable` and `.b2b-card__head` / `__title` / `__sub` / `__body` /
+    `__body--flush` / `__foot` are **deprecated** but still published; they read the same tokens.
+    The only visible change there is the header's vertical padding, 14px to 12px. Use `Card`.
+
+  Every module's card call sites drop the `pt-6` workaround and the redundant `text-base` on
+  `CardTitle`, and the 14 titles that wrapped their own `<h2>` carry the `id` themselves.
+
+- c4addef: The three returns configuration lists — return reasons, return delivery methods and return statuses — create from a _New …_ button in the page header that opens a dialog, instead of a form drawn open under the list (issue #1439). With no reason or method yet, the empty state carries that button instead. A missing required field is said at the field, a server refusal stays in the dialog with what was typed, and a success closes the dialog and is said next to the header's button. The statuses screen now says _Status added._ after a create. When every delivery method already has a return setting, the dialog says so instead of offering an empty choice. An operator without `returns:write` — the permission every write route already requires — still sees the three lists, but without _New …_, the row _Delete_ buttons, or the active and e-mail toggles, which are shown disabled. No API, setting, permission or migration changes.
+- 35e0829: `ContentLanguageTabs` (`@endora-commerce/admin-kit/components`) is now drawn by the kit's `Tabs` (issue #1445): one tab in the tab order (roving `tabindex`), ←/→ select and wrap, Home/End jump to the ends, and the `.b2b-tabs` look of every other strip instead of filled and outline buttons.
+
+  It gains an optional `idBase` prop. Pass it and wrap the per-language content in `TabPanel`, and every tab names that panel through `aria-controls`; leave it out for a strip that switches page state spread over the screen, which then names no panel:
+
+  ```tsx
+  <ContentLanguageTabs languages={languages} activeLanguage={language} onChange={setLanguage} idBase="product-content-language" />
+  <TabPanel idBase="product-content-language" value={language} tabIndex={-1}>{fields}</TabPanel>
+  ```
+
+  `Tabs` gains the matching optional `controlsPanel` prop (default `true`); `false` omits `aria-controls`.
+
+  With no language to offer the strip draws the kit's `EmptyState` (issue #1448) instead of a grey sentence, with the new `core` key `contentLanguageTabs.emptyHint` (EN and PL) as its line. The catalog's product and category content screens, the CMS block and template editors (their canvas) and the returns clause dialog name their language panel; the CMS page editor and the blog editors, whose language also switches settings fields, keep a strip with no panel.
+
+- b8d1fab: The returns admin screens are translated in full and show names instead of codes (issue #1472). On the case detail, the authorize action, the status transition buttons (now named after the target status, "Move to Received" rather than "→ received"), the items table, the return shipments card (direction and status translated) and the load and action errors have English and Polish text; the order is a link to the order, named by its order number; amounts are formatted in the case currency.
+
+  The return reasons, return statuses and return delivery methods screens use the admin kit's labelled form fields, switches and empty states. A reason's label and what it applies to, a status's name and a return delivery method's name are shown in the operator's language, and a return delivery method is chosen by name instead of by pasting its ID (the ID field stays as a fallback when the delivery methods cannot be read). A return cost of 0 is shown as free. Deleting a reason, a status or a return delivery method now asks for confirmation; the delete runs inside the dialog, which shows a refusal, and focus moves to the next row's Delete or to the form's first field.
+
+  On the case detail, an action's result (authorized, moved, rejected, settled, a shipment recorded or received, a comment added, the consent recorded or revoked) is said beside the control that produced it instead of in a banner at the top of the page; errors are still a banner.
+
+  The `returns.methods.description` key is removed from the shared bundle: the "0 = free" note is now the return cost field's hint, `methods.field.costHint` in the `returns` bundle. A deployment that overrides the old key must move its text there.
+
+- 89dc3b1: Screen readers now read the admin's visible labels, in the admin's language, instead of developer ids (issue #1475). Before, some controls had an `aria-label` that replaced their visible label, such as `customerNote`, `select-all` or `deliveryAddress-street`.
+
+  - **New order** and **new quote request**: the customer, sales channel, payment and delivery method pickers, the customer note and the new-address fields are now named by their labels through `FormField`. Each address side is a group named "Delivery address" or "Billing address", and its saved-address picker carries the same name.
+  - **Order detail**: the comment box has a visible label, "Add a comment".
+  - **Orders** and **Returns** lists: the selection checkboxes read "Select all orders on this page" and "Select order ORD-…", with the returns equivalents.
+  - **Order statuses**: the edit and delete icon buttons read "Edit status …" and "Delete status …". The actions column has a hidden heading, and the delete confirmation is named by its title.
+
+  A new lint rule (`no-restricted-syntax` in the root `eslint.config.js`, admin sources only) rejects an `aria-label` or `ariaLabel` written as a camelCase or hyphenated id. The two sites left in the catalog attribute manager are tracked in #1590.
+
+  Tests that found these controls by their developer ids now find them by their accessible name, or by `id` where two controls share a name.
+
+- 87fb9c3: On the Settings screen a boolean setting is a switch instead of a `true` / `false` list, and an enum setting's options read as labels in English and Polish instead of machine codes (issue #1479). The switch changes the draft like every other field; the page's one Save still writes it. The default and global values under a field read as "On" / "Off" and as option labels too.
+
+  A module labels its enum setting's options in its own bundle, under `settingLabels.<setting code>.options.<option value>`; an option without a label is shown as its value. Every enum setting shipped in the platform now has those labels, except `seo.default_robots`, whose directive pairs are the vocabulary.
+
+- 998ac87: Banners that appear as the result of an action keep being announced now that the kit's `Alert` no longer interrupts for every variant (issue #1484). A refused or partly rejected action (activating a price book, a stale price-book save, a taxonomy revision, quick-order lines, quote-request lines unavailable on the channel) is announced at once, and so is the shell's notice to an administrator without a role. An import, undo, PDF or save result, a template-preview verdict, a brand contrast warning, a changed refund method, the organization-attribution scope notice and the information notices after an action are announced politely. Static banners present when a page loads, such as the modules screen's degraded-mode warning or a quote request's lapsed validity, are shown but no longer announced as an interruption.
+- 25f30c4: More sales screens show an action's result beside the control that caused it, not as a success banner at the top of the page (issue #1499, UX audit SALES-17; owner decision DEC-12 a). Each result is an `InlineStatus`, a polite status region that is mounted before it has any text, so screen readers announce it. Errors are still a page-level banner, and an error clears the result.
+
+  - Orders and Returns lists: the result of a bulk status change or a bulk authorization appears beside the header's actions. The bulk bar goes away with the selection, so the header is what is still on screen. A result that skipped orders or cases is shown as a warning.
+  - Customers list: the result of resetting two-step verification for an organization appears beside the reset button. It is a warning when some accounts were not reset.
+  - Credit limits: a granted or adjusted limit appears under the organization's panel. Opening another organization clears it.
+  - Invoice detail: "PDF regenerated" and the result of resending the e-mail appear beside the header buttons. The screen shows at most one banner above the invoice: an error first, then "PDF not ready".
+
+- fc7f669: The six sales lists now have one shape (issue #1500, UX audit SALES-24). Each is the kit `ListPage` with the kit `ListToolbar`, so the toolbar is a named `search` landmark in a plain row, not a card. Below it is one results card that holds the bulk bar, the table and the pager. The kit `EmptyState` tells "nothing here yet" apart from "nothing matches these filters", and the second one offers _Clear filters_.
+
+  - **Orders**: _New order_ is in the header for an operator holding `orders:write`. The toolbar, bulk-bar and results cards are now one card. While rows are selected, the bulk _Change status_ button is outline, so _New order_ stays the one filled primary. Each row has a menu with _Change status…_ and _Print invoice_ for that one order, plus _Open organization_. The pager offers only the page sizes the endpoint serves.
+  - **Quote requests**: the hand-built toolbar, filter toggle and chips are replaced by the kit toolbar, so the advanced filters sit behind _More filters (n)_. Each row's menu has _Open organization_.
+  - **Returns**: the four configuration links (workflow, reasons, return methods, clauses) are one _Settings_ menu next to _Export CSV_. The search is no longer listed as a chip. _Clear all filters_ empties the search too. When a case has an order, its row menu has _Open order_.
+  - **Customers**, **Organizations**, **Carts**: these use the kit toolbar and the kit empty state. Each filter is named by its label, and its first option says what it is ("All statuses"). Customers and Carts rows have _Open organization_.
+
+  Removed unused translation keys: `orders.open`, `orders.loading`, `orders.empty`, `rfq.list.open`, `rfq.list.loading`, `rfq.list.filter.toggle`, `rfq.list.filter.clearAll`, `returns.loading`, `returns.empty`, `returns.action.open`, `returns.filter.clearAll`, `organizations.filter.all` (core); `list.search.chip` (returns); `list.clearFilters` and `list.filter.all` (customers); `list.clearFilters` (organizations); `carts.clearFilters` and `carts.filter.all` (carts). The admin-kit README documents how the two compose.
+
+- df16345: The Settings screen shows less on every row (UX audit SHELL-09, SHELL-23). A row no longer carries a value-type badge, a source badge or a "Default … · 0 per-channel overrides" footer: one muted line appears only when the value in force differs from the default or channels override it. A changed row is marked by a bar at its edge, a switched-off module's group states its read-only reason once, the "Editing for" channel picker sits in the toolbar beside the search, and the hard-coded "system" group badge is gone. Single-line controls sit to the right of the setting's name.
+
+  A setting's description is now at most 120 characters (`check:text-budget`), with the long explanations left to each module's documentation page, and it never falls back to another language: in Polish the screen shows the Polish description or none. Every module that declares settings now ships `settingLabels.<code>.name` and `.description` in English and Polish, so the screen no longer shows English names in Polish. Where a manifest declared one of the shortened descriptions, its `description` is the same shorter sentence.
+
+- 306a659: The back link above an admin page title now names the screen it leads to, in the words that screen uses for its own title — _Organizations_, _Price books_, _CMS pages_ — instead of _Back to organizations_, _All warehouses_, _Back to list_ or a bare _Back_ (follow-up of issue #1549). A generic _Back_ remains only where a screen was opened from somewhere else and leads back there. The rule is described under `PageHeader` in the admin-kit README.
+
+  The back-only translation keys these screens no longer read are removed: `categoryEditor.backToTree` and `postEditor.backToList` (blog), `bulkOperations.detail.back` and `categoryContent.action.back` (catalog), `common.back` (cms, megamenu), `detail.backToList` (comparisons), `entry.back` (forms), `priceBooks.common.backToList` (price lists), `detail.back` (returns), and `inventory.import.back`, `warehouses.editor.backToList`, `organizations.detail.back` and `rfqCreate.back` (core bundle). A deployment that overrides one of them overrides the destination screen's title key instead. `taxIdScope.back` (organizations) and `productContent.action.back` (catalog, now the fallback while the product name loads) keep their keys with new text; `runs.detail.feedFallback` (product feeds) is new.
+
+- 7ea72af: The way back from a detail, create or settings screen is now always the page header's back link above the title (issue #1549). Organization, New organization, Tax ID scope, Change tax ID, Convert to company, Order statuses, Return, Form entry, Category content, Product content and Comparison drew it as an outline Back button among the header actions, an arrow link above the header, or a button at the bottom of the page. Order statuses now goes back to "Orders" rather than a bare "Back". A form entry that is missing or cannot be loaded shows a "Form entry" heading with the same back link. The admin-kit README names `PageHeader` `back` as the one pattern.
+- bfc21d3: Shorter admin copy on the order, quote-request, organization, promotion, invoice and return screens (UX audit text-to-cut pass, issue #1567):
+
+  - Removed lines that repeated what the screen already shows: the description on the invoices list, the line under the customer's price-negotiation override, the line above the default payment / delivery / address fields, and the description of the organization's Roles section.
+  - Shortened to one line: the read-only note on price negotiation, the warehouse-precedence hint, the order-confirmation e-mails hint, the parent-organization hint, the empty sales-reps note, the sales-channel hints on order and quote-request creation, the saved-rule copy hint on promotions, and the pending-effects notice on an order.
+  - Shortened notices: the "carrier not contacted" shipment notice and the "different refund method" warning on a return.
+
+  Removed translation keys (EN and PL): `invoices.description`, `defaultPreferences.description` (core bundle), `negotiation.customer.description` (quote requests), `roles.tab.description` (organizations). A theme or overlay that overrode them can drop the override.
+
+- 8688a1f: Nine more admin list screens now use the kit `ListPage` (issue #1749): Inventory, Low stock, Warehouses, Availability notifications, Product feeds, Price books, Return reasons, Return delivery methods and Return clauses. Each one has the kit's loading skeleton, a load error with **Retry**, and the result count at the end of the toolbar row. The inventory lists' toolbar is a row above the results, not a strip inside their card. A filter or page change on Inventory, Warehouses, Availability notifications and Price books keeps the rows on screen while it reloads. Return clauses show the kit empty state instead of a bare sentence. Product feeds no longer show _New feed_ twice while there is no feed.
+
+  - `@endora-commerce/admin-kit`: the `ListPage` `tabs` slot is documented as the band between the header and the toolbar, which can also hold a KPI strip.
+  - New `en` / `pl` keys: core `warehouses.count`, `inventory.count`, `inventory.lowStock.count`, `inventory.availability.count`; `product_feeds` `feeds.count`; `returns` `reasons.count`, `methods.count`, `clauses.count`.
+
+- 2d0537e: The admin returns list (`GET /api/v1/admin/returns`) now orders both its sorts by `id` after the chosen key, so cases filed at the same instant no longer repeat or go missing across pages (#1760).
+- 0686447: Always pass the admin UI language to `formatDate(value, language)` and `formatDateTime(iso, language)` (`@endora-commerce/admin-kit/lib`), taking it from `useTranslationContext()` or `useAppLanguage()` (`@endora-commerce/admin-kit/i18n`). **Upgrade note:** calling either without a language is now `@deprecated`. It still falls back to the browser's locale, but that fallback will be removed in a later release, so `formatDateTime(order.placedAt)` should become `formatDateTime(order.placedAt, language)` now. The kit's field-protection summary reads the language without requiring `AppLanguageContext`, so an integration zone rendered without it keeps working.
+
+  Every admin date now goes through them, so a screen no longer mixes `17.11.2026`, `11/25/2026` and `Nov 22, 2026`: the lists, detail pages and panels of every module that called `formatDateTime` without a language, and the screens that called `toLocaleDateString` / `toLocaleString` directly (the CRM board card, the Projects stage bar and templates list, the Organization sales reps tab — which wrote every date in Polish — the blog post editor, comparisons, the dictionaries audit, display-mode overrides, the feed schedule's next run, the online-customers refresh time, the product list's update date, and the kit's comment thread, record history, field-protection summary and order reference). `endora new module` scaffolds its list's date the same way.
+
+- 9eee781: The Admin UI in Polish no longer shows four kinds of text in English (issue #1809).
+
+  - **Order statuses** are named in the admin's language on the Orders list, the order detail, the bulk status dialog and the Order statuses screen. The names were always stored per language; the screens read the English one.
+  - **CMS hooks**: the 23 seeded hooks, such as "Search Page Bottom", are named and described in the admin's language until an operator renames them. A renamed or custom hook keeps the operator's text.
+  - **Transactional e-mails**: each e-mail's name, description and the reason it cannot be switched off come from the sending module's bundle (`transactionalEmails.<code>.name`, `.description`, `.reason`), in the language the response is read in.
+  - **Platform → Modules**: each module's name, description and the reason it cannot be switched off come from the module's own bundle (`module.name`, `module.description`, `module.nonDeactivatableReason`). `GET /api/v1/admin/modules` gains an optional `nonDeactivatableReason` field on each row. `auth`, `currencies`, `email` and `languages` now ship translation bundles.
+
+  Each of these falls back to the English declared in code when a bundle has no entry. `endora new module` now writes `module.description` into the scaffolded bundles.
+
+- c37a362: The returns admin names a return status in the admin's language on the returns list (the status column and the status filter) and in the return detail's header (issue #1815). Before, both showed the status's default (English) name to a Polish admin, while the statuses configuration page and the transition buttons already used the Polish name. A status name stored under a regional key (`pl-PL`) now also answers its language, as the backend's resolution does.
+- 5e380e3: An amount withheld on a return is now invoiced as part of the goods' price, at their VAT rate
+  (issue #854, owner ruling of 2026-11-07). When a return settled before the order was invoiced
+  approved less than its default refund, for example to keep a handling fee, the invoice adds a line
+  _Retained on return: product_ (`line_kind: retained`) per order line at that line's VAT rate. Its
+  gross is what was withheld and its net makes the rate's VAT row the kept goods' gross plus that
+  amount. Until now the amount showed as an overpayment with no VAT document. An order whose every
+  line came back is now invoiced when something was withheld on it.
+
+  The returned goods take their whole share of the order discount off the invoice's discount line,
+  and the withheld amount carries none. Issued invoices are not rewritten. Run the `invoices`
+  migrations: `invoice_lines.line_kind` admits `retained`.
+
+- 599168b: **Returns: reasons and statuses take a Polish name, not only an English one.** The _Return reasons_ and _Return statuses_ screens now have one name field per language, English and Polish, when you create a reason or status. Either name is enough. Each row also has an _Edit_ action, which opens the same dialog to change its names. Editing keeps any other language the record already stores. A status's default name and its suggested code come from the English name, or from the Polish one when there is no English name. The list shows a "Missing: …" badge on a row that lacks a language. The API and the stored data are unchanged.
+- Updated dependencies [c878440]
+- Updated dependencies [65f9a7b]
+- Updated dependencies [3fdbe86]
+- Updated dependencies [bfc68c7]
+- Updated dependencies [9eaa409]
+- Updated dependencies [d908737]
+- Updated dependencies [1042e2a]
+- Updated dependencies [3872f3d]
+- Updated dependencies [bbfcd80]
+- Updated dependencies [41b598c]
+- Updated dependencies [f5b8275]
+- Updated dependencies [467b075]
+- Updated dependencies [a56109e]
+- Updated dependencies [84b89ed]
+- Updated dependencies [b2cd2d3]
+- Updated dependencies [e5b17ae]
+- Updated dependencies [e78d27d]
+- Updated dependencies [596ce81]
+- Updated dependencies [b2b41eb]
+- Updated dependencies [932821f]
+- Updated dependencies [28181ed]
+- Updated dependencies [c15eb60]
+- Updated dependencies [33db45a]
+- Updated dependencies [cec9beb]
+- Updated dependencies [d4bda8d]
+- Updated dependencies [8e7684c]
+- Updated dependencies [87fb9c3]
+- Updated dependencies [998ac87]
+- Updated dependencies [d0a6c2c]
+- Updated dependencies [35e0829]
+- Updated dependencies [3f66b6f]
+- Updated dependencies [61bdc2a]
+- Updated dependencies [649d662]
+- Updated dependencies [38adf84]
+- Updated dependencies [7329865]
+- Updated dependencies [84ed7b6]
+- Updated dependencies [1064839]
+- Updated dependencies [d2d9d79]
+- Updated dependencies [f687479]
+- Updated dependencies [074f500]
+- Updated dependencies [7624db6]
+- Updated dependencies [cec9beb]
+- Updated dependencies [7be07f6]
+- Updated dependencies [2614e4f]
+- Updated dependencies [90320fd]
+- Updated dependencies [bb21b86]
+- Updated dependencies [79a17a3]
+- Updated dependencies [3dab0be]
+- Updated dependencies [e22b612]
+- Updated dependencies [cb75825]
+- Updated dependencies [a4455db]
+- Updated dependencies [f3b2ec8]
+- Updated dependencies [f093a02]
+- Updated dependencies [d5a077f]
+- Updated dependencies [86b9b39]
+- Updated dependencies [42febee]
+- Updated dependencies [447e829]
+- Updated dependencies [2040ae9]
+- Updated dependencies [fc7f669]
+- Updated dependencies [40b76aa]
+- Updated dependencies [eeed5c8]
+- Updated dependencies [63a657b]
+- Updated dependencies [0ecb287]
+- Updated dependencies [9a27b93]
+- Updated dependencies [2f0b69f]
+- Updated dependencies [87b9b60]
+- Updated dependencies [50d451b]
+- Updated dependencies [98c0411]
+- Updated dependencies [9f4eae3]
+- Updated dependencies [a8261aa]
+- Updated dependencies [f64646d]
+- Updated dependencies [306a659]
+- Updated dependencies [7ea72af]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [bfbcac2]
+- Updated dependencies [ee6062c]
+- Updated dependencies [820f089]
+- Updated dependencies [f33ffed]
+- Updated dependencies [4e668b5]
+- Updated dependencies [843ed42]
+- Updated dependencies [0d4c134]
+- Updated dependencies [3f7b5ae]
+- Updated dependencies [b98739c]
+- Updated dependencies [6155f4b]
+- Updated dependencies [bdcc9a4]
+- Updated dependencies [5850aac]
+- Updated dependencies [c042024]
+- Updated dependencies [8a5725e]
+- Updated dependencies [f915a24]
+- Updated dependencies [8688a1f]
+- Updated dependencies [95e5082]
+- Updated dependencies [31c0430]
+- Updated dependencies [0686447]
+- Updated dependencies [691414b]
+- Updated dependencies [8a06dc5]
+- Updated dependencies [e118ee4]
+- Updated dependencies [5fb3cd3]
+- Updated dependencies [9eee781]
+- Updated dependencies [bd47236]
+- Updated dependencies [bd47236]
+- Updated dependencies [79d15cf]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [398e6d2]
+- Updated dependencies [51c5072]
+- Updated dependencies [0e81803]
+- Updated dependencies [2e287a5]
+- Updated dependencies [fbc6c7c]
+- Updated dependencies [9d6f006]
+- Updated dependencies [49328cf]
+- Updated dependencies [b3d4843]
+- Updated dependencies [f74fe34]
+- Updated dependencies [19eb7c0]
+- Updated dependencies [0fbf186]
+- Updated dependencies [27b977d]
+- Updated dependencies [5e2a12a]
+- Updated dependencies [5518a09]
+- Updated dependencies [5e380e3]
+- Updated dependencies [bfab5bd]
+- Updated dependencies [8a0ec92]
+- Updated dependencies [81fcc3f]
+- Updated dependencies [12c63fa]
+- Updated dependencies [2d6d031]
+- Updated dependencies [72637e0]
+  - @endora-commerce/platform@0.112.0
+  - @endora-commerce/contracts@0.112.0
+  - @endora-commerce/admin-kit@0.112.0
+  - @endora-commerce/email-components@0.112.0
+
 ## 0.111.0
 
 ### Minor Changes
