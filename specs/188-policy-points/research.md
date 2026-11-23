@@ -1,7 +1,9 @@
 # Research: Declared policy points, and the organization moderation policy
 
 Every entry gives the decision, its rationale, and the alternatives rejected with the reason.
-Paths are real as of `origin/master` at `ff7efc3e8` (2026-11-23).
+Paths are real as of `origin/master` at `babfae111` (0.112.0, 2026-11-23). R-4, R-12, R-13, R-14,
+R-17, R-18, R-20 and R-25 were revised or added after the owner's answers of 2026-11-23 (D-295
+items 5 to 8).
 
 ## Grounding — what exists today
 
@@ -43,7 +45,24 @@ Paths are real as of `origin/master` at `ff7efc3e8` (2026-11-23).
 - **Origin.** `RegisteredManifestEntry.origin` is `'core' | 'overlay' | 'package'`
   (`packages/platform/src/lifecycle/manifest-registry.ts`). `ModuleContextOptions` carries
   `overlay` (it grants) and `installedPackageModuleIds` (it refuses) as two separate facts
-  (`packages/platform/src/kernel/module-context.ts`).
+  (`packages/platform/src/kernel/module-context.ts`). `composeModules` derives the package set from
+  `ModuleEntry.installedPackage` (`packages/platform/src/kernel/compose.ts`).
+  `specs/189-command-middleware/` `contracts/module-origin.md` defines the composition-time origin
+  `core` / `deployment` / `package`, stamped by the loaders, which this feature consumes (D-295
+  item 8). In it an installed first-party module package is `core`, and a paid module is `package`.
+- **The divergence declaration.** `DeploymentDivergenceDeclarationSchema`
+  (`packages/contracts/src/modules.ts`) is a `.strict()` object with `omittedModules`,
+  `decorationOrder`, `reasons` and the optional `commandHookOrder`. It is parsed by
+  `parseDivergenceDeclaration` (`packages/platform/src/lifecycle/divergence-declaration.ts`), which
+  names the deployment's own file in a refusal, and loaded by `loadDivergenceDeclaration`
+  (`backend/src/overlay/divergence-loader.ts`). The roots hand the parsed value to `composeModules`
+  as data (`decorationOrder`, and `commandHooks.commandHookOrder`); the composer never reads a file.
+  `omittedModules` carries its reason inline because the report cannot derive an omission; every
+  derived entry's reason is answered through `reasons`.
+- **The precedent for a package grant.** The `ForeignDecorationError` doc block in
+  `module-context.ts` (D-156.1 to D-156.9) says that if a grant to an installed package is ever
+  built, it is keyed per (package, subject), read from an artefact the instance owns and the package
+  cannot write, and never made by widening the `overlay` flag or retyping it to an origin.
 - **Divergence derivation.** It lives in `packages/cli/src/lib/divergence.ts`
   (`SEAM_CLASSIFICATION`) and in `backend/scripts/generate-divergence.ts`. The kinds and the
   detail union are in `packages/contracts/src/modules.ts`.
@@ -150,29 +169,54 @@ owner's invariant check stay in the module.
 
 **Decision.** The ordering algorithm of `orderCommandHooks` is generalised into one
 `orderByModuleDependencies(subject, registrations, closure, tieBreak)`, which hooks and policies
-share. `specs/189-command-middleware/` is invited to share it too.
+share. `specs/189-command-middleware/` is invited to share it too. Policies call it **once per
+origin tier**.
 
 The rules:
 
-- A module's participants run after those of every module it transitively depends on.
-- Pairs with no dependency path are ranked by an **optional** `policyOrder[pointId]` in the
-  deployment's `divergence.ts` ("first runs first"). Without a ranking they refuse composition with
-  `UnorderedPolicyParticipantsError`, naming both modules and the point.
-- A ranking that contradicts the graph refuses with `PolicyOrderContradictionError`.
-- The default participant is always innermost.
+- The default participant is always innermost: it runs first.
+- Contributed participants run in **origin tiers**, `core` first, then `package`, then
+  `deployment`. Origin is the composed entry's, from `specs/189-command-middleware/`
+  `contracts/module-origin.md`.
+- Within a tier, a module's participants run after those of every module it transitively depends
+  on. One module's participants keep their registration order.
+- Pairs of one tier with no dependency path are ranked by an **optional** `policyOrder[pointId]` in
+  the deployment's `divergence.ts` ("first runs first"). Without a ranking they refuse composition
+  with `UnorderedPolicyParticipantsError`, naming both modules, the point and the field.
+- A ranking that contradicts the graph refuses with `PolicyOrderContradictionError`. So does a
+  ranking that names modules of two tiers, because the tier order is not the declaration's to set,
+  and so does a dependency path that runs against the tier order (for example a package that depends
+  on a deployment module).
 - `policyOrder` is `.optional()`, not `.default({})`. 176's amendment 2 explains why: a defaulted
   field would break every instance's typed `divergence.ts`.
 
 **Rationale.**
 
 - The issue says "two participants with no defined order refuse composition". A deployment ranking
-  *is* a defined order.
-- Without one, two independent overlay or instance modules could only be ordered by making one
-  depend on the other. 176 rejected that for hooks in OD-1.
+  *is* a defined order, and so is the tier order.
+- **The tiers follow who answers to whom.** The owner's default is the baseline. Core contributors
+  refine it as shipped. A third-party package refines what core decided. The deployment owns its
+  instance (the `ForeignDecorationError` doc block's argument) and so gets the last word over both,
+  which means a granted package can never have the final say over the deployment that granted it.
+- The tiers refine the dependency order rather than compete with it. A core module cannot depend
+  on a third-party package or on a deployment module, and a published package cannot know a
+  deployment's overlay, so in a real composition no dependency path crosses a tier backwards. The
+  refusal exists for the case that would be a misconfiguration anyway.
+- The tiers also remove the need for a `policyOrder` entry between a core contributor and a
+  deployment contributor that no dependency orders, which before the tiers would have refused.
+- Without a ranking, two independent overlay or instance modules could only be ordered by making
+  one depend on the other. 176 rejected that for hooks in OD-1.
 - One algorithm for three mechanisms means one definition of "ordered".
 
 **Rejected.**
 
+- *No tiers, packages ordered like everyone else by dependencies and `policyOrder`.* A package and a
+  deployment module are almost never on one dependency path, so every grant on a `chain` point would
+  also need a `policyOrder` entry, and the deployment could rank a stranger after itself.
+- *Packages outermost.* It hands a stranger the last word over the deployment.
+- *Packages innermost, before core contributors.* Core contributors are part of the release the
+  package was written against; a package refining core's answer is the shape a ladder rung 3
+  contribution has.
 - *Strict refusal with no tie-break.* It forces artificial dependencies.
 - *Making `policyOrder` authoritative.* That gives two orderings of one thing, as 176 R-7 put it.
 - *Ordering by registration sequence.* It is not deterministic across compositions (FR-019).
@@ -316,23 +360,97 @@ how an owner of a `chain` point chooses fail-open on purpose, in writing.
   contributor's namespace is not the screen's. The organization-permission precedent already solved
   this on the backend.
 
-## R-12 Trust tier (D-295, OQ-1 open)
+## R-12 Trust tier and the package grant (D-295 items 5 and 8)
 
-**Decision.** A participation from a module in `installedPackageModuleIds` refuses composition with
-`PackagePolicyParticipantNotOfferedError(moduleId, pointId)`. Core and overlay participants are
-accepted. The check uses the composer's set, not the `overlay` flag, for the reason
-`module-context.ts` gives: one fact grants and the other refuses, and they must not merge.
+**Decision.**
 
-**Options for OQ-1.**
+1. **Who is accepted.** A participant is accepted when its module's origin is `core` or
+   `deployment`. A participant whose module's origin is `package` is accepted only for a point the
+   deployment's declaration grants that module. Otherwise the seal refuses with
+   `PackagePolicyParticipantNotGrantedError(moduleId, pointId)`, whose message names
+   `policyParticipantGrants` and the deployment's `divergence.ts`. Origin is read from the map
+   `composeModules` resolves by `specs/189-command-middleware/` `contracts/module-origin.md` §2,
+   never from `overlay` or `installedPackage` directly (that contract's §3).
+2. **The shape.** `DeploymentDivergenceDeclarationSchema` gains one optional field:
 
-- **A. Never.** This is the current default, and it is the simplest.
-- **B. Owner opt-in per point** (`acceptsPackages: true` on the ref). Trust becomes the owner's
-  judgement. A package author still cannot be stopped by the instance.
-- **C. An instance-owned grant per (package, point)** in the instance's `divergence.ts`. Trust sits
-  with the party that installed the package, keyed as D-156.1–D-156.9 require for any future grant.
+   ```text
+   policyParticipantGrants?: Record<pointId, Array<{ moduleId: string; reason: string }>>
+     // pointId: POLICY_POINT_ID_RE; moduleId: the module id grammar; reason: 20..800, as omittedModules
+     // each array min 1; a moduleId at most once per point; each entry .strict()
+   ```
 
-**Recommendation.** A for 0.113.0, and C only when a real package needs it. C is additive: it is
-one optional field, and the refusal tells the reader where to add it.
+   Keyed by point, because that is how a reviewer reads it ("who may take part in moderation?")
+   and how the seal consumes it. One entry admits every participant the package declares for that
+   point in `policyContributions`, and nothing else (FR-023). The key is the **module id** the
+   package declares as `endora.id`, which is the identity composition uses everywhere; the instance's
+   own lockfile is what pins which package carries that id.
+3. **Validation, in two places.**
+   - *Shape*, in `parseDivergenceDeclaration`, through the schema: a malformed point id, module id
+     or reason, an empty array, a duplicate module id within a point, or an unknown key in an entry.
+     The refusal names the deployment's file, as every shape refusal there does.
+   - *Meaning*, in `PolicyRegistry.seal`, before boot hooks run, as one
+     `InvalidPolicyParticipantGrantError(pointId, moduleId, cause)`. The causes are:
+     - `unknown-point`: no composed module declares the point;
+     - `unknown-module`: the composition holds no module with that id;
+     - `not-a-package`: the module's origin is `core` or `deployment`, which needs no grant;
+     - `unused`: the package declares no participation for that point.
+
+   All four **refuse the boot**. That is D-101's declared-escape stance: a committed declaration is
+   two-way, so an entry that describes nothing is refused as loudly as a missing one. A grant that
+   outlives its package is how a deployment would silently admit a different package with the same
+   id later.
+4. **A grant raises nothing else** (FR-025). It is read by `PolicyRegistry.seal` and by the
+   divergence derivation, and by nothing else. It does not change the module's origin, does not set
+   `overlay`, does not touch decoration (D-156.3 still refuses a package), does not make the
+   package an `admit` contributor of `specs/189-command-middleware/` (still `observe` only), and does
+   not admit the package to any other point. The plan API shows the package with origin `package`
+   and `granted: true`.
+5. **Inside the point, a granted package is a peer.** Same budget, same failure treatment, same
+   write guard, same reason-code check, same presence rule. Where it sits is R-25.
+6. **Visibility.** The divergence report lists each grant as its own entry (R-13). The plan API and
+   the boot log `kernel.policies` show `origin` and `granted` per participant.
+
+**Rationale.**
+
+- The owner chose option C of the earlier OQ-1 (instance-owned grant per package and point) and
+  asked for it now. The design follows the D-156 precedent to the letter: keyed per (package,
+  subject), in an artefact the instance owns and the package cannot write, and not built by widening
+  a flag.
+- The declaration "holds judgement, ordering and prose, never population"
+  (`packages/contracts/src/modules.ts`). A grant is judgement. The package's participants are
+  population, and they stay in the package's manifest.
+- **Why the reason is inline**, as in `omittedModules`, and not answered through `reasons`: `reasons`
+  can only answer an entry the report derives. A package's participation is a run-time fact the
+  static walk cannot see (`packages/cli/src/lib/divergence.ts`, `runtimeOnly`), so the grant itself
+  is the only record, and it has to carry its own sentence.
+- Refusing rather than warning keeps one stance across the file. A warning in a boot log is read
+  once, by nobody, which is D-69's argument against `--force`.
+
+**Rejected.**
+
+- *`policyParticipants: { '<pointId>': ['<moduleId>', …] }` with reasons in `reasons`.* `reasons`
+  answers derived entries only, and the grant is not derived; a bare list also loses the review
+  sentence that makes the file a declaration.
+- *Keyed by package (`{ '<moduleId>': ['<pointId>', …] }`).* It reads well per package, but the seal
+  and the reviewer both ask per point, and a per-point key matches `policyOrder` and
+  `commandHookOrder`.
+- *Keyed by npm package name, or by name and module id together.* Composition knows module ids; the
+  package name is a loader fact. 189 pins the name for the first-party match because there the
+  question is "is this ours"; here the deployment is naming what it installed, and its lockfile
+  already pins it.
+- *A grant per participant id.* The owner asked for per package. Participant ids are the package's
+  to change between versions, and a grant pinned to them would turn every package minor into a
+  boot refusal.
+- *Owner opt-in per point (`acceptsPackages` on the ref, earlier option B).* Not chosen by the
+  owner. It would put the trust decision with a party that does not know which package the instance
+  installed.
+- *A warning instead of a refusal for a stale grant.* See the rationale.
+- *Raising the package to `deployment` for the granted point.* It is the "retyping a flag to an
+  origin" the D-156 doc block forbids, and it would make the plan lie about who wrote the code.
+
+**Dependency on `specs/189-command-middleware/`.** `contracts/module-origin.md` §2 hands the origin
+map "to the middleware registry's `seal` and to nothing else". 188 needs it handed to
+`PolicyRegistry.seal` as well (`plan.md` § *Coordination with sibling specs*).
 
 ## R-13 Visibility, and the rung
 
@@ -347,6 +465,15 @@ one optional field, and the refusal tells the reader where to add it.
   `{ point, combiner, participantId, position: null, override: 'declared' | null }`. `position` is
   `null` in the committed artefact, as decoration `depth` is: it depends on core contributors that
   the overlay walk does not see. The runtime plan fills it in.
+- **Grants in the report.** A second kind, `policy-participant-grant`, also at rung 3, is derived
+  from the declaration as `omission` is. Key `policy-participant-grant:<moduleId>:<pointId>`,
+  `module` the granted package, `subject` the point, `owner` the point's owner, `reason` the grant's
+  inline reason, detail `{ point }`. The report cannot list the package's participants themselves,
+  which are run-time facts (`runtimeOnly` gains "a granted package's policy participants"). A grant
+  naming a point no manifest in the tree declares is the finding `unowned-policy-point`; a grant
+  naming a module the tree composes as core or deployment is the finding
+  `policy-grant-not-a-package`. Both are also boot refusals (R-12); the findings move them to the
+  merge request.
 - **Seam classification.** `SEAM_CLASSIFICATION` gains `policyParticipants` (divergence, rung 3) and
   `policyPoint` (not-a-seam: a module declaring its own point).
 - **`module:status <id>`** prints `policyPoints` and `policyContributions` from the manifest. It
@@ -367,7 +494,9 @@ It decides what the write will be.
    its lookup outcome, and the first account's e-mail domain through `customerAccountReadPort`. It
    notes the organization's `version`.
 2. It calls `moderationPolicy.evaluate(input)` **outside any transaction**.
-3. It runs **one** Command, `organization.moderation.record_evaluation`, with the automation actor.
+3. It runs **one** Command, `organization.moderation.record_evaluation`. The actor is `system`, from
+   the reactor's system scope, and the source code `organizations.moderation` is passed to the child
+   approve Command (the owner's answer to `specs/186-aggregate-ports/` Q-1: no `automation` kind).
    The Command re-reads the organization and **returns without writing** unless it is still
    `pending_verification` at the noted `version` (FR-039). Otherwise it inserts the evaluation row
    and, on `approve`, runs the approve Command of `specs/186-aggregate-ports/` as a child through
@@ -421,30 +550,31 @@ A `ctx.subscribe` on that event runs the same reactor with trigger `registry_loo
 
 - *A direct call from the validation service into the moderation service.* It couples two services
   and bypasses the gated subscriber seam.
-- *A polling worker.* That is OQ-3, and it is a different feature.
+- *A polling worker.* That is the automatic retry, a separate issue (to be filed, D-295 item 7).
 
-## R-17 `manual` and approving rules (OQ-2)
+## R-17 `manual` and approving rules (D-295 item 6, closed)
 
-**Reading.** The default rule maps `manual` to `hold`, and hold wins. So under `manual` no
+**Decision.** The default rule maps `manual` to `hold`, and hold wins. So under `manual` no
 contributed rule can approve. A deployment that wants "approve automatically unless …" sets `auto`
 and writes **hold** rules. A contributed `approve` is then "no objection, for this reason", and its
-code is recorded in the audit entry.
+code is recorded in the audit entry. The owner confirmed this reading on 2026-11-23 and ruled out a
+third mode.
 
 **Rationale.** This keeps the operator's `manual` meaning exactly "a person decides every
 registration". The issue's own alternative analysis criticises "approvals outside the setting the
 operator sees".
 
-**Option B (not chosen).** A third mode, `rules`. In it the default abstains, and approval needs at
-least one contributed `approve` and no `hold`. This adds a verdict value (`abstain`) to the default
-rule only, and a setting value. **Recommendation: A** (as specified). B can be added later without
-breaking anything.
+**Rejected.** A third mode, `rules`, in which the default abstains and approval needs at least one
+contributed `approve` and no `hold`. The owner declined it.
 
-## R-18 Automatic retry of deferred lookups (OQ-3)
+## R-18 Automatic retry of deferred lookups (D-295 item 7, out of scope)
 
-Today only an administrator retries a lookup. FR-036 re-evaluates on any retry that resolves, so a
-retry worker can be added later with no change here. The recommendation is a separate issue: a
-BullMQ worker after the `quote_requests/rfq-expiry-worker.ts` pattern (Principle X), with backoff,
-limited to registration-origin `deferred` rows of pending organizations.
+**Decision.** Out of scope: a separate issue (to be filed). Today only an administrator retries a
+lookup, and FR-036 re-evaluates on any retry that resolves, so the retry can be added later with no
+change to this feature. For that issue, the shape that fits the repository is a BullMQ worker after
+the `quote_requests/rfq-expiry-worker.ts` pattern (Principle X), with backoff, limited to
+registration-origin `deferred` rows of pending organizations. Nothing in this feature's tasks builds
+it.
 
 ## R-19 The default rule when the setting is unreadable
 
@@ -458,14 +588,15 @@ degrades to manual. The outcome is the same, but now the operator sees the reaso
 | Owner declares | `hookableActions` | `policyPoints` | — (the bus is the owner) |
 | Contributor declares (manifest) | — | `policyContributions` | `commandMiddleware` |
 | Contributor registers (code) | `ctx.commandHooks([...])` | `ctx.policyParticipants([...])` | (189 decides) |
-| Order | dependency closure + `commandHookOrder` | dependency closure + `policyOrder` | dependency closure + `commandMiddlewareOrder` |
+| Order | dependency closure + `commandHookOrder` | origin tiers (core → package → deployment), then dependency closure + `policyOrder` within a tier | dependency closure + `commandMiddlewareOrder` |
 | Order algorithm | `orderCommandHooks` | shared `orderByModuleDependencies` | proposed to share it |
 | Presence | `isPresent` per call | `isPresent` per evaluation | `isPresent` per run |
 | Budget / failure | — | per participant, fail-closed default | per middleware, `admit` fails closed |
-| Divergence kind / rung | `command-hook` / 2 | `policy-participant` / 3 | (189 decides) |
+| Divergence kind / rung | `command-hook` / 2 | `policy-participant` and `policy-participant-grant` / 3 | `command-middleware` / 2 |
 | Plan API | `/api/v1/admin/command-hooks` | `/api/v1/admin/policy-points` | (189 decides) |
 | Test kit | `./command-hooks` | `./policies` | (189 decides) |
-| Packages may contribute | yes | **no** (OQ-1) | `observe` only |
+| Packages may contribute | yes | only per (point, package) grant in `divergence.ts` (D-295 item 5) | `observe` only |
+| Origin | — | consumed from 189 `contracts/module-origin.md` | defined there (D-295 item 8) |
 
 The two words to keep apart: a hook *runs inside* a write; a participant *decides*. 189's `admit`
 is close to a participant, but it is a pass-or-throw gate on every Command, with no verdict to
@@ -505,11 +636,41 @@ The work splits into two packages:
 - **WP-A (#1839) — no database.** It covers contracts, platform, the test kit, the divergence
   report, the plan screen, the constitution amendment and the ladder docs. Per D-295 it can start
   before the MikroORM 7 switch (#1073, 7.2.11).
-- **WP-B (#1838).** It needs WP-A and `specs/186-aggregate-ports/`'s approve Command plus the
-  `automation` actor (#1821). Its one migration is scaffolded with `migration:new` after #1073 has
+- **WP-B (#1838).** It needs WP-A and `specs/186-aggregate-ports/`'s approve Command, run as a child
+  with a caller source code (#1821). Its one migration is scaffolded with `migration:new` after #1073 has
   merged, so that it is not written against the outgoing ORM. Release 0.113.0.
 
 ## R-24 Dependencies
 
 **Decision.** No new runtime dependency is needed: Zod, `AsyncLocalStorage` and `Proxy` are already
 available.
+
+## R-25 Where a granted package's participants sit in each combiner
+
+**Decision.**
+
+- **`commutative` (for example `organizations.moderation`).** A package participant is a peer of
+  core and deployment participants. All are evaluated concurrently, and `combine` receives the
+  outcomes sorted by `(moduleId, participantId)` whatever their origin. `PolicyOutcome` carries no
+  origin, so an owner's `combine` cannot weigh packages differently, and `expectCommutativeCombine`
+  keeps covering the whole rule. For moderation this means a package's `hold` holds and its
+  `approve` is "no objection": it can never override a deployment's or core's `hold`, and a failing
+  package rule holds with `participant_failed`, which is the fail-safe answer and visible in the
+  queue.
+- **`chain` (for example `organizations.registrationConflict`, `specs/191-membership-join-requests/`).**
+  Default first, then the `core` tier, then the `package` tier, then the `deployment` tier (R-4). A
+  package receives core's verdict as `previous`, and the deployment receives the package's. Two
+  granted packages with no dependency path between them need a `policyOrder` entry naming both.
+
+**Rationale.** In a `commutative` point, order has no meaning by construction, so the only question
+is whether the rule treats a stranger differently, and keeping it origin-blind is what makes the
+combiner testable. In a `chain` point, position is power: the outermost participant decides, so it
+belongs to the party that owns the instance.
+
+**Rejected.**
+
+- *Passing origin to `combine`.* It invites a rule whose commutativity depends on a fact the test
+  helper does not vary, and no point needs it yet (Principle IV).
+- *Running a package's commutative participants after the others, or with a smaller budget.* It
+  would make a granted package second-class inside the point after the deployment explicitly
+  admitted it, without a requirement asking for it.

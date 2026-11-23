@@ -30,7 +30,10 @@ export const PolicyPointPlanItemSchema = z.object({
   observedOverride: z.boolean().nullable(),
   /** Read live from the effective state. */
   moduleEnabled: z.boolean(),
-  origin: z.enum(['core', 'overlay']),
+  /** 189 `contracts/module-origin.md` §1, imported, not restated. */
+  origin: z.enum(MODULE_ORIGINS),
+  /** True only for a `package` participant admitted by a `policyParticipantGrants` entry. */
+  granted: z.boolean(),
 });
 export const PolicyPointPlanResponseSchema = z.object({
   points: z.array(PolicyPointPlanPointSchema),
@@ -52,6 +55,9 @@ export const PolicyPointPlanResponseSchema = z.object({
   - It shows one section per point (owner, combiner, budget, failure treatment), with its
     participants underneath.
   - An absent module renders as "switched off", never hidden.
+  - Each participant shows its origin as a `StatusBadge` (`core`, `deployment`, `package`), with
+    every value through `defineEnumLabels`. A `package` participant also shows "Granted by the
+    deployment", with `help` text naming `divergence.ts`.
   - An observed override shows a warning badge with `help` text explaining the term.
 - **Route and navigation.** The route is in `packages/admin-shell/src/App.tsx`, beside the
   command-hook routes. The AppShell entry sits beside *Command hooks* in
@@ -78,11 +84,31 @@ reason:  the deployment's sentence from divergence.ts `reasons[key]`
 - It is derived from the overlay modules' `policyContributions` and from the owner's
   `policyPoints`, which the generator reads from the generated index.
 - A participation whose point no manifest declares is the finding `unowned-policy-point`.
+
+**Grants** (D-295 item 5) are derived from the declaration, as omissions are:
+
+```text
+key:     policy-participant-grant:<moduleId>:<pointId>
+kind:    policy-participant-grant
+module:  <granted package's module id>
+subject: <pointId>
+owner:   <point's owner module id>
+rung:    3
+detail:  { kind: 'policy-participant-grant', point }
+reason:  the grant's own inline reason (never `reasons[key]`)
+```
+
+- A grant whose point no manifest in the tree declares is the finding `unowned-policy-point`.
+- A grant naming a module the tree composes as core or as one of this deployment's overlay modules
+  is the finding `policy-grant-not-a-package`.
+- Whether the granted package is installed, and which participants it contributes, is a run-time
+  fact: `runtimeOnly` names it, and the boot refusal (`InvalidPolicyParticipantGrantError`) is its
+  check.
 - `packages/cli/src/lib/divergence.ts` `SEAM_CLASSIFICATION` gains:
   - `policyParticipants: { verdict: 'divergence', kind: 'policy-participant', rung: 3 }`;
   - `policyPoint: { verdict: 'not-a-seam', why: 'a module declaring its own decision point' }`.
 - Runtime half: the boot log line `kernel.policies` lists `{ point, module, participantId, position,
-  origin }` once, beside `kernel.decorations`.
+  origin, granted }` once, beside `kernel.decorations`.
 
 ## 4. `module:status <id>` (and `--json`)
 
@@ -109,4 +135,6 @@ Policy contributions:     organizations.moderation#registry-confirmed (reason co
   `policyContributions[].reasonCodes` entry resolves `<pointId>.reason.<code>` in both of the
   declaring module's bundles. This uses the instrument that already resolves manifest-declared keys
   (`specs/conventions/module-i18n.md`).
+- **The divergence check** (`check:divergence`, the existing instrument over the report) learns the
+  two grant findings above. They are merge-request feedback; the boot refusal stays the guarantee.
 - **Static checks.** No new `check-*` script is added.

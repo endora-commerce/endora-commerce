@@ -1,7 +1,8 @@
 # Contract: `organizations.moderation`, the first `commutative` point
 
 **Status**: proposed (WP-B). It depends on WP-A and on `specs/186-aggregate-ports/`, which delivers
-the approve Command and the `automation` actor (#1821).
+the approve Command, runnable as a child and recording a caller source code (#1821). There is no
+`automation` actor kind: the actor is the ambient `system` (the owner's answer to 186 Q-1).
 
 ## 1. The ref — `@endora-commerce/contracts` (`src/organizations.ts`, beside `ORGANIZATION_HOOKABLE_ACTIONS`)
 
@@ -97,8 +98,8 @@ moderation policy', …)`.
    participant failure here, because the point declares a substitute. It can be raised by
    `decision-refused`. If it is, log `organizations.moderation.evaluation_refused` with the trace's
    codes, write nothing and return. The organization stays pending, which is fail-safe.
-4. Run `organization.moderation.record_evaluation` on the Command Bus with the `automation` actor
-   (§4).
+4. Run `organization.moderation.record_evaluation` on the Command Bus (§4). Its actor is `system`,
+   the ambient actor of the system scope above.
 
 ## 4. Command `organization.moderation.record_evaluation`
 
@@ -110,7 +111,8 @@ run(ctx):
     return { result: { applied: false }, skipAudit: true }      // FR-039: nothing written
   row = em.create(OrganizationModerationEvaluation, { …decision, failed, skipped, inputDigest, organizationVersion })
   if decision.verdict === 'approve':
-    await ctx.run(approveOrganizationCommand({ organizationId, expectedVersion }))   // 186's Command, child, same transaction
+    await ctx.run(approveOrganizationCommand({ organizationId, expectedVersion,
+                                               source: 'organizations.moderation' }))  // 186's Command, child, same transaction
   return { result: { applied: true, evaluationId: row.id },
            before: null,
            after: { evaluationId, trigger, verdict, reasonCodes, failedParticipants, skippedParticipants } }
@@ -158,7 +160,7 @@ run(ctx):
 
 | Setting | Before | After |
 | --- | --- | --- |
-| `auto` | approved, `actorAdminUserId: null`, approval mail | approved by the `automation` actor through the approve Command, approval mail. An evaluation row is written (`mode_auto`) and audited |
+| `auto` | approved, `actorAdminUserId: null`, approval mail | approved through the approve Command by the `system` actor with source `organizations.moderation`, approval mail. An evaluation row is written (`mode_auto`) and audited |
 | `manual` | stays pending, nothing written | stays pending. An evaluation row is written (`mode_manual`) and audited |
 | unreadable | degrades to manual | stays pending. The evaluation row has `default_unreadable` |
 
@@ -173,3 +175,8 @@ covers them.
   impossible by construction.
 - **Labels:** the contributor ships `organizations.moderation.reason.<code>` in its own bundles, in
   English and Polish.
+- **A third-party package** (origin `package`) contributes only when the deployment grants it
+  `organizations.moderation` in `divergence.ts` `policyParticipantGrants` (D-295 item 5). Granted,
+  it is a peer of every other rule: its `hold` holds, its `approve` cannot override anyone's `hold`,
+  and its failure holds with `participant_failed`. The queue names its module like any other rule's
+  (research R-25).

@@ -3,7 +3,8 @@
 **Feature Branch**: `spec/188-policy-points`
 **Created**: 2026-11-23
 **Status**: Draft
-**Ruling**: D-295 (owner, 2026-11-23). Recorded in `plan.md` § *Ruling D-295*.
+**Ruling**: D-295 (owner, 2026-11-23), extended by the owner's answers of 2026-11-23 as items 5 to 8,
+which close OQ-1 to OQ-3. All are recorded in `plan.md` § *Ruling D-295*.
 **Input**: Issue #1839 (declared policy points, e2) and issue #1838 (organization moderation policy).
 The owner accepted OD-5 with one change on 2026-11-23: the owner of a point declares its combiner.
 Sibling specifications written in parallel, cited by slug: `specs/186-aggregate-ports/` (D-293),
@@ -64,30 +65,46 @@ from fixture modules. Then evaluate the point under the conditions listed in the
 1. **Given** a `chain` point with a default and two contributed participants, where module B
    depends on module A, **When** the point is evaluated, **Then** the default runs first, then A
    receiving the default's verdict, then B receiving A's verdict. The decision is B's verdict.
-2. **Given** a `chain` point and two contributing modules that no dependency path orders,
-   **When** the platform composes, **Then** composition refuses and names both modules and the
-   point. **And Given** the deployment's declaration ranks the two modules for that point, **Then**
-   composition succeeds in the declared order.
-3. **Given** a `commutative` point with three participants, **When** it is evaluated with the
+2. **Given** a `chain` point and two contributing modules of the same origin that no dependency
+   path orders, **When** the platform composes, **Then** composition refuses and names both modules
+   and the point. **And Given** the deployment's declaration ranks the two modules for that point,
+   **Then** composition succeeds in the declared order.
+3. **Given** a `chain` point with participants from a core module, from a granted third-party
+   package and from a deployment overlay module, none of which depends on another, **When** the
+   point is evaluated, **Then** the default runs first, then the core participant, then the
+   package's, then the deployment's. The deployment always has the last word.
+4. **Given** a `commutative` point with three participants, **When** it is evaluated with the
    participants registered in any order, **Then** the decision is the same.
-4. **Given** a participant that throws, exceeds its time budget, or returns a verdict that fails
+5. **Given** a participant that throws, exceeds its time budget, or returns a verdict that fails
    the point's schema or uses a reason code it did not declare, **When** the point is evaluated,
    **Then** that participant is treated as the point declares: either the point's substitute
    verdict, or, by default, the evaluation refuses and nothing is applied.
-5. **Given** a participant that tries to run a Command or emit an event while it decides, **When**
+6. **Given** a participant that tries to run a Command or emit an event while it decides, **When**
    the point is evaluated, **Then** the attempt is refused and the participant is treated as
    failed.
-6. **Given** the contributing module is switched off, **When** the point is evaluated, **Then**
+7. **Given** the contributing module is switched off, **When** the point is evaluated, **Then**
    the participant is skipped. **When** the module is switched back on, **Then** it takes part
    again, with no restart.
-7. **Given** the combined decision violates the owner's own invariants, **When** the point is
+8. **Given** the combined decision violates the owner's own invariants, **When** the point is
    evaluated, **Then** the decision is refused and not applied.
-8. **Given** a `chain` participant that never reads the previous verdict and has not declared
+9. **Given** a `chain` participant that never reads the previous verdict and has not declared
    itself an override, **When** the point is evaluated, **Then** the participant is reported as
    `policy-override`.
-9. **Given** an installed third-party package contributes a participant, **When** the platform
-   composes, **Then** composition refuses and names the package and the point (D-295, pending
-   OQ-1).
+10. **Given** an installed third-party package contributes a participant to a point, and the
+    deployment's committed divergence declaration does not grant that package for that point,
+    **When** the platform composes, **Then** composition refuses. The refusal names the package,
+    the point and the declaration field that would grant it (D-295 item 5).
+11. **Given** the declaration grants that package for that point, with a reason, **When** the
+    platform composes, **Then** the package's participants for that point take part like any other.
+    **And Given** the same package also contributes to a second point it is not granted for, **Then**
+    composition refuses for the second point.
+12. **Given** a grant that names a point no composed module declares, a module the composition does
+    not hold, a module that is not a third-party package, or a package that contributes nothing to
+    that point, **When** the platform composes, **Then** composition refuses and names the grant
+    entry.
+13. **Given** a granted package, **When** anything other than that point's participation asks for
+    the package's trust tier (decoration, command middleware, another point), **Then** the package is
+    treated exactly as an ungranted package.
 
 ---
 
@@ -105,8 +122,8 @@ Compare each status, the e-mails sent and the audit entries with the pre-release
 **Acceptance Scenarios**:
 
 1. **Given** the moderation setting is `auto` and there is no contributed rule, **When** a
-   business registers, **Then** it is approved by the automation actor and receives the approval
-   e-mail.
+   business registers, **Then** it is approved by the system, with the moderation policy recorded
+   as the source of the approval, and receives the approval e-mail.
 2. **Given** the setting is `manual`, **When** a business registers, **Then** it stays
    `pending_verification`. The queue shows the reason "Manual moderation is on".
 3. **Given** the setting cannot be read, **When** a business registers, **Then** it is held with
@@ -140,7 +157,8 @@ outcome is `validated`. Register one business with a validated lookup and one wi
 5. **Given** any combination of rules, **When** a business registers, **Then** it is never
    rejected automatically. Rejection stays an operator decision.
 6. **Given** the setting is `manual`, **When** every contributed rule approves, **Then** the
-   organization is still held, because the default rule holds and hold wins (see OQ-2).
+   organization is still held, because the default rule holds and hold wins. There is no third
+   mode (D-295 item 6).
 7. **Given** the module contributing a rule is switched off, **When** a business registers,
    **Then** that rule is skipped. The organization is decided by the remaining rules.
 8. **Given** an operator approves or rejects the organization while its evaluation is running,
@@ -152,8 +170,10 @@ outcome is `validated`. Register one business with a validated lookup and one wi
 ### User Story 4 - A held organization is reconsidered when a deferred registry lookup resolves (Priority: P2)
 
 A business registered while the registry was unavailable, so its lookup is `deferred`. The rules
-held it. Later the lookup is retried and resolves. The organization is evaluated again, with the
-resolved outcome as its input, while it is still pending.
+held it. Later an administrator retries the lookup and it resolves. The organization is evaluated
+again, with the resolved outcome as its input, while it is still pending. An automatic retry of
+`deferred` lookups is not part of this feature: it is a separate issue (to be filed, D-295 item 7).
+Because the re-evaluation reacts to any retry that resolves, that issue needs no change here.
 
 **Why this priority**: Without it, a provider outage turns automatic approval into manual work.
 
@@ -187,11 +207,15 @@ platform screen and `module:status`.
 
 1. **Given** an overlay module contributes a participant, **When** the divergence report is
    generated, **Then** it lists the participant with its point and combiner.
-2. **Given** any composition, **When** an operator with platform read permission opens the policy
+2. **Given** the deployment's declaration grants a third-party package for a point, **When** the
+   divergence report is generated, **Then** it lists the grant with the package, the point and the
+   declared reason. **When** the platform screen is opened, **Then** each of that package's
+   participants shows its origin `package` and that it takes part by a grant.
+3. **Given** any composition, **When** an operator with platform read permission opens the policy
    points screen (also reachable from the command palette), **Then** it lists every point and
-   every participant. A `chain` participant shows its position. Every participant shows whether
-   its module is present now, its reason codes, and whether it has been seen overriding.
-3. **Given** a module, **When** `module:status <id>` is run, **Then** it shows the points the
+   every participant. A `chain` participant shows its position. Every participant shows its origin,
+   whether its module is present now, its reason codes, and whether it has been seen overriding.
+4. **Given** a module, **When** `module:status <id>` is run, **Then** it shows the points the
    module declares and the points it contributes to.
 
 ---
@@ -242,6 +266,14 @@ fixture point's combiner and watch the helper fail.
 - **The process stops between the registration commit and the evaluation.** The organization
   stays pending, which is the fail-safe outcome. An operator decides it as today.
 - **A reason label is missing.** The admin shows the code, never a missing-key placeholder.
+- **A granted package is uninstalled** but its grant stays in the declaration. The next boot refuses,
+  naming the grant, until the entry is removed. A stale grant is refused for the reason a stale
+  omission is: it is how a deployment would silently re-admit a different package later.
+- **A granted package is switched off.** Its participants are skipped, like any switched-off
+  module's. The grant stays valid.
+- **An installed first-party module package** (origin `core` by `specs/189-command-middleware/`
+  `contracts/module-origin.md`) needs no grant. A grant naming it is refused as not a third-party
+  package.
 
 ## Requirements *(mandatory)*
 
@@ -267,11 +299,13 @@ fixture point's combiner and watch the helper fail.
   verdict. While a participant runs, any attempt to run a Command or emit an event MUST be refused,
   and the participant counts as failed.
 - **FR-006**: For `chain`, the default participant MUST run first. Each contributed participant
-  receives the input and the previous verdict. The order MUST follow transitive manifest
-  `dependencies`: a module runs after every module it depends on. Two contributing modules with no
-  dependency path MUST refuse composition, naming both, unless the deployment's declaration ranks
-  them for that point. A ranking that contradicts a dependency path MUST refuse composition. One
-  module's participants keep their registration order.
+  receives the input and the previous verdict. Contributed participants MUST run in origin tiers:
+  `core` first, then `package`, then `deployment`. Within a tier the order MUST follow transitive
+  manifest `dependencies`: a module runs after every module it depends on. Two contributing modules
+  of one tier with no dependency path MUST refuse composition, naming both, unless the deployment's
+  declaration ranks them for that point. A ranking that contradicts a dependency path, or that
+  names modules of different tiers, MUST refuse composition, and so MUST a dependency path that
+  contradicts the tier order. One module's participants keep their registration order.
 - **FR-007**: A `chain` participant that returns a verdict without reading the previous one, and
   has not declared itself an override, MUST be reported as `policy-override`. The report appears on
   the platform screen and once in the log, and the conformance helper fails on it.
@@ -289,9 +323,10 @@ fixture point's combiner and watch the helper fail.
   invariants. A refused decision MUST NOT be applied.
 - **FR-012**: A participant whose module is not effectively present MUST be skipped at each
   evaluation. Switching the module on or off MUST NOT need a restart.
-- **FR-013**: Participants from core modules and from the deployment's overlay modules MUST be
-  accepted. A participant from an installed third-party package MUST refuse composition, pending
-  the owner's answer to OQ-1 (D-295).
+- **FR-013**: Participants from modules of origin `core` and `deployment` MUST be accepted. A
+  participant from a module of origin `package` MUST refuse composition unless the deployment's
+  committed divergence declaration grants that package for that point (D-295 item 5). Origin is the
+  one `specs/189-command-middleware/` `contracts/module-origin.md` defines; this feature consumes it.
 - **FR-014**: An evaluation MUST return a trace with one entry per participant: decided, skipped
   as absent, or failed (and how), with its verdict and duration. The owner records what it needs
   from the trace.
@@ -301,7 +336,8 @@ fixture point's combiner and watch the helper fail.
   module is present now, and any observed override. The screen MUST be reachable from the command
   palette and from the platform navigation, under the existing platform read permission.
 - **FR-016**: The deployment divergence report MUST list each participant contributed by an
-  overlay module, with its point, combiner and participant id.
+  overlay module, with its point, combiner and participant id. It MUST also list each grant from the
+  declaration, with the package, the point and the grant's reason.
 - **FR-017**: `module:status` MUST show the points a module declares and the points it
   contributes to.
 - **FR-018**: The test kit MUST offer a conformance helper. It runs a point with and without a
@@ -319,6 +355,18 @@ fixture point's combiner and watch the helper fail.
   English and Polish where the page is published in both.
 - **FR-022**: An evaluation refused by the mechanism that reaches an HTTP caller MUST answer with
   one platform error code, translated in English and Polish.
+- **FR-023**: A grant MUST name one policy point, one module id and a reason in prose, in the
+  deployment's committed divergence declaration. A grant covers every participant that module
+  declares for that point and nothing else.
+- **FR-024**: Composition MUST refuse a grant that names a point no composed module declares, a
+  module the composition does not hold, a module whose origin is not `package`, or a package that
+  declares no participation for that point. The refusal MUST name the point, the module and the
+  declaration field.
+- **FR-025**: A grant MUST NOT change the package's origin, and MUST NOT be read by anything except
+  the composition of that point's participants. Decoration, command middleware and every other point
+  MUST treat a granted package exactly as an ungranted one.
+- **FR-026**: The plan API, the platform screen and the boot log MUST show each participant's origin,
+  and for a `package` participant that it takes part by a grant.
 
 ### Functional Requirements — the organization moderation policy (#1838)
 
@@ -346,7 +394,9 @@ fixture point's combiner and watch the helper fail.
 - **FR-036**: The policy MUST be evaluated again when the organization is still pending and its
   registry lookup outcome changes from `deferred` to `validated`, `failed` or `unverified`.
 - **FR-037**: An `approve` decision MUST approve the organization through the Organization
-  aggregate's approve Command (`specs/186-aggregate-ports/`), with the `automation` actor. The
+  aggregate's approve Command (`specs/186-aggregate-ports/`). The actor is the `system` actor of the
+  system scope the evaluation runs under, with the source code `organizations.moderation` recorded
+  (the owner's answer of 2026-11-23 to `specs/186-aggregate-ports/` Q-1, a D-293 ruling). The
   approval and the evaluation record MUST commit together. The audit entries MUST carry the
   verdict, the reason codes, the failed and skipped participants, and the trigger, as codes and
   ids, never values. The approval e-mail is sent as today.
@@ -372,8 +422,9 @@ fixture point's combiner and watch the helper fail.
   evaluation shows "No automatic evaluation".
 - **FR-045**: With no contributed rule, moderation outcomes, e-mails and status events MUST be the
   same as before the release.
-- **FR-046**: The organizations documentation page MUST describe the policy, how to write a rule
-  and the consequence of OQ-2, with a worked example, in English and Polish.
+- **FR-046**: The organizations documentation page MUST describe the policy, how to write a rule,
+  the consequence of D-295 item 6 (`manual` never approves) and how a deployment grants a
+  third-party package's rule, with a worked example, in English and Polish.
 
 ### Functional Requirements — fit for the second point
 
@@ -388,6 +439,9 @@ fixture point's combiner and watch the helper fail.
   participant, a budget and a failure treatment.
 - **Participant**: a contributed decision function, declared in the contributor's manifest, with a
   closed set of reason codes.
+- **Participant grant**: an entry in the deployment's divergence declaration that admits one
+  third-party package's participants to one point, with a reason. It is the deployment's judgement;
+  the package cannot write it.
 - **Evaluation trace**: per-participant outcome of one evaluation. It is not stored by the
   platform.
 - **Moderation evaluation** (owned by `organizations`): one row per evaluation of one
@@ -405,7 +459,9 @@ fixture point's combiner and watch the helper fail.
 - **SC-003**: In the moderation queue, every held organization registered after the release shows
   at least one reason, in the operator's language.
 - **SC-004**: Every participant of a composition appears on the platform screen. Every
-  overlay-contributed participant appears in the divergence report.
+  overlay-contributed participant and every grant appears in the divergence report.
+- **SC-007**: No third-party package's participant takes part in any composition without a grant
+  entry for that package and that point.
 - **SC-005**: No contributed rule, under any failure, produces an automatic rejection or an
   unaudited write.
 - **SC-006**: A change to the owner's combiner or schemas fails a contributor's conformance tests
@@ -414,20 +470,28 @@ fixture point's combiner and watch the helper fail.
 ## Assumptions
 
 - `specs/186-aggregate-ports/` delivers the approve Command as a Command that can run as a child of
-  another of this module's Commands, and the `automation` actor kind (#1821). WP-B waits for it.
+  another of this module's Commands, and that records a caller source code (#1821). There is no
+  `automation` actor kind: the actor is `system` with a source code. WP-B waits for it.
+- `specs/189-command-middleware/` defines module origin (`core` / `deployment` / `package`) and its
+  derivation in `contracts/module-origin.md`. Whichever of 188 and 189 merges first lands that
+  contract's §1 and §2 as written there.
 - The registry lookup retry that exists today is the administrator's validation trigger. No
-  automatic retry is added here (OQ-3).
+  automatic retry is added here: it is a separate issue (to be filed, D-295 item 7).
 - Rules write their reasons as codes. Free text is never a reason.
 - A deployment that wants automatic approval with exceptions sets the mode to `auto` and writes
-  hold rules (OQ-2).
+  hold rules (D-295 item 6).
 
 ## Owner questions
 
-- **OQ-1** *(open, from D-295)*: May an installed third-party package contribute participants? The
-  default is no: composition refuses. See `research.md` R-12 for the options and the
-  recommendation.
-- **OQ-2**: Under `manual`, no contributed rule can approve, because the default holds and hold
-  wins. This reading follows the issue and keeps `manual` honest. Confirm, or choose a third mode
-  in which approval needs a contributed rule. See `research.md` R-17.
-- **OQ-3**: Should deferred registry lookups be retried automatically by a worker? This feature
-  re-evaluates on any retry that resolves. It adds no worker. See `research.md` R-18.
+All three are closed by the owner's answers of 2026-11-23, recorded as D-295 items 5 to 7 in
+`plan.md` § *Ruling D-295*. There is no open owner question.
+
+- **OQ-1** *(closed: D-295 item 5, CHANGED from the recommendation)*: An installed third-party
+  package may contribute participants now, per package and per point, only where the deployment's
+  committed divergence declaration grants it. An ungranted package still refuses composition. The
+  grant is listed in the divergence report. See FR-013, FR-023 to FR-026 and `research.md` R-12.
+- **OQ-2** *(closed: D-295 item 6, as recommended)*: Under `manual`, no contributed rule can approve.
+  Automatic approval with exceptions is `auto` plus hold rules. There is no third mode. See
+  `research.md` R-17.
+- **OQ-3** *(closed: D-295 item 7)*: Automatic retry of `deferred` lookups is a separate issue (to be
+  filed). This feature adds no worker. See `research.md` R-18.

@@ -59,19 +59,50 @@ The field coexists with `dependencies` on the point's owner. It is **not** a
 policyOrder?: Record<pointId, moduleId[] (min 2)>   // .optional(), first runs first
 ```
 
-It is read only for `chain` points. An entry for a `commutative` point is refused at seal
-(`PolicyOrderOnCommutativePointError`), because it would claim an order that has no effect.
+It is read only for `chain` points, and only within one origin tier (research R-4). An entry for a
+`commutative` point is refused at seal (`PolicyOrderOnCommutativePointError`), because it would
+claim an order that has no effect. An entry naming modules of two tiers is refused
+(`PolicyOrderContradictionError`), for the same reason.
+
+### 1.4 `DeploymentDivergenceDeclarationSchema.policyParticipantGrants` (D-295 item 5)
+
+```text
+policyParticipantGrants?: Record<
+  pointId,                         // POLICY_POINT_ID_RE
+  Array<{                          // min 1; each moduleId at most once per point; .strict()
+    moduleId: string               // the granted package's module id (its `endora.id`)
+    reason:   string               // 20..800, as omittedModules[].reason
+  }>
+>                                  // .optional(); absent means "no package takes part anywhere"
+```
+
+- **Shape** is refused by `parseDivergenceDeclaration` through the schema, naming the deployment's
+  file. The schema's `.strict()` comment ("a fifth field is a typo") is rewritten to count the
+  fields it now has.
+- **Meaning** is refused by `PolicyRegistry.seal` as `InvalidPolicyParticipantGrantError(pointId,
+  moduleId, cause)`, `cause` one of `unknown-point`, `unknown-module`, `not-a-package` and `unused`
+  (research R-12).
+- **Effect.** A participation whose module's origin is `package` is accepted only when its
+  `(point, moduleId)` is granted here. The grant is read by the seal and by the divergence
+  derivation only. It never changes the module's origin (FR-025).
+- `backend/src/apps/example/divergence.ts` writes both new fields out, empty, with the comment its
+  doc block gives every field, and its "four things" list is corrected to the fields it has.
 
 ## 2. Divergence report additions (`packages/contracts/src/modules.ts`)
 
-- `DivergenceKind` gains `'policy-participant'`.
+- `DivergenceKind` gains `'policy-participant'` and `'policy-participant-grant'`.
 - `DivergenceDetail` gains:
-  `{ kind: 'policy-participant'; point: string; combiner: 'chain' | 'commutative'; participantId: string; position: number | null; override: 'declared' | null }`.
-  `position` is `null` in the committed artefact (research R-13).
-- Key: `policy-participant:<module>:<pointId>#<participantId>`.
-- Rung: `3`.
+  - `{ kind: 'policy-participant'; point: string; combiner: 'chain' | 'commutative'; participantId: string; position: number | null; override: 'declared' | null }`.
+    `position` is `null` in the committed artefact (research R-13).
+  - `{ kind: 'policy-participant-grant'; point: string }`.
+- Keys: `policy-participant:<module>:<pointId>#<participantId>` and
+  `policy-participant-grant:<moduleId>:<pointId>`.
+- Rung: `3` for both.
+- A grant entry's `reason` is the grant's inline reason, as an omission's is. It is never looked up
+  in `reasons`, and a `reasons` key for it is the existing stale-reason finding.
 - `DivergenceBoundary.notRecorded` gains `policyPoint`, with the reason "a module declaring its
-  own decision point". `runtimeOnly` gains "chain position and observed overrides".
+  own decision point". `runtimeOnly` gains "chain position and observed overrides" and "a granted
+  package's policy participants".
 
 ## 3. Contract types (`packages/contracts/src/policy-points.ts`, platform-free)
 
@@ -91,6 +122,7 @@ The plan response (`PolicyPointPlanResponseSchema`) is in `contracts/admin-and-i
 
 ```text
 PolicyTraceEntry = PolicyParticipantKey & {
+  origin:     ModuleOrigin         // 'core' | 'deployment' | 'package', from 189's contract
   outcome:    'decided' | 'skipped-absent' | 'failed'
   failure?:   PolicyFailureKind
   verdict?:   V                // decided, or the substitute for a failed participant
@@ -101,7 +133,9 @@ PolicyEvaluation<D> = { decision: D; trace: readonly PolicyTraceEntry[] }
 ```
 
 `PolicyRegistry` keeps per-process counters per participant: `evaluations` and `previousReads`.
-`observedOverride` is derived from them (research R-5).
+`observedOverride` is derived from them (research R-5). The sealed plan holds, per participant, its
+`origin` and `granted` (true only for a `package` participant admitted by a grant). The owner's
+default participant has the owner's origin.
 
 ## 5. `organization_moderation_evaluations` — owned by `organizations`
 
@@ -144,7 +178,8 @@ carries ids and codes only, and it is added to `OrganizationEventBus`'s event ma
 ## 7. Audit state (`specs/conventions/audit-state.md`)
 
 **`organization.moderation.record_evaluation`.** `objectType` is `organization`, `objectId` is the
-organization id, and the actor is `automation` (186). The state is:
+organization id, and the actor is `system`, from the reactor's system scope. There is no
+`automation` actor kind (the owner's answer to `specs/186-aggregate-ports/` Q-1). The state is:
 
 ```text
 before: null
@@ -158,7 +193,8 @@ Every value is in list 1: an id, code-shaped values from declared closed sets, a
 participant ids.
 
 **The child `organization.approve`** is audited by that Command exactly as `specs/186-aggregate-ports/`
-specifies, with the `automation` actor. `ORGANIZATIONS_AUDIT_KEYS` gains `evaluationId`, `trigger`,
+specifies: actor `system`, and `source: 'organizations.moderation'` in its state after, a code under
+186's source grammar. `ORGANIZATIONS_AUDIT_KEYS` gains `evaluationId`, `trigger`,
 `verdict`, `reasonCodes`, `failedParticipants` and `skippedParticipants`. The sentinel test of
 `audit-state.md` §6 covers the new Command.
 

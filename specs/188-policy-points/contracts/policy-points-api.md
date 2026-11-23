@@ -54,8 +54,27 @@ export function policyReasonLabelKey(pointId: string, code: string): string;
 ```
 
 - `ModuleManifestSchema` gains `policyPoints` and `policyContributions` (`data-model.md` §1).
-- `DeploymentDivergenceDeclarationSchema` gains `policyOrder` (`.optional()`).
-- `DivergenceKind` and `DivergenceDetail` gain `policy-participant` (`data-model.md` §2).
+- `DeploymentDivergenceDeclarationSchema` gains two optional fields (`data-model.md` §1.3, §1.4):
+
+  ```ts
+  export const PolicyParticipantGrantSchema = z.object({
+    moduleId: z.string().regex(moduleIdRe),
+    reason: z.string().min(20).max(800),
+  }).strict();
+
+  // inside DeploymentDivergenceDeclarationSchema, beside commandHookOrder:
+  policyOrder: z.record(z.string().regex(POLICY_POINT_ID_RE), z.array(z.string().regex(moduleIdRe)).min(2)).optional(),
+  policyParticipantGrants: z
+    .record(z.string().regex(POLICY_POINT_ID_RE), z.array(PolicyParticipantGrantSchema).min(1))
+    .superRefine(/* a moduleId at most once per point */)
+    .optional(),
+  ```
+
+  Both are `.optional()` for the reason `commandHookOrder` is (176 amendment 2).
+- `DivergenceKind` and `DivergenceDetail` gain `policy-participant` and `policy-participant-grant`
+  (`data-model.md` §2).
+- `ModuleOrigin` / `MODULE_ORIGINS` are **not** defined here. They are
+  `specs/189-command-middleware/` `contracts/module-origin.md` §1's, and this contract imports them.
 - `ERROR_CODES` gains `POLICY_EVALUATION_FAILED`. Its owner is `_i18n`, and it is translated under
   `errors.POLICY_EVALUATION_FAILED` in English and Polish.
 
@@ -120,7 +139,13 @@ export class UnorderedPolicyParticipantsError extends Error {}    // chain: no p
 export class PolicyOrderContradictionError extends Error {}
 export class PolicyOrderOnCommutativePointError extends Error {}
 export class OverrideOnCommutativePointError extends Error {}
-export class PackagePolicyParticipantNotOfferedError extends Error {}  // D-295 / OQ-1
+// D-295 item 5. Names the package, the point, `policyParticipantGrants` and the deployment's divergence.ts.
+export class PackagePolicyParticipantNotGrantedError extends Error {}
+export class InvalidPolicyParticipantGrantError extends Error {
+  readonly pointId: string;
+  readonly moduleId: string;
+  readonly cause: 'unknown-point' | 'unknown-module' | 'not-a-package' | 'unused';
+}
 ```
 
 Registration resolves nothing. Calling either seam after the registry is sealed throws, as
@@ -138,9 +163,12 @@ export interface PolicyCompositionInput {
   readonly policyPoints: readonly (PolicyPointDeclaration & { moduleId: string })[];        // policyPointsFrom(manifests)
   readonly policyContributions: readonly (PolicyContributionDeclaration & { moduleId: string })[];
   readonly moduleDependencies: Readonly<Record<string, readonly string[]>>;                 // moduleDependencyClosureFrom
-  readonly policyOrder?: Readonly<Record<string, readonly string[]>>;
-  readonly installedPackageModuleIds: ReadonlySet<string>;
+  readonly policyOrder?: Readonly<Record<string, readonly string[]>>;                       // from divergence.ts
+  readonly policyParticipantGrants?: Readonly<Record<string, readonly { moduleId: string; reason: string }[]>>; // from divergence.ts
 }
+// The origin map is not part of the root's input: composeModules resolves it from the entries
+// (189 `contracts/module-origin.md` §2) and passes it to seal() itself.
+// seal(input: PolicyCompositionInput, origins: ReadonlyMap<string, ModuleOrigin>): void
 export function policyPointsFrom(entries): …; export function policyContributionsFrom(entries): …;
 export function orderByModuleDependencies<R extends { moduleId: string; seq: number }>(
   subject: string, registrations: readonly R[], closure: Readonly<Record<string, readonly string[]>>,
@@ -150,7 +178,20 @@ export function orderByModuleDependencies<R extends { moduleId: string; seq: num
 
 `composeModules` takes `policyRegistry` and `policies: PolicyCompositionInput`. These are the same
 field names the context option uses, so `harness-parity.test.ts` holds both roots to them.
-`backend/src/composition.ts` and `backend/test/test-server.ts` both wire the registry.
+`backend/src/composition.ts` and `backend/test/test-server.ts` both wire the registry and pass
+`policyOrder` and `policyParticipantGrants` from `loadDivergenceDeclaration()`, as they pass
+`decorationOrder` and `commandHookOrder` today. The composer reads no file.
+
+**Seal order of checks** (each one refuses before boot hooks run):
+
+1. declarations against registrations (undeclared, unregistered, duplicates; FR-003);
+2. drop the participations of points no composed module declares (FR-004);
+3. **trust**: every `package`-origin participation needs a grant for its point
+   (`PackagePolicyParticipantNotGrantedError`), then every grant must describe something
+   (`InvalidPolicyParticipantGrantError`, four causes). A grant for a point the composition drops in
+   step 2 is `unknown-point`: a dropped participation is silent, a stale grant is not;
+4. ordering for `chain` points, per origin tier (§4 step 4);
+5. combiner-specific refusals (`policyOrder` or `overrides` on a `commutative` point).
 
 ## 4. Run-time semantics (normative)
 
@@ -164,9 +205,12 @@ field names the context option uses, so `harness-parity.test.ts` holds both root
    `reasonCode`, that code is in the participant's declared codes (`defaultReasonCodes` for the
    default and for substitutes).
 4. **For `chain`.** The default runs first with no `previous`. Then each contributed participant
-   runs in sealed order with `(input, previousProxy)`. The decision is the last verdict.
-5. **For `commutative`.** All participants run concurrently. The outcomes are sorted by
-   `(moduleId, participantId)`, and `ref.combine(outcomes)` gives the decision.
+   runs in sealed order with `(input, previousProxy)`. The decision is the last verdict. The sealed
+   order is: the `core` tier, then the `package` tier, then the `deployment` tier; within a tier,
+   `orderByModuleDependencies` with `policyOrder[pointId]` as the tie-break (research R-4, R-25).
+5. **For `commutative`.** All participants run concurrently, whatever their origin. The outcomes are
+   sorted by `(moduleId, participantId)`, and `ref.combine(outcomes)` gives the decision.
+   `PolicyOutcome` carries no origin (research R-25).
 6. **On a failure.** If the point declares `onParticipantFailure`, its verdict replaces the failed
    one and is validated as in step 3. The trace entry is marked `failed` with `failure`. Without a
    substitute, the evaluation rejects with `PolicyEvaluationError('participant-failed')` after
@@ -238,7 +282,11 @@ export function sealedPolicyRegistry(input: Partial<PolicyCompositionInput>): Po
   tenant-scoped read by the input's organization id.
 - Pass `ctx.signal` to anything that calls out, and stay inside the budget.
 - Ship `expectPolicyParticipantConformance` tests with your bundles.
-- An installed package cannot contribute yet (OQ-1).
+- An installed third-party package (origin `package`) takes part only in a point the deployment
+  grants it, in its `divergence.ts` `policyParticipantGrants`. Without the grant the composition
+  refuses and names the field. The grant admits the package to that point and to nothing else: its
+  origin stays `package`, it still cannot decorate, and it is still `observe`-only for command
+  middleware. A package author documents which grant the package needs; the deployment decides.
 
 ## 8. Example (an overlay module)
 
@@ -262,3 +310,27 @@ export function registerModule(ctx: ModuleContext): void {
   }]);
 }
 ```
+
+## 9. Example (a grant for a third-party package)
+
+```ts
+// backend/src/apps/<deployment>/divergence.ts
+export const divergence: DeploymentDivergenceDeclaration = {
+  omittedModules: [],
+  decorationOrder: {},
+  commandHookOrder: {},
+  policyOrder: {},
+  policyParticipantGrants: {
+    'organizations.moderation': [{
+      moduleId: 'acme_credit_check',
+      reason:
+        'Holds a new business whose credit score from the bureau this shop contracts is below the ' +
+        'threshold agreed with finance, so a person reviews it before it can order on terms.',
+    }],
+  },
+  reasons: {},
+};
+```
+
+The divergence report then carries
+`policy-participant-grant:acme_credit_check:organizations.moderation` with that reason, at rung 3.

@@ -17,7 +17,7 @@ implementation starts.
 
 - [x] CHK004 Every FR is testable and traced in `plan.md` § Requirement → test traceability.
 - [x] CHK005 Off-state (XVII) is specified for a participant, an absent owner and a moderation
-  rule: US1-6, FR-012, FR-004, US3-7, T029, T061.
+  rule: US1-7, FR-012, FR-004, US3-7, T029, T061.
 - [x] CHK006 Tenant scoping is specified, including the system scope with an explicit organization
   id (FR-031, research R-10).
 - [x] CHK007 Audit is specified as codes only (FR-037, `data-model.md` §7).
@@ -26,10 +26,12 @@ implementation starts.
   code is added.
 - [x] CHK010 The edge cases cover an absent owner, a superseded evaluation, late results, missing
   labels, pre-release organizations and a lost reactor.
-- [ ] CHK011 OQ-1 (package participants) is open. The default refuses (D-295).
-- [ ] CHK012 OQ-2 (whether rules can approve under `manual`) awaits confirmation. It is
-  implemented as specified.
-- [ ] CHK013 OQ-3 (an automatic retry worker) awaits a decision. No worker is added.
+- [x] CHK011 OQ-1 (package participants) is closed by D-295 item 5: a package takes part only by a
+  per-point grant in the deployment's divergence declaration (FR-013, FR-023 to FR-026).
+- [x] CHK012 OQ-2 is closed by D-295 item 6: `manual` never approves; no third mode.
+- [x] CHK013 OQ-3 is closed by D-295 item 7: the automatic retry is a separate issue (to be filed).
+- [x] CHK017 Origin is consumed from `specs/189-command-middleware/` `contracts/module-origin.md`
+  and not redefined (D-295 item 8). The dependencies on 189 are listed in `plan.md`.
 
 ## Feature Readiness
 
