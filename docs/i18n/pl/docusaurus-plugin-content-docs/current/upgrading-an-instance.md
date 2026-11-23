@@ -5595,6 +5595,200 @@ widział.
    `MFA_OAUTH_MICROSOFT_CLIENT_SECRET` i `MFA_OAUTH_MICROSOFT_TENANT`, jeśli oferuje logowanie
    federacyjne. Strona modułu `mfa` wymienia adresy przekierowania do zarejestrowania.
 
+### Po aktualizacji do wydania 0.112.0 {#after-0-112-0}
+
+`pnpm run upgrade 0.112.0` przenosi pakiety wydania z `0.111.0` i stosuje jego migracje — dwanaście
+dla modułów z wcześniejszych wydań (każda działa tam, gdzie zadeklarowano jej moduł) i jeszcze jedną
+dla nowego modułu `related_payers`, która działa dopiero wtedy, gdy instancja go zadeklaruje. **Żadna
+migracja nie odmawia działania na istniejących danych i żadna nie przepisuje tabeli**; trzy z nich
+tylko przenoszą instrukcje z zamrożonych migracji innego modułu i niczego nie zmieniają na instancji,
+która je uruchomiła. Wydanie zamyka audyt UX panelu (zgłoszenie #1567): jeden system wizualny, jedna
+strona listy, jeden przycisk *Zapisz* i jedna akcja główna na ekran w całym panelu, co **usuwa
+dawne klasy `b2b-*` zestawu admin kit**, które może jeszcze renderować Twój własny moduł lub motyw.
+Poza tym promocje są liczone od kwoty brutto, którą płaci kupujący, status płatności zamówienia
+podlega grafowi przejść, zapis identyfikatora pliku, którego administrator nie widzi, jest odrzucany,
+lista zapytań ofertowych w panelu jest stronicowana na serwerze, a `returns` przyjmuje reklamacje
+towarów kupionych poza platformą i reklamacje gości bez konta. Kroki poniżej mówią, co zrobić i w
+jakiej kolejności; każdy wpis po nich jest samodzielny, więc przeczytaj te, które dotyczą używanych
+przez Ciebie części platformy.
+
+#### Co zrobić i w jakiej kolejności {#after-0-112-0-steps}
+
+Przed aktualizacją:
+
+1. **Na instancji produkcyjnej, która wysyła newslettery, wybierz dane dostępowe SMTP** w ustawieniu
+   *Email credentials* modułu `newsletter`. Bez nich wysyłka kampanii jest odrzucana z kodem
+   `422 NEWSLETTER_PROVIDER_NOT_CONFIGURED`, zamiast trafiać do logu serwera
+   ([Wysyłka newslettera](#after-0-112-0-newsletter)).
+2. **Przejrzyj promocje, których minimalna kwota zamówienia lub próg „wydaj X” ustawiono jako kwotę
+   netto.** Progi, limity rabatów kwotowych i rabaty procentowe są teraz liczone od brutto
+   ([Promocje od brutto](#after-0-112-0-promotions)).
+
+Sama aktualizacja:
+
+3. **Uruchom `pnpm run upgrade 0.112.0`.** `setup` stosuje migracje moduł po module, w kolejności
+   zależności modułów, a migracje każdego modułu w kolejności ich znaczników czasu. Według modułów:
+
+   | Migracja | Moduł | Co robi |
+   | --- | --- | --- |
+   | `Migration20261117T065542CurrenciesTable` | `currencies` | Tworzy tabelę `currencies`, jej indeksy, kolumny, ograniczenia i wiersze `PLN` oraz `EUR`, gdzie nie utworzyła ich starsza migracja innego modułu; **na instancji, która je ma, nic się nie zmienia** |
+   | `Migration20261117T065601DictionariesDefaultCurrencyFk` | `dictionaries` | Dodaje `countries_default_currency_fk`, gdzie go brakuje; na instancji, która go ma, nic się nie zmienia |
+   | `Migration20261117T033143OrganizationsCustomerGroupColumn` | `organizations` | Tworzy `organizations.customer_group_id` i jej indeks, gdzie ich brakuje; na instancji, która je ma, nic się nie zmienia |
+   | `Migration20261119T090000CartsBuyingFor` | `carts` | Kolumny `carts.buying_for_organization_id` i `buying_for_terms` dopuszczające pustą wartość: płatnik powiązany, dla którego kupowany jest koszyk |
+   | `Migration20261118T162646OrdersPayerOnOrder` | `orders` | Cztery kolumny płatnika w `orders` dopuszczające pustą wartość i indeks na `payer_organization_id`; żadne istniejące zamówienie nie ma płatnika |
+   | `Migration20261116T204304InvoicesInvoiceLineKindRetained` | `invoices` | `invoice_lines.line_kind` dopuszcza `retained`, kwotę zatrzymaną przy zwrocie |
+   | `Migration20261113T145001ReturnsAuthorizerStatusNotifications` | `returns` | `return_cases.authorized_by_admin_user_id`, uzupełniana z dziennika audytu, i `return_statuses.notify_customer_on_entry`, wyłączona dla każdego statusu |
+   | `Migration20261113T155433ReturnsOffPlatformComplaints` | `returns` | `return_cases.order_id` dopuszcza pustą wartość, z kolumnami reklamacji bez zamówienia z platformy; `return_case_attachments` ma `organization_id`, uzupełnianą z jej sprawy; tabela `return_case_clauses` — zob. [Zwroty](#after-0-112-0-returns) |
+   | `Migration20261116T104415ReturnsGuestComplaints` | `returns` | `return_cases.customer_account_id` dopuszcza pustą wartość, z kolumnami gościa w sprawach, komentarzach i załącznikach; tabela `return_guest_verifications` |
+   | `Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders` | `quote_requests` | **Nadaje numer z sekwencji każdemu zapytaniu ofertowemu, które wciąż nazywa się `QR-<uuid>`**, od najstarszego; nieodwracalna, a teksty już wygenerowane zachowują numer zastępczy |
+   | `Migration20261122T074243CrmOpportunityListSavedViews` | `crm` | Tabela `crm_opportunity_list_saved_views`, pusta |
+   | `Migration20261122T074256ProjectsListSavedViews` | `projects` | Tabela `project_list_saved_views`, pusta |
+
+   Zadeklarowanie `related_payers` dodaje `Migration20261118T144820RelatedPayersLinksAndRequests`,
+   która tworzy tylko dwie własne tabele modułu (krok 7).
+
+Po aktualizacji, zanim instancja znów przyjmie ruch:
+
+4. **Przenieś storefront.** Storefront skopiowany z wcześniejszego wydania nie ma stron reklamacji
+   gościa i śledzenia sprawy, ekranów płatników na koncie ani załączników i klauzul formularza zwrotu.
+   Najkrótsza droga to przeniesienie storefrontu wydania w całości —
+   `git diff v0.111.0 v0.112.0 -- storefront` w repozytorium platformy wypisuje każdą zmianę.
+5. **Zwolnij rezerwacje kredytu zamówień z limitem kredytowym rozliczonych przez
+   `POST /api/v1/payments/receive`** przed tym wydaniem: uruchom `pnpm run cli orders
+   transition-effects-repair`, przejrzyj, co wypisze, a potem uruchom je ponownie z `--apply`
+   ([Status płatności](#after-0-112-0-payment-status)).
+
+W dowolnym momencie:
+
+6. **Włącz to, co teraz oferuje `returns`**, dla każdego kanału sprzedaży: reklamacje towarów kupionych
+   poza platformą (`returns.off_platform_complaints_enabled`), potem reklamacje gości
+   (`returns.guest_complaints_enabled`) oraz odbiorców nowych spraw (`returns.new_case_recipients`).
+   Po aktualizacji wszystko jest wyłączone ([Zwroty](#after-0-112-0-returns)).
+7. **Zadeklaruj `related_payers`**, jeśli organizacja kupująca ma składać zamówienia, za które płaci
+   inna organizacja ([Dodawanie modułu nowego w wydaniu](#adding-a-new-module)). Moduł startuje
+   wyłączony; włącz go na ekranie **Modules** i w kanale sprzedaży.
+8. **Własny kod**, który renderuje klasy `b2b-*` zestawu admin kit, montuje samodzielnie `ScopePicker`,
+   `RuleBuilder` lub jeden z paneli zestawu, wywołuje API załączników zwrotów, zapisuje identyfikatory
+   plików, wysyła `status` organizacji w `PATCH`, ustawia statusy płatności albo czyta listę zapytań
+   ofertowych panelu jednym wywołaniem, wymaga zmian opisanych w
+   [Zmianach niezgodnych wstecz](#after-0-112-0-breaking).
+
+#### Promocje od brutto {#after-0-112-0-promotions}
+
+Promocje są liczone od kwoty brutto, którą płaci kupujący (zgłoszenia #1350 i #1396). Promocje
+procentowe i z darmowymi sztukami biorą swoją część brutto towarów, więc za tę samą promocję kupujący
+płaci mniej niż dotąd: „10 % taniej na koszyk” przy VAT 23 % odejmowało około 8,1 % kwoty, którą
+płacił kupujący, a teraz odejmuje 10 %, a darmowa sztuka jest darmowa razem z VAT. `minCartSubtotal`,
+suma koszyka w kreatorze reguł i progi „wydaj X” porównują brutto towarów przed rabatem, a rabaty
+kwotowe są ograniczone do brutto, więc niektóre promocje obejmują koszyki, które dotąd pomijały:
+minimalna kwota 500 wymagała 500 netto, a teraz wymaga 500 brutto. Zamówienia złożone przed
+aktualizacją się nie zmieniają. Wywołujący `POST /api/v1/admin/promotions/preview` wysyła `taxRate`
+w każdej pozycji, aby dostać rabat, jaki dostałoby zamówienie.
+
+#### Status płatności {#after-0-112-0-payment-status}
+
+Status płatności zamówienia podlega grafowi przejść (zgłoszenie #1574). Trasa panelu odrzuca `paid`
+dla zamówienia `refunded` oraz `refunded` dla zamówienia nigdy nieopłaconego z kodem
+`409 ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED`; prośba o status, który zamówienie już ma, niczego
+nie zmienia i nie zapisuje wpisu audytu. Rozliczenie podlega temu samemu grafowi: spóźniona odmowa nie
+wstrzymuje już opłaconego zamówienia, a wiersz płatności nadal zapisuje to, co zgłosiła bramka.
+Zamówienie z limitem kredytowym rozliczone przez `POST /api/v1/payments/receive` zwalnia teraz
+rezerwację kredytu po zatwierdzeniu (zgłoszenie #1576); rozliczone przed aktualizacją może ją nadal
+trzymać, co naprawia krok 5.
+
+#### Zwroty {#after-0-112-0-returns}
+
+`returns` sam przechowuje pliki sprawy, wysyła cztery wiadomości e-mail (nowa sprawa, zgłoszenie,
+komentarz i wejście w status), zapisuje, kto autoryzował sprawę, i przyjmuje dwa nowe rodzaje spraw,
+każdy wyłączony, dopóki kanał sprzedaży go nie włączy (`specs/180-off-platform-complaints/`,
+`specs/181-guest-complaints/`):
+
+- **Reklamacja bez zamówienia z platformy**, dotycząca towaru kupionego gdzie indziej; rozstrzyga się
+  ją wymianą, naprawą lub *rozliczeniem poza platformą*, nigdy zwrotem pieniędzy ani uznaniem. Klauzule,
+  które klient akceptuje lub które mu się pokazuje, edytuje się na nowym ekranie *Warunki zwrotów
+  i reklamacji*.
+- **Reklamacja gościa** bez konta klienta, który potwierdza adres e-mail jednorazowym linkiem
+  i śledzi sprawę przez prywatny link śledzenia. Link jest zapieczętowany pieczęcią kursora platformy,
+  więc **zmiana `SESSION_COOKIE_SECRET` unieważnia każdy link gościa**. Dane kontaktowe, adres i pliki
+  gościa są usuwane po `returns.guest_data_retention_days` dniach od zamknięcia sprawy (domyślnie 90).
+
+Wiersze załączników zapisane przez dawne API zachowują `asset_id` i mają typ `other`; zostają w bazie,
+ale nie są wypisywane w sprawie i nie da się ich pobrać. `returns` wiąże się teraz z `_i18n`,
+`admin_users`, `assets_library` i `catalog`; `setup` deklaruje je, jeśli instancja tego nie zrobiła.
+
+#### Wysyłka newslettera {#after-0-112-0-newsletter}
+
+Na instancji produkcyjnej (`NODE_ENV=production`) wysyłka kampanii newslettera wymaga działających
+danych dostępowych e-mail: ustawienia `newsletter.email_credentials` wskazującego dane `email_adapter`
+rodzaju SMTP, które się rozwiązują (zgłoszenie #1334). Bez nich wysyłka jest odrzucana z kodem
+`422 NEWSLETTER_PROVIDER_NOT_CONFIGURED`, a kampania zachowuje swój status; dotąd trafiała do logu
+serwera, nie docierała do żadnej skrzynki i wyglądała na wysłaną. Instancje deweloperskie i testowe
+zachowują ujście konsolowe.
+
+#### Zmiany niezgodne wstecz {#after-0-112-0-breaking}
+
+Dla klientów API i integratorów:
+
+- **Załączniki zwrotów** (`specs/180-off-platform-complaints/`): `attachmentAssetIds` w
+  `POST /api/v1/returns` oraz treść JSON `{ assetId }` w `POST /api/v1/returns/:id/attachments` są
+  usunięte. Prześlij każdy plik przez `POST /api/v1/returns/uploads` (multipart `file` i `type`)
+  i złóż sprawę z `attachments: [{ uploadId }]`; plik do złożonej sprawy dodaje się jako multipart.
+  `returnAttachmentSchema` nie ma już `assetId`. `customerAccountId` w podsumowaniu i szczegółach
+  sprawy to `uuid | null`, `null` dla sprawy gościa.
+- **Identyfikatory plików dodawane przez zapis są sprawdzane** (zgłoszenia #544, #1354): zapisy CMS,
+  katalogu, bloga, szablonów dokumentów, ustawień, PWA, kanałów sprzedaży i wiadomości transakcyjnych
+  odrzucają z kodem `404` identyfikator pliku, którego administrator nie widzi lub który nie istnieje;
+  identyfikatory, które rekord już przechowuje, nie są sprawdzane. W treści Page Buildera odwołaniem
+  do pliku jest tylko klucz kończący się na `assetId` (zgłoszenie #1359), a zapisy treści katalogu
+  i bloga odpowiadają `ASSET_NOT_FOUND` zamiast `NOT_FOUND`.
+- **`PATCH /api/v1/admin/organizations/:id` odrzuca `status`** (zgłoszenie #1468): zmienia się go przez
+  `…/approve`, `…/reject`, `…/block` lub `…/unblock`. Cztery odmowy `organizations` odpowiadają
+  `ORGANIZATION_PERSONAL` lub `ORGANIZATION_STATUS_INVALID` zamiast `VALIDATION_FAILED` (zgłoszenie
+  #629).
+- **Przejścia statusu płatności** są odrzucane tak, jak opisuje
+  [Status płatności](#after-0-112-0-payment-status); `orderPaymentStatusApplyPort` odpowiada polem
+  `outcome`.
+- **`GET /api/v1/admin/quote-requests` odpowiada jedną stroną** (zgłoszenie #317): przeglądaj ją przez
+  `page` i `pageSize` (domyślnie 25, najwyżej 200) albo czytaj `pagination.total`.
+- **Dwie odmowy treści Page Buildera z kodem `ATTRIBUTE_VALUE_REJECTED`** niosą `details.code` i klucz
+  zamiast listy `{ path, issue }` (zgłoszenie #1223).
+- **`GET /api/v1/admin/audit-log/recent-activity`** odpowiada na błędne zapytanie kodem
+  `VALIDATION_FAILED` w standardowej kopercie zamiast `validation_error` (zgłoszenie #1339).
+
+Dla autorów modułów, motywów i nakładek:
+
+- **Dawne klasy zestawu admin kit są usunięte z `theme.css`** (zgłoszenia #1436, #1488, #1492, #1502):
+  `.b2b-page-head*`, `.b2b-card*`, `.b2b-btn*`, `.b2b-field*`, `.b2b-select`, `.b2b-label`,
+  `.b2b-help`, `.b2b-input-wrap`, `.b2b-tbl`, `.b2b-table`, `.b2b-bulkbar`, `.b2b-row`, `.b2b-col`,
+  `.b2b-grow`, `.b2b-mono`, `.b2b-tabular` i `.b2b-hr`. Moduł, który renderuje jedną z nich, dostaje
+  nieostylowane znaczniki. Użyj `PageHeader`, `Card`, `Button`, `Input`, `Select`, `FormField`,
+  `Table` i `ListToolbarSearch` z zestawu albo narzędzi Tailwind; dziennik zmian
+  `@endora-commerce/admin-kit` dla 0.112.0 przypisuje każdą klasę. Nadpisanie jednej z nich w motywie
+  przenosi się na tokeny (`--card-pad`, `--fs-section-title`). Usunięty jest też blok tokenów `.dark`
+  (zgłoszenie #1810).
+- **Karty są gęstsze, a panele zestawu są sekcjami** (zgłoszenia #1437, #1438, #1488, #1503): `Card`
+  ma wypełnienie 16 px, `CardTitle` to `h2`; `CustomFieldValuesPanel`, `FieldProtectionSummary`,
+  `FieldProtectionPricePanel`, `ScopePicker` i `RuleBuilder` nie rysują własnej ramki — przekaż
+  `chrome="card"` tam, gdzie któryś stoi na stronie sam.
+- **`@endora-commerce/page-builder-admin` usuwa `PageBuilderTemplateActions` i
+  `PageBuilderHeaderShell`** (zgłoszenie #1494): przekaż ich właściwości do `PageBuilderHeaderActions`.
+  **`SectionPreset.build` z `@endora-commerce/cms-components`** przyjmuje rozwiązane teksty zamiast
+  funkcji tłumaczącej (zgłoszenie #1684).
+- **`ChannelMembershipListResponseSchema`** jest usunięty z `@endora-commerce/contracts` (zgłoszenie
+  #1162); użyj `ChannelMemberIdListResponseSchema`. `importChannelTargetSchema` wymaga `name`.
+- **Porty zyskują metody**, które implementacja spoza platformy musi dodać:
+  `SalesRepAssignmentPort.listOrganizationIdsWithAssignments()`, `InvoicePdfPort.renderInvoice()`,
+  `SettingsAdminPort.resetValuesForSubset()` i `AuditPort.queryFacets()`.
+  `ModerationActionsPanel` przyjmuje wymaganą właściwość `canModerate`.
+- **Klucze tłumaczeń są usunięte** z kilku pakietów, bo zmieniły się ekrany, które je czytały;
+  wdrożenie, które nadpisuje taki klucz, usuwa go. `CHANGELOG.md` każdego modułu dla 0.112.0 je
+  wymienia.
+
+Ta sekcja została napisana 23 listopada 2026 r. na gałęzi wydania `release/version-0.112.0`, na
+podstawie zestawów zmian wydania porównanych z jego migracjami i manifestami. Żaden pull request tego
+cyklu nie dopisał na tej stronie własnego wpisu. W chwili jej pisania żadna instancja nie była
+aktualizowana przez `pnpm run upgrade 0.112.0`; kolejność kroków nie jest sprawdzona.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza
