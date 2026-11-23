@@ -36,8 +36,9 @@ import {
  * CI failure twice over: the round-trip guard in
  * test/unit/db/migrations-registry.test.ts and `overlay:check`.
  *
- * `mikro-orm migration:create` / `migration:generate` are not sanctioned —
- * they write into a single configured path and cannot know the owning module.
+ * The MikroORM CLI is not installed (issue #1865): its `migration:create` /
+ * `migration:generate` wrote into a single configured path and could not know
+ * the owning module, so this script is the only way a migration file is made.
  *
  * ## Where a module lives is resolved, never spelled
  *

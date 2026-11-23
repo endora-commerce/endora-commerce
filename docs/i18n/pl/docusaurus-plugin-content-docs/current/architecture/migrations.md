@@ -162,8 +162,12 @@ pliku bez wpisu, wpisu bez pliku, nazwy klasy niezgodnej z nazwą pliku, zadekla
 niezgodnego z katalogiem właściciela, segmentu w nazwie pliku niezgodnego z identyfikatorem modułu,
 nierozpoznanego pliku `.ts` w katalogu `migrations/` i każdego pozostałego pliku z numerem `NNN_`.
 
-`mikro-orm migration:create` / `migration:generate` **nie** są dopuszczalne: zapisują do jednej
-skonfigurowanej ścieżki i nie mogą wiedzieć, do którego modułu należy migracja.
+CLI MikroORM (`@mikro-orm/cli`) **nie** jest zainstalowane, a blok `mikro-orm`, który czytało z
+`backend/package.json`, został usunięty (zgłoszenie #1865). Jego `migration:create` /
+`migration:generate` zapisywały do jednej skonfigurowanej ścieżki i nie mogły wiedzieć, do którego
+modułu należy migracja, dlatego migrację tworzy się poleceniem
+`pnpm --filter backend run migration:new`, a stosuje, wyświetla oczekujące i cofa poleceniami
+`migration:up`, `migration:pending` i `migration:down`.
 
 :::note Pliki pomocnicze
 W katalogu `migrations/` może leżeć plik pomocniczy `.ts`, który nie jest migracją, ale musi być na
