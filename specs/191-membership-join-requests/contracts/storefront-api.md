@@ -1,0 +1,109 @@
+# Contract: storefront API and the reference storefront's pages
+
+Zod schemas in `packages/contracts/src/organization-join-requests.ts` and
+`packages/contracts/src/organizations.ts` (registration). Routes are `organizations'`, mounted
+through `ctx.routes`. Refusals that would reveal a record answer `404 NOT_FOUND`; the member-management
+refusal is the existing `403 FORBIDDEN` (`routes.members.ts`, reserved *Administrator* capability).
+
+## 1. Registration
+
+### `POST /api/v1/organizations/register` (anonymous, `salesChannelAccess: 'open'`, unchanged path)
+
+Request: `registerOrganizationRequestSchema` gains one optional field:
+
+```ts
+joinRequestNote: z.string().trim().max(500).optional(),   // ignored unless a join request is created
+```
+
+Response — `registerOrganizationResponseSchema` becomes a discriminated union on `outcome` (R-16):
+
+```ts
+| { outcome: 'organization_registered'; organization; customerAccount; emailVerificationSent }   // 201, as today + outcome
+| { outcome: 'join_request_sent'; customerAccount; emailConfirmationSent: boolean }              // 202
+```
+
+`customerAccount` is the same `CustomerAccount` view the 201 returns (the registrant's own account,
+in their personal Organization). Nothing names the target. Refusals added:
+`429 ORGANIZATION_JOIN_REQUEST_LIMIT`, `409 REGISTRATION_CONFLICT_CHANGED`. Under `refuse`, an
+existing tax ID still answers `409 ORGANIZATION_TAX_ID_EXISTS`.
+
+### `GET /api/v1/organizations/registration-options` (anonymous)
+
+Gains `joinRequestsOffered: boolean` — the setting `organizations.registration.conflict_policy`
+equals `join_request`. The storefront renders the optional note field only when `true` (R-21). The
+revalidation tag `organizations:registration-options` is invalidated when that setting changes.
+
+### `POST /api/v1/auth/email-verification/verify` (anonymous, unchanged path)
+
+Unchanged reply. Side effect added: the account's open request, if `awaiting_email_confirmation`,
+is submitted (R-11).
+
+## 2. The registrant (`routes.customer.ts`, `requireCustomer`)
+
+| Method and path | Body | Answer |
+| --- | --- | --- |
+| `GET /api/v1/me/join-request` | — | `{ data: RegistrantJoinRequestView \| null }` — the account's latest request decided in the last 30 days or still open; `no-store` |
+| `POST /api/v1/me/join-request/:id/withdraw` | `{ expectedVersion: int }` | `{ data: RegistrantJoinRequestView }`; `404` when not the caller's; `409 ORGANIZATION_JOIN_REQUEST_DECIDED` |
+
+```ts
+RegistrantJoinRequestView = {
+  id; state; requestedTaxId; requestedName: string | null; note: string | null;
+  createdAt; expiresAt; decidedAt: string | null;
+  rejectionReason: string | null;     // only when state = rejected
+  version;
+}
+```
+
+`requestedTaxId` is the tax ID the registrant entered, normalised (stored on the request,
+data-model §1); no field reads the target Organization.
+
+`GET /api/v1/me` gains nothing: the account area asks `/me/join-request` itself, so `/me` stays
+cacheable by its existing rules.
+
+## 3. Company administrators (`routes.members.ts`, `requireCustomer` + `isAdministrator`)
+
+| Method and path | Body | Answer |
+| --- | --- | --- |
+| `GET /api/v1/organizations/mine/join-requests?state=pending\|decided&page=&pageSize=` | — | requests of the caller's Organization routed to `organization_administrators`; `decided` = the last 90 days; oldest first for `pending` |
+| `POST /api/v1/organizations/mine/join-requests/:id/approve` | `{ organizationRoleId?: uuid, expectedVersion: int }` | `{ data: CompanyJoinRequestView }` |
+| `POST /api/v1/organizations/mine/join-requests/:id/reject` | `{ reason?: string ≤ 500, expectedVersion: int }` | `{ data: CompanyJoinRequestView }` |
+
+```ts
+CompanyJoinRequestView = {
+  id; state; registrant: { customerAccountId; firstName; lastName; email };
+  requestedName: string | null; note: string | null;
+  createdAt; submittedAt; expiresAt; decidedAt: string | null;
+  decidedByKind: string | null; grantedRole: OrganizationRoleRef | null; version;
+}
+```
+
+A request routed to the operator, or of another Organization, answers `404`. Approve refusals:
+`404` (role not of the Organization), `409 ORGANIZATION_JOIN_REQUEST_DECIDED`,
+`409 ORGANIZATION_JOIN_REQUEST_NOT_APPROVABLE`, and a hook veto. The registrant's data comes from
+`customerAccountReadPort.findByIds` (`customer_accounts`, acknowledged edge already declared).
+
+`GET /api/v1/organizations/mine/members` gains `pendingJoinRequestCount` beside the existing
+pending-invitation count, so the members screen can show the tab without a second request.
+
+## 4. The reference storefront (`storefront/`)
+
+| Where | Change |
+| --- | --- |
+| `app/(auth)/register/actions.ts` | a `202 join_request_sent` reply redirects to `/register?status=join-requested` (no address or tax ID in the URL — issue #745) |
+| `app/(auth)/register/page.tsx` | the `join-requested` state: "Request sent. Confirm your e-mail address, then sign in to follow your request." The note field when `joinRequestsOffered`; refusal copy for the two new codes |
+| `app/(account)/account/` (home) | `JoinRequestNotice` — "Waiting to join {requestedName} (tax ID {requestedTaxId})", state, withdraw (confirm dialog), and the decided states for 30 days |
+| `app/(account)/organization/members/` | a *Join requests* tab for administrators: list, approve (role select, *Member* preselected), reject (reason dialog); hidden when the count is 0 and nothing was decided in 90 days |
+| `lib/api/join-requests.ts` | the four client calls, parsed with the contracts' schemas |
+| `messages` (`en`, `pl`) | every string above |
+
+All three surfaces are Server Components with server actions, like `components/account/Payers.tsx`
+and its reject dialog (`RejectPayerRequestButton.tsx`), whose structure they follow.
+
+## 5. Tests
+
+- contract: the 202 shape carries no `organization` and no target id (SC-006); the 201 shape is a
+  superset of today's;
+- contract: an administrator of another Organization gets `404` on approve; a member without the
+  *Administrator* role gets `403 FORBIDDEN`; the registrant's withdraw of another account's id is `404`;
+- storefront Vitest: the register page's `join-requested` state; the notice; the tab hidden for a
+  non-administrator.
