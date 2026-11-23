@@ -1,5 +1,284 @@
 # @endora-commerce/mod-price-lists
 
+## 0.112.0
+
+### Minor Changes
+
+- 8b29aae: Pricing can name an Organization other than the viewer's. `@endora-commerce/platform/http` exports `pricedAudienceOf(request)` and `providePricingSubjectResolver(resolver)` (type `PricingSubjectResolver`): without a contributed resolver `pricedAudienceOf` equals `productAudienceOf`; with one it adds `ProductAudience.pricingOrganizationId`, which visibility never reads. `ListingPriceViewerContext` gains an optional `displayModeOrganization`, so the price display mode can be resolved for the viewer while the price is resolved for another Organization. The catalogue listing and product page, cross-sell tiles, search hits and type-ahead, comparisons and the storefront resolved-price and display-mode endpoints now price for `pricingOrganizationId ?? organizationId` and resolve the display mode for the viewer. Nothing changes for a request no resolver names a pricing subject for; no new cache key is introduced.
+- cd9a755: Issue #470 (D-288; owner ruling O-3, 2026-11-10), second stage: every price-book Command that changes a value now writes the book's own price-change history in the same transaction. Each book it changed gets one `price_list_value_changes` row, with one `price_list_row_value_changes` line per price row it added, changed or removed. A rolled-back Command leaves neither the history row nor its audit entry.
+
+  - The Commands that write it: `price_list.create`, `price_list.update` (only when the name, the priority, the audience kind or the audience members change), `price_list.rows_replace` (the admin row batch, which also carries the bulk change and the CSV import), `price_list.duplicate`, `price_list.base_prices_set` (the base-price editor and `priceBookWritePort`), and `price_list.book_rows_set` / `price_list.book_rows_remove` (`priceBookRowWritePort`, which already wrote it).
+  - `header_before` / `header_after` hold only the changed header values: `name`, `priority`, `audience` as `{ kind, memberIds }` (members sorted), and on a duplicate `amountMultiplier`. A change of the audience kind alone is recorded too. A created book records its whole header in `header_after`.
+  - A line records the row's selection, its quantity window, and both sides of its price in the row's own types, unrounded. A row that keeps its selection and window and changes its price is one `changed` line. A row whose window moves, including one moved by its id in the admin batch, is one `removed` line and one `added` line.
+  - The actor is the Command's. `actor_admin_user_id` is set only for an administrator, and stays `null` for a system, PIM or API-key caller.
+  - Each audit entry points at its row with `valueChangeId`. A base-price write points at one row per currency with `valueChangeIds`. The entries keep their current values for now (`rows`, `byCurrency`, `amountMultiplier`). Removing them is a later stage of #470.
+  - A Command that changes no value writes no history row, and its audit entry has no `valueChangeId`. Status, dates, channels and deletion write none. A deleted book takes its history with it, and the delete's audit entry still records how many rows the book had.
+
+  Nothing reads the history yet, and no route, screen or price changes.
+
+- 2e287a5: Issue #470, third stage: the admin API reads a price book's price-change history. Three new reads, behind `price_lists:read`:
+
+  - `GET /api/v1/admin/price-books/:id/price-history`: the book's value changes, newest first, each with its action, actor, time, changed header values and line count.
+  - `GET /api/v1/admin/price-books/:id/price-history/:changeId/lines`: one change's lines in order, with the row's selection, quantity window and both sides of its price.
+  - `GET /api/v1/admin/price-books/:id/price-history/products/:productId`: one product's lines, its variants' included, newest first.
+
+  The reads are keyset-paged, `{ data, pagination: { cursor, hasMore, limit } }` (50 by default, at most 200), unlike the other price-book lists. Amounts are the stored decimal strings, never rounded. A book the caller cannot see answers `404` like an unknown one. For a caller limited to some organizations, organization ids outside their reach are left out of a recorded audience and counted in `withheldMemberCount`. The actor's id and name are served for an administrator only. Answers carry ids, not labels. The history starts with the release that first wrote it.
+
+  The schemas are in `@endora-commerce/contracts` (`priceBookHistory*`). `price_lists` now declares `admin_users` as a dependency, for the actor names.
+
+### Patch Changes
+
+- b2b41eb: Page headers are shorter and every page has a heading (issue #1436). Home, Profile, the products list, product create and edit, the inventory and warehouse screens and Pricing settings now draw their title as a real page heading. Page descriptions that repeated the title or described the implementation are removed (categories, bulk operations, new price book, SEO, assets library, dictionary, products list, inventory, warehouses, home, profile); the rest are one short line, in English and Polish. Longer explanations — warehouses, Pricing settings, import/export and category taxonomy revisions — moved behind an ⓘ beside the title.
+- 4fdc335: More admin screens follow the DS-03 rule that a frame inside a card is a defect unless it is a field (issue #1437, UX audit 2026-11-17).
+
+  - **My profile** is one form card with three sections (identity, author profile, password) under the one Save, and the language preference, which is saved on its own, is the one card beside it. The language Save's result is a status line beside its button, with an icon, in place of a red or green box inside the card. The language select is named by its heading. The screen is on the kit's primitives.
+  - **Organization detail, price display mode** (`price_lists`, `organization.detail.after`): the panel has a heading (_Pricing_) and renders as an `EditorSection`, so it follows the mount — one titled card at page level, a section inside a host card. It was a card without a heading.
+  - **Return detail** (`returns`): comments and the accepted clauses are rows divided by a rule, not a bordered box each.
+  - **Settings** (`settings`): a group's settings are rows divided by a rule inside the group card, not a bordered box each; a changed row keeps its tint and its _Unsaved_ badge.
+  - **Form entry notes** (`forms`): notes are rows divided by a rule, not a bordered box each.
+
+- 1306e55: The price-book list's filters use the kit's list toolbar (issue #1440). Search, type, status and currency stay in view; sales channel, audience and member are folded behind _More filters_, which counts the folded filters in use and opens by itself when the address carries one. _Clear all filters_ ends the filter row and returns focus to the search box.
+- 84ed7b6: Empty lists now tell "nothing here yet" apart from "your filters match nothing" (issue #1448). The products, inventory, warehouses, back-in-stock and pricing-override lists used to show one sentence for both. Now a list that its filters emptied offers _Clear filters_, and a list with no records offers its create action, if the operator may use it. The sales channels, credentials, online customers, invoice ledger deliveries, dictionary audit and command hooks screens show the kit's empty state instead of a plain grey sentence.
+
+  - **`EmptyState`'s documentation** says where the block belongs. Use it for the page's or the tab's primary region. Keep a one-line sentence for pickers, inline sub-lists and side widgets.
+  - **Header create buttons.** While a list is empty, its header no longer repeats the create button that the empty state carries: products, warehouses, inventory import, sales channels and credentials.
+  - **Removed keys.** `catalog` drops `productsList.empty.prefix`, `.button`, `.suffix` and `.readOnly`. The empty catalog now uses `productsList.empty.noData.*`.
+  - **Peer dependencies.** `mod-sales-channels`, `mod-credentials` and `mod-invoice-ledger` gain an optional peer dependency on `lucide-react` `^1`, which their admin screens now import.
+
+- 1064839: `@endora-commerce/admin-kit/ui` publishes `EmptyState` (issue #1448): the block a list, a tab or a panel shows when it has nothing to show — a decorative icon, a title, at most one line and at most one action, drawn with the design system's `.b2b-empty` classes.
+
+  It has two variants. `no-data` (the default) takes `icon`, `title`, an optional `description` and an optional `action`. `no-results` takes `onClearFilters` and renders the kit's own title, line and _Clear filters_ button (new `core` keys `common.emptyState.clearFilters`, `common.emptyState.noResults.title` and `common.emptyState.noResults.body`, in English and Polish); `icon`, `title` and `description` override them.
+
+  After _Clear filters_ the kit moves focus to `focusAfterClear` (a ref, normally the list's search box) on the next frame, so focus never drops to `<body>` when the button unmounts (WCAG 2.2 SC 2.4.3). Without one, and only if focus was lost, it focuses the page's `<h1>`, else the closest container of the block still in the document. Every list that uses the `no-results` variant here passes its search box; `EntryFilters`, `OpportunityFilterFields` and `TaskFilters` gain an optional `searchRef` for that.
+
+  ```tsx
+  <EmptyState variant="no-results" title={t('list.emptyFiltered')} onClearFilters={clearFilters} />
+  <EmptyState icon={<ClipboardList size={20} />} title={t('list.empty.title')} action={createButton} />
+  ```
+
+  The forms and form-entries lists, the CRM opportunities list, the task and _My tasks_ lists, the task settings lists, the project and project-template lists, the custom-fields table, the price-book list, and the product-feed list, runs, delivery and templates screens now use it. The forms list now says "No forms yet" with a line of its own (a reader is told who can create one), and it hides the header's _New form_ while the empty state carries it. The form-entries list's empty state gains a title.
+
+- 7be07f6: Shorter copy on the catalog screens (issues #1458 and #1459, UX audit CAT-13 and CAT-14), in English and Polish.
+
+  - **Product editor:** the sentences under Gallery, Attachments, Attributes, Categories and SEO that repeated the _Applies immediately_, _Unsaved_ and _Global only_ badges are gone, and so are the notes under _Minimum order quantity_ and the packaging units' minimum. Field notes are one clause; the longer explanation of _Status_, _Publication window_ and _Returnable_ moved behind an ⓘ beside the label. The confirmations for duplicate, archive and restore, the unsaved-changes question and the inventory and order-rules notes are shorter. The SKU field is labelled _SKU_; the create form says once, under it, that it cannot be changed later. The base-price panel explains what a base price is only while the product has none.
+  - **Products list:** shorter bulk-edit hints and archive / restore confirmations.
+  - **Attributes, price lists, warehouses, custom fields, product feeds, import/export, assets:** shorter help texts and notices; the product feed FTP passive mode, the only supported one, is shown as text instead of a disabled one-option select.
+  - **Settings and SEO:** the descriptions of _Completeness check when switching a product on_ and of the LLM search toggle are one or two short sentences, the same English text in the manifest (what the API serves) and in the admin bundle, and so are the two notices above the robots.txt preview.
+
+- 87fb9c3: On the Settings screen a boolean setting is a switch instead of a `true` / `false` list, and an enum setting's options read as labels in English and Polish instead of machine codes (issue #1479). The switch changes the draft like every other field; the page's one Save still writes it. The default and global values under a field read as "On" / "Off" and as option labels too.
+
+  A module labels its enum setting's options in its own bundle, under `settingLabels.<setting code>.options.<option value>`; an option without a label is shown as its value. Every enum setting shipped in the platform now has those labels, except `seo.default_robots`, whose directive pairs are the vocabulary.
+
+- 998ac87: Banners that appear as the result of an action keep being announced now that the kit's `Alert` no longer interrupts for every variant (issue #1484). A refused or partly rejected action (activating a price book, a stale price-book save, a taxonomy revision, quick-order lines, quote-request lines unavailable on the channel) is announced at once, and so is the shell's notice to an administrator without a role. An import, undo, PDF or save result, a template-preview verdict, a brand contrast warning, a changed refund method, the organization-attribution scope notice and the information notices after an action are announced politely. Static banners present when a page loads, such as the modules screen's degraded-mode warning or a quote request's lapsed validity, are shown but no longer announced as an interruption.
+- 31b5403: The product editor has one heading outline: the page `h1`, each tab's sections as `h2`, their sub-sections as `h3`, with no level skipped (issue #1490, UX audit CAT-11).
+
+  `@endora-commerce/mod-catalog`: the Scope map tab no longer opens with a "Scope map" `h3` that repeated the tab's name. The map is an `h2` section, _Values by channel and language_, with the help line as its description, and _No longer applies_ (an `h4` before) is the `h2` section after it. A reset still returns focus to the map's heading. A content attribute's card on the Attributes tab captions its label like the fields beside it instead of using an `h3` with no `h2` above it. A bundle slot's heading is an `EditorSection` at `h3`, styled like every other sub-section.
+
+  `@endora-commerce/mod-seo`: the SEO tab no longer opens with an "SEO meta tags" heading. Its fields are two `h2` sections, _Search results_ (title, meta description) and _Social sharing_ (the Open Graph fields). The `productSeo.title` message is removed.
+
+  `@endora-commerce/mod-price-lists`: the Pricing tab's _Base prices_ and _Price books pricing this product_ are `EditorSection`s divided by a rule, like the other tabs' sections, instead of headings with extra space above the second one.
+
+- 44c09b1: Four more tab strips are the admin kit's `Tabs` (issue #1491): the products list's status tabs (All / Active / Inactive / Archived), the price book's Settings / Prices, the product feed's Overview / Runs / Delivery / Settings and the taxonomy-updates screen's provider tabs. Each is a named tab list with one tab stop, ←/→ and Home/End, and the content below it in the one panel the selected tab labels; they all look like the design system's strip. The products list's status still opens from `?status=`, the price book's tab still lives in `?tab=`, and both price-book sections stay mounted, so unsaved prices survive a look at the settings. A count of zero on a products-list tab is no longer drawn, and a count is read out with what it counts ("Active, items: 12").
+
+  On a feed's schedule, _Custom…_'s two input methods (choose a schedule / write a cron expression) are a radio group rather than a second tab strip inside the Settings tab.
+
+- e685326: The product feeds, price lists, SEO and import/export screens now use one visual system: the admin kit's `ui/*` primitives and Tailwind utilities instead of the legacy `b2b-*` classes and inline styles (issue #1492, UX audit CAT-17). Side drawers keep their frame until the kit has a drawer.
+
+  - Product feeds: when the operator may not download a feed or run file, _Download_ is a disabled button. Before, it was a link with clicks turned off, and the keyboard could still follow it. The sample-product picker's search box now has a name, its loading line is announced, and a failed load shows as an alert. _Export_ is a kit button. The template-editor search and the loading lines use the kit's look.
+  - Price lists: the display-mode override row uses the kit `Label` and `Select`. Its help line is linked to the select, so a screen reader reads it with the select. The _show the list price_ switch is the kit `Checkbox`.
+  - SEO and import/export: _Edit in the product editor_ and _Import / export_ are kit outline buttons.
+
+- f3b2ec8: The products list, the product editor's Inventory tab and packaging units, the inventory list, the sales-channel warehouses panel and the pricing settings page draw one visual system: the admin kit's `ui/*` primitives and Tailwind utilities, instead of kit components next to the legacy `b2b-*` classes and inline styles (issue #1492, UX audit CAT-17).
+
+  `@endora-commerce/admin-kit` theme. **Breaking for a module that renders these classes (0.x, so released as a minor).** Nothing in the platform renders them any more, so they are removed from `theme.css`:
+
+  - `.b2b-bulkbar` (and its `.count`, `.actions` and button rules): the products list's bulk-action bar was its only renderer. Draw the bar with `Button` from `./ui` inside a Tailwind row, for example `<div className="flex items-center gap-3 rounded-md border bg-muted px-3 py-2"><Button size="sm">…</Button></div>`.
+  - `.b2b-table`: a table class one screen used. Use `Table`, `TableHeader`, `TableBody`, `TableRow`, `TableHead` and `TableCell` from `./ui`.
+  - The `.b2b-tbl` row and cell modifiers `tr.is-selected`, `tr.is-clickable` and `.col-cb`. `.b2b-tbl` itself stays. With the kit `Table`, mark a selected row with `<TableRow data-state="selected">`, make a clickable row `className="cursor-pointer"`, and size a checkbox column with `className="w-8"`.
+
+  `@endora-commerce/mod-catalog`: the products list is a kit `Card` with kit buttons, checkboxes and table. The page and row checkboxes now have accessible names, and the bulk-action bar is a light row with one filled primary, where it used to be a dark inverted bar. The row thumbnail placeholder is one neutral tile instead of a colour derived from the product id. On the Inventory tab, the two low-stock threshold modes form one radio group named after their section, and the inputs and the per-warehouse table come from the kit. Packaging units use kit inputs, which were unstyled before because the class they used was never defined, and icon buttons to reorder.
+
+  `@endora-commerce/mod-inventory`: the inventory list's KPI tiles and per-warehouse totals are kit cards, each KPI marked up as a term and its value. The sales-channel warehouses panel uses the kit table, select and buttons. Its _Add_ is an outline button now, because it applies at once and the channel editor's Save is the page's one primary.
+
+  `@endora-commerce/mod-price-lists`: the pricing settings page switches scope through kit tabs instead of three hand-coloured buttons. Its saved and failed results are kit `Alert`s: a saved change is announced politely, a failure as an alert. The override search has an accessible name, and in the _Add override_ drawer each candidate is a keyboard-reachable button.
+
+- 50d451b: The product editor has fewer tabs (issue #1510, UX audit CAT-10). Media and Attachments are one **Media & files** tab with the gallery and the attachments as its two sections, and the Scope map is no longer a tab: it opens as a side drawer from the Scope map link in the scope bar and from the completeness line, and its address is `?scopeMap=1`. Old addresses keep working — `?tab=scopes` opens the drawer and `?tab=attachments` the Media & files tab, each rewritten to the current address; the bulk-edit result links to `?scopeMap=1`. A simple product now has eight tabs at most. `ModalDialog` gains `placement="end"` (exported type `ModalDialogPlacement`), a full-height panel docked to the inline end of the viewport, with the same modal behaviour.
+
+  The Pricing tab's base-price panel (issue #1529, CAT-19) says "No base price in …" and "Not orderable below …" in the warning token with an icon instead of a hard-coded amber, so it reads in every theme, and it drops its own **Discard changes** button: the editor's one Save and its Save / Discard / Stay question are the one way to keep or drop the changes. The `basePrices.discard` string is removed.
+
+- df16345: The Settings screen shows less on every row (UX audit SHELL-09, SHELL-23). A row no longer carries a value-type badge, a source badge or a "Default … · 0 per-channel overrides" footer: one muted line appears only when the value in force differs from the default or channels override it. A changed row is marked by a bar at its edge, a switched-off module's group states its read-only reason once, the "Editing for" channel picker sits in the toolbar beside the search, and the hard-coded "system" group badge is gone. Single-line controls sit to the right of the setting's name.
+
+  A setting's description is now at most 120 characters (`check:text-budget`), with the long explanations left to each module's documentation page, and it never falls back to another language: in Polish the screen shows the Polish description or none. Every module that declares settings now ships `settingLabels.<code>.name` and `.description` in English and Polish, so the screen no longer shows English names in Polish. Where a manifest declared one of the shortened descriptions, its `description` is the same shorter sentence.
+
+- 306a659: The back link above an admin page title now names the screen it leads to, in the words that screen uses for its own title — _Organizations_, _Price books_, _CMS pages_ — instead of _Back to organizations_, _All warehouses_, _Back to list_ or a bare _Back_ (follow-up of issue #1549). A generic _Back_ remains only where a screen was opened from somewhere else and leads back there. The rule is described under `PageHeader` in the admin-kit README.
+
+  The back-only translation keys these screens no longer read are removed: `categoryEditor.backToTree` and `postEditor.backToList` (blog), `bulkOperations.detail.back` and `categoryContent.action.back` (catalog), `common.back` (cms, megamenu), `detail.backToList` (comparisons), `entry.back` (forms), `priceBooks.common.backToList` (price lists), `detail.back` (returns), and `inventory.import.back`, `warehouses.editor.backToList`, `organizations.detail.back` and `rfqCreate.back` (core bundle). A deployment that overrides one of them overrides the destination screen's title key instead. `taxIdScope.back` (organizations) and `productContent.action.back` (catalog, now the fallback while the product name loads) keep their keys with new text; `runs.detail.feedFallback` (product feeds) is new.
+
+- 0d4c134: Accessibility follow-ups from the UX audit (issues #1599, #1600, #1607).
+
+  - **Scope picker** (CMS pages, blocks and templates; blog posts and categories): the _Languages_ heading now names the group of language checkboxes, so a screen reader announces "Languages, group" when focus enters it. It used to be a label attached to nothing.
+  - **New order — delivery and billing address**: the _Pick existing_ / _Enter new_ buttons are a group named _Address source_, and pressing the option already chosen no longer clears a typed address or a picked one.
+  - **Pricing settings — Show the list price beside the buyer's price**, and the **Private** setting on a new task and on a task's page, are now the standard on/off switch rather than a checkbox announced as a switch. A task's _Private_ switch that cannot be turned on (other people are assigned) stays focusable and says why.
+  - The unused, never-displayed _Quote requests_ settings tab component in the Settings module, and its strings, are removed. The quote-request settings are unchanged.
+
+- 8688a1f: Nine more admin list screens now use the kit `ListPage` (issue #1749): Inventory, Low stock, Warehouses, Availability notifications, Product feeds, Price books, Return reasons, Return delivery methods and Return clauses. Each one has the kit's loading skeleton, a load error with **Retry**, and the result count at the end of the toolbar row. The inventory lists' toolbar is a row above the results, not a strip inside their card. A filter or page change on Inventory, Warehouses, Availability notifications and Price books keeps the rows on screen while it reloads. Return clauses show the kit empty state instead of a bare sentence. Product feeds no longer show _New feed_ twice while there is no feed.
+
+  - `@endora-commerce/admin-kit`: the `ListPage` `tabs` slot is documented as the band between the header and the toolbar, which can also hold a KPI strip.
+  - New `en` / `pl` keys: core `warehouses.count`, `inventory.count`, `inventory.lowStock.count`, `inventory.availability.count`; `product_feeds` `feeds.count`; `returns` `reasons.count`, `methods.count`, `clauses.count`.
+
+- 0686447: Always pass the admin UI language to `formatDate(value, language)` and `formatDateTime(iso, language)` (`@endora-commerce/admin-kit/lib`), taking it from `useTranslationContext()` or `useAppLanguage()` (`@endora-commerce/admin-kit/i18n`). **Upgrade note:** calling either without a language is now `@deprecated`. It still falls back to the browser's locale, but that fallback will be removed in a later release, so `formatDateTime(order.placedAt)` should become `formatDateTime(order.placedAt, language)` now. The kit's field-protection summary reads the language without requiring `AppLanguageContext`, so an integration zone rendered without it keeps working.
+
+  Every admin date now goes through them, so a screen no longer mixes `17.11.2026`, `11/25/2026` and `Nov 22, 2026`: the lists, detail pages and panels of every module that called `formatDateTime` without a language, and the screens that called `toLocaleDateString` / `toLocaleString` directly (the CRM board card, the Projects stage bar and templates list, the Organization sales reps tab — which wrote every date in Polish — the blog post editor, comparisons, the dictionaries audit, display-mode overrides, the feed schedule's next run, the online-customers refresh time, the product list's update date, and the kit's comment thread, record history, field-protection summary and order reference). `endora new module` scaffolds its list's date the same way.
+
+- 9eee781: The Admin UI in Polish no longer shows four kinds of text in English (issue #1809).
+
+  - **Order statuses** are named in the admin's language on the Orders list, the order detail, the bulk status dialog and the Order statuses screen. The names were always stored per language; the screens read the English one.
+  - **CMS hooks**: the 23 seeded hooks, such as "Search Page Bottom", are named and described in the admin's language until an operator renames them. A renamed or custom hook keeps the operator's text.
+  - **Transactional e-mails**: each e-mail's name, description and the reason it cannot be switched off come from the sending module's bundle (`transactionalEmails.<code>.name`, `.description`, `.reason`), in the language the response is read in.
+  - **Platform → Modules**: each module's name, description and the reason it cannot be switched off come from the module's own bundle (`module.name`, `module.description`, `module.nonDeactivatableReason`). `GET /api/v1/admin/modules` gains an optional `nonDeactivatableReason` field on each row. `auth`, `currencies`, `email` and `languages` now ship translation bundles.
+
+  Each of these falls back to the English declared in code when a bundle has no entry. `endora new module` now writes `module.description` into the scaffolded bundles.
+
+- 0fbf186: `organizations` now creates `organizations.customer_group_id` and
+  `organizations_customer_group_id_index` itself, in the new
+  `Migration20261117T033143OrganizationsCustomerGroupColumn` (issue #611). Until now only
+  `price_lists`' `Migration20260426T075235PriceListsPricingInit` created them, although the column
+  belongs to `organizations`' `Organization` entity. That migration keeps its class name and no
+  longer names `organizations` in `up()` or `down()`. The new migration uses `if not exists` with the
+  same type and index name, so a database that has already applied the old migration does not change.
+  `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `price_lists` writing `organizations`.
+- Updated dependencies [c878440]
+- Updated dependencies [65f9a7b]
+- Updated dependencies [3fdbe86]
+- Updated dependencies [bfc68c7]
+- Updated dependencies [9eaa409]
+- Updated dependencies [d908737]
+- Updated dependencies [1042e2a]
+- Updated dependencies [3872f3d]
+- Updated dependencies [bbfcd80]
+- Updated dependencies [41b598c]
+- Updated dependencies [f5b8275]
+- Updated dependencies [467b075]
+- Updated dependencies [a56109e]
+- Updated dependencies [84b89ed]
+- Updated dependencies [b2cd2d3]
+- Updated dependencies [e5b17ae]
+- Updated dependencies [e78d27d]
+- Updated dependencies [596ce81]
+- Updated dependencies [b2b41eb]
+- Updated dependencies [932821f]
+- Updated dependencies [28181ed]
+- Updated dependencies [c15eb60]
+- Updated dependencies [33db45a]
+- Updated dependencies [cec9beb]
+- Updated dependencies [d4bda8d]
+- Updated dependencies [8e7684c]
+- Updated dependencies [87fb9c3]
+- Updated dependencies [998ac87]
+- Updated dependencies [d0a6c2c]
+- Updated dependencies [35e0829]
+- Updated dependencies [3f66b6f]
+- Updated dependencies [61bdc2a]
+- Updated dependencies [649d662]
+- Updated dependencies [38adf84]
+- Updated dependencies [7329865]
+- Updated dependencies [84ed7b6]
+- Updated dependencies [1064839]
+- Updated dependencies [d2d9d79]
+- Updated dependencies [f687479]
+- Updated dependencies [074f500]
+- Updated dependencies [7624db6]
+- Updated dependencies [cec9beb]
+- Updated dependencies [7be07f6]
+- Updated dependencies [2614e4f]
+- Updated dependencies [90320fd]
+- Updated dependencies [bb21b86]
+- Updated dependencies [79a17a3]
+- Updated dependencies [3dab0be]
+- Updated dependencies [e22b612]
+- Updated dependencies [cb75825]
+- Updated dependencies [a4455db]
+- Updated dependencies [f3b2ec8]
+- Updated dependencies [f093a02]
+- Updated dependencies [d5a077f]
+- Updated dependencies [86b9b39]
+- Updated dependencies [42febee]
+- Updated dependencies [447e829]
+- Updated dependencies [2040ae9]
+- Updated dependencies [fc7f669]
+- Updated dependencies [40b76aa]
+- Updated dependencies [eeed5c8]
+- Updated dependencies [63a657b]
+- Updated dependencies [0ecb287]
+- Updated dependencies [9a27b93]
+- Updated dependencies [2f0b69f]
+- Updated dependencies [87b9b60]
+- Updated dependencies [50d451b]
+- Updated dependencies [98c0411]
+- Updated dependencies [9f4eae3]
+- Updated dependencies [a8261aa]
+- Updated dependencies [f64646d]
+- Updated dependencies [306a659]
+- Updated dependencies [7ea72af]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [bfbcac2]
+- Updated dependencies [ee6062c]
+- Updated dependencies [820f089]
+- Updated dependencies [f33ffed]
+- Updated dependencies [4e668b5]
+- Updated dependencies [843ed42]
+- Updated dependencies [0d4c134]
+- Updated dependencies [3f7b5ae]
+- Updated dependencies [b98739c]
+- Updated dependencies [6155f4b]
+- Updated dependencies [bdcc9a4]
+- Updated dependencies [5850aac]
+- Updated dependencies [c042024]
+- Updated dependencies [8a5725e]
+- Updated dependencies [f915a24]
+- Updated dependencies [8688a1f]
+- Updated dependencies [95e5082]
+- Updated dependencies [31c0430]
+- Updated dependencies [0686447]
+- Updated dependencies [691414b]
+- Updated dependencies [8a06dc5]
+- Updated dependencies [e118ee4]
+- Updated dependencies [5fb3cd3]
+- Updated dependencies [9eee781]
+- Updated dependencies [bd47236]
+- Updated dependencies [bd47236]
+- Updated dependencies [79d15cf]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [398e6d2]
+- Updated dependencies [51c5072]
+- Updated dependencies [0e81803]
+- Updated dependencies [2e287a5]
+- Updated dependencies [fbc6c7c]
+- Updated dependencies [9d6f006]
+- Updated dependencies [49328cf]
+- Updated dependencies [b3d4843]
+- Updated dependencies [f74fe34]
+- Updated dependencies [19eb7c0]
+- Updated dependencies [0fbf186]
+- Updated dependencies [27b977d]
+- Updated dependencies [5e2a12a]
+- Updated dependencies [5518a09]
+- Updated dependencies [5e380e3]
+- Updated dependencies [bfab5bd]
+- Updated dependencies [8a0ec92]
+- Updated dependencies [81fcc3f]
+- Updated dependencies [12c63fa]
+- Updated dependencies [72637e0]
+  - @endora-commerce/platform@0.112.0
+  - @endora-commerce/contracts@0.112.0
+  - @endora-commerce/admin-kit@0.112.0
+
 ## 0.111.0
 
 ### Minor Changes

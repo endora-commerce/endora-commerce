@@ -1,5 +1,90 @@
 # @endora-commerce/cli
 
+## 0.112.0
+
+### Minor Changes
+
+- e01e1ff: The estate manifest gains `check:text-budget` (issue #1451): a length budget on the English copy of five i18n key families — `*.page.description`, `*.subtitle` and `*.hint` at most 80 characters, `*.help` at most 280, `settingLabels.*.description` at most 120. `endora check` lists it as a `package`-scope rule whose package host is pending the relocation of the analysis into `./rules`.
+
+### Patch Changes
+
+- eeed5c8: `@endora-commerce/admin-kit` theme: the second card system and the legacy form, table and layout classes are removed from `theme.css` (issue #1502, UX audit SHELL-18). **Breaking for a theme or a module that renders or overrides these classes (0.x, so released as a minor).** Nothing in the platform renders them any more: issue #1492 moved their last renderers onto the kit.
+
+  Upgrade note — replace each removed class with its kit primitive (`@endora-commerce/admin-kit/ui`) or Tailwind utility:
+
+  - `.b2b-card`, `.b2b-card__head`, `.b2b-card__title`, `.b2b-card__sub`, `.b2b-card__body`, `.b2b-card__foot`: `Card`, `CardHeader`, `CardTitle` (an `h2`; `as` picks another level), `CardDescription`, `CardContent`, `CardFooter`. `CardContent` pads all four sides unless it follows a `CardHeader`, so do not add `pt-6`.
+  - `.b2b-card__body--flush`: `<Card flush>` around a table.
+  - `.b2b-card--clickable`: a `Card` with a `Link` inside it.
+  - `.b2b-btn`, `.b2b-btn--primary`, `.b2b-btn--default`, `.b2b-btn--ghost`, `.b2b-btn--sm`, `.b2b-btn--lg`: `Button` (default variant), `variant="outline"`, `variant="ghost"`, `size="sm"`, `size="lg"`.
+  - `.b2b-field` (input or textarea), `.b2b-select`, `.b2b-label`, `.b2b-help`: `Input`, `Textarea`, `Select`, and `FormField` for the label and the hint.
+  - `.b2b-field--addon` and `.b2b-input-wrap` (a search box with a leading icon): `ListToolbarSearch` from `@endora-commerce/admin-kit`.
+  - `.b2b-tbl`: `Table`, `TableHeader`, `TableRow`, `TableHead`, `TableCell`.
+  - `.b2b-row`, `.b2b-col`, `.b2b-mono`: `flex items-center gap-3`, `flex flex-col gap-2`, `font-mono`.
+
+  A theme that overrode one of these classes in its stylesheet now overrides nothing; move the override to the kit primitive's tokens (`--card-pad`, `--fs-section-title`, `--r-*`, `--primary-*`) or to a still-published class such as `.b2b-badge`. The badge, tabs, page frame and drawer/scrim classes stay.
+
+  `@endora-commerce/cli`: `endora new module --admin` scaffolds its screen's card as `<CardContent>` without the `pt-6` workaround, which drew 24 px of top padding above 16 px sides.
+
+- 0686447: Always pass the admin UI language to `formatDate(value, language)` and `formatDateTime(iso, language)` (`@endora-commerce/admin-kit/lib`), taking it from `useTranslationContext()` or `useAppLanguage()` (`@endora-commerce/admin-kit/i18n`). **Upgrade note:** calling either without a language is now `@deprecated`. It still falls back to the browser's locale, but that fallback will be removed in a later release, so `formatDateTime(order.placedAt)` should become `formatDateTime(order.placedAt, language)` now. The kit's field-protection summary reads the language without requiring `AppLanguageContext`, so an integration zone rendered without it keeps working.
+
+  Every admin date now goes through them, so a screen no longer mixes `17.11.2026`, `11/25/2026` and `Nov 22, 2026`: the lists, detail pages and panels of every module that called `formatDateTime` without a language, and the screens that called `toLocaleDateString` / `toLocaleString` directly (the CRM board card, the Projects stage bar and templates list, the Organization sales reps tab — which wrote every date in Polish — the blog post editor, comparisons, the dictionaries audit, display-mode overrides, the feed schedule's next run, the online-customers refresh time, the product list's update date, and the kit's comment thread, record history, field-protection summary and order reference). `endora new module` scaffolds its list's date the same way.
+
+- 9eee781: The Admin UI in Polish no longer shows four kinds of text in English (issue #1809).
+
+  - **Order statuses** are named in the admin's language on the Orders list, the order detail, the bulk status dialog and the Order statuses screen. The names were always stored per language; the screens read the English one.
+  - **CMS hooks**: the 23 seeded hooks, such as "Search Page Bottom", are named and described in the admin's language until an operator renames them. A renamed or custom hook keeps the operator's text.
+  - **Transactional e-mails**: each e-mail's name, description and the reason it cannot be switched off come from the sending module's bundle (`transactionalEmails.<code>.name`, `.description`, `.reason`), in the language the response is read in.
+  - **Platform → Modules**: each module's name, description and the reason it cannot be switched off come from the module's own bundle (`module.name`, `module.description`, `module.nonDeactivatableReason`). `GET /api/v1/admin/modules` gains an optional `nonDeactivatableReason` field on each row. `auth`, `currencies`, `email` and `languages` now ship translation bundles.
+
+  Each of these falls back to the English declared in code when a bundle has no entry. `endora new module` now writes `module.description` into the scaffolded bundles.
+
+- Updated dependencies [65f9a7b]
+- Updated dependencies [3fdbe86]
+- Updated dependencies [bfc68c7]
+- Updated dependencies [9eaa409]
+- Updated dependencies [3872f3d]
+- Updated dependencies [bbfcd80]
+- Updated dependencies [41b598c]
+- Updated dependencies [467b075]
+- Updated dependencies [a56109e]
+- Updated dependencies [c15eb60]
+- Updated dependencies [33db45a]
+- Updated dependencies [074f500]
+- Updated dependencies [cec9beb]
+- Updated dependencies [90320fd]
+- Updated dependencies [42febee]
+- Updated dependencies [98c0411]
+- Updated dependencies [a8261aa]
+- Updated dependencies [f64646d]
+- Updated dependencies [f6dda10]
+- Updated dependencies [ee6062c]
+- Updated dependencies [4e668b5]
+- Updated dependencies [843ed42]
+- Updated dependencies [6155f4b]
+- Updated dependencies [5850aac]
+- Updated dependencies [8a5725e]
+- Updated dependencies [f915a24]
+- Updated dependencies [8a06dc5]
+- Updated dependencies [9eee781]
+- Updated dependencies [bd47236]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [398e6d2]
+- Updated dependencies [51c5072]
+- Updated dependencies [2e287a5]
+- Updated dependencies [9d6f006]
+- Updated dependencies [49328cf]
+- Updated dependencies [b3d4843]
+- Updated dependencies [27b977d]
+- Updated dependencies [5e2a12a]
+- Updated dependencies [5518a09]
+- Updated dependencies [5e380e3]
+- Updated dependencies [bfab5bd]
+  - @endora-commerce/contracts@0.112.0
+
 ## 0.111.0
 
 ### Minor Changes

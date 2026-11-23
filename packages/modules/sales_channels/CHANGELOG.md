@@ -1,5 +1,258 @@
 # @endora-commerce/mod-sales-channels
 
+## 0.112.0
+
+### Minor Changes
+
+- 49328cf: **Breaking change:** a write that newly stores an asset id is now refused unless the administrator can see that file in the asset library. This covers a file that does not exist as well (issue #544). Before, these writes stored the id without checking it. A file hidden from the administrator, for example one attached only to a Task they cannot read, then appeared in the library for every reader or in public output.
+
+  The check applies to:
+
+  - CMS page, block and template content, and a page's sharing image (`shareImageAssetId` on page create and update).
+  - A category's page content and a product's Page Builder content attributes.
+  - A blog post's content and a blog category's description.
+  - Document template content and the template preview. The preview renders the image bytes into the PDF, so it checks every image it names.
+  - These settings: `shop.logo_asset_id`, `pwa.icon_asset_id` and `cms.default_share_image_asset_id`.
+  - A sales channel's `logoAssetId`, on create and update.
+
+  A refused write answers `404` and stores nothing. A hidden file and a missing one get the same answer. The cms, document template, settings, pwa and sales channel paths answer `ASSET_NOT_FOUND` with `details.assetId`. The catalog and blog paths answer `NOT_FOUND` with `Asset <id> not found.`, as their main-image refusal already does.
+
+  Ids the record already stores are not checked, so existing content saves as before, including a body that still embeds a file that has since been purged. Only an id the write adds is checked.
+
+  **What to do:** an integration or import that writes content bodies, logos or these settings must use asset ids that exist. When it runs as an administrator, that administrator must be able to see the files in the library. `sales_channels` now declares `assets_library` as a dependency. `settings` already did, so module order does not change.
+
+### Patch Changes
+
+- c878440: Un-awaited Promises found by the typed lint rules now enabled for the whole repository (issue #1027) are awaited, handled or marked as deliberate fire-and-forget. No behaviour changes:
+
+  - `resumeWorkersFor` no longer awaits BullMQ's synchronous `Worker.resume()`; the API interceptor pre-handler is typed as Fastify's async hook.
+  - The breakpoint video hook ignores a refused autoplay through `Promise.resolve(video.play()).catch(...)`.
+  - Admin screens wrap async form and button handlers in `void` (each handler catches its own errors), and the admin-search matchers of catalog, orders and quote requests are typed as returning `unknown`, because a Knex builder is thenable.
+
+- 46b1001: The sales channel editor is translated in full (issue #1316). The "Delete" button, the "Inactive" badge, the new-channel title, both page descriptions, the not-found message and the load, save and delete error messages now have English and Polish text, and so do the error messages of the channel membership panel. The edit-page description no longer describes unfinished work.
+- 28181ed: One card implementation with density tokens (issue #1438, UX audit DS-04; SHELL-18 #1502). This
+  changes how every admin card looks, including the cards third-party modules render.
+
+  - `theme.css` declares `--card-pad` (16px), `--card-pad-sm` (12px), `--card-gap` (16px),
+    `--section-gap` (24px), `--fs-page-title` (20px), `--fs-section-title` (14px) and `--fs-hint`
+    (12px). A client can redeclare them after the import like any other token.
+  - `Card`, `CardHeader`, `CardContent` and `CardFooter` pad with `--card-pad` (16px) instead of
+    `p-6` (24px). `CardContent` drops its top padding only when it follows a `CardHeader`, so a
+    card without a header no longer needs `className="pt-6"`. Every part carries a `data-slot`.
+  - `CardTitle` renders an `h2` by default and takes `as` (`h2`–`h6`, or `div` to stay out of the
+    heading outline); its size is `--fs-section-title` (14px, was 16px). A `CardTitle` that wrapped
+    its own `<h2>` now nests a heading in a heading: pass the `id` to `CardTitle` and drop the inner
+    element. A test that found a card title with `getByText` still does; one that counted headings
+    now counts the card titles too.
+  - `<Card flush>` removes the content padding and clips the corners, for a table that runs to the
+    card's edge. New types: `CardProps`, `CardTitleProps`, `CardTitleElement`.
+  - `.b2b-card`, `.b2b-card--clickable` and `.b2b-card__head` / `__title` / `__sub` / `__body` /
+    `__body--flush` / `__foot` are **deprecated** but still published; they read the same tokens.
+    The only visible change there is the header's vertical padding, 14px to 12px. Use `Card`.
+
+  Every module's card call sites drop the `pt-6` workaround and the redundant `text-base` on
+  `CardTitle`, and the 14 titles that wrapped their own `<h2>` carry the `id` themselves.
+
+- d4bda8d: In-editor "Add" buttons are outline, not filled, so they no longer compete with the screen's one primary action (issue #1441): the transition graph's "Add transition" (`StatusTransitionGraph`), the channel membership panel's "Add" and the CMS hook panel's "Add". The order status configuration no longer draws its new-status form open under the table: "Add status" in the Statuses card header opens a dialog (issue #1439). The newsletter tags and fields screen does the same for "Add tag" and "Add field", and an empty tag or field list shows an empty state with an icon and a line of explanation instead of a grey sentence (issue #1448).
+- 84ed7b6: Empty lists now tell "nothing here yet" apart from "your filters match nothing" (issue #1448). The products, inventory, warehouses, back-in-stock and pricing-override lists used to show one sentence for both. Now a list that its filters emptied offers _Clear filters_, and a list with no records offers its create action, if the operator may use it. The sales channels, credentials, online customers, invoice ledger deliveries, dictionary audit and command hooks screens show the kit's empty state instead of a plain grey sentence.
+
+  - **`EmptyState`'s documentation** says where the block belongs. Use it for the page's or the tab's primary region. Keep a one-line sentence for pickers, inline sub-lists and side widgets.
+  - **Header create buttons.** While a list is empty, its header no longer repeats the create button that the empty state carries: products, warehouses, inventory import, sales channels and credentials.
+  - **Removed keys.** `catalog` drops `productsList.empty.prefix`, `.button`, `.suffix` and `.readOnly`. The empty catalog now uses `productsList.empty.noData.*`.
+  - **Peer dependencies.** `mod-sales-channels`, `mod-credentials` and `mod-invoice-ledger` gain an optional peer dependency on `lucide-react` `^1`, which their admin screens now import.
+
+- 232dbe9: The sales channel screens carry less text (issue #1482). The channel list and the create and edit pages no longer show a page description. On the channel form, the help under the code, theme, _Open to anonymous visitors_ and _Prefix the default language in URLs_ fields is one line each, the help under the language and currency pickers is gone (an inactive value is still marked in the picker), and the paragraph about guest prices is now a single _Prices for anonymous visitors_ link to the same Pricing settings screen. The create form's card is titled _Identity_, as on the edit page, and the code field's example is translated. Removed translation keys: `list.page.description`, `edit.page.createDescription`, `edit.page.editDescription`, `identity.title.create`, `identity.languages.help`, `identity.currencies.help`, `identity.anonymousAccess.pricesHint`; added: `identity.code.placeholder`. Nothing about how a channel behaves has changed.
+- e22b612: The product editor's tabs are sections of the editor card, not cards inside it (issue #1488, UX audit CAT-06).
+
+  `@endora-commerce/admin-kit/field-protection`: `FieldProtectionSummary` is now an `EditorSection` and no longer draws its own bordered box. It takes `chrome` (`'section'` by default, or `'card'`) and `titleAs`, like `CustomFieldValuesPanel`. The heading names the source, so two integrations on one record render as two labelled sections. **Breaking visual change for integration modules (0.x, so released as a minor):** a summary mounted on its own, outside a card, must pass `chrome="card"` to keep a frame: `<FieldProtectionSummary source={…} chrome="card" />`.
+
+  `@endora-commerce/admin-kit` theme: the `.b2b-hr` class is removed. The product editor's Details tab was the last thing that rendered it; a rule between sections is now drawn by `EditorSection` itself. A module that still uses it can write a `<Separator />` from `./ui` instead.
+
+  `@endora-commerce/mod-catalog`: on Variants, Related products, Grouped items, Bundle slots, Inventory (stock management, low-stock threshold, fulfilment strategy, stock by warehouse, order rules, packaging units), Details, Media and Attachments, each group is an `EditorSection` with an `h2` heading and a rule between sections. The Pricing and Channels tabs no longer put a heading of their own, repeating the tab's name, above their contributors' sections. Bundle slots, gallery images and attachments are listed as rows divided by a rule instead of one bordered box per item. The Inventory summary (cumulative on hand, active warehouses) is now a stat line under the _Stock by warehouse_ heading, and the Inventory tab no longer has the extra "Stock" heading above its sections. The catalog's `SectionHeading` is gone. Its badge logic remains in the editor as `SectionBadge`.
+
+  `@endora-commerce/mod-sales-channels`: the product editor's Channels panel (`EntityChannelMembership`, the `product.editor.channels` contribution) is an `EditorSection` instead of a `Card`. Its heading carries "Applies immediately", and its channels are rows divided by a rule.
+
+- 63a657b: The last kit composites that drew their own card or bordered box are sections of the card they sit in (issue #1503, UX audit SHELL-22; the DS-03 rule from #1437).
+
+  **Breaking visual change for modules.** The packages are in `0.x`, where `major` is refused (D-225, `specs/conventions/release-intent.md`) and a `minor` already takes every caret dependent out of range, so this is released as a minor. **Upgrade note: pass `chrome="card"` to keep the old frame.**
+
+  - `ScopePicker` (`@endora-commerce/admin-kit/components`) no longer draws its own `Card`. It renders as an `EditorSection` and follows its mount. A picker placed on its own, between a page's cards, must pass `chrome="card"` to keep its card: `<ScopePicker value={scope} onChange={setScope} chrome="card" />`. It also takes `titleAs` (`'h3'` inside a titled card).
+  - `FieldProtectionPricePanel` (`@endora-commerce/admin-kit/field-protection`) no longer draws a bordered box. It renders as an `EditorSection` whose heading names the source, with the description as its one line, like `FieldProtectionSummary`. Pass `chrome="card"` where it stands alone on a page; it also takes `titleAs`.
+  - `RuleBuilder` (`@endora-commerce/admin-kit/components`) no longer draws its outer `rounded-md border` box, and a group's children are rows divided by a rule instead of a column behind a left border. Its selects and inputs keep their own borders. A builder placed on its own, outside a card, must pass `chrome="card"` to keep a frame: `<RuleBuilder value={rule} onChange={setRule} chrome="card" />`. The card is titled _Conditions_ (`ruleBuilder.title`, EN + PL) unless you pass `title`; `titleAs` sets the heading level.
+  - `CommentThreadCopy.hint` is optional. Omit it when the thread has no rule to state, and nothing is drawn above the thread. Passing it still works as before.
+
+  The promotion editor, the saved promotion rules page and the product-feed criteria panel all place `RuleBuilder` inside a card already and mount it without a frame. The blog and CMS editors mount `ScopePicker` with `chrome="card"`, so they look as they did. The sales-channel editor's warehouse routing (`inventory`, `sales_channel.editor.after`) is one section, with the add form as an `h3` sub-section, a load or write failure as an alert and its confirmations as a status line, in place of up to four cards; the sales-channel editor mounts the zone with `chrome="card"`. A product feed's Settings tab is one card with five sections instead of five cards.
+
+- df16345: The Settings screen shows less on every row (UX audit SHELL-09, SHELL-23). A row no longer carries a value-type badge, a source badge or a "Default … · 0 per-channel overrides" footer: one muted line appears only when the value in force differs from the default or channels override it. A changed row is marked by a bar at its edge, a switched-off module's group states its read-only reason once, the "Editing for" channel picker sits in the toolbar beside the search, and the hard-coded "system" group badge is gone. Single-line controls sit to the right of the setting's name.
+
+  A setting's description is now at most 120 characters (`check:text-budget`), with the long explanations left to each module's documentation page, and it never falls back to another language: in Polish the screen shows the Polish description or none. Every module that declares settings now ships `settingLabels.<code>.name` and `.description` in English and Polish, so the screen no longer shows English names in Polish. Where a manifest declared one of the shortened descriptions, its `description` is the same shorter sentence.
+
+- 6fc614c: The sales-channel editor groups its form into three sections of one card — Identity, Languages and currencies, Storefront — instead of one undivided column (issue #1552). The warning that the storefront's URLs will change now appears only once a change to the languages or to the default-language prefix switch would move them, and is announced when it does; it reads shorter in both languages.
+- 3f34877: Shorter admin copy on the system screens (UX audit text-to-cut, part of issue #1567). The English and Polish text of these keys is shorter: `core` `platform.commandHooks.outbox.hint`, `platform.apiDescription.reference.body`, `adminUsers.resetPassword.hint`, `profile.authorHelp` and `appShell.noRole.description` (the command-line remedy is now in the getting-started guide); `settings` `activation.managedOnPlatformScreen`; `admin_users` `roles.twoFactor.help` and `roles.twoFactor.mfaOff`; `sales_channels` `identity.code.lockedHelp` and `identity.theme.help`; and the setting descriptions `analytics.reporting_time_zone`, `admin_notifications.enabled` and `admin_feedback.module_enabled`.
+
+  On the Global search screen the sentence before the Settings link is gone, and the link reads "Search limits". The key `admin_search` `page.configuration.settingsNote` is removed from both `en` and `pl`, and `page.configuration.settingsLink` has new text. A deployment that overrides any of these keys keeps its own text.
+
+- a7c1af7: The product editor's Channels tab is read-only for an operator without `catalog:write` or `sales_channels:write` (issue #1644). It lists the product's channels and shows no channel picker, no _Add_, no _Remove_ and no "Applies immediately" badge. Before, every operator saw these controls, and the server refused the write only after the click. `EntityChannelMembership` takes a new optional `readOnly` prop.
+- 966e32b: Six admin list screens are the kit `ListPage` now (issue #1749): Sales channels, Credentials, Online customers, Invoice ledger deliveries, Dictionary audit and Comparisons. Each has the kit's loading skeleton, a load error with **Retry**, the result count announced at the end of the toolbar row, and its filters in a toolbar row instead of a card.
+
+  - **Credentials:** _Preview_, _Edit_ and _Delete_ are in the row's menu, and the name opens the configuration. _Delete_ runs inside the confirmation, so a configuration a setting still uses is refused there, with the settings to detach.
+  - **Online customers:** the customer's name opens the customer; the _Open_ button is gone. A refresh, by hand or on the timer, keeps the rows on screen.
+  - **Invoice ledger deliveries** and **Comparisons:** the _Load more_ button is replaced by the kit pager (_Previous_ / _Next_ and rows per page), as on the invoices list. Comparisons puts the date range behind _More filters_, and the owner opens the comparison.
+  - **Dictionary audit:** _Copied_ and _Cache invalidated_ are said beside the buttons, not in a banner.
+  - `@endora-commerce/mod-invoice-ledger` no longer ships `mergeLedgerDeliveryPages`, the _Load more_ helper; it was internal to the screen.
+  - New `en` / `pl` keys: `sales_channels` `list.toolbar.label`, `list.count`; `credentials` `page.count`, `action.menu`; `customers` `online.count`; `invoice_ledger` `deliveries.toolbar.label`; `comparisons` `list.toolbar.label`.
+
+- 2d0537e: The admin sales-channel list (`GET /api/v1/admin/sales-channels`) now orders by `id` after the creation time, so channels created in the same instant no longer repeat or go missing across pages (#1760).
+- 5fb3cd3: Six small Admin defects from the demo click-through are fixed (issue #1808).
+
+  - The Inventory stock overview shows each product's name in the Product column, not its SKU.
+  - Custom-field labels are shown in the admin's language. A host that does not set the language (order, customer and organization detail, among others) used to show a Polish operator the field's default label, which may be its code.
+  - The "New channel" button no longer reads "+ + New channel". The blog category tree's "Add subcategory" button and the quote's "Add line" button show a plus icon instead of a typed "+".
+  - On the opportunities list the two filters say what they filter: "Open and closed" (the outcome) and "All workflow statuses" (the stage in the workflow). The Number and Organization columns stay on one line; a long organization name is cut with an ellipsis.
+  - The product editor's low-stock threshold placeholder reads "Inherited" and fits its input. The help text under it still explains the inheritance.
+  - The newsletter subscriber search shows "Search by e-mail" in the box.
+
+- 9eee781: The Admin UI in Polish no longer shows four kinds of text in English (issue #1809).
+
+  - **Order statuses** are named in the admin's language on the Orders list, the order detail, the bulk status dialog and the Order statuses screen. The names were always stored per language; the screens read the English one.
+  - **CMS hooks**: the 23 seeded hooks, such as "Search Page Bottom", are named and described in the admin's language until an operator renames them. A renamed or custom hook keeps the operator's text.
+  - **Transactional e-mails**: each e-mail's name, description and the reason it cannot be switched off come from the sending module's bundle (`transactionalEmails.<code>.name`, `.description`, `.reason`), in the language the response is read in.
+  - **Platform → Modules**: each module's name, description and the reason it cannot be switched off come from the module's own bundle (`module.name`, `module.description`, `module.nonDeactivatableReason`). `GET /api/v1/admin/modules` gains an optional `nonDeactivatableReason` field on each row. `auth`, `currencies`, `email` and `languages` now ship translation bundles.
+
+  Each of these falls back to the English declared in code when a bundle has no entry. `endora new module` now writes `module.description` into the scaffolded bundles.
+
+- Updated dependencies [c878440]
+- Updated dependencies [65f9a7b]
+- Updated dependencies [3fdbe86]
+- Updated dependencies [bfc68c7]
+- Updated dependencies [9eaa409]
+- Updated dependencies [d908737]
+- Updated dependencies [1042e2a]
+- Updated dependencies [3872f3d]
+- Updated dependencies [bbfcd80]
+- Updated dependencies [41b598c]
+- Updated dependencies [f5b8275]
+- Updated dependencies [467b075]
+- Updated dependencies [a56109e]
+- Updated dependencies [84b89ed]
+- Updated dependencies [b2cd2d3]
+- Updated dependencies [e5b17ae]
+- Updated dependencies [e78d27d]
+- Updated dependencies [596ce81]
+- Updated dependencies [b2b41eb]
+- Updated dependencies [932821f]
+- Updated dependencies [28181ed]
+- Updated dependencies [c15eb60]
+- Updated dependencies [33db45a]
+- Updated dependencies [cec9beb]
+- Updated dependencies [d4bda8d]
+- Updated dependencies [8e7684c]
+- Updated dependencies [87fb9c3]
+- Updated dependencies [998ac87]
+- Updated dependencies [d0a6c2c]
+- Updated dependencies [35e0829]
+- Updated dependencies [3f66b6f]
+- Updated dependencies [61bdc2a]
+- Updated dependencies [649d662]
+- Updated dependencies [38adf84]
+- Updated dependencies [7329865]
+- Updated dependencies [84ed7b6]
+- Updated dependencies [1064839]
+- Updated dependencies [d2d9d79]
+- Updated dependencies [f687479]
+- Updated dependencies [074f500]
+- Updated dependencies [7624db6]
+- Updated dependencies [cec9beb]
+- Updated dependencies [7be07f6]
+- Updated dependencies [2614e4f]
+- Updated dependencies [90320fd]
+- Updated dependencies [bb21b86]
+- Updated dependencies [79a17a3]
+- Updated dependencies [3dab0be]
+- Updated dependencies [e22b612]
+- Updated dependencies [cb75825]
+- Updated dependencies [a4455db]
+- Updated dependencies [f3b2ec8]
+- Updated dependencies [f093a02]
+- Updated dependencies [d5a077f]
+- Updated dependencies [86b9b39]
+- Updated dependencies [42febee]
+- Updated dependencies [447e829]
+- Updated dependencies [2040ae9]
+- Updated dependencies [fc7f669]
+- Updated dependencies [40b76aa]
+- Updated dependencies [eeed5c8]
+- Updated dependencies [63a657b]
+- Updated dependencies [0ecb287]
+- Updated dependencies [9a27b93]
+- Updated dependencies [2f0b69f]
+- Updated dependencies [87b9b60]
+- Updated dependencies [50d451b]
+- Updated dependencies [98c0411]
+- Updated dependencies [9f4eae3]
+- Updated dependencies [a8261aa]
+- Updated dependencies [f64646d]
+- Updated dependencies [306a659]
+- Updated dependencies [7ea72af]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [bfbcac2]
+- Updated dependencies [ee6062c]
+- Updated dependencies [820f089]
+- Updated dependencies [f33ffed]
+- Updated dependencies [4e668b5]
+- Updated dependencies [843ed42]
+- Updated dependencies [0d4c134]
+- Updated dependencies [3f7b5ae]
+- Updated dependencies [b98739c]
+- Updated dependencies [6155f4b]
+- Updated dependencies [bdcc9a4]
+- Updated dependencies [5850aac]
+- Updated dependencies [c042024]
+- Updated dependencies [8a5725e]
+- Updated dependencies [f915a24]
+- Updated dependencies [8688a1f]
+- Updated dependencies [95e5082]
+- Updated dependencies [31c0430]
+- Updated dependencies [0686447]
+- Updated dependencies [691414b]
+- Updated dependencies [8a06dc5]
+- Updated dependencies [e118ee4]
+- Updated dependencies [5fb3cd3]
+- Updated dependencies [9eee781]
+- Updated dependencies [bd47236]
+- Updated dependencies [bd47236]
+- Updated dependencies [79d15cf]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [398e6d2]
+- Updated dependencies [51c5072]
+- Updated dependencies [0e81803]
+- Updated dependencies [2e287a5]
+- Updated dependencies [fbc6c7c]
+- Updated dependencies [9d6f006]
+- Updated dependencies [49328cf]
+- Updated dependencies [b3d4843]
+- Updated dependencies [f74fe34]
+- Updated dependencies [19eb7c0]
+- Updated dependencies [0fbf186]
+- Updated dependencies [27b977d]
+- Updated dependencies [5e2a12a]
+- Updated dependencies [5518a09]
+- Updated dependencies [5e380e3]
+- Updated dependencies [bfab5bd]
+- Updated dependencies [8a0ec92]
+- Updated dependencies [81fcc3f]
+- Updated dependencies [12c63fa]
+- Updated dependencies [72637e0]
+  - @endora-commerce/platform@0.112.0
+  - @endora-commerce/contracts@0.112.0
+  - @endora-commerce/admin-kit@0.112.0
+
 ## 0.111.0
 
 ### Minor Changes
