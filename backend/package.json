@@ -67,6 +67,7 @@
     "check:text-budget": "tsx scripts/check-text-budget.ts",
     "check:transaction-context": "tsx scripts/check-transaction-context.ts",
     "cli": "tsx --env-file-if-exists=.env src/cli.ts",
+    "codemod:persist-and-flush": "tsx scripts/codemods/persist-and-flush.ts ..",
     "composer:check": "tsx scripts/generate-composer.ts --check",
     "composer:generate": "tsx scripts/generate-composer.ts",
     "docs:collect": "tsx scripts/generate-composer.ts --docs-only",
