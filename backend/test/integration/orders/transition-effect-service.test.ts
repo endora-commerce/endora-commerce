@@ -150,7 +150,13 @@ describe('OrderTransitionEffectService (spec 142, T08)', () => {
     return Object.fromEntries(rows.map((row) => [row.effect, row]));
   }
 
-  const sweep = (now: Date = new Date()) =>
+  // A default pass runs one second after "now", which is still far inside the
+  // one-minute back-off. `record` stamps `next_attempt_at` with the
+  // database's `now()`, the start of its transaction in microseconds. A
+  // JavaScript `Date` taken in the same millisecond truncates below it, so the
+  // row just written was not yet due, and the sweep found nothing (backend-suite
+  // run 45136913927). Production loses nothing: the row waits one tick.
+  const sweep = (now: Date = new Date(Date.now() + 1_000)) =>
     withSystemScope('spec 142 test — sweep', () => service().sweep(now));
 
   // --- record -----------------------------------------------------------------
