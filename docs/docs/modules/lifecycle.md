@@ -236,7 +236,7 @@ export const manifest = defineModuleManifest({
 
 export async function installHook({ em, log }) {
   log.info('coupons: seeding default policy presets');
-  // await em.persistAndFlush(...);
+  // await em.persist(...).flush();
 }
 
 export async function uninstallHook({ em, hard, log }) {

@@ -17,7 +17,7 @@ export interface AuditFromContextInput {
  * ambient {@link getTenantContext} (feature 050) — never from a request body.
  *
  * This is the lightweight companion to {@link CommandBus.run}: where a write
- * already runs inside its own `em.persistAndFlush(...)` (and therefore cannot be
+ * already runs inside its own `em.persist(...).flush()` (and therefore cannot be
  * wrapped in the bus's own transaction without restructuring), a service calls
  * this immediately before its flush so the audit row commits with the write. The
  * actor is best-effort: with no ambient context (e.g. a system/worker path that

@@ -2808,7 +2808,7 @@ export class OrderService {
       // plan emits multiple allocations (only the `default_first` strategy
       // does this today).
       //
-      // After `persistAndFlush(orderItems)` and required to be:
+      // After `persist(orderItems).flush()` and required to be:
       // `stock_allocations_order_item_fk` (`on delete restrict`) means this
       // row cannot exist before its order item does. See the import.
       // `allocationPlan` is empty when `inventory` is not effectively present,

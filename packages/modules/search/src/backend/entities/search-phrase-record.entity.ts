@@ -45,8 +45,8 @@ export class SearchPhraseRecord {
   phrase!: string;
 
   /**
-   * `lower(trim(phrase))` — populated by the recorder service before
-   * persistAndFlush. Indexed by `(sales_channel_id, phrase_normalized,
+   * `lower(trim(phrase))` — populated by the recorder service before it
+   * persists and flushes the row. Indexed by `(sales_channel_id, phrase_normalized,
    * recorded_at DESC)` for the analytics aggregation query.
    */
   @Property({ type: 'string', length: 512, fieldName: 'phrase_normalized' })

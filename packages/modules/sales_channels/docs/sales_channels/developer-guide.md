@@ -72,7 +72,7 @@ The assignment is the channel's `organization` membership — the `sales_channel
 Channel scoping has two layers:
 
 1. **Schema** — the entity gains a many-to-many relationship to `sales_channels` via a new bridge table `sales_channel_<entity>` (composite primary key on both ids, `ON DELETE CASCADE` on both sides). Add the table in your module's next migration.
-2. **Service** — every read path of the entity that should be filtered by channel takes a `salesChannelId` parameter and joins through the bridge table. Every create / update path that lands a new entity calls `bindToDefaultIfEmpty(entityType, entity.id)` on the `salesChannelMembershipPort` after `persistAndFlush` so newly-created entities default to the system-default channel.
+2. **Service** — every read path of the entity that should be filtered by channel takes a `salesChannelId` parameter and joins through the bridge table. Every create / update path that lands a new entity calls `bindToDefaultIfEmpty(entityType, entity.id)` on the `salesChannelMembershipPort` after `persist(entity).flush()` so newly-created entities default to the system-default channel.
 
 Then add the member to the contract's `ChannelMemberEntityTypeSchema` enum, and **declare the bridge from your own module**: export the `{ entityType, table, entityIdColumn }` triple from `src/backend/index.ts` and register it from a boot hook —
 

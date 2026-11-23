@@ -56,7 +56,7 @@ samej transakcji i ustalają użytkownika z bieżącego `TenantContext`:
 - **`recordAuditFromContext(auditLog, em, input)`** — lżejsze uzupełnienie
   (`packages/platform/src/commands/audit-from-context.ts`). Zapisuje wpis audytu w `em`, którym
   wywołujący już dysponuje, a zatwierdza go istniejące wywołanie `flush()`. Używaj go, gdy zapis
-  już działa we własnej transakcji albo w `persistAndFlush(...)` i nie da się go objąć transakcją
+  już działa we własnej transakcji albo w `persist(...).flush()` i nie da się go objąć transakcją
   Command Busa bez przebudowy. Użytkownik jest tu ustalany w miarę możliwości: bez kontekstu (np.
   w workerze, który go nie otworzył) zapisuje puste identyfikatory użytkownika zamiast rzucać
   wyjątek, więc zapisy w tle też są audytowane. Kod, który *musi* znać użytkownika, używa Command

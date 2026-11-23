@@ -153,9 +153,9 @@ export class ShipmentService {
               shipment.providerDetails = started.providerDetails;
             }
             if (reference !== undefined || started.providerDetails !== undefined) {
-              // `persistAndFlush` and not `flush`: the row is already managed by
-              // this transaction, so the two are equivalent here, and this is the
-              // spelling every other write in the method uses.
+              // `persist(…).flush()` and not a bare `flush()`: the row is already
+              // managed by this transaction, so the two are equivalent here, and
+              // this is the spelling every other write in the method uses.
               await tx.persist(shipment).flush();
             }
           }

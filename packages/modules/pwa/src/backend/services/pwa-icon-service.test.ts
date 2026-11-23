@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { PwaIconInvalid, PwaIconService, type AssetUploadPort } from './pwa-icon-service.js';
 
-/** Fake EM: find returns [], create echoes, persist/flush/removeAndFlush no-op. */
+/** Fake EM: find returns [], create echoes, persist/flush/remove no-op. */
 function fakeEmFactory() {
   return () =>
     ({
