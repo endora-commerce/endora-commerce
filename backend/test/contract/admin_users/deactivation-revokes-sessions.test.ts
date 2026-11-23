@@ -191,7 +191,8 @@ describe('Admin guard — a session of an account that is not active is refused'
     const { id, cookie } = await signedIn(`surviving-${label}@example.com`);
     expect((await call('GET', '/api/v1/admin/me', cookie)).statusCode).toBe(200);
 
-    await h.em().getKnex()('admin_users').where({ id }).update(change);
+    const [[column, value]] = Object.entries(change) as [[string, unknown]];
+    await h.em().execute(`update "admin_users" set ?? = ? where "id" = ?`, [column, value, id]);
     // The session row is still there: nothing revoked it.
     expect(await h.em().count(Session, { adminUserId: id })).toBe(1);
 
@@ -208,10 +209,11 @@ describe('Admin guard — a session of an account that is not active is refused'
     // account is not short of a permission, it is not signed in.
     expect((await call('GET', '/api/v1/admin/permissions', cookie)).statusCode).toBe(401);
 
-    const row = (await h.em().getKnex()('admin_users').where({ id }).first()) as {
-      first_name: string;
-    };
-    expect(row.first_name).toBe('Sur');
+    const [row] = await h.em().execute<Array<{ first_name: string }>>(
+      `select "first_name" from "admin_users" where "id" = ?`,
+      [id],
+    );
+    expect(row!.first_name).toBe('Sur');
   });
 
   it('still answers 403, not 401, for an active account missing the permission', async () => {

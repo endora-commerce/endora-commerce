@@ -88,21 +88,15 @@ describe('invoices — the numbering-pattern write refusal', () => {
     const second = await ensureSalesChannel(em, 'coll-b');
     // Put the colliding value in place behind the refusal's back, then re-save
     // the very same string through the write path.
-    const knex = em.getKnex();
-    const settingId = (
-      await knex('settings').where({ code: CODE }).select('id').first()
-    ) as { id: string };
-    await knex('setting_values')
-      .insert({
-        id: knex.raw('gen_random_uuid()'),
-        setting_id: settingId.id,
-        sales_channel_id: second.id,
-        value: JSON.stringify('FV {seq}/{YYYY}'),
-        created_at: new Date(),
-        updated_at: new Date(),
-      })
-      .onConflict(['setting_id', 'sales_channel_id'])
-      .merge();
+    const [setting] = await em.execute<Array<{ id: string }>>(`select "id" from "settings" where "code" = ? limit 1`, [CODE]);
+    const now = new Date();
+    await em.execute(
+      `insert into "setting_values" ("id", "setting_id", "sales_channel_id", "value", "created_at", "updated_at")
+       values (gen_random_uuid(), ?, ?, ?, ?, ?)
+       on conflict ("setting_id", "sales_channel_id") do update
+         set "value" = excluded."value", "created_at" = excluded."created_at", "updated_at" = excluded."updated_at"`,
+      [setting!.id, second.id, JSON.stringify('FV {seq}/{YYYY}'), now, now],
+    );
 
     const err = await refusal(
       h.settings.adminService.setValueForSubset(CODE, ['coll-b'], 'FV {seq}/{YYYY}', null, ACTOR),

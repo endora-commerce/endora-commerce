@@ -58,8 +58,7 @@ describe('place order — configurable fulfilment strategy precedence', () => {
 
     // Deterministic candidate set: default (is_default) + secondary, both on
     // the active channel.
-    const knex = em.getKnex();
-    await knex('warehouse_channel_assignments').where('sales_channel_id', channel.id).delete();
+    await em.execute(`delete from "warehouse_channel_assignments" where "sales_channel_id" = ?`, [channel.id]);
     em.create(WarehouseChannelAssignment, {
       warehouseId: DEFAULT_WAREHOUSE_ID,
       salesChannelId: channel.id,
@@ -75,9 +74,10 @@ describe('place order — configurable fulfilment strategy precedence', () => {
     await em.flush();
 
     // Default warehouse = the lowest-stock one (10); secondary = highest (100).
-    await knex('stock_levels')
-      .where({ product_id: SEED_PRODUCT_101_ID, warehouse_id: DEFAULT_WAREHOUSE_ID })
-      .update({ on_hand: 10, reserved: 0 });
+    await em.execute(
+      `update "stock_levels" set "on_hand" = 10, "reserved" = 0 where "product_id" = ? and "warehouse_id" = ?`,
+      [SEED_PRODUCT_101_ID, DEFAULT_WAREHOUSE_ID],
+    );
     em.create(StockLevel, {
       productId: SEED_PRODUCT_101_ID,
       warehouseId: SECONDARY_WAREHOUSE_ID,

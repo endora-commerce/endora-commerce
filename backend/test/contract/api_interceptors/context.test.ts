@@ -52,8 +52,7 @@ describe('API interceptor context propagation (feature 060 / US1)', () => {
 
     // Seed one in-scope and one OUT-of-scope shopping list via raw SQL
     // (bypassing the ORM guard on purpose — this is test arrangement).
-    const knex = h.em().getKnex();
-    await knex.raw(
+    await h.em().execute(
       `insert into shopping_lists (id, organization_id, customer_account_id, name, is_default, created_at, updated_at)
        values (?, ?, ?, ?, false, now(), now()), (?, ?, ?, ?, false, now(), now())`,
       [
@@ -89,11 +88,11 @@ describe('API interceptor context propagation (feature 060 / US1)', () => {
     expect(capturedCtx?.customerAccountId).toBe(TEST_CUSTOMER_ID);
 
     // The out-of-scope row exists in the database...
-    const knex = h.em().getKnex();
-    const raw = (await knex.raw(`select count(*)::int as n from shopping_lists where organization_id = ?`, [
-      OTHER_ORG_ID,
-    ])) as { rows: Array<{ n: number }> };
-    expect(raw.rows[0]?.n).toBeGreaterThan(0);
+    const raw = await h.em().execute<Array<{ n: number }>>(
+      `select count(*)::int as n from shopping_lists where organization_id = ?`,
+      [OTHER_ORG_ID],
+    );
+    expect(raw[0]?.n).toBeGreaterThan(0);
 
     // ...but the interceptor's guarded query never saw it (Principle XI).
     expect(listsSeenByInterceptor.length).toBeGreaterThan(0);

@@ -6,6 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { setupPricingFixture, type PricingFixture, type RowSpec } from '../../helpers/pricing-fixture.js';
 import { countRebuildRequests, settlePriceSurface } from '../../helpers/price-surface.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * Feature 160 (FR-027, `contracts/price-surface.md` §4) — the price surface is
@@ -55,16 +56,15 @@ describe('price surface — freshness and live-path isolation', () => {
 
   /** The surface rows a request writes while it runs: none, ever. */
   async function surfaceWritesOf(run: () => Promise<unknown>): Promise<string[]> {
-    const knex = h.em().getConnection().getKnex();
     const writes: string[] = [];
     const listen = (q: { sql: string }) => {
       if (/^\s*(insert into|delete from|update) "price_profile_prices"/i.test(q.sql)) writes.push(q.sql);
     };
-    knex.on('query', listen);
+    const untap = tapStatements(h.em(), listen);
     try {
       await run();
     } finally {
-      knex.off('query', listen);
+      untap();
     }
     return writes;
   }

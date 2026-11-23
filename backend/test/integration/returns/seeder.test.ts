@@ -21,10 +21,9 @@ describe('returns — seeder', () => {
   });
 
   it('restores the default status graph + reasons when wiped, and is idempotent', async () => {
-    const knex = h.em().getKnex();
-    await knex('return_status_transitions').del();
-    await knex('return_statuses').del();
-    await knex('return_reasons').del();
+    await h.em().execute('delete from "return_status_transitions"');
+    await h.em().execute('delete from "return_statuses"');
+    await h.em().execute('delete from "return_reasons"');
 
     const seeder = new ReturnsSeeder(h.em);
     await seeder.ensureDefaults();

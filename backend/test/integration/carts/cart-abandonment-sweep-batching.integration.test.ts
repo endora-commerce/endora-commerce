@@ -1,7 +1,6 @@
 import { Cart, CartAuditEntry, CartItem } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { Knex } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
@@ -11,6 +10,7 @@ import { AuditLogService } from '@endora-commerce/platform/composition';
 import { CartAuditService } from '../../../../packages/modules/carts/src/backend/services/cart-audit-service.js';
 
 import { CartAbandonmentWorker } from '../../../../packages/modules/carts/src/backend/services/cart-abandonment-worker.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 
 /**
@@ -115,16 +115,14 @@ describe('CartAbandonmentWorker.sweep — batching', () => {
     const cartCount = 40;
     const batchSize = 10;
     await seedEligibleCarts(cartCount, 2);
-
-    const knex: Knex = db.em().getConnection().getKnex();
     let statements = 0;
     const count = (): void => {
       statements += 1;
     };
 
-    knex.on('query', count);
+    const untap = tapStatements(db.em(), count);
     const result = await buildWorker(batchSize).sweep();
-    knex.off('query', count);
+    untap();
 
     expect(result.abandonedCount).toBe(cartCount);
     // What was measured, before how long it took (issue #140): a sweep that
@@ -140,7 +138,6 @@ describe('CartAbandonmentWorker.sweep — batching', () => {
     // says the same thing on a busy machine as on an idle one.
     const small = 4;
     const large = 40;
-    const knex: Knex = db.em().getConnection().getKnex();
 
     const statementsFor = async (cartCount: number): Promise<number> => {
       await seedEligibleCarts(cartCount, 1);
@@ -148,9 +145,9 @@ describe('CartAbandonmentWorker.sweep — batching', () => {
       const count = (): void => {
         statements += 1;
       };
-      knex.on('query', count);
+      const untap = tapStatements(db.em(), count);
       const result = await buildWorker(cartCount).sweep();
-      knex.off('query', count);
+      untap();
       expect(result.abandonedCount).toBe(cartCount);
       return statements;
     };

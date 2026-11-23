@@ -96,7 +96,10 @@ describe('POST /api/v1/admin/orders — custom-field values (feature 175)', () =
   }
 
   const orderCount = async (): Promise<number> => {
-    const [row] = await h.em().getKnex()('orders').where({ organization_id: TEST_ORGANIZATION_ID }).count({ n: '*' });
+    const [row] = await h.em().execute<Array<{ n: string }>>(
+      `select count(*) as "n" from "orders" where "organization_id" = ?`,
+      [TEST_ORGANIZATION_ID],
+    );
     return Number(row?.n);
   };
 
@@ -107,8 +110,11 @@ describe('POST /api/v1/admin/orders — custom-field values (feature 175)', () =
     const order = res.json().data as { id: string; customFieldValues: Record<string, unknown> };
     expect(order.customFieldValues).toEqual(values);
 
-    const row = await h.em().getKnex()('orders').where({ id: order.id }).first('custom_field_values');
-    expect(row.custom_field_values).toEqual(values);
+    const [row] = await h.em().execute<Array<{ custom_field_values: unknown }>>(
+      `select "custom_field_values" from "orders" where "id" = ?`,
+      [order.id],
+    );
+    expect(row!.custom_field_values).toEqual(values);
 
     h.em().clear();
     const entries = await h.em().find(AuditLogEntry, { action: 'order.place_on_behalf', objectId: order.id });

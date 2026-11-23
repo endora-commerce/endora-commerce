@@ -1,4 +1,4 @@
-import { raw, type EntityManager, type FilterQuery, type Knex } from '@mikro-orm/postgresql';
+import { raw, type EntityManager, type FilterQuery } from '@mikro-orm/postgresql';
 import {
   customFieldFilterUnavailable,
   type CustomerAccountReadPort,
@@ -320,23 +320,26 @@ export class OrderListService {
       fields.has('customer') ? this.customerAccountRead.searchIdsByName(query.text) : [],
     ]);
 
-    // One predicate per selected field, OR-combined. Id sets go through
-    // `whereIn` (knex expands an array binding into a list, never an array).
-    // A matcher mutates the builder and its return is ignored; it is `unknown`
-    // rather than `void` because a Knex builder is thenable (issue #1027).
-    const matches: Array<(qb: Knex.QueryBuilder) => unknown> = [];
-    if (fields.has('number')) matches.push((qb) => qb.orWhereRaw('"business_id" ilike ?', [contains]));
-    if (orgIds.length > 0) matches.push((qb) => qb.orWhereIn('organization_id', orgIds));
+    // One predicate per selected field, OR-combined; every value is bound, an
+    // id set as one placeholder per id.
+    const matches: Array<{ sql: string; params: readonly unknown[] }> = [];
+    if (fields.has('number')) matches.push({ sql: '"business_id" ilike ?', params: [contains] });
+    if (orgIds.length > 0) {
+      matches.push({ sql: `"organization_id" in (${orgIds.map(() => '?').join(', ')})`, params: orgIds });
+    }
     if (customerIds.length > 0) {
-      matches.push((qb) => qb.orWhereIn('placed_by_customer_account_id', customerIds));
+      matches.push({
+        sql: `"placed_by_customer_account_id" in (${customerIds.map(() => '?').join(', ')})`,
+        params: customerIds,
+      });
     }
     if (fields.has('billingCompanyName')) {
-      matches.push((qb) => qb.orWhereRaw(`"billing_address"->>'companyName' ilike ?`, [contains]));
+      matches.push({ sql: `"billing_address"->>'companyName' ilike ?`, params: [contains] });
     }
     if (fields.has('billingTaxId')) {
-      matches.push((qb) => qb.orWhereRaw(`"billing_address"->>'taxId' ilike ?`, [contains]));
+      matches.push({ sql: `"billing_address"->>'taxId' ilike ?`, params: [contains] });
     }
-    if (query.isUuid) matches.push((qb) => qb.orWhereRaw('"id" = ?::uuid', [query.text]));
+    if (query.isUuid) matches.push({ sql: '"id" = ?::uuid', params: [query.text] });
     if (matches.length === 0) return { rows: [], hasMore: false };
     if (scope?.empty) return { rows: [], hasMore: false };
 
@@ -366,20 +369,24 @@ export class OrderListService {
         : `case when ${exact.join(' or ')} then 0${starts.length > 0 ? ` when ${starts.join(' or ')} then 1` : ''} else 2 end`;
 
     const em = this.emFactory();
-    const builder = em
-      .getKnex()('orders')
-      .select('id')
-      .where((qb) => {
-        if (scope) qb.whereRaw(scope.sql.sql, [...scope.sql.params] as Knex.RawBinding[]);
-        qb.andWhere((or) => {
-          for (const match of matches) match(or);
-        });
-      });
-    if (rank !== null) builder.orderByRaw(rank, [...rankBindings, ...prefixBindings] as Knex.RawBinding[]);
-    builder.orderBy('updated_at', 'desc').orderBy('id', 'asc').limit(query.limit + 1);
-    // `em.execute(builder)`, not `await builder`: a knex handle carries no
-    // transaction context (issue #207).
-    const ids = ((await em.execute(builder)) as Array<{ id: string }>).map((r) => r.id);
+    // The reach first, then the OR of the matches — the list's own visibility,
+    // in the statement. `em.execute` runs on the EntityManager's transaction
+    // context (issue #207).
+    const where = [
+      ...(scope ? [{ sql: `(${scope.sql.sql})`, params: scope.sql.params }] : []),
+      { sql: `(${matches.map((m) => m.sql).join(' or ')})`, params: matches.flatMap((m) => m.params) },
+    ];
+    const ids = (
+      await em.execute<Array<{ id: string }>>(
+        `select "id" from "orders" where ${where.map((w) => w.sql).join(' and ')}
+          order by ${rank === null ? '' : `${rank}, `}"updated_at" desc, "id" asc limit ?`,
+        [
+          ...where.flatMap((w) => w.params),
+          ...(rank === null ? [] : [...rankBindings, ...prefixBindings]),
+          query.limit + 1,
+        ],
+      )
+    ).map((r) => r.id);
     const page = ids.slice(0, query.limit);
     if (page.length === 0) return { rows: [], hasMore: false };
 

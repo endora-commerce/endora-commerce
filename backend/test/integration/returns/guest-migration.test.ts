@@ -8,6 +8,7 @@ import {
 } from '../../helpers/test-server.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { insertRows } from '../../helpers/sql-rows.js';
 
 /**
  * `specs/181-guest-complaints/` T007 (data-model §1 – §4, §7): the migration
@@ -32,18 +33,18 @@ describe('returns — migration: guest complaints', () => {
     const migration = new GuestMigration(em.getDriver(), em.config);
     await migration[direction]();
     // One transaction: a refused step leaves the schema as it was for the next file.
-    await em.getKnex().transaction(async (trx) => {
-      for (const query of migration.getQueries()) await trx.raw(query as string);
+    const connection = em.getConnection();
+    await connection.transactional(async (trx) => {
+      for (const query of migration.getQueries()) await connection.execute(query as string, [], 'run', trx);
     });
     em.clear();
   }
 
   const exec = (sql: string, params: unknown[] = []) => h.em().execute(sql, params);
-  const knex = () => h.em().getKnex();
 
   async function insertCase(over: Record<string, unknown> = {}): Promise<string> {
     const id = randomUUID();
-    await knex()('return_cases').insert({
+    await insertRows(h.em(), 'return_cases', {
       id,
       kind: 'complaint',
       order_id: randomUUID(),
@@ -73,7 +74,7 @@ describe('returns — migration: guest complaints', () => {
 
   async function insertVerification(over: Record<string, unknown> = {}): Promise<string> {
     const id = randomUUID();
-    await knex()('return_guest_verifications').insert({
+    await insertRows(h.em(), 'return_guest_verifications', {
       id,
       sales_channel_id: channelId,
       email: 'ewa@example.test',
@@ -180,7 +181,7 @@ describe('returns — migration: guest complaints', () => {
   it('lets a guest comment stand only as a customer-visible comment with no author id', async () => {
     const caseId = await insertCase(guest());
     const comment = (over: Record<string, unknown>) =>
-      knex()('return_case_comments').insert({ id: randomUUID(), return_case_id: caseId, body: 'Hello', created_at: new Date(), ...over });
+      insertRows(h.em(), 'return_case_comments', { id: randomUUID(), return_case_id: caseId, body: 'Hello', created_at: new Date(), ...over });
     await expect(comment({ author_guest: true })).resolves.toBeDefined();
     await expect(comment({ author_guest: true, is_customer_visible: false })).rejects.toThrow(/return_case_comments_guest_author_check/);
     await expect(comment({ author_guest: true, author_admin_user_id: randomUUID() })).rejects.toThrow(
@@ -195,7 +196,7 @@ describe('returns — migration: guest complaints', () => {
 
   it('refuses a pending attachment with no owner, and accepts one a guest session owns', async () => {
     const pending = (over: Record<string, unknown>) =>
-      knex()('return_case_attachments').insert({
+      insertRows(h.em(), 'return_case_attachments', {
         id: randomUUID(),
         storage_locator: `returns/guest/${randomUUID()}`,
         expires_at: new Date(Date.now() + 86_400_000),

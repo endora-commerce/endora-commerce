@@ -14,14 +14,15 @@ export async function caseLinesOf(
 ): Promise<Map<string, { productLabel: string; lineCount: number }>> {
   const out = new Map<string, { productLabel: string; lineCount: number }>();
   if (caseIds.length === 0) return out;
-  const rows = (await em
-    .getKnex()
-    .from('return_case_items')
-    .select('return_case_id')
-    .select(em.getKnex().raw('count(*)::int as line_count'))
-    .select(em.getKnex().raw('(array_agg("product_name" order by "id"))[1] as product_label'))
-    .whereIn('return_case_id', [...caseIds])
-    .groupBy('return_case_id')) as Array<{ return_case_id: string; line_count: number; product_label: string }>;
+  const ids = [...caseIds];
+  const rows = await em.execute<Array<{ return_case_id: string; line_count: number; product_label: string }>>(
+    `select "return_case_id", count(*)::int as line_count,
+            (array_agg("product_name" order by "id"))[1] as product_label
+       from "return_case_items"
+      where "return_case_id" in (${ids.map(() => '?').join(', ')})
+      group by "return_case_id"`,
+    ids,
+  );
   for (const row of rows) {
     out.set(row.return_case_id, { productLabel: row.product_label ?? '', lineCount: Number(row.line_count) });
   }

@@ -6,6 +6,7 @@ import { useTemporaryAssetStore } from '../../helpers/crm-attachment-upload.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, resetReturnGraph } from './helpers.js';
 import { makeMember, makeOrganization, releaseMembers, type ReturnsFixtureMember } from './organization-fixtures.js';
 import { SMALL_PDF, TINY_PNG, allowOffPlatform, complaintReasonId, file, noOrderBody, upload } from './off-platform-fixtures.js';
+import { insertRows } from '../../helpers/sql-rows.js';
 
 /**
  * `specs/180-off-platform-complaints/` T066 (FR-B22, Principle XI): who gets a case's
@@ -96,7 +97,7 @@ describe('returns — serving an attachment', () => {
 
   it('neither lists nor serves a legacy asset link', async () => {
     const legacy = randomUUID();
-    await h.em().getKnex()('return_case_attachments').insert({
+    await insertRows(h.em(), 'return_case_attachments', {
       id: legacy,
       return_case_id: caseId,
       organization_id: filer.organizationId,

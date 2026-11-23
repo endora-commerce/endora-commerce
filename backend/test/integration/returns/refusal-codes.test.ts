@@ -391,17 +391,27 @@ describe('returns refusals carry their own code and sentence (issue #625)', () =
       async () => {
         const { id, itemId, orderId } = await receivedCase();
         const key = returnCaseOrderLockKey(orderId);
-        // Another settlement, on a connection of its own, holds the order's lock.
-        const holder = await h.em().getKnex().client.acquireConnection();
+        // Another settlement, in a transaction on a connection of its own, holds
+        // the order's lock until the refusal has been read.
+        const connection = h.em().getConnection();
+        let release!: () => void;
+        const released = new Promise<void>((resolve) => (release = resolve));
+        let locked!: () => void;
+        const holding = new Promise<void>((resolve) => (locked = resolve));
+        const holder = connection.transactional(async (trx) => {
+          await connection.execute('select pg_advisory_xact_lock(hashtext(?))', [key], 'all', trx);
+          locked();
+          await released;
+        });
         try {
-          await h.em().getKnex().raw('select pg_advisory_lock(hashtext(?))', [key]).connection(holder);
+          await Promise.race([holding, holder]);
           const error = refusal(await settleRefund(id, itemId, 100), 409, 'RETURN_SETTLEMENT_IN_PROGRESS');
 
           expect(error.details).toEqual({ orderId });
           expectTranslated(error, language, SETTLEMENT_IN_PROGRESS);
         } finally {
-          await h.em().getKnex().raw('select pg_advisory_unlock(hashtext(?))', [key]).connection(holder);
-          await h.em().getKnex().client.releaseConnection(holder);
+          release();
+          await holder;
         }
       },
       60_000,

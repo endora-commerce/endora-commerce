@@ -201,6 +201,34 @@ export function queryText(query: unknown): string {
 }
 
 /**
+ * `sql` with every `??` identifier placeholder bound to its parameter, as the
+ * ORM binds it before the statement runs (issue #1864). The verdict reads
+ * statement text, and `execute('delete from ??', ['orders'])` names no table
+ * until the identifier is in it; `?` value placeholders are left as they are
+ * — a value changes no write target — but each one consumes its parameter.
+ */
+export function withBoundIdentifiers(sql: string, params: readonly unknown[] | undefined): string {
+  if (params === undefined || params.length === 0 || !sql.includes('??')) return sql;
+  let out = '';
+  let next = 0;
+  for (let i = 0; i < sql.length; i += 1) {
+    const char = sql[i]!;
+    if (char === '\\' && sql[i + 1] === '?') {
+      out += '\\?';
+      i += 1;
+    } else if (char === '?' && sql[i + 1] === '?') {
+      const name = String(params[next++]).replaceAll('"', '""').replace('.', '"."');
+      out += `"${name}"`;
+      i += 1;
+    } else {
+      if (char === '?') next += 1;
+      out += char;
+    }
+  }
+  return out;
+}
+
+/**
  * The statements `cls.up()` queues, without running any of them — for the
  * guard's own-table dry run and for `module:schema-extensions audit-packages`
  * (FR-073). `execute` answers no rows and records its text; the entity manager
@@ -235,8 +263,8 @@ export async function dryRunStatements(
   let builder: unknown;
   const executed: string[] = [];
   Object.assign(instance, {
-    execute: async (sql: unknown) => {
-      executed.push(queryText(sql));
+    execute: async (sql: unknown, params?: unknown[]) => {
+      executed.push(withBoundIdentifiers(queryText(sql), params));
       return [];
     },
     getEntityManager: denied('the entity manager'),
@@ -559,7 +587,7 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
     }
 
     override async execute(sql: Parameters<Migration['execute']>[0], params?: unknown[]) {
-      await this.#judge(queryText(sql));
+      await this.#judge(withBoundIdentifiers(queryText(sql), params));
       return super.execute(sql, params);
     }
 
@@ -686,7 +714,7 @@ function guardEntityManager(
   if (typeof execute === 'function') {
     Object.assign(em, {
       execute: async (sql: unknown, ...rest: unknown[]) => {
-        await judgeSql(queryText(sql));
+        await judgeSql(withBoundIdentifiers(queryText(sql), rest[0] as unknown[] | undefined));
         return execute.call(em, sql, ...rest);
       },
     });
@@ -729,7 +757,7 @@ function guardEntityManager(
             const value = Reflect.get(target, property, receiver) as unknown;
             if (property === 'execute' && typeof value === 'function') {
               return async (sql: unknown, ...rest: unknown[]) => {
-                await judgeSql(queryText(sql));
+                await judgeSql(withBoundIdentifiers(queryText(sql), rest[0] as unknown[] | undefined));
                 return (value as (...a: unknown[]) => unknown).call(target, sql, ...rest);
               };
             }

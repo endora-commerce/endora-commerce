@@ -1,5 +1,4 @@
 // perf-weight: fast — not yet measured on the CI runner; ~20 s on a loaded dev box at the default corpus.
-import type { Knex } from '@mikro-orm/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -7,6 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { tapStatements, type TappedStatement } from '../../helpers/statement-tap.js';
 
 /**
  * What it costs to hand a buyer **one full page of products that match** —
@@ -186,34 +186,31 @@ describe.skipIf(!shouldRun)('catalog list — one full page of matching products
   async function explainFirstPage(
     scenario: Scenario,
   ): Promise<{ executionMs: number; buffers: number } | null> {
-    const knex: Knex = h.em().getConnection().getKnex();
-    const seen: Array<{ sql: string; bindings: readonly unknown[] }> = [];
-    const capture = (query: { sql: string; bindings?: readonly unknown[] }): void => {
-      seen.push({ sql: query.sql, bindings: query.bindings ?? [] });
-    };
-    knex.on('query', capture);
+    const seen: TappedStatement[] = [];
+    const untap = tapStatements(h.em(), (statement) => seen.push(statement));
     await request(scenario, null);
-    knex.off('query', capture);
+    untap();
 
     const listing = seen.find(
       (s) => /from "products" as/.test(s.sql) && /order by/.test(s.sql) && /limit/.test(s.sql),
     );
     if (!listing) return null;
-    // knex hands back `$1`-style text for a statement it already compiled.
-    const result = (await knex.raw(
-      `explain (analyze, buffers, format json) ${listing.sql.replace(/\$\d+/g, '?')}`,
-      [...listing.bindings] as Knex.RawBinding[],
-    )) as { rows: Array<{ 'QUERY PLAN': Array<{ Plan: PlanNode; 'Execution Time': number }> }> };
-    const plan = result.rows[0]!['QUERY PLAN'][0]!;
+    // The tapped text keeps its `?` placeholders; the values travel beside it.
+    const result = await h
+      .em()
+      .execute<Array<{ 'QUERY PLAN': Array<{ Plan: PlanNode; 'Execution Time': number }> }>>(
+        `explain (analyze, buffers, format json) ${listing.sql}`,
+        [...listing.params],
+      );
+    const plan = result[0]!['QUERY PLAN'][0]!;
     if (printPlans) {
-      const text = (await knex.raw(
-        `explain (analyze, buffers) ${listing.sql.replace(/\$\d+/g, '?')}`,
-        [...listing.bindings] as Knex.RawBinding[],
-      )) as { rows: Array<{ 'QUERY PLAN': string }> };
+      const text = await h
+        .em()
+        .execute<Array<{ 'QUERY PLAN': string }>>(`explain (analyze, buffers) ${listing.sql}`, [...listing.params]);
       // eslint-disable-next-line no-console
       console.log(
         `[perf/listing-filtered-page] plan for "${scenario.name}"\n` +
-          text.rows.map((row) => row['QUERY PLAN']).join('\n'),
+          text.map((row) => row['QUERY PLAN']).join('\n'),
       );
     }
     return {

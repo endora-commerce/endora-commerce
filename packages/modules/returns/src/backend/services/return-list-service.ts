@@ -1,4 +1,4 @@
-import type { EntityManager, Knex } from '@mikro-orm/postgresql';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FilterQuery } from '@mikro-orm/core';
 import type {
   AdminUserReadPort,
@@ -159,13 +159,12 @@ export class ReturnListService {
    * own `findAndCount`, which does; nothing here is returned to the caller.
    */
   private async idsStartingWith(prefix: string): Promise<string[]> {
-    const rows = (await this.deps
+    const rows = await this.deps
       .emFactory()
-      .getKnex()
-      .from('return_cases')
-      .select('id')
-      .whereRaw('replace("id"::text, \'-\', \'\') like ?', [`${prefix}%`])
-      .limit(50)) as Array<{ id: string }>;
+      .execute<Array<{ id: string }>>(
+        `select "id" from "return_cases" where replace("id"::text, '-', '') like ? limit 50`,
+        [`${prefix}%`],
+      );
     return rows.map((r) => r.id);
   }
 
@@ -175,41 +174,39 @@ export class ReturnListService {
    * and for the same reason harmless: the ids go back into the filtered list query.
    */
   private async idsWithContactEmail(email: string): Promise<string[]> {
-    const rows = (await this.deps
+    const rows = await this.deps
       .emFactory()
-      .getKnex()
-      .from('return_cases')
-      .select('id')
-      .whereRaw('"contact" is not null and lower("contact"->>\'email\') = lower(?)', [email])
-      .limit(200)) as Array<{ id: string }>;
+      .execute<Array<{ id: string }>>(
+        `select "id" from "return_cases" where "contact" is not null and lower("contact"->>'email') = lower(?) limit 200`,
+        [email],
+      );
     return rows.map((r) => r.id);
   }
 
   private async statusCounts(): Promise<Record<string, number>> {
     const em = this.deps.emFactory();
     // The main list uses em.findAndCount (auto-filtered), but this aggregate is
-    // raw knex, so apply the tenant org constraint explicitly (feature 050).
-    const qb = em
-      .getKnex()
-      .from('return_cases')
-      .select('status_code')
-      .count<{ status_code: string; count: string }[]>('* as count')
-      .groupBy('status_code');
+    // a raw statement, so apply the tenant org constraint explicitly (feature 050).
     const constraint = orgConstraintFor();
+    let scope: { sql: string; params: readonly unknown[] } = { sql: 'true', params: [] };
     if (constraint.kind === 'single') {
-      // `whereNull` matches nothing since D-178: the only actor that reached it
+      // `is null` matches nothing since D-178: the only actor that reached it
       // was a signed-in customer with no Organization, and
       // `customer_accounts.organization_id` is `NOT NULL` now. Kept because the
       // constraint type still admits a null.
-      if (constraint.organizationId === null) void qb.whereNull('organization_id');
-      else void qb.where('organization_id', constraint.organizationId);
+      scope =
+        constraint.organizationId === null
+          ? { sql: '"organization_id" is null', params: [] }
+          : { sql: '"organization_id" = ?', params: [constraint.organizationId] };
     } else if (constraint.kind !== 'all') {
       // The platform's predicate for the reach (issue #305): a sales
       // representative's is every organization nobody else governs.
-      const reach = orgScopeSql('organization_id', constraint);
-      void qb.whereRaw(reach.sql, [...reach.params] as Knex.RawBinding[]);
+      scope = orgScopeSql('organization_id', constraint);
     }
-    const rows = await qb;
+    const rows = await em.execute<Array<{ status_code: string; count: string }>>(
+      `select "status_code", count(*) as "count" from "return_cases" where ${scope.sql} group by "status_code"`,
+      [...scope.params],
+    );
     const out: Record<string, number> = {};
     for (const r of rows) out[r.status_code] = Number(r.count);
     return out;

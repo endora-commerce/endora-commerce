@@ -402,30 +402,24 @@ export class AdminUserService {
       return { items, page, pageSize, total };
     }
 
-    const knex = em.getKnex();
     const needle = trimmedQ.toLowerCase();
     const prefix = `${needle}%`;
     const contains = `%${needle}%`;
+    // `em.execute`, so both reads run on the EntityManager's transaction
+    // context when it has one; every value is a bound parameter.
+    const where = `where "deleted_at" is null
+         and (LOWER("first_name") LIKE ? or LOWER("last_name") LIKE ? or LOWER("email") LIKE ?)`;
+    const whereParams = [contains, contains, contains];
 
-    const baseQuery = knex('admin_users')
-      .whereNull('deleted_at')
-      .andWhere((qb) => {
-        qb.whereRaw('LOWER("first_name") LIKE ?', [contains])
-          .orWhereRaw('LOWER("last_name") LIKE ?', [contains])
-          .orWhereRaw('LOWER("email") LIKE ?', [contains]);
-      });
+    const totalRows = await em.execute<Array<{ count: string | number }>>(
+      `select count(*) as "count" from "admin_users" ${where}`,
+      whereParams,
+    );
+    const total = Number(totalRows[0]?.count ?? 0);
 
-    const totalRow = (await baseQuery
-      .clone()
-      .count<{ count: string | number }>('* as count')
-      .first()) as { count: string | number } | undefined;
-    const total = Number(totalRow?.count ?? 0);
-
-    const idRows = (await baseQuery
-      .clone()
-      .select('id')
-      .orderByRaw(
-        `CASE
+    const idRows = await em.execute<Array<{ id: string }>>(
+      `select "id" from "admin_users" ${where}
+        order by CASE
            WHEN LOWER("first_name") LIKE ? THEN 1
            WHEN LOWER("first_name") LIKE ? THEN 2
            WHEN LOWER("last_name")  LIKE ? THEN 3
@@ -433,11 +427,10 @@ export class AdminUserService {
            WHEN LOWER("email")      LIKE ? THEN 5
            WHEN LOWER("email")      LIKE ? THEN 6
            ELSE 7
-         END ASC, "email" ASC, "id" ASC`,
-        [prefix, contains, prefix, contains, prefix, contains],
-      )
-      .offset(page * pageSize)
-      .limit(pageSize)) as Array<{ id: string }>;
+         END ASC, "email" ASC, "id" ASC
+        limit ? offset ?`,
+      [...whereParams, prefix, contains, prefix, contains, prefix, contains, pageSize, page * pageSize],
+    );
 
     const ids = idRows.map((r) => r.id);
     if (ids.length === 0) return { items: [], page, pageSize, total };

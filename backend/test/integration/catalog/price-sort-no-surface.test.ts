@@ -18,6 +18,7 @@ import {
   PRICE_SORT_ORG_A,
   seedPriceSortFixture,
 } from '../../helpers/price-sort-fixture.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * Review finding 3 (release 0.108.0) — a price-sorted listing with no price
@@ -197,15 +198,14 @@ describe('a price-sorted listing with no price surface pages to the end', () => 
       .resolve<CatalogCursorSeal>('cursorSeal')
       .seal(PRICE_WALK_CURSOR_PURPOSE, JSON.stringify({ stream: 'unordered', cursor: defaultCursor }));
     const statementsOf = async (query: string): Promise<string[]> => {
-      const knex = h.em().getConnection().getKnex();
       const seen: string[] = [];
       const listen = (q: { sql: string }) => seen.push(q.sql);
-      knex.on('query', listen);
+      const untap = tapStatements(h.em(), listen);
       try {
         const res = await get(query);
         expect(res.statusCode, res.body).toBe(200);
       } finally {
-        knex.off('query', listen);
+        untap();
       }
       return seen;
     };

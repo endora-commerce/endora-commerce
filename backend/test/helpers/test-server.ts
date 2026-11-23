@@ -1262,12 +1262,11 @@ export async function setupBackendServer(
   ): Promise<{ allowAll: boolean }> => {
     const actor = request.testActor;
     if (!actor || actor.kind !== 'admin') return { allowAll: true };
-    const knex = em().getKnex();
-    const roleRow = (await knex.raw(
+    const roleRow = await em().execute<Array<{ code: string | null }>>(
       `select ar."code" as code from "admin_users" au left join "admin_roles" ar on ar."id" = au."admin_role_id" where au."id" = ?`,
       [actor.adminUserId],
-    )) as { rows: Array<{ code: string | null }> };
-    const roleCode = roleRow.rows[0]?.code ?? null;
+    );
+    const roleCode = roleRow[0]?.code ?? null;
     if (roleCode !== 'sales_representative') return { allowAll: true };
     // Issue #305 — what the representative reaches is the ambient tenant
     // context's (one reach rule), not a list this resolver reads.
@@ -1874,12 +1873,11 @@ export async function setupBackendServer(
       // Registered after `composeModules`, where the module declares its defaults.
       composedModules.contribute({
         organizationStatusResolver: async (orgId: string) => {
-          const row = (await em()
-            .getKnex()
-            .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [
-              orgId,
-            ])) as { rows: Array<{ status: string }> };
-          return row.rows[0]?.status ?? null;
+          const row = await em().execute<Array<{ status: string }>>(
+            `select "status" from "organizations" where "id" = ? and "deleted_at" is null`,
+            [orgId],
+          );
+          return row[0]?.status ?? null;
         },
         promotionRuleTargets: {
           salesChannels: async () => {
@@ -1895,27 +1893,16 @@ export async function setupBackendServer(
             return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
           },
           organizations: async () => {
-            const res = (await em()
-              .getKnex()
-              .raw(
-                `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
-              )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
-            return res.rows.map((r) => ({ id: r.id, name: r.name, taxId: r.tax_id ?? null }));
+            const res = await em().execute<Array<{ id: string; name: string; tax_id: string | null }>>(
+              `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
+            );
+            return res.map((r) => ({ id: r.id, name: r.name, taxId: r.tax_id ?? null }));
           },
           categories: async () => {
-            const res = (await em()
-              .getKnex()
-              .raw(
-                `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
-              )) as {
-              rows: Array<{
-                id: string;
-                slug: string;
-                name: unknown;
-                parent_category_id: string | null;
-              }>;
-            };
-            return res.rows.map((r) => ({
+            const res = await em().execute<Array<{ id: string; slug: string; name: unknown; parent_category_id: string | null }>>(
+              `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
+            );
+            return res.map((r) => ({
               id: r.id,
               slug: r.slug,
               name: testAnyLabel(r.name),
@@ -1923,20 +1910,16 @@ export async function setupBackendServer(
             }));
           },
           paymentMethods: async () => {
-            const res = (await em()
-              .getKnex()
-              .raw(
-                `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
-              )) as { rows: Array<{ id: string; code: string; name: unknown }> };
-            return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
+            const res = await em().execute<Array<{ id: string; code: string; name: unknown }>>(
+              `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
+            );
+            return res.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
           },
           deliveryMethods: async () => {
-            const res = (await em()
-              .getKnex()
-              .raw(
-                `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
-              )) as { rows: Array<{ id: string; code: string; name: unknown }> };
-            return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
+            const res = await em().execute<Array<{ id: string; code: string; name: unknown }>>(
+              `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
+            );
+            return res.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
           },
         },
       });

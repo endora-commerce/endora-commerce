@@ -55,25 +55,19 @@ function row(moduleId: string, actionId: string): ActionRow {
 }
 
 /**
- * A knex stand-in that answers `select` with `rows` and **fails the run if the
- * query joins anything**.
+ * An `execute` stand-in that answers with `rows` and **fails the run if the
+ * statement joins anything**.
  *
  * The negative half is the point: a stub that merely tolerated a `join` would
  * stay green if the reach came back, and the assertion below would then be
  * asserting the filter over a query that had already filtered for it.
  */
 function emReturning(rows: ActionRow[]): () => EntityManager {
-  const knex = (): unknown => {
-    const chain = {
-      join: (): never => {
-        throw new Error('the palette query must not join another owner\'s table');
-      },
-      where: (): unknown => chain,
-      select: async (): Promise<ActionRow[]> => rows,
-    };
-    return chain;
+  const execute = async (sql: string): Promise<ActionRow[]> => {
+    if (/\bjoin\b/i.test(sql)) throw new Error('the palette query must not join another owner\'s table');
+    return rows;
   };
-  return () => ({ getKnex: () => knex }) as unknown as EntityManager;
+  return () => ({ execute }) as unknown as EntityManager;
 }
 
 const i18n: AdminI18nTranslatePort = {

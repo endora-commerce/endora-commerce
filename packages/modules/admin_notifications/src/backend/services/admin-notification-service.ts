@@ -165,9 +165,9 @@ export class AdminNotificationService {
 
     const cursor = input.cursor ? this.parseCursor(input.cursor) : null;
     const whereParts: string[] = [];
-    // knex `raw` uses positional `?` placeholders (converted to $1..$n for pg
-    // in textual order). The SELECT's isRead `?` is textually first, so its
-    // binding is prepended when the final params array is assembled below.
+    // `em.execute` binds positional `?` placeholders in textual order. The
+    // SELECT's isRead `?` is textually first, so its binding is prepended when
+    // the final params array is assembled below.
     const whereParams: (string | number | boolean | null)[] = [];
 
     const { includeBroadcasts } = input;
@@ -228,14 +228,13 @@ export class AdminNotificationService {
       from "admin_notifications" n
       where ${whereParts.join(' and ')}
       order by n."created_at" desc, n."id" desc
-      limit ${limit + 1};
+      limit ?;
     `;
 
     // The isRead CASE placeholder appears in the SELECT (textually before the
-    // WHERE), so its binding (adminUserId) comes first.
-    const params = [input.adminUserId, ...whereParams];
-    const knex = em.getConnection().getKnex();
-    const rows = (await knex.raw(sql, params)).rows as RawNotificationRow[];
+    // WHERE), so its binding (adminUserId) comes first, and the limit last.
+    const params = [input.adminUserId, ...whereParams, limit + 1];
+    const rows = await em.execute<RawNotificationRow[]>(sql, params);
 
     const hasMore = rows.length > limit;
     const visibleRows = hasMore ? rows.slice(0, limit) : rows;
@@ -303,11 +302,10 @@ export class AdminNotificationService {
 
   async markAllRead(adminUserId: string, access: BroadcastAccess): Promise<number> {
     const em = this.emFactory();
-    const knex = em.getConnection().getKnex();
     let count = 0;
 
     // Personal rows.
-    const personalUpdate = (await knex.raw(
+    const personalUpdate = await em.execute<Array<{ id: string }>>(
       `
       update "admin_notifications"
       set "read_at" = now()
@@ -318,13 +316,13 @@ export class AdminNotificationService {
       returning "id";
     `,
       [adminUserId],
-    )) as { rows: Array<{ id: string }> };
-    count += personalUpdate.rows.length;
+    );
+    count += personalUpdate.length;
 
     if (!access.includeBroadcasts) return count;
 
     // Broadcasts — insert per-admin read cursors for every visible unread broadcast.
-    const broadcastInsert = (await knex.raw(
+    const broadcastInsert = await em.execute<Array<{ notification_id: string }>>(
       `
       insert into "admin_notification_reads" ("notification_id", "admin_user_id", "read_at")
       select n."id", ?, now()
@@ -339,17 +337,16 @@ export class AdminNotificationService {
       returning "notification_id";
     `,
       [adminUserId, adminUserId],
-    )) as { rows: Array<{ notification_id: string }> };
-    count += broadcastInsert.rows.length;
+    );
+    count += broadcastInsert.length;
 
     return count;
   }
 
   async countUnreadForAdmin(adminUserId: string, access: BroadcastAccess): Promise<number> {
     const em = this.emFactory();
-    const knex = em.getConnection().getKnex();
     if (!access.includeBroadcasts) {
-      const personal = (await knex.raw(
+      const personal = await em.execute<Array<{ count: number }>>(
         `
         select count(*)::int as "count"
           from "admin_notifications" n
@@ -359,8 +356,8 @@ export class AdminNotificationService {
            and n."read_at" is null;
       `,
         [adminUserId],
-      )) as { rows: Array<{ count: number }> };
-      return personal.rows[0]?.count ?? 0;
+      );
+      return personal[0]?.count ?? 0;
     }
     const sql = `
       select count(*)::int as "count"
@@ -377,10 +374,8 @@ export class AdminNotificationService {
              ))
          );
     `;
-    const result = (await knex.raw(sql, [adminUserId, adminUserId])) as {
-      rows: Array<{ count: number }>;
-    };
-    return result.rows[0]?.count ?? 0;
+    const result = await em.execute<Array<{ count: number }>>(sql, [adminUserId, adminUserId]);
+    return result[0]?.count ?? 0;
   }
 
   /**
@@ -392,9 +387,8 @@ export class AdminNotificationService {
     targetAdminUserId: string | null,
   ): Promise<void> {
     const em = this.emFactory();
-    const knex = em.getConnection().getKnex();
     if (audience === 'all_admins') {
-      await knex.raw(
+      await em.execute(
         `
         with ranked as (
           select "id",
@@ -412,7 +406,7 @@ export class AdminNotificationService {
         [this.maxUnreadPerAudience],
       );
     } else if (targetAdminUserId) {
-      await knex.raw(
+      await em.execute(
         `
         with ranked as (
           select "id",

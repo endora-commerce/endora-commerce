@@ -11,6 +11,7 @@ import {
 } from '../../helpers/test-server.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { insertRows } from '../../helpers/sql-rows.js';
 
 /**
  * `specs/180-off-platform-complaints/` T047 (data-model §2.1 – §2.5): migration B —
@@ -34,8 +35,9 @@ describe('returns — migration B: complaints without a platform order', () => {
     await migration[direction]();
     // In one transaction: a refused step must leave the schema as it was, or every later
     // file on this worker's database meets a half-migrated `returns`.
-    await em.getKnex().transaction(async (trx) => {
-      for (const query of migration.getQueries()) await trx.raw(query as string);
+    const connection = em.getConnection();
+    await connection.transactional(async (trx) => {
+      for (const query of migration.getQueries()) await connection.execute(query as string, [], 'run', trx);
     });
     em.clear();
   }
@@ -58,7 +60,7 @@ describe('returns — migration B: complaints without a platform order', () => {
       updated_at: new Date(),
       ...over,
     };
-    await h.em().getKnex()('return_cases').insert(row);
+    await insertRows(h.em(), 'return_cases', row);
     return id;
   }
 
@@ -132,12 +134,11 @@ describe('returns — migration B: complaints without a platform order', () => {
 
   it('refuses an attachment that is neither linked nor stored, and a stored one neither attached nor pending', async () => {
     const caseId = await insertCase();
-    const knex = h.em().getKnex();
     await expect(
-      knex('return_case_attachments').insert({ id: randomUUID(), return_case_id: caseId, organization_id: TEST_ORGANIZATION_ID, created_at: new Date() }),
+      insertRows(h.em(), 'return_case_attachments', { id: randomUUID(), return_case_id: caseId, organization_id: TEST_ORGANIZATION_ID, created_at: new Date() }),
     ).rejects.toThrow();
     await expect(
-      knex('return_case_attachments').insert({
+      insertRows(h.em(), 'return_case_attachments', {
         id: randomUUID(),
         organization_id: TEST_ORGANIZATION_ID,
         storage_locator: 'returns/x/y',
@@ -164,7 +165,7 @@ describe('returns — migration B: complaints without a platform order', () => {
     // A legacy attachment, as the old API wrote it.
     const caseId = await insertCase();
     const attachmentId = randomUUID();
-    await h.em().getKnex()('return_case_attachments').insert({ id: attachmentId, return_case_id: caseId, asset_id: randomUUID(), created_at: new Date() });
+    await insertRows(h.em(), 'return_case_attachments', { id: attachmentId, return_case_id: caseId, asset_id: randomUUID(), created_at: new Date() });
 
     await run('up');
     await run('up', Migration20261116T104415ReturnsGuestComplaints);

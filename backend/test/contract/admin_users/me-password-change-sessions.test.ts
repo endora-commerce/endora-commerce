@@ -257,11 +257,10 @@ describe('PATCH /api/v1/admin/me — a password change revokes the other session
     ).toBe(updatesBefore);
 
     // The whole row, every column — not only the two state documents.
-    const knex = h.em().getKnex();
-    const row = (await knex('audit_log_entries').where({ id: entry.id }).first()) as Record<
-      string,
-      unknown
-    >;
+    const [row] = await h.em().execute<Array<Record<string, unknown>>>(
+      `select * from "audit_log_entries" where "id" = ?`,
+      [entry.id],
+    );
     expect(row).toBeDefined();
     const dump = JSON.stringify(row);
     expect(dump).not.toContain(current);

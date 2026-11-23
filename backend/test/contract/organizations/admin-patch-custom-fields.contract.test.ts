@@ -175,9 +175,12 @@ describe('PATCH /api/v1/admin/organizations/:id — custom-field values through 
       await undefine(required);
     }
 
-    const row = await h.em().getKnex()('organizations').where({ id: org.id }).first('name', 'custom_field_values');
-    expect(row.name).toBe(`CF patch ${stamp}`);
-    expect(row.custom_field_values).toEqual({ [tier]: 'gold' });
+    const [row] = await h.em().execute<Array<{ name: string; custom_field_values: unknown }>>(
+      `select "name", "custom_field_values" from "organizations" where "id" = ?`,
+      [org.id],
+    );
+    expect(row!.name).toBe(`CF patch ${stamp}`);
+    expect(row!.custom_field_values).toEqual({ [tier]: 'gold' });
     expect(await entriesFor(org.id)).toEqual([]);
   });
 
@@ -188,8 +191,11 @@ describe('PATCH /api/v1/admin/organizations/:id — custom-field values through 
     expect(res.statusCode, res.body).toBe(409);
     expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.VERSION_CONFLICT);
 
-    const row = await h.em().getKnex()('organizations').where({ id: org.id }).first('custom_field_values');
-    expect(row.custom_field_values).toEqual({});
+    const [row] = await h.em().execute<Array<{ custom_field_values: unknown }>>(
+      `select "custom_field_values" from "organizations" where "id" = ?`,
+      [org.id],
+    );
+    expect(row!.custom_field_values).toEqual({});
     expect(await entriesFor(org.id)).toEqual([]);
   });
 

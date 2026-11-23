@@ -85,7 +85,6 @@ function transactionalEm(rows: Rows): FakeEm {
     flush: async () => {
       state.flushes += 1;
     },
-    getKnex: () => refuse('knex'),
     getConnection: () => refuse('connection'),
     execute: async () => refuse('raw sql'),
     // Model committed rows: callback success commits its changes; a rejection

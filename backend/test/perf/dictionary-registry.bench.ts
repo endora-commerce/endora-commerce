@@ -1,6 +1,5 @@
 // perf-weight: fast — 4330 ms on the CI runner (pipeline 13444, 2026-09-09).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Knex } from '@mikro-orm/postgresql';
 import type { DictionaryRegistryResponse } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -10,6 +9,7 @@ import {
 import { DictionaryCache } from '../../../packages/modules/dictionaries/src/backend/services/dictionary-cache.js';
 import { DictionaryReadService } from '../../../packages/modules/dictionaries/src/backend/services/dictionary-read-service.js';
 import { dictionaryReadPortsFor } from '../helpers/dictionary-services.js';
+import { tapStatements } from '../helpers/statement-tap.js';
 
 /**
  * Dictionary registry perf harness.
@@ -84,7 +84,7 @@ describe.skipIf(!shouldRun)('dictionary registry — p95 latency', () => {
   }, 60_000);
 
   it('cold registry path stays under the p95 budget', async () => {
-    const knex: Knex = h.em().getConnection().getKnex();
+    let untap: () => void = () => undefined;
     let statements = 0;
     const countStatement = (): void => {
       statements += 1;
@@ -94,11 +94,11 @@ describe.skipIf(!shouldRun)('dictionary registry — p95 latency', () => {
     let minEntries = Number.POSITIVE_INFINITY;
     for (let i = 0; i < iterations; i++) {
       await cache.invalidateAll();
-      knex.on('query', countStatement);
+      untap = tapStatements(h.em(), countStatement);
       const t0 = performance.now();
       const registry = await service.getRegistry({ locale: 'pl-PL' });
       samples.push(performance.now() - t0);
-      knex.off('query', countStatement);
+      untap();
       minEntries = Math.min(minEntries, entriesFor(registry));
     }
     const perBuild = statements / iterations;

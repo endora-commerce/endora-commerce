@@ -96,7 +96,7 @@ describe('admin creates — custom-field values (feature 175)', () => {
     });
   }
 
-  const knex = () => h.em().getKnex();
+  const rowsOf = <T>(sql: string, params: unknown[]): Promise<T[]> => h.em().execute<T[]>(sql, params);
 
   describe('POST /api/v1/admin/organizations', () => {
     it('stores the values, answers them and names them — never their values — in the audit row', async () => {
@@ -105,8 +105,11 @@ describe('admin creates — custom-field values (feature 175)', () => {
       const org = res.json().data as { id: string; customFieldValues: Record<string, unknown> };
       expect(org.customFieldValues).toEqual({ cf175a_note: 'S470-CF' });
 
-      const row = await knex()('organizations').where({ id: org.id }).first('custom_field_values');
-      expect(row.custom_field_values).toEqual({ cf175a_note: 'S470-CF' });
+      const [row] = await rowsOf<{ custom_field_values: unknown }>(
+        `select "custom_field_values" from "organizations" where "id" = ?`,
+        [org.id],
+      );
+      expect(row!.custom_field_values).toEqual({ cf175a_note: 'S470-CF' });
 
       h.em().clear();
       const entries = await h.em().find(AuditLogEntry, { action: 'organization.create', objectId: org.id });
@@ -124,7 +127,7 @@ describe('admin creates — custom-field values (feature 175)', () => {
         const body = res.json() as { error: { code: string; details: Array<{ path: string }> } };
         expect(body.error.code).toBe(ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID);
         expect(body.error.details.map((d) => d.path)).toContain('cf175a_required');
-        expect(await knex()('organizations').where({ tax_id: tax }).count({ n: '*' })).toEqual([{ n: '0' }]);
+        expect(await rowsOf(`select count(*) as "n" from "organizations" where "tax_id" = ?`, [tax])).toEqual([{ n: '0' }]);
       } finally {
         await undefine(id);
       }
@@ -168,11 +171,14 @@ describe('admin creates — custom-field values (feature 175)', () => {
       const res = await addMember(organizationId, { customFieldValues: { cf175a_badge: 'S470-CF' } }, email);
       expect(res.statusCode, res.body).toBe(201);
 
-      const row = await knex()('customer_accounts').where({ email }).first('id', 'custom_field_values');
-      expect(row.custom_field_values).toEqual({ cf175a_badge: 'S470-CF' });
+      const [row] = await rowsOf<{ id: string; custom_field_values: unknown }>(
+        `select "id", "custom_field_values" from "customer_accounts" where "email" = ?`,
+        [email],
+      );
+      expect(row!.custom_field_values).toEqual({ cf175a_badge: 'S470-CF' });
 
       h.em().clear();
-      const entries = await h.em().find(AuditLogEntry, { action: 'customer_account.admin_create', objectId: row.id });
+      const entries = await h.em().find(AuditLogEntry, { action: 'customer_account.admin_create', objectId: row!.id });
       // Nor the address or the Organization, the tenant anchor (D-288, #470).
       expectNoAuditValues(entries, ['S470-CF', email, organizationId]);
       expect(entries[0]?.stateAfter).not.toHaveProperty('customFieldValues');
@@ -188,7 +194,9 @@ describe('admin creates — custom-field values (feature 175)', () => {
         const body = res.json() as { error: { code: string; details: Array<{ path: string }> } };
         expect(body.error.code).toBe(ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID);
         expect(body.error.details.map((d) => d.path)).toContain('cf175a_member_required');
-        expect(await knex()('customer_accounts').where({ email }).count({ n: '*' })).toEqual([{ n: '0' }]);
+        expect(await rowsOf(`select count(*) as "n" from "customer_accounts" where "email" = ?`, [email])).toEqual([
+          { n: '0' },
+        ]);
       } finally {
         await undefine(id);
       }

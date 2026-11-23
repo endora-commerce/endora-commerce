@@ -164,8 +164,9 @@ describe('returns — notifications', () => {
     });
 
     it('sends nothing for a deactivated template, and reports deactivated', async () => {
-      const knex = h.em().getKnex();
-      await knex('transactional_emails').where({ code: 'return_submitted' }).update({ active: false });
+      const setActive = (active: boolean) =>
+        h.em().execute(`update "transactional_emails" set "active" = ? where "code" = ?`, [active, 'return_submitted']);
+      await setActive(false);
       try {
         const id = await createCase();
         const report = (await processReturnsNotification(h, casesJobs(id)[0]!)) as {
@@ -174,7 +175,7 @@ describe('returns — notifications', () => {
         expect(mailsFor('return_submitted', id)).toHaveLength(0);
         expect(report.messages).toContainEqual({ code: 'return_submitted', recipient: 'customer', status: 'deactivated' });
       } finally {
-        await knex('transactional_emails').where({ code: 'return_submitted' }).update({ active: true });
+        await setActive(true);
       }
     });
   });

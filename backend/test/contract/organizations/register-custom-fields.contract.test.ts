@@ -126,16 +126,19 @@ describe('POST /api/v1/organizations/register — custom-field values (feature 1
 
   /** What a registration left behind (SC-002). */
   async function traces(taxId: string, email: string): Promise<{ organizations: number; accounts: number; bindings: number }> {
-    const knex = h.em().getKnex();
     const count = async (query: Promise<Array<{ n: string | number }>>): Promise<number> => Number((await query)[0]!.n);
     return {
-      organizations: await count(knex('organizations').where({ tax_id: taxId }).count({ n: '*' })),
-      accounts: await count(knex('customer_accounts').where({ email }).count({ n: '*' })),
+      organizations: await count(
+        h.em().execute(`select count(*) as "n" from "organizations" where "tax_id" = ?`, [taxId]),
+      ),
+      accounts: await count(h.em().execute(`select count(*) as "n" from "customer_accounts" where "email" = ?`, [email])),
       bindings: await count(
-        knex('sales_channel_organizations')
-          .join('organizations', 'organizations.id', 'sales_channel_organizations.organization_id')
-          .where('organizations.tax_id', taxId)
-          .count({ n: '*' }),
+        h.em().execute(
+          `select count(*) as "n" from "sales_channel_organizations"
+             join "organizations" on "organizations"."id" = "sales_channel_organizations"."organization_id"
+            where "organizations"."tax_id" = ?`,
+          [taxId],
+        ),
       ),
     };
   }
@@ -194,8 +197,11 @@ describe('POST /api/v1/organizations/register — custom-field values (feature 1
       expect(res.statusCode, res.body).toBe(201);
       const organizationId = (res.json().data as { organization: { id: string } }).organization.id;
 
-      const row = await h.em().getKnex()('organizations').where({ tax_id: taxId }).first('custom_field_values');
-      expect(row.custom_field_values).toEqual({ cf175r_source: 'fair' });
+      const [row] = await h.em().execute<Array<{ custom_field_values: unknown }>>(
+        `select "custom_field_values" from "organizations" where "tax_id" = ?`,
+        [taxId],
+      );
+      expect(row!.custom_field_values).toEqual({ cf175r_source: 'fair' });
       const admin = await h.app.inject({ method: 'GET', url: `/api/v1/admin/organizations/${organizationId}`, ...ADMIN });
       expect(admin.statusCode, admin.body).toBe(200);
       expect((admin.json().data as { customFieldValues: Record<string, unknown> }).customFieldValues).toMatchObject({
@@ -206,8 +212,11 @@ describe('POST /api/v1/organizations/register — custom-field values (feature 1
     it('stores a person text value on the account, trimmed (US1-2)', async () => {
       const { res, email } = await register(undefined, { cf175r_phone: '  +48 600 175 042 ' });
       expect(res.statusCode, res.body).toBe(201);
-      const row = await h.em().getKnex()('customer_accounts').where({ email }).first('custom_field_values');
-      expect(row.custom_field_values).toEqual({ cf175r_phone: '+48 600 175 042' });
+      const [row] = await h.em().execute<Array<{ custom_field_values: unknown }>>(
+        `select "custom_field_values" from "customer_accounts" where "email" = ?`,
+        [email],
+      );
+      expect(row!.custom_field_values).toEqual({ cf175r_phone: '+48 600 175 042' });
     });
 
     it('names the supplied fields in the registration audit row and records no value (FR-028, D-288)', async () => {
@@ -242,8 +251,11 @@ describe('POST /api/v1/organizations/register — custom-field values (feature 1
     it('registers with an optional open field left empty, storing no value for it (US1-5)', async () => {
       const { res, taxId } = await register({ cf175r_source: '' }, {});
       expect(res.statusCode, res.body).toBe(201);
-      const row = await h.em().getKnex()('organizations').where({ tax_id: taxId }).first('custom_field_values');
-      expect(row.custom_field_values).toEqual({});
+      const [row] = await h.em().execute<Array<{ custom_field_values: unknown }>>(
+        `select "custom_field_values" from "organizations" where "tax_id" = ?`,
+        [taxId],
+      );
+      expect(row!.custom_field_values).toEqual({});
     });
 
     it('refuses a field that exists but is not open, naming it (US3-1)', async () => {

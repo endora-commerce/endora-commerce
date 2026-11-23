@@ -4,6 +4,7 @@ import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID, OTHER_TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ReturnCaseAttachment } from '../../helpers/package-entities.js';
+import { insertRows } from '../../helpers/sql-rows.js';
 
 /**
  * `specs/180-off-platform-complaints/` T053 (Principle XI, data-model §2.3):
@@ -24,7 +25,7 @@ describe('returns — attachments are tenant-scoped', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     pending = randomUUID();
-    await h.em().getKnex()('return_case_attachments').insert({
+    await insertRows(h.em(), 'return_case_attachments', {
       id: pending,
       organization_id: TEST_ORGANIZATION_ID,
       // A pending upload always has an owner (`specs/181-guest-complaints/` data-model §3,

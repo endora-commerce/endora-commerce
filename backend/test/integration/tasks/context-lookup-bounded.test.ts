@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Knex } from '@mikro-orm/postgresql';
 import { TaskContextLookupResponseSchema, type TaskContextOption } from '@endora-commerce/contracts';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { seedCrmAdmin } from '../../helpers/seed-crm.js';
 import { callTasks, createProject, deleteProjects, setProjectsVisibility } from '../projects/helpers.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * Issue #504 — `GET /tasks/lookups/contexts`, the Project/Stage picker, asks
@@ -31,16 +31,15 @@ describe('tasks — the Project/Stage picker reads one bounded page (issue #504)
   let memberProject: string;
 
   async function statements<T>(run: () => Promise<T>): Promise<{ result: T; queries: Array<{ sql: string }> }> {
-    const knex: Knex = h.em().getConnection().getKnex();
     const queries: Array<{ sql: string }> = [];
     const onQuery = (query: { sql: string }): void => {
       queries.push({ sql: query.sql });
     };
-    knex.on('query', onQuery);
+    const untap = tapStatements(h.em(), onQuery);
     try {
       return { result: await run(), queries };
     } finally {
-      knex.off('query', onQuery);
+      untap();
     }
   }
 

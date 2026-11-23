@@ -1,4 +1,3 @@
-import type { Knex } from '@mikro-orm/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { warmPriceSort } from '../../helpers/price-surface.js';
 import {
@@ -17,6 +16,7 @@ import {
   deleteRestrictedProduct,
   seedPriceSortFixture,
 } from '../../helpers/price-sort-fixture.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * Feature 086, US5 and FR-019/FR-020 — a price ordering must not become a side
@@ -187,7 +187,6 @@ describe('a price-ordered page costs a constant number of statements in page siz
   });
 
   async function statementsFor(limit: number, sort: string): Promise<{ count: number; cards: number }> {
-    const knex: Knex = h.em().getConnection().getKnex();
     const url = `/api/v1/catalog/products?limit=${limit}&sort=${sort}`;
     const request = async (): Promise<number> => {
       const res = await h.app.inject({ method: 'GET', url, headers: PRICE_SORT_CHANNEL });
@@ -201,9 +200,9 @@ describe('a price-ordered page costs a constant number of statements in page siz
     const tally = (): void => {
       count += 1;
     };
-    knex.on('query', tally);
+    const untap = tapStatements(h.em(), tally);
     const cards = await request();
-    knex.off('query', tally);
+    untap();
     return { count, cards };
   }
 

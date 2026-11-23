@@ -14,6 +14,7 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import type { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
 import type { PriceBookService } from '../../../../packages/modules/price_lists/src/backend/services/price-book-service.js';
 import type { PriceBookWritePort } from '@endora-commerce/contracts';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * Feature 160, SC-005 (`contracts/price-surface.md` §5, research R7) — a
@@ -325,7 +326,8 @@ describe.skipIf(!shouldRun)('price surface — SC-005', () => {
     });
 
   it('a request never builds: a never-built profile answers at once, and the worker builds (recorded)', async () => {
-    h.em().getConnection().getKnex().on('query', countWrites);
+    // Left attached for the rest of the file: `counting` decides what is counted.
+    tapStatements(h.em(), countWrites);
     for (const buyer of Object.keys(buyers)) {
       counting = true;
       const start = performance.now();

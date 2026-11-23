@@ -156,6 +156,30 @@ describe('the foreign-schema guard on a real migrate', () => {
         await self.getEntityManager().getConnection().execute(`delete from "${HOST_TABLE}" where "name" = 'rogue'`);
       },
     ],
+    // Issue #1864 — the routes raw SQL moved to off `getKnex()`: bound values,
+    // an identifier bound as a parameter, and a transaction of its own on the
+    // connection API.
+    [
+      'execute() with bound values',
+      async (self: Migration) => {
+        await self.getEntityManager().execute(`delete from "${HOST_TABLE}" where "name" = ?`, ['rogue']);
+      },
+    ],
+    [
+      'execute() with the table bound as an identifier',
+      async (self: Migration) => {
+        await self.getEntityManager().execute('delete from ?? where "name" = ?', [HOST_TABLE, 'rogue']);
+      },
+    ],
+    [
+      'getConnection().transactional() + execute(…, trx)',
+      async (self: Migration) => {
+        const connection = self.getEntityManager().getConnection();
+        await connection.transactional(async (trx) => {
+          await connection.execute(`delete from "${HOST_TABLE}" where "name" = ?`, ['rogue'], 'run', trx);
+        });
+      },
+    ],
     [
       'fork().nativeDelete()',
       async (self: Migration) => {

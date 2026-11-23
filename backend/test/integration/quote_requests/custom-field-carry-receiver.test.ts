@@ -219,21 +219,25 @@ describe('quote_requests — custom-field values received from a Sales Opportuni
     };
     const before = await versionOf();
 
-    const holder = await h.em().getKnex().transaction();
+    // Another writer, in a transaction on a connection of its own.
+    const connection = h.em().getConnection();
+    const holder = await connection.begin();
     let carry: Promise<unknown> | null = null;
     try {
-      await holder.raw(`select id from "quote_requests" where id = ? for update`, [rfq.id]);
-      await holder.raw(
+      await connection.execute(`select id from "quote_requests" where id = ? for update`, [rfq.id], 'all', holder);
+      await connection.execute(
         `update "quote_requests" set custom_field_values = ?::jsonb, version = version + 1 where id = ?`,
         [JSON.stringify({ [otherKey]: 'held by the other writer' }), rfq.id],
+        'run',
+        holder,
       );
       carry = receive(rfq.id, { [key]: 'fair' });
       const pending = Symbol('pending');
       const early = await Promise.race([carry, new Promise((resolve) => setTimeout(() => resolve(pending), 300))]);
       expect(early, 'the carry finished while another writer held the row').toBe(pending);
-      await holder.commit();
+      await connection.commit(holder);
     } catch (error) {
-      await holder.rollback().catch(() => undefined);
+      await connection.rollback(holder).catch(() => undefined);
       throw error;
     }
 

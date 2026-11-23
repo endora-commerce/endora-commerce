@@ -36,7 +36,10 @@ function harness(getReturnContext: OrderReturnContextPort['getReturnContext']) {
   const em = {
     findOne: vi.fn(async () => rc),
     find: vi.fn(async () => [item]),
-    getKnex: () => ({ transaction: async <T>(work: (lock: { raw: () => Promise<void> }) => Promise<T>) => work({ raw: async () => {} }) }),
+    getConnection: () => ({
+      transactional: async <T>(work: (lock: unknown) => Promise<T>) => work({}),
+      execute: async () => [],
+    }),
     flush: vi.fn(),
     persist: vi.fn(),
   };

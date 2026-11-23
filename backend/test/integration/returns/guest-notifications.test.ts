@@ -54,8 +54,9 @@ describe('returns — the notifications of a guest’s complaint', () => {
   });
 
   it('sends the guest confirmation with the tracking link, even with the account confirmation off (FR-045)', async () => {
-    const knex = h.em().getKnex();
-    await knex('transactional_emails').where({ code: 'return_submitted' }).update({ active: false });
+    const setActive = (active: boolean) =>
+      h.em().execute(`update "transactional_emails" set "active" = ? where "code" = ?`, [active, 'return_submitted']);
+    await setActive(false);
     try {
       const filed = await fileGuestCase(h, reasonId);
       const report = (await processReturnsNotification(h, submittedJob(filed.caseId))) as {
@@ -69,7 +70,7 @@ describe('returns — the notifications of a guest’s complaint', () => {
       expect(mailsFor('return_submitted', filed.caseId)).toHaveLength(0);
       expect(report.messages).toContainEqual({ code: 'return_guest_submitted', recipient: 'guest', status: 'sent' });
     } finally {
-      await knex('transactional_emails').where({ code: 'return_submitted' }).update({ active: true });
+      await setActive(true);
     }
   });
 

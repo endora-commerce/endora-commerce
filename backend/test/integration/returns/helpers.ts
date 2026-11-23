@@ -8,6 +8,7 @@ import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actor
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { ReturnReason } from '../../helpers/package-entities.js';
 import { Order, OrderItem } from '../../helpers/package-entities.js';
+import { insertRows } from '../../helpers/sql-rows.js';
 
 export const CUSTOMER_COOKIE = { b2b_session: 'stub-customer-session' };
 export const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };
@@ -19,11 +20,12 @@ export const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };
  * to stay isolated regardless of file execution order.
  */
 export async function resetReturnGraph(em: EntityManager): Promise<void> {
-  const knex = em.getKnex();
-  await knex('return_status_transitions').del();
-  await knex('return_statuses').del();
+  await em.execute('delete from "return_status_transitions"');
+  await em.execute('delete from "return_statuses"');
   const now = new Date();
-  await knex('return_statuses').insert(
+  await insertRows(
+    em,
+    'return_statuses',
     DEFAULT_RETURN_STATUSES.map((s) => ({
       id: randomUUID(),
       code: s.code,
@@ -38,7 +40,9 @@ export async function resetReturnGraph(em: EntityManager): Promise<void> {
       updated_at: now,
     })),
   );
-  await knex('return_status_transitions').insert(
+  await insertRows(
+    em,
+    'return_status_transitions',
     computeDefaultTransitions().map((t) => ({
       id: randomUUID(),
       from_status_code: t.fromStatusCode,

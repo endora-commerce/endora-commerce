@@ -55,7 +55,6 @@ function ownTablesOnly(rows: {
       const found = entity === Cart ? (rows.carts ?? []) : (rows.items ?? []);
       return [found, found.length];
     },
-    getKnex: () => refuse('knex'),
     getConnection: () => refuse('connection'),
     execute: async () => refuse('raw sql'),
     nativeDelete: async () => 0,

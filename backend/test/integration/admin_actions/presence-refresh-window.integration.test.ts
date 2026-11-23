@@ -10,6 +10,7 @@ import { ModuleRegistryCache } from '../../../src/kernel/lifecycle/registry-cach
 import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { Setting } from '@endora-commerce/platform/kernel';
 import { SettingGroup } from '@endora-commerce/platform/kernel';
+import { insertRows } from '../../helpers/sql-rows.js';
 
 /**
  * Issue #225 — the palette snapshot must not outlive the presence refresh that
@@ -199,16 +200,15 @@ function gatedEmFactory(orm: MikroORM): { em: () => EntityManager; release: () =
 }
 
 async function seed(em: EntityManager): Promise<void> {
-  const knex = em.getKnex();
   const now = new Date();
-  await knex('module_registrations').insert({
+  await insertRows(em, 'module_registrations', {
     module_id: MODULE_ID,
     state: 'installed',
     version: '1.0.0',
     installed_at: now,
     last_state_change_at: now,
   });
-  await knex('module_actions').insert({
+  await insertRows(em, 'module_actions', {
     module_id: MODULE_ID,
     action_id: ACTION_ID,
     label_key: 'prw1.label',
@@ -219,7 +219,7 @@ async function seed(em: EntityManager): Promise<void> {
     weight: 100,
   });
   const groupId = randomUUID();
-  await knex('setting_groups').insert({
+  await insertRows(em, 'setting_groups', {
       id: groupId,
       code: GROUP_CODE,
       name: 'Presence refresh window fixture',
@@ -228,7 +228,7 @@ async function seed(em: EntityManager): Promise<void> {
       created_at: now,
       updated_at: now,
   });
-  await knex('settings').insert({
+  await insertRows(em, 'settings', {
     id: randomUUID(),
     code: SETTING_CODE,
     name: 'Fixture activation control',
@@ -245,10 +245,7 @@ async function seed(em: EntityManager): Promise<void> {
 
 /** Commit the operator's flip, as the activation Command does. */
 async function deactivate(em: EntityManager): Promise<void> {
-  await em
-    .getKnex()('settings')
-    .where('code', SETTING_CODE)
-    .update({ global_value: JSON.stringify(false) });
+  await em.execute(`update "settings" set "global_value" = ? where "code" = ?`, [JSON.stringify(false), SETTING_CODE]);
 }
 
 async function cleanup(em: EntityManager): Promise<void> {

@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Knex } from '@mikro-orm/postgresql';
 import { ProjectMentionableLookupResponseSchema, type ProjectDetail } from '@endora-commerce/contracts';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { AdminUser } from '../../helpers/package-entities.js';
 import { seedCrmAdmin, seedCrmOrganization, seedCrmSalesRep } from '../../helpers/seed-crm.js';
 import { callProjects, createProject, deleteProjects, setProjectsVisibility } from './helpers.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * Issue #461 — `GET /projects/lookups/mentionable` judges every candidate's
@@ -27,16 +27,15 @@ describe('projects — the mentionable lookup asks once for everybody (issue #46
   let b: Record<'member' | 'member2' | 'listed' | 'seeAll' | 'stranger' | 'noRead' | 'inactive' | 'rep', Person>;
 
   async function statements<T>(run: () => Promise<T>): Promise<{ result: T; queries: number }> {
-    const knex: Knex = h.em().getConnection().getKnex();
     let queries = 0;
     const onQuery = (): void => {
       queries += 1;
     };
-    knex.on('query', onQuery);
+    const untap = tapStatements(h.em(), onQuery);
     try {
       return { result: await run(), queries };
     } finally {
-      knex.off('query', onQuery);
+      untap();
     }
   }
 

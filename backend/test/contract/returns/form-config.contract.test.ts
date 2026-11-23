@@ -67,12 +67,13 @@ describe('GET /api/v1/returns/form-config', () => {
 
   it('follows the confirmation e-mail’s active flag (D-11)', async () => {
     expect((await config()).confirmationEmailEnabled).toBe(true);
-    const knex = h.em().getKnex();
-    await knex('transactional_emails').where({ code: 'return_submitted' }).update({ active: false });
+    const setActive = (active: boolean) =>
+      h.em().execute(`update "transactional_emails" set "active" = ? where "code" = ?`, [active, 'return_submitted']);
+    await setActive(false);
     try {
       expect((await config()).confirmationEmailEnabled).toBe(false);
     } finally {
-      await knex('transactional_emails').where({ code: 'return_submitted' }).update({ active: true });
+      await setActive(true);
     }
   });
 

@@ -1,5 +1,4 @@
 // perf-weight: fast — 6003 ms on the CI runner (pipeline 13444, 2026-09-09).
-import type { Knex } from '@mikro-orm/postgresql';
 import { seedBasePriceSql, seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -10,6 +9,7 @@ import {
 import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * What a **personalised** catalogue page costs, next to the anonymous one.
@@ -158,7 +158,7 @@ describe.skipIf(!shouldRun)('priced catalogue listing — anonymous vs signed-in
   it('costs a signed-in buyer no different order of magnitude than an anonymous visitor', async () => {
     const url = `/api/v1/catalog/products?limit=${pageSize}`;
     const headers = { 'x-sales-channel': 'pl_retail' };
-    const knex: Knex = h.em().getConnection().getKnex();
+    let untap: () => void = () => undefined;
 
     async function measure(
       label: string,
@@ -174,11 +174,11 @@ describe.skipIf(!shouldRun)('priced catalogue listing — anonymous vs signed-in
       };
 
       // Cold: the first request for this viewer's cache key.
-      knex.on('query', count);
+      untap = tapStatements(h.em(), count);
       const coldStart = performance.now();
       const cold = await request();
       const coldMs = performance.now() - coldStart;
-      knex.off('query', count);
+      untap();
       const coldStatements = statements;
 
       expect(cold.statusCode).toBe(200);
@@ -200,9 +200,9 @@ describe.skipIf(!shouldRun)('priced catalogue listing — anonymous vs signed-in
       }
 
       statements = 0;
-      knex.on('query', count);
+      untap = tapStatements(h.em(), count);
       await request();
-      knex.off('query', count);
+      untap();
       const warmStatements = statements;
 
       samples.sort((a, b) => a - b);

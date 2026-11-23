@@ -113,6 +113,32 @@ describe('guardExternalMigration — refusals', () => {
     expect(driver.executed.some((sql) => sql.startsWith('update'))).toBe(false);
   });
 
+  // Issue #1864 — raw SQL moved off `getKnex()` onto `execute(sql, params)`,
+  // where `??` binds an identifier. The statement is judged with its
+  // identifiers bound, so a table named only through a parameter is still a
+  // foreign write — and a value parameter changes no target.
+  it.each([
+    ['delete from ?? where "name" = ?', ['orders', 'rogue']],
+    ['update ?? set "status" = ? where "id" = ?', ['orders', 'x', 1]],
+    ['insert into ?? (??) values (?)', ['orders', 'status', 'x']],
+  ])('refuses a foreign table bound as an identifier: %s', async (sql, params) => {
+    const driver = fakeDriver();
+    const cls = migration('Migration20261201T100009AcmeErpRogue', async (self) => {
+      await self.execute(sql, params);
+    });
+    expect((await refusal(run(cls, context(), driver))).table).toBe('orders');
+    expect(driver.executed).not.toContain(sql);
+  });
+
+  it('allows its own table bound as an identifier, values bound beside it', async () => {
+    const driver = fakeDriver();
+    const cls = migration('Migration20261201T100010AcmeErpOwn', async (self) => {
+      await self.execute('insert into ?? ("id") values (?)', ['acme_rows', 'a?b']);
+    });
+    await run(cls, context(), driver);
+    expect(driver.executed).toContain('insert into ?? ("id") values (?)');
+  });
+
   it('refuses a back-fill on a declared host that touches a core column', async () => {
     const cls = migration('Migration20261201T100002AcmeErpBackfill', (self) =>
       self.addSql(`update "organizations" set "x_acme_erp_credit_tier" = 1, "name" = 'x'`),

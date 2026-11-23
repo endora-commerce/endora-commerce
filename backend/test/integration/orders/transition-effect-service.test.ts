@@ -19,6 +19,7 @@ import type {
 import { Order } from '../../helpers/package-entities.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
+import { connectionPool } from '../../helpers/connection-pool.js';
 
 /**
  * `OrderTransitionEffectService` (`specs/142-order-transition-atomicity/`, D6)
@@ -301,12 +302,10 @@ describe('OrderTransitionEffectService (spec 142, T08)', () => {
 
   it('holds no database connection while a handler runs', async () => {
     const orderId = await owingBoth();
-    const pool = (
-      h.em().getConnection().getKnex() as unknown as { client: { pool: { numUsed(): number } } }
-    ).client.pool;
+    const pool = connectionPool(h.em());
     const usedDuringHandler: number[] = [];
     stock.mockImplementation(async () => {
-      usedDuringHandler.push(pool.numUsed());
+      usedDuringHandler.push(pool.used());
       return done();
     });
 

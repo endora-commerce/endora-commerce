@@ -263,23 +263,14 @@ export class AdminActionsService {
     }
 
     this.stats.dbHits += 1;
-    const knex = this.em().getKnex();
     // This module's own table and nothing else. Presence is decided below,
     // against the probe, for both axes at once.
-    const rows = (await knex('module_actions as a')
-      .select(
-        'a.module_id',
-        'a.action_id',
-        'a.label_key',
-        'a.description_key',
-        'a.icon',
-        'a.target_route',
-        'a.required_permission',
-        'a.keywords',
-        'a.keywords_key',
-        'a.weight',
-        'a.version',
-      )) as ModuleActionRow[];
+    const rows = await this.em().execute<ModuleActionRow[]>(
+      `select "a"."module_id", "a"."action_id", "a"."label_key", "a"."description_key", "a"."icon",
+              "a"."target_route", "a"."required_permission", "a"."keywords", "a"."keywords_key",
+              "a"."weight", "a"."version"
+         from "module_actions" as "a"`,
+    );
 
     const visible: ModuleActionRow[] = [];
     for (const row of rows) {

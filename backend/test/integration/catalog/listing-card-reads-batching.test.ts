@@ -1,4 +1,3 @@
-import type { Knex } from '@mikro-orm/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -11,6 +10,7 @@ import {
   type RichListingCorpus,
 } from '../../helpers/rich-listing-corpus.js';
 import { Product } from '../../helpers/package-entities.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * A listing card's asset and its category slugs are read **for the page**, and
@@ -66,7 +66,7 @@ interface Card {
 
 interface Statement {
   sql: string;
-  bindings: readonly unknown[];
+  params: readonly unknown[];
 }
 
 describe("a listing page reads its cards' assets and categories once, for the viewer", () => {
@@ -123,13 +123,12 @@ describe("a listing page reads its cards' assets and categories once, for the vi
     await inject();
 
     const statements: Statement[] = [];
-    const knex: Knex = h.em().getConnection().getKnex();
-    const capture = (query: { sql: string; bindings?: readonly unknown[] }): void => {
-      statements.push({ sql: query.sql, bindings: query.bindings ?? [] });
+    const capture = (query: Statement): void => {
+      statements.push({ sql: query.sql, params: query.params });
     };
-    knex.on('query', capture);
+    const untap = tapStatements(h.em(), capture);
     const res = await inject();
-    knex.off('query', capture);
+    untap();
 
     expect(res.statusCode).toBe(200);
     // The subject is the Postgres listing. The Meilisearch-backed one projects
@@ -157,9 +156,9 @@ describe("a listing page reads its cards' assets and categories once, for the vi
 
   /**
    * Every id those statements named — read out of the **SQL text** as well as
-   * out of the parameter list, because MikroORM formats an `in (…)` with its
-   * values inline and hands knex an empty `bindings` array. A version of this
-   * helper that read `bindings` alone returned an empty set for every request,
+   * out of every string parameter, because an id can travel inline, as one
+   * parameter, or inside an array literal (`any(?::uuid[])`). A version of this
+   * helper that read the knex `bindings` alone returned an empty set for every request,
    * which made the anonymous assertion below (`not.toContain`) pass without
    * looking at anything. That is what the signed-in mirror is for: the two
    * tests run the same extraction over the same corpus, and only one of them
@@ -169,9 +168,9 @@ describe("a listing page reads its cards' assets and categories once, for the vi
     const out = new Set<string>();
     const uuid = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
     for (const statement of statements) {
-      for (const match of statement.sql.matchAll(uuid)) out.add(match[0].toLowerCase());
-      for (const binding of statement.bindings) {
-        if (typeof binding === 'string') out.add(binding.toLowerCase());
+      const texts = [statement.sql, ...statement.params.filter((p): p is string => typeof p === 'string')];
+      for (const text of texts) {
+        for (const match of text.matchAll(uuid)) out.add(match[0].toLowerCase());
       }
     }
     return out;

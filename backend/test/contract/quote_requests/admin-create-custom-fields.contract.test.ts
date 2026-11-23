@@ -88,7 +88,10 @@ describe('POST /api/v1/admin/quote-requests — custom-field values (feature 175
   }
 
   const requestCount = async (): Promise<number> => {
-    const [row] = await h.em().getKnex()('quote_requests').where({ organization_id: TEST_ORGANIZATION_ID }).count({ n: '*' });
+    const [row] = await h.em().execute<Array<{ n: string }>>(
+      `select count(*) as "n" from "quote_requests" where "organization_id" = ?`,
+      [TEST_ORGANIZATION_ID],
+    );
     return Number(row?.n);
   };
 
@@ -99,8 +102,11 @@ describe('POST /api/v1/admin/quote-requests — custom-field values (feature 175
     const rfq = res.json().data as { id: string; customFieldValues: Record<string, unknown> };
     expect(rfq.customFieldValues).toEqual(values);
 
-    const row = await h.em().getKnex()('quote_requests').where({ id: rfq.id }).first('custom_field_values');
-    expect(row.custom_field_values).toEqual(values);
+    const [row] = await h.em().execute<Array<{ custom_field_values: unknown }>>(
+      `select "custom_field_values" from "quote_requests" where "id" = ?`,
+      [rfq.id],
+    );
+    expect(row!.custom_field_values).toEqual(values);
 
     h.em().clear();
     const entries = await h.em().find(AuditLogEntry, { action: 'quote_request.create_on_behalf', objectId: rfq.id });

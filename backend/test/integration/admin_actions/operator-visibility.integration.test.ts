@@ -9,6 +9,7 @@ import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-st
 import type { I18nService } from '@endora-commerce/mod-i18n/backend';
 import type { PermissionService } from '../../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
 import type { SupportedAdminLanguage } from '@endora-commerce/contracts';
+import { insertRows } from '../../helpers/sql-rows.js';
 
 /**
  * Integration test for AdminActionsService.listVisibleForOperator
@@ -237,10 +238,9 @@ describe('AdminActionsService.listVisibleForOperator (integration)', () => {
 });
 
 async function seed(em: EntityManager): Promise<void> {
-  const knex = em.getKnex();
   const now = new Date();
   // Two installed modules + one disabled module.
-  await knex('module_registrations').insert([
+  await insertRows(em, 'module_registrations', [
     {
       module_id: 'fix_av_a',
       state: 'installed',
@@ -263,7 +263,7 @@ async function seed(em: EntityManager): Promise<void> {
       last_state_change_at: now,
     },
   ]);
-  await knex('module_actions').insert([
+  await insertRows(em, 'module_actions', [
     {
       module_id: 'fix_av_a',
       action_id: 'a1',
