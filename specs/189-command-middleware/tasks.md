@@ -150,10 +150,15 @@ fails for the stated reason first. `[FR-…]` is the trace.
   `contracts/module-origin.md` §5), written by whichever of this P1 and 188's P1 merges second: a
   package granted policy participants in the divergence declaration still has origin `package` in
   the origin map, and an `admit` it declares is still refused with `CommandMiddlewareOriginError`.
-  [FR-004]
-- [ ] T041 [US4] GREEN: `ModuleEntry.origin` in `compose.ts`; `origin: 'deployment'` in
-  `packages/platform/src/overlay/overlay-runtime.ts`; the first-party match in
-  `packages/platform/src/packages/package-runtime.ts`; `backend/scripts/generate-composer.ts`
+  Add a table test for `moduleOriginOf` (`contracts/module-origin.md` §6, all four rows) in
+  `packages/platform/src/lifecycle/services/module-origin.test.ts`, and a case that an installed
+  first-party package keeps `ModuleIdClaimOrigin` `'package'` (so `deploymentShippedEntries` still
+  excludes it) while its `ModuleEntry.origin` is `'core'`. [FR-004]
+- [ ] T041 [US4] GREEN: `moduleOriginOf` beside `ModuleIdClaimOrigin` in
+  `packages/platform/src/lifecycle/services/module-origin.ts`, with the one-sentence doc addition
+  on `ModuleIdClaimOrigin` (§6); `ModuleEntry.origin` in `compose.ts`; `origin: moduleOriginOf('overlay', false)` in
+  `packages/platform/src/overlay/overlay-runtime.ts`; the first-party match through
+  `moduleOriginOf('package', match)` in `packages/platform/src/packages/package-runtime.ts`; `backend/scripts/generate-composer.ts`
   renders `packages/platform/src/packages/first-party-modules.generated.ts`, imports the
   `publishablePackages` rule and does not restate it, and `overlay:check` covers its drift. Run
   `composer:generate` and commit the output. [FR-004]

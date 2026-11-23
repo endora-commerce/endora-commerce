@@ -148,6 +148,10 @@ The owner answered this specification's three questions and one cross-specificat
   of the same day, 188's row), that grant is a **per-point permission** and **does not change the
   package's origin or trust tier** (`contracts/module-origin.md` §5). It does not give the package
   `admit`, does not lift the `package` observer redaction (FR-022) and does not change decoration.
+  The existing discovery type `ModuleIdClaimOrigin` (`core` / `overlay` / `package`,
+  `packages/platform/src/lifecycle/services/module-origin.ts`) is not the trust tier: both types
+  survive, and `moduleOriginOf` maps discovery to tier one way (`contracts/module-origin.md` §6). An
+  overlay module is `deployment` whatever it ships, schema included.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -398,7 +402,9 @@ roots pass the same registry wiring.
   `package`) from where its loader found it. Composition MUST refuse an `admit` declared by a
   `package` module. A manifest MUST NOT be able to set or influence its own origin. A per-point
   grant in the deployment's divergence declaration (`contracts/module-origin.md` §5) MUST NOT change
-  a module's derived origin, and command middleware MUST NOT read any grant.
+  a module's derived origin, and command middleware MUST NOT read any grant. The discovery type
+  `ModuleIdClaimOrigin` MUST stay separate from `ModuleOrigin`, mapped one way by a single function
+  (`contracts/module-origin.md` §6).
 
 ### Admission
 

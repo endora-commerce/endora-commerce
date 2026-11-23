@@ -3,7 +3,7 @@
 D-296.3, D-296.4, D-296.8 and D-296.10. **This document is the single statement of the module
 origin type and the trust tier** (owner ruling of 2026-11-23, D-296.10). `specs/188-policy-points/`
 and `specs/190-overlay-full-modules/` consume it and do not redefine it (§4). A change to §1, §2,
-§3 or §5 is a change to this contract, made here, and cited by the consumers.
+§3, §5 or §6 is a change to this contract, made here, and cited by the consumers.
 
 ## 1. The type
 
@@ -37,6 +37,8 @@ export type ModuleOrigin = (typeof MODULE_ORIGINS)[number];
   restated. `overlay:check` fails on drift, as it does for
   `foreign-write-exemptions.generated.ts`. Lockstep releases (`release-intent.md`) make "this
   release's first-party set" one fact.
+- Both loaders compute the value through one function, `moduleOriginOf` (§6), and do not spell the
+  mapping themselves.
 - `composeModules` resolves each entry's origin as `entry.origin ?? (entry.overlay ? 'deployment'
   : entry.installedPackage ? 'package' : 'core')`. It hands the map to the middleware registry's
   `seal` and to nothing else.
@@ -123,3 +125,66 @@ its refusal errors. This contract states what a grant **is**, for every point:
 
 Command middleware has no grant in this release (D-296.3, D-296.7). If a later ruling widens
 D-296.3 by grant rather than by origin, it uses this section unchanged.
+
+## 6. `ModuleOrigin` and the discovery types it is not
+
+The platform already has a type with almost the same values: `ModuleIdClaimOrigin = 'core' |
+'overlay' | 'package'` (`packages/platform/src/lifecycle/services/module-origin.ts`, re-exported by
+`lifecycle/services/module-id-claims.ts` and `lifecycle/index.ts`, carried by
+`RegisteredManifestEntry.origin` in `lifecycle/manifest-registry.ts` and by
+`ShippedModuleEntry.origin` in `lifecycle/services/presence-load.ts`). It answers a different
+question, and **both types survive, unmerged**.
+
+| | `ModuleIdClaimOrigin` | `ModuleOrigin` |
+| --- | --- | --- |
+| Question | which discovery produced the entry | how far the platform trusts the module |
+| Values | `core` / `overlay` / `package` | `core` / `deployment` / `package` |
+| Readers | the module-id collision refusal, `deploymentShippedEntries` (first-boot `module_registrations` insert and the boot settings reconcile) | contribution points: the command-middleware registry, 188's policy registry, divergence and boot-log output that shows a tier |
+| A first-party module package installed in an instance | `package`: it was found by the package scan and is installed by `module:install`, which runs its migrations | `core`: it is on `FIRST_PARTY_MODULE_PACKAGES` (§2) |
+
+The last row is why neither can be an alias of the other. If `ModuleOrigin` were
+`ModuleIdClaimOrigin`, every first-party module in an instance would be `package` and lose `admit`
+(R-11 (c)). If `ModuleIdClaimOrigin` followed the trust tier, `deploymentShippedEntries` would
+converge a first-party package at boot, and `module:install` would then answer `already-installed`
+about a package whose migrations never ran, which is the defect that function's doc block exists
+to prevent.
+
+**The mapping is one-way and has one spelling.** `packages/platform/src/lifecycle/services/module-origin.ts`
+gains, beside `ModuleIdClaimOrigin`:
+
+```ts
+/** The trust tier of a module found by `discovery` (specs/189-command-middleware/contracts/module-origin.md §6). */
+export function moduleOriginOf(
+  discovery: ModuleIdClaimOrigin,
+  firstPartyPackage: boolean,
+): ModuleOrigin;
+```
+
+| `discovery` | `firstPartyPackage` | `ModuleOrigin` |
+| --- | --- | --- |
+| `core` | ignored | `core` |
+| `overlay` | ignored | `deployment` |
+| `package` | `true` (name and id match §2's list) | `core` |
+| `package` | `false` | `package` |
+
+The overlay loader and the package loader stamp `ModuleEntry.origin` through it, and the §2
+fallback in `composeModules` is the same table read off `overlay` / `installedPackage`. Nothing maps
+the other way: no trust tier is ever turned back into a discovery answer.
+
+**Which spelling survives.** `ModuleOrigin` is the published word for the tier, in contracts.
+`ModuleIdClaimOrigin` keeps its name and its `'overlay'` value. Renaming a published type of
+`@endora-commerce/platform/lifecycle` to make the two look alike would be a breaking change that
+buys nothing, and making them look alike is the confusion this section removes. Its doc comment
+gains one sentence: *"This is discovery provenance, not a trust tier; for the tier see
+`ModuleOrigin` (D-296.10)."* The same holds for `MigrationOrigin` (`packages/platform/src/db/migration-order.ts`),
+which is a migration's provenance and keeps its own values, including the `'overlay'` value
+`specs/190-overlay-full-modules/` adds.
+
+**What decides an overlay's origin.** Only the discovery. A module the overlay loader found is
+`deployment` whatever it ships: schema, migrations, entities, ports or an admin layer. Owning a
+table does not raise or lower its tier, and no manifest field can change it (§3). This is the
+derivation `specs/190-overlay-full-modules/` T083 tests (*"an overlay owning schema still composes
+as `deployment`"*). The same module's `ModuleIdClaimOrigin` stays `overlay`, so it is part of
+`deploymentShippedEntries`; how a schema-owning overlay's migrations run is 190's lifecycle
+contract, not this one.
+

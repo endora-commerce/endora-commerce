@@ -196,11 +196,17 @@ flag and a refusing flag.
 A paid module is not in this workspace (D-265), so it is not on the generated list and its origin
 is `package`. The owner confirmed that on 2026-11-23 (D-296.8): it stays so until a **signed**
 first-party list exists, which would be a later ruling and a change to this derivation.
+The existing `ModuleIdClaimOrigin` (`core` / `overlay` / `package`) is discovery provenance, not a
+trust tier, and stays a separate type with a one-way mapping, `moduleOriginOf`
+(`contracts/module-origin.md` §6): a first-party package in an instance is `package` to the
+discovery (it is installed, and `deploymentShippedEntries` must exclude it) and `core` to the tier.
 **Rejected.** (a) *A manifest field `origin`.* Self-certified. (b) *An npm scope test
 (`@endora-commerce/*`).* It is defeated by aliases and by a mirrored private registry, and it is a
 string convention rather than a derivation. (c) *`package` for every installed package, including
 first-party.* That is the time bomb above. (d) *Retyping `overlay` into the enum.* Explicitly
-refused by D-156.4's own text, which D-296 keeps.
+refused by D-156.4's own text, which D-296 keeps. (e) *Aliasing `ModuleOrigin` to
+`ModuleIdClaimOrigin`, or renaming the latter to match.* The first-party row of §6 needs different
+answers from the two, and the rename is a breaking change to a published type for no gain.
 
 ## R-12 Declaration in the manifest, code through the context
 
