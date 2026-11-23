@@ -42,7 +42,8 @@ it is a separate issue (to be filed, D-295 item 7).
 - [ ] T063 [P] Write failing tests for `policyParticipantGrants` in the same file
   (`packages/contracts/src/modules.policy-fields.test.ts`), FR-023:
   - absent parses as `undefined`, and the example of `contracts/policy-points-api.md` §9 parses;
-  - refused: a malformed point id, a malformed module id, a reason under 20 or over 800 characters,
+  - refused: a malformed point id, a malformed module id, a missing `packageName`, a reason under
+    20 or over 800 characters,
     an empty array, the same module id twice under one point, an unknown key in an entry;
   - the declaration stays `.strict()`: a misspelt `policyParticipantGrant` is refused by name.
 - [ ] T064 [P] Write a failing test in `packages/platform/src/lifecycle/divergence-declaration.test.ts`:
@@ -61,7 +62,9 @@ it is a separate issue (to be filed, D-295 item 7).
   out, each with its comment, and correct the doc block's list of fields. T063 and T064 go green.
 - [ ] T066 Consume module origin from `specs/189-command-middleware/` `contracts/module-origin.md`.
   If 189 has merged, import `MODULE_ORIGINS` / `ModuleOrigin` and read the origin map
-  `composeModules` resolves. If it has not, land that contract's §1 and §2 **as written there**
+  `composeModules` resolves. Never read `ModuleIdClaimOrigin` (discovery provenance, 189 §6). Add
+  `ModuleEntry.installedPackageName?`, set by the package loader only, if 189 has not, with a test
+  that the overlay and generated loaders leave it unset. If it has not, land that contract's §1 and §2 **as written there**
   (type, `ModuleEntry.origin`, loader stamping, the fallback rule), with its own tests first, and
   extend §2's hand-off to `PolicyRegistry.seal`. Do not redefine anything in it.
 - [ ] T007 Add `POLICY_EVALUATION_FAILED` to `ERROR_CODES`. Declare it in
@@ -93,13 +96,15 @@ it is a separate issue (to be filed, D-295 item 7).
   - a package granted on point A and contributing to point B refuses for B;
   - each `InvalidPolicyParticipantGrantError` cause: `unknown-point` (including a point whose owner
     is not composed), `unknown-module`, `not-a-package` (a core module, a deployment module, and an
-    installed first-party package whose origin is `core`), `unused`;
+    installed first-party package whose origin is `core`), `package-name-mismatch` (the right module
+    id installed under another package name, as an npm alias would), `unused`;
   - origin is read from the origin map only: an `installedPackage: true` entry with origin `core`
     needs no grant, and an entry with no `origin` falls back by 189's rule;
   - the plan shows a granted participant with origin `package` and `granted: true`.
 - [ ] T068 [P] [US1] Failing test in `packages/platform/src/kernel/module-context.test.ts`: a package
   granted for a point still refuses `ctx.di.decorate` with `ForeignDecorationError` (FR-025). If
-  189's middleware registry is in the tree, add the same assertion for an `admit` registration.
+  189's middleware registry is in the tree, also assert that an `admit` registration still refuses
+  with `CommandMiddlewareOriginError` and that its `observe` metadata is still redacted.
 - [ ] T010 [P] [US1] Failing tests in `.../policies/ordering.test.ts`:
   - `chain` with the default first;
   - origin tiers: core, then package, then deployment, with no dependency between them and no

@@ -59,6 +59,7 @@ export function policyReasonLabelKey(pointId: string, code: string): string;
   ```ts
   export const PolicyParticipantGrantSchema = z.object({
     moduleId: z.string().regex(moduleIdRe),
+    packageName: z.string().min(1),   // npm name grammar, scoped or not; matched against the composed entry
     reason: z.string().min(20).max(800),
   }).strict();
 
@@ -144,7 +145,7 @@ export class PackagePolicyParticipantNotGrantedError extends Error {}
 export class InvalidPolicyParticipantGrantError extends Error {
   readonly pointId: string;
   readonly moduleId: string;
-  readonly cause: 'unknown-point' | 'unknown-module' | 'not-a-package' | 'unused';
+  readonly cause: 'unknown-point' | 'unknown-module' | 'not-a-package' | 'package-name-mismatch' | 'unused';
 }
 ```
 
@@ -188,7 +189,8 @@ field names the context option uses, so `harness-parity.test.ts` holds both root
 2. drop the participations of points no composed module declares (FR-004);
 3. **trust**: every `package`-origin participation needs a grant for its point
    (`PackagePolicyParticipantNotGrantedError`), then every grant must describe something
-   (`InvalidPolicyParticipantGrantError`, four causes). A grant for a point the composition drops in
+   (`InvalidPolicyParticipantGrantError`, five causes). Both the module id and the installed
+   package name must match the composed entry (189 `contracts/module-origin.md` §5.3). A grant for a point the composition drops in
    step 2 is `unknown-point`: a dropped participation is silent, a stale grant is not;
 4. ordering for `chain` points, per origin tier (§4 step 4);
 5. combiner-specific refusals (`policyOrder` or `overrides` on a `commutative` point).
@@ -285,8 +287,8 @@ export function sealedPolicyRegistry(input: Partial<PolicyCompositionInput>): Po
 - An installed third-party package (origin `package`) takes part only in a point the deployment
   grants it, in its `divergence.ts` `policyParticipantGrants`. Without the grant the composition
   refuses and names the field. The grant admits the package to that point and to nothing else: its
-  origin stays `package`, it still cannot decorate, and it is still `observe`-only for command
-  middleware. A package author documents which grant the package needs; the deployment decides.
+  origin stays `package`, it still cannot decorate, it is still `observe`-only for command
+  middleware, and its middleware observer still gets redacted request metadata (189 §5.2). A package author documents which grant the package needs; the deployment decides.
 
 ## 8. Example (an overlay module)
 
@@ -323,6 +325,7 @@ export const divergence: DeploymentDivergenceDeclaration = {
   policyParticipantGrants: {
     'organizations.moderation': [{
       moduleId: 'acme_credit_check',
+      packageName: '@acme/endora-credit-check',
       reason:
         'Holds a new business whose credit score from the bureau this shop contracts is below the ' +
         'threshold agreed with finance, so a person reviews it before it can order on terms.',

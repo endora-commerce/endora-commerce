@@ -304,12 +304,15 @@ After either merge request, regenerate and commit, as the AGENTS.md trap require
      lands them as written there.
   2. `contracts/module-origin.md` §2 says `composeModules` hands the resolved origin map "to the
      middleware registry's `seal` and to nothing else". It must also hand it to
-     `PolicyRegistry.seal`, which reads it to place `chain` tiers and to apply grants, and nothing
-     more.
-  3. The §4 vocabulary table's 188 column should read: trust tier "core + deployment; package only
-     per (point, package) grant in `divergence.ts` `policyParticipantGrants`"; ordering "origin
-     tiers core → package → deployment, then dependencies"; tie-break `policyOrder` within a tier;
-     report `policy-participant` and `policy-participant-grant`, rung 3.
+     `PolicyRegistry.seal` (its own §6 already lists 188's registry as a reader), which reads it to
+     place `chain` tiers and to apply grants, and nothing more.
+  2a. §5.3 matches a grant on module id **and** installed package name against the composed entry,
+     so `ModuleEntry` needs the installed package name (`installedPackageName?`, set by the package
+     loader only). 189's text does not add the field; whichever spec lands first adds it.
+  3. The §4 vocabulary table's remaining "per 188" cells: ordering "origin tiers core → package →
+     deployment, then dependencies"; tie-break `policyOrder` within a tier; unordered pair
+     `UnorderedPolicyParticipantsError`; budget per point, 500 ms default, 1 to 10 000 ms; report
+     `policy-participant` and `policy-participant-grant`, rung 3. The grant row already matches.
 
   `PolicyParticipantWriteError` is raised from `CommandBus.run` before middleware `admit`, so a
   participant never reaches middleware.

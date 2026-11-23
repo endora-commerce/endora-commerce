@@ -42,8 +42,10 @@ items 5 to 8).
   `assertNonBindingRules` refuses such an edge when the same manifest names the target module in
   `dependencies`. `packages/platform/src/kernel/contribution-sinks.ts` drops a declared
   contribution whose registry the composition does not hold.
-- **Origin.** `RegisteredManifestEntry.origin` is `'core' | 'overlay' | 'package'`
-  (`packages/platform/src/lifecycle/manifest-registry.ts`). `ModuleContextOptions` carries
+- **Origin.** `RegisteredManifestEntry.origin` is `ModuleIdClaimOrigin` (`'core' | 'overlay' |
+  'package'`, `packages/platform/src/lifecycle/manifest-registry.ts`). That is discovery
+  provenance, not a trust tier: 189's `contracts/module-origin.md` §6 keeps it separate and maps it
+  one way to `ModuleOrigin` through `moduleOriginOf`. This feature reads only `ModuleOrigin`. `ModuleContextOptions` carries
   `overlay` (it grants) and `installedPackageModuleIds` (it refuses) as two separate facts
   (`packages/platform/src/kernel/module-context.ts`). `composeModules` derives the package set from
   `ModuleEntry.installedPackage` (`packages/platform/src/kernel/compose.ts`).
@@ -381,9 +383,11 @@ how an owner of a `chain` point chooses fail-open on purpose, in writing.
 
    Keyed by point, because that is how a reviewer reads it ("who may take part in moderation?")
    and how the seal consumes it. One entry admits every participant the package declares for that
-   point in `policyContributions`, and nothing else (FR-023). The key is the **module id** the
-   package declares as `endora.id`, which is the identity composition uses everywhere; the instance's
-   own lockfile is what pins which package carries that id.
+   point in `policyContributions`, and nothing else (FR-023). The package is named the way 189's
+   `contracts/module-origin.md` §5.3 requires: by its **module id** (`endora.id`) **and** its
+   installed `package.json` **name**, and both must match the composed entry. An npm alias that
+   installs another package under a granted name, or a package that claims a granted module id,
+   therefore cannot borrow the grant.
 3. **Validation, in two places.**
    - *Shape*, in `parseDivergenceDeclaration`, through the schema: a malformed point id, module id
      or reason, an empty array, a duplicate module id within a point, or an unknown key in an entry.
@@ -392,7 +396,10 @@ how an owner of a `chain` point chooses fail-open on purpose, in writing.
      `InvalidPolicyParticipantGrantError(pointId, moduleId, cause)`. The causes are:
      - `unknown-point`: no composed module declares the point;
      - `unknown-module`: the composition holds no module with that id;
-     - `not-a-package`: the module's origin is `core` or `deployment`, which needs no grant;
+     - `not-a-package`: the module's origin is `core` or `deployment`, which needs no grant
+       (189 §5.4, "misdirected");
+     - `package-name-mismatch`: the composed entry with that module id was installed from a
+       package whose name is not the grant's `packageName` (189 §5.3);
      - `unused`: the package declares no participation for that point.
 
    All four **refuse the boot**. That is D-101's declared-escape stance: a committed declaration is
@@ -402,8 +409,10 @@ how an owner of a `chain` point chooses fail-open on purpose, in writing.
 4. **A grant raises nothing else** (FR-025). It is read by `PolicyRegistry.seal` and by the
    divergence derivation, and by nothing else. It does not change the module's origin, does not set
    `overlay`, does not touch decoration (D-156.3 still refuses a package), does not make the
-   package an `admit` contributor of `specs/189-command-middleware/` (still `observe` only), and does
-   not admit the package to any other point. The plan API shows the package with origin `package`
+   package an `admit` contributor of `specs/189-command-middleware/` (still `observe` only), does
+   not lift the request-metadata redaction a `package` observer gets there (189 FR-022), and does
+   not admit the package to any other point. This is 189 §5.1 and §5.2: a grant is a per-point
+   permission, not an origin and not a trust tier. The plan API shows the package with origin `package`
    and `granted: true`.
 5. **Inside the point, a granted package is a peer.** Same budget, same failure treatment, same
    write guard, same reason-code check, same presence rule. Where it sits is R-25.
@@ -434,10 +443,9 @@ how an owner of a `chain` point chooses fail-open on purpose, in writing.
 - *Keyed by package (`{ '<moduleId>': ['<pointId>', …] }`).* It reads well per package, but the seal
   and the reviewer both ask per point, and a per-point key matches `policyOrder` and
   `commandHookOrder`.
-- *Keyed by npm package name, or by name and module id together.* Composition knows module ids; the
-  package name is a loader fact. 189 pins the name for the first-party match because there the
-  question is "is this ours"; here the deployment is naming what it installed, and its lockfile
-  already pins it.
+- *Keyed by module id alone.* An npm alias (`"acme_credit_check": "npm:other-package@…"`) or a
+  different package declaring the same `endora.id` would inherit the grant. 189 §5.3 closes that by
+  requiring the installed package name as well, as its §2 does for the first-party list.
 - *A grant per participant id.* The owner asked for per package. Participant ids are the package's
   to change between versions, and a grant pinned to them would turn every package minor into a
   boot refusal.
@@ -448,9 +456,13 @@ how an owner of a `chain` point chooses fail-open on purpose, in writing.
 - *Raising the package to `deployment` for the granted point.* It is the "retyping a flag to an
   origin" the D-156 doc block forbids, and it would make the plan lie about who wrote the code.
 
-**Dependency on `specs/189-command-middleware/`.** `contracts/module-origin.md` §2 hands the origin
-map "to the middleware registry's `seal` and to nothing else". 188 needs it handed to
-`PolicyRegistry.seal` as well (`plan.md` § *Coordination with sibling specs*).
+**Dependencies on `specs/189-command-middleware/`.** `contracts/module-origin.md` §2 hands the origin
+map "to the middleware registry's `seal` and to nothing else"; its §6 table already names 188's
+policy registry as a reader, so §2's sentence should say so too. §5.3 needs the composed entry to
+carry the installed package name: the package loader has it (`packageName` in
+`packages/platform/src/packages/package-runtime.ts`) but `ModuleEntry` does not. Whichever spec
+lands first adds `ModuleEntry.installedPackageName?`, set by the package loader only (`plan.md`
+§ *Coordination with sibling specs*).
 
 ## R-13 Visibility, and the rung
 
@@ -468,7 +480,7 @@ map "to the middleware registry's `seal` and to nothing else". 188 needs it hand
 - **Grants in the report.** A second kind, `policy-participant-grant`, also at rung 3, is derived
   from the declaration as `omission` is. Key `policy-participant-grant:<moduleId>:<pointId>`,
   `module` the granted package, `subject` the point, `owner` the point's owner, `reason` the grant's
-  inline reason, detail `{ point }`. The report cannot list the package's participants themselves,
+  inline reason, detail `{ point, packageName }`. The report cannot list the package's participants themselves,
   which are run-time facts (`runtimeOnly` gains "a granted package's policy participants"). A grant
   naming a point no manifest in the tree declares is the finding `unowned-policy-point`; a grant
   naming a module the tree composes as core or deployment is the finding

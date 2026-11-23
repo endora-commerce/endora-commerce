@@ -355,16 +355,19 @@ fixture point's combiner and watch the helper fail.
   English and Polish where the page is published in both.
 - **FR-022**: An evaluation refused by the mechanism that reaches an HTTP caller MUST answer with
   one platform error code, translated in English and Polish.
-- **FR-023**: A grant MUST name one policy point, one module id and a reason in prose, in the
-  deployment's committed divergence declaration. A grant covers every participant that module
+- **FR-023**: A grant MUST name one policy point, the package by its module id **and** its installed
+  package name, and a reason in prose, in the deployment's committed divergence declaration. Both
+  names MUST match the composed module, so an npm alias cannot borrow another package's grant. A grant covers every participant that module
   declares for that point and nothing else.
 - **FR-024**: Composition MUST refuse a grant that names a point no composed module declares, a
-  module the composition does not hold, a module whose origin is not `package`, or a package that
-  declares no participation for that point. The refusal MUST name the point, the module and the
+  module the composition does not hold, a module whose origin is not `package`, a module whose
+  installed package name differs from the grant's, or a package that declares no participation for
+  that point. The refusal MUST name the point, the module and the
   declaration field.
 - **FR-025**: A grant MUST NOT change the package's origin, and MUST NOT be read by anything except
-  the composition of that point's participants. Decoration, command middleware and every other point
-  MUST treat a granted package exactly as an ungranted one.
+  the composition of that point's participants. Decoration, command middleware (including its
+  observer redaction) and every other point MUST treat a granted package exactly as an ungranted
+  one (`specs/189-command-middleware/` `contracts/module-origin.md` §5).
 - **FR-026**: The plan API, the platform screen and the boot log MUST show each participant's origin,
   and for a `package` participant that it takes part by a grant.
 

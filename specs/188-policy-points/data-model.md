@@ -70,8 +70,9 @@ claim an order that has no effect. An entry naming modules of two tiers is refus
 policyParticipantGrants?: Record<
   pointId,                         // POLICY_POINT_ID_RE
   Array<{                          // min 1; each moduleId at most once per point; .strict()
-    moduleId: string               // the granted package's module id (its `endora.id`)
-    reason:   string               // 20..800, as omittedModules[].reason
+    moduleId:    string            // the granted package's module id (its `endora.id`)
+    packageName: string            // its installed package.json `name`; must match the composed entry
+    reason:      string            // 20..800, as omittedModules[].reason
   }>
 >                                  // .optional(); absent means "no package takes part anywhere"
 ```
@@ -80,8 +81,8 @@ policyParticipantGrants?: Record<
   file. The schema's `.strict()` comment ("a fifth field is a typo") is rewritten to count the
   fields it now has.
 - **Meaning** is refused by `PolicyRegistry.seal` as `InvalidPolicyParticipantGrantError(pointId,
-  moduleId, cause)`, `cause` one of `unknown-point`, `unknown-module`, `not-a-package` and `unused`
-  (research R-12).
+  moduleId, cause)`, `cause` one of `unknown-point`, `unknown-module`, `not-a-package`,
+  `package-name-mismatch` and `unused` (research R-12; 189 `contracts/module-origin.md` §5).
 - **Effect.** A participation whose module's origin is `package` is accepted only when its
   `(point, moduleId)` is granted here. The grant is read by the seal and by the divergence
   derivation only. It never changes the module's origin (FR-025).
@@ -94,7 +95,7 @@ policyParticipantGrants?: Record<
 - `DivergenceDetail` gains:
   - `{ kind: 'policy-participant'; point: string; combiner: 'chain' | 'commutative'; participantId: string; position: number | null; override: 'declared' | null }`.
     `position` is `null` in the committed artefact (research R-13).
-  - `{ kind: 'policy-participant-grant'; point: string }`.
+  - `{ kind: 'policy-participant-grant'; point: string; packageName: string }`.
 - Keys: `policy-participant:<module>:<pointId>#<participantId>` and
   `policy-participant-grant:<moduleId>:<pointId>`.
 - Rung: `3` for both.

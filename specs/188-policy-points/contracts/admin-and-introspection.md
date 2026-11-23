@@ -94,7 +94,7 @@ module:  <granted package's module id>
 subject: <pointId>
 owner:   <point's owner module id>
 rung:    3
-detail:  { kind: 'policy-participant-grant', point }
+detail:  { kind: 'policy-participant-grant', point, packageName }
 reason:  the grant's own inline reason (never `reasons[key]`)
 ```
 
