@@ -266,4 +266,35 @@ describe('the foreign-schema guard on raw database handles (#1860)', () => {
   it.each(RAW_ACCESS_ROUTES)('refuses %s, and the row survives', async (_label, attempt) => {
     await expectRawAccessRefused(attempt);
   });
+
+  /**
+   * Open (#1889): raw database handles the guard does not wrap yet. They hold
+   * the same assertion and fail it today; when #1889 closes them, `it.fails`
+   * turns red and the row moves into {@link RAW_ACCESS_ROUTES}.
+   */
+  const OPEN_RAW_ACCESS_ROUTES: readonly RawAccessRoute[] = [
+    ['this.getKnex() builder', (self) => deleteRogue(self.getKnex())],
+    [
+      'this.getKnex().raw()',
+      (self) =>
+        (self.getKnex() as unknown as { raw(sql: string): Promise<unknown> }).raw(
+          `delete from "${HOST_TABLE}" where "name" = 'rogue'`,
+        ),
+    ],
+    [
+      'this.getEntityManager().getDriver().execute()',
+      (self) => self.getEntityManager().getDriver().execute(`delete from "${HOST_TABLE}" where "name" = 'rogue'`),
+    ],
+    [
+      'this.driver.execute()',
+      (self) =>
+        (self as unknown as { driver: { execute(sql: string): Promise<unknown> } }).driver.execute(
+          `delete from "${HOST_TABLE}" where "name" = 'rogue'`,
+        ),
+    ],
+  ];
+
+  it.fails.each(OPEN_RAW_ACCESS_ROUTES)('open (#1889): refuses %s, and the row survives', async (_label, attempt) => {
+    await expectRawAccessRefused(attempt);
+  });
 });

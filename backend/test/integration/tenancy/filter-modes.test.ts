@@ -52,6 +52,9 @@ class X1860Holder {
 
   @OneToMany(() => X1860OrgRow, (row) => row.holder)
   rows = new Collection<X1860OrgRow>(this);
+
+  @OneToMany(() => X1860CustomerRow, (row) => row.holder)
+  customers = new Collection<X1860CustomerRow>(this);
 }
 
 @OrgScoped()
@@ -102,6 +105,9 @@ class X1860CustomerRow {
 
   @Property({ type: 'text' })
   label!: Label;
+
+  @ManyToOne(() => X1860Holder)
+  holder!: X1860Holder;
 }
 
 /** The owner's uncorrelated SELECT of excluded organizations, as `organizations` answers it. */
@@ -127,9 +133,16 @@ interface ModeCase {
   readonly customer: readonly Label[];
   /** Whether a `@CustomerScoped` table without an organization column was refused, and the context records it. */
   readonly refusedNotice?: boolean;
-  /** Why a joined `populate` is not asserted for this case, when it is not. */
-  readonly joinedPopulateNotAsserted?: string;
+  /**
+   * The holder's collections whose joined `populate` MikroORM 6 cannot render
+   * for this case: the filter answers `$in: []`, which lands in the join
+   * condition as `in ()`, a syntax error. Asserted as `it.fails` below, to be
+   * fixed with #1866.
+   */
+  readonly joinedPopulateOpen?: readonly Collected[];
 }
+
+type Collected = 'rows' | 'customers';
 
 const CASES: readonly ModeCase[] = [
   {
@@ -164,6 +177,7 @@ const CASES: readonly ModeCase[] = [
     customerOrg: ['A', 'B'],
     customer: [],
     refusedNotice: true,
+    joinedPopulateOpen: ['customers'],
   },
   {
     name: 'an administrator confined to no organization',
@@ -173,12 +187,7 @@ const CASES: readonly ModeCase[] = [
     customerOrg: [],
     customer: [],
     refusedNotice: true,
-    // Found by this file: MikroORM 6 puts the filter's `$in: []` into the join
-    // condition as `in ()`, which Postgres refuses as a syntax error. `find`,
-    // `count` and the select-in strategy render it as match-nothing. No real
-    // entity maps a collection of a scoped entity today, so nothing in the tree
-    // takes this path. Reported with #1860, not fixed here.
-    joinedPopulateNotAsserted: 'MikroORM 6 renders `in ()` in the join condition',
+    joinedPopulateOpen: ['rows', 'customers'],
   },
   {
     name: 'a representative whose reach excludes B',
@@ -188,6 +197,7 @@ const CASES: readonly ModeCase[] = [
     customerOrg: ['A', 'C'],
     customer: [],
     refusedNotice: true,
+    joinedPopulateOpen: ['customers'],
   },
   {
     // `null not in (<empty>)` is true: only the predicate's own `is not null`
@@ -199,6 +209,7 @@ const CASES: readonly ModeCase[] = [
     customerOrg: ['A', 'B', 'C'],
     customer: [],
     refusedNotice: true,
+    joinedPopulateOpen: ['customers'],
   },
 ];
 
@@ -216,13 +227,14 @@ describe('tenant filter modes on MikroORM (#1860)', () => {
       allowGlobalContext: true,
     });
     await sql(`
-      drop table if exists "x1860_org_rows", "x1860_holders", "x1860_customer_org_rows", "x1860_customer_rows", "x1860_excluded";
+      drop table if exists "x1860_org_rows", "x1860_customer_rows", "x1860_holders", "x1860_customer_org_rows", "x1860_excluded";
       create table "x1860_holders" ("id" uuid primary key);
       create table "x1860_org_rows" ("id" uuid primary key, "organization_id" uuid null, "label" text not null,
         "touched" boolean not null default false, "holder_id" uuid not null references "x1860_holders" ("id"));
       create table "x1860_customer_org_rows" ("id" uuid primary key, "customer_account_id" uuid not null,
         "organization_id" uuid null, "label" text not null);
-      create table "x1860_customer_rows" ("id" uuid primary key, "customer_account_id" uuid not null, "label" text not null);
+      create table "x1860_customer_rows" ("id" uuid primary key, "customer_account_id" uuid not null, "label" text not null,
+        "holder_id" uuid not null references "x1860_holders" ("id"));
       create table "x1860_excluded" ("rep" text not null, "id" uuid not null);`);
     await sql('insert into "x1860_holders" ("id") values (?)', [holderId]);
     for (const label of LABELS) {
@@ -234,17 +246,17 @@ describe('tenant filter modes on MikroORM (#1860)', () => {
         'insert into "x1860_customer_org_rows" ("id", "customer_account_id", "organization_id", "label") values (gen_random_uuid(), ?, ?, ?)',
         [CUSTOMER[label], orgOf(label), label],
       );
-      await sql('insert into "x1860_customer_rows" ("id", "customer_account_id", "label") values (gen_random_uuid(), ?, ?)', [
-        CUSTOMER[label],
-        label,
-      ]);
+      await sql(
+        'insert into "x1860_customer_rows" ("id", "customer_account_id", "label", "holder_id") values (gen_random_uuid(), ?, ?, ?)',
+        [CUSTOMER[label], label, holderId],
+      );
     }
     await sql('insert into "x1860_excluded" ("rep", "id") values (?, ?)', [REP_EXCLUDING_B, ORG.B]);
   });
 
   afterAll(async () => {
     await sql(
-      'drop table if exists "x1860_org_rows", "x1860_holders", "x1860_customer_org_rows", "x1860_customer_rows", "x1860_excluded"',
+      'drop table if exists "x1860_org_rows", "x1860_customer_rows", "x1860_holders", "x1860_customer_org_rows", "x1860_excluded"',
     );
     await orm.close(true);
   });
@@ -267,20 +279,44 @@ describe('tenant filter modes on MikroORM (#1860)', () => {
     expect(ctx.notices?.organizationAttributionRefused ?? false).toBe(c.refusedNotice ?? false);
   });
 
-  it.each(CASES)('$mode — $name: joined and select-in populate, and Collection.init', async (c) => {
+  const expectedIn = (c: ModeCase, collection: Collected): readonly Label[] =>
+    collection === 'rows' ? c.org : c.customer;
+
+  async function joinedPopulate(c: ModeCase, collection: Collected): Promise<void> {
     await runWithTenantContext(c.context(), async () => {
-      if (c.joinedPopulateNotAsserted === undefined) {
-        const joined = await orm.em.fork().findOneOrFail(X1860Holder, { id: holderId }, { populate: ['rows'] });
-        expect(labels(joined.rows.getItems()), 'joined populate').toEqual(c.org);
-      }
-      const selectIn = await orm.em
-        .fork()
-        .findOneOrFail(X1860Holder, { id: holderId }, { populate: ['rows'], strategy: 'select-in' });
-      expect(labels(selectIn.rows.getItems()), 'select-in populate').toEqual(c.org);
-      const lazy = await orm.em.fork().findOneOrFail(X1860Holder, { id: holderId });
-      await lazy.rows.init();
-      expect(labels(lazy.rows.getItems()), 'Collection.init').toEqual(c.org);
+      const joined = await orm.em.fork().findOneOrFail(X1860Holder, { id: holderId }, { populate: [collection] });
+      expect(labels(joined[collection].getItems()), `joined populate of ${collection}`).toEqual(expectedIn(c, collection));
     });
+  }
+
+  it.each(CASES)('$mode — $name: joined and select-in populate, and Collection.init', async (c) => {
+    for (const collection of ['rows', 'customers'] as const) {
+      if (!(c.joinedPopulateOpen ?? []).includes(collection)) await joinedPopulate(c, collection);
+      await runWithTenantContext(c.context(), async () => {
+        const selectIn = await orm.em
+          .fork()
+          .findOneOrFail(X1860Holder, { id: holderId }, { populate: [collection], strategy: 'select-in' });
+        expect(labels(selectIn[collection].getItems()), `select-in populate of ${collection}`).toEqual(
+          expectedIn(c, collection),
+        );
+        const lazy = await orm.em.fork().findOneOrFail(X1860Holder, { id: holderId });
+        await (lazy[collection] as Collection<X1860OrgRow | X1860CustomerRow>).init();
+        expect(labels(lazy[collection].getItems()), `Collection.init of ${collection}`).toEqual(expectedIn(c, collection));
+      });
+    }
+  });
+
+  /**
+   * Open (#1866): a joined `populate` whose filter answers `$in: []` renders
+   * `in ()` in the join condition on MikroORM 6 and fails as a syntax error.
+   * The shapes are an empty `allowed-set` on `@OrgScoped`, and `allowed-set` /
+   * `excluded-set` on `@CustomerScoped` without an organization column. Each
+   * case asserts the correct answer, so it fails today; when #1866 fixes it,
+   * `it.fails` turns red and the case moves into the matrix above.
+   */
+  const OPEN_JOINED = CASES.flatMap((c) => (c.joinedPopulateOpen ?? []).map((collection) => ({ ...c, collection })));
+  it.fails.each(OPEN_JOINED)('open (#1866): $mode — $name: joined populate of $collection', async (c) => {
+    await joinedPopulate(c, c.collection);
   });
 
   it.each(CASES)('$mode — $name: nativeUpdate touches only the rows the mode lets through', async (c) => {
