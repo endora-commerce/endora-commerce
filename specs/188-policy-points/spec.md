@@ -399,8 +399,7 @@ fixture point's combiner and watch the helper fail.
 - **FR-037**: An `approve` decision MUST approve the organization through the Organization
   aggregate's approve Command (`specs/186-aggregate-ports/`). The actor is the `system` actor of the
   system scope the evaluation runs under, with the source code `organizations.moderation` recorded
-  (the owner's answer of 2026-11-23 to `specs/186-aggregate-ports/` Q-1, a D-293 ruling). The
-  approval and the evaluation record MUST commit together. The audit entries MUST carry the
+  (D-293.6). The approval and the evaluation record MUST commit together. The audit entries MUST carry the
   verdict, the reason codes, the failed and skipped participants, and the trigger, as codes and
   ids, never values. The approval e-mail is sent as today.
 - **FR-038**: A `hold` decision MUST leave the organization pending, record the evaluation with its

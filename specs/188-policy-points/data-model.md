@@ -180,7 +180,7 @@ carries ids and codes only, and it is added to `OrganizationEventBus`'s event ma
 
 **`organization.moderation.record_evaluation`.** `objectType` is `organization`, `objectId` is the
 organization id, and the actor is `system`, from the reactor's system scope. There is no
-`automation` actor kind (the owner's answer to `specs/186-aggregate-ports/` Q-1). The state is:
+`automation` actor kind (D-293.6). The state is:
 
 ```text
 before: null

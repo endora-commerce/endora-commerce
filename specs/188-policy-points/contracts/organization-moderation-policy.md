@@ -2,7 +2,7 @@
 
 **Status**: proposed (WP-B). It depends on WP-A and on `specs/186-aggregate-ports/`, which delivers
 the approve Command, runnable as a child and recording a caller source code (#1821). There is no
-`automation` actor kind: the actor is the ambient `system` (the owner's answer to 186 Q-1).
+`automation` actor kind: the actor is the ambient `system` (D-293.6).
 
 ## 1. The ref — `@endora-commerce/contracts` (`src/organizations.ts`, beside `ORGANIZATION_HOOKABLE_ACTIONS`)
 

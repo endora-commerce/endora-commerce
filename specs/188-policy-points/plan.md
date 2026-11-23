@@ -81,8 +81,8 @@ are recorded here as items of D-295. Item 5 supersedes the second sentence of it
 >    and do not redefine them. Item 2's "`overlay`" is that contract's origin `deployment`.
 
 The design that item 5 asks for is research R-12 (the grant) and R-4 (where package participants
-sit). The owner's answer to `specs/186-aggregate-ports/` Q-1 (`system` actor plus a source code, no
-`automation` kind) is a D-293 ruling. This specification follows it in FR-037 and R-14, and does not
+sit). D-293.6 (`system` actor plus a source code, no `automation` kind) is 186's ruling. This
+specification follows it in FR-037 and R-14, and does not
 record it as its own.
 
 The architect's design decisions are research R-1 to R-25. They are proposals reviewed in this
@@ -285,8 +285,8 @@ After either merge request, regenerate and commit, as the AGENTS.md trap require
 - **`specs/186-aggregate-ports/` (D-293).** WP-B needs three things from it:
   1. the approve Command, runnable as a child through `ctx.run`;
   2. that Command accepting a caller source code and recording it in its audit state, as 186's
-     FR-007 and R-4 give the port operations. The actor is the ambient `system` (the owner's answer
-     to 186 Q-1); there is no `automation` kind;
+     FR-007 and R-4 give the port operations. The actor is the ambient `system` (D-293.6); there is
+     no `automation` kind;
   3. `organizationCommandPort.approve` running that same Command.
 
   This spec does **not** call the port facade from inside `organizations` (R-14). If 186 decides
