@@ -16,7 +16,7 @@ it.
 | --- | --- | --- |
 | `extensions` | `Readonly<Record<string, unknown>>?` | keyed by hook module id; an unclaimed key → `422 COMMAND_EXTENSION_UNCLAIMED` before any write (spec 176) |
 | `expectedVersion` | `number?` | honoured where the aggregate has a `version` the admin route checks; stale → `409 VERSION_CONFLICT`; elsewhere documented as ignored |
-| `source` | `string?` | `^[a-z][a-z0-9_.-]{0,63}$`; recorded as `source` in the Command's `stateAfter` (code, `audit-state.md` list 1); `null` when absent; an invalid code → `422 VALIDATION_FAILED` |
+| `source` | `string?` | `^[a-z][a-z0-9_.-]{0,63}$`; recorded as `source` in the Command's `stateAfter` (code, `audit-state.md` list 1); `null` when absent; an invalid code → `422 VALIDATION_FAILED`. With no administrator the actor is `system` and this code is what tells integrations apart — there is no `automation` actor kind (D-293.6) |
 
 `CustomFieldMerge = (current: Record<string, unknown>) => Promise<Record<string, unknown>>`.
 
@@ -92,18 +92,38 @@ What happens to each existing write-shaped port of the nine owners. "Deprecated"
 | `opportunityTransitionPort` | `applyStatus` | deprecated | `opportunityCommandPort.transition` |
 | `taskWritePort` | `createMany`, `deleteInContext` | deprecated | `taskCommandPort.createMany` / `.deleteInContext` |
 
-## Published surface entry (conceptual; derived, never stored)
+## Contract surface entry (conceptual; derived, never stored)
 
 | Attribute | Meaning |
 | --- | --- |
-| `kind` | one of the kinds in `contracts/published-surface.md` |
+| `kind` | one of the kinds in `contracts/contract-surface.md` |
 | `id` | stable identity within the kind (e.g. `port:organizationCommandPort#setParent`, `hook-data:organization.create`) |
 | `tier` | `frozen` \| `stable` \| `additive-only` — the kind's |
 | `direction` | `read` \| `write` \| `call` — the kind's |
 | `deprecation` | parsed from the base release's JSDoc: `{ since, replacement \| reason }` or none |
 
 The release-intent comparison computes entries for HEAD and for the base tag on every run; nothing is
-committed.
+committed. Port entries (`port:<containerName>`, `port:<containerName>#<method>`) come from the
+`Container name:` population `check:port-shape` already derives (`backend/scripts/lib/port-population.ts`
+after the extraction); there is no `@api` tag.
+
+## Sanctioned contract break (committed ledger entry; D-293.7)
+
+`backend/scripts/ledgers/contract-surface-breaks.ts`, `SANCTIONED_CONTRACT_BREAKS: Readonly<Record<entryId,
+SanctionedContractBreak>>`, opening empty. Not a database row — a reviewed source file.
+
+| Field | Rule |
+| --- | --- |
+| key | a contract-surface entry id as the check prints it (`port:organizationWritePort#create`) |
+| `base` | `v<major>.<minor>.<patch>`, the release the break is measured against; equal to the run's base → live; older → spent; newer → malformed |
+| `finding` | exactly one of `contract-removed-without-deprecation`, `contract-changed-without-deprecation`, `frozen-contract-changed`, `additive-contract-narrowed` |
+| `ruling` | `^D-\d{3,}$`; existence not checked (withheld pre-migration records) |
+| `upgradeNote` | a `{#anchor}` id present in `docs/docs/upgrading-an-instance.md` and the Polish translation; each section names the entry's symbol and the D-number |
+| `why` | non-empty sentence |
+
+Lifecycle: written with the break → live and `ruled` until the release that carries it is tagged →
+spent → removed by the next release pull request (`spent-contract-break` refuses it there). A live
+entry that matches no finding is `stale-contract-break`.
 
 ## Deprecation marker grammar
 

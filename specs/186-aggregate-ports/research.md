@@ -82,8 +82,11 @@ Under `withSystemScope` it is `system`; under `withSystemScopeActingFor` it is t
 port takes `actorAdminUserId`: the current lifecycle ports that do (`block`, `unblock`, `softDelete`,
 `restore`, `setCustomerGroup`) are deprecated by this feature. The options carry `source?: string` — a
 code (`^[a-z][a-z0-9_.-]{0,63}$`), recorded as `source` in the Command's `stateAfter` (a code-shaped
-value, `audit-state.md` list 1), `null` when absent. The issues' "actor kind `automation`" is read as
-this pair **pending Q-1**.
+value, `audit-state.md` list 1), `null` when absent; a value outside the grammar is refused
+`VALIDATION_FAILED` before the Command runs, because a free value cannot be written into audit state.
+The issues' "actor kind `automation`" is this pair — **owner ruling D-293.6 (2026-11-23), as
+recommended**. Nothing on the Command Bus, the audit entity or the outbox changes: no migration, no
+new `CommandActor['kind']`.
 
 **Rationale.** Principle XIII forbids an actor taken from input; `CommandActor['kind']` is
 `'admin' | 'customer' | 'system' | 'api_key'` and is published (`@endora-commerce/platform`), read by
@@ -91,9 +94,20 @@ outbox rows (`actorKind`) and, after `specs/189-command-middleware/`, by middlew
 a widening every exhaustive `switch` in a consumer must handle — itself a surface change under OD-4.
 The source code answers what "automation" is meant to tell an operator: which integration acted.
 
-**Rejected.** *A new `automation` actor kind* — see Q-1; it remains available if the owner wants the
-audit screen to label it differently, as a platform change made in 189's surface rather than here.
-*A free-text reason* — values are not allowed in audit state of tenant-scoped records.
+**Rejected.** *A new `automation` actor kind* — ruled out by D-293.6 for the reason above. *An
+`actor_source` column on the audit entry* — a platform migration and a second home for a fact the
+Command's state already carries. *A free-text reason* — values are not allowed in audit state of
+tenant-scoped records. *Requiring `source` under a system actor* — would refuse every existing worker
+Command and is not what was ruled; a call without it records the system actor alone.
+
+**Consequences for the siblings** (dependencies, not edits made here):
+`specs/188-policy-points/` and `specs/191-membership-join-requests/` were written against an
+`automation` actor kind and must read it as `system` + `source` — `188`'s auto-approval passes
+`source: 'organizations.moderation'` to `approve`, `191`'s background moves a code of its own;
+`191`'s interim ("record `system` with the scope reason, switch when 186 lands") becomes the final
+design, minus the free-text reason. `specs/189-command-middleware/` needs nothing: `meta` carries
+`CommandActor`, whose kinds do not change; exposing `source` in `meta` would be an additive choice of
+189's.
 
 ## R-5 The shared options type
 
@@ -192,7 +206,7 @@ ports. Capability ports with semantics the aggregate port does not have stay. Fu
 `orderStatusAnnouncePort`, `orderQuoteSourcePort` and `customerAccountRoleCommandPort` (a child-Command
 factory for `organizations`' own Commands) answer different questions.
 
-## R-11 The published surface: kinds, tiers, directions
+## R-11 The contract surface: kinds, tiers, directions
 
 **Decision.** One classification, by **kind**; entries are derived per kind from the tree, never
 listed (D-100). Tiers: **frozen** (no change at all), **stable** (incompatible change only after one
@@ -200,7 +214,7 @@ deprecation release), **additive-only** (only compatible additions, in the kind'
 removal, deprecated or not — a removal is a new versioned name). Directions: **read** (a consumer reads
 it: HEAD must be assignable to base), **write** (a consumer writes it: base must be assignable to HEAD),
 **call** (a method: base parameters assignable to HEAD parameters, HEAD return assignable to base
-return). Full table: `contracts/published-surface.md`. Kinds owned by sibling specs (policy points,
+return). Full table: `contracts/contract-surface.md`. Kinds owned by sibling specs (policy points,
 command middleware, `extends`) are rows those specs fill when they land.
 
 **Rationale.** #1820 item 4 asks for a categorised list; deriving each kind from the marker that
@@ -210,49 +224,98 @@ means a new entry is covered by existing, with no list to update.
 **Rejected.** *A hand-maintained list of entries* — a derived fact written down. *A per-entry `@surface`
 tag* — YAGNI; nothing needs an entry tier different from its kind's.
 
-## R-12 `check:release-intent` grows the surface comparison
+## R-12 The existing `check:release-intent` is extended with the contract-surface comparison
 
-**Decision.** `check:release-intent` exists (`backend/scripts/check-release-intent.ts`, CI
-`quality.yml`), so #1820's premise that it does not is out of date; the surface comparison is added to
-it as a new finding family, with the analysis in `@endora-commerce/cli/rules/published-surface.js` (one
-analysis, two hosts — the `check:port-shape` layout). Mechanism:
+**Decision.** `check:release-intent` exists — `backend/package.json` `"check:release-intent": "tsx
+scripts/check-release-intent.ts"`, run by `quality.yml` (`quality`: default mode; `release-changeset`:
+`--since`) and `publish.yml` — so #1820's premise that it does not is out of date (D-293.8) and nothing
+is built beside it. Three things are added to it, all specified in
+`contracts/release-intent-contract-surface.md`:
 
-1. **Base**: the highest `v*` tag reachable from HEAD (`git describe --tags --abbrev=0 --match 'v*'`),
-   overridable with `--surface-base <ref>`. Unresolvable base, or an empty base population → exit 2.
-2. **Populations**: each kind's derivation run on HEAD and on the base tree (read with `git show`
-   / `git archive` into a temporary directory).
-3. **Compatibility**: a generated probe file imports base and HEAD declarations under two names and
-   asserts per entry, by direction, `[A] extends [B]`, using `Parameters<>` / `ReturnType<>` for
-   methods (method syntax is bivariant otherwise); the TypeScript compiler API (already a
-   devDependency) type-checks it and maps each diagnostic back to its entry. Both trees resolve
-   against HEAD's `node_modules`, so a dependency's own type change (MikroORM 7) is not a finding.
-4. **Deprecation**: parsed from base JSDoc — `@deprecated since <x.y.z>; use {@link …}` or
-   `@deprecated since <x.y.z>; no replacement: <reason>`.
-5. **Findings** (added to `ReleaseIntentFindingKind`): `surface-removed-without-deprecation`,
-   `surface-changed-without-deprecation`, `frozen-surface-changed`, `additive-surface-narrowed`,
-   `deprecation-unparseable`.
-6. **Read size**: `[release-intent] read: … surface=<head>/<base> sources=git-tag:<tag>` per
-   `check-estate.md`; estate verdict `repository-only` (the base is this repository's tag history).
+1. **The port contract surface** — #1820's "`@api` ports" is the population `check:port-shape`
+   already derives from the `Container name:` marker (no `@api` tag is introduced); the private
+   `modulePortsPopulation()` of `backend/scripts/check-port-shape.ts` moves to
+   `backend/scripts/lib/port-population.ts` so both checks, and both trees of the comparison, use one
+   derivation. Then the other 186-owned kinds of `contracts/contract-surface.md`.
+2. **The deprecation-release rule** — a stable entry may be removed or fail its direction only if the
+   base tag carried a parseable `@deprecated`; a marker new at HEAD must name a version above the base.
+3. **The D-293.7 ledger** — R-13.
 
-**Rationale.** The owner named the instrument; it already owns the release-time questions and a git
-input (`--since`). A compile probe judges compatibility as a consumer's compiler would, which a text
-diff cannot (a widened union, an added optional parameter).
+Where and how:
 
-**Rejected.** *API Extractor* — a new dependency, a `.d.ts` roll-up model that does not know the
-`Container name:` population. *A committed surface snapshot* — a generated artefact to keep fresh, which
-is the trap AGENTS.md lists. *Diffing npm tarballs* — network in CI. *A textual signature diff* — false
-positives on formatting, and blind to whether a change narrows or widens.
+- **Mode**: inside `--since`, which already reads git and runs in `release-changeset` — a job that
+  checks out with `fetch-depth: 0` and so already has the tags. The script's own header gives the rule
+  ("this mode needs a git diff, so it runs in `release:changeset` … rather than in `quality`"). The
+  default mode, `--print-publish-scope` and `--publish-registry` are unchanged; a new
+  `--contract-base <ref>` overrides the base, and alone runs only the comparison (local runs, T104,
+  T106).
+- **Base**: the highest `v*` tag reachable from HEAD (`git describe --tags --abbrev=0 --match
+  'v[0-9]*'`); unresolvable, an empty population on either side, or a probe that compiled nothing →
+  exit 2, inside the analysis.
+- **Compatibility**: a generated probe imports base and HEAD declarations under two names and asserts
+  per entry, by direction, `[A] extends [B]`, using `Parameters<>` / `ReturnType<>` for methods (method
+  syntax is bivariant otherwise); the TypeScript compiler API (already a dependency) type-checks it and
+  maps diagnostics back to entries. Both trees resolve against HEAD's `node_modules`, so a dependency's
+  own type change (MikroORM 7) is not a finding.
+- **Code home**: `backend/scripts/lib/contract-surface.ts` — a pure analysis — beside the script's
+  other `lib/` readers; findings join `ReleaseIntentFindingKind` with the `contract-` prefix.
+- **Name**: *contract surface*, because `PublishedSurface` in the same script is D-162's file set and
+  `backend/test/unit/kernel/published-surface.test.ts` is the platform-barrel test.
+- **Estate**: the entry is already `repository-only`; its reason gains one sentence. **Read size**: the
+  record runs the default mode, which the comparison does not enter, so nothing is re-recorded.
+- **Output**: `[release-intent] contract-base=<tag> entries=<head>/<base> … violations=<n>`, zeros
+  printed.
 
-## R-13 Sanctioned breaks (pending Q-2)
+**Rationale.** The owner named the instrument and it already owns the release-time questions and the
+one git input (`--since`) in CI; extending it keeps one gate, one exit-code grammar and one job, and
+needs no workflow change because the job already has the tags. A compile probe judges compatibility as
+a consumer's compiler would, which a text diff cannot (a widened union, an added optional parameter).
 
-**Decision, if Q-2 is answered yes.** `backend/scripts/ledgers/surface-breaks.ts`: entries
-`{ entry, ruling: 'D-nnn', upgradeNote: '<anchor>' }`, two-way (an entry the comparison no longer
-reports fails as stale), emptied by the release pull request that cuts the version. If Q-2 is answered
-no, the ledger is not built and OD-4 holds without exception.
+**Rejected.** *A new `check:contract-surface` script* — a second gate for a question the owner assigned
+to this one, and a second job that would need full history. *Running it in the default mode and giving
+`quality` `fetch-depth: 0`* (the first draft's T041) — the script's rule puts git-reading analyses in
+`--since`, and a full clone in the widest job costs every pull request for no extra coverage.
+*Hosting the analysis in `packages/cli/src/rules/`* (the first draft) — the check is `repository-only`,
+so a published package would carry code no instance runs. *API Extractor* — a new dependency and a
+`.d.ts` roll-up model that does not know the `Container name:` population. *A committed surface
+snapshot* — a generated artefact to keep fresh, the trap `AGENTS.md` lists. *Diffing npm tarballs* —
+network in CI. *A textual signature diff* — false positives on formatting, and blind to whether a
+change narrows or widens. *An `@api` JSDoc tag* — a second declaration of what `Container name:`
+already declares.
 
-**Rationale.** A security fix may not wait a release; a recorded ruling beats a disabled check.
+## R-13 Sanctioned breaks (owner ruling D-293.7, 2026-11-23)
 
-**Rejected.** *An environment variable that skips the comparison* — invisible in the diff.
+**Decision.** A deliberate break skips the deprecation release when it is ledgered.
+`backend/scripts/ledgers/contract-surface-breaks.ts` holds `SANCTIONED_CONTRACT_BREAKS`, keyed by
+contract-surface entry id, each entry `{ base, finding, ruling, upgradeNote, why }`
+(`data-model.md`; `contracts/release-intent-contract-surface.md` §5):
+
+- **Live** when `base` equals the run's base: the matching finding (same id **and** kind — one entry
+  licenses one kind of break) is printed as `ruled` with its D-number and does not fail.
+- **Announced**: the `upgradeNote` anchor resolves to a `{#…}` heading in both
+  `docs/docs/upgrading-an-instance.md` and its Polish translation, and each section names the entry's
+  symbol and the D-number; otherwise `contract-break-unannounced`.
+- **Two-way**: a live entry matching no finding is `stale-contract-break`.
+- **Spent** when `base` is older than the run's base: printed, and refused only on a branch the
+  existing D-212 classification calls `release` (`spent-contract-break`), so the next release pull
+  request removes it.
+- `contract-break-malformed` for a bad D-number, base or empty field. The D-number's existence is not
+  checked — rulings below the pre-migration floor are in withheld records.
+
+**Rationale.** A security fix may not wait a release; a recorded ruling with an announced upgrade path
+beats a disabled check. Binding an entry to its base release gives it a natural end, and charging the
+clean-up to the release pull request — the one branch whose author owns the release checklist — keeps
+the first pull request after a tag from going red for a change its author did not make, the
+derived-ledger trap `AGENTS.md` lists. Requiring the upgrade note to name the symbol and the ruling in
+both languages makes the note, not the ledger, the thing an upgrader reads.
+
+**Rejected.** *An environment variable, flag or pull-request label that skips the comparison* —
+invisible in the diff, and it would skip every finding, not one. *An entry with no base* — never
+expires, and a ledger nobody has to empty accumulates. *Failing spent entries on every branch* —
+reds whichever unrelated pull request lands first after the tag. *Emptying the ledger in the release
+pull request itself* — that pull request is still compared with the previous tag, so it still needs
+the entries. *Licensing every finding on an entry id* — a ruled removal would also license an
+unrelated narrowing of the same entry.
 
 ## R-14 One instrument for "every extensible host has its port"
 

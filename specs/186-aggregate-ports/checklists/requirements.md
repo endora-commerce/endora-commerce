@@ -15,8 +15,8 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — **two remain by design** (Q-1 actor kind, Q-2 sanctioned
-  breaks), each with a recommendation the plan builds against
+- [x] No [NEEDS CLARIFICATION] markers remain — Q-1 and Q-2 closed by the owner on 2026-11-23
+  (D-293.6, D-293.7)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -34,5 +34,6 @@
 
 ## Notes
 
-- Q-1 and Q-2 are owner questions; nothing in Phases 1–3 waits on them (R-4 builds `system` + `source`,
-  R-13's ledger is not built until Q-2 is answered).
+- 2026-11-23: Q-1 → D-293.6 (no actor kind; `system` + `source`), Q-2 → D-293.7 (sanctioned-break
+  ledger, FR-037, built in T040–T041). D-293.8 records that `check:release-intent` already exists and is
+  extended, not built.

@@ -22,7 +22,9 @@ shaped by the request.
    port call reaches it too.
 3. **The actor is ambient.** No `actorAdminUserId` parameter. A worker calls under
    `withSystemScope(reason)` (system actor) or `withSystemScopeActingFor(adminUserId, reason)`; a
-   detached caller opens one with `enterSystemScope`.
+   detached caller opens one with `enterSystemScope`. There is no `automation` actor kind (D-293.6):
+   a call with no administrator is the `system` actor, and the integration says who it is through
+   `options.source` (a code, recorded in the audit entry).
 4. **The last parameter is `options?: AggregateCommandOptions`** (`extensions`, `expectedVersion`,
    `source`) from `@endora-commerce/contracts`.
 5. **Refusals are your admin route's**, as the platform's `HttpError` with its `code`. A status change
@@ -40,8 +42,10 @@ shaped by the request.
 9. **A capability port beside it** is allowed only for semantics the aggregate port does not have — a
    bulk report, an announcement, a child-Command factory for your own Commands — and its JSDoc says
    which.
-10. **Changing a published method** follows `published-surface.md`: deprecate for one release
-    (`@deprecated since <version>; use {@link …} instead.`), then remove.
+10. **Changing a published method** follows `contract-surface.md`: deprecate for one release
+    (`@deprecated since <version>; use {@link …} instead.`), then remove. The one exception is a
+    ruled break (D-293.7): a `D-nnn`, an upgrade-note section, and an entry in
+    `backend/scripts/ledgers/contract-surface-breaks.ts`, all in the same merge request.
 
 ---
 

@@ -1,12 +1,15 @@
 # Implementation Plan: Aggregate ports — one write port per core aggregate
 
 **Branch**: `spec/186-aggregate-ports` | **Date**: 2026-11-23 | **Spec**: `specs/186-aggregate-ports/spec.md`
-**Input**: Feature specification from `specs/186-aggregate-ports/spec.md`; ruling D-293.
+**Input**: Feature specification from `specs/186-aggregate-ports/spec.md`; ruling D-293, including the
+owner's answers of 2026-11-23 (D-293.6 actor, D-293.7 sanctioned breaks) and the correction that
+`check:release-intent` already exists (D-293.8).
 
-**Agent context**: `.specify/scripts/bash/update-agent-context.sh` was deliberately **not** run — six
-specs (186–191) are being written in parallel and would collide on the `AGENTS.md` appendix. The
-feature adds no dependency, so the appendix would gain only a *Recent Changes* line; the orchestrator
-adds it once, when the specs merge.
+**Agent context**: `.specify/scripts/bash/update-agent-context.sh` was run on 2026-11-23, after the
+owner's answers and the merge of `origin/master` at 0.112.0; its output (a *Recent Changes* line and the
+*Last updated* date in `AGENTS.md`) is committed unedited. The feature adds no dependency, so *Active
+Technologies* is unchanged. The sibling specs 187–191 run the same script, so their appendix lines
+conflict trivially at merge; resolve by re-running the script on the merged tree rather than by hand.
 
 ## Summary
 
@@ -16,10 +19,13 @@ admin route runs — with the ambient actor, a shared options type (`extensions`
 `source`) and documented owner-off behaviour. Where the admin path is hand-audited or unaudited today
 (Organization moderation and restrictions, most CustomerAccount, Order and QuoteRequest writes), convert
 it to a Command first, keeping its audit action. Deprecate the superseded narrow ports in 0.113.0 with a
-machine-readable marker and remove them in 0.114.0. Write the port-per-aggregate rule and the published
-contract surface (kinds × tiers × directions) as conventions and published docs, and extend
-`check:release-intent` with a compile-probe comparison against the previous release tag, plus a
-`check:port-shape` signal holding every extensible host to its named port.
+machine-readable marker and remove them in 0.114.0. Write the port-per-aggregate rule and the contract
+surface (kinds × tiers × directions) as conventions and published docs, and **extend the existing**
+`check:release-intent` (`backend/scripts/check-release-intent.ts`) — in its `--since` mode, which the
+`release-changeset` job already runs with full history and tags — with the port contract surface, a
+compile-probe comparison against the previous release tag, the deprecation-release rule and the
+D-293.7 sanctioned-break ledger; plus a `check:port-shape` signal holding every extensible host to its
+named port. No actor kind is added: a write with no administrator is `system` plus a `source` code.
 
 ## Technical Context
 
@@ -29,7 +35,8 @@ devDependency of `backend` and `packages/cli` (`typescript ^5.9.3`).
 **Storage**: PostgreSQL — no schema change, no migration (`data-model.md`).
 **Testing**: Vitest — co-located module tests (`packages/modules/<id>/src/**/*.test.ts`), backend
 contract and integration suites (`backend/test/{contract,integration}/<module>/`), script unit tests
-(`backend/test/unit/release/`, `backend/test/unit/scripts/`).
+(`backend/test/unit/scripts/`, beside the existing `check-release-intent.test.ts`) and the real-branch
+release gate (`backend/test/release/changeset-gate.test.ts`, `test:release-gate`).
 **Target Platform**: the backend and its published packages (`@endora-commerce/contracts`, the eight
 owner module packages, `@endora-commerce/cli`).
 **Project Type**: monorepo — published contracts, module packages, CI checks, docs.
@@ -46,7 +53,7 @@ surface in 0.113.0; Organization first.
 | Principle | Verdict | How |
 | --- | --- | --- |
 | I Modular (NN) | PASS | Ports are contract types in `@endora-commerce/contracts`; owners implement and `providePort`; consumers `lazyPort` + manifest edge. The `customers` and `organizations` admin routes call `customerAccountCommandPort` rather than another module's services. |
-| II API-first | PASS | Shapes defined in contracts first (Phase A tasks before any implementation); no HTTP change; breaking changes of the published TypeScript surface are governed by OD-4 and the new comparison. |
+| II API-first | PASS | Shapes defined in contracts first (Phase A tasks before any implementation); no HTTP change; breaking changes of the TypeScript contract surface are governed by OD-4, enforced by the extended `check:release-intent`, with the one ruled exception (D-293.7) ledgered and announced. |
 | III TDD (NN) | PASS | Every story starts with a failing parity / worker / off-state test; each FR maps to a test in `tasks.md`. |
 | IV YAGNI & deps | PASS | No new dependency; no new framework — one options type, one marker grammar, one check family. Operations without a server-side caller are left out (R-9). |
 | V TypeScript | PASS | — |
@@ -57,7 +64,7 @@ surface in 0.113.0; Organization first.
 | X Queue consumers | PASS | No new worker; ports are callable from existing workers under `withSystemScope`. |
 | XI Tenancy (NN) | PASS | Ambient tenant context required (fail closed); workers widen only through `withSystemScope` / `enterSystemScope` (D-285); no no-organization path. |
 | XII Channel scoping (NN) | PASS | Product scoped values keep the catalog's channel accessors; Organization sales channels write through `sales_channels`' own seam. |
-| XIII Command Bus (NN) | PASS — central | One Command per operation, shared with the admin route; hand audits removed in the same change as each conversion (no double audit); actor server-derived; audit state names-only (`audit-state.md`), `source` a code. |
+| XIII Command Bus (NN) | PASS — central | One Command per operation, shared with the admin route; hand audits removed in the same change as each conversion (no double audit); actor server-derived, no new actor kind (D-293.6); audit state names-only (`audit-state.md`), `source` a grammar-checked code. |
 | XIV Extensibility | PASS | `setCustomFieldValues` keeps "host owns the write, caller validates through `CustomFieldValuePort`". |
 | XV Overlay | PASS | Ports are rung 3 for overlays; the surface list is the documented interface overlays compile against (`specs/190-overlay-full-modules/`). |
 | XVI Palette | N/A | No admin surface added. |
@@ -81,8 +88,8 @@ specs/186-aggregate-ports/
 ├── checklists/requirements.md
 └── contracts/
     ├── aggregate-port-convention.md      # → specs/conventions/module-composition.md item 2a
-    ├── published-surface.md              # → specs/conventions/published-surface.md + docs
-    ├── release-intent-surface.md         # the check:release-intent comparison
+    ├── contract-surface.md               # → specs/conventions/contract-surface.md + docs
+    ├── release-intent-contract-surface.md # what is added to the existing check:release-intent
     ├── organization-command-port.md      # US1
     ├── customer-account-command-port.md  # US3
     ├── order-command-port.md             # US4, US11
@@ -110,21 +117,25 @@ packages/modules/{organizations,customer_accounts,orders,quote_requests,catalog,
 └── docs/<module>.md                      # "Server-side writes" section
 packages/modules/customers/src/backend/   # admin customer routes call customerAccountCommandPort
 packages/modules/inventory/src/backend/   # threshold admin stops auditing the category write
-packages/cli/src/rules/published-surface.ts  # new analysis (one analysis, two hosts)
 packages/cli/src/rules/port-shape.ts      # aggregate-port signal
-packages/cli/src/check/estate.ts          # verdict for the comparison
-backend/scripts/check-release-intent.ts   # hosts the comparison; new finding kinds
-backend/scripts/check-port-shape.ts       # aggregate-port ledger (drains per story)
+packages/cli/src/check/estate.ts          # existing check:release-intent entry: one sentence in `reason`
+backend/scripts/check-release-intent.ts   # EXISTING check, extended: --contract-base, the comparison
+                                          #   inside --since, new ReleaseIntentFindingKind members
+backend/scripts/lib/contract-surface.ts   # new: the comparison's pure analysis
+backend/scripts/lib/port-population.ts    # new: modulePortsPopulation() moved out of check-port-shape.ts
+backend/scripts/ledgers/contract-surface-breaks.ts  # new: D-293.7 ledger, opens empty
+backend/scripts/check-port-shape.ts       # imports the population back; aggregate-port ledger
 backend/test/helpers/aggregate-port-parity.ts  # shared parity assertion
-backend/test/helpers/check-read-sizes.ts  # recorded read size for the comparison
 backend/test/{contract,integration}/<module>/*-command-port*.test.ts
-backend/test/unit/release/published-surface.test.ts
-specs/conventions/{module-composition,published-surface,release-intent,check-inventory,custom-field-writes}.md
-AGENTS.md                                 # one router row for published-surface.md
-docs/docs/architecture/{published-surface,customisation-ladder,kernel}.md (+ PL)
+backend/test/unit/scripts/check-release-intent.contract-surface.test.ts
+backend/test/release/changeset-gate.test.ts    # one real-branch case
+specs/conventions/{module-composition,contract-surface,release-intent,check-inventory,custom-field-writes}.md
+AGENTS.md                                 # one router row for contract-surface.md
+docs/docs/architecture/{contract-surface,customisation-ladder,kernel}.md (+ PL)
 docs/docs/upgrading-an-instance.md (+ PL)  # 0.113.0 deprecations, 0.114.0 removals
 .changeset/*.md
-.github/workflows/quality.yml              # full history for the comparison
+.github/workflows/quality.yml              # a comment only: release-changeset's fetch-depth: 0 now
+                                          #   also serves the comparison's tags
 ```
 
 **Structure decision**: no new module. Each aggregate's owner already owns the entity, the Commands and
@@ -146,7 +157,9 @@ owners differ, then US8–US10, then US11. US11 may slip to 0.114.0 or later wit
 
 **Siblings**: `specs/187-side-table-extensions/` adds read-port `include` host by host — independent of
 these write ports, touching the same contracts files (merge-order care only).
-`specs/189-command-middleware/` reads `CommandActor` in `meta` — Q-1's answer must reach it.
+`specs/189-command-middleware/` reads `CommandActor` in `meta` — unaffected by D-293.6, since no kind
+is added. `specs/188-policy-points/` and `specs/191-membership-join-requests/` were written against an
+`automation` actor kind and must switch to `system` + `source` (dependency recorded in research R-4).
 `specs/190-overlay-full-modules/` consumes the deprecation grammar.
 `specs/191-membership-join-requests/` deprecates the CustomerAccount membership methods in the same
 release.
@@ -167,10 +180,13 @@ release.
    upgrade notes; the paid modules' migration is a tracked follow-up in that repository after 0.113.0
    publishes.
 4. **Entity freeze** — implementation work queued behind #1866. Mitigation: types-first merges (step C).
-5. **Shallow CI clone** makes the comparison unable to find the base tag. Mitigation: exit 2 by design;
-   T-task gives the job full history.
+5. **Shallow CI clone** makes the comparison unable to find the base tag. Mitigation: it runs in the
+   `release-changeset` job, which already checks out with `fetch-depth: 0` (tags included); any run
+   that cannot resolve a tag is exit 2 by design.
 6. **Comparison false negatives**: overloads compare the last signature; dependency type changes are
    invisible by design. Stated in the rule header and the published doc.
+7. **A sanctioned break that is never cleaned up.** Mitigation: entries are bound to their base
+   release and refused as spent on the next release pull request (R-13, SC-007).
 
 ## Complexity Tracking
 
@@ -184,7 +200,7 @@ audit from after the commit into the Command (XIII) — strengthens it.
 
 ## Handoff summary (for `endora-commerce-dev`)
 
-- Read: this plan, `research.md` R-2/R-3/R-4/R-10/R-12, `data-model.md` § *Port disposition*, the
+- Read: this plan, `research.md` R-2/R-3/R-4/R-10/R-12/R-13, `data-model.md` § *Port disposition*, the
   contract of the story you take, `specs/conventions/module-composition.md`, `audit-state.md`,
   `module-activation.md`, `custom-field-writes.md`, `check-estate.md`, `release-intent.md`.
 - Order: Phase 1–2, US2, then US1 after #1866 (`approve` first), then the rest by priority.
@@ -192,5 +208,6 @@ audit from after the commit into the Command (XIII) — strengthens it.
   hand audit) → route uses it → port method → narrow port delegates + `@deprecated` → docs → changeset.
 - Do not: add a dependency, add a migration, add an actor parameter, resolve a port into a singleton,
   wrap a port call in a bare `catch`, deprecate and remove in the same release.
-- Open: Q-1 (actor kind), Q-2 (sanctioned breaks) — build R-4's `system` + `source` and leave R-13's
-  ledger unbuilt until answered.
+- Decided 2026-11-23: D-293.6 (no actor kind; `system` + `source`), D-293.7 (sanctioned-break ledger —
+  build it, T044), D-293.8 (`check:release-intent` exists: extend it per
+  `contracts/release-intent-contract-surface.md`, read the script's header first). No open question.

@@ -41,8 +41,8 @@ events). No code change.
 - [ ] T014 Add `aggregatePort` to each entry of `CUSTOM_FIELD_HOST_BINDINGS` in `packages/contracts/src/custom-fields.ts` (values per `data-model.md`)
 - [ ] T015 [P] Write `backend/test/helpers/aggregate-port-parity.ts`: `expectPortParity({ viaRoute, viaPort })` asserting the same audit action, object type, `stateBefore`/`stateAfter` shape (modulo actor and `source`), the same hooks fired and outbox rows written, and a caller-supplied side-effect probe; with its own test `backend/test/unit/helpers/aggregate-port-parity.test.ts`
 - [ ] T016 Write the port-per-aggregate rule into `specs/conventions/module-composition.md` as item 2a from `specs/186-aggregate-ports/contracts/aggregate-port-convention.md`, and the server-side-writes paragraph of `specs/conventions/custom-field-writes.md` naming the aggregate ports instead of the two narrow ones
-- [ ] T017 Create `specs/conventions/published-surface.md` from `specs/186-aggregate-ports/contracts/published-surface.md`, add its one router row to `AGENTS.md` § *Where the rest of it lives*, and run `pnpm --filter backend exec vitest run test/unit/docs/agents-router.test.ts`
-- [ ] T018 Add a paragraph on surface stability (OD-4, the deprecation grammar, the comparison) to `specs/conventions/release-intent.md`, pointing at `published-surface.md` rather than restating it
+- [ ] T017 Create `specs/conventions/contract-surface.md` from `specs/186-aggregate-ports/contracts/contract-surface.md` (sanctioned-break section included), add its one router row to `AGENTS.md` § *Where the rest of it lives*, and run `pnpm --filter backend exec vitest run test/unit/docs/agents-router.test.ts`
+- [ ] T018 Add a paragraph on surface stability (OD-4, the deprecation grammar, the comparison inside `check:release-intent --since`, the D-293.7 ledger) to `specs/conventions/release-intent.md`, pointing at `contract-surface.md` rather than restating it
 
 **Checkpoint**: shared types, conventions and parity helper in place.
 
@@ -63,7 +63,7 @@ events). No code change.
 - [ ] T021 [P] [US1] Failing co-located tests for the four moderation Commands (status guard, version conflict, audit inside the transaction, event on commit only, notice after commit) in `packages/modules/organizations/src/backend/commands/approve-organization.command.test.ts`, `reject-…`, `block-…`, `unblock-organization.command.test.ts`
 - [ ] T022 [P] [US1] Failing co-located tests for the restriction Commands (`organization.allow_lists_replace`, `organization.allow_list_patch`) and `organization.sales_channels.set` in `packages/modules/organizations/src/backend/commands/`
 - [ ] T023 [P] [US1] Failing parity contract test per method in `backend/test/contract/organizations/organization-command-port.test.ts`
-- [ ] T024 [P] [US1] Failing worker integration test (create under a parent, `setParent` of an existing branch, approve, block/unblock under `withSystemScope` with no administrator; hook veto rolls back; unclaimed extension refused; `source` recorded) in `backend/test/integration/organizations/organization-command-port.worker.test.ts`
+- [ ] T024 [P] [US1] Failing worker integration test (create under a parent, `setParent` of an existing branch, approve, block/unblock under `withSystemScope` with no administrator; hook veto rolls back; unclaimed extension refused; `source` recorded beside a `system` actor, a malformed `source` refused `VALIDATION_FAILED` with nothing written — D-293.6) in `backend/test/integration/organizations/organization-command-port.worker.test.ts`
 - [ ] T025 [P] [US1] Failing delegation tests (the deprecated ports write identical entries) in `backend/test/contract/organizations/organization-narrow-ports-delegate.test.ts`
 
 ### Implementation (after #1866)
@@ -74,37 +74,42 @@ events). No code change.
 - [ ] T029 [US1] Point every admin route of `contracts/organization-command-port.md` at the shared factories in `packages/modules/organizations/src/backend/routes.admin.ts` and `routes.sales-reps.ts`
 - [ ] T030 [US1] Implement the widened port in `packages/modules/organizations/src/backend/services/organization-command-port.ts` and register it in `packages/modules/organizations/src/backend/index.ts`
 - [ ] T031 [US1] Make `organizationWritePort` and `organizationCustomFieldWritePort` delegate in `packages/modules/organizations/src/backend/services/organization-write-port.ts` and `organization-custom-field-write-port.ts`
-- [ ] T032 [US1] Drain the `organization` entry of the aggregate-port ledger in `backend/scripts/check-port-shape.ts` (if US2's T040 landed first)
+- [ ] T032 [US1] Drain the `organization` entry of the aggregate-port ledger in `backend/scripts/check-port-shape.ts` (if US2's T042 landed first)
 - [ ] T033 [US1] "Server-side writes" section in `packages/modules/organizations/docs/organizations.md` per `specs/conventions/module-documentation.md`; changeset for `@endora-commerce/module-organizations`
 
 **Checkpoint**: Organization port complete; notify the owners of 188 and 191.
 
 ---
 
-## Phase 4: User Story 2 — Published surface, deprecation, and the check (Priority: P1)
+## Phase 4: User Story 2 — Contract surface, deprecation, and the check (Priority: P1)
 
-**Goal**: #1820 — the rule is written, the surface classified, and `check:release-intent` enforces OD-4.
+**Goal**: #1820 — the rule is written, the surface classified, and the **existing**
+`check:release-intent` (`backend/package.json` → `backend/scripts/check-release-intent.ts`) is extended
+to enforce OD-4 with the D-293.7 exception. Nothing is built beside it
+(`contracts/release-intent-contract-surface.md`).
 **Independent test**: fixture pairs make every finding red and its twin green; a missing base is exit 2.
+**Read first**: the header of `backend/scripts/check-release-intent.ts` (its modes, `ReleaseIntentFindingKind`,
+the exit-2 rules, the `--since` / `release-changeset` placement) and `backend/test/unit/scripts/check-release-intent.test.ts`.
 
 ### Tests first
 
-- [ ] T034 [P] [US2] Failing fixture tests, one red/green pair per finding kind of `contracts/release-intent-surface.md` (removal and change with and without a base deprecation, frozen change, additive narrowing in both directions, unparseable deprecation, method gaining an optional parameter = green, required parameter = red, return narrowed = green, widened = red) in `backend/test/unit/release/published-surface.test.ts`
-- [ ] T035 [P] [US2] Failing tests for exit 2 (unresolvable base, empty base population, shallow clone) in the same file
-- [ ] T036 [P] [US2] Failing port-shape tests for the aggregate-port signal (named port unpublished, unregistered by `ownerModuleId`, lacking `setCustomFieldValues`; stale ledger entry) in `backend/test/unit/scripts/check-port-shape.aggregate-port.test.ts`
+- [ ] T034 [P] [US2] Failing fixture tests over the pure analysis, one red/green pair per finding kind of `contracts/release-intent-contract-surface.md` §6 — port method removed with and without a base deprecation, container name changed (frozen), method gaining an optional parameter = green, a required one = red, return narrowed = green, widened = red, additive-only narrowing in both directions, unparseable deprecation, backdated deprecation (new marker naming the base version) — in `backend/test/unit/scripts/check-release-intent.contract-surface.test.ts`
+- [ ] T035 [P] [US2] Failing tests in the same file for exit 2 (no reachable `v*` tag / shallow clone, unresolvable `--contract-base`, `--contract-base` without a value, failed `git archive`, empty base or HEAD port population, probe compiling no assertion) — the git cases over a temporary repository with a real tag — and that a `contained` branch skips the comparison
+- [ ] T036 [P] [US2] Failing port-shape tests for the aggregate-port signal (named port unpublished, unregistered by `ownerModuleId`, lacking `setCustomFieldValues`; stale ledger entry) in `backend/test/unit/kernel/port-shape-check.test.ts`, the existing port-shape test file
+- [ ] T037 [P] [US2] Failing sanctioned-break tests (D-293.7) in the same file as T034: live entry licenses exactly its finding kind (and not another kind on the same id); `contract-break-unannounced` when the `{#anchor}` is missing in EN, missing in PL, or the section omits the symbol or the D-number; `stale-contract-break`; spent entry green on an `ordinary` shape and `spent-contract-break` on a `release` shape; `contract-break-malformed` for a bad D-number, a non-tag base, a base newer than the run's, an empty `why`
+- [ ] T038 [P] [US2] Failing real-branch case in `backend/test/release/changeset-gate.test.ts`: a branch removing an undeprecated port method reds `--since`; the same branch with a valid ledger entry and upgrade-note section is green
 
 ### Implementation
 
-- [ ] T037 [US2] Write the analysis in `packages/cli/src/rules/published-surface.ts`: the kind registry (rows of `contracts/published-surface.md` owned by 186), per-kind derivation, `git archive` materialisation of the base, the compile probe through the TypeScript compiler API, deprecation parsing; header states the overload and dependency-type limits
-- [ ] T038 [US2] Host it in `backend/scripts/check-release-intent.ts`: `--surface-base`, default base via `git describe`, the five finding kinds in `ReleaseIntentFindingKind`, exit 2 cases, the read-size line
-- [ ] T039 [US2] Record the read size in `backend/test/helpers/check-read-sizes.ts`, the estate verdict (`repository-only`, reason) in `packages/cli/src/check/estate.ts`, and the row in `specs/conventions/check-inventory.md`; run `backend/test/unit/scripts/check-inventory.test.ts` and `check-read-size.test.ts`
-- [ ] T040 [US2] Add the aggregate-port signal to `packages/cli/src/rules/port-shape.ts` and its two-way ledger (nine hosts, each entry naming the story that drains it) to `backend/scripts/check-port-shape.ts`
-- [ ] T041 [US2] Give the job running `check:release-intent` full history in `.github/workflows/quality.yml`, with a comment saying why; confirm `backend/test/unit/ci/gate-coverage.test.ts` passes
-- [ ] T042 [P] [US2] Published guide `docs/docs/architecture/published-surface.md` and its Polish translation under `docs/i18n/pl/docusaurus-plugin-content-docs/current/architecture/` (`docs/docs/contributing/documentation-i18n.md`)
-- [ ] T043 [P] [US2] Point rung 3 of `docs/docs/architecture/customisation-ladder.md` and the ports section of `docs/docs/architecture/kernel.md` at the rule and the guide; same in the Polish translations
-- [ ] T044 [US2] **Only if Q-2 is answered yes**: `backend/scripts/ledgers/surface-breaks.ts` (two-way, `D-nnn` required) with red proofs in `backend/test/unit/release/published-surface.test.ts`
-- [ ] T045 [US2] Changesets for `@endora-commerce/cli` and `@endora-commerce/contracts`
+- [ ] T039 [US2] Move `modulePortsPopulation()` out of `backend/scripts/check-port-shape.ts` into `backend/scripts/lib/port-population.ts` (exported, unchanged behaviour) and import it back; `check:port-shape` output and read size unchanged (run `pnpm --filter backend run check:port-shape` before and after)
+- [ ] T040 [US2] Write the pure analysis `backend/scripts/lib/contract-surface.ts`: the kind registry (rows of `contracts/contract-surface.md` owned by 186, ports first — `port:<containerName>` frozen, `port:<containerName>#<method>` stable — derived through `lib/port-population.ts`, no `@api` tag), the compile probe through the TypeScript compiler API, the deprecation grammar and the deprecation-release rule (§4), the sanctioned-break matching (§5); header states the overload and dependency-type limits. Create the ledger `backend/scripts/ledgers/contract-surface-breaks.ts` (`SanctionedContractBreak`, `SANCTIONED_CONTRACT_BREAKS = {}`), its header stating the two directions and the spent rule
+- [ ] T041 [US2] Extend `backend/scripts/check-release-intent.ts`: add the ten `contract-*` / `deprecation-*` members to `ReleaseIntentFindingKind`; run the comparison inside `reportPublishedSurface` (the `--since` mode) after the existing analysis and for every shape but `contained`; add `--contract-base <ref>` (override, and alone = comparison only) beside `--since` in `main()`; base via `git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD`; materialise the base with `git archive`; print the `contract-base=` line; extend the header's mode list and exit-2 list. The default mode, `--print-publish-scope` and `--publish-registry` stay byte-identical
+- [ ] T042 [US2] Add the aggregate-port signal to `packages/cli/src/rules/port-shape.ts` and its two-way ledger (nine hosts, each entry naming the story that drains it) to `backend/scripts/check-port-shape.ts`
+- [ ] T043 [US2] Estate and inventory: one sentence in the `reason` of the existing `check:release-intent` entry in `packages/cli/src/check/estate.ts` (compares against this repository's `v*` tags); extend the existing `check:release-intent` row of `specs/conventions/check-inventory.md` (family, ledger, exit-2 list); a comment at `release-changeset`'s `fetch-depth: 0` in `.github/workflows/quality.yml` naming the comparison's tags. No `check-read-sizes.ts` change (the record runs the default mode). Run `backend/test/unit/scripts/check-inventory.test.ts`, `check-read-size.test.ts` and `backend/test/unit/ci/gate-coverage.test.ts`
+- [ ] T044 [P] [US2] Published guide `docs/docs/architecture/contract-surface.md` (tiers, kinds, deprecation grammar, the sanctioned-break rule) and its Polish translation under `docs/i18n/pl/docusaurus-plugin-content-docs/current/architecture/` (`docs/docs/contributing/documentation-i18n.md`); point rung 3 of `docs/docs/architecture/customisation-ladder.md` and the ports section of `docs/docs/architecture/kernel.md` at the rule and the guide, same in the Polish translations
+- [ ] T045 [US2] Changesets for `@endora-commerce/cli` (port-shape signal, estate reason) and `@endora-commerce/contracts`
 
-**Checkpoint**: from here on, every story's deprecations are checked.
+**Checkpoint**: from here on, every story's deprecations are checked, and a ruled break has one sanctioned path.
 
 ---
 
@@ -215,25 +220,25 @@ events). No code change.
 
 - [ ] T102 [P] Upgrade note for 0.113.0 (every deprecation: old call → new call; the comparison) in `docs/docs/upgrading-an-instance.md` and its Polish translation
 - [ ] T103 [P] Open a tracking issue (labels per the repository's practice) for the paid modules' migration off the eight superseded ports, to be done after 0.113.0 publishes and before 0.114.0
-- [ ] T104 Run `pnpm --filter backend run check:release-intent` on the release branch against `v0.112.0`: expect zero findings (SC-003)
+- [ ] T104 Run `pnpm --filter backend exec tsx scripts/check-release-intent.ts --since origin/master --contract-base v0.112.0` on the release branch: expect zero contract findings, `ruled=0` (SC-003)
 - [ ] T105 Full verification: `pnpm -r run typecheck`, `pnpm -r run lint`, `pnpm --filter backend run test:unit:fast`, `pnpm --filter '!backend' run test`, `check:port-shape`, `check:port-dependencies`, `check:port-catches`, `check:command-coverage`, `check:custom-field-writes`, `check:module-boundary`, and a `workflow_dispatch` of `.github/workflows/backend-suite.yml` on the branch (D-198)
 
 ---
 
 ## Phase 15: User Story 12 — Removal (Priority: P3) — on the 0.114.0 branch only
 
-- [ ] T106 [US12] Failing check first: on a branch cut from the 0.113.0 tag, assert that removing one deprecated method reds `check:release-intent` against `v0.112.0`, and the same removal passes against `v0.113.0` (record the run in the MR)
+- [ ] T106 [US12] Failing check first: on a branch cut from the 0.113.0 tag, assert that removing one deprecated method reds `check-release-intent.ts --contract-base v0.112.0`, and the same removal passes with `--contract-base v0.113.0` (record both runs in the MR)
 - [ ] T107 [US12] Remove every port and method listed as deprecated in `data-model.md` § *Port disposition* (not the membership methods, which spec 191 schedules) from `packages/contracts/src/` and their delegating implementations from the owner modules
 - [ ] T108 [US12] Grep `backend/test/**` and `packages/**` for every removed name (AGENTS.md trap: deleting a file) and re-derive anything derived from them (port-dependency ledgers, read sizes)
-- [ ] T109 [US12] Upgrade note for 0.114.0 (EN + PL) and changesets (minor in `0.x`, D-225)
+- [ ] T109 [US12] Upgrade note for 0.114.0 (EN + PL) and changesets (minor in `0.x`, D-225); the 0.114.0 release pull request also removes every spent `SANCTIONED_CONTRACT_BREAKS` entry (SC-007)
 
 ---
 
 ## Dependencies and execution order
 
 - Phase 1 (inventory) → Phase 2 (foundation) → everything else.
-- US2 (Phase 4) is pure tooling: it may land before or in parallel with US1; its T040 ledger is drained
-  by each story's last task.
+- US2 (Phase 4) is pure tooling: it may land before or in parallel with US1; its T042 ledger is drained
+  by each story's last task. T039 (the population move) lands before T040 and T042.
 - All "Declare" tasks (T019, T046, T054, T063, T070, T076, T082, T087, T092, T097) may merge before
   #1866. Everything marked (after #1866) waits for it.
 - After #1866: **US1 first** (T026 before anything else in it). Then US3, US4, US5, US6, US7 may run in
@@ -258,14 +263,15 @@ ports undeprecated, which is safe.
 
 | FR | Tasks |
 | --- | --- |
-| FR-001, FR-010, FR-011, FR-014 | T012–T014, T036, T040, each story's declare/drain task |
+| FR-001, FR-010, FR-011, FR-014 | T012–T014, T036, T042, each story's declare/drain task |
 | FR-002, FR-003, FR-013 | T015, each story's parity test and conversion task |
 | FR-004, FR-005, FR-007 | T024, T049, T057, T066, T072, T079, T089, T094 |
 | FR-006, FR-008, FR-009, FR-012 | each story's declare task and parity test |
 | FR-015 | T054, T076, T078, T087, T092 |
 | FR-020 … FR-028 | Phases 3, 5–13 |
-| FR-030 | T016, T043 |
+| FR-030 | T016, T044 |
 | FR-031, FR-035 | T019 and each declare task, T106–T109 |
-| FR-032 | T017, T042 |
-| FR-033, FR-034 | T034, T035, T037–T039, T041 |
+| FR-032 | T017, T044 |
+| FR-033, FR-034 | T034, T035, T038–T041, T043 |
 | FR-036 | each story's changeset task, T045 |
+| FR-037 | T037, T038, T040, T041, T109 |

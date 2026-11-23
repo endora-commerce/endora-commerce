@@ -2,16 +2,18 @@
 
 **Feature Branch**: `spec/186-aggregate-ports`
 **Created**: 2026-11-23
-**Status**: Draft — ruling **D-293** recorded below; two owner questions open (Q-1, Q-2 in
-*Open questions*). `plan.md`, `research.md`, `data-model.md`, `contracts/` and `tasks.md` written.
+**Status**: Draft — ruling **D-293** recorded below, including the owner's answers of 2026-11-23 to
+Q-1 and Q-2 (D-293.6, D-293.7); no open question. `plan.md`, `research.md`, `data-model.md`,
+`contracts/` and `tasks.md` written.
 **Input**: Owner decisions OD-2, OD-3 and OD-4 of 2026-11-23, issues #1819 (umbrella), #1820,
 #1821–#1829.
 
 **Related, written in parallel (cite by slug)**: `specs/187-side-table-extensions/` (D-294 — extension
 attributes on aggregate *read* ports land host by host beside these write ports),
 `specs/188-policy-points/` (D-295 — `organizations.moderation` approves through this feature's
-`approve`), `specs/189-command-middleware/` (D-296 — the `meta` / `outcome` shapes this feature lists
-as published surface), `specs/190-overlay-full-modules/` (D-297 — overlays compiled against the
+`approve`, recorded with the `system` actor and a `source` code per D-293.6),
+`specs/189-command-middleware/` (D-296 — the `meta` / `outcome` shapes this feature lists as contract
+surface), `specs/190-overlay-full-modules/` (D-297 — overlays compiled against the
 surface this feature classifies, and shown its deprecations), `specs/191-membership-join-requests/`
 (D-298 — `membershipPort`, which takes the two CustomerAccount membership moves this feature leaves
 out). Earlier: `specs/176-command-hooks-outbox/` (hookable actions, `extensions`, outbox),
@@ -44,6 +46,19 @@ decision list of the same day and are cited, not re-decided.
    the switch; service implementations land after #1866 merges.
 5. **Context.** Overlay modules become full modules with an instance build and a *deployment* trust
    tier (#1858, `specs/190-overlay-full-modules/`); the surface list is what they compile against.
+6. **Actor of a write with no administrator (owner, 2026-11-23; was Q-1) — as recommended.** No new
+   actor kind. A port call with no administrator runs as the existing `system` actor
+   (`withSystemScope`), and the calling integration names itself with a **source code** in the call's
+   options, recorded in the audit entry (FR-004, FR-007). The issues' "actor kind `automation`" means
+   this pair; `CommandActor['kind']` stays `'admin' | 'customer' | 'system' | 'api_key'`.
+7. **Sanctioned breaks (owner, 2026-11-23; was Q-2) — as recommended.** A deliberate breaking change
+   (a security fix, a forced dependency change) may skip the deprecation release of item 3 when it is
+   recorded in the release-intent ledger with a D-number ruling and an upgrade note (FR-037).
+8. **The instrument exists (correction, 2026-11-23).** `check:release-intent`
+   (`backend/package.json` → `backend/scripts/check-release-intent.ts`) is on `master`; #1820's "it does
+   not exist" was written against an older tree. Item 3's enforcement **extends the existing check**
+   — the port contract surface, the deprecation-release rule and item 7's ledger are added to it — and
+   builds no new one.
 
 ## Context
 
@@ -107,10 +122,12 @@ or narrows a stable entry without that deprecation release gets a red check.
 **Why this priority**: OD-4 is the promise that makes the aggregate ports safe to depend on; without
 the instrument, the 0.114.0 removal is as unannounced as any other edit.
 
-**Independent Test**: on a fixture pair of trees (a base release and a head), the check reports each
-finding kind — removal without deprecation, incompatible change without deprecation, change to a
-frozen entry, narrowing of an additive-only entry, an unparseable deprecation — and passes the same
-removal when the base release carried the deprecation.
+**Independent Test**: on a fixture pair of trees (a base release and a head), the existing
+release-intent check, extended, reports each finding kind — removal without deprecation, incompatible
+change without deprecation, change to a frozen entry, narrowing of an additive-only entry, an
+unparseable or backdated deprecation, and each way a sanctioned-break entry can be wrong — and passes
+the same removal when the base release carried the deprecation or a valid sanctioned-break entry
+covers it.
 
 **Acceptance Scenarios**:
 
@@ -126,6 +143,16 @@ removal when the base release carried the deprecation.
    with "nothing was read", never green.
 5. **Given** a new extensible host is added to the custom-field host list, **When** its owner
    publishes no aggregate port, **Then** the port-shape check fails naming the host.
+6. **Given** a stable port method present in the previous release without a deprecation, **When** a
+   branch removes it for a security fix and records the break in the ledger with a D-number and an
+   upgrade-note section that names the method and the ruling in English and Polish, **Then** the
+   release-intent check passes and prints the break as ruled, with its D-number.
+7. **Given** the same ledger entry, **When** the upgrade-note section is missing in either language
+   or does not name the method, **Then** the check fails naming the entry; **When** the branch no
+   longer removes the method, **Then** the check fails on the stale entry.
+8. **Given** a ledger entry for a break that shipped in the previous release, **When** an ordinary
+   branch runs the check, **Then** it passes and reports the entry as spent; **When** the next release
+   pull request runs it, **Then** it fails until the entry is removed.
 
 ---
 
@@ -336,7 +363,11 @@ the deprecation.
 - **Deprecated and replacement used together**: in 0.113.0 a deprecated method and its replacement
   produce identical audit entries and hooks, because one delegates to the other.
 - **Removal in the same release as the deprecation**: refused, because the base release did not carry
-  the deprecation.
+  the deprecation — unless it is a sanctioned break (FR-037).
+- **System call with no source**: allowed; the audit entry records the system actor with no source.
+  An integration that wants to be told apart passes its code (FR-007).
+- **Sanctioned break left over after its release**: harmless on ordinary branches, refused on the next
+  release pull request, which removes it — never charged to an unrelated author.
 - **Dependency type changes** (MikroORM 7): not reported as a surface break by the comparison, which
   compiles both trees against one dependency set; they are announced by changesets and the upgrade
   note, as #1861 plans.
@@ -358,14 +389,17 @@ the deprecation.
   path records today, so audit history reads continuously.
 - **FR-004**: The actor of every port operation MUST be the ambient one — an administrator inside an
   admin request, the administrator a worker acts for, or the system in a system scope — and MUST
-  never be a parameter.
+  never be a parameter. The feature MUST NOT add an actor kind: a write with no administrator is the
+  `system` actor (D-293.6).
 - **FR-005**: Every port operation MUST be callable from a worker under a system scope with no
   administrator present, and MUST refuse with no tenant context at all.
 - **FR-006**: Every port operation MUST accept extension input for the command hooks on its action and
   MUST accept the version the caller read, refusing a stale one, where the admin route offers that
   concurrency rule.
 - **FR-007**: Every port operation MUST accept an optional caller source code (for example the
-  integration's module id), recorded as a code in the audit entry.
+  integration's module id), recorded as a code in the audit entry beside the actor — the D-293.6
+  replacement for an `automation` actor kind; a malformed code MUST be refused with the standard
+  validation refusal before anything is written.
 - **FR-008**: Refusals MUST be the same typed refusals the admin route answers, except status changes
   of Orders and Opportunities, which MUST answer refusals as outcomes (the payment-callback precedent).
 - **FR-009**: A port MUST check no permission; its contract MUST say that the caller is the gate and
@@ -418,19 +452,20 @@ the deprecation.
   relate, unrelate, link, unlink, add reminder, add comment, delete, delete in context. The task write
   port delegates and is deprecated.
 
-**Stability — deprecation, the published surface, and its check (#1820)**
+**Stability — deprecation, the contract surface, and its check (#1820)**
 
 - **FR-030**: The port-per-aggregate rule MUST be written in the composition convention and pointed
   at from the customisation ladder (rung 3) and the kernel guide.
 - **FR-031**: A deprecated surface entry MUST carry `@deprecated` naming the release that deprecated
   it and its replacement, or the words "no replacement" and a reason.
-- **FR-032**: The published contract surface MUST be listed in one convention document and one
+- **FR-032**: The contract surface MUST be listed in one convention document and one
   published guide (English and Polish), by kind, each kind classified frozen, stable or additive-only
   with its compatibility direction, and each kind's entries derived from the tree rather than listed.
-- **FR-033**: The release-intent check MUST compare the surface at HEAD with the previous release tag
-  and fail when a stable entry is removed or changed incompatibly without having been deprecated in
-  that release, when a frozen entry changes, or when an additive-only entry narrows; it MUST fail on
-  an unparseable deprecation.
+- **FR-033**: The existing release-intent check MUST be extended — no second check built — to compare
+  the contract surface at HEAD with the previous release tag, starting with the published ports, and
+  fail when a stable entry is removed or changed incompatibly without having been deprecated in that
+  release, when a frozen entry changes, or when an additive-only entry narrows; it MUST fail on an
+  unparseable deprecation and on a new deprecation that names a release that did not carry it.
 - **FR-034**: The check MUST exit with "nothing was read" when the base release cannot be resolved or
   its surface population is empty, and MUST print what it read.
 - **FR-035**: The superseded narrow ports and methods MUST be deprecated in 0.113.0 and MUST NOT be
@@ -438,6 +473,12 @@ the deprecation.
   naming each old call and its replacement.
 - **FR-036**: Each published change MUST carry a changeset written for the consumer (old call, new
   call).
+- **FR-037**: A break of a surface entry without a deprecation release MUST pass the check only when a
+  ledger entry names it, the release it breaks against, the one kind of break it licenses, a D-number
+  ruling and an upgrade-note section that exists in English and Polish and names the entry and the
+  ruling (D-293.7). An entry that matches no break, or whose note is missing, MUST fail; an entry left
+  from a shipped release MUST fail on the next release pull request only. No flag, variable or label
+  MAY skip the comparison.
 
 ### Key Entities
 
@@ -445,11 +486,13 @@ the deprecation.
   Commands.
 - **Narrow port (superseded)**: an earlier request-shaped write port, kept for one release, delegating
   to the aggregate port.
-- **Published surface entry**: a thing an overlay or package may depend on, of a kind (port, container
+- **Contract surface entry**: a thing an overlay or package may depend on, of a kind (port, container
   name, hookable action, hook data, manifest extension field, policy shape, middleware shape,
   extensible host table), with a stability tier and a compatibility direction.
 - **Deprecation**: a marker on a surface entry naming the release that deprecated it and its
   replacement.
+- **Sanctioned break**: a ledger entry licensing one break of one surface entry against one release,
+  citing the owner's ruling and the upgrade-note section that announces it.
 
 ## Success Criteria *(mandatory)*
 
@@ -463,7 +506,10 @@ the deprecation.
 - **SC-003**: An instance built against 0.112.0 compiles and runs unchanged against 0.113.0 as far as
   this feature is concerned: zero removed or narrowed surface entries in 0.113.0.
 - **SC-004**: Each finding kind of the surface comparison is demonstrated red on a fixture and green on
-  its corrected twin; the check never reports green without having read the base release.
+  its corrected twin, the sanctioned-break findings included; the check never reports green without
+  having read the base release.
+- **SC-007**: Zero sanctioned-break ledger entries survive past the release pull request after the
+  release they were written against.
 - **SC-005**: After the feature, the nine owner modules publish no write port other than their
   aggregate port and the capability ports the contracts list with a reason.
 - **SC-006**: A deployment can implement the "investor on a project" case of #1828 with no core change
@@ -471,14 +517,12 @@ the deprecation.
 
 ## Open questions
 
-- **Q-1** [NEEDS CLARIFICATION: the issues' "actor kind `automation` when no administrator is
-  present" — does the owner want a new actor kind on the Command Bus, or the existing `system` kind
-  with the caller's source code recorded beside it?] Recommendation: **the existing `system` kind
-  plus the source code (FR-007)** — research R-4.
-- **Q-2** [NEEDS CLARIFICATION: OD-4 admits no exception. May the owner sanction a deliberate break
-  without a deprecation release (a security fix, a forced dependency change), recorded as a ledger
-  entry citing a D-number and an upgrade-note anchor?] Recommendation: **yes, ledgered, two-way,
-  emptied by each release** — research R-13.
+None. Both questions of the first draft are closed by the owner's answers of 2026-11-23:
+
+- **Q-1 — closed → D-293.6.** "Actor kind `automation`" is the existing `system` actor plus the
+  caller's source code (FR-004, FR-007; research R-4).
+- **Q-2 — closed → D-293.7.** A deliberate break may skip the deprecation release when ledgered with a
+  D-number and an upgrade note (FR-037; research R-13).
 
 ## Assumptions
 

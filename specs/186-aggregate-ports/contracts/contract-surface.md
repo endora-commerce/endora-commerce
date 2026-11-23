@@ -1,10 +1,16 @@
-# Contract: the published contract surface
+# Contract: the contract surface
 
 What an overlay module, an installed package or an integration may depend on, and how each kind may
 change (D-293, OD-4; #1820 item 4). T017 writes the operational form to
-`specs/conventions/published-surface.md` (routed from `AGENTS.md`) and the third-party form to
-`docs/docs/architecture/published-surface.md` with its Polish translation under
+`specs/conventions/contract-surface.md` (routed from `AGENTS.md`) and the third-party form to
+`docs/docs/architecture/contract-surface.md` with its Polish translation under
 `docs/i18n/pl/docusaurus-plugin-content-docs/current/architecture/`.
+
+**Why "contract surface" and not "published surface".** `check:release-intent` already uses
+*published surface* (`PublishedSurface`, D-162) for the set of **files** a package compiles into its
+`dist`, and `backend/test/unit/kernel/published-surface.test.ts` holds the platform barrels. This
+document's subject is the **types and identifiers** a consumer compiles against; a second meaning
+under the same name in the same check would be read as the first.
 
 ## Tiers
 
@@ -43,9 +49,9 @@ change (D-293, OD-4; #1820 item 4). T017 writes the operational form to
 | Middleware `meta` | `commandMiddleware` admit `meta` type | additive-only | read | `specs/189-command-middleware/` |
 | Middleware `outcome` | `commandMiddleware` observe `outcome` type | additive-only | read | `specs/189-command-middleware/` |
 
-A sibling spec adds its rows to the rule's kind registry
-(`packages/cli/src/rules/published-surface.ts`) in the merge request that ships the kind; until then
-the row is documented and not yet compared.
+A sibling spec adds its rows to the comparison's kind registry
+(`backend/scripts/lib/contract-surface.ts`, `contracts/release-intent-contract-surface.md`) in the merge
+request that ships the kind; until then the row is documented and not yet compared.
 
 **Not in the list, deliberately**: domain event payloads (`*.v1`) — already governed by their own
 rule, "adding a field is reviewed, removing one is a new `.vN`"; HTTP API shapes — versioned by
@@ -62,3 +68,21 @@ Principle II and the OpenAPI document; `@endora-commerce/platform`'s barrels —
 On a stable entry only. On an additive-only or frozen entry the marker informs readers but licenses
 nothing. The instance overlay build (`specs/190-overlay-full-modules/`, #1848) reports every use of a
 deprecated entry as a warning, which is what makes a deprecation visible one release ahead.
+
+## Sanctioned breaks (D-293.7)
+
+The one exception to the deprecation release. A break of a **stable**, **frozen** or **additive-only**
+entry that cannot wait a release — a security fix, a forced dependency change — ships without a
+deprecation release when, in the same merge request:
+
+1. the owner has ruled it, with a `D-nnn` number;
+2. the upgrade note for the release that carries it (`docs/docs/upgrading-an-instance.md` and its
+   Polish translation) has a section with an explicit `{#anchor}` naming the entry's symbol, the
+   D-number and what an instance must do;
+3. `backend/scripts/ledgers/contract-surface-breaks.ts` holds an entry for it — entry id, the base
+   release it breaks against, the one finding kind it licenses, the D-number, the anchor and why.
+
+The check holds all three together (`contracts/release-intent-contract-surface.md` §5): an entry with
+no announced upgrade note fails, an entry matching no break fails, and an entry left over from a
+shipped release is removed by the next release pull request. There is no other escape — no flag, no
+variable, no label.

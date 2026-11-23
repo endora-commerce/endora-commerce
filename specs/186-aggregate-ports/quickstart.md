@@ -26,8 +26,9 @@ await enterSystemScope('erp-import: branch placement', async () => {
 ```
 
 The audit trail shows two entries, `organization.set_parent` (or `organization.move`) and
-`organization.approved`, with a system actor and `source: 'erp_example'` — the same actions the admin
-records. Command hooks on those actions run as they do for the admin.
+`organization.approved` — the same actions the admin records — with the `system` actor and
+`source: 'erp_example'`. There is no separate "automation" actor: the source code is what tells
+integrations apart (D-293.6). Command hooks on those actions run as they do for the admin.
 
 ## 3. Handle refusals by code
 
@@ -45,13 +46,15 @@ try {
 
 A deprecated method reads `@deprecated since 0.113.0; use {@link …} instead.` Your editor strikes it
 through, and the instance overlay build lists it (`specs/190-overlay-full-modules/`). It is removed no
-earlier than the next release.
+earlier than the next release — except a break the owner rules urgent (D-293.7), which the upgrade note
+of that release announces under its own heading, naming the call and the ruling.
 
 ## 5. Verify locally (repository maintainers)
 
 ```bash
 pnpm run build:packages
 pnpm --filter backend run check:port-shape
-pnpm --filter backend run check:release-intent            # includes the surface comparison
+pnpm --filter backend exec tsx scripts/check-release-intent.ts --contract-base v0.112.0   # the contract comparison alone
+pnpm --filter backend run check:release-intent -- --since origin/master                 # as CI runs it, comparison included
 pnpm --filter backend exec vitest run test/contract/organizations/organization-command-port.test.ts
 ```
