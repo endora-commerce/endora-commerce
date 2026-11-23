@@ -1,5 +1,300 @@
 # @endora-commerce/admin-shell
 
+## 0.112.0
+
+### Minor Changes
+
+- 98c0411: The Admin UI sidebar's _System_ section, which had 18 entries, is now two sections (issue #1519, UX audit SHELL-11, owner decision DEC-02):
+
+  - **Access**: Users, Roles, API keys, Credentials, Audit log.
+  - **Platform**: Modules, Settings, Custom fields, Import/export, Bulk operations, Webhooks, Global search, PWA, Command hooks, API description.
+
+  Host rows are now sorted by weight together with the contributed rows. Before, they always came first, so the API description sat above Settings.
+
+  An administrator's own two-step verification is no longer in the sidebar. It is the **Security** tab of **My profile** (`/profile/security`), opened from the avatar or from the palette's _Account security_ action, which now targets that tab. `/security` redirects there, so old bookmarks still work. With `mfa` off, the profile has no tab strip and `/profile/security` opens the profile.
+
+  **For module authors.** `AdminNavSectionNameSchema` gains `'access'` and `'platform'`, and `AdminZoneNameSchema` gains `'profile.security'`, the body of the Profile's Security tab, with empty props. `'system'` is deprecated but still accepted: the shell puts such an entry under _Platform_, so a module that ships separately keeps its row. It will be removed in a major release.
+
+  **Upgrade notes.**
+
+  - An administrator who had collapsed _System_ sees both _Access_ and _Platform_ collapsed. The preference is rewritten the next time they toggle a group.
+  - A pin of `/security` in the sidebar's Pinned section no longer shows, because that destination is no longer a sidebar entry. The stored pin is kept but not displayed.
+
+- 3f7b5ae: The browser's Back and Forward buttons now ask before they leave a screen with unsaved changes (issue #1605). `AdminRoot` mounts a data router (`createBrowserRouter` with `RouterProvider`, transitions still off) instead of a component `<BrowserRouter>`; the whole app is one splat route, so the shell's `<Routes>`, links and relative paths behave as before. `useUnsavedChangesGuard` asks Save / Discard / Stay and `useUnsavedChangesPrompt` asks with the browser's confirm, both through React Router's blocker. Only a history step to another path is asked about; a step that changes only the query is left to the screen. A project that composes its own tree under a component router keeps the previous behaviour: Back and Forward are not intercepted there.
+- bfab5bd: **Breaking:** `GET /api/v1/admin/quote-requests` now answers one page instead of every quote request. The server applies `assignmentScope`, `organizationId`, `status`, `q` (a fragment of the business id, the organization name or the customer's name, or a whole id), `sort` (`updatedAt:desc` by default, `updatedAt:asc`, `total:desc`, `total:asc`) and the page (`page`, default 1; `pageSize`, default 25, at most 200). The `pagination` block is now true for the response: it adds `page`, `pageSize` and `total`, and `limit` and `hasMore` describe the page returned (`nextCursor` stays `null`; ask for the next `page`). An invalid `pageSize`, `page`, `sort`, `assignmentScope` or `organizationId` is refused with 400.
+
+  To migrate, a client that read the whole list from one call must page through it with `page` and `pageSize`, or read `pagination.total` when it only needs the count. The contracts publish the query and the envelope as `adminQuoteRequestListQuerySchema` and `adminQuoteRequestListResponseSchema`.
+
+  `SalesRepAssignmentPort` gains `listOrganizationIdsWithAssignments()`; an implementation of the port outside this repository must add it. The admin Quote Requests list now asks the server for each page, filter and sort, and offers a lowest-total sort. The home page's pending-quotes tile and the project link picker read the paged list.
+
+### Patch Changes
+
+- 7ec2630: The home page's new-orders tile now shows how many orders have the `new` status. It asks the admin orders list for one row (`pageSize=1`) and reads `pagination.total`. Before, it counted the rows on the page it got back, so it never showed more than 25.
+- 84b89ed: The admin no longer shows raw translation keys or a "page not found" message while it starts (issues #1431 and #1485). After sign-in, `App` shows a loading skeleton shaped like the shell until the operator's translation bundle and the module-presence list have loaded. The skeleton is announced as a status in the operator's language. It also opens when either request fails, so it never stays on screen for good.
+
+  `TranslationProvider`'s context, read through `useTranslationContext()`, has a new `ready` field. It is `false` until the provider's first bundle request settles, and `true` from the start when `initialBundle` is passed. After a language change it stays `true`, and the previous bundle stays on screen until the new one arrives.
+
+  `App` takes an optional `translations` prop, beside `modulePresence`. It hands a bundle the caller already has to the provider, so the shell opens on its first render. A test that renders `<App/>` and checks the shell right away should pass it. `translations={{}}` keeps the old output, where every key renders as `scope.key`.
+
+- e78d27d: Adds source comments only. Each comment marks a place where the new raw-enum lint rule is waived on purpose. Nothing these packages emit changes.
+- fd27113: Content and system admin screens drop the page descriptions that repeated their title or spoke the implementation (issue #1436, UX audit 2026-11-17, DS-02). No description any more on: the CMS page, block and template editors, Brand, the blog post editor (once saved) and category editor (non-system), the Forms list, New form and Entries, the megamenu editor, the Comparisons list and detail, Settings, Settings groups, Cache, Modules, Command hooks, API description, Users, Roles, API keys, Webhooks, Taxes, Audit log, Credentials, the global-search configuration and results. The Brand cards for colour schemes, spacing and preview drop their intro line, and the Home stock-alert card its subtitle.
+
+  Moved behind a ⓘ beside the title (`help`): the Modules screen's note on installation versus activation, the document-template default rule, and the Meta Ads note that standard events are always reported.
+
+  Shortened to one line: the document templates, Meta Ads and LinkedIn Ads descriptions, the blog addresses description, the new post and new category notes, the CMS page editor's field notes (page fields, language version, breadcrumb parent and overlay, parent path, share image), the Brand scope and type-scale notes, the forms share-answer note, the megamenu click-navigates note, the Cache screen's two action notes, the API reference note, the reset-password note and the global-search settings note.
+
+  Translation keys removed from both `en` and `pl`: `core` `platform.modules.description`, `platform.modules.cliHint` (now `platform.modules.help`), `platform.commandHooks.description`, `platform.apiDescription.description`, `home.stockAlerts.subtitle`, `adminUsers.page.descriptionPrefix`, `adminUsers.rolesLink`, `adminRoles.page.descriptionPrefix`, `adminRoles.usersLink`, `apiKeys.page.description`, `webhooks.page.description`, `taxes.page.description`, `auditLog.page.description`; cms `pageEditor.description`, `blockEditor.description`, `templateEditor.description`, `brand.description`, `brand.schemes.hint`, `brand.spacing.hint`, `brand.preview.hint`, `brand.layout.tierHint`; blog `postEditor.description.edit`, `categoryEditor.description.default`; forms `list.description`, `create.description`, `entries.description`; megamenu `editor.description`; comparisons `list.page.description`, `detail.page.description`; settings `page.description`, `groups.page.description`, `cache.page.description`; credentials `page.subtitle`; admin_search `page.configuration.description`, `page.results.description`. New keys: `core` `platform.modules.help`, document_templates `page.help`, meta_ads `customEvents.help`. A deployment that overrides a removed key can drop the override.
+
+- b2b41eb: Page headers are shorter and every page has a heading (issue #1436). Home, Profile, the products list, product create and edit, the inventory and warehouse screens and Pricing settings now draw their title as a real page heading. Page descriptions that repeated the title or described the implementation are removed (categories, bulk operations, new price book, SEO, assets library, dictionary, products list, inventory, warehouses, home, profile); the rest are one short line, in English and Polish. Longer explanations — warehouses, Pricing settings, import/export and category taxonomy revisions — moved behind an ⓘ beside the title.
+- 4fdc335: More admin screens follow the DS-03 rule that a frame inside a card is a defect unless it is a field (issue #1437, UX audit 2026-11-17).
+
+  - **My profile** is one form card with three sections (identity, author profile, password) under the one Save, and the language preference, which is saved on its own, is the one card beside it. The language Save's result is a status line beside its button, with an icon, in place of a red or green box inside the card. The language select is named by its heading. The screen is on the kit's primitives.
+  - **Organization detail, price display mode** (`price_lists`, `organization.detail.after`): the panel has a heading (_Pricing_) and renders as an `EditorSection`, so it follows the mount — one titled card at page level, a section inside a host card. It was a card without a heading.
+  - **Return detail** (`returns`): comments and the accepted clauses are rows divided by a rule, not a bordered box each.
+  - **Settings** (`settings`): a group's settings are rows divided by a rule inside the group card, not a bordered box each; a changed row keeps its tint and its _Unsaved_ badge.
+  - **Form entry notes** (`forms`): notes are rows divided by a rule, not a bordered box each.
+
+- 28181ed: One card implementation with density tokens (issue #1438, UX audit DS-04; SHELL-18 #1502). This
+  changes how every admin card looks, including the cards third-party modules render.
+
+  - `theme.css` declares `--card-pad` (16px), `--card-pad-sm` (12px), `--card-gap` (16px),
+    `--section-gap` (24px), `--fs-page-title` (20px), `--fs-section-title` (14px) and `--fs-hint`
+    (12px). A client can redeclare them after the import like any other token.
+  - `Card`, `CardHeader`, `CardContent` and `CardFooter` pad with `--card-pad` (16px) instead of
+    `p-6` (24px). `CardContent` drops its top padding only when it follows a `CardHeader`, so a
+    card without a header no longer needs `className="pt-6"`. Every part carries a `data-slot`.
+  - `CardTitle` renders an `h2` by default and takes `as` (`h2`–`h6`, or `div` to stay out of the
+    heading outline); its size is `--fs-section-title` (14px, was 16px). A `CardTitle` that wrapped
+    its own `<h2>` now nests a heading in a heading: pass the `id` to `CardTitle` and drop the inner
+    element. A test that found a card title with `getByText` still does; one that counted headings
+    now counts the card titles too.
+  - `<Card flush>` removes the content padding and clips the corners, for a table that runs to the
+    card's edge. New types: `CardProps`, `CardTitleProps`, `CardTitleElement`.
+  - `.b2b-card`, `.b2b-card--clickable` and `.b2b-card__head` / `__title` / `__sub` / `__body` /
+    `__body--flush` / `__foot` are **deprecated** but still published; they read the same tokens.
+    The only visible change there is the header's vertical padding, 14px to 12px. Use `Card`.
+
+  Every module's card call sites drop the `pt-6` workaround and the redundant `text-base` on
+  `CardTitle`, and the 14 titles that wrapped their own `<h2>` carry the `id` themselves.
+
+- 84ed7b6: Empty lists now tell "nothing here yet" apart from "your filters match nothing" (issue #1448). The products, inventory, warehouses, back-in-stock and pricing-override lists used to show one sentence for both. Now a list that its filters emptied offers _Clear filters_, and a list with no records offers its create action, if the operator may use it. The sales channels, credentials, online customers, invoice ledger deliveries, dictionary audit and command hooks screens show the kit's empty state instead of a plain grey sentence.
+
+  - **`EmptyState`'s documentation** says where the block belongs. Use it for the page's or the tab's primary region. Keep a one-line sentence for pickers, inline sub-lists and side widgets.
+  - **Header create buttons.** While a list is empty, its header no longer repeats the create button that the empty state carries: products, warehouses, inventory import, sales channels and credentials.
+  - **Removed keys.** `catalog` drops `productsList.empty.prefix`, `.button`, `.suffix` and `.readOnly`. The empty catalog now uses `productsList.empty.noData.*`.
+  - **Peer dependencies.** `mod-sales-channels`, `mod-credentials` and `mod-invoice-ledger` gain an optional peer dependency on `lucide-react` `^1`, which their admin screens now import.
+
+- 36344ed: Content screens no longer nest a button inside a link, and their labels now name their fields (issue #1465).
+
+  - **Newsletter**: _Export CSV_, _New campaign_, _New automation_ and the campaign's _Stats_ are each one link styled as a button (`<Button asChild>`), not a button inside a link. Before, each took two tab stops.
+  - **CMS page, block and template editors** and the **megamenu editor**: Name, Slug, Code, Status and Description are wired through `FormField`. The page's public address describes its slug field.
+  - **Megamenu item editor**: the URL, link target, variant, asset type, embed side and root category fields are tied to their labels. The per-language labels form a group, and each input is named by the group and its language.
+  - **PWA**: the colour captions no longer appear as labels for nothing, and the push audience choice is a radio group named "Audience".
+  - **Search boxes** on the CMS pages list, the blog post and tag lists and the transactional e-mails list are search fields with a translated name (EN + PL). Before, only a placeholder named them. The e-mails list placeholder now comes from the bundle.
+  - **Prompt actions panel**: the instruction input has a name ("Instruction" / "Polecenie"). The busy line now sits in a status region that is mounted before it has text, so screen readers announce it.
+
+  A structural admin test now rejects a button nested in a link, or a link nested in a button, anywhere in the admin sources.
+
+- bb21b86: The admin sidebar's search entry is now a button styled as a search field (issue #1480). It opens the command palette when it is clicked or activated with Enter or Space, no longer when keyboard focus merely lands on it, and it carries an accessible name and `aria-keyshortcuts="Meta+K Control+K"`. Every collapsible sidebar group header, the Pinned section's included, now exposes `aria-expanded` and names the item region it folds through `aria-controls`; group headers and the search entry get a visible focus ring. The top bar's Help button, which had no action, is removed. The design system's `.b2b-topbar__hide-mobile` class, which only that button rendered, is removed with it.
+- 79a17a3: The sign-in screen no longer shows English the kit hard-coded (issue #1481). When a password or code step fails without a backend message — the network dropped, the answer was not an error envelope — `AuthProvider` now leaves `lastLoginError` as `null` and sets `lastLoginReason` to `'sign_in_failed'` or `'verification_failed'`; the exported `LoginErrorReason` type gains those two members. A custom sign-in screen should word those two reasons itself, as `@endora-commerce/admin-shell`'s `LoginPage` does: before, it received `'Sign-in failed.'` or `'Verification failed.'` in `lastLoginError`. A `switch` over `LoginErrorReason` that was exhaustive needs the two new cases.
+
+  The two-step verification step of `LoginPage` takes its words from the shell's pre-auth copy like the rest of the sign-in screen, and its code field is described by the error it caused.
+
+- 998ac87: Banners that appear as the result of an action keep being announced now that the kit's `Alert` no longer interrupts for every variant (issue #1484). A refused or partly rejected action (activating a price book, a stale price-book save, a taxonomy revision, quick-order lines, quote-request lines unavailable on the channel) is announced at once, and so is the shell's notice to an administrator without a role. An import, undo, PDF or save result, a template-preview verdict, a brand contrast warning, a changed refund method, the organization-attribution scope notice and the information notices after an action are announced politely. Static banners present when a page loads, such as the modules screen's degraded-mode warning or a quote request's lapsed validity, are shown but no longer announced as an interruption.
+- a4455db: The Home dashboard, the command palette's prompt mode and the admin kit's shared components now use one visual system: the kit's `ui/*` primitives and Tailwind utilities instead of the legacy `b2b-*` classes and inline styles (issue #1492, UX audit CAT-17).
+
+  - Home (issue #1556): the quick actions are a short list of links instead of four full-width buttons. The stock-alert thumbnails use the sunken-surface colour token instead of a fixed grey gradient, so they follow the dark theme. The KPI tiles, the recent-activity feed and the stock alerts are kit `Card`s with `h2` titles, and the activity feed's loading state is announced.
+  - Prompt mode: the clarification text box is the kit `Input` and now has a name.
+  - Admin kit: `PaginationFooter`, the product browser and its trigger, `SaveSessionActions` and `RecordTabs` draw kit `Button`, `Select` and `Card` parts. The product browser's search box is the list toolbar's search. Its side-drawer frame stays until the kit has a drawer.
+  - The theme still defines the classes these screens stopped using: `b2b-btn--default`, `b2b-field--addon`, `b2b-input-wrap`, `b2b-card--clickable`, `b2b-card__head`, `b2b-card__sub`, `b2b-card__title`, `b2b-card__foot`, `b2b-card__body--flush`, `b2b-filterbar`, `b2b-filterbar__search`, `b2b-kpi-grid`, `b2b-home-dashboard-grid` and `b2b-thumb`. A theme override that targets one of them no longer reaches these screens.
+
+- 9f4eae3: The Modules screen (`/platform/modules`) is easier to scan (UX audit SHELL-12, issue #1520). It has a search box that matches the module's name, id or description and ignores case and diacritics. Filter chips (On · Off · Not offered · Locked) show how many modules each one holds, and the modules are grouped under the sidebar section their screens are in. Modules without a screen are listed last, under "Other modules".
+
+  Switching a module on or off is now a switch in the _Your business_ column. Before, every module that was off showed a filled "Switch on" button. Turning a module off still asks for confirmation. A module that cannot be switched off shows a locked switch with its reason as the tooltip and the description, instead of printing the reason twice. The Recent Activity choice is a switch in a new _Dashboard_ column, which is shown only to an admin who may change it. A module's description, dependencies and lock reason are behind a disclosure on its row. What either switch does is unchanged.
+
+  `ListPage` takes an optional `help`, passed to `PageHeader`'s ⓘ.
+
+  Removed `core` keys: `platform.modules.column.actions`, `platform.modules.action.enable` and `platform.modules.recentActivity.{shown,hidden,hint}`. An overlay that overrides them should override the new `platform.modules.*` keys instead.
+
+- 37fdbeb: Settings takes one sidebar row instead of three (issue #1550, UX audit SHELL-10). _Settings_, _Groups_ and _Cache and search index_ are tabs under the one _Settings_ entry in _System_; the cache tab is shown only to administrators holding `settings:write`, as its route requires. All three stay reachable from the command palette, and _Clear cache_ is now also found by "reindex", "search index" and "translations".
+
+  - **Cache and search index** (`/settings/cache`) is one card with three rows — _Clear cache_, _Rebuild search index_, _Reload translations_ — each a label, a one-line effect and its button. The namespace list stays under _Clear cache_. No button is filled. The result or error of an action appears beside its button (an `InlineStatus`) rather than as a banner at the top of the page; a failed clear keeps the selection. The page title is _Cache and search index_.
+  - **Sidebar active state**: a sidebar row now stays highlighted on the screens beneath it unless a more specific row is the one open — `/settings` is highlighted on `/settings/groups` and `/settings/cache`, and not on `/settings/pwa`. A parent row is also highlighted on a detail route that has no row of its own (for example `/inventory/<id>`).
+  - A pinned _Setting groups_ or _Clear cache_ sidebar row disappears, because those rows no longer exist; pin _Settings_ instead.
+  - The unused `quoteRequestsTab.expiry.help` string is shortened to one line; the full expiry rules remain in the Quote requests documentation.
+
+- 389caa3: The **My profile** screen no longer has its own **Language** card (issue #1553, UX audit SHELL-17). The card had a second filled Save that competed with the form's, and it repeated the language menu in the top bar, which already saves the choice at once. The UI language is now changed only from the top bar; one muted line in the profile's **Identity** section says so. The Admin UI languages documentation page describes the top-bar menu instead of the removed card.
+
+  `core` bundle keys removed: `profilePage.language.action.save`, `profilePage.language.failed`, `profilePage.language.saved`, `profilePage.section.language` and `profilePage.section.language.help`. A deployment that overrides them can drop the overrides. `profilePage.language.option.en` and `profilePage.language.option.pl` stay: the top-bar menu uses them. New key: `profile.languageHelp`, in English and Polish.
+
+- 053a022: The execution plan on `/platform/command-hooks` explains each phase once, in a legend above the actions, instead of repeating both hints in every action (issue #1554). The actions are now sections of one card, with the owning module as each section's one-line description.
+
+  The English and Polish text of `platform.commandHooks.plan.afterCommit.hint` is shorter. A deployment that overrides that key keeps its own text.
+
+- cf7c013: The _Command hooks_ outbox tab is now the admin's standard list page (issue #1749). It pages with the same _Previous_ / _Next_ footer and rows-per-page choice as every cursor-paged list, which replaces _Load more_. A status change goes back to the first page. Retrying the last row of a page asks for that page again rather than showing an empty one, and focus moves to the results. Retry stays a visible button in each row, and a failed load still offers _Try again_. `listCommandOutbox` now sends an optional `limit`. Removed bundle keys: `platform.commandHooks.outbox.loadMore`, `.loadingMore`, `.end`, `.loading` and `.column.actions`.
+- 0686447: Always pass the admin UI language to `formatDate(value, language)` and `formatDateTime(iso, language)` (`@endora-commerce/admin-kit/lib`), taking it from `useTranslationContext()` or `useAppLanguage()` (`@endora-commerce/admin-kit/i18n`). **Upgrade note:** calling either without a language is now `@deprecated`. It still falls back to the browser's locale, but that fallback will be removed in a later release, so `formatDateTime(order.placedAt)` should become `formatDateTime(order.placedAt, language)` now. The kit's field-protection summary reads the language without requiring `AppLanguageContext`, so an integration zone rendered without it keeps working.
+
+  Every admin date now goes through them, so a screen no longer mixes `17.11.2026`, `11/25/2026` and `Nov 22, 2026`: the lists, detail pages and panels of every module that called `formatDateTime` without a language, and the screens that called `toLocaleDateString` / `toLocaleString` directly (the CRM board card, the Projects stage bar and templates list, the Organization sales reps tab — which wrote every date in Polish — the blog post editor, comparisons, the dictionaries audit, display-mode overrides, the feed schedule's next run, the online-customers refresh time, the product list's update date, and the kit's comment thread, record history, field-protection summary and order reference). `endora new module` scaffolds its list's date the same way.
+
+- 691414b: **The admin top bar's notification bell and language picker are kit menus, and every top-bar control is a 44 px target on touch screens (issues #1783, #1784).**
+
+  - **`@endora-commerce/admin-kit`:** `./ui` now exports `DropdownMenuRadioGroup` and `DropdownMenuRadioItem`, a pick-one-of-N menu entry (`menuitemradio` with `aria-checked` and a check mark), and `DropdownMenuLabel`. On a coarse pointer, one rule in `theme.css` makes every control in `.b2b-topbar__actions`, and the mobile menu button, at least 44 × 44 px. The profile avatar keeps its 28 px circle and grows its target with padding. A mouse keeps the 34 px controls. The `.b2b-main .b2b-topbar__icon-btn` rule is removed: it matched nothing, because the top bar is not inside `.b2b-main`.
+  - **`@endora-commerce/admin-shell`:** the bell and the language picker were hand-made `role="menu"` panels. They now use the kit `DropdownMenu`. Focus moves into the menu when it opens. The arrow keys, Home and End move between entries. Typing jumps to a notification by its title or to a language by its name. Escape closes the menu and gives focus back to the button. The bell's menu is named by its heading. _Mark all read_ is now the last entry, after a separator, so opening the bell with Enter lands on the newest notification; it keeps the menu open. While a language is being saved, the picker's button is `aria-disabled` rather than `disabled`, so keyboard focus stays on it instead of falling to the page. It still cannot be opened until the save ends. The save error from #1769 behaves as before.
+
+- 9eee781: The Admin UI in Polish no longer shows four kinds of text in English (issue #1809).
+
+  - **Order statuses** are named in the admin's language on the Orders list, the order detail, the bulk status dialog and the Order statuses screen. The names were always stored per language; the screens read the English one.
+  - **CMS hooks**: the 23 seeded hooks, such as "Search Page Bottom", are named and described in the admin's language until an operator renames them. A renamed or custom hook keeps the operator's text.
+  - **Transactional e-mails**: each e-mail's name, description and the reason it cannot be switched off come from the sending module's bundle (`transactionalEmails.<code>.name`, `.description`, `.reason`), in the language the response is read in.
+  - **Platform → Modules**: each module's name, description and the reason it cannot be switched off come from the module's own bundle (`module.name`, `module.description`, `module.nonDeactivatableReason`). `GET /api/v1/admin/modules` gains an optional `nonDeactivatableReason` field on each row. `auth`, `currencies`, `email` and `languages` now ship translation bundles.
+
+  Each of these falls back to the English declared in code when a bundle has no entry. `endora new module` now writes `module.description` into the scaffolded bundles.
+
+- 79d15cf: The Admin UI has one, light theme (issue #1810). `@endora-commerce/admin-kit/theme.css` no longer declares the `.dark { --background: … }` token block: nothing applied it, and applied by hand it was incomplete, with a light page under dark cards and unreadable outline buttons. An instance that set `.dark` on an element by itself now gets the light tokens; to restyle the admin, redeclare the `:root` tokens instead.
+
+  The `dark:` utilities are gone too: `Badge`'s `success` and `warning` variants, the `ScopedField` "unsaved" badge, the shell's not-found notice, and the amber and emerald notices and icons in the admin screens of admin users, catalog bulk operations, the page-builder translate action and header actions, CRM propagation outcomes, custom-field carry drift, document-template item tables, tax-ID scope, product feeds and settings. Without a `dark` variant definition, Tailwind 4 compiles `dark:` to `@media (prefers-color-scheme: dark)`, so on an operating system set to dark these elements turned dark on a light page. They now render the same on every system.
+
+- fbc6c7c: The command palette (⌘K / CTRL+K) now tells a screen reader which result is highlighted (issue #481). The search input is a `combobox` that controls a `listbox`, every result is an `option` with a stable id, and the input's `aria-activedescendant` follows the highlight as the arrow keys move. Group headings label `role="group"` containers, and a record type that could not be searched is a disabled option. Keyboard behaviour is unchanged: focus stays in the input, `Enter` opens the highlighted result and `Alt+Enter` pins or unpins it.
+
+  A pinnable result now says "Pinned" or "Not pinned" in its accessible name and carries `aria-keyshortcuts="Alt+Enter"`. The pin icon beside it is no longer a `<button>`: a result's children are presentational, so the icon is a pointer shortcut hidden from assistive technology, marked `data-palette-pin` and `data-pinned`. The theme's `.b2b-palette__pin[aria-pressed="true"]` selector is now `.b2b-palette__pin[data-pinned="true"]`; a deployment stylesheet that targets the old selector must follow.
+
+  New `core` bundle keys: `appShell.palette.pin.statePinned`, `appShell.palette.pin.stateUnpinned`, `appShell.palette.results` and `appShell.palette.title` (the palette dialog's name), in English and Polish.
+
+- ed28329: Show an accessible, localized EN/PL error beside the top-bar language picker when saving the preferred language fails: the previous language is restored and another attempt is possible. Escape, an outside click or reopening the menu dismisses the error. A failed session refresh after a successful save keeps the new language (#1769).
+- 1d7c160: Command palette: the "a prompt you confirmed earlier has finished" notice is now the first option of the results listbox, reachable with the arrow keys and opened with Enter, and its arrival is announced; the highlighted row is scrolled into view as the arrow keys move (#1404).
+- 8922585: The admin shell draws its frame, top bar, notification bell, language picker, sign-in screen and boot skeleton with the kit's primitives and Tailwind tokens instead of inline styles (UX audit, issue #1492):
+
+  - The notification bell and the language menu use the theme's surface, border and accent tokens, so they follow dark mode and a client's palette. The unread pill and the unread-row bar were fixed red and blue; they are now the destructive and primary colours.
+  - The bell's name includes the unread count ("Notifications, 3 unread"), and an unread entry says so to a screen reader instead of relying on its colour bar and weight. _Mark all read_ is a kit ghost button, and entries highlight on hover and keyboard focus.
+  - An entry's age is written in the reader's language ("5 min temu" in Polish) instead of always in English.
+  - Breadcrumb links in the top bar take the theme's hover colour and underline, which the inline style suppressed. The wordmark in the sidebar is drawn in the theme's white.
+  - Command-palette notes ("Searching…", an unavailable record group) no longer show a pointer cursor.
+
+- Updated dependencies [65f9a7b]
+- Updated dependencies [3fdbe86]
+- Updated dependencies [bfc68c7]
+- Updated dependencies [9eaa409]
+- Updated dependencies [d908737]
+- Updated dependencies [3872f3d]
+- Updated dependencies [bbfcd80]
+- Updated dependencies [41b598c]
+- Updated dependencies [f5b8275]
+- Updated dependencies [467b075]
+- Updated dependencies [a56109e]
+- Updated dependencies [84b89ed]
+- Updated dependencies [b2cd2d3]
+- Updated dependencies [e5b17ae]
+- Updated dependencies [e78d27d]
+- Updated dependencies [596ce81]
+- Updated dependencies [b2b41eb]
+- Updated dependencies [932821f]
+- Updated dependencies [28181ed]
+- Updated dependencies [c15eb60]
+- Updated dependencies [33db45a]
+- Updated dependencies [cec9beb]
+- Updated dependencies [d4bda8d]
+- Updated dependencies [8e7684c]
+- Updated dependencies [87fb9c3]
+- Updated dependencies [998ac87]
+- Updated dependencies [d0a6c2c]
+- Updated dependencies [35e0829]
+- Updated dependencies [3f66b6f]
+- Updated dependencies [61bdc2a]
+- Updated dependencies [649d662]
+- Updated dependencies [38adf84]
+- Updated dependencies [7329865]
+- Updated dependencies [84ed7b6]
+- Updated dependencies [1064839]
+- Updated dependencies [d2d9d79]
+- Updated dependencies [f687479]
+- Updated dependencies [074f500]
+- Updated dependencies [7624db6]
+- Updated dependencies [cec9beb]
+- Updated dependencies [7be07f6]
+- Updated dependencies [2614e4f]
+- Updated dependencies [90320fd]
+- Updated dependencies [bb21b86]
+- Updated dependencies [79a17a3]
+- Updated dependencies [3dab0be]
+- Updated dependencies [e22b612]
+- Updated dependencies [cb75825]
+- Updated dependencies [a4455db]
+- Updated dependencies [f3b2ec8]
+- Updated dependencies [f093a02]
+- Updated dependencies [d5a077f]
+- Updated dependencies [86b9b39]
+- Updated dependencies [42febee]
+- Updated dependencies [447e829]
+- Updated dependencies [2040ae9]
+- Updated dependencies [fc7f669]
+- Updated dependencies [40b76aa]
+- Updated dependencies [eeed5c8]
+- Updated dependencies [63a657b]
+- Updated dependencies [0ecb287]
+- Updated dependencies [9a27b93]
+- Updated dependencies [2f0b69f]
+- Updated dependencies [87b9b60]
+- Updated dependencies [50d451b]
+- Updated dependencies [98c0411]
+- Updated dependencies [9f4eae3]
+- Updated dependencies [a8261aa]
+- Updated dependencies [f64646d]
+- Updated dependencies [306a659]
+- Updated dependencies [7ea72af]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [bfbcac2]
+- Updated dependencies [ee6062c]
+- Updated dependencies [820f089]
+- Updated dependencies [f33ffed]
+- Updated dependencies [4e668b5]
+- Updated dependencies [843ed42]
+- Updated dependencies [0d4c134]
+- Updated dependencies [3f7b5ae]
+- Updated dependencies [b98739c]
+- Updated dependencies [6155f4b]
+- Updated dependencies [bdcc9a4]
+- Updated dependencies [5850aac]
+- Updated dependencies [c042024]
+- Updated dependencies [8a5725e]
+- Updated dependencies [f915a24]
+- Updated dependencies [8688a1f]
+- Updated dependencies [95e5082]
+- Updated dependencies [31c0430]
+- Updated dependencies [0686447]
+- Updated dependencies [691414b]
+- Updated dependencies [8a06dc5]
+- Updated dependencies [e118ee4]
+- Updated dependencies [5fb3cd3]
+- Updated dependencies [9eee781]
+- Updated dependencies [bd47236]
+- Updated dependencies [bd47236]
+- Updated dependencies [79d15cf]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [398e6d2]
+- Updated dependencies [51c5072]
+- Updated dependencies [0e81803]
+- Updated dependencies [2e287a5]
+- Updated dependencies [fbc6c7c]
+- Updated dependencies [9d6f006]
+- Updated dependencies [49328cf]
+- Updated dependencies [b3d4843]
+- Updated dependencies [27b977d]
+- Updated dependencies [5e2a12a]
+- Updated dependencies [5518a09]
+- Updated dependencies [5e380e3]
+- Updated dependencies [bfab5bd]
+- Updated dependencies [8a0ec92]
+- Updated dependencies [81fcc3f]
+- Updated dependencies [12c63fa]
+- Updated dependencies [72637e0]
+  - @endora-commerce/contracts@0.112.0
+  - @endora-commerce/admin-kit@0.112.0
+
 ## 0.111.0
 
 ### Minor Changes

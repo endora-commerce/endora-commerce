@@ -1,5 +1,100 @@
 # @endora-commerce/page-builder-core
 
+## 0.112.0
+
+### Minor Changes
+
+- ed3feda: The rich-text editors' toolbars and dialogs now speak the operator's language (issue #1680). Every word of `RichContentEditorField`'s toolbar and of its link, heading anchor and image dialogs, the empty read-only view, the "Loading editor…" placeholder of the rich-text and inline rich-text fields, and `InlineRichTextEditor`'s bold, italic, link and emphasis buttons is read through `useFieldText`, the mechanism `richText.fullscreen` uses since #1652. The English is unchanged. The `Read more` summary the toolbar seeds into a new read-more passage is page content and stays a fixed default.
+
+  `PAGE_BUILDER_FIELD_TEXT` gains 76 keys under `richText.*`, `emphasis.*`, `richLink.*`, `richAnchor.*` and `richImage.*`; the `core` bundle carries each in English and Polish as `pageBuilder.fieldText.<key>`.
+
+  `components/RichContentEditorField` exports `LINK_DISPLAY_VARIANTS`, the link button styles (`primary-solid` … `light-solid`). Two exports of that subpath are deprecated and hold the English names only:
+
+  - `EMPHASIS_LABELS` — use `useFieldText()` with the key `` `emphasis.${variant}` `` instead.
+  - `LINK_DISPLAY_OPTIONS` — build the options from `LINK_DISPLAY_VARIANTS`, labelling each with `useFieldText()` and `` `richLink.display.${variant}` ``, and the plain link with `richLink.display.link`.
+
+- 99042ee: Content that the Page Builder seeds into a document now follows the content locale being edited, not always English (issue #1684). The defaults are "Czytaj więcej" on a Polish page, and "Read more" on an English page or in a language with no defaults. This covers:
+  - the summary that the rich-text toolbar's **Read more passage** inserts, in the CMS editors and in the e-mail builder;
+  - the read-more label of a newly dropped `blog.LatestPosts` block.
+
+  `@endora-commerce/page-builder-core` exports:
+  - `PAGE_BUILDER_CONTENT_DEFAULTS`, the per-language table, with one entry per shipped language;
+  - `contentDefaultFor(locale, key)`;
+  - `withContentDefaultProps(config, locale, map)`, which seeds a block's default props in a locale (type `ContentDefaultPropsMap`);
+  - `PageBuilderContentLocaleProvider` (`locale` is the BCP-47 content language a host edits) and `useContentDefault()`.
+
+  Outside a provider, and without a locale, the defaults are English, as before.
+
+  `@endora-commerce/cms-components` exports `CMS_CONTENT_DEFAULT_PROPS` and `LATEST_POSTS_CONTENT_DEFAULT_PROPS`. A stored `blog.LatestPosts` block with no `readMoreLabel` now reads the default of the language it renders in (`useBlockRenderEnvironment().language`).
+
+  The CMS `PageBuilderEditor` mounts the provider and seeds its config with its `activeLanguage`. `EmailEditorPane` mounts the provider with its `previewLanguage`.
+
+- 52d0617: The six section presets in the Page Builder's block drawer now insert their placeholder copy in the content language being edited, not in the operator's admin language (issue #1684). A Polish page gets Polish copy in an English admin. A content language with no copy of its own gets the English. The drawer still names the presets in the admin language.
+
+  `@endora-commerce/page-builder-core` exports:
+  - `contentDefaultsIn(table, locale)`, which returns the row of a per-language table (`Record<SupportedLanguage, Row>`) for a BCP-47 locale, and the English row for a language with no row. `contentDefaultFor` now goes through it.
+  - `useContentLocale()`, which returns the locale the nearest `PageBuilderContentLocaleProvider` names, or `null` outside one.
+
+  `@endora-commerce/cms-components`:
+  - **Breaking:** `SectionPreset.build` in `editor/section-presets` now takes the resolved copy (`SectionPresetCopy`) instead of a translator. `PresetTranslate` is removed. Before: `preset.build((key) => t(key))`. After: `preset.build(contentDefaultsIn(SECTION_PRESET_COPY, useContentLocale()))`.
+  - The new `editor/section-preset-copy` subpath exports `SECTION_PRESET_COPY` (one row per shipped language) and the `SectionPresetCopy` type.
+
+  `@endora-commerce/mod-cms`: the `cms` bundle's `presets.*` keys now hold only the drawer's chrome (names, descriptions, status). The 29 placeholder-copy keys are removed from `en` and `pl`.
+
+### Patch Changes
+
+- c878440: `enhancePageBuilderComponent` now handles a component whose `resolveFields` returns a Promise, which Puck allows (issue #1027). Before, it spread the Promise itself, so the editor showed the Name field alone and dropped every field the component resolved. Synchronous `resolveFields` behaves as before.
+- 7b8006e: The rich-text editors' dialogs are now accessible modal dialogs (issue #1652). The link, heading anchor and image dialogs of `RichContentEditorField`, the link, icon and highlight-colour dialogs of `InlineRichTextEditor`, and `RichContentEditorField`'s full-screen mode are named by their title (`role="dialog"`, `aria-modal`, `aria-labelledby`), hold focus while open, close on Escape (only the topmost of stacked dialogs answers it, so the asset library opened from the image dialog closes alone), and return focus to the toolbar button that opened them. They are drawn by a new internal `CmsModalDialog`, which keeps the admin kit `ModalDialog`'s contract without depending on the kit, so the package stays storefront-safe. The dialog headings are now `<h2>` (were `<h3>`), and the link dialog is named "Link" (was "Edit link").
+
+  `PAGE_BUILDER_FIELD_TEXT` gains `richText.fullscreen`, the full-screen editor's accessible name; the `core` bundle carries it in English and Polish as `pageBuilder.fieldText.richText.fullscreen`.
+
+- Updated dependencies [65f9a7b]
+- Updated dependencies [3fdbe86]
+- Updated dependencies [bfc68c7]
+- Updated dependencies [9eaa409]
+- Updated dependencies [3872f3d]
+- Updated dependencies [bbfcd80]
+- Updated dependencies [41b598c]
+- Updated dependencies [467b075]
+- Updated dependencies [a56109e]
+- Updated dependencies [c15eb60]
+- Updated dependencies [33db45a]
+- Updated dependencies [074f500]
+- Updated dependencies [cec9beb]
+- Updated dependencies [90320fd]
+- Updated dependencies [42febee]
+- Updated dependencies [98c0411]
+- Updated dependencies [a8261aa]
+- Updated dependencies [f64646d]
+- Updated dependencies [f6dda10]
+- Updated dependencies [ee6062c]
+- Updated dependencies [4e668b5]
+- Updated dependencies [843ed42]
+- Updated dependencies [6155f4b]
+- Updated dependencies [5850aac]
+- Updated dependencies [8a5725e]
+- Updated dependencies [f915a24]
+- Updated dependencies [8a06dc5]
+- Updated dependencies [9eee781]
+- Updated dependencies [bd47236]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [398e6d2]
+- Updated dependencies [51c5072]
+- Updated dependencies [2e287a5]
+- Updated dependencies [9d6f006]
+- Updated dependencies [49328cf]
+- Updated dependencies [b3d4843]
+- Updated dependencies [27b977d]
+- Updated dependencies [5e2a12a]
+- Updated dependencies [5518a09]
+- Updated dependencies [5e380e3]
+- Updated dependencies [bfab5bd]
+  - @endora-commerce/contracts@0.112.0
+
 ## 0.111.0
 
 ### Patch Changes

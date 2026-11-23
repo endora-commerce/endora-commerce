@@ -1,5 +1,17 @@
 # @endora-commerce/email-components
 
+## 0.112.0
+
+### Patch Changes
+
+- 2d6d031: `renderEmailHtml` omits the entire image row for `EmailImage` and `EmailLogo` when a standalone variable source resolves to an empty value, instead of producing `<img src="">`.
+- Updated dependencies [c878440]
+- Updated dependencies [7b8006e]
+- Updated dependencies [ed3feda]
+- Updated dependencies [99042ee]
+- Updated dependencies [52d0617]
+  - @endora-commerce/page-builder-core@0.112.0
+
 ## 0.111.0
 
 ### Minor Changes
