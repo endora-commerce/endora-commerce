@@ -291,5 +291,7 @@
   "settingLabels.newsletter.sender.from_name.name": "Sender name",
   "settingLabels.newsletter.sender.from_name.description": "Name shown in the From header.",
   "settingLabels.newsletter.rate_limit_per_second.name": "Send rate limit (per second)",
-  "settingLabels.newsletter.rate_limit_per_second.description": "Most messages sent per second, to stay within the provider limit."
+  "settingLabels.newsletter.rate_limit_per_second.description": "Most messages sent per second, to stay within the provider limit.",
+  "module.name": "Newsletter",
+  "module.description": "Own-infrastructure newsletter: subscribers with tags + custom fields, campaigns, linear automations, email-safe templates and variables, engagement stats, and a configurable bulk-sending provider."
 }

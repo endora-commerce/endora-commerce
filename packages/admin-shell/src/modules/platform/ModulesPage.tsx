@@ -341,13 +341,19 @@ export function ModulesPage(): ReactNode {
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
 /** The sentence that says why a locked row cannot be switched, or `null` for a switchable one. */
-function lockedReasonOf(kind: ActivationKind, presence: ModulePresence | undefined, t: Translate): string | null {
-  // For a core module the wording is its own declared reason, carried by the
-  // projection from its manifest — this app holds no list of module ids that may
-  // not be switched off (SC-012). For a module that declares no control the
-  // wording is the platform's, because there is no manifest sentence to carry
-  // (feature 074, FR-016).
-  if (kind === 'locked') return presence?.nonDeactivatableReason ?? null;
+function lockedReasonOf(
+  kind: ActivationKind,
+  item: ModuleListItem,
+  presence: ModulePresence | undefined,
+  t: Translate,
+): string | null {
+  // For a core module the wording is its own declared reason, carried from its
+  // manifest — this app holds no list of module ids that may not be switched off
+  // (SC-012). The module list carries it in the admin's language (issue #1809);
+  // the presence projection's English is the fallback for an older server. For a
+  // module that declares no control the wording is the platform's, because there
+  // is no manifest sentence to carry (feature 074, FR-016).
+  if (kind === 'locked') return item.nonDeactivatableReason ?? presence?.nonDeactivatableReason ?? null;
   if (kind === 'always-on') return t('platform.modules.activation.alwaysOnReason');
   return null;
 }
@@ -375,7 +381,7 @@ function ModuleTableRows({
   const state = presence?.platformState ?? item.state;
   const kind = activationKindOf(presence);
   const available = isPlatformAvailable(row);
-  const lockedReason = available ? lockedReasonOf(kind, presence, t) : null;
+  const lockedReason = available ? lockedReasonOf(kind, item, presence, t) : null;
   const detailsId = useId();
   const hasDetails = Boolean(item.description) || item.dependencies.length > 0 || lockedReason !== null;
   const drift =

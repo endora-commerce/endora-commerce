@@ -61,5 +61,8 @@
   "settingLabels.invoice_ledger.numbering.mode.name": "Invoice numbering source",
   "settingLabels.invoice_ledger.numbering.mode.description": "Whether VAT numbers are assigned by Endora (mode A) or wait for the ledger vendor (mode B).",
   "settingLabels.invoice_ledger.ksef.routing.name": "KSeF submission routing",
-  "settingLabels.invoice_ledger.ksef.routing.description": "Native leaves KSeF submission to the platform; vendor leaves it to the ledger vendor."
+  "settingLabels.invoice_ledger.ksef.routing.description": "Native leaves KSeF submission to the platform; vendor leaves it to the ledger vendor.",
+  "module.name": "Invoice ledger",
+  "module.description": "Shared invoice-ledger rails: vendor mutex, numbering and KSeF routing, deliveries, and document maps. Vendor HTTP lives in the vendor adapter modules.",
+  "module.nonDeactivatableReason": "The shared invoice ledger registry must stay available so operator activation of a ledger vendor can be refused when another is already active."
 }

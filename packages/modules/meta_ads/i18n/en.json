@@ -55,5 +55,7 @@
   "settingLabels.meta_ads.pixel_id.name": "Pixel ID",
   "settingLabels.meta_ads.pixel_id.description": "Meta Pixel ID from Events Manager. Empty: the channel is not tracked.",
   "settingLabels.meta_ads.require_consent.name": "Require analytics consent",
-  "settingLabels.meta_ads.require_consent.description": "Nothing Meta-related runs until the visitor accepts cookies."
+  "settingLabels.meta_ads.require_consent.description": "Nothing Meta-related runs until the visitor accepts cookies.",
+  "module.name": "Meta Ads",
+  "module.description": "Meta Ads integration: per-sales-channel Meta Pixel, consent-gated tracking, standard commerce events, and configurable custom events."
 }

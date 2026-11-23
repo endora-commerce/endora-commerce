@@ -30,6 +30,7 @@ import {
 import type { AppliedFilter, ListPageLoad, ResponsiveColumn, SavedViewState } from '@endora-commerce/admin-kit/components';
 import type { CustomFieldFilters } from '@endora-commerce/contracts';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { orderStatusName } from '../lib/status-name.js';
 import { DISPLAYABLE_PAYMENT_STATUSES, paymentStatusLabelKey } from '../lib/paymentStatus.js';
 import { OrdersBulkStatusDialog } from '../components/OrdersBulkStatusDialog.js';
 
@@ -391,10 +392,10 @@ export function OrdersList(): ReactNode {
 
   const statusLabel = useCallback(
     (code: string): string => {
-      const s = statuses.find((x) => x.code === code);
-      return s?.name['en'] ?? Object.values(s?.name ?? {})[0] ?? code;
+      // Issue #1809 — the operator's name for the status in the admin's language.
+      return orderStatusName(statuses.find((x) => x.code === code), language, code);
     },
-    [statuses],
+    [statuses, language],
   );
 
   const statusColor = useCallback(

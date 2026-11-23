@@ -3,5 +3,7 @@
   "palette.empty": "No actions available",
   "palette.searchPlaceholder": "Type to search actions…",
   "settingGroups.admin_actions.name": "Command palette",
-  "settingLabels.admin_actions.enabled.name": "Command palette enabled"
+  "settingLabels.admin_actions.enabled.name": "Command palette enabled",
+  "module.name": "Admin command palette actions",
+  "module.description": "Module-contributed action registry that surfaces declared actions in the admin command palette."
 }

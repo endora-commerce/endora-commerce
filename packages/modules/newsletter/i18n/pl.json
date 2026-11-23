@@ -291,5 +291,7 @@
   "settingLabels.newsletter.sender.from_name.name": "Nazwa nadawcy",
   "settingLabels.newsletter.sender.from_name.description": "Nazwa pokazywana w polu Od.",
   "settingLabels.newsletter.rate_limit_per_second.name": "Limit wysyłki (na sekundę)",
-  "settingLabels.newsletter.rate_limit_per_second.description": "Najwięcej wiadomości wysyłanych na sekundę, by zmieścić się w limicie dostawcy."
+  "settingLabels.newsletter.rate_limit_per_second.description": "Najwięcej wiadomości wysyłanych na sekundę, by zmieścić się w limicie dostawcy.",
+  "module.name": "Newsletter",
+  "module.description": "Newsletter na własnej infrastrukturze: subskrybenci z tagami i polami dodatkowymi, kampanie, proste automatyzacje, szablony i zmienne bezpieczne dla e-maili, statystyki zaangażowania i konfigurowalny dostawca masowej wysyłki."
 }

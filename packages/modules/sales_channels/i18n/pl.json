@@ -120,5 +120,8 @@
   "membership.error.add": "Nie udało się dodać do kanału.",
   "membership.error.remove": "Nie udało się usunąć z kanału.",
   "settingLabels.sales_channels.storefront_url.name": "Adres sklepu",
-  "settingLabels.sales_channels.storefront_url.description": "Publiczny adres sklepu tego kanału, używany w mapie witryny i linkach. Pusty: STOREFRONT_BASE_URL."
+  "settingLabels.sales_channels.storefront_url.description": "Publiczny adres sklepu tego kanału, używany w mapie witryny i linkach. Pusty: STOREFRONT_BASE_URL.",
+  "module.name": "Kanały sprzedaży",
+  "module.description": "Rozpoznawanie kanału sklepu i rejestr kanałów sprzedaży.",
+  "module.nonDeactivatableReason": "Zakres kanału jest częścią struktury: każdy odczyt w kanale rozpoznaje kanał żądania i nie ma ścieżki bez kanału, na którą można by się cofnąć."
 }

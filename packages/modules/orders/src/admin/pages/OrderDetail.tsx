@@ -19,6 +19,7 @@ import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { OrderExternalReferences } from '../components/OrderExternalReferences.js';
 import { OrderPendingEffectsNotice } from '../components/OrderPendingEffectsNotice.js';
 import { OrderShipmentsTab } from '../components/OrderShipmentsTab.js';
+import { orderStatusName } from '../lib/status-name.js';
 import { paymentStatusConsequenceKey, paymentStatusLabelKey, paymentStatusTargets } from '../lib/paymentStatus.js';
 import {
   arrangeLineGroups,
@@ -133,9 +134,7 @@ interface StatusGraph {
 }
 
 function statusName(graph: StatusGraph | null, code: string, language = 'en'): string {
-  const s = graph?.statuses.find((x) => x.code === code);
-  if (!s) return code;
-  return s.name[language] ?? s.name['en'] ?? Object.values(s.name)[0] ?? code;
+  return orderStatusName(graph?.statuses.find((x) => x.code === code), language, code);
 }
 
 function statusColor(graph: StatusGraph | null, code: string): string {

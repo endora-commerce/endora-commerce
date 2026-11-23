@@ -123,5 +123,7 @@
   "settingLabels.invoices.storefront_base_url.name": "Adres sklepu (linki w e-mailach z fakturą)",
   "settingLabels.invoices.storefront_base_url.description": "Bazowy adres linków do pobrania faktury w e-mailach, np. https://shop.example.com. Pusty: bez linków.",
   "settingLabels.invoices.document_templates_grant_done.name": "Nadano dostęp do szablonów dokumentów",
-  "settingLabels.invoices.document_templates_grant_done.description": "Ustawiane przez platformę po jednorazowej migracji uprawnień. Nie należy zmieniać."
+  "settingLabels.invoices.document_templates_grant_done.description": "Ustawiane przez platformę po jednorazowej migracji uprawnień. Nie należy zmieniać.",
+  "transactionalEmails.invoice_issued.name": "Wystawienie faktury",
+  "module.description": "Wystawianie faktur, numeracja, korekty i wysyłka e-mailem; układy faktur PDF projektuje się w szablonach dokumentów."
 }

@@ -16,5 +16,8 @@
   "roles.twoFactor.mfaOff": "Not applied while two-step verification is switched off.",
   "roles.twoFactor.confirmSignOut": "Administrators with this role who have not set up two-step verification: {count}. They will be signed out now and asked to set it up at their next sign-in. Continue?",
   "roles.twoFactor.signedOut": "Saved role {code}. Administrators signed out because they have not set up two-step verification: {count}.",
-  "roles.twoFactor.notice.encryption_key_missing": "Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY)."
+  "roles.twoFactor.notice.encryption_key_missing": "Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY).",
+  "module.name": "Admin users",
+  "module.description": "Admin user accounts, sessions, and impersonation flows.",
+  "module.nonDeactivatableReason": "Owns admin login, sessions and impersonation; switched off, no operator could sign in to the Admin UI at all — including to switch it back on."
 }

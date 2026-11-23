@@ -361,6 +361,10 @@ export function registerModule(ctx: ModuleContext): void {
           // a captured guard would keep admitting requests after `auth` goes.
           requireAdmin: (permission) => async (req, reply) =>
             ctx.cradle<CmsCradle>().requireAdmin(permission)(req, reply),
+          // Issue #1809 — the seeded hooks' names in the reader's language,
+          // from this module's bundle. Resolved per call, so the gate stays live.
+          hookText: (key, language) =>
+            lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate('cms', key, language),
           // Feature 163 — a committed brand-token write drops the storefront's
           // `cms:brand` entries. Read per call, like the bus above.
           revalidateStorefront: (tags) => ctx.cradle<CmsCradle>().cmsStorefrontRevalidator.revalidate(tags),

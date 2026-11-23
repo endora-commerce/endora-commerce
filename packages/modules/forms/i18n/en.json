@@ -528,5 +528,7 @@
   "settingLabels.forms.captcha_site_key.name": "CAPTCHA site key",
   "settingLabels.forms.captcha_site_key.description": "The public site key from the CAPTCHA provider. It is sent to the browser.",
   "settingLabels.forms.captcha_secret_key.name": "CAPTCHA secret key",
-  "settingLabels.forms.captcha_secret_key.description": "The secret key from the CAPTCHA provider, used by the server. Stored encrypted; write-only."
+  "settingLabels.forms.captcha_secret_key.description": "The secret key from the CAPTCHA provider, used by the server. Stored encrypted; write-only.",
+  "module.name": "Forms",
+  "module.description": "A form builder: forms with sections, conditional logic and translations, published as immutable versions and placed on pages with the Form block; entries with statuses, notes, export, notifications and retention."
 }

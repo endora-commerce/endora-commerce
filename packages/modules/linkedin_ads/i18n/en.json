@@ -56,5 +56,7 @@
   "settingLabels.linkedin_ads.server_side_enabled.name": "Server-side conversions",
   "settingLabels.linkedin_ads.server_side_enabled.description": "Reports conversions from the server through the Conversions API. Needs an access token.",
   "settingLabels.linkedin_ads.access_token.name": "Conversions API access token",
-  "settingLabels.linkedin_ads.access_token.description": "OAuth access token for the Conversions API. Stored encrypted; write-only."
+  "settingLabels.linkedin_ads.access_token.description": "OAuth access token for the Conversions API. Stored encrypted; write-only.",
+  "module.name": "LinkedIn Ads",
+  "module.description": "LinkedIn Ads integration: per-sales-channel Insight Tag, consent-gated tracking, configurable conversion mappings, and optional server-side reporting through the Conversions API."
 }

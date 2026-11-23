@@ -670,5 +670,8 @@
   "actions.openProjectTemplates.keywords": "project, templates, template",
   "actions.openProjectAnalytics.keywords": "project, analytics, report",
   "actions.openProjectRoles.keywords": "project, roles, team",
-  "actions.openProjectLossReasons.keywords": "project, loss, reasons"
+  "actions.openProjectLossReasons.keywords": "project, loss, reasons",
+  "transactionalEmails.projects_stage_deadline_alert.name": "Stage deadline alert",
+  "transactionalEmails.projects_stage_deadline_alert.description": "Sent to every member of a project who may see it, on the day a deadline alert of its current stage is due — a set number of days before the stage deadline.",
+  "module.description": "Projects for zero or more Organizations, run through per-Project Stages by Members holding Project Roles."
 }

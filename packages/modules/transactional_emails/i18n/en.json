@@ -160,5 +160,8 @@
   "settingLabels.transactional_emails.header_block_code.name": "Default header block",
   "settingLabels.transactional_emails.header_block_code.description": "E-mail block inserted as the header of new e-mails.",
   "settingLabels.transactional_emails.footer_block_code.name": "Default footer block",
-  "settingLabels.transactional_emails.footer_block_code.description": "E-mail block inserted as the footer of new e-mails."
+  "settingLabels.transactional_emails.footer_block_code.description": "E-mail block inserted as the footer of new e-mails.",
+  "module.name": "Transactional emails",
+  "module.description": "Admin-editable transactional email content and look (global + per sales channel), email-safe blocks/templates, variables, and preview.",
+  "module.nonDeactivatableReason": "The platform's only acknowledgement path to buyer and operator — order confirmation, document delivery, account mail. Switch off an individual email instead."
 }

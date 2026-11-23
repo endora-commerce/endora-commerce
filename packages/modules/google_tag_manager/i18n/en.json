@@ -15,5 +15,7 @@
   "settingLabels.google_tag_manager.server_container_url.name": "Server container URL",
   "settingLabels.google_tag_manager.server_container_url.description": "Base URL of your server-side GTM container. Empty keeps the channel on the browser path.",
   "settingLabels.google_tag_manager.server_ingest_path.name": "Server container ingest path",
-  "settingLabels.google_tag_manager.server_ingest_path.description": "The path your server container's client listens on. Default /data matches Google's Data Client."
+  "settingLabels.google_tag_manager.server_ingest_path.description": "The path your server container's client listens on. Default /data matches Google's Data Client.",
+  "module.name": "Google Tag Manager",
+  "module.description": "Google Tag Manager integration: per-sales-channel container injection behind the storefront consent decision, a documented commerce dataLayer vocabulary, and an optional server-side tagging relay."
 }

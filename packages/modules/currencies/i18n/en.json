@@ -1,0 +1,5 @@
+{
+  "module.name": "Currencies",
+  "module.description": "Currency reference data and per-channel currency configuration.",
+  "module.nonDeactivatableReason": "Every amount is denominated; there is no price, cart, order or invoice without a currency."
+}

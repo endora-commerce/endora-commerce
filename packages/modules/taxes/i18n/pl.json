@@ -3,5 +3,8 @@
   "actions.openTaxes.label": "Podatki",
   "actions.openTaxes.description": "Zarządzaj stawkami podatkowymi i regułami ich stosowania",
   "actions.openTaxes.keywords": "podatek, podatki, stawka, stawki",
-  "settingGroups.taxes.name": "Podatki"
+  "settingGroups.taxes.name": "Podatki",
+  "module.name": "Podatki",
+  "module.description": "Konfiguracja stawek podatku i obliczanie podatku w zamówieniu.",
+  "module.nonDeactivatableReason": "Bez tego każda cena staje się bez podatku, operator nie widzi żadnego sygnału, a faktura zawiera błędną kwotę. Platforma, która nie umie obliczyć podatku, nie poda zgodnej z prawem ceny."
 }

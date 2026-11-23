@@ -247,6 +247,31 @@ describe('ModulesPage — the four states read differently (FR-034)', () => {
     ).toBeInTheDocument();
   });
 
+  // Issue #1809 — the list carries the reason in the reader's language; the projection's is English.
+  it("says why a module is locked in the list's language, not the projection's English", async () => {
+    listed = [
+      moduleItem({
+        id: 'auth',
+        name: 'Uwierzytelnianie',
+        nonDeactivatableReason: 'Nikt nie mógłby się zalogować, żeby go z powrotem włączyć.',
+      }),
+    ];
+    presence = [
+      presenceItem({
+        id: 'auth',
+        deactivatable: false,
+        nonDeactivatableReason: 'Nobody could sign in to switch it back on.',
+      }),
+    ];
+    await renderPage();
+
+    const auth = row('auth');
+    expect(within(auth).getByRole('switch')).toHaveAccessibleDescription(
+      'Nikt nie mógłby się zalogować, żeby go z powrotem włączyć.',
+    );
+    expect(within(auth).queryByText('Nobody could sign in to switch it back on.')).toBeNull();
+  });
+
   it('reads a module that declares no control as always-on, in the locked shape (FR-016)', async () => {
     // Feature 074. This used to render "No switch yet", which announced an
     // omission: 66 of 67 modules were in this state while the conversion sweep

@@ -3,5 +3,7 @@
   "palette.empty": "Brak dostępnych akcji",
   "palette.searchPlaceholder": "Wpisz, aby wyszukać akcje…",
   "settingGroups.admin_actions.name": "Paleta poleceń",
-  "settingLabels.admin_actions.enabled.name": "Paleta poleceń włączona"
+  "settingLabels.admin_actions.enabled.name": "Paleta poleceń włączona",
+  "module.name": "Akcje palety poleceń",
+  "module.description": "Rejestr akcji dodawanych przez moduły, które pojawiają się w palecie poleceń panelu."
 }

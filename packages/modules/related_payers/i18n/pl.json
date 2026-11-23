@@ -172,5 +172,22 @@
   "queue.status.rejected": "Prośba od {sender} odrzucona. Kupujący zobaczy Twój powód.",
   "queue.status.assigned": "Organizacja przypisana do prośby od {sender}.",
   "queue.status.created": "Organizacja utworzona i powiązana dla prośby od {sender}.",
-  "queue.status.invited": "Zaproszenie wysłane na {email}."
+  "queue.status.invited": "Zaproszenie wysłane na {email}.",
+  "transactionalEmails.related_payer_order_placed.name": "Zamówienie opłacane przez powiązanego płatnika",
+  "transactionalEmails.related_payer_order_placed.description": "Wysyłany do każdego członka organizacji płacącej, który może przeglądać opłacane przez nią zamówienia, gdy zostanie złożone zamówienie na jej rachunek, a powiązanie z płatnikiem przewiduje powiadomienie.",
+  "transactionalEmails.related_payer_order_cancelled.name": "Anulowanie zamówienia opłacanego przez powiązanego płatnika",
+  "transactionalEmails.related_payer_order_cancelled.description": "Wysyłany do tych samych osób co e-mail o złożeniu zamówienia, gdy zamówienie na rachunek ich organizacji zostanie anulowane — i tylko wtedy, gdy powiązanie z płatnikiem przewiduje powiadomienie (RP-17).",
+  "transactionalEmails.related_payer_request_received.name": "Otrzymanie prośby o przejęcie płatności",
+  "transactionalEmails.related_payer_request_received.description": "Wysyłany do każdego członka organizacji wskazanej jako płatnik, który może akceptować takie prośby, gdy kupujący poprosi ją o opłacanie swoich zamówień. Nigdy nie trafia na adres kontaktowy wpisany przez kupującego (FR-042).",
+  "transactionalEmails.related_payer_request_decided.name": "Decyzja w sprawie prośby o przejęcie płatności",
+  "transactionalEmails.related_payer_request_decided.description": "Wysyłany do kupującego, który wysłał prośbę, i do członków zarządzających płatnikami, gdy prośba zostanie przyjęta lub odrzucona. Wynik i ewentualny powód są na ekranie Płatnicy w koncie.",
+  "transactionalEmails.related_payer_invitation_received.name": "Otrzymanie zaproszenia od płatnika",
+  "transactionalEmails.related_payer_invitation_received.description": "Wysyłany do każdego członka zaproszonej organizacji kupującej, który zarządza płatnikami, gdy płatnik zaproponuje opłacanie jej zamówień (US6). Nigdy nie trafia na adres kontaktowy wpisany przez płatnika.",
+  "transactionalEmails.related_payer_invitation_to_register.name": "Zaproszenie do rejestracji (powiązani płatnicy)",
+  "transactionalEmails.related_payer_invitation_to_register.description": "Wysyłany na adres kontaktowy z prośby lub zaproszenia, gdy dla podanego NIP nie ma konta, a sklep zaprasza do rejestracji (FR-044). Link wstępnie wypełnia NIP w formularzu rejestracji; nic nie powstaje, dopóki rejestracja nie zostanie zatwierdzona.",
+  "transactionalEmails.related_payer_request_expired.name": "Wygaśnięcie prośby o przejęcie płatności",
+  "transactionalEmails.related_payer_request_expired.description": "Wysyłany do członka, który wysłał prośbę lub zaproszenie, gdy wygaśnie bez decyzji (RP-20). Wycofanie prośby niczego nie wysyła.",
+  "transactionalEmails.related_payer_link_revoked.name": "Cofnięcie powiązania z płatnikiem",
+  "transactionalEmails.related_payer_link_revoked.description": "Wysyłany do drugiej strony, gdy powiązanie z płatnikiem zostanie cofnięte: do osób zarządzających płatnikami u kupującego, gdy cofnął je płatnik, do osób akceptujących u płatnika, gdy cofnął je kupujący, i do obu stron, gdy zrobił to operator lub integracja (FR-050).",
+  "module.description": "Pozwala organizacji kupującej składać zamówienia opłacane i fakturowane przez inną organizację sklepu: powiązania z płatnikami, proces ich akceptacji i wybór płatnika przy składaniu zamówienia."
 }

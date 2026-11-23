@@ -19,5 +19,8 @@
   "auditLog.field.changedCustomFields": "Zmienione pola dodatkowe",
   "auditLog.value.empty": "puste",
   "auditLog.value.true": "Tak",
-  "auditLog.value.false": "Nie"
+  "auditLog.value.false": "Nie",
+  "module.name": "Dziennik zdarzeń",
+  "module.description": "Dziennik zdarzeń tylko do dopisywania dla wrażliwych działań administratorów i klientów (dane zanonimizowanych osób są usuwane na miejscu).",
+  "module.nonDeactivatableReason": "Wgląd w historię zmian. Zapisuje ją sama platforma, ten moduł dostarcza podgląd — a ukrycie tego, kto co zrobił, osłabia nadzór."
 }

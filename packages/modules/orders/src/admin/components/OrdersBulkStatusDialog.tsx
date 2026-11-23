@@ -3,7 +3,8 @@ import { Loader2 } from 'lucide-react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Button, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { orderStatusName } from '../lib/status-name.js';
 
 interface StatusDef {
   code: string;
@@ -39,6 +40,7 @@ export function OrdersBulkStatusDialog(props: Props): ReactNode {
 
 function BulkStatusForm({ orderIds, statuses, onClose, onDone }: Props): ReactNode {
   const t = useTranslation('core');
+  const { language } = useTranslationContext();
   const [target, setTarget] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +92,7 @@ function BulkStatusForm({ orderIds, statuses, onClose, onDone }: Props): ReactNo
           <option value="">—</option>
           {statuses.map((s) => (
             <option key={s.code} value={s.code}>
-              {s.name['en'] ?? s.code}
+              {orderStatusName(s, language)}
             </option>
           ))}
         </Select>

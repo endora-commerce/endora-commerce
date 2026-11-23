@@ -162,5 +162,7 @@
   "listActions.delete": "Usuń",
   "listActions.deleteActiveBindings": "Jest aktywne w kanale sprzedaży. Najpierw wyłącz jego powiązania w edytorze.",
   "listActions.deleteFailed": "Nie udało się usunąć. Sprawdź połączenie i spróbuj ponownie.",
-  "settingLabels.megamenu.enabled.name": "Megamenu włączone"
+  "settingLabels.megamenu.enabled.name": "Megamenu włączone",
+  "module.name": "Megamenu",
+  "module.description": "Kreator wielokolumnowego menu rozwijanego."
 }

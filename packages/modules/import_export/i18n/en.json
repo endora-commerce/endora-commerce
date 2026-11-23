@@ -129,5 +129,7 @@
   "fieldError.URL_KEY_TAKEN": "The URL key is already used by another product; it was not written.",
   "fieldError.content_attribute": "Page Builder content is edited on the product content screen; it cannot be imported.",
   "settingGroups.import_export.name": "Import / export",
-  "settingLabels.import_export.enabled.name": "Import / export enabled"
+  "settingLabels.import_export.enabled.name": "Import / export enabled",
+  "module.name": "Import / export",
+  "module.description": "Bulk product import and export wizard."
 }

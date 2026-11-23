@@ -30,6 +30,7 @@
   },
   "files": [
     "dist",
+    "i18n",
     "docs",
     "!dist/**/*.map"
   ],

@@ -597,5 +597,8 @@
   "settingLabels.pricing.unauthenticated_display_mode.name": "Wyświetlanie cen dla niezalogowanych",
   "settingLabels.pricing.unauthenticated_display_mode.description": "Jak ceny widzą niezalogowani odwiedzający. Ustaw none, by ukryć ceny do zalogowania.",
   "settingLabels.pricing.show_list_price.name": "Pokazuj cenę katalogową obok ceny kupującego",
-  "settingLabels.pricing.show_list_price.description": "Kupujący z ceną niższą od katalogowej widzi obie na stronach i kartach produktów."
+  "settingLabels.pricing.show_list_price.description": "Kupujący z ceną niższą od katalogowej widzi obie na stronach i kartach produktów.",
+  "module.name": "Cenniki",
+  "module.description": "Cenniki — ceny bazowe, katalogowe, dla kupujących i promocyjne w każdej walucie, kanale sprzedaży i grupie odbiorców — oraz sposoby pokazywania cen.",
+  "module.nonDeactivatableReason": "B2B to ceny kontraktowe. Bez nich każdy kupujący po cichu płaci cenę bazową, a platforma staje się sklepem B2C, a nie okrojoną wersją B2B."
 }

@@ -148,5 +148,7 @@
   "settingLabels.pwa.vapid_private_key.description": "Prywatny klucz VAPID podpisujący wiadomości push. Zaszyfrowany; tylko do zapisu.",
   "settingLabels.pwa.fcm_service_account.name": "Konto usługi FCM (JSON)",
   "settingLabels.pwa.fcm_service_account.description": "Opcjonalny JSON konta usługi Firebase dla push FCM. Zaszyfrowany; tylko do zapisu.",
-  "settingLabels.pwa.enabled.name": "Progresywna aplikacja webowa włączona"
+  "settingLabels.pwa.enabled.name": "Progresywna aplikacja webowa włączona",
+  "module.name": "Aplikacja PWA",
+  "module.description": "Instalowanie jako aplikacja, buforowanie zasobów statycznych, kontrolowane aktualizacje service workera i powiadomienia push niezależne od dostawcy — dla sklepu i panelu."
 }

@@ -15,5 +15,7 @@
   "settingLabels.google_tag_manager.server_container_url.name": "Adres kontenera serwerowego",
   "settingLabels.google_tag_manager.server_container_url.description": "Bazowy adres kontenera serwerowego GTM. Pusty pozostawia kanał przy przeglądarce.",
   "settingLabels.google_tag_manager.server_ingest_path.name": "Ścieżka odbioru kontenera serwerowego",
-  "settingLabels.google_tag_manager.server_ingest_path.description": "Ścieżka, na której nasłuchuje klient kontenera serwerowego. Domyślna /data pasuje do Data Client Google."
+  "settingLabels.google_tag_manager.server_ingest_path.description": "Ścieżka, na której nasłuchuje klient kontenera serwerowego. Domyślna /data pasuje do Data Client Google.",
+  "module.name": "Google Tag Manager",
+  "module.description": "Integracja z Google Tag Managerem: kontener w każdym kanale sprzedaży wstawiany po decyzji o zgodach, udokumentowane słownictwo dataLayer dla handlu i opcjonalne przekazywanie tagowania po stronie serwera."
 }

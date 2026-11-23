@@ -295,6 +295,20 @@ status — never translated); and *third-party text* passed through verbatim (a 
 detail — never translated, and wrapping it is a different decision). Sweeping these together is
 how "should the backend hold translations" becomes unanswerable.
 
+**Manifest prose is platform prose, and a seeded row is too until an operator edits it** (issue
+#1809). A manifest's English — the module's `name`, `description` and `activation.reason`, an
+e-mail's `name` and `description` — reaches the admin in an HTTP response, so the backend
+translates it from the declaring module's own bundle and keeps the manifest's sentence as the
+fallback: `module.name`, `module.description`, `module.nonDeactivatableReason`, and
+`transactionalEmails.<code>.name` / `.description` / `.reason` (the reason lives in the sending
+module's registered defaults). The English entry repeats the manifest's sentence, and
+`backend/test/unit/_i18n/manifest-prose-bundles.test.ts` holds the two equal and the Polish one
+present for every registered module. A seeded row with one text column — a system CMS hook — is
+translated on read only while it still holds the seeded English, from `seededHooks.<code>.*`; once
+an operator changes it, it is operator content and passes through as written. A row that already
+stores per-language names, such as `order_statuses.name`, is operator content from the start: the
+response carries every language and the consumer picks the reader's.
+
 **Classify by where the string is *read*, never by what carries it.** A mechanism-keyed population
 is defined by the presence of the mechanisms somebody enumerated, and they are unbounded:
 `specs/093-backend-delivered-prose/` surveyed three delivery seams — a port call, a mailer, a

@@ -161,5 +161,8 @@
   "settingLabels.assets.private_url_ttl_sec.name": "Ważność prywatnego podpisanego URL (sekundy)",
   "settingLabels.assets.soft_delete_retention_days.name": "Przechowywanie usuniętych przed trwałym usunięciem (dni)",
   "settingLabels.assets.local.public_url_base.name": "Lokalny dysk — publiczny bazowy URL (bez końcowego ukośnika)",
-  "settingLabels.assets.local.public_url_base.description": "Publiczny prefiks adresów plików, np. CDN. Pusty: budowany z PUBLIC_API_BASE_URL."
+  "settingLabels.assets.local.public_url_base.description": "Publiczny prefiks adresów plików, np. CDN. Pusty: budowany z PUBLIC_API_BASE_URL.",
+  "module.name": "Biblioteka plików",
+  "module.description": "Rejestr magazynów plików (lokalny / S3 / GCS), wgrywanie plików i śledzenie, gdzie są używane.",
+  "module.nonDeactivatableReason": "Magazyn mediów. Zdjęcia produktów, media CMS i pliki w e-mailach — wszystko pochodzi stąd, a „nie chcemy plików” nie jest decyzją biznesową."
 }

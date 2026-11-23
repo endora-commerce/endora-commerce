@@ -160,5 +160,8 @@
   "settingLabels.transactional_emails.header_block_code.name": "Domyślny blok nagłówka",
   "settingLabels.transactional_emails.header_block_code.description": "Blok e-maila wstawiany jako nagłówek nowych e-maili.",
   "settingLabels.transactional_emails.footer_block_code.name": "Domyślny blok stopki",
-  "settingLabels.transactional_emails.footer_block_code.description": "Blok e-maila wstawiany jako stopka nowych e-maili."
+  "settingLabels.transactional_emails.footer_block_code.description": "Blok e-maila wstawiany jako stopka nowych e-maili.",
+  "module.name": "E-maile transakcyjne",
+  "module.description": "Edytowalna w panelu treść i wygląd e-maili transakcyjnych (dla wszystkich kanałów i dla wybranego kanału), bezpieczne dla e-maili bloki i szablony, zmienne i podgląd.",
+  "module.nonDeactivatableReason": "Jedyna droga, którą platforma potwierdza coś kupującemu i operatorowi — potwierdzenie zamówienia, wysyłka dokumentów, wiadomości o koncie. Zamiast tego wyłącz pojedynczy e-mail."
 }

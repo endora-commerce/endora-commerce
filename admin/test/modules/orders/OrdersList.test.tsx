@@ -82,7 +82,7 @@ beforeEach(() => {
   postSpy.mockResolvedValue({ data: { changed: ['o1'], skipped: [] } });
 });
 
-function renderList(): { container: HTMLElement } {
+function renderList(language: 'en' | 'pl' = 'en'): { container: HTMLElement } {
   return renderWithI18n(
     withSession(
       <MemoryRouter>
@@ -92,6 +92,7 @@ function renderList(): { container: HTMLElement } {
       { session: adminSession({ permissions: ['*'] }) },
     ),
     BUNDLE,
+    { language },
   );
 }
 
@@ -135,5 +136,31 @@ describe('OrdersList (desktop)', () => {
         toStatusCode: 'pending',
       }),
     );
+  });
+
+  // Issue #1809 — the status names are stored per language; a Polish admin read the English one.
+  it("names each order's status in the admin's language", async () => {
+    getSpy.mockImplementation((path: string) => {
+      if (path.startsWith('/api/v1/admin/orders/statuses')) {
+        return Promise.resolve({
+          data: {
+            statuses: [
+              { code: 'new', name: { en: 'New', pl: 'Nowy' } },
+              { code: 'pending', name: { en: 'Pending', pl: 'Oczekujące' } },
+            ],
+          },
+        });
+      }
+      if (path.startsWith('/api/v1/admin/orders/list-views')) return Promise.resolve({ data: [] });
+      if (path.startsWith('/api/v1/admin/orders/custom-field-filters')) return Promise.resolve({ data: [] });
+      return Promise.resolve({
+        data: [row('o1', 'ORD-1')],
+        pagination: { page: 1, pageSize: 20, total: 1 },
+        counts: { new: 1 },
+      });
+    });
+    renderList('pl');
+    await waitFor(() => expect(screen.getAllByText('Nowy').length).toBeGreaterThan(0));
+    expect(screen.queryByText('New')).toBeNull();
   });
 });

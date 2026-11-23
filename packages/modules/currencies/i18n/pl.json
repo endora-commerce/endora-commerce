@@ -1,0 +1,5 @@
+{
+  "module.name": "Waluty",
+  "module.description": "Dane referencyjne walut i konfiguracja walut w kanałach sprzedaży.",
+  "module.nonDeactivatableReason": "Każda kwota ma walutę; bez niej nie ma ceny, koszyka, zamówienia ani faktury."
+}

@@ -2864,5 +2864,8 @@
   "appShell.section.access": "Access",
   "appShell.section.platform": "Platform",
   "profile.tabs.profile": "Profile",
-  "profile.tabs.security": "Security"
+  "profile.tabs.security": "Security",
+  "module.name": "Admin UI i18n",
+  "module.description": "Per-user Admin UI language preference and module-scoped translation bundles. English is the platform-wide fallback (FR-013 / FR-016).",
+  "module.nonDeactivatableReason": "Every user-facing string on every surface is served from here, including the labels on the platform screen that holds the module switches."
 }

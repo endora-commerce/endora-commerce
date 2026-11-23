@@ -808,5 +808,8 @@
   "settingLabels.crm.auto_create_from_quote_requests.name": "Twórz szansę sprzedaży dla każdego nowego zapytania ofertowego",
   "settingLabels.crm.auto_create_from_quote_requests.description": "Każde nowe zapytanie ofertowe dostaje powiązaną szansę sprzedaży. Wymaga zapytań ofertowych. Domyślnie wyłączone.",
   "settingLabels.crm.board_card_fields.name": "Pola na karcie tablicy",
-  "settingLabels.crm.board_card_fields.description": "Pola pokazywane na karcie tablicy szans sprzedaży, najwyżej sześć. Edytowane na ekranie procesu CRM."
+  "settingLabels.crm.board_card_fields.description": "Pola pokazywane na karcie tablicy szans sprzedaży, najwyżej sześć. Edytowane na ekranie procesu CRM.",
+  "transactionalEmails.crm_event_reminder.name": "Przypomnienie o wydarzeniu",
+  "transactionalEmails.crm_event_reminder.description": "Wysyłany do opiekuna szansy sprzedaży, gdy nadchodzi przypomnienie o jednym z jej wydarzeń, a nie ma go w panelu, by zobaczyć powiadomienie.",
+  "module.description": "Szanse sprzedaży z konfigurowalnym procesem statusów, za którym podążają powiązane zamówienia."
 }

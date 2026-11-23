@@ -190,5 +190,8 @@
   "error.reorder": "Nie udało się zmienić kolejności. Spróbuj ponownie.",
   "error.association": "Nie udało się zaktualizować powiązania z krajem. Spróbuj ponownie.",
   "error.primary": "Nie udało się zmienić głównego kraju. Spróbuj ponownie.",
-  "error.hasDependentsHint": "Zamiast tego dezaktywuj pozycję albo najpierw usuń rekordy, które jej używają."
+  "error.hasDependentsHint": "Zamiast tego dezaktywuj pozycję albo najpierw usuń rekordy, które jej używają.",
+  "module.name": "Słowniki",
+  "module.description": "Wspólny rejestr krajów, języków i walut — źródło każdej listy wyboru, walidacji i wyboru w formularzach adresu w sklepie i panelu.",
+  "module.nonDeactivatableReason": "Wspólne dane referencyjne — kraje, jednostki, typy dokumentów — według których walidują i wyświetlają dane wszystkie pozostałe powierzchnie."
 }

@@ -396,5 +396,21 @@
   "statusConfig.saved": "Zapisano status.",
   "names.missing": "Brak: {languages}",
   "names.language.en": "angielski",
-  "names.language.pl": "polski"
+  "names.language.pl": "polski",
+  "transactionalEmails.return_authorized.name": "Akceptacja zwrotu",
+  "transactionalEmails.return_rejected.name": "Odrzucenie zwrotu",
+  "transactionalEmails.return_new_case.name": "Nowy zwrot lub reklamacja (do sklepu)",
+  "transactionalEmails.return_submitted.name": "Przyjęcie zwrotu lub reklamacji (do klienta)",
+  "transactionalEmails.return_comment_added.name": "Wiadomość w zwrocie lub reklamacji (do klienta)",
+  "transactionalEmails.return_status_entered.name": "Zmiana statusu zwrotu lub reklamacji (do klienta)",
+  "transactionalEmails.return_guest_verification.name": "Potwierdzenie adresu e-mail w reklamacji gościa (do gościa)",
+  "transactionalEmails.return_guest_verification.reason": "Jedyny sposób, w jaki gość może złożyć reklamację.",
+  "transactionalEmails.return_guest_submitted.name": "Przyjęcie reklamacji (do gościa)",
+  "transactionalEmails.return_guest_submitted.reason": "Jedyna trwała droga gościa z powrotem do sprawy.",
+  "transactionalEmails.return_guest_comment_added.name": "Wiadomość w reklamacji (do gościa)",
+  "transactionalEmails.return_guest_status_entered.name": "Zmiana statusu reklamacji (do gościa)",
+  "transactionalEmails.return_guest_authorized.name": "Akceptacja reklamacji (do gościa)",
+  "transactionalEmails.return_guest_rejected.name": "Odrzucenie reklamacji (do gościa)",
+  "transactionalEmails.return_guest_link_reissued.name": "Nowy link do śledzenia reklamacji (do gościa)",
+  "module.description": "Obsługa zwrotów i reklamacji (RMA), rozliczenia i zwroty pieniędzy."
 }

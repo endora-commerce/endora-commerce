@@ -213,5 +213,8 @@
   "settingLabels.storefront.product_card.show_add_to_cart.name": "Show \"Add to cart\" on product cards",
   "settingLabels.storefront.product_card.show_add_to_cart.description": "Shows “Add to cart” on product cards, if the storefront theme renders it.",
   "settingLabels.storefront.product_card.show_add_to_shopping_list.name": "Show \"Add to shopping list\" on product cards",
-  "settingLabels.storefront.product_card.show_add_to_shopping_list.description": "Shows “Add to shopping list” on product cards, if the storefront theme renders it."
+  "settingLabels.storefront.product_card.show_add_to_shopping_list.description": "Shows “Add to shopping list” on product cards, if the storefront theme renders it.",
+  "module.name": "Settings",
+  "module.description": "Per-module setting registry, admin UI, and value resolver.",
+  "module.nonDeactivatableReason": "The configuration surface for every other module. A module that is off has no editable configuration, so switching this off would leave nothing on the platform configurable."
 }

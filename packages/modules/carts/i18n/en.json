@@ -188,5 +188,13 @@
   "settingLabels.carts.abandonment.inactivity_minutes.name": "Cart abandonment threshold (minutes)",
   "settingLabels.carts.abandonment.inactivity_minutes.description": "Minutes of inactivity before an active cart counts as abandoned. Default 10080 (7 days).",
   "settingLabels.carts.abandonment.notification_recipient.name": "Abandonment notification recipient",
-  "settingLabels.carts.abandonment.notification_recipient.description": "One address notified of every abandoned cart. Empty: no notification."
+  "settingLabels.carts.abandonment.notification_recipient.description": "One address notified of every abandoned cart. Empty: no notification.",
+  "transactionalEmails.cart_approval_requested.name": "Cart sent for approval",
+  "transactionalEmails.cart_approval_requested.description": "Sent to each member of the Organization who approves carts when a member sends a cart for approval.",
+  "transactionalEmails.cart_approved.name": "Cart approved",
+  "transactionalEmails.cart_approved.description": "Sent to the buyer when a member of their Organization who approves carts approves their cart.",
+  "transactionalEmails.cart_rejected.name": "Cart rejected",
+  "transactionalEmails.cart_rejected.description": "Sent to the buyer when a member of their Organization who approves carts rejects their cart, with the reason.",
+  "module.description": "Shopping cart aggregation, pricing, lifecycle, and approval gate.",
+  "module.nonDeactivatableReason": "The basket every ordering path assembles — checkout, quick order and the quote flow all go through it."
 }

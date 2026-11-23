@@ -61,5 +61,8 @@
   "settingLabels.invoice_ledger.numbering.mode.name": "Źródło numeracji faktur",
   "settingLabels.invoice_ledger.numbering.mode.description": "Czy numery faktur nadaje Endora (tryb A), czy czekają na dostawcę księgowości (tryb B).",
   "settingLabels.invoice_ledger.ksef.routing.name": "Kierowanie wysyłki do KSeF",
-  "settingLabels.invoice_ledger.ksef.routing.description": "Native zostawia wysyłkę do KSeF platformie; vendor — dostawcy księgowości."
+  "settingLabels.invoice_ledger.ksef.routing.description": "Native zostawia wysyłkę do KSeF platformie; vendor — dostawcy księgowości.",
+  "module.name": "Rejestr faktur",
+  "module.description": "Wspólna warstwa rejestru faktur: wykluczanie dostawców, numeracja i kierowanie do KSeF, wysyłki i mapy dokumentów. Komunikacja z dostawcami jest w modułach ich adapterów.",
+  "module.nonDeactivatableReason": "Wspólny rejestr faktur musi być dostępny, żeby można było odmówić włączenia dostawcy, gdy aktywny jest już inny."
 }

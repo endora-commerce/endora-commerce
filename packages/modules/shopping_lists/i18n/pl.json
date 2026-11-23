@@ -7,5 +7,6 @@
   "organizationPermissions.shopping_lists.convert.label": "Zamiana list zakupowych na zapytania ofertowe i koszyki",
   "organizationPermissions.shopping_lists.convert.description": "Przenoszenie listy zakupowej lub wybranych jej pozycji do koszyka albo do zapytania ofertowego; wymaga też uprawnienia do utworzenia tego koszyka lub zapytania.",
   "settingGroups.shopping_lists.name": "Listy zakupowe",
-  "settingLabels.shopping_lists.enabled.name": "Listy zakupów włączone"
+  "settingLabels.shopping_lists.enabled.name": "Listy zakupów włączone",
+  "module.description": "Zapisane listy zakupowe klientów."
 }

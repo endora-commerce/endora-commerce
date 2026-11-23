@@ -30,6 +30,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Module | Binding | What it means |
 | --- | --- | --- |
 | `auth` | gating only | resolves `requireAdmin`; withheld from `dependencies` because the install order cannot carry the edge |
+| `_i18n` | no | degrades-without `adminI18nService` — The module list names, describes and explains every module in its manifest's English, whatever language the administrator reads the screen in. |
 | `mfa` | no | degrades-without `mfaDeactivationGuardPort` — Nothing is asked: a module that is already off has no administrator requirement left to protect, and switching it back on is never refused. |
 | `mfa` | no | degrades-without `mfaEnrolmentCountPort` — The deactivation dialog renders every consequence except the number of users who currently hold a second factor, which is shown as unavailable. |
 

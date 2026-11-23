@@ -707,5 +707,7 @@
   "settingLabels.product_feeds.taxonomy_source_url_meta_pl.name": "Lista kategorii Meta (polska)",
   "settingLabels.product_feeds.taxonomy_source_url_meta_pl.description": "Adres polskiego pliku kategorii produktów Meta. Tylko https.",
   "settingLabels.product_feeds.taxonomy_revision_retention_count.name": "Zachowywane listy kategorii na dostawcę",
-  "settingLabels.product_feeds.taxonomy_revision_retention_count.description": "Ile wersji list kategorii zachować dla dostawcy. Listy wciąż używane nie są usuwane."
+  "settingLabels.product_feeds.taxonomy_revision_retention_count.description": "Ile wersji list kategorii zachować dla dostawcy. Listy wciąż używane nie są usuwane.",
+  "module.name": "Pliki produktowe",
+  "module.description": "Publikuje katalog kanału sprzedaży jako plik w formacie wybranego serwisu (Google Merchant Center, Meta, Amazon, eBay, Allegro) pod stałym adresem z tokenem, według harmonogramu każdego pliku."
 }
