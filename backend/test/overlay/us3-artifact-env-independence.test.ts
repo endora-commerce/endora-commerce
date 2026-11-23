@@ -3,6 +3,17 @@ import { generatedArtifactPaths, renderAll } from '../../scripts/generate-compos
 import { coveredArtifactPaths } from '../../scripts/check-overlay-determinism.js';
 
 /**
+ * A full render of every artefact is the slow step here: the first case renders
+ * twice and the second once, and both outran the 30 s default.
+ *  - In CI, backend-suite run 45136913927 took 25.7 s for the whole file.
+ *  - In run 45156849521, shard 1 ran half again as long and the first case
+ *    timed out without finding any difference.
+ *  - On a 16-thread developer machine the two cases take 48.7 s and 25.0 s.
+ * The limit covers the render, not a wait.
+ */
+const RENDER_TIMEOUT_MS = 180_000;
+
+/**
  * T-E — every generated artefact renders identically with and without
  * `DEPLOYMENT` set (D-104).
  *
@@ -51,7 +62,7 @@ describe('T-E — the generated artefacts are environment-independent', () => {
     for (const artefact of bareCore) expect(artefact.content.length).toBeGreaterThan(0);
 
     expect(withDeployment).toEqual(bareCore);
-  });
+  }, RENDER_TIMEOUT_MS);
 
   it('names nothing from a deployment tree, in any committed artefact', async () => {
     const artefacts = await renderAll();
@@ -66,7 +77,7 @@ describe('T-E — the generated artefacts are environment-independent', () => {
     for (const { label, lines } of inspected) {
       expect(lines, `${label} contributed no inspected line`).toBeGreaterThan(0);
     }
-  });
+  }, RENDER_TIMEOUT_MS);
 
   describe('the refusal itself', () => {
     // Issue #130: one proof per shape the assertion refuses, each entering at

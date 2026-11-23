@@ -155,6 +155,18 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
     return { email: row.email, anonymizedAt: row.anonymizedAt ?? null };
   }
 
+  /**
+   * The sweep commits the scrub first and announces it afterwards
+   * (`customer_accounts` emits in its own bus scope once the write has
+   * committed). A poll of the database can therefore see the account
+   * anonymised a moment before the announcement arrives, and
+   * backend-suite run 45156849521 caught exactly that gap. Wait for the
+   * announcement itself rather than asserting it the instant the row reads
+   * as anonymised.
+   */
+  const announcedFor = (accountId: string) => async (): Promise<boolean> =>
+    announced.includes(accountId);
+
   const until = async (condition: () => Promise<boolean>, timeoutMs: number): Promise<boolean> => {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
@@ -292,7 +304,7 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
     // And its first job anonymises the account past the window.
     expect(await until(() => isAnonymized(due), 60_000)).toBe(true);
     expect((await stateOf(due)).email).toBe(`deleted+${due}@anonymized.invalid`);
-    expect(announced).toContain(due);
+    expect(await until(announcedFor(due), 10_000)).toBe(true);
 
     // The account still inside the window is untouched.
     expect(await stateOf(inside)).toEqual(insideBefore);
@@ -352,7 +364,7 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
       });
       // Back on: the tick that waited runs, and the account is anonymised.
       expect(await until(() => isAnonymized(due), 60_000)).toBe(true);
-      expect(announced).toContain(due);
+      expect(await until(announcedFor(due), 10_000)).toBe(true);
       // The composed `customers` reached `carts` through its port: the reason is gone, the status kept.
       expect(await cartReasonOf(cart)).toEqual({ status: 'rejected', rejectedReason: null });
       // And `email` through its own: the record keeps no trace of the address, the subject or the envelope.

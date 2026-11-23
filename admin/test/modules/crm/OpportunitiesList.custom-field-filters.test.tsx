@@ -269,7 +269,11 @@ describe('OpportunitiesList — custom-field filters', () => {
     it('drops an option the field no longer has from the address', async () => {
       await renderList('/crm/opportunities?cf.segment.in=smb&cf.segment.in=removed');
       await waitFor(() => expect(address().getAll('cf.segment.in')).toEqual(['smb']));
-      expect(fieldFiltersOf(lastQuery())).toEqual({ 'custom:segment': { in: ['smb'] } });
+      // The address is cleaned before the list asks again: the query that
+      // follows the clean-up can arrive a render later, so wait for it too.
+      await waitFor(() =>
+        expect(fieldFiltersOf(lastQuery())).toEqual({ 'custom:segment': { in: ['smb'] } }),
+      );
     });
 
     it('reads the list once under StrictMode when the address carries a filter', async () => {

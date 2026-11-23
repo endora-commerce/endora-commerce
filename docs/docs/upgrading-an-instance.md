@@ -5356,6 +5356,192 @@ it.
    `MFA_OAUTH_MICROSOFT_CLIENT_SECRET` and `MFA_OAUTH_MICROSOFT_TENANT` to the backend if it offers
    federated sign-in. The `mfa` module page lists the redirect URIs to register.
 
+### After upgrading to 0.112.0 {#after-0-112-0}
+
+`pnpm run upgrade 0.112.0` moves the packages of the release from `0.111.0` and applies its
+migrations — twelve for modules of earlier releases (each runs where its module is declared), and one
+more for the new `related_payers` module, which runs only once an instance declares it. **No migration
+refuses on existing data and none rewrites a table**; three of them only move statements out of
+another module's frozen migrations and change nothing on an instance that ran those. The release
+closes the admin UX audit (issue #1567): one visual system, one list page, one Save and one primary
+action per screen across the Admin UI, which **removes the admin kit's legacy `b2b-*` classes** a
+module or theme of your own may still render. Beside it, promotions compute on the gross the buyer
+pays, an order's payment status follows a transition graph, a write that stores an asset id the
+administrator cannot see is refused, the admin quote request list pages on the server, and `returns`
+takes complaints about goods bought elsewhere and from guests without an account. The steps below say
+what to do, in order; each entry after them stands on its own, so read the ones for the parts of the
+platform you use.
+
+#### What to do, in order {#after-0-112-0-steps}
+
+Before the upgrade:
+
+1. **On a production instance that sends newsletters, choose an SMTP e-mail credential** in the
+   *Email credentials* setting of `newsletter`. Without one, sending a campaign is refused with
+   `422 NEWSLETTER_PROVIDER_NOT_CONFIGURED` instead of going to the server log
+   ([Newsletter sending](#after-0-112-0-newsletter)).
+2. **Review the promotions whose minimum spend or "spend X" step was set as a net amount.** Thresholds,
+   fixed-amount caps and percentages are now computed on the gross
+   ([Promotions on the gross](#after-0-112-0-promotions)).
+
+The upgrade itself:
+
+3. **Run `pnpm run upgrade 0.112.0`.** `setup` applies the migrations module by module, in the order
+   of the modules' dependencies, and each module's own in the order of their stamps. Grouped by
+   module:
+
+   | Migration | Module | What it does |
+   | --- | --- | --- |
+   | `Migration20261117T065542CurrenciesTable` | `currencies` | Creates the `currencies` table, its indexes, columns, checks and the `PLN` and `EUR` rows where an older migration of another module did not; **nothing changes on an instance that has them** |
+   | `Migration20261117T065601DictionariesDefaultCurrencyFk` | `dictionaries` | Adds `countries_default_currency_fk` where it is missing; nothing changes on an instance that has it |
+   | `Migration20261117T033143OrganizationsCustomerGroupColumn` | `organizations` | Creates `organizations.customer_group_id` and its index where they are missing; nothing changes on an instance that has them |
+   | `Migration20261119T090000CartsBuyingFor` | `carts` | Nullable `carts.buying_for_organization_id` and `buying_for_terms`: the related payer a cart is bought for |
+   | `Migration20261118T162646OrdersPayerOnOrder` | `orders` | Four nullable payer columns on `orders` and an index on `payer_organization_id`; every existing order has no payer |
+   | `Migration20261116T204304InvoicesInvoiceLineKindRetained` | `invoices` | `invoice_lines.line_kind` admits `retained`, an amount withheld on a return |
+   | `Migration20261113T145001ReturnsAuthorizerStatusNotifications` | `returns` | `return_cases.authorized_by_admin_user_id`, back-filled from the audit log, and `return_statuses.notify_customer_on_entry`, off for every status |
+   | `Migration20261113T155433ReturnsOffPlatformComplaints` | `returns` | `return_cases.order_id` becomes nullable, with the columns of a complaint without a platform order; `return_case_attachments` carries `organization_id`, back-filled from its case; table `return_case_clauses` — see [Returns](#after-0-112-0-returns) |
+   | `Migration20261116T104415ReturnsGuestComplaints` | `returns` | `return_cases.customer_account_id` becomes nullable, with the guest columns on cases, comments and attachments; table `return_guest_verifications` |
+   | `Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders` | `quote_requests` | **Gives every quote request still named `QR-<uuid>` a business number** from the sequence, oldest first; irreversible, and texts already rendered keep the placeholder |
+   | `Migration20261122T074243CrmOpportunityListSavedViews` | `crm` | Table `crm_opportunity_list_saved_views`, empty |
+   | `Migration20261122T074256ProjectsListSavedViews` | `projects` | Table `project_list_saved_views`, empty |
+
+   Declaring `related_payers` adds `Migration20261118T144820RelatedPayersLinksAndRequests`, which
+   only creates the module's own two tables (step 7).
+
+After the upgrade, before the instance takes traffic again:
+
+4. **Bring the storefront over.** A storefront copied from an earlier release has no guest complaint
+   and tracking pages, no payer screens in the account and none of the returns form's attachments and
+   clauses. The shortest path is to bring over the release's storefront as a whole —
+   `git diff v0.111.0 v0.112.0 -- storefront` in the platform repository lists every change.
+5. **Release the credit reservations of credit-limit orders settled through
+   `POST /api/v1/payments/receive`** before this release: run `pnpm run cli orders
+   transition-effects-repair`, review what it lists, then run it again with `--apply`
+   ([Payment status](#after-0-112-0-payment-status)).
+
+Whenever it suits you:
+
+6. **Switch on what `returns` now offers**, per sales channel: complaints about goods bought elsewhere
+   (`returns.off_platform_complaints_enabled`), then complaints from guests
+   (`returns.guest_complaints_enabled`), and the new-case recipients
+   (`returns.new_case_recipients`). All are off after the upgrade ([Returns](#after-0-112-0-returns)).
+7. **Declare `related_payers`** if a buyer Organization should place orders another Organization pays
+   for ([Adding a module that is new in a release](#adding-a-new-module)). It comes up switched off;
+   switch it on on **Modules** and per sales channel.
+8. **Code of your own** that renders the admin kit's `b2b-*` classes, mounts `ScopePicker`,
+   `RuleBuilder` or one of the kit's panels on its own, calls the returns attachment API, writes asset
+   ids, sends an Organization's `status` in a `PATCH`, sets payment statuses or reads the admin quote
+   request list in one call needs the changes in [Breaking changes](#after-0-112-0-breaking).
+
+#### Promotions on the gross {#after-0-112-0-promotions}
+
+Promotions compute on the gross the buyer pays (issues #1350 and #1396). Percent-off and free-unit
+promotions take their share of the goods gross, so a buyer pays less than before for the same
+promotion: "10 % off the cart" at 23 % VAT took about 8.1 % off what the buyer paid and now takes 10 %,
+and a free unit is free VAT included. `minCartSubtotal`, the rule builder's cart total and the "spend
+X" steps compare the goods gross before any discount, and fixed amounts are capped at the gross, so
+some promotions apply to carts they skipped before: a minimum spend of 500 needed 500 net and now
+needs 500 gross. Orders placed before the upgrade are not changed. A caller of
+`POST /api/v1/admin/promotions/preview` sends `taxRate` on each line to get the discount an order
+would take.
+
+#### Payment status {#after-0-112-0-payment-status}
+
+An order's payment status follows a transition graph (issue #1574). The admin route refuses `paid`
+for a `refunded` order and `refunded` for an order that was never paid with
+`409 ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED`; asking for the status an order already has changes
+nothing and writes no audit entry. Settlement follows the same graph: a late decline no longer puts a
+paid order on hold, and the payment row still records what the gateway reported. A credit-limit order
+settled through `POST /api/v1/payments/receive` now releases its credit reservation after commit
+(issue #1576); one settled before the upgrade may still hold it, which step 5 repairs.
+
+#### Returns {#after-0-112-0-returns}
+
+`returns` stores the files of a case itself, sends four e-mails (a new case, a submission, a comment and
+a status entered), records who authorized a case, and takes two new kinds of case, each off until a
+sales channel switches it on (`specs/180-off-platform-complaints/`, `specs/181-guest-complaints/`):
+
+- **A complaint without a platform order**, about goods bought elsewhere; it is settled by
+  replacement, repair or *settled outside*, never by a refund or a credit. Clauses the customer accepts
+  or is shown are edited on the new *Return and complaint terms* screen.
+- **A complaint from a guest** without a customer account, who confirms an e-mail address by a
+  one-time link and follows the case through a private tracking link. The link is sealed with the
+  platform's cursor seal, so **rotating `SESSION_COOKIE_SECRET` voids every guest link**. A guest's
+  contact, address and files are erased `returns.guest_data_retention_days` after the case closes
+  (default 90).
+
+Attachment rows written by the old API keep their `asset_id` and are typed `other`; they stay in the
+database but are not listed on the case and cannot be downloaded. `returns` now binds on `_i18n`,
+`admin_users`, `assets_library` and `catalog`; `setup` declares them if the instance did not.
+
+#### Newsletter sending {#after-0-112-0-newsletter}
+
+On a production instance (`NODE_ENV=production`) sending a newsletter campaign needs a usable e-mail
+credential: the `newsletter.email_credentials` setting naming an SMTP `email_adapter` credential that
+resolves (issue #1334). Without one, the send is refused with `422 NEWSLETTER_PROVIDER_NOT_CONFIGURED`
+and the campaign keeps its status; until now it went to the server log, reached no mailbox and read as
+sent. Development and test instances keep the console sink.
+
+#### Breaking changes {#after-0-112-0-breaking}
+
+For API clients and integrators:
+
+- **Returns attachments** (`specs/180-off-platform-complaints/`): `attachmentAssetIds` on
+  `POST /api/v1/returns` and the JSON `{ assetId }` body of `POST /api/v1/returns/:id/attachments` are
+  removed. Upload each file with `POST /api/v1/returns/uploads` (multipart `file` and `type`) and file
+  the case with `attachments: [{ uploadId }]`; add a file to a filed case as multipart.
+  `returnAttachmentSchema` no longer carries `assetId`. `customerAccountId` of a case summary and
+  detail is `uuid | null`, `null` for a guest's case.
+- **Asset ids a write adds are checked** (issues #544, #1354): CMS, catalog, blog, document template,
+  settings, PWA, sales channel and transactional e-mail writes refuse an asset id the administrator
+  cannot see, or that does not exist, with `404`; ids the record already stores are not checked. In
+  Page Builder content only a key ending in `assetId` counts as a reference to a file (issue #1359),
+  and the catalog and blog content saves answer `ASSET_NOT_FOUND` instead of `NOT_FOUND`.
+- **`PATCH /api/v1/admin/organizations/:id` refuses `status`** (issue #1468): change it through
+  `…/approve`, `…/reject`, `…/block` or `…/unblock`. Four `organizations` refusals answer
+  `ORGANIZATION_PERSONAL` or `ORGANIZATION_STATUS_INVALID` instead of `VALIDATION_FAILED` (issue
+  #629).
+- **Payment status transitions** are refused as described under
+  [Payment status](#after-0-112-0-payment-status); `orderPaymentStatusApplyPort` answers an `outcome`.
+- **`GET /api/v1/admin/quote-requests` answers one page** (issue #317): page through it with `page` and
+  `pageSize` (default 25, at most 200), or read `pagination.total`.
+- **`ATTRIBUTE_VALUE_REJECTED`'s two Page Builder content refusals** carry `details.code` and the key
+  instead of a list of `{ path, issue }` (issue #1223).
+- **`GET /api/v1/admin/audit-log/recent-activity`** answers an invalid query with `VALIDATION_FAILED`
+  in the standard envelope instead of `validation_error` (issue #1339).
+
+For module, theme and overlay authors:
+
+- **The admin kit's legacy classes are removed from `theme.css`** (issues #1436, #1488, #1492, #1502):
+  `.b2b-page-head*`, `.b2b-card*`, `.b2b-btn*`, `.b2b-field*`, `.b2b-select`, `.b2b-label`,
+  `.b2b-help`, `.b2b-input-wrap`, `.b2b-tbl`, `.b2b-table`, `.b2b-bulkbar`, `.b2b-row`, `.b2b-col`,
+  `.b2b-grow`, `.b2b-mono`, `.b2b-tabular` and `.b2b-hr`. A module that renders one gets unstyled
+  markup. Use the kit's `PageHeader`, `Card`, `Button`, `Input`, `Select`, `FormField`, `Table` and
+  `ListToolbarSearch`, or Tailwind utilities; the `@endora-commerce/admin-kit` changelog for 0.112.0 maps each class. A theme override
+  of one of them moves to the tokens (`--card-pad`, `--fs-section-title`). The `.dark` token block is
+  removed too (issue #1810).
+- **Cards are denser and kit panels are sections** (issues #1437, #1438, #1488, #1503): `Card` pads
+  16 px, `CardTitle` is an `h2`; `CustomFieldValuesPanel`, `FieldProtectionSummary`,
+  `FieldProtectionPricePanel`, `ScopePicker` and `RuleBuilder` draw no frame of their own — pass
+  `chrome="card"` where one stands alone on a page.
+- **`@endora-commerce/page-builder-admin` removes `PageBuilderTemplateActions` and
+  `PageBuilderHeaderShell`** (issue #1494): pass their props to `PageBuilderHeaderActions`.
+  **`@endora-commerce/cms-components`' `SectionPreset.build`** takes the resolved copy instead of a
+  translator (issue #1684).
+- **`ChannelMembershipListResponseSchema`** is removed from `@endora-commerce/contracts` (issue
+  #1162); use `ChannelMemberIdListResponseSchema`. `importChannelTargetSchema` requires `name`.
+- **Ports gain methods** an implementation outside the platform must add:
+  `SalesRepAssignmentPort.listOrganizationIdsWithAssignments()`, `InvoicePdfPort.renderInvoice()`,
+  `SettingsAdminPort.resetValuesForSubset()` and `AuditPort.queryFacets()`.
+  `ModerationActionsPanel` takes a required `canModerate`.
+- **Translation keys are removed** from several bundles as the screens that read them changed; a
+  deployment that overrides a key drops it. Each module's `CHANGELOG.md` for 0.112.0 names them.
+
+This section was written on 2026-11-23 against the release branch `release/version-0.112.0`, read from
+the changesets of the release against its migrations and manifests. No pull request of this cycle wrote
+an entry of its own on this page. No instance had been upgraded with `pnpm run upgrade 0.112.0` when it
+was written; the order of the steps is untried.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except
