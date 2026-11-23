@@ -144,6 +144,11 @@ or off is an update, and `activationChange` is `activated`, `deactivated` or
 `null`. A new promotion is bound to the default sales channel after its write
 commits, so a hook does not see that binding.
 
+A promotion created already active is reported only by `promotion.create`, with
+`isActive: true`; that write has no `activationChange`. A hook that reacts when a
+promotion becomes active therefore handles both actions: `promotion.create` with
+`isActive: true`, and `promotion.update` with `activationChange: 'activated'`.
+
 All four actions offer both phases. An `afterCommit` handler is delivered
 through the platform's outbox after the write commits, at least once. Its
 `data` carries ids and codes from a closed set only:
@@ -159,9 +164,13 @@ hook's noted changes appear in the write's single audit entry as names, under
 their promotion (`objectType: 'promotion'`), as they were before they became
 Commands. No HTTP body carries extension input (`extensions`) yet.
 
-The promotion delete, the bulk coupon activation and the named-rule writes are
-not declared hookable. Neither is a coupon's redemption, which order placement
-records in its own transaction.
+Not hookable:
+
+- `promotion.delete`, `coupon.set_active_bulk` and the named-rule writes
+  (`promotion_rule.*`), which are not Commands yet (issue #1886);
+- a coupon's redemption, which order placement records in its own transaction.
+  React to it through the in-process `promotion.used.v1` event that order
+  placement emits (issue #1887).
 
 ## Refusals
 

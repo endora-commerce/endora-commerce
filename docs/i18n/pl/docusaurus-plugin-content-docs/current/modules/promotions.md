@@ -135,6 +135,11 @@ wyłączenie promocji jest aktualizacją, a `activationChange` ma wartość `act
 `null`. Nowa promocja jest przypisywana do domyślnego kanału sprzedaży dopiero po zatwierdzeniu jej
 zapisu, więc hook tego przypisania nie widzi.
 
+Promocję utworzoną od razu jako aktywną zgłasza wyłącznie `promotion.create`, z
+`isActive: true`; ten zapis nie ma `activationChange`. Hook, który reaguje na aktywację promocji, musi
+więc obsłużyć obie akcje: `promotion.create` z `isActive: true` oraz `promotion.update` z
+`activationChange: 'activated'`.
+
 Wszystkie cztery akcje oferują obie fazy. Odbiorca `afterCommit` jest obsługiwany przez kolejkę
 dostarczeń platformy po zatwierdzeniu zapisu, co najmniej raz. Jego `data` zawiera tylko
 identyfikatory i kody z zamkniętego zbioru:
@@ -150,9 +155,13 @@ zgłoszone przez hook trafiają do jedynego wpisu audytu zapisu jako nazwy, w
 (`objectType: 'promotion'`), tak jak przed przejściem na polecenia. Żadne ciało żądania HTTP nie
 przenosi jeszcze danych rozszerzeń (`extensions`).
 
-Usunięcie promocji, hurtowa aktywacja kuponów i zapisy nazwanych reguł nie są zadeklarowane jako
-dostępne dla hooków. Nie jest nim też realizacja kuponu, którą złożenie zamówienia zapisuje we
-własnej transakcji.
+Niedostępne dla hooków:
+
+- `promotion.delete`, `coupon.set_active_bulk` i zapisy nazwanych reguł (`promotion_rule.*`), które
+  nie są jeszcze poleceniami (zgłoszenie #1886);
+- realizacja kuponu, którą złożenie zamówienia zapisuje we własnej transakcji. Można na nią reagować
+  przez zdarzenie wewnątrzprocesowe `promotion.used.v1` emitowane przy składaniu zamówienia
+  (zgłoszenie #1887).
 
 ## Odmowy
 
