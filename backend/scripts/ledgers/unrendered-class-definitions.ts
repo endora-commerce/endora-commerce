@@ -90,9 +90,6 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
   // ---------------------------------------------------------------------
   // Not `b2b-*`, and each stands for a reason of its own rather than as debt.
   // ---------------------------------------------------------------------
-  dark:
-    "the dark-mode class the application sets on `document.documentElement`, never in a class " +
-    'attribute — it is a state selector and not a component class',
   'puck-root':
     "`@puckeditor/core`'s own root class, rendered by that library rather than by this " +
     'repository; the design system styles it because the host embeds the editor',

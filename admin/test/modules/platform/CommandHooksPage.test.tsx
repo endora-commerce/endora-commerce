@@ -318,7 +318,7 @@ describe('CommandHooksPage — outbox permissions and retry', () => {
     await waitFor(() => expect(asked.at(-1)).toEqual(['pending', '41']));
     await waitFor(() => expect(bodyRows()[0]!.textContent).not.toContain('0000000000p1'));
     expect(bodyRows()).toHaveLength(1);
-    expect(screen.getByRole('button', { name: core('en', 'common.pagination.next') })).toBeDisabled();
+    expect(screen.getByRole('button', { name: core('en', 'common.pagination.next') })).toHaveAttribute('aria-disabled', 'true');
 
     // Previous walks back to the first page.
     await userEvent.click(screen.getByRole('button', { name: core('en', 'common.pagination.previous') }));

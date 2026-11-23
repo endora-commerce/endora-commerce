@@ -242,7 +242,7 @@ describe('CursorPagination', () => {
       .map((option) => Number((option as HTMLOptionElement).value));
     expect(sizes.length).toBeGreaterThan(0);
     expect(Math.max(...sizes)).toBeLessThanOrEqual(50);
-    expect(screen.getByRole('button', { name: core('common.pagination.next') })).toBeDisabled();
+    expect(screen.getByRole('button', { name: core('common.pagination.next') })).toHaveAttribute('aria-disabled', 'true');
     await userEvent.click(screen.getByRole('button', { name: core('common.pagination.previous') }));
     expect(onPrevious).toHaveBeenCalledTimes(1);
     await userEvent.selectOptions(within(nav).getByRole('combobox'), String(sizes[0]));

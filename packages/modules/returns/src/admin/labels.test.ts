@@ -16,6 +16,10 @@ describe('returns admin labels (#1472, SALES-07)', () => {
     // The backend's order: never another language (`resolveReturnStatusName`).
     expect(returnStatusName({ code: 'inspecting', name: { en: 'In inspection' }, defaultName: '' }, 'pl')).toBe('inspecting');
     expect(returnStatusName({ code: 'inspecting', name: {}, defaultName: '' }, 'pl')).toBe('inspecting');
+    // Issue #1815 — a regional entry answers its language, as `resolveReturnStatusName` does.
+    expect(returnStatusName({ code: 'new', name: { 'pl-PL': 'Nowe', en: 'New' }, defaultName: 'New' }, 'pl')).toBe('Nowe');
+    expect(returnStatusName({ code: 'new', name: { pl: 'Nowe', en: 'New' }, defaultName: 'New' }, 'pl-PL')).toBe('Nowe');
+    expect(returnStatusName({ code: 'new', name: { pl: '', en: 'New' }, defaultName: 'New' }, 'pl')).toBe('New');
   });
 
   it('names a delivery method from the list, and answers null for an id the list does not hold', () => {

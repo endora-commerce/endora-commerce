@@ -129,7 +129,7 @@ export function TemplateFieldRow(props: TemplateFieldRowProps): ReactNode {
 
       <span className="hidden min-w-0 flex-1 flex-col sm:flex">
         {needsAttention ? (
-          <span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+          <span className="inline-flex items-center gap-1 text-xs text-amber-700">
             <AlertTriangle size={12} aria-hidden="true" />
             {t('builder.field.notFilled')}
           </span>

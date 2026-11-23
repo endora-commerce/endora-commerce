@@ -121,7 +121,7 @@ export function TaxIdScopePage(): ReactNode {
 
       <div role="status" aria-live="polite" className={announcement ? 'mb-4' : undefined}>
         {announcement ? (
-          <p className="rounded-md border border-emerald-500/40 bg-emerald-50 p-4 text-sm text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
+          <p className="rounded-md border border-emerald-500/40 bg-emerald-50 p-4 text-sm text-emerald-900">
             {announcement}
           </p>
         ) : null}

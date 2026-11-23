@@ -244,7 +244,7 @@ export function SettingRowEditor({
               {notice ? (
                 <p
                   role="status"
-                  className="flex items-start gap-1 font-medium text-amber-800 dark:text-amber-300"
+                  className="flex items-start gap-1 font-medium text-amber-800"
                 >
                   <AlertTriangle aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
                   <span>{notice}</span>
