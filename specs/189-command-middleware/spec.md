@@ -2,8 +2,9 @@
 
 **Feature Branch**: `spec/189-command-middleware`
 **Created**: 2026-11-23
-**Status**: Draft, ruling **D-296** recorded below. The owner settled scope on 2026-11-23; this
-document does not reopen those decisions.
+**Status**: Draft, ruling **D-296** recorded below. The owner settled scope on 2026-11-23 and
+answered the three open questions the same day (D-296.8 to D-296.10, and D-296.5/D-296.6 as
+amended). This document does not reopen those decisions, and no owner question is open.
 **Input**: issues #1840 (declared command middleware: `admit` and `observe` phases on the Command
 Bus) and #1841 (narrow D-156.4: stop overlays decorating `commandBus`, `auditLogService`,
 `eventBus` and `emFactory`). #1842 (documentation) was absorbed by #1857, which
@@ -15,11 +16,14 @@ Bus) and #1841 (narrow D-156.4: stop overlays decorating `commandBus`, `auditLog
   feature sits beside. Its plan's OD-6 ("whether a deployment still needs D-156.4's right to
   decorate `commandBus`") is the question this feature answers.
 - `specs/188-policy-points/` (D-295): the second manifest-declared contribution mechanism in the
-  same release train. It uses the same vocabulary for module origin, ordering, tie-breaks, time
-  budgets and fail-closed behaviour (`contracts/module-origin.md` §4).
+  same release train. It consumes this feature's module origin and trust tier, and uses the same
+  vocabulary for ordering, tie-breaks, time budgets and fail-closed behaviour
+  (`contracts/module-origin.md` §4). Its per-package grant for policy participants is a per-point
+  permission as `contracts/module-origin.md` §5 defines it (D-296.10).
 - `specs/190-overlay-full-modules/` (D-297): it owns the published documentation for this
   mechanism, the customisation-ladder entry, the migration example from a bus wrap to
-  `admit` / `observe`, and the constitution XV rewrite (see *Owner questions*, OQ-2).
+  `admit` / `observe`, and the constitution XV rewrite around the sentences this feature adds
+  (D-296.9).
 - `specs/186-aggregate-ports/` (D-293), `specs/187-side-table-extensions/` (D-294) and
   `specs/191-membership-join-requests/` (D-298) do not depend on this feature.
 
@@ -38,9 +42,14 @@ Bus) and #1841 (narrow D-156.4: stop overlays decorating `commandBus`, `auditLog
 - **Origin**: where the platform found a composed module. `core` is a module of this repository's
   workspace, or a first-party package of the same release installed in an instance. `deployment` is
   a per-deployment overlay module. `package` is any other installed package. The platform derives
-  the origin from where the module was found. A module never declares its own origin.
+  the origin from where the module was found. A module never declares its own origin, and a
+  per-point grant in the deployment's divergence declaration never changes it (D-296.10).
+- **Per-point grant**: a deployment's permission, in its committed `divergence.ts`, for one
+  installed `package` module to use one contribution point that withholds it from `package` by
+  default. It is not an origin (`contracts/module-origin.md` §5). Command middleware offers none.
 - **Guard seam**: one of the four root-supplied registrations through which Principles XI and XIII
-  are enforced: `commandBus`, `auditLogService`, `eventBus`, `emFactory`.
+  are enforced: `commandBus`, `auditLogService`, `eventBus`, `emFactory`. The four are a fixed list
+  (`GUARD_SEAM_REGISTRATIONS`); adding one is a ruling that amends D-296.
 - **Root-supplied registration**: a container name that a composition root registers and no module
   owns. The guard seams are four of them.
 
@@ -92,22 +101,53 @@ gains *"narrowed by D-296"* in the change that alters the behaviour it describes
   field a manifest author writes. It does not touch the decoration exemption: `ModuleEntry.overlay`
   and `ModuleEntry.installedPackage` keep their meaning, and D-156.4's warning against retyping
   `overlay` into an origin enum still holds (`contracts/module-origin.md`).
-- **D-296.5: D-156.4 is narrowed in two releases.**
-  - In **0.113.0**, an overlay module that decorates a root-supplied registration still composes.
-    The composition logs a warning, and the divergence report carries a warning finding that names
-    the overlay, the registration and the replacement. For the four guard seams the replacement is
-    command middleware and command hooks. For any other root-supplied name it is a port from the
-    owning module.
-  - In **0.114.0** the same decoration fails composition with a named error. This is a breaking
-    change, and the upgrade note says what to move where.
+- **D-296.5: D-156.4 is narrowed in two releases, for the four guard seams only** *(scope amended
+  by the owner ruling of 2026-11-23, OQ-3)*.
+  - In **0.113.0**, an overlay module that decorates `commandBus`, `auditLogService`, `eventBus` or
+    `emFactory` still composes. The composition logs a warning, and the divergence report carries a
+    warning finding that names the overlay, the guard seam and the replacement: command middleware
+    and command hooks for `commandBus`, and the per-seam text of
+    `contracts/guard-seam-narrowing.md` §2 for the other three.
+  - In **0.114.0** the same decoration fails composition with `GuardSeamDecorationError`. This is a
+    breaking change, and the upgrade note says what to move where.
+  - A decoration of any **other** root-supplied registration (`redis`, `orm`, `requireAdmin`, …)
+    is not touched by D-296. It is neither warned nor refused, and D-156.4 still governs it.
 - **D-296.6: what decoration remains for an overlay.** An overlay may decorate (a) a registration
-  of another overlay module of the same deployment, and (b) a registration of a workspace module of
-  this repository. Decorating an installed package's registration stays refused
+  of another overlay module of the same deployment, (b) a registration of a workspace module of
+  this repository, and (c) a root-supplied registration that is not one of the four guard seams.
+  Decorating an installed package's registration stays refused
   (`PackageDecorationNotOfferedError`, D-176 Q3). In an instance core arrives as packages, so the
   route there is declared extension points: hooks, middleware, policy points and ports.
 - **D-296.7: revisit** D-296.2 or D-296.3 when a named deployment or package cannot express a
   requirement with metadata-only `admit` or with `observe`. Widening either is an additive change
   made by a later ruling that says it amends D-296.
+
+### Owner rulings of 2026-11-23 on the open questions
+
+The owner answered this specification's three questions and one cross-specification question on
+2026-11-23. They are part of D-296.
+
+- **D-296.8: paid modules are `package`** *(OQ-1, as recommended)*. A paid module installed in an
+  instance has origin `package` and contributes `observe` only, like every other non-workspace
+  package. This holds until a **signed** first-party list exists. That list is a later ruling that
+  amends D-296, and until it exists nothing (an npm scope, a commercial relationship, a manifest
+  field) makes a package `core`.
+- **D-296.9: who changes constitution XIII and XV** *(OQ-2, as recommended)*. This feature's P2
+  merge request adds the sentences in `contracts/guard-seam-narrowing.md` §6 to XIII and XV, so the
+  constitution never lags the code. `specs/190-overlay-full-modules/` then rewrites XV around them.
+- **D-296.5 and D-296.6 amended: scope of the 0.114.0 refusal** *(OQ-3, the alternative, not the
+  recommendation)*. The refusal covers only the four guard seams, as #1841 items 1 and 2 name them
+  and as the owner's scope ruling put it. The recommended "every root-supplied name" reading of
+  #1841 item 3 is rejected. D-296.5 and D-296.6 above are written as amended. Because the four are
+  a list and not a derivation, the list is pinned by a test, and the composition roots are tested
+  to register each of them (FR-055).
+- **D-296.10: who owns the origin type and the trust tier** *(cross-specification, 188/189/190)*.
+  This feature owns them, in `contracts/module-origin.md`. `specs/188-policy-points/` and
+  `specs/190-overlay-full-modules/` consume that contract and do not redefine it. When 188 lets a
+  deployment grant an installed package the right to contribute policy participants (owner ruling
+  of the same day, 188's row), that grant is a **per-point permission** and **does not change the
+  package's origin or trust tier** (`contracts/module-origin.md` §5). It does not give the package
+  `admit`, does not lift the `package` observer redaction (FR-022) and does not change decoration.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -244,8 +284,9 @@ CI stays green.
 alternatives, OD-4).
 
 **Independent Test**: a fixture overlay decorating each of the four guard seams and one other
-root-supplied name. The composition succeeds, one structured warning is logged per
-(module, registration), and `check:divergence` prints a warning finding per decoration and exits 0.
+root-supplied name (`redis`). The composition succeeds, one structured warning is logged per
+(module, guard seam) and none for `redis`, and `check:divergence` prints a warning finding per
+guard-seam decoration and exits 0.
 
 **Acceptance Scenarios**:
 
@@ -253,32 +294,35 @@ root-supplied name. The composition succeeds, one structured warning is logged p
    it logs `kernel.decoration.deprecated` naming the overlay, `commandBus`, the replacement
    (command middleware, command hooks) and the release that refuses it.
 2. **Given** an overlay decorating `redis`, a root-supplied name that is not a guard seam, **When**
-   the platform composes, **Then** the warning's replacement is a port from the module that needs
-   the change.
+   the platform composes, **Then** the wrap is applied, no warning is logged and the divergence
+   report carries no `deprecated-decoration` finding for it.
 3. **Given** an overlay decorating another overlay module's registration, or a workspace core
    module's registration, **When** the platform composes, **Then** no warning is logged.
 
 ---
 
-### User Story 6: In 0.114.0 the decoration is refused (Priority: P3)
+### User Story 6: In 0.114.0 the guard-seam decoration is refused (Priority: P3)
 
 The same deployment upgrades to 0.114.0 without moving its wrap. Composition refuses with
-`RootSuppliedDecorationError`, which names the overlay, the registration and the replacement. The
+`GuardSeamDecorationError`, which names the overlay, the guard seam and the replacement. The
 upgrade note in the release says how to move a metrics wrap to `observe` and a rate-limit wrap to
 `admit`.
 
 **Why this priority**: it is the following release's work. It is specified now so the warning text
 in US5 can promise it.
 
-**Independent Test**: the US5 fixture now fails composition with the named error. The decoration
-tests that previously asserted an overlay may wrap `commandBus` now assert the refusal.
+**Independent Test**: the US5 fixture now fails composition with the named error for each guard
+seam, and its `redis` decoration alone still composes. The decoration tests that previously
+asserted an overlay may wrap `commandBus` now assert the refusal.
 
 **Acceptance Scenarios**:
 
-1. **Given** an overlay decorating any root-supplied name, **When** the platform composes on
+1. **Given** an overlay decorating any of the four guard seams, **When** the platform composes on
    0.114.0, **Then** it refuses before any boot hook runs and leaves the container unwrapped.
 2. **Given** the 0.114.0 divergence report for the same tree, **Then** the finding is an error and
    `check:divergence` exits 1.
+3. **Given** an overlay decorating `redis` and nothing else root-supplied, **When** the platform
+   composes on 0.114.0, **Then** it composes with the wrap applied, as on 0.112.x.
 
 ---
 
@@ -326,8 +370,15 @@ roots pass the same registry wiring.
 - **Unknown action prefixes.** A filter prefix that matches no Command action anywhere is not an
   error, because actions appear as modules are added. The divergence report shows the filter as
   written.
-- **A root-supplied name added in a later release.** It falls under D-296.5 automatically, because
-  "root-supplied" is derived from the ownership ledger, not listed.
+- **A root-supplied name added in a later release.** It stays decoratable by an overlay, like every
+  root-supplied name outside the four (D-296.6 (c)). If it is a guard seam, adding it to
+  `GUARD_SEAM_REGISTRATIONS` is a ruling that amends D-296, and the pinning test makes that change
+  visible (FR-055).
+- **A guard seam renamed at the root.** The root-registration test (FR-055) fails, so the list
+  cannot silently name a registration that no longer exists.
+- **A package granted policy participants by the deployment.** Its origin stays `package`. An
+  `admit` it declares is still refused by `CommandMiddlewareOriginError`, and its `observe` still
+  gets the request id only (D-296.10).
 
 ## Requirements *(mandatory)*
 
@@ -345,7 +396,9 @@ roots pass the same registry wiring.
   when it is absent.
 - **FR-004**: The platform MUST derive each composed module's origin (`core`, `deployment`,
   `package`) from where its loader found it. Composition MUST refuse an `admit` declared by a
-  `package` module. A manifest MUST NOT be able to set or influence its own origin.
+  `package` module. A manifest MUST NOT be able to set or influence its own origin. A per-point
+  grant in the deployment's divergence declaration (`contracts/module-origin.md` §5) MUST NOT change
+  a module's derived origin, and command middleware MUST NOT read any grant.
 
 ### Admission
 
@@ -415,17 +468,23 @@ roots pass the same registry wiring.
 
 ### Narrowing D-156.4
 
-- **FR-050** *(0.113.0)*: When an overlay module decorates a root-supplied registration, composition
-  MUST succeed and MUST log one structured warning per (module, registration). The warning names the
-  overlay, the registration, the replacement and the release that refuses the decoration.
+- **FR-050** *(0.113.0)*: When an overlay module decorates one of the four guard seams
+  (`commandBus`, `auditLogService`, `eventBus`, `emFactory`), composition MUST succeed and MUST log
+  one structured warning per (module, guard seam). The warning names the overlay, the guard seam,
+  the replacement and the release that refuses the decoration.
 - **FR-051** *(0.113.0)*: The divergence derivation MUST raise a `deprecated-decoration` finding of
   **warning** severity for each such decoration, with the same content. Divergence checks MUST
   report warnings and MUST NOT fail on them.
-- **FR-052** *(0.114.0)*: The same decoration MUST fail composition with `RootSuppliedDecorationError`
+- **FR-052** *(0.114.0)*: The same decoration MUST fail composition with `GuardSeamDecorationError`
   before any wrap is applied. The finding's severity MUST become **error**.
 - **FR-053**: An overlay MUST still be able to decorate registrations of its own deployment's other
-  overlay modules and of this repository's workspace modules. Decorating an installed package's
-  registration stays refused.
+  overlay modules, of this repository's workspace modules, and every root-supplied registration
+  that is not a guard seam, with no warning, no finding and no refusal in either release.
+  Decorating an installed package's registration stays refused.
+- **FR-055**: The guard seams MUST be stated once, as `GUARD_SEAM_REGISTRATIONS` in
+  `@endora-commerce/contracts`, read by both the platform and the CLI derivation. A test MUST pin
+  its exact content, and a test MUST assert that both composition roots (`composeApp` and the
+  test-kit server) register each of the four as a root-supplied name.
 - **FR-054**: Every in-tree statement of D-156.4 (code comments, `specs/conventions/overlay-modules.md`,
   the contracts doc comment on `decorationOrder`) MUST be updated, in the change that alters the
   behaviour, to state the narrowing and cite D-296.
@@ -449,7 +508,8 @@ roots pass the same registry wiring.
 - **Command middleware registration**: the code behind a declaration, keyed by module and id.
 - **Admission metadata**: what `admit` sees (FR-011).
 - **Run outcome**: what `observe` sees (FR-020).
-- **Module origin**: the derived trust tier of a composed module (FR-004).
+- **Module origin**: the derived trust tier of a composed module (FR-004). Its single statement is
+  `contracts/module-origin.md`, which 188 and 190 consume (D-296.10).
 
 No persistent entity. This feature adds no table and no migration.
 
@@ -463,41 +523,36 @@ No persistent entity. This feature adds no table and no migration.
   is under 0.2 ms in the same benchmark.
 - **SC-004**: Switching a middleware's module off takes effect on the next Command with no restart,
   in 100 % of the off-state tests.
-- **SC-005**: Every decoration of a root-supplied name by an overlay in the repository's fixtures
-  and deployments produces exactly one warning on 0.113.0, and one composition refusal on 0.114.0.
-- **SC-006**: Zero overlays in `backend/src/apps/` decorate a root-supplied name when 0.114.0 is
-  cut. This is verified by the committed divergence artefacts.
+- **SC-005**: Every decoration of a guard seam by an overlay in the repository's fixtures and
+  deployments produces exactly one warning on 0.113.0, and one composition refusal on 0.114.0.
+  Every decoration of another root-supplied name produces neither, in both releases.
+- **SC-006**: Zero overlays in `backend/src/apps/` decorate a guard seam when 0.114.0 is cut. This
+  is verified by the committed divergence artefacts.
 
 ## Assumptions
 
-- No overlay in this repository decorates a root-supplied name today. `example_overlay` decorates
-  `pricingService` and `acceptance_overlay` decorates its own registration. Measured with a grep
-  over `backend/src/apps/` at `ff7efc3e8`. The warning therefore lands on fixtures and on client
-  instances only.
+- No overlay in this repository decorates a guard seam or any other root-supplied name today.
+  `example_overlay` decorates `pricingService` and `acceptance_overlay` decorates its own
+  registration. Measured with a grep over `backend/src/apps/` at `ff7efc3e8`, and unchanged at
+  `babfae111` (0.112.0). The warning therefore lands on fixtures and on client instances only.
 - Paid modules from `../paid-modules` are not in this workspace (D-265), so they have origin
-  `package` and get `observe` only until the owner rules otherwise (OQ-1).
+  `package` and get `observe` only until a signed first-party list exists (D-296.8).
 - Time budgets are platform constants plus an optional per-declaration value under the cap. They are
   not operator Settings. No secret is involved.
 - 0.113.0 is the non-database track and may start before the MikroORM 7 switch (#1073). This feature
   changes no entity and no migration.
 
-## Owner questions *(the architect could not rule these; recommendations given)*
+## Owner questions *(all closed on 2026-11-23)*
 
-- **OQ-1: Paid first-party modules.** Should a paid module package get origin `core` (and so
-  `admit`)? It is commercially first-party, but nothing in an instance can tell it apart from a
-  stranger's package without a signing mechanism. **Recommendation: no, for now.** It gets `observe`
-  only, as D-296.3 states for every non-workspace package. Revisit with a signed first-party list
-  when a paid module needs admission.
-- **OQ-2: Who edits constitution XV and XIII.** #1841 asks this feature to align XV, and #1857
-  (`specs/190-overlay-full-modules/`) owns the XV rewrite. **Recommendation:** this feature lands
-  the two sentences that make its code constitutional in its first merge request, as 176 did with its
-  FR-042. They add *declared command middleware* to XV's bounded surface and state that an overlay
-  may not decorate a guard seam, effective 0.114.0. The exact text is in
-  `contracts/guard-seam-narrowing.md` §6. 190 then rewrites XV around them. The alternative is that
-  190 applies the text, which leaves 0.113.0 shipping a seam the constitution does not list.
-- **OQ-3: Scope of the 0.114.0 refusal.** The issue title names four guard seams. #1841 item 3,
-  and the brief, say decoration *remains* only for other overlay modules and workspace modules,
-  which also excludes every other root-supplied name (`redis`, `orm`, `requireAdmin`…). This
-  specification follows item 3, because "root-supplied" is derived and needs no list.
-  **Confirm**, or narrow the refusal to the four named seams. The design supports both by changing
-  one predicate.
+- **OQ-1: Paid first-party modules.** Closed by **D-296.8**: no. A paid module is `package` and
+  gets `observe` only until a signed first-party list exists. This was the recommendation.
+- **OQ-2: Who edits constitution XV and XIII.** Closed by **D-296.9**: this feature's P2 adds the
+  sentences in `contracts/guard-seam-narrowing.md` §6, and `specs/190-overlay-full-modules/`
+  rewrites XV around them. This was the recommendation.
+- **OQ-3: Scope of the 0.114.0 refusal.** Closed by the amendment of **D-296.5 and D-296.6**: the
+  four guard seams only, per the owner's scope ruling and #1841 items 1 and 2. This was the
+  alternative, not the recommendation, and the requirements, stories, contracts, research (R-15),
+  plan and tasks are redesigned for it.
+- **Cross-specification: owner of the origin type and trust tier.** Closed by **D-296.10**: this
+  feature, in `contracts/module-origin.md`. 188 and 190 consume it. A per-package grant of policy
+  participants (188) is a per-point permission and changes neither origin nor trust tier.

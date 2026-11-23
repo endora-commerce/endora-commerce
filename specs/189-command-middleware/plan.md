@@ -2,7 +2,9 @@
 
 **Branch**: `spec/189-command-middleware` (implementation branches per phase, see *Delivery*) |
 **Date**: 2026-11-23 | **Spec**: [spec.md](./spec.md) | **Ruling**: D-296 (narrows D-156.4)
-**Input**: issues #1840 and #1841; owner decisions of 2026-11-23 (recorded as D-296 in the spec).
+**Input**: issues #1840 and #1841; owner decisions of 2026-11-23 (recorded as D-296 in the spec),
+including the answers to OQ-1 to OQ-3 and the origin-ownership ruling (D-296.8 to D-296.10, and
+D-296.5/D-296.6 as amended).
 
 ## Summary
 
@@ -21,14 +23,18 @@ Three merge requests over two releases:
   - The loaders stamp each module's origin.
   - The test kit gains `./command-middleware`, and the two composition roots wire the registry
     identically.
-- **P2 (0.113.0): deprecation of root-supplied decoration by overlays.**
+- **P2 (0.113.0): deprecation of guard-seam decoration by overlays.** It covers the four guard
+  seams only (`commandBus`, `auditLogService`, `eventBus`, `emFactory`; D-296.5 as amended). Every
+  other root-supplied name stays decoratable.
+  - `GUARD_SEAM_REGISTRATIONS` with its pinning test and the root-registration test (FR-055).
   - A structured warning in `decorate`.
   - A `deprecated-decoration` divergence finding with the new `warning` severity, which the checks
     print without failing.
   - Convention and code comments that cite D-296.
-  - The constitution sentences, if OQ-2 goes the recommended way.
-- **P3 (0.114.0, `breaking change`): refusal.** `RootSuppliedDecorationError`, the finding's
-  severity becomes an error, and the decoration tests flip. The upgrade note goes in the changeset.
+  - The constitution sentences for XIII and XV (D-296.9).
+- **P3 (0.114.0, `breaking change`): refusal.** `GuardSeamDecorationError`, the finding's
+  severity becomes an error, and the guard-seam decoration tests flip. A decoration of any other
+  root-supplied name stays green and unchanged. The upgrade note goes in the changeset.
 
 Published documentation, the ladder entry and the bus-wrap migration example are delivered by
 `specs/190-overlay-full-modules/` (#1857). No table, migration or entity is involved, so this is
@@ -69,14 +75,15 @@ composed, which is every deployment until one opts in, it is one empty-array che
 | X Queue consumers | N/A | No queue. `observe` is in-process and at most once. Durable delivery stays the outbox (176 P3). |
 | XI Tenancy (NN) | PASS | `admit` runs in the caller's ambient context, before any read. `meta.organizationId` comes from it, not from input. `observe` runs in the run's ambient context without widening (FR-024). No `em` is handed out. The narrowing makes `emFactory` undecoratable. |
 | XII Channel | N/A | No channel-scoped read. |
-| XIII Command Bus (NN) | PASS, **with amendment** | Middleware runs inside the bus, so children are covered. A refused Command records nothing, because nothing ran. An observer cannot change a write. Re-entry is refused. The audit writer and the guard seams stop being decoratable in 0.114.0. The wording is in `contracts/guard-seam-narrowing.md` §6 (OQ-2). |
+| XIII Command Bus (NN) | PASS, **with amendment** | Middleware runs inside the bus, so children are covered. A refused Command records nothing, because nothing ran. An observer cannot change a write. Re-entry is refused. The audit writer and the other guard seams stop being decoratable in 0.114.0. The wording is in `contracts/guard-seam-narrowing.md` §6, applied by P2 (D-296.9). |
 | XIV Extensibility | PASS | Not a custom-field question. Middleware is a developer seam. |
-| XV Overlay | PASS, **with amendment** | Declared, contract-gated (manifest declaration plus a typed registration, both checked at composition). Deterministic order with a deployment tie-break. Unordered conflicts fail composition. Recorded in the divergence report as `command-middleware`. **The narrowing brings the code into line with XV's "never a guard seam"**, which D-156.4 contradicted. Amendment text in §6. |
+| XV Overlay | PASS, **with amendment** | Declared, contract-gated (manifest declaration plus a typed registration, both checked at composition). Deterministic order with a deployment tie-break. Unordered conflicts fail composition. Recorded in the divergence report as `command-middleware`. **The narrowing brings the code into line with XV's "never a guard seam"**, which D-156.4 contradicted, and it reaches exactly the four guard seams (D-296.5 as amended), so XV's other overridable root plumbing is untouched. Amendment text in §6, applied by P2 (D-296.9); 190 rewrites XV around it. A per-package policy grant (188) is a per-point permission, not an origin (D-296.10, `contracts/module-origin.md` §5), so the trust tier XV relies on stays derived. |
 | XVI Palette | N/A | No admin surface is added. A middleware module's activation is the existing `/platform/modules` screen. |
 | XVII Toggleable (NN) | PASS | `isPresent` is asked per Command (`admit`) and per run (`observe`). Off-state tests exist for both. The activation Command is exempt from `admit`, so a faulty rule cannot lock the operator out of the switch that removes it (R-14). |
 
-**Verdict: PASS**, on condition that the owner ratifies the XIII/XV wording (OQ-2). D-296 already
-accepts it in substance.
+**Verdict: PASS.** The owner ruled on 2026-11-23 that this feature applies the XIII/XV wording
+(D-296.9). The text is a MINOR amendment, versioned in P2 per the constitution's Governance
+section, and coordinated with 188's XV amendment if both land in one release.
 
 ## Project Structure
 
@@ -84,13 +91,13 @@ accepts it in substance.
 
 ```text
 specs/189-command-middleware/
-├── spec.md                              # ruling D-296, stories, FRs, owner questions
+├── spec.md                              # ruling D-296 (with the 2026-11-23 rulings), stories, FRs
 ├── plan.md                              # this file
-├── research.md                          # R-1 … R-20
+├── research.md                          # R-1 … R-21
 ├── contracts/
 │   ├── command-middleware-api.md        # the stable surface 190 documents
-│   ├── module-origin.md                 # derived trust tier; vocabulary shared with 188/190
-│   └── guard-seam-narrowing.md          # D-156.4 → D-296: warning, refusal, text, constitution delta
+│   ├── module-origin.md                 # derived trust tier and per-point grants; owned here, consumed by 188/190
+│   └── guard-seam-narrowing.md          # D-156.4 → D-296, four guard seams: warning, refusal, text, constitution delta
 └── tasks.md
 ```
 
@@ -104,7 +111,7 @@ registration, admission metadata, run outcome) are contracts and are defined in
 packages/contracts/src/
 ├── command-middleware.ts               # NEW: declaration schema, phases, budgets, filter regex
 ├── modules.ts                          # + manifest.commandMiddleware, ModuleOrigin, origin-key refusal,
-│                                       #   GUARD_SEAM_REGISTRATIONS + decorationReplacementFor,
+│                                       #   GUARD_SEAM_REGISTRATIONS + guardSeamReplacementFor (P2),
 │                                       #   DivergenceKind 'command-middleware', commandMiddlewareOrder
 ├── errors.ts (ERROR_CODES)             # + COMMAND_ADMISSION_TIMEOUT / _FAILED, COMMAND_MIDDLEWARE_REENTRY
 └── index.ts                            # exports
@@ -136,7 +143,7 @@ backend/src/overlay/divergence-loader.ts (pass-through), backend/src/composition
 backend/test/contract/kernel/harness-parity.test.ts
 backend/src/apps/example/                # P1: an `observe` example in example_overlay (+ divergence reasons)
 specs/conventions/overlay-modules.md     # P2/P3 text
-.specify/memory/constitution.md          # OQ-2
+.specify/memory/constitution.md          # P2, D-296.9
 ```
 
 **Structure decision**: extend the platform's `commands/` (beside `hooks/` and `outbox/`), the
@@ -161,11 +168,12 @@ exactly as the hook registry is (176's structure decision).
 | 12 | Declaration in the manifest, code through `ctx.commandMiddleware` | R-12 |
 | 13 | Re-entry refused through an origin ALS | R-13 |
 | 14 | `module.activation.set` exempt from `admit` | R-14 |
-| 15 | Narrowing covers every root-supplied name; four named seams get specific replacements | R-15 |
+| 15 | Narrowing covers the four guard seams only, by a pinned list; other root-supplied names stay decoratable | R-15 |
 | 16 | Warning = log line + non-failing finding (`severity`) | R-16 |
 | 17 | Test-kit parity through the real bus and identical root wiring | R-17 |
 | 18 | No operator surface | R-18 |
-| 19 | Convention and comment text changes ship with the behaviour; published docs are 190's | R-19 |
+| 19 | Convention, comment and constitution text ship with the behaviour; published docs are 190's | R-19 |
+| 20 | A per-point grant (188) is a permission, never an origin; middleware reads none | R-21 |
 
 ## Cross-cutting concerns
 
@@ -209,10 +217,12 @@ exactly as the hook registry is (176's structure decision).
 | FR-035 | existing `command-bus.test.ts`, `command-bus.hooks.test.ts`, `command-bus.outbox.test.ts`, `command-bus-request-meta.test.ts` untouched and green; benchmark for SC-002 |
 | FR-040 | `packages/test-kit/src/command-middleware/index.test.ts` |
 | FR-041 | `backend/test/contract/kernel/harness-parity.test.ts`: new assertion |
-| FR-050 | `packages/platform/src/kernel/decoration-drain.test.ts`, `module-context.test.ts`: warning once per (module, name), wrap still applied, no warning for overlay/workspace owners |
+| FR-004 (grant) | `packages/platform/src/kernel/compose.origin.test.ts`: a package granted policy participants in the divergence declaration still has origin `package`, and its `admit` is still refused (lands with whichever of 188 P1 and 189 P1 merges second) |
+| FR-050 | `packages/platform/src/kernel/decoration-drain.test.ts`, `module-context.test.ts`: warning once per (module, guard seam), wrap still applied; no warning for `redis` or for overlay/workspace owners |
 | FR-051 | `packages/cli/test/divergence.test.ts`: `deprecated-decoration` warning; `backend/test/unit/scripts/check-divergence.test.ts`: exit 0 with warnings only |
 | FR-052 | P3 flips of the FR-050/051 tests; `backend/test/integration/kernel/decoration.test.ts` |
-| FR-053 | `module-context.test.ts`: overlay → overlay and overlay → workspace still allowed; package owner still refused |
+| FR-053 | `module-context.test.ts`: overlay → overlay, overlay → workspace and overlay → `redis` still allowed with no warning, in P2 and after P3; package owner still refused |
+| FR-055 | `packages/contracts/src/modules.test.ts`: `GUARD_SEAM_REGISTRATIONS` pinned; `backend/test/contract/kernel/harness-parity.test.ts`: each of the four is root-supplied in `composeApp` and in the test-kit server (run by hand, D-198) |
 | FR-054, 062 | review tasks; `pnpm run check:language` |
 | FR-060 | `backend/test/unit/i18n/*` bundle-shape tests over the lifecycle bundle |
 | FR-061 | `pnpm changeset:status`; `check:release-intent` |
@@ -242,12 +252,13 @@ exactly as the hook registry is (176's structure decision).
 ## Complexity Tracking
 
 No new runtime dependency. No constitution violation needs justifying. The XIII/XV amendment is a
-MINOR wording change, flagged for owner ratification (OQ-2).
+MINOR wording change, ratified by the owner on 2026-11-23 and applied by P2 (D-296.9).
 
 | Addition | Why needed | Simpler alternative rejected because |
 | --- | --- | --- |
 | A generated first-party module list in the platform | in an instance, core arrives as packages; without it no core module could ever ship `admit` | npm-scope test is defeated by aliases; "every package is `package`" is a time bomb (R-11) |
 | A `severity` on divergence findings | a warning that fails CI is a refusal (R-16) | log-only warnings never reach an instance's CI |
+| A fixed guard-seam list, `GUARD_SEAM_REGISTRATIONS`, with a pinning test | the owner scoped the refusal to four names (D-296.5 as amended), and no ledger fact tells a guard seam from other root plumbing | a `guard: true` flag on each root registration scatters the list over two roots, and the CLI derivation cannot read it (R-15) |
 
 ## Delivery and sequencing
 
@@ -262,19 +273,38 @@ Each merge request branches from `origin/master` after its predecessor merges. D
 
 ## Open decisions (owner questions; recommendations in spec.md)
 
-- **OQ-1**: paid modules' origin. Recommendation: `package` (observe only) for now.
-- **OQ-2**: who applies the constitution delta. Recommendation: P2 of this feature, so the
-  constitution never lags the code. 190 rewrites XV around it.
-- **OQ-3**: whether the 0.114.0 refusal covers every root-supplied name (recommended, per #1841
-  item 3) or only the four guard seams.
+All closed by the owner on 2026-11-23:
+
+- **OQ-1** → D-296.8: paid modules are `package` (observe only) until a signed first-party list
+  exists.
+- **OQ-2** → D-296.9: P2 of this feature applies the constitution delta; 190 rewrites XV around it.
+- **OQ-3** → D-296.5/D-296.6 amended: the 0.114.0 refusal covers only the four guard seams.
+- **Origin ownership** → D-296.10: this feature owns `contracts/module-origin.md`; 188 and 190
+  consume it; 188's per-package grant is a per-point permission (§5).
+
+### Dependencies on sibling specifications (not edited from this branch)
+
+- `specs/188-policy-points/` must consume `contracts/module-origin.md` rather than restate it. Its
+  plan and admin contract currently describe origin as `core` / `overlay`
+  (`plan.md` *Trust tier*, `contracts/admin-and-introspection.md` `origin: z.enum(['core',
+  'overlay'])`). They need `core` / `deployment` / `package` (§4). Its per-package grant must follow
+  §5: named by module id **and** installed package name, `package` origin only, listed in the
+  divergence report, and leaving the origin unchanged.
+- `specs/190-overlay-full-modules/` documents origin and grants from §1 to §5, and rewrites XV
+  around the §6 sentences of `contracts/guard-seam-narrowing.md`. Its ladder and upgrade text say
+  that only the four guard seams are refused in 0.114.0.
 
 ## Risks
 
 - **Sibling vocabulary drift (188, 190).** All three define "origin" or "trust tier". Mitigation:
   `contracts/module-origin.md` §4 names the first to merge as the owner, and the orchestrator
   should pass that section to the 188 and 190 authors.
-- **Hidden root-supplied decorations in client instances.** We cannot see them. Mitigation: the
+- **Hidden guard-seam decorations in client instances.** We cannot see them. Mitigation: the
   0.113.0 warning and finding, and the upgrade note.
+- **A future guard seam is decoratable by default.** The narrowing is a list (D-296.5 as amended),
+  so a new root registration that ought to be a guard seam is not refused until a ruling adds it.
+  Mitigation: the pinning test's comment states that adding a seam amends D-296, and the
+  root-registration test catches a rename.
 - **`harness-parity.test.ts` is large (110 kB) and on the contract tree.** It does not run on pull
   requests (D-198). Run it by hand for P1, with `TEST_DATABASE_URL`.
 - **The integration decoration test sits on a tree `test:unit:fast` skips.** Grep
@@ -304,14 +334,18 @@ Implement in three merge requests, P1 → P2 → P3, each off `origin/master` an
 - last, the test-kit subpath and the CLI divergence kind.
 
 Before starting P1, check whether `specs/188-policy-points/` has already landed `ModuleOrigin`. If
-it has, consume it.
+it has, consume it, and check that it matches `contracts/module-origin.md` §1 to §5 exactly (this
+feature owns that contract, D-296.10). If 188 has landed its per-package grant, add the grant case
+of `compose.origin.test.ts` (T040).
 
-**P2** adds the warning in `decorate` (step 4 of `contracts/guard-seam-narrowing.md` §1), the
-finding severity and the `deprecated-decoration` finding. It updates the text listed in §5 and,
-on OQ-2's recommended answer, the constitution delta in §6.
+**P2** adds `GUARD_SEAM_REGISTRATIONS` and its two tests, the warning in `decorate` (step 4 of
+`contracts/guard-seam-narrowing.md` §1, for the four guard seams only), the finding severity and
+the `deprecated-decoration` finding. It updates the text listed in §5 and applies the constitution
+delta in §6 (D-296.9).
 
 **P3** waits for 0.113.0 to publish and for 190's ladder page to merge. It flips the warning to
-`RootSuppliedDecorationError`, flips the listed tests, and rewrites the A8 reason sentence.
+`GuardSeamDecorationError`, flips the guard-seam tests, keeps (or adds) a green `redis` decoration
+case, and rewrites the A8 reason sentence.
 
 Verify each merge request with:
 - `pnpm run build:packages`, `pnpm -r run typecheck` and `pnpm -r run lint`;
@@ -320,4 +354,5 @@ Verify each merge request with:
 - the contract and integration suites for `kernel`, by hand, because pull requests do not run them
   (D-198).
 
-Do not run `update-agent-context.sh`.
+The `AGENTS.md` appendix entry was written by `update-agent-context.sh` on the spec branch. The
+implementation merge requests do not run it again.

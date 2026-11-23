@@ -4,7 +4,8 @@ description: "Tasks for 189: declared command middleware, and narrowing D-156.4 
 
 # Tasks: 189-command-middleware
 
-**Input**: `spec.md` (ruling D-296), `plan.md`, `research.md`, `contracts/`.
+**Input**: `spec.md` (ruling D-296, with the owner rulings of 2026-11-23: D-296.8 to D-296.10 and
+D-296.5/D-296.6 as amended), `plan.md`, `research.md`, `contracts/`.
 **Tests**: mandatory (Principle III). In each phase every RED task lands before its GREEN task and
 fails for the stated reason first. `[FR-…]` is the trace.
 
@@ -20,9 +21,10 @@ fails for the stated reason first. `[FR-…]` is the trace.
 ## Phase 1: Setup (P1 merge request `feat/189-p1-command-middleware`, release 0.113.0)
 
 - [ ] T001 Check whether `specs/188-policy-points/` has merged `ModuleOrigin`/`MODULE_ORIGINS` into
-  `packages/contracts/src/modules.ts`. If it has, consume it and skip T004's type half. If it has
-  not, land it here exactly as `specs/189-command-middleware/contracts/module-origin.md` §1 states
-  and tell the 188 author.
+  `packages/contracts/src/modules.ts`. If it has, consume it, skip T004's type half, and confirm it
+  matches `specs/189-command-middleware/contracts/module-origin.md` §1 exactly (`core` /
+  `deployment` / `package`; this feature owns the contract, D-296.10). If it has not, land it here
+  exactly as §1 states and tell the 188 author.
 - [ ] T002 Run `pnpm run build:packages`, then record the baseline for SC-002: write
   `packages/platform/src/commands/middleware/bus-overhead.bench.ts` (10 000 no-op Commands on a
   recording audit port, no middleware) and note the median in the merge-request description.
@@ -44,8 +46,7 @@ fails for the stated reason first. `[FR-…]` is the trace.
 - [ ] T005 [P] RED, then GREEN: `packages/contracts/src/modules.test.ts` cases, then the changes in
   `modules.ts`: `DivergenceKind` `'command-middleware'` and its detail; `commandMiddlewareOrder` in
   `DeploymentDivergenceDeclarationSchema` (optional, `min(2)`); the `.strict()` comment corrected;
-  `GUARD_SEAM_REGISTRATIONS` and `decorationReplacementFor` (contract `guard-seam-narrowing.md`
-  §2). [FR-031, FR-034]
+  [FR-031, FR-034]. `GUARD_SEAM_REGISTRATIONS` is **not** added here; it is P2's (T069).
 - [ ] T006 [P] RED, then GREEN: add `COMMAND_ADMISSION_TIMEOUT`, `COMMAND_ADMISSION_FAILED` and
   `COMMAND_MIDDLEWARE_REENTRY` to `packages/contracts/src/errors.ts`, and pl and en strings to
   `packages/modules/_i18n/i18n/{en,pl}.json`. The bundle-shape and error-code inventory tests go red
@@ -144,7 +145,12 @@ fails for the stated reason first. `[FR-…]` is the trace.
   covers the fallback from `overlay` and `installedPackage`. A new
   `packages/platform/src/packages/package-runtime.origin.test.ts` covers a first-party name+id
   giving `core`, an alias whose `package.json` name differs giving `package`, and an id match with a
-  wrong name giving `package`. [FR-004]
+  wrong name giving `package`. A paid-module fixture (a non-workspace package with an
+  `@endora-commerce/` name) gives `package` (D-296.8). **Grant case** (D-296.10,
+  `contracts/module-origin.md` §5), written by whichever of this P1 and 188's P1 merges second: a
+  package granted policy participants in the divergence declaration still has origin `package` in
+  the origin map, and an `admit` it declares is still refused with `CommandMiddlewareOriginError`.
+  [FR-004]
 - [ ] T041 [US4] GREEN: `ModuleEntry.origin` in `compose.ts`; `origin: 'deployment'` in
   `packages/platform/src/overlay/overlay-runtime.ts`; the first-party match in
   `packages/platform/src/packages/package-runtime.ts`; `backend/scripts/generate-composer.ts`
@@ -205,25 +211,44 @@ fails for the stated reason first. `[FR-…]` is the trace.
 
 ## Phase 9: US5, one release of warning (P2 merge request `feat/189-p2-guard-seam-deprecation`, 0.113.0)
 
-**Precondition**: P1 merged.
+**Precondition**: P1 merged. **Scope**: the four guard seams only (D-296.5 as amended). Every
+other root-supplied name keeps its D-156.4 behaviour, and the tests below hold that from both sides.
 
+- [ ] T068 [US5] RED: `packages/contracts/src/modules.test.ts` pins `GUARD_SEAM_REGISTRATIONS` to
+  exactly `['commandBus', 'auditLogService', 'eventBus', 'emFactory']`, asserts
+  `isGuardSeamRegistration('redis') === false`, and asserts that `guardSeamReplacementFor` returns a
+  non-empty text for each of the four. The test's comment states that changing the list is a ruling
+  that amends D-296. [FR-055]
+- [ ] T069 [US5] GREEN: `GUARD_SEAM_REGISTRATIONS`, `GuardSeamRegistration`,
+  `isGuardSeamRegistration` and `guardSeamReplacementFor` in `packages/contracts/src/modules.ts`
+  (contract `guard-seam-narrowing.md` §1 and §2), exported from `packages/contracts/src/index.ts`.
+  Then RED, then GREEN: add to `backend/test/contract/kernel/harness-parity.test.ts`, which already
+  compares the two roots, an assertion that `composeApp`
+  (`packages/platform/src/composition/compose-app.ts`) and the test-kit server
+  (`packages/test-kit/src/server/compose-test-server.ts`) each register all four names as
+  root-supplied (`ownerOf(name) === undefined`). It sits on the contract tree because the platform
+  package cannot import the test kit, so run it by hand (D-198). [FR-055]
 - [ ] T070 [US5] RED: in `packages/platform/src/kernel/decoration-drain.test.ts` and
   `module-context.test.ts`:
-  - an overlay decorating each guard seam, and `redis`, composes, keeps the wrap, and logs
-    `kernel.decoration.deprecated` exactly once per (module, name), with the
-    `decorationReplacementFor` text;
+  - an overlay decorating each guard seam composes, keeps the wrap, and logs
+    `kernel.decoration.deprecated` exactly once per (module, guard seam), with the
+    `guardSeamReplacementFor` text;
+  - an overlay decorating `redis` composes, keeps the wrap and logs **nothing**, and its
+    `kernel.decorations` entry has no `deprecated` flag;
   - an overlay decorating another overlay module's registration, or a workspace module's, logs
     nothing;
   - a package owner is still refused first.
 
   [FR-050, FR-053]
 - [ ] T071 [US5] GREEN: step 4 of `contracts/guard-seam-narrowing.md` §1 in `decorate`
-  (`module-context.ts`), and `deprecated: true` on the ledger entry and the `kernel.decorations`
-  line (`compose.ts`). [FR-050]
+  (`module-context.ts`), with the predicate
+  `isDeploymentOverlay && ownerOf(name) === undefined && isGuardSeamRegistration(name)`, and
+  `deprecated: true` on the ledger entry and the `kernel.decorations` line (`compose.ts`). [FR-050]
 - [ ] T072 [US5] RED: `packages/cli/test/divergence.test.ts` gains a `deprecated-decoration`
-  finding of `severity: 'warning'` for a root-supplied decoration. Every existing finding has no
-  severity, which reads as an error. `backend/test/unit/scripts/check-divergence.test.ts` exits 0
-  with warnings only and 1 with any error. [FR-051]
+  finding of `severity: 'warning'` for an overlay's decoration of a guard seam, and **no** finding
+  for an overlay's decoration of `redis`. Every existing finding has no severity, which reads as an
+  error. `backend/test/unit/scripts/check-divergence.test.ts` exits 0 with warnings only and 1 with
+  any error. [FR-051, FR-053]
 - [ ] T073 [US5] GREEN: `DivergenceFinding.severity`, the new kind and remedy in
   `packages/cli/src/lib/divergence.ts`; the severity-aware exit and summary in
   `backend/scripts/check-divergence.ts` and in `endora generate` / `endora check`
@@ -235,10 +260,12 @@ fails for the stated reason first. `[FR-…]` is the trace.
   - the `foreign-order-member` remedy;
   - `specs/conventions/overlay-modules.md`.
 
-  Every changed citation reads "D-156.4, narrowed by D-296". [FR-054]
-- [ ] T075 [US5] On OQ-2's recommended answer, apply `contracts/guard-seam-narrowing.md` §6 to
-  `.specify/memory/constitution.md`: a MINOR amendment, with the version line and Sync Impact
-  Report per its Governance section. Otherwise hand the text to 190. [FR-054]
+  Every changed citation reads "D-156.4, narrowed by D-296", and says that the narrowing covers
+  the four guard seams only. [FR-054]
+- [ ] T075 [US5] Apply `contracts/guard-seam-narrowing.md` §6 to `.specify/memory/constitution.md`
+  (owner ruling D-296.9): a MINOR amendment, with the version line and Sync Impact Report per its
+  Governance section. If 188's XV amendment has already landed, rebase onto it and take the next
+  MINOR version. Tell the 190 author the text has landed, so 190 rewrites XV around it. [FR-054]
 - [ ] T076 Write changesets for `platform` and `cli` (minor; deprecation, replacement table,
   "refused from 0.114.0"). Then run the verification set from T060. [FR-061]
 
@@ -248,13 +275,15 @@ fails for the stated reason first. `[FR-…]` is the trace.
 
 **Precondition**: 0.113.0 published, and 190's ladder and upgrade page merged.
 
-- [ ] T080 [US6] RED: flip the P2 cases in `decoration-drain.test.ts` and `module-context.test.ts`
-  (including the `client.di.decorate('commandBus', …)` case and its comment block) to expect
-  `RootSuppliedDecorationError` with the container left unwrapped. Flip `packages/cli/test/divergence.test.ts`
-  to severity `error`. Grep `backend/test/**` for `decorate(` over every root-supplied name, flip
-  `backend/test/integration/kernel/decoration.test.ts` where it applies, and run that suite by hand.
-  [FR-052]
-- [ ] T081 [US6] GREEN: add `RootSuppliedDecorationError` to `module-context.ts` and to
+- [ ] T080 [US6] RED: flip the P2 guard-seam cases in `decoration-drain.test.ts` and
+  `module-context.test.ts` (including the `client.di.decorate('commandBus', …)` case and its comment
+  block) to expect `GuardSeamDecorationError` with the container left unwrapped. Flip the
+  guard-seam case in `packages/cli/test/divergence.test.ts` to severity `error`. Leave the `redis`
+  cases from T070 and T072 unchanged: they must stay green. Grep `backend/test/**` for `decorate(`
+  over each of the four names, flip `backend/test/integration/kernel/decoration.test.ts` where it
+  wraps one, add one integration case that an overlay wrap of a non-guard root name still composes,
+  and run that suite by hand. [FR-052, FR-053]
+- [ ] T081 [US6] GREEN: add `GuardSeamDecorationError` to `module-context.ts` and to
   `alreadyNamesTheModule` in `compose.ts`. Set the finding severity to `error`. [FR-052]
 - [ ] T082 [US6] Update the 0.114.0 column of `contracts/guard-seam-narrowing.md` §5. Rewrite the A8
   sentence in `backend/acceptance/instance-expected-state.json` that calls the `commandBus` family
@@ -271,7 +300,10 @@ fails for the stated reason first. `[FR-…]` is the trace.
   them.
 - US1 (Phase 3) blocks US2, US3 and US4's wiring task T042. US2 and US3 can proceed in parallel
   after T013. US4's T040/T041 (origin) can run in parallel with US1 after Phase 2. US7 needs T042.
-- P2 (US5) needs P1 merged. P3 (US6) needs 0.113.0 published and 190's ladder page.
+- P2 (US5) needs P1 merged. Within P2, T068/T069 come first: T070 to T073 read the list. P3 (US6)
+  needs 0.113.0 published and 190's ladder page.
+- T040's grant case needs 188's per-package grant field in `DeploymentDivergenceDeclarationSchema`.
+  It is written by whichever of 188's P1 and this P1 merges second.
 
 ## Parallel examples
 

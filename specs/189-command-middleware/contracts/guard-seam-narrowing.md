@@ -2,6 +2,10 @@
 
 ## 1. The rule, before and after
 
+Owner ruling of 2026-11-23 (D-296.5 as amended, spec OQ-3 closed): the narrowing covers **the four
+guard seams only**, as #1841 items 1 and 2 name them. Every other root-supplied registration stays
+decoratable by an overlay, as D-156.4 has it.
+
 | Decorator | Owner of the decorated name | Until 0.112.x | 0.113.0 | 0.114.0 |
 | --- | --- | --- | --- | --- |
 | any module | itself | allowed | allowed | allowed |
@@ -9,32 +13,47 @@
 | any module | an installed package | `PackageDecorationNotOfferedError` | unchanged | unchanged |
 | overlay | another overlay module of the same deployment | allowed | allowed | allowed |
 | overlay | a workspace module of this repository | allowed | allowed | allowed |
-| overlay | **a composition root** (owner `undefined`) | allowed (D-156.4) | **allowed, warned** | **`RootSuppliedDecorationError`** |
+| overlay | a composition root, a name **other than** the four guard seams (`redis`, `orm`, `requireAdmin`, …) | allowed (D-156.4) | allowed, no warning | allowed, no warning |
+| overlay | a composition root, **a guard seam** (`commandBus`, `auditLogService`, `eventBus`, `emFactory`) | allowed (D-156.4) | **allowed, warned** | **`GuardSeamDecorationError`** |
 
-"Composition root" is derived from the ownership ledger, not listed: `ownerOf(name) === undefined`.
-That is the same test `decorate` already applies (`module-context.ts`, the `owner !== module.id`
-branch). The four guard seams are root-supplied, so they fall under the last row. They differ only
-in the replacement the message names (§2). Spec OQ-3 asks the owner to confirm that the row
-covers every root-supplied name and not only the four. If the owner narrows it, the predicate
-becomes `owner === undefined && GUARD_SEAM_REGISTRATIONS.includes(name)`, and nothing else in this
-contract changes.
+The four names are a **list**, not a derivation, because no ledger fact tells a guard seam from
+other root plumbing. The list lives once:
+
+```ts
+// @endora-commerce/contracts, src/modules.ts
+export const GUARD_SEAM_REGISTRATIONS = ['commandBus', 'auditLogService', 'eventBus', 'emFactory'] as const;
+export type GuardSeamRegistration = (typeof GUARD_SEAM_REGISTRATIONS)[number];
+export const isGuardSeamRegistration = (name: string): name is GuardSeamRegistration => …;
+```
+
+Two tests hold the list (tasks T068, T069):
+
+- `packages/contracts/src/modules.test.ts` pins its exact content. A change to it fails until the
+  test changes too, and the test's comment says that adding a guard seam is a ruling that amends
+  D-296.
+- `backend/test/contract/kernel/harness-parity.test.ts`, which already compares the two roots,
+  asserts that `composeApp` and the test-kit server each register all four as root-supplied
+  (`ownerOf(name) === undefined`). Without it, a rename at the root would leave the list naming
+  nothing.
+
+The predicate in `decorate`'s `apply` is therefore
+`isDeploymentOverlay && ownerOf(name) === undefined && isGuardSeamRegistration(name)`. The
+`owner === undefined` half is the existing root-supplied test (`module-context.ts`, the
+`owner !== module.id` branch). With the second test above, it never decides the answer by itself,
+but it keeps the rule stated as "a root's guard seam" rather than "a string".
 
 The check order inside `apply` becomes:
 
 1. nothing registered under the name (unchanged);
 2. the owner is an installed package → `PackageDecorationNotOfferedError` (unchanged);
 3. the owner is foreign and the decorator is not an overlay → `ForeignDecorationError` (unchanged);
-4. **new**: the decorator is an overlay and the owner is `undefined` → 0.113.0: record the
-   decoration, log the warning once per (module, name), and mark the ledger entry
-   `deprecated: true`; 0.114.0: throw `RootSuppliedDecorationError` before anything is recorded;
-5. record the decoration and wrap it (unchanged).
+4. **new**: the decorator is an overlay and the predicate holds → 0.113.0: record the decoration,
+   log the warning once per (module, name), and mark the ledger entry `deprecated: true`; 0.114.0:
+   throw `GuardSeamDecorationError` before anything is recorded;
+5. record the decoration and wrap it (unchanged). A root-supplied name outside the list reaches this
+   step exactly as it does on `origin/master`.
 
 ## 2. The replacement text
-
-```ts
-// @endora-commerce/contracts, src/modules.ts
-export const GUARD_SEAM_REGISTRATIONS = ['commandBus', 'auditLogService', 'eventBus', 'emFactory'] as const;
-```
 
 | Name | Replacement named in the warning, finding and error |
 | --- | --- |
@@ -42,11 +61,12 @@ export const GUARD_SEAM_REGISTRATIONS = ['commandBus', 'auditLogService', 'event
 | `auditLogService` | `observe` middleware for an extra sink, or a read of `audit_log_entries` for a durable one; the audit writer itself is not replaceable |
 | `eventBus` | `ctx.subscribe` for a reaction; an `afterCommit` hook for durable delivery |
 | `emFactory` | none. Tenant scoping is not overridable (Principle XI). Ask the owning module for a port |
-| any other root-supplied name | a port from the module whose behaviour should change (rung 3), or a declared extension point |
 
 The table lives once, in `@endora-commerce/contracts` beside `GUARD_SEAM_REGISTRATIONS`, as
-`decorationReplacementFor(name)`. Both the platform (warning and error) and the CLI derivation
-(finding) read it from there, because the CLI reads an instance without loading the platform.
+`guardSeamReplacementFor(name: GuardSeamRegistration): string`. It is total over the four names
+and typed so that it takes nothing else. Both the platform (warning and error) and the CLI
+derivation (finding) read it from there, because the CLI reads an instance without loading the
+platform.
 
 ## 3. 0.113.0: the warning
 
@@ -70,8 +90,9 @@ Divergence report (`packages/cli/src/lib/divergence.ts`):
 - `DivergenceFinding` gains `readonly severity?: 'error' | 'warning'`. Absent means `'error'`, so
   every existing finding keeps failing.
 - New kind `deprecated-decoration`, raised for each `decoration` entry whose owner is `null` (a
-  root-supplied name), with `severity: 'warning'`. `where` is the overlay module's `backend.ts`.
-  `detail` names the overlay, the registration and the §2 replacement.
+  root-supplied name) **and** whose name is in `GUARD_SEAM_REGISTRATIONS`, with
+  `severity: 'warning'`. A decoration of any other root-supplied name raises nothing new.
+  `where` is the overlay module's `backend.ts`. `detail` names the overlay, the registration and the §2 replacement.
 - `DIVERGENCE_REMEDIES['deprecated-decoration']` states the rule, the release that refuses it, and
   points to `docs/docs/architecture/customisation-ladder.md` (updated by 190).
 - `backend/scripts/check-divergence.ts`, `endora generate` and `endora check` print warnings under
@@ -81,11 +102,11 @@ Divergence report (`packages/cli/src/lib/divergence.ts`):
 ## 4. 0.114.0: the refusal
 
 ```ts
-export class RootSuppliedDecorationError extends Error {
-  constructor(readonly registrationName: string, readonly moduleId: string);
-  // message: "[kernel] overlay module '<id>' cannot decorate '<name>': a composition root
-  // registers it, and since 0.114.0 (D-296, narrowing D-156.4) an overlay decorates only its
-  // own deployment's overlay registrations and this repository's workspace modules. <§2 text>.
+export class GuardSeamDecorationError extends Error {
+  constructor(readonly registrationName: GuardSeamRegistration, readonly moduleId: string);
+  // message: "[kernel] overlay module '<id>' cannot decorate '<name>': it is a guard seam through
+  // which Principles XI and XIII are enforced, and since 0.114.0 (D-296, narrowing D-156.4) no
+  // module decorates a guard seam. <§2 text>.
   // See docs/docs/architecture/customisation-ladder.md."
 }
 ```
@@ -97,9 +118,11 @@ export class RootSuppliedDecorationError extends Error {
   case and its comment block); the root-supplied cases in
   `packages/platform/src/kernel/decoration-drain.test.ts` (`commandBus`, `auditLogService`);
   `packages/cli/test/divergence.test.ts` (the `ctx.di.decorate<Bus>('commandBus', …)` fixture);
-  and any case in `backend/test/integration/kernel/decoration.test.ts` that wraps a root name. Grep
-  for `decorate(` with each root-supplied name before finishing, and read AGENTS.md's trap on
-  `test:unit:fast` skipping the integration tree.
+  and any case in `backend/test/integration/kernel/decoration.test.ts` that wraps a guard seam.
+  Grep for `decorate(` with each of the four names before finishing, and read AGENTS.md's trap on
+  `test:unit:fast` skipping the integration tree. A case that wraps another root-supplied name
+  (for example `redis`) does **not** flip; it stays green and unchanged, and P3 adds one such case
+  if none exists, so the scope of the refusal is held from both sides.
 - `backend/acceptance/instance-expected-state.json`: the A8 reason's sentence that the
   "`commandBus` family D-156.4 sanctions by name" is a target the fixture "could take" becomes
   false. Rewrite that sentence in the refusal merge request.
@@ -111,26 +134,31 @@ or the 0.114.0 refusal.
 
 | Location | 0.113.0 | 0.114.0 |
 | --- | --- | --- |
-| `ForeignDecorationError` doc block (`module-context.ts`), *"That is deliberate and it stays"* | add: deprecated by D-296, refused from 0.114.0 | rewrite: the exemption covers overlay and workspace owners only |
+| `ForeignDecorationError` doc block (`module-context.ts`), *"That is deliberate and it stays"* | add: for the four guard seams, deprecated by D-296 and refused from 0.114.0 | rewrite: the exemption covers every owner except an installed package and the four guard seams |
 | `decorate` comment on `isDeploymentOverlay` | same | same |
 | `ModuleEntry.overlay` doc (`compose.ts`) | note D-296 | rewrite |
 | `decorationOrder` doc in `contracts/modules.ts` (*"may not decorate a name they do not own (D-156.4)"*) | cite D-296 | unchanged |
 | `packages/cli/src/lib/divergence.ts` `foreign-order-member` remedy | cite D-296 | unchanged |
-| `specs/conventions/overlay-modules.md`, *Decorating across owners* | add the deprecation sentence and the replacements | rewrite the exemption to D-296.6 |
+| `specs/conventions/overlay-modules.md`, *Decorating across owners* | add the deprecation sentence for the four guard seams and their replacements | rewrite the exemption to D-296.6 |
 
 Published pages (`docs/docs/architecture/overlay-pattern.md`, `customisation-ladder.md`, the
 upgrade page, EN and PL) are `specs/190-overlay-full-modules/`'s (#1857). The 0.114.0 refusal merge
 request does not merge before 190's ladder text names the replacement, so the error's link resolves
 to a page that says what to do.
 
-## 6. Constitution delta (owner question OQ-2 decides who applies it)
+## 6. Constitution delta (applied by this feature's P2; owner ruling of 2026-11-23, D-296.9)
+
+This feature's P2 merge request applies the text below. `specs/190-overlay-full-modules/` then
+rewrites XV around these sentences and keeps their substance. If 188's XV amendment lands in the
+same release, the two are one MINOR bump or two sequential ones, and the second rebases on the
+first (`specs/188-policy-points/plan.md`, XV row).
 
 XV, *Overlays are ordinary participants, under the same guards*: append to the last sentence:
 
-> … — an override swaps an **implementation**, never a guard seam: an overlay module does not
-> decorate a registration a composition root supplies (`commandBus`, `auditLogService`, `eventBus`,
-> `emFactory` among them); cross-cutting behaviour on Commands is contributed as declared command
-> middleware.
+> … — an override swaps an **implementation**, never a guard seam: no module, an overlay module
+> included, decorates the guard seams a composition root supplies (`commandBus`,
+> `auditLogService`, `eventBus`, `emFactory`), and cross-cutting behaviour on Commands is
+> contributed as declared command middleware.
 
 XV, *Bounded overridable surface*: replace "services, routes, config, declared command hooks, and
 whole new modules" with "services, routes, config, declared command hooks, declared command
@@ -151,15 +179,15 @@ own Governance section.
 
 ## 7. Upgrade note (0.114.0 changeset body, `breaking change`)
 
-> **Overlay modules can no longer decorate root-supplied registrations** (D-296, narrowing D-156.4;
+> **Overlay modules can no longer decorate the guard seams** (D-296, narrowing D-156.4;
 > deprecated in 0.113.0). An overlay's `ctx.di.decorate('commandBus' | 'auditLogService' |
-> 'eventBus' | 'emFactory' | <any root-supplied name>, …)` now fails composition with
-> `RootSuppliedDecorationError`.
+> 'eventBus' | 'emFactory', …)` now fails composition with `GuardSeamDecorationError`.
 > - A wrap that measures or logs writes → an `observe` command middleware.
 > - A wrap that refuses writes (rate limit, freeze, maintenance) → an `admit` command middleware.
 > - A wrap that adds a write to one action → a `beforeCommit` command hook, if the owner declares
 >   the action hookable.
 > - A wrap of `eventBus` → `ctx.subscribe`, or an `afterCommit` hook.
-> Decorating another overlay module's registration, or a workspace module's in this repository,
-> is unchanged. The 0.113.0 divergence report lists every affected decoration as a
-> `deprecated-decoration` warning.
+> - A wrap of `emFactory` → no replacement; ask the owning module for a port.
+> Decorating another overlay module's registration, a workspace module's in this repository, or
+> any other root-supplied registration (`redis`, `orm`, …) is unchanged. The 0.113.0 divergence
+> report lists every affected decoration as a `deprecated-decoration` warning.

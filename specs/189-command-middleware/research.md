@@ -193,6 +193,9 @@ in this repository and refuse in every instance. Matching the name and the id to
 npm alias (`"@endora-commerce/x": "npm:other@1"` installs a package whose own `name` is `other`).
 `overlay` and `installedPackage` are left alone, because D-156.4's doc forbids merging a granting
 flag and a refusing flag.
+A paid module is not in this workspace (D-265), so it is not on the generated list and its origin
+is `package`. The owner confirmed that on 2026-11-23 (D-296.8): it stays so until a **signed**
+first-party list exists, which would be a later ruling and a change to this derivation.
 **Rejected.** (a) *A manifest field `origin`.* Self-certified. (b) *An npm scope test
 (`@endora-commerce/*`).* It is defeated by aliases and by a mirrored private registry, and it is a
 string convention rather than a derivation. (c) *`package` for every installed package, including
@@ -241,36 +244,54 @@ cannot go stale.
 (b) *No exemption.* The CLI can still disable a module, but an operator on the admin screen would
 be locked out by a third party's bug.
 
-## R-15 Narrowing D-156.4: what is refused, and how it is derived
+## R-15 Narrowing D-156.4: the four guard seams, by list
+
+*Rewritten for the owner ruling of 2026-11-23 (spec OQ-3, D-296.5 and D-296.6 as amended). The
+first draft recommended refusing every root-supplied name. The owner chose the alternative.*
 
 **Decision.** The predicate, evaluated in `decorate`'s `apply` for a decorator with
-`isDeploymentOverlay`, is: the owner of the name is `undefined` (root-supplied) → deprecated in
-0.113.0, refused in 0.114.0. The four guard seams carry a specific replacement text. Every other
-root-supplied name carries the port text. Owners that remain decoratable: another overlay module
-of the same deployment, or a workspace module. An installed package's registration stays refused
-first, by `PackageDecorationNotOfferedError`. The guard-seam names live once, as
-`GUARD_SEAM_REGISTRATIONS` in `@endora-commerce/contracts`, so the platform and the CLI's
-divergence derivation (which does not load the platform) read one constant.
-**Rationale.** #1841 item 3, quoted in the brief: decoration *remains* for other overlay modules
-and workspace modules. Root-supplied names are neither. "Root-supplied" is already derived from the
-ownership ledger (owner `undefined`), so no list of refused names is needed (D-100). Only the
-*replacement text* needs the four names.
-**Rejected.** (a) *Refuse only the four, by list.* It leaves `orm`, `redis`, `requireAdmin` and
-the other root plumbing decoratable, and every new root name would be decoratable by default. This
-is kept as the owner's alternative (spec OQ-3): the design changes one predicate. (b) *Refuse in
-0.113.0.* It breaks deployments with no release to migrate (#1841 alternatives, OD-4).
+`isDeploymentOverlay`, is: the owner of the name is `undefined` (root-supplied) **and** the name is
+one of `GUARD_SEAM_REGISTRATIONS` (`commandBus`, `auditLogService`, `eventBus`, `emFactory`) →
+deprecated in 0.113.0, refused in 0.114.0 with `GuardSeamDecorationError`. Every other
+root-supplied name stays decoratable by an overlay, with no warning, no finding and no refusal.
+Owners that remain decoratable: another overlay module of the same deployment, a workspace module,
+and a root for any name outside the four. An installed package's registration stays refused first,
+by `PackageDecorationNotOfferedError`. The list lives once, in `@endora-commerce/contracts`, so the
+platform and the CLI's divergence derivation (which does not load the platform) read one constant.
+Two tests hold the list: one pins its exact content, and one asserts that both composition roots
+register each name as root-supplied (spec FR-055).
+**Rationale.** The owner's scope ruling and #1841 items 1 and 2 name exactly four seams, the ones
+through which Principles XI and XIII are enforced. That is the defect XV's *"never a guard seam"*
+describes. The other root plumbing (`redis`, `orm`, `requireAdmin`, …) is not a guard seam: a wrap
+of it does not bypass auditing or tenancy, and refusing it would take a capability away from
+deployments with no declared replacement for most of those names. A list is unavoidable, because
+nothing in the ownership ledger tells a guard seam from other root plumbing. D-100 forbids writing
+down a *count* or an *inventory* that `ls` or a derivation can answer, and this list is neither. It
+is a ruling's content, and the pinning test is what makes a change to it a deliberate act.
+The `owner === undefined` half of the predicate is kept, although the root-registration test makes
+it redundant in practice, so that the rule reads as "a root's guard seam" rather than "a string".
+The error is named `GuardSeamDecorationError`, not `RootSuppliedDecorationError`: the first draft's
+name would claim a scope the ruling does not have.
+**Rejected.** (a) *Every root-supplied name, derived from the ownership ledger* (the first draft's
+recommendation, from #1841 item 3). Rejected by the owner: it widens the breaking change beyond the
+seams the issue names, and item 3 describes what an overlay keeps among *module* registrations, not
+a mandate over root plumbing. (b) *Refuse in 0.113.0.* It breaks deployments with no release to
+migrate (#1841 alternatives, OD-4). (c) *A `guard: true` flag on the root's registration.* It
+would put the rule beside each registration in two roots, where the CLI derivation cannot read it,
+and it is still a list, only scattered.
 
 ## R-16 The warning: one log line, one non-failing finding
 
-**Decision.** 0.113.0: `decorate` records the decoration as usual and logs
-`kernel.decoration.deprecated` at `warn` once per (module, registration), with `{ overlay,
+**Decision.** 0.113.0: for an overlay's decoration of one of the four guard seams (R-15),
+`decorate` records the decoration as usual and logs `kernel.decoration.deprecated` at `warn` once
+per (module, guard seam), with `{ overlay,
 registration, replacement, refusedFrom: '0.114.0', ruling: 'D-296' }`. The `kernel.decorations`
 boot line gains `deprecated: true` on those entries. The CLI derivation raises a new finding kind,
 `deprecated-decoration`. `DivergenceFinding` gains `severity: 'error' | 'warning'`, absent meaning
 `'error'`, so every existing finding keeps failing. `check-divergence.ts`, `endora generate` and
 `endora check` print warnings under their own heading and exit non-zero only on errors.
 0.114.0: the finding's severity becomes `'error'`, and `decorate` throws
-`RootSuppliedDecorationError` before recording anything.
+`GuardSeamDecorationError` before recording anything.
 **Rationale.** `check-divergence.ts` exits 1 on any finding (lines 207–216). A warning that fails
 CI is a refusal by another name, and the deprecation rule forbids that. A severity field is the
 smallest change, and the default keeps every existing finding's meaning unchanged.
@@ -315,9 +336,10 @@ contract change with no operator task behind it. Revisit if support asks for it.
 **Decision.** The merge request that ships the behaviour also changes the text that states it:
 `specs/conventions/overlay-modules.md` (the *Decorating across owners* paragraph),
 `ForeignDecorationError`'s doc block, the `decorate` comment, `ModuleEntry.overlay`'s doc and the
-`decorationOrder` doc comment in `contracts/modules.ts`. The constitution delta is proposed in
-`contracts/guard-seam-narrowing.md` §6. Who applies it is owner question OQ-2. Published pages
-(`docs/docs/architecture/*.md`, EN and PL) belong to `specs/190-overlay-full-modules/`.
+`decorationOrder` doc comment in `contracts/modules.ts`. The constitution delta in
+`contracts/guard-seam-narrowing.md` §6 is applied by this feature's P2 merge request (owner ruling
+of 2026-11-23, D-296.9), and `specs/190-overlay-full-modules/` rewrites XV around it. Published
+pages (`docs/docs/architecture/*.md`, EN and PL) belong to 190.
 **Rationale.** AGENTS.md: *"A rule has one full statement"*. A convention that contradicts the code
 for a release is the drift the router exists to prevent. The published docs pass is one coordinated
 change in 190, per the owner's split of #1842 into #1857.
@@ -328,3 +350,27 @@ change in 190, per the owner's split of #1842 into #1857.
 migration, no entity.
 **Rationale.** Principle IV. It also keeps the feature on the non-database track of 0.113.0, ahead
 of the MikroORM 7 switch (#1073).
+
+## R-21 A per-point grant is not an origin
+
+*Added for the owner ruling of 2026-11-23 (D-296.10), when 188 gained per-package grants for policy
+participants.*
+
+**Decision.** `contracts/module-origin.md` §5 defines a grant once, for every contribution point:
+a permission for one installed `package` module at one point, declared by the deployment in its
+divergence declaration, naming the package by module id and installed `package.json` name, listed
+in the divergence report. A grant never changes `ModuleEntry.origin` or the origin map, never
+carries to another point, and applies to `package` modules only. Command middleware reads no grant:
+D-296.3 offers none in this release. The owning point (188) names the field and its errors.
+**Rationale.** If a grant were expressed as a change of origin ("granted packages are treated as
+`deployment`"), one line in `divergence.ts` written for policy participants would also hand the
+package `admit`, the unredacted request metadata in `observe`, and every future point's
+deployment-tier right. That is the self-widening the origin derivation exists to prevent (R-11). A
+per-point permission keeps each widening as narrow as the ruling that allowed it, and keeps origin
+a fact about where the module was found. Naming the package by id and name together reuses §2's
+alias defence, so a grant cannot be borrowed through an npm alias.
+**Rejected.** (a) *A fourth origin value (`granted-package`).* Every point would have to decide
+what it means, and a grant meant for one point would leak into the others. (b) *Grants in the
+package's own manifest.* Self-certified, the same objection as a manifest `origin` field (R-11).
+(c) *A grant table owned by each point with no shared rule.* 188 and a later widening of D-296.3
+would then name packages differently, and the alias defence would be optional.
