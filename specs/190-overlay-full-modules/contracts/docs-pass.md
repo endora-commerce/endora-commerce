@@ -6,7 +6,8 @@ Two kinds of change, two timings (FR-104):
   implementation (rows marked *with WPn*). The one-home rule forbids a convention that says the
   opposite of the code for even one merge.
 - **Published pages, the constitution, the layout section and the middleware material** change in
-  the docs pass (WP11), after #1850, #1855, #1840 and the warning release of #1841.
+  the docs pass (WP11), after #1850, #1855, #1840, the warning release of #1841 and 189's
+  constitution sentences (OR-9).
 
 Every published page changes in English **and** Polish (`docs/i18n/pl/docusaurus-plugin-content-docs/current/…`,
 manual workflow `docs/docs/contributing/documentation-i18n.md`).
@@ -22,7 +23,8 @@ manual workflow `docs/docs/contributing/documentation-i18n.md`).
 | same | R2 instance paragraph: "every module arrives as an installed package" → "… or as a deployment overlay module, whose migrations take the same guard with no exemption" | with WP6 |
 | `specs/conventions/module-admin-surfaces.md` | palette item 7: "Overlay modules discovered at runtime are outside it" → coverage runs per deployment | with WP4 |
 | `specs/conventions/building-packages.md` | one sentence: the overlay build is not a package build; its rules are `overlay-modules.md`'s | with WP2 |
-| `.specify/memory/constitution.md` | XV amendment (`constitution-xv-amendment.md`) | WP11 |
+| `.specify/memory/constitution.md` | XV amendment (`constitution-xv-amendment.md`), written around 189's XV sentences, which it keeps verbatim; XIII untouched (OR-9) | WP11 |
+| `docs/docs/upgrading-an-instance.md` (+ pl) | the *After upgrading to 0.113.0* section takes the upgrade notes of #1848 and #1855 from their changeset bodies (FR-018, OR-11) | the 0.113.0 release pull request |
 | `docs/docs/architecture/overlay-pattern.md` (+ pl) | *In an instance*: scaffolding flags, "No build" bullet → build; *What you may override* row "Add client-specific tables"; section "An overlay module contributes no schema" → "An overlay module owns its schema"; *Fail-closed guards*: drop "Overlay schema", add layout, freshness, classification, overlay-boundary; decoration narrowing per #1841; migration example bus wrap → `observe` / `admit` | WP11 |
 | `docs/docs/architecture/customisation-ladder.md` (+ pl) | rung 2 gains **2c — command middleware** (`admit` / `observe`) beside 2b hooks, and policy participants per 188; rung 4a: guard-seam decoration (`commandBus`, `auditLogService`, `eventBus`, `emFactory`) marked deprecated, then removed (#1841); data ladder *Who* for D1/D2 gains "a deployment overlay"; "Never a rung" paragraph's overlay sentence rewritten; rung 3: a deployment **can** publish a port between its own overlay modules (not substitute a core one) | WP11 |
 | `docs/docs/architecture/schema-extensions.md` (+ pl) | a declaring module may be an overlay | WP11 |

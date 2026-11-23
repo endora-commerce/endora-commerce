@@ -78,9 +78,10 @@ Runs inside overlay resolution (`overlayModulesUnder`), before any overlay impor
 ## §5 Upgrade (FR-017)
 
 `endora upgrade` rewrites the wiring files of §3, writes `backend/tsconfig.apps.json`, updates the
-`build` / `dev` / `typecheck` / `setup` scripts, and prints the one-line note of OQ-190-1. A wiring
-file whose content differs from the previous release's rendering is reported, not overwritten (the
-existing wiring rule).
+`build` / `dev` / `typecheck` / `setup` scripts, and prints one line pointing at the 0.113.0 upgrade
+note (FR-018, OR-11: #1848 is a `breaking change` in 0.113.0). A wiring file whose content differs
+from the previous release's rendering is reported, not overwritten (the existing wiring rule). The
+upgrade note tells the operator to re-apply such an edit to the new rendering.
 
 ## §6 Tests
 

@@ -195,17 +195,26 @@ instead of a subpath. Promotion (OR-6) turns the path into the package's `./port
 **Rejected.** *Events only* — no synchronous read. *Value imports* — evaluate another module's code
 outside its gate. *Cross-deployment imports* — the other deployment is not composed.
 
-## R-12 — Trust tier is a derivation of `origin`, and schema does not move it
+## R-12 — Trust tier: consumed from 189; schema does not move it
 
-**Decision.** `trustTierOf(origin)`: `core` → `core`, `overlay` → `deployment`, `package` → `package`,
-read off `RegisteredManifestEntry.origin` / `ModuleEntry.overlay` — both set at construction from the
-root a module was found under, never declared by the module. `specs/189-command-middleware/` owns what
-each tier may do; if it already defines this function, 190 consumes it (one home).
+**Decision** (revised 2026-11-23 after owner answer 11, OR-10). 190 defines no origin or tier type and
+no derivation. It consumes `ModuleOrigin` and `ModuleEntry.origin` from
+`specs/189-command-middleware/contracts/module-origin.md`. The overlay loader stamps `'deployment'`
+from the root it found the module under, and no manifest field feeds it. 190 adds one invariant and
+tests it (T083): owning schema, a port or an admin layer does not change an overlay's origin
+(FR-091).
 
 **Rationale.** The decoration exemption already rests on this property (`overlay: true` "from the
-root, never from the module"); every new tier rule must rest on the same fact.
+root, never from the module"), and every tier rule must rest on the same fact. Three sibling specs
+(188, 189, 190) needed the word. One owner means one type, so the three specs cannot drift
+(189's plan names that drift as a risk).
 
-**Rejected.** *A manifest `trust` field* — a module asserting its own privilege.
+**Rejected.** *A manifest `trust` field*: a module would be asserting its own privilege.
+*`trustTierOf(ModuleIdClaimOrigin)` in 190* (this research's first draft): a second home for a
+vocabulary 189 owns, and it maps the same facts under different names (`overlay` vs
+`deployment`). *Renaming `MigrationOrigin`'s `'overlay'` to `'deployment'`*: that union labels a
+migration's source and grants nothing. It sits beside the existing `'external'`, not beside
+`ModuleOrigin` (R-7).
 
 ## R-13 — Lifecycle: overlays stay deployment-shipped
 

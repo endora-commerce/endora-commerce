@@ -15,6 +15,13 @@ change a generated artefact run `composer:generate`, `manifests:generate` and
 
 **Gate**: Phases 1 – 4 may merge before #1866 (MikroORM 7.2.11). Phases 5 – 11 start after it.
 
+**Release placement (OR-11)**: Phases 1, 2 and 4 ship in **0.113.0**. Phases 2 (#1848) and 4 (#1855)
+are `breaking change`; the lead applies the GitHub labels. If either misses the 0.113.0 cut, ask the
+owner for its placement. Do not move it to a later release silently.
+
+**Not in scope (OR-12, OR-13)**: no `DEPLOYMENT=example` leg in `backend-suite.yml`, and no demo
+built with `DEPLOYMENT=example`.
+
 ## Phase 0 — Ruling (#1846)
 
 - [ ] T000 This spec merged; D-297 recorded in `spec.md` *Decisions*; #1846 closed by the merge
@@ -43,7 +50,8 @@ change a generated artefact run `composer:generate`, `manifests:generate` and
 - [ ] T019 This repository: `backend/src/overlay/overlay-roots.ts` passes the source root when compiled and `backend/src` exists [FR-016]
 - [ ] T020 Test + implement: `endora upgrade` rewrites the wiring files and writes `tsconfig.apps.json`; a hand-edited wiring file is reported, not overwritten — `packages/cli/src/upgrade/*.test.ts` [FR-017]
 - [ ] T021 Acceptance: stale edit, unbuilt module, orphan unit, `package.json` under `apps/` — each refused by API start, `migrate` and `module:status`; a clean build boots — `backend/scripts/acceptance/instance.ts` [FR-015, FR-003]
-- [ ] T022 Convention + README sentences ("nothing in this tree compiles") updated; `building-packages.md` pointer; changeset cli `minor` + platform `minor`, upgrade note, label `breaking change` pending OQ-190-1 [FR-104]
+- [ ] T022 Convention + README sentences ("nothing in this tree compiles") updated; `building-packages.md` pointer [FR-104]
+- [ ] T023 Changesets for #1848: cli `minor` + platform `minor` (`major` is refused in `0.x`, `release-intent.md`), marked **`breaking change`**, **0.113.0** (OR-11). The body carries the upgrade note of FR-018: the wiring files `endora upgrade` rewrites (`index`, `worker`, `migrate`, `cli`, `module-commands/*`, `mikro-orm.config`); `backend/tsconfig.apps.json`; the new `build` / `dev` / `typecheck` / `setup` scripts; the deployment root moving to `backend/dist`. It also says that a wiring file the instance hand-edited is reported, not overwritten, and the edit must be re-applied to the new rendering. It is written so the 0.113.0 release pull request can copy it unchanged into *After upgrading to 0.113.0* in `docs/docs/upgrading-an-instance.md` (EN + PL). Verified against the T020 test output, which lists the files the upgrade actually rewrites [FR-018]
 
 ## Phase 3 — Overlay ports and dependencies (#1854, US4) — stands alone
 
@@ -54,7 +62,7 @@ change a generated artefact run `composer:generate`, `manifests:generate` and
 - [ ] T034 Test: dependency between two overlay modules — composition, install refusal of a missing dependency, deactivation refused naming the dependent, `dependents-block` on hard uninstall — platform lifecycle tests over a temp deployment root [FR-072]
 - [ ] T035 Lift `--ports`: emits `ports.ts` + `providePort` — `packages/cli/src/new-module/overlay.test.ts` [FR-059]
 - [ ] T036 Divergence: sibling-overlay port consumption under `notRecorded` — `packages/cli/src/lib/divergence.test.ts`
-- [ ] T037 C-1: confirm with `specs/189-command-middleware/` whether `trustTierOf` exists; if not, test + implement it in `module-origin.ts` [FR-090]
+- [ ] T037 C-1 (OR-10): no origin or tier code in this feature. Before Phase 6, confirm that 189's `ModuleOrigin` / `ModuleEntry.origin` (`specs/189-command-middleware/contracts/module-origin.md` §1 – §2) has merged. Grep the WP3 diff for `TrustTier`, `trustTierOf` or any new origin union: expected none [FR-090]
 - [ ] T038 Convention sentences (overlay ports) updated; changeset cli `minor`
 
 ## Phase 4 — Overlay admin layer (#1855, US3) — after Phase 0
@@ -69,7 +77,8 @@ change a generated artefact run `composer:generate`, `manifests:generate` and
 - [ ] T047 [P] `registered-bundles-shape.test.ts`, `check:action-route-permissions`, permission inventory (`DEPLOYMENT=<name>`): populations include overlay admin layers — red proof with a fixture overlay action [FR-086]
 - [ ] T048 Lift `--admin` / `--action` in `new-module/overlay.ts` [FR-059]
 - [ ] T049 Instance admin image `ARG DEPLOYMENT` (`deploy.ts` `adminDockerfile`); acceptance builds an overlay admin layer [FR-081, FR-084]
-- [ ] T050 `module-admin-surfaces.md` item 7 sentence replaced; changeset cli `minor`, upgrade note (admin wiring) [FR-104]
+- [ ] T050 `module-admin-surfaces.md` item 7 sentence replaced [FR-104]
+- [ ] T051 Changeset for #1855: cli `minor`, marked **`breaking change`**, **0.113.0** (OR-11). The body carries the upgrade note of FR-018: the admin image's new `ARG DEPLOYMENT` (`deploy.ts` `adminDockerfile`); the admin build selecting `admin/src/deployments/<deployment>.generated.ts`, rendered uncommitted by `endora generate` and git-ignored by the template; and `endora upgrade` re-rendering the admin wiring, with a hand-edited file reported and not overwritten. Written for the same 0.113.0 *After upgrading* section as T023. Verified against T044 / T049 [FR-018]
 
 ## ══ Gate: #1866 (MikroORM 7.2.11, legacy decorators) merged ══
 
@@ -90,11 +99,13 @@ change a generated artefact run `composer:generate`, `manifests:generate` and
 - [ ] T074 Bindings: `backend/src/db/configured-{entities,migrations}.ts` pass the overlay root; instance wiring `mikro-orm.config.ts` passes it; `migrate.ts` loses `refuseOverlaySchema` [FR-035]
 - [ ] T075 **Delete** every refusal of `contracts/overlay-schema-discovery.md` §4 (platform, CLI generate, CLI new-module `--entities` stays refused until Phase 8, composer branches); rewrite the tests that asserted them; `rg -n "OverlaySchemaError|contributes no schema|overlaySchemaFiles|refuseOverlaySchema"` over the whole tree returns only this spec and history [FR-037, SC-003]
 - [ ] T076 Composer: overlay schema validated (scoped names, filename/class agreement, one classification, `/legacy` imports), nothing emitted; registries bare core — `backend/test/unit/scripts/generate-composer*.test.ts` [FR-038]
-- [ ] T077 `backend/test/template-identity.ts` floors overlay migrations as their own origin [FR-039]
+- [ ] T077 Test (red first): a test that sets `DEPLOYMENT=example` in-process gets a template digest different from bare core, and a bare-core test in the same run keeps the bare-core template. Group the overlay-table integration tests (T079, T090, T120) so they share that one template. No `backend-suite.yml` leg is added (OR-13) — `backend/test/unit/harness/` [FR-039, FR-040]
+- [ ] T077a Implement: `backend/test/template-identity.ts` floors overlay migrations as their own origin [FR-039]
 - [ ] T078 `check:module-boundary` R1/R2 and `fk-dependency-drift.test.ts` read overlay migrations under `backend/src/apps/` [FR-034]
 - [ ] T079 Integration (`DEPLOYMENT` set in-process): fixture overlay entity + migration applied, cross-tenant read is "not found" [US1]
 - [ ] T080 Acceptance: fixture instance overlay with a table — `setup` green, route works [US1, SC-001]
 - [ ] T081 Convention sentences: `overlay-modules.md` D-106 paragraph → D-297, stale `services/` sentence deleted; `module-migrations.md` overlay paragraph and R2 instance paragraph [FR-101, FR-104]
+- [ ] T083 Test (OR-10, needs 189 P1; see plan C-1): a fixture overlay with one entity, one migration, a `ports.ts` and an admin layer composes with `ModuleEntry.origin === 'deployment'`, the same as a schema-less overlay. No manifest field changes it — `packages/platform/src/overlay/overlay-runtime.test.ts` [FR-090, FR-091]
 - [ ] T082 Dispatch `backend-suite.yml` on the branch (D-198) before merge; changeset platform `minor`
 
 ## Phase 7 — Lifecycle (#1851, US5) — after Phase 6
@@ -126,10 +137,11 @@ change a generated artefact run `composer:generate`, `manifests:generate` and
 - [ ] T121 Implement `backend/src/apps/example/modules/example_erp_keys/`: org-scoped side-table entity on `organizations` declared per 187, migration, `beforeCommit` hook on `organization.create`, port + `ports.ts`, admin landing + sidebar, palette action, pl + en bundles, permissions [FR-095]
 - [ ] T122 Divergence sentences in `backend/src/apps/example/divergence.ts`; `composer:generate`, `overlay:check`, `check:divergence` green for every deployment
 - [ ] T123 C-3: 187's side-table checks re-run over the overlay; C-4: extension-attribute read through `include`
+- [ ] T124 OR-12: the demo deployment configuration (`.github/workflows/*` and deploy scripts) sets no `DEPLOYMENT`. Grep it, and add no demo wiring for `example` [FR-096]
 
-## Phase 11 — Docs and constitution XV (#1857) — after Phases 4, 6, #1840 and the #1841 warning release
+## Phase 11 — Docs and constitution XV (#1857) — after Phases 4, 6, #1840, 189's XV/XIII sentences (OR-9) and the #1841 warning release
 
-- [ ] T130 Constitution XV MINOR amendment with Sync Impact Report, version chained from `master` (C-5) [FR-100]
+- [ ] T130 Constitution XV MINOR amendment with Sync Impact Report, version chained from `master` (C-5). Precondition: 189's XV and XIII sentences are on `master`. Keep them verbatim, place 190's text around them per `contracts/constitution-xv-amendment.md`, and leave XIII untouched (OR-9) [FR-100]
 - [ ] T131 `overlay-modules.md` *Overlay module layout* section [FR-101]
 - [ ] T132 [P] Published pages EN + PL per `contracts/docs-pass.md` table [FR-102]
 - [ ] T133 [P] Ladder: rung 2c command middleware, policy participants, rung 4a guard-seam decoration deprecated/removed, data ladder *Who* D1/D2, bus-wrap → middleware migration example [FR-103]
@@ -139,5 +151,7 @@ change a generated artefact run `composer:generate`, `manifests:generate` and
 
 - Phase 1 → Phase 2; Phases 3 and 4 independent of 1–2; Phase 5 after #1866; Phase 6 after 2 + 5;
   Phases 7, 8, 9 parallel after 6; Phase 10 after 4 + 6 + siblings; Phase 11 last.
+- Cross-spec: T083 needs 189 P1 (plan C-1, OR-10). T130 needs 189's XV/XIII sentences on `master`
+  (plan C-5, OR-9).
 - MVP: Phases 1 + 2 + 5 + 6 deliver US1 and US2 (an instance overlay owning a table, compiled and
   checked).

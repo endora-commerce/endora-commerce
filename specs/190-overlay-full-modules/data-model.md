@@ -84,12 +84,13 @@ deployment-level `S/apps/<d>/<f>.ts` (`divergence.ts`, `divergence.generated.ts`
 Excluded from pairing: `admin/**`, `*.test.ts`, `*.d.ts`, runtime assets (re-copied by every build run,
 never judged by the guard).
 
-## 6. Trust tier
+## 6. Trust tier (consumed, OR-10)
 
-`type TrustTier = 'core' | 'deployment' | 'package'`; `trustTierOf(origin: ModuleIdClaimOrigin)`.
-Single home: `packages/platform/src/lifecycle/services/module-origin.ts`, beside
-`deploymentShippedEntries`, unless `specs/189-command-middleware/` lands it first (then 190 imports
-it). What each tier may contribute is 189's / 188's table, not this file's.
+No type here. The module origin `ModuleOrigin = 'core' | 'deployment' | 'package'` and
+`ModuleEntry.origin` are `specs/189-command-middleware/contracts/module-origin.md`'s, and an overlay
+composes with `'deployment'`. The earlier `TrustTier` / `trustTierOf` is withdrawn
+(`contracts/trust-tier.md` §2). `MigrationOrigin` + `'overlay'` (§2, R-7) is a different union: it
+labels a migration's source and grants nothing.
 
 ## 7. Overlay module identity across promotion
 

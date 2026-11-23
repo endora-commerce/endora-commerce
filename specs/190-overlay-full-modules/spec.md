@@ -2,8 +2,9 @@
 
 **Feature Branch**: `spec/190-overlay-full-modules`
 **Created**: 2026-11-23
-**Status**: Draft — ruling **D-297** recorded below (owner decisions of 2026-11-23); implementation
-not started
+**Status**: Draft — ruling **D-297** recorded below (owner decisions of 2026-11-23, and the owner's
+answers of the same day to OQ-190-1 – OQ-190-3 and to two cross-spec questions, OR-9 – OR-13); no
+question open; implementation not started
 **Input**: Umbrella issue #1858 and its children #1846 – #1857 (closed #1842 merged into #1857).
 Owner decisions of 2026-11-23, binding and not reopened here (see *Owner rulings*).
 
@@ -79,7 +80,35 @@ the table from a core module" — has no referent in an instance, which has no c
 - **OR-8** — Sequencing: #1847, #1848, #1854 and #1855 may start before the MikroORM 7 switch
   (#1866); #1849, #1850, #1852 and #1853 wait for it.
 
+The owner's answers of 2026-11-23 to this feature's open questions and to two questions shared with
+its siblings are D-297 clauses too:
+
+- **OR-9** — *Who changes constitution XIII and XV.* `specs/189-command-middleware/` lands the
+  sentences that make command middleware constitutional (its `contracts/guard-seam-narrowing.md` §6,
+  the XIII sentence included) in its own merge request. This feature then rewrites XV **around**
+  them: it keeps them verbatim and does not touch XIII (`contracts/constitution-xv-amendment.md`).
+- **OR-10** — *Who owns the origin type and the trust tier.* `specs/189-command-middleware/`
+  (`contracts/module-origin.md`). This feature and `specs/188-policy-points/` consume it. 190
+  defines no origin type, no tier type and no derivation function (FR-090).
+- **OR-11** — *Release placement* (closes OQ-190-1). #1848 and #1855 are `breaking change` and
+  **stay in 0.113.0**, which is a breaking release anyway because of MikroORM 7 (#1866). Each ships
+  an upgrade note (FR-018). The lead applies the GitHub labels.
+- **OR-12** — *Demo* (closes OQ-190-2). The public demo stays **bare core**. The reference overlay
+  is exercised by tests and the instance acceptance fixture only (FR-096).
+- **OR-13** — *Nightly leg* (closes OQ-190-3). **No** extra `backend-suite.yml` leg with
+  `DEPLOYMENT=example`. Tests that need overlay tables set the deployment in-process and get their
+  own template (FR-040).
+
 ## Clarifications
+
+### Session 2026-11-23 (owner answers to the open questions)
+
+- Q: Do #1848 and #1855 count as breaking, and in which release? → A: Breaking; 0.113.0 (OR-11).
+- Q: Does the public demo run with `DEPLOYMENT=example`? → A: No, bare core (OR-12).
+- Q: Does `backend-suite.yml` gain a `DEPLOYMENT=example` leg? → A: No (OR-13).
+- Q: Who edits constitution XIII and XV? → A: 189 adds its sentences; 190 rewrites XV around them
+  (OR-9).
+- Q: Who owns the origin type and the trust tier? → A: 189 (OR-10).
 
 ### Session 2026-11-23 (architect; owner decisions above taken the same day)
 
@@ -348,6 +377,13 @@ Because the id is unchanged, the database records no pending migration and no lo
   and `<instance root>` as the deployment source root; the CLI's tree readers keep reading sources.
 - **FR-017**: `endora upgrade` MUST rewrite the affected wiring files of an existing instance and
   add the overlay project, so an instance with overlay modules keeps booting after the upgrade.
+- **FR-018**: The changesets of #1848 (overlay build, FR-012 – FR-017) and #1855 (admin layer,
+  FR-080 – FR-084) MUST ship in **0.113.0** as `breaking change` (OR-11). Each changeset body MUST
+  carry an upgrade note that the 0.113.0 section of `docs/docs/upgrading-an-instance.md` (EN and PL)
+  can take over unchanged. The note names the wiring files `endora upgrade` rewrites, the new
+  `build` / `dev` / `typecheck` scripts, and, for #1855, the admin image's `DEPLOYMENT` build
+  argument. It also says what to do with a wiring file the instance hand-edited: the upgrade reports
+  it and does not overwrite it, so the operator re-applies the edit to the new rendering.
 
 **C. Classification at boot**
 
@@ -387,6 +423,9 @@ Because the id is unchanged, the database records no pending migration and no lo
   emit none of it.
 - **FR-039**: The test harness's migration-template identity MUST include overlay migrations of the
   deployment under test as their own origin.
+- **FR-040**: Backend tests that need overlay tables MUST set `DEPLOYMENT` in-process and run on
+  their own migration template (FR-039). They MUST be few and grouped. No `backend-suite.yml` leg
+  with `DEPLOYMENT=example` is added (OR-13).
 
 **E. Lifecycle**
 
@@ -448,23 +487,27 @@ Because the id is unchanged, the database records no pending migration and no lo
 - **FR-086**: The permission inventory, action-route permissions and bundle-shape checks MUST cover
   overlay admin layers per deployment.
 
-**J. Trust tier**
+**J. Trust tier** *(consumed from `specs/189-command-middleware/contracts/module-origin.md`, OR-10)*
 
-- **FR-090**: The trust tier MUST be derived once from the entry's construction-time `origin`
-  (`core` → core, `overlay` → deployment, `package` → package) and never from a manifest field a
-  module writes about itself.
-- **FR-091**: An overlay that owns schema MUST keep the deployment tier; nothing in this feature
-  widens what an installed package may do.
+- **FR-090**: An overlay module MUST compose with module origin `deployment` exactly as 189's
+  contract derives it, from the root the loader found the module under and never from a manifest
+  field. This feature MUST NOT define a second origin type, tier type or derivation function.
+- **FR-091**: An overlay that owns schema, a port or admin surfaces MUST still compose with origin
+  `deployment`. Nothing in this feature widens what an installed package may do.
 
 **K. Reference overlay**
 
 - **FR-095**: `backend/src/apps/example/modules/example_erp_keys/` MUST exist as US8 describes, with
   off-state, uninstall, cross-tenant and promotion-name tests, and `composer:generate` /
   `overlay:check` green for every deployment.
+- **FR-096**: The public demo MUST stay bare core: no demo build or deployment configuration sets
+  `DEPLOYMENT=example` (OR-12).
 
 **L. Documentation and constitution**
 
-- **FR-100**: Constitution XV MUST receive a MINOR amendment (`contracts/constitution-xv-amendment.md`).
+- **FR-100**: Constitution XV MUST receive a MINOR amendment (`contracts/constitution-xv-amendment.md`),
+  written around the XV sentences `specs/189-command-middleware/` lands first and keeping them
+  verbatim. This feature MUST NOT edit XIII (OR-9).
 - **FR-101**: `specs/conventions/overlay-modules.md` MUST replace the D-106 paragraph with D-297,
   gain the *Overlay module layout* section, and drop the stale `services/` sentence.
 - **FR-102**: `module-migrations.md`, `module-admin-surfaces.md` and the published pages
@@ -480,7 +523,8 @@ Because the id is unchanged, the database records no pending migration and no lo
 ### Key Entities
 
 - **Overlay module** — a module discovered under a deployment's overlay root; identity = its
-  directory name = manifest id; origin `overlay`; trust tier deployment.
+  directory name = manifest id; module origin `deployment` (189's `ModuleOrigin`, OR-10); migration
+  origin `overlay` (R-7).
 - **Overlay schema contribution** — the overlay counterpart of `PackageSchemaContribution`: entities,
   migrations, schema extensions, dependencies, source label (`data-model.md` §1).
 - **Deployment admin registry** — one generated artefact per deployment listing its overlay admin
@@ -508,8 +552,9 @@ Because the id is unchanged, the database records no pending migration and no lo
 - `specs/187-side-table-extensions/` lands the side-table declaration origin-agnostically (#1834)
   and the extension-attribute read (#1835) is owned by a sibling spec; US8 consumes both as
   published.
-- `specs/189-command-middleware/` owns the trust-tier capability matrix and the D-156.4 narrowing;
-  this feature supplies only the tier derivation (FR-090) and consumes the rest.
+- `specs/189-command-middleware/` owns the module origin type, its derivation, the capability matrix
+  and the D-156.4 narrowing (OR-10). It lands its XIII / XV sentences before WP11 (OR-9). This
+  feature consumes all of it and supplies none of it.
 - #1866 (MikroORM 7.2.11, legacy decorators) merges before Phase 2 of `plan.md`.
 - The instance acceptance fixture of `specs/110-instance-repository/` remains the instrument for
   instance-side behaviour.
@@ -520,20 +565,17 @@ Because the id is unchanged, the database records no pending migration and no lo
 an overlay module may own schema, ports and admin surfaces, in an instance and in this repository,
 under the same guards as a package and with no deployment exemption; it is compiled by one
 deployment-level build; its tier is "deployment", derived from origin; a promoted module keeps its
-id. OR-1 – OR-8 above are its owner clauses. The architect's design choices under it are R-1 – R-12
-in `research.md`; none reopens an owner clause.
+id. OR-1 – OR-13 above are its owner clauses. OR-1 – OR-8 are the owner decisions of 2026-11-23.
+OR-9 – OR-13 are the owner's answers of the same day to OQ-190-1 – OQ-190-3 and to the cross-spec
+questions on the constitution and the origin type. The architect's design choices under it are
+R-1 – R-16 in `research.md`; none reopens an owner clause.
 
 ### Open questions for the owner
 
-- **OQ-190-1 [NEEDS CLARIFICATION: release placement]** — FR-016/FR-017 change an instance's wiring
-  (deployment root moves to `backend/dist`, `build`/`dev` scripts, the admin image gains a
-  `DEPLOYMENT` build argument). With `endora upgrade` rewriting wiring this is mechanical, but an
-  instance that hand-edited a wiring file must re-apply its edit. **Recommendation**: label #1848 and
-  #1855 `breaking change` and ship them in the breaking-change release, with an upgrade note.
-- **OQ-190-2 [NEEDS CLARIFICATION: demo]** — should the public demo (built from this repository) run
-  with `DEPLOYMENT=example` so the reference overlay's screen is visible? **Recommendation**: no; the
-  demo stays bare core and the reference overlay is exercised by tests and the acceptance fixture.
-- **OQ-190-3 [NEEDS CLARIFICATION: nightly leg]** — overlay tables exist only in a database migrated
-  with `DEPLOYMENT=example`. **Recommendation**: the tests that need them set the deployment
-  in-process (existing precedent) and get their own template; no extra `backend-suite.yml` leg. The
-  alternative is a full nightly run with `DEPLOYMENT=example` (≈ +50 min).
+None open. The three questions were closed by the owner on 2026-11-23:
+
+- **OQ-190-1 (release placement)** — closed → **OR-11**: #1848 and #1855 are `breaking change` and
+  stay in 0.113.0, with upgrade notes (FR-018).
+- **OQ-190-2 (demo)** — closed as recommended → **OR-12**: the demo stays bare core (FR-096).
+- **OQ-190-3 (nightly leg)** — closed as recommended → **OR-13**: no extra `backend-suite.yml` leg;
+  the tests set the deployment in-process on their own template (FR-040).

@@ -1,12 +1,14 @@
 # Implementation Plan: Overlay modules as full modules — schema, build, ports and admin
 
 **Branch**: `spec/190-overlay-full-modules` | **Date**: 2026-11-23 | **Spec**: `specs/190-overlay-full-modules/spec.md`
-**Ruling**: D-297 (retires D-106 for overlays; D-106.2 unchanged) | **Umbrella**: #1858
+**Ruling**: D-297 (retires D-106 for overlays; D-106.2 unchanged; owner clauses OR-1 – OR-13) | **Umbrella**: #1858
 
-**Note**: `update-agent-context.sh` was deliberately **not** run for this plan: five sibling specs
-(186 – 189, 191) are being planned in parallel and each run rewrites the generated appendix of
-`AGENTS.md`; the appendix is regenerated once when the first of them merges. The plan adds no runtime
-dependency, so the appendix's *Active Technologies* would not change anyway.
+**Note**: `update-agent-context.sh` was run on 2026-11-23, after the owner's answers, with
+`SPECIFY_FEATURE_DIRECTORY=specs/190-overlay-full-modules`. `.specify/feature.json` still names
+another feature and was left alone. Its only output is the `AGENTS.md` appendix's *Recent Changes*
+entry and the *Last updated* line. The plan adds no runtime dependency, so *Active Technologies* is
+unchanged. The first draft did not run it, because five sibling specs (186 – 189, 191) were being
+planned in parallel.
 
 ## Summary
 
@@ -59,9 +61,9 @@ without loading the platform (walks written twice must agree)
 | X Queue consumers | PASS | Overlay workers stay `ctx.worker` (BullMQ pattern), gated |
 | XI Tenancy (NN) | PASS — strengthened | Boot refusal of any unclassified entity of any origin (FR-020); cross-tenant tests for overlay tables (FR-095); side tables inherit host scoping per 187 |
 | XII Channel scoping (NN) | PASS | Overlay reads of channel-scoped content use the same bridge accessors; nothing here bypasses them |
-| XIII Command Bus (NN) | PASS | Overlay writes go through Commands; side-row writes through a `beforeCommit` hook (176); no bus wrap introduced — the docs pass moves the bus-wrap example to middleware |
+| XIII Command Bus (NN) | PASS | Overlay writes go through Commands; side-row writes through a `beforeCommit` hook (176); no bus wrap introduced — the docs pass moves the bus-wrap example to middleware. This feature does not amend XIII; 189 adds its *Thin layer* sentence (OR-9) |
 | XIV Extensibility | PASS | Custom fields stay rung D0; overlays get D1/D2 on package terms |
-| XV Overlay | PASS with amendment | MINOR amendment (`contracts/constitution-xv-amendment.md`); determinism kept (registries bare core, per-deployment artefacts committed and byte-checked); fail-closed refusals added |
+| XV Overlay | PASS with amendment | MINOR amendment (`contracts/constitution-xv-amendment.md`) written around 189's XV sentences, which land first and are kept verbatim (OR-9); determinism kept (registries bare core, per-deployment artefacts committed and byte-checked); fail-closed refusals added |
 | XVI Palette | PASS — gap closed | Overlay `--action` lifted; coverage per deployment (FR-085) |
 | XVII Toggleable (NN) | PASS | Overlay with tables keeps both axes, off-state tests mandatory (FR-046), dependency fail-closed between overlays (FR-072); off is non-destructive (tables kept) |
 
@@ -94,7 +96,6 @@ packages/platform/src/
 ├── db/configured-migrations.ts     # + overlay contributions, guard without exemptions, ownership
 ├── db/migration-order.ts           # MigrationOrigin + 'overlay'
 ├── tenancy/entity-classification.ts# new: UnclassifiedEntityError
-├── lifecycle/services/module-origin.ts # trustTierOf (unless 189 lands it)
 └── composition/compose-app.ts      # deploymentSourceRoot
 packages/cli/src/
 ├── build/                          # new: `endora build overlays`
@@ -142,15 +143,15 @@ package. A new module would have no domain to own: this is platform mechanism.
                                                      │      ├─ WP8 #1852 CLI entities + new migration
                                                      │      └─ WP9 #1853 x_* from overlays
               WP4 + WP6 + 187 (#1834) + #1835 ───────────── WP10 #1856 reference overlay
-              WP4 + WP6 + 189 (#1840) + #1841 warning ───── WP11 #1857 docs + constitution XV
+              WP4 + WP6 + 189 (#1840, XV/XIII sentences) + #1841 warning ── WP11 #1857 docs + XV
 ```
 
 | WP | Issue | Pre-v7? | Depends on | Merge request content | Breaking for instances |
 | --- | --- | --- | --- | --- | --- |
 | WP1 | #1847 | yes | — | `tsconfig.apps.json` (noEmit) in both trees, scripts, `workspace-resolution` three programs | no (adds a check) |
-| WP2 | #1848 | yes | WP1 | `endora build overlays`, runtime-asset classifier move, wiring roots, freshness guard, layout refusals, `endora upgrade` rewrite | **yes** (OQ-190-1) |
+| WP2 | #1848 | yes | WP1 | `endora build overlays`, runtime-asset classifier move, wiring roots, freshness guard, layout refusals, `endora upgrade` rewrite | **yes**: `breaking change`, 0.113.0, upgrade note (OR-11, FR-018) |
 | WP3 | #1854 | yes | — | overlay-boundary analysis + two readers, `--ports`, dependency tests | no |
-| WP4 | #1855 | yes | D-297 | deployment registries, Vite selection, Tailwind sources, palette coverage per deployment, `--admin`/`--action` | **yes** (admin wiring, OQ-190-1) |
+| WP4 | #1855 | yes | D-297 | deployment registries, Vite selection, Tailwind sources, palette coverage per deployment, `--admin`/`--action` | **yes** (admin wiring): `breaking change`, 0.113.0, upgrade note (OR-11, FR-018) |
 | WP5 | #1849 | no | #1866 | classification refusal | possible for a third-party package with an unclassified entity (none known) |
 | WP6 | #1850 | no | WP2, WP5, #1866 | discovery + merge + guard + **all refusals deleted** + convention sentences | no (adds capability) |
 | WP7 | #1851 | no | WP6 | lifecycle tests, status listing, divergence `column-extension`/notRecorded, off-state coverage | no |
@@ -163,10 +164,21 @@ Two developers can run WP1→WP2 and WP3/WP4 in parallel before the v7 switch; W
 after WP6. WP6 is the only package that **must** land as one merge request (refusal deletion in
 lockstep).
 
+**Release placement (OR-11).** WP2 (#1848) and WP4 (#1855) ship in **0.113.0** as `breaking change`.
+That release is breaking anyway because of MikroORM 7 (#1866). The lead applies the GitHub labels.
+WP1 is WP2's prerequisite, so it ships in 0.113.0 too. Each of the two changesets carries the
+upgrade note FR-018 specifies. The 0.113.0 release pull request moves those notes into
+`docs/docs/upgrading-an-instance.md` (EN and PL), which is how 0.112.0's notes were made. If WP2 or
+WP4 misses the 0.113.0 cut, its placement goes back to the owner. It does not slide into a
+non-breaking release by default. No other WP is placed by this plan.
+
 ## Coordination points with sibling specs
 
-- **C-1 — trust tier (189).** If `specs/189-command-middleware/` defines `trustTierOf`, WP2/WP4 import
-  it; 190 never defines a second one (`contracts/trust-tier.md`).
+- **C-1 — module origin (189, OR-10).** 189 owns `ModuleOrigin` and `ModuleEntry.origin`
+  (`specs/189-command-middleware/contracts/module-origin.md`), and its P1 makes the overlay loader
+  stamp `'deployment'`. 190 defines nothing in their place (`contracts/trust-tier.md`). **Dependency**:
+  T083 (FR-091) needs 189 P1 merged. If 189 P1 has not merged when WP6 is ready, T083 moves to the
+  first WP after it, and WP6 does not wait.
 - **C-2 — side-table divergence kind (187).** 190 adds `column-extension`; the side-table kind is
   187's. WP7 renders it if 187 defines one; if not, WP7 raises it on 187 rather than inventing it.
 - **C-3 — side-table origin-agnosticism (187).** WP6's merge must hand overlay entities to 187's
@@ -174,8 +186,10 @@ lockstep).
   overlay fixture in WP10.
 - **C-4 — extension attributes (#1835).** Owned by a sibling spec (186 or 187); WP10 consumes
   `include: ['extensions.<moduleId>']` as published.
-- **C-5 — constitution versions.** 187/188/189 may amend I, XIII or XV first; WP11 chains from
-  whatever `master` holds (R-A3 precedent).
+- **C-5 — constitution text and versions (OR-9).** 189 lands its XV and XIII sentences first, in its
+  own merge request (P2 by 189's plan). WP11 starts only when they are on `master`, keeps them
+  verbatim and leaves XIII alone. 187 and 188 may amend I or XV first too. WP11 chains its version
+  from whatever `master` holds (R-A3 precedent).
 - **C-6 — MikroORM 7 (#1866).** Its legacy-decorator import check (OR-7) must include overlay sources
   in both trees (FR-022); if #1866 merges first without them, WP6 widens its population.
 
@@ -193,7 +207,7 @@ lockstep).
 
 1. **Instance wiring change (WP2, WP4).** Deployment root moves to `backend/dist`; `build`/`dev`
    scripts and the admin image change. Mitigation: `endora upgrade` rewrites wiring, the acceptance
-   fixture runs the upgrade path, upgrade note; owner placement OQ-190-1.
+   fixture runs the upgrade path. Both are `breaking change` in 0.113.0 with an upgrade note (OR-11).
 2. **Refusal deletion leaves a stale test** (WP6). The refusals are asserted in platform, CLI and
    backend contract/integration suites that `test:unit:fast` skips. Mitigation: the grep in
    `overlay-schema-discovery.md` §4 is a task; WP6 dispatches `backend-suite.yml` on its branch
@@ -208,11 +222,14 @@ lockstep).
    overlays, ports, admin), so the slip blocks schema only.
 6. **Sibling drift** — C-1…C-6 above; each is a named task in `tasks.md` so it cannot be forgotten.
 7. **Test template growth** — overlay migrations of `example` create a second template for tests that
-   set `DEPLOYMENT=example`. Mitigation: keep those tests few and grouped (OQ-190-3).
+   set `DEPLOYMENT=example`. Mitigation: keep those tests few and grouped. By OR-13 there is no
+   `DEPLOYMENT=example` leg in `backend-suite.yml` (FR-040). The public demo stays bare core (OR-12),
+   so no deployment pipeline builds `example` either.
 
 ## Constitution Check verdict
 
-**PASS.** No principle is violated; XV is amended (MINOR) in WP11 with its Sync Impact Report, and XI,
+**PASS.** No principle is violated; XV is amended (MINOR) in WP11 with its Sync Impact Report, written
+around 189's XV sentences (OR-9; XIII is 189's), and XI,
 XVI and XVII are strengthened rather than relaxed. No new runtime dependency.
 
 ## Handoff summary for `endora-commerce-dev`
@@ -226,5 +243,10 @@ XVI and XVII are strengthened rather than relaxed. No new runtime dependency.
 - Run `composer:generate` + `manifests:generate` + `pnpm install --lockfile-only` whenever an artefact
   or a package manifest moves; commit them together.
 - Changesets: platform `minor` (WP2, WP5, WP6), contracts `minor` (WP7), cli `minor` (WP2, WP3, WP4,
-  WP8); WP2 and WP4 carry the upgrade note and the `breaking change` label pending OQ-190-1.
-- Owner questions open: OQ-190-1 (release placement), OQ-190-2 (demo), OQ-190-3 (nightly leg).
+  WP8). WP2 and WP4 are `breaking change` in **0.113.0**, and each changeset body carries the upgrade
+  note of FR-018 (OR-11).
+- Do not add a `DEPLOYMENT=example` leg to `backend-suite.yml` (OR-13). Do not build the demo with
+  `DEPLOYMENT=example` (OR-12).
+- Do not define an origin or tier type. Consume 189's `ModuleOrigin` (OR-10). Do not touch XIII, and
+  keep 189's XV sentences verbatim (OR-9).
+- Owner questions open: none. OQ-190-1 – OQ-190-3 closed 2026-11-23 (OR-11 – OR-13).

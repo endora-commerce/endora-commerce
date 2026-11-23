@@ -32,6 +32,7 @@ docs, not guarded.
   `subject` = host table, `owner` = host's module, rung = data ladder D2, key
   `column-extension:<module>:<host>`; needs a sentence in `divergence.ts`.
 - Side-table declarations: the kind `specs/187-side-table-extensions/` defines (coordination C-2).
+- The per-package grant for policy participants in `divergence.ts`, and its listing in the report, are `specs/188-policy-points/`'s (owner answer 5), not this feature's.
 
 ## §4 Off-state and coverage
 
