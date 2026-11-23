@@ -13,7 +13,8 @@ must fail first.
 
 - **[P]**: can run in parallel (different files, no dependency on an unfinished task)
 - **[US*n*]**: the user story of `spec.md` the task serves
-- **[OQ-187-1]**: changes if the owner does not take recommendation A (`spec.md` § Open questions)
+- Both owner questions are closed (OR-9 tenancy A; OR-10 admin HTTP deferred), so no task is
+  conditional
 - Paths are repository-relative; `platform` = `packages/platform/src`, `contracts` =
   `packages/contracts/src`
 
@@ -120,14 +121,14 @@ tables in this repository's suite.
 
 - [ ] T023 [P] [US2] Failing cases in `entity-extension-metadata.test.ts`: M1 (no entity maps the
   table), M2 (another module's entity maps it), M3 (two-property key), M4 (`varchar` key).
-- [ ] T024 [P] [US2] [OQ-187-1] Failing cases in `entity-extension-metadata.test.ts`, one per row of
+- [ ] T024 [P] [US2] Failing cases in `entity-extension-metadata.test.ts`, one per row of
   `contracts/verification-rules.md` §3: `organizations` accepts `@GlobalEntity` and `@OrgScoped` keyed
   by the PK (the `QuoteRequestOrgPolicy` shape) and refuses `@OrgScoped` keyed by another column;
   `customer_accounts` accepts `@TransitivelyScoped('CustomerAccount', '<pk>')` (the
   `QuoteRequestAccountPolicy` shape) and refuses `@OrgScoped` with a copied `organization_id` and a
   transitive parent naming another class; `products` accepts only `@GlobalEntity`; `projects` accepts
   only `@RuleScoped`; the message names the admitted form.
-- [ ] T025 [US2] [OQ-187-1] Implement M1 – M5 in `entity-extension-metadata.ts` with the messages of
+- [ ] T025 [US2] Implement M1 – M5 in `entity-extension-metadata.ts` with the messages of
   `contracts/verification-rules.md` §2 – §3.
 - [ ] T026 [P] [US2] Failing cases in `entity-extension-verifier.test.ts`, each at `migrate up` (run
   rolled back, no migration recorded) and at boot on a database altered by hand: P1 table missing, P2 no

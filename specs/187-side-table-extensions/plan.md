@@ -1,7 +1,7 @@
 # Implementation Plan: Side-table entity extensions as a platform mechanism (D1)
 
 **Branch**: `spec/187-side-table-extensions` | **Date**: 2026-11-23 | **Spec**: `spec.md`
-**Ruling**: D-294 (owner rulings OR-1 – OR-8 of 2026-11-23; architect rulings research R-1 – R-16)
+**Ruling**: D-294 (owner rulings OR-1 – OR-10 of 2026-11-23; architect rulings research R-1 – R-16; R-17 records OR-10)
 
 ## Summary
 
@@ -44,11 +44,11 @@ before it)
 | I Modular (NN) | PASS + amendment | The side table is the declaring module's own table, entity and migrations; it reaches the host only by a foreign key and through the host's published port; the host never learns its extenders (loader registry is the platform's). Amendment: side tables on extensible hosts are declared and verified (FR-071) |
 | II API-first | PASS | `EntityExtensionDeclarationSchema`, `EntityExtensionIncludeSchema`, `EntityExtensionReadOptions`, `WithEntityExtensions`, the error code and the binding field land in `packages/contracts` first (Phase A/B1 first tasks) |
 | III TDD (NN) | PASS | every implementation task in `tasks.md` is preceded by its failing test; FR → test map below |
-| IV YAGNI | PASS | no dependency; no ledger rows (R-8); no write API (R-13); no generated DDL (FR-082); admin HTTP deferred (FR-080) |
+| IV YAGNI | PASS | no dependency; no ledger rows (R-8); no write API (R-13); no generated DDL (FR-082); admin HTTP deferred (FR-080, owner ruling OR-10; cost of the alternative in R-17) |
 | V / VI / VIII | PASS | naming per `check:naming`; English artefacts; Polish only in docs twins and the one error string |
 | IX UI reuse | N/A | no UI in this feature (the reference module's admin zone is spec 190's) |
 | X Queues | N/A | no long-running work |
-| XI Tenancy (NN) | PASS + amendment | host-following classifications (R-6, M5) refused otherwise at boot and `migrate`; loader receives only host-authorised ids under the caller's context (R-12); no "no-organization" path. OQ-187-1 asks the owner to confirm the derived form |
+| XI Tenancy (NN) | PASS + amendment | host-following classifications (R-6, M5) refused otherwise at boot and `migrate`; loader receives only host-authorised ids under the caller's context (R-12); no "no-organization" path. Owner confirmed the derived form (OR-9, OQ-187-1 = A) |
 | XII Channels (NN) | N/A | no channel-scoped read added; a channel-scoped host read port keeps its own scoping and the loader sees only what it returns |
 | XIII Command Bus (NN) | PASS | no platform write path; writes are the module's Commands or 176 hooks with names-only audit notes (FR-060) |
 | XIV Custom fields | PASS | D1 is developer schema, not operator runtime extension; the guide states when custom fields (D0) are the answer |
@@ -121,7 +121,7 @@ module's aggregate" (Principle I's "justify a new module by domain ownership" �
 2. All nine hosts open for declarations at once; read ports land host by host — R-3, FR-058.
 3. Metadata from v7 discovered metadata in `afterDiscovered`, never decorators — R-4.
 4. One catalog query; in the migrate transaction and at boot, beside D2 — R-5.
-5. Host-following tenancy; no copied tenant key — R-6 (OQ-187-1).
+5. Host-following tenancy; no copied tenant key — R-6 (OR-9).
 6. Undeclared: physical detection; owned → warn then refuse; unowned → warn — R-7.
 7. No ledger rows; list rows derived — R-8.
 8. One loader per (module, host) through the module context; `extensions.<moduleId>` — R-9.
@@ -203,9 +203,10 @@ is). D ships in the release after the one that carried A, never the same one.
 2. **Undeclared findings in client instances** — instances with hand-made side tables get a warning in
    0.113.0 and a refusal in the next. Mitigation: `module:schema-extensions list` shows them; the release
    note names the one-line fix; `unowned` residue is never refused.
-3. **Tenancy ruling (OQ-187-1)** — if the owner chooses B, Phase A grows a platform filter inside
-   `tenancy/` (after #1866's rewrite of that directory); if C, the tenancy table flips and the
-   `customer_accounts` move hazard must be documented as the author's problem.
+3. **Owner rulings settled** — tenancy is OR-9, and admin HTTP reads are deferred by OR-10. The
+   default-on tenancy filter (B) is a possible follow-up, and it would land inside `tenancy/` only after
+   #1866's rewrite of that directory. Admin `?extensions=` for side tables is a later non-breaking
+   extension, and R-17 records its cost.
 4. **186 reshaping read ports** — B2 rows follow 186; a port that 186 replaces moves the work, it does
    not duplicate it.
 5. **Physical scan false positives** — a core table with a single-column PK that is a cascading FK to a
@@ -225,4 +226,5 @@ physical verifier (integration), CLI, `quote_requests` declarations, preservatio
 (`pnpm run build:packages`), run `manifests:generate` + `pnpm install --lockfile-only` after the
 `quote_requests` manifest edit, grep `backend/test/**` for every symbol you rename. Do not edit any core
 entity class or migration. B2 waits for each aggregate's task in `specs/186-aggregate-ports/`; C waits for
-#1856. Tasks tagged `[OQ-187-1]` change if the owner does not take recommendation A.
+#1856. Every owner question is settled (OR-9 tenancy, OR-10 admin HTTP deferred), so no task is
+conditional.

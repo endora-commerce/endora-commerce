@@ -98,7 +98,7 @@ after `migrate` (a dropped constraint) would boot and silently lose the cascade.
 
 ## R-6 — Tenancy: the side table follows its host and never copies a tenant key
 
-**Decision** (subject to OQ-187-1, recommendation A): the admitted classifications of the side entity,
+**Decision** (confirmed by the owner on 2026-11-23 as OR-9, OQ-187-1 = A): the admitted classifications of the side entity,
 by host classification:
 
 | Host scope | Hosts today | Admitted side classification |
@@ -123,8 +123,8 @@ guide).
 
 **Rejected**: (B) A plus a platform-built default-on filter on the side entity — fail-closed for the
 module's own ad-hoc queries, but new filter machinery inside `tenancy/` in the release whose first change
-rewrites `tenancy/excluded-predicate.ts` for kysely under an entity freeze; offered to the owner as a
-follow-up. (C) The same decorator as the host, literally — stale on a host move, and the only database
+rewrites `tenancy/excluded-predicate.ts` for kysely under an entity freeze; the owner keeps it as a
+possible follow-up (OR-9). (C) The same decorator as the host, literally — stale on a host move, and the only database
 guarantee (a composite foreign key on `(id, organization_id)`) needs a unique constraint on the core
 table, which OR-4 forbids.
 
@@ -270,3 +270,50 @@ each host's creating migration and asserts the constraint exists with `confdelty
 
 **Rationale**: The upgrade promise D1 makes ("core is obliged, and checked, not to break it") is about
 the foreign key; a host rebuild with `drop table … cascade` silently drops it.
+
+## R-17 — Admin HTTP reads for side tables: deferred (owner ruling OR-10)
+
+**Decision** (owner, 2026-11-23, OQ-187-2): side-table attributes are not offered on admin HTTP
+responses in this feature (FR-080). The read ports (FR-050 – FR-058) are the only read surface.
+Adding the wire later is a non-breaking extension, because it would be an opt-in on the loader and an
+optional query parameter.
+
+**Rationale**: The reference module shows its data in its own admin zone, through its own route. No
+admin screen requests `?extensions=` today (`admin/src`, `packages/admin-shell/src`,
+`packages/admin-kit/src`, `packages/modules/*/src/admin`). Every consumer this feature names reads
+through a port. D2 has the wire on `organizations` alone
+(`packages/modules/organizations/src/backend/routes.admin.ts`, through
+`packages/platform/src/kernel/schema-extensions/reads.ts`).
+
+**Rejected**: letting `schemaExtensionReads` also consult side-table loaders on `?extensions=` for
+`organizations`, with `adminReads: true` on the loader registration. The owner asked for its cost
+before ruling, and it is recorded here.
+
+Cost of the rejected alternative, measured against `master` at `babfae111`:
+- *Contract changes, one host.* `EntityExtensionLoaderEntry` gains `adminReads?: boolean`. In
+  `packages/contracts/src/schema-extensions.ts`, `ExtensionAttributesSchema`'s per-module value is
+  widened from `record<string, json>` to admit a loader's `T | null`. Every typed reader of
+  `extensions` on the `organizations` admin record schema sees that widening. The organizations query
+  and record schemas already carry `extensions`, so they do not change. Two wire rules have to be
+  written:
+  1. A module that declares both D2 columns and a side table on `organizations` would put two values
+     under one `extensions.<moduleId>` key. This is either refused at registration or merged.
+  2. The HTTP wire omits a key it cannot serve, as D2 does. It does not answer the port's 422
+     `ENTITY_EXTENSION_UNCLAIMED`.
+- *Tasks: five, which would have gone into Phase B1 after T038, at about one developer-day.*
+  1. Failing `reads.test.ts` cases: loader consulted, `adminReads` absent leads to omission, module
+     off leads to omission, one statement per module, and the collision rule.
+  2. The change in `reads.ts`, plus passing the loader registry to `createSchemaExtensionReads` in
+     `packages/platform/src/composition/compose-app.ts`.
+  3. The registration rule for `adminReads` on a loader, plus the collision rule, with tests.
+  4. A contract test of `GET /api/v1/admin/organizations` and `/:id?extensions=` covering a
+     side-table module, the off state and the byte-identical response without the parameter.
+  5. A section in `schema-extensions.md` and `side-table-extensions.md`, each with its Polish twin.
+
+  `routes.admin.ts` and the admin UI do not change.
+- *All nine hosts (not proposed).* The other eight would each first need D2's wire, which spec 178
+  never gave them. That means `ExtensionsQuerySchema` merged into their admin list and detail query
+  schemas, and `extensions` added to their admin record schema, in eight `packages/contracts` files
+  (additive). It also means the `attach` call and its wiring in eight modules, plus a contract test
+  and an off-state test each. That is about three tasks per host, roughly 24 tasks, and it opens D2's
+  `?extensions=` on those hosts as well.

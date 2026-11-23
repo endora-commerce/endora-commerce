@@ -48,7 +48,7 @@ never from decorators (research R-4): `className`, `tableName`, `primaryKeys`, t
 `afterDiscovered` already hosts D2's `assertTableMappings`; the two run in sequence, D2 first, and
 each throws its own error class.
 
-## 3. Admitted tenancy classifications (M5; research R-6, OQ-187-1 recommendation A)
+## 3. Admitted tenancy classifications (M5; research R-6; owner ruling OR-9, OQ-187-1 = A)
 
 | Host classification | Admitted side-entity classification |
 | --- | --- |
@@ -63,10 +63,10 @@ The error names the host, its classification and the admitted form, e.g.
 @TransitivelyScoped('Order', 'orderId'): its tenant is its host's, and a copied organization_id
 goes stale when the host moves`.
 
-**If the owner answers OQ-187-1 with B**, this table is unchanged and §3a is added: the platform
-registers a default-on filter on every `TransitivelyScoped` side entity of an `org` host, built from
-`orgScopeSql` over the host's tenant key in a sub-select on the host's PK. **With C**, the `org` row
-becomes `OrgScoped` and research R-6 is reversed; tasks T024 and T025 change accordingly.
+The owner confirmed this table on 2026-11-23 (OR-9). Option B is a possible follow-up outside this
+feature. It would leave the table unchanged and add a §3a: the platform registers a default-on filter
+on every `TransitivelyScoped` side entity of an `org` host, built from `orgScopeSql` over the host's
+tenant key in a sub-select on the host's PK.
 
 ## 4. Physical rules (one catalog query)
 

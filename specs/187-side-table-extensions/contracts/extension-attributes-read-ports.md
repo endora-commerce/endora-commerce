@@ -132,5 +132,5 @@ loader issues one statement with no scope change.
 
 ## 6. Not offered here
 
-Admin HTTP `?extensions=` for side tables (FR-080, OQ-187-2), filtering or sorting by extension values,
+Admin HTTP `?extensions=` for side tables (FR-080, owner ruling OR-10; research R-17), filtering or sorting by extension values,
 nested includes, includes other than `extensions.*`.

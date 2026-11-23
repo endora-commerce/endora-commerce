@@ -2,8 +2,8 @@
 
 **Feature Branch**: `spec/187-side-table-extensions`
 **Created**: 2026-11-23
-**Status**: Draft — owner rulings of 2026-11-23 recorded as **D-294**; two architect questions open
-(*Open questions* below)
+**Status**: Draft — owner rulings of 2026-11-23 recorded as **D-294** (OR-1 – OR-10); no question
+open (*Open questions* below records how the two were closed)
 **Input**: Umbrella issue #1837 with #1834 (declaration and checks), #1835 (extension attributes on
 aggregate read ports, OD-19) and #1836 (convention and guide). The worked example is the reference
 overlay module of #1856, owned by `specs/190-overlay-full-modules/` (D-297).
@@ -76,10 +76,17 @@ safe across platform upgrades.
   origin.
 - **OR-8** — An undeclared side table is a warning first and a refusal after one deprecation
   release (the OD-4 rule).
+- **OR-9 (OQ-187-1 = A, 2026-11-23)** — A side table of an `@OrgScoped` host is
+  `@TransitivelyScoped('<HostClass>', '<pkProperty>')` to its host instead of carrying its own copy of
+  `organization_id`; the admitted classifications are research R-6's table. A platform default-on
+  filter on such side entities (option B) is not part of this feature and stays a possible follow-up.
+- **OR-10 (OQ-187-2 = defer, 2026-11-23)** — Side-table attributes are not offered on admin HTTP
+  responses (the D2 `?extensions=` wire) in this feature; FR-080 stands. They can be added later as a
+  non-breaking extension. Research R-17 records the cost of doing it now.
 
 ## Clarifications
 
-### Session 2026-11-23 (architect; rulings below are D-294 architect rulings, research.md R-1 – R-16)
+### Session 2026-11-23 (architect; rulings below are D-294 architect rulings, research.md R-1 – R-16; R-17 records owner ruling OR-10)
 
 - Q: Where is a side table declared? → A: In the module **manifest**, `extends: [{ entity, table }]`,
   not as a code export like D2's `schemaExtensions`: the declaration is pure data, so the lifecycle,
@@ -92,8 +99,8 @@ safe across platform upgrades.
   pointing at it (R-3).
 - Q: What tenancy must a side table carry? → A: The **host-following** classification (R-6): the
   side row is reachable exactly when its host row is, and never carries a copy of a tenant key that
-  could go stale. See OQ-187-1, which asks the owner to confirm this against the issue's literal
-  wording ("the host's tenancy decorator").
+  could go stale. The owner confirmed this against the issue's literal wording ("the host's tenancy
+  decorator") on 2026-11-23: OQ-187-1 = A, recorded as OR-9.
 - Q: Is "no loader registered" observably different from "module off"? → A: Yes, and that does not
   breach XVII: 422 answers a fact about the **build** (no composed module registered a loader for
   that key — a typo or a missing dependency), never either presence axis. An installed-but-off or
@@ -426,7 +433,8 @@ overlay module of #1856.
 ### Deferred, explicitly
 
 - **FR-080**: Extension attributes on admin **HTTP** responses for side tables (the D2
-  `?extensions=` wire) are not offered in this feature; see OQ-187-2.
+  `?extensions=` wire) are not offered in this feature (owner ruling OR-10; research R-17). Adding them
+  later is a non-breaking extension.
 - **FR-081**: Filtering or sorting a host list by side-table values, search indexing, exports, PDFs,
   storefront responses and events carry no side-table data.
 - **FR-082**: Generating a side table from a declaration is not offered; the module writes its own
@@ -469,31 +477,28 @@ overlay module of #1856.
 - `specs/186-aggregate-ports/` may reshape a read port; FR-058 then applies to the port 186 publishes
   for that aggregate.
 
-## Open questions *(for the owner; architect recommendation first)*
+## Open questions *(closed 2026-11-23; kept for provenance)*
 
-- **OQ-187-1 — Tenancy of a side table whose host is `@OrgScoped`.** #1834 says the side entity
-  "carries the host's tenancy decorator". Taken literally, the side table copies `organization_id`,
-  and the copy goes stale when the host row moves (`customer_accounts` does; feature 146 rejected the
-  copy for exactly that reason). **Recommendation A**: the side entity is
-  `@TransitivelyScoped('<HostClass>', '<pkProperty>')` — tenant derived from the host, never stale,
-  the existing classification `QuoteRequestAccountPolicy` already uses; reads are safe through the
-  loader (ids the host already authorised) and the module's own routes authorise through the host's
-  port first, as that precedent does. **B**: A plus a platform-installed default-on filter on the side
-  entity (`pk in (select id from <host> where <scope>)`), fail-closed for the module's own queries —
-  stronger, but new filter machinery in `tenancy/` in the release that rewrites `tenancy/` for v7.
-  **C**: the literal reading, `@OrgScoped()` with a copied key — rejected (stale on a move, no core
-  constraint can tie the copy to the host without a core migration). Recommended: **A** now, **B** as a
-  follow-up issue if the owner wants defence in depth.
-- **OQ-187-2 — Side-table attributes on admin HTTP reads.** D2 has `?extensions=` on the
-  `organizations` admin reads. **Recommendation**: defer (FR-080) — the reference module shows its
-  data in its own admin zone through its own route, and extending the admin wire needs an opt-in like
-  D2's `adminReads` on loaders and a per-host contract change. Alternative: let `schemaExtensionReads`
-  also consult loaders on `?extensions=`, with `adminReads: true` on the loader registration, for
-  `organizations` in this feature.
+- **OQ-187-1 — Tenancy of a side table whose host is `@OrgScoped`.** **Closed 2026-11-23: A**, owner
+  ruling OR-9 (D-294). The side entity is `@TransitivelyScoped('<HostClass>', '<pkProperty>')`, so its
+  tenant is derived from the host and never goes stale. This is the `QuoteRequestAccountPolicy`
+  precedent, and research R-6's table is the admitted set. B, which adds a platform default-on filter
+  on the side entity, stays a possible follow-up outside this feature. C, a copied `organization_id`,
+  is rejected.
+- **OQ-187-2 — Side-table attributes on admin HTTP reads.** **Closed 2026-11-23: defer**, owner
+  ruling OR-10 (D-294). FR-080 stands. The owner asked for an explanation first and then took the
+  recommendation. The reasons and the measured cost of the rejected alternative are recorded in
+  research R-17: `schemaExtensionReads` consulting side-table loaders on `?extensions=` for
+  `organizations`.
 
 ## Decisions *(D-294)*
 
 - **D-294 (owner, 2026-11-23)** — OR-1 – OR-8 above.
+- **D-294 (owner, 2026-11-23, answer to OQ-187-1)** — OR-9: recommendation A. The side table of an
+  `@OrgScoped` host is `@TransitivelyScoped` to the host and carries no `organization_id` of its own.
+  B (a platform default-on filter) is a possible follow-up, not this feature's. OQ-187-1 is closed.
+- **D-294 (owner, 2026-11-23, answer to OQ-187-2)** — OR-10: defer. Admin HTTP `?extensions=` for
+  side tables is out of scope, and FR-080 stands. It can be added later as a non-breaking extension.
+  OQ-187-2 is closed. The cost of the alternative is in research R-17.
 - **D-294 architect rulings (2026-11-23)** — research.md R-1 – R-16, none of which reopens an owner
-  ruling. OQ-187-1 and OQ-187-2 are recommendations awaiting the owner; tasks are written for the
-  recommended answers and name the tasks that change otherwise.
+  ruling.
