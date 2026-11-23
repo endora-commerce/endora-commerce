@@ -165,7 +165,7 @@ export class AdminNotificationService {
 
     const cursor = input.cursor ? this.parseCursor(input.cursor) : null;
     const whereParts: string[] = [];
-    // `em.execute` binds positional `?` placeholders in textual order. The
+    // `em.execute` fills positional `?` placeholders in textual order. The
     // SELECT's isRead `?` is textually first, so its binding is prepended when
     // the final params array is assembled below.
     const whereParams: (string | number | boolean | null)[] = [];

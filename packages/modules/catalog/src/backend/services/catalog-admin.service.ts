@@ -1874,7 +1874,8 @@ export class CatalogAdminService {
 
     // Mirror the list's base rules: soft-deleted rows are never listed or
     // selectable; the status and the archived mode are independent filters
-    // (feature 163, R30.4). Every value is a bound parameter.
+    // (feature 163, R30.4). Every value is a `?` placeholder; the id set goes
+    // in as one array literal (`any(?::uuid[])`), never a JS array.
     const where: string[] = ['"deleted_at" is null'];
     const params: unknown[] = [];
     if (options.status) {
@@ -1913,9 +1914,10 @@ export class CatalogAdminService {
    * `inactive` over non-archived, non-deleted rows; `archived` over archived,
    * non-deleted rows of either status.
    *
-   * `em.execute`, not a statement on a connection of its own: so the badges would be counted from outside a transaction the
-   * caller holds open while the page above answers from inside it — one screen,
-   * two views of `products` (issue #207).
+   * `em.execute`, not a statement on a connection of its own: there the badges
+   * would be counted from outside a transaction the caller holds open while the
+   * page above answers from inside it — one screen, two views of `products`
+   * (issue #207).
    */
   async #productListCounts(em: EntityManager): Promise<ProductListCounts> {
     const rows = (await em.execute(

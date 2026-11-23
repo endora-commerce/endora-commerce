@@ -421,8 +421,8 @@ export class RfqAdminService {
       fields.has('organizationName') ? this.deps.organizations.searchIdsByName(query.text) : [],
       fields.has('customer') ? this.deps.customerAccounts.searchIdsByName(query.text) : [],
     ]);
-    // One predicate per selected field, OR-combined; every value is bound, an
-    // id set as one placeholder per id.
+    // One predicate per selected field, OR-combined; every value is a `?`
+    // placeholder, an id set one placeholder per id.
     const matches: Array<{ sql: string; params: readonly unknown[] }> = [];
     if (fields.has('number')) matches.push({ sql: '"business_id" ilike ?', params: [contains] });
     if (orgIds.length > 0) {

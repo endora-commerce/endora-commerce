@@ -292,8 +292,8 @@ export class CartAbandonmentWorker {
   ): Promise<Map<string, number>> {
     if (cartIds.length === 0) return new Map();
     // The table name comes from the entity's own metadata rather than a
-    // literal, so a rename stays a one-file change; it is bound as an
-    // identifier (`??`), every id as a value.
+    // literal, so a rename stays a one-file change; it goes in as an
+    // identifier placeholder (`??`), every id as a `?` value placeholder.
     const table = em.getMetadata().get(CartItem).tableName;
     const ids = [...cartIds];
     const rows = await em.execute<Array<{ cart_id: string; line_count: string | number }>>(

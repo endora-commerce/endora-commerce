@@ -33,7 +33,7 @@ export class CatalogAdminSearchService {
     const quickKeys = fields.has('quickSearchAttributes')
       ? (await this.attributeRead.listByFlag('quickSearchable')).map((a) => a.key)
       : [];
-    // One predicate per selected field, OR-combined; every value is bound.
+    // One predicate per selected field, OR-combined; every value is a `?` placeholder.
     const matches: SqlFragment[] = [];
     if (fields.has('sku')) matches.push({ sql: '"sku" ilike ?', params: [contains] });
     if (fields.has('name')) matches.push({ sql: '"name" ilike ?', params: [contains] });
@@ -117,7 +117,7 @@ export class CatalogAdminSearchService {
     }
     const prefix = starts.length > 0 ? ` when ${starts.join(' or ')} then 1` : '';
     const rank = exact.length > 0 ? `case when ${exact.join(' or ')} then 0${prefix} else 2 end, ` : '';
-    // `table` and `columns` are this file's own constants; only values are bound.
+    // `table` and `columns` are this file's own constants; values go in as `?` placeholders.
     const select = columns.map((c) => (c === 'id' ? '"id"::text as "id"' : `"${c}"`)).join(', ');
     return em.execute<T[]>(
       `select ${select} from "${table}"
@@ -162,7 +162,7 @@ export class CatalogAdminSearchService {
   }
 }
 
-/** A predicate and the values its `?` placeholders bind, in order. */
+/** A predicate and the values for its `?` placeholders, in order. */
 interface SqlFragment {
   readonly sql: string;
   readonly params: readonly unknown[];

@@ -7,8 +7,8 @@ const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
  * Insert `rows` into `table` through `em.execute` (issue #1864) — the
  * arrangement step tests used to write as `knex(table).insert(rows)`.
  *
- * Identifiers are bound as identifiers (`??`) and every value as a value
- * (`?`); a column one row leaves out, or sets to `undefined`, takes its
+ * Identifiers go in as `??` placeholders and every value as a `?`
+ * placeholder, which the ORM renders client-side with escaping; a column one row leaves out, or sets to `undefined`, takes its
  * default. A plain object is stored as its JSON text, which is what a `jsonb`
  * column wants. A JavaScript array is refused rather than guessed at: the
  * driver would spread it into a value list, so the caller says whether it

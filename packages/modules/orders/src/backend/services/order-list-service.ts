@@ -320,8 +320,8 @@ export class OrderListService {
       fields.has('customer') ? this.customerAccountRead.searchIdsByName(query.text) : [],
     ]);
 
-    // One predicate per selected field, OR-combined; every value is bound, an
-    // id set as one placeholder per id.
+    // One predicate per selected field, OR-combined; every value is a `?`
+    // placeholder, an id set one placeholder per id.
     const matches: Array<{ sql: string; params: readonly unknown[] }> = [];
     if (fields.has('number')) matches.push({ sql: '"business_id" ilike ?', params: [contains] });
     if (orgIds.length > 0) {

@@ -406,7 +406,7 @@ export class AdminUserService {
     const prefix = `${needle}%`;
     const contains = `%${needle}%`;
     // `em.execute`, so both reads run on the EntityManager's transaction
-    // context when it has one; every value is a bound parameter.
+    // context when it has one; every value is a `?` placeholder the ORM escapes.
     const where = `where "deleted_at" is null
          and (LOWER("first_name") LIKE ? or LOWER("last_name") LIKE ? or LOWER("email") LIKE ?)`;
     const whereParams = [contains, contains, contains];

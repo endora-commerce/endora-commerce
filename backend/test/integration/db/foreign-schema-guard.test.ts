@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { Migration } from '@mikro-orm/migrations';
+import { raw } from '@mikro-orm/postgresql';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ForeignSchemaWriteError, migrateUpVerified } from '@endora-commerce/platform/db';
 
@@ -156,19 +157,25 @@ describe('the foreign-schema guard on a real migrate', () => {
         await self.getEntityManager().getConnection().execute(`delete from "${HOST_TABLE}" where "name" = 'rogue'`);
       },
     ],
-    // Issue #1864 — the routes raw SQL moved to off `getKnex()`: bound values,
-    // an identifier bound as a parameter, and a transaction of its own on the
-    // connection API.
+    // Issue #1864 — the routes raw SQL moved to off `getKnex()`: `?` values,
+    // a `??` identifier, a fragment as a value, and a transaction of its own
+    // on the connection API.
     [
-      'execute() with bound values',
+      'execute() with ? values',
       async (self: Migration) => {
         await self.getEntityManager().execute(`delete from "${HOST_TABLE}" where "name" = ?`, ['rogue']);
       },
     ],
     [
-      'execute() with the table bound as an identifier',
+      'execute() with the table as a ?? identifier',
       async (self: Migration) => {
         await self.getEntityManager().execute('delete from ?? where "name" = ?', [HOST_TABLE, 'rogue']);
+      },
+    ],
+    [
+      'execute() with the table handed in as a SQL fragment',
+      async (self: Migration) => {
+        await self.getEntityManager().execute('delete from ? where "name" = ?', [raw(`"${HOST_TABLE}"`), 'rogue']);
       },
     ],
     [

@@ -191,7 +191,7 @@ export class StockLevelService {
     //     instead of post-filtering on the JS side.
     const trimmedQ = filter.q?.trim().toLowerCase();
 
-    // Every value is a bound parameter; the clauses are this file's own text.
+    // Every value is a `?` placeholder; the clauses are this file's own text.
     const where: string[] = [];
     const params: unknown[] = [];
     if (filter.productId) {
