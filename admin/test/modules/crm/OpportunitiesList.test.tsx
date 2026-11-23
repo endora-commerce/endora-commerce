@@ -171,7 +171,7 @@ describe('OpportunitiesList', () => {
     page.pagination = { cursor: 'next-cursor', hasMore: true, limit: 20 };
     await renderList();
     const previous = screen.getByRole('button', { name: core('common.pagination.previous') });
-    expect(previous).toBeDisabled();
+    expect(previous).toHaveAttribute('aria-disabled', 'true');
 
     await userEvent.click(screen.getByRole('button', { name: core('common.pagination.next') }));
     await waitFor(() => expect(lastQuery().get('cursor')).toBe('next-cursor'));

@@ -1,7 +1,8 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { PAGE_SIZE_OPTIONS, type PageSizeOption } from '../lib/page-size-options.js';
 import { useTranslation } from '../i18n/useTranslation.js';
+import { cn } from '../lib/utils.js';
 import { Button } from '../ui/button.js';
 import { Select } from '../ui/select.js';
 
@@ -54,8 +55,9 @@ export interface CursorPaginationFooterProps<S extends number = PageSizeOption> 
 /**
  * Pagination footer used by the admin list pages — renders a
  * "Showing X–Y of Z" summary, a rows-per-page dropdown wired to
- * `usePageSizePreference`, and Prev/Next buttons. Disabled-state on
- * the buttons reflects page bounds; the empty-list case still renders
+ * `usePageSizePreference`, and Prev/Next buttons. The page bounds mark
+ * the buttons `aria-disabled`, not `disabled` (issue #1803, see
+ * `PagerStepButton`); the empty-list case still renders
  * (so the footer doesn't disappear and "wiggle" the layout).
  */
 export function PaginationFooter<S extends number = PageSizeOption>(
@@ -141,7 +143,11 @@ function PagerFrame<S extends number>(props: PagerFrameProps<S>): ReactNode {
       className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-b-lg border-t bg-muted px-(--card-pad) py-(--card-pad-sm) text-xs text-muted-foreground"
     >
       <div className="flex flex-wrap items-center gap-3">
-        <div>{summary}</div>
+        {/* Focus stays on Previous / Next across a page change, so the new range is
+            announced from here rather than by moving focus (WCAG 2.2 SC 4.1.3). */}
+        <div aria-live="polite" aria-atomic="true">
+          {summary}
+        </div>
         <label className="flex items-center gap-1.5">
           {t('common.pagination.rowsPerPage')}
           <Select
@@ -164,13 +170,48 @@ function PagerFrame<S extends number>(props: PagerFrameProps<S>): ReactNode {
       </div>
       <div className="flex items-center gap-2">
         <span>{position}</span>
-        <Button type="button" variant="outline" size="sm" onClick={onPrev} disabled={isFirst}>
+        <PagerStepButton onClick={onPrev} unavailable={isFirst}>
           <ChevronLeft aria-hidden="true" /> {t('common.pagination.previous')}
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={onNext} disabled={isLast}>
+        </PagerStepButton>
+        <PagerStepButton onClick={onNext} unavailable={isLast}>
           {t('common.pagination.next')} <ChevronRight aria-hidden="true" />
-        </Button>
+        </PagerStepButton>
       </div>
     </div>
+  );
+}
+
+export interface PagerStepButtonProps extends Omit<ComponentProps<typeof Button>, 'disabled' | 'onClick'> {
+  /** The step goes nowhere — the end of the range, or a page still being fetched. */
+  unavailable: boolean;
+  onClick: () => void;
+}
+
+/**
+ * A pager's Previous / Next (issue #1803). At the end of the range the button is
+ * `aria-disabled`, never `disabled`: pressing Next onto the last page would
+ * otherwise disable the very button holding focus, and the browser drops that
+ * focus to `<body>` (WCAG 2.2 SC 2.4.3). It stays a tab stop, is announced as
+ * unavailable (SC 4.1.2), and ignores activation. Kit-internal: shared by
+ * `PaginationFooter` and `CursorPagination`, not exported from the barrel.
+ */
+export function PagerStepButton({ unavailable, onClick, className, children, ...rest }: PagerStepButtonProps): ReactNode {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      {...rest}
+      className={cn(
+        'aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-background aria-disabled:hover:text-foreground',
+        className,
+      )}
+      aria-disabled={unavailable || undefined}
+      onClick={(): void => {
+        if (!unavailable) onClick();
+      }}
+    >
+      {children}
+    </Button>
   );
 }
