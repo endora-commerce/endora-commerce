@@ -127,7 +127,7 @@ describe('Newsletter storefront routes (feature 048)', () => {
       [subscriber.id],
     )) as Array<{ action: string; state_before: unknown; state_after: unknown }>;
     expect(rows.map((row) => row.action)).toEqual(
-      expect.arrayContaining(['newsletter_subscribe', 'newsletter_unsubscribe', 'newsletter_delete']),
+      expect.arrayContaining(['newsletter.subscriber.subscribe', 'newsletter_unsubscribe', 'newsletter_delete']),
     );
     const states = JSON.stringify(rows.map((row) => [row.state_before, row.state_after]));
     expect(states).not.toContain(email);

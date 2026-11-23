@@ -222,7 +222,7 @@ JavaScript. The handler:
 
 Whether the answer is `pending` or `active` follows the channel's opt-in mode.
 The subscription is recorded as any other: `consentAt` is set, the
-`newsletter_subscribe` audit entry carries `source: 'cms-block'`, so these
+`newsletter.subscriber.subscribe` audit entry carries `source: 'cms-block'`, so these
 sign-ups can be told apart from the others, and a topic code that matches no
 existing tag is ignored — no tag is created from the storefront. The module
 checks each attribute value again against its own custom-field definitions and
@@ -252,6 +252,55 @@ no free text: the status, the source, a suppression's reason code, and whether a
 unsubscribe gave a reason (`hasReason`). The address is on the subscriber, the
 reason on the subscriber and its suppression. Entries recorded before this change
 keep what they were written with.
+
+Subscribing, resubscribing and confirming are recorded as
+`newsletter.subscriber.subscribe`, `newsletter.subscriber.resubscribe` and
+`newsletter.subscriber.confirm`. Entries recorded before issue #1843 keep the
+earlier names `newsletter_subscribe`, `newsletter_resubscribe` and
+`newsletter_confirm`, so a search or a report over both periods asks for both.
+
+## Hookable actions
+
+Another module, such as a deployment's overlay module or an installed package,
+can take part in a subscription through a command hook. A typical use is giving
+a discount code to a new subscriber. Register the hook against the ref in
+`NEWSLETTER_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`) and list
+`newsletter` in your manifest `dependencies`. A `beforeCommit` hook runs inside
+the write's transaction. It sees the uncommitted subscriber, may write its own
+tables or run a Command through `ctx.run`, and may refuse the write with a code
+of its own. A refusal rolls the whole write back: no subscriber, no tags, no
+audit entry and no confirmation e-mail. An `afterCommit` handler is delivered
+through the platform's outbox after the write commits, at least once. When the
+subscriber belongs to a customer, the handler runs in a context pinned to that
+customer's Organization. Otherwise it runs in the system scope of the outbox
+drain. How hooks run, are ordered and are refused is
+described on the *Command Bus* architecture page.
+
+| Action | Ref | Runs when |
+| --- | --- | --- |
+| `newsletter.subscriber.subscribe` | `NEWSLETTER_HOOKABLE_ACTIONS.subscribe` | An address with no subscriber signs up: `POST /api/v1/newsletter/subscribe` (also the Page Builder block), the customer account's newsletter page, or an operator adding a subscriber |
+| `newsletter.subscriber.resubscribe` | `NEWSLETTER_HOOKABLE_ACTIONS.resubscribe` | An address that already has a subscriber signs up again, through the same entry points |
+| `newsletter.subscriber.confirm` | `NEWSLETTER_HOOKABLE_ACTIONS.confirm` | A `pending` subscriber follows the double opt-in link and becomes `active` |
+
+All three offer both phases. The hook and the outbox row get the same data, and
+it contains ids and codes only: `subscriberId`, `status` (after the write),
+`previousStatus` (`null` for a new subscriber), `salesChannelId`,
+`customerAccountId`, `organizationId` and the subscriber's `tagIds`. They never
+get the e-mail address, a confirmation or unsubscribe token, the source or a
+custom-field value. A hook that needs more reads the subscriber on `ctx.em`. In
+practice:
+
+- under double opt-in, `subscribe` ends `pending` and `confirm` follows when the
+  link is opened. Under single opt-in, `subscribe` ends `active` and no
+  confirmation follows. To act once per newly active subscriber, act when
+  `status` is `active` and `previousStatus` is not;
+- a re-submitted sign-up of a subscriber who is already active runs
+  `resubscribe` with `previousStatus` equal to `status`;
+- opening a confirmation link a second time, or a link for a subscriber who is
+  no longer pending, runs no hook.
+
+No caller passes extension input (`extensions`) to these writes yet. Unsubscribing,
+bounce and complaint suppression, deactivation and deletion are not hookable.
 
 ## Schema
 

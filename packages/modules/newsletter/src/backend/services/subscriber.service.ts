@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomerAccountReadPort, EmailMailerPort } from '@endora-commerce/contracts';
+import { isUuidShape, type CustomerAccountReadPort, type EmailMailerPort } from '@endora-commerce/contracts';
 import { randomUUID } from 'node:crypto';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
@@ -124,7 +124,7 @@ export class NewsletterSubscriberService {
   /**
    * Subscribe (idempotent on email). Returns the resulting status.
    *
-   * The write is the `newsletter_subscribe` / `newsletter_resubscribe` Command
+   * The write is the `newsletter.subscriber.subscribe` / `.resubscribe` Command
    * (issue #1381, Principle XIII): the row and its one audit entry commit
    * together. Everything that reads another module or the settings — the opt-in
    * mode, the owner's organisation — is resolved here first, and so is whether
@@ -172,11 +172,19 @@ export class NewsletterSubscriberService {
   }
 
   /**
-   * Confirm a double opt-in subscriber from a signed token. Idempotent. The
-   * `newsletter_confirm` Command (issue #1381).
+   * Confirm a double opt-in subscriber from a signed token. Idempotent: an
+   * unknown or malformed id answers `{ ok: false }`, a subscriber that is not
+   * `pending` answers `{ ok: true }`, and neither runs a Command — so a
+   * re-clicked link fires no hook (issue #1843). A pending one runs the
+   * `newsletter.subscriber.confirm` Command (issue #1381).
    */
   async confirm(subscriberId: string): Promise<{ ok: boolean }> {
-    return this.deps.commandBus.run(makeConfirmSubscriberCommand({ subscriberId }));
+    if (!isUuidShape(subscriberId)) return { ok: false };
+    const subscriber = await this.deps.emFactory().findOne(NewsletterSubscriber, { id: subscriberId });
+    if (!subscriber) return { ok: false };
+    if (subscriber.status !== 'pending') return { ok: true };
+    await this.deps.commandBus.run(makeConfirmSubscriberCommand({ subscriberId }));
+    return { ok: true };
   }
 
   /**

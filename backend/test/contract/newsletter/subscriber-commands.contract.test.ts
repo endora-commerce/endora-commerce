@@ -69,8 +69,8 @@ describe('newsletter subscriber writes are Commands (issue #1381)', () => {
 
     const entries = await entriesFor(id);
     expect(entries.map((entry) => entry.action)).toEqual([
-      'newsletter_subscribe',
-      ...(pending ? ['newsletter_confirm'] : []),
+      'newsletter.subscriber.subscribe',
+      ...(pending ? ['newsletter.subscriber.confirm'] : []),
       'newsletter_unsubscribe',
     ]);
     for (const entry of entries) {
@@ -122,7 +122,7 @@ describe('newsletter subscriber writes are Commands (issue #1381)', () => {
 
     const entries = await entriesFor(id);
     expect(entries.map((entry) => entry.action)).toEqual([
-      'newsletter_subscribe',
+      'newsletter.subscriber.subscribe',
       'newsletter_deactivate',
       'newsletter_delete',
     ]);

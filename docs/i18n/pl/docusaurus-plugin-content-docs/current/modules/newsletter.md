@@ -212,7 +212,7 @@ Handler:
 
 To, czy odpowiedzią jest `pending` czy `active`, zależy od trybu potwierdzania
 zapisu w kanale. Subskrypcja jest zapisywana jak każda inna: ustawiane jest
-`consentAt`, wpis audytu `newsletter_subscribe` zawiera `source: 'cms-block'`,
+`consentAt`, wpis audytu `newsletter.subscriber.subscribe` zawiera `source: 'cms-block'`,
 więc te zapisy można odróżnić od pozostałych, a kod tematu, który nie pasuje do
 żadnego istniejącego tagu, jest pomijany — storefront nie tworzy tagów. Moduł
 ponownie sprawdza każdą wartość atrybutu względem własnych definicji pól
@@ -241,6 +241,58 @@ usunięcie subskrybenta to osobne wpisy w dzienniku audytu całej platformy. Ten
 nie zawiera adresu e-mail ani wolnego tekstu: status, źródło, kod powodu blokady i to, czy przy
 wypisaniu podano powód (`hasReason`). Adres jest przy subskrybencie, powód przy subskrybencie i
 jego blokadzie. Wpisy zapisane przed tą zmianą zachowują to, z czym zostały zapisane.
+
+Zapis, ponowny zapis i potwierdzenie są zapisywane jako
+`newsletter.subscriber.subscribe`, `newsletter.subscriber.resubscribe` i
+`newsletter.subscriber.confirm`. Wpisy zapisane przed zgłoszeniem #1843 zachowują
+wcześniejsze nazwy `newsletter_subscribe`, `newsletter_resubscribe` i
+`newsletter_confirm`, więc wyszukiwanie lub raport obejmujący oba okresy musi
+uwzględnić obie nazwy.
+
+## Akcje dostępne dla hooków
+
+Inny moduł, na przykład moduł nakładkowy wdrożenia albo zainstalowany pakiet,
+może brać udział w zapisie do newslettera przez hook polecenia (command hook).
+Typowe zastosowanie to przyznanie kodu rabatowego nowemu subskrybentowi.
+Zarejestruj hook na referencji z `NEWSLETTER_HOOKABLE_ACTIONS`
+(`@endora-commerce/contracts`) i dodaj `newsletter` do `dependencies` w swoim
+manifeście. Hook `beforeCommit` działa wewnątrz transakcji zapisu. Widzi
+niezatwierdzonego subskrybenta, może zapisywać do własnych tabel albo uruchomić
+polecenie przez `ctx.run` i może odrzucić zapis własnym kodem. Odrzucenie
+wycofuje cały zapis: nie powstaje subskrybent, tagi, wpis audytu ani e-mail z
+potwierdzeniem. Handler `afterCommit` jest dostarczany przez outbox platformy po
+zatwierdzeniu zapisu, co najmniej raz. Gdy subskrybent należy do klienta, handler
+działa w kontekście przypiętym do Organizacji tego klienta. W przeciwnym razie
+działa w zakresie systemowym procesu opróżniającego outbox. To, jak hooki są
+uruchamiane, porządkowane i odrzucane, opisuje strona architektury *Command Bus*.
+
+| Akcja | Referencja | Kiedy działa |
+| --- | --- | --- |
+| `newsletter.subscriber.subscribe` | `NEWSLETTER_HOOKABLE_ACTIONS.subscribe` | Zapisuje się adres, który nie ma subskrybenta: `POST /api/v1/newsletter/subscribe` (także blok Page Buildera), strona newslettera na koncie klienta albo operator dodający subskrybenta |
+| `newsletter.subscriber.resubscribe` | `NEWSLETTER_HOOKABLE_ACTIONS.resubscribe` | Ponownie zapisuje się adres, który ma już subskrybenta, tymi samymi drogami |
+| `newsletter.subscriber.confirm` | `NEWSLETTER_HOOKABLE_ACTIONS.confirm` | Subskrybent `pending` otwiera link potwierdzający (double opt-in) i staje się `active` |
+
+Wszystkie trzy oferują obie fazy. Hook i wiersz outboxu dostają te same dane, a
+zawierają one wyłącznie identyfikatory i kody: `subscriberId`, `status` (po
+zapisie), `previousStatus` (`null` dla nowego subskrybenta), `salesChannelId`,
+`customerAccountId`, `organizationId` i `tagIds` subskrybenta. Nigdy nie dostają
+adresu e-mail, tokenu potwierdzenia ani wypisania, źródła ani wartości pola
+niestandardowego. Hook, który potrzebuje więcej, odczytuje subskrybenta przez
+`ctx.em`. W praktyce:
+
+- przy double opt-in `subscribe` kończy się stanem `pending`, a `confirm`
+  następuje po otwarciu linku. Przy single opt-in `subscribe` kończy się stanem
+  `active` i potwierdzenie nie następuje. Aby zadziałać raz dla każdego nowo
+  aktywnego subskrybenta, działaj, gdy `status` jest `active`, a
+  `previousStatus` nie;
+- ponowne wysłanie formularza przez subskrybenta, który jest już aktywny,
+  uruchamia `resubscribe` z `previousStatus` równym `status`;
+- ponowne otwarcie linku potwierdzającego albo link dla subskrybenta, który nie
+  jest już w stanie `pending`, nie uruchamia żadnego hooka.
+
+Żaden wywołujący nie przekazuje jeszcze do tych zapisów danych rozszerzeń
+(`extensions`). Wypisanie, blokada po odbiciu lub skardze, dezaktywacja i
+usunięcie nie są dostępne dla hooków.
 
 ## Schemat
 

@@ -149,16 +149,16 @@ function plan(overrides: Partial<SubscribeSubscriberPlan> = {}): SubscribeSubscr
   };
 }
 
-describe('newsletter_subscribe / newsletter_resubscribe (issue #1381)', () => {
+describe('newsletter.subscriber.subscribe / .resubscribe (issue #1381, #1843)', () => {
   it('creates a pending subscriber with the planned id and records exactly one entry, status and source only', async () => {
     const h = harness();
     const result = await asSystem(() => h.bus.run(makeSubscribeSubscriberCommand(plan())));
 
-    expect(result).toEqual({ subscriberId: NEW_ID, status: 'pending' });
+    expect(result).toMatchObject({ subscriberId: NEW_ID, status: 'pending', previousStatus: null });
     expect(h.subscribers()).toHaveLength(1);
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter_subscribe',
+      action: 'newsletter.subscriber.subscribe',
       objectType: 'newsletter_subscriber',
       objectId: NEW_ID,
       stateBefore: null,
@@ -180,7 +180,7 @@ describe('newsletter_subscribe / newsletter_resubscribe (issue #1381)', () => {
     expect(h.suppressions()).toHaveLength(0);
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter_resubscribe',
+      action: 'newsletter.subscriber.resubscribe',
       objectId: SUB,
       stateAfter: { status: 'active', source: 'storefront' },
     });
@@ -202,27 +202,38 @@ describe('newsletter_subscribe / newsletter_resubscribe (issue #1381)', () => {
   });
 });
 
-describe('newsletter_confirm (issue #1381)', () => {
+describe('newsletter.subscriber.confirm (issue #1381, #1843)', () => {
   it('activates a pending subscriber and records exactly one entry', async () => {
     const h = harness({ subscribers: [subscriber({ status: 'pending', confirmedAt: null })] });
     const result = await asSystem(() => h.bus.run(makeConfirmSubscriberCommand({ subscriberId: SUB })));
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toMatchObject({ subscriberId: SUB, status: 'active', previousStatus: 'pending' });
     expect(h.subscribers()[0]!['status']).toBe('active');
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter_confirm',
+      action: 'newsletter.subscriber.confirm',
       objectType: 'newsletter_subscriber',
       objectId: SUB,
       stateAfter: { status: 'active' },
     });
   });
 
-  it('records nothing for a subscriber that is not pending, an unknown id or a malformed one', async () => {
+  it('writes and records nothing for a subscriber that is no longer pending', async () => {
     const h = harness({ subscribers: [subscriber()] });
-    expect(await asSystem(() => h.bus.run(makeConfirmSubscriberCommand({ subscriberId: SUB })))).toEqual({ ok: true });
+    expect(await asSystem(() => h.bus.run(makeConfirmSubscriberCommand({ subscriberId: SUB })))).toMatchObject({
+      status: 'active',
+      previousStatus: 'active',
+    });
+    expect(h.flushes()).toBe(0);
+    expect(h.audits).toHaveLength(0);
+  });
+
+  it('refuses 409 and records nothing when the planned subscriber is gone', async () => {
+    const h = harness();
     for (const subscriberId of [UNKNOWN, 'not-a-uuid']) {
-      expect(await asSystem(() => h.bus.run(makeConfirmSubscriberCommand({ subscriberId })))).toEqual({ ok: false });
+      await expect(asSystem(() => h.bus.run(makeConfirmSubscriberCommand({ subscriberId })))).rejects.toMatchObject({
+        statusCode: 409,
+      });
     }
     expect(h.audits).toHaveLength(0);
   });
@@ -426,8 +437,8 @@ describe('the services run every subscriber write on the bus (issue #1381)', () 
     await asSystem(() => admin.remove(id));
 
     expect(h.audits.map((entry) => entry['action'])).toEqual([
-      'newsletter_subscribe',
-      'newsletter_resubscribe',
+      'newsletter.subscriber.subscribe',
+      'newsletter.subscriber.resubscribe',
       'newsletter_unsubscribe',
       'newsletter_deactivate',
       'newsletter_delete',
@@ -435,6 +446,19 @@ describe('the services run every subscriber write on the bus (issue #1381)', () 
     expect(new Set(h.audits.map((entry) => entry['objectId']))).toEqual(new Set([id]));
     expect(events).toEqual(['newsletter.subscribed.v1', 'newsletter.subscribed.v1', 'newsletter.unsubscribed.v1']);
     expectNoValues(h.audits);
+  });
+
+  it('confirm runs the Command only for a pending subscriber: unknown, malformed and repeated links run nothing', async () => {
+    const h = harness({ subscribers: [subscriber({ status: 'pending', confirmedAt: null })] });
+    const { subscribers } = services(h);
+
+    expect(await asSystem(() => subscribers.confirm(SUB))).toEqual({ ok: true });
+    expect(await asSystem(() => subscribers.confirm(SUB))).toEqual({ ok: true });
+    expect(await asSystem(() => subscribers.confirm(UNKNOWN))).toEqual({ ok: false });
+    expect(await asSystem(() => subscribers.confirm('not-a-uuid'))).toEqual({ ok: false });
+
+    expect(h.subscribers()[0]!['status']).toBe('active');
+    expect(h.audits.map((entry) => entry['action'])).toEqual(['newsletter.subscriber.confirm']);
   });
 
   it('suppress files an address with no subscriber under a suppression id and no address', async () => {
