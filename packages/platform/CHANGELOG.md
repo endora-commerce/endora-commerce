@@ -1,5 +1,104 @@
 # @endora-commerce/platform
 
+## 0.112.0
+
+### Minor Changes
+
+- f6dda10: `AuditPort` (`@endora-commerce/platform/kernel`) gains `queryFacets()`, which answers the actions the audit log holds and the object types they were recorded for (`AuditLogFacets`), at a cost bounded by the number of distinct actions rather than by the number of rows. `AuditLogFilter` gains `after?: AuditLogPosition` (`{ actedAt, id }`) for keyset pages, and `query()` now orders by `actedAt desc, id desc`, so a page boundary neither skips nor repeats an entry (issue #1555). A hand-written `AuditPort` test double must add `queryFacets`.
+- 8b29aae: Pricing can name an Organization other than the viewer's. `@endora-commerce/platform/http` exports `pricedAudienceOf(request)` and `providePricingSubjectResolver(resolver)` (type `PricingSubjectResolver`): without a contributed resolver `pricedAudienceOf` equals `productAudienceOf`; with one it adds `ProductAudience.pricingOrganizationId`, which visibility never reads. `ListingPriceViewerContext` gains an optional `displayModeOrganization`, so the price display mode can be resolved for the viewer while the price is resolved for another Organization. The catalogue listing and product page, cross-sell tiles, search hits and type-ahead, comparisons and the storefront resolved-price and display-mode endpoints now price for `pricingOrganizationId ?? organizationId` and resolve the display mode for the viewer. Nothing changes for a request no resolver names a pricing subject for; no new cache key is introduced.
+
+### Patch Changes
+
+- c878440: Un-awaited Promises found by the typed lint rules now enabled for the whole repository (issue #1027) are awaited, handled or marked as deliberate fire-and-forget. No behaviour changes:
+
+  - `resumeWorkersFor` no longer awaits BullMQ's synchronous `Worker.resume()`; the API interceptor pre-handler is typed as Fastify's async hook.
+  - The breakpoint video hook ignores a refused autoplay through `Promise.resolve(video.play()).catch(...)`.
+  - Admin screens wrap async form and button handlers in `void` (each handler catches its own errors), and the admin-search matchers of catalog, orders and quote requests are typed as returning `unknown`, because a Knex builder is thenable.
+
+- 1042e2a: `GET /api/v1/_health` now bounds every probe at 200 ms, as the health endpoint documentation already asked (issue #1337). Before, the database ping had no timeout and the Meilisearch ping waited 2000 ms, so a hung database held the request open. A probe that has not answered in time now counts as an unreachable dependency, and the endpoint answers `503` with that check `false`.
+- 9eee781: The Admin UI in Polish no longer shows four kinds of text in English (issue #1809).
+
+  - **Order statuses** are named in the admin's language on the Orders list, the order detail, the bulk status dialog and the Order statuses screen. The names were always stored per language; the screens read the English one.
+  - **CMS hooks**: the 23 seeded hooks, such as "Search Page Bottom", are named and described in the admin's language until an operator renames them. A renamed or custom hook keeps the operator's text.
+  - **Transactional e-mails**: each e-mail's name, description and the reason it cannot be switched off come from the sending module's bundle (`transactionalEmails.<code>.name`, `.description`, `.reason`), in the language the response is read in.
+  - **Platform → Modules**: each module's name, description and the reason it cannot be switched off come from the module's own bundle (`module.name`, `module.description`, `module.nonDeactivatableReason`). `GET /api/v1/admin/modules` gains an optional `nonDeactivatableReason` field on each row. `auth`, `currencies`, `email` and `languages` now ship translation bundles.
+
+  Each of these falls back to the English declared in code when a bundle has no entry. `endora new module` now writes `module.description` into the scaffolded bundles.
+
+- f74fe34: `carts`' `Migration20260611T140352CartsConsolidation` no longer adds or drops
+  `organizations.requires_cart_approval` (issue #611). The column belongs to `organizations`, which
+  already drops it in `Migration20261104T094535OrganizationsDropLegacyRoleColumns` and re-creates it
+  in that migration's `down()`. The old migration keeps its class name, so a database that has
+  already applied it does not change. A database migrated from empty now never has the column; its
+  final schema is the same as before. `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `carts`
+  writing `organizations`.
+- 19eb7c0: `currencies` now creates its own `currencies` table in the new
+  `Migration20261117T065542CurrenciesTable` (issue #611), and the package publishes a
+  `./migrations` subpath. The migration creates the table, its two indexes, the `symbol_position`
+  and `decimal_places` columns and their two checks. It inserts the `PLN` (default) and `EUR` rows
+  only when it created the table itself. Until now `languages`'
+  `Migration20260425T161557LanguagesCurrenciesInit` created the table and its rows, and
+  `dictionaries`' `Migration20260506T112634DictionariesDictionaryInit` added the columns and checks.
+  Both keep their class names and no longer name `currencies` in `up()` or `down()`. Every statement
+  in the new migration is guarded, so a database that has already applied the old migrations does
+  not change, and a currency an operator edited or deleted stays as it is.
+  `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `languages` or `dictionaries` writing
+  `currencies`.
+- 0fbf186: `organizations` now creates `organizations.customer_group_id` and
+  `organizations_customer_group_id_index` itself, in the new
+  `Migration20261117T033143OrganizationsCustomerGroupColumn` (issue #611). Until now only
+  `price_lists`' `Migration20260426T075235PriceListsPricingInit` created them, although the column
+  belongs to `organizations`' `Organization` entity. That migration keeps its class name and no
+  longer names `organizations` in `up()` or `down()`. The new migration uses `if not exists` with the
+  same type and index name, so a database that has already applied the old migration does not change.
+  `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `price_lists` writing `organizations`.
+- Updated dependencies [65f9a7b]
+- Updated dependencies [3fdbe86]
+- Updated dependencies [bfc68c7]
+- Updated dependencies [9eaa409]
+- Updated dependencies [3872f3d]
+- Updated dependencies [bbfcd80]
+- Updated dependencies [41b598c]
+- Updated dependencies [467b075]
+- Updated dependencies [a56109e]
+- Updated dependencies [c15eb60]
+- Updated dependencies [33db45a]
+- Updated dependencies [074f500]
+- Updated dependencies [cec9beb]
+- Updated dependencies [90320fd]
+- Updated dependencies [42febee]
+- Updated dependencies [98c0411]
+- Updated dependencies [a8261aa]
+- Updated dependencies [f64646d]
+- Updated dependencies [f6dda10]
+- Updated dependencies [ee6062c]
+- Updated dependencies [4e668b5]
+- Updated dependencies [843ed42]
+- Updated dependencies [6155f4b]
+- Updated dependencies [5850aac]
+- Updated dependencies [8a5725e]
+- Updated dependencies [f915a24]
+- Updated dependencies [8a06dc5]
+- Updated dependencies [9eee781]
+- Updated dependencies [bd47236]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [398e6d2]
+- Updated dependencies [51c5072]
+- Updated dependencies [2e287a5]
+- Updated dependencies [9d6f006]
+- Updated dependencies [49328cf]
+- Updated dependencies [b3d4843]
+- Updated dependencies [27b977d]
+- Updated dependencies [5e2a12a]
+- Updated dependencies [5518a09]
+- Updated dependencies [5e380e3]
+- Updated dependencies [bfab5bd]
+  - @endora-commerce/contracts@0.112.0
+
 ## 0.111.0
 
 ### Minor Changes
