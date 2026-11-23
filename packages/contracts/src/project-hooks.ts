@@ -55,12 +55,17 @@ export type ProjectCustomFieldsUpdateHookData = {
  * a veto on any of them leaves the whole set as it was. `changed` is `false`
  * when somebody else's write had already made the change: nothing was written.
  *
- * `organizationId` is also the afterCommit row's routing: its handler runs in a
- * context pinned to that Organization.
+ * The Organization is `targetOrganizationId`, not `organizationId`: the bus
+ * pins an afterCommit row to any `organizationId` it carries, and no Project
+ * row is pinned. A Project has no single owning Organization, and its
+ * visibility rule asks for all of its Organizations, so a handler pinned to one
+ * of them could not re-read the Project. Every Project outbox row is unpinned;
+ * its handler runs in system scope.
  */
 export type ProjectOrganizationHookData = {
   readonly projectId: string;
-  readonly organizationId: string;
+  /** The Organization added to or removed from the set. */
+  readonly targetOrganizationId: string;
   readonly changed: boolean;
 };
 

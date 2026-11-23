@@ -755,7 +755,11 @@ export class ProjectService {
           for (const organizationId of added) {
             // Hookable (#1845): `changed` is false when the row was already there.
             let changed = false;
-            const hooked = (): ProjectOrganizationHookData => ({ projectId: visible.id, organizationId, changed });
+            const hooked = (): ProjectOrganizationHookData => ({
+              projectId: visible.id,
+              targetOrganizationId: organizationId,
+              changed,
+            });
             await ctx.run({
               action: 'projects.project.organization_add',
               objectType: 'project',
@@ -777,7 +781,11 @@ export class ProjectService {
           for (const organizationId of removed) {
             // Hookable (#1845): `changed` is false when the row was already gone.
             let changed = false;
-            const hooked = (): ProjectOrganizationHookData => ({ projectId: visible.id, organizationId, changed });
+            const hooked = (): ProjectOrganizationHookData => ({
+              projectId: visible.id,
+              targetOrganizationId: organizationId,
+              changed,
+            });
             await ctx.run({
               action: 'projects.project.organization_remove',
               objectType: 'project',

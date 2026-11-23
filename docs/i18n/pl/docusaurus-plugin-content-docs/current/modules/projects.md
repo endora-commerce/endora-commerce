@@ -830,8 +830,8 @@ oczekujące i nieudane dostarczenia.
 | `projects.project.create` | `PROJECT_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/projects` | `projectId`, `stageId`, `templateId`, `organizationIds`, `changedCustomFields` |
 | `projects.project.update` | `PROJECT_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/projects/:id` (tytuł, opis, wartość, data rozpoczęcia) | `projectId`, `changedFields` |
 | `projects.project.custom_fields_update` | `PROJECT_HOOKABLE_ACTIONS.customFieldsUpdate` | `PATCH /api/v1/admin/projects/:id` (pola własne) | `projectId`, `changedCustomFields` |
-| `projects.project.organization_add` | `PROJECT_HOOKABLE_ACTIONS.organizationAdd` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `organizationId`, `changed` |
-| `projects.project.organization_remove` | `PROJECT_HOOKABLE_ACTIONS.organizationRemove` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `organizationId`, `changed` |
+| `projects.project.organization_add` | `PROJECT_HOOKABLE_ACTIONS.organizationAdd` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `targetOrganizationId`, `changed` |
+| `projects.project.organization_remove` | `PROJECT_HOOKABLE_ACTIONS.organizationRemove` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `targetOrganizationId`, `changed` |
 | `projects.project.stage_move` | `PROJECT_HOOKABLE_ACTIONS.stageMove` | `POST /api/v1/admin/projects/:id/move` | `projectId`, `fromStageId`, `toStageId` |
 | `projects.project.close` | `PROJECT_HOOKABLE_ACTIONS.close` | `POST /api/v1/admin/projects/:id/close` | `projectId`, `state` (`completed` albo `lost`), `stageId`, `lossReasonCode` |
 | `projects.project.reopen` | `PROJECT_HOOKABLE_ACTIONS.reopen` | `POST /api/v1/admin/projects/:id/reopen` | `projectId`, `stageId`, `previousState` |
@@ -854,10 +854,14 @@ Trzy rzeczy, o których warto wiedzieć, podpinając się pod te zapisy:
 - **Zestaw organizacji to jedna transakcja.** `PUT …/organizations` uruchamia
   jedno `organization_add` albo `organization_remove` na każdą dodawaną lub
   usuwaną organizację, wewnątrz jednego polecenia, więc weto przy którymkolwiek
-  z nich zostawia cały zestaw bez zmian. Wiersz kolejki dostarczeń dla dodania
-  lub usunięcia jest kierowany do tej organizacji: jego odbiorca działa w
-  kontekście do niej przypiętym. `changed` ma wartość `false`, gdy cudzy zapis
-  już wprowadził tę zmianę i nic nie zostało zapisane.
+  z nich zostawia cały zestaw bez zmian. Organizację wskazuje
+  `targetOrganizationId`. `changed` ma wartość `false`, gdy cudzy zapis już
+  wprowadził tę zmianę i nic nie zostało zapisane.
+- **Wiersze kolejki dostarczeń nie są przypięte do organizacji.** Projekt nie
+  ma jednej organizacji-właściciela, a żeby go zobaczyć, trzeba mieć dostęp do
+  wszystkich jego organizacji, więc odbiorca przypięty do jednej z nich nie
+  mógłby odczytać projektu. Każdy odbiorca `afterCommit` projektu działa w
+  zakresie systemowym.
 - **Dane rozszerzeń nie są jeszcze podłączone.** Żadne body ścieżki ani żaden
   port nie przekazuje `extensions` do tych poleceń, więc hook nie może dostać
   własnych danych wejściowych.

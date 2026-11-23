@@ -382,8 +382,8 @@ describe('a present hook runs on each declared action, with ids, codes and field
     expectDeclared(h.commands, PROJECTS.organizationAdd);
     expectDeclared(h.commands, PROJECTS.organizationRemove);
     expect(recording.calls.map((call) => [call.action, call.data])).toEqual([
-      ['projects.project.organization_add', { projectId: PROJECT_ID, organizationId: ORG_2, changed: true }],
-      ['projects.project.organization_remove', { projectId: PROJECT_ID, organizationId: ORG_1, changed: true }],
+      ['projects.project.organization_add', { projectId: PROJECT_ID, targetOrganizationId: ORG_2, changed: true }],
+      ['projects.project.organization_remove', { projectId: PROJECT_ID, targetOrganizationId: ORG_1, changed: true }],
     ]);
     expect(h.w.organizationIds).toEqual([ORG_2]);
   });
@@ -497,7 +497,7 @@ describe('a beforeCommit veto refuses the write with its own error and rolls it 
 });
 
 describe('an afterCommit handler is delivered through the outbox', () => {
-  it('gets one row per write, on the Command’s transaction, with the outbox data — routed to the Organization of an add or remove', async () => {
+  it('gets one row per write, on the Command’s transaction, with the outbox data — none pinned to an Organization', async () => {
     const { hooks } = onEveryAction();
     const h = harness(hooks);
 
@@ -517,16 +517,16 @@ describe('an afterCommit handler is delivered through the outbox', () => {
       {
         action: 'projects.project.organization_add',
         objectId: PROJECT_ID,
-        organizationId: ORG_2,
+        organizationId: null,
         hookModule: HOOK_MODULE,
-        data: { projectId: PROJECT_ID, organizationId: ORG_2, changed: true },
+        data: { projectId: PROJECT_ID, targetOrganizationId: ORG_2, changed: true },
       },
       {
         action: 'projects.project.organization_remove',
         objectId: PROJECT_ID,
-        organizationId: ORG_1,
+        organizationId: null,
         hookModule: HOOK_MODULE,
-        data: { projectId: PROJECT_ID, organizationId: ORG_1, changed: true },
+        data: { projectId: PROJECT_ID, targetOrganizationId: ORG_1, changed: true },
       },
       {
         action: 'projects.project.stage_move',
@@ -544,6 +544,22 @@ describe('an afterCommit handler is delivered through the outbox', () => {
       },
     ]);
     for (const row of h.outbox) expect(JSON.stringify(row['data'])).not.toContain(SENTINEL);
+  });
+
+  it('pins no row of any of the eight actions to an Organization: a Project has no single owner', async () => {
+    const { hooks } = onEveryAction();
+    const h = harness(hooks);
+    await asAdmin(() => h.projects.create(createBody, 'en'));
+    await asAdmin(() =>
+      h.projects.update(PROJECT_ID, { version: 3, title: `${SENTINEL}RENAMED`, customFieldValues: { investor: 'x' } }, 'en'),
+    );
+    await asAdmin(() => h.projects.setOrganizations(PROJECT_ID, [ORG_2], 'en'));
+    await asAdmin(() => h.moves.move(PROJECT_ID, { toStageId: STAGE_B, version: 5 }, 'en'));
+    await asAdmin(() => h.moves.close(PROJECT_ID, { outcome: 'completed', version: 6 }, 'en'));
+    await asAdmin(() => h.moves.reopen(PROJECT_ID, { version: 7 }, 'en'));
+
+    expect(new Set(h.outbox.map((row) => row['action']))).toEqual(new Set(Object.values(PROJECTS).map((ref) => ref.action)));
+    for (const row of h.outbox) expect(row['organizationId'], String(row['action'])).toBeNull();
   });
 
   it('writes no row for a write a beforeCommit hook refused', async () => {

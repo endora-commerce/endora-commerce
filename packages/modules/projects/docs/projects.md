@@ -803,8 +803,8 @@ hooks registered on it and the outbox rows waiting or failed.
 | `projects.project.create` | `PROJECT_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/projects` | `projectId`, `stageId`, `templateId`, `organizationIds`, `changedCustomFields` |
 | `projects.project.update` | `PROJECT_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/projects/:id` (title, description, value, start date) | `projectId`, `changedFields` |
 | `projects.project.custom_fields_update` | `PROJECT_HOOKABLE_ACTIONS.customFieldsUpdate` | `PATCH /api/v1/admin/projects/:id` (custom fields) | `projectId`, `changedCustomFields` |
-| `projects.project.organization_add` | `PROJECT_HOOKABLE_ACTIONS.organizationAdd` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `organizationId`, `changed` |
-| `projects.project.organization_remove` | `PROJECT_HOOKABLE_ACTIONS.organizationRemove` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `organizationId`, `changed` |
+| `projects.project.organization_add` | `PROJECT_HOOKABLE_ACTIONS.organizationAdd` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `targetOrganizationId`, `changed` |
+| `projects.project.organization_remove` | `PROJECT_HOOKABLE_ACTIONS.organizationRemove` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `targetOrganizationId`, `changed` |
 | `projects.project.stage_move` | `PROJECT_HOOKABLE_ACTIONS.stageMove` | `POST /api/v1/admin/projects/:id/move` | `projectId`, `fromStageId`, `toStageId` |
 | `projects.project.close` | `PROJECT_HOOKABLE_ACTIONS.close` | `POST /api/v1/admin/projects/:id/close` | `projectId`, `state` (`completed` or `lost`), `stageId`, `lossReasonCode` |
 | `projects.project.reopen` | `PROJECT_HOOKABLE_ACTIONS.reopen` | `POST /api/v1/admin/projects/:id/reopen` | `projectId`, `stageId`, `previousState` |
@@ -828,9 +828,13 @@ Three things to know when you hook these writes:
 - **A set of Organizations is one transaction.** `PUT …/organizations` runs one
   `organization_add` or `organization_remove` per Organization it adds or
   removes, inside one command, so a veto on any of them leaves the whole set as
-  it was. The outbox row of an add or a remove is routed to that Organization:
-  its handler runs in a context pinned to it. `changed` is `false` when somebody
-  else's write had already made the change and nothing was written.
+  it was. The Organization is named `targetOrganizationId`. `changed` is
+  `false` when somebody else's write had already made the change and nothing
+  was written.
+- **Outbox rows are not pinned to an Organization.** A project has no single
+  owning Organization, and seeing it takes all of its Organizations, so a
+  handler pinned to one of them could not read the project back. Every project
+  `afterCommit` handler runs in system scope.
 - **Extension input is not wired yet.** No route body and no port carries
   `extensions` to these commands, so a hook cannot be handed input of its own.
 
