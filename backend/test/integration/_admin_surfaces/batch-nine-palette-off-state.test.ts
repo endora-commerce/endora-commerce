@@ -63,7 +63,12 @@ const SUBJECTS: readonly Subject[] = [
   // Both locked: `activation.nonDeactivatable`, asserted below in the
   // manifests' own words rather than restated here.
   { module: 'assets_library', actions: ['open-assets-library'], axis: 'platform-unavailable' },
-  { module: 'custom_fields', actions: ['open-custom-fields'], axis: 'platform-unavailable' },
+  // #1804 added `new-custom-field`, which opens the definition editor's own route.
+  {
+    module: 'custom_fields',
+    actions: ['new-custom-field', 'open-custom-fields'],
+    axis: 'platform-unavailable',
+  },
 ];
 
 describe('batch 9 contributes no palette action while off (Constitution XVII item 5)', () => {
@@ -126,25 +131,25 @@ describe('batch 9 contributes no palette action while off (Constitution XVII ite
     }
   });
 
-  it('custom_fields’ action targets the route its own admin layer declares', () => {
+  it('every custom_fields action targets a route its own admin layer declares', () => {
     // The pairing `check:action-route-permissions` cannot make. It reconstructs
     // an **API** path from the SPA route, so it can say the code is the one the
     // API enforces and cannot say the SPA route exists. Since this batch the
     // route is the module's own declaration, so both halves are read from their
-    // artefacts and compared.
+    // artefacts and compared — for each action, since #1804 added a second one.
     const manifest = REGISTERED_MANIFESTS.find(
       (entry) => entry.manifest.id === 'custom_fields',
     )?.manifest;
     const actions = manifest?.actions ?? [];
-    expect(actions).toHaveLength(1);
-    const declaredRoutes = (customFieldsAdmin.routes ?? []).map((route) => route.path);
-    expect(declaredRoutes).toContain(actions[0]?.targetRoute);
-    // And the code the action advertises is the one that opens the screen: the
-    // palette must never advertise a 403 (Principle XVI item 2).
-    const target = (customFieldsAdmin.routes ?? []).find(
-      (route) => route.path === actions[0]?.targetRoute,
-    );
-    expect(target?.requiredPermission).toBe(actions[0]?.requiredPermission);
+    expect(actions.map((action) => action.id)).toEqual(['open-custom-fields', 'new-custom-field']);
+    const routes = customFieldsAdmin.routes ?? [];
+    for (const action of actions) {
+      const target = routes.find((route) => route.path === action.targetRoute);
+      expect(target, `${action.id} must target a declared route`).toBeDefined();
+      // And the code the action advertises is the one that opens the screen: the
+      // palette must never advertise a 403 (Principle XVI item 2).
+      expect(target?.requiredPermission, action.id).toBe(action.requiredPermission);
+    }
   });
 
   it('assets_library’s action targets the route its own admin layer declares', () => {
