@@ -32,8 +32,9 @@ describe('tasks — the Project/Stage picker reads one bounded page (issue #504)
 
   async function statements<T>(run: () => Promise<T>): Promise<{ result: T; queries: Array<{ sql: string }> }> {
     const queries: Array<{ sql: string }> = [];
-    const onQuery = (query: { sql: string }): void => {
-      queries.push({ sql: query.sql });
+    const onQuery = (query: { text: string }): void => {
+      // With the values rendered in, as the assertions below read them.
+      queries.push({ sql: query.text });
     };
     const untap = tapStatements(h.em(), onQuery);
     try {
@@ -101,7 +102,7 @@ describe('tasks — the Project/Stage picker reads one bounded page (issue #504)
     // The Projects are read once, with the page as its limit; nothing lists every visible Project.
     const projectReads = thirty.queries.filter((query) => /from "projects" p/.test(query.sql));
     expect(projectReads).toHaveLength(1);
-    // The driver inlines the parameters, so the limit and the ids are read off the statement.
+    // The limit and the ids are read off the statement text, values rendered in.
     expect(projectReads[0]!.sql).toMatch(/limit 20\s*$/);
     const stageReads = thirty.queries.filter((query) => /from "project_stages"/.test(query.sql));
     expect(stageReads).toHaveLength(1);

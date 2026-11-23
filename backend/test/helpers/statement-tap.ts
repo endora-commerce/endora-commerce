@@ -9,6 +9,12 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 export interface TappedStatement {
   readonly sql: string;
   readonly params: readonly unknown[];
+  /**
+   * The statement with its values rendered in, as the ORM renders them before
+   * it sends the statement — what the knex `query` event used to carry, for an
+   * assertion that reads a limit or an id off the text.
+   */
+  readonly text: string;
 }
 
 type LogQuery = (context: { query?: string; params?: unknown[] }) => void;
@@ -32,12 +38,16 @@ const TAPPED = new WeakMap<object, Tapped>();
  * and `commit` included, passes through on the connection, whether or not
  * query logging is enabled — so it reads the same population on either
  * driver. Taps nest; the logger is restored when the last one is removed.
+ *
+ * A statement is reported when it **completes** (the knex event fired when it
+ * was sent), so statements run side by side arrive in completion order.
  */
 export function tapStatements(
   em: EntityManager,
   listener: (statement: TappedStatement) => void,
 ): () => void {
   const logger = em.config.getLogger() as unknown as { logQuery: LogQuery };
+  const platform = em.getPlatform();
   let tapped = TAPPED.get(logger);
   if (tapped === undefined) {
     const original = logger.logQuery;
@@ -46,7 +56,9 @@ export function tapStatements(
     TAPPED.set(logger, tapped);
     logger.logQuery = function tap(this: unknown, context) {
       if (typeof context.query === 'string') {
-        const statement: TappedStatement = { sql: context.query, params: context.params ?? [] };
+        const params = context.params ?? [];
+        const text = params.length === 0 ? context.query : platform.formatQuery(context.query, [...params]);
+        const statement: TappedStatement = { sql: context.query, params, text };
         for (const each of [...listeners]) each(statement);
       }
       return original.call(this, context);

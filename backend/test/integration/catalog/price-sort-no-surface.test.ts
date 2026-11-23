@@ -18,7 +18,7 @@ import {
   PRICE_SORT_ORG_A,
   seedPriceSortFixture,
 } from '../../helpers/price-sort-fixture.js';
-import { tapStatements } from '../../helpers/statement-tap.js';
+import { tapStatements, type TappedStatement } from '../../helpers/statement-tap.js';
 
 /**
  * Review finding 3 (release 0.108.0) — a price-sorted listing with no price
@@ -199,7 +199,8 @@ describe('a price-sorted listing with no price surface pages to the end', () => 
       .seal(PRICE_WALK_CURSOR_PURPOSE, JSON.stringify({ stream: 'unordered', cursor: defaultCursor }));
     const statementsOf = async (query: string): Promise<string[]> => {
       const seen: string[] = [];
-      const listen = (q: { sql: string }) => seen.push(q.sql);
+      // The text and its values: the tap reports them apart, and both are compared.
+      const listen = (q: TappedStatement) => seen.push(`${q.sql} -- ${JSON.stringify(q.params)}`);
       const untap = tapStatements(h.em(), listen);
       try {
         const res = await get(query);
@@ -227,6 +228,8 @@ describe('a price-sorted listing with no price surface pages to the end', () => 
     } finally {
       vi.useRealTimers();
     }
-    expect(viaPrice.join('\n')).toEqual(viaDefault.join('\n'));
+    // Compared as a multiset: the tap reports a statement when it completes, so
+    // two reads a page issues side by side arrive in either order.
+    expect([...viaPrice].sort().join('\n')).toEqual([...viaDefault].sort().join('\n'));
   });
 });
