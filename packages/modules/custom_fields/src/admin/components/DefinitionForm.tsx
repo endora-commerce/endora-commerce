@@ -1,6 +1,7 @@
 import { useId, type ReactNode, type Ref } from 'react';
 import { Checkbox, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import type { DerivedKeyField } from '@endora-commerce/admin-kit/lib';
 import type {
   CustomFieldAdminAccess,
@@ -68,7 +69,7 @@ interface CommonProps {
   /** A refused save's carry sentence (R16), said beside the carry options. */
   carryError: string | null;
   carryErrorRef: Ref<HTMLParagraphElement>;
-  /** The default-label input in the create view, focused when the dialog opens: the key is derived from it. */
+  /** The default-label input in the create view, focused when the page opens: the key is derived from it. */
   labelInputRef?: Ref<HTMLInputElement>;
   /** The options heading, which takes focus when the list or a removed option leaves none to hold it. */
   optionsHeadingRef?: Ref<HTMLHeadingElement>;
@@ -89,6 +90,8 @@ export type DefinitionFormProps = CommonProps &
         storedRequired: boolean;
         onOptionsChanged: () => Promise<void>;
         carryGuard?: CarryDriftGuard;
+        /** Nothing is offered for editing: the options section carries no *Applies immediately*. */
+        readOnly?: boolean;
       }
   );
 
@@ -100,15 +103,15 @@ export type DefinitionFormProps = CommonProps &
  *    fixed text on edit.
  * 2. **Labels** — the default label and one per label language.
  * 3. **Options** (choice types) — a local draft list on create, sent with the
- *    field; saved one action at a time on edit.
+ *    field; saved one action at a time on edit, under *Applies immediately*.
  * 4. **Rules** — required (with its notice on edit), who can see the value and
  *    the admin access (feature 175; `read`/`hidden` and required exclude each
  *    other, SD-2).
  * 5. **Behaviour** — list filter, carry targets and buyer input.
  *
- * The form holds no state of its own beyond ids: the dialog owns the value,
+ * The form holds no state of its own beyond ids: the editor owns the value,
  * the checks and the save, so both views refuse the same things the same way.
- * Every control the dialog may move focus to carries `data-field`.
+ * Every control the editor may move focus to carries `data-field`.
  */
 export function DefinitionForm(props: DefinitionFormProps): ReactNode {
   const { value, onChange, entityTypeInfo, entityTypes, errors, busy, carryError, carryErrorRef } = props;
@@ -141,9 +144,9 @@ export function DefinitionForm(props: DefinitionFormProps): ReactNode {
   return (
     <div className="space-y-5">
       <section aria-labelledby={`${id}-identity`} className="space-y-2">
-        <h3 id={`${id}-identity`} className="text-sm font-semibold">
+        <h2 id={`${id}-identity`} className="text-sm font-semibold">
           {t('customFields.editor.section.identity')}
-        </h3>
+        </h2>
         {props.mode === 'edit' ? (
           <>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -254,7 +257,7 @@ export function DefinitionForm(props: DefinitionFormProps): ReactNode {
 
       {hasOptions(editing ? props.definition.valueType : value.valueType) ? (
         <section aria-labelledby={`${id}-options`} className="space-y-2">
-          <h3
+          <h2
             id={`${id}-options`}
             ref={props.optionsHeadingRef}
             data-field="options"
@@ -263,10 +266,12 @@ export function DefinitionForm(props: DefinitionFormProps): ReactNode {
             className="rounded-sm text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {t('customFields.editor.section.options')}
-          </h3>
-          <p className="break-words text-sm text-muted-foreground">
-            {editing ? t('customFields.editor.optionsNote') : t('customFields.editor.optionsDraftNote')}
-          </p>
+            {/* Issue #1804 — an existing field's options are their own audited writes, not the page's Save. */}
+            {props.mode === 'edit' && !props.readOnly ? <ImmediateBadge className="align-middle" /> : null}
+          </h2>
+          {editing ? null : (
+            <p className="break-words text-sm text-muted-foreground">{t('customFields.editor.optionsDraftNote')}</p>
+          )}
           {errorLine('options')}
           {props.mode === 'edit' ? (
             <DefinitionOptionsEditor

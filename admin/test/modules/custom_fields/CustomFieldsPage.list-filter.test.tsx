@@ -1,12 +1,9 @@
-import { StrictMode } from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { AuthProvider } from '@endora-commerce/admin-kit/lib';
 import type { CustomFieldDefinitionDto, CustomFieldEntityTypeInfo } from '@endora-commerce/contracts';
-import { renderWithI18n } from '../../helpers/render-with-i18n';
-import { adminSession } from '../../helpers/render-with-session';
+import { findEditor, renderCustomFieldsRoutes } from './routes-harness';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
 import pl from '../../../../packages/modules/custom_fields/i18n/pl.json';
 import coreEn from '../../../../packages/modules/_i18n/i18n/en.json';
@@ -74,15 +71,14 @@ vi.mock('../../../../packages/modules/custom_fields/src/admin/api/custom-fields-
 const { CustomFieldsPage } = await import(
   '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldsPage'
 );
+const { CustomFieldEditorPage } = await import(
+  '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldEditorPage'
+);
 
 function renderPage(permissions: string[], bundle: Record<string, string> = en): void {
-  renderWithI18n(
-    <StrictMode>
-      <AuthProvider initial={adminSession({ permissions })}>
-        <CustomFieldsPage />
-      </AuthProvider>
-    </StrictMode>,
-    { custom_fields: bundle, core: coreEn as Record<string, string> },
+  renderCustomFieldsRoutes(
+    { CustomFieldsPage, CustomFieldEditorPage },
+    { permissions, bundle: { custom_fields: bundle, core: coreEn as Record<string, string> } },
   );
 }
 
@@ -92,10 +88,10 @@ async function chooseEntity(value: string, entityLabel = 'Record type'): Promise
   fireEvent.change(select, { target: { value } });
 }
 
-/** Opens the definition form in its create view (issue #447). */
+/** Opens the definition form in its create view (issue #447), on its own page since #1804. */
 async function openCreate(): Promise<HTMLElement> {
-  fireEvent.click(await screen.findByRole('button', { name: 'New field' }));
-  return screen.findByRole('dialog', { name: 'New field' });
+  fireEvent.click(await screen.findByRole('link', { name: 'New field' }));
+  return findEditor('New field');
 }
 
 function cellOf(key: string, column: string): HTMLElement {
@@ -130,15 +126,15 @@ describe('CustomFieldsPage — the list-filter option', () => {
   it('offers the option in the create form only where the entity type has it, and sends it (FR-003)', async () => {
     renderPage(['custom_fields:read', 'custom_fields:write']);
     await chooseEntity('organization');
-    const dialog = await openCreate();
-    expect(within(dialog).queryByLabelText('Use as list filter')).toBeNull();
-    fireEvent.change(within(dialog).getByLabelText('Record type'), { target: { value: 'order' } });
-    fireEvent.click(await within(dialog).findByLabelText('Use as list filter'));
-    fireEvent.change(within(dialog).getByLabelText('Key'), { target: { value: 'channel_ref' } });
-    fireEvent.change(within(within(dialog).getByRole('group', { name: 'Labels' })).getByLabelText('Default label'), {
+    const editor = await openCreate();
+    expect(within(editor).queryByLabelText('Use as list filter')).toBeNull();
+    fireEvent.change(within(editor).getByLabelText('Record type'), { target: { value: 'order' } });
+    fireEvent.click(await within(editor).findByLabelText('Use as list filter'));
+    fireEvent.change(within(editor).getByLabelText('Key'), { target: { value: 'channel_ref' } });
+    fireEvent.change(within(within(editor).getByRole('group', { name: 'Labels' })).getByLabelText('Default label'), {
       target: { value: 'Channel reference' },
     });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Add field' }));
+    fireEvent.click(within(editor).getByRole('button', { name: 'Add field' }));
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     expect(create.mock.calls[0]![0]).toMatchObject({ entityType: 'order', key: 'channel_ref', listFilter: true });
   });
@@ -188,10 +184,12 @@ describe('CustomFieldsPage — the list-filter option', () => {
     expect(screen.getByText('Loading…')).toHaveAttribute('role', 'status');
     answer([]);
     expect(await screen.findByText('No fields for this record type yet.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Add a field' }));
-    const dialog = await screen.findByRole('dialog', { name: 'New field' });
-    expect(within(within(dialog).getByRole('group', { name: 'Labels' })).getByLabelText('Default label')).toHaveFocus();
-    expect(within(dialog).getByLabelText('Record type')).toHaveValue('order');
+    fireEvent.click(screen.getByRole('link', { name: 'Add a field' }));
+    const editor = await findEditor('New field');
+    await waitFor(() =>
+      expect(within(within(editor).getByRole('group', { name: 'Labels' })).getByLabelText('Default label')).toHaveFocus(),
+    );
+    expect(within(editor).getByLabelText('Record type')).toHaveValue('order');
   });
 
   it('says why the list did not load and loads it again on Retry', async () => {
@@ -215,7 +213,7 @@ describe('CustomFieldsPage — the list-filter option', () => {
     await chooseEntity('order');
     await screen.findByText('po_ref');
     expect(await screen.findByText('Fields: 2')).toHaveAttribute('role', 'status');
-    expect(screen.getAllByRole('button', { name: 'New field' })).toHaveLength(1);
+    expect(screen.getAllByRole('link', { name: 'New field' })).toHaveLength(1);
   });
 
   it('offers a reader no action in the empty state', async () => {
@@ -223,13 +221,13 @@ describe('CustomFieldsPage — the list-filter option', () => {
     renderPage(['custom_fields:read']);
     await chooseEntity('order');
     expect(await screen.findByText('No fields for this record type yet.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add a field' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Add a field' })).toBeNull();
   });
 
   it('offers Required as a checkbox in the create form', async () => {
     renderPage(['custom_fields:read', 'custom_fields:write']);
-    const dialog = await openCreate();
-    expect(within(dialog).getByRole('checkbox', { name: 'Required' })).toBeInTheDocument();
+    const editor = await openCreate();
+    expect(within(editor).getByRole('checkbox', { name: 'Required' })).toBeInTheDocument();
   });
 
   it('offers no Edit, Delete, audience select or create form to a reader (US3-9)', async () => {
@@ -239,7 +237,7 @@ describe('CustomFieldsPage — the list-filter option', () => {
     expect(screen.queryByRole('button', { name: /^Actions for / })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Change… / })).toBeNull();
     expect(screen.queryByLabelText('Who can see the value of region')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'New field' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'New field' })).toBeNull();
     expect(screen.queryByLabelText('Key')).toBeNull();
     expect(cellOf('region', 'Visible to')).toHaveTextContent('Internal — administrators only');
   });
@@ -248,7 +246,8 @@ describe('CustomFieldsPage — the list-filter option', () => {
     const dir = resolve(__dirname, '../../../../packages/modules/custom_fields/src/admin');
     const files = [
       'pages/CustomFieldsPage.tsx',
-      'components/DefinitionEditorDialog.tsx',
+      'pages/CustomFieldEditorPage.tsx',
+      'components/DefinitionEditor.tsx',
       'components/DefinitionForm.tsx',
       'components/DefinitionOptionsEditor.tsx',
       'components/DefinitionBehaviourFields.tsx',

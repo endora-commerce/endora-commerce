@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { AuthProvider } from '@endora-commerce/admin-kit/lib';
-import { renderWithI18n } from '../../helpers/render-with-i18n';
-import { adminSession } from '../../helpers/render-with-session';
+import { findEditor, renderCustomFieldsRoutes } from './routes-harness';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
 import pl from '../../../../packages/modules/custom_fields/i18n/pl.json';
 import coreEn from '../../../../packages/modules/_i18n/i18n/en.json';
@@ -52,6 +50,9 @@ vi.mock('../../../../packages/modules/custom_fields/src/admin/api/custom-fields-
 const { CustomFieldsPage } = await import(
   '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldsPage'
 );
+const { CustomFieldEditorPage } = await import(
+  '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldEditorPage'
+);
 
 // The shipped English copy, so the assertions below read what an operator reads.
 const EN = en as Record<string, string>;
@@ -59,18 +60,16 @@ const CORE = coreEn as Record<string, string>;
 const BUNDLE = { custom_fields: EN, core: CORE };
 const NEW_FIELD_AUDIENCE = 'Who can see the value';
 
-/** The page reads `useAuth` for its write controls; this operator may write. */
-const page = (
-  <AuthProvider initial={adminSession({ permissions: ['custom_fields:read', 'custom_fields:write'] })}>
-    <CustomFieldsPage />
-  </AuthProvider>
-);
+/** The list and the editor page, in a router (issue #1804); this operator may write. */
+const renderPage = (): void => {
+  renderCustomFieldsRoutes({ CustomFieldsPage, CustomFieldEditorPage }, { bundle: BUNDLE });
+};
 
 /** Opens the definition form in its create view and fills what every new field needs (issue #447). */
 async function openCreate(key: string): Promise<HTMLElement> {
-  renderWithI18n(page, BUNDLE);
-  fireEvent.click(await screen.findByRole('button', { name: 'New field' }));
-  const dialog = await screen.findByRole('dialog', { name: 'New field' });
+  renderPage();
+  fireEvent.click(await screen.findByRole('link', { name: 'New field' }));
+  const dialog = await findEditor('New field');
   fireEvent.change(within(dialog).getByPlaceholderText('po_number'), { target: { value: key } });
   fireEvent.change(within(within(dialog).getByRole('group', { name: 'Labels' })).getByLabelText('Default label'), {
     target: { value: key },
@@ -112,7 +111,7 @@ describe('CustomFieldsPage — the audience of a definition', () => {
   });
 
   it('shows the audience of an existing field and lets it be changed', async () => {
-    renderWithI18n(page, BUNDLE);
+    renderPage();
     await screen.findByText('po_number');
     // A value edited from the row is the kit StatusChangeControl (issue #1749): shown, then changed in a dialog.
     expect(audienceButton('po_number', EN, CORE).closest('div')).toHaveTextContent('Customer — shown to the customer');

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog } from '@endora-commerce/admin-kit/components';
-import { ApiError, useDerivedKey } from '@endora-commerce/admin-kit/lib';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { StickyFormActions, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
+import { ApiError, isDraftEqual, useDerivedKey } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   ERROR_CODES,
@@ -11,13 +11,7 @@ import {
   type UpdateCustomFieldDefinitionRequest,
 } from '@endora-commerce/contracts';
 import { customFieldsClient } from '../api/custom-fields-client.js';
-import {
-  carryCounterpartsBrokenBy,
-  carryDriftProceed,
-  type CarryCounterpart,
-  type CarryDriftProceed,
-  type DefinitionChange,
-} from '../lib/carry-drift.js';
+import { carryCounterpartsBrokenBy, type CarryCounterpart, type DefinitionChange } from '../lib/carry-drift.js';
 import { entityTypeLabelKey, isCarryRefusal, refusalSentence, shownKey, type Translate } from '../lib/carry-labels.js';
 import {
   firstIssue,
@@ -29,55 +23,64 @@ import {
   type DefinitionDraftIssues,
   type OptionIssues,
 } from '../lib/definition-draft.js';
+import { listPath } from '../lib/routes.js';
 import { labelTexts, sameLabel, withLanguages } from './localized-label.js';
-import { CarryDriftNotice } from './CarryDriftWarning.js';
+import { CarryDriftDialog } from './CarryDriftWarning.js';
 import { DefinitionForm, type DefinitionFormErrors, type DefinitionFormValue } from './DefinitionForm.js';
 import type { CarryDriftGuard } from './DefinitionOptionsEditor.js';
 
+/** What the editor tells its page once a save went through: the row the list focuses. */
+export interface SavedDefinition {
+  id: string;
+  key: string;
+  entityType: SupportedEntityType;
+}
+
 interface CommonProps {
   /** The entity-types list: the types a field can be created for, and how a carry target is named. */
-  entityTypes?: readonly CustomFieldEntityTypeInfo[];
-  /** Closed without a save (Cancel, Escape, the scrim) — in the edit view option actions may still have changed it. */
-  onClose: () => void;
+  entityTypes: readonly CustomFieldEntityTypeInfo[];
   /**
    * Feature 162 — every definition the page knows, of every type, so an option
-   * or audience change can say which carries it breaks. The edited
-   * definition's own entry is replaced by the dialog's latest read.
+   * or audience change can say which carries it breaks, and a create can refuse
+   * a taken key before sending. The edited definition's own entry is replaced
+   * by the editor's latest read.
    */
-  definitions?: readonly CustomFieldDefinitionDto[];
+  definitions: readonly CustomFieldDefinitionDto[];
+  /** Leaves without saving: *Cancel* discards without asking — it is the operator's own choice. */
+  onCancel: () => void;
+  /** Notices between the header and the form (the carry checks being unavailable, a read-only reason). */
+  notice?: ReactNode;
+  /** Nothing can be saved here — a reader, or a type another module manages: the form is shown, not offered. */
+  readOnly?: boolean;
 }
 
 /** Edits an existing definition. */
-export interface EditDefinitionDialogProps extends CommonProps {
+export interface EditDefinitionProps extends CommonProps {
   mode?: 'edit';
   definition: CustomFieldDefinitionDto;
   /** The `entity-types` entry of the definition's type. */
   entityTypeInfo: CustomFieldEntityTypeInfo;
-  /** Saved; the dialog is done. */
-  onSaved: () => void;
+  onSaved: (saved: SavedDefinition) => void;
 }
 
 /** Creates a definition (issue #447). */
-export interface CreateDefinitionDialogProps extends CommonProps {
+export interface CreateDefinitionProps extends CommonProps {
   mode: 'create';
-  /** The record type the form starts on — the one the page shows. */
+  /** The record type the form starts on — the one the list showed. */
   entityType: SupportedEntityType;
   /** The position a new field of `entityType` takes among that type's fields. */
   sortOrderFor: (entityType: SupportedEntityType) => number;
-  /** Created; the dialog is done. Names the record type the field was created for. */
-  onSaved: (entityType: SupportedEntityType) => void;
+  onSaved: (saved: SavedDefinition) => void;
 }
 
-export type DefinitionEditorDialogProps = EditDefinitionDialogProps | CreateDefinitionDialogProps;
+export type DefinitionEditorProps = EditDefinitionProps | CreateDefinitionProps;
 
 /** A pending drift warning: what it names, how it reads, and who is waiting for the answer. */
 interface PendingDrift {
   counterparts: readonly CarryCounterpart[];
   lead?: string;
-  /** The change asked about. */
+  /** The change asked about; the proceed button names it (owner ruling V1). */
   action: DefinitionChange['kind'];
-  /** The proceed button, named after the change asked about (owner ruling V1). */
-  proceed: CarryDriftProceed;
   resolve: (proceed: boolean) => void;
 }
 
@@ -154,7 +157,7 @@ function issueSentences(
 /** The longest key the contract accepts (`^[a-z][a-z0-9_]{0,63}$`). */
 const KEY_MAX_LENGTH = 64;
 
-function initialValue(props: DefinitionEditorDialogProps): DefinitionFormValue {
+function initialValue(props: DefinitionEditorProps): DefinitionFormValue {
   if (props.mode === 'create') {
     return {
       entityType: props.entityType,
@@ -193,9 +196,13 @@ function initialValue(props: DefinitionEditorDialogProps): DefinitionFormValue {
 }
 
 /**
- * Creates a custom-field definition or edits an existing one, in the one
- * definition form both views share (issue #447; feature 157 US3,
- * `specs/157-custom-fields-list-filters/contracts/admin-surfaces.md` §3).
+ * Creates a custom-field definition or edits an existing one, on its own page
+ * (issue #1804; before it, in a dialog — issue #447, feature 157 US3,
+ * `specs/157-custom-fields-list-filters/contracts/admin-surfaces.md` §3). The
+ * kit README's five-field rule sends a form this size to a route: the page
+ * scrolls, keeps its one Save in the kit's sticky bar (Fitts), and arms the
+ * kit's one unsaved-changes guard (the header's back link, the sidebar, the
+ * browser's Back / Forward).
  *
  * **Create** sends **one** request carrying the whole definition — labels per
  * language, the audience, the behaviour and the options with their labels,
@@ -207,19 +214,27 @@ function initialValue(props: DefinitionEditorDialogProps): DefinitionFormValue {
  * `carryTo` (feature 162, as the whole new list), `customerInput` (feature
  * 175, as the whole new list) and `adminAccess` — never `config`,
  * `options`, `valueType` or `key` (threat model F-6); nothing changed sends
- * nothing. Options are edited through their own sub-routes, one action at a
- * time, and the dialog re-reads the definition after each.
+ * nothing.
+ *
+ * **Options stay immediate on edit, and say so** (issue #1804). Each option
+ * action — add, relabel, default, reorder, remove — is its own audited Command
+ * through the option sub-routes, one the server can refuse on its own (an
+ * option still in use). The section carries the kit's `ImmediateBadge`, as
+ * `module-admin-surfaces.md` § *Zone-panel editors save once*, item 4, has
+ * every immediate list on an editor page do; the page's Save and its guard
+ * count the definition's own draft only.
  *
  * Both views run the same checks before anything is sent, and say a refusal
  * next to the field it concerns.
  */
-export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): ReactNode {
-  const { onClose, entityTypes = [], definitions = [] } = props;
+export function DefinitionEditor(props: DefinitionEditorProps): ReactNode {
+  const { onCancel, entityTypes, definitions, notice, readOnly = false } = props;
   const creating = props.mode === 'create';
   const editedDefinition = props.mode === 'create' ? null : props.definition;
   const t = useTranslation('custom_fields');
-  const id = useId();
-  const [value, setValue] = useState<DefinitionFormValue>(() => initialValue(props));
+  const formId = useId();
+  const [initial] = useState<DefinitionFormValue>(() => initialValue(props));
+  const [value, setValue] = useState<DefinitionFormValue>(initial);
   const [current, setCurrent] = useState<CustomFieldDefinitionDto | null>(editedDefinition);
   const [errors, setErrors] = useState<DefinitionFormErrors>({});
   /** A refused save said beside the submit button — one no field is about. */
@@ -227,7 +242,7 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
   /**
    * A carry refusal (R16): its sentence beside the carry options, where it is
    * fixed, a summary beside the submit button, and focus on the sentence so it
-   * is never left scrolled out of sight at the other end of the dialog.
+   * is never left scrolled out of sight at the other end of the page.
    */
   const [carryError, setCarryError] = useState<string | null>(null);
   const carryErrorRef = useRef<HTMLParagraphElement>(null);
@@ -235,19 +250,24 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
   /** An option action applies at once, so after one *Cancel* would undo nothing: it reads *Close*. */
   const [optionsTouched, setOptionsTouched] = useState(false);
   /**
-   * Feature 162 — a change that breaks a carry asks first. The question takes
-   * the dialog's place rather than opening a second dialog over it: two modals
-   * would both answer Escape and both trap focus. The form stays mounted under
-   * it (hidden), so a half-typed option survives a *Cancel*.
+   * Feature 162 — a change that breaks a carry asks first, in its own kit
+   * dialog; the page under it keeps everything typed, so a half-typed option
+   * survives a *Cancel*.
    */
   const [drift, setDrift] = useState<PendingDrift | null>(null);
-  const driftCancelRef = useRef<HTMLButtonElement>(null);
   const driftOpener = useRef<HTMLElement | null>(null);
   const optionsHeadingRef = useRef<HTMLHeadingElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   /** The control focus goes to once the errors it describes are rendered. */
   const [focusField, setFocusField] = useState<string | null>(null);
+
+  /** The draft against what the page opened with — what a save or a create would send. */
+  const dirty = !readOnly && !isDraftEqual(value, initial);
+  // The one leave guard (README *Unsaved changes*), offering Discard or Stay: a
+  // save here can stop on a carry question and leaves for the list once it
+  // goes through, which a replayed navigation cannot follow.
+  const guard = useUnsavedChangesGuard({ dirty: dirty && !busy });
 
   const entityTypeInfo: CustomFieldEntityTypeInfo =
     props.mode === 'create'
@@ -279,13 +299,7 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
     (counterparts: readonly CarryCounterpart[], options: { action: DefinitionChange['kind']; lead?: string }) =>
       new Promise<boolean>((resolve) => {
         driftOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        setDrift({
-          counterparts,
-          ...(options.lead ? { lead: options.lead } : {}),
-          action: options.action,
-          proceed: carryDriftProceed(options.action),
-          resolve,
-        });
+        setDrift({ counterparts, ...(options.lead ? { lead: options.lead } : {}), action: options.action, resolve });
       }),
     [],
   );
@@ -308,15 +322,9 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
     [drift],
   );
 
-  // The question opens on *Cancel* — the answer that changes nothing, as Escape
-  // and the scrim are — and once answered focus goes back to the control that
-  // asked. Focus does not enter the dialog anew, so its description is not
-  // re-read: the live region below says the warning appeared.
+  // Once the warning is answered, focus goes back to the control that asked.
   useEffect(() => {
-    if (drift !== null) {
-      driftCancelRef.current?.focus();
-      return;
-    }
+    if (drift !== null) return;
     const opener = driftOpener.current;
     driftOpener.current = null;
     if (opener?.isConnected) opener.focus();
@@ -331,6 +339,13 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
     formRef.current?.querySelector<HTMLElement>(focusField)?.focus();
     setFocusField(null);
   }, [focusField]);
+
+  // The create page opens on the default label: the key is derived from it.
+  useEffect(() => {
+    if (creating && !readOnly) labelInputRef.current?.focus();
+    // On arrival only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const reread = useCallback(async (): Promise<void> => {
     if (editedDefinition === null) return;
@@ -417,18 +432,19 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
 
   const create = async (): Promise<void> => {
     if (props.mode !== 'create') return;
-    // A click on *Add field* blurs the key first, but a key set without a blur
-    // is normalised here all the same.
+    // A click on *Add field* blurs the key first, but a key submitted with
+    // Enter is normalised here all the same.
     const draft = { ...value, key: keyField.commit() };
     if (!checked(draft)) return;
     const { entityType } = draft;
+    const key = draft.key.trim();
     setBusy(true);
     setError(null);
     setCarryError(null);
     try {
-      await customFieldsClient.create({
+      const created = await customFieldsClient.create({
         entityType,
-        key: draft.key.trim(),
+        key,
         label: trimmedLabel(value.labels),
         labelDefault: value.labelDefault.trim(),
         valueType: value.valueType,
@@ -445,9 +461,9 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
         // Sent only where the entity type offers the option.
         ...(entityTypeInfo.listFilter ? { listFilter: value.listFilter } : {}),
       });
-      props.onSaved(entityType);
+      props.onSaved({ id: created.id, key, entityType });
     } catch (err) {
-      refused(err, 'customFields.form.createFailed', draft.key.trim());
+      refused(err, 'customFields.form.createFailed', key);
       setBusy(false);
     }
   };
@@ -455,6 +471,7 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
   const save = async (): Promise<void> => {
     if (props.mode === 'create' || !checked()) return;
     const { definition } = props;
+    const saved: SavedDefinition = { id: definition.id, key: definition.key, entityType: definition.entityType };
     const patch: UpdateCustomFieldDefinitionRequest = {};
     const trimmedDefault = value.labelDefault.trim();
     if (trimmedDefault !== definition.labelDefault) patch.labelDefault = trimmedDefault;
@@ -469,7 +486,8 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
     }
     if (value.adminAccess !== (definition.adminAccess ?? 'edit')) patch.adminAccess = value.adminAccess;
     if (Object.keys(patch).length === 0) {
-      onClose();
+      // Nothing of the definition's own changed (an option action may have): back to the list.
+      onCancel();
       return;
     }
     // Feature 162 — an audience change that breaks a carry asks first, as it does from the table.
@@ -482,125 +500,102 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
     setCarryError(null);
     try {
       await customFieldsClient.update(definition.id, patch);
-      props.onSaved();
+      props.onSaved(saved);
     } catch (err) {
       refused(err, 'customFields.editor.saveFailed');
       setBusy(false);
     }
   };
 
-  const driftNoticeId = `${id}-drift-notice`;
+  const submit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    if (busy || readOnly) return;
+    void (creating ? create() : save());
+  };
+
   const title =
     props.mode === 'create'
       ? t('customFields.form.createTitle')
       : t('customFields.editor.title', { key: props.definition.key });
+  const backTo = listPath(props.mode === 'create' ? value.entityType : props.definition.entityType);
   return (
-    <ModalDialog
-      title={drift ? t('customFields.carry.warning.title') : title}
-      onClose={drift ? (): void => settleDrift(false) : onClose}
-      busy={busy}
-      {...(creating ? { initialFocusRef: labelInputRef } : {})}
-      {...(drift ? { 'aria-describedby': driftNoticeId } : {})}
-      footer={
-        drift ? (
-          <>
-            <Button
-              ref={driftCancelRef}
-              type="button"
-              variant="outline"
-              className="min-h-11 sm:min-h-9"
-              onClick={(): void => settleDrift(false)}
-            >
-              {t('customFields.carry.warning.cancel')}
-            </Button>
-            <Button
-              type="button"
-              variant={drift.proceed.destructive ? 'destructive' : 'default'}
-              className="min-h-11 sm:min-h-9"
-              onClick={(): void => settleDrift(true)}
-            >
-              {t(drift.proceed.labelKey)}
-            </Button>
-          </>
-        ) : (
-          <>
-            {error !== null || carryError !== null ? (
-              <p
-                data-testid="save-error"
-                // A carry refusal's sentence takes the focus, which reads it; the
-                // summary is not announced a second time.
-                role={carryError === null ? 'alert' : undefined}
-                className="min-w-0 basis-full break-words text-sm text-destructive sm:basis-0 sm:flex-1 sm:self-center"
-              >
-                {carryError !== null
-                  ? t('customFields.carry.refusalSummary', { section: t('customFields.carry.legend') })
-                  : error}
-              </p>
-            ) : null}
-            <Button type="button" variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={onClose}>
-              {optionsTouched ? t('customFields.editor.close') : t('customFields.editor.cancel')}
-            </Button>
-            <Button
-              type="button"
-              className="min-h-11 sm:min-h-9"
-              disabled={busy}
-              aria-busy={busy}
-              onClick={(): void => void (creating ? create() : save())}
-            >
-              {creating ? t('customFields.form.submit') : t('customFields.editor.save')}
-            </Button>
-          </>
-        )
-      }
-    >
-      {/* Mounted before it has anything to say, so the in-place swap is announced. */}
-      <p role="status" data-testid="drift-announcement" className="sr-only">
-        {drift ? t('customFields.carry.warning.title') : ''}
-      </p>
-      {drift ? (
-        <CarryDriftNotice
-          id={driftNoticeId}
-          counterparts={drift.counterparts}
-          typeLabel={typeLabel}
-          destructive={drift.proceed.destructive}
-          {...(drift.lead ? { lead: drift.lead } : {})}
-        />
-      ) : null}
-      <div ref={formRef} hidden={drift !== null}>
-        {props.mode === 'create' ? (
-          <DefinitionForm
-            mode="create"
-            value={value}
-            onChange={change}
-            entityTypeInfo={entityTypeInfo}
-            entityTypes={entityTypes}
-            errors={errors}
-            busy={busy}
-            carryError={carryError}
-            carryErrorRef={carryErrorRef}
-            keyField={keyField}
-            labelInputRef={labelInputRef}
-            optionsHeadingRef={optionsHeadingRef}
-          />
-        ) : (
-          <DefinitionForm
-            mode="edit"
-            definition={current ?? props.definition}
-            storedRequired={props.definition.required}
-            onOptionsChanged={reread}
-            carryGuard={carryGuard}
-            value={value}
-            onChange={change}
-            entityTypeInfo={entityTypeInfo}
-            entityTypes={entityTypes}
-            errors={errors}
-            busy={busy}
-            carryError={carryError}
-            carryErrorRef={carryErrorRef}
-            optionsHeadingRef={optionsHeadingRef}
+    <>
+      <PageHeader back={{ label: t('customFields.title'), to: backTo }} title={title} />
+      {notice}
+      <form ref={formRef} id={formId} aria-label={title} noValidate onSubmit={submit}>
+        <Card>
+          <CardContent>
+            {props.mode === 'create' ? (
+              <DefinitionForm
+                mode="create"
+                value={value}
+                onChange={change}
+                entityTypeInfo={entityTypeInfo}
+                entityTypes={entityTypes}
+                errors={errors}
+                busy={busy || readOnly}
+                carryError={carryError}
+                carryErrorRef={carryErrorRef}
+                keyField={keyField}
+                labelInputRef={labelInputRef}
+                optionsHeadingRef={optionsHeadingRef}
+              />
+            ) : (
+              <DefinitionForm
+                mode="edit"
+                definition={current ?? props.definition}
+                storedRequired={props.definition.required}
+                onOptionsChanged={reread}
+                carryGuard={carryGuard}
+                readOnly={readOnly}
+                value={value}
+                onChange={change}
+                entityTypeInfo={entityTypeInfo}
+                entityTypes={entityTypes}
+                errors={errors}
+                busy={busy || readOnly}
+                carryError={carryError}
+                carryErrorRef={carryErrorRef}
+                optionsHeadingRef={optionsHeadingRef}
+              />
+            )}
+          </CardContent>
+        </Card>
+        {readOnly ? null : (
+          <StickyFormActions
+            desktop="sticky"
+            dirty={dirty}
+            error={error}
+            // A carry refusal's sentence takes the focus, which reads it; this points at it.
+            status={
+              carryError !== null
+                ? t('customFields.carry.refusalSummary', { section: t('customFields.carry.legend') })
+                : null
+            }
+            secondary={
+              <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
+                {optionsTouched ? t('customFields.editor.close') : t('customFields.editor.cancel')}
+              </Button>
+            }
+            primary={
+              <Button type="submit" disabled={busy} aria-busy={busy || undefined}>
+                {creating ? t('customFields.form.submit') : t('customFields.editor.save')}
+              </Button>
+            }
           />
         )}
-      </div>
-    </ModalDialog>
+      </form>
+      {drift ? (
+        <CarryDriftDialog
+          counterparts={drift.counterparts}
+          typeLabel={typeLabel}
+          {...(drift.lead ? { lead: drift.lead } : {})}
+          action={drift.action}
+          onCancel={(): void => settleDrift(false)}
+          onProceed={(): void => settleDrift(true)}
+        />
+      ) : null}
+      {guard.dialog}
+    </>
   );
 }

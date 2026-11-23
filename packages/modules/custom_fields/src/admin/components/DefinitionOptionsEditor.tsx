@@ -28,7 +28,7 @@ import { LABEL_LANGUAGES, labelTexts, sameLabel, useLanguageName, withLanguages 
 /**
  * Asks before an option change that breaks an enabled carry (feature 162,
  * `specs/162-custom-fields-value-carry/contracts/admin-surfaces.md` §1.4). The
- * dialog that renders this editor owns the question; the editor only says
+ * page that renders this editor owns the question; the editor only says
  * which change it is about to make.
  */
 export interface CarryDriftGuard {
@@ -97,7 +97,7 @@ export function DefinitionOptionsEditor(props: DefinitionOptionsEditorProps): Re
  * The options of a select / multiselect definition, edited one action at a
  * time through the option sub-routes (feature 157, `admin-surfaces.md` §3.1).
  * An option's stored value is shown, never edited; an action sends only that
- * option's changed members. After every action the dialog re-reads the
+ * option's changed members. After every action the page re-reads the
  * definition.
  *
  * **A save never takes the operator's place.** Rows are keyed by the option

@@ -1,11 +1,9 @@
-import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { AuthProvider } from '@endora-commerce/admin-kit/lib';
 import type { CustomFieldDefinitionDto, CustomFieldEntityTypeInfo } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { chooseRowAction } from './row-actions';
-import { adminSession } from '../../helpers/render-with-session';
+import { findEditor, renderCustomFieldsRoutes } from './routes-harness';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
 import pl from '../../../../packages/modules/custom_fields/i18n/pl.json';
 import coreEn from '../../../../packages/modules/_i18n/i18n/en.json';
@@ -72,6 +70,9 @@ vi.mock('../../../../packages/modules/custom_fields/src/admin/api/custom-fields-
 const { CustomFieldsPage } = await import(
   '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldsPage'
 );
+const { CustomFieldEditorPage } = await import(
+  '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldEditorPage'
+);
 const { DefinitionBehaviourFields } = await import(
   '../../../../packages/modules/custom_fields/src/admin/components/DefinitionBehaviourFields'
 );
@@ -91,23 +92,16 @@ beforeEach(() => {
 });
 
 function renderPage(): void {
-  renderWithI18n(
-    <StrictMode>
-      <AuthProvider initial={adminSession({ permissions: ['custom_fields:read', 'custom_fields:write'] })}>
-        <CustomFieldsPage />
-      </AuthProvider>
-    </StrictMode>,
-    bundles,
-  );
+  renderCustomFieldsRoutes({ CustomFieldsPage, CustomFieldEditorPage }, { bundle: bundles });
 }
 
 async function openCreate(recordType: 'organization' | 'order'): Promise<HTMLElement> {
   renderPage();
   await screen.findByText('acquisition_source');
-  fireEvent.click(screen.getByRole('button', { name: COPY['customFields.form.createTitle']! }));
-  const dialog = await screen.findByRole('dialog', { name: COPY['customFields.form.createTitle']! });
-  fireEvent.change(within(dialog).getByLabelText(COPY['customFields.form.entity']!), { target: { value: recordType } });
-  return dialog;
+  fireEvent.click(screen.getByRole('link', { name: COPY['customFields.form.newField']! }));
+  const editor = await findEditor(COPY['customFields.form.createTitle']!);
+  fireEvent.change(within(editor).getByLabelText(COPY['customFields.form.entity']!), { target: { value: recordType } });
+  return editor;
 }
 
 describe('definition editor — buyer input (FR-035)', () => {
@@ -139,22 +133,22 @@ describe('definition editor — buyer input (FR-035)', () => {
   });
 
   it('offers the option only for a record type that declares a surface', async () => {
-    const dialog = await openCreate('organization');
-    expect(within(dialog).getByLabelText(COPY['customFields.customerInput.surface.organization.register']!)).toBeTruthy();
+    const editor = await openCreate('organization');
+    expect(within(editor).getByLabelText(COPY['customFields.customerInput.surface.organization.register']!)).toBeTruthy();
 
-    fireEvent.change(within(dialog).getByLabelText(COPY['customFields.form.entity']!), { target: { value: 'order' } });
-    expect(within(dialog).queryByLabelText(COPY['customFields.customerInput.surface.organization.register']!)).toBeNull();
+    fireEvent.change(within(editor).getByLabelText(COPY['customFields.form.entity']!), { target: { value: 'order' } });
+    expect(within(editor).queryByLabelText(COPY['customFields.customerInput.surface.organization.register']!)).toBeNull();
   });
 
   it('disables it with its reason while the field is internal, and enables it once customer-visible', async () => {
-    const dialog = await openCreate('organization');
-    const box = within(dialog).getByLabelText(COPY['customFields.customerInput.surface.organization.register']!);
+    const editor = await openCreate('organization');
+    const box = within(editor).getByLabelText(COPY['customFields.customerInput.surface.organization.register']!);
     expect(box).toBeDisabled();
-    expect(within(dialog).getByText(COPY['customFields.customerInput.disabledAudience']!)).toBeTruthy();
+    expect(within(editor).getByText(COPY['customFields.customerInput.disabledAudience']!)).toBeTruthy();
 
-    fireEvent.change(within(dialog).getByLabelText(COPY['customFields.audience.label']!), { target: { value: 'customer' } });
+    fireEvent.change(within(editor).getByLabelText(COPY['customFields.audience.label']!), { target: { value: 'customer' } });
     expect(box).not.toBeDisabled();
-    expect(within(dialog).queryByText(COPY['customFields.customerInput.disabledAudience']!)).toBeNull();
+    expect(within(editor).queryByText(COPY['customFields.customerInput.disabledAudience']!)).toBeNull();
   });
 
   it('disables it with its reason for a Page Builder field', () => {
@@ -172,13 +166,13 @@ describe('definition editor — buyer input (FR-035)', () => {
   });
 
   it('sends the ticked surface and the chosen admin access on create', async () => {
-    const dialog = await openCreate('organization');
-    fireEvent.change(within(dialog).getByLabelText(COPY['customFields.form.key']!), { target: { value: 'phone' } });
-    fireEvent.change(within(dialog).getByLabelText(COPY['customFields.editor.labelDefault']!), { target: { value: 'Phone' } });
-    fireEvent.change(within(dialog).getByLabelText(COPY['customFields.audience.label']!), { target: { value: 'customer' } });
-    fireEvent.click(within(dialog).getByLabelText(COPY['customFields.customerInput.surface.organization.register']!));
-    fireEvent.change(within(dialog).getByLabelText(COPY['customFields.adminAccess.label']!), { target: { value: 'read' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: COPY['customFields.form.submit']! }));
+    const editor = await openCreate('organization');
+    fireEvent.change(within(editor).getByLabelText(COPY['customFields.form.key']!), { target: { value: 'phone' } });
+    fireEvent.change(within(editor).getByLabelText(COPY['customFields.editor.labelDefault']!), { target: { value: 'Phone' } });
+    fireEvent.change(within(editor).getByLabelText(COPY['customFields.audience.label']!), { target: { value: 'customer' } });
+    fireEvent.click(within(editor).getByLabelText(COPY['customFields.customerInput.surface.organization.register']!));
+    fireEvent.change(within(editor).getByLabelText(COPY['customFields.adminAccess.label']!), { target: { value: 'read' } });
+    fireEvent.click(within(editor).getByRole('button', { name: COPY['customFields.form.submit']! }));
 
     await waitFor(() => expect(client.create).toHaveBeenCalledTimes(1));
     expect(client.create.mock.calls[0]?.[0]).toMatchObject({
@@ -191,10 +185,10 @@ describe('definition editor — buyer input (FR-035)', () => {
   });
 
   it('sends the server defaults on create for a record type with no surface', async () => {
-    const dialog = await openCreate('order');
-    fireEvent.change(within(dialog).getByLabelText(COPY['customFields.form.key']!), { target: { value: 'po' } });
-    fireEvent.change(within(dialog).getByLabelText(COPY['customFields.editor.labelDefault']!), { target: { value: 'PO' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: COPY['customFields.form.submit']! }));
+    const editor = await openCreate('order');
+    fireEvent.change(within(editor).getByLabelText(COPY['customFields.form.key']!), { target: { value: 'po' } });
+    fireEvent.change(within(editor).getByLabelText(COPY['customFields.editor.labelDefault']!), { target: { value: 'PO' } });
+    fireEvent.click(within(editor).getByRole('button', { name: COPY['customFields.form.submit']! }));
 
     await waitFor(() => expect(client.create).toHaveBeenCalledTimes(1));
     expect(client.create.mock.calls[0]?.[0]).toMatchObject({ customerInput: [], adminAccess: 'edit' });
@@ -203,38 +197,38 @@ describe('definition editor — buyer input (FR-035)', () => {
 
 describe('definition editor — admin access (FR-036, SD-2)', () => {
   it('offers the selector with its help sentence for every record type', async () => {
-    const dialog = await openCreate('order');
-    const select = within(dialog).getByLabelText(COPY['customFields.adminAccess.label']!) as HTMLSelectElement;
+    const editor = await openCreate('order');
+    const select = within(editor).getByLabelText(COPY['customFields.adminAccess.label']!) as HTMLSelectElement;
     expect(Array.from(select.options, (o) => o.value)).toEqual(['edit', 'read', 'hidden']);
     expect(select.value).toBe('edit');
-    expect(within(dialog).getByText(COPY['customFields.adminAccess.help']!)).toBeTruthy();
+    expect(within(editor).getByText(COPY['customFields.adminAccess.help']!)).toBeTruthy();
   });
 
   it('disables read-only and hidden while the field is required, and required while it is not editable', async () => {
-    const dialog = await openCreate('order');
-    const select = within(dialog).getByLabelText(COPY['customFields.adminAccess.label']!) as HTMLSelectElement;
-    const required = within(dialog).getByLabelText(COPY['customFields.form.required']!);
+    const editor = await openCreate('order');
+    const select = within(editor).getByLabelText(COPY['customFields.adminAccess.label']!) as HTMLSelectElement;
+    const required = within(editor).getByLabelText(COPY['customFields.form.required']!);
 
     fireEvent.click(required);
     const option = (value: string): HTMLOptionElement =>
       Array.from(select.options).find((o) => o.value === value)!;
     expect(option('read').disabled).toBe(true);
     expect(option('hidden').disabled).toBe(true);
-    expect(within(dialog).getByText(COPY['customFields.adminAccess.requiredReason']!)).toBeTruthy();
+    expect(within(editor).getByText(COPY['customFields.adminAccess.requiredReason']!)).toBeTruthy();
 
     fireEvent.click(required);
     fireEvent.change(select, { target: { value: 'hidden' } });
     expect(required).toBeDisabled();
-    expect(within(dialog).getByText(COPY['customFields.form.requiredAccessReason']!)).toBeTruthy();
+    expect(within(editor).getByText(COPY['customFields.form.requiredAccessReason']!)).toBeTruthy();
   });
 
   it('sends only the changed admin access on edit', async () => {
     renderPage();
     await screen.findByText('acquisition_source');
     await chooseRowAction('acquisition_source', 'edit', COPY);
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.change(within(dialog).getByLabelText(COPY['customFields.adminAccess.label']!), { target: { value: 'hidden' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: COPY['customFields.editor.save']! }));
+    const editor = await findEditor(COPY['customFields.editor.title']!.replace('{key}', 'acquisition_source'));
+    fireEvent.change(within(editor).getByLabelText(COPY['customFields.adminAccess.label']!), { target: { value: 'hidden' } });
+    fireEvent.click(within(editor).getByRole('button', { name: COPY['customFields.editor.save']! }));
 
     await waitFor(() => expect(client.update).toHaveBeenCalledTimes(1));
     expect(client.update.mock.calls[0]).toEqual([OPEN.id, { adminAccess: 'hidden' }]);
@@ -244,9 +238,9 @@ describe('definition editor — admin access (FR-036, SD-2)', () => {
     renderPage();
     await screen.findByText('acquisition_source');
     await chooseRowAction('acquisition_source', 'edit', COPY);
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByLabelText(COPY['customFields.customerInput.surface.organization.register']!));
-    fireEvent.click(within(dialog).getByRole('button', { name: COPY['customFields.editor.save']! }));
+    const editor = await findEditor(COPY['customFields.editor.title']!.replace('{key}', 'acquisition_source'));
+    fireEvent.click(within(editor).getByLabelText(COPY['customFields.customerInput.surface.organization.register']!));
+    fireEvent.click(within(editor).getByRole('button', { name: COPY['customFields.editor.save']! }));
 
     await waitFor(() => expect(client.update).toHaveBeenCalledTimes(1));
     expect(client.update.mock.calls[0]).toEqual([OPEN.id, { customerInput: [] }]);

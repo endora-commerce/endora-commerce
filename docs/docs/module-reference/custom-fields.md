@@ -43,6 +43,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 
 | Action | Opens | Permission |
 | --- | --- | --- |
+| `new-custom-field` | `/custom-fields/new` | `custom_fields:write` |
 | `open-custom-fields` | `/custom-fields` | `custom_fields:read` |
 
 ## Settings

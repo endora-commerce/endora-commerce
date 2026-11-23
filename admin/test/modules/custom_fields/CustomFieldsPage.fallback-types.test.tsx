@@ -1,9 +1,6 @@
-import { StrictMode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { AuthProvider } from '@endora-commerce/admin-kit/lib';
-import { renderWithI18n } from '../../helpers/render-with-i18n';
-import { adminSession } from '../../helpers/render-with-session';
+import { renderCustomFieldsRoutes } from './routes-harness';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
 
 /**
@@ -36,19 +33,15 @@ vi.mock('../../../../packages/modules/custom_fields/src/admin/api/custom-fields-
 const { CustomFieldsPage } = await import(
   '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldsPage'
 );
+const { CustomFieldEditorPage } = await import(
+  '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldEditorPage'
+);
 
 const BUNDLE = { custom_fields: en };
 
 describe('CustomFieldsPage — the entity types offered before the server answers', () => {
   it('offers no Quote request until entity-types answers with it, and Order throughout', async () => {
-    renderWithI18n(
-      <StrictMode>
-        <AuthProvider initial={adminSession({ permissions: ['custom_fields:read', 'custom_fields:write'] })}>
-          <CustomFieldsPage />
-        </AuthProvider>
-      </StrictMode>,
-      BUNDLE,
-    );
+    renderCustomFieldsRoutes({ CustomFieldsPage, CustomFieldEditorPage }, { bundle: BUNDLE });
     const select = (await screen.findByLabelText('Record type')) as HTMLSelectElement;
     const offered = () => within(select).getAllByRole('option').map((option) => option.textContent);
 

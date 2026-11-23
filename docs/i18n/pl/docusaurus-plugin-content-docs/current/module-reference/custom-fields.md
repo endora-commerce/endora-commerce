@@ -43,6 +43,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 
 | Akcja | Otwiera | Uprawnienie |
 | --- | --- | --- |
+| `new-custom-field` | `/custom-fields/new` | `custom_fields:write` |
 | `open-custom-fields` | `/custom-fields` | `custom_fields:read` |
 
 ## Ustawienia

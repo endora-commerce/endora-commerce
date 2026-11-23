@@ -1,11 +1,9 @@
-import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { ApiError, AuthProvider } from '@endora-commerce/admin-kit/lib';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 import type { CustomFieldDefinitionDto, CustomFieldEntityTypeInfo } from '@endora-commerce/contracts';
-import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { chooseRowAction } from './row-actions';
-import { adminSession } from '../../helpers/render-with-session';
+import { currentAddress, findEditor, renderCustomFieldsRoutes } from './routes-harness';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import en from '../../../../packages/modules/custom_fields/i18n/en.json';
 import coreEn from '../../../../packages/modules/_i18n/i18n/en.json';
@@ -15,6 +13,7 @@ import coreEn from '../../../../packages/modules/_i18n/i18n/en.json';
  * share one definition form: the same sections in the same order, labels per
  * admin language, options with their own labels, default flag and order, and
  * the audience in both views. Create sends **one** request carrying all of it.
+ * Since issue #1804 the form is a page of its own, `/custom-fields/new`.
  */
 
 const ENTITY_TYPES: CustomFieldEntityTypeInfo[] = [
@@ -47,7 +46,8 @@ const client = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn() }));
 vi.mock('../../../../packages/modules/custom_fields/src/admin/api/custom-fields-client', () => ({
   customFieldsClient: {
     listEntityTypes: async () => ENTITY_TYPES,
-    list: async (entityType?: string) => (entityType === 'organization' ? [EXISTING] : []),
+    // Every type's definitions when no type is named: the editor page reads them all (issue #1804).
+    list: async (entityType?: string) => (entityType === undefined || entityType === 'organization' ? [EXISTING] : []),
     get: async () => EXISTING,
     create: (...args: unknown[]) => client.create(...args),
     update: (...args: unknown[]) => client.update(...args),
@@ -61,13 +61,16 @@ vi.mock('../../../../packages/modules/custom_fields/src/admin/api/custom-fields-
 const { CustomFieldsPage } = await import(
   '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldsPage'
 );
+const { CustomFieldEditorPage } = await import(
+  '../../../../packages/modules/custom_fields/src/admin/pages/CustomFieldEditorPage'
+);
 
 const EN = en as Record<string, string>;
 
 let nativeDialogs: Array<ReturnType<typeof vi.spyOn>>;
 
 beforeEach(() => {
-  client.create.mockReset().mockResolvedValue({});
+  client.create.mockReset().mockResolvedValue({ id: 'created' });
   client.update.mockReset().mockResolvedValue(EXISTING);
   nativeDialogs = [
     vi.spyOn(window, 'confirm').mockImplementation(() => false),
@@ -82,21 +85,23 @@ afterEach(() => {
 });
 
 function renderPage(): void {
-  renderWithI18n(
-    <StrictMode>
-      <AuthProvider initial={adminSession({ permissions: ['custom_fields:read', 'custom_fields:write'] })}>
-        <CustomFieldsPage />
-      </AuthProvider>
-    </StrictMode>,
-    { custom_fields: EN, core: coreEn as Record<string, string> },
+  renderCustomFieldsRoutes(
+    { CustomFieldsPage, CustomFieldEditorPage },
+    { bundle: { custom_fields: EN, core: coreEn as Record<string, string> } },
   );
 }
 
 async function openCreate(): Promise<HTMLElement> {
   renderPage();
   await screen.findByText('po_number');
-  fireEvent.click(screen.getByRole('button', { name: 'New field' }));
-  return screen.findByRole('dialog', { name: 'New field' });
+  fireEvent.click(screen.getByRole('link', { name: 'New field' }));
+  return findEditor('New field');
+}
+
+/** Back on the list after a save: the editor is gone and the address is the list's. */
+async function backOnList(): Promise<void> {
+  await waitFor(() => expect(screen.queryByRole('form')).toBeNull());
+  expect(currentAddress()).toMatch(/^\/custom-fields\?entityType=/);
 }
 
 const type = (scope: HTMLElement, label: string, value: string): void => {
@@ -104,17 +109,17 @@ const type = (scope: HTMLElement, label: string, value: string): void => {
 };
 
 /** The definition's own label inputs: option rows carry inputs of the same names. */
-const labels = (dialog: HTMLElement): HTMLElement => within(dialog).getByRole('group', { name: 'Labels' });
+const labels = (editor: HTMLElement): HTMLElement => within(editor).getByRole('group', { name: 'Labels' });
 
 /** The option rows, in their order — each a group named by its label; the reorder buttons are groups too. */
-const optionRows = (dialog: HTMLElement): HTMLElement[] =>
-  within(within(dialog).getByRole('region', { name: 'Options' }))
+const optionRows = (editor: HTMLElement): HTMLElement[] =>
+  within(within(editor).getByRole('region', { name: 'Options' }))
     .getAllByRole('group')
     .filter((group) => group.hasAttribute('data-option-row'));
 
-function addOption(dialog: HTMLElement, value: string, labelDefault: string, en?: string, pl?: string): HTMLElement {
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Add option' }));
-  const row = optionRows(dialog).at(-1)!;
+function addOption(editor: HTMLElement, value: string, labelDefault: string, en?: string, pl?: string): HTMLElement {
+  fireEvent.click(within(editor).getByRole('button', { name: 'Add option' }));
+  const row = optionRows(editor).at(-1)!;
   type(row, 'Stored value', value);
   type(row, 'Default label', labelDefault);
   if (en !== undefined) type(row, 'English label', en);
@@ -122,38 +127,38 @@ function addOption(dialog: HTMLElement, value: string, labelDefault: string, en?
   return row;
 }
 
-function fillIdentity(dialog: HTMLElement, key: string, labelDefault: string): void {
-  type(dialog, 'Key', key);
-  type(labels(dialog), 'Default label', labelDefault);
+function fillIdentity(editor: HTMLElement, key: string, labelDefault: string): void {
+  type(editor, 'Key', key);
+  type(labels(editor), 'Default label', labelDefault);
 }
 
-const submit = (dialog: HTMLElement): void => {
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Add field' }));
+const submit = (editor: HTMLElement): void => {
+  fireEvent.click(within(editor).getByRole('button', { name: 'Add field' }));
 };
 
-describe('CustomFieldsPage — creating a field in the definition form (issue #447)', () => {
-  it('opens the form in a dialog with the sections in order, the default label focused, and no comma-separated options box', async () => {
-    const dialog = await openCreate();
+describe('CustomFieldsPage — creating a field in the definition form (issues #447, #1804)', () => {
+  it('opens the form on its page with the sections in order, the default label focused, and no comma-separated options box', async () => {
+    const editor = await openCreate();
     // The key is derived from it (issue #1531), so the label is what is typed first.
-    expect(within(labels(dialog)).getByLabelText('Default label')).toHaveFocus();
-    expect(within(dialog).getByLabelText('Record type')).toHaveValue('organization');
-    fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'select' } });
-    const headings = within(dialog)
-      .getAllByRole('heading', { level: 3 })
+    await waitFor(() => expect(within(labels(editor)).getByLabelText('Default label')).toHaveFocus());
+    expect(within(editor).getByLabelText('Record type')).toHaveValue('organization');
+    fireEvent.change(within(editor).getByLabelText('Type'), { target: { value: 'select' } });
+    const headings = within(editor)
+      .getAllByRole('heading', { level: 2 })
       .map((heading) => heading.textContent);
-    const legends = Array.from(dialog.querySelectorAll('legend')).map((legend) => legend.textContent);
+    const legends = Array.from(editor.querySelectorAll('legend')).map((legend) => legend.textContent);
     expect(headings).toEqual(['Definition', 'Options']);
     expect(legends).toEqual(['Labels', 'Rules']);
-    expect(within(dialog).queryByPlaceholderText('gold, silver')).toBeNull();
-    expect(within(dialog).queryByLabelText(/comma-separated/i)).toBeNull();
+    expect(within(editor).queryByPlaceholderText('gold, silver')).toBeNull();
+    expect(within(editor).queryByLabelText(/comma-separated/i)).toBeNull();
   });
 
   it('sends one create request carrying both language labels', async () => {
-    const dialog = await openCreate();
-    fillIdentity(dialog, 'po_ref', 'PO reference');
-    type(labels(dialog), 'English label', 'PO reference');
-    type(labels(dialog), 'Polish label', 'Numer zamówienia');
-    submit(dialog);
+    const editor = await openCreate();
+    fillIdentity(editor, 'po_ref', 'PO reference');
+    type(labels(editor), 'English label', 'PO reference');
+    type(labels(editor), 'Polish label', 'Numer zamówienia');
+    submit(editor);
     await waitFor(() => expect(client.create).toHaveBeenCalledTimes(1));
     expect(client.create.mock.calls[0]![0]).toMatchObject({
       entityType: 'organization',
@@ -164,21 +169,21 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
       options: [],
       audience: 'internal',
     });
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await backOnList();
   });
 
   it('creates a select field with three options in one request: labels per language, the default and the order', async () => {
-    const dialog = await openCreate();
-    fillIdentity(dialog, 'region', 'Region');
-    fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'select' } });
-    addOption(dialog, 'north', 'North', 'North', 'Północ');
-    const south = addOption(dialog, 'south', 'South', undefined, 'Południe');
-    const east = addOption(dialog, 'east', 'East', 'East');
+    const editor = await openCreate();
+    fillIdentity(editor, 'region', 'Region');
+    fireEvent.change(within(editor).getByLabelText('Type'), { target: { value: 'select' } });
+    addOption(editor, 'north', 'North', 'North', 'Północ');
+    const south = addOption(editor, 'south', 'South', undefined, 'Południe');
+    const east = addOption(editor, 'east', 'East', 'East');
     fireEvent.click(within(south).getByLabelText('Default'));
     fireEvent.click(within(east).getByRole('button', { name: 'Move up' }));
-    expect(within(dialog).getByText('“East” moved up to position 2 of 3.')).toHaveAttribute('role', 'status');
-    expect(optionRows(dialog).map((row) => row.getAttribute('aria-label'))).toEqual(['North', 'East', 'South']);
-    submit(dialog);
+    expect(within(editor).getByText('“East” moved up to position 2 of 3.')).toHaveAttribute('role', 'status');
+    expect(optionRows(editor).map((row) => row.getAttribute('aria-label'))).toEqual(['North', 'East', 'South']);
+    submit(editor);
     await waitFor(() => expect(client.create).toHaveBeenCalledTimes(1));
     expect(client.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -194,43 +199,43 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
   });
 
   it('allows several default options on a multiple-choice field', async () => {
-    const dialog = await openCreate();
-    fillIdentity(dialog, 'tags', 'Tags');
-    fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'multiselect' } });
-    fireEvent.click(within(addOption(dialog, 'a', 'A')).getByLabelText('Default'));
-    fireEvent.click(within(addOption(dialog, 'b', 'B')).getByLabelText('Default'));
-    submit(dialog);
+    const editor = await openCreate();
+    fillIdentity(editor, 'tags', 'Tags');
+    fireEvent.change(within(editor).getByLabelText('Type'), { target: { value: 'multiselect' } });
+    fireEvent.click(within(addOption(editor, 'a', 'A')).getByLabelText('Default'));
+    fireEvent.click(within(addOption(editor, 'b', 'B')).getByLabelText('Default'));
+    submit(editor);
     await waitFor(() => expect(client.create).toHaveBeenCalledTimes(1));
     const { options } = client.create.mock.calls[0]![0] as { options: Array<{ isDefault: boolean }> };
     expect(options.map((o) => o.isDefault)).toEqual([true, true]);
   });
 
   it('removes a draft option and moves focus to the next control', async () => {
-    const dialog = await openCreate();
-    fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'select' } });
-    addOption(dialog, 'a', 'A');
-    addOption(dialog, 'b', 'B');
-    fireEvent.click(within(optionRows(dialog)[0]!).getByRole('button', { name: 'Remove' }));
-    expect(optionRows(dialog).map((row) => row.getAttribute('aria-label'))).toEqual(['B']);
-    expect(within(optionRows(dialog)[0]!).getByLabelText('Stored value')).toHaveFocus();
+    const editor = await openCreate();
+    fireEvent.change(within(editor).getByLabelText('Type'), { target: { value: 'select' } });
+    addOption(editor, 'a', 'A');
+    addOption(editor, 'b', 'B');
+    fireEvent.click(within(optionRows(editor)[0]!).getByRole('button', { name: 'Remove' }));
+    expect(optionRows(editor).map((row) => row.getAttribute('aria-label'))).toEqual(['B']);
+    expect(within(optionRows(editor)[0]!).getByLabelText('Stored value')).toHaveFocus();
   });
 
   it('sends the audience the operator chose', async () => {
-    const dialog = await openCreate();
-    fillIdentity(dialog, 'gift_note', 'Gift note');
-    fireEvent.change(within(dialog).getByLabelText('Who can see the value'), { target: { value: 'customer' } });
-    submit(dialog);
+    const editor = await openCreate();
+    fillIdentity(editor, 'gift_note', 'Gift note');
+    fireEvent.change(within(editor).getByLabelText('Who can see the value'), { target: { value: 'customer' } });
+    submit(editor);
     await waitFor(() => expect(client.create).toHaveBeenCalledTimes(1));
     expect(client.create.mock.calls[0]![0]).toMatchObject({ key: 'gift_note', audience: 'customer' });
   });
 
   describe('refuses before anything is sent', () => {
     it('a key in the wrong format, said at the key, which takes the focus', async () => {
-      const dialog = await openCreate();
+      const editor = await openCreate();
       // Normalised to `1_po` on submit, and still refused: a key starts with a letter.
-      fillIdentity(dialog, '1-PO', 'PO');
-      submit(dialog);
-      const key = within(dialog).getByLabelText('Key');
+      fillIdentity(editor, '1-PO', 'PO');
+      submit(editor);
+      const key = within(editor).getByLabelText('Key');
       await waitFor(() => expect(key).toHaveFocus());
       expect(key).toHaveAttribute('aria-invalid', 'true');
       expect(key).toHaveAccessibleDescription(expect.stringContaining(EN['customFields.validation.keyFormat']!));
@@ -238,33 +243,33 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
     });
 
     it('a missing default label', async () => {
-      const dialog = await openCreate();
-      type(dialog, 'Key', 'po_ref');
-      submit(dialog);
-      const input = within(labels(dialog)).getByLabelText('Default label');
+      const editor = await openCreate();
+      type(editor, 'Key', 'po_ref');
+      submit(editor);
+      const input = within(labels(editor)).getByLabelText('Default label');
       await waitFor(() => expect(input).toHaveFocus());
       expect(input).toHaveAttribute('aria-invalid', 'true');
-      expect(within(dialog).getByText('Enter a default label.')).toBeInTheDocument();
+      expect(within(editor).getByText('Enter a default label.')).toBeInTheDocument();
       expect(client.create).not.toHaveBeenCalled();
     });
 
     it('a choice field without options', async () => {
-      const dialog = await openCreate();
-      fillIdentity(dialog, 'region', 'Region');
-      fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'select' } });
-      submit(dialog);
-      expect(await within(dialog).findByText(EN['customFields.validation.optionsRequired']!)).toBeInTheDocument();
+      const editor = await openCreate();
+      fillIdentity(editor, 'region', 'Region');
+      fireEvent.change(within(editor).getByLabelText('Type'), { target: { value: 'select' } });
+      submit(editor);
+      expect(await within(editor).findByText(EN['customFields.validation.optionsRequired']!)).toBeInTheDocument();
       expect(client.create).not.toHaveBeenCalled();
     });
 
     it('an empty stored value and an option without a default label', async () => {
-      const dialog = await openCreate();
-      fillIdentity(dialog, 'region', 'Region');
-      fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'select' } });
-      addOption(dialog, '', 'North');
-      addOption(dialog, 'south', '');
-      submit(dialog);
-      const [first, second] = optionRows(dialog);
+      const editor = await openCreate();
+      fillIdentity(editor, 'region', 'Region');
+      fireEvent.change(within(editor).getByLabelText('Type'), { target: { value: 'select' } });
+      addOption(editor, '', 'North');
+      addOption(editor, 'south', '');
+      submit(editor);
+      const [first, second] = optionRows(editor);
       await waitFor(() => expect(within(first!).getByLabelText('Stored value')).toHaveFocus());
       expect(within(first!).getByLabelText('Stored value')).toHaveAttribute('aria-invalid', 'true');
       expect(within(first!).getByText(EN['customFields.validation.optionValueRequired']!)).toBeInTheDocument();
@@ -273,13 +278,13 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
     });
 
     it('a stored value used twice', async () => {
-      const dialog = await openCreate();
-      fillIdentity(dialog, 'region', 'Region');
-      fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'select' } });
-      addOption(dialog, 'north', 'North');
-      addOption(dialog, 'north', 'North again');
-      submit(dialog);
-      const second = optionRows(dialog)[1]!;
+      const editor = await openCreate();
+      fillIdentity(editor, 'region', 'Region');
+      fireEvent.change(within(editor).getByLabelText('Type'), { target: { value: 'select' } });
+      addOption(editor, 'north', 'North');
+      addOption(editor, 'north', 'North again');
+      submit(editor);
+      const second = optionRows(editor)[1]!;
       expect(
         await within(second).findByText('Another option already uses the stored value “north”.'),
       ).toBeInTheDocument();
@@ -287,10 +292,10 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
     });
 
     it('a second default option on a single-choice field, at the option', async () => {
-      const dialog = await openCreate();
-      fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'select' } });
-      const north = addOption(dialog, 'north', 'North');
-      const south = addOption(dialog, 'south', 'South');
+      const editor = await openCreate();
+      fireEvent.change(within(editor).getByLabelText('Type'), { target: { value: 'select' } });
+      const north = addOption(editor, 'north', 'North');
+      const south = addOption(editor, 'south', 'South');
       fireEvent.click(within(north).getByLabelText('Default'));
       fireEvent.click(within(south).getByLabelText('Default'));
       expect(within(south).getByLabelText('Default')).not.toBeChecked();
@@ -300,14 +305,14 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
     });
 
     it('two defaults left over from a multiple-choice draft switched to single choice', async () => {
-      const dialog = await openCreate();
-      fillIdentity(dialog, 'region', 'Region');
-      fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'multiselect' } });
-      fireEvent.click(within(addOption(dialog, 'north', 'North')).getByLabelText('Default'));
-      fireEvent.click(within(addOption(dialog, 'south', 'South')).getByLabelText('Default'));
-      fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'select' } });
-      submit(dialog);
-      const south = optionRows(dialog)[1]!;
+      const editor = await openCreate();
+      fillIdentity(editor, 'region', 'Region');
+      fireEvent.change(within(editor).getByLabelText('Type'), { target: { value: 'multiselect' } });
+      fireEvent.click(within(addOption(editor, 'north', 'North')).getByLabelText('Default'));
+      fireEvent.click(within(addOption(editor, 'south', 'South')).getByLabelText('Default'));
+      fireEvent.change(within(editor).getByLabelText('Type'), { target: { value: 'select' } });
+      submit(editor);
+      const south = optionRows(editor)[1]!;
       await waitFor(() => expect(within(south).getByLabelText('Default')).toHaveFocus());
       expect(within(south).getByLabelText('Default')).toHaveAttribute('aria-invalid', 'true');
       expect(client.create).not.toHaveBeenCalled();
@@ -316,41 +321,41 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
 
   describe('derives the key from the default label (issue #1531, DS-22)', () => {
     it('follows the default label, Polish diacritics folded, and says the key cannot change later', async () => {
-      const dialog = await openCreate();
-      const key = within(dialog).getByLabelText('Key');
+      const editor = await openCreate();
+      const key = within(editor).getByLabelText('Key');
       expect(key).toHaveAccessibleDescription(EN['customFields.form.keyHelp']!);
-      type(labels(dialog), 'Default label', 'Numer zamówienia');
+      type(labels(editor), 'Default label', 'Numer zamówienia');
       expect(key).toHaveValue('numer_zamowienia');
-      submit(dialog);
+      submit(editor);
       await waitFor(() => expect(client.create).toHaveBeenCalledTimes(1));
       expect(client.create.mock.calls[0]![0]).toMatchObject({ key: 'numer_zamowienia', labelDefault: 'Numer zamówienia' });
     });
 
     it('stops following once the operator edits the key, and resumes when it is cleared', async () => {
-      const dialog = await openCreate();
-      const key = within(dialog).getByLabelText('Key');
-      type(labels(dialog), 'Default label', 'Gift');
-      type(dialog, 'Key', 'gift_note');
-      type(labels(dialog), 'Default label', 'Gift message');
+      const editor = await openCreate();
+      const key = within(editor).getByLabelText('Key');
+      type(labels(editor), 'Default label', 'Gift');
+      type(editor, 'Key', 'gift_note');
+      type(labels(editor), 'Default label', 'Gift message');
       expect(key).toHaveValue('gift_note');
-      type(dialog, 'Key', '');
-      type(labels(dialog), 'Default label', 'Gift wrap');
+      type(editor, 'Key', '');
+      type(labels(editor), 'Default label', 'Gift wrap');
       expect(key).toHaveValue('gift_wrap');
     });
 
     it('normalises a typed key on blur instead of refusing it', async () => {
-      const dialog = await openCreate();
-      const key = within(dialog).getByLabelText('Key');
-      type(dialog, 'Key', 'PO-Number');
+      const editor = await openCreate();
+      const key = within(editor).getByLabelText('Key');
+      type(editor, 'Key', 'PO-Number');
       fireEvent.blur(key);
       expect(key).toHaveValue('po_number');
     });
 
     it('refuses a key the record type already has before anything is sent, never suffixing it', async () => {
-      const dialog = await openCreate();
-      type(labels(dialog), 'Default label', 'PO number');
-      submit(dialog);
-      const key = within(dialog).getByLabelText('Key');
+      const editor = await openCreate();
+      type(labels(editor), 'Default label', 'PO number');
+      submit(editor);
+      const key = within(editor).getByLabelText('Key');
       expect(key).toHaveValue('po_number');
       const sentence = 'A field with the key “po_number” already exists for this record type. Choose another key.';
       await waitFor(() => expect(key).toHaveAccessibleDescription(expect.stringContaining(sentence)));
@@ -366,17 +371,17 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
         error: { code: 'CUSTOM_FIELD_KEY_CONFLICT' as never, message: 'A field "po_ref" already exists on organization.' },
       }),
     );
-    const dialog = await openCreate();
-    fillIdentity(dialog, 'po_ref', 'PO');
-    submit(dialog);
+    const editor = await openCreate();
+    fillIdentity(editor, 'po_ref', 'PO');
+    submit(editor);
     const sentence = 'A field with the key “po_ref” already exists for this record type. Choose another key.';
-    expect(await within(dialog).findByText(sentence)).toBeInTheDocument();
-    const key = within(dialog).getByLabelText('Key');
+    expect(await within(editor).findByText(sentence)).toBeInTheDocument();
+    const key = within(editor).getByLabelText('Key');
     expect(key).toHaveAttribute('aria-invalid', 'true');
     expect(key).toHaveAccessibleDescription(expect.stringContaining(sentence));
     await waitFor(() => expect(key).toHaveFocus());
-    expect(within(dialog).queryByText(/CUSTOM_FIELD_/)).toBeNull();
-    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(within(editor).queryByText(/CUSTOM_FIELD_/)).toBeNull();
+    expect(screen.getByRole('form', { name: 'New field' })).toBe(editor);
   });
 
   it('shows a refusal about stored values at the audience', async () => {
@@ -384,12 +389,12 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
     client.create.mockRejectedValue(
       new ApiError(409, { error: { code: 'CUSTOM_FIELD_STORED_VALUES_EXIST' as never, message, details: { key: 'po_ref' } } }),
     );
-    const dialog = await openCreate();
-    fillIdentity(dialog, 'po_ref', 'PO');
-    fireEvent.change(within(dialog).getByLabelText('Who can see the value'), { target: { value: 'customer' } });
-    submit(dialog);
-    expect(await within(dialog).findByText(message)).toBeInTheDocument();
-    expect(within(dialog).getByLabelText('Who can see the value')).toHaveAccessibleDescription(
+    const editor = await openCreate();
+    fillIdentity(editor, 'po_ref', 'PO');
+    fireEvent.change(within(editor).getByLabelText('Who can see the value'), { target: { value: 'customer' } });
+    submit(editor);
+    expect(await within(editor).findByText(message)).toBeInTheDocument();
+    expect(within(editor).getByLabelText('Who can see the value')).toHaveAccessibleDescription(
       expect.stringContaining(message),
     );
   });
@@ -398,40 +403,43 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
     client.create.mockRejectedValue(
       new ApiError(422, { error: { code: 'CUSTOM_FIELD_DEFINITION_INVALID' as never, message: 'Something is off.' } }),
     );
-    const dialog = await openCreate();
-    fillIdentity(dialog, 'po_ref', 'PO');
-    submit(dialog);
-    expect(await within(dialog).findByText('Something is off.')).toHaveAttribute('role', 'alert');
+    const editor = await openCreate();
+    fillIdentity(editor, 'po_ref', 'PO');
+    submit(editor);
+    // In the sticky bar, beside the submit button (README *The editor's one Save*).
+    const sentence = await within(editor).findByText('Something is off.');
+    expect(sentence.closest('[role="alert"]')).not.toBeNull();
+    expect(sentence.closest('[data-slot="sticky-form-actions"]')).not.toBeNull();
   });
 
   it('marks the submit busy while the request is in flight', async () => {
     let finish!: (value: unknown) => void;
     client.create.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
-    const dialog = await openCreate();
-    fillIdentity(dialog, 'po_ref', 'PO');
-    submit(dialog);
-    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Add field' })).toHaveAttribute('aria-busy', 'true'));
-    finish({});
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const editor = await openCreate();
+    fillIdentity(editor, 'po_ref', 'PO');
+    submit(editor);
+    await waitFor(() => expect(within(editor).getByRole('button', { name: 'Add field' })).toHaveAttribute('aria-busy', 'true'));
+    finish({ id: 'created' });
+    await backOnList();
   });
 
-  it('has no axe violations with the create dialog and an option row open', async () => {
-    const dialog = await openCreate();
-    fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'select' } });
-    addOption(dialog, 'north', 'North');
-    await expectNoAxeViolations(dialog);
+  it('has no axe violations with the create page and an option row open', async () => {
+    const editor = await openCreate();
+    fireEvent.change(within(editor).getByLabelText('Type'), { target: { value: 'select' } });
+    addOption(editor, 'north', 'North');
+    await expectNoAxeViolations(editor);
   });
 });
 
-describe('CustomFieldsPage — the audience in the edit dialog (issue #447)', () => {
-  it('offers the audience in the dialog and sends it with the save', async () => {
+describe('CustomFieldsPage — the audience in the editor (issue #447)', () => {
+  it('offers the audience in the editor and sends it with the save', async () => {
     renderPage();
     await chooseRowAction('po_number', 'edit', EN);
-    const dialog = await screen.findByRole('dialog', { name: 'Edit po_number' });
-    const audience = within(dialog).getByLabelText('Who can see the value');
+    const editor = await findEditor('Edit po_number');
+    const audience = within(editor).getByLabelText('Who can see the value');
     expect(audience).toHaveValue('customer');
     fireEvent.change(audience, { target: { value: 'internal' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(client.update).toHaveBeenCalledWith(EXISTING.id, { audience: 'internal' }));
   });
 });
