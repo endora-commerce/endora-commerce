@@ -834,8 +834,21 @@ Three things to know when you hook these writes:
 - **Extension input is not wired yet.** No route body and no port carries
   `extensions` to these commands, so a hook cannot be handed input of its own.
 
-Deleting a project, its members, who sees it, its stages and workflow, links,
-notes and attachments are not declared hookable.
+Every other write of the module is a command too, and is **not** declared
+hookable — a hook registered on one of these actions is refused at startup:
+
+- the project itself: `projects.project.delete`, `.visibility_set`,
+  `.viewers_set`, `.member_set`, and `.organizations_set` (the parent of the
+  per-Organization adds and removes, which records no entry of its own);
+- its stages and workflow: `projects.project.stage_create`, `.stage_update`,
+  `.stage_delete`, `.stage_reorder`, `.moves_set`,
+  `.stage_tasks_set`, `.stage_tasks_retry`, `.stage_tasks_failed`;
+- collaboration: `projects.project.link_add`, `.link_remove`, `.note_add`,
+  `.note_update`, `.note_delete`, `.message_add`, `.attachment_add`,
+  `.attachment_remove`;
+- configuration: `projects.template.*`, `projects.role.*`,
+  `projects.loss_reason.*`;
+- the deadline-alert bookkeeping: `projects.stage_alert.*`.
 
 ### The `project` Task context
 

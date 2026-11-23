@@ -862,9 +862,22 @@ Trzy rzeczy, o których warto wiedzieć, podpinając się pod te zapisy:
   port nie przekazuje `extensions` do tych poleceń, więc hook nie może dostać
   własnych danych wejściowych.
 
-Usunięcie projektu, jego członkowie, to, kto go widzi, jego etapy i przejścia,
-podpięte dokumenty, notatki i załączniki nie są zadeklarowane jako dostępne dla
-hooków.
+Każdy inny zapis modułu też jest poleceniem i **nie** jest zadeklarowany jako
+dostępny dla hooków — hook zarejestrowany na jednej z tych akcji jest odrzucany
+przy starcie:
+
+- sam projekt: `projects.project.delete`, `.visibility_set`, `.viewers_set`,
+  `.member_set` oraz `.organizations_set` (polecenie nadrzędne dla dodań i usunięć
+  pojedynczych organizacji, które nie zapisuje własnego wpisu);
+- etapy i przejścia: `projects.project.stage_create`, `.stage_update`,
+  `.stage_delete`, `.stage_reorder`, `.moves_set`,
+  `.stage_tasks_set`, `.stage_tasks_retry`, `.stage_tasks_failed`;
+- współpraca: `projects.project.link_add`, `.link_remove`, `.note_add`,
+  `.note_update`, `.note_delete`, `.message_add`, `.attachment_add`,
+  `.attachment_remove`;
+- konfiguracja: `projects.template.*`, `projects.role.*`,
+  `projects.loss_reason.*`;
+- obsługa alertów o terminach: `projects.stage_alert.*`.
 
 ### Kontekst zadań `project`
 
