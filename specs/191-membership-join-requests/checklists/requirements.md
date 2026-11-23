@@ -13,9 +13,8 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — **one remains (Q1)**, deliberately: it is a
-  business policy on business-only stores with no safe default either way; plan.md OQ-1 carries the
-  recommendation (B) and the plan proceeds around it
+- [x] No [NEEDS CLARIFICATION] markers remain — Q1 was answered by the owner on 2026-11-23
+  (variant B, spec OR-8); the other owner questions are OR-9 – OR-12
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -38,3 +37,7 @@
   `contracts/membership-port.md`.
 - Validation iteration 1: the edge case on blocked accounts was corrected to match today's operator
   behaviour (a blocked account may be moved; it may not be approved into a company).
+- Validation iteration 2 (2026-11-23, owner answers): OR-8 – OR-12 recorded; OQ-5 changed to "yes,
+  now", so FR-100 – FR-107, US3 scenarios 7 – 11, US4 scenario 5, SC-009 and the branch edge cases
+  were added. The *Interfaces and ownership* section names the two published interfaces on purpose:
+  issue #1832 is written against that split, and the section states ownership, not mechanics.

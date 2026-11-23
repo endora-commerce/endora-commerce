@@ -21,7 +21,8 @@ Labels `adminRoles.permission.<code>` in `packages/modules/organizations/i18n/{e
 | --- | --- | --- |
 | `GET /api/v1/admin/organization-join-requests?state=&routing=&organizationId=&page=&pageSize=&sort=` | `organizations:read-join-requests` | default `state=pending`, `sort=createdAt` asc |
 | `GET /api/v1/admin/organization-join-requests/:id` | `organizations:read-join-requests` | the full admin view |
-| `POST /api/v1/admin/organization-join-requests/:id/approve` | `organizations:decide-join-requests` | `{ organizationRoleId?: uuid, expectedVersion: int }`; any routing (FR-073) |
+| `GET /api/v1/admin/organization-join-requests/:id/placements?q=&limit=` | `organizations:decide-join-requests` | `JoinRequestPlacementList`: the target and its live, `active` branches the operator can see (`organizationInReach`'s rule per branch, every one under a platform-wide scope) — research R-27, R-30 |
+| `POST /api/v1/admin/organization-join-requests/:id/approve` | `organizations:decide-join-requests` | `{ placementOrganizationId?: uuid, organizationRoleId?: uuid, expectedVersion: int }`; any routing (FR-073); a placement out of reach or outside the target's subtree `404`, a blocked one `409 placement_not_active` |
 | `POST /api/v1/admin/organization-join-requests/:id/reject` | `organizations:decide-join-requests` | `{ reason?: string ≤ 500, expectedVersion: int }` |
 | `GET /api/v1/admin/organizations/:id` (existing) | unchanged | gains `pendingJoinRequestCount` when the caller holds the read code |
 
@@ -31,6 +32,9 @@ AdminJoinRequestView = CompanyJoinRequestView & {
   routing; operatorReason; origin; salesChannelId;
 }
 ```
+
+`placement.organization` is filled when the placement is in the operator's reach, `null` otherwise
+(as for a company administrator).
 
 Personal data (registrant e-mail, names, note) is served to holders of the read code only, under
 reach — the same exposure as the organization members list.
@@ -44,7 +48,8 @@ reach — the same exposure as the organization members list.
 | Palette action | `id: 'open-organization-join-requests'`, `labelKey: 'actions.openOrganizationJoinRequests.label'`, `descriptionKey: '….description'`, `icon: 'UserPlus'` (add to `KnownIconNameSchema` and `admin/src/lib/admin-actions/icon-map.ts` if absent), `targetRoute: '/organizations/join-requests'`, `requiredPermission: 'organizations:read-join-requests'`, `keywords: ['join', 'request', 'membership', 'registration', 'company', 'tax']`, `keywordsKey: 'actions.openOrganizationJoinRequests.keywords'` (pl: `dołączenie, prośba, wniosek, członkostwo, firma, NIP`), `weight: 170` |
 | Enum labels | `src/admin/lib/labels.ts`: `defineEnumLabels<OrganizationJoinRequestState>`, routing, operator reason, decided-by kind |
 | Organization detail | a *Join requests (n)* link in the members section header when `n > 0`, to the queue filtered by the Organization |
-| Decide UI | approve dialog with a role select (the target's roles through the existing admin roles read, *Member* preselected); reject dialog with an optional reason. Both immediate actions — no zone-panel Save session (FR-083's "immediate actions stay immediate") |
+| Decide UI | approve dialog: a *Place in* combobox (admin-kit `Combobox`, `packages/admin-kit/src/ui/combobox.tsx`, searchable, fed by the placements route — not the kit's `organization-picker`, which searches every Organization and would offer ineligible ones) **only when the placements route lists more than one**, the target first labelled *this company*, branches indented by depth; a role select filled from the chosen placement's roles (from the same response — not the admin roles read, which needs `organizations:read-roles`, research R-30), *Member* preselected and re-selected on a placement change; reject dialog with an optional reason. Both immediate actions — no zone-panel Save session (FR-083's "immediate actions stay immediate"). A refusal keeps the dialog open and reloads the placements |
+| Queue / drawer | an approved row shows *Placed in* with the placement's name (a link to that Organization) and the role |
 | Settings | the four settings on the generic Settings screen under the `organizations` group; the existing palette action `open-registration-registry-lookup-settings` gains keywords `join`, `conflict` |
 | Notifications | the operator in-app notification links to the queue filtered to the request |
 
@@ -57,4 +62,16 @@ new primitive (Principle IX). All copy in the module bundle, en + pl; enum value
 - `pnpm --filter backend run check:action-route-permissions` — the action's code is the one enforced on its route;
 - `admin/test/unit/palette-coverage.test.ts` — the sidebar destination is covered;
 - contract: an operator out of reach gets `404` on read and approve; a read-only operator gets `403` on approve;
-- admin Vitest: queue renders enum labels in pl; approve dialog preselects *Member*.
+- admin Vitest: queue renders enum labels in pl; approve dialog preselects *Member*; the *Place in*
+  combobox is absent for one placement and present for several; changing it re-fills the roles;
+- contract (placement): an operator whose reach covers the target but not branch C does not get C in
+  the placements and gets `404` naming it; a platform-wide operator gets every active branch; a
+  read-only operator gets `403` on the placements route.
+
+Admin strings (module bundle `packages/modules/organizations/i18n/{en,pl}.json`; en / pl):
+`joinRequests.approve.placement.label` *Place in* / *Dodaj do*;
+`joinRequests.approve.placement.thisCompany` *{name} (this company)* / *{name} (ta firma)*;
+`joinRequests.approve.placement.search` *Search branches* / *Szukaj oddziałów*;
+`joinRequests.approve.role.label` *Role in {name}* / *Rola w {name}*;
+`joinRequests.detail.placedIn` *Placed in* / *Dodano do*;
+`errors.ORGANIZATION_JOIN_REQUEST_NOT_APPROVABLE.placement_not_active` as in `join-requests.md` §3.

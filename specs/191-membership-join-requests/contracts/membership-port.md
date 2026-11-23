@@ -6,8 +6,12 @@ structural Command type as `CustomerAccountRoleChangeCommand` already is). Resea
 ## 1. Types
 
 ```ts
-/** A code, never prose: who or what asked for the move (research R-7). */
-export const membershipChangeSourceSchema = z.string().regex(/^[a-z][a-z0-9_.]{0,63}$/);
+/**
+ * A code, never prose: who or what asked for the move (research R-7). The shape of
+ * `specs/186-aggregate-ports/`' caller source (its R-4); when 186's schema lands in
+ * `aggregate-ports.ts` this is an alias of it, not a second regex.
+ */
+export const membershipChangeSourceSchema = z.string().regex(/^[a-z][a-z0-9_.-]{0,63}$/);
 export type MembershipChangeSource = z.infer<typeof membershipChangeSourceSchema>;
 /** Core writes these; a deployment may write its own code. */
 export const MEMBERSHIP_CHANGE_SOURCES = { operator: 'operator', joinRequest: 'join_request', integration: 'integration' } as const;
@@ -63,7 +67,9 @@ export interface MembershipChangeCommand {
  * route that has not decided authority itself.
  *
  * The actor is the ambient one (Principle XIII): an administrator, a customer acting for its
- * Organization, or `automation` (D-293) when neither. Sessions are not touched (OR-5).
+ * Organization, or `system` when neither — automation is told apart by `source`, the caller's
+ * code, recorded in the audit entry (owner answer to 186 Q-1, research R-3). Sessions are not
+ * touched (OR-5).
  *
  * Refusals: `404 CUSTOMER_NOT_FOUND` (account missing or soft-deleted — as the lifecycle port's
  * live load answers today), `404 NOT_FOUND` (target missing or deleted; role not of the target),
@@ -147,6 +153,7 @@ nothing. Not reversible.
 | `CustomerAccountLifecycleWritePort.setOrganization(id, orgId, { actorAdminUserId, organizationRoleId })` | `@deprecated` — runs `changeOrganization({ …, source: 'operator' })`; `actorAdminUserId` ignored (R-3) |
 | `CustomerAccountLifecycleWritePort.detachToPersonalOrganization(id, personalId, input)` | `@deprecated` — runs `detachToPersonal`; `personalId` must equal the account's own personal Organization, else `409` (it always was by contract) |
 | `CustomerAccountOrganizationMoveInput.actorAdminUserId` | `@deprecated` |
+| `CustomerAccountMemberWritePort.attachToOrganization(id, orgId, roleId)` | `@deprecated` — its one caller is the repair arm of `PersonalOrganizationService.ensureForCustomerAccountId` (an account written before D-178 whose Organization row is missing), which becomes `membershipPort.detachToPersonal({ customerAccountId, source: 'personal_organization_repair' })`: provision and bind in one recorded Command instead of a provisioning write plus an unaudited bind. `specs/186-aggregate-ports/` data-model lists it as deprecated by this spec |
 | `#writeOrganization` and its hand-written audit | deleted in the same change (XIII "no double-audit") |
 
 If `specs/186-aggregate-ports/` lands `customerAccountCommandPort` first, the two deprecated
@@ -167,5 +174,6 @@ own depletion pre-check removed (R-5). Both keep `assertAuthorized`. Routes and 
 - audit sentinel (`expectNoAuditValues`) with a fresh Organization id and name as sentinels;
 - hookable: `expectHookableCommand`; a `beforeCommit` veto writes nothing and emits nothing;
 - integration: a worker under `enterSystemScope` moves an account to a branch with no administrator
-  (actor `automation`), the next authenticated request resolves the branch (SC-004);
+  (actor `system`, `source: 'integration'` in the audit entry and the event), the next
+  authenticated request resolves the branch (SC-004);
 - event: exactly one `customer_account.organization_changed.v1` per commit, none per rollback.

@@ -26,7 +26,8 @@ Entity `OrganizationJoinRequest`, `packages/modules/organizations/src/backend/en
 | `decided_by_kind` | varchar(16) | yes | `organization_administrator` \| `operator` \| `registrant` \| `system` |
 | `decided_by_id` | uuid | yes | the deciding customer account or admin user; `null` for `system` |
 | `rejection_reason` | varchar(500) | yes | free text; erased on anonymisation |
-| `granted_organization_role_id` | uuid | yes | the role given on approval |
+| `placement_organization_id` | uuid | yes | the Organization the person was placed in on approval: the target or one of its branches (OR-12, research R-27 – R-31); FK → `organizations(id)`; **not** a tenant anchor — the request stays the target's record; `null` until approved |
+| `granted_organization_role_id` | uuid | yes | the role given on approval — a role **of `placement_organization_id`** (no FK: a role deleted later leaves the history readable) |
 | `submitted_at` | timestamptz | yes | when it became `pending` |
 | `expires_at` | timestamptz | no | `created_at + expiry_days` (captured at creation) |
 | `version` | integer | no | starts at 1; bumped by every transition (R-14) |
@@ -40,11 +41,15 @@ Indexes:
   `409 ORGANIZATION_JOIN_REQUEST_OPEN`);
 - `(organization_id, state, created_at)` — the company list, the operator filter and the daily count;
 - `(state, expires_at)` — the expiry sweep;
-- `(customer_account_id)` — the registrant's read and the anonymisation erase.
+- `(customer_account_id)` — the registrant's read and the anonymisation erase;
+- `(placement_organization_id)` — backs the FK (a branch's soft delete never cascades; the index
+  keeps the referential check cheap).
 
 Check constraints: `state` and `routing` / `operator_reason` / `decided_by_kind` in their sets;
 `routing is not null` when `state <> 'awaiting_email_confirmation'`; `decided_at is not null` iff
-`state in ('approved','rejected','withdrawn','expired')`.
+`state in ('approved','rejected','withdrawn','expired')`; `placement_organization_id is not null`
+and `granted_organization_role_id is not null` iff `state = 'approved'` (nothing is pending on a
+branch, research R-31).
 
 Migration: one, `packages/modules/organizations/src/migrations/<timestamp>_organizations_join_requests.ts`,
 scaffolded by `pnpm --filter backend run migration:new` and registered by `composer:generate`.
@@ -65,7 +70,7 @@ awaiting_email_confirmation ─────────────────�
 | --- | --- | --- | --- |
 | `organization.join_request.create` | — | `awaiting_email_confirmation` (or `pending` when the account's e-mail is already confirmed — the port path) | registration (anonymous), server-side caller |
 | `organization.join_request.submit` | `awaiting_email_confirmation` | `pending` | the e-mail confirmation (anonymous, token-bearing) |
-| `organization.join_request.approve` | `pending` | `approved` | company administrator (routed to them), operator (any), server-side caller |
+| `organization.join_request.approve` | `pending` | `approved` — into the target or an eligible branch (research R-27, R-28) | company administrator (routed to them), operator (any), server-side caller |
 | `organization.join_request.reject` | `pending` | `rejected` | same as approve |
 | `organization.join_request.withdraw` | either open state | `withdrawn` | the registrant; the system on a move by another path (R-19) |
 | `organization.join_request.expire` | either open state | `expired` | the sweep (system) |
@@ -77,10 +82,15 @@ caller's `expectedVersion`, and bumps `version`.
 ### Validation
 
 - `requested_name` ≤ 255, `note` ≤ 500, `rejection_reason` ≤ 500, trimmed; empty → `null`.
-- `granted_organization_role_id` must be a role of `organization_id` (`findRole`), else `404`.
-- Approve requires: the target `status = 'active'` and not deleted; the account live, not blocked,
-  and `organizationId` = its own personal Organization; else `409 ORGANIZATION_JOIN_REQUEST_NOT_APPROVABLE`
-  with `details[0].issue` ∈ `target_not_active` \| `account_unavailable` \| `account_moved`.
+- `placement_organization_id` (absent in the approval = `organization_id`) must be eligible for the
+  decider (research R-27) and, under a `for share` lock on it and on the target, live, with a
+  readable `path` that begins with the target's `path`; else `404 NOT_FOUND`.
+- `granted_organization_role_id` must be a role of `placement_organization_id` (`findRole`, checked
+  by the child move, research R-4), else `404`.
+- Approve requires: the target and the placement `status = 'active'` and not deleted; the account
+  live, not blocked, and `organizationId` = its own personal Organization; else
+  `409 ORGANIZATION_JOIN_REQUEST_NOT_APPROVABLE` with `details[0].issue` ∈ `target_not_active` \|
+  `placement_not_active` \| `account_unavailable` \| `account_moved`.
 
 ## 2. Settings (owner: `organizations`, platform-wide)
 
@@ -110,7 +120,7 @@ statement by `customer_account.organization.change` (`contracts/membership-port.
 
 | Path | Change |
 | --- | --- |
-| `PersonalOrganizationService.provisionFor` | unchanged by default; gains optional `status` only if Q1 = B (research R-26) |
+| `PersonalOrganizationService.provisionFor` | gains optional `status` (`active` default \| `pending_verification`); the join path passes `pending_verification` on a channel where `customers.allow_registration_without_organization` is `false` (OR-8, research R-26) |
 | `EmailVerificationService.verify` | no longer sets a **personal** Organization's status; runs `organization.join_request.submit` for the account's open request |
 | `email_verification_tokens` | reused for the join path's confirmation (same 48 h TTL) |
 | `PreparedCustomerAccountCreate` | gains `customerAccountId` (additive, R-10) |
@@ -120,10 +130,11 @@ statement by `customer_account.organization.change` (`contracts/membership-port.
 - `ORGANIZATION_JOIN_REQUEST_AUDIT_KEYS` (`organizations`, beside the snapshot helper in
   `services/organization-audit-state.ts`): `state`, `origin`, `routing`, `operatorReason`,
   `customerAccountId`, `organizationRoleId`, `decidedByKind`, `expiresAt`, `version`,
-  `changedFields`, `noteLength`, `hasRejectionReason`.
+  `changedFields`, `noteLength`, `hasRejectionReason`, `placement` (`'target' | 'branch'`).
 - `customer_accounts`' move entry: `mode`, `source`, `organizationRoleId` (before/after),
   `changedFields: ['organizationId','organizationRoleId']` — through the existing
   `organizationMoveAuditState` plus `mode` and `source`, added to `CUSTOMER_ACCOUNT_AUDIT_KEYS`.
 
-Never recorded: `note`, `requestedName`, `rejectionReason`, any e-mail or name, the target's id on
-a request entry, the Organization ids on a move entry (`specs/conventions/audit-state.md` list 2).
+Never recorded: `note`, `requestedName`, `rejectionReason`, any e-mail or name, the target's id or
+the placement's id on a request entry (research R-29), the Organization ids on a move entry
+(`specs/conventions/audit-state.md` list 2).

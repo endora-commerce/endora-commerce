@@ -2,7 +2,7 @@
 
 Decisions for `specs/191-membership-join-requests/`. Each is **decision → rationale → alternatives
 rejected**. Numbers are stable; cite them as `191 R-n`. Code paths are as of `origin/master`
-`657917d35` (2026-11-23).
+`657917d35` (2026-11-23), re-checked against `babfae111` (0.112.0) for R-26 – R-30.
 
 ## What the code does today (grounding)
 
@@ -59,22 +59,24 @@ author must remember; forgetting one is a bypass. `mode` keeps the distinction f
 join approval* — approval is a move; its origin is `source: 'join_request'` (R-7), and the
 approval itself is `organization.join_request.approve`, whose child the move is.
 
-## R-3 — The actor is the ambient one; automation when no operator
+## R-3 — The actor is the ambient one; automation is `system` plus the source code
 
 **Decision.** The new port's inputs carry **no actor**. The bus derives it from the TenantContext
 (Principle XIII): an administrator in an admin request, the customer for a storefront company
-administrator (`actorCustomerAccountId`), and the `automation` kind
-`specs/186-aggregate-ports/` (D-293) adds for work entered with `enterSystemScope` /
-`withSystemScope(reason)` with no administrator. The deprecated lifecycle methods keep their
-signature for one release (OD-4) and **ignore** `actorAdminUserId` beyond asserting, in
+administrator (`actorCustomerAccountId`), and the existing **`system`** kind for work entered with
+`enterSystemScope` / `withSystemScope(reason)` with no administrator. What tells automation apart
+from platform maintenance is the move's **`source`** code (R-7), recorded in the audit entry and
+carried by the event and the outbox — the pair `specs/186-aggregate-ports/` R-4 defines and the
+owner chose on 2026-11-23 (186 Q-1: "`system` + source code"). The deprecated lifecycle methods
+keep their signature for one release (OD-4) and **ignore** `actorAdminUserId` beyond asserting, in
 development builds, that it equals the ambient actor.
 
 **Rationale.** An actor taken from an input is what XIII forbids; it is also why a worker could
-not call the move at all (#1831).
+not call the move at all (#1831). A new actor kind would widen the published
+`CommandActor['kind']` union every consumer switches on (186 R-4).
 
-**Rejected.** *Keep `actorAdminUserId` optional* — still an input-supplied actor. *Record the
-system kind* — indistinguishable from platform maintenance; D-293 exists to tell them apart (if
-186 slips, `system` is the interim value, plan § Risks).
+**Rejected.** *Keep `actorAdminUserId` optional* — still an input-supplied actor. *A new
+`automation` actor kind* — rejected by the owner's answer to 186 Q-1.
 
 ## R-4 — Role: the target's *Member* by default, any role of the target when named
 
@@ -124,8 +126,11 @@ basket"); the basket is priced and approved under the old Organization's rules. 
 **Decision.** The Command declares `event: customer_account.organization_changed.v1` with
 `{ customerAccountId, fromOrganizationId, toOrganizationId, organizationRoleId, mode, source }`,
 dispatched once after commit by the bus. The `afterCommit` outbox data is the same ids plus `mode`
-and `source` (list-1 values: ids and codes). `source` is a code, `^[a-z][a-z0-9_.]{0,63}$`; core
-writes `operator`, `join_request`, `integration`; a deployment may write its own code.
+and `source` (list-1 values: ids and codes). `source` is a code with the shape `specs/186-aggregate-ports/` R-4 gives every caller source
+(`^[a-z][a-z0-9_.-]{0,63}$` — one spelling, so an integration's module id fits both); core writes
+`operator`, `join_request`, `integration`; a deployment or an integration may write its own code
+(its module id, as 186 recommends). It is **required** on the move — unlike 186's optional
+`AggregateCommandOptions.source` — because every move has an origin a reader must be able to tell.
 
 **Rationale.** Ids and codes only (#1831), so the event can reach webhooks without becoming a
 disclosure. One move, one event, whether it came from a person, a worker or an approval.
@@ -160,7 +165,11 @@ exactly what `refuse` means. Principle I prefers extending the owner.
 - **default participant** (innermost): reads `organizations.registration.conflict_policy`
   (`refuse` | `join_request`, default `refuse`) through `settingsReadPort`;
 - **combiner** `chain`; a deployment participant is ordered by module `dependencies` and receives
-  `(input, previous)`;
+  `(input, previous)`. Who may contribute is 188's rule, not this point's: a core or overlay module,
+  and — by the owner's answer of 2026-11-23 to 188 (its question on third-party packages) — an
+  installed package **only** when the deployment's committed divergence declaration grants it
+  explicitly; an ungranted package still refuses composition, and the grant is listed in the
+  divergence report;
 - **failure** `fail-closed` = `refuse`; the owner then validates: `match: 'ambiguous'` or
   `target: null` forces `refuse` whatever the chain answered.
 
@@ -309,7 +318,9 @@ registers `afterCommit` hooks on its own actions: `submit` → company administr
 notification through `adminNotificationRecordPort`, a non-binding edge as for new registrations);
 `approve` / `reject` / `expire` → the registrant (`organization_join_request_approved` /
 `_rejected` / `_expired`, and the storefront notification centre when `customer_notifications`
-is present). The **confirmation** e-mail (`organization_join_request_email_confirmation`) is sent by
+is present). The approved notice names the placement (`organizationName`) and, when the placement is
+a branch, the target (`companyName`) — the Organization the registrant now belongs to and the
+company it is part of, so naming them discloses nothing to a non-member (R-27 – R-29). Branch administrators are not notified (R-31). The **confirmation** e-mail (`organization_join_request_email_confirmation`) is sent by
 the route after commit, like today's registration verification mail, because it carries the raw
 token, which outbox data may not.
 
@@ -359,8 +370,9 @@ includes the new setting codes.
 
 **Decision.** `ORGANIZATION_JOIN_REQUEST_AUDIT_KEYS` = `state`, `routing`, `operatorReason`,
 `origin`, `customerAccountId`, `organizationRoleId`, `decidedByKind`, `expiresAt`, `version`,
-`changedFields`, `noteLength`. Never: `note`, `requestedName`, `rejectionReason`, the target id
-(the tenant anchor; recorded as `changedFields: ['organizationId']` where it matters). The move
+`changedFields`, `noteLength`, `hasRejectionReason`, `placement` (`'target' | 'branch'`, R-29).
+Never: `note`, `requestedName`, `rejectionReason`, the target id (the tenant anchor; recorded as
+`changedFields: ['organizationId']` where it matters), the placement's Organization id (R-29). The move
 records `{ mode, source, changedFields: ['organizationId','organizationRoleId'] }` and the role
 ids (ids of other records, list 1) — not the Organization ids, which are the account's tenant
 anchor (`organizationMoveAuditState`, unchanged).
@@ -391,13 +403,193 @@ keys, rather than #1832's `organizations.registration_conflict_policy`),
 Table `organization_join_requests`; columns per Principle VI (`organization_id`,
 `customer_account_id`).
 
-## R-26 — Q1, if the owner picks B
+## R-26 — Q1 answered B: the personal Organization awaits verification on a closed channel
 
-**Decision (conditional).** `provisionFor` gains an optional `status` (`active` default,
-`pending_verification` allowed). The join-path Command passes `pending_verification` when
-`customers.allow_registration_without_organization` is false on the request's channel (read in
-the pre-check through `customers`' published setting reader — a new edge, or the setting read
-through `settingsReadPort` by code, decided in WP-3). `verify` no longer activates a personal
-Organization (R-11), so it stays inactive until approval moves the person out, or an operator
-activates it through the existing moderation action. A personal Organization awaiting
-verification is listed by the existing moderation filter.
+**Owner answer (OR-8, 2026-11-23): variant B.** This decision is now unconditional.
+
+**Decision.** `PersonalOrganizationService.provisionFor(em, …)` gains an optional
+`status: 'active' | 'pending_verification'` (default `active`, so every existing caller is
+unchanged). The join path's Command passes `pending_verification` when the request's channel does
+**not** allow private registration. The gate is read in the registration pre-check by code,
+`settingsReadPort.get('customers.allow_registration_without_organization', salesChannelId,
+z.boolean())`, defaulting to `false` — the same reader, and the same by-code reading of another
+module's setting, `organizations` already uses for `sales_channels.storefront_url`
+(`packages/modules/organizations/src/backend/index.ts`), and the same channel resolution `customers`
+uses for its own gate (`resolveAllowRegistrationWithoutOrganization`, `customers/src/backend/index.ts`).
+The value read is passed into the Command as an input, so the Command does not read settings.
+`verify` no longer activates a personal Organization (R-11), so it stays awaiting verification until
+approval moves the person out, or an operator activates it through the existing moderation action.
+A personal Organization awaiting verification is listed by the existing moderation filter.
+
+**Rationale.** Honours the owner's "if the channel allows it" with an existing Organization status
+and no new account state (OR-1). The basket refusal is already in place
+(`assertOrganizationCanTransact`, `packages/modules/carts/src/backend/routes.ts`). Reading by code
+fails **closed**: if `customers` is somehow absent, the default `false` yields the restrictive answer.
+
+**Rejected.** *A published `customers` setting reader* — a new port and edge for one boolean the
+settings reader already answers. *A (simplest) and C (no join path on such channels)* — rejected by
+the owner (`spec.md` OR-8).
+
+## R-27 — Approval into a branch: who may choose which branch
+
+**Owner answer (OR-12, 2026-11-23): approval may place the person directly in a branch, with a
+role, built in this feature.** The owner left the authority rule to the design.
+
+**Decision.** The eligible placements of an approval are the **target and its descendants** — the
+Organizations whose materialized `path` begins with the target's `path`
+(`packages/modules/organizations/src/backend/services/organization-tree-service.ts`, feature 056) —
+narrowed by the decider:
+
+| Decider | Eligible placements |
+| --- | --- |
+| Company administrator of the target (storefront; the reserved *Administrator* capability, `organizationPermissionPort.isAdministrator`) | the target; **plus** every descendant **iff** the administrator's own account has roll-up (`CustomerAccount.subtreeRollupEnabled`), i.e. iff the descendant is in the request's tenant reach — `orgConstraintFor()` answers `allowed` with the target's subtree, which `actorTenantContext` builds from `customerRollupScopePort` (`packages/platform/src/kernel/actor-tenant-context.ts`) |
+| Operator holding `organizations:decide-join-requests` | the descendants that pass the same visibility rule the queue applies to the target — `organizationInReach`'s `SalesRepAssignmentPort.canSeeOrganization` (`packages/modules/organizations/src/backend/organization-reach.ts`), or every one under a platform-wide scope |
+| Server-side caller of `organizationJoinRequestPort.approve` | the target and every descendant; the caller is the gate (R-1, FR-041) |
+
+Every eligible placement must also be live and `active` (R-28). Under `per-tree-root` the target is
+the root (FR-042), so its subtree is the whole tree — exactly the owner's "an Organization in the
+tax-ID owner's tree". Under `global` the target is the Organization holding the tax ID, and the
+placements are it and what is below it.
+
+**Rationale.**
+
+1. **One account, one Organization.** `customer_accounts.organization_id` is a single `NOT NULL`
+   column, and the *Administrator* role is a role **of one Organization** (spec 170). A company
+   administrator therefore administers no branch by role; the only existing authority a head-office
+   person has over a branch is roll-up, which feature 056 defines as "sees and acts across its
+   Organization's subtree" and which an operator grants per person. Placing someone into a branch is
+   acting on that branch — it gives the person the branch's prices, credit and order history — so it
+   is exactly what roll-up already allows and nothing a plain administrator could do today.
+2. **The rule reads what the platform already computed.** The request route runs under the
+   administrator's tenant context, whose allowed set already *is* the target's subtree when roll-up
+   is on and the target alone when it is off. "The placement is in your reach" is then one check
+   against a value nobody re-derives, and it cannot drift from what roll-up means elsewhere.
+3. **Operators reuse their reach rule.** An operator who may not see a branch must not be able to
+   put people into it; the visibility rule that hides the request (FR-071) is the one that decides
+   the branch.
+4. **No new permission.** Member management on the storefront is a reserved capability, "never a
+   permission code" (`routes.members.ts` header, spec 170 data-model §6); an operator's decide
+   permission already grants membership in an Organization in reach, and a branch in reach is no
+   wider.
+
+**Rejected.**
+
+- *Any administrator of the target may choose any branch.* Widens the Administrator role from one
+  Organization to a whole tree, so a person who cannot see a branch's orders could still staff it.
+- *The decider must be an Administrator of the branch too.* Impossible by construction — one
+  account belongs to one Organization — so the feature would never work on the storefront.
+- *A new organization-role permission ("place members in branches").* Contradicts the reserved
+  capability rule, and duplicates roll-up with a second switch that can disagree with it.
+- *Any Organization in the target's tree, including above or beside it.* Under `global` that is an
+  Organization with another tax ID than the one the registrant entered, and above the target is
+  outside what the target's administrators reach. Under `per-tree-root` the subtree is already the
+  whole tree, so nothing is lost there.
+- *Let the registrant suggest a branch.* Discloses the tree before approval (SC-006).
+
+## R-28 — Placement validation and locking at approval
+
+**Decision.** `organization.join_request.approve` takes `placementOrganizationId?` (absent = the
+target) and, on the bus transaction, in this order:
+
+1. locks the request `for update`; checks `state = 'pending'` and `expectedVersion` (R-14);
+2. re-checks **eligibility** (R-27) with the one function both the read route and the Command call,
+   `JoinRequestPlacementService.assertEligible(request, decider, placementId)`; ineligible, unknown,
+   malformed or deleted → `404 NOT_FOUND` (FR-102: not distinguishable);
+3. locks the target's and the placement's Organization rows **`for share`**, in id order (one row
+   when they are the same), and re-reads both: the placement's `path` must still begin with the
+   target's `path` and be readable (`isReadableTreePath`), else `404`; the target not `active` →
+   `409 ORGANIZATION_JOIN_REQUEST_NOT_APPROVABLE` `target_not_active`; the placement not `active` →
+   the same code with `placement_not_active`;
+4. runs the account checks (data-model §1 *Validation*);
+5. runs the child `membershipPort.changeCommand({ customerAccountId, organizationId: placementId,
+   organizationRoleId, source: 'join_request' })` — **the US1 Command, the only writer of the
+   account's Organization**. It resolves the role against the placement (R-4): absent → the
+   placement's *Member*; a role of another Organization → `404` (FR-103). Its `beforeCommit` hooks
+   (for example a deployment's "only within one tree") apply as to every move;
+6. writes `state = 'approved'`, `placement_organization_id`, `granted_organization_role_id`,
+   `decided_*`, bumps `version`.
+
+**Rationale.** The moderation Commands (`organization.approved`, `.rejected`, `.blocked`,
+`.unblocked` in `services/organization-moderation-service.ts`), `organization.set_parent` /
+`organization.move` and `organization.delete` all update the Organization row, so a `for share` lock makes each of them
+either commit before the approval re-reads (and the approval sees it) or wait until the approval
+commits (FR-104: "never both pass"). A share lock does not block other approvals or reads. Id order
+avoids a deadlock between two approvals naming the same pair in opposite roles. The tree check on
+`path` is one row read on a column the re-parenting Command rewrites in one statement
+(`applyReparentPaths`). The role check stays in the move Command so it has one statement.
+
+**Rejected.** *Validate only in the route* — a branch blocked between the route and the commit would
+still receive the member. *`for update` on the Organization rows* — serialises concurrent approvals
+into the same branch for no reason. *Put the tree rule in the move Command* — US1 moves anywhere by
+design (an ERP may move across trees); "within the target's tree" is a join-request rule and lives
+with the join request.
+
+## R-29 — The placement in audit, hooks, outbox and events
+
+**Decision.**
+
+- **Audit** (`organization.join_request.approve`, a tenant-scoped record anchored on the target):
+  `placement: 'target' | 'branch'` (a code) and `organizationRoleId` (an id of another record) are
+  recorded; the placement's Organization id is **not**. The child move's entry, against the account,
+  records `changedFields: ['organizationId', 'organizationRoleId']`, the role ids, `mode` and
+  `source` (R-22) — never the Organization ids, which are the account's tenant anchor.
+- **Hook data** of `approve` gains `placementOrganizationId` and `placementIsTarget`, so a
+  `beforeCommit` hook can refuse ("never into branch X", "only into the root") before anything is
+  written.
+- **Outbox** of `approve` gains `placementOrganizationId` (an id, list 1); its `organizationId`
+  stays the target, which pins the drain to the request's tenant.
+- **Event** `organization.join_request.decided.v1` gains `placementOrganizationId: string | null`
+  (set only for `approved`). The child's `customer_account.organization_changed.v1` already carries
+  `toOrganizationId` = the placement.
+
+**Rationale.** When the placement is the target, its id *is* the request's tenant anchor, which
+`specs/conventions/audit-state.md` §2 forbids; recording the id only when it differs would be a
+conditional rule every future editor must remember, while the code says what a reader of the audit
+screen needs ("approved into a branch") and the id is on the row, in the hook data, the outbox and
+both events for anyone with reach.
+
+**Rejected.** *Record `placementOrganizationId` when it is a branch* — the conditional above.
+*Record the branch name* — free text, list 2.
+
+## R-30 — Choosing the placement: routes and screens
+
+**Decision.** One read per decider surface, served by the same `JoinRequestPlacementService.list`
+that R-28's `assertEligible` uses, so what is offered and what is accepted cannot disagree:
+
+- storefront `GET /api/v1/organizations/mine/join-requests/:id/placements?q=&limit=` (company
+  administrator, `routes.members.ts`) and admin
+  `GET /api/v1/admin/organization-join-requests/:id/placements?q=&limit=`
+  (`organizations:decide-join-requests`, under reach);
+- each answers the eligible, live, `active` placements in tree (`path`) order — the target first,
+  marked `isTarget` — with `name`, `depth` relative to the target, `parentOrganizationId`, and the
+  placement's roles (`OrganizationRoleRef[]`) and its `defaultOrganizationRoleId` (the predefined
+*Member*), `limit` 50 (max 100)
+  with a `q` name filter and `total`, so a large tree stays one bounded read;
+- the approve bodies gain `placementOrganizationId?`;
+- the reference storefront's `DecideJoinRequestDialog` and the admin approve dialog show a
+  *Place in* choice **only when more than one placement is eligible** — so an administrator without
+  roll-up, or a company with no branch, sees the dialog exactly as before — and re-fill the role
+  choice from the chosen placement's roles, *Member* preselected.
+
+The admin approve dialog does **not** reuse `GET /api/v1/admin/organizations/:id/subtree` and
+`…/:id/roles`: those are gated by `customers:read` and `organizations:read-roles`, which a holder of
+`organizations:decide-join-requests` need not have, and they would apply none of R-27's narrowing.
+
+**Rejected.** *Roles fetched per chosen placement in a second route* — one more round trip and route
+for a list that is a handful of rows per Organization (two predefined roles plus the custom ones).
+*Inline the placement list in every request view* — a tree read per row of the queue.
+
+## R-31 — Nothing is pending on a branch
+
+**Decision.** A pending request stores no placement (data-model check: `placement_organization_id`
+is set iff `state = 'approved'`). Creating, blocking, deleting or re-parenting a branch therefore
+needs no subscriber, sweep or migration of requests (FR-105); an approval that names a branch no
+longer eligible is refused by R-28 and leaves the request pending for another choice. The branch's
+own administrators are not asked and not notified; the new member appears in their members list,
+and a deployment that wants more can hook `approve`'s `afterCommit` or subscribe to
+`customer_account.organization_changed.v1`.
+
+**Rejected.** *Let the decider pre-select a branch on a pending request* — a second, pending piece of
+state that a branch change would have to repair. *E-mail the branch's administrators* — not asked
+for; the person was placed by someone with authority over the branch (R-27), and the existing
+member list already shows them.

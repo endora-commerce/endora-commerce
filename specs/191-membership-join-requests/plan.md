@@ -4,7 +4,7 @@
 | **Date**: 2026-11-23 | **Spec**: [spec.md](./spec.md) | **Ruling**: **D-298**
 **Input**: `specs/191-membership-join-requests/spec.md` (issues #1831, #1832; owner decisions of
 2026-11-23).
-**Companions**: [research.md](./research.md) (R-1 – R-26), [data-model.md](./data-model.md),
+**Companions**: [research.md](./research.md) (R-1 – R-31), [data-model.md](./data-model.md),
 [contracts/](./contracts/), [quickstart.md](./quickstart.md), [tasks.md](./tasks.md).
 **Siblings (parallel, cited by slug)**: `specs/186-aggregate-ports/` (D-293),
 `specs/187-side-table-extensions/` (D-294), `specs/188-policy-points/` (D-295),
@@ -15,7 +15,8 @@
 **Part 1 (#1831).** `customer_accounts` publishes `membershipPort`, whose operations run one
 Command, `customer_account.organization.change` — hookable (`beforeCommit` veto, `afterCommit`
 outbox), audited by name, announcing `customer_account.organization_changed.v1` (ids only) after
-commit, with the ambient actor (`automation` when no operator, D-293). It defaults the role to the
+commit, with the ambient actor (`system` plus the caller's `source` code when no operator — owner
+answer to 186 Q-1). It defaults the role to the
 target's *Member*, refuses stranding a company without an administrator, revokes no session and
 moves no tenant data. The operator's assign/unassign and the deprecated lifecycle methods run
 through it.
@@ -25,7 +26,11 @@ point `organizations.registrationConflict` (`chain`, default participant = the s
 `refuse`). Under `join_request` one Command creates the registrant's personal Organization, their
 ordinary account and an `organization_join_requests` row; once the e-mail address is confirmed the
 request is routed (company administrators by default, else the operator) and decided — approval is
-a child run of the membership Command. Withdraw, expiry (BullMQ sweep), a daily limit per target,
+a child run of the membership Command, placing the person in the target **or one of its branches**
+(OR-12: a company administrator may choose a branch only when their sign-in has roll-up; an operator
+any branch in reach), with a role of that Organization. On a channel with private registration
+closed the personal Organization is created awaiting verification (OR-8). Withdraw, expiry (BullMQ
+sweep), a daily limit per target,
 one open request per account, notices from the outbox, a storefront account notice and company
 tab, an Admin UI queue with permissions and a palette action, pl + en throughout.
 
@@ -35,8 +40,8 @@ tab, an Admin UI queue with permissions and a palette action, pl + en throughout
 **Primary Dependencies**: Fastify, MikroORM **7.2.11** (after #1866: legacy decorators from
 `@mikro-orm/decorators/legacy`, no `persistAndFlush`, kysely instead of knex), Zod, BullMQ,
 ioredis — all existing; **no new dependency** (R-24)
-**Storage**: PostgreSQL — one table `organization_join_requests` (organizations); no column added
-elsewhere
+**Storage**: PostgreSQL — one table `organization_join_requests` (organizations, including
+`placement_organization_id`); no column added elsewhere
 **Testing**: Vitest — co-located module tests, `backend/test/{contract,integration}`, admin and
 storefront suites; `@endora-commerce/test-kit` (`audit`, `command-hooks`) and 188's policy
 conformance helper
@@ -57,16 +62,16 @@ in any registrant reply (SC-006)
 | I Modular (NN) | ✅ | Two ports, one owner each (R-1); `organizations` reaches `membershipPort` and `customerAccountReadPort` through acknowledged mutual edges beside the existing `customer_accounts` ones; no cross-module import; a module-local copy of the store-day helper rather than an import of `related_payers` (R-15) |
 | II API-first | ✅ | Every shape in `packages/contracts/` first (WP-0); the registration reply change is additive for every store on the default policy (R-16) |
 | III TDD (NN) | ✅ | `tasks.md` puts a failing test before every implementation task; every FR maps to a test (tasks § Traceability) |
-| IV YAGNI / deps | ✅ | No new dependency; no new module (R-8); no branch placement on approval (A-6); no account-area "ask to join" screen (A-7) |
+| IV YAGNI / deps | ✅ | No new dependency; no new module (R-8); branch placement reuses roll-up and reach instead of a new permission (R-27), and the US1 Command instead of a second write (R-28); no pending placement state (R-31); no account-area "ask to join" screen (OR-10) |
 | V TypeScript | ✅ | — |
 | VI Naming (NN) | ✅ | `organization_join_requests`, `organization_id`, `customer_account_id`; kebab-case paths; camelCase JSON (R-25) |
 | VII SEO/perf | ✅ | Storefront pages stay Server Components; no new public crawlable surface |
 | VIII English (NN) | ✅ | Artefacts in English; pl only in bundles |
 | IX UI reuse | ✅ | admin-kit primitives; storefront follows `Payers.tsx` / `RejectPayerRequestButton.tsx` |
 | X Queues | ✅ | Expiry as a BullMQ repeatable sweep via `ctx.worker` (R-18) |
-| XI Tenancy (NN) | ✅ | `@OrgScoped` on the target; registrant reads through one greppable `withSystemScope` constrained by their own account id; operator reach; out-of-scope = 404; no-organization path impossible (the registrant always has their personal Organization, D-178) (R-13) |
-| XII Channels (NN) | ✅ | The channel is recorded for notices and is an input of the policy point; no channel-scoped content read; Q1-B, if chosen, reads the channel's B2C setting through its owner |
-| XIII Command Bus (NN) | ✅ | Every write is a Command: the move, seven join-request actions, the anonymisation erase; `#writeOrganization`'s hand-written audit deleted in the same change; actor from context only (R-3); notices from the outbox (R-17) |
+| XI Tenancy (NN) | ✅ | `@OrgScoped` on the target; registrant reads through one greppable `withSystemScope` constrained by their own account id; operator reach; out-of-scope = 404; no-organization path impossible (the registrant always has their personal Organization, D-178) (R-13). A branch placement is admitted only inside the decider's server-derived reach — the roll-up allowed set for a company administrator, the visibility rule for an operator — never from a request input (R-27); the placement column is not a tenant anchor |
+| XII Channels (NN) | ✅ | The channel is recorded for notices and is an input of the policy point; no channel-scoped content read; OR-8 reads the channel's private-registration setting through `settingsReadPort` for the request's resolved channel (R-26) |
+| XIII Command Bus (NN) | ✅ | Every write is a Command: the move, seven join-request actions, the anonymisation erase; `#writeOrganization`'s hand-written audit deleted in the same change, and `attachToOrganization`'s unaudited bind deprecated; a branch approval writes the account only through the US1 Command (R-28); actor from context only (R-3); notices from the outbox (R-17) |
 | XIV Extensibility | ✅ | The registrant's custom-field values are stored on the account as on every registration; extension input reaches hooks via `extensions` |
 | XV Untouched core | ✅ | A deployment customises through a policy participant and command hooks, not edits (SC-007) |
 | XVI Palette | ✅ | `open-organization-join-requests`, sidebar destination covered |
@@ -90,28 +95,52 @@ in any registrant reply (SC-006)
    (`specs/188-policy-points/`, #1839).
 4. **Case 5** (moving an account to a branch) is covered by #1831 and delivered with OD-8.
 5. **Sessions** are not invalidated by a move; the actor is `automation` when no administrator
-   acts.
+   acts — recorded as the `system` actor plus the caller's source code (owner answer of 2026-11-23
+   to `specs/186-aggregate-ports/` Q-1).
 6. **Aggregate ports** `organizationCommandPort` (#1821) and `customerAccountCommandPort` (#1822)
    come from `specs/186-aggregate-ports/` (D-293); this feature depends on them and redefines
    neither. Tax-ID scope modes (D-290) are used as they are.
 7. **Delivery** in release 0.113.0, after the MikroORM 7 switch (#1073 → #1866) for any entity
    work.
 
+**Owner answers to this spec's questions (D-298, 2026-11-23, second round)** — each closes the
+question of the same number in *Owner questions* below:
+
+8. **OQ-1 = B.** On a channel with private registration closed, the join path's personal
+   Organization is created `pending_verification`; the registrant signs in, follows and withdraws,
+   but cannot transact until approved into a company or activated by an operator (R-26, FR-048).
+9. **OQ-2 confirmed.** A request reaches its deciders only after the e-mail address is confirmed
+   (R-11).
+10. **OQ-3 confirmed.** No account-area "ask to join" screen in this feature (A-7).
+11. **OQ-4 confirmed.** Defaults: expiry 14 days, 20 requests per target per day, decided by company
+    administrators.
+12. **OQ-5 CHANGED — yes, now.** The decider may approve directly into a branch of the company (an
+    Organization in the tax-ID owner's tree), with a role; built in this feature (R-27 – R-31,
+    FR-100 – FR-107). The authority rule is the architect's, under this ruling: a company
+    administrator may choose a branch only when their sign-in has roll-up; an operator any branch
+    in reach; a server-side caller any branch (R-27).
+
 **Architect decisions under D-298** (owner may overturn; research numbers): two ports, two owners
 (R-1); one hookable action for move and detach (R-2); last-administrator guard in the Command
 (R-5); join requests in `organizations`, no new module (R-8); e-mail confirmation before routing
-(R-11); routing captured once, operator may always decide (R-12); `202` discriminated reply (R-16);
-event and setting names in the module's existing families (R-25).
+(R-11, now owner-confirmed); routing captured once, operator may always decide (R-12); `202`
+discriminated reply (R-16); event and setting names in the module's existing families (R-25);
+the private-registration gate read by code through `settingsReadPort` (R-26); branch eligibility
+from roll-up and reach, not a new permission (R-27); validation under `for share` locks inside the
+approval Command (R-28); the placement recorded as a code in audit, as an id in hooks, outbox and
+events (R-29); one placements read per decider surface (R-30); nothing pending on a branch (R-31).
 
 ## Owner questions
 
-| # | Question | Recommendation | Blocks |
+All answered by the owner on 2026-11-23 (D-298 items 8 – 12 above); none is open.
+
+| # | Question | Answer | Where it lands |
 | --- | --- | --- | --- |
-| **OQ-1** (= spec Q1) | On a channel with private registration closed, may a pending or rejected registrant buy privately from the personal Organization the join path created? | **B** — create that personal Organization not yet active (existing status), activated only by an operator; R-26 | WP-3 (one parameter); everything else proceeds |
-| OQ-2 | Confirm: a request reaches deciders only after e-mail confirmation (A-4, R-11) | Yes — impersonation risk otherwise | nothing (built as recommended) |
-| OQ-3 | Confirm: no account-area "ask to join" for existing private customers in this feature (A-7) | Yes — the port supports it; a follow-up issue | nothing |
-| OQ-4 | Confirm defaults: expiry 14 days, 20 requests per target per day, deciders = company administrators | Yes | nothing |
-| OQ-5 | Should approval be able to place the person directly in a branch of the target? (A-6) | Not now — a move afterwards does it | nothing |
+| OQ-1 (= spec Q1) | On a channel with private registration closed, may a pending or rejected registrant buy privately from the personal Organization the join path created? | **B** — created `pending_verification`; activated only by an operator or left by approval | R-26, FR-048, T040a/T046a |
+| OQ-2 | A request reaches deciders only after e-mail confirmation | **Confirmed** | R-11, FR-033 |
+| OQ-3 | No account-area "ask to join" for existing private customers in this feature | **Confirmed** | A-7 / OR-10 |
+| OQ-4 | Defaults: expiry 14 days, 20 per target per day, company administrators decide | **Confirmed** | data-model §2 |
+| OQ-5 | Approval directly into a branch of the target? | **CHANGED — yes, now** | R-27 – R-31, FR-100 – FR-107, T056a – T057a, T060 – T063a, T069a |
 
 ## Project Structure
 
@@ -145,6 +174,7 @@ packages/modules/customer_accounts/
 ├── src/backend/commands/customer-account-change-organization.command.ts   # NEW
 ├── src/backend/services/membership-port.ts                                # NEW
 ├── src/backend/services/customer-account-lifecycle-ports.ts               # delegate, delete #writeOrganization
+├── src/backend/services/customer-account-ports.ts                         # attachToOrganization @deprecated
 ├── src/backend/services/customer-account-audit-state.ts                   # mode, source in keys
 └── src/backend/index.ts            # providePort('membershipPort')
 
@@ -156,10 +186,11 @@ packages/modules/organizations/
 ├── src/backend/entities/organization-join-request.entity.ts                     # NEW
 ├── src/backend/commands/join-request-*.command.ts                               # NEW (7)
 ├── src/backend/services/{join-request-service,join-request-routing,join-request-daily-limit,
-│                         join-request-notifications,join-request-port,registration-conflict-policy}.ts   # NEW
+│                         join-request-notifications,join-request-port,join-request-placement,
+│                         registration-conflict-policy}.ts   # NEW (placement: R-27, R-28, R-30)
 ├── src/backend/services/registration-service.ts         # policy + join branch
 ├── src/backend/services/email-verification-service.ts   # personal status untouched; submit
-├── src/backend/services/personal-organization-service.ts  # optional status (only if OQ-1 = B)
+├── src/backend/services/personal-organization-service.ts  # optional status (OQ-1 = B, R-26); ensureFor's repair via membershipPort
 ├── src/backend/workers/join-request-expiry-sweep-worker.ts                      # NEW
 ├── src/backend/routes.public.ts · routes.customer.ts · routes.members.ts · routes.admin-join-requests.ts (NEW)
 ├── src/backend/email-templates/join-request-defaults.ts                         # NEW
@@ -171,7 +202,7 @@ packages/modules/organizations/
 storefront/
 ├── app/(auth)/register/{page.tsx,actions.ts}
 ├── app/(account)/account/ (JoinRequestNotice) · app/(account)/organization/members/ (tab)
-├── components/account/{JoinRequestNotice.tsx, JoinRequestsTab.tsx, DecideJoinRequestDialog.tsx}
+├── components/account/{JoinRequestNotice.tsx, JoinRequestsTab.tsx, DecideJoinRequestDialog.tsx (placement + role)}
 ├── lib/api/join-requests.ts
 └── messages (en, pl)
 
@@ -193,11 +224,11 @@ the actor kind and the aggregate ports; 188 merged for WP-3's point (else its in
 | --- | --- | --- | --- |
 | WP-0 | Contracts: types, schemas, refs, error codes, deprecations (types only) | — | 1 (can land before #1866) |
 | WP-1 | #1831: Command, `membershipPort`, lifecycle delegation, `customers` adoption, last-admin guard | WP-0, 186 (actor kind) | 2 |
-| WP-2 | Entity, migration, seven Commands, port, routing, limits, subscribers, worker | WP-1, #1866 | 3 |
-| WP-3 | Registration: policy point (or interim), join branch, `202` reply, verification → submit, registration options flag | WP-2, 188 | 4 |
+| WP-2 | Entity (with `placement_organization_id`), migration, seven Commands (approve with placement, R-28), placement service (R-27), port, routing, limits, subscribers, worker | WP-1, #1866 | 3 |
+| WP-3 | Registration: policy point (or interim), join branch, `202` reply, verification → submit, registration options flag, the closed-channel personal Organization status (R-26) | WP-2, 188 | 4 |
 | WP-4 | Notifications: templates, outbox hooks, admin bell, notification centre | WP-3 | 4 (same MR) |
-| WP-5 | Storefront API (registrant, company administrators) + reference storefront pages | WP-3 | 5 |
-| WP-6 | Admin API, queue page, permissions, palette, sidebar, labels | WP-2 | 5 or 6 |
+| WP-5 | Storefront API (registrant, company administrators, placements) + reference storefront pages and the approve dialog's placement choice | WP-3 | 5 |
+| WP-6 | Admin API (with placements), queue page, approve dialog's placement choice, permissions, palette, sidebar, labels | WP-2 | 5 or 6 |
 | WP-7 | Docs (en + pl), changesets, `composer:generate` / `manifests:generate`, full suite | all | each MR carries its own; WP-7 closes |
 
 WP-1 ships value alone (case 5, the ERP move). WP-2 + WP-3 + WP-4 is the smallest join-request
@@ -212,7 +243,12 @@ slice that is safe to switch on; WP-5 and WP-6 can be parallel after it.
 - **Tenancy**: cross-tenant tests for every read and decide route (404 indistinguishable); the
   registrant hatch constrained to their own id.
 - **Concurrency**: two approvals racing (one 409); two registrations racing past the daily limit
-  (never limit + 1); unique open request.
+  (never limit + 1); unique open request; a branch blocked, deleted or re-parented concurrently with
+  an approval into it (exactly one of the two outcomes, R-28).
+- **Placement**: for each decider kind (administrator with and without roll-up, operator in and out
+  of reach, platform-wide operator, server-side caller) the placements listed equal the placements
+  accepted (one service); above / beside / other-tree / deleted / unreadable-path placements `404`;
+  a role of another Organization `404`; audit sentinel with the branch id and name.
 - **Policy**: 188's conformance helper; default `refuse` on a fresh store; fail-closed cases.
 - **Integration**: the worker move (SC-004); the full join flow registration → confirm → approve →
   next request scoped to the company (SC-002).
@@ -236,7 +272,8 @@ before the release (D-198: it does not run on a pull request).
 
 | Risk | Mitigation |
 | --- | --- |
-| 186 slips (no `automation` actor kind) | Background moves record `system` with the scope reason; switch when 186 lands (one line in the actor resolution, tested) |
+| 186 slips (no shared `source` schema) | `membershipChangeSourceSchema` is declared here with 186's regex and becomes an alias when 186 lands; the actor is `system` either way (owner answer to 186 Q-1), so nothing switches |
+| A deployment grants roll-up widely and is surprised that administrators can staff branches | Documented in the organizations page and the changeset: roll-up now also governs branch placement on approval (R-27); an operator who wants it narrower vetoes branch placements with a `beforeCommit` hook on `organization.join_request.approve` |
 | 188 slips | Interim `decideRegistrationConflict` (R-9) behind the same schemas; the setting ships either way |
 | #1866 changes entity or raw-SQL idioms after this plan | WP-2 starts from the post-#1866 tree; data-model is idiom-neutral |
 | The registration reply change surprises an instance storefront | Only under a non-default policy; changeset body names the union and the `202`; docs upgrade note |
@@ -251,9 +288,13 @@ Empty — no constitution violation, no new runtime, dev or workspace dependency
 
 ## Agent context
 
-`.specify/scripts/bash/update-agent-context.sh` was **not** run for this design-only change, on the
-orchestrator's instruction: the plan declares no new dependency, so it would only add the slug to
-*Recent Changes*. Run it in the implementation merge request if wanted.
+`.specify/scripts/bash/update-agent-context.sh` was run on 2026-11-23 after the owner answers were
+applied (with `SPECIFY_FEATURE=191-membership-join-requests`). Its only output was the *Recent
+Changes* line and the *Last updated* date — *Active Technologies* is unchanged because the plan
+declares no new dependency — so the result was **not** committed: the sibling design PRs
+(186 – 190) would all rewrite the same three lines. Run it in the implementation merge request.
+(The script's *Found database* line quoted `specs/182-related-payers/plan.md` rather than this plan;
+it did not affect the output, which writes no database line.)
 
 ## Handoff to `endora-commerce-dev`
 
@@ -265,6 +306,8 @@ orchestrator's instruction: the plan declares no new dependency, so it would onl
    (`migration:new`), `custom-field-writes.md` (the register body changed).
 4. Precedents to copy, not import: `related_payers`' routing, daily limit, expiry worker and
    `ctx.commandHooks` notices; `organization.register`'s child-Command construction.
-5. OQ-1 is the only open decision; build `provisionFor`'s `status` parameter only when it is answered B.
+5. No owner question is open. OQ-1 = B: build `provisionFor`'s `status` parameter (R-26). OQ-5 changed:
+   branch placement is in scope (R-27 – R-31) — the eligibility function is written once and called
+   by both placement routes and by the approval Command.
 6. Do not run `update-agent-context.sh` unless asked; regenerate and commit generated artefacts in
    the same MR; never `git stash` in a shared worktree.

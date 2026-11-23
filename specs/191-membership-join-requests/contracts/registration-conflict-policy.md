@@ -50,7 +50,11 @@ export const RegistrationConflictVerdictSchema = z.object({
 - **Contributed** — any module declaring a `contributes-to` edge on `organizations` for this point;
   ordered after the default by module `dependencies`, receiving `(input, previous)`. A participant
   of a module that is off is skipped (XVII). Example: a wholesale overlay answering `refuse` for
-  every channel but one.
+  every channel but one. **Which modules may contribute is 188's rule**: core and overlay modules,
+  and an installed third-party package only when the deployment's committed divergence declaration
+  (`divergence.ts`, `DeploymentDivergenceDeclarationSchema`) grants it explicitly — owner answer of
+  2026-11-23 to 188; an ungranted package refuses composition, and the grant appears in the
+  divergence report. This point adds no rule of its own on top.
 
 ## 4. The owner's validation (after the chain)
 
