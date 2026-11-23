@@ -162,12 +162,6 @@ describe('the foreign-schema guard on a real migrate', () => {
         await self.getEntityManager().fork().nativeDelete(X178Host, { name: 'rogue' });
       },
     ],
-    [
-      'getKnex()',
-      async (self: Migration) => {
-        await self.getEntityManager().getKnex()(HOST_TABLE).where({ name: 'rogue' }).delete();
-      },
-    ],
   ])('refuses a foreign write through %s', async (_label, up) => {
     const error = await migrate(packageMigration('Migration20261201T100006AcmeErpRogue', up));
     expect(error).toBeInstanceOf(ForeignSchemaWriteError);
@@ -200,3 +194,76 @@ describe('the foreign-schema guard on a real migrate', () => {
   });
 });
 
+/**
+ * Issue #1860 (part of #1073). This pins the guard's refusals of raw database
+ * handles, and it must stay green after the move to MikroORM 7.
+ *
+ * Today the raw handle is knex (`getKnex`). #1864 moves raw SQL off it, and
+ * MikroORM 7 offers kysely (`getKysely`) instead. So the routes are data and the
+ * assertion is not: when the access path changes, change or add rows in
+ * {@link RAW_ACCESS_ROUTES} and leave {@link expectRawAccessRefused} alone. A
+ * route must be refused with the guard's own error, and the row it tried to
+ * delete must still be there afterwards. That second check is what tells a
+ * refusal apart from a handle that ran its SQL on a connection of its own,
+ * outside the migration's transaction, and then failed for some other reason.
+ */
+describe('the foreign-schema guard on raw database handles (#1860)', () => {
+  /** `fixture_host`'s row the rogue package tries to delete. */
+  class Migration20261110T000003FixtureHostSeed extends Migration {
+    override async up(): Promise<void> {
+      this.addSql(`insert into "${HOST_TABLE}" ("id", "name") values ('${randomUUID()}', 'rogue')`);
+    }
+  }
+
+  type RawAccessRoute = readonly [label: string, attempt: (self: Migration) => Promise<unknown>];
+  const deleteRogue = (handle: unknown): Promise<unknown> =>
+    (handle as (table: string) => { where(w: object): { delete(): Promise<unknown> } })(HOST_TABLE)
+      .where({ name: 'rogue' })
+      .delete();
+
+  const RAW_ACCESS_ROUTES: readonly RawAccessRoute[] = [
+    ['getEntityManager().getKnex()', (self) => deleteRogue(self.getEntityManager().getKnex())],
+    ['getEntityManager().getConnection().getKnex()', (self) => deleteRogue(self.getEntityManager().getConnection().getKnex())],
+    ['getEntityManager().fork().getKnex()', (self) => deleteRogue(self.getEntityManager().fork().getKnex())],
+    [
+      'getEntityManager().transactional(em => em.getKnex())',
+      (self) => self.getEntityManager().transactional((em) => deleteRogue(em.getKnex())),
+    ],
+  ];
+
+  const rogueRows = async (): Promise<number> =>
+    (await db.query<{ n: number }>(`select count(*)::int as n from "${HOST_TABLE}" where "name" = 'rogue'`))[0]!.n;
+
+  async function expectRawAccessRefused(attempt: RawAccessRoute[1]): Promise<void> {
+    const seeded = await openFixtureOrm(db.url, [onHost], { hostMigrations: [Migration20261110T000003FixtureHostSeed] });
+    try {
+      await migrateUpVerified(seeded);
+    } finally {
+      await seeded.close(true);
+    }
+    expect(await rogueRows()).toBe(1);
+
+    const rogue = packageMigration('Migration20261201T100045AcmeErpRawAccess', async (self) => {
+      await attempt(self);
+    });
+    const orm = await openFixtureOrm(db.url, [onHost], {
+      hostMigrations: [Migration20261110T000003FixtureHostSeed],
+      packageMigrations: [rogue],
+    });
+    let error: unknown = null;
+    try {
+      await migrateUpVerified(orm);
+    } catch (caught) {
+      error = (caught as { cause?: unknown }).cause ?? caught;
+    } finally {
+      await orm.close(true);
+    }
+    expect(error).toBeInstanceOf(ForeignSchemaWriteError);
+    expect(await rogueRows(), 'the raw handle ran its delete').toBe(1);
+    expect(await executed()).not.toContain('Migration20261201T100045AcmeErpRawAccess');
+  }
+
+  it.each(RAW_ACCESS_ROUTES)('refuses %s, and the row survives', async (_label, attempt) => {
+    await expectRawAccessRefused(attempt);
+  });
+});
