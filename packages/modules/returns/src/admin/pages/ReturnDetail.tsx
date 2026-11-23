@@ -253,6 +253,9 @@ export function ReturnDetail(): ReactNode {
   }
 
   const isNew = rc.statusCode === 'new';
+  // Issue #1815 — the case's status in the admin's language; the read's `statusLabel`
+  // is the default name, kept for a status the graph no longer holds.
+  const currentStatus = statuses.find((s) => s.code === rc.statusCode);
   // Feature 155 (owner ruling R1) — complaint lines recorded not returnable at
   // purchase; they start with an approved refund of 0.
   const notReturnableItemIds = new Set(
@@ -294,7 +297,7 @@ export function ReturnDetail(): ReactNode {
         title={
           <span className="flex items-center gap-2">
             {/* 180 FR-A44 — the RMA number, else the derived reference. */}
-            {rc.rmaNumber ?? rc.reference} <Badge variant="secondary">{rc.statusLabel}</Badge>
+            {rc.rmaNumber ?? rc.reference} <Badge variant="secondary">{currentStatus ? returnStatusName(currentStatus, language) : rc.statusLabel}</Badge>
             <Badge variant="outline">{t(`returns.kind.${rc.kind}`)}</Badge>
             {rc.consumerWithdrawal === true && <Badge variant="warning">{tr('consent.badge')}</Badge>}
             {rc.guest && (
