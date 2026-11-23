@@ -70,7 +70,9 @@ All four are printed by `exitOnRefusal` as a sentence and exit 1 (today it recog
 ## 5. The freshness pairing
 
 For a deployment root `R` (compiled) and source root `S`, an overlay source file
-`S/apps/<d>/modules/<id>/<p>.ts` pairs with `R/apps/<d>/modules/<id>/<p>.js`.
+`S/apps/<d>/modules/<id>/<p>.ts` pairs with `R/apps/<d>/modules/<id>/<p>.js`, and a
+deployment-level `S/apps/<d>/<f>.ts` (`divergence.ts`, `divergence.generated.ts`) with
+`R/apps/<d>/<f>.js`.
 
 | Source | Emitted | Verdict |
 | --- | --- | --- |

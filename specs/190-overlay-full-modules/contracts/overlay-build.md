@@ -13,7 +13,10 @@
     "erasableSyntaxOnly": true,
     "noEmit": true            // flipped to false by §2 (#1848)
   },
-  "include": ["../apps/*/modules/**/*.ts"],
+  // `apps/<deployment>/*.ts` too: `divergence.ts` (and its generated twin) is read at
+  // runtime (decorationOrder, commandHookOrder are checked at composition), so a compiled
+  // root without it would read every deployment as declaring nothing — silently.
+  "include": ["../apps/*/modules/**/*.ts", "../apps/*/*.ts"],
   "exclude": ["../apps/*/modules/*/admin/**", "../apps/**/*.test.ts"]
 }
 ```
