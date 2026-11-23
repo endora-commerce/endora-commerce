@@ -73,16 +73,17 @@ class FakeEm {
     return {
       flush: async (): Promise<void> => {
         this.rows.push(payload);
-        this.ops.push({ kind: 'persistAndFlush', payload });
+        this.ops.push({ kind: 'persist', payload });
       },
     };
   }
-  remove(payload: FakeRow): void {
+  remove(payload: FakeRow) {
     this.rows = this.rows.filter((r) => r !== payload);
-  }
-  async removeAndFlush(payload: FakeRow): Promise<void> {
-    this.remove(payload);
-    this.ops.push({ kind: 'removeAndFlush', payload });
+    return {
+      flush: async (): Promise<void> => {
+        this.ops.push({ kind: 'remove', payload });
+      },
+    };
   }
   create(_entity: unknown, payload: FakeRow): FakeRow {
     return payload;
@@ -1289,14 +1290,13 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
         fork.remove = (payload) => {
           const stored = managed.get(payload);
           store.rows = store.rows.filter((r) => r !== stored);
+          return { flush: () => fork.flush() };
         };
-        fork.removeAndFlush = async (payload) => {
-          fork.remove(payload);
-          await fork.flush();
-        };
-        fork.persistAndFlush = async (payload) => {
-          store.rows.push({ ...payload });
-        };
+        fork.persist = (payload) => ({
+          flush: async () => {
+            store.rows.push({ ...payload });
+          },
+        });
         return fork;
       }
     }

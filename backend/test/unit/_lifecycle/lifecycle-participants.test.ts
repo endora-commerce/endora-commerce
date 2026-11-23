@@ -73,11 +73,9 @@ class FakeEm {
       },
     };
   }
-  remove(payload: FakeRow): void {
+  remove(payload: FakeRow): this {
     this.rows = this.rows.filter((r) => r !== payload);
-  }
-  async removeAndFlush(payload: FakeRow): Promise<void> {
-    this.remove(payload);
+    return this;
   }
   create(_entity: unknown, payload: FakeRow): FakeRow {
     return payload;
