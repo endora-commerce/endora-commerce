@@ -12,15 +12,16 @@ const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
  * default. A plain object is stored as its JSON text, which is what a `jsonb`
  * column wants. A JavaScript array is refused rather than guessed at: the
  * driver would spread it into a value list, so the caller says whether it
- * means `JSON.stringify(…)` or a PostgreSQL array literal.
+ * means `JSON.stringify(…)` or a PostgreSQL array literal. Answers the
+ * statement's (empty) result, as the knex call did.
  */
 export async function insertRows(
   em: EntityManager,
   table: string,
   rows: Record<string, unknown> | ReadonlyArray<Record<string, unknown>>,
-): Promise<void> {
+): Promise<unknown[]> {
   const list = Array.isArray(rows) ? rows : [rows as Record<string, unknown>];
-  if (list.length === 0) return;
+  if (list.length === 0) return [];
   const columns = [...new Set(list.flatMap((row) => Object.keys(row)))];
   for (const name of [table, ...columns]) {
     if (!IDENTIFIER.test(name)) throw new Error(`insertRows: "${name}" is not a plain identifier`);
@@ -38,7 +39,7 @@ export async function insertRows(
     });
     return `(${cells.join(', ')})`;
   });
-  await em.execute(
+  return em.execute<unknown[]>(
     `insert into ?? (${columns.map(() => '??').join(', ')}) values ${tuples.join(', ')}`,
     params,
   );
