@@ -810,6 +810,62 @@ Każda zmiana roli projektowej lub powodu utraty to jedno audytowane polecenie �
 `objectType: 'project_role'` oraz to samo w `projects.loss_reason.*` z
 `objectType: 'project_loss_reason'`.
 
+### Akcje dostępne dla hooków
+
+Osiem zapisów projektu jest zadeklarowanych jako dostępne dla hooków, więc inny
+moduł — moduł nakładki wdrożenia albo zainstalowany pakiet — może brać w nich
+udział. Hook rejestruje się wobec referencji z `PROJECT_HOOKABLE_ACTIONS`
+(`@endora-commerce/contracts`), a moduł musi wymienić `projects` w
+`dependencies` swojego manifestu. Hook `beforeCommit` działa wewnątrz transakcji
+zapisu: może zapisywać własne tabele albo uruchomić polecenie przez `ctx.run` i
+może odrzucić zapis własnym kodem błędu, co wycofuje zapis. Odbiorca
+`afterCommit` jest obsługiwany przez kolejkę dostarczeń platformy po
+zatwierdzeniu zapisu, co najmniej raz. Jak hooki są uruchamiane, porządkowane i
+odrzucane, opisuje strona architektury *Command Bus*. Ekran *Hooki modułów* w
+panelu administracyjnym pokazuje każdą akcję, zarejestrowane na niej hooki oraz
+oczekujące i nieudane dostarczenia.
+
+| Akcja | Referencja | Zapisywana przez | Dane hooka |
+| --- | --- | --- | --- |
+| `projects.project.create` | `PROJECT_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/projects` | `projectId`, `stageId`, `templateId`, `organizationIds`, `changedCustomFields` |
+| `projects.project.update` | `PROJECT_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/projects/:id` (tytuł, opis, wartość, data rozpoczęcia) | `projectId`, `changedFields` |
+| `projects.project.custom_fields_update` | `PROJECT_HOOKABLE_ACTIONS.customFieldsUpdate` | `PATCH /api/v1/admin/projects/:id` (pola własne) | `projectId`, `changedCustomFields` |
+| `projects.project.organization_add` | `PROJECT_HOOKABLE_ACTIONS.organizationAdd` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `organizationId`, `changed` |
+| `projects.project.organization_remove` | `PROJECT_HOOKABLE_ACTIONS.organizationRemove` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `organizationId`, `changed` |
+| `projects.project.stage_move` | `PROJECT_HOOKABLE_ACTIONS.stageMove` | `POST /api/v1/admin/projects/:id/move` | `projectId`, `fromStageId`, `toStageId` |
+| `projects.project.close` | `PROJECT_HOOKABLE_ACTIONS.close` | `POST /api/v1/admin/projects/:id/close` | `projectId`, `state` (`completed` albo `lost`), `stageId`, `lossReasonCode` |
+| `projects.project.reopen` | `PROJECT_HOOKABLE_ACTIONS.reopen` | `POST /api/v1/admin/projects/:id/reopen` | `projectId`, `stageId`, `previousState` |
+
+Wszystkie osiem oferuje obie fazy, a wiersz kolejki dostarczeń zawiera te same
+dane co hook. Jedno i drugie to **wyłącznie identyfikatory, kody i nazwy pól**:
+nigdy tytuł, opis, wartość, wartość pola własnego, nazwa etapu ani komentarz do
+utraty. `changedFields` wymienia, co się zmieniło spośród `description`,
+`startOn`, `title` i `value`; `changedCustomFields` wymienia pola własne po
+kluczu. Hook, który potrzebuje wartości, odczytuje projekt przez
+`projectReadPort` — po zatwierdzeniu, bo ten port nie widzi otwartej transakcji.
+Zmiany zgłoszone przez hook trafiają do wpisu audytu projektu jako nazwy, w
+`extensions.<moduleId>.changedFields`.
+
+Trzy rzeczy, o których warto wiedzieć, podpinając się pod te zapisy:
+
+- **Jeden `PATCH` może być dwoma poleceniami.** Gdy zmienia i pola, i pola
+  własne, `projects.project.update` zostaje zatwierdzone, zanim uruchomi się
+  `projects.project.custom_fields_update`. Weto przy drugim odrzuca tylko drugie.
+- **Zestaw organizacji to jedna transakcja.** `PUT …/organizations` uruchamia
+  jedno `organization_add` albo `organization_remove` na każdą dodawaną lub
+  usuwaną organizację, wewnątrz jednego polecenia, więc weto przy którymkolwiek
+  z nich zostawia cały zestaw bez zmian. Wiersz kolejki dostarczeń dla dodania
+  lub usunięcia jest kierowany do tej organizacji: jego odbiorca działa w
+  kontekście do niej przypiętym. `changed` ma wartość `false`, gdy cudzy zapis
+  już wprowadził tę zmianę i nic nie zostało zapisane.
+- **Dane rozszerzeń nie są jeszcze podłączone.** Żadne body ścieżki ani żaden
+  port nie przekazuje `extensions` do tych poleceń, więc hook nie może dostać
+  własnych danych wejściowych.
+
+Usunięcie projektu, jego członkowie, to, kto go widzi, jego etapy i przejścia,
+podpięte dokumenty, notatki i załączniki nie są zadeklarowane jako dostępne dla
+hooków.
+
 ### Kontekst zadań `project`
 
 Moduł jest właścicielem typu kontekstu zadań `project`, rejestrowanego w

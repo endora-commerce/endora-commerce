@@ -1,6 +1,8 @@
 import {
+  PROJECT_HOOKABLE_ACTIONS,
   defineModuleManifest,
   defineModuleSettingsManifest,
+  toHookableActionDeclaration,
   type CustomFieldWriteDeclaration,
 } from '@endora-commerce/contracts';
 
@@ -455,6 +457,14 @@ export const manifest = defineModuleManifest({
       weight: 345,
     },
   ],
+  /**
+   * Command hooks (issue #1845, `specs/176-command-hooks-outbox/`): the eight
+   * Project writes a deployment may take part in — veto or enrich inside the
+   * transaction, or react after the commit through the outbox. Each Command
+   * supplies `hookData` and `outboxData` of ids, codes and field names only;
+   * `project-hookable-actions.test.ts` holds each to its ref.
+   */
+  hookableActions: Object.values(PROJECT_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
   i18n: { bundlesDir: 'i18n' },
   // `docs/projects.md` at the package root: users' and developers' page.
   docs: { dir: 'docs' },

@@ -8,6 +8,10 @@ import {
   type CustomFieldValuePort,
   type OrganizationDetailsPort,
   type ProjectCreatedEvent,
+  type ProjectCreateHookData,
+  type ProjectCustomFieldsUpdateHookData,
+  type ProjectOrganizationHookData,
+  type ProjectUpdateHookData,
   type ProjectDetail,
   type ProjectMemberInput,
   type ProjectOutOfReachAfterWrite,
@@ -236,12 +240,31 @@ function changedValueKeys(
   }
   if (fields.length > 0) out.changedFields = fields;
   if (customFields) {
-    const keys = [...new Set([...Object.keys(customFields.before), ...Object.keys(customFields.after)])]
-      .filter((key) => !isDeepStrictEqual(customFields.before[key], customFields.after[key]))
-      .sort();
+    const keys = changedCustomFieldKeys(customFields.before, customFields.after);
     if (keys.length > 0) out.changedCustomFields = keys;
   }
   return out;
+}
+
+/**
+ * The fields `PATCH /projects/:id` edits in `projects.project.update`, as
+ * comparable scalars — for the hook data's `changedFields` (#1845), which names
+ * them and never carries them.
+ */
+function editableFields(project: Project): Record<'description' | 'startOn' | 'title' | 'value', string | null> {
+  return {
+    description: project.description,
+    startOn: project.startOn ?? null,
+    title: project.title,
+    value: `${storedAmount(project.valueAmount) ?? ''} ${project.valueCurrency ?? ''}`,
+  };
+}
+
+/** Sorted keys whose value differs between two custom-field bags. */
+function changedCustomFieldKeys(before: Record<string, unknown>, after: Record<string, unknown>): string[] {
+  return [...new Set([...Object.keys(before), ...Object.keys(after)])]
+    .filter((key) => !isDeepStrictEqual(before[key], after[key]))
+    .sort();
 }
 
 /**
@@ -321,10 +344,20 @@ export class ProjectService {
 
     const id = randomUUID();
     const created: { mentions: SavedProjectMentions | null } = { mentions: null };
+    // Hookable (issue #1845, `PROJECT_HOOKABLE_ACTIONS.create`): ids and field names only.
+    const hooked = (): ProjectCreateHookData => ({
+      projectId: id,
+      stageId: firstStageId,
+      templateId: template?.id ?? null,
+      organizationIds: [...new Set(body.organizationIds)].sort(),
+      changedCustomFields: changedCustomFieldKeys({}, customFieldValues),
+    });
     await this.deps.commandBus.run({
       action: 'projects.project.create',
       objectType: 'project',
       objectId: id,
+      hookData: hooked,
+      outboxData: hooked,
       run: async ({ em, actor }) => {
         if (actor.actorAdminUserId === null) {
           // `created_by_admin_user_id` is not null: a Project is somebody's.
@@ -504,10 +537,15 @@ export class ProjectService {
     };
 
     if (fieldsChange) {
+      // Hookable (#1845): the names of the fields whose value changed, set by `run`.
+      let changedFields: string[] = [];
+      const hooked = (): ProjectUpdateHookData => ({ projectId: visible.id, changedFields });
       await this.deps.commandBus.run({
         action: 'projects.project.update',
         objectType: 'project',
         objectId: visible.id,
+        hookData: hooked,
+        outboxData: hooked,
         run: async ({ em }) => {
           const project = await claim(em as EntityManager);
           const before = projectSnapshot(project);
@@ -516,6 +554,7 @@ export class ProjectService {
             valueCurrency: project.valueCurrency ?? null,
             title: project.title,
           };
+          const fieldsBefore = editableFields(project);
           if (body.title !== undefined) project.title = body.title;
           if (body.description !== undefined && body.description !== project.description) {
             described.mentions = {
@@ -536,6 +575,10 @@ export class ProjectService {
           }
           if (body.startOn !== undefined) project.startOn = body.startOn;
           bumped(project);
+          const fieldsAfter = editableFields(project);
+          changedFields = (Object.keys(fieldsAfter) as Array<keyof typeof fieldsAfter>)
+            .filter((field) => fieldsBefore[field] !== fieldsAfter[field])
+            .sort();
           return {
             result: null,
             before,
@@ -548,10 +591,15 @@ export class ProjectService {
       });
     }
     if (customFieldsChange) {
+      // Hookable (#1845): the keys of the custom fields whose value changed, set by `run`.
+      let changedCustomFields: string[] = [];
+      const hooked = (): ProjectCustomFieldsUpdateHookData => ({ projectId: visible.id, changedCustomFields });
       await this.deps.commandBus.run({
         action: 'projects.project.custom_fields_update',
         objectType: 'project',
         objectId: visible.id,
+        hookData: hooked,
+        outboxData: hooked,
         run: async ({ em }) => {
           // The version is what holds the bag to the one merged above: every
           // write of the bag bumps it.
@@ -559,6 +607,7 @@ export class ProjectService {
           const before = { ...(project.customFieldValues ?? {}) };
           project.customFieldValues = customFieldValues;
           bumped(project);
+          changedCustomFields = changedCustomFieldKeys(before, customFieldValues);
           // The audit trail names the fields; their values go to the Project's own store (T144 F4, T145).
           return {
             result: null,
@@ -704,10 +753,15 @@ export class ProjectService {
           // foreign key from `project_links` is the schema's own answer.
           if (await hasLinksOf(em, visible.id, removed)) throw organizationInUse();
           for (const organizationId of added) {
+            // Hookable (#1845): `changed` is false when the row was already there.
+            let changed = false;
+            const hooked = (): ProjectOrganizationHookData => ({ projectId: visible.id, organizationId, changed });
             await ctx.run({
               action: 'projects.project.organization_add',
               objectType: 'project',
               objectId: visible.id,
+              hookData: hooked,
+              outboxData: hooked,
               run: async ({ em: tx }) => {
                 const inserted = (await tx.execute(
                   `insert into "project_organizations" ("project_id", "organization_id") values (?, ?)
@@ -715,18 +769,25 @@ export class ProjectService {
                   [visible.id, organizationId],
                 )) as unknown[];
                 if (inserted.length === 0) return { result: null, skipAudit: true };
+                changed = true;
                 return { result: null, before: null, after: { organizationId } };
               },
             });
           }
           for (const organizationId of removed) {
+            // Hookable (#1845): `changed` is false when the row was already gone.
+            let changed = false;
+            const hooked = (): ProjectOrganizationHookData => ({ projectId: visible.id, organizationId, changed });
             await ctx.run({
               action: 'projects.project.organization_remove',
               objectType: 'project',
               objectId: visible.id,
+              hookData: hooked,
+              outboxData: hooked,
               run: async ({ em: tx }) => {
                 const deleted = await tx.nativeDelete(ProjectOrganization, { projectId: visible.id, organizationId });
                 if (deleted === 0) return { result: null, skipAudit: true };
+                changed = true;
                 return { result: null, before: { organizationId }, after: null };
               },
             });

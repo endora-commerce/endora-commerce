@@ -784,6 +784,59 @@ Every change to a project role or a loss reason is one audited command —
 `objectType: 'project_role'`, and the same under `projects.loss_reason.*` with
 `objectType: 'project_loss_reason'`.
 
+### Hookable actions
+
+Eight project writes are declared hookable, so another module — a deployment's
+overlay module or an installed package — can take part in them. Register a
+command hook against the ref in `PROJECT_HOOKABLE_ACTIONS`
+(`@endora-commerce/contracts`) and list `projects` in your manifest
+`dependencies`. A `beforeCommit` hook runs inside the write's transaction: it
+may write its own tables or run a command through `ctx.run`, and it may refuse
+the write with a code of its own, which rolls the write back. An `afterCommit`
+handler is delivered through the platform's outbox after the commit, at least
+once. How hooks run, are ordered and are refused is on the *Command Bus*
+architecture page. The admin's *Command hooks* screen lists every action, the
+hooks registered on it and the outbox rows waiting or failed.
+
+| Action | Ref | Written by | Hook data |
+| --- | --- | --- | --- |
+| `projects.project.create` | `PROJECT_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/projects` | `projectId`, `stageId`, `templateId`, `organizationIds`, `changedCustomFields` |
+| `projects.project.update` | `PROJECT_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/projects/:id` (title, description, value, start date) | `projectId`, `changedFields` |
+| `projects.project.custom_fields_update` | `PROJECT_HOOKABLE_ACTIONS.customFieldsUpdate` | `PATCH /api/v1/admin/projects/:id` (custom fields) | `projectId`, `changedCustomFields` |
+| `projects.project.organization_add` | `PROJECT_HOOKABLE_ACTIONS.organizationAdd` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `organizationId`, `changed` |
+| `projects.project.organization_remove` | `PROJECT_HOOKABLE_ACTIONS.organizationRemove` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `organizationId`, `changed` |
+| `projects.project.stage_move` | `PROJECT_HOOKABLE_ACTIONS.stageMove` | `POST /api/v1/admin/projects/:id/move` | `projectId`, `fromStageId`, `toStageId` |
+| `projects.project.close` | `PROJECT_HOOKABLE_ACTIONS.close` | `POST /api/v1/admin/projects/:id/close` | `projectId`, `state` (`completed` or `lost`), `stageId`, `lossReasonCode` |
+| `projects.project.reopen` | `PROJECT_HOOKABLE_ACTIONS.reopen` | `POST /api/v1/admin/projects/:id/reopen` | `projectId`, `stageId`, `previousState` |
+
+All eight offer both phases, and the outbox row carries the same data as the
+hook. Both carry **ids, codes and field names only**: never the title, the
+description, the value, a custom field's value, a stage's name or the loss
+comment. `changedFields` names what changed among `description`, `startOn`,
+`title` and `value`; `changedCustomFields` names the custom fields by key. A
+hook that needs a value reads the project through `projectReadPort` — after the
+commit, since that port does not see the open transaction. A hook's noted
+changes appear in the project's audit entry as names, under
+`extensions.<moduleId>.changedFields`.
+
+Three things to know when you hook these writes:
+
+- **One `PATCH` can be two commands.** When it changes both the fields and the
+  custom fields, `projects.project.update` commits before
+  `projects.project.custom_fields_update` runs. A veto on the second refuses only
+  the second.
+- **A set of Organizations is one transaction.** `PUT …/organizations` runs one
+  `organization_add` or `organization_remove` per Organization it adds or
+  removes, inside one command, so a veto on any of them leaves the whole set as
+  it was. The outbox row of an add or a remove is routed to that Organization:
+  its handler runs in a context pinned to it. `changed` is `false` when somebody
+  else's write had already made the change and nothing was written.
+- **Extension input is not wired yet.** No route body and no port carries
+  `extensions` to these commands, so a hook cannot be handed input of its own.
+
+Deleting a project, its members, who sees it, its stages and workflow, links,
+notes and attachments are not declared hookable.
+
 ### The `project` Task context
 
 The module owns the Task context type `project`, registered in the Tasks
