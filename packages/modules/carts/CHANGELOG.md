@@ -1,5 +1,284 @@
 # @endora-commerce/mod-carts
 
+## 0.112.0
+
+### Minor Changes
+
+- 467b075: Issue #1396: the admin cart detail now shows the gross total beside the net total.
+
+  - `GET /api/v1/admin/carts/:id` answers a new `totalGross` (`adminCartDetailPayloadSchema.totalGross`). It is what the buyer pays for the goods after the discount, the same figure as the cart read's `vat.grandTotalGross`. It is `null` when a line's VAT rate cannot be resolved. Additive: a client that does not read it is unaffected.
+  - The cart detail screen labels its total row **Net total** and adds a **Gross total** row when `totalGross` is known.
+  - No amount changes. The cart read's `grandTotal` and the admin detail's `total` stay `subtotal − discount`, never below zero: a net figure with the gross discount taken off untaxed, as the order and the invoice book it. The contract now documents this, and documents that the figure reads 0 when a fixed amount larger than the net subtotal is applied. The admin list's `total` is the lines' net before any discount.
+
+- 8b29aae: Carts can be bought for a related payer on the payer's commercial terms. New route `PUT /api/v1/cart/buying-for` (`setCartBuyingForRequestSchema`, `setCartBuyingForResponseSchema` with a `cartRepricingSummarySchema`) reprices the active cart — prices, line VAT and promotions — for the payer. The cart payload carries `buyingFor` and `buyingForReset` (both `null` by default); a cart read resets a context whose link is no longer usable. A new migration adds `buying_for_organization_id` and `buying_for_terms` to `carts`. Without `related_payers` no payer can be chosen and nothing changes.
+
+### Patch Changes
+
+- bbfcd80: Issue #1350: percent-off and free-unit promotions now compute on the gross the buyer pays. They used to compute on net prices while the discount came off the gross total.
+
+  **Behaviour change on upgrade.** A buyer pays less than before for the same promotion. Before, "10 % off the cart" at 23 % VAT took about 8.1 % off what the buyer paid, and a "free" unit still cost its VAT. Now 10 % off is 10 % of the goods gross, and a free unit is free VAT included. Fixed-amount promotions take off the same amount as before. Orders placed before the upgrade are not changed.
+
+  - `percentage_off_cart`, `buy_x_units_percent_off`, `spend_x_percent_off`, `every_nth_product_percent_off` and the legacy `percentage_off` kind take their percentage of the gross. The gross is VAT per rate on the sum of the line nets (`vatByRate`), the same figure the cart and the order charge.
+  - `buy_x_get_y_free` and `buy_x_units_y_free` take off the free units' gross. They also pick the cheapest or most expensive unit by its gross price, which only differs from before in a cart that mixes VAT rates.
+  - Unchanged: `amount_off_cart`, `buy_x_units_amount_off`, `spend_x_amount_off`, the legacy `amount_off` kind and `free_delivery`. They take the same amount, still capped at the net subtotal. The "spend X" steps, `minCartSubtotal` and the rule builder's cart total still compare the net subtotal.
+  - `CartLine` (`cartLineSchema`, the line of `CartSnapshot`) gains an optional `taxRate`, the line's VAT rate as a fraction (`0.23`). A line without it carries no VAT, so its gross is its net. The cart read, the admin cart detail, the checkout preview and order placement all pass the rates they charge, so all four show the same discount. A caller of `POST /api/v1/admin/promotions/preview` must send `taxRate` on each line to get the discount an order would take.
+  - `PromotionApplication.total` is now the goods gross left after the discount plus the delivery left. `subtotal` stays the net subtotal.
+
+- f5b8275: The admin carts list now shows translated labels (EN and PL) for the cart status and the approval status, in both filter selects and in the status badges. Before, it showed the raw codes, such as `rejected_by_org_admin`. The screen's title, description, column headings and empty and loading text were missing from the `carts` catalogue, so they appeared as raw keys. They are now in the catalogue too, with the new `carts.status.<code>` and `carts.approvalStatus.<code>` keys.
+
+  `OrganizationStatusBadge` now reads its labels from the `core` catalogue (`organizationStatusBadge.<status>`, EN and PL) instead of hard-coded English. The badge is used in the organizations list, the moderation panel and the organization pickers. The English labels are unchanged.
+
+- 03dcd65: The admin cart detail now shows translated labels (EN and PL) for the cart status and the approval status badges, read from the `carts.status.<code>` and `carts.approvalStatus.<code>` keys. Before, it showed the raw codes, such as `rejected_by_org_admin`. Most of the screen's other text was missing from the `carts` catalogue and appeared as raw keys: the page title, the field and line-table headings, the history table, the reject form, and the empty, error and not-found messages. They are now in the catalogue too.
+
+  On the carts list, the fallback shown for a cart with no owner name and the item-count line are now in the catalogue (`carts.owner.anonymous`, `carts.itemCount`) instead of English text.
+
+- a56109e: Issue #1396: promotion thresholds and fixed-amount caps now use the gross the buyer pays. They used to use the net subtotal, while percent-off discounts already used the gross (#1350).
+
+  **Behaviour change on upgrade.** Some promotions now apply to carts they skipped before, and some fixed amounts take off more. A minimum spend of 500 used to need 500 net; now it needs 500 gross. A fixed amount used to stop at the net subtotal, so 150 off a cart of 100 net / 123 gross left the buyer paying 23. Now it can make the goods free, VAT included. Orders placed before the upgrade are not changed.
+
+  - `minCartSubtotal`, the rule builder's `cartTotal` and the "spend X" steps of `spend_x_percent_off` and `spend_x_amount_off` compare the goods gross before any discount. The gross is VAT per rate on the sum of the line nets (`vatByRate`).
+  - `amount_off_cart`, `buy_x_units_amount_off`, `spend_x_amount_off` and the legacy `amount_off` kind are capped at the gross.
+  - Applying a coupon (`POST /api/v1/cart/coupon`) and re-checking it on the cart read compare its minimum spend with the gross, at the rates the cart read and order placement charge. A coupon refused with `below_min_spend` reports a gross `shortfall`.
+  - An operator who set a minimum spend or a "spend X" step as a net amount should review it: the same figure is now reached by a smaller net basket.
+
+- e78d27d: Admin screens show translated labels (EN and PL) where they used to show raw codes:
+
+  - Quote requests: the status badge in the list and the detail, the status filter and its chips. The status keys are now `rfq.status.<value>` in the `core` catalogue, which replace the unused `rfq.list.statusFilter.<value>` keys. `rfq.list.statusFilter.all` stays.
+  - Cart detail: the actor, the action and both states in the history feed (`carts.audit.actor.*`, `carts.audit.actionLabel.*`).
+  - Customer detail: the status of each order, quote request and cart in the history panels, and the address kind.
+  - Availability notifications: the status badge. Asset detail: the kind of each record that references the asset.
+
+  Technical values are gone from the order, quote request and cart screens. The order and quote request detail headers no longer repeat the UUID next to the copyable business ID. The order detail names the delivery and payment methods instead of showing their codes. When the Organization or customer details are missing, it says so instead of printing a UUID (`orderDetail.org.unavailable`, `orderDetail.customer.unavailable`). The carts list starts each row with the cart's owner, linked to the cart, instead of the first eight characters of its UUID. The cart detail header names the owner and the Organization, and an anonymous owner is now labelled "Guest" (`carts.owner.anonymous`). The `carts.column.id` key is removed.
+
+- 988436f: Sales admin screens drop the page descriptions that repeated their title or addressed developers (issue #1436, UX audit 2026-11-17, DS-02). The Orders, Customers, Returns, Quote requests, Carts and Organizations lists, the order and quote-request create screens, Order statuses, Return statuses, Payment methods, Credit limits, the promotion editor, Promotion statistics, Order on behalf, New organization, Change tax ID and Convert to company no longer show a description. The payment and delivery method Integrations cards drop their one-line intro.
+
+  Kept descriptions are now one line: Return delivery methods ("A return cost of 0 means the shop pays for the return."), Delivery methods ("Price changes don't affect orders already placed."), Promotion rules, Online customers and Customer groups ("A customer's own group overrides their organization's."). New organization says that members are invited from the organization's page beside its Save, as `create.hint.inviteMembers`.
+
+  Translation keys removed from both `en` and `pl`: `core` `orders.page.description`, `orderCreate.description`, `orderStatusConfig.description`, `rfq.list.description`, `rfqCreate.description`, `organizations.page.description`, `returns.description`, `returns.statuses.description`, `legacyMethods.payment.description`, `legacyMethods.integrations.description`, `legacyMethods.integrations.shippingDescription`, `creditLimits.page.description`, `promotions.edit.description`, `promotionStats.description`, and the unused `rfq.detail.convert.description` and `rfq.detail.approveDescription`; customers `list.description`; carts `carts.page.description`; quick_order `onBehalf.page.description`; organizations `create.description`, `changeTaxId.page.description` and `convertToCompany.page.description`. A deployment that overrides one of these keys can drop the override.
+
+- 28181ed: One card implementation with density tokens (issue #1438, UX audit DS-04; SHELL-18 #1502). This
+  changes how every admin card looks, including the cards third-party modules render.
+
+  - `theme.css` declares `--card-pad` (16px), `--card-pad-sm` (12px), `--card-gap` (16px),
+    `--section-gap` (24px), `--fs-page-title` (20px), `--fs-section-title` (14px) and `--fs-hint`
+    (12px). A client can redeclare them after the import like any other token.
+  - `Card`, `CardHeader`, `CardContent` and `CardFooter` pad with `--card-pad` (16px) instead of
+    `p-6` (24px). `CardContent` drops its top padding only when it follows a `CardHeader`, so a
+    card without a header no longer needs `className="pt-6"`. Every part carries a `data-slot`.
+  - `CardTitle` renders an `h2` by default and takes `as` (`h2`–`h6`, or `div` to stay out of the
+    heading outline); its size is `--fs-section-title` (14px, was 16px). A `CardTitle` that wrapped
+    its own `<h2>` now nests a heading in a heading: pass the `id` to `CardTitle` and drop the inner
+    element. A test that found a card title with `getByText` still does; one that counted headings
+    now counts the card titles too.
+  - `<Card flush>` removes the content padding and clips the corners, for a table that runs to the
+    card's edge. New types: `CardProps`, `CardTitleProps`, `CardTitleElement`.
+  - `.b2b-card`, `.b2b-card--clickable` and `.b2b-card__head` / `__title` / `__sub` / `__body` /
+    `__body--flush` / `__foot` are **deprecated** but still published; they read the same tokens.
+    The only visible change there is the header's vertical padding, 14px to 12px. Use `Card`.
+
+  Every module's card call sites drop the `pt-6` workaround and the redundant `text-base` on
+  `CardTitle`, and the 14 titles that wrapped their own `<h2>` carry the `id` themselves.
+
+- c15eb60: The admin list page pattern (issue #1439, UX audit DS-05) and a pager on the Customers,
+  Organizations and Carts lists (issue #1473, SALES-08).
+
+  `@endora-commerce/admin-kit/components` exports `ListPage` (with `ListPageProps` and
+  `ListPageLoad`) — the `PageHeader` with its one "New …" action, a toolbar row that is not a card,
+  the count in a live region, one results card with loading, error-with-retry and ready states, and
+  the `PaginationFooter` under it — and `useListPagination({ scope, maxPageSize })` with the pure
+  helpers `pageSizesUpTo`, `fitPageSize` and `lastPageIndex`. The hook keeps the admin's remembered
+  page size per list, offers only the sizes the endpoint serves, and moves back to the last page
+  that exists when a response reports a smaller total. It reads the page-size preference, so it
+  needs `AuthProvider` above it. The `core` bundle gains `common.list.loadError`. The pattern is
+  documented in the kit README under "List pages".
+
+  `GET /api/v1/admin/organizations` accepts `page` (one-based, default 1) and `pageSize` (1–200;
+  `limit` when omitted) and answers `meta: { page, pageSize, total }` beside `pagination`, whose
+  `hasMore` now says whether a later page exists. `@endora-commerce/contracts` adds
+  `adminOrganizationListPageQuerySchema` and the `meta` member of
+  `adminOrganizationListResponseSchema`. A caller that names neither parameter keeps its one
+  `limit`-sized first page, now ordered by `createdAt` and then `id`, so a page boundary never
+  repeats or skips a row.
+
+  The Customers, Organizations and Carts admin lists page through every row, open a record from its
+  name instead of an "Open" button in each row, tell "none yet" from "none match — Clear filters",
+  and offer a retry when the list fails to load. The Customers organization filter is the searchable
+  `OrganizationPicker` instead of a list of the first 50 organizations, and resetting two-step
+  verification for an organization asks first.
+
+- fc7f669: The six sales lists now have one shape (issue #1500, UX audit SALES-24). Each is the kit `ListPage` with the kit `ListToolbar`, so the toolbar is a named `search` landmark in a plain row, not a card. Below it is one results card that holds the bulk bar, the table and the pager. The kit `EmptyState` tells "nothing here yet" apart from "nothing matches these filters", and the second one offers _Clear filters_.
+
+  - **Orders**: _New order_ is in the header for an operator holding `orders:write`. The toolbar, bulk-bar and results cards are now one card. While rows are selected, the bulk _Change status_ button is outline, so _New order_ stays the one filled primary. Each row has a menu with _Change status…_ and _Print invoice_ for that one order, plus _Open organization_. The pager offers only the page sizes the endpoint serves.
+  - **Quote requests**: the hand-built toolbar, filter toggle and chips are replaced by the kit toolbar, so the advanced filters sit behind _More filters (n)_. Each row's menu has _Open organization_.
+  - **Returns**: the four configuration links (workflow, reasons, return methods, clauses) are one _Settings_ menu next to _Export CSV_. The search is no longer listed as a chip. _Clear all filters_ empties the search too. When a case has an order, its row menu has _Open order_.
+  - **Customers**, **Organizations**, **Carts**: these use the kit toolbar and the kit empty state. Each filter is named by its label, and its first option says what it is ("All statuses"). Customers and Carts rows have _Open organization_.
+
+  Removed unused translation keys: `orders.open`, `orders.loading`, `orders.empty`, `rfq.list.open`, `rfq.list.loading`, `rfq.list.filter.toggle`, `rfq.list.filter.clearAll`, `returns.loading`, `returns.empty`, `returns.action.open`, `returns.filter.clearAll`, `organizations.filter.all` (core); `list.search.chip` (returns); `list.clearFilters` and `list.filter.all` (customers); `list.clearFilters` (organizations); `carts.clearFilters` and `carts.filter.all` (carts). The admin-kit README documents how the two compose.
+
+- df16345: The Settings screen shows less on every row (UX audit SHELL-09, SHELL-23). A row no longer carries a value-type badge, a source badge or a "Default … · 0 per-channel overrides" footer: one muted line appears only when the value in force differs from the default or channels override it. A changed row is marked by a bar at its edge, a switched-off module's group states its read-only reason once, the "Editing for" channel picker sits in the toolbar beside the search, and the hard-coded "system" group badge is gone. Single-line controls sit to the right of the setting's name.
+
+  A setting's description is now at most 120 characters (`check:text-budget`), with the long explanations left to each module's documentation page, and it never falls back to another language: in Polish the screen shows the Polish description or none. Every module that declares settings now ships `settingLabels.<code>.name` and `.description` in English and Polish, so the screen no longer shows English names in Polish. Where a manifest declared one of the shortened descriptions, its `description` is the same shorter sentence.
+
+- e6451ff: The admin cart detail asks for a rejection in a dialog (issue #1548, UX audit 2026-11-17, SALES-26). _Reject cart_ moved from a card of its own between the lines and the history into the header's "More" menu. It opens a dialog with the required reason; an empty reason is refused with an error on the field, and a refusal from the server is shown inside the dialog. After the rejection, the header says "Cart rejected" and focus moves to the recorded reason. The screen refreshes in place instead of showing the loading line again. An operator without `carts:reject` is not offered the action. The recorded reason now names who rejected the cart by role ("Platform admin", "Organization admin") instead of the stored `admin:<id>` value.
+
+  Translation keys in the `carts` catalogue, in both `en` and `pl`: added `carts.reject.title`, `carts.reject.message`, `carts.reject.reasonRequired` and `carts.reject.done`; removed `carts.reject.submitting`. `carts.reject.confirm` now reads "Reject cart" and `carts.reject.cancel` reads "Keep cart". A deployment that overrides `carts.reject.submitting` can drop the override.
+
+- 2d0537e: The organization carts list (`GET /api/v1/organization/carts`) and a cart's admin audit feed (`GET /api/v1/admin/carts/:id/audit`) now order by `id` after the chosen key, so carts or entries sharing a timestamp no longer repeat or go missing across pages (#1760).
+- 0686447: Always pass the admin UI language to `formatDate(value, language)` and `formatDateTime(iso, language)` (`@endora-commerce/admin-kit/lib`), taking it from `useTranslationContext()` or `useAppLanguage()` (`@endora-commerce/admin-kit/i18n`). **Upgrade note:** calling either without a language is now `@deprecated`. It still falls back to the browser's locale, but that fallback will be removed in a later release, so `formatDateTime(order.placedAt)` should become `formatDateTime(order.placedAt, language)` now. The kit's field-protection summary reads the language without requiring `AppLanguageContext`, so an integration zone rendered without it keeps working.
+
+  Every admin date now goes through them, so a screen no longer mixes `17.11.2026`, `11/25/2026` and `Nov 22, 2026`: the lists, detail pages and panels of every module that called `formatDateTime` without a language, and the screens that called `toLocaleDateString` / `toLocaleString` directly (the CRM board card, the Projects stage bar and templates list, the Organization sales reps tab — which wrote every date in Polish — the blog post editor, comparisons, the dictionaries audit, display-mode overrides, the feed schedule's next run, the online-customers refresh time, the product list's update date, and the kit's comment thread, record history, field-protection summary and order reference). `endora new module` scaffolds its list's date the same way.
+
+- 9eee781: The Admin UI in Polish no longer shows four kinds of text in English (issue #1809).
+
+  - **Order statuses** are named in the admin's language on the Orders list, the order detail, the bulk status dialog and the Order statuses screen. The names were always stored per language; the screens read the English one.
+  - **CMS hooks**: the 23 seeded hooks, such as "Search Page Bottom", are named and described in the admin's language until an operator renames them. A renamed or custom hook keeps the operator's text.
+  - **Transactional e-mails**: each e-mail's name, description and the reason it cannot be switched off come from the sending module's bundle (`transactionalEmails.<code>.name`, `.description`, `.reason`), in the language the response is read in.
+  - **Platform → Modules**: each module's name, description and the reason it cannot be switched off come from the module's own bundle (`module.name`, `module.description`, `module.nonDeactivatableReason`). `GET /api/v1/admin/modules` gains an optional `nonDeactivatableReason` field on each row. `auth`, `currencies`, `email` and `languages` now ship translation bundles.
+
+  Each of these falls back to the English declared in code when a bundle has no entry. `endora new module` now writes `module.description` into the scaffolded bundles.
+
+- f74fe34: `carts`' `Migration20260611T140352CartsConsolidation` no longer adds or drops
+  `organizations.requires_cart_approval` (issue #611). The column belongs to `organizations`, which
+  already drops it in `Migration20261104T094535OrganizationsDropLegacyRoleColumns` and re-creates it
+  in that migration's `down()`. The old migration keeps its class name, so a database that has
+  already applied it does not change. A database migrated from empty now never has the column; its
+  final schema is the same as before. `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `carts`
+  writing `organizations`.
+- 497d011: The admin carts list (`GET /api/v1/admin/carts`) now orders every sort it offers by `id` after the chosen key, so carts sharing a last-activity, creation or update time no longer repeat or go missing across pages (#1621).
+- Updated dependencies [c878440]
+- Updated dependencies [65f9a7b]
+- Updated dependencies [3fdbe86]
+- Updated dependencies [bfc68c7]
+- Updated dependencies [9eaa409]
+- Updated dependencies [d908737]
+- Updated dependencies [1042e2a]
+- Updated dependencies [3872f3d]
+- Updated dependencies [bbfcd80]
+- Updated dependencies [41b598c]
+- Updated dependencies [f5b8275]
+- Updated dependencies [467b075]
+- Updated dependencies [a56109e]
+- Updated dependencies [84b89ed]
+- Updated dependencies [b2cd2d3]
+- Updated dependencies [e5b17ae]
+- Updated dependencies [e78d27d]
+- Updated dependencies [596ce81]
+- Updated dependencies [b2b41eb]
+- Updated dependencies [932821f]
+- Updated dependencies [28181ed]
+- Updated dependencies [c15eb60]
+- Updated dependencies [33db45a]
+- Updated dependencies [cec9beb]
+- Updated dependencies [d4bda8d]
+- Updated dependencies [8e7684c]
+- Updated dependencies [87fb9c3]
+- Updated dependencies [998ac87]
+- Updated dependencies [d0a6c2c]
+- Updated dependencies [35e0829]
+- Updated dependencies [3f66b6f]
+- Updated dependencies [61bdc2a]
+- Updated dependencies [649d662]
+- Updated dependencies [38adf84]
+- Updated dependencies [7329865]
+- Updated dependencies [84ed7b6]
+- Updated dependencies [1064839]
+- Updated dependencies [d2d9d79]
+- Updated dependencies [f687479]
+- Updated dependencies [074f500]
+- Updated dependencies [7624db6]
+- Updated dependencies [cec9beb]
+- Updated dependencies [7be07f6]
+- Updated dependencies [2614e4f]
+- Updated dependencies [90320fd]
+- Updated dependencies [bb21b86]
+- Updated dependencies [79a17a3]
+- Updated dependencies [3dab0be]
+- Updated dependencies [e22b612]
+- Updated dependencies [cb75825]
+- Updated dependencies [a4455db]
+- Updated dependencies [f3b2ec8]
+- Updated dependencies [f093a02]
+- Updated dependencies [d5a077f]
+- Updated dependencies [86b9b39]
+- Updated dependencies [42febee]
+- Updated dependencies [447e829]
+- Updated dependencies [2040ae9]
+- Updated dependencies [fc7f669]
+- Updated dependencies [40b76aa]
+- Updated dependencies [eeed5c8]
+- Updated dependencies [63a657b]
+- Updated dependencies [0ecb287]
+- Updated dependencies [9a27b93]
+- Updated dependencies [2f0b69f]
+- Updated dependencies [87b9b60]
+- Updated dependencies [50d451b]
+- Updated dependencies [98c0411]
+- Updated dependencies [9f4eae3]
+- Updated dependencies [a8261aa]
+- Updated dependencies [f64646d]
+- Updated dependencies [306a659]
+- Updated dependencies [7ea72af]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [bfbcac2]
+- Updated dependencies [ee6062c]
+- Updated dependencies [820f089]
+- Updated dependencies [f33ffed]
+- Updated dependencies [4e668b5]
+- Updated dependencies [843ed42]
+- Updated dependencies [0d4c134]
+- Updated dependencies [3f7b5ae]
+- Updated dependencies [b98739c]
+- Updated dependencies [6155f4b]
+- Updated dependencies [bdcc9a4]
+- Updated dependencies [5850aac]
+- Updated dependencies [c042024]
+- Updated dependencies [8a5725e]
+- Updated dependencies [f915a24]
+- Updated dependencies [8688a1f]
+- Updated dependencies [95e5082]
+- Updated dependencies [31c0430]
+- Updated dependencies [0686447]
+- Updated dependencies [691414b]
+- Updated dependencies [8a06dc5]
+- Updated dependencies [e118ee4]
+- Updated dependencies [5fb3cd3]
+- Updated dependencies [9eee781]
+- Updated dependencies [bd47236]
+- Updated dependencies [bd47236]
+- Updated dependencies [79d15cf]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [398e6d2]
+- Updated dependencies [51c5072]
+- Updated dependencies [0e81803]
+- Updated dependencies [2e287a5]
+- Updated dependencies [fbc6c7c]
+- Updated dependencies [9d6f006]
+- Updated dependencies [49328cf]
+- Updated dependencies [b3d4843]
+- Updated dependencies [f74fe34]
+- Updated dependencies [19eb7c0]
+- Updated dependencies [0fbf186]
+- Updated dependencies [27b977d]
+- Updated dependencies [5e2a12a]
+- Updated dependencies [5518a09]
+- Updated dependencies [5e380e3]
+- Updated dependencies [bfab5bd]
+- Updated dependencies [8a0ec92]
+- Updated dependencies [81fcc3f]
+- Updated dependencies [12c63fa]
+- Updated dependencies [2d6d031]
+- Updated dependencies [72637e0]
+  - @endora-commerce/platform@0.112.0
+  - @endora-commerce/contracts@0.112.0
+  - @endora-commerce/admin-kit@0.112.0
+  - @endora-commerce/email-components@0.112.0
+
 ## 0.111.0
 
 ### Minor Changes

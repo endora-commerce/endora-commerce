@@ -1,5 +1,392 @@
 # @endora-commerce/mod-organizations
 
+## 0.112.0
+
+### Minor Changes
+
+- 19885e5: Issue #1338: two operator writes on the organization screens now run as Commands on the Command Bus, so each write and its audit entry commit together. Before, the audit entry was written after the change was saved, and a failure in between left a change with no audit entry.
+
+  - Deleting an organization (`DELETE /api/v1/admin/organizations/:id`) runs the `organization.delete` Command. The response, the `404` and the `409 has_children` refusal are unchanged, and so is the entry: the status, VAT status, whether it is personal, the parent by id and the version.
+  - Turning a member's roll-up on or off (`PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/rollup`) runs the `customer_account.set_subtree_rollup` Command of `customer_accounts`, which records the flag before and after and names the operator. Each toggle now writes this one entry. The second, hand-written `customer_account.admin_rollup_change` entry is no longer recorded. If you filter the audit log on `customer_account.admin_rollup_change`, filter on `customer_account.set_subtree_rollup` instead. Older entries keep their action.
+
+- c15eb60: The admin list page pattern (issue #1439, UX audit DS-05) and a pager on the Customers,
+  Organizations and Carts lists (issue #1473, SALES-08).
+
+  `@endora-commerce/admin-kit/components` exports `ListPage` (with `ListPageProps` and
+  `ListPageLoad`) — the `PageHeader` with its one "New …" action, a toolbar row that is not a card,
+  the count in a live region, one results card with loading, error-with-retry and ready states, and
+  the `PaginationFooter` under it — and `useListPagination({ scope, maxPageSize })` with the pure
+  helpers `pageSizesUpTo`, `fitPageSize` and `lastPageIndex`. The hook keeps the admin's remembered
+  page size per list, offers only the sizes the endpoint serves, and moves back to the last page
+  that exists when a response reports a smaller total. It reads the page-size preference, so it
+  needs `AuthProvider` above it. The `core` bundle gains `common.list.loadError`. The pattern is
+  documented in the kit README under "List pages".
+
+  `GET /api/v1/admin/organizations` accepts `page` (one-based, default 1) and `pageSize` (1–200;
+  `limit` when omitted) and answers `meta: { page, pageSize, total }` beside `pagination`, whose
+  `hasMore` now says whether a later page exists. `@endora-commerce/contracts` adds
+  `adminOrganizationListPageQuerySchema` and the `meta` member of
+  `adminOrganizationListResponseSchema`. A caller that names neither parameter keeps its one
+  `limit`-sized first page, now ordered by `createdAt` and then `id`, so a page boundary never
+  repeats or skips a row.
+
+  The Customers, Organizations and Carts admin lists page through every row, open a record from its
+  name instead of an "Open" button in each row, tell "none yet" from "none match — Clear filters",
+  and offer a retry when the list fails to load. The Customers organization filter is the searchable
+  `OrganizationPicker` instead of a list of the first 50 organizations, and resetting two-step
+  verification for an organization asks first.
+
+- 074f500: Admin zone contributions now choose a tab or a sidebar by naming the zone for that place (issues #1452 and #1526). Four zones are new: `organization.detail.sales` is the body of the organization's Sales tab, after the sales representatives, and carries `{ organizationId }` with no save session; `order.detail.sidebar`, `quote_request.detail.sidebar` and `opportunity.detail.sidebar` are sidebar cards, and each contribution is a section of the card. The order and quote request screens draw their sidebar only while something fills it. The organization's Sales tab is shown to someone who may assign sales representatives or who sees one of its panels. CRM opportunities and projects moved from the organization's Commerce tab to its Sales tab. The linked opportunity, the project and the tasks moved from the end of the order, quote request and opportunity screens into their sidebars. No zone was removed or renamed: contributions to the `.detail.after` zones keep working unchanged.
+- 90320fd: **Breaking:** `PATCH /api/v1/admin/organizations/:id` no longer accepts `status` (issue #1468). A body that carries it is refused with `400 VALIDATION_ERROR` at `status`, and nothing else in that body is written. To change an organization's status, call the moderation endpoints instead: `POST /api/v1/admin/organizations/:id/approve`, `…/reject`, `…/block` or `…/unblock`. They are the only path that checks the allowed transitions, records `approvedAt` / `blockedAt` / `blockedReason`, emits `organization.status_changed.v1` and sends the customer e-mail.
+
+  - Old: `PATCH /api/v1/admin/organizations/:id` with `{ "status": "blocked" }`.
+  - New: `POST /api/v1/admin/organizations/:id/block` with `{ "expectedVersion": <version>, "reason": "…" }`.
+
+  In `@endora-commerce/contracts`, `adminPatchOrganizationRequestSchema` refuses `status` with the message in the new `ADMIN_PATCH_ORGANIZATION_STATUS_REFUSAL` export. `vatStatus` is still accepted.
+
+  On the organization screen, the status and VAT status selects are gone, and the page's Save no longer counts or sends either field:
+
+  - The **Moderation** section is the only place the status is shown and changed. Its actions are offered only to operators who hold `customers:manage`.
+  - The VAT status is shown in the header. It is changed by the new **Change VAT status…** dialog. The dialog needs `customers:manage`, applies immediately and is audited as `organization.admin_patch`.
+  - The remaining section is titled **Contact & notifications**.
+
+  `ModerationActionsPanel` takes a required `canModerate` prop. In the core catalogue, `organizations.detail.accountStatus` and `organizations.detail.statusCard` are removed and `organizations.detail.notificationsCard` is added. A deployment that overrides the removed keys must drop them.
+
+- 4e7afbf: `organization.status_changed.v1` now also carries `previousStatus` and `reason` (issue #1620). `previousStatus` is the status the Organization left. `reason` is the operator's reason for a rejection or a block, and `null` for an approval, an unblock or a block without a reason. Before, a subscriber reacting to a rejection could not read why it happened or which status the Organization had before. The existing fields are unchanged, so subscribers that do not read the new ones need no change.
+- 27b977d: Four refusals of `organizations` have error codes of their own instead of `VALIDATION_FAILED`,
+  and a sentence in English and Polish filled from `details` (issue #629, part of #86). **Breaking
+  change: a client that matches on `VALIDATION_FAILED` for these refusals now receives the new
+  code.** Match on the code below, and show the envelope's `message` rather than matching on its
+  text. The status stays `422` everywhere.
+
+  | Route                                                                                                            | Was                                                                                                       | Is                                          | `details`                                                                                                                   |
+  | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+  | `POST /api/v1/admin/organizations/:id/members` (personal organization)                                           | `VALIDATION_FAILED`, `A personal (individual) organization cannot have additional members.`               | `ORGANIZATION_PERSONAL`, token `add_member` | `organizationId`, `organizationName`                                                                                        |
+  | `POST /api/v1/organizations/mine/invitations` (personal organization)                                            | `VALIDATION_FAILED`, `A personal (individual) account cannot invite members.`                             | `ORGANIZATION_PERSONAL`, token `invite`     | `organizationId`                                                                                                            |
+  | `POST /api/v1/admin/organizations/:id/sales-reps` (personal organization)                                        | `VALIDATION_FAILED`, `A sales representative cannot be assigned to a personal (individual) organization.` | `ORGANIZATION_PERSONAL`, token `sales_rep`  | `organizationId`, `organizationName`                                                                                        |
+  | `POST /api/v1/admin/organizations/:id/approve`, `/reject`, `/block`, `/unblock` (organization in another status) | `VALIDATION_FAILED`, `Organization is in status '…', cannot perform an action that requires '…'.`         | `ORGANIZATION_STATUS_INVALID`               | `currentStatus`, `requiredStatus` (unchanged), plus `currentStatusLabel` and `requiredStatusLabel` in the reader's language |
+
+  An unknown sales channel id on the admin create stays `VALIDATION_FAILED`. `ORGANIZATION_PERSONAL`
+  and `ORGANIZATION_STATUS_INVALID` are new members of `ERROR_CODES` in `@endora-commerce/contracts`,
+  declared by the `organizations` manifest. No setting, permission or migration changes.
+
+- bfab5bd: **Breaking:** `GET /api/v1/admin/quote-requests` now answers one page instead of every quote request. The server applies `assignmentScope`, `organizationId`, `status`, `q` (a fragment of the business id, the organization name or the customer's name, or a whole id), `sort` (`updatedAt:desc` by default, `updatedAt:asc`, `total:desc`, `total:asc`) and the page (`page`, default 1; `pageSize`, default 25, at most 200). The `pagination` block is now true for the response: it adds `page`, `pageSize` and `total`, and `limit` and `hasMore` describe the page returned (`nextCursor` stays `null`; ask for the next `page`). An invalid `pageSize`, `page`, `sort`, `assignmentScope` or `organizationId` is refused with 400.
+
+  To migrate, a client that read the whole list from one call must page through it with `page` and `pageSize`, or read `pagination.total` when it only needs the count. The contracts publish the query and the envelope as `adminQuoteRequestListQuerySchema` and `adminQuoteRequestListResponseSchema`.
+
+  `SalesRepAssignmentPort` gains `listOrganizationIdsWithAssignments()`; an implementation of the port outside this repository must add it. The admin Quote Requests list now asks the server for each page, filter and sort, and offers a lowest-total sort. The home page's pending-quotes tile and the project link picker read the paged list.
+
+### Patch Changes
+
+- c878440: Un-awaited Promises found by the typed lint rules now enabled for the whole repository (issue #1027) are awaited, handled or marked as deliberate fire-and-forget. No behaviour changes:
+
+  - `resumeWorkersFor` no longer awaits BullMQ's synchronous `Worker.resume()`; the API interceptor pre-handler is typed as Fastify's async hook.
+  - The breakpoint video hook ignores a refused autoplay through `Promise.resolve(video.play()).catch(...)`.
+  - Admin screens wrap async form and button handlers in `void` (each handler catches its own errors), and the admin-search matchers of catalog, orders and quote requests are typed as returning `unknown`, because a Knex builder is thenable.
+
+- 2c67b8b: The organization detail screen no longer shows raw catalogue keys or raw codes (issues #1321 and #1322). The order confirmation e-mail field and its hint now have English and Polish text. The account status and VAT status options show translated labels, and so do the status filter and the VAT column of the Organizations list.
+
+  The VAT status labels moved from `convertToCompany.vatStatus.<code>` to `vatStatus.<code>` in the module's bundle, beside the new `status.<code>` labels. A deployment that overrides the old keys must rename them.
+
+- b2ae377: A customer who asks for a password reset on the storefront now receives the reset e-mail (issue #1371). The request minted a reset token and answered 202, but nothing mailed the link, so a customer who forgot the password could not get back into the account. The link opens `/password-reset/confirm` on the storefront of the request's sales channel (its `sales_channels.storefront_url`, else `STOREFRONT_BASE_URL`), under the prefix of the channel language the request resolved to, and the e-mail is written in that language.
+
+  The message is a new transactional e-mail, `customer_password_reset`, with English and Polish default content, editable under **Transactional emails** like every other customer e-mail. It cannot be switched off, because it is how the customer gets back into the account. A plain English message is sent when no template definition exists. The answer stays 202 whether or not an account has the address, and the e-mail is sent after the answer rather than before it, so the response time does not depend on the mail transport. The request throttle is unchanged.
+
+- 988436f: Sales admin screens drop the page descriptions that repeated their title or addressed developers (issue #1436, UX audit 2026-11-17, DS-02). The Orders, Customers, Returns, Quote requests, Carts and Organizations lists, the order and quote-request create screens, Order statuses, Return statuses, Payment methods, Credit limits, the promotion editor, Promotion statistics, Order on behalf, New organization, Change tax ID and Convert to company no longer show a description. The payment and delivery method Integrations cards drop their one-line intro.
+
+  Kept descriptions are now one line: Return delivery methods ("A return cost of 0 means the shop pays for the return."), Delivery methods ("Price changes don't affect orders already placed."), Promotion rules, Online customers and Customer groups ("A customer's own group overrides their organization's."). New organization says that members are invited from the organization's page beside its Save, as `create.hint.inviteMembers`.
+
+  Translation keys removed from both `en` and `pl`: `core` `orders.page.description`, `orderCreate.description`, `orderStatusConfig.description`, `rfq.list.description`, `rfqCreate.description`, `organizations.page.description`, `returns.description`, `returns.statuses.description`, `legacyMethods.payment.description`, `legacyMethods.integrations.description`, `legacyMethods.integrations.shippingDescription`, `creditLimits.page.description`, `promotions.edit.description`, `promotionStats.description`, and the unused `rfq.detail.convert.description` and `rfq.detail.approveDescription`; customers `list.description`; carts `carts.page.description`; quick_order `onBehalf.page.description`; organizations `create.description`, `changeTaxId.page.description` and `convertToCompany.page.description`. A deployment that overrides one of these keys can drop the override.
+
+- 932821f: Editor panels render as sections of the card they sit in, not as cards inside it (issue #1437, UX audit DS-03).
+
+  New in `@endora-commerce/admin-kit/ui`: `EditorSection`, a heading (`h2` by default, `as` like `CardTitle`), an optional one-line `description`, an `action`, and a rule between consecutive sections. It has a `chrome` prop: `'section'` (the default) or `'card'` for a section that stands alone on a page. Also new: `EditorSectionChromeProvider`, `useEditorSectionChrome`, and the types `EditorSectionChrome`, `EditorSectionHeading`, `EditorSectionProps` and `EditorSectionChromeProviderProps`. `Section` now renders through `EditorSection` without the divider; it looks and reads as before.
+
+  **Breaking visual change for modules (0.x, so released as a minor):**
+
+  - `CustomFieldValuesPanel` no longer draws its own `Card`. It renders as a section of the host's card. A panel mounted on its own, between cards, must pass `chrome="card"` to keep its card: `<CustomFieldValuesPanel chrome="card" … />`. It also takes `titleAs` (`'h3'` inside a titled card).
+  - `RecordHistory` and `CommentThread` list their entries as rows divided by a rule instead of a bordered box per entry. Both take `chrome="card"` to draw a titled card around themselves.
+  - `<AdminZone>` takes `chrome`. A contribution built on `EditorSection` renders as a section by default, and as a card of its own under `<AdminZone … chrome="card" />`. Use that prop for a zone mounted at page level. A contribution that draws its own `Card` is unchanged.
+
+  The CRM, Projects, Tasks, quote-request and quick-order panels contributed to the order, quote-request, opportunity, task, organization and customer screens are now built on `EditorSection`. Those screens mount their zones with `chrome="card"`, so the panels look as they did. The custom-field panels on the customer, organization, order-create, quote-request-create, opportunity-create, project-create and task screens keep their card. Project stages, template stages and project-create members are listed as divided rows.
+
+- ced3b46: More admin screens follow the DS-03 rule that a frame inside a card is a defect unless it is a field (issue #1437, UX audit 2026-11-17).
+
+  - **Form builder** (`forms`): the _Settings_ and _Notifications_ tabs and the field inspector are built on the kit's `EditorSection`, which draws the rule between groups, in place of a `Separator` between them. A notification channel list, an address field's parts and the published versions are rows divided by a rule, not a bordered box each; a form with no published version says so with the kit's empty state.
+  - **Account security** (`mfa`): with two-step verification on, the card holds two titled sections, _Recovery codes_ first and _Switch off two-step verification_ last, so the destructive form sits away from the routine one.
+  - **Asset detail** (`assets_library`): the drawer is one card of titled sections — _Links_, _Details_, _File_ (with the previous version inside it) and _Referenced by_ — in place of blocks fenced off by hand-drawn rules.
+  - **Order statuses** (`orders`): the new-status form is a titled section (_New status_) of the statuses card, and every field on the page is the kit's `Input` / `Checkbox`.
+  - **Tax ID scope** (`organizations`): each scope option is drawn as a choice field — the chosen one marked, keyboard focus ringed.
+  - **Page builder section presets** (`cms`): the presets list in the block drawer has no box around it; one rule sets it off from the blocks below.
+
+- 28181ed: One card implementation with density tokens (issue #1438, UX audit DS-04; SHELL-18 #1502). This
+  changes how every admin card looks, including the cards third-party modules render.
+
+  - `theme.css` declares `--card-pad` (16px), `--card-pad-sm` (12px), `--card-gap` (16px),
+    `--section-gap` (24px), `--fs-page-title` (20px), `--fs-section-title` (14px) and `--fs-hint`
+    (12px). A client can redeclare them after the import like any other token.
+  - `Card`, `CardHeader`, `CardContent` and `CardFooter` pad with `--card-pad` (16px) instead of
+    `p-6` (24px). `CardContent` drops its top padding only when it follows a `CardHeader`, so a
+    card without a header no longer needs `className="pt-6"`. Every part carries a `data-slot`.
+  - `CardTitle` renders an `h2` by default and takes `as` (`h2`–`h6`, or `div` to stay out of the
+    heading outline); its size is `--fs-section-title` (14px, was 16px). A `CardTitle` that wrapped
+    its own `<h2>` now nests a heading in a heading: pass the `id` to `CardTitle` and drop the inner
+    element. A test that found a card title with `getByText` still does; one that counted headings
+    now counts the card titles too.
+  - `<Card flush>` removes the content padding and clips the corners, for a table that runs to the
+    card's edge. New types: `CardProps`, `CardTitleProps`, `CardTitleElement`.
+  - `.b2b-card`, `.b2b-card--clickable` and `.b2b-card__head` / `__title` / `__sub` / `__body` /
+    `__body--flush` / `__foot` are **deprecated** but still published; they read the same tokens.
+    The only visible change there is the header's vertical padding, 14px to 12px. Use `Card`.
+
+  Every module's card call sites drop the `pt-6` workaround and the redundant `text-base` on
+  `CardTitle`, and the 14 titles that wrapped their own `<h2>` carry the `id` themselves.
+
+- e9af4f0: The bulk order-status dialog, the order-status delete confirmation, the quote-request cancel dialog, the organization moderation reason dialog and the credential configuration preview are the kit's `ModalDialog` / `ConfirmDialog` instead of hand-drawn overlays (issue #1474, SALES-09; #1444): each is named by its title, holds focus and returns it to the control that opened it, and closes on Escape. The bulk status dialog opens with no status chosen each time and announces a failure inside the dialog; the cancel dialog keeps a typed reason on a stray click on the scrim and shows a refused cancellation inside the dialog; the moderation reason field has a visible label, is marked required for a rejection, and a refusal is announced inside the dialog; the delete confirmation opens on _Cancel_; the credential preview's button reads _Close_.
+- 87fb9c3: On the Settings screen a boolean setting is a switch instead of a `true` / `false` list, and an enum setting's options read as labels in English and Polish instead of machine codes (issue #1479). The switch changes the draft like every other field; the page's one Save still writes it. The default and global values under a field read as "On" / "Off" and as option labels too.
+
+  A module labels its enum setting's options in its own bundle, under `settingLabels.<setting code>.options.<option value>`; an option without a label is shown as its value. Every enum setting shipped in the platform now has those labels, except `seo.default_robots`, whose directive pairs are the vocabulary.
+
+- 998ac87: Banners that appear as the result of an action keep being announced now that the kit's `Alert` no longer interrupts for every variant (issue #1484). A refused or partly rejected action (activating a price book, a stale price-book save, a taxonomy revision, quick-order lines, quote-request lines unavailable on the channel) is announced at once, and so is the shell's notice to an administrator without a role. An import, undo, PDF or save result, a template-preview verdict, a brand contrast warning, a changed refund method, the organization-attribution scope notice and the information notices after an action are announced politely. Static banners present when a page loads, such as the modules screen's degraded-mode warning or a quote request's lapsed validity, are shown but no longer announced as an interruption.
+- 7329865: The order, invoice, quote request, organization and customer detail screens and the promotion editor no longer replace the whole page with "Loading…" when they re-read their record after an action (issue #1496, UX audit SALES-06). The first load shows a skeleton of the page; a status change, a payment change, a custom-field save, an approve or cancel, a regenerated PDF or a member change keeps the page, its open tab, the scroll position and the focus on screen and marks the content `aria-busy` while it re-reads. A first load that fails now shows its error and a Retry button instead of "not found", and the promotion editor no longer shows an empty form over a promotion it could not read. On the organization screen a member change refused as stale now keeps its explanation on screen after the re-read. New string: `orderDetail.errors.load` (en, pl).
+- 2040ae9: Action results beside the control that caused them, and at most one banner above a detail screen (issue #1499, UX audit SALES-17; owner decision DEC-12 a).
+
+  - `@endora-commerce/admin-kit/components`: `DetailHeaderActions` takes `status` — normally `useInlineStatus().props` — and mounts an always-present polite `InlineStatus` before the header's buttons, so the last header action's result is said there. Given `status`, the group renders even when the record has no action left. `@endora-commerce/admin-kit/ui`: `InlineStatus` gains a `warning` tone (icon and warning colour) for a result that went through only in part.
+  - `@endora-commerce/mod-quote-requests`: the quote-request detail no longer stacks up to six banners. Approve, Cancel, the customer's basket, the PDF outcome and a copied number are said beside the header's buttons; a stored revision in the Modify save bar. The cancellation reason leads the header's meta line. Above the tabs there is at most one banner: an error, else the lapsed deadline with its remedy, else the unsaved draft — the last only away from the Modify tab, where the save bar already says "Unsaved changes".
+  - `@endora-commerce/mod-orders`: Issue invoice (a warning when the e-mail was not sent), Reorder, Clone to quote and a copied order number are said beside the header's buttons. A status or payment-status change adds no banner: the control announces it and its badge shows it.
+  - `@endora-commerce/mod-organizations`: "Saved" and the results of the header's dialogs are said beside the header's buttons, a member write right above the Members section.
+  - `@endora-commerce/mod-i18n`: `core`'s `rfq.detail.validity.lapsed.remedyEditable` and `remedyLocked` shortened to one sentence; `orderDetail.messages.orderMoved` and `orderDetail.messages.paymentMoved` removed.
+
+- 45fd8dc: More admin screens show an action's result beside the control that caused it, not as a success banner (issue #1499, UX audit SALES-17; owner decision DEC-12 a). Each result is an `InlineStatus`, a polite status region that is mounted before it has any text, so screen readers announce it. Errors are still a banner, and an error clears the result.
+
+  - Organization detail, moderation: "Organization approved", "blocked" and the other transitions appear beside the moderation buttons.
+  - Organization detail, hierarchy: "Organization parent updated" appears under the parent picker.
+  - Organization detail, VAT validation: the outcome appears beside "Validate now". Only a validated identifier is shown as a success; format-only and deferred validations are a warning, a rejected identifier is shown in the error colour.
+  - Organization detail, roles: a created, saved or deleted role is reported beside the Create role button in the tab's header. Opening the editor or a delete clears it.
+  - CRM opportunity: coming back from creating an order or a quote request, the linking progress and its result appear beside the Create button that started it, instead of a banner under the section heading. A document that was created but not linked is a warning, with its link.
+  - CMS brand settings: "Brand settings saved" and "The channel follows the global brand settings again" appear beside Save in the page header. The next edit, a channel switch or starting an override clears it.
+
+- fc7f669: The six sales lists now have one shape (issue #1500, UX audit SALES-24). Each is the kit `ListPage` with the kit `ListToolbar`, so the toolbar is a named `search` landmark in a plain row, not a card. Below it is one results card that holds the bulk bar, the table and the pager. The kit `EmptyState` tells "nothing here yet" apart from "nothing matches these filters", and the second one offers _Clear filters_.
+
+  - **Orders**: _New order_ is in the header for an operator holding `orders:write`. The toolbar, bulk-bar and results cards are now one card. While rows are selected, the bulk _Change status_ button is outline, so _New order_ stays the one filled primary. Each row has a menu with _Change status…_ and _Print invoice_ for that one order, plus _Open organization_. The pager offers only the page sizes the endpoint serves.
+  - **Quote requests**: the hand-built toolbar, filter toggle and chips are replaced by the kit toolbar, so the advanced filters sit behind _More filters (n)_. Each row's menu has _Open organization_.
+  - **Returns**: the four configuration links (workflow, reasons, return methods, clauses) are one _Settings_ menu next to _Export CSV_. The search is no longer listed as a chip. _Clear all filters_ empties the search too. When a case has an order, its row menu has _Open order_.
+  - **Customers**, **Organizations**, **Carts**: these use the kit toolbar and the kit empty state. Each filter is named by its label, and its first option says what it is ("All statuses"). Customers and Carts rows have _Open organization_.
+
+  Removed unused translation keys: `orders.open`, `orders.loading`, `orders.empty`, `rfq.list.open`, `rfq.list.loading`, `rfq.list.filter.toggle`, `rfq.list.filter.clearAll`, `returns.loading`, `returns.empty`, `returns.action.open`, `returns.filter.clearAll`, `organizations.filter.all` (core); `list.search.chip` (returns); `list.clearFilters` and `list.filter.all` (customers); `list.clearFilters` (organizations); `carts.clearFilters` and `carts.filter.all` (carts). The admin-kit README documents how the two compose.
+
+- 204b98c: The organization detail screen is one card with tabs instead of sixteen stacked cards and five more from other modules (issue #1515, UX audit 2026-11-17 SALES-02).
+
+  - **Overview**: moderation, registered address, hierarchy, custom fields. **Members & roles**: the members and the roles. **Commerce**: sales channels, order-confirmation e-mails, restrictions, fulfilment, the price books that apply, and every `organization.detail.after` panel. **Tax**: the tax ID and VAT status with _Change tax ID…_, _Change VAT status…_ or _Convert to company…_, then VAT validation. **Sales**: the sales representatives, offered only with `organizations:assign-sales-rep`. `?tab=` opens a tab. A tab holding unsaved changes says so, and switching tabs keeps them.
+  - Every panel is a section of the tab's card, not a card of its own; `organization.detail.after` is mounted in the Commerce tab without `chrome="card"`, so its contributions render as sections. The related-payers panel is an `EditorSection` now, like the other contributions.
+  - The header holds _Back_ and the page Save, the one primary. The tax corrections moved to the Tax tab, and their result is said beside them.
+  - Moderation offers only the transitions the status allows (issue #1541, SALES-15): Approve and Reject while pending, Block while active, Unblock while blocked, none once rejected. The registry-divergence notice's link opens the Tax tab at the VAT validation.
+  - The sales-representative remove button has an accessible name, and its result is said beside _Assign_ instead of an info banner.
+
+- a02b5e6: The Organization detail screen's members are one _Members_ section (issue #1516).
+
+  - `@endora-commerce/mod-organizations`: the _Invite member_ and _Direct add member_ cards are gone. The _Members_ section lists each member as a row with the member's role as a badge, and offers one **Add member** button. It opens a dialog that asks whether to send an invitation or create the account now. Only the second asks for the names, a temporary password and the member's `customer` custom fields. The form is checked when it is submitted, and each problem is shown at its field.
+  - The bordered edit box above the members table is replaced by an **Edit** dialog. It holds the e-mail, the names and the role, and saves them together. The row no longer holds a role select that saved as soon as an option was picked. If the member was changed elsewhere, the dialog reloads the current values and says so.
+  - **Remove** asks for confirmation first, and a refused removal is shown in that dialog. The last administrator can be neither removed nor demoted, and the reason is shown. Without `customers:manage` the list is read-only. A personal Organization offers no **Add member**.
+  - The routes, their bodies, their permissions and their audit entries are unchanged. The new strings ship in the module's bundle under `members.*` (en, pl).
+  - `@endora-commerce/mod-i18n` drops ten `organizations.detail.*` strings that nothing reads any more: `inviteCard`, `directAddCard`, `nameCol`, `actions`, `roleForLabel`, `twoFactor`, `twoFactorOn`, `verified`, `lastLogin` and `error.versionConflictMember`.
+
+- df16345: The Settings screen shows less on every row (UX audit SHELL-09, SHELL-23). A row no longer carries a value-type badge, a source badge or a "Default … · 0 per-channel overrides" footer: one muted line appears only when the value in force differs from the default or channels override it. A changed row is marked by a bar at its edge, a switched-off module's group states its read-only reason once, the "Editing for" channel picker sits in the toolbar beside the search, and the hard-coded "system" group badge is gone. Single-line controls sit to the right of the setting's name.
+
+  A setting's description is now at most 120 characters (`check:text-budget`), with the long explanations left to each module's documentation page, and it never falls back to another language: in Polish the screen shows the Polish description or none. Every module that declares settings now ships `settingLabels.<code>.name` and `.description` in English and Polish, so the screen no longer shows English names in Polish. Where a manifest declared one of the shortened descriptions, its `description` is the same shorter sentence.
+
+- b2c1723: The transactional e-mails list is easier to scan (issue #1536). Each e-mail is switched on and off with a switch instead of a filled "Switch on" button, and the switch says when the change is still being saved. The Module column shows the module's name in the admin's language instead of its id, and the list can be filtered by module. The "Content" column says whether an e-mail uses the default content or is customized for all channels or per channel. While loading, the list shows a placeholder, and a failed load can be retried. In the e-mail editor, the header says where the content comes from in words, the scope list and the e-mail branding page name sales channels by their names, and the Save button reads "Saving…" while a save runs. Every module that sends a transactional e-mail now ships its name in English and Polish.
+- ab0ad24: **Credit limits on the Organization screen** (UX audit SALES-19, issue #1544). `credit_limits` contributes a read-only _Credit limit_ summary to `organization.detail.after`, the Organization screen's Commerce tab: the granted, reserved and available amounts and the number of active reservations, or a note that no limit is granted. When reservations exceed the limit it says by how much. Its one link, _Adjust limit_ or _Grant credit limit_, opens the Credit limits screen with that organization's dialog already open (`/credit-limits?organizationId=<id>`); closing the dialog drops the parameter. The panel needs `credit_limits:manage` and is absent while the module is off. `organizations` only updates a comment that lists the zone's contributors.
+- 306a659: The back link above an admin page title now names the screen it leads to, in the words that screen uses for its own title — _Organizations_, _Price books_, _CMS pages_ — instead of _Back to organizations_, _All warehouses_, _Back to list_ or a bare _Back_ (follow-up of issue #1549). A generic _Back_ remains only where a screen was opened from somewhere else and leads back there. The rule is described under `PageHeader` in the admin-kit README.
+
+  The back-only translation keys these screens no longer read are removed: `categoryEditor.backToTree` and `postEditor.backToList` (blog), `bulkOperations.detail.back` and `categoryContent.action.back` (catalog), `common.back` (cms, megamenu), `detail.backToList` (comparisons), `entry.back` (forms), `priceBooks.common.backToList` (price lists), `detail.back` (returns), and `inventory.import.back`, `warehouses.editor.backToList`, `organizations.detail.back` and `rfqCreate.back` (core bundle). A deployment that overrides one of them overrides the destination screen's title key instead. `taxIdScope.back` (organizations) and `productContent.action.back` (catalog, now the fallback while the product name loads) keep their keys with new text; `runs.detail.feedFallback` (product feeds) is new.
+
+- 7ea72af: The way back from a detail, create or settings screen is now always the page header's back link above the title (issue #1549). Organization, New organization, Tax ID scope, Change tax ID, Convert to company, Order statuses, Return, Form entry, Category content, Product content and Comparison drew it as an outline Back button among the header actions, an arrow link above the header, or a button at the bottom of the page. Order statuses now goes back to "Orders" rather than a bare "Back". A form entry that is missing or cannot be loaded shows a "Form entry" heading with the same back link. The admin-kit README names `PageHeader` `back` as the one pattern.
+- bfc21d3: Shorter admin copy on the order, quote-request, organization, promotion, invoice and return screens (UX audit text-to-cut pass, issue #1567):
+
+  - Removed lines that repeated what the screen already shows: the description on the invoices list, the line under the customer's price-negotiation override, the line above the default payment / delivery / address fields, and the description of the organization's Roles section.
+  - Shortened to one line: the read-only note on price negotiation, the warehouse-precedence hint, the order-confirmation e-mails hint, the parent-organization hint, the empty sales-reps note, the sales-channel hints on order and quote-request creation, the saved-rule copy hint on promotions, and the pending-effects notice on an order.
+  - Shortened notices: the "carrier not contacted" shipment notice and the "different refund method" warning on a return.
+
+  Removed translation keys (EN and PL): `invoices.description`, `defaultPreferences.description` (core bundle), `negotiation.customer.description` (quote requests), `roles.tab.description` (organizations). A theme or overlay that overrode them can drop the override.
+
+- 0686447: Always pass the admin UI language to `formatDate(value, language)` and `formatDateTime(iso, language)` (`@endora-commerce/admin-kit/lib`), taking it from `useTranslationContext()` or `useAppLanguage()` (`@endora-commerce/admin-kit/i18n`). **Upgrade note:** calling either without a language is now `@deprecated`. It still falls back to the browser's locale, but that fallback will be removed in a later release, so `formatDateTime(order.placedAt)` should become `formatDateTime(order.placedAt, language)` now. The kit's field-protection summary reads the language without requiring `AppLanguageContext`, so an integration zone rendered without it keeps working.
+
+  Every admin date now goes through them, so a screen no longer mixes `17.11.2026`, `11/25/2026` and `Nov 22, 2026`: the lists, detail pages and panels of every module that called `formatDateTime` without a language, and the screens that called `toLocaleDateString` / `toLocaleString` directly (the CRM board card, the Projects stage bar and templates list, the Organization sales reps tab — which wrote every date in Polish — the blog post editor, comparisons, the dictionaries audit, display-mode overrides, the feed schedule's next run, the online-customers refresh time, the product list's update date, and the kit's comment thread, record history, field-protection summary and order reference). `endora new module` scaffolds its list's date the same way.
+
+- 9eee781: The Admin UI in Polish no longer shows four kinds of text in English (issue #1809).
+
+  - **Order statuses** are named in the admin's language on the Orders list, the order detail, the bulk status dialog and the Order statuses screen. The names were always stored per language; the screens read the English one.
+  - **CMS hooks**: the 23 seeded hooks, such as "Search Page Bottom", are named and described in the admin's language until an operator renames them. A renamed or custom hook keeps the operator's text.
+  - **Transactional e-mails**: each e-mail's name, description and the reason it cannot be switched off come from the sending module's bundle (`transactionalEmails.<code>.name`, `.description`, `.reason`), in the language the response is read in.
+  - **Platform → Modules**: each module's name, description and the reason it cannot be switched off come from the module's own bundle (`module.name`, `module.description`, `module.nonDeactivatableReason`). `GET /api/v1/admin/modules` gains an optional `nonDeactivatableReason` field on each row. `auth`, `currencies`, `email` and `languages` now ship translation bundles.
+
+  Each of these falls back to the English declared in code when a bundle has no entry. `endora new module` now writes `module.description` into the scaffolded bundles.
+
+- 79d15cf: The Admin UI has one, light theme (issue #1810). `@endora-commerce/admin-kit/theme.css` no longer declares the `.dark { --background: … }` token block: nothing applied it, and applied by hand it was incomplete, with a light page under dark cards and unreadable outline buttons. An instance that set `.dark` on an element by itself now gets the light tokens; to restyle the admin, redeclare the `:root` tokens instead.
+
+  The `dark:` utilities are gone too: `Badge`'s `success` and `warning` variants, the `ScopedField` "unsaved" badge, the shell's not-found notice, and the amber and emerald notices and icons in the admin screens of admin users, catalog bulk operations, the page-builder translate action and header actions, CRM propagation outcomes, custom-field carry drift, document-template item tables, tax-ID scope, product feeds and settings. Without a `dark` variant definition, Tailwind 4 compiles `dark:` to `@media (prefers-color-scheme: dark)`, so on an operating system set to dark these elements turned dark on a light page. They now render the same on every system.
+
+- b3d4843: The buyer's session replies are described by their contract (issue #599, section 1):
+
+  - `@endora-commerce/contracts` publishes `customerMeResponseSchema` / `CustomerMeResponse` for `GET /api/v1/me`: `data.customerAccount` (the account with its `preferredLanguage`), `data.organization` (`null` without one) and `data.impersonation` (`{ impersonatorAdminUserId }` while an administrator impersonates the buyer, else `null`). Its Organization, `customerMeOrganizationSchema`, declares the four keys the reply has always carried and `organizationSchema` does not: `legalName`, `version`, `canTransact` and `moderationMessage`.
+  - `@endora-commerce/contracts` publishes `customerSignInResponseSchema` / `CustomerSignInResponse` for `POST /api/v1/auth/customer/login`: a `data` union on `status`, where `authenticated` carries the whole `customerAccount` and, when a guest basket was merged, `cartMerge`; `mfaRequired` carries `challengeId` and `mfaSetupRequired` carries `setupTicket`.
+  - `customerLoginResponseSchema` / `CustomerLoginResponse` are deprecated: they declare no `status` and refuse the two second-step answers. Parse with `customerSignInResponseSchema` instead. They stay exported until the next breaking-change release.
+  - `mod-organizations` builds both replies as the contract's types. Nothing on the wire changes.
+
+- f74fe34: `carts`' `Migration20260611T140352CartsConsolidation` no longer adds or drops
+  `organizations.requires_cart_approval` (issue #611). The column belongs to `organizations`, which
+  already drops it in `Migration20261104T094535OrganizationsDropLegacyRoleColumns` and re-creates it
+  in that migration's `down()`. The old migration keeps its class name, so a database that has
+  already applied it does not change. A database migrated from empty now never has the column; its
+  final schema is the same as before. `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `carts`
+  writing `organizations`.
+- 0fbf186: `organizations` now creates `organizations.customer_group_id` and
+  `organizations_customer_group_id_index` itself, in the new
+  `Migration20261117T033143OrganizationsCustomerGroupColumn` (issue #611). Until now only
+  `price_lists`' `Migration20260426T075235PriceListsPricingInit` created them, although the column
+  belongs to `organizations`' `Organization` entity. That migration keeps its class name and no
+  longer names `organizations` in `up()` or `down()`. The new migration uses `if not exists` with the
+  same type and index name, so a database that has already applied the old migration does not change.
+  `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `price_lists` writing `organizations`.
+- 81fcc3f: `useConfirmDialog`'s `confirm` takes a new `returnFocusTo` option: an element, a ref, or a resolver that names where focus goes after a confirmed answer. A confirmed action that removes the control that asked it, such as a row's _Remove_, used to leave focus on `body` once the row was gone. The target is resolved once, when the dialog closes on a confirmed answer. On Cancel, or when it resolves to nothing, focus returns to the opener as before. The new `ConfirmFocusTarget` type is exported, and the controlled `ConfirmDialog` passes a `finalFocusRef` through to `ModalDialog`.
+
+  Organization members: after a member is removed, focus moves to the next row's _Edit_, else to the previous row's, else to _Add member_.
+
+- Updated dependencies [c878440]
+- Updated dependencies [65f9a7b]
+- Updated dependencies [3fdbe86]
+- Updated dependencies [bfc68c7]
+- Updated dependencies [9eaa409]
+- Updated dependencies [d908737]
+- Updated dependencies [1042e2a]
+- Updated dependencies [3872f3d]
+- Updated dependencies [bbfcd80]
+- Updated dependencies [41b598c]
+- Updated dependencies [f5b8275]
+- Updated dependencies [467b075]
+- Updated dependencies [a56109e]
+- Updated dependencies [84b89ed]
+- Updated dependencies [b2cd2d3]
+- Updated dependencies [e5b17ae]
+- Updated dependencies [e78d27d]
+- Updated dependencies [596ce81]
+- Updated dependencies [b2b41eb]
+- Updated dependencies [932821f]
+- Updated dependencies [28181ed]
+- Updated dependencies [c15eb60]
+- Updated dependencies [33db45a]
+- Updated dependencies [cec9beb]
+- Updated dependencies [d4bda8d]
+- Updated dependencies [8e7684c]
+- Updated dependencies [87fb9c3]
+- Updated dependencies [998ac87]
+- Updated dependencies [d0a6c2c]
+- Updated dependencies [35e0829]
+- Updated dependencies [3f66b6f]
+- Updated dependencies [61bdc2a]
+- Updated dependencies [649d662]
+- Updated dependencies [38adf84]
+- Updated dependencies [7329865]
+- Updated dependencies [84ed7b6]
+- Updated dependencies [1064839]
+- Updated dependencies [d2d9d79]
+- Updated dependencies [f687479]
+- Updated dependencies [074f500]
+- Updated dependencies [7624db6]
+- Updated dependencies [cec9beb]
+- Updated dependencies [7be07f6]
+- Updated dependencies [2614e4f]
+- Updated dependencies [90320fd]
+- Updated dependencies [bb21b86]
+- Updated dependencies [79a17a3]
+- Updated dependencies [3dab0be]
+- Updated dependencies [e22b612]
+- Updated dependencies [cb75825]
+- Updated dependencies [a4455db]
+- Updated dependencies [f3b2ec8]
+- Updated dependencies [f093a02]
+- Updated dependencies [d5a077f]
+- Updated dependencies [86b9b39]
+- Updated dependencies [42febee]
+- Updated dependencies [447e829]
+- Updated dependencies [2040ae9]
+- Updated dependencies [fc7f669]
+- Updated dependencies [40b76aa]
+- Updated dependencies [eeed5c8]
+- Updated dependencies [63a657b]
+- Updated dependencies [0ecb287]
+- Updated dependencies [9a27b93]
+- Updated dependencies [2f0b69f]
+- Updated dependencies [87b9b60]
+- Updated dependencies [50d451b]
+- Updated dependencies [98c0411]
+- Updated dependencies [9f4eae3]
+- Updated dependencies [a8261aa]
+- Updated dependencies [f64646d]
+- Updated dependencies [306a659]
+- Updated dependencies [7ea72af]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [bfbcac2]
+- Updated dependencies [ee6062c]
+- Updated dependencies [820f089]
+- Updated dependencies [f33ffed]
+- Updated dependencies [4e668b5]
+- Updated dependencies [843ed42]
+- Updated dependencies [0d4c134]
+- Updated dependencies [3f7b5ae]
+- Updated dependencies [b98739c]
+- Updated dependencies [6155f4b]
+- Updated dependencies [bdcc9a4]
+- Updated dependencies [5850aac]
+- Updated dependencies [c042024]
+- Updated dependencies [8a5725e]
+- Updated dependencies [f915a24]
+- Updated dependencies [8688a1f]
+- Updated dependencies [95e5082]
+- Updated dependencies [31c0430]
+- Updated dependencies [0686447]
+- Updated dependencies [691414b]
+- Updated dependencies [8a06dc5]
+- Updated dependencies [e118ee4]
+- Updated dependencies [5fb3cd3]
+- Updated dependencies [9eee781]
+- Updated dependencies [bd47236]
+- Updated dependencies [bd47236]
+- Updated dependencies [79d15cf]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [398e6d2]
+- Updated dependencies [51c5072]
+- Updated dependencies [0e81803]
+- Updated dependencies [2e287a5]
+- Updated dependencies [fbc6c7c]
+- Updated dependencies [9d6f006]
+- Updated dependencies [49328cf]
+- Updated dependencies [b3d4843]
+- Updated dependencies [f74fe34]
+- Updated dependencies [19eb7c0]
+- Updated dependencies [0fbf186]
+- Updated dependencies [27b977d]
+- Updated dependencies [5e2a12a]
+- Updated dependencies [5518a09]
+- Updated dependencies [5e380e3]
+- Updated dependencies [bfab5bd]
+- Updated dependencies [8a0ec92]
+- Updated dependencies [81fcc3f]
+- Updated dependencies [12c63fa]
+- Updated dependencies [2d6d031]
+- Updated dependencies [72637e0]
+  - @endora-commerce/platform@0.112.0
+  - @endora-commerce/contracts@0.112.0
+  - @endora-commerce/admin-kit@0.112.0
+  - @endora-commerce/email-components@0.112.0
+
 ## 0.111.0
 
 ### Minor Changes

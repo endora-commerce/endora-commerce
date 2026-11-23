@@ -1,5 +1,398 @@
 # @endora-commerce/contracts
 
+## 0.112.0
+
+### Minor Changes
+
+- 65f9a7b: Breaking: `ChannelMembershipListResponseSchema` and its type `ChannelMembershipListResponse`, deprecated in 0.111.0 (issue #1160), are removed (issue #1162). Their `{ channels }` shape never described `GET /api/v1/admin/sales-channels/{code}/{entityType}`. Import `ChannelMemberIdListResponseSchema` and `ChannelMemberIdListResponse` instead: they describe what that route answers, `{ salesChannelCode, entityType, entityIds, page, pageSize, total }`, with a 0-based `page`. The entity-side list of an entity's channels stays `EntityMembershipListResponseSchema`.
+- 9eaa409: Storefront search filters now count the search results, not the whole catalog (issue #1326). Before, a search with no results still showed counts such as "Color (40)".
+
+  - `GET /api/v1/catalog/filters` accepts `q`. With `q`, each option count covers only the products that text query matches, and an empty result returns no filters. The matching products are the same ones `GET /api/v1/catalog/products?q` lists: from the search index when it answers the listing, from the database text match when the listing falls back to it. Counts are still computed in the database, over the products the caller may see. Without `q` nothing changes.
+  - `CatalogQueryService.getFilterDefinitions(ctx, narrowing?)` takes an optional `FilterNarrowing` (`{ q }` or `{ ids }`; `ids: []` means no products).
+  - **Breaking change** for anyone who implements `SearchQueryPort` outside this repository: the port has a new required method, `matchingProductIds({ q }, ctx)`. It returns `{ status: 'ok', ids }` (at most `SEARCH_MATCHING_IDS_MAX`, 1000, in relevance order) or `{ status: 'index-unavailable', reason }`. **What to do:** add the method, applying the same filter as your `listProducts` for the same `q`. Callers of the port need no change.
+
+- 3872f3d: Order invoice PDF downloads serve the issued invoice, rendered from its template (issue #1341):
+
+  - `GET /api/v1/orders/:id/invoice` serves the order's newest ready document of kind `invoice`. It no longer serves a proforma or a correction issued after it, and an order with only a proforma answers `404 INVOICE_NOT_READY`. The PDF is rendered from the invoice template, the same as `GET /api/v1/orders/:id/invoices/:invoiceId/pdf`, instead of a one-page summary with the number and total.
+  - `InvoicePdfPort` gains `renderInvoice(invoiceId)`, which returns the template-rendered PDF of one document. An implementation of the port outside `mod-invoices` must add it. `renderMinimal` is deprecated and no route calls it any more.
+  - The admin order screen's Payment tab links each ready invoice to `GET /api/v1/admin/invoices/:id/pdf`. It used to link to the customer-only route, which refused the operator's session.
+
+- bbfcd80: Issue #1350: percent-off and free-unit promotions now compute on the gross the buyer pays. They used to compute on net prices while the discount came off the gross total.
+
+  **Behaviour change on upgrade.** A buyer pays less than before for the same promotion. Before, "10 % off the cart" at 23 % VAT took about 8.1 % off what the buyer paid, and a "free" unit still cost its VAT. Now 10 % off is 10 % of the goods gross, and a free unit is free VAT included. Fixed-amount promotions take off the same amount as before. Orders placed before the upgrade are not changed.
+
+  - `percentage_off_cart`, `buy_x_units_percent_off`, `spend_x_percent_off`, `every_nth_product_percent_off` and the legacy `percentage_off` kind take their percentage of the gross. The gross is VAT per rate on the sum of the line nets (`vatByRate`), the same figure the cart and the order charge.
+  - `buy_x_get_y_free` and `buy_x_units_y_free` take off the free units' gross. They also pick the cheapest or most expensive unit by its gross price, which only differs from before in a cart that mixes VAT rates.
+  - Unchanged: `amount_off_cart`, `buy_x_units_amount_off`, `spend_x_amount_off`, the legacy `amount_off` kind and `free_delivery`. They take the same amount, still capped at the net subtotal. The "spend X" steps, `minCartSubtotal` and the rule builder's cart total still compare the net subtotal.
+  - `CartLine` (`cartLineSchema`, the line of `CartSnapshot`) gains an optional `taxRate`, the line's VAT rate as a fraction (`0.23`). A line without it carries no VAT, so its gross is its net. The cart read, the admin cart detail, the checkout preview and order placement all pass the rates they charge, so all four show the same discount. A caller of `POST /api/v1/admin/promotions/preview` must send `taxRate` on each line to get the discount an order would take.
+  - `PromotionApplication.total` is now the goods gross left after the discount plus the delivery left. `subtotal` stays the net subtotal.
+
+- 41b598c: The two-step sign-in replies are described by their contract (issue #1352):
+
+  - `@endora-commerce/contracts` publishes `mfaVerifyResponseSchema` / `MfaVerifyResponse` for `POST /api/v1/auth/{customer|admin}/mfa/verify`: `data.status` is `'authenticated'`, and on the customer surface `data.cartMerge` is present when a guest basket was merged, as in `customerSignInResponseSchema`.
+  - `@endora-commerce/contracts` publishes `mfaSetupTicketCompleteResponseSchema` / `MfaSetupTicketCompleteResponse` for `POST /api/v1/auth/{customer|admin}/mfa/setup-ticket/complete`: the same answer plus the ten `recoveryCodes` the enrolment minted.
+  - `mod-mfa` builds both replies as the contract's types. Nothing on the wire changes.
+
+- 467b075: Issue #1396: the admin cart detail now shows the gross total beside the net total.
+
+  - `GET /api/v1/admin/carts/:id` answers a new `totalGross` (`adminCartDetailPayloadSchema.totalGross`). It is what the buyer pays for the goods after the discount, the same figure as the cart read's `vat.grandTotalGross`. It is `null` when a line's VAT rate cannot be resolved. Additive: a client that does not read it is unaffected.
+  - The cart detail screen labels its total row **Net total** and adds a **Gross total** row when `totalGross` is known.
+  - No amount changes. The cart read's `grandTotal` and the admin detail's `total` stay `subtotal − discount`, never below zero: a net figure with the gross discount taken off untaxed, as the order and the invoice book it. The contract now documents this, and documents that the figure reads 0 when a fixed amount larger than the net subtotal is applied. The admin list's `total` is the lines' net before any discount.
+
+- c15eb60: The admin list page pattern (issue #1439, UX audit DS-05) and a pager on the Customers,
+  Organizations and Carts lists (issue #1473, SALES-08).
+
+  `@endora-commerce/admin-kit/components` exports `ListPage` (with `ListPageProps` and
+  `ListPageLoad`) — the `PageHeader` with its one "New …" action, a toolbar row that is not a card,
+  the count in a live region, one results card with loading, error-with-retry and ready states, and
+  the `PaginationFooter` under it — and `useListPagination({ scope, maxPageSize })` with the pure
+  helpers `pageSizesUpTo`, `fitPageSize` and `lastPageIndex`. The hook keeps the admin's remembered
+  page size per list, offers only the sizes the endpoint serves, and moves back to the last page
+  that exists when a response reports a smaller total. It reads the page-size preference, so it
+  needs `AuthProvider` above it. The `core` bundle gains `common.list.loadError`. The pattern is
+  documented in the kit README under "List pages".
+
+  `GET /api/v1/admin/organizations` accepts `page` (one-based, default 1) and `pageSize` (1–200;
+  `limit` when omitted) and answers `meta: { page, pageSize, total }` beside `pagination`, whose
+  `hasMore` now says whether a later page exists. `@endora-commerce/contracts` adds
+  `adminOrganizationListPageQuerySchema` and the `meta` member of
+  `adminOrganizationListResponseSchema`. A caller that names neither parameter keeps its one
+  `limit`-sized first page, now ordered by `createdAt` and then `id`, so a page boundary never
+  repeats or skips a row.
+
+  The Customers, Organizations and Carts admin lists page through every row, open a record from its
+  name instead of an "Open" button in each row, tell "none yet" from "none match — Clear filters",
+  and offer a retry when the list fails to load. The Customers organization filter is the searchable
+  `OrganizationPicker` instead of a list of the first 50 organizations, and resetting two-step
+  verification for an organization asks first.
+
+- 33db45a: `GET /api/v1/admin/related-payers/requests` pages (UX audit DS-05, issue #1439). `adminRelatedPayerRequestsQuerySchema` takes `page` (default 1) and `pageSize` (1–200, `ADMIN_RELATED_PAYER_REQUESTS_MAX_PAGE_SIZE`), and `adminRelatedPayerRequestsResponseSchema` now carries `meta: { page, pageSize, total }`. The order is unchanged: oldest first, with the request's id as the tie-break. A caller that names no `pageSize` still gets the first 500 entries, the queue's old cap, with `meta.pageSize` 500. `RelatedPayerRequestService.listQueue()` answers `{ rows, page, pageSize, total }` instead of an array. `AdminRelatedPayerRequestsQueryInput` is the query a caller sends (`page` optional).
+
+  - **Payer requests (admin)**: the queue is the kit `ListPage` with the kit pager (DS-05). The state and reason filters are a labelled `ListToolbar`, with _Clear all filters_ while the queue is narrowed (DS-06, #1440). A row's _Approve_ is an outline button, never filled, and only on a request whose organization is settled; _Assign organization_, _Create organization_, _Send invitation_ and _Reject_ (last) are in the row's menu (DS-07, #1441). An empty queue and a filtered-out one are two empty states, the second with _Clear filters_ (DS-15, #1448). The results card is the kit's, so the `p-0` override is gone (SHELL-18, #1502). Each decision's result is said above the list in a status line, not a banner; a refusal in a dialog stays in the dialog. The page's description is one line, and the rest moved behind its ⓘ.
+  - The module now declares `lucide-react` as an optional peer.
+
+  Removed unused translation keys (`related_payers`): `queue.loading`, `queue.empty`, `queue.retry`, `queue.column.actions`.
+
+- 074f500: Admin zone contributions now choose a tab or a sidebar by naming the zone for that place (issues #1452 and #1526). Four zones are new: `organization.detail.sales` is the body of the organization's Sales tab, after the sales representatives, and carries `{ organizationId }` with no save session; `order.detail.sidebar`, `quote_request.detail.sidebar` and `opportunity.detail.sidebar` are sidebar cards, and each contribution is a section of the card. The order and quote request screens draw their sidebar only while something fills it. The organization's Sales tab is shown to someone who may assign sales representatives or who sees one of its panels. CRM opportunities and projects moved from the organization's Commerce tab to its Sales tab. The linked opportunity, the project and the tasks moved from the end of the order, quote request and opportunity screens into their sidebars. No zone was removed or renamed: contributions to the `.detail.after` zones keep working unchanged.
+- cec9beb: The products list (`/catalog/products`) no longer shows controls that do nothing (issue #1455). The header's **Import** and **Export** buttons, which had no action, are replaced by one **Import / export** link to the import–export centre. `import_export` contributes the link to a new admin zone, `product.list.actions`, which the products list mounts in its header, so the link is shown only while that module is on and the operator holds `catalog:read` or `catalog:write`. The **Category** and **Channel** chips are removed because clicking them did nothing. The **Stock** chip is removed too: the list has no stock data, so choosing it always showed an empty list. Use the Inventory list to filter by stock. The always-disabled **Edit price** button and the per-row "more" icon, which opened nothing, are removed.
+
+  The filter row is now the kit's list toolbar. It has a labelled search box and a labelled **Type** select that lists every product type, which replaces the chip that moved to the next type on each click. The clear-selection icon has an accessible name, and load and selection errors are shown as alerts.
+
+- 90320fd: **Breaking:** `PATCH /api/v1/admin/organizations/:id` no longer accepts `status` (issue #1468). A body that carries it is refused with `400 VALIDATION_ERROR` at `status`, and nothing else in that body is written. To change an organization's status, call the moderation endpoints instead: `POST /api/v1/admin/organizations/:id/approve`, `…/reject`, `…/block` or `…/unblock`. They are the only path that checks the allowed transitions, records `approvedAt` / `blockedAt` / `blockedReason`, emits `organization.status_changed.v1` and sends the customer e-mail.
+
+  - Old: `PATCH /api/v1/admin/organizations/:id` with `{ "status": "blocked" }`.
+  - New: `POST /api/v1/admin/organizations/:id/block` with `{ "expectedVersion": <version>, "reason": "…" }`.
+
+  In `@endora-commerce/contracts`, `adminPatchOrganizationRequestSchema` refuses `status` with the message in the new `ADMIN_PATCH_ORGANIZATION_STATUS_REFUSAL` export. `vatStatus` is still accepted.
+
+  On the organization screen, the status and VAT status selects are gone, and the page's Save no longer counts or sends either field:
+
+  - The **Moderation** section is the only place the status is shown and changed. Its actions are offered only to operators who hold `customers:manage`.
+  - The VAT status is shown in the header. It is changed by the new **Change VAT status…** dialog. The dialog needs `customers:manage`, applies immediately and is audited as `organization.admin_patch`.
+  - The remaining section is titled **Contact & notifications**.
+
+  `ModerationActionsPanel` takes a required `canModerate` prop. In the core catalogue, `organizations.detail.accountStatus` and `organizations.detail.statusCard` are removed and `organizations.detail.notificationsCard` is added. A deployment that overrides the removed keys must drop them.
+
+- 42febee: CMS pages, blocks and templates can be duplicated from their lists (issue #1495, UX audit CONTENT-13, DEC-17).
+
+  - New routes `POST /api/v1/admin/cms/pages/:id/duplicate`, `POST /api/v1/admin/cms/blocks/:id/duplicate` and `POST /api/v1/admin/cms/templates/:id/duplicate`, gated `cms.write`. Each answers `201` with the kind's existing detail schema, the same envelope as its create. The body is `duplicateCmsRecordRequestSchema` from `@endora-commerce/contracts`, `{ name?: string }` (1–200 characters, trimmed, no other key); without a name the copy is called `"<name> (copy)"`.
+  - The copy's slug or code is derived and never accepted: the original's with `-copy`, then `-copy-2`, `-copy-3`, … up to `-copy-1000`, the first one no record of its kind holds in any sales channel. A page's language slugs get the same ending as its slug.
+  - A page copy is always a draft at version 1 and is not on the storefront until published. It keeps the content of every language, the languages, description, meta fields, names per language, parent, breadcrumb settings, sharing image, `active` and sales channels. A block copy keeps its content, languages, description, `active` and channels, but not its hook attachments. Child pages, inbound references and the `seo` module's overrides are not copied.
+  - Each copy is one Command, `cms_page.duplicate`, `cms_block.duplicate` or `cms_template.duplicate`, with one audit entry against the copy: no state before, the copy's state plus `sourcePageId` / `sourceBlockId` / `sourceTemplateId` after. A refusal (`409 CMS_SLUG_RESERVED`, `409 CMS_SLUG_CONFLICT`, `409 CMS_CODE_CONFLICT`, `400 CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE`, `404` for an unknown or malformed id) leaves no row and no entry. Two duplicates of one record at once get `-copy` and `-copy-2`.
+  - The admin lists' row menus read Open, Duplicate, Delete. Duplicate runs at once, is unavailable while a copy is being made, and opens the copy's editor with focus on its name; a refusal stays on the list with a translated reason.
+  - New translation keys in the cms bundle: `listActions.duplicate` and `duplicate.*` (`copyName`, `created`, `createdDraft`, `slugReserved`, `slugConflict`, `codeConflict`, `failed`).
+
+- 98c0411: The Admin UI sidebar's _System_ section, which had 18 entries, is now two sections (issue #1519, UX audit SHELL-11, owner decision DEC-02):
+
+  - **Access**: Users, Roles, API keys, Credentials, Audit log.
+  - **Platform**: Modules, Settings, Custom fields, Import/export, Bulk operations, Webhooks, Global search, PWA, Command hooks, API description.
+
+  Host rows are now sorted by weight together with the contributed rows. Before, they always came first, so the API description sat above Settings.
+
+  An administrator's own two-step verification is no longer in the sidebar. It is the **Security** tab of **My profile** (`/profile/security`), opened from the avatar or from the palette's _Account security_ action, which now targets that tab. `/security` redirects there, so old bookmarks still work. With `mfa` off, the profile has no tab strip and `/profile/security` opens the profile.
+
+  **For module authors.** `AdminNavSectionNameSchema` gains `'access'` and `'platform'`, and `AdminZoneNameSchema` gains `'profile.security'`, the body of the Profile's Security tab, with empty props. `'system'` is deprecated but still accepted: the shell puts such an entry under _Platform_, so a module that ships separately keeps its row. It will be removed in a major release.
+
+  **Upgrade notes.**
+
+  - An administrator who had collapsed _System_ sees both _Access_ and _Platform_ collapsed. The preference is rewritten the next time they toggle a group.
+  - A pin of `/security` in the sidebar's Pinned section no longer shows, because that destination is no longer a sidebar entry. The stored pin is kept but not displayed.
+
+- f64646d: The newsletter campaign editor asks for its settings before its content (issue #1533). Name, language, subject and audience share one _Settings_ card above the e-mail canvas, which now has a card to itself. A single-tag audience is a group of radio buttons instead of checkboxes that behaved like one, and narrowing a tag list to a single tag keeps the first tag chosen. The manual group is a searchable picker (the admin kit's `MultiCombobox`) that shows the subscribers already in the group, including members who have since unsubscribed. Saving no longer rewrites a group nobody changed, and if the group cannot be read the picker is locked, so a save cannot empty it. The page-header _Preview_ button and the preview card under the editor are gone: the builder's own _Preview email_ dialog is the one preview, rendered in the campaign's language. "Saved" and the send results show beside the actions as a polite status instead of a banner. The automation builder uses the same radio group for a single-tag trigger, and shows its steps as one ordered list instead of a bordered box per step.
+
+  New in `@endora-commerce/contracts`: `campaignGroupMemberSchema` / `CampaignGroupMember` (`{ id, email }`) and `campaignGroupResponseSchema` / `CampaignGroupResponse` (`{ items }`), the response of the new `GET /api/v1/admin/newsletter/campaigns/:id/group` (permission `newsletter:read`). It returns the manual group's members ordered by e-mail and answers 404 for an unknown campaign.
+
+- f6dda10: New `auditLogFacetsSchema` / `AuditLogFacetsResponse`: the body of `GET /api/v1/admin/audit-log/facets`, the actions the audit log holds (each with the `moduleId` whose bundle labels `auditLog.<action>`) and the object types (issue #1555).
+- ee6062c: **A status or priority list is reordered in one request** (issue #1560). Three new endpoints take the
+  whole list in its new order and change it in one audited Command, so a move is one history entry and
+  one undo step, and a list is never left half-moved:
+
+  | Route                                      | Permission        | Command                  | Answers                                |
+  | ------------------------------------------ | ----------------- | ------------------------ | -------------------------------------- |
+  | `PUT /api/v1/admin/crm/statuses/order`     | `crm:configure`   | `crm.status.reorder`     | the workflow, as `GET /crm/workflow`   |
+  | `PUT /api/v1/admin/tasks/statuses/order`   | `tasks:configure` | `tasks.status.reorder`   | the workflow, as `GET /tasks/workflow` |
+  | `PUT /api/v1/admin/tasks/priorities/order` | `tasks:configure` | `tasks.priority.reorder` | the list, as `GET /tasks/priorities`   |
+
+  The body is `{ orderedCodes: string[] }` and must be exactly the configured codes, each once.
+  Anything else — a code that is not configured, a row left out, a row named twice — answers
+  `409 ORDER_STALE`, a new code in
+  `ERROR_CODES` with an English and Polish sentence in `@endora-commerce/mod-i18n` — the list changed
+  since the caller loaded it, so reload it. The weights are rewritten 10, 20, 30, … in the new order.
+  The audit entry records `{ order: [codes] }` before and after.
+
+  New in `@endora-commerce/contracts`: `ReorderOpportunityStatusesRequestSchema`,
+  `ReorderTaskStatusesBodySchema`, `ReorderTaskPrioritiesBodySchema` (and their types) and
+  `ERROR_CODES.ORDER_STALE`.
+
+  In the admin, the CRM status settings and the Tasks status and priority settings move a row with
+  up/down buttons on the row instead of a position number in the status or priority dialog; the
+  position field is gone from the dialogs, and a new status or priority goes last. A move shows at
+  once, is undone with a message if the server refuses it, and reloads the list with a message if
+  somebody else changed it meanwhile. The `PATCH` endpoints still accept `weight`. No setting,
+  permission or migration changes.
+
+- 4e668b5: New exports for the order payment-status transition graph (issue #1574): `PAYMENT_STATUS_TRANSITIONS`, `paymentStatusTargets(from, actor)`, `paymentStatusTransitionActorSchema` (`'operator' | 'settlement'`) with its `PaymentStatusTransitionActor` and `PaymentStatusTransition` types, `orderPaymentStatusRefusalDetailsSchema` (`{ code: 'payment_refunded' | 'payment_not_paid', from, to }`) and the error code `ERROR_CODES.ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED`.
+
+  `paymentStatusTargets(from, 'operator')` gives the statuses `POST /api/v1/admin/orders/:id/payment-status` accepts from `from`. It never includes `from`. A client that offered every value of `adminOrderPaymentStatusTransitionSchema` should offer these instead.
+
+- 843ed42: A sales channel's e-mail branding override can be removed again, so the channel inherits the all-channels value (issue #1588).
+
+  - `@endora-commerce/contracts`: `SettingsAdminPort` gains `resetValuesForSubset(code, channelCodes, actor)`, returning `SettingsResetValuesResult` (`resetChannelIds`, `newVersion`). It removes only the named channels' own values and refuses an empty subset with `SETTING_EMPTY_SUBSET`; the platform-wide value is never touched. An implementation of the port outside this repository must add the method. New schemas `emailBrandingFieldSchema` and `resetEmailBrandingQuerySchema` (types `EmailBrandingField`, `ResetEmailBrandingQuery`).
+  - `@endora-commerce/mod-settings`: `SettingsAdminService.resetValuesForSubset` implements the port method over the existing `resetValues`.
+  - `@endora-commerce/mod-transactional-emails`: `DELETE /api/v1/admin/transactional-emails/branding?salesChannelId=…&fields=logoAssetId,accentColor` (`transactional_emails:write`) removes the channel's own value for the named fields and answers the resolved branding. On the Email branding screen, a field a channel sets differently shows "Set for this channel" and a "Use all-channels value" control; it is staged, and Save removes the channel's value rather than copying the all-channels one in.
+
+- 6155f4b: **Products list: real Category, Channel and Stock filters, and "select all matching" honours them (issue #1624).**
+
+  - **Admin.** The products list toolbar has a **Category** select (the category and every category below it), a **Sales channel** select (shown when there is more than one channel) and a **Stock** select with **Low stock** and **Out of stock** (shown while the Inventory module is on). Saved views remember them. "Select all matching" resolves the selection under the same filters, so a bulk edit or delete never reaches a product outside them.
+  - **API.** `GET /api/v1/admin/catalog/products` takes `categoryId`, `salesChannelId` and `stock` (`low` | `out`) as query parameters, and `POST /api/v1/admin/catalog/products/resolve-ids` takes them as body fields; both apply them through one clause. A malformed value answers `400 VALIDATION_FAILED` naming the field. `resolve-ids` now also honours the category, which it used to ignore. The list answers `stockFilterAvailable` beside its page; while `inventory` is off it is `false`, and a request naming `stock` answers `503 MODULE_DISABLED` instead of ignoring the filter.
+  - **Stock definitions** are the Inventory list's: _out_ is a product with managed stock whose cumulative on-hand is 0 or less; _low_ is a product with managed stock and a low-stock threshold whose cumulative on-hand is above 0 and at or below it. A product with no stock row is neither.
+  - **`@endora-commerce/contracts`:** new `productStockFilterSchema` and `adminProductListFiltersSchema`; `resolveProductIdsRequestSchema` gains `categoryId`, `salesChannelId` and `stock`; `InventoryStockReadPort` gains `stockStatePredicate()`, the Inventory list's low / out definitions as a SQL predicate the products list embeds, so the database filters and pages. A third-party implementation of that port must add the method.
+  - **`@endora-commerce/mod-catalog`:** declares `inventoryStockReadPort` as `refuses-without` on `inventory`.
+
+- 5850aac: `GET /api/v1/admin/credit-limits` pages (issue #1664). `adminCreditLimitListQuerySchema` takes `page` (default 1) and `pageSize` (1–200), and `creditLimitListResponseSchema` now carries `meta: { page, pageSize, total }`, newest grant first with the limit's id as the tie-break. A caller that names no `pageSize` still gets the whole list on one page, with `meta.pageSize` equal to its length (at least 1). `CreditLimitService.listAll()` is replaced by `listPage({ offset, limit? })`, which answers the rows and the total.
+
+  - **Credit limits (admin)**: the list is the kit `ListPage` with the kit pager, like the sales lists unified under issue #1500 (UX audit SALES-24). _Grant credit limit_ is in the header and in the empty state. It opens a dialog that asks for the organization: one that holds no limit gets the grant form, and one that already holds a limit gets the adjust form. Each row's menu holds _Adjust limit_, which opens the same dialog for that organization with its reservations, and _Open organization_. The look-up card under the list and the _Open_ button on each row are gone (UX audit SALES-19, issue #1544). A refused grant or adjustment keeps the dialog open and shows the server's message. A successful one closes the dialog and reports the result next to the list, not in a success banner (issue #1499).
+
+  Removed unused translation keys (core): `creditLimits.action.lookup`, `creditLimits.action.open`, `creditLimits.editor.title`, `creditLimits.empty`, `creditLimits.error.load`, `creditLimits.field.orgId`, `creditLimits.loading`.
+
+- 8a5725e: `GET /api/v1/admin/promotions` pages (issue #1664). `adminPromotionListQuerySchema` takes `page` (default 1) and `pageSize` (1–200), and `promotionListResponseSchema` now carries `meta: { page, pageSize, total }`, ordered by name. A caller that names no `pageSize` still gets the whole list on one page, with `meta.pageSize` equal to its length (at least 1).
+
+  - **Promotions (admin)**: the list is the kit `ListPage` with the kit pager, like the sales lists unified under issue #1500 (UX audit SALES-24). _New promotion_ is in the header for an operator holding `promotions:write`, and the name is the link to the editor. _Statistics_ and _Delete_ are in each row's menu; _Delete_ is last and confirmed, and the request runs inside the dialog. The kind and value columns are translated ("X% off the whole cart", "10%") instead of action codes and English built in code. Attribute criteria name their operator, and category, product, customer-group and organization criteria are counted; the old list could not draw them.
+
+  Removed an unused translation key (core): `promotions.empty`.
+
+- f915a24: Saved views on the CRM Opportunities page and the Projects list (issue #1734), on the same rules as the order, quote request, return and task lists (`specs/147-saved-views/`).
+
+  - `@endora-commerce/contracts` exports `createOpportunitySavedViewRequestSchema`, `updateOpportunitySavedViewRequestSchema`, `createProjectSavedViewRequestSchema` and `updateProjectSavedViewRequestSchema` (with their `Create…`/`Update…` types): `{ name, shared, filters, sort? }`; `visibleColumns` is stripped, since neither list has a column picker. Two error codes join `ERROR_CODES`: `CRM_SAVED_VIEW_NAME_TAKEN` and `PROJECT_SAVED_VIEW_NAME_TAKEN` (the latter also in `PROJECTS_ERROR_CODES`).
+  - `@endora-commerce/mod-crm` adds `GET`, `POST /api/v1/admin/crm/opportunities/list-views` and `PATCH`, `DELETE …/list-views/:id` (`crm:read`), a `crm_opportunity_list_saved_views` table, and the kit's saved-views control on the list and the board. One view serves both: it stores every filter of the page and the list's sort, never the view.
+  - `@endora-commerce/mod-projects` adds `GET`, `POST /api/v1/admin/projects/list-views` and `PATCH`, `DELETE …/list-views/:id` (`projects:read`), a `project_list_saved_views` table, and the control on the Projects list.
+
+  Run the migrations: each module brings one new table and touches no existing one.
+
+- 8a06dc5: **Returns: notifications, and complaints about goods bought elsewhere, with attachments and clauses.**
+
+  **Breaking for API callers: `attachmentAssetIds` and the JSON `{ assetId }` attachment body are removed.** They linked any asset id without checking that it existed, belonged to the caller or was a file a case may hold, and nothing displayed the link. Files are now uploaded and stored by `returns` itself.
+
+  - Old: `POST /api/v1/returns` with `{ …, attachmentAssetIds: [assetId] }`, and `POST /api/v1/returns/:id/attachments` with the JSON body `{ assetId }` (`addReturnAttachmentRequestSchema`).
+  - New: upload each file first with `POST /api/v1/returns/uploads` (multipart: `file`, `type` = `photo` | `proof_of_purchase` | `other`), which answers `{ uploadId, … }`. Then file the case with `{ …, attachments: [{ uploadId }] }`. To add a file to a case already filed, post it as multipart (`file`, `type`) to `POST /api/v1/returns/:id/attachments`. Download with `GET /api/v1/returns/:id/attachments/:attachmentId/file` (customer) or `GET /api/v1/admin/returns/:id/attachments/:attachmentId/file` (admin).
+  - `returnAttachmentSchema` no longer carries `assetId`. It now carries `type`, `filename`, `mimeType` and `sizeBytes`. `addReturnAttachmentRequestSchema` is gone; `returnUploadSchema`, `returnAttachmentUploadFieldsSchema` and `RETURN_ATTACHMENT_LIMITS` are new. Limits: JPEG, PNG, WebP or PDF, judged by content; 10 MB per file, 30 MB per submission, 10 files per case. A refused file answers `422 RETURN_ATTACHMENT_REJECTED`.
+  - **Upgrade note:** attachment rows written by the old API keep their `asset_id`. The migration fills in their `organization_id` from their case and types them `other`. They stay in the database but are not listed on the case and cannot be downloaded, because no stored file stands behind them.
+
+  **`@endora-commerce/mod-returns`**
+
+  - **Notifications.** Four transactional e-mails, editable and switchable under _Transactional emails_ (group `returns`), in English and Polish:
+    - `return_new_case`, to the new setting `returns.new_case_recipients` (`string_list`, up to 10 addresses, per sales channel).
+    - `return_submitted`, to the filer.
+    - `return_comment_added`, for a customer-visible comment posted with `notifyCustomer: true`.
+    - `return_status_entered`, for a status marked `notifyCustomerOnEntry`.
+    - Administrators holding `returns:read` also get a bell entry per new case, while `admin_notifications` is present.
+    - Delivery runs on the `returns-notifications` BullMQ queue, after commit.
+    - `GET /api/v1/admin/returns/notification-health` reports channels whose new-case e-mail goes to nobody.
+  - **Who authorized a case.** `return_cases.authorized_by_admin_user_id` is recorded on entering _Authorized_. Existing cases are back-filled from the audit log. The admin list, the detail and the CSV export (`reference`, `authorizedBy`) show it. Every case has a `reference`: the RMA number, else `#` and the first eight characters of the id.
+  - **Complaints without a platform order.** Switched on per channel with `returns.off_platform_complaints_enabled` (default off); `returns.proof_of_purchase_required` makes a proof-of-purchase file mandatory.
+    - `POST /api/v1/returns` accepts `createOffPlatformComplaintRequestSchema`: lines naming a catalogue product or a model name, a purchase date, a contact and a return address. `createReturnCaseRequestSchema` is now the union of the order and the no-order shapes.
+    - Both shapes take an optional `submissionKey`, which makes a repeated submission answer the case already filed (`200` instead of `201`).
+    - Such a case has `orderId: null` and `offPlatform: true`, and is settled by `replacement`, `repair` or the new `settled_outside` (with a mandatory `resolutionNote`). Refund, credit and a corrective invoice answer `422 RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM`.
+    - New refusals: `403 RETURN_OFF_PLATFORM_DISABLED` and `422 RETURN_PROOF_OF_PURCHASE_REQUIRED`.
+    - Admin list filter `origin` (`platform` | `off_platform`).
+    - Summaries carry `offPlatform`, `productLabel`, `lineCount` and `purchaseDate`.
+  - **Clauses.** `GET|POST /api/v1/admin/returns/clauses` and `PATCH|DELETE …/clauses/:id`, plus the _Return and complaint terms_ screen and palette action.
+    - A clause is `must_accept` or `inform_only`, per language, for returns, complaints or both, on one channel or all.
+    - `GET /api/v1/returns/form-config` serves the clauses with the toggles and limits.
+    - A filed case stores the clauses shown with it (`acceptedClauses`, `clausesAcceptedAt`). A missing or outdated acceptance answers `422 RETURN_CLAUSES_NOT_ACCEPTED`.
+  - **Erasing personal data.** On `customer_account.anonymized.v1` the account's cases lose their contact, return address and files (`personalDataErasedAt`). The daily `returns-maintenance` pass catches up on an anonymisation missed while the module was off, and deletes uploads never filed after 24 hours.
+  - **Event** `return_case.created.v1` (`ReturnCaseCreatedEventV1Schema`) is emitted after a case is filed. `ReturnStatusEvent.orderId` may now be `null`.
+  - **Dependencies.** New binding dependencies: `_i18n`, `admin_users`, `assets_library` and `catalog`. `admin_notifications` is a `degrades-without` edge. The package now has a peer dependency on `@fastify/multipart` `^10`.
+  - **Migrations.**
+    - `20261113T145001_returns_authorizer_status_notifications` adds the authorizer and the per-status e-mail flag.
+    - `20261113T155433_returns_off_platform_complaints` makes `return_cases.order_id` nullable, adds the purchase, contact, address, clause, note, submission-key and erasure columns, reshapes `return_case_attachments`, and creates `return_case_clauses`. Rolling it back is refused while a case without a platform order exists.
+
+  **`@endora-commerce/mod-transactional-emails`** publishes `transactionalEmailStatePort` (`TransactionalEmailStatePort.isActive(code)` in contracts). It reports whether a transactional e-mail is switched on, and `false` for an unknown code.
+
+  **`@endora-commerce/admin-kit`** resolves the palette icon `FileCheck`, which `KnownIconNameSchema` now accepts.
+
+- 9eee781: The Admin UI in Polish no longer shows four kinds of text in English (issue #1809).
+
+  - **Order statuses** are named in the admin's language on the Orders list, the order detail, the bulk status dialog and the Order statuses screen. The names were always stored per language; the screens read the English one.
+  - **CMS hooks**: the 23 seeded hooks, such as "Search Page Bottom", are named and described in the admin's language until an operator renames them. A renamed or custom hook keeps the operator's text.
+  - **Transactional e-mails**: each e-mail's name, description and the reason it cannot be switched off come from the sending module's bundle (`transactionalEmails.<code>.name`, `.description`, `.reason`), in the language the response is read in.
+  - **Platform → Modules**: each module's name, description and the reason it cannot be switched off come from the module's own bundle (`module.name`, `module.description`, `module.nonDeactivatableReason`). `GET /api/v1/admin/modules` gains an optional `nonDeactivatableReason` field on each row. `auth`, `currencies`, `email` and `languages` now ship translation bundles.
+
+  Each of these falls back to the English declared in code when a bundle has no entry. `endora new module` now writes `module.description` into the scaffolded bundles.
+
+- bd47236: **Returns: complaints from guests without a customer account, followed through a private tracking link.**
+
+  **`@endora-commerce/contracts`**
+
+  - **Widened, handle `null`:** `returnCaseSummarySchema.customerAccountId` and `returnCaseDetailSchema.customerAccountId` are now `uuid | null`. `null` means a guest's case, which also has no `organizationId`. An admin consumer that read the field as always set must handle `null`.
+  - `ReturnCaseCreatedEventV1Schema` gains `guest: boolean`, and its `organizationId` is `uuid | null` (`null` exactly when `guest`).
+  - Admin shapes: `adminReturnsListQuerySchema.origin` accepts `off_platform_customer` and `guest` beside `platform` and `off_platform` (unchanged meaning: both kinds bought elsewhere). Summaries and details carry `guest`; details carry `contactVerifiedAt`, `trackingLinkValidUntil` and `guestDataErasureDueAt`; a comment's `authorKind` may be `guest`; an attachment carries `uploadedByGuest`. New `adminEraseGuestDataRequestSchema` (`{ confirm: true }`) and `adminEraseGuestDataResultSchema`.
+  - Guest shapes, new: `guestAvailabilitySchema`, `guestVerificationRequestSchema`, `guestVerificationAcceptedSchema`, `guestSessionRedeemRequestSchema`, `guestSessionSchema`, `guestFormConfigSchema` (180's `returnFormConfigSchema` plus `reasons` — the active complaint reasons, since `GET /api/v1/returns/reasons` needs a customer session — `verifiedEmail`, `sessionExpiresAt` and `confirmationEmailEnabled`), `createGuestComplaintRequestSchema` (`.strict()`: a body naming an account, an organization or an order is refused), `guestCaseFiledSchema`, `guestCaseViewSchema` (which includes `rejectionReason`, `string | null`), `guestCommentRequestSchema`, `guestTrackingAttachmentFieldsSchema` and `guestLimitSchema`.
+  - Error codes: `RETURN_GUEST_COMPLAINTS_DISABLED` (403), `RETURN_GUEST_SESSION_REQUIRED` (401), `RETURN_GUEST_LINK_INVALID` (410), `RETURN_TRACKING_LINK_INVALID` (404), `RETURN_GUEST_LIMIT_REACHED` (429, `details.limit`) and `RETURN_GUEST_DATA_ERASED` (409).
+
+  **`@endora-commerce/mod-returns`**
+
+  - **Complaints from guests.** New per-channel setting `returns.guest_complaints_enabled` (default off), effective only while `returns.off_platform_complaints_enabled` is on for the same channel. A visitor without an account confirms an e-mail address by a one-time link (60 minutes, redeemed by a POST so mail scanners cannot use it up), gets a 24-hour guest session, and files a complaint without a platform order on 180's form. The case has no customer account and no organization and is never attached to an account. Anonymous routes under `/api/v1/returns/guest/*`.
+  - **Tracking link.** Every guest case has one private link, `/api/v1/returns/track*` with the token in the `X-Returns-Tracking-Token` header: read the case, reply and add files while it is open. It stops working 90 days after the case closes, on erasure, or when an administrator sends a new one (`POST /api/v1/admin/returns/:id/guest/tracking-link`, `returns:write`). The link is sealed with the platform's cursor seal, so rotating `SESSION_COOKIE_SECRET` voids every guest link.
+  - **Who sees guest cases.** Only administrators whose tenant scope is unrestricted; for everyone else a guest case is absent from lists, counts, search, export, saved views and the bell, and a direct id answers 404. The admin list filters by the new origins, marks guest rows, and finds a case by its exact contact e-mail; the CSV export gains a `guest` column.
+  - **Retention and erasure.** New global setting `returns.guest_data_retention_days` (default 90, read clamped to 30–3650). The daily `returns-maintenance` sweep erases a guest's contact, return address and files that long after the case enters a terminal status (`closed_at` is now written on terminal entry), and deletes verification records after 7 days. New permission `returns:erase_personal_data` (requires `returns:read`) and `POST /api/v1/admin/returns/:id/guest/erase` erase at once, in any status. Anonymising a customer account does not touch guest cases with the same address.
+  - **E-mails.** Seven transactional templates in English and Polish: `return_guest_verification` and `return_guest_submitted` (neither can be switched off), `return_guest_comment_added`, `return_guest_status_entered`, `return_guest_authorized`, `return_guest_rejected` and `return_guest_link_reissued`. The shop's `return_new_case` names a guest as "{name} (guest)".
+  - **Audit.** Guest writes are Commands recorded with `by: 'guest'`: `return_case.create`, the new `return_case.comment.add_by_guest`, and `return_case.attachment.add`; plus the new `return_case.tracking_link.reissue` and `return_case.guest_data.erase`. No entry holds a guest's contact value, comment text or token.
+  - **Migration** `20261116T104415_returns_guest_complaints` makes `return_cases.customer_account_id` nullable with checks that a guest case has no organization, adds the guest columns to cases, comments and attachments, and creates `return_guest_verifications`. Rolling it back is refused while a guest case exists.
+
+- 8b29aae: Carts can be bought for a related payer on the payer's commercial terms. New route `PUT /api/v1/cart/buying-for` (`setCartBuyingForRequestSchema`, `setCartBuyingForResponseSchema` with a `cartRepricingSummarySchema`) reprices the active cart — prices, line VAT and promotions — for the payer. The cart payload carries `buyingFor` and `buyingForReset` (both `null` by default); a cart read resets a context whose link is no longer usable. A new migration adds `buying_for_organization_id` and `buying_for_terms` to `carts`. Without `related_payers` no payer can be chosen and nothing changes.
+- 8b29aae: New port `creditAvailabilityReadPort` (`CreditAvailabilityReadPort` in `@endora-commerce/contracts`) answers an Organization's available credit, so the checkout can offer the credit-limit method for a related payer by the rule the buyer's own credit follows.
+- 8b29aae: Orders can name a related payer. `placeOrderRequestSchema` and the preview request accept an optional `payerOrganizationId`; with it, billing address, billing company data, tax, the payment-method allow-list and the credit reservation follow the payer, while the order stays the buyer's. Sending it together with a billing company override is refused (`400 VALIDATION_FAILED`, issue `PAYER_BILLING_OVERRIDE_CONFLICT` = `payer_billing_override_conflict`). Orders carry `payer` (`orderPayerSchema`, `null` when the buyer pays), the admin order list accepts `?payerOrganizationId=` and the admin screens show and filter the payer. `OrderReturnContext` gains an optional `payerOrganizationId`. New port `paidOrderReadPort` (`PaidOrderReadPort`, `paidOrderSummarySchema`, `paidOrderDetailSchema`) serves the payer's read-only view. A new migration adds the payer columns to `orders`. Without `related_payers` an order naming a payer is refused; every other order is unaffected.
+- 8b29aae: Pricing can name an Organization other than the viewer's. `@endora-commerce/platform/http` exports `pricedAudienceOf(request)` and `providePricingSubjectResolver(resolver)` (type `PricingSubjectResolver`): without a contributed resolver `pricedAudienceOf` equals `productAudienceOf`; with one it adds `ProductAudience.pricingOrganizationId`, which visibility never reads. `ListingPriceViewerContext` gains an optional `displayModeOrganization`, so the price display mode can be resolved for the viewer while the price is resolved for another Organization. The catalogue listing and product page, cross-sell tiles, search hits and type-ahead, comparisons and the storefront resolved-price and display-mode endpoints now price for `pricingOrganizationId ?? organizationId` and resolve the display mode for the viewer. Nothing changes for a request no resolver names a pricing subject for; no new cache key is introduced.
+- 8b29aae: New module `@endora-commerce/mod-related-payers` (`related_payers`): a buyer Organization places orders that another Organization of the store pays for and is invoiced for. It owns the buyer → payer link (state, allowed billing addresses, validity window, buyer's or payer's commercial terms), its operator surface (the _Payers_ section of the organization card and the _Payer requests_ queue), customer requests and payer invitations with an enumeration-safe reply, the account's _Payers_ and _Orders we pay for_ screens, eight transactional e-mails, and the ports `relatedPayerWritePort` (for overlays: `addPayer` / `revokePayer`, audited as `automation` with a `source`) and `relatedPayerPolicyPort` (read by `orders`, `carts` and `payment_methods`). It ships switched off (`related_payers.module_enabled`) and disabled on every sales channel (`related_payers.enabled`), so installing it changes nothing until an operator turns it on. `GET /api/v1/related-payers/availability` tells a signed-in customer's storefront whether the capability is on for the request's channel, so the account screens appear only where their routes answer.
+
+  `@endora-commerce/contracts` exports the module's schemas and port types from `related-payers.ts` (`RelatedPayerWritePort`, `RelatedPayerPolicyPort`, `addPayerInputSchema`, the link, request and invitation DTOs, `relatedPayersAvailabilityResponseSchema`, `RELATED_PAYERS_SETTING_CODES`, `RELATED_PAYERS_HOOKABLE_ACTIONS`) and five error codes in `ERROR_CODES`: `RELATED_PAYER_NOT_USABLE`, `RELATED_PAYER_REQUEST_LIMIT`, `RELATED_PAYER_REQUEST_DECIDED`, `RELATED_PAYER_LINK_EXISTS`, `RELATED_PAYER_INVALID_PAIR`.
+
+- 398e6d2: Record-tab zones: a module can add a whole tab — a label, an optional count and a panel — to another module's record tab strip. `@endora-commerce/contracts` adds the zone `opportunity.detail.tabs` (props `OpportunityDetailZoneProps`), `RECORD_TAB_ZONE_NAMES` with `RecordTabZoneName` and `isRecordTabZoneName`, `RecordTabDeclarationSchema`, an optional `tab` on a zone contribution (required on a record-tab zone, refused on every other one) and the TypeScript-only `count` factory (`AdminCountFactory`). `@endora-commerce/admin-kit` adds `recordTabComponent()` on `./contributions`, which takes only a record-tab zone and type-checks the panel and the count loader (`RecordTabCounter`) against the zone's props, and `useRecordTabZone()` on `./zones`, which returns the visible contributed tabs with their labels and counts and renders the selected panel; `zoneComponent()` now refuses a record-tab zone at compile time. The CRM opportunity screen renders `opportunity.detail.tabs` after its _Events_ tab and selects a contributed tab from `?tab=<id>`. The Tasks module's panel on an opportunity left `opportunity.detail.sidebar` and is now a _Tasks_ tab (`?tab=tasks`) on `opportunity.detail.tabs`, whose count is the open linked Tasks; the order and quote-request sidebars keep their _Tasks_ sections. `check:admin-zones` reads `useRecordTabZone('<zone>', …)` as a render site and `recordTabComponent('<zone>', …)` as a contribution.
+- 51c5072: New endpoint `GET /api/v1/admin/tasks/count`, gated by `tasks:read`. It answers `{ data: { count } }`: the number of Tasks `GET /api/v1/admin/tasks` would return to the same caller under the same filters, across all pages. The same visibility rules apply, so another administrator's private Task or draft, and a Task in a context the caller cannot see, are not counted. It takes every filter of the list (`TaskCountQuerySchema`) and refuses `sort`, `dir`, `cursor`, `limit` and `cardValues`. `@endora-commerce/contracts` exports `TaskCountQuerySchema`, `TaskCountSchema` and `TaskCountResponseSchema`, and the Tasks admin client gains `tasksApi.countTasksBy(query)`. While the `tasks` module is off, the route answers `503 MODULE_DISABLED`, like every other `tasks` route.
+- 2e287a5: Issue #470, third stage: the admin API reads a price book's price-change history. Three new reads, behind `price_lists:read`:
+
+  - `GET /api/v1/admin/price-books/:id/price-history`: the book's value changes, newest first, each with its action, actor, time, changed header values and line count.
+  - `GET /api/v1/admin/price-books/:id/price-history/:changeId/lines`: one change's lines in order, with the row's selection, quantity window and both sides of its price.
+  - `GET /api/v1/admin/price-books/:id/price-history/products/:productId`: one product's lines, its variants' included, newest first.
+
+  The reads are keyset-paged, `{ data, pagination: { cursor, hasMore, limit } }` (50 by default, at most 200), unlike the other price-book lists. Amounts are the stored decimal strings, never rounded. A book the caller cannot see answers `404` like an unknown one. For a caller limited to some organizations, organization ids outside their reach are left out of a recorded audience and counted in `withheldMemberCount`. The actor's id and name are served for an administrator only. Answers carry ids, not labels. The history starts with the release that first wrote it.
+
+  The schemas are in `@endora-commerce/contracts` (`priceBookHistory*`). `price_lists` now declares `admin_users` as a dependency, for the actor names.
+
+- 9d6f006: Issue #504: the Project/Stage picker on a Task's screen (`GET /api/v1/admin/tasks/lookups/contexts`) now reads one bounded page per search. Before, each search listed every Project the caller could see, described them all and asked about each candidate separately, so it got slower as the number of Projects grew.
+
+  - `TaskContextDescriptor` gains an optional `search({ q, limit, changeableOnly })`, with the new types `TaskContextSearchQuery` and `TaskContextSearchHit`. A context owner that implements it answers the picker's page itself. The lookup asks it once per search and no longer calls `allVisibleContextIds`, `describe` or `canChangeTasks` for that owner. An owner without it keeps the previous scan.
+  - The `project` Task context implements it with `ProjectAccess.searchVisibleByLabel`, which is one statement with both visibility rules and a limit, plus one read of the page's Stages. A caller without `projects:write` gets an empty list without any Project being read.
+
+  The picker offers the same Projects as before: the ones the caller may see and change, matched on number and title without regard to case or diacritics, sorted by label, at most 20.
+
+- 49328cf: New helpers for writes that store asset ids (issue #544):
+
+  - `contentAssetIds(tree)` collects the asset ids a Page Builder or document tree carries. These are the non-empty strings under any key ending in `assetId`.
+  - `unlinkableAssetIds(assets, proposed, current)` returns the ids a write newly adds that `AssetReadPort.visibleToCaller` does not return. Ids in `current` are not asked about.
+  - `assetIdSettingValidator({ contributorModuleId, codes, assets, refuse })` builds a `SettingWriteValidator` for a setting whose value is one asset id.
+
+  `SettingWriteValidationInput` gains an optional `currentValues`: every value the setting holds before the write. `settings` always sends it.
+
+- b3d4843: The buyer's session replies are described by their contract (issue #599, section 1):
+
+  - `@endora-commerce/contracts` publishes `customerMeResponseSchema` / `CustomerMeResponse` for `GET /api/v1/me`: `data.customerAccount` (the account with its `preferredLanguage`), `data.organization` (`null` without one) and `data.impersonation` (`{ impersonatorAdminUserId }` while an administrator impersonates the buyer, else `null`). Its Organization, `customerMeOrganizationSchema`, declares the four keys the reply has always carried and `organizationSchema` does not: `legalName`, `version`, `canTransact` and `moderationMessage`.
+  - `@endora-commerce/contracts` publishes `customerSignInResponseSchema` / `CustomerSignInResponse` for `POST /api/v1/auth/customer/login`: a `data` union on `status`, where `authenticated` carries the whole `customerAccount` and, when a guest basket was merged, `cartMerge`; `mfaRequired` carries `challengeId` and `mfaSetupRequired` carries `setupTicket`.
+  - `customerLoginResponseSchema` / `CustomerLoginResponse` are deprecated: they declare no `status` and refuse the two second-step answers. Parse with `customerSignInResponseSchema` instead. They stay exported until the next breaking-change release.
+  - `mod-organizations` builds both replies as the contract's types. Nothing on the wire changes.
+
+- 5e2a12a: `AssetsLibraryPort` gains `replace(input: AssetReplaceInput): Promise<AssetDetail>`, and
+  `@endora-commerce/contracts` exports `AssetReplaceInput` (`assetId`, `filename`, `declaredMime`,
+  `stream: AssetUploadStream`, `declaredSize`, optional `expectedContentVersion`). It replaces an
+  asset's file in place, as `POST /api/v1/admin/assets/:id/replace` does — except that the route's
+  pre-checks (the administrator visibility check) are not part of the port: the asset keeps its id,
+  storage key and every URL already handed out, answers a new `contentVersion`, and keeps the replaced
+  file as its previous version. It runs Command `asset.replace` and refuses with the route's
+  `HttpError` codes — `ASSET_NOT_FOUND`, `ASSET_GONE`, `ASSET_LEGACY_CANNOT_REPLACE`,
+  `ASSET_REPLACE_KIND_MISMATCH` and `ASSET_REPLACE_CONFLICT`. A module keeping an asset in step with
+  an external source should call it instead of uploading a new asset and soft-deleting the old one,
+  which changes the URL and loses the previous version.
+
+  The method is required on the interface, so a hand-written `AssetsLibraryPort` (a test fake, for
+  example) has to add it.
+
+- 5518a09: `GET /api/v1/admin/import-export/channel-targets` now answers each channel's per-language `name` beside its `id`, `code` and `languages`, and `importChannelTargetSchema` requires it. Code that builds an `ImportChannelTarget` must add `name` (a record of language code to name; an empty record is valid).
+
+  The import profile dialog labels each target as "channel name / language name", with the channel code as secondary text; a channel with no name in any language is labelled by its code, and a saved target whose channel no longer exists is listed as a missing channel.
+
+  `MultiSelectOption` gains an optional `description`, shown muted after the option's label.
+
+- 5e380e3: `grossPartsAtRowTarget` (with `GrossPartAtRate`) places amounts given as a gross at a VAT rate on a
+  document beside its goods: each part's net is the row-target net under `vatByRate`'s rule, less
+  the row's net so far, so no second VAT computation exists. A negative gross goes through it the
+  same way. `OrderReturnedQuantity` gains an optional `retained`, what settled returns withheld for
+  the line (issue #854), and its `discount` is now each returned line's whole default discount.
+  Both changes are additive for a reader; an implementor of `ReturnRefundReadPort` that sends no
+  `retained` reports nothing withheld.
+- bfab5bd: **Breaking:** `GET /api/v1/admin/quote-requests` now answers one page instead of every quote request. The server applies `assignmentScope`, `organizationId`, `status`, `q` (a fragment of the business id, the organization name or the customer's name, or a whole id), `sort` (`updatedAt:desc` by default, `updatedAt:asc`, `total:desc`, `total:asc`) and the page (`page`, default 1; `pageSize`, default 25, at most 200). The `pagination` block is now true for the response: it adds `page`, `pageSize` and `total`, and `limit` and `hasMore` describe the page returned (`nextCursor` stays `null`; ask for the next `page`). An invalid `pageSize`, `page`, `sort`, `assignmentScope` or `organizationId` is refused with 400.
+
+  To migrate, a client that read the whole list from one call must page through it with `page` and `pageSize`, or read `pagination.total` when it only needs the count. The contracts publish the query and the envelope as `adminQuoteRequestListQuerySchema` and `adminQuoteRequestListResponseSchema`.
+
+  `SalesRepAssignmentPort` gains `listOrganizationIdsWithAssignments()`; an implementation of the port outside this repository must add it. The admin Quote Requests list now asks the server for each page, filter and sort, and offers a lowest-total sort. The home page's pending-quotes tile and the project link picker read the paged list.
+
+### Patch Changes
+
+- 3fdbe86: **Breaking change:** the two Page Builder content refusals that answer `400 ATTRIBUTE_VALUE_REJECTED`
+  now carry a token and an object in `details` instead of a list of `{ path, issue }`, so each gets a
+  sentence in English and Polish that says why and names the key (issue #1223). Before, both were
+  answered with the code's one sentence, "Some attributes do not belong to this product's attribute
+  set.", which is false for them. Code and status do not change.
+
+  | Route                                                                                                                                                                | `details` was                                                   | `details` is                                                      |
+  | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------- |
+  | `POST`/`PATCH /api/v1/admin/catalog/products`, `PUT /api/v1/catalog/products/by-sku/:sku`, the catalogue write port (a content attribute's key in `attributeValues`) | `[{ path: 'attributeValues.<key>', issue }]`, one entry per key | `{ code: 'page_builder_content', attributeKeys: '<key>, <key>' }` |
+  | `PUT /api/v1/admin/catalog/products/:id/content/:attributeKey` (the key is not a content attribute of the product's set)                                             | `[{ path: 'attributeKey', issue }]`                             | `{ code: 'not_content_attribute', attributeKey }`                 |
+
+  To migrate, a caller that read `details[].path` for these refusals reads `details.code` and the
+  key(s) from `details.attributeKeys` (comma-separated) or `details.attributeKey`. A key outside the
+  product's attribute set keeps the old sentence and `details: [{ path, issue }]`. The `catalog`
+  manifest declares both tokens on `ATTRIBUTE_VALUE_REJECTED`; the module's documentation lists them.
+  No setting, permission or migration changes.
+
+- bfc68c7: `Accept-Language` tags with `q=0` are no longer chosen (issue #1315). RFC 9110 says `q=0` means "not acceptable".
+
+  Behaviour change: `parseAcceptLanguage` and `weightedAcceptLanguage` now drop any tag with `q` of `0` or less, and the dropped tags do not count towards the ten-tag limit. This includes a refused `*`. Every `q` returned by `weightedAcceptLanguage` is now above `0`.
+
+  `requestScopeLanguage` uses the same parse, so a refused language is never picked as the content language. `pl;q=0, en;q=0.5` on a `pl-PL` / `en-US` channel now gives `en-US`. `pl;q=0` alone gives the channel's default.
+
+  To migrate: if your code filtered out `q <= 0` entries from `weightedAcceptLanguage` itself, you can remove that filter. It does nothing now.
+
+- a56109e: Issue #1396: promotion thresholds and fixed-amount caps now use the gross the buyer pays. They used to use the net subtotal, while percent-off discounts already used the gross (#1350).
+
+  **Behaviour change on upgrade.** Some promotions now apply to carts they skipped before, and some fixed amounts take off more. A minimum spend of 500 used to need 500 net; now it needs 500 gross. A fixed amount used to stop at the net subtotal, so 150 off a cart of 100 net / 123 gross left the buyer paying 23. Now it can make the goods free, VAT included. Orders placed before the upgrade are not changed.
+
+  - `minCartSubtotal`, the rule builder's `cartTotal` and the "spend X" steps of `spend_x_percent_off` and `spend_x_amount_off` compare the goods gross before any discount. The gross is VAT per rate on the sum of the line nets (`vatByRate`).
+  - `amount_off_cart`, `buy_x_units_amount_off`, `spend_x_amount_off` and the legacy `amount_off` kind are capped at the gross.
+  - Applying a coupon (`POST /api/v1/cart/coupon`) and re-checking it on the cart read compare its minimum spend with the gross, at the rates the cart read and order placement charge. A coupon refused with `below_min_spend` reports a gross `shortfall`.
+  - An operator who set a minimum spend or a "spend X" step as a net amount should review it: the same figure is now reached by a smaller net basket.
+
+- a8261aa: The task screen has the layout of an opportunity (issue #1524). There are three cards instead of up to twelve: a main card with the details, the custom fields and the sub-tasks; a sidebar card with where the task belongs, its linked records, its reminders and its related tasks; and a tabbed card with Comments and Attachments, each with a count, and History. The selected tab is kept in the address as `?tab=attachments` or `?tab=history`. The status is shown once, as the badge beside the title. The Details section offers only the "Move to…" menu, beside Edit (issue #1566).
+
+  The `task.detail.after` zone is now the last section of the task screen's sidebar card, not a stack of cards below the page. A contribution built on `EditorSection` takes the zone's `chrome="section"` and is drawn as a section of that card. The zone's name and props are unchanged. A contribution that draws a card of its own should drop it.
+
+- 27b977d: Four refusals of `organizations` have error codes of their own instead of `VALIDATION_FAILED`,
+  and a sentence in English and Polish filled from `details` (issue #629, part of #86). **Breaking
+  change: a client that matches on `VALIDATION_FAILED` for these refusals now receives the new
+  code.** Match on the code below, and show the envelope's `message` rather than matching on its
+  text. The status stays `422` everywhere.
+
+  | Route                                                                                                            | Was                                                                                                       | Is                                          | `details`                                                                                                                   |
+  | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+  | `POST /api/v1/admin/organizations/:id/members` (personal organization)                                           | `VALIDATION_FAILED`, `A personal (individual) organization cannot have additional members.`               | `ORGANIZATION_PERSONAL`, token `add_member` | `organizationId`, `organizationName`                                                                                        |
+  | `POST /api/v1/organizations/mine/invitations` (personal organization)                                            | `VALIDATION_FAILED`, `A personal (individual) account cannot invite members.`                             | `ORGANIZATION_PERSONAL`, token `invite`     | `organizationId`                                                                                                            |
+  | `POST /api/v1/admin/organizations/:id/sales-reps` (personal organization)                                        | `VALIDATION_FAILED`, `A sales representative cannot be assigned to a personal (individual) organization.` | `ORGANIZATION_PERSONAL`, token `sales_rep`  | `organizationId`, `organizationName`                                                                                        |
+  | `POST /api/v1/admin/organizations/:id/approve`, `/reject`, `/block`, `/unblock` (organization in another status) | `VALIDATION_FAILED`, `Organization is in status '…', cannot perform an action that requires '…'.`         | `ORGANIZATION_STATUS_INVALID`               | `currentStatus`, `requiredStatus` (unchanged), plus `currentStatusLabel` and `requiredStatusLabel` in the reader's language |
+
+  An unknown sales channel id on the admin create stays `VALIDATION_FAILED`. `ORGANIZATION_PERSONAL`
+  and `ORGANIZATION_STATUS_INVALID` are new members of `ERROR_CODES` in `@endora-commerce/contracts`,
+  declared by the `organizations` manifest. No setting, permission or migration changes.
+
 ## 0.111.0
 
 ### Minor Changes

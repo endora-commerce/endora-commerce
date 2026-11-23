@@ -1,5 +1,255 @@
 # @endora-commerce/mod-megamenu
 
+## 0.112.0
+
+### Minor Changes
+
+- 86b9b39: The CMS page, block, template and hook lists, the blog post, tag and category lists and the megamenu list use the kit list page, and pages, blocks, templates, custom hooks, blog posts and megamenus can now be deleted from their lists (issue #1495). The blog tag form opens in a dialog (issue #1538).
+
+  - `@endora-commerce/admin-kit/components` exports `useDebouncedValue(value, delayMs?)` and `SEARCH_DEBOUNCE_MS` (300). The hook returns `value` once it has stayed unchanged for `delayMs`. Use it so a list's search runs while the operator types, with one request per pause.
+  - `@endora-commerce/admin-kit/components` also exports `useRemovalFocus(rows, idOf, ready)`. It returns a `returnFocusTo` for `useConfirmDialog` that moves focus to the next row after a delete, or to the list's create action once the list is empty.
+  - Each row has a menu with Open (Edit for a blog tag) and Delete. Delete asks for confirmation and calls the module's existing delete endpoint. When the server refuses (the record is still referenced, or a megamenu is active on a channel), the dialog stays open and says what to do. A system CMS hook is offered no delete. The menus, the blog tag's New button and the megamenu's New button need the module's write permission (`cms.write`, `blog.write`, `megamenu.write`).
+  - The card title that repeated the page title is gone. Loading shows a skeleton, an empty list shows the kit `EmptyState`, statuses are badges with translated text, and the CMS page and blog post searches run as you type. The blog post and tag lists use the kit pager.
+  - The megamenu list's name field in the header is replaced by a New megamenu button that opens a dialog.
+  - `@endora-commerce/mod-blog` now lists `lucide-react` (`^1`) as an optional peer dependency, like the other module packages with an admin UI.
+  - Translation keys removed: cms `*.cardTitle`, `*.description`, `*.empty` and `*.loading` for `pagesList`, `blocksList`, `templatesList` and `hooksList`, and `common.search`. Blog: `postList.cardTitle`, `postList.description`, `postList.empty`, `postList.loading` and `postList.total`; `tagList.cardTitle`, `tagList.description`, `tagList.empty` and `tagList.messages.*`; `tagList.validation.invalidForm` and `tagList.validation.missingTag`; `tagList.deleteConfirm.default` and `tagList.deleteConfirm.inUse`; `categoryTree.cardTitle`, `categoryTree.description` and `categoryTree.empty`; `pagination.*`. Megamenu: `list.cardTitle`, `list.description`, `list.empty` and `list.newNamePlaceholder`. A deployment that overrides one of these keys should move its override to the new key or drop it.
+
+### Patch Changes
+
+- fd27113: Content and system admin screens drop the page descriptions that repeated their title or spoke the implementation (issue #1436, UX audit 2026-11-17, DS-02). No description any more on: the CMS page, block and template editors, Brand, the blog post editor (once saved) and category editor (non-system), the Forms list, New form and Entries, the megamenu editor, the Comparisons list and detail, Settings, Settings groups, Cache, Modules, Command hooks, API description, Users, Roles, API keys, Webhooks, Taxes, Audit log, Credentials, the global-search configuration and results. The Brand cards for colour schemes, spacing and preview drop their intro line, and the Home stock-alert card its subtitle.
+
+  Moved behind a ⓘ beside the title (`help`): the Modules screen's note on installation versus activation, the document-template default rule, and the Meta Ads note that standard events are always reported.
+
+  Shortened to one line: the document templates, Meta Ads and LinkedIn Ads descriptions, the blog addresses description, the new post and new category notes, the CMS page editor's field notes (page fields, language version, breadcrumb parent and overlay, parent path, share image), the Brand scope and type-scale notes, the forms share-answer note, the megamenu click-navigates note, the Cache screen's two action notes, the API reference note, the reset-password note and the global-search settings note.
+
+  Translation keys removed from both `en` and `pl`: `core` `platform.modules.description`, `platform.modules.cliHint` (now `platform.modules.help`), `platform.commandHooks.description`, `platform.apiDescription.description`, `home.stockAlerts.subtitle`, `adminUsers.page.descriptionPrefix`, `adminUsers.rolesLink`, `adminRoles.page.descriptionPrefix`, `adminRoles.usersLink`, `apiKeys.page.description`, `webhooks.page.description`, `taxes.page.description`, `auditLog.page.description`; cms `pageEditor.description`, `blockEditor.description`, `templateEditor.description`, `brand.description`, `brand.schemes.hint`, `brand.spacing.hint`, `brand.preview.hint`, `brand.layout.tierHint`; blog `postEditor.description.edit`, `categoryEditor.description.default`; forms `list.description`, `create.description`, `entries.description`; megamenu `editor.description`; comparisons `list.page.description`, `detail.page.description`; settings `page.description`, `groups.page.description`, `cache.page.description`; credentials `page.subtitle`; admin_search `page.configuration.description`, `page.results.description`. New keys: `core` `platform.modules.help`, document_templates `page.help`, meta_ads `customEvents.help`. A deployment that overrides a removed key can drop the override.
+
+- 28181ed: One card implementation with density tokens (issue #1438, UX audit DS-04; SHELL-18 #1502). This
+  changes how every admin card looks, including the cards third-party modules render.
+
+  - `theme.css` declares `--card-pad` (16px), `--card-pad-sm` (12px), `--card-gap` (16px),
+    `--section-gap` (24px), `--fs-page-title` (20px), `--fs-section-title` (14px) and `--fs-hint`
+    (12px). A client can redeclare them after the import like any other token.
+  - `Card`, `CardHeader`, `CardContent` and `CardFooter` pad with `--card-pad` (16px) instead of
+    `p-6` (24px). `CardContent` drops its top padding only when it follows a `CardHeader`, so a
+    card without a header no longer needs `className="pt-6"`. Every part carries a `data-slot`.
+  - `CardTitle` renders an `h2` by default and takes `as` (`h2`–`h6`, or `div` to stay out of the
+    heading outline); its size is `--fs-section-title` (14px, was 16px). A `CardTitle` that wrapped
+    its own `<h2>` now nests a heading in a heading: pass the `id` to `CardTitle` and drop the inner
+    element. A test that found a card title with `getByText` still does; one that counted headings
+    now counts the card titles too.
+  - `<Card flush>` removes the content padding and clips the corners, for a table that runs to the
+    card's edge. New types: `CardProps`, `CardTitleProps`, `CardTitleElement`.
+  - `.b2b-card`, `.b2b-card--clickable` and `.b2b-card__head` / `__title` / `__sub` / `__body` /
+    `__body--flush` / `__foot` are **deprecated** but still published; they read the same tokens.
+    The only visible change there is the header's vertical padding, 14px to 12px. Use `Card`.
+
+  Every module's card call sites drop the `pt-6` workaround and the redundant `text-base` on
+  `CardTitle`, and the 14 titles that wrapped their own `<h2>` carry the `id` themselves.
+
+- b27a76c: Every content editor now warns before unsaved changes are lost (issue #1461, UX audit CONTENT-02). The CMS page, block and template editors, the blog post and category editors, the transactional e-mail and e-mail block/template editors, the document-template editor, the megamenu editor and the newsletter campaign and automation editors compare their draft with the last saved version, show "Unsaved changes" beside Save, and ask Save / Discard / Stay before Back, the sidebar or a closed tab throws the work away. The e-mail and document-template editors also ask before a channel or language switch reloads the canvas, and saving a megamenu binding no longer reloads the stored item tree over an unsaved one.
+- 2614e4f: Deletes that fired on one click now ask first (issue #1464).
+
+  `useConfirmDialog().confirm` accepts an `action` and a `describeError` beside the usual options. With them, the dialog runs `action` itself on confirm: busy while it is pending (both buttons and Escape inert, so it cannot be submitted twice), resolving `true` once it succeeds, and on a throw staying open with `describeError(err)` as its announced error, so the operator can retry or cancel where they are looking. A call without `action` behaves as before.
+
+  The newsletter's e-mail block, subscriber, tag and custom-field deletes, the Google Analytics custom-event delete and the megamenu tree's item delete now confirm, naming the object and what deleting it does; focus opens on Cancel. The Google Analytics Delete moves out of the row beside Save into its own section below the form. The megamenu confirmation says how many nested items go with the item, and that nothing changes on the storefront until the tree is saved.
+
+- 36344ed: Content screens no longer nest a button inside a link, and their labels now name their fields (issue #1465).
+
+  - **Newsletter**: _Export CSV_, _New campaign_, _New automation_ and the campaign's _Stats_ are each one link styled as a button (`<Button asChild>`), not a button inside a link. Before, each took two tab stops.
+  - **CMS page, block and template editors** and the **megamenu editor**: Name, Slug, Code, Status and Description are wired through `FormField`. The page's public address describes its slug field.
+  - **Megamenu item editor**: the URL, link target, variant, asset type, embed side and root category fields are tied to their labels. The per-language labels form a group, and each input is named by the group and its language.
+  - **PWA**: the colour captions no longer appear as labels for nothing, and the push audience choice is a radio group named "Audience".
+  - **Search boxes** on the CMS pages list, the blog post and tag lists and the transactional e-mails list are search fields with a translated name (EN + PL). Before, only a placeholder named them. The e-mails list placeholder now comes from the bundle.
+  - **Prompt actions panel**: the instruction input has a name ("Instruction" / "Polecenie"). The busy line now sits in a status region that is mounted before it has text, so screen readers announce it.
+
+  A structural admin test now rejects a button nested in a link, or a link nested in a button, anywhere in the admin sources.
+
+- 1d039e0: The megamenu item panel names its target pickers in plain words (issue #1467). "Category id", "CMS page id", "Asset id" and "CMS block id" are now "Category", "Page", "Image" (or "Video", when the item shows a video) and "Content block", in English and Polish, and each label is linked to its picker through the kit `FormField`. The bundle keys `fields.categoryId`, `fields.cmsPageId`, `fields.assetId` and `fields.cmsBlockId` are replaced by `fields.category`, `fields.cmsPage`, `fields.assetImage`, `fields.assetVideo` and `fields.cmsBlock`.
+
+  In the item tree, "Move up" and "Move down" are 32 px icon buttons with an accessible name, and the first and last item of a level cannot be moved past the end. "Add child item" and "Delete item" moved into a row menu named "Actions for <item>", with delete last.
+
+- 998ac87: Banners that appear as the result of an action keep being announced now that the kit's `Alert` no longer interrupts for every variant (issue #1484). A refused or partly rejected action (activating a price book, a stale price-book save, a taxonomy revision, quick-order lines, quote-request lines unavailable on the channel) is announced at once, and so is the shell's notice to an administrator without a role. An import, undo, PDF or save result, a template-preview verdict, a brand contrast warning, a changed refund method, the organization-attribution scope notice and the information notices after an action are announced politely. Static banners present when a page loads, such as the modules screen's degraded-mode warning or a quote request's lapsed validity, are shown but no longer announced as an interruption.
+- d5a077f: The Page Builder has one canvas toolbar (issue #1494, UX audit CONTENT-11). `PageBuilderHeaderActions` now draws the module's own actions (`extraActions`, such as Translate or Preview email), a labelled **More** menu and Fullscreen. Save as template, Apply template, Copy from language and Clear canvas are entries of that menu. Clear canvas is the last entry, after a separator, in the destructive colour, and still asks before it clears. An entry that cannot run says why under its label.
+
+  **Breaking for consumers of `@endora-commerce/page-builder-admin`:** `PageBuilderTemplateActions` and `PageBuilderHeaderShell` are removed. Pass their props to `PageBuilderHeaderActions` instead and drop the Puck `header` override:
+
+  ```tsx
+  // before
+  header: ({ children }) => (
+    <PageBuilderHeaderShell leading={<PageBuilderTemplateActions currentData={data} onSaveAsTemplate={save} onListTemplatesForApply={list} onApplyTemplate={apply} t={t} />}>
+      {children}
+    </PageBuilderHeaderShell>
+  ),
+  headerActions: () => <PageBuilderHeaderActions fullscreen={fs} onToggleFullscreen={toggle} currentData={data} t={t} />,
+
+  // after
+  headerActions: () => (
+    <PageBuilderHeaderActions
+      fullscreen={fs}
+      onToggleFullscreen={toggle}
+      currentData={data}
+      onSaveAsTemplate={save}
+      onListTemplatesForApply={list}
+      onApplyTemplate={apply}
+      t={t}
+    />
+  ),
+  ```
+
+  The `.cms-pb-header-shell`, `.cms-pb-header-left` and `.cms-pb-header-leading` rules are removed from the admin kit's `theme.css`. The CMS, blog, megamenu and document-template editors show Back as the page header's back link above the title instead of a button beside Save. The `core` bundle gains `pageBuilder.clearCanvas.alreadyEmpty` in English and Polish.
+
+- edbe4ef: The blog post and megamenu editors each have one Save and say which parts apply at once (issues #1512 and #1534). In the blog post editor the author, the tags and the related posts and products are no longer written the moment they are picked: they are part of the draft, mark the post unsaved and are saved with the header Save (or discarded with the rest). The Address card, which still saves on its own, carries the "Applies immediately" badge and shows its result beside _Save address_; the result of a post or category save appears beside the Save button instead of a banner under the header, and clears on the next edit. The megamenu editor replaces "Save metadata" and "Save tree" with one Save and _Save and exit_ in the header, which saves the name and description and then the item tree, each only when changed. The Bindings section is marked "Applies immediately", its buttons are no longer filled, its remove button is named after the binding and asks for confirmation before removing it, and each binding change is announced in the section. The editor's columns now start at wide screens and stack below: the name and description beside the bindings, and the item tree beside the panel that edits the selected item.
+- df16345: The Settings screen shows less on every row (UX audit SHELL-09, SHELL-23). A row no longer carries a value-type badge, a source badge or a "Default … · 0 per-channel overrides" footer: one muted line appears only when the value in force differs from the default or channels override it. A changed row is marked by a bar at its edge, a switched-off module's group states its read-only reason once, the "Editing for" channel picker sits in the toolbar beside the search, and the hard-coded "system" group badge is gone. Single-line controls sit to the right of the setting's name.
+
+  A setting's description is now at most 120 characters (`check:text-budget`), with the long explanations left to each module's documentation page, and it never falls back to another language: in Polish the screen shows the Polish description or none. Every module that declares settings now ships `settingLabels.<code>.name` and `.description` in English and Polish, so the screen no longer shows English names in Polish. Where a manifest declared one of the shortened descriptions, its `description` is the same shorter sentence.
+
+- 306a659: The back link above an admin page title now names the screen it leads to, in the words that screen uses for its own title — _Organizations_, _Price books_, _CMS pages_ — instead of _Back to organizations_, _All warehouses_, _Back to list_ or a bare _Back_ (follow-up of issue #1549). A generic _Back_ remains only where a screen was opened from somewhere else and leads back there. The rule is described under `PageHeader` in the admin-kit README.
+
+  The back-only translation keys these screens no longer read are removed: `categoryEditor.backToTree` and `postEditor.backToList` (blog), `bulkOperations.detail.back` and `categoryContent.action.back` (catalog), `common.back` (cms, megamenu), `detail.backToList` (comparisons), `entry.back` (forms), `priceBooks.common.backToList` (price lists), `detail.back` (returns), and `inventory.import.back`, `warehouses.editor.backToList`, `organizations.detail.back` and `rfqCreate.back` (core bundle). A deployment that overrides one of them overrides the destination screen's title key instead. `taxIdScope.back` (organizations) and `productContent.action.back` (catalog, now the fallback while the product name loads) keep their keys with new text; `runs.detail.feedFallback` (product feeds) is new.
+
+- 9eee781: The Admin UI in Polish no longer shows four kinds of text in English (issue #1809).
+
+  - **Order statuses** are named in the admin's language on the Orders list, the order detail, the bulk status dialog and the Order statuses screen. The names were always stored per language; the screens read the English one.
+  - **CMS hooks**: the 23 seeded hooks, such as "Search Page Bottom", are named and described in the admin's language until an operator renames them. A renamed or custom hook keeps the operator's text.
+  - **Transactional e-mails**: each e-mail's name, description and the reason it cannot be switched off come from the sending module's bundle (`transactionalEmails.<code>.name`, `.description`, `.reason`), in the language the response is read in.
+  - **Platform → Modules**: each module's name, description and the reason it cannot be switched off come from the module's own bundle (`module.name`, `module.description`, `module.nonDeactivatableReason`). `GET /api/v1/admin/modules` gains an optional `nonDeactivatableReason` field on each row. `auth`, `currencies`, `email` and `languages` now ship translation bundles.
+
+  Each of these falls back to the English declared in code when a bundle has no entry. `endora new module` now writes `module.description` into the scaffolded bundles.
+
+- 318af94: The megamenu list's active-scopes badge now uses plural forms (UX audit follow-up, issue #1567). Before, Polish showed "{count} zakresów" for every count, so two scopes read "2 zakresów". `list.activeScopes` is now a family of `.one` / `.few` / `.many` / `.other` keys in both bundles, picked with `Intl.PluralRules`, as the tree's nested-item question already does. Polish now reads "1 zakres", "2 zakresy" and "5 zakresów". An overlay that overrides `list.activeScopes` must override the four suffixed keys instead.
+- Updated dependencies [c878440]
+- Updated dependencies [65f9a7b]
+- Updated dependencies [3fdbe86]
+- Updated dependencies [bfc68c7]
+- Updated dependencies [9eaa409]
+- Updated dependencies [d908737]
+- Updated dependencies [1042e2a]
+- Updated dependencies [3872f3d]
+- Updated dependencies [bbfcd80]
+- Updated dependencies [41b598c]
+- Updated dependencies [f5b8275]
+- Updated dependencies [467b075]
+- Updated dependencies [a56109e]
+- Updated dependencies [84b89ed]
+- Updated dependencies [b2cd2d3]
+- Updated dependencies [e5b17ae]
+- Updated dependencies [e78d27d]
+- Updated dependencies [596ce81]
+- Updated dependencies [b2b41eb]
+- Updated dependencies [932821f]
+- Updated dependencies [28181ed]
+- Updated dependencies [c15eb60]
+- Updated dependencies [33db45a]
+- Updated dependencies [cec9beb]
+- Updated dependencies [d4bda8d]
+- Updated dependencies [8e7684c]
+- Updated dependencies [87fb9c3]
+- Updated dependencies [998ac87]
+- Updated dependencies [d0a6c2c]
+- Updated dependencies [35e0829]
+- Updated dependencies [3f66b6f]
+- Updated dependencies [61bdc2a]
+- Updated dependencies [649d662]
+- Updated dependencies [38adf84]
+- Updated dependencies [7329865]
+- Updated dependencies [84ed7b6]
+- Updated dependencies [1064839]
+- Updated dependencies [d2d9d79]
+- Updated dependencies [f687479]
+- Updated dependencies [074f500]
+- Updated dependencies [7624db6]
+- Updated dependencies [cec9beb]
+- Updated dependencies [7be07f6]
+- Updated dependencies [2614e4f]
+- Updated dependencies [90320fd]
+- Updated dependencies [bb21b86]
+- Updated dependencies [79a17a3]
+- Updated dependencies [3dab0be]
+- Updated dependencies [e22b612]
+- Updated dependencies [cb75825]
+- Updated dependencies [a4455db]
+- Updated dependencies [f3b2ec8]
+- Updated dependencies [f093a02]
+- Updated dependencies [d5a077f]
+- Updated dependencies [86b9b39]
+- Updated dependencies [42febee]
+- Updated dependencies [447e829]
+- Updated dependencies [2040ae9]
+- Updated dependencies [fc7f669]
+- Updated dependencies [40b76aa]
+- Updated dependencies [eeed5c8]
+- Updated dependencies [63a657b]
+- Updated dependencies [0ecb287]
+- Updated dependencies [9a27b93]
+- Updated dependencies [2f0b69f]
+- Updated dependencies [87b9b60]
+- Updated dependencies [50d451b]
+- Updated dependencies [98c0411]
+- Updated dependencies [9f4eae3]
+- Updated dependencies [a8261aa]
+- Updated dependencies [f64646d]
+- Updated dependencies [306a659]
+- Updated dependencies [7ea72af]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [f6dda10]
+- Updated dependencies [bfbcac2]
+- Updated dependencies [ee6062c]
+- Updated dependencies [820f089]
+- Updated dependencies [f33ffed]
+- Updated dependencies [4e668b5]
+- Updated dependencies [843ed42]
+- Updated dependencies [0d4c134]
+- Updated dependencies [3f7b5ae]
+- Updated dependencies [b98739c]
+- Updated dependencies [6155f4b]
+- Updated dependencies [bdcc9a4]
+- Updated dependencies [5850aac]
+- Updated dependencies [c042024]
+- Updated dependencies [8a5725e]
+- Updated dependencies [f915a24]
+- Updated dependencies [8688a1f]
+- Updated dependencies [95e5082]
+- Updated dependencies [31c0430]
+- Updated dependencies [0686447]
+- Updated dependencies [691414b]
+- Updated dependencies [8a06dc5]
+- Updated dependencies [e118ee4]
+- Updated dependencies [5fb3cd3]
+- Updated dependencies [9eee781]
+- Updated dependencies [bd47236]
+- Updated dependencies [bd47236]
+- Updated dependencies [79d15cf]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [8b29aae]
+- Updated dependencies [398e6d2]
+- Updated dependencies [51c5072]
+- Updated dependencies [0e81803]
+- Updated dependencies [2e287a5]
+- Updated dependencies [fbc6c7c]
+- Updated dependencies [9d6f006]
+- Updated dependencies [49328cf]
+- Updated dependencies [b3d4843]
+- Updated dependencies [f74fe34]
+- Updated dependencies [19eb7c0]
+- Updated dependencies [0fbf186]
+- Updated dependencies [27b977d]
+- Updated dependencies [5e2a12a]
+- Updated dependencies [5518a09]
+- Updated dependencies [5e380e3]
+- Updated dependencies [bfab5bd]
+- Updated dependencies [8a0ec92]
+- Updated dependencies [81fcc3f]
+- Updated dependencies [12c63fa]
+- Updated dependencies [72637e0]
+  - @endora-commerce/platform@0.112.0
+  - @endora-commerce/contracts@0.112.0
+  - @endora-commerce/admin-kit@0.112.0
+
 ## 0.111.0
 
 ### Minor Changes
