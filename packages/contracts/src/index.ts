@@ -243,6 +243,8 @@ export * from './modules.js';
 // `specs/176-command-hooks-outbox/` P2 — command-hook refs, and `organizations`' first four.
 export * from './command-hooks.js';
 export * from './organization-hooks.js';
+// Issue #1845 — `projects`' hookable actions.
+export * from './project-hooks.js';
 // Issue #1844 — `promotions`' promotion and coupon writes.
 export * from './promotion-hooks.js';
 export * from './platform-info.js';

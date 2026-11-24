@@ -4,11 +4,14 @@ import {
   PROJECTS_EVENTS,
   type CloseProjectBody,
   type MoveProjectBody,
+  type ProjectCloseHookData,
   type ProjectClosedEvent,
   type ProjectDetail,
   type ProjectMoveResult,
+  type ProjectReopenHookData,
   type ProjectReopenedEvent,
   type ProjectStageEntryNote,
+  type ProjectStageMoveHookData,
   type ProjectStageMovedEvent,
   type ReopenProjectBody,
 } from '@endora-commerce/contracts';
@@ -104,10 +107,18 @@ export class MoveService {
     let plan: StageEntryPlan = { materialize: false, notes: [] };
 
     let moved: Omit<ProjectStageMovedEvent, 'eventId' | 'occurredAt'> | null = null;
+    // Hookable (issue #1845, `PROJECT_HOOKABLE_ACTIONS.stageMove`): the Stages by id, set by `run`.
+    const hooked = (): ProjectStageMoveHookData => ({
+      projectId: visible.id,
+      fromStageId: moved!.fromStageId!,
+      toStageId: moved!.toStageId,
+    });
     const entryId = await this.deps.commandBus.run({
       action: 'projects.project.stage_move',
       objectType: 'project',
       objectId: visible.id,
+      hookData: hooked,
+      outboxData: hooked,
       run: async ({ em, actor }) => {
         const project = await lockProject(em, this.deps.access, visible.id);
         if (project.version !== body.version || project.state !== 'open') throw projectChanged();
@@ -214,16 +225,27 @@ export class MoveService {
     const gateNotes = body.outcome === 'completed' ? await this.deps.stageTasks.gate(visible.id, stage) : [];
     await this.deps.guards.run({ projectId: visible.id, fromStageId: stageId, toStageId: null, kind });
 
+    // Hookable (#1845, `PROJECT_HOOKABLE_ACTIONS.close`): the outcome and the loss reason by code.
+    let closedIn = stageId;
+    const hooked = (): ProjectCloseHookData => ({
+      projectId: visible.id,
+      state: body.outcome,
+      stageId: closedIn,
+      lossReasonCode,
+    });
     await this.deps.commandBus.run({
       action: 'projects.project.close',
       objectType: 'project',
       objectId: visible.id,
+      hookData: hooked,
+      outboxData: hooked,
       run: async ({ em, actor }) => {
         const project = await lockProject(em, this.deps.access, visible.id);
         if (project.version !== body.version || project.state !== 'open') throw projectChanged();
         const current = await em.findOne(ProjectStage, { id: project.currentStageId!, projectId: project.id });
         if (!current) throw projectChanged();
         if (body.outcome === 'completed' && !current.completionPermitted) throw projectChanged();
+        closedIn = current.id;
         project.state = body.outcome;
         project.closedAt = new Date();
         if (body.outcome === 'lost') {
@@ -278,13 +300,19 @@ export class MoveService {
     const stageId = visible.lost_stage_id ?? visible.current_stage_id!;
     await this.deps.guards.run({ projectId: visible.id, fromStageId: null, toStageId: stageId, kind: 'reopen' });
 
+    // Hookable (#1845, `PROJECT_HOOKABLE_ACTIONS.reopen`): how it had ended, read under the lock.
+    let previousState: ProjectReopenHookData['previousState'] = visible.state as ProjectReopenHookData['previousState'];
+    const hooked = (): ProjectReopenHookData => ({ projectId: visible.id, stageId, previousState });
     await this.deps.commandBus.run({
       action: 'projects.project.reopen',
       objectType: 'project',
       objectId: visible.id,
+      hookData: hooked,
+      outboxData: hooked,
       run: async ({ em, actor }) => {
         const project = await lockProject(em, this.deps.access, visible.id);
         if (project.version !== body.version || project.state === 'open') throw projectChanged();
+        previousState = project.state;
         const stage = await em.findOne(ProjectStage, { id: stageId, projectId: project.id });
         if (!stage) throw projectChanged();
         const before = { state: project.state, version: body.version };
