@@ -340,26 +340,32 @@ describe('crm — custom-field values carried into Sales Opportunities', () => {
     const order = await seedCrmOrder(h.em(), { sourceQuoteRequestId: rfq.id });
     await setValues('orders', order.id, { [key]: 'fair' });
 
-    const editor = await h.em().getKnex().transaction();
+    // The administrator's edit, in a transaction on a connection of its own.
+    const connection = h.em().getConnection();
+    const editor = await connection.begin();
     let join: Promise<unknown> | null = null;
     let editedVersion: number;
     try {
-      const locked = (await editor.raw(`select version from "crm_opportunities" where id = ? for update`, [
-        opportunity.id,
-      ])) as { rows: Array<{ version: number }> };
-      editedVersion = locked.rows[0]!.version + 1;
-      await editor.raw(`update "crm_opportunities" set custom_field_values = ?::jsonb, version = ? where id = ?`, [
-        JSON.stringify({ [otherKey]: 'set by the administrator' }),
-        editedVersion,
-        opportunity.id,
-      ]);
+      const locked = (await connection.execute(
+        `select version from "crm_opportunities" where id = ? for update`,
+        [opportunity.id],
+        'all',
+        editor,
+      )) as Array<{ version: number }>;
+      editedVersion = locked[0]!.version + 1;
+      await connection.execute(
+        `update "crm_opportunities" set custom_field_values = ?::jsonb, version = ? where id = ?`,
+        [JSON.stringify({ [otherKey]: 'set by the administrator' }), editedVersion, opportunity.id],
+        'run',
+        editor,
+      );
       join = announceOrder(order.id);
       const pending = Symbol('pending');
       const early = await Promise.race([join, new Promise((resolve) => setTimeout(() => resolve(pending), 300))]);
       expect(early, 'the join finished while an edit held the Opportunity').toBe(pending);
-      await editor.commit();
+      await connection.commit(editor);
     } catch (error) {
-      await editor.rollback().catch(() => undefined);
+      await connection.rollback(editor).catch(() => undefined);
       throw error;
     }
     await join;

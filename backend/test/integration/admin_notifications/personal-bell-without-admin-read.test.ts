@@ -151,12 +151,11 @@ describe('admin notification bell for an admin without admin:read (#518)', () =>
     expect(page.items.find((item) => item.id === second.id)?.isRead).toBe(true);
     expect(page.unreadCount).toBe(0);
 
-    const knex = h.orm.em.fork().getConnection().getKnex();
-    const reads = (await knex.raw(
-      `select 1 from "admin_notification_reads" where "admin_user_id" = ?`,
-      [TEST_RESTRICTED_ADMIN_ID],
-    )) as { rows: unknown[] };
-    expect(reads.rows).toHaveLength(0);
+    const reads = await h.orm.em
+      .fork()
+      .getConnection()
+      .execute(`select 1 from "admin_notification_reads" where "admin_user_id" = ?`, [TEST_RESTRICTED_ADMIN_ID]);
+    expect(reads).toHaveLength(0);
   });
 
   it('still lists and acknowledges broadcasts for an admin holding admin:read', async () => {

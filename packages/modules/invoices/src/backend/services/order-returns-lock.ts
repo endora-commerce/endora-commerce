@@ -26,23 +26,28 @@ export interface OrderReturnsLock {
  */
 export function createOrderReturnsLock(emFactory: () => EntityManager): OrderReturnsLock {
   return {
-    run: (orderId, body) =>
-      emFactory()
-        .getKnex()
-        .transaction(async (lock) => {
-          await lock.raw(`set local lock_timeout = '${ISSUE_LOCK_TIMEOUT}'`);
-          try {
-            await lock.raw('select pg_advisory_xact_lock(hashtext(?))', [returnCaseOrderLockKey(orderId)]);
-          } catch (err) {
-            if ((err as { code?: string }).code !== LOCK_NOT_AVAILABLE) throw err;
-            throw new HttpError(
-              409,
-              ERROR_CODES.VERSION_CONFLICT,
-              'A return of this order is being settled. Try again in a moment.',
-              { code: 'settlement_in_progress' },
-            );
-          }
-          return body();
-        }),
+    run: (orderId, body) => {
+      const connection = emFactory().getConnection();
+      return connection.transactional(async (lock) => {
+        await connection.execute(`select set_config('lock_timeout', ?, true)`, [ISSUE_LOCK_TIMEOUT], 'all', lock);
+        try {
+          await connection.execute(
+            'select pg_advisory_xact_lock(hashtext(?))',
+            [returnCaseOrderLockKey(orderId)],
+            'all',
+            lock,
+          );
+        } catch (err) {
+          if ((err as { code?: string }).code !== LOCK_NOT_AVAILABLE) throw err;
+          throw new HttpError(
+            409,
+            ERROR_CODES.VERSION_CONFLICT,
+            'A return of this order is being settled. Try again in a moment.',
+            { code: 'settlement_in_progress' },
+          );
+        }
+        return body();
+      });
+    },
   };
 }

@@ -12,6 +12,7 @@ import {
   STATE_CHANGED_CHANNEL,
 } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
+import { insertRows } from '../../helpers/sql-rows.js';
 
 /**
  * D-174 — the input the presence version cannot see, and the seam that covers
@@ -192,16 +193,15 @@ async function ready(client: Redis): Promise<void> {
 }
 
 async function seed(em: EntityManager): Promise<void> {
-  const knex = em.getKnex();
   const now = new Date();
-  await knex('module_registrations').insert({
+  await insertRows(em, 'module_registrations', {
     module_id: MODULE_ID,
     state: 'installed',
     version: '1.0.0',
     installed_at: now,
     last_state_change_at: now,
   });
-  await knex('module_actions').insert(actionRow(FIRST_ACTION, 100));
+  await insertRows(em, 'module_actions', actionRow(FIRST_ACTION, 100));
 }
 
 /**
@@ -209,7 +209,7 @@ async function seed(em: EntityManager): Promise<void> {
  * in `module_actions`, and nothing anywhere else.
  */
 async function addSecondAction(em: EntityManager): Promise<void> {
-  await em.getKnex()('module_actions').insert(actionRow(SECOND_ACTION, 200));
+  await insertRows(em, 'module_actions', actionRow(SECOND_ACTION, 200));
 }
 
 function actionRow(actionId: string, weight: number): Record<string, unknown> {

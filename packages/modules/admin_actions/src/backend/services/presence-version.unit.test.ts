@@ -31,15 +31,7 @@ interface ActionRow {
 }
 
 function emReturning(rows: ActionRow[]): () => EntityManager {
-  const knex = (): unknown => {
-    const chain = {
-      join: () => chain,
-      where: () => chain,
-      select: async (): Promise<ActionRow[]> => rows,
-    };
-    return chain;
-  };
-  return () => ({ getKnex: () => knex }) as unknown as EntityManager;
+  return () => ({ execute: async (): Promise<ActionRow[]> => rows }) as unknown as EntityManager;
 }
 
 const i18n: AdminI18nTranslatePort = {

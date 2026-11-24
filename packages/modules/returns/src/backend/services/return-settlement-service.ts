@@ -323,10 +323,16 @@ export class ReturnSettlementService {
     // reaches no money port; `settled_outside` is that case's alone.
     if (rc.orderId == null) return this.#settleOffPlatform(rc, adminUserId, input);
     if (input.resolutionType === 'settled_outside') throw unavailableOffPlatform('settled_outside');
-    return em.getKnex().transaction(async (lock) => {
-      await lock.raw(`set local lock_timeout = '${SETTLEMENT_LOCK_TIMEOUT}'`);
+    const connection = em.getConnection();
+    return connection.transactional(async (lock) => {
+      await connection.execute(`select set_config('lock_timeout', ?, true)`, [SETTLEMENT_LOCK_TIMEOUT], 'all', lock);
       try {
-        await lock.raw('select pg_advisory_xact_lock(hashtext(?))', [returnCaseOrderLockKey(orderIdOf(rc))]);
+        await connection.execute(
+          'select pg_advisory_xact_lock(hashtext(?))',
+          [returnCaseOrderLockKey(orderIdOf(rc))],
+          'all',
+          lock,
+        );
       } catch (err) {
         if ((err as { code?: string }).code !== LOCK_NOT_AVAILABLE) throw err;
         throw new HttpError(

@@ -1,5 +1,4 @@
 // perf-weight: fast — 5569 ms on the CI runner (pipeline 13444, 2026-09-09).
-import type { Knex } from '@mikro-orm/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -7,6 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { seedRichListingCorpus } from '../../helpers/rich-listing-corpus.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * What a listing page costs **when its cards have something to show** — the
@@ -91,7 +91,7 @@ describe.skipIf(!shouldRun)('catalogue listing — what a card with rows costs',
   });
 
   it('reads a page of full cards in a fixed number of statements', async () => {
-    const knex: Knex = h.em().getConnection().getKnex();
+    let untap: () => void = () => undefined;
 
     async function measure(
       label: string,
@@ -107,11 +107,11 @@ describe.skipIf(!shouldRun)('catalogue listing — what a card with rows costs',
         statements += 1;
       };
 
-      knex.on('query', count);
+      untap = tapStatements(h.em(), count);
       const coldStart = performance.now();
       const cold = await request();
       const coldMs = performance.now() - coldStart;
-      knex.off('query', count);
+      untap();
       const coldStatements = statements;
       expect(cold.statusCode).toBe(200);
 
@@ -125,9 +125,9 @@ describe.skipIf(!shouldRun)('catalogue listing — what a card with rows costs',
       }
 
       statements = 0;
-      knex.on('query', count);
+      untap = tapStatements(h.em(), count);
       const warm = await request();
-      knex.off('query', count);
+      untap();
       samples.sort((a, b) => a - b);
 
       return {

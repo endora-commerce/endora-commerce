@@ -57,7 +57,10 @@ function ownEntitiesOnly(): () => EntityManager {
     create,
     persistAndFlush: async () => {},
     flush: async () => {},
-    getKnex: () => {
+    getConnection: () => {
+      throw new Error('invoices reached for raw SQL in a unit test');
+    },
+    execute: async () => {
       throw new Error('invoices reached for raw SQL in a unit test');
     },
   };

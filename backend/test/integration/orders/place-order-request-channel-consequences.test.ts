@@ -135,10 +135,10 @@ describe('order placement — what follows the resolved request channel', () => 
       });
     }
     await em.flush();
-    await em
-      .getKnex()('stock_levels')
-      .where({ product_id: SEED_PRODUCT_101_ID, warehouse_id: DEFAULT_WAREHOUSE_ID })
-      .update({ on_hand: 100, reserved: 0 });
+    await em.execute(
+      `update "stock_levels" set "on_hand" = 100, "reserved" = 0 where "product_id" = ? and "warehouse_id" = ?`,
+      [SEED_PRODUCT_101_ID, DEFAULT_WAREHOUSE_ID],
+    );
   });
 
   afterAll(async () => {

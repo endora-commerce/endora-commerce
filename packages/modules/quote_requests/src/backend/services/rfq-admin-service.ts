@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { raw, type EntityManager, type Knex } from '@mikro-orm/postgresql';
+import { raw, type EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   QUOTE_REQUEST_HISTORY_EVENT_WINDOW,
@@ -421,14 +421,21 @@ export class RfqAdminService {
       fields.has('organizationName') ? this.deps.organizations.searchIdsByName(query.text) : [],
       fields.has('customer') ? this.deps.customerAccounts.searchIdsByName(query.text) : [],
     ]);
-    // A matcher mutates the builder and its return is ignored; it is `unknown`
-    // rather than `void` because a Knex builder is thenable (issue #1027).
-    const matches: Array<(qb: Knex.QueryBuilder) => unknown> = [];
-    if (fields.has('number')) matches.push((qb) => qb.orWhereRaw('"business_id" ilike ?', [contains]));
-    if (orgIds.length > 0) matches.push((qb) => qb.orWhereIn('organization_id', orgIds));
-    if (customerIds.length > 0) matches.push((qb) => qb.orWhereIn('customer_account_id', customerIds));
-    if (fields.has('customerNote')) matches.push((qb) => qb.orWhereRaw('"header_note" ilike ?', [contains]));
-    if (query.isUuid) matches.push((qb) => qb.orWhereRaw('"id" = ?::uuid', [query.text]));
+    // One predicate per selected field, OR-combined; every value is a `?`
+    // placeholder, an id set one placeholder per id.
+    const matches: Array<{ sql: string; params: readonly unknown[] }> = [];
+    if (fields.has('number')) matches.push({ sql: '"business_id" ilike ?', params: [contains] });
+    if (orgIds.length > 0) {
+      matches.push({ sql: `"organization_id" in (${orgIds.map(() => '?').join(', ')})`, params: orgIds });
+    }
+    if (customerIds.length > 0) {
+      matches.push({
+        sql: `"customer_account_id" in (${customerIds.map(() => '?').join(', ')})`,
+        params: customerIds,
+      });
+    }
+    if (fields.has('customerNote')) matches.push({ sql: '"header_note" ilike ?', params: [contains] });
+    if (query.isUuid) matches.push({ sql: '"id" = ?::uuid', params: [query.text] });
     if (matches.length === 0) return { rows: [], hasMore: false };
 
     const constraint = orgConstraintFor();
@@ -438,15 +445,6 @@ export class RfqAdminService {
     const tenantReach = constraint.kind === 'all' ? null : orgScopeSql('organization_id', constraint);
 
     const em = this.deps.emFactory();
-    const knex = em.getKnex();
-    const builder = knex('quote_requests')
-      .where((qb) => {
-        if (tenantReach !== null) qb.whereRaw(tenantReach.sql, [...tenantReach.params] as Knex.RawBinding[]);
-        qb.andWhere((or) => {
-          for (const match of matches) match(or);
-        });
-      })
-      .select('id');
     const exact: string[] = [];
     const bindings: unknown[] = [];
     if (query.isUuid) {
@@ -457,13 +455,24 @@ export class RfqAdminService {
       exact.push('lower("business_id") = lower(?)');
       bindings.push(query.text);
     }
+    let rank = '';
     if (exact.length > 0) {
       const starts = fields.has('number') ? ' when "business_id" ilike ? then 1' : '';
       if (fields.has('number')) bindings.push(prefix);
-      builder.orderByRaw(`case when ${exact.join(' or ')} then 0${starts} else 2 end`, bindings as Knex.RawBinding[]);
+      rank = `case when ${exact.join(' or ')} then 0${starts} else 2 end, `;
     }
-    builder.orderBy('updated_at', 'desc').orderBy('id', 'asc').limit(query.limit + 1);
-    const ids = ((await em.execute(builder)) as Array<{ id: string }>).map((r) => r.id);
+    // The reach first, then the OR of the matches — in the statement.
+    const where = [
+      ...(tenantReach !== null ? [{ sql: `(${tenantReach.sql})`, params: tenantReach.params }] : []),
+      { sql: `(${matches.map((m) => m.sql).join(' or ')})`, params: matches.flatMap((m) => m.params) },
+    ];
+    const ids = (
+      await em.execute<Array<{ id: string }>>(
+        `select "id" from "quote_requests" where ${where.map((w) => w.sql).join(' and ')}
+          order by ${rank}"updated_at" desc, "id" asc limit ?`,
+        [...where.flatMap((w) => w.params), ...bindings, query.limit + 1],
+      )
+    ).map((r) => r.id);
     const page = ids.slice(0, query.limit);
     if (page.length === 0) return { rows: [], hasMore: false };
 

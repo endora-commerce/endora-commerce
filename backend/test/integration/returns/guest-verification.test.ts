@@ -25,6 +25,7 @@ import {
   verificationTokenOf,
   verificationsOf,
 } from './guest-fixtures.js';
+import { insertRows } from '../../helpers/sql-rows.js';
 
 /**
  * `specs/181-guest-complaints/` T017 (US1; FR-020 – FR-025; research R-3, R-4, R-8):
@@ -111,7 +112,7 @@ describe('returns — guest e-mail verification and session', () => {
       const channelId = await systemDefaultSalesChannelId(h.em());
       const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000);
       for (let i = 0; i < 10; i += 1) {
-        await h.em().getKnex()('return_guest_verifications').insert({
+        await insertRows(h.em(), 'return_guest_verifications', {
           id: randomUUID(),
           sales_channel_id: channelId,
           email: daily,

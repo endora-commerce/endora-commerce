@@ -37,8 +37,7 @@ function manifestRows(): unknown[] {
 }
 
 function emReturning(rows: unknown[]): () => EntityManager {
-  const knex = (): unknown => ({ select: async (): Promise<unknown[]> => rows });
-  return () => ({ getKnex: () => knex }) as unknown as EntityManager;
+  return () => ({ execute: async (): Promise<unknown[]> => rows }) as unknown as EntityManager;
 }
 
 const i18n: AdminI18nTranslatePort = {

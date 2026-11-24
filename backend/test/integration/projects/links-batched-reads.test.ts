@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Knex } from '@mikro-orm/postgresql';
 import { ProjectLinkListResponseSchema, type ProjectLink } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -9,6 +8,7 @@ import {
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { createCrmOpportunity, submitCrmQuoteRequest } from '../../helpers/seed-crm.js';
 import { callProjects, createProject, deleteProjects } from './helpers.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * Issue #457 — a Project's links read their Quote Requests (with what they are
@@ -23,16 +23,15 @@ describe('projects — linked records are read in batches (issue #457) [integrat
   const created: string[] = [];
 
   async function statements<T>(run: () => Promise<T>): Promise<{ result: T; queries: number }> {
-    const knex: Knex = h.em().getConnection().getKnex();
     let queries = 0;
     const onQuery = (): void => {
       queries += 1;
     };
-    knex.on('query', onQuery);
+    const untap = tapStatements(h.em(), onQuery);
     try {
       return { result: await run(), queries };
     } finally {
-      knex.off('query', onQuery);
+      untap();
     }
   }
 

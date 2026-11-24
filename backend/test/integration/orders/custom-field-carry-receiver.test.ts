@@ -202,21 +202,25 @@ describe('orders — custom-field values received from a Sales Opportunity', () 
     const otherKey = fixtureKey('locked_other');
     const order = await seedCrmOrder(h.em());
 
-    const holder = await h.em().getKnex().transaction();
+    // Another writer, in a transaction on a connection of its own.
+    const connection = h.em().getConnection();
+    const holder = await connection.begin();
     let carry: Promise<unknown> | null = null;
     try {
-      await holder.raw(`select id from "orders" where id = ? for update`, [order.id]);
-      await holder.raw(`update "orders" set custom_field_values = ?::jsonb where id = ?`, [
-        JSON.stringify({ [otherKey]: 'held by the other writer' }),
-        order.id,
-      ]);
+      await connection.execute(`select id from "orders" where id = ? for update`, [order.id], 'all', holder);
+      await connection.execute(
+        `update "orders" set custom_field_values = ?::jsonb where id = ?`,
+        [JSON.stringify({ [otherKey]: 'held by the other writer' }), order.id],
+        'run',
+        holder,
+      );
       carry = receive(order.id, { [key]: 'fair' });
       const pending = Symbol('pending');
       const early = await Promise.race([carry, new Promise((resolve) => setTimeout(() => resolve(pending), 300))]);
       expect(early, 'the carry finished while another writer held the row').toBe(pending);
-      await holder.commit();
+      await connection.commit(holder);
     } catch (error) {
-      await holder.rollback().catch(() => undefined);
+      await connection.rollback(holder).catch(() => undefined);
       throw error;
     }
 

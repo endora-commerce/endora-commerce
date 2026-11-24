@@ -1,6 +1,6 @@
 import { Entity, PrimaryKey } from '@mikro-orm/core';
 import { Migration } from '@mikro-orm/migrations';
-import { MikroORM } from '@mikro-orm/postgresql';
+import { MikroORM, PostgreSqlPlatform, raw } from '@mikro-orm/postgresql';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ForeignSchemaWriteError,
@@ -22,8 +22,10 @@ class AuditLogEntryLike {}
 
 function fakeDriver(indexes: Record<string, string> = {}, existing: readonly string[] = []) {
   const executed: string[] = [];
+  const platform = new PostgreSqlPlatform();
   return {
     executed,
+    getPlatform: () => platform,
     getMetadata: () => ({
       getAll: () => ({
         AcmeRow: { class: AcmeRow, className: 'AcmeRow', tableName: 'acme_rows', properties: {} },
@@ -113,6 +115,42 @@ describe('guardExternalMigration — refusals', () => {
     });
     await refusal(run(cls, context(), driver));
     expect(driver.executed.some((sql) => sql.startsWith('update'))).toBe(false);
+  });
+
+  // Issue #1864 — raw SQL moved off `getKnex()` onto `execute(sql, params)`.
+  // The statement is judged as the ORM renders it, so a table named only
+  // through a parameter is still a foreign write.
+  it.each([
+    ['delete from ?? where "name" = ?', ['orders', 'rogue']],
+    ['update ?? set "status" = ? where "id" = ?', ['orders', 'x', 1]],
+    ['insert into ?? (??) values (?)', ['orders', 'status', 'x']],
+  ])('refuses a foreign table named through an identifier placeholder: %s', async (sql, params) => {
+    const driver = fakeDriver();
+    const cls = migration('Migration20261201T100009AcmeErpRogue', async (self) => {
+      await self.execute(sql, params);
+    });
+    expect((await refusal(run(cls, context(), driver))).table).toBe('orders');
+    expect(driver.executed).not.toContain(sql);
+  });
+
+  it.each([
+    ['delete from ? where true', () => [raw('"orders"')]],
+  ])('refuses a foreign table handed in as a SQL fragment: %s', async (sql, params) => {
+    const driver = fakeDriver();
+    const cls = migration('Migration20261201T100011AcmeErpRogue', async (self) => {
+      await self.execute(sql, params());
+    });
+    expect((await refusal(run(cls, context(), driver))).table).toBe('orders');
+    expect(driver.executed).not.toContain(sql);
+  });
+
+  it('allows its own table named through an identifier placeholder', async () => {
+    const driver = fakeDriver();
+    const cls = migration('Migration20261201T100010AcmeErpOwn', async (self) => {
+      await self.execute('insert into ?? ("id") values (?)', ['acme_rows', 'a?b']);
+    });
+    await run(cls, context(), driver);
+    expect(driver.executed).toContain('insert into ?? ("id") values (?)');
   });
 
   it('refuses a back-fill on a declared host that touches a core column', async () => {

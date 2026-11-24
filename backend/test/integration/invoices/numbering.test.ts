@@ -68,7 +68,11 @@ describe('invoices — numbering engine (US2)', () => {
     );
     // The test DB persists across runs — clear counters for this file's channels
     // so sequences start from 1 deterministically.
-    await h.em().getKnex()('invoice_number_counters').whereIn('sales_channel_id', ids).del();
+    if (ids.length > 0) {
+      await h
+        .em()
+        .execute(`delete from "invoice_number_counters" where "sales_channel_id" in (${ids.map(() => '?').join(', ')})`, ids);
+    }
   });
   afterAll(async () => {
     await teardownBackendServer(h);

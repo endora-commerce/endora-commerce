@@ -44,11 +44,7 @@ const NEW_CREDENTIAL: ActionRow = {
 };
 
 function emReturning(rows: ActionRow[]): () => EntityManager {
-  const knex = (): unknown => {
-    const chain = { select: async (): Promise<ActionRow[]> => rows };
-    return chain;
-  };
-  return () => ({ getKnex: () => knex }) as unknown as EntityManager;
+  return () => ({ execute: async (): Promise<ActionRow[]> => rows }) as unknown as EntityManager;
 }
 
 /**

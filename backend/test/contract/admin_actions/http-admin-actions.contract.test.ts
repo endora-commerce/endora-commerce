@@ -122,17 +122,14 @@ describe('GET /api/v1/admin/admin-actions (contract)', () => {
    * action id, so the words asserted are the ones that module ships.
    */
   it('serves the Polish keywords of a keywordsKey to a Polish admin and the English ones to an English admin', async () => {
-    await h.em().getKnex()('module_actions').insert({
-      module_id: KEYWORDS_MODULE_ID,
-      action_id: KEYWORDS_ACTION_ID,
-      label_key: 'actions.newCredential.label',
-      keywords_key: 'actions.newCredential.keywords',
-      icon: 'Plus',
-      target_route: '/credentials/new',
-      required_permission: null,
-      keywords: JSON.stringify(['credential', 'configuration']),
-      weight: 100,
-    });
+    await h.em().execute(
+      `insert into "module_actions"
+         ("module_id", "action_id", "label_key", "keywords_key", "icon", "target_route", "required_permission",
+          "keywords", "weight")
+       values (?, ?, 'actions.newCredential.label', 'actions.newCredential.keywords', 'Plus', '/credentials/new',
+               null, ?, 100)`,
+      [KEYWORDS_MODULE_ID, KEYWORDS_ACTION_ID, JSON.stringify(['credential', 'configuration'])],
+    );
 
     const keywordsIn = async (language: 'en' | 'pl'): Promise<string[]> => {
       const res = await h.app.inject({
@@ -170,37 +167,19 @@ describe('GET /api/v1/admin/admin-actions (contract)', () => {
 async function seed(h: BackendServerHandle): Promise<void> {
   seededEnabledIds = registryCache.enabledIds();
   registryCache.__setEnabledForTesting([...seededEnabledIds, TEST_MODULE_ID]);
-  const knex = h.em().getKnex();
   const now = new Date();
-  await knex('module_registrations').insert({
-    module_id: TEST_MODULE_ID,
-    state: 'installed',
-    version: '1.0.0',
-    installed_at: now,
-    last_state_change_at: now,
-  });
-  await knex('module_actions').insert([
-    {
-      module_id: TEST_MODULE_ID,
-      action_id: 'fixture-a',
-      label_key: 'fixture_http_actions.actions.a.label',
-      icon: 'Plus',
-      target_route: '/fixture/a',
-      required_permission: null,
-      keywords: JSON.stringify(['alpha']),
-      weight: 100,
-    },
-    {
-      module_id: TEST_MODULE_ID,
-      action_id: 'fixture-b',
-      label_key: 'fixture_http_actions.actions.b.label',
-      icon: 'Settings',
-      target_route: '/fixture/b',
-      required_permission: null,
-      keywords: JSON.stringify(['beta']),
-      weight: 200,
-    },
-  ]);
+  await h.em().execute(
+    `insert into "module_registrations" ("module_id", "state", "version", "installed_at", "last_state_change_at")
+     values (?, 'installed', '1.0.0', ?, ?)`,
+    [TEST_MODULE_ID, now, now],
+  );
+  await h.em().execute(
+    `insert into "module_actions"
+       ("module_id", "action_id", "label_key", "icon", "target_route", "required_permission", "keywords", "weight")
+     values (?, 'fixture-a', 'fixture_http_actions.actions.a.label', 'Plus', '/fixture/a', null, ?, 100),
+            (?, 'fixture-b', 'fixture_http_actions.actions.b.label', 'Settings', '/fixture/b', null, ?, 200)`,
+    [TEST_MODULE_ID, JSON.stringify(['alpha']), TEST_MODULE_ID, JSON.stringify(['beta'])],
+  );
 }
 
 async function cleanup(h: BackendServerHandle): Promise<void> {

@@ -732,27 +732,16 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
-        const res = (await em()
-          .getKnex()
-          .raw(
-            `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
-          )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
-        return res.rows.map((r) => ({ id: r.id, name: r.name, taxId: r.tax_id ?? null }));
+        const res = await em().execute<Array<{ id: string; name: string; tax_id: string | null }>>(
+          `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
+        );
+        return res.map((r) => ({ id: r.id, name: r.name, taxId: r.tax_id ?? null }));
       },
       categories: async () => {
-        const res = (await em()
-          .getKnex()
-          .raw(
-            `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
-          )) as {
-          rows: Array<{
-            id: string;
-            slug: string;
-            name: unknown;
-            parent_category_id: string | null;
-          }>;
-        };
-        return res.rows.map((r) => ({
+        const res = await em().execute<Array<{ id: string; slug: string; name: unknown; parent_category_id: string | null }>>(
+          `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
+        );
+        return res.map((r) => ({
           id: r.id,
           slug: r.slug,
           name: anyLabel(r.name),
@@ -760,20 +749,16 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
         }));
       },
       paymentMethods: async () => {
-        const res = (await em()
-          .getKnex()
-          .raw(
-            `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
-          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
-        return res.rows.map((r) => ({ id: r.id, code: r.code, name: anyLabel(r.name) }));
+        const res = await em().execute<Array<{ id: string; code: string; name: unknown }>>(
+          `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
+        );
+        return res.map((r) => ({ id: r.id, code: r.code, name: anyLabel(r.name) }));
       },
       deliveryMethods: async () => {
-        const res = (await em()
-          .getKnex()
-          .raw(
-            `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
-          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
-        return res.rows.map((r) => ({ id: r.id, code: r.code, name: anyLabel(r.name) }));
+        const res = await em().execute<Array<{ id: string; code: string; name: unknown }>>(
+          `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
+        );
+        return res.map((r) => ({ id: r.id, code: r.code, name: anyLabel(r.name) }));
       },
     },
   });

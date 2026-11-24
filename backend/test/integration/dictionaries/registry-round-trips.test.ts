@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Knex } from '@mikro-orm/postgresql';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -8,6 +7,7 @@ import {
 import { DictionaryReadService } from '../../../../packages/modules/dictionaries/src/backend/services/dictionary-read-service.js';
 import { dictionaryReadPortsFor } from '../../helpers/dictionary-services.js';
 import { Country, DictionaryTranslation } from '../../helpers/package-entities.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * Issue #142 — the cold registry build is a constant number of round trips.
@@ -65,19 +65,18 @@ describe('dictionary registry — cold build round trips (issue #142)', () => {
     await teardownBackendServer(h);
   });
 
-  /** Statements the read issued, counted on the shared knex connection. */
+  /** Statements the read issued, counted on the ORM's connection. */
   async function roundTripsFor<T>(run: () => Promise<T>): Promise<{ result: T; queries: number }> {
-    const knex: Knex = h.em().getConnection().getKnex();
     let queries = 0;
     const onQuery = (): void => {
       queries += 1;
     };
-    knex.on('query', onQuery);
+    const untap = tapStatements(h.em(), onQuery);
     try {
       const result = await run();
       return { result, queries };
     } finally {
-      knex.off('query', onQuery);
+      untap();
     }
   }
 

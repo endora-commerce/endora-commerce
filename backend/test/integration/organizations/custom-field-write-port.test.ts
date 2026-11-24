@@ -114,8 +114,10 @@ describe('organizationCustomFieldWritePort — a registration subscriber sets an
   }
 
   async function idOf(taxId: string): Promise<string> {
-    const row = await h.em().getKnex()('organizations').where({ tax_id: taxId }).first('id');
-    return row.id as string;
+    const [row] = await h.em().execute<Array<{ id: string }>>(`select "id" from "organizations" where "tax_id" = ? limit 1`, [
+      taxId,
+    ]);
+    return row!.id;
   }
 
   it('stores the value, audits its key alone with a null actor, and keeps it out of the buyer projection', async () => {
@@ -136,8 +138,11 @@ describe('organizationCustomFieldWritePort — a registration subscriber sets an
       expect(outcome.value.customFieldValues).toEqual({ [key]: 'trade_fair' });
     }
 
-    const row = await h.em().getKnex()('organizations').where({ id: organizationId }).first('custom_field_values');
-    expect(row.custom_field_values).toEqual({ [key]: 'trade_fair' });
+    const [row] = await h.em().execute<Array<{ custom_field_values: unknown }>>(
+      `select "custom_field_values" from "organizations" where "id" = ?`,
+      [organizationId],
+    );
+    expect(row!.custom_field_values).toEqual({ [key]: 'trade_fair' });
 
     h.em().clear();
     const entries = await h.em().find(AuditLogEntry, {
@@ -157,6 +162,6 @@ describe('organizationCustomFieldWritePort — a registration subscriber sets an
     expect(entries[0]?.stateBefore ?? null).toBeNull();
     expect(JSON.stringify(entries[0]?.stateAfter)).not.toContain('trade_fair');
 
-    expect(await values.projectForCustomer('organization', row.custom_field_values)).toEqual({});
+    expect(await values.projectForCustomer('organization', row!.custom_field_values as Record<string, unknown>)).toEqual({});
   });
 });

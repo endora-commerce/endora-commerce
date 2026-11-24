@@ -2,7 +2,6 @@
 import { Cart, CartItem, type CartRow } from '../../helpers/package-entities.js';
 import { vi, afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import type { Knex } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 import { AuditLogService } from '@endora-commerce/platform/composition';
@@ -13,6 +12,7 @@ import {
   CartAbandonmentWorker,
   DEFAULT_SWEEP_BATCH_SIZE,
 } from '../../../../packages/modules/carts/src/backend/services/cart-abandonment-worker.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 
 /**
@@ -162,17 +162,17 @@ describe.skipIf(!shouldRun)('cart abandonment sweep — perf', () => {
   });
 
   it('sweeps {seed} carts in under {budget} ms', async () => {
-    const knex: Knex = db.em().getConnection().getKnex();
+    let untap: () => void = () => undefined;
     let statements = 0;
     const countStatement = (): void => {
       statements += 1;
     };
 
-    knex.on('query', countStatement);
+    untap = tapStatements(db.em(), countStatement);
     const t0 = performance.now();
     const result = await worker.sweep();
     const elapsed = performance.now() - t0;
-    knex.off('query', countStatement);
+    untap();
 
     const batches = Math.ceil(cartCount / DEFAULT_SWEEP_BATCH_SIZE);
     const statementsPerCart = statements / result.abandonedCount;

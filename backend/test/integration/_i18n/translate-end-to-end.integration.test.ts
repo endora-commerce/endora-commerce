@@ -124,7 +124,7 @@ describe('I18nService.translate (end-to-end against real DB)', () => {
     const i18n = freshService();
     // Replace the en entry with one that has a placeholder, by hand,
     // so we don't depend on the fixture file shape for this specific test.
-    await em.getKnex().raw(
+    await em.execute(
       `insert into "translation_bundles" ("module_id", "language_code", "entries", "installed_at", "updated_at") ` +
         `values (?, ?, ?::jsonb, now(), now()) ` +
         `on conflict ("module_id", "language_code") do update set ` +

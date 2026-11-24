@@ -77,7 +77,7 @@ describe('POST /api/v1/admin/catalog/categories — custom-field values (feature
     });
   }
 
-  const knex = () => h.em().getKnex();
+  const rowsOf = <T>(sql: string, params: unknown[]): Promise<T[]> => h.em().execute<T[]>(sql, params);
 
   it('stores the values, answers them and carries them in the audit row', async () => {
     const res = await createCategory({ customFieldValues: { cf175c_note: 'Seasonal' } });
@@ -85,8 +85,11 @@ describe('POST /api/v1/admin/catalog/categories — custom-field values (feature
     const category = res.json().data as { id: string; customFieldValues: Record<string, unknown> };
     expect(category.customFieldValues).toEqual({ cf175c_note: 'Seasonal' });
 
-    const row = await knex()('categories').where({ id: category.id }).first('custom_field_values');
-    expect(row.custom_field_values).toEqual({ cf175c_note: 'Seasonal' });
+    const [row] = await rowsOf<{ custom_field_values: unknown }>(
+      `select "custom_field_values" from "categories" where "id" = ?`,
+      [category.id],
+    );
+    expect(row!.custom_field_values).toEqual({ cf175c_note: 'Seasonal' });
 
     h.em().clear();
     const [entry] = await h.em().find(AuditLogEntry, { action: 'category.create', objectId: category.id });
@@ -100,7 +103,9 @@ describe('POST /api/v1/admin/catalog/categories — custom-field values (feature
     const body = res.json() as { error: { code: string; details: Array<{ path: string }> } };
     expect(body.error.code).toBe(ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID);
     expect(body.error.details.map((d) => d.path)).toContain('cf175c_rank');
-    expect(await knex()('categories').where({ slug: categorySlug }).count({ n: '*' })).toEqual([{ n: '0' }]);
+    expect(await rowsOf(`select count(*) as "n" from "categories" where "slug" = ?`, [categorySlug])).toEqual([
+      { n: '0' },
+    ]);
   });
 
   it('refuses a missing required field — also when no values are sent — and creates nothing', async () => {
@@ -118,7 +123,7 @@ describe('POST /api/v1/admin/catalog/categories — custom-field values (feature
       expect(bare.statusCode, bare.body).toBe(422);
 
       expect(
-        await knex()('categories').whereIn('slug', [withValues, withoutValues]).count({ n: '*' }),
+        await rowsOf(`select count(*) as "n" from "categories" where "slug" in (?, ?)`, [withValues, withoutValues]),
       ).toEqual([{ n: '0' }]);
     } finally {
       await undefine(id);

@@ -94,8 +94,7 @@ describe('order placement — the seven per-channel settings', () => {
       });
       await em.flush();
     }
-    const knex = em.getKnex();
-    await knex('warehouse_channel_assignments').where('sales_channel_id', channelId).delete();
+    await em.execute(`delete from "warehouse_channel_assignments" where "sales_channel_id" = ?`, [channelId]);
     em.create(WarehouseChannelAssignment, {
       warehouseId: DEFAULT_WAREHOUSE_ID,
       salesChannelId: channelId,
@@ -110,9 +109,10 @@ describe('order placement — the seven per-channel settings', () => {
     });
     await em.flush();
 
-    await knex('stock_levels')
-      .where({ product_id: SEED_PRODUCT_101_ID, warehouse_id: DEFAULT_WAREHOUSE_ID })
-      .update({ on_hand: 10, reserved: 0 });
+    await em.execute(
+      `update "stock_levels" set "on_hand" = 10, "reserved" = 0 where "product_id" = ? and "warehouse_id" = ?`,
+      [SEED_PRODUCT_101_ID, DEFAULT_WAREHOUSE_ID],
+    );
     if (
       !(await em.findOne(StockLevel, {
         productId: SEED_PRODUCT_101_ID,

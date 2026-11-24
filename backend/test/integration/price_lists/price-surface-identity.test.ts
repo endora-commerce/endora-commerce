@@ -11,6 +11,7 @@ import {
   presetConfig,
   type PresetName,
 } from '../../../../packages/modules/price_lists/src/backend/services/precedence.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * Feature 160 (FR-026, SC-003) — price sort and the price-range filter, served
@@ -163,14 +164,13 @@ describe('price surface — sort and range equal the cards, every buyer, every p
     // everyone answer, so Acme's surface holds every product the everyone one does.
     const context: ListingPriceViewerContext = { salesChannel: { id: f.channels.CH1.id, defaultCurrency: 'PLN' }, organization: f.orgs.Acme };
     await walk(context, 'desc');
-    const knex = h.em().getConnection().getKnex();
     const statements: string[] = [];
     const listen = (q: { sql: string }) => statements.push(q.sql);
-    knex.on('query', listen);
+    const untap = tapStatements(h.em(), listen);
     try {
       expect(await walk(context, 'desc')).toEqual([...(await cards(context))].reverse());
     } finally {
-      knex.off('query', listen);
+      untap();
     }
     expect(statements.filter((sql) => /from "price_profile_prices" e\b/.test(sql))).toEqual([]);
   });

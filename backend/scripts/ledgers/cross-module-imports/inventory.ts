@@ -36,7 +36,7 @@ import type { LedgerEntry } from '../../check-module-boundary.js';
 export const entries: Readonly<Record<string, LedgerEntry>> = {
   'packages/modules/inventory/src/backend/services/stock-level-service.ts:sql:catalog/products':
     'Issue #187 seed — the admin stock roster paginates with ' +
-    '`knex({ p: \'products\' }).innerJoin({ sl: \'stock_levels\' }, …)`, joining `catalog`\'s ' +
+    '`from "products" as "p" inner join "stock_levels" as "sl" …` (a knex builder until #1864), joining `catalog`\'s ' +
     '`products` to this module\'s `stock_levels`. It is the one reach in this shard that is ' +
     'not a lookup, and the aliasing object form is why the D-94 grep missed it. **What it ' +
     'couples is five columns** — `products.id`, `.sku`, `.name`, `.manage_stock` and ' +

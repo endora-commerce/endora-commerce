@@ -189,58 +189,49 @@ export class StockLevelService {
     //  1. A consistent `total` that matches the displayed item count.
     //  2. A place to push down the SKU/name search and low/out filters
     //     instead of post-filtering on the JS side.
-    const knex = em.getKnex();
     const trimmedQ = filter.q?.trim().toLowerCase();
 
-    const baseQuery = knex({ p: 'products' })
-      .innerJoin({ sl: 'stock_levels' }, 'sl.product_id', 'p.id')
-      .modify((qb) => {
-        if (filter.productId) qb.where('p.id', filter.productId);
-        if (filter.warehouseId) qb.where('sl.warehouse_id', filter.warehouseId);
-        if (trimmedQ) {
-          const needle = `%${trimmedQ}%`;
-          qb.andWhere((inner) => {
-            inner
-              .whereRaw('LOWER("p"."sku") LIKE ?', [needle])
-              .orWhereRaw('LOWER("p"."name"::text) LIKE ?', [needle])
-              .orWhereRaw('LOWER("p"."id"::text) LIKE ?', [needle]);
-          });
-        }
-      })
-      .groupBy('p.id', 'p.sku', 'p.manage_stock', 'p.low_stock_threshold')
-      .modify((qb) => {
-        if (filter.outOnly) {
-          qb.havingRaw('"p"."manage_stock" IS NOT FALSE AND COALESCE(SUM("sl"."on_hand"), 0) <= 0');
-        } else if (filter.lowOnly) {
-          qb.havingRaw(
-            '"p"."manage_stock" IS NOT FALSE AND "p"."low_stock_threshold" IS NOT NULL AND COALESCE(SUM("sl"."on_hand"), 0) > 0 AND COALESCE(SUM("sl"."on_hand"), 0) <= "p"."low_stock_threshold"',
-          );
-        }
-      });
+    // Every value is a `?` placeholder; the clauses are this file's own text.
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (filter.productId) {
+      where.push('"p"."id" = ?');
+      params.push(filter.productId);
+    }
+    if (filter.warehouseId) {
+      where.push('"sl"."warehouse_id" = ?');
+      params.push(filter.warehouseId);
+    }
+    if (trimmedQ) {
+      const needle = `%${trimmedQ}%`;
+      where.push('(LOWER("p"."sku") LIKE ? or LOWER("p"."name"::text) LIKE ? or LOWER("p"."id"::text) LIKE ?)');
+      params.push(needle, needle, needle);
+    }
+    const having = filter.outOnly
+      ? 'having "p"."manage_stock" IS NOT FALSE AND COALESCE(SUM("sl"."on_hand"), 0) <= 0'
+      : filter.lowOnly
+        ? 'having "p"."manage_stock" IS NOT FALSE AND "p"."low_stock_threshold" IS NOT NULL AND COALESCE(SUM("sl"."on_hand"), 0) > 0 AND COALESCE(SUM("sl"."on_hand"), 0) <= "p"."low_stock_threshold"'
+        : '';
+    const grouped = `select "p"."id" from "products" as "p"
+        inner join "stock_levels" as "sl" on "sl"."product_id" = "p"."id"
+        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+        group by "p"."id", "p"."sku", "p"."manage_stock", "p"."low_stock_threshold"
+        ${having}`;
 
     // Total count of matching products. We wrap the grouped query in a
-    // subselect so `count(*)` counts groups, not rows.
-    // Both pages run through `em.execute(builder)`, not by awaiting the builder:
-    // a knex handle takes its own pooled connection, so the roster a caller
-    // inside a transaction is shown would be computed from rows that
-    // transaction has not written yet (issue #207). The builder is kept rather
-    // than rewritten as a statement because the filters above are assembled at
-    // runtime; `execute` compiles it and runs it with the EntityManager's
-    // transaction context, so the SQL is byte-for-byte the one this method
-    // already sent.
-    const totalRows = (await em.execute(
-      knex.from(baseQuery.clone().select('p.id')).as('grouped').count('* as count'),
-    )) as Array<{ count: string | number }>;
+    // subselect so `count(*)` counts groups, not rows. Both pages run through
+    // `em.execute`, so a caller inside a transaction is shown the roster that
+    // transaction has written (issue #207).
+    const totalRows = await em.execute<Array<{ count: string | number }>>(
+      `select count(*) as "count" from (${grouped}) as "grouped"`,
+      [...params],
+    );
     const total = Number(totalRows[0]?.count ?? 0);
 
-    const idRows = (await em.execute(
-      baseQuery
-        .clone()
-        .select('p.id')
-        .orderByRaw('MAX("sl"."updated_at") DESC')
-        .offset(page * pageSize)
-        .limit(pageSize),
-    )) as Array<{ id: string }>;
+    const idRows = await em.execute<Array<{ id: string }>>(
+      `${grouped} order by MAX("sl"."updated_at") DESC limit ? offset ?`,
+      [...params, pageSize, page * pageSize],
+    );
     const productIds = idRows.map((r) => r.id);
     if (productIds.length === 0) {
       return { items: [], page, pageSize, total };

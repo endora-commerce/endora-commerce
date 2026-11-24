@@ -281,26 +281,24 @@ export class CartAbandonmentWorker {
   /**
    * Lines per cart for a whole batch, as one grouped count.
    *
-   * Executed through `em.execute` rather than awaited on the knex builder, so
-   * it runs on the EntityManager's transaction context — a bare knex call would
-   * take its own connection and, inside a wrapping transaction, would not see
-   * the rows the caller has written but not committed.
+   * Executed through `em.execute`, so it runs on the EntityManager's
+   * transaction context — a statement on a connection of its own would not,
+   * inside a wrapping transaction, see the rows the caller has written but not
+   * committed.
    */
   private async countLines(
     em: EntityManager,
     cartIds: readonly string[],
   ): Promise<Map<string, number>> {
     if (cartIds.length === 0) return new Map();
-    const knex = em.getKnex();
     // The table name comes from the entity's own metadata rather than a
-    // literal, so a rename stays a one-file change.
+    // literal, so a rename stays a one-file change; it goes in as an
+    // identifier placeholder (`??`), every id as a `?` value placeholder.
     const table = em.getMetadata().get(CartItem).tableName;
+    const ids = [...cartIds];
     const rows = await em.execute<Array<{ cart_id: string; line_count: string | number }>>(
-      knex(table)
-        .select('cart_id')
-        .count({ line_count: '*' })
-        .whereIn('cart_id', [...cartIds])
-        .groupBy('cart_id'),
+      `select "cart_id", count(*) as "line_count" from ?? where "cart_id" in (${ids.map(() => '?').join(', ')}) group by "cart_id"`,
+      [table, ...ids],
     );
     return new Map(rows.map((r) => [r.cart_id, Number(r.line_count)]));
   }

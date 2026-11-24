@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Knex } from '@mikro-orm/postgresql';
 import type { QuoteRequestReadPort } from '@endora-commerce/contracts';
 import { resolveTenantContext } from '@endora-commerce/platform/composition';
 import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
@@ -10,6 +9,7 @@ import {
 } from '../../helpers/test-server.js';
 import { seedCrmOrganization, submitCrmQuoteRequest } from '../../helpers/seed-crm.js';
 import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * Issue #457 — `quoteRequestReadPort.findByIds` and `amountsOf`, the batched
@@ -39,16 +39,15 @@ describe('quoteRequestReadPort — batched reads (issue #457) [integration]', ()
     );
 
   async function statements<T>(run: () => Promise<T>): Promise<{ result: T; queries: number }> {
-    const knex: Knex = h.em().getConnection().getKnex();
     let queries = 0;
     const onQuery = (): void => {
       queries += 1;
     };
-    knex.on('query', onQuery);
+    const untap = tapStatements(h.em(), onQuery);
     try {
       return { result: await run(), queries };
     } finally {
-      knex.off('query', onQuery);
+      untap();
     }
   }
 

@@ -1,6 +1,5 @@
 // perf-weight: fast — about 4 s locally (2026-11-19: three organizations, one link, four listing reads); not yet timed on the CI runner.
 import { randomUUID } from 'node:crypto';
-import type { Knex } from '@mikro-orm/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
@@ -9,6 +8,7 @@ import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { ADMIN, makeAddress, makeOrganization } from '../../integration/related_payers/fixtures.js';
+import { tapStatements } from '../../helpers/statement-tap.js';
 
 /**
  * `specs/182-related-payers/` T057 (plan Performance Goals, research R-4 decision 4) — the
@@ -73,16 +73,16 @@ describe.skipIf(!shouldRun)('related_payers — no extra statement for a buyer w
   async function warmListingStatements(): Promise<number> {
     const page = () => h.app.inject({ method: 'GET', url: '/api/v1/catalog/products?limit=20', cookies: { b2b_session: COOKIE } });
     expect((await page()).statusCode).toBe(200);
-    const knex: Knex = h.em().getConnection().getKnex();
+    let untap: () => void = () => undefined;
     let statements = 0;
     const count = (): void => {
       statements += 1;
     };
-    knex.on('query', count);
+    untap = tapStatements(h.em(), count);
     try {
       expect((await page()).statusCode).toBe(200);
     } finally {
-      knex.off('query', count);
+      untap();
     }
     return statements;
   }

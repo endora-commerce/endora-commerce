@@ -13,6 +13,7 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { CreditLimit, PaymentMethod } from '../../helpers/package-entities.js';
+import { connectionPool } from '../../helpers/connection-pool.js';
 
 /**
  * `specs/142-order-transition-atomicity/` — FR-002 under load.
@@ -118,9 +119,7 @@ describe('more concurrent cancellations than pooled connections (spec 142, FR-00
   };
 
   it('answers every one of them 200 and releases everything, without waiting on the pool', async () => {
-    const pool = (
-      h.em().getConnection().getKnex() as unknown as { client: { pool: { max: number } } }
-    ).client.pool;
+    const pool = connectionPool(h.em());
     // Well above the pool, so the old shape — two connections per attempt —
     // cannot fit however the requests interleave.
     const concurrent = pool.max * 3;

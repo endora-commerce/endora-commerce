@@ -1,4 +1,4 @@
-import type { EntityManager, Knex } from '@mikro-orm/postgresql';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'crypto';
 import { LockMode, UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
@@ -1767,30 +1767,23 @@ export class CatalogAdminService {
     let items: Product[];
     let total: number;
     if (narrowed) {
-      // Text search and/or a narrowing filter: page via knex, then re-hydrate.
-      const applyFilters = await this.#adminListFilters(em, options);
-      if (!applyFilters) {
+      // Text search and/or a narrowing filter: page by statement, then re-hydrate.
+      const filters = await this.#adminListFilters(em, options);
+      if (!filters) {
         return { items: [], page, pageSize, total: 0, counts: await this.#productListCounts(em) };
       }
-      const knex = em.getKnex();
-      const baseQuery = knex('products').where((qb) => {
-        applyFilters(qb);
-      });
-      // Both pages run through `em.execute(builder)` rather than by awaiting
-      // the builder: a knex handle carries no transaction context, so the page
-      // a caller inside a transaction is shown would be computed from rows that
-      // transaction has not written yet (issue #207). The builder is kept
-      // rather than rewritten as a statement because the filters above are
-      // assembled at runtime; `execute` compiles it and runs it with the
-      // EntityManager's transaction context, so the SQL is byte-for-byte the
-      // one this method already sent.
-      const totalRows = (await em.execute(
-        baseQuery.clone().count('* as count'),
-      )) as Array<{ count: string | number }>;
+      // Both pages run through `em.execute`, so a caller inside a transaction
+      // is shown the rows that transaction has written (issue #207).
+      const totalRows = await em.execute<Array<{ count: string | number }>>(
+        `select count(*) as "count" from "products" where ${filters.sql}`,
+        [...filters.params],
+      );
       total = Number(totalRows[0]?.count ?? 0);
-      const idRows = (await em.execute(
-        baseQuery.clone().orderBy('created_at', 'desc').orderBy('id', 'desc').offset(page * pageSize).limit(pageSize).select('id'),
-      )) as Array<{ id: string }>;
+      const idRows = await em.execute<Array<{ id: string }>>(
+        `select "id" from "products" where ${filters.sql}
+          order by "created_at" desc, "id" desc limit ? offset ?`,
+        [...filters.params, pageSize, page * pageSize],
+      );
       const ids = idRows.map((r) => r.id);
       if (ids.length === 0) {
         items = [];
@@ -1839,7 +1832,7 @@ export class CatalogAdminService {
   async #adminListFilters(
     em: EntityManager,
     options: AdminProductListQuery,
-  ): Promise<((qb: Knex.QueryBuilder) => void) | null> {
+  ): Promise<{ readonly sql: string; readonly params: readonly unknown[] } | null> {
     const archivedMode = options.archived ?? 'exclude';
     const trimmedQ = options.q?.trim();
 
@@ -1879,28 +1872,40 @@ export class CatalogAdminService {
       });
     }
 
-    return (qb) => {
-      // Mirror the list's base rules: soft-deleted rows are never listed or
-      // selectable; the status and the archived mode are independent filters
-      // (feature 163, R30.4).
-      qb.whereNull('deleted_at');
-      if (options.status) qb.where('status', options.status);
-      if (archivedMode === 'exclude') qb.whereNull('archived_at');
-      else if (archivedMode === 'only') qb.whereNotNull('archived_at');
-      if (options.type) qb.where('type', options.type);
-      if (categoryProductIds) qb.whereRaw('"products"."id" = any(?::uuid[])', [uuidArrayLiteral(categoryProductIds)]);
-      if (channelSubquery) qb.whereRaw(`"products"."id" in (${channelSubquery.sql})`, channelSubquery.params);
-      if (stockClause) qb.whereRaw(stockClause.sql, stockClause.params);
-      if (trimmedQ) {
-        const needle = `%${trimmedQ.toLowerCase()}%`;
-        qb.andWhere((inner) => {
-          inner
-            .whereRaw('LOWER("sku") LIKE ?', [needle])
-            .orWhereRaw('LOWER("slug") LIKE ?', [needle])
-            .orWhereRaw('LOWER("name"::text) LIKE ?', [needle]);
-        });
-      }
-    };
+    // Mirror the list's base rules: soft-deleted rows are never listed or
+    // selectable; the status and the archived mode are independent filters
+    // (feature 163, R30.4). Every value is a `?` placeholder; the id set goes
+    // in as one array literal (`any(?::uuid[])`), never a JS array.
+    const where: string[] = ['"deleted_at" is null'];
+    const params: unknown[] = [];
+    if (options.status) {
+      where.push('"status" = ?');
+      params.push(options.status);
+    }
+    if (archivedMode === 'exclude') where.push('"archived_at" is null');
+    else if (archivedMode === 'only') where.push('"archived_at" is not null');
+    if (options.type) {
+      where.push('"type" = ?');
+      params.push(options.type);
+    }
+    if (categoryProductIds) {
+      where.push('"products"."id" = any(?::uuid[])');
+      params.push(uuidArrayLiteral(categoryProductIds));
+    }
+    if (channelSubquery) {
+      where.push(`"products"."id" in (${channelSubquery.sql})`);
+      params.push(...channelSubquery.params);
+    }
+    if (stockClause) {
+      where.push(`(${stockClause.sql})`);
+      params.push(...stockClause.params);
+    }
+    if (trimmedQ) {
+      const needle = `%${trimmedQ.toLowerCase()}%`;
+      where.push('(LOWER("sku") LIKE ? or LOWER("slug") LIKE ? or LOWER("name"::text) LIKE ?)');
+      params.push(needle, needle, needle);
+    }
+    return { sql: where.join(' and '), params };
   }
 
   /**
@@ -1909,10 +1914,10 @@ export class CatalogAdminService {
    * `inactive` over non-archived, non-deleted rows; `archived` over archived,
    * non-deleted rows of either status.
    *
-   * `em.execute`, not `em.getKnex()`: a knex handle takes its own pooled
-   * connection, so the badges would be counted from outside a transaction the
-   * caller holds open while the page above answers from inside it — one screen,
-   * two views of `products` (issue #207).
+   * `em.execute`, not a statement on a connection of its own: there the badges
+   * would be counted from outside a transaction the caller holds open while the
+   * page above answers from inside it — one screen, two views of `products`
+   * (issue #207).
    */
   async #productListCounts(em: EntityManager): Promise<ProductListCounts> {
     const rows = (await em.execute(
@@ -1941,18 +1946,14 @@ export class CatalogAdminService {
   async resolveProductIds(options: AdminProductListQuery = {}): Promise<{ productIds: string[]; total: number }> {
     const maxSelectionSize = Number(process.env['CATALOG_MAX_RESOLVE_IDS'] ?? 10_000);
     const em = this.emFactory();
-    const knex = em.getKnex();
-    const applyFilters = await this.#adminListFilters(em, options);
-    if (!applyFilters) return { productIds: [], total: 0 };
-    const filtered = (): Knex.QueryBuilder =>
-      knex('products').where((qb) => {
-        applyFilters(qb);
-      });
+    const filters = await this.#adminListFilters(em, options);
+    if (!filters) return { productIds: [], total: 0 };
 
-    // `em.execute(builder)`, not an awaited builder — see `listProducts`
-    // (issue #207); the filters are assembled at runtime, so the builder stays
-    // and `execute` supplies the EntityManager's transaction context.
-    const countRows = (await em.execute(filtered().count('* as count'))) as Array<{ count: string | number }>;
+    // `em.execute` — see `listProducts` (issue #207).
+    const countRows = await em.execute<Array<{ count: string | number }>>(
+      `select count(*) as "count" from "products" where ${filters.sql}`,
+      [...filters.params],
+    );
     const total = Number(countRows[0]?.count ?? 0);
 
     if (total > maxSelectionSize) {
@@ -1964,7 +1965,10 @@ export class CatalogAdminService {
       );
     }
 
-    const idRows = (await em.execute(filtered().orderBy('created_at', 'desc').select('id'))) as Array<{ id: string }>;
+    const idRows = await em.execute<Array<{ id: string }>>(
+      `select "id" from "products" where ${filters.sql} order by "created_at" desc`,
+      [...filters.params],
+    );
 
     const productIds = idRows.map((r) => r.id);
     return { productIds, total: productIds.length };

@@ -201,25 +201,17 @@ describe('seeded action set (integration, v1)', () => {
 });
 
 async function seed(em: EntityManager): Promise<void> {
-  const knex = em.getKnex();
   const now = new Date();
   // Stamp registrations for every seeded module so the visibility
   // join treats them as installed.
   for (const moduleId of MODULE_IDS) {
-    await knex('module_registrations')
-      .insert({
-        module_id: moduleId,
-        state: 'installed',
-        version: '1.0.0',
-        installed_at: now,
-        last_state_change_at: now,
-      })
-      .onConflict('module_id')
-      .merge({
-        state: 'installed',
-        version: '1.0.0',
-        last_state_change_at: now,
-      });
+    await em.execute(
+      `insert into "module_registrations" ("module_id", "state", "version", "installed_at", "last_state_change_at")
+       values (?, 'installed', '1.0.0', ?, ?)
+       on conflict ("module_id") do update
+         set "state" = 'installed', "version" = '1.0.0', "last_state_change_at" = excluded."last_state_change_at"`,
+      [moduleId, now, now],
+    );
   }
   // Reconcile actions from each manifest.
   const reconciler = new AdminActionsReconciler({ em: () => em });

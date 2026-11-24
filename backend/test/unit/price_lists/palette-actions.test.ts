@@ -53,14 +53,7 @@ function rowsOf(): ActionRow[] {
 }
 
 function emReturning(rows: ActionRow[]): () => EntityManager {
-  const knex = (): unknown => {
-    const chain = {
-      where: (): unknown => chain,
-      select: async (): Promise<ActionRow[]> => rows,
-    };
-    return chain;
-  };
-  return () => ({ getKnex: () => knex }) as unknown as EntityManager;
+  return () => ({ execute: async (): Promise<ActionRow[]> => rows }) as unknown as EntityManager;
 }
 
 const i18n: AdminI18nTranslatePort = { translate: async (moduleId, key) => `${moduleId}/${key}` };

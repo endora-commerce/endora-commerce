@@ -200,6 +200,34 @@ export function queryText(query: unknown): string {
   return String(query);
 }
 
+/** The part of the ORM's platform the verdict uses: its own parameter substitution. */
+interface FormattingPlatform {
+  formatQuery(sql: string, params: readonly unknown[]): string;
+}
+
+/**
+ * `sql` as the ORM renders it before sending it (issue #1864): MikroORM 6
+ * substitutes `execute(sql, params)` client-side through
+ * `Platform.formatQuery` — `??` becomes an identifier, `?` an escaped value,
+ * and a `raw()` fragment its SQL — so the verdict reads that text, not the
+ * template. Without a platform to render with, a statement that carries
+ * parameters is refused rather than judged on its template (fail closed).
+ */
+export function renderedForVerdict(
+  sql: string,
+  params: readonly unknown[] | undefined,
+  platform: FormattingPlatform | undefined,
+): string {
+  if (params === undefined || params.length === 0) return sql;
+  if (typeof platform?.formatQuery !== 'function') {
+    throw new Error('[foreign-schema-guard] a parameterised statement cannot be rendered without the platform');
+  }
+  return platform.formatQuery(sql, [...params]);
+}
+
+const platformOf = (holder: unknown): FormattingPlatform | undefined =>
+  (holder as { getPlatform?: () => FormattingPlatform } | undefined)?.getPlatform?.();
+
 /**
  * The statements `cls.up()` queues, without running any of them — for the
  * guard's own-table dry run and for `module:schema-extensions audit-packages`
@@ -235,8 +263,8 @@ export async function dryRunStatements(
   let builder: unknown;
   const executed: string[] = [];
   Object.assign(instance, {
-    execute: async (sql: unknown) => {
-      executed.push(queryText(sql));
+    execute: async (sql: unknown, params?: unknown[]) => {
+      executed.push(renderedForVerdict(queryText(sql), params, platformOf(driver)));
       return [];
     },
     getEntityManager: denied('the entity manager'),
@@ -559,7 +587,8 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
     }
 
     override async execute(sql: Parameters<Migration['execute']>[0], params?: unknown[]) {
-      await this.#judge(queryText(sql));
+      const driver = (this as unknown as { driver: unknown }).driver;
+      await this.#judge(renderedForVerdict(queryText(sql), params, platformOf(driver)));
       return super.execute(sql, params);
     }
 
@@ -686,7 +715,7 @@ function guardEntityManager(
   if (typeof execute === 'function') {
     Object.assign(em, {
       execute: async (sql: unknown, ...rest: unknown[]) => {
-        await judgeSql(queryText(sql));
+        await judgeSql(renderedForVerdict(queryText(sql), rest[0] as unknown[] | undefined, platformOf(em)));
         return execute.call(em, sql, ...rest);
       },
     });
@@ -729,7 +758,7 @@ function guardEntityManager(
             const value = Reflect.get(target, property, receiver) as unknown;
             if (property === 'execute' && typeof value === 'function') {
               return async (sql: unknown, ...rest: unknown[]) => {
-                await judgeSql(queryText(sql));
+                await judgeSql(renderedForVerdict(queryText(sql), rest[0] as unknown[] | undefined, platformOf(target)));
                 return (value as (...a: unknown[]) => unknown).call(target, sql, ...rest);
               };
             }
