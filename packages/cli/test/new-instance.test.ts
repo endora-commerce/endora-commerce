@@ -1102,6 +1102,47 @@ describe('the tree (§1, §2)', () => {
     expect(written).not.toContain('zod');
   });
 
+  /**
+   * Issue #1865 — the ORM's own CLI is not an entry point an instance gets.
+   *
+   * Migrations run through the platform's commands (`migrate`, `setup`, the
+   * `module:*` entries); `mikro-orm migration:*` writes into one configured path
+   * and knows nothing of module ownership or the computed order. So no manifest
+   * this command writes may declare `@mikro-orm/cli`, carry a `mikro-orm`
+   * configuration block for it, or name it in a script — not even when a range
+   * for it is there to be read.
+   */
+  it('#1865 — no planned manifest declares the MikroORM CLI or its configuration block', () => {
+    const plan = planInstance(
+      planInput({
+        declaredRanges: new Map([
+          ['@mikro-orm/core', '^6'],
+          ['@mikro-orm/postgresql', '^6'],
+          ['@mikro-orm/cli', '^6'],
+          ['typescript', '^5'],
+        ]),
+      }),
+    );
+    const manifests = plan.files.filter(
+      (file) => file.path === 'package.json' || file.path.endsWith('/package.json'),
+    );
+    expect(manifests.length).toBeGreaterThan(1);
+    for (const file of manifests) {
+      const manifest = JSON.parse(file.content) as Record<string, unknown>;
+      expect(manifest, `${file.path} carries a \`mikro-orm\` block`).not.toHaveProperty(
+        'mikro-orm',
+      );
+      for (const field of ['dependencies', 'devDependencies', 'peerDependencies']) {
+        const declared = (manifest[field] ?? {}) as Record<string, string>;
+        expect(Object.keys(declared), `${file.path} ${field}`).not.toContain('@mikro-orm/cli');
+      }
+      const scripts = (manifest['scripts'] ?? {}) as Record<string, string>;
+      for (const [name, command] of Object.entries(scripts)) {
+        expect(command, `${file.path} script \`${name}\``).not.toMatch(/(^|[\s;&|])mikro-orm\s/);
+      }
+    }
+  });
+
   it('R2.5a — the four peer ranges are the platform\'s own, not this command\'s', () => {
     const plan = planInstance(
       planInput({ declaredRanges: new Map([['zod', '^99-from-the-platform']]) }),

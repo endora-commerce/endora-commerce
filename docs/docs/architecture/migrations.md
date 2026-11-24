@@ -167,8 +167,11 @@ declared `moduleId` that disagrees with the owning directory, a filename segment
 disagrees with the module id, an unrecognized `.ts` file in a `migrations/` directory,
 and any leftover `NNN_`-numbered file.
 
-`mikro-orm migration:create` / `migration:generate` are **not** sanctioned: they write
-into a single configured path and cannot know the owning module.
+The MikroORM CLI (`@mikro-orm/cli`) is **not** installed, and the `mikro-orm` block it read
+from `backend/package.json` is gone (issue #1865). Its `migration:create` / `migration:generate`
+wrote into a single configured path and could not know the owning module, so create a migration
+with `pnpm --filter backend run migration:new` and apply, list or revert migrations with
+`migration:up`, `migration:pending` and `migration:down`.
 
 :::note Helper files
 A non-migration `.ts` helper may live inside a `migrations/` directory, but it must be

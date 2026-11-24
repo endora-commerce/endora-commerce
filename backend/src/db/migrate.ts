@@ -3,9 +3,11 @@ import { runMigrationCommand } from '@endora-commerce/platform/db';
 import { initOrm, closeOrm } from './index.js';
 
 /**
- * Programmatic migration runner — invoked via `tsx src/db/migrate.ts <command>`
- * because the MikroORM CLI does not resolve our ESM TypeScript config out of
- * the box. Supports the CLI commands we actually use.
+ * Programmatic migration runner — invoked via `tsx src/db/migrate.ts <command>`.
+ * It is the only migration entry point: the MikroORM CLI is not installed
+ * (issue #1865), because its `migration:*` commands write into one configured
+ * path, know nothing of module ownership or the computed order, and never
+ * resolved this ESM TypeScript configuration out of the box.
  *
  *   tsx src/db/migrate.ts up         — apply pending migrations
  *   tsx src/db/migrate.ts down       — revert the most recent migration
