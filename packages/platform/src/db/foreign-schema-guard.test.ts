@@ -1,4 +1,6 @@
+import { Entity, PrimaryKey } from '@mikro-orm/core';
 import { Migration } from '@mikro-orm/migrations';
+import { MikroORM } from '@mikro-orm/postgresql';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ForeignSchemaWriteError,
@@ -343,6 +345,65 @@ describe('dryRunStatements — fails closed on every database handle', () => {
     const { statements, error } = await dryRunStatements(cls, driver, {});
     expect(error).toBeNull();
     expect(statements.join('\n')).toMatch(/create table "acme_built"/);
+  });
+});
+
+/**
+ * Issue #1860 (part of #1073), kept after the MikroORM 7 switch. The guard
+ * finds which tables are the module's own and which tables any entity maps by
+ * iterating `getMetadata().getAll()`. MikroORM 6 returns a plain object and
+ * MikroORM 7 a `Map`, and `Object.values(new Map())` is `[]`. Every case above
+ * uses `fakeDriver`'s hand-built object, so none of them can see that. These two
+ * read the metadata a real discovery produced, and each fails in a different
+ * direction if the iteration yields nothing: an empty "mapped" set lets a
+ * `create table if not exists` claim another module's table, and an empty
+ * "own" set refuses the module's own entity table.
+ */
+describe('guardExternalMigration — over a real MetadataStorage (#1860)', () => {
+  @Entity({ tableName: 'acme_rows' })
+  class RealAcmeRow {
+    @PrimaryKey({ type: 'uuid' })
+    id!: string;
+  }
+
+  @Entity({ tableName: 'organizations' })
+  class RealOrganizationLike {
+    @PrimaryKey({ type: 'uuid' })
+    id!: string;
+  }
+
+  const withRealMetadata = async (fn: (driver: ReturnType<typeof fakeDriver>) => Promise<void>): Promise<void> => {
+    const orm = await MikroORM.init({
+      entities: [RealAcmeRow, RealOrganizationLike],
+      dbName: 'x1860_never_connected',
+      connect: false,
+      allowGlobalContext: true,
+    });
+    try {
+      await fn({ ...fakeDriver(), getMetadata: () => orm.getMetadata() } as never);
+    } finally {
+      await orm.close();
+    }
+  };
+  const realContext = () => context({ entities: [RealAcmeRow], declaredHosts: new Map() });
+
+  it('does not let `create table if not exists` claim a table another entity maps', async () => {
+    await withRealMetadata(async (driver) => {
+      const cls = migration('Migration20261201T100060AcmeErpClaim', (self) => {
+        self.addSql('create table if not exists "organizations" ("id" uuid primary key)');
+        self.addSql('alter table "organizations" add column "foo" text');
+      });
+      expect((await refusal(run(cls, realContext(), driver))).table).toBe('organizations');
+    });
+  });
+
+  it('lets the module write the table its own entity maps', async () => {
+    await withRealMetadata(async (driver) => {
+      const cls = migration('Migration20261201T100061AcmeErpOwn', (self) =>
+        self.addSql('alter table "acme_rows" add column "note" text'),
+      );
+      await expect(run(cls, realContext(), driver)).resolves.toBeDefined();
+    });
   });
 });
 
