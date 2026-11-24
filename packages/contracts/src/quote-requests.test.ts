@@ -40,6 +40,8 @@ import {
   adminPatchQuoteRequestSchema,
   quoteRequestDeliverySchema,
   type QuoteRequestDelivery,
+  adminQuoteRequestCreateDefaultsSchema,
+  type QuoteRequestRecord,
 } from './quote-requests.js';
 import { ERROR_CODES } from './errors.js';
 
@@ -169,6 +171,8 @@ describe('quote request history — changes', () => {
     { kind: 'line_note', line: LINE_REF, before: null, after: 'Deliver on pallets' },
     { kind: 'header_note', before: 'old', after: null },
     { kind: 'validity', before: null, after: AT },
+    // `specs/192-quote-request-draft-share/` — the days of an unshared quote.
+    { kind: 'validity_days', before: null, after: 30 },
     // Feature 159 — the grouping kinds.
     { kind: 'group_added', group: { id: ID(40), name: 'Ground floor' } },
     { kind: 'group_removed', group: { id: ID(40), name: 'Ground floor' } },
@@ -253,7 +257,7 @@ describe('quote request history — entries and response', () => {
     for (const kind of quoteRequestHistoryEntryKindSchema.options) {
       expect(quoteRequestHistoryEntrySchema.parse({ ...ENTRY, kind }).kind).toBe(kind);
     }
-    expect(quoteRequestHistoryEntryKindSchema.options).toHaveLength(14);
+    expect(quoteRequestHistoryEntryKindSchema.options).toHaveLength(15);
   });
 
   it('refuses an unknown entry kind', () => {
@@ -991,5 +995,84 @@ describe('179 — notification deliveries under an admin history entry (contract
     expect(
       quoteRequestHistoryEntrySchema.safeParse({ ...ENTRY, deliveries: [{ ...DELIVERY, status: 'queued' }] }).success,
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `specs/192-quote-request-draft-share/` — operator quotes stay unshared until shared
+// ---------------------------------------------------------------------------
+
+describe('192 — sharing an operator quote with its customer (contracts/admin-api.md §2–§8)', () => {
+  const createBase = {
+    organizationId: ID(1),
+    customerAccountId: ID(2),
+    items: [{ productId: ID(3), quantity: 1, agreedUnitPrice: 1 }],
+  };
+
+  it('a reply written before the feature parses without the four sharing keys', () => {
+    const parsed = quoteRequestSchema.parse(QUOTE);
+    for (const key of ['sharedWithCustomer', 'sharedAt', 'sharedByAdminUserId', 'shareValidityDays']) {
+      expect(parsed).not.toHaveProperty(key);
+    }
+    expect(quoteRequestSummarySchema.shape.sharedWithCustomer.safeParse(undefined).success).toBe(true);
+  });
+
+  it('an admin reply carries the four sharing keys', () => {
+    const parsed = quoteRequestSchema.parse({
+      ...QUOTE,
+      sharedWithCustomer: true,
+      sharedAt: AT,
+      sharedByAdminUserId: ID(5),
+      shareValidityDays: 30,
+    });
+    expect(parsed).toMatchObject({ sharedWithCustomer: true, sharedAt: AT, sharedByAdminUserId: ID(5), shareValidityDays: 30 });
+    expect(quoteRequestSchema.parse({ ...QUOTE, sharedWithCustomer: false, sharedAt: null, sharedByAdminUserId: null, shareValidityDays: null }).sharedWithCustomer).toBe(false);
+    expect(quoteRequestSchema.safeParse({ ...QUOTE, shareValidityDays: -1 }).success).toBe(false);
+  });
+
+  it('a `shared` event and a `shared` history entry', () => {
+    expect(rfqEventTypeSchema.parse('shared')).toBe('shared');
+    expect(quoteRequestHistoryEntryKindSchema.parse('shared')).toBe('shared');
+  });
+
+  it('`expiresInDays: null` parses on the admin create and patch bodies', () => {
+    expect(adminCreateQuoteRequestSchema.parse({ ...createBase, expiresInDays: null }).expiresInDays).toBeNull();
+    expect(adminPatchQuoteRequestSchema.parse({ expiresInDays: null }).expiresInDays).toBeNull();
+    expect(adminCreateQuoteRequestSchema.safeParse({ ...createBase, expiresInDays: -1 }).success).toBe(false);
+  });
+
+  it('an admin create line may omit its agreed price, or send null (FR-013)', () => {
+    const withoutPrice = adminCreateQuoteRequestSchema.parse({
+      ...createBase,
+      items: [{ productId: ID(3), quantity: 1 }, { productId: ID(4), quantity: 2, agreedUnitPrice: null }],
+    });
+    expect(withoutPrice.items[0]).not.toHaveProperty('agreedUnitPrice');
+    expect(withoutPrice.items[1]!.agreedUnitPrice).toBeNull();
+  });
+
+  it('the customer create body is unchanged: no agreed price, no validity', () => {
+    const parsed = createQuoteRequestSchema.parse({
+      items: [{ productId: ID(3), quantity: 1, agreedUnitPrice: 5 }],
+      expiresInDays: 3,
+    });
+    expect(parsed.items[0]).not.toHaveProperty('agreedUnitPrice');
+    expect(parsed).not.toHaveProperty('expiresInDays');
+  });
+
+  it('create defaults answer a positive number of days or null', () => {
+    expect(adminQuoteRequestCreateDefaultsSchema.parse({ validityDays: 30 })).toEqual({ validityDays: 30 });
+    expect(adminQuoteRequestCreateDefaultsSchema.parse({ validityDays: null })).toEqual({ validityDays: null });
+    expect(adminQuoteRequestCreateDefaultsSchema.safeParse({ validityDays: 0 }).success).toBe(false);
+  });
+
+  it('the read-port record says whether the customer may see the quote (required)', () => {
+    const record = { sharedWithCustomer: false } satisfies Pick<QuoteRequestRecord, 'sharedWithCustomer'>;
+    expect(record.sharedWithCustomer).toBe(false);
+  });
+
+  it('declares the three minted error codes', () => {
+    for (const code of ['RFQ_ALREADY_SHARED', 'RFQ_SHARE_CUSTOMER_UNAVAILABLE', 'RFQ_NOT_SHARED']) {
+      expect((ERROR_CODES as Record<string, string>)[code]).toBe(code);
+    }
   });
 });

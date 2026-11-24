@@ -20,11 +20,13 @@ and the recording step reads it. A unit test compares that file with this table.
 | `offer_accepted` | buyer accepts the offer → *Approved* | `approved` (`approvedBy: 'customer'`) | C | C − actor | C − actor | O | — |
 | `offer_rejected` | buyer rejects the offer → *Canceled* | `canceled` (`canceledBy: 'customer'`) | C | C − actor | C − actor | O | — |
 | `expired` | expiry sweep | `expired` | C | C | C | O | — |
-| `prepared` | operator creates on the buyer's behalf → *Created from admin* | `created` (admin) | C | C | C | — | — |
+| `prepared` | operator shares an operator-created quote with the buyer (Command `quote_request.share`) | `shared` (admin) | C | C | C | — | — |
 | `revised` | operator saves a revision (offer awaiting the buyer) | `modified` (admin) | C | C | C | — | — |
 | `approved` | operator approves → *Approved* | `approved` (`approvedBy: 'admin'`) | C | C | C | — | — |
 | `canceled` | operator cancels → *Canceled* | `canceled` (`canceledBy: 'admin'`) | C | C | C | — | — |
 | *(completed)* | order placed from the quote | `completed` | — | — | — | — | — |
+
+Amended by `specs/192-quote-request-draft-share/contracts/notification-matrix-amendment.md` (R-A1, R-A2).
 
 Rules:
 

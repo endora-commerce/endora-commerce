@@ -138,7 +138,7 @@ describe('163 P-3 — a quote request refuses an archived product', () => {
     await expect(
       createAsPlatformAdmin(
         service,
-        { organizationId: ORG_ID, customerAccountId: CUSTOMER_ID, salesChannelId: CHANNEL_ID, items: [{ productId: LIVE_ID, quantity: 1 }] } as never,
+        { organizationId: ORG_ID, customerAccountId: CUSTOMER_ID, salesChannelId: CHANNEL_ID, items: [{ productId: LIVE_ID, quantity: 1, agreedUnitPrice: 1 }] } as never,
       ),
     ).rejects.toThrow('reached the write');
   });

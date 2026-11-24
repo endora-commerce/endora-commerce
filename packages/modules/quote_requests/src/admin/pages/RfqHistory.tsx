@@ -186,6 +186,13 @@ function changeSentence(f: Formatters, change: QuoteRequestHistoryChange): strin
       if (change.before === null) return t('change.validity_set', { after: f.dateTime(change.after!) });
       if (change.after === null) return t('change.validity_removed', { before: f.dateTime(change.before) });
       return t('change.validity', { before: f.dateTime(change.before), after: f.dateTime(change.after) });
+    // `specs/192-quote-request-draft-share/` — the days an unshared quote will
+    // carry once shared; `null` = no deadline.
+    case 'validity_days':
+      return t('change.validity_days', {
+        before: change.before === null ? t('none') : change.before,
+        after: change.after === null ? t('none') : change.after,
+      });
     // Feature 159 — the grouping. Group names are operator content, shown as
     // recorded; `null` is the ungrouped section.
     case 'group_added':

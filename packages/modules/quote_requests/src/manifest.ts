@@ -408,11 +408,14 @@ export const manifest = defineModuleManifest({
    * The error codes this module owns — feature 090 Phase 3
    * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
    * §1.1). This is where the sentence for each is looked up from: `errors.<CODE>`
-   * in this module's own `i18n/{en,pl}.json`, which holds all ten in both
-   * languages and no eleventh. None of them is a `check-error-translations.ts`
-   * `UNTRANSLATED_ERROR_CODES` entry.
+   * in this module's own `i18n/{en,pl}.json`, which holds all eighteen in both
+   * languages, with a sentence per declared token. None of them is a
+   * `check-error-translations.ts` `UNTRANSLATED_ERROR_CODES` entry.
    *
-   * **Nine came from the capture and one was minted.**
+   * **Nine came from the capture and nine were minted.** The first minted,
+   * `RFQ_PRICE_PROPOSAL_NOT_ALLOWED`, is described here; the rest (features 147,
+   * 153, 163 and `specs/192-quote-request-draft-share/`) each carry their owner
+   * and reason in `MINTED_ERROR_CODES` and a comment at their entry.
    * `RFQ_PRICE_PROPOSAL_NOT_ALLOWED` was created by feature 146
    * (`specs/146-quote-request-pricing-history/`, FR-022) after the prefix chain
    * was deleted, so the capture below cannot hold it; its owner and reason are
@@ -500,7 +503,9 @@ export const manifest = defineModuleManifest({
    * language and not one `errors.<CODE>.<token>`.
    */
   errorCodes: [
-    { code: 'QUOTE_INCOMPLETE' },
+    // `specs/192-quote-request-draft-share/` (research R-8) — `share`: a share
+    // refused while a line has no agreed price; `details.lines` names them.
+    { code: 'QUOTE_INCOMPLETE', tokens: ['share'] },
     { code: 'QUOTE_VALIDITY_ENDED', tokens: ['lapsed', 'withdrawn', 'unavailable'] },
     { code: 'RFQ_ALREADY_CLAIMED' },
     { code: 'RFQ_EMPTY' },
@@ -521,6 +526,12 @@ export const manifest = defineModuleManifest({
     { code: 'QUOTE_REQUEST_PDF_TOO_LARGE' },
     { code: 'QUOTE_REQUEST_PDF_EMAIL_UNAVAILABLE', tokens: ['deactivated', 'no_transport', 'no_definition'] },
     { code: 'QUOTE_REQUEST_PDF_SEND_FAILED' },
+    // `specs/192-quote-request-draft-share/` — sharing an operator's quote with its
+    // customer, and the PDF send refused before it. Minted by this feature; owner and
+    // reason in `MINTED_ERROR_CODES`.
+    { code: 'RFQ_ALREADY_SHARED' },
+    { code: 'RFQ_SHARE_CUSTOMER_UNAVAILABLE', tokens: ['not_member', 'inactive', 'blocked'] },
+    { code: 'RFQ_NOT_SHARED' },
   ],
   /**
    * `rfqs:handle` is declared in the core `PERMISSION_CATALOGUE`, which carries

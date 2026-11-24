@@ -434,6 +434,7 @@ import { Migration20261021T164808QuoteRequestsQuoteRequestEventCarrySkipped } fr
 import { Migration20261025T031736QuoteRequestsUnitPriceFourPlaces } from '@endora-commerce/mod-quote-requests/migrations';
 import { Migration20261113T081826QuoteRequestsNotificationsRedesign } from '@endora-commerce/mod-quote-requests/migrations';
 import { Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders } from '@endora-commerce/mod-quote-requests/migrations';
+import { Migration20261124T131435QuoteRequestsQuoteRequestSharing } from '@endora-commerce/mod-quote-requests/migrations';
 
 // ── related_payers ──────────────────────────────────────────────────────────
 import { Migration20261118T144820RelatedPayersLinksAndRequests } from '@endora-commerce/mod-related-payers/migrations';
@@ -892,6 +893,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('quote_requests', Migration20261025T031736QuoteRequestsUnitPriceFourPlaces),
   migration('quote_requests', Migration20261113T081826QuoteRequestsNotificationsRedesign),
   migration('quote_requests', Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders),
+  migration('quote_requests', Migration20261124T131435QuoteRequestsQuoteRequestSharing),
 
   // ── related_payers ──────────────────────────────────────────────────────────
   migration('related_payers', Migration20261118T144820RelatedPayersLinksAndRequests),

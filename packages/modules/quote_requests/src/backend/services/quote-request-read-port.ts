@@ -174,6 +174,7 @@ export function toQuoteRequestRecord(quote: QuoteRequest): QuoteRequestRecord {
     expiresAt: quote.expiresAt ?? null,
     convertedOrderId: quote.convertedOrderId ?? null,
     customFieldValues: quote.customFieldValues ?? {},
+    sharedWithCustomer: quote.sharedWithCustomer,
     version: quote.version,
     createdAt: quote.createdAt,
     updatedAt: quote.updatedAt,

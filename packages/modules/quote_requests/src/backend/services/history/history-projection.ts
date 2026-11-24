@@ -253,6 +253,8 @@ function singleKind(event: HistoryEventInput): QuoteRequestHistoryEntryKind {
       return 'pdf_sent';
     case 'custom-field-carry-skipped':
       return 'custom_field_carry_skipped';
+    case 'shared':
+      return 'shared';
   }
 }
 

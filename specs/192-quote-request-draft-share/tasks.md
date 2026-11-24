@@ -37,7 +37,7 @@ conflict on the bundles and wait on each other. `[P]` marks only intra-phase ind
 
 ## Phase 1 — Foundation: contracts, schema, error codes (no behaviour change)
 
-- [ ] T001 [P] Contracts, tests first, in `packages/contracts/src/quote-requests.ts`
+- [x] T001 [P] Contracts, tests first, in `packages/contracts/src/quote-requests.ts`
   (+ `packages/contracts/src/quote-requests.test.ts`, `packages/contracts/src/quote-request-admin-list.test.ts`):
   `rfqEventTypeSchema` + `'shared'`; `quoteRequestHistoryEntryKindSchema` + `'shared'`;
   `quoteRequestHistoryChangeSchema` + `{ kind: 'validity_days', before: int|null, after: int|null }`;
@@ -53,17 +53,17 @@ conflict on the bundles and wait on each other. `[P]` marks only intra-phase ind
   admin create line without `agreedUnitPrice` parses; `createQuoteRequestSchema` (customer) is
   unchanged.
   Shapes: `contracts/admin-api.md` §2–§8.
-- [ ] T002 [P] New `packages/contracts/src/quote-request-hooks.ts` (`QuoteRequestShareHookData`,
+- [x] T002 [P] New `packages/contracts/src/quote-request-hooks.ts` (`QuoteRequestShareHookData`,
   `QUOTE_REQUEST_HOOKABLE_ACTIONS.share` = `'quote_request.share'`, `'quote_request'`,
   `['beforeCommit']`), exported from `packages/contracts/src/index.ts` beside
   `organization-hooks`/`project-hooks`; test `packages/contracts/src/quote-request-hooks.test.ts`
   (precedent `packages/contracts/src/project-hooks.test.ts`). Shape: `contracts/share-hook.md` §1.
-- [ ] T003 [P] `packages/contracts/src/errors.ts`: `RFQ_ALREADY_SHARED`,
+- [x] T003 [P] `packages/contracts/src/errors.ts`: `RFQ_ALREADY_SHARED`,
   `RFQ_SHARE_CUSTOMER_UNAVAILABLE`, `RFQ_NOT_SHARED`.
-- [ ] T004 [P] Amend `specs/179-rfq-and-customer-notifications/contracts/notification-matrix.md`
+- [x] T004 [P] Amend `specs/179-rfq-and-customer-notifications/contracts/notification-matrix.md`
   §1 row `prepared` as `contracts/notification-matrix-amendment.md` § *Edit to make in 179*
   (document first; code follows in T018).
-- [ ] T005 Migration: `pnpm --filter backend run migration:new -- --module quote_requests --name quote_request_sharing`;
+- [x] T005 Migration: `pnpm --filter backend run migration:new -- --module quote_requests --name quote_request_sharing`;
   `up`/`down` per `research.md` R-17 (four columns, check on days; `qre_event_type_check`
   re-created with the list of
   `QR/src/migrations/20261021T164808_quote_requests_quote_request_event_carry_skipped.ts` plus
@@ -74,13 +74,13 @@ conflict on the bundles and wait on each other. `[P]` marks only intra-phase ind
   precedent `backend/test/integration/quote_requests/migration.test.ts`): a row inserted before
   `up` reads `shared_with_customer = true` and `null` in the other three (FR-002, SC-004); a
   `shared` event inserts; `share_validity_days = -1` is refused.
-- [ ] T006 Entity: `QR/src/backend/entities/quote-request.entity.ts` four properties per
+- [x] T006 Entity: `QR/src/backend/entities/quote-request.entity.ts` four properties per
   `data-model.md` §1 (default `true`, all in `[OptionalProps]`, the status doc comment notes the
   orthogonal flag); `QR/src/backend/entities/quote-request-event.entity.ts` union + `'shared'`;
   `toQuoteRequestRecord` (`QR/src/backend/services/quote-request-read-port.ts`) maps the flag;
   fix the record fixtures that stop compiling (`backend/test/integration/quote_requests/expiry-rules.test.ts`,
   `packages/contracts/src/quote-requests.test.ts`). Test: `QR/src/backend/services/quote-request-read-port.test.ts` (new).
-- [ ] T007 Error codes: `QR/src/manifest.ts` `errorCodes` + the three minted codes
+- [x] T007 Error codes: `QR/src/manifest.ts` `errorCodes` + the three minted codes
   (`RFQ_SHARE_CUSTOMER_UNAVAILABLE` tokens `not_member`, `inactive`, `blocked`) and `QUOTE_INCOMPLETE`
   tokens + `share`; re-derive the counts the `errorCodes` doc comment states;
   `errors.<CODE>[.<token>]` sentences in `QR/i18n/en.json` and `QR/i18n/pl.json`; three

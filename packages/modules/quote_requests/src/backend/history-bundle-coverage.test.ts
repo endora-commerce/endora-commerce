@@ -103,10 +103,10 @@ const REQUIRED = [
 
 describe('quote request history — bundle coverage (T058)', () => {
   it('iterates the full schema enums', () => {
-    // Feature 162 added custom_field_carry_skipped.
-    expect(ENTRY_KINDS).toHaveLength(14);
-    // Feature 159 added the five grouping kinds.
-    expect(CHANGE_KINDS).toHaveLength(13);
+    // Feature 162 added custom_field_carry_skipped; 192 added shared.
+    expect(ENTRY_KINDS).toHaveLength(15);
+    // Feature 159 added the five grouping kinds; 192 added validity_days.
+    expect(CHANGE_KINDS).toHaveLength(14);
   });
 
   it.each(REQUIRED)('%s exists, non-empty, in en and pl', (key) => {

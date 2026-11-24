@@ -245,6 +245,8 @@ export * from './command-hooks.js';
 export * from './organization-hooks.js';
 // Issue #1845 — `projects`' hookable actions.
 export * from './project-hooks.js';
+// `specs/192-quote-request-draft-share/` — `quote_requests`' share of an operator quote.
+export * from './quote-request-hooks.js';
 // Issue #1844 — `promotions`' promotion and coupon writes.
 export * from './promotion-hooks.js';
 export * from './platform-info.js';

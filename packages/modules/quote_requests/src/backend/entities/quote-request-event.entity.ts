@@ -28,7 +28,10 @@ export type QuoteRequestEventType =
   | 'pdf-sent'
   // Feature 162 — custom-field values a Sales Opportunity could not carry into
   // the request. Admin-only: it names keys of possibly internal fields.
-  | 'custom-field-carry-skipped';
+  | 'custom-field-carry-skipped'
+  // `specs/192-quote-request-draft-share/` — an operator shared an unshared
+  // quote with its customer; the customer's history starts at it (FR-012).
+  | 'shared';
 
 @GlobalEntity()
 @Entity({ tableName: 'quote_request_events' })

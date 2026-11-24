@@ -848,6 +848,13 @@ export class RfqAdminService {
       throw new HttpError(409, ERROR_CODES.RFQ_NOT_QUOTED, 'Quote Request is not editable.');
     }
     this.assertVersion(rfq, expectedVersion);
+    // `specs/192-quote-request-draft-share/` (contracts/admin-api.md §4) — a
+    // shared quote's deadline is moved, never cleared.
+    if (body.expiresInDays === null) {
+      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'The validity of a shared quote cannot be cleared.', [
+        { path: 'expiresInDays', issue: 'not_clearable_once_shared' },
+      ]);
+    }
 
     // Research R7 — a validity change is recorded on the event, since no
     // revision snapshot carries `expiresAt`.
@@ -987,7 +994,7 @@ export class RfqAdminService {
       rfq.currentRevisionNumber += 1;
       rfq.awaitingCustomerRevisionAcceptance = true;
       rfq.assignedAdminUserId = ctx.adminUserId;
-      if (body.expiresInDays !== undefined) {
+      if (body.expiresInDays !== undefined && body.expiresInDays !== null) {
         const before = rfq.expiresAt?.toISOString() ?? null;
         rfq.expiresAt = new Date(Date.now() + body.expiresInDays * 86_400_000);
         const after = rfq.expiresAt.toISOString();
@@ -1189,6 +1196,15 @@ export class RfqAdminService {
     // what was stored.
     const customFieldValues = await this.#newCustomFieldValues(body.customFieldValues);
 
+    // `specs/192-quote-request-draft-share/` — interim until the operator's
+    // quote starts unshared (T026): a line still needs its agreed price.
+    const unpriced = body.items.flatMap((line, index) =>
+      line.agreedUnitPrice == null ? [{ path: `items.${index}.agreedUnitPrice`, issue: 'required' }] : [],
+    );
+    if (unpriced.length > 0) {
+      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Every line needs an agreed unit price.', unpriced);
+    }
+
     const businessId = await this.deps.rfqService.generateBusinessId(em);
     // FR-001 — the request, its groups and lines, revision 1, its history
     // entries and the records naming `created` commit together.
@@ -1214,7 +1230,7 @@ export class RfqAdminService {
         // act on an admin-created quote.
         awaitingCustomerRevisionAcceptance: true,
         expiresAt:
-          body.expiresInDays !== undefined
+          body.expiresInDays !== undefined && body.expiresInDays !== null
             ? new Date(Date.now() + body.expiresInDays * 86_400_000)
             : null,
         customFieldValues,
@@ -1248,7 +1264,7 @@ export class RfqAdminService {
             productSlug: product.slug,
             variantId: lineInput.variantId ?? null,
             quantity: lineInput.quantity,
-            agreedUnitPrice: unitPriceText(lineInput.agreedUnitPrice),
+            agreedUnitPrice: unitPriceText(lineInput.agreedUnitPrice!),
             lineNote: lineInput.lineNote ?? null,
             lineCurrency,
             groupId: groupIds(plan.lines[index]!.group),
