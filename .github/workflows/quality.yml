@@ -146,6 +146,7 @@ jobs:
           pnpm --filter backend run check:admin-zones
           pnpm --filter backend run check:entry-scope
           pnpm --filter backend run check:container-imports
+          pnpm --filter backend run check:entity-decorators
           pnpm --filter backend run check:port-dependencies
           pnpm --filter backend run check:port-catches
           pnpm --filter backend run check:port-shape

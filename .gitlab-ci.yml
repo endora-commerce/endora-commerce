@@ -388,6 +388,7 @@ quality:
     # Feature 072 (FR-032) — no module imports the container library. Modules see
     # only `ModuleContext`, so the container stays swappable behind that seam.
     - pnpm --filter backend run check:container-imports
+    - pnpm --filter backend run check:entity-decorators
     # Feature 072 (FR-040) — a module declares the modules whose ports it
     # resolves. Hard from the first run: it measures container resolutions, not
     # imports, so it found one violation while three modules are converted —
