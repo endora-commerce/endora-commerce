@@ -4,15 +4,15 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * Issue #1468 (SALES-01, DEC-07) — an existing organization's status has exactly two writers:
+ * Issue #1468 (SALES-01, DEC-07) — an existing organization's status has exactly one writer:
+ * `OrganizationModerationService` (`approve` / `reject` / `block` / `unblock`, and the
+ * auto-approval on registration) — the only path that checks the state machine, stamps
+ * `approvedAt` / `blockedAt` / `blockedReason`, emits `organization.status_changed.v1` and
+ * sends the customer e-mail.
  *
- * - `OrganizationModerationService` (`approve` / `reject` / `block` / `unblock`, and the
- *   auto-approval on registration) — the only path that checks the state machine, stamps
- *   `approvedAt` / `blockedAt` / `blockedReason`, emits `organization.status_changed.v1` and
- *   sends the customer e-mail;
- * - `email-verification-service.ts`, which activates on a verified address.
- *
- * The admin `PATCH` used to assign it directly and bypass all of that. Creation sets the initial
+ * The admin `PATCH` used to assign it directly and bypass all of that; so did the e-mail
+ * verification until issue #1893, activating a pending, a rejected or a blocked organization
+ * whatever the moderation mode. Creation sets the initial
  * status on `em.create`, so the ledger matches assignments only. A new assignment fails this test
  * until it is either routed through moderation or listed here with a reason.
  */
@@ -29,15 +29,12 @@ function sources(dir: string): string[] {
 const ASSIGNS_STATUS = /\b(org|organization)\.status\s*=(?!=)/;
 
 describe('the writes of organizations.status', () => {
-  it('are moderation and e-mail verification only', () => {
+  it('are moderation only', () => {
     const writers = sources(BACKEND)
       .filter((path) => ASSIGNS_STATUS.test(readFileSync(path, 'utf8')))
       .map((path) => relative(BACKEND, path))
       .sort();
-    expect(writers).toEqual([
-      'services/email-verification-service.ts',
-      'services/organization-moderation-service.ts',
-    ]);
+    expect(writers).toEqual(['services/organization-moderation-service.ts']);
   });
 
   it('do not include the admin PATCH command', () => {

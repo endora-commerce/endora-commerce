@@ -54,6 +54,14 @@ why D-107 chose this tool: a change to `@endora-commerce/contracts` can be break
 named `@endora-commerce/api-client` as the breaking side until 2026-09-11, a package D-202 had
 deleted.)
 
+**A changeset does not license a break of the contract surface.** A published port method, a
+hookable action, its hook or outbox data and the other entries overlays compile against change
+incompatibly only after one release that shipped them `@deprecated`, or as a ruled break with a
+D-number, an upgrade note and a ledger entry (D-293.3, D-293.7). The changeset for such a change is
+still required, and is still written for the consumer; the tiers, the deprecation grammar and the
+exception are `contract-surface.md`'s, and so is the status of their comparison inside
+`check:release-intent --since`.
+
 **One level is not yours to choose: `major` is refused while the package is in `0.x`** (D-225,
 owner ruling of 2026-09-11, amended 2026-09-13 — no package leaves `0.x` until a release
 deliberately does, and the move to public npmjs is not that release: its first version is
