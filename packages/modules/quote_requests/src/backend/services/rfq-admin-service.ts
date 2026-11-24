@@ -915,15 +915,6 @@ export class RfqAdminService {
       throw new HttpError(409, ERROR_CODES.RFQ_NOT_QUOTED, 'Quote Request is not editable.');
     }
     this.assertVersion(rfq, expectedVersion);
-    // `specs/192-quote-request-draft-share/` (contracts/admin-api.md §4) — a
-    // shared quote's deadline is moved, never cleared. An unshared quote keeps
-    // days instead of a date, and `null` clears them.
-    if (body.expiresInDays === null && rfq.sharedWithCustomer) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'The validity of a shared quote cannot be cleared.', [
-        { path: 'expiresInDays', issue: 'not_clearable_once_shared' },
-      ]);
-    }
-
     // Research R7 — a validity change is recorded on the event, since no
     // revision snapshot carries `expiresAt`.
     const recorded: {
@@ -1071,10 +1062,14 @@ export class RfqAdminService {
         const before = rfq.shareValidityDays ?? null;
         rfq.shareValidityDays = normaliseShareValidityDays(body.expiresInDays);
         if (before !== rfq.shareValidityDays) recorded.validityDays = { before, after: rfq.shareValidityDays };
-      } else if (body.expiresInDays !== undefined && body.expiresInDays !== null) {
+      } else if (body.expiresInDays !== undefined) {
+        // Owner decision of 2026-11-24 (`specs/192-quote-request-draft-share/`):
+        // `0` or empty means no deadline on a shared quote too — never
+        // "expires now". An operator closes an offer by cancelling it.
+        const days = normaliseShareValidityDays(body.expiresInDays);
         const before = rfq.expiresAt?.toISOString() ?? null;
-        rfq.expiresAt = new Date(Date.now() + body.expiresInDays * 86_400_000);
-        const after = rfq.expiresAt.toISOString();
+        rfq.expiresAt = days === null ? null : new Date(Date.now() + days * 86_400_000);
+        const after = rfq.expiresAt?.toISOString() ?? null;
         if (before !== after) recorded.validity = { before, after };
       }
       rfq.version += 1;

@@ -961,9 +961,9 @@ export const adminPatchQuoteRequestSchema = z
     /** In display order: each group's lines, then the ungrouped lines. */
     items: z.array(adminPatchQuoteRequestLineSchema).min(1).max(REQUEST_LINE_ITEMS_MAX).optional(),
     /**
-     * Unshared quote (`specs/192-quote-request-draft-share/`): the days applied
-     * at the share; `0` or `null` = no deadline. Shared quote: the deadline is
-     * now + N days (`0` = now); `null` is refused (`not_clearable_once_shared`).
+     * `specs/192-quote-request-draft-share/`: `0` or `null` = no deadline,
+     * `N` = N days. Unshared quote: the days are applied at the share. Shared
+     * quote: the deadline is now + N days, or none.
      */
     expiresInDays: z.number().int().nonnegative().nullable().optional(),
     /** Feature 055 — custom-field values for this quote request (validated on write). */

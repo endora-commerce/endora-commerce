@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { EntityManager } from '@mikro-orm/postgresql';
+import { raw, type EntityManager } from '@mikro-orm/postgresql';
 import {
   type CustomFieldValuePort,
   ERROR_CODES,
@@ -1691,14 +1691,15 @@ export class RfqService {
 // ---------------------------------------------------------------------------
 
 /**
- * `specs/192-quote-request-draft-share/` (research R-20) — the order of a
- * customer's quote request list: newest created first, as before the feature.
- * Whether a quote shared long after it was created should sort by its share
- * instead is an open owner question (OQ-6); the answer changes this one
- * function.
+ * `specs/192-quote-request-draft-share/` (research R-20, OQ-6 answered by the
+ * owner on 2026-11-24) — the order of a customer's quote request list: by
+ * when the customer received each quote, newest first. That is the share for
+ * an operator's quote (`shared_at`) and the creation for every other one, so
+ * a draft prepared long ago and shared today sorts with today's quotes. The
+ * id breaks ties, so the order is stable.
  */
-function customerListOrder(): { createdAt: 'desc' } {
-  return { createdAt: 'desc' };
+function customerListOrder() {
+  return [{ [raw((alias) => `coalesce(${alias}."shared_at", ${alias}."created_at")`)]: 'desc' }, { id: 'desc' }] as never;
 }
 
 /**

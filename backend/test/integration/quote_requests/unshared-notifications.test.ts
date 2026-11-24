@@ -160,7 +160,10 @@ describe('an unshared quote: edits and cancel are recorded, nobody is told', () 
     expect(await records(quote.id)).toBe(0);
   });
 
-  it('a shared quote keeps today’s meaning: 0 = expires now, null is refused', async () => {
+  // Owner decision of 2026-11-24 — `0` (or empty) is no deadline on a shared
+  // quote too, never "expires now"; the offer stays acceptable. An operator
+  // closes an offer by cancelling it.
+  it('a shared quote revised with 0 days, or none, has no deadline and stays acceptable', async () => {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/quote-requests',
@@ -170,21 +173,25 @@ describe('an unshared quote: edits and cancel are recorded, nobody is told', () 
     expect(res.statusCode, res.body).toBe(201);
     const { id, version } = (res.json() as { data: { id: string; version: number } }).data;
 
-    const refused = await h.app.inject({
-      method: 'PATCH',
-      url: `/api/v1/admin/quote-requests/${id}`,
-      cookies: ADMIN,
-      headers: { 'if-match': `"${version}"` },
-      payload: { expiresInDays: null },
-    });
-    expect(refused.statusCode).toBe(422);
-    expect(refused.json()).toMatchObject({
-      error: { code: 'VALIDATION_FAILED', details: [{ path: 'expiresInDays', issue: 'not_clearable_once_shared' }] },
-    });
+    const dated = await patch(id, version, { items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1, agreedUnitPrice: 4 }], expiresInDays: 7 });
+    expect(dated.expiresAt).not.toBeNull();
+    const cleared = await patch(id, dated.version, { expiresInDays: 0 });
+    expect(cleared.expiresAt).toBeNull();
+    const again = await patch(id, cleared.version, { expiresInDays: 7 });
+    expect(again.expiresAt).not.toBeNull();
+    const emptied = await patch(id, again.version, { expiresInDays: null });
+    expect(emptied.expiresAt).toBeNull();
+    expect((await row(id)).expires_at).toBeNull();
 
-    const before = Date.now();
-    const now = await patch(id, version, { expiresInDays: 0 });
-    expect(new Date(now.expiresAt!).getTime()).toBeGreaterThanOrEqual(before - 1000);
-    expect(new Date(now.expiresAt!).getTime()).toBeLessThanOrEqual(Date.now() + 1000);
+    const detail = await h.app.inject({ method: 'GET', url: `/api/v1/quote-requests/${id}`, cookies: { b2b_session: 'stub-customer-session' } });
+    const revision = (detail.json() as { data: { currentRevisionNumber: number } }).data.currentRevisionNumber;
+    const accepted = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/quote-requests/${id}/accept-revision`,
+      cookies: { b2b_session: 'stub-customer-session' },
+      payload: { expectedRevisionNumber: revision },
+    });
+    expect(accepted.statusCode, accepted.body).toBe(200);
+    expect((accepted.json() as { data: { status: string } }).data.status).toBe('Approved');
   });
 });

@@ -32,14 +32,15 @@ export function operatorQuoteStartsUnshared(): boolean {
 }
 
 /**
- * The validity days an unshared quote carries, from what the operator sent
- * (research R-10, FR-032): `0` and `null` both mean no deadline, stored as
- * `null`; a positive number is kept.
+ * The validity days an operator sent, as a quote carries them (research R-10,
+ * FR-032): `0` and `null` both mean no deadline, answered as `null`; a positive
+ * number is kept.
  *
- * **The one place that decides it.** On a quote already shared, `0` keeps its
- * older meaning ("expires now") and `null` is refused — `modify` tells the two
- * apart by `sharedWithCustomer` before it calls this. Should `0` come to mean
- * "no deadline" on a shared quote too, that branch changes, not this.
+ * **The one place that decides it**, for every write of a validity: the create,
+ * an edit of an unshared quote (stored as days, applied at the share) and a
+ * revision of a shared quote (a date from now). By owner decision of
+ * 2026-11-24 `0` is never "expires now" — an operator closes an offer by
+ * cancelling it.
  */
 export function normaliseShareValidityDays(days: number | null): number | null {
   return days === null || days === 0 ? null : days;

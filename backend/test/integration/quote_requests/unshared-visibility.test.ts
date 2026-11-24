@@ -129,6 +129,53 @@ describe('an unshared quote is invisible to every customer surface', () => {
     expect(await versionOf(unshared)).toBe(version);
   });
 
+  // Owner decision of 2026-11-24 (OQ-6, research R-20) — the customer's list
+  // is ordered by when the customer received each quote: the share for an
+  // operator's quote, the creation for any other.
+  it('the customer’s list sorts by the share: a quote shared later sorts above one created later but shared earlier', async () => {
+    const em = h.em();
+    const own = await account(em, TEST_ORGANIZATION_ID, 'order');
+    const ownerId = CUSTOMER_COOKIES[own['b2b_session']!]!.customerAccountId;
+    const createdFirst = await inject('POST', '/api/v1/admin/quote-requests', ADMIN, {
+      organizationId: TEST_ORGANIZATION_ID,
+      customerAccountId: ownerId,
+      items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1, agreedUnitPrice: 2 }],
+    });
+    const createdSecond = await inject('POST', '/api/v1/admin/quote-requests', ADMIN, {
+      organizationId: TEST_ORGANIZATION_ID,
+      customerAccountId: ownerId,
+      items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1, agreedUnitPrice: 3 }],
+    });
+    const older = (createdFirst.json() as { data: { id: string } }).data.id;
+    const younger = (createdSecond.json() as { data: { id: string } }).data.id;
+    await em
+      .getConnection()
+      .execute(`update "quote_requests" set "created_at" = now() - interval '10 days' where "id" = ?`, [older]);
+    await em
+      .getConnection()
+      .execute(`update "quote_requests" set "created_at" = now() - interval '5 days' where "id" = ?`, [younger]);
+    // The younger one is shared first, the older one after it.
+    await shareQuoteRequestForTest(h.app, younger);
+    await em
+      .getConnection()
+      .execute(`update "quote_requests" set "shared_at" = now() - interval '2 days' where "id" = ?`, [younger]);
+    await shareQuoteRequestForTest(h.app, older);
+    // A buyer's own submission, created between the two shares, sorts by its creation.
+    const submitted = await inject('POST', '/api/v1/quote-requests', own, {
+      items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }],
+    });
+    expect(submitted.statusCode, submitted.body).toBe(201);
+    const submittedId = (submitted.json() as { data: { id: string } }).data.id;
+    await em
+      .getConnection()
+      .execute(`update "quote_requests" set "created_at" = now() - interval '1 day' where "id" = ?`, [submittedId]);
+
+    const list = await inject('GET', '/api/v1/quote-requests', own);
+    expect(list.statusCode, list.body).toBe(200);
+    const ids = (list.json() as { data: Array<{ id: string }> }).data.map((row) => row.id);
+    expect(ids).toEqual([older, submittedId, younger]);
+  });
+
   it('the Organization’s Administrator: neither listed nor readable', async () => {
     const em = h.em();
     const administrator = await account(em, TEST_ORGANIZATION_ID, 'org-admin');
