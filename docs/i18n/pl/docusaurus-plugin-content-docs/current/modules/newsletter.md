@@ -47,6 +47,19 @@ wyłączać**, aby nie kolidował z zewnętrzną usługą e-mail marketingu (Mai
 - **Automatyzacja** — liniowa sekwencja kroków `send` / `wait N days`, uruchamiana dla odbiorców
   all / tag / tag-list. Kroki wysyłki korzystają z tego samego edytora e-maili. Model kroków
   zaprojektowano tak, by później można było dodać rozgałęzienia warunkowe bez przebudowy.
+  Aktywna automatyzacja zapisuje subskrybenta, gdy ten **nowo** spełni jej warunek
+  uruchomienia — zaraz po zapisaniu subskrypcji albo potwierdzenia:
+  - `all` — gdy subskrybent staje się aktywny: zapis z pojedynczą zgodą, potwierdzenie przy
+    podwójnej zgodzie albo ponowny zapis po wypisaniu się. Subskrybent, który jeszcze nie
+    potwierdził zapisu, nie jest zapisywany.
+  - `tag` / `tag_list` — gdy aktywny subskrybent ma jeden z tagów warunku (dowolny z nich): przy
+    aktywacji z już nadanym tagiem albo gdy kolejny zapis dodaje ten tag.
+
+  Aktywacja automatyzacji **nie** zapisuje subskrybentów, którzy już spełniają jej warunek —
+  zapisywani są tylko ci, którzy spełnią go od tej chwili. Ponowne wysłanie formularza bez żadnej
+  zmiany nikogo nie zapisuje, adres na liście blokad nigdy nie jest zapisywany, a subskrybent
+  przechodzi przez tę samą automatyzację jeden raz (zasada ponownego wejścia `once`). Gdy moduł
+  jest wyłączony, nikt nie jest zapisywany.
 - **Bloki e-mail** — wielokrotnego użytku fragmenty bezpieczne dla programów pocztowych, edytowane
   tym samym edytorem Puck i wstawiane przez `EmailInsertBlock` tam, gdzie to skonfigurowano.
 - **Zmienne** — katalog zmiennych newslettera obejmuje `subscriber.email`, `customFields.*`,

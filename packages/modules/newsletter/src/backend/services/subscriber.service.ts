@@ -1,8 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { isUuidShape, type CustomerAccountReadPort, type EmailMailerPort } from '@endora-commerce/contracts';
+import {
+  isUuidShape,
+  type CustomerAccountReadPort,
+  type EmailMailerPort,
+  type NewsletterSubscriberHookData,
+} from '@endora-commerce/contracts';
 import { randomUUID } from 'node:crypto';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
+import { NewsletterSubscriberTag } from '../entities/newsletter-subscriber-tag.entity.js';
 import { NewsletterSuppression } from '../entities/newsletter-suppression.entity.js';
 import { makeConfirmSubscriberCommand } from '../commands/confirm-subscriber.command.js';
 import { makeSubscribeSubscriberCommand } from '../commands/subscribe-subscriber.command.js';
@@ -11,6 +17,7 @@ import {
   type SuppressionTarget,
 } from '../commands/suppress-subscriber.command.js';
 import { makeUnsubscribeSubscriberCommand } from '../commands/unsubscribe-subscriber.command.js';
+import type { SubscriberEnrolmentTransition } from './automation.service.js';
 import type { NewsletterOptInService } from './opt-in.service.js';
 import type { ResolvedSubscriberOwner } from './subscriber-fields.js';
 
@@ -74,6 +81,13 @@ export interface SubscriberServiceDeps {
   commandBus: CommandBus;
   /** Optional observability emitter (wraps the in-process EventBus). */
   emitEvent?: (name: string, payload: Record<string, unknown>) => void;
+  /**
+   * Enrols a subscriber into the active automations its committed write newly
+   * matches (issue #1833) — `NewsletterAutomationService.enrolMatching`.
+   * Called after the Command commits, so a rolled-back write enrols nobody.
+   * Absent, nothing is enrolled.
+   */
+  enrolAutomations?: (transition: SubscriberEnrolmentTransition) => Promise<unknown>;
 }
 
 /**
@@ -143,7 +157,13 @@ export class NewsletterSubscriberService {
     // unattributed subscriber behind.
     const owner = await this.#resolveOwner(input.customerAccountId);
 
-    const existing = await this.deps.emFactory().findOne(NewsletterSubscriber, { email });
+    const em = this.deps.emFactory();
+    const existing = await em.findOne(NewsletterSubscriber, { email });
+    // The tags before the write, so enrolment can tell a newly given tag from
+    // one the subscriber already carried (issue #1833).
+    const tagIdsBefore = existing
+      ? (await em.find(NewsletterSubscriberTag, { subscriberId: existing.id })).map((link) => link.tagId)
+      : [];
     const subscriber = await this.deps.commandBus.run(
       makeSubscribeSubscriberCommand({
         subscriberId: existing?.id ?? randomUUID(),
@@ -161,6 +181,8 @@ export class NewsletterSubscriberService {
     if (subscriber.status === 'pending') {
       await this.sendConfirmation(subscriber.subscriberId, email, settingsChannelId);
     }
+
+    await this.#enrol({ ...subscriber, tagIdsBefore });
 
     this.deps.emitEvent?.('newsletter.subscribed.v1', {
       subscriberId: subscriber.subscriberId,
@@ -183,8 +205,33 @@ export class NewsletterSubscriberService {
     const subscriber = await this.deps.emFactory().findOne(NewsletterSubscriber, { id: subscriberId });
     if (!subscriber) return { ok: false };
     if (subscriber.status !== 'pending') return { ok: true };
-    await this.deps.commandBus.run(makeConfirmSubscriberCommand({ subscriberId }));
+    const confirmed = await this.deps.commandBus.run(makeConfirmSubscriberCommand({ subscriberId }));
+    await this.#enrol({ ...confirmed, tagIdsBefore: confirmed.tagIds });
     return { ok: true };
+  }
+
+  /**
+   * Automation enrolment after a committed subscribe or confirmation (issue
+   * #1833). The subscriber write has already committed, so a failure to enrol
+   * is named and does not turn the visitor's successful sign-up into an
+   * error — the same treatment as the confirmation e-mail.
+   */
+  async #enrol(written: NewsletterSubscriberHookData & { tagIdsBefore: readonly string[] }): Promise<void> {
+    if (!this.deps.enrolAutomations) return;
+    try {
+      await this.deps.enrolAutomations({
+        subscriberId: written.subscriberId,
+        previousStatus: written.previousStatus,
+        status: written.status,
+        tagIdsBefore: written.tagIdsBefore,
+        tagIdsAfter: written.tagIds,
+      });
+    } catch (err) {
+      console.warn('[newsletter] automation enrolment failed after a committed subscriber write', {
+        subscriberId: written.subscriberId,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   /**
