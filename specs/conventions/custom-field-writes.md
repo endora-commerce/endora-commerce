@@ -90,6 +90,11 @@ Command with one audit row; **the owner does not validate**, so the caller calls
 field is accepted), and a refusal propagates unchanged and writes nothing; the actor is the
 ambient one, never a parameter. The full statement is each contract's JSDoc.
 
+**A host that adds one adds it to its aggregate's write port, not as a new port**
+(`module-composition.md` item 2a, D-293). The two above are request-shaped ports that
+`specs/186-aggregate-ports/` folds into `customerAccountCommandPort` and `organizationCommandPort`,
+deprecated for one release first (`contract-surface.md`); this list names them until that lands.
+
 **The ports are not `customFieldWrites` declarations, and `check:custom-field-writes` does not
 know them.** Its subject is an HTTP write: a route it can hold to the module's registration and to
 a request contract. A port has neither, and it adds no input surface a buyer reaches — the caller
