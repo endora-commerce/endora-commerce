@@ -12,6 +12,10 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import {
+  approveRegisteredOrganization,
+  registeredOrganizationId,
+} from '../../helpers/approve-registered-organization.js';
 
 /**
  * A signed-in member's cart, checkout and placement — the paths SC-004 of
@@ -178,6 +182,7 @@ describe.skipIf(!shouldRun)(
           })
         ).statusCode,
       ).toBe(200);
+      await approveRegisteredOrganization(h, registeredOrganizationId(register));
       const login = await h.app.inject({
         method: 'POST',
         url: '/api/v1/auth/customer/login',

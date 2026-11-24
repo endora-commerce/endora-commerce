@@ -4,11 +4,13 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { Organization } from '../../helpers/package-entities.js';
 
 /**
  * T095 — Email-verification round-trip: register creates a pending
- * verification; hitting the verify endpoint with the token flips Organization
- * status to active and CustomerAccount.emailVerifiedAt to a timestamp.
+ * verification; hitting the verify endpoint with the token stamps
+ * CustomerAccount.emailVerifiedAt and leaves the Organization status to
+ * moderation (issue #1893).
  */
 
 describe('email verification flow', () => {
@@ -68,5 +70,10 @@ describe('email verification flow', () => {
       data: { organizationId: string; customerAccountId: string; verifiedAt: string };
     };
     expect(body.data.verifiedAt).toMatch(/T.*Z/);
+
+    // Issue #1893 — under the default `manual` moderation the verified address does not
+    // activate the Organization: it waits for the operator's approval.
+    const organization = await h.em().findOneOrFail(Organization, { id: body.data.organizationId });
+    expect(organization.status).toBe('pending_verification');
   });
 });

@@ -168,6 +168,15 @@ ctx.di.providePort(
 );
 ```
 
+**Port zapisu jest portem swojego agregatu.** Gdy inny kod musi zapisywać
+agregat, którego jesteś właścicielem, rozszerz `<aggregate>CommandPort` tego
+agregatu, zamiast publikować port skrojony pod jedno żądanie: każda metoda
+uruchamia tę samą audytowaną komendę co twoja trasa panelu administracyjnego
+dla tej operacji, z aktorem z bieżącego kontekstu, i nie sprawdza uprawnień.
+Metody opublikowanego portu należą do
+[powierzchni kontraktu](./contract-surface.md): wycofaj metodę na jedno wydanie,
+zanim ją usuniesz albo zmienisz.
+
 ### `ctx.di.register({...})` — własne usługi i punkty wpięcia
 
 Używaj go dla usług, które pobiera tylko twój moduł, oraz dla **punktów wpięcia** (contribution

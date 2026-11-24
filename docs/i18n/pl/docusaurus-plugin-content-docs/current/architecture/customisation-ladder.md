@@ -189,6 +189,11 @@ Kształt opublikowanego portu jest typem kontraktu, nigdy twoją własną klasą
 podana w jego bloku dokumentacji jest częścią kontraktu i pilnuje jej kontrola; a **opcjonalna
 metoda w opublikowanym porcie jest odrzucana**, bo proxy rozwiązujące port odpowiada funkcją na
 każdą właściwość i wykrywanie funkcji przez nie jest z założenia niemożliwe.
+
+Port **zapisu** jest portem swojego agregatu — rozszerzaj `<aggregate>CommandPort` agregatu, zamiast
+publikować port skrojony pod jedno żądanie (zobacz [przewodnik po jądrze](./kernel.md)) — a każda
+metoda opublikowanego portu należy do [powierzchni kontraktu](./contract-surface.md): zanim zostanie
+usunięta albo zmieniona, jest wycofywana na jedno wydanie.
 :::
 
 ---

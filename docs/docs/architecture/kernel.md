@@ -183,6 +183,14 @@ ctx.di.providePort(
 );
 ```
 
+**A write port is the port of its aggregate.** When other code needs to write
+an aggregate you own, extend that aggregate's `<aggregate>CommandPort` rather
+than publishing a port shaped by one request: each method runs the same audited
+Command as your admin route for that operation, with the ambient actor, and
+checks no permission. A published port's methods are on the
+[contract surface](./contract-surface.md): deprecate one for a release before
+you remove or change it.
+
 ### `ctx.di.register({...})` — your own services, and contribution points
 
 Use it for services only your module resolves, and for **contribution points**:

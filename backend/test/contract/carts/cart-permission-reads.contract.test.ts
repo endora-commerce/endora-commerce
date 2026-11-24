@@ -10,6 +10,10 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
+import {
+  approveRegisteredOrganization,
+  registeredOrganizationId,
+} from '../../helpers/approve-registered-organization.js';
 
 /**
  * A member's cart answers judge their permissions with the role their session
@@ -93,6 +97,7 @@ describe("carts — a member's cart answers judge the session's role, with no re
       payload: { token },
     });
     expect(verify.statusCode, verify.body).toBe(200);
+    await approveRegisteredOrganization(h, registeredOrganizationId(register));
     const login = await h.app.inject({
       method: 'POST',
       url: '/api/v1/auth/customer/login',

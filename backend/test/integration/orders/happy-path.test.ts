@@ -4,6 +4,10 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import {
+  approveRegisteredOrganization,
+  registeredOrganizationId,
+} from '../../helpers/approve-registered-organization.js';
 
 /**
  * T103 — Integration: register → verify → add address → cart → checkout →
@@ -26,7 +30,8 @@ describe('orders happy path — register to admin visibility', () => {
   });
 
   it('registers an Organization, places a bank-transfer Order, admin sees it', async () => {
-    // 1. Register + verify (test helper probe)
+    // 1. Register + verify (test helper probe) + approve — the default `manual`
+    //    moderation keeps the Organization pending until an operator acts (#1893).
     const register = await h.app.inject({
       method: 'POST',
       url: '/api/v1/organizations/register',
@@ -65,6 +70,7 @@ describe('orders happy path — register to admin visibility', () => {
       payload: { token },
     });
     expect(verify.statusCode).toBe(200);
+    await approveRegisteredOrganization(h, registeredOrganizationId(register));
 
     // 2. Log in — sets b2b_session cookie.
     const login = await h.app.inject({
