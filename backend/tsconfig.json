@@ -44,5 +44,10 @@
   // `quality` job; `workspace-resolution.test.ts` holds every TypeScript file
   // under `backend/` to exactly one of the two, so a directory that falls
   // between them is a red run rather than a file nobody compiles.
-  "exclude": ["test/contract/**/*", "test/integration/**/*", "test/perf/**/*"]
+  //
+  // **A third since issue #1847**: `src/apps/**` — the overlay modules — is
+  // `tsconfig.apps.json`'s, which sets `erasableSyntaxOnly`. An overlay file
+  // imported from `src` or `test/unit` is still read by this program, as any
+  // import is; it is a root of the other one only.
+  "exclude": ["test/contract/**/*", "test/integration/**/*", "test/perf/**/*", "src/apps/**/*"]
 }

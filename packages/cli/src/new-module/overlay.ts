@@ -433,8 +433,8 @@ function overlayBackend(spec: ModuleScaffoldSpec, scope: string): string {
   lines.push('// Nothing in an instance compiles this file: Node loads it and strips the types');
   lines.push('// as it goes. So it is written in the subset stripping accepts — an `enum`, a');
   lines.push('// `namespace` or a constructor parameter property stops the start with');
-  lines.push('// ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX. A union of string literals is the `enum`');
-  lines.push('// you want.');
+  lines.push('// ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX. `pnpm run typecheck` reports all three');
+  lines.push('// first. A union of string literals is the `enum` you want.');
   lines.push('');
   if (gate !== null) {
     lines.push(`interface ${cradle} {`);
