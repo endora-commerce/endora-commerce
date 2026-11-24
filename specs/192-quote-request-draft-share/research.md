@@ -9,6 +9,10 @@ in `spec.md` § *Owner decisions* are not re-opened here; where the spec leaves 
 open, the item says so and names the question it went back with (`OQ-n`, listed in `plan.md`
 § *Open questions for the owner*).
 
+**Owner answers of 2026-11-24 (round 3, `spec.md` § *Clarifications*, commit `640cc924e`)** closed
+OQ-1, OQ-2, OQ-3, OQ-4, OQ-5, OQ-7 and OQ-8; the items below record the answered design. OQ-6 is
+still with the owner (R-20).
+
 ## Vocabulary — "draft" in code is taken
 
 **Decision.** In identifiers, columns, error codes and tests the state is **unshared / shared
@@ -123,10 +127,9 @@ fields may be added). It is required, not optional, so a consumer cannot mistake
 - *Hide drafts with a tenant/global filter*: the platform's filters are tenant scoping
   (Principle XI), not business visibility; admin reads go through the same filter.
 
-**Consequence the owner should see (OQ-4).** `customers`' admin customer-detail tab lists a
-buyer's quotes through the same `listForCustomer`, so it stops listing that buyer's drafts.
-The spec's FR-003 names "the `customers` module's lists" literally; the operator still finds
-drafts on the quote desk, filterable by customer.
+**`customers`' admin customer-detail tab (OQ-4, answered: hide).** It lists a buyer's quotes
+through the same `listForCustomer`, so it does not list that buyer's drafts — FR-003 now says so
+explicitly; operators find drafts on the quote desk, filterable by customer.
 
 ## R-4 Share is one Command, `quote_request.share`, declared hookable — the refusal point of FR-028
 
@@ -201,8 +204,14 @@ The e-mail definition `quote_request_customer_prepared` and its editable text ar
 §1 is in `contracts/notification-matrix-amendment.md`, and that document changes first, then the
 matrix and its test together (the test's header says so).
 
-`shared` is **admin-only** in the customer projection (`ADMIN_ONLY_EVENT_TYPES`,
-`src/backend/services/customer-projection.ts`), so the storefront needs no new label.
+`shared` is **customer-visible**: FR-012 makes the customer's history start at the share, so the
+`shared` entry is its first line. Its payload reaches the customer through the existing
+allow-list only (`CUSTOMER_PAYLOAD_KEYS`; `validityDays`/`expiresAt` are not added — the
+customer reads the date from `expiresAt` on the quote). The storefront gains one label:
+`QUOTE_REQUEST_EVENT_KEYS.shared` in `storefront/lib/account/labels.tsx` and
+`account.quoteRequest.event.shared` (en + pl) in `storefront/lib/i18n/messages/account.ts`.
+An older storefront without the key shows the raw type (`quoteRequestEventLabel`'s fallback),
+never an error.
 
 **Rationale.** `RfqNotificationService.record` asserts the source event's type against the
 matrix row (`assertSourceEvent`, `rfq-notification-service.ts:131`), and the History pairs
@@ -237,15 +246,15 @@ still enter the hooks); *a unique index* (nothing to make unique).
 
 **Decision.** The create screen's **Create and share** button sends
 `POST /api/v1/admin/quote-requests` and then, with the returned `version` as `If-Match`,
-`POST /api/v1/admin/quote-requests/:id/share`. On a share refusal it navigates to the new
-draft's detail and shows the refusal there (FR-020: "saved as a draft and the refusal shown").
-**[NEEDS CLARIFICATION] OQ-7 — create warnings.** When the create answer carries `warnings`
-(feature 163 — a line not available to the customer on the channel), the spec's literal "created
-and shared in one step" shares anyway. Built default, the literal reading: the share runs, and
-the warnings are carried to the shared quote's detail and shown there. Recommended to the owner
-instead: stop before the share and show the warnings with **Share with customer** / **Open
-draft**, so the operator sees them before the customer does. Either is one branch in
-`RfqCreatePage.tsx`.
+`POST /api/v1/admin/quote-requests/:id/share`.
+
+- Share refused → navigate to the new draft's detail and show the refusal there.
+- **Create answered `warnings`** (feature 163 — a line not available to the customer on the
+  channel) → **do not share** (OQ-7 answered, FR-020): the quote stays a draft and the screen
+  shows the warnings, as it does today after a plain create, with **Open draft** (and
+  **Share with customer**, which the operator may then press deliberately).
+- Any line without a price (FR-013) → **Create and share** is disabled with a hint naming the
+  rule; **Save as draft** stays available. The server refuses the share anyway (R-8).
 
 **Rationale.** FR-020 requires the create to survive a refused share, which rules out one
 transaction (a veto would roll the create back). Two requests reuse both existing endpoints,
@@ -280,15 +289,13 @@ sentence without lines* (FR-026 requires naming them).
 
 - `not_member` — no record, or `record.organizationId !== quote.organizationId` (the account
   moved to another Organization);
-- `inactive` — `deletedAt` or `anonymizedAt` is set. This is the platform's own meaning of
-  "active" (`activeOnly` is `deletedAt: null`,
-  `packages/modules/customer_accounts/src/backend/services/customer-account-ports.ts:125`).
+- `inactive` — `deletedAt` or `anonymizedAt` is set (the platform's own meaning of "active":
+  `activeOnly` is `deletedAt: null`,
+  `packages/modules/customer_accounts/src/backend/services/customer-account-ports.ts:125`);
+- `blocked` — `blockedAt` is set (OQ-3 answered: a blocked account cannot sign in, so it
+  refuses the share; FR-027 now says "inactive, blocked or no longer a member").
 
-**[NEEDS CLARIFICATION] OQ-3.** Whether a **blocked** account (`blockedAt` set — it cannot sign
-in) is "inactive" for FR-027 is not said by the spec. Built default, the literal reading above:
-a blocked account is **not** refused. If the owner says yes, `blockedAt` joins the `inactive`
-token in one predicate (`customerUnavailability` in `operator-quote-sharing.ts`) and one test
-case is switched on (T051).
+One predicate, `customerUnavailability` in `operator-quote-sharing.ts`.
 
 **Rationale.** FR-027. Membership is the account's `organizationId` (one Organization per
 account, `CustomerAccountRecord.organizationId`).
@@ -320,12 +327,11 @@ which.
   `adminPatchQuoteRequestSchema.expiresInDays` widen to `.nullable().optional()` (write
   direction: accepted values widen — compatible).
 
-**[NEEDS CLARIFICATION] OQ-2 — `0` days typed on a draft.** Today `expiresInDays: 0` stores
-"expires now". FR-032 read literally gives *share moment + 0 days*: a quote lapsed the moment the
-customer receives it, while the setting's `0` means "no deadline". Built default, the literal
-reading: a typed `0` is stored as `0` and produces `expiresAt = sharedAt`; only `null` (a cleared
-field) and an absent value with a `0` setting mean "no deadline". If the owner rules that a typed
-`0` means "no deadline" on a draft, one line in `normaliseShareValidityDays` changes.
+**`0` days on a draft (OQ-2 answered, FR-032).** `0` typed on a draft — on create or on a draft
+`modify` — means **no deadline**, like the setting's `0`: `normaliseShareValidityDays` maps `0`
+and `null` to `null`. On a **shared** quote `expiresInDays: 0` keeps today's meaning
+("expires now"); the two contexts are told apart by `sharedWithCustomer`, and the contract
+documents both.
 
 **Rejected.** *Store `expiresAt` at create and shift it at share*: the arithmetic would depend on
 the draft's age; *compute the default at share time*: violates FR-033 (a later default change
@@ -370,19 +376,22 @@ refuses an unshared quote with minted `409 RFQ_NOT_SHARED` before rendering or s
 admin hides *Send PDF to customer* while the quote is unshared and the PDF dialog's send mode
 is never offered for it. Export (preview/download) is unchanged. FR-007.
 
-## R-14 What the customer sees of the drafting period — [NEEDS CLARIFICATION] OQ-1
+## R-14 The customer's history starts at the share (FR-012, OQ-1 answered)
 
-**Built default: as today.** The customer reply carries every customer-visible event of the
-quote, including the `modified` events the operator recorded while it was unshared, with their
-diffs (`customerEventsOf`, `customer-projection.ts`); only the new `shared` event is admin-only
-(R-5). The revision comparison block is unchanged: it diffs the current revision against the
-last one the customer saw (`0` for a new operator quote), i.e. "everything is new".
+**Decision.** For a quote with `sharedAt` set, `customerEventsOf` (`customer-projection.ts`)
+keeps only the events **from the `shared` event on** (by position in the stored order — the
+same `created_at, id` order the reply already uses), so the `created` entry, the automatic note
+and every drafting `modified` entry are left out of the customer reply. A quote that was never
+unshared (`sharedAt` `null`) is unchanged. The operator's History is unchanged (full).
 
-**Why it is a question.** The first thing a customer reads on a shared quote is then every edit
-the sales representative made while drafting. No FR asks to hide them, so hiding them is a
-product call. Recommended to the owner: hide `modified` events dated before `sharedAt` from the
-customer reply (one predicate in `customerEventsOf`; task T050 is written and gated on the
-answer).
+The revision comparison block is unchanged: it diffs the current revision against the last one
+the customer saw (`0` for a new operator quote) — "everything is new", which is what a first
+view of a shared quote should say.
+
+**Rejected.** *Compare `created_at >= shared_at`*: the event's timestamp and `sharedAt` are
+written by different statements and may differ by the database's clock; position after the
+`shared` event is exact. *Deleting the drafting events*: the operator's history (FR-008) needs
+them.
 
 ## R-15 Permissions, palette, off-state
 
@@ -425,17 +434,37 @@ One module migration, scaffolded with
 No foreign key on `shared_by_admin_user_id` (as `created_by_admin_user_id` and
 `assigned_admin_user_id`: plain uuids, `admin_users` is another module's table).
 
-## R-18 Operator paths that do not open the create screen — [NEEDS CLARIFICATION] OQ-8
+## R-18 Operator paths that do not open the create screen (OQ-8 answered: unchanged)
 
 `RfqCustomerPort.createForCustomer` is called with `minimums: 'warn'` — an operator writing
-through the buyer's path — by two admin surfaces: an order's *Clone to quote*
-(`packages/modules/orders/src/backend/services/order-clone-to-quote-service.ts:105`, which the
-spec keeps unchanged) and the **operator's quick-order build**
-(`packages/modules/quick_order/src/backend/services/quick-order-build-service.ts:193`,
-`options.actor === 'operator'`), which the spec does not mention. FR-001 says "whatever screen
-opens the create screen"; the quick-order build does not open it. **Built default: unchanged**
-— the quick-order operator build stays visible to the customer at once, like *Clone to quote*.
-If the owner wants it to start unshared, `CreateForCustomerOptions` gains an in-process option
-(compatible: a new optional field) that only those callers pass, and the decision function of
-R-2 is asked there too.
+through the buyer's path — by an order's *Clone to quote*
+(`packages/modules/orders/src/backend/services/order-clone-to-quote-service.ts:105`) and the
+operator's quick-order build
+(`packages/modules/quick_order/src/backend/services/quick-order-build-service.ts:193`). Both stay
+visible to the customer at once (FR-001 as amended). No change and no follow-up.
+
+## R-19 An operator draft may hold lines without a price (FR-013, OQ-5 answered)
+
+**Decision.** `adminCreateQuoteRequestLineSchema.agreedUnitPrice` widens to
+`.nullable().optional()` (write direction — compatible); `createOnBehalf` stores `null` for a
+line sent without a price (`unitPriceText` only for a number). The admin `PATCH` already accepts
+`null`. The customer schemas (`createQuoteRequestLineSchema`, `patchQuoteRequestSchema`) do not
+change (FR-013: customer submissions keep today's rules). The existing guards stay the authority
+downstream: share refuses (`QUOTE_INCOMPLETE`/`share`, R-8), and accept/approve/convert already
+refuse a line with no agreed price (`agreed-price.ts`).
+
+The create path accepts an unpriced line **only because the quote starts unshared**. When the
+"drafts off" setting of R-2 is built, `createOnBehalf` must refuse unpriced lines on the
+shared-at-create branch (`QUOTE_INCOMPLETE`); recorded here so that setting's spec inherits it.
+
+**Rejected.** *A separate "save as draft" endpoint with looser rules*: every operator create is a
+draft already, so one widened schema is the whole change.
+
+## R-20 Customer list order is one function (OQ-6 — with the owner)
+
+**Decision.** `RfqService.#listSummaries` takes its order from one function,
+`customerListOrder()`, which answers today's `{ createdAt: 'desc' }`. If the owner rules that a
+quote shared long after its creation should sort by when the customer received it, that function
+answers `coalesce(shared_at, created_at) desc` (a raw order expression) and one test changes —
+gated task in `tasks.md`.
 

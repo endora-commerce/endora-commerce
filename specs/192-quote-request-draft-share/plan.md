@@ -21,7 +21,10 @@ membership, writes the validity date from the days stored on the draft, appends 
 history event and records the existing `prepared` notification on it — the matrix row moves from
 `created` to `shared`. A global setting `quote_requests.default_validity_days` (0) is snapshotted
 into new quotes. The Admin UI gets the share action, *Create and share*, a *Draft* badge and
-filter, and the "counts from sharing" validity hint.
+filter, and the "counts from sharing" validity hint. Owner answers of 2026-11-24 (round 3,
+`spec.md` § *Clarifications*): an operator draft may hold unpriced lines (FR-013); the customer's
+history starts at the share (FR-012); a typed `0` on a draft means no deadline; a blocked account
+refuses the share; *Create and share* stops on create warnings.
 
 ## Technical Context
 
@@ -34,7 +37,7 @@ Command Bus and command hooks (`@endora-commerce/platform/commands`), React 19 a
 **Testing**: Vitest — module co-located unit tests (`packages/modules/quote_requests/src/**/*.test.ts`),
 backend contract and integration suites (`backend/test/{contract,integration}/quote_requests/`),
 admin component tests (`admin/test/modules/quote_requests/`).
-**Target Platform**: backend API + Admin SPA; storefront unchanged.
+**Target Platform**: backend API + Admin SPA; storefront: one history label (`shared`).
 **Project Type**: modular monorepo; one owning module (`quote_requests`), one consumer touched
 (`carts`, one check), contracts.
 **Performance Goals**: no new query on any hot path except one boolean predicate on the customer
@@ -54,7 +57,7 @@ nothing (single transaction, hooks inside it).
 | III TDD (NN) | Pass | Every task block starts with failing tests; FR → test map in `tasks.md`. |
 | IV YAGNI / deps | Pass | No dependency. No setting for "drafts off" (R-2). Only `beforeCommit` declared (R-4). |
 | V / VI / VIII | Pass | TypeScript; `shared`/`unshared` naming avoids the module's existing "draft" (research § Vocabulary); English artefacts. |
-| VII SEO | N/A | Storefront untouched. |
+| VII SEO | N/A | Storefront gains one label in an SSR page; no rendering change. |
 | IX UI reuse | Pass | `Badge`, `Button`, `useConfirmDialog` (already used by `RfqDetail.tsx`), `PageHeader` actions, `MultiSelect` filter from admin-kit; no new primitive. |
 | X Queues | Pass | No new worker; the sweep's predicate changes; delivery reuses the notification worker and kick. |
 | XI Tenancy (NN) | Pass | `QuoteRequest` stays `@OrgScoped`; the share reads under the caller's scope and `adminCanSeeOrganization`; no no-organization path. |
@@ -106,7 +109,7 @@ packages/modules/quote_requests/
 ├── src/backend/services/rfq-service.ts                 # findVisibleForCustomer, #listSummaries, serializeFull
 ├── src/backend/services/rfq-expiry-worker.ts           # dueRequests predicate
 ├── src/backend/services/quote-request-read-port.ts     # record field
-├── src/backend/services/customer-projection.ts         # admin-only `shared`, pre-share `modified` (OQ-1)
+├── src/backend/services/customer-projection.ts         # customer history from the `shared` event on (FR-012)
 ├── src/backend/services/notifications/notification-matrix.ts (+ .test.ts)
 ├── src/backend/services/history/history-projection.ts, history-diff.ts
 ├── src/backend/commands/document-template-commands.ts  # send refuses unshared
@@ -118,6 +121,7 @@ packages/modules/quote_requests/
 └── docs/quote_requests.md
 
 packages/modules/carts/src/backend/services/cart-conversion-service.ts   # one check
+storefront/lib/account/labels.tsx, storefront/lib/i18n/messages/account.ts  # `shared` history label (en, pl)
 packages/modules/_i18n/i18n/{en,pl}.json                                 # rfq.detail.history.entry.shared / change.validity_days
 specs/179-rfq-and-customer-notifications/contracts/notification-matrix.md  # row amended
 backend/test/fixtures/error-code-routing/reference-ledgers.ts             # MINTED_ERROR_CODES
@@ -162,7 +166,7 @@ run by hand, and the builder reports which ran.
 `pnpm run build:packages`; `pnpm --filter @endora-commerce/contracts run typecheck`;
 `pnpm --filter @endora-commerce/mod-quote-requests run typecheck`;
 `pnpm --filter @endora-commerce/mod-carts run typecheck`; `pnpm --filter admin run typecheck`;
-`pnpm --filter backend run typecheck`; lint for the same filters;
+`pnpm --filter backend run typecheck`; `pnpm --filter storefront run typecheck`; lint for the same filters;
 `pnpm run check:naming && pnpm run check:language`; the generated registries clean after
 `pnpm --filter backend run composer:generate`; `pnpm changeset:status`.
 
@@ -176,25 +180,24 @@ run by hand, and the builder reports which ran.
 | Hook dispatch semantics change in the platform. | Contract test with a test-only veto hook pins the behaviour this module relies on. |
 | A future "drafts off" setting shares at create without running the hooks. | Recorded in `contracts/share-hook.md` §3 and R-2 as a decision that setting's spec must make. |
 
-## Open questions for the owner
+## Owner answers and the one open question
 
-Each is `[NEEDS CLARIFICATION]` in `research.md`; the plan builds the **literal / as-today**
-reading, each behind one function, and gates the task that implements the other answer. They go
-back through the product-owner before `speckit.analyze`.
+Answered 2026-11-24 (`spec.md` § *Clarifications*, round 3), folded into the phases:
 
-- **OQ-1** Pre-share history on the customer side (R-14). Built: as today (visible). Gated: T050.
-- **OQ-2** `0` days typed on a draft (R-10). Built: literal (date = share moment). Gated: T053.
-- **OQ-3** A blocked account and FR-027 (R-9). Built: not refused. Gated: T051.
-- **OQ-4** `customers`' admin customer-detail tab stops listing that customer's drafts (R-3).
-  Built: hidden (FR-003 literal).
-- **OQ-5** Create with unpriced lines: the create contract still requires a price on every line,
-  so a draft gets unpriced lines only by later edits. Built: unchanged.
-- **OQ-6** Customer list order: a draft created long ago and shared today sorts by `createdAt`.
-  Built: unchanged.
-- **OQ-7** *Create and share* when the create answers warnings (R-7). Built: literal (shares, the
-  warnings follow to the detail). Gated: T052.
-- **OQ-8** The operator's quick-order build creates a quote through the buyer's path and stays
-  visible at once (R-18). Built: unchanged.
+| Question | Answer | Where |
+| --- | --- | --- |
+| OQ-1 pre-share history for the customer | hidden; history starts at the share (FR-012) | R-14; T010, T011, T019 |
+| OQ-2 `0` days typed on a draft | no deadline (FR-032) | R-10; T014, T022, T026, T028 |
+| OQ-3 blocked account | refuses the share, token `blocked` (FR-027) | R-9; T007, T019, T022 |
+| OQ-4 `customers`' admin tab | drafts hidden (FR-003) | R-3; T009 |
+| OQ-5 unpriced lines on an operator draft | allowed on create and save; share still refused (FR-013) | R-19; T001, T026, T042, T043 |
+| OQ-7 *Create and share* with create warnings | stops, keeps the draft, shows the warnings (FR-020) | R-7; T042, T043 |
+| OQ-8 quick-order operator build | unchanged (FR-001) | R-18 |
+| Contract | `QuoteRequestRecord.sharedWithCustomer` required; `quote_request.share` frozen, `beforeCommit` only | R-3, R-4 |
+
+Still open — **OQ-6**: a draft created long ago and shared today sorts by `createdAt` on the
+customer's list. Built: today's order, from one function `customerListOrder()` (R-20). Gated:
+T055.
 
 ## Complexity Tracking
 

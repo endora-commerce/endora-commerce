@@ -13,17 +13,18 @@ login above it.
 3. **Edit while draft.** Change a price, add a group, cancel nothing. History shows each edit;
    still no e-mail. Remove a price from one line and save.
 4. **Refusals.** *Share with customer* → refused, the unpriced line is named. Price it. On a second
-   draft, move its customer to another Organization → share → refused with the not-a-member
-   message. (A blocked account is not refused until OQ-3 is answered.)
+   draft, block its customer in Customers → share → refused ("account blocked"); unblock. Move
+   a customer to another Organization → refused with the not-a-member message.
 5. **Share.** *Share with customer* → confirm. Expect: badge gone, validity shows the date
    (share moment + N days), History has *Shared by … at …* with three deliveries, Mailpit has
    one "quote prepared" e-mail. Customer now sees the quote with two lines at their own prices
-   and can accept or reject.
+   and can accept or reject. Its history starts at "Shared"; the admin History still shows the
+   drafting edits.
 6. **Twice.** Open the same quote in two tabs, press *Share* in the second after the first: the
    second tab reports it is already shared; still one e-mail.
 7. **Create and share.** New quote → *Create and share*: lands on a shared quote. With a line the
-   channel does not sell, the quote is still shared and the warnings are shown on its detail
-   (OQ-7, built literally).
+   channel does not sell, nothing is shared: the draft is kept and the warnings are shown. Leave
+   one price empty: *Save as draft* works, *Create and share* is disabled.
 8. **Default validity.** Settings → Quote requests → *Default validity (days)* = 30. New quote
    shows 30 prefilled; clear the field → shared quote has no date.
 9. **Expiry sweep.** Set `expiry_days` to 1, backdate a draft's events, run the sweep: the draft

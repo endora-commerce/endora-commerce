@@ -56,7 +56,7 @@ enum `rfqEventTypeSchema` gain `'shared'`. Payload `{ type: 'shared', validityDa
 expiresAt: string | null }` (list-1 values: a count and a date). Actor: the sharing admin.
 `revisionId`: the current revision (the content the customer is shown).
 
-Admin-only in customer replies (`ADMIN_ONLY_EVENT_TYPES`). History entry kind `shared`
+Customer-visible: it is the first entry of the customer's history (FR-012); its payload passes the existing allow-list only. History entry kind `shared`
 (`quoteRequestHistoryEntryKindSchema`), projected in
 `src/backend/services/history/history-projection.ts`.
 
@@ -74,14 +74,20 @@ Admin-only in customer replies (`ADMIN_ONLY_EVENT_TYPES`). History entry kind `s
 | `toQuoteRequestRecord` (`quote-request-read-port.ts`) | maps `sharedWithCustomer` |
 | `RfqAdminService.listAll` | optional `sharing` filter; summary carries `sharedWithCustomer` |
 | `RfqService.serializeFull` (admin path only) | `sharedWithCustomer`, `sharedAt`, `sharedByAdminUserId`, `shareValidityDays` |
-| `customerEventsOf` (`customer-projection.ts`) | drops `shared` (admin-only); pre-share `modified` events kept as today pending OQ-1 |
+| `customerEventsOf` (`customer-projection.ts`) | for a quote with `sharedAt`: only the events from the `shared` event on (FR-012, R-14) |
+| `RfqService.#listSummaries` order | from `customerListOrder()` — today's `createdAt desc` (R-20, OQ-6 open) |
 | `carts` `createCartFromQuoteRequest` | `!qr.sharedWithCustomer` → existing `404` |
+
+## 3a. `quote_request_items` — no schema change
+
+`agreed_unit_price` is already nullable. New: `createOnBehalf` may write `null` (FR-013, R-19);
+before, only the admin `PATCH` could.
 
 ## 4. Module setting
 
 | Code | Type | Default | Scope read | Meaning |
 | --- | --- | --- | --- | --- |
-| `quote_requests.default_validity_days` | `number` (int ≥ 0) | `0` | global (no channel) | Days of validity a new operator quote carries unless the operator changes them; counted from the share. `0` = no deadline. Snapshotted into `share_validity_days` at create. |
+| `quote_requests.default_validity_days` | `number` (int ≥ 0) | `0` | global (no channel) | Days of validity a new operator quote carries unless the operator changes them; counted from the share. `0` = no deadline. Snapshotted into `share_validity_days` at create (`0` → `null`). A `0` typed on a draft also means no deadline (FR-032). |
 
 ## 5. Audit (Command `quote_request.share`, `objectType: 'quote_request'`)
 

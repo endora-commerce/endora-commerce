@@ -46,9 +46,12 @@ conflict on the bundles and wait on each other. `[P]` marks only intra-phase ind
   `createdByAdminUserId`); `quoteRequestSummarySchema` + optional `sharedWithCustomer`;
   `adminQuoteRequestListQuerySchema` + `sharing: z.enum(['unshared','shared']).optional()`;
   `expiresInDays` → `.nullable().optional()` on `adminCreateQuoteRequestSchema` and
-  `adminPatchQuoteRequestSchema`; new `adminQuoteRequestCreateDefaultsSchema`;
+  `adminPatchQuoteRequestSchema`; `adminCreateQuoteRequestLineSchema.agreedUnitPrice` →
+  `.nullable().optional()` (FR-013, R-19); new `adminQuoteRequestCreateDefaultsSchema`;
   `QuoteRequestRecord.sharedWithCustomer: boolean` (required). Tests: a reply without the new
-  keys still parses; `sharing=foo` is refused; `expiresInDays: null` parses on both bodies.
+  keys still parses; `sharing=foo` is refused; `expiresInDays: null` parses on both bodies; an
+  admin create line without `agreedUnitPrice` parses; `createQuoteRequestSchema` (customer) is
+  unchanged.
   Shapes: `contracts/admin-api.md` §2–§8.
 - [ ] T002 [P] New `packages/contracts/src/quote-request-hooks.ts` (`QuoteRequestShareHookData`,
   `QUOTE_REQUEST_HOOKABLE_ACTIONS.share` = `'quote_request.share'`, `'quote_request'`,
@@ -78,7 +81,7 @@ conflict on the bundles and wait on each other. `[P]` marks only intra-phase ind
   fix the record fixtures that stop compiling (`backend/test/integration/quote_requests/expiry-rules.test.ts`,
   `packages/contracts/src/quote-requests.test.ts`). Test: `QR/src/backend/services/quote-request-read-port.test.ts` (new).
 - [ ] T007 Error codes: `QR/src/manifest.ts` `errorCodes` + the three minted codes
-  (`RFQ_SHARE_CUSTOMER_UNAVAILABLE` tokens `not_member`, `inactive`) and `QUOTE_INCOMPLETE`
+  (`RFQ_SHARE_CUSTOMER_UNAVAILABLE` tokens `not_member`, `inactive`, `blocked`) and `QUOTE_INCOMPLETE`
   tokens + `share`; re-derive the counts the `errorCodes` doc comment states;
   `errors.<CODE>[.<token>]` sentences in `QR/i18n/en.json` and `QR/i18n/pl.json`; three
   `MINTED_ERROR_CODES` entries in `backend/test/fixtures/error-code-routing/reference-ledgers.ts`
@@ -110,12 +113,17 @@ the helper of T008.
   (`packages/modules/customers/src/backend/routes.self.ts:242`) and admin customer-detail list
   (`routes.admin.ts:547`, OQ-4) omit it; a customer submission and an order's *Clone to quote*
   stay visible at once (FR-010). Covers FR-003, FR-004, FR-010, SC-001.
-- [ ] T010 [P] [US1] Failing unit case in `QR/src/backend/services/customer-projection.test.ts`:
-  `shared` is dropped from a customer reply (admin-only, R-5); every other event is kept (OQ-1
-  built as today).
+- [ ] T010 [P] [US1] Failing unit cases in `QR/src/backend/services/customer-projection.test.ts`
+  (FR-012, R-14): for a quote with `sharedAt`, the customer events are exactly those from the
+  `shared` event on (`created`, the automatic note and drafting `modified` entries left out); a
+  quote never unshared (`sharedAt` `null`) keeps every customer-visible event; `pdf-sent` and
+  `custom-field-carry-skipped` stay admin-only.
 - [ ] T011 [US1] `QR/src/backend/services/rfq-service.ts`: `findVisibleForCustomer` → `404` for
-  `!sharedWithCustomer` (same message); `#listSummaries` `where` + `sharedWithCustomer: true`;
-  `QR/src/backend/services/customer-projection.ts` `ADMIN_ONLY_EVENT_TYPES` + `'shared'`.
+  `!sharedWithCustomer` (same message); `#listSummaries` `where` + `sharedWithCustomer: true`
+  and its order taken from one function `customerListOrder()` answering today's
+  `{ createdAt: 'desc' }` (R-20, OQ-6 open); `customerEventsOf` in
+  `QR/src/backend/services/customer-projection.ts` takes `sharedAt` and cuts before the `shared`
+  event (`serializeFull` passes it on the customer path).
 - [ ] T012 [US1] `packages/modules/carts/src/backend/services/cart-conversion-service.ts`
   `createCartFromQuoteRequest`: an unshared quote → the existing `404 quote_request_not_found`;
   case in `backend/test/contract/carts/cart-conversions.contract.test.ts` (no cart written).
@@ -127,9 +135,9 @@ the helper of T008.
   `cancel` skips `record({ change: 'canceled' })` when `!rfq.sharedWithCustomer`
   (`QR/src/backend/services/rfq-admin-service.ts` :1042, :797).
 - [ ] T014 [US1] Validity days on an unshared quote (R-10): `modify` writes `shareValidityDays`
-  (number as given, `null` clears, absent keeps), leaves `expiresAt`, and puts
-  `validityDays: { before, after }` on the `modified` payload; on a shared quote
-  `expiresInDays: null` → `422 VALIDATION_FAILED` (`issue: 'not_clearable_once_shared'`); the
+  (`N > 0` as given; `0` or `null` clears — no deadline, FR-032; absent keeps), leaves `expiresAt`, and puts
+  `validityDays: { before, after }` on the `modified` payload; on a shared quote `0`
+  keeps today's meaning (`expiresAt = now`) and `expiresInDays: null` → `422 VALIDATION_FAILED` (`issue: 'not_clearable_once_shared'`); the
   `validity_days` change projected in `QR/src/backend/services/history/history-diff.ts` /
   `history-projection.ts`; `rfq.detail.history.change.validity_days` in `CORE_I18N`. Tests:
   `QR/src/backend/services/history/history-diff.test.ts`, `QR/src/backend/history-bundle-coverage.test.ts`,
@@ -172,11 +180,13 @@ flip are coupled — R-5); T027 in the same push.
   `sharedWithCustomer`, `sharedAt`, `sharedByAdminUserId`, `version + 1`, one `shared` event
   (admin actor, current `revisionId`), one audit row `quote_request.share`, three `prepared`
   records on the `shared` event, delivered once by the worker (FR-021…FR-023, SC-002); the
-  customer then lists it and can accept, and (second quote) reject it; `expiresAt` = share moment
+  customer then lists it and can accept, and (second quote) reject it; a quote edited while
+  unshared shows the customer a history that starts at `shared` while the admin history keeps
+  every entry (FR-012); a draft created with an unpriced line, then priced, shares (FR-013); `expiresAt` = share moment
   + days, `null` without days (FR-032). Refusals leave the row unshared with zero records:
   unpriced line → `409 QUOTE_INCOMPLETE`, `details.code = 'share'`, line named (FR-026); account
   moved to another Organization → `RFQ_SHARE_CUSTOMER_UNAVAILABLE`/`not_member`; deleted →
-  `inactive` (FR-027); cancelled draft → `RFQ_NOT_QUOTED`; already shared, a legacy operator
+  `inactive`; blocked → `blocked` (FR-027); cancelled draft → `RFQ_NOT_QUOTED`; already shared, a legacy operator
   quote, a customer submission → `RFQ_ALREADY_SHARED` (FR-025); stale `If-Match` →
   `VERSION_CONFLICT`; a sales representative not assigned to the Organization → `404`.
   Concurrency: two shares through two forked EntityManagers with `Promise.all` → one `200`, one
@@ -194,10 +204,10 @@ flip are coupled — R-5); T027 in the same push.
   (new): `200` body parses with `quoteRequestSchema`; each refusal's status, code and `details`
   shape as `contracts/admin-api.md` §1; `401`/`403` without `rfqs:handle`; unknown body keys → `422`.
 - [ ] T022 [US2] `QR/src/backend/services/operator-quote-sharing.ts` (new):
-  `operatorQuoteStartsUnshared()` (R-2); `normaliseShareValidityDays` (R-10, literal `0`);
+  `operatorQuoteStartsUnshared()` (R-2); `normaliseShareValidityDays` (R-10: `0`/`null` → `null`);
   `unpricedLinesRefusal` (display order via `loadArrangedQuoteLines`, `hasUnpricedLine`);
   `customerUnavailability` (R-9: `findById`, org mismatch → `not_member`,
-  `deletedAt`/`anonymizedAt` → `inactive`); `applyShare(em, rfq, actor, now)` (row fields,
+  `deletedAt`/`anonymizedAt` → `inactive`, `blockedAt` → `blocked`); `applyShare(em, rfq, actor, now)` (row fields,
   `shared` event through `RfqEventService.append(…, em)`, `prepared` through
   `RfqNotificationService.record(em, …)`). Unit tests `QR/src/backend/services/operator-quote-sharing.test.ts`
   (new). History: `shared` entry projected in `history-projection.ts` with its deliveries;
@@ -220,11 +230,13 @@ flip are coupled — R-5); T027 in the same push.
   `QR/src/backend/routes.admin.ts` (`guard`, strict empty body, `If-Match` read as `PATCH /:id` does).
 - [ ] T026 [US1] Switch-over in `RfqAdminService.createOnBehalf`: `sharedWithCustomer` from
   `operatorQuoteStartsUnshared()`; `shareValidityDays` from the body (`normaliseShareValidityDays`;
-  absent → `null` until T030); **no** `expiresAt`; **no** `prepared` record and no kick; still
+  absent → `null` until T030); a line without `agreedUnitPrice` stored with `null` (FR-013,
+  R-19; `unitPriceText` only for a number); **no** `expiresAt`; **no** `prepared` record and no kick; still
   `created` + automatic note + `rfq.created_by_admin.v1`; audit `stateAfter` +
   `sharedWithCustomer`, `shareValidityDays`. Rewrite
   `backend/test/integration/quote_requests/created-from-admin.test.ts` to "created unshared,
-  nothing recorded for the customer; visible and notified after the share" (FR-001, FR-005).
+  nothing recorded for the customer; visible and notified after the share", plus a create
+  with one unpriced line that succeeds unshared (FR-001, FR-005, FR-013).
   Same commit as T018.
 - [ ] T027 Existing-test sweep: add `shareQuoteRequestForTest(app | service, id)` to
   `backend/test/helpers/quote-request-share.ts`; then
@@ -247,7 +259,8 @@ flip are coupled — R-5); T027 in the same push.
 - [ ] T028 [P] [US3] Failing tests `backend/test/integration/quote_requests/default-validity.test.ts`
   (new, committing harness as T019): default 30 → create without `expiresInDays` stores 30,
   share at T → `expiresAt = T + 30 d` however long unshared (US3 #1); default 0 → no date
-  (US3 #2); explicit 7 → 7, other quotes unchanged (US3 #3); default changed after create → the
+  (US3 #2); `0` typed on the draft → no date (US3 #3, FR-032); explicit 7 → 7, other quotes
+  unchanged (US3 #4); default changed after create → the
   quote keeps its snapshot (FR-033); `expiresInDays: null` → no date; past the date: accept →
   `410 RFQ_EXPIRED`, convert → `410 QUOTE_VALIDITY_ENDED` (FR-034 unchanged).
 - [ ] T029 [US3] Setting `quote_requests.default_validity_days` in `QR/src/manifest.ts`
@@ -311,7 +324,14 @@ New screen strings go in `QR/i18n/{en,pl}.json` read through `useTranslation('qu
   `validity_days` change; cases in `admin/test/modules/quote_requests/RfqHistory.deliveries.test.tsx`
   and `RfqDetail.history.test.tsx`.
 
-**Verification**: `pnpm run build:packages`; `pnpm --filter $MOD run typecheck && pnpm --filter admin run typecheck`;
+- [ ] T054 [P] [US2] Storefront label for the customer's first history entry (FR-012, R-5):
+  `shared` in `QUOTE_REQUEST_EVENT_KEYS` (`storefront/lib/account/labels.tsx`) and
+  `account.quoteRequest.event.shared` (en, pl) in `storefront/lib/i18n/messages/account.ts`;
+  cases in `storefront/test/account/i18n/labels.test.tsx` and
+  `storefront/test/account/i18n/quote-requests.test.tsx`.
+
+**Verification**: `pnpm run build:packages`; `pnpm --filter $MOD run typecheck && pnpm --filter admin run typecheck && pnpm --filter storefront run typecheck`;
+`pnpm --filter storefront exec vitest run test/account/i18n/labels.test.tsx test/account/i18n/quote-requests.test.tsx`;
 `pnpm --filter admin exec vitest run test/modules/quote_requests/RfqDetail.share.test.tsx test/modules/quote_requests/RfqDetail.validity.test.tsx test/modules/quote_requests/RfqList.sharing-filter.test.tsx test/modules/quote_requests/RfqHistory.deliveries.test.tsx test/modules/quote_requests/RfqDetail.history.test.tsx test/modules/quote_requests/RfqDetail.header-actions.test.tsx`;
 `pnpm --filter $MOD exec vitest run src/admin`; `pnpm --filter backend run i18n:hardcoded`.
 
@@ -326,11 +346,15 @@ New screen strings go in `QR/i18n/{en,pl}.json` read through `useTranslation('qu
 - [ ] T042 [P] [US2] Same file: **Save as draft** lands on the draft; **Create and share**
   creates, then shares with `If-Match` = the returned `version`, and lands on the shared quote;
   share refused → lands on the draft with the refusal shown (FR-020, US2 #7); create `warnings`
-  → shares and carries the warnings to the detail (OQ-7 literal); both actions disabled while
-  busy.
+  → **no share request is sent**, the quote stays a draft and the warnings are shown with
+  **Open draft** and **Share with customer** (US2 #8); a line with an empty price → **Save as
+  draft** sends it without `agreedUnitPrice` (FR-013), **Create and share** is disabled with a hint;
+  an empty quantity still blocks both; both actions disabled while busy.
 - [ ] T043 [US2][US3] `QR/src/admin/pages/RfqCreatePage.tsx`: defaults fetch, prefill and hint,
-  two actions, the create → share sequence, refusal and warnings carried to `RfqDetail.tsx`
-  through navigation state (`rfq-page-notice.ts`); `openedWith.returnTo` (CRM opener) kept for
+  two actions, the create → share sequence (skipped when the create answers `warnings`), the
+  price no longer required per line for **Save as draft** (`allLinesComplete` split into
+  quantities-complete and prices-complete), refusal carried to `RfqDetail.tsx` through
+  navigation state (`rfq-page-notice.ts`); `openedWith.returnTo` (CRM opener) kept for
   both actions after they succeed.
 - [ ] T044 [P] Regression: `admin/test/modules/quote_requests/RfqCreatePage.{origin,groups,sales-channel,product-browser,catalog-permission}.test.tsx`
   stay green.
@@ -373,18 +397,16 @@ states, WCAG 2.2 AA), with QA and code-quality review in parallel on the Phase 5
 
 ---
 
-## Gated on owner answers (not built until answered; each is one predicate)
+## Gated on the owner's answer to OQ-6 (not built until answered)
 
-- [ ] T050 [OQ-1] If the owner rules "hide the drafting history": `customerEventsOf` drops
-  `modified` events dated before `sharedAt`; case in `QR/src/backend/services/customer-projection.test.ts`
-  and in `unshared-visibility.test.ts` after a share.
-- [ ] T051 [OQ-3] If a blocked account is "inactive": `customerUnavailability` adds `blockedAt`
-  to `inactive`; case in `share.test.ts`.
-- [ ] T052 [OQ-7] If *Create and share* must stop on warnings: `RfqCreatePage.tsx` shows the
-  warnings with **Share with customer** / **Open draft** instead of sharing; case in
-  `RfqCreatePage.share.test.tsx`.
-- [ ] T053 [OQ-2] If a typed `0` means "no deadline" on a draft: `normaliseShareValidityDays`
-  maps `0` → `null`; cases in `operator-quote-sharing.test.ts` and `default-validity.test.ts`.
+T050–T053 of the first revision are retired: OQ-1, OQ-2, OQ-3 and OQ-7 were answered and are in
+T010/T011/T019, T014/T022/T026/T028, T007/T019/T022 and T042/T043.
+
+- [ ] T055 [OQ-6] If the customer list should order a shared draft by when it was shared:
+  `customerListOrder()` (`QR/src/backend/services/rfq-service.ts`) answers
+  `coalesce(shared_at, created_at) desc`; case in
+  `backend/test/integration/quote_requests/unshared-visibility.test.ts` (a draft created before
+  a newer quote and shared after it lists first).
 
 ---
 
@@ -403,12 +425,14 @@ states, WCAG 2.2 AA), with QA and code-quality review in parallel on the Phase 5
 | FR-009 | T017, T038 |
 | FR-010 | T009 |
 | FR-011 | T032 |
-| FR-020 | T025, T021, T042 |
+| FR-012 | T010, T011, T019, T054 |
+| FR-013 | T001, T026, T019, T042 |
+| FR-020 | T025, T021, T042 (incl. warnings stop) |
 | FR-021 / FR-022 / FR-023 / SC-002 | T019, T022, T040 |
 | FR-024 | T019 (concurrency) |
 | FR-025 | T019 |
 | FR-026 | T019, T022, T034 |
-| FR-027 | T019, T022 |
+| FR-027 | T019, T022 (incl. blocked) |
 | FR-028 | T020 |
 | FR-030 … FR-033 / SC-003 | T028, T041 |
 | FR-034 | T028 |
@@ -416,7 +440,7 @@ states, WCAG 2.2 AA), with QA and code-quality review in parallel on the Phase 5
 ## Dependencies
 
 Phase 1 → 2 → 3 → 4 → checkpoint A → 5 → 6 → checkpoint B → 7. T018 needs T004 and lands with
-T026. T027 in the same push as T026. T043 needs T025 and T031. Gated tasks wait for the owner.
+T026. T027 in the same push as T026. T043 needs T025 and T031. T054 needs T011. T055 waits for OQ-6.
 
 ## Implementation strategy
 
