@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feat/192-quote-request-draft-share`
 **Created**: 2026-11-24
-**Status**: Draft — owner decisions of 2026-11-24 recorded under *Owner decisions*; no question open; ready for plan
+**Status**: Draft — owner decisions of 2026-11-24 recorded under *Owner decisions* and *Clarifications* (plan questions OQ-1 – OQ-8 of `research.md`); no question open
 **Input**: Issue #1901. A sales representative prepares a quote for a customer in the Admin UI over
 several sittings. Today the quote reaches the customer's account, with an e-mail, the moment it is
 created. The operator needs to build it as a draft the customer cannot see, and to share it with
@@ -68,6 +68,20 @@ in the paths below. Module paths are relative to `packages/modules/quote_request
 - One product may sit on several lines of a quote with different prices; draft and share never
   merge them.
 
+## Clarifications
+
+### Session 2026-11-24 (round 3 — the plan's open questions)
+
+- OQ-1: Does the customer see the operator's edit history from before sharing? → No: history entries from before the share are not shown to the customer (FR-012).
+- OQ-2: What does `0` days typed on a draft mean? → No deadline, the same as the setting's 0 (FR-032).
+- OQ-3: Is a blocked customer account (cannot sign in) available for sharing? → No: it counts as unavailable and the share is refused (FR-027).
+- OQ-4: Does the `customers` module's admin customer-detail tab list drafts? → No; operators find drafts in the quote request list (FR-003).
+- OQ-5: May a draft be created or saved with lines that have no price? → Yes: an operator may save a half-built list and finish it later. Sharing stays refused while any line is unpriced (FR-026); quote requests a customer submits keep today's rules (FR-013).
+- OQ-7: What does **Create and share** do when the create answers warnings (for example unavailable products)? → It stops before sharing, keeps the quote as a draft and shows the warnings (FR-020).
+- OQ-8: The operator's quick-order build, which creates a quote through the buyer's path? → Unchanged in this feature; no follow-up unless a need appears (FR-001).
+- Public contract (approved): a new required `QuoteRequestRecord.sharedWithCustomer` field, read by `carts`, and a frozen hookable action id `quote_request.share` with a `beforeCommit` phase only (FR-028).
+- OQ-6 (list order of a draft shared long after creation) was not put to the owner; the plan keeps today's order.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — The operator builds a quote the customer cannot see (Priority: P1)
@@ -99,6 +113,12 @@ every customer surface.
    download the PDF but cannot send it to the customer.
 8. **Given** a customer submits a quote request, or an operator uses an order's *Clone to quote*,
    **When** it is saved, **Then** it is visible to the customer at once, as today.
+9. **Given** an operator saves a draft with some lines that have no price yet, **When** it is
+   saved, **Then** it is saved as a draft, and the customer is told nothing.
+10. **Given** a shared quote that was edited while a draft, **When** the customer reads its
+   history, **Then** it starts at the share; the operator still sees the full history.
+11. **Given** a customer's admin customer-detail tab, **When** an operator opens it, **Then**
+   that customer's drafts are not listed there; they are in the quote request list.
 
 ---
 
@@ -124,7 +144,7 @@ account, mailbox and the quote's history.
 4. **Given** a draft with a line that has no price, **When** the operator shares it, **Then** the
    share is refused with a message naming the unpriced lines, the quote stays a draft and nobody
    is told.
-5. **Given** a draft whose customer account is inactive or no longer a member of the quote's
+5. **Given** a draft whose customer account is inactive, blocked or no longer a member of the quote's
    Organization, **When** the operator shares it, **Then** the share is refused with a message and
    the quote stays a draft.
 6. **Given** a rule registered by another module forbids sharing a draft, **When** the operator
@@ -133,9 +153,12 @@ account, mailbox and the quote's history.
 7. **Given** the create screen, **When** the operator chooses **Create and share**, **Then** the
    quote is created and shared in one step; when the share part is refused, the quote is saved as
    a draft and the refusal is shown.
-8. **Given** two operators share the same draft at the same moment, **When** both calls arrive,
+8. **Given** the create screen, **When** the operator chooses **Create and share** and the
+   create answers warnings (for example unavailable products), **Then** the quote is saved as a
+   draft, the warnings are shown and nothing is shared.
+9. **Given** two operators share the same draft at the same moment, **When** both calls arrive,
    **Then** the quote is shared once and the customer is told once.
-9. **Given** a draft with the same product on two lines at different prices, **When** it is saved
+10. **Given** a draft with the same product on two lines at different prices, **When** it is saved
    and shared, **Then** the customer sees two lines with their own prices, and a later revision
    keeps them separate.
 
@@ -156,11 +179,13 @@ validity, wait, share it, and read its date; override the days on another quote.
    sharing plus 30 days, however long it was a draft.
 2. **Given** the default is 0 (out of the box), **When** an operator creates and shares a quote
    without typing days, **Then** it has no validity date, as today.
-3. **Given** an operator types a number of days on a quote, **When** it is shared, **Then** that
+3. **Given** an operator types 0 days on a draft, **When** it is shared, **Then** it has no
+   validity date.
+4. **Given** an operator types a number of days on a quote, **When** it is shared, **Then** that
    quote uses its own number and no other quote changes.
-4. **Given** the default is changed, **When** later quotes are created, **Then** they get the new
+5. **Given** the default is changed, **When** later quotes are created, **Then** they get the new
    value and earlier quotes keep theirs.
-5. **Given** the create screen or a draft, **When** the operator reads the validity, **Then** it
+6. **Given** the create screen or a draft, **When** the operator reads the validity, **Then** it
    shows the number of days and that they count from sharing; after sharing, both sides see the
    date.
 
@@ -184,12 +209,14 @@ validity, wait, share it, and read its date; override the days on another quote.
 
 - **FR-001**: A quote an operator creates on a customer's behalf MUST start as a draft, whatever
   screen opens the create screen. The decision MUST be taken in one place so a setting can later
-  make it optional. An order's *Clone to quote* is not such a quote and is unchanged.
+  make it optional. An order's *Clone to quote* and the operator's quick-order build, which create a quote through
+  the buyer's path, are not such quotes and are unchanged.
 - **FR-002**: Quotes an operator created before this feature is installed MUST stay visible to
   their customers as shared quotes.
 - **FR-003**: A draft MUST NOT be visible to any customer account through any read: the list, the
   detail, counts, the `customers` module's lists, an Organization Administrator's view, a roll-up
-  view.
+  view. The `customers` module's admin customer-detail tab MUST NOT list drafts either; operators
+  find drafts in the quote request list.
 - **FR-004**: Every customer action on a draft (accept, reject, edit, resubmit, convert, download)
   MUST be refused as for a quote that does not exist and MUST change nothing.
 - **FR-005**: No customer notification on any channel MUST be sent about a draft: not on
@@ -205,12 +232,18 @@ validity, wait, share it, and read its date; override the days on another quote.
 - **FR-011**: The same product and variant MAY appear on several lines of a quote, each with its
   own quantity and price; saving a draft, sharing it, the customer's acceptance and a later
   revision MUST keep those lines separate.
+- **FR-012**: History entries from before the share MUST NOT be shown to the customer; the
+  customer's history starts at the share. Operators see the full history.
+- **FR-013**: An operator MUST be able to create and save a draft with lines that have no price.
+  Quote requests a customer submits keep today's price rules.
+
 
 **Share with customer**
 
 - **FR-020**: An operator holding the quote-handling permission MUST be able to share a draft with
   one action on the quote's screen, and to create and share in one step on the create screen;
-  when the share part of the latter is refused, the quote is saved as a draft and the refusal shown.
+  when the share part of the latter is refused, or the create answers warnings, the quote is saved
+  as a draft, the refusal or the warnings are shown and nothing is shared.
 - **FR-021**: From the moment of sharing the quote MUST be visible to the customer as an
   operator-prepared quote is today, and the customer MUST be able to accept or reject it.
 - **FR-022**: On sharing, and not on creation, the customer MUST receive the existing "quote
@@ -224,7 +257,7 @@ validity, wait, share it, and read its date; override the days on another quote.
 - **FR-026**: Sharing MUST be refused, with a message naming the lines, while any line has no
   price.
 - **FR-027**: Sharing MUST be refused, with a message, when the quote's customer account is
-  inactive or no longer a member of the quote's Organization.
+  inactive, blocked or no longer a member of the quote's Organization.
 - **FR-028**: Another module MUST be able to register a rule that refuses a share with a readable
   reason (for example an approval still pending). A refused share leaves the quote a draft and
   tells the customer nothing.
@@ -237,7 +270,7 @@ validity, wait, share it, and read its date; override the days on another quote.
   changes it for that quote; the create screen and a draft MUST show the days and that they count
   from sharing.
 - **FR-032**: The validity date MUST be set at the moment of sharing: that moment plus the quote's
-  number of days; no days means no date.
+  number of days; no days, or 0 days typed on the draft, means no date.
 - **FR-033**: Changing the default MUST NOT change quotes already created.
 - **FR-034**: The existing refusals after the validity date (acceptance, conversion, order
   placement) MUST stay as they are.
