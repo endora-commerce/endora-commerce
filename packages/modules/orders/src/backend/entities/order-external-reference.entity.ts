@@ -1,4 +1,5 @@
-import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { OptionalProps } from '@mikro-orm/core';
+import { Entity, Index, PrimaryKey, Property, Unique } from '@mikro-orm/decorators/legacy';
 import { randomUUID } from 'crypto';
 import type { OrderExternalReferenceState } from '@endora-commerce/contracts';
 import { OrgScoped } from '@endora-commerce/platform/tenancy';

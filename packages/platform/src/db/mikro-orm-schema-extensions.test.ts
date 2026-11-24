@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey } from '@mikro-orm/core';
+import { Entity, PrimaryKey } from '@mikro-orm/decorators/legacy';
 import { describe, expect, it } from 'vitest';
 import { GlobalEntity } from '../tenancy/org-scoped.decorator.js';
 import { createColumnExtension } from '../kernel/schema-extensions/define.js';

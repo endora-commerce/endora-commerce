@@ -1,11 +1,7 @@
 import {
-  Entity,
-  Index,
   OptionalProps,
-  PrimaryKey,
-  Property,
-  Unique,
 } from '@mikro-orm/core';
+import { Entity, Index, PrimaryKey, Property, Unique } from '@mikro-orm/decorators/legacy';
 import { randomUUID } from 'crypto';
 import { TransitivelyScoped } from '@endora-commerce/platform/tenancy';
 

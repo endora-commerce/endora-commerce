@@ -14,7 +14,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { MikroORM, defineConfig, type EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import { OrgScoped } from '@endora-commerce/platform/tenancy';
