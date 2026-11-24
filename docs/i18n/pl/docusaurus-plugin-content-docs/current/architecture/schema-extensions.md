@@ -226,7 +226,7 @@ czyta każdą drogę zapisu, jaką ma migracja: to, co przekazuje do `addSql` i 
 `do $$ … $$`, ciała tworzonych przez nią funkcji, ciągi wykonywane przez `execute` w PL/pgSQL oraz
 `getEntityManager()` — jego `flush`, skróty `insert*`, `upsert*`, `native*` i `execute`, buildery
 zapytań, połączenie i rozwidlenia. `execute` w PL/pgSQL na obliczanym ciągu (`format(…)`, zmienna)
-i surowe `getKnex()` menedżera encji nie dają się przypisać tabeli i są odrzucane.
+i surowy uchwyt kysely menedżera encji (`getKysely()`) nie dają się przypisać tabeli i są odrzucane.
 `create table if not exists` na tabeli mapowanej przez encję innego modułu nie tworzy niczego, co
 wolno ci potem zmieniać, a **żadna twoja migracja nie może usunąć, wyczyścić (`truncate`) ani
 `alter … drop` tabeli mapowanej przez encję innego modułu — ani w `up()`, ani w `down()`,

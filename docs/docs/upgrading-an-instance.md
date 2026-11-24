@@ -5563,6 +5563,55 @@ migrations, which then no longer describe it.
 This entry was written by the pull request that made the change, ahead of the release that carries
 it.
 
+### MikroORM 7 {#mikro-orm-7}
+
+The platform and every module package now run on **MikroORM 7.2.11** (issue #1866, part of #1073),
+and their `@mikro-orm/*` peers are `^7.2.11`. This is a breaking change for an instance: `pnpm run
+upgrade` moves only the packages of the release, so the instance's own `@mikro-orm/*` ranges have to
+move by hand, and code of the instance's own that uses MikroORM — an overlay module, an entity, a
+migration, a script — has to follow the major. Nothing changes in the database: no migration comes
+with the switch, and the migration history table is read as before.
+
+**Before running `pnpm run upgrade`**, in `backend/package.json`:
+
+1. Set `@mikro-orm/core`, `@mikro-orm/postgresql` and `@mikro-orm/migrations` to `^7.2.11`.
+2. Add `@mikro-orm/decorators` at `^7.2.11`. MikroORM 7 moved the entity decorators out of
+   `@mikro-orm/core` into this package.
+3. Remove `@mikro-orm/cli` if the instance added it ([The MikroORM CLI is not
+   supported](#mikro-orm-cli-removed)); a CLI left at 6 does not load.
+
+**In the instance's own code**, if it has any:
+
+| MikroORM 6 | MikroORM 7 |
+| --- | --- |
+| `import { Entity, Property, … } from '@mikro-orm/core'` | `import { Entity, Property, … } from '@mikro-orm/decorators/legacy'` — every decorator, the relation and hook decorators included. Types (`Collection`, `OptionalProps`, `EntityManager`, …) stay where they were. `experimentalDecorators` stays on; `emitDecoratorMetadata` is not needed and can be dropped |
+| `em.persistAndFlush(x)` / `em.removeAndFlush(x)` | `em.persist(x).flush()` / `em.remove(x).flush()` |
+| `em.getKnex()`, `getConnection().getKnex()`, `this.getKnex()` in a migration | `em.execute(sql, params)` with `?` values and `??` identifiers; in a migration, `this.addSql(…)` with text or `raw(sql, params)` |
+| `orm.getMigrator()`, `getPendingMigrations()`, `getExecutedMigrations()` | `orm.migrator`, `getPending()`, `getExecuted()` |
+| `orm.getMetadata().getAll()` as an object (`Object.values(…)`) | a `Map`: `[...orm.getMetadata().getAll().values()]` — `Object.values` of it is empty, without an error |
+| an entity named by string (`em.find('Product', …)`) | the class (`em.find(Product, …)`) |
+| `MikroORM.initSync(options)` | `new MikroORM(options)` |
+| `MetadataStorage.getMetadataFromDecorator(cls)` | the class's own metadata, `cls[MetadataStorage.META_SYMBOL]` |
+
+`check:entity-decorators` — and `endora check` over a module package — reports a decorator imported
+from anywhere but `@mikro-orm/decorators/legacy`, so the first row cannot be missed in a package.
+
+**What does not change.** The platform's ORM configuration keeps MikroORM 6's `joined` loading,
+`forceUtcTimezone: false` and late `onCreate` hooks, so a query sends the statements it sent before
+and a timestamp reads the same; MikroORM 7's own defaults for the three are not taken. `em.execute(sql,
+params)` still fills the values in client-side (`Platform.formatQuery`), as it did on 6: too few
+values leave a placeholder `NULL`, and a JavaScript array given to one `?` becomes a comma-separated
+list. The tenant filters answer an empty organization set with an always-false condition in a joined
+`populate` too, where MikroORM 6 sent `in ()` and failed.
+
+**A package migration has fewer raw handles.** The foreign-schema guard refuses `getKysely()` on a
+package migration's entity manager, and MikroORM 7's `Migration` offers no query builder of its own;
+build the statement for `addSql` as text or as `raw(sql, params)`, which the guard judges as it is
+rendered.
+
+This entry was written by the pull request that made the change, ahead of the release that carries
+it.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except
