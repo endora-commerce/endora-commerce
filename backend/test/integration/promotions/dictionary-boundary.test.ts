@@ -7,9 +7,11 @@ import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../he
 import { Currency } from '../../helpers/package-entities.js';
 import { PromotionService } from '../../../../packages/modules/promotions/src/backend/services/promotion-service.js';
 import {
+  systemScopedWhenUnscoped,
   unreachableCatalogPorts,
   unreachableOrganizationStatus,
 } from '../../helpers/promotion-service.js';
+import { transactionBoundCommandBus } from '../../helpers/sales-channels-service.js';
 import { AuditLogService } from '@endora-commerce/platform/composition';
 import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
 import { EventBus } from '@endora-commerce/platform/events';
@@ -51,6 +53,10 @@ describe('Promotions dictionary boundary', () => {
       validator,
       unreachableOrganizationStatus('the dictionary boundary suite creates no Organization'),
       auditLog,
+      // Issue #1844 — the create and edit are Commands; this bus runs them in a
+      // savepoint of the suite's own transaction, so `rollbackTx()` still
+      // removes everything they wrote.
+      systemScopedWhenUnscoped(transactionBoundCommandBus(() => em, auditLog, new EventBus())),
     );
   });
 

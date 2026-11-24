@@ -9,9 +9,14 @@
  *   constraint raising `23P01`, at the statement or at `COMMIT`.
  *
  * MikroORM 6.6 maps `23505` to `UniqueConstraintViolationException` and has no
- * case for `23P01`, which arrives as a plain `DriverException`; both keep the
- * pg error's `code` and `constraint`, on the error or on what it wraps
- * (`cause`, or `previous` on a MikroORM exception). Pure: every write path
+ * case for `23P01`. A deferred `23P01` raised at a statement (the constraint
+ * made immediate) arrives as a `DriverException` that is not a unique
+ * violation; one raised at `COMMIT` is not converted at all, and arrives as
+ * pg's own error. Every one of them keeps the pg error's `code` and
+ * `constraint`, on the error or on what it wraps (`cause`, or `previous` on a
+ * MikroORM exception), and this helper reads all of them. MikroORM 7 may
+ * change the classes; `backend/test/integration/organizations/
+ * tax-id-conflict-translation.test.ts` is the guard (#1860). Pure: every write path
  * turns the answer into its own 409 — a creation that trips `23P01` is still
  * `ORGANIZATION_TAX_ID_EXISTS` — and never shows the constraint name.
  */

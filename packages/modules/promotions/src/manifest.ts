@@ -1,4 +1,8 @@
-import { defineModuleManifest } from '@endora-commerce/contracts';
+import {
+  defineModuleManifest,
+  PROMOTION_HOOKABLE_ACTIONS,
+  toHookableActionDeclaration,
+} from '@endora-commerce/contracts';
 
 /**
  * Promotions module — rules engine (feature 045).
@@ -163,4 +167,24 @@ export const manifest = defineModuleManifest({
     },
   ],
   activation: { settingCode: 'promotions.enabled', default: true },
+  /**
+   * The promotion and coupon writes an instance may take part in through a
+   * command hook (issue #1844, on `specs/176-command-hooks-outbox/`): the
+   * operator's create and edit of a promotion — the edit is also how one is
+   * switched on and off — and the two coupon creates, single and batch. The
+   * refs are published in `@endora-commerce/contracts`, so this list and every
+   * hook author name one constant, and each Command's tests hold it to its ref
+   * with `expectHookableCommand`.
+   *
+   * None of the four is reversible. Not declared: the promotion delete, the
+   * bulk coupon (de)activation and the named-rule writes, which are not
+   * Commands yet, and a coupon's redemption, which `orders`' placement records
+   * on its own transaction rather than through a Command of this module.
+   */
+  hookableActions: [
+    PROMOTION_HOOKABLE_ACTIONS.create,
+    PROMOTION_HOOKABLE_ACTIONS.update,
+    PROMOTION_HOOKABLE_ACTIONS.createCoupon,
+    PROMOTION_HOOKABLE_ACTIONS.generateCouponBatch,
+  ].map(toHookableActionDeclaration),
 });

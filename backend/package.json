@@ -232,7 +232,6 @@
     "@endora-commerce/cli": "workspace:*",
     "@endora-commerce/llm-client": "workspace:*",
     "@endora-commerce/test-kit": "workspace:*",
-    "@mikro-orm/cli": "^6.6.13",
     "@types/node": "^22.9.0",
     "@types/pdfmake": "^0.3.2",
     "@types/pg": "^8.20.0",
@@ -243,12 +242,5 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.12"
-  },
-  "mikro-orm": {
-    "useTsNode": true,
-    "configPaths": [
-      "./src/db/mikro-orm.config.ts",
-      "./dist/db/mikro-orm.config.js"
-    ]
   }
 }

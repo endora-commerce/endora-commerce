@@ -125,4 +125,32 @@ describe('the duplicate-table rule', () => {
     };
     expect(() => assertTableMappings(storage as never, new Map())).toThrow(DuplicateTableMappingError);
   });
+
+  /**
+   * Issue #1860 (part of #1073), kept after the MikroORM 7 switch. The rule
+   * reads `storage.getAll()`: MikroORM 6 returns a plain object, MikroORM 7 a
+   * `Map`, and `Object.values(new Map())` is `[]`. A rule that iterates nothing
+   * refuses nothing, so the duplicate-table guard would pass silently. The case
+   * above uses a hand-built storage and cannot see that. This one passes the
+   * storage a real discovery produced, with MikroORM's own check off and the rule
+   * not installed, so an empty iteration fails here.
+   */
+  it('reads every mapping from a real MetadataStorage, so an empty iteration fails', async () => {
+    const orm = await init({
+      entities: [X178RuleHost, X178RogueMapping],
+      discovery: { checkDuplicateTableNames: false },
+    });
+    try {
+      let error: unknown = null;
+      try {
+        assertTableMappings(orm.getMetadata(), new Map());
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error).toBeInstanceOf(DuplicateTableMappingError);
+      expect(error).toMatchObject({ table: 'x178_rule_hosts', classNames: ['X178RogueMapping', 'X178RuleHost'] });
+    } finally {
+      await orm.close();
+    }
+  });
 });

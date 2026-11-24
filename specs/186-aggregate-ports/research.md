@@ -1,0 +1,345 @@
+# Research: Aggregate ports (186)
+
+Every decision is stated as decision → rationale → alternatives rejected. Measurements are from
+`origin/master` `ff7efc3e8` (2026-11-23). D-293 (the owner's OD-2 / OD-3 / OD-4 / OD-10 and the
+delivery plan) is in `spec.md` and is not re-opened here.
+
+## R-1 Port name and home; `organizationCommandPort` widened in place
+
+**Decision.** Each aggregate's port is `<aggregate>CommandPort`, declared in the owner's existing
+`packages/contracts/src/<module>.ts` file beside its read port, with the `Container name:` marker,
+registered by the owner with `ctx.di.providePort`. Names: `organizationCommandPort`,
+`customerAccountCommandPort`, `orderCommandPort`, `quoteRequestCommandPort`,
+`catalogProductCommandPort` (+ `catalogAttributeCommandPort`), `catalogCategoryCommandPort`,
+`opportunityCommandPort`, `projectCommandPort`, `taskCommandPort`. `organizationCommandPort` already
+exists (`convertToCompany`, `changeTaxId`, `packages/contracts/src/organizations.ts` line 943) and is
+**widened in place**, keeping its name and both methods unchanged.
+
+**Rationale.** `check:port-shape` already holds a published port to the marker and the registration;
+the owner file is where every consumer already looks. Widening is additive for callers (a caller of
+the two existing methods is untouched). The only implementer of a port is its owner (rung 3: a
+deployment cannot provide a claimed name), so an added method breaks no supported role. The paid
+modules' test doubles implement other ports (`CatalogProductScopeWritePort`, in full), never
+`OrganizationCommandPort` — which is why the catalogue ports are superseded by new ports rather than
+widened.
+
+**Rejected.** *A new name (`organizationAggregatePort`) and deprecating `organizationCommandPort`* —
+churns the one port that already has the right shape, for a naming symmetry nobody asked for.
+*Ports on each module's `./ports` subpath* — D-171 permits it, but every aggregate's read port and
+records are in `@endora-commerce/contracts`, and splitting one aggregate's surface across two packages
+is the thing this feature removes.
+
+## R-2 Command readiness — what is a Command today, and the conversions it implies
+
+**Decision.** A port operation exists only over a Command. Where the admin path is not a Command, the
+feature converts it (FR-003), on both paths, keeping the audit action string. Readiness, measured
+(C = Command; H-in = hand audit inside the write's transaction; H-post = hand audit after the commit;
+N = no audit; ? = to confirm in T001–T009):
+
+| Aggregate | C | H-in | H-post | N / ? |
+| --- | --- | --- | --- | --- |
+| Organization | create, update, set_parent, move, delete, set_custom_field_values, convert_to_company, tax_id.change, set_credit_mode, sales_rep_assign/unassign | allow_lists_replace, allow_list_patch (`organization-restriction-service.ts`) | approved, rejected, blocked, unblocked (`organization-moderation-service.ts` `transition`, audit after commit) | sales channels (?: `routes.admin.ts` writes through `sales_channels`' membership) |
+| CustomerAccount | create, change_role, set_preferred_language, remove_member, promote_organization_admin, set_subtree_rollup, custom_fields.update | block, unblock, soft-delete, restore, group assign, create standalone, anonymise (`customer-account-lifecycle-ports.ts`) | — | update_profile, email_verified (?) |
+| Order | custom_fields.update, external_reference.set | status_transition (`order-transition-service.ts`), payment_status_transition (`order-service.ts`) | place_on_behalf (impersonation only) | comments (`order-comment-service.ts`, N); buyer placement (N) |
+| QuoteRequest | send_document | create, create_on_behalf, patch_draft, modify, approve, assign, cancel (`rfq-service.ts`, `rfq-admin-service.ts` `#audit`) | — | admin custom-field values (?) |
+| Product | create, update, archive, restore, delete, variant create/update/delete, scoped_values.save, scopes.update | — | — | — |
+| Category | create, update, delete | — | — | move (?: likely `update` with a parent), inventory thresholds (N here; audited by `inventory`'s caller as `low_stock_threshold.update`) |
+| Opportunity | all listed (`crm`: 33 `commandBus.run` sites, 0 hand audits) | — | — | — |
+| Project | all listed (`projects`: 38 sites, 0 hand audits) | — | — | archive/restore: no such operation |
+| Task | all listed except below | — | — | create many (?) |
+
+**Rationale.** The issues' definition of done — "each operation is one audited Command … the admin
+routes and the port run the same Commands, so command hooks and the audit trail see one write path" —
+cannot be met over a hand-audited write: it fires no hooks and writes no outbox row. Principle XIII
+already requires new writes to be Commands, and an H-post write can orphan its audit row. Keeping the
+action string keeps the record-history readers (`audit-state.md`) and every saved audit filter working.
+
+**Rejected.** *Publish ports over hand-audited writes now, convert later* — the port would promise
+hooks it does not fire, and the conversion would then change a published behaviour. *Leave those
+operations out* — that is most of Organization moderation, CustomerAccount and QuoteRequest, which is
+the very gap the issues were raised for.
+
+## R-3 One Command factory per operation, called by route and port
+
+**Decision.** Each operation has one Command factory in the owner's `src/backend/commands/`
+(`make<Op>Command(deps, input)`), as `organizations` already does (`set-parent.command.ts`,
+`create-organization.command.ts`). The admin route and the port implementation both call
+`commandBus.run(make…Command(…))`. Side effects the route performs today outside its write (notices,
+cache invalidation, reindex) move into the Command's event / after-commit path or into the shared
+service the Command calls (FR-013).
+
+**Rationale.** Parity by construction rather than by test; the test then proves it. The side-effect
+move is the trap: a route that invalidates a cache after `commandBus.run` returns would leave every port
+call stale.
+
+**Rejected.** *The port calls the route's service method* — services in several modules are not
+Commands (R-2), and a service method is not what the hooks key on.
+
+## R-4 Actor and source
+
+**Decision.** The actor is ambient (`resolveCommandActor`, `packages/platform/src/commands/actor.ts`).
+Under `withSystemScope` it is `system`; under `withSystemScopeActingFor` it is that administrator. No
+port takes `actorAdminUserId`: the current lifecycle ports that do (`block`, `unblock`, `softDelete`,
+`restore`, `setCustomerGroup`) are deprecated by this feature. The options carry `source?: string` — a
+code (`^[a-z][a-z0-9_.-]{0,63}$`), recorded as `source` in the Command's `stateAfter` (a code-shaped
+value, `audit-state.md` list 1), `null` when absent; a value outside the grammar is refused
+`VALIDATION_FAILED` before the Command runs, because a free value cannot be written into audit state.
+The issues' "actor kind `automation`" is this pair — **owner ruling D-293.6 (2026-11-23), as
+recommended**. Nothing on the Command Bus, the audit entity or the outbox changes: no migration, no
+new `CommandActor['kind']`.
+
+**Rationale.** Principle XIII forbids an actor taken from input; `CommandActor['kind']` is
+`'admin' | 'customer' | 'system' | 'api_key'` and is published (`@endora-commerce/platform`), read by
+outbox rows (`actorKind`) and, after `specs/189-command-middleware/`, by middleware `meta`. A new kind is
+a widening every exhaustive `switch` in a consumer must handle — itself a surface change under OD-4.
+The source code answers what "automation" is meant to tell an operator: which integration acted.
+
+**Rejected.** *A new `automation` actor kind* — ruled out by D-293.6 for the reason above. *An
+`actor_source` column on the audit entry* — a platform migration and a second home for a fact the
+Command's state already carries. *A free-text reason* — values are not allowed in audit state of
+tenant-scoped records. *Requiring `source` under a system actor* — would refuse every existing worker
+Command and is not what was ruled; a call without it records the system actor alone.
+
+**Consequences for the siblings** (dependencies, not edits made here):
+`specs/188-policy-points/` and `specs/191-membership-join-requests/` were written against an
+`automation` actor kind and must read it as `system` + `source` — `188`'s auto-approval passes
+`source: 'organizations.moderation'` to `approve`, `191`'s background moves a code of its own;
+`191`'s interim ("record `system` with the scope reason, switch when 186 lands") becomes the final
+design, minus the free-text reason. `specs/189-command-middleware/` needs nothing: `meta` carries
+`CommandActor`, whose kinds do not change; exposing `source` in `meta` would be an additive choice of
+189's.
+
+## R-5 The shared options type
+
+**Decision.** `packages/contracts/src/aggregate-ports.ts` exports:
+
+```ts
+export interface AggregateCommandOptions {
+  /** Extension input for command-hook modules on the action, keyed by module id (spec 176, issue #1057). */
+  readonly extensions?: Readonly<Record<string, unknown>>;
+  /** The record version the caller read; a moved-on row is refused 409 VERSION_CONFLICT. */
+  readonly expectedVersion?: number;
+  /** The calling integration's code, recorded in the audit entry (R-4). */
+  readonly source?: string;
+}
+export type CustomFieldMerge = (current: Record<string, unknown>) => Promise<Record<string, unknown>>;
+```
+
+Every operation's last parameter is `options?: AggregateCommandOptions` (or an aggregate-specific
+extension of it). `OrganizationCommandPortOptions` becomes an alias of it (additive).
+`expectedVersion` is honoured only where the aggregate has a `version` column the admin route checks;
+elsewhere the contract says it is ignored.
+
+**Rationale.** One spelling across nine ports; optional *parameters* are fine under D-97.3, which
+refuses optional *methods*.
+
+**Rejected.** *Per-port option types* — nine copies that drift.
+
+## R-6 Transactions: a port call is its own Command
+
+**Decision.** A port call opens its own Command transaction on the owner's EntityManager. A caller
+must call it after its own commit, never inside `em.transactional` (precedent: `orderTransitionPort`'s
+contract, issue #200, `check:transaction-context`). Code that needs to write atomically with another
+module's Command uses a `beforeCommit` command hook on that Command, which writes the hook module's own
+tables on the hook's `em`.
+
+**Rationale.** A nested call on another pooled connection commits independently; the caller's rollback
+cannot reach it.
+
+**Rejected.** *An `em` parameter on each operation* — hands one module's transaction to another, which
+D-169 permits only for install surfaces where no container exists.
+
+## R-7 No permission in the port
+
+**Decision.** Ports check no permission (the existing `OrganizationCommandPort` wording); the contract
+says the caller is the gate and the port is never resolved for a customer-facing route.
+
+**Rationale.** A server-side caller has no admin permission set; admin routes keep their
+`requireAdmin(...)` gate in front of the same Command.
+
+**Rejected.** *Passing a permission context* — re-introduces an actor parameter (R-4).
+
+## R-8 Custom-field values and records
+
+**Decision.** Every port has `setCustomFieldValues(id, merge, options?)` in the shape of
+`organizationCustomFieldWritePort` (`custom-field-writes.md` § *Server-side writes*): the owner loads,
+calls `merge(current)`, stores the result, one Command, `changedCustomFields` in the entry; the caller
+validates inside `merge` through `CustomFieldValuePort.validateAndMerge`. For Product the bag is
+`attribute_values`, the binding's `valueColumn`. `OpportunityRecord`, `ProjectRecord` and `TaskRecord`
+gain `customFieldValues: Record<string, unknown>`; the other six records already carry them.
+`OrderRecord` gains `payer: OrderPayer | null` (`orderPayerSchema`, `specs/182-related-payers/`).
+
+**Rationale.** One method name makes the derived check of R-14 possible and matches the binding
+registry, which already treats Product's attribute values as its custom-field bag. The values live on
+the same row, so a record carrying them costs no query.
+
+**Rejected.** *`setAttributeValues` on Product* — a second name for one concept. *An opt-in include* —
+that mechanism is `specs/187-side-table-extensions/`'s, for data in other modules' tables.
+
+## R-9 Operations deliberately left out
+
+**Decision.** Not offered, and each contract says so: Order *reorder* (writes a basket — the carts
+aggregate) and *clone to quote* (creates a QuoteRequest — `quoteRequestCommandPort.create` is the
+server-side path); Order *bulk status* (a caller loops `applyStatus`, which is one Command per order
+anyway); QuoteRequest *resubmit*, *accept/reject revision*, *convert to order* (the buyer's own
+decisions; no server-side caller acts for the buyer in them); Project *archive/restore* (no such
+operation exists); CustomerAccount *set organization*, *detach to personal*, *attach to organization*
+(membership, `specs/191-membership-join-requests/`); Organization *invitations*, *roles* and *members*
+(their own aggregates or the membership port).
+
+**Rationale.** OD-2 publishes the aggregate's lifecycle; operations that belong to another aggregate,
+or to a buyer's own session, would widen the port beyond its aggregate.
+
+**Rejected.** *Copying the issue lists verbatim* — #1823 names `cloneToQuote` and `reorder`, #1828
+names `archive` / `restore`; the first two belong elsewhere and the last two do not exist.
+
+## R-10 Narrow-port disposition
+
+**Decision.** A narrow port, or a method of one, is deprecated when every operation it offers has the
+same-semantics operation on the aggregate port; its implementation then delegates. Reads move to read
+ports. Capability ports with semantics the aggregate port does not have stay. Full table:
+`data-model.md` § *Port disposition*.
+
+**Rationale.** OD-4 needs a removal list that is decided once, not per reviewer.
+
+**Rejected.** *Deprecating every capability port* — `catalogBulkImportPort` (report-shaped bulk),
+`orderStatusAnnouncePort`, `orderQuoteSourcePort` and `customerAccountRoleCommandPort` (a child-Command
+factory for `organizations`' own Commands) answer different questions.
+
+## R-11 The contract surface: kinds, tiers, directions
+
+**Decision.** One classification, by **kind**; entries are derived per kind from the tree, never
+listed (D-100). Tiers: **frozen** (no change at all), **stable** (incompatible change only after one
+deprecation release), **additive-only** (only compatible additions, in the kind's direction; never a
+removal, deprecated or not — a removal is a new versioned name). Directions: **read** (a consumer reads
+it: HEAD must be assignable to base), **write** (a consumer writes it: base must be assignable to HEAD),
+**call** (a method: base parameters assignable to HEAD parameters, HEAD return assignable to base
+return). Full table: `contracts/contract-surface.md`. Kinds owned by sibling specs (policy points,
+command middleware, `extends`) are rows those specs fill when they land.
+
+**Rationale.** #1820 item 4 asks for a categorised list; deriving each kind from the marker that
+already makes a thing published (`Container name:`, `HookableActionRef`, `CUSTOM_FIELD_HOST_BINDINGS`)
+means a new entry is covered by existing, with no list to update.
+
+**Rejected.** *A hand-maintained list of entries* — a derived fact written down. *A per-entry `@surface`
+tag* — YAGNI; nothing needs an entry tier different from its kind's.
+
+## R-12 The existing `check:release-intent` is extended with the contract-surface comparison
+
+**Decision.** `check:release-intent` exists — `backend/package.json` `"check:release-intent": "tsx
+scripts/check-release-intent.ts"`, run by `quality.yml` (`quality`: default mode; `release-changeset`:
+`--since`) and `publish.yml` — so #1820's premise that it does not is out of date (D-293.8) and nothing
+is built beside it. Three things are added to it, all specified in
+`contracts/release-intent-contract-surface.md`:
+
+1. **The port contract surface** — #1820's "`@api` ports" is the population `check:port-shape`
+   already derives from the `Container name:` marker (no `@api` tag is introduced); the private
+   `modulePortsPopulation()` of `backend/scripts/check-port-shape.ts` moves to
+   `backend/scripts/lib/port-population.ts` so both checks, and both trees of the comparison, use one
+   derivation. Then the other 186-owned kinds of `contracts/contract-surface.md`.
+2. **The deprecation-release rule** — a stable entry may be removed or fail its direction only if the
+   base tag carried a parseable `@deprecated`; a marker new at HEAD must name a version above the base.
+3. **The D-293.7 ledger** — R-13.
+
+Where and how:
+
+- **Mode**: inside `--since`, which already reads git and runs in `release-changeset` — a job that
+  checks out with `fetch-depth: 0` and so already has the tags. The script's own header gives the rule
+  ("this mode needs a git diff, so it runs in `release:changeset` … rather than in `quality`"). The
+  default mode, `--print-publish-scope` and `--publish-registry` are unchanged; a new
+  `--contract-base <ref>` overrides the base, and alone runs only the comparison (local runs, T104,
+  T106).
+- **Base**: the highest `v*` tag reachable from HEAD (`git describe --tags --abbrev=0 --match
+  'v[0-9]*'`); unresolvable, an empty population on either side, or a probe that compiled nothing →
+  exit 2, inside the analysis.
+- **Compatibility**: a generated probe imports base and HEAD declarations under two names and asserts
+  per entry, by direction, `[A] extends [B]`, using `Parameters<>` / `ReturnType<>` for methods (method
+  syntax is bivariant otherwise); the TypeScript compiler API (already a dependency) type-checks it and
+  maps diagnostics back to entries. Both trees resolve against HEAD's `node_modules`, so a dependency's
+  own type change (MikroORM 7) is not a finding.
+- **Code home**: `backend/scripts/lib/contract-surface.ts` — a pure analysis — beside the script's
+  other `lib/` readers; findings join `ReleaseIntentFindingKind` with the `contract-` prefix.
+- **Name**: *contract surface*, because `PublishedSurface` in the same script is D-162's file set and
+  `backend/test/unit/kernel/published-surface.test.ts` is the platform-barrel test.
+- **Estate**: the entry is already `repository-only`; its reason gains one sentence. **Read size**: the
+  record runs the default mode, which the comparison does not enter, so nothing is re-recorded.
+- **Output**: `[release-intent] contract-base=<tag> entries=<head>/<base> … violations=<n>`, zeros
+  printed.
+
+**Rationale.** The owner named the instrument and it already owns the release-time questions and the
+one git input (`--since`) in CI; extending it keeps one gate, one exit-code grammar and one job, and
+needs no workflow change because the job already has the tags. A compile probe judges compatibility as
+a consumer's compiler would, which a text diff cannot (a widened union, an added optional parameter).
+
+**Rejected.** *A new `check:contract-surface` script* — a second gate for a question the owner assigned
+to this one, and a second job that would need full history. *Running it in the default mode and giving
+`quality` `fetch-depth: 0`* (the first draft's T041) — the script's rule puts git-reading analyses in
+`--since`, and a full clone in the widest job costs every pull request for no extra coverage.
+*Hosting the analysis in `packages/cli/src/rules/`* (the first draft) — the check is `repository-only`,
+so a published package would carry code no instance runs. *API Extractor* — a new dependency and a
+`.d.ts` roll-up model that does not know the `Container name:` population. *A committed surface
+snapshot* — a generated artefact to keep fresh, the trap `AGENTS.md` lists. *Diffing npm tarballs* —
+network in CI. *A textual signature diff* — false positives on formatting, and blind to whether a
+change narrows or widens. *An `@api` JSDoc tag* — a second declaration of what `Container name:`
+already declares.
+
+## R-13 Sanctioned breaks (owner ruling D-293.7, 2026-11-23)
+
+**Decision.** A deliberate break skips the deprecation release when it is ledgered.
+`backend/scripts/ledgers/contract-surface-breaks.ts` holds `SANCTIONED_CONTRACT_BREAKS`, keyed by
+contract-surface entry id, each entry `{ base, finding, ruling, upgradeNote, why }`
+(`data-model.md`; `contracts/release-intent-contract-surface.md` §5):
+
+- **Live** when `base` equals the run's base: the matching finding (same id **and** kind — one entry
+  licenses one kind of break) is printed as `ruled` with its D-number and does not fail.
+- **Announced**: the `upgradeNote` anchor resolves to a `{#…}` heading in both
+  `docs/docs/upgrading-an-instance.md` and its Polish translation, and each section names the entry's
+  symbol and the D-number; otherwise `contract-break-unannounced`.
+- **Two-way**: a live entry matching no finding is `stale-contract-break`.
+- **Spent** when `base` is older than the run's base: printed, and refused only on a branch the
+  existing D-212 classification calls `release` (`spent-contract-break`), so the next release pull
+  request removes it.
+- `contract-break-malformed` for a bad D-number, base or empty field. The D-number's existence is not
+  checked — rulings below the pre-migration floor are in withheld records.
+
+**Rationale.** A security fix may not wait a release; a recorded ruling with an announced upgrade path
+beats a disabled check. Binding an entry to its base release gives it a natural end, and charging the
+clean-up to the release pull request — the one branch whose author owns the release checklist — keeps
+the first pull request after a tag from going red for a change its author did not make, the
+derived-ledger trap `AGENTS.md` lists. Requiring the upgrade note to name the symbol and the ruling in
+both languages makes the note, not the ledger, the thing an upgrader reads.
+
+**Rejected.** *An environment variable, flag or pull-request label that skips the comparison* —
+invisible in the diff, and it would skip every finding, not one. *An entry with no base* — never
+expires, and a ledger nobody has to empty accumulates. *Failing spent entries on every branch* —
+reds whichever unrelated pull request lands first after the tag. *Emptying the ledger in the release
+pull request itself* — that pull request is still compared with the previous tag, so it still needs
+the entries. *Licensing every finding on an entry id* — a ruled removal would also license an
+unrelated narrowing of the same entry.
+
+## R-14 One instrument for "every extensible host has its port"
+
+**Decision.** Each `CUSTOM_FIELD_HOST_BINDINGS` entry gains `aggregatePort: '<containerName>'`;
+`check:port-shape` gains a signal: the named port is published (marker), registered by the binding's
+`ownerModuleId`, and declares `setCustomFieldValues`. Until each story lands, its host sits in a
+two-way ledger in the check, drained by that story.
+
+**Rationale.** OD-3's "one decision" made literal: adding a host means naming its port in the same row.
+Port names cannot be derived mechanically from entity types (`category` → `catalogCategoryCommandPort`).
+
+**Rejected.** *A `Kind:` marker on every port of the nine owners, refusing a second write port* — about
+fifty doc blocks for a self-declaration a reviewer judges anyway; the convention plus SC-005 is the
+ratchet.
+
+## R-15 Sequencing against MikroORM 7 and the siblings
+
+**Decision.** Contracts (interfaces, options, records, deprecations in JSDoc), conventions, docs and the
+release-intent comparison may merge before #1866. Command conversions, port implementations and route
+moves land after #1866 merges (entity freeze). Organization lands first and `approve` first within it
+(`specs/188-policy-points/` depends on it; `specs/191-membership-join-requests/` on the Organization
+port). `specs/187-side-table-extensions/` adds read-port includes host by host; its write side is
+command hooks, so no write-port change is owed to it.
+
+**Rationale.** D-293.4; the conversions touch services the codemod and the decorator switch also touch.
+
+**Rejected.** *Implementing before #1866* — every conversion would be rebased through the freeze.
