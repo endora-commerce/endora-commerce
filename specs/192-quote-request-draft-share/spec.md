@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feat/192-quote-request-draft-share`
 **Created**: 2026-11-24
-**Status**: Draft — owner decisions of 2026-11-24 recorded under *Owner decisions* and *Clarifications* (plan questions OQ-1 – OQ-8 of `research.md`); no question open
+**Status**: Draft — owner decisions of 2026-11-24 recorded under *Owner decisions* and *Clarifications* (plan questions OQ-1 – OQ-8 of `research.md`); one question open (OQ-6)
 **Input**: Issue #1901. A sales representative prepares a quote for a customer in the Admin UI over
 several sittings. Today the quote reaches the customer's account, with an e-mail, the moment it is
 created. The operator needs to build it as a draft the customer cannot see, and to share it with
@@ -80,7 +80,7 @@ in the paths below. Module paths are relative to `packages/modules/quote_request
 - OQ-7: What does **Create and share** do when the create answers warnings (for example unavailable products)? → It stops before sharing, keeps the quote as a draft and shows the warnings (FR-020).
 - OQ-8: The operator's quick-order build, which creates a quote through the buyer's path? → Unchanged in this feature; no follow-up unless a need appears (FR-001).
 - Public contract (approved): a new required `QuoteRequestRecord.sharedWithCustomer` field, read by `carts`, and a frozen hookable action id `quote_request.share` with a `beforeCommit` phase only (FR-028).
-- OQ-6 (list order of a draft shared long after creation) was not put to the owner; the plan keeps today's order.
+- OQ-6 (customer list order of a draft shared long after creation) is open; until answered the plan keeps today's order (by creation).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -101,8 +101,8 @@ every customer surface.
    its direct address answers as for a quote that does not exist.
 3. **Given** a draft for a member of an Organization, **When** the Organization's Administrator or
    a roll-up user of the tree signs in, **Then** they do not see it either.
-4. **Given** a draft, **When** the customer tries to accept, reject, edit, resubmit, convert or
-   download it by its identifier, **Then** the call is refused as for a quote that does not exist
+4. **Given** a draft, **When** the customer tries to accept, reject, edit, resubmit or
+   convert it by its identifier, **Then** the call is refused as for a quote that does not exist
    and nothing changes.
 5. **Given** a draft, **When** the operator edits its lines, prices, groups, notes, validity days
    or custom fields, or cancels it, **Then** the change is saved and recorded in the history, and
@@ -217,7 +217,7 @@ validity, wait, share it, and read its date; override the days on another quote.
   detail, counts, the `customers` module's lists, an Organization Administrator's view, a roll-up
   view. The `customers` module's admin customer-detail tab MUST NOT list drafts either; operators
   find drafts in the quote request list.
-- **FR-004**: Every customer action on a draft (accept, reject, edit, resubmit, convert, download)
+- **FR-004**: Every customer action on a draft (accept, reject, edit, resubmit, convert to a basket)
   MUST be refused as for a quote that does not exist and MUST change nothing.
 - **FR-005**: No customer notification on any channel MUST be sent about a draft: not on
   creation, edit or cancellation.
@@ -307,4 +307,5 @@ validity, wait, share it, and read its date; override the days on another quote.
 
 ## Open questions
 
-None.
+- **OQ-6** — On the customer's list, does a draft shared long after it was created sort by its
+  creation or by its share? Today's order (creation) applies until the owner answers.
