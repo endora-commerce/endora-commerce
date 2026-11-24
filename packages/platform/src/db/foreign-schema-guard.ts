@@ -1,7 +1,17 @@
 import type { EntityManager, EntityName } from '@mikro-orm/core';
-import { knex } from '@mikro-orm/postgresql';
 import type { Migration } from '@mikro-orm/migrations';
 import { sqlWriteTargets, type SqlWriteTarget } from './sql-statement-targets.js';
+import {
+  RAW_BUILDER_HANDLES,
+  driverMetadataMembers,
+  migrationBuilders,
+  sealConnection,
+  sealDriver,
+  sealedHandle,
+  transactionSealer,
+  unsealed,
+  type SealHooks,
+} from './raw-handles.js';
 import type { ReverseEdgeClause } from './reverse-edge.js';
 import { resolvedColumnExtension } from '../kernel/schema-extensions/define.js';
 import type { ColumnExtension } from '../kernel/schema-extensions/types.js';
@@ -143,6 +153,9 @@ interface DriverLike {
   getMetadata(): { getAll(): Record<string, MetadataLike> };
 }
 
+/** The driver a guarded migration holds behind its sealed `driver` field. */
+type RealDriver = DriverLike & { execute(...args: unknown[]): Promise<unknown> };
+
 /** Tables the classes in `classes` map, by the ORM's discovered metadata. */
 function tablesOf(driver: DriverLike, classes: readonly unknown[]): Set<string> {
   const wanted = new Set(classes);
@@ -243,24 +256,25 @@ export async function dryRunStatements(
 ): Promise<{ readonly statements: readonly string[]; readonly error: unknown }> {
   const Ctor = cls as unknown as new (driver: unknown, config: unknown) => Migration;
   // Review finding 6 — no route to the database: the driver the instance holds
-  // answers metadata and platform questions and refuses everything that could
-  // run SQL, and `getKnex()` is a connectionless query builder, so building SQL
-  // for `addSql` works and running it fails (fail closed).
+  // answers metadata and platform questions and refuses everything else (#1889:
+  // sealed, so a member nobody listed is refused too), and `getKnex()` is a
+  // connectionless query builder, so building SQL for `addSql` works and
+  // running it fails (fail closed).
+  const refuse = (what: string) => new Error(`[foreign-schema-guard] ${what} is not available in a dry run`);
   const denied = (what: string) => (): never => {
-    throw new Error(`[foreign-schema-guard] ${what} is not available in a dry run`);
+    throw refuse(what);
   };
-  const realDriver = driver as Record<string, unknown>;
-  const guardedDriver = new Proxy(realDriver, {
-    get(target, property, receiver) {
-      if (property === 'execute' || property === 'getConnection' || property === 'createEntityManager') {
-        return denied(`driver.${String(property)}()`);
-      }
-      const value = Reflect.get(target, property, receiver) as unknown;
-      return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+  const guardedDriver = sealedHandle(
+    'this.driver',
+    {
+      ...driverMetadataMembers(driver),
+      execute: denied('driver.execute()'),
+      getConnection: denied('driver.getConnection()'),
+      createEntityManager: denied('driver.createEntityManager()'),
     },
-  });
+    refuse,
+  );
   const instance = new Ctor(guardedDriver, config);
-  let builder: unknown;
   const executed: string[] = [];
   Object.assign(instance, {
     execute: async (sql: unknown, params?: unknown[]) => {
@@ -268,17 +282,7 @@ export async function dryRunStatements(
       return [];
     },
     getEntityManager: denied('the entity manager'),
-    getKnex: () => {
-      if (builder === undefined) {
-        const built = knex({ client: 'pg' });
-        // Builds SQL, never connects: a client with no connection would still
-        // fall back to the libpq environment defaults.
-        (built as unknown as { client: { acquireConnection: () => Promise<never> } }).client.acquireConnection = () =>
-          Promise.reject(new Error('[foreign-schema-guard] a dry run does not connect'));
-        builder = built;
-      }
-      return builder;
-    },
+    ...migrationBuilders((handle) => refuse(`a statement run through this.${handle}()`)),
   });
   let error: unknown = null;
   try {
@@ -420,17 +424,63 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
   const migrationName = cls.name;
   const Base = cls as unknown as new (...args: unknown[]) => Migration;
 
+  const refuse = (what: string) =>
+    new ForeignSchemaWriteError(context.packageName, context.moduleId, migrationName, what, `${what} is not offered`);
+
   class GuardedMigration extends Base {
     #platform: Set<string> | null = null;
     #createdIndexes = new Map<string, string>();
     #createdHere = new Set<string>();
     #reverting = false;
     #ownerOf: ((table: string) => string | undefined) | undefined;
+    /** The real driver; the migration's own `driver` field holds it sealed (#1889). */
+    readonly #driver: RealDriver;
+    /** The real transaction context; the migration's own `ctx` hands it out sealed. */
+    #ctx: unknown;
+
+    constructor(...args: unknown[]) {
+      super(...args);
+      const self = this as unknown as { driver: unknown; ctx: unknown };
+      this.#driver = self.driver as RealDriver;
+      const hooks = this.#sealHooks();
+      // Issue #1889 — every raw handle the Migration API offers: `this.driver`
+      // (what `execute()` and `getEntityManager()` reach through, too), the
+      // transaction context `this.ctx`, and the query builders.
+      self.driver = sealDriver(this.#driver, 'this.driver', hooks);
+      const sealTransaction = transactionSealer('this.ctx', refuse);
+      this.#ctx = self.ctx;
+      Object.defineProperty(this, 'ctx', {
+        configurable: true,
+        enumerable: true,
+        get: () => sealTransaction(this.#ctx),
+        set: (ctx: unknown) => {
+          this.#ctx = unsealed(ctx);
+        },
+      });
+      Object.assign(this, migrationBuilders((handle) => refuse(`a statement run through this.${handle}()`)));
+    }
+
+    #sealHooks(): SealHooks {
+      const judges: EntityManagerJudges = {
+        judge: (target) => this.#judgeTarget(target),
+        judgeSql: (sql) => this.#judge(sql),
+        refuse,
+      };
+      return {
+        judgeStatement: (query, params) => this.#judge(renderedForVerdict(queryText(query), params, platformOf(this.#driver))),
+        judgeTable: (table, verb, statement) => this.#judgeTarget({ table, verb, setColumns: null, statement }),
+        refuse,
+        guardEntityManager: (em) => {
+          guardEntityManager(em as unknown as EntityManager, judges);
+          return em;
+        },
+      };
+    }
 
     async #own(): Promise<Set<string>> {
       const state = stateOf(context);
       if (state.own === null) {
-        const driver = (this as unknown as { driver: DriverLike }).driver;
+        const driver = this.#driver;
         const config = (this as unknown as { config: unknown }).config;
         const mine = tablesOf(driver, context.entities);
         const mapped = mappedTables(driver);
@@ -453,16 +503,18 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
     }
 
     #platformTables(): Set<string> {
-      this.#platform ??= tablesOf((this as unknown as { driver: DriverLike }).driver, context.platformEntities);
+      this.#platform ??= tablesOf(this.#driver, context.platformEntities);
       return this.#platform;
     }
 
     async #indexTable(index: string): Promise<string | null> {
       const created = this.#createdIndexes.get(index);
       if (created !== undefined) return created;
-      const rows = (await super.execute(
+      const rows = (await this.#driver.execute(
         `select tablename from pg_indexes where schemaname = current_schema() and indexname = ?`,
         [index],
+        'all',
+        this.#ctx,
       )) as Array<{ tablename?: string }>;
       return rows[0]?.tablename?.toLowerCase() ?? null;
     }
@@ -504,7 +556,7 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
         if (table === null) continue;
         const state = stateOf(context);
         const direction = this.#reverting ? 'down' : 'up';
-        this.#ownerOf ??= ownerLookup((this as unknown as { driver: DriverLike }).driver, context.reverseEdges);
+        this.#ownerOf ??= ownerLookup(this.#driver, context.reverseEdges);
         const destroyed = destructionRefused(
           context,
           migrationName,
@@ -575,9 +627,8 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
       await super.down();
       // "The same source" is the migration, both halves: the tables its `up()`
       // creates are the ones its `down()` may drop (R2's reading).
-      const driver = (this as unknown as { driver: unknown }).driver;
       const config = (this as unknown as { config: unknown }).config;
-      for (const statement of (await dryRunStatements(cls, driver, config, 'up')).statements) {
+      for (const statement of (await dryRunStatements(cls, this.#driver, config, 'up')).statements) {
         for (const target of sqlWriteTargets(statement)) {
           if (target.verb === 'create' && target.table !== null) this.#createdHere.add(target.table);
         }
@@ -586,27 +637,10 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
       await this.#judgeQueued();
     }
 
-    override async execute(sql: Parameters<Migration['execute']>[0], params?: unknown[]) {
-      const driver = (this as unknown as { driver: unknown }).driver;
-      await this.#judge(renderedForVerdict(queryText(sql), params, platformOf(driver)));
-      return super.execute(sql, params);
-    }
-
-    override getEntityManager(): ReturnType<Migration['getEntityManager']> {
-      const em = super.getEntityManager();
-      const guarded = em as unknown as { [GUARDED]?: true };
-      if (guarded[GUARDED] === true) return em;
-      guardEntityManager(
-        em as unknown as EntityManager,
-        (target) => this.#judgeTarget(target),
-        (sql) => this.#judge(sql),
-        (what) => {
-          throw new ForeignSchemaWriteError(context.packageName, context.moduleId, migrationName, what, `${what} is not offered`);
-        },
-      );
-      guarded[GUARDED] = true;
-      return em;
-    }
+    // `execute()` and `getEntityManager()` are the base class's: they reach the
+    // database through `this.driver`, which is sealed — its `execute` judges the
+    // statement as the ORM renders it, and the entity manager it creates is
+    // guarded (OD-178-3).
 
     async #judgeTarget(target: {
       readonly table: string;
@@ -640,19 +674,22 @@ type TargetJudge = (target: {
   readonly statement: string;
 }) => Promise<void>;
 
+/** How a guarded entity manager judges what it writes, and refuses what it cannot judge. */
+interface EntityManagerJudges {
+  readonly judge: TargetJudge;
+  readonly judgeSql: (sql: string) => Promise<void>;
+  readonly refuse: (what: string) => Error;
+}
+
 /**
  * Hold a migration's entity manager to the statement verdict (OD-178-3): its
  * flush, by change set, and the shortcuts that bypass the unit of work.
  */
-function guardEntityManager(
-  em: EntityManager,
-  judge: TargetJudge,
-  judgeSql: (sql: string) => Promise<void>,
-  deny: (what: string) => never,
-): void {
+function guardEntityManager(em: EntityManager, judges: EntityManagerJudges): void {
   const marked = em as unknown as { [GUARDED]?: true };
   if (marked[GUARDED] === true) return;
   marked[GUARDED] = true;
+  const { judge, judgeSql, refuse } = judges;
   const metaOf = (entityName: EntityName<object> | object): MetadataLike => {
     // `em.insert(entity)` names no entity: the instance carries its class.
     const name =
@@ -747,29 +784,54 @@ function guardEntityManager(
       Object.assign(em, { [name]: (...args: unknown[]) => wrap(original.apply(em, args) as Record<string, unknown>) });
     }
   }
+  // Issue #1889 — the driver and the connection are sealed: what runs SQL is
+  // judged, a transaction is handed out sealed, and the raw client is refused.
+  const hooks: SealHooks = {
+    judgeStatement: (query, params) => judgeSql(renderedForVerdict(queryText(query), params, platformOf(em))),
+    judgeTable: (table, verb, statement) => judge({ table, verb, setColumns: null, statement }),
+    refuse,
+    guardEntityManager: (other) => {
+      guardEntityManager(other as unknown as EntityManager, judges);
+      return other;
+    },
+  };
   const getConnection = raw['getConnection'];
   if (typeof getConnection === 'function') {
     Object.assign(em, {
-      getConnection: (...args: unknown[]) => {
-        const connection = getConnection.apply(em, args) as Record<string, unknown>;
-        return new Proxy(connection, {
-          get(target, property, receiver) {
-            if (property === 'getKnex') return () => deny('getConnection().getKnex()');
-            const value = Reflect.get(target, property, receiver) as unknown;
-            if (property === 'execute' && typeof value === 'function') {
-              return async (sql: unknown, ...rest: unknown[]) => {
-                await judgeSql(renderedForVerdict(queryText(sql), rest[0] as unknown[] | undefined, platformOf(target)));
-                return (value as (...a: unknown[]) => unknown).call(target, sql, ...rest);
-              };
-            }
-            return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
-          },
-        });
+      getConnection: (...args: unknown[]) =>
+        sealConnection(getConnection.apply(em, args), 'getEntityManager().getConnection()', hooks),
+    });
+  }
+  const getDriver = raw['getDriver'];
+  if (typeof getDriver === 'function') {
+    const sealed = sealDriver(getDriver.call(em), 'getEntityManager().getDriver()', hooks);
+    Object.assign(em, { getDriver: () => sealed });
+  }
+  // A raw query builder runs SQL nothing here can judge: not offered (fail closed).
+  for (const handle of RAW_BUILDER_HANDLES) {
+    Object.assign(em, {
+      [handle]: () => {
+        throw refuse(`getEntityManager().${handle}()`);
       },
     });
   }
-  // A raw knex handle runs SQL nothing here can judge: not offered (fail closed).
-  Object.assign(em, { getKnex: () => deny('getEntityManager().getKnex()') });
+  // A sealed transaction is a transaction context again where it re-enters the
+  // entity manager — the ORM's own `transactional()` sets the one a sealed
+  // connection handed it, and `begin()` stores what the sealed connection began.
+  const setTransactionContext = raw['setTransactionContext'];
+  if (typeof setTransactionContext === 'function') {
+    Object.assign(em, { setTransactionContext: (ctx: unknown) => setTransactionContext.call(em, unsealed(ctx)) });
+  }
+  const begin = raw['begin'];
+  if (typeof begin === 'function') {
+    Object.assign(em, {
+      begin: async (...args: unknown[]) => {
+        await begin.apply(em, args);
+        const current = (em as unknown as { getContext(useContext: false): { transactionContext?: unknown } }).getContext(false);
+        current.transactionContext = unsealed(current.transactionContext);
+      },
+    });
+  }
   // A fork, and the entity manager a `transactional` callback receives, are
   // guarded the same way.
   const fork = raw['fork'];
@@ -777,7 +839,7 @@ function guardEntityManager(
     Object.assign(em, {
       fork: (...args: unknown[]) => {
         const forked = fork.apply(em, args) as EntityManager;
-        guardEntityManager(forked, judge, judgeSql, deny);
+        guardEntityManager(forked, judges);
         return forked;
       },
     });
@@ -789,7 +851,7 @@ function guardEntityManager(
         transactional.call(
           em,
           (inner: EntityManager) => {
-            guardEntityManager(inner, judge, judgeSql, deny);
+            guardEntityManager(inner, judges);
             return callback(inner);
           },
           ...rest,

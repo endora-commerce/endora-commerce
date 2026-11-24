@@ -252,6 +252,14 @@ describe('the foreign-schema guard on raw database handles (#1860)', () => {
       .where({ name: 'rogue' })
       .delete();
 
+  const rogueDelete = `delete from "${HOST_TABLE}" where "name" = 'rogue'`;
+  type Connection = ReturnType<ReturnType<Migration['getEntityManager']>['getConnection']>;
+  const connectionOf = (self: Migration): Connection => self.getEntityManager().getConnection();
+  const rawOf = (handle: unknown): { raw(sql: string): Promise<unknown> } => handle as { raw(sql: string): Promise<unknown> };
+  const driverOf = (self: Migration) =>
+    (self as unknown as { driver: Record<string, (...args: unknown[]) => Promise<unknown>> & { getConnection(): Connection } })
+      .driver;
+
   const RAW_ACCESS_ROUTES: readonly RawAccessRoute[] = [
     ['getEntityManager().getKnex()', (self) => deleteRogue(self.getEntityManager().getKnex())],
     ['getEntityManager().getConnection().getKnex()', (self) => deleteRogue(self.getEntityManager().getConnection().getKnex())],
@@ -260,6 +268,53 @@ describe('the foreign-schema guard on raw database handles (#1860)', () => {
       'getEntityManager().transactional(em => em.getKnex())',
       (self) => self.getEntityManager().transactional((em) => deleteRogue(em.getKnex())),
     ],
+    // Issue #1889 — the migration's own handles, the connection's client, and
+    // the transactions a connection begins or hands a `transactional` callback.
+    ['this.getKnex() builder', (self) => deleteRogue(self.getKnex())],
+    ['this.getKnex().raw()', (self) => rawOf(self.getKnex()).raw(rogueDelete)],
+    ['this.getEntityManager().getDriver().execute()', (self) => self.getEntityManager().getDriver().execute(rogueDelete)],
+    [
+      'this.getEntityManager().getDriver().getConnection().getKnex()',
+      (self) => deleteRogue(self.getEntityManager().getDriver().getConnection().getKnex()),
+    ],
+    [
+      'this.getEntityManager().getDriver().nativeDelete()',
+      (self) => self.getEntityManager().getDriver().nativeDelete(X178Host, { name: 'rogue' }),
+    ],
+    ['this.driver.execute()', (self) => driverOf(self).execute(rogueDelete)],
+    ['this.driver.getConnection().execute()', (self) => driverOf(self).getConnection().execute(rogueDelete)],
+    ['this.driver.createEntityManager().nativeDelete()', async (self) => {
+      const em = (await driverOf(self).createEntityManager()) as unknown as ReturnType<Migration['getEntityManager']>;
+      return em.nativeDelete(X178Host, { name: 'rogue' });
+    }],
+    ['getConnection().client', (self) => deleteRogue((connectionOf(self) as unknown as { client: unknown }).client)],
+    [
+      'getConnection().begin() + trx(table)',
+      async (self) => {
+        const connection = connectionOf(self);
+        const trx = await connection.begin();
+        try {
+          return await deleteRogue(trx);
+        } finally {
+          await connection.rollback(trx);
+        }
+      },
+    ],
+    [
+      'getConnection().begin({ ctx: this.ctx }) + trx.raw()',
+      async (self) => {
+        const connection = connectionOf(self);
+        const trx = await connection.begin({ ctx: (self as unknown as { ctx: never }).ctx });
+        try {
+          return await rawOf(trx).raw(rogueDelete);
+        } finally {
+          await connection.rollback(trx);
+        }
+      },
+    ],
+    ['getConnection().transactional(trx => trx(table))', (self) => connectionOf(self).transactional((trx) => deleteRogue(trx))],
+    ['getConnection().transactional(trx => trx.raw())', (self) => connectionOf(self).transactional((trx) => rawOf(trx).raw(rogueDelete))],
+    ['this.ctx', (self) => deleteRogue((self as unknown as { ctx: unknown }).ctx)],
   ];
 
   const rogueRows = async (): Promise<number> =>
@@ -299,33 +354,51 @@ describe('the foreign-schema guard on raw database handles (#1860)', () => {
   });
 
   /**
-   * Open (#1889): raw database handles the guard does not wrap yet. They hold
-   * the same assertion and fail it today; when #1889 closes them, `it.fails`
-   * turns red and the row moves into {@link RAW_ACCESS_ROUTES}.
+   * The sanctioned routes over the same sealed handles still run, inside the
+   * migration's transaction: a sealed transaction is a transaction context
+   * again where it re-enters the ORM.
+   */
+  it('still runs the sanctioned routes on a table the migration creates', async () => {
+    const insert = (id: string) => `insert into "acme_raw_rows" ("id") values ('${id}')`;
+    const ids = [randomUUID(), randomUUID(), randomUUID(), randomUUID()] as const;
+    const error = await migrate(
+      packageMigration('Migration20261201T100046AcmeErpSanctioned', async (self) => {
+        const ctx = (self as unknown as { ctx: never }).ctx;
+        await self.execute(`create table "acme_raw_rows" ("id" uuid primary key)`);
+        const em = self.getEntityManager();
+        const connection = em.getConnection();
+        await connection.execute(insert(ids[0]), [], 'run', ctx);
+        const trx = await connection.begin({ ctx });
+        await connection.execute(insert(ids[1]), [], 'run', trx);
+        await connection.commit(trx);
+        await em.transactional(async (inner) => {
+          await inner.getConnection().execute(insert(ids[2]), [], 'run', inner.getTransactionContext());
+        });
+        const fork = em.fork();
+        await fork.begin({ ctx });
+        await fork.find(X178Host, {});
+        await fork.execute(insert(ids[3]));
+        await fork.commit();
+      }),
+    );
+    expect(error).toBeNull();
+    const rows = await db.query<{ id: string }>(`select "id" from "acme_raw_rows"`);
+    expect(rows.map((row) => row.id).sort()).toEqual([...ids].sort());
+    expect(await executed()).toContain('Migration20261201T100046AcmeErpSanctioned');
+  });
+
+  /**
+   * Open (follow-up to #1889): the entity manager's transaction context is the
+   * real transaction, because the ORM's own flush, loading and query builders
+   * read it back through `getTransactionContext()` and hand it to the unsealed
+   * driver. It holds the same assertion and fails it today; when it is sealed,
+   * `it.fails` turns red and the row moves into {@link RAW_ACCESS_ROUTES}.
    */
   const OPEN_RAW_ACCESS_ROUTES: readonly RawAccessRoute[] = [
-    ['this.getKnex() builder', (self) => deleteRogue(self.getKnex())],
-    [
-      'this.getKnex().raw()',
-      (self) =>
-        (self.getKnex() as unknown as { raw(sql: string): Promise<unknown> }).raw(
-          `delete from "${HOST_TABLE}" where "name" = 'rogue'`,
-        ),
-    ],
-    [
-      'this.getEntityManager().getDriver().execute()',
-      (self) => self.getEntityManager().getDriver().execute(`delete from "${HOST_TABLE}" where "name" = 'rogue'`),
-    ],
-    [
-      'this.driver.execute()',
-      (self) =>
-        (self as unknown as { driver: { execute(sql: string): Promise<unknown> } }).driver.execute(
-          `delete from "${HOST_TABLE}" where "name" = 'rogue'`,
-        ),
-    ],
+    ['getEntityManager().getTransactionContext()', (self) => deleteRogue(self.getEntityManager().getTransactionContext())],
   ];
 
-  it.fails.each(OPEN_RAW_ACCESS_ROUTES)('open (#1889): refuses %s, and the row survives', async (_label, attempt) => {
+  it.fails.each(OPEN_RAW_ACCESS_ROUTES)('open: refuses %s, and the row survives', async (_label, attempt) => {
     await expectRawAccessRefused(attempt);
   });
 });
