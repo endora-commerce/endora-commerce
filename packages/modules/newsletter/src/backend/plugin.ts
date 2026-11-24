@@ -181,17 +181,6 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
       `${options.publicBaseUrl}/api/v1/newsletter/unsubscribe?token=${encodeURIComponent(t)}`,
   };
 
-  const subscribers = new NewsletterSubscriberService({
-    emFactory: options.emFactory,
-    optIn,
-    resolveDefaultChannelId: options.resolveDefaultChannelId,
-    links,
-    customerAccounts: options.customerAccounts,
-    ...(options.mailer ? { mailer: options.mailer } : {}),
-    commandBus: options.commandBus,
-    ...(options.emitEvent ? { emitEvent: options.emitEvent } : {}),
-  });
-
   const subscriberAdmin = new NewsletterSubscriberAdminService(options.emFactory, options.commandBus);
   const tags = new NewsletterTagService(options.emFactory, options.auditLog);
   const customFields = new NewsletterCustomFieldService(options.emFactory, options.auditLog);
@@ -203,7 +192,6 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
     options.settingsWrite,
     providers,
   );
-  const self = new NewsletterSelfService(options.emFactory, subscribers);
 
   const dispatch = new NewsletterCampaignDispatchService({
     emFactory: options.emFactory,
@@ -247,6 +235,24 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
       : {}),
     resolveDefaultChannelId: options.resolveDefaultChannelId,
   });
+
+  const subscribers = new NewsletterSubscriberService({
+    emFactory: options.emFactory,
+    optIn,
+    resolveDefaultChannelId: options.resolveDefaultChannelId,
+    links,
+    customerAccounts: options.customerAccounts,
+    ...(options.mailer ? { mailer: options.mailer } : {}),
+    commandBus: options.commandBus,
+    ...(options.emitEvent ? { emitEvent: options.emitEvent } : {}),
+    // Issue #1833 — a committed subscribe or confirmation enrols the
+    // subscriber into the active automations it newly matches. Reached only
+    // through this module's own routes, which the lifecycle gates, so a
+    // switched-off newsletter enrols nobody.
+    enrolAutomations: (transition) => automations.enrolMatching(transition),
+  });
+
+  const self = new NewsletterSelfService(options.emFactory, subscribers);
 
   const campaigns = new NewsletterCampaignService({
     emFactory: options.emFactory,

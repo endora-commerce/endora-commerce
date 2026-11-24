@@ -48,7 +48,21 @@ it never collides with an external ESP (MailerLite, GetResponse, …).
   audience that reaches nobody is refused before anything is asked.
 - **Automation** — a linear `send` / `wait N days` sequence triggered by
   all/tag/tag-list. Send steps use the same email Page Builder. The step model
-  is designed to extend to conditional branching later without rework.
+  is designed to extend to conditional branching later without rework. An
+  active automation enrols a subscriber when the subscriber **newly** matches
+  its trigger, right after the subscribe or confirmation is saved:
+  - `all` — when the subscriber becomes active: a single opt-in sign-up, a
+    double opt-in confirmation, or a sign-up again after unsubscribing. A
+    subscriber still waiting to confirm is not enrolled.
+  - `tag` / `tag_list` — when an active subscriber carries one of the
+    trigger's tags (any of them): on becoming active with the tag already
+    set, or when a later sign-up adds the tag.
+
+  Activating an automation does **not** enrol subscribers who already match
+  it; only matches from then on are enrolled. Re-submitting the sign-up form
+  with nothing new enrols nobody, a suppressed address is never enrolled, and
+  a subscriber goes through the same automation once (the `once` re-entry
+  policy). While the module is switched off nobody is enrolled.
 - **Email blocks** — reusable email-safe fragments edited with the same Puck
   editor and embeddable via `EmailInsertBlock` where configured.
 - **Variables** — newsletter catalogue includes `subscriber.email`,
