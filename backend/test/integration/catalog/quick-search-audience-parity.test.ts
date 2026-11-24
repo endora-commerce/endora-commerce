@@ -274,7 +274,7 @@ async function seedRow(
     allowedOrganizationIds: fixture.allowedOrganizationIds,
     name: `Quick-search parity ${fixture.sku}`,
   });
-  await em.persistAndFlush(product);
+  await em.persist(product).flush();
 
   // `em.execute`, never `em.getConnection().execute`: the second takes its own
   // pooled connection and would survive this test's rollback (issue #200).

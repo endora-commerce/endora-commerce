@@ -502,7 +502,7 @@ export class CreditLimitService {
       currency: input.currency,
       status: 'active',
     });
-    await em.persistAndFlush(reservation);
+    await em.persist(reservation).flush();
     this.#emitReserved(input);
     return {
       ok: true,
@@ -570,7 +570,7 @@ export class CreditLimitService {
       currency: input.currency,
       status: 'active',
     });
-    await em.persistAndFlush(reservation);
+    await em.persist(reservation).flush();
     this.#emitReserved(input);
     return {
       ok: true,

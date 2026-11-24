@@ -67,7 +67,7 @@ export class AnalyticsIngestService {
     });
 
     if (accepted.length > 0) {
-      await em.persistAndFlush(accepted);
+      await em.persist(accepted).flush();
       if (this.forwarder?.enabled) {
         // Fire-and-forget; never block ingest on the external transport.
         void this.forwarder.forwardMany(accepted.map(toForwardPayload));

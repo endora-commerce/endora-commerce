@@ -40,7 +40,7 @@ function recordingEm(): { emFactory: () => EntityManager; lines: Array<Record<st
     invoice = { id: '00000000-0000-4000-8000-781000000009', ...data };
     return invoice;
   };
-  const tx = { create, persistAndFlush: async () => {}, flush: async () => {} };
+  const tx = { create, persist: () => ({ flush: async () => {} }), flush: async () => {} };
   const em = {
     create,
     findOne: async (_entity: unknown, where: Record<string, unknown>) =>

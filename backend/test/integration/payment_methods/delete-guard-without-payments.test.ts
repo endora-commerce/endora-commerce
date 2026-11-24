@@ -46,7 +46,7 @@ describe('payment-method delete while payments is off [integration]', () => {
       statusOnSuccess: 'confirmed',
       statusOnFailure: 'cancelled',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     return method.id;
   }
 

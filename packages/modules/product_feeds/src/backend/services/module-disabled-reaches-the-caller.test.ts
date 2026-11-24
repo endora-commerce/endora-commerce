@@ -115,7 +115,7 @@ describe('product_feeds delivery — a switched-off `credentials` reaches the ca
 function taxonomyOver(notifyNotFound: () => Promise<unknown>): TaxonomyRefreshService {
   const em = {
     findOne: async () => ({ id: 'check-1', providerCode: 'google_merchant' }),
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
     getTransactionContext: () => undefined,
     getConnection: () => ({ execute: async () => undefined }),
   } as unknown as EntityManager;

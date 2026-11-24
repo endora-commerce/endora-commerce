@@ -86,7 +86,7 @@ describe('a caller cannot acquire or probe a product they may not see', () => {
         allowedOrganizationIds: fixture.allowedOrganizationIds,
         attributeValues: {},
       });
-      await em.persistAndFlush(product);
+      await em.persist(product).flush();
       await seedBasePriceSql(em, product.id, '10.00');
       ids.set(fixture.sku, product.id);
       await em

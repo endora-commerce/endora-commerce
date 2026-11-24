@@ -71,10 +71,12 @@ function harness(options: { failAccount?: Error; failToken?: Error } = {}): Harn
       steps.push(`create:${entity === Organization ? 'organization' : entity === EmailVerificationToken ? 'token' : 'other'}`);
       return { ...data };
     },
-    persistAndFlush: async (entity: Record<string, unknown>) => {
-      if (options.failToken && 'tokenHash' in entity) throw options.failToken;
-      steps.push('flush');
-    },
+    persist: (entity: Record<string, unknown>) => ({
+      flush: async () => {
+        if (options.failToken && 'tokenHash' in entity) throw options.failToken;
+        steps.push('flush');
+      },
+    }),
     flush: async () => {
       steps.push('flush');
     },

@@ -55,7 +55,7 @@ describe('Customer-group pricing override (US6)', () => {
       attributeValues: {},
       visibility: 'public',
     });
-    await em.persistAndFlush([channel, group, product]);
+    await em.persist([channel, group, product]).flush();
 
     const organization = em.create(Organization, {
       name: 'CG pricing org',
@@ -64,7 +64,7 @@ describe('Customer-group pricing override (US6)', () => {
       status: 'active',
       registeredAddress: { street: 'T 1', city: 'W', postalCode: '00-001', country: 'PL' },
     });
-    await em.persistAndFlush(organization);
+    await em.persist(organization).flush();
     const list = await seedPriceBookSql(em, {
       name: 'VIP book',
       audience: { groups: [group.id] },

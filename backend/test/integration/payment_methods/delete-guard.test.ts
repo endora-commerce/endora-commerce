@@ -36,7 +36,7 @@ describe('Admin payment-methods delete-guard', () => {
       statusOnSuccess: 'confirmed',
       statusOnFailure: 'cancelled',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
 
     const order = em.create(Order, {
       organizationId: randomUUID(),
@@ -55,7 +55,7 @@ describe('Admin payment-methods delete-guard', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
 
     const payment = em.create(Payment, {
       orderId: order.id,
@@ -63,7 +63,7 @@ describe('Admin payment-methods delete-guard', () => {
       amount: '12.30',
       currency: 'PLN',
     });
-    await em.persistAndFlush(payment);
+    await em.persist(payment).flush();
 
     const res = await h.app.inject({
       method: 'DELETE',
@@ -85,7 +85,7 @@ describe('Admin payment-methods delete-guard', () => {
       statusOnSuccess: 'confirmed',
       statusOnFailure: 'cancelled',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
 
     const res = await h.app.inject({
       method: 'DELETE',

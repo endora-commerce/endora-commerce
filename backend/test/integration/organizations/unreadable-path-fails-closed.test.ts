@@ -44,7 +44,7 @@ async function seedOrder(em: EntityManager, orgId: string, customerId: string): 
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
 }
 
 describe('organizations — an unreadable stored path fails closed [real DB]', () => {
@@ -95,7 +95,7 @@ describe('organizations — an unreadable stored path fails closed [real DB]', (
       organizationRoleId: await predefinedRoleIdOf(em, empty.id, 'administrator'),
       subtreeRollupEnabled: true,
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     for (const orgId of [empty.id, malformed.id, neighbour.id, child.id]) {
       await seedOrder(em, orgId, account.id);
     }

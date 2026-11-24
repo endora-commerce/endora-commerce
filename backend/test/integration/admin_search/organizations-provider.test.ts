@@ -59,9 +59,9 @@ describe('admin global search — Organization provider (spec 150, owner Q2)', (
       // #305 — assigned to another representative: out of reach, so neither
       // listed nor found.
       await seed('foreign', { name: `Q2${T} Foreign` });
-      await em.persistAndFlush(
+      await em.persist(
         em.create(OrganizationSalesRepAssignment, { organizationId: ids['foreign']!, adminUserId: OTHER_REP_ID }),
-      );
+      ).flush();
     });
     cleanupSalesRep = await ensureSalesRep(h, [ids['assigned']!], ['customers:read']);
   });

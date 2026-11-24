@@ -68,7 +68,7 @@ describe('POST /admin/organizations/:id/impersonate — the representative’s r
         rolePermissionsBefore = [...role.permissions];
         role.permissions = Array.from(new Set([...role.permissions, ...grants]));
       }
-      await fork.persistAndFlush(role);
+      await fork.persist(role).flush();
       roleId = role.id;
       const org = (label: string): Organization =>
         fork.create(Organization, {
@@ -80,7 +80,7 @@ describe('POST /admin/organizations/:id/impersonate — the representative’s r
         });
       const own = org('own');
       const foreign = org('foreign');
-      await fork.persistAndFlush([own, foreign]);
+      await fork.persist([own, foreign]).flush();
       own.path = `/${own.id}/`;
       foreign.path = `/${foreign.id}/`;
       const member = (label: string, organizationId: string): CustomerAccount =>
@@ -103,11 +103,11 @@ describe('POST /admin/organizations/:id/impersonate — the representative’s r
         });
       const otherRep = admin('other');
       const rep = admin('rep');
-      await fork.persistAndFlush([ownMember, foreignMember, otherRep, rep]);
-      await fork.persistAndFlush([
+      await fork.persist([ownMember, foreignMember, otherRep, rep]).flush();
+      await fork.persist([
         fork.create(OrganizationSalesRepAssignment, { organizationId: foreign.id, adminUserId: otherRep.id }),
         fork.create(OrganizationSalesRepAssignment, { organizationId: own.id, adminUserId: rep.id }),
-      ]);
+      ]).flush();
       adminIds.push(otherRep.id, rep.id);
       ownOrgId = own.id;
       ownMemberId = ownMember.id;

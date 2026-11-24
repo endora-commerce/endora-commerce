@@ -176,7 +176,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
       firstName: 'Jan',
       lastName: 'Kowalski',
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     return account;
   }
 
@@ -192,7 +192,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
         firstName,
         lastName: 'Firmowy',
       });
-      await em.persistAndFlush(account);
+      await em.persist(account).flush();
       return account;
     };
     return { subject: await make('Jan'), colleague: await make('Ewa') };
@@ -217,7 +217,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
       rejectedByActor: by.kind === 'approver' ? `org_admin:${by.approver.id}` : `admin:${OPERATOR_ID}`,
       rejectedReason: reason,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     await cartAudit.record({
       cartId: cart.id,
       actorType: 'customer',

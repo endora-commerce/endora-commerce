@@ -387,13 +387,13 @@ describe('the production composition root boots', () => {
                 country: 'PL',
               },
             });
-          await em.persistAndFlush([
+          await em.persist([
             organization(OWN_ORGANIZATION_ID, 'A'),
             organization(OTHER_ORGANIZATION_ID, 'B'),
-          ]);
+          ]).flush();
           // Feature 154 — both tenants shop on the default store.
           await bindOrganizationsToFixtureChannelsSql(em, [OWN_ORGANIZATION_ID, OTHER_ORGANIZATION_ID]);
-          await em.persistAndFlush(
+          await em.persist(
             em.create(CustomerAccount, {
               id: CUSTOMER_ID,
               organizationId: OWN_ORGANIZATION_ID,
@@ -404,14 +404,14 @@ describe('the production composition root boots', () => {
               organizationRoleId: await predefinedRoleIdOf(em, OWN_ORGANIZATION_ID, 'administrator'),
               emailVerifiedAt: new Date(),
             }),
-          );
+          ).flush();
           const role = em.create(AdminRole, {
             code: `two_sessions_admin_${run.slice(0, 8)}`,
             name: 'Two sessions admin',
             permissions: ['*'],
           });
-          await em.persistAndFlush(role);
-          await em.persistAndFlush(
+          await em.persist(role).flush();
+          await em.persist(
             em.create(AdminUser, {
               id: ADMIN_ID,
               email: `two-sessions-admin-${run}@example.com`,
@@ -421,7 +421,7 @@ describe('the production composition root boots', () => {
               adminRoleId: role.id,
               status: 'active',
             }),
-          );
+          ).flush();
 
           const connection = em.getConnection();
           const client: PgClient = {

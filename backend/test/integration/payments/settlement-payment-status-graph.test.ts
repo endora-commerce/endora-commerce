@@ -43,7 +43,7 @@ async function seed(em: EntityManager, paymentStatus: OrderPaymentStatus, orderS
     statusOnSuccess: 'paid',
     statusOnFailure: 'on_hold',
   });
-  await em.persistAndFlush(method);
+  await em.persist(method).flush();
 
   const order = em.create(Order, {
     organizationId: randomUUID(),
@@ -64,7 +64,7 @@ async function seed(em: EntityManager, paymentStatus: OrderPaymentStatus, orderS
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
 
   const payment = em.create(Payment, {
     orderId: order.id,
@@ -72,7 +72,7 @@ async function seed(em: EntityManager, paymentStatus: OrderPaymentStatus, orderS
     amount: '123.00',
     currency: 'PLN',
   });
-  await em.persistAndFlush(payment);
+  await em.persist(payment).flush();
   return { order, payment };
 }
 

@@ -116,7 +116,7 @@ describe('public asset file (T037)', () => {
     expect(r.headers['cross-origin-resource-policy']).toBe('cross-origin');
     const stored = await h.em().findOneOrFail(Asset, { id });
     expect(Number(stored.sizeBytes)).toBe(TINY_PNG.length);
-    await h.em().removeAndFlush(stored);
+    await h.em().remove(stored).flush();
   });
 
   it('returns 304 on conditional GET when ETag matches', async () => {
@@ -129,7 +129,7 @@ describe('public asset file (T037)', () => {
       headers: { 'if-none-match': etag as string },
     });
     expect(second.statusCode).toBe(304);
-    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
+    await h.em().remove(await h.em().findOneOrFail(Asset, { id })).flush();
   });
 
   // Issue #542: indistinguishable from an id that names nothing.
@@ -146,7 +146,7 @@ describe('public asset file (T037)', () => {
     };
     expect(missing.statusCode).toBe(404);
     expect(withoutRequestId(r.body)).toEqual(withoutRequestId(missing.body));
-    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
+    await h.em().remove(await h.em().findOneOrFail(Asset, { id })).flush();
   });
 
   it('serves a private asset with a valid signed token (200)', async () => {
@@ -170,7 +170,7 @@ describe('public asset file (T037)', () => {
     const path = url.replace(/^https?:\/\/[^/]+/, '');
     const r = await h.app.inject({ method: 'GET', url: path });
     expect(r.statusCode).toBe(200);
-    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
+    await h.em().remove(await h.em().findOneOrFail(Asset, { id })).flush();
   });
 
   it('answers an absolute, unsigned URL for a public asset (D-223)', async () => {
@@ -188,7 +188,7 @@ describe('public asset file (T037)', () => {
     // its own way, and a fourth did not.
     expect(body.url).toBe(`${resolvePublicApiBaseUrl()}/assets/file/${id}`);
     expect(body.expiresAt).toBeNull();
-    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
+    await h.em().remove(await h.em().findOneOrFail(Asset, { id })).flush();
   });
 
   it('serves an uploaded SVG as an image under a policy that runs no script', async () => {
@@ -213,7 +213,7 @@ describe('public asset file (T037)', () => {
       "default-src 'none'; style-src 'unsafe-inline'; sandbox",
     );
     expect(r.headers['x-content-type-options']).toBe('nosniff');
-    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
+    await h.em().remove(await h.em().findOneOrFail(Asset, { id })).flush();
   });
 
   it('refuses an HTML upload with 415 and stores nothing', async () => {

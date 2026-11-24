@@ -47,7 +47,7 @@ export function createCustomerNotificationRecordPort(
       // (research R-19); the producer's own change is what is audited.
       const entry = em.create(CustomerNotification, data);
       try {
-        await em.persistAndFlush(entry);
+        await em.persist(entry).flush();
       } catch (error) {
         // Two producers racing on one source key: the database's unique key
         // decided, so the other one's entry is the answer.

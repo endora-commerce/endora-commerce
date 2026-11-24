@@ -80,7 +80,7 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
       buyerSnapshot: input.buyerSnapshot ?? null,
       status: 'ready',
     });
-    await em.persistAndFlush(invoice);
+    await em.persist(invoice).flush();
     await this.syncAttachments(em, invoice, input.attachments ?? []);
     await em.flush();
     return { invoiceId: invoice.id, created: true };

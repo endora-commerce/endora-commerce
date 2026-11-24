@@ -25,7 +25,7 @@ describe('CMS storefront language fallback (T062)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
   });
 
   afterAll(async () => {

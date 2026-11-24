@@ -201,7 +201,7 @@ describe('organization roles — the upgrade replay (170 WP-13a, WP-13)', () => 
       defaultLanguage: 'pl-PL',
       defaultCurrency: 'PLN',
     });
-    await em.persistAndFlush(extra);
+    await em.persist(extra).flush();
     for (const code of ['pl_retail', 'pl_b2b_vip', 'oracle_extra'] as const) {
       const channel = await em.findOneOrFail(SalesChannel, { code });
       channelIdOf.set(code, channel.id);

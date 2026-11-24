@@ -51,7 +51,7 @@ describe('Distributor API — bound-key channel pinning (062)', () => {
       defaultCurrency: 'PLN',
       active: false,
     });
-    await em.persistAndFlush([partnerChannel, dormantChannel]);
+    await em.persist([partnerChannel, dormantChannel]).flush();
     // Direct writes bypass the CRUD cache invalidation — drop any stale entries.
     await h.salesChannels.cache.invalidate('partner-b');
     await h.salesChannels.cache.invalidate('partner-dormant');

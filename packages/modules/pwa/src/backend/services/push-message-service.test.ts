@@ -23,11 +23,13 @@ function racingEm(state: { lookups: number }) {
     },
     find: async () => [],
     create: (_entity: unknown, data: Record<string, unknown>) => ({ id: 'new', ...data }),
-    persistAndFlush: async () => {
-      throw new UniqueConstraintViolationException(
-        new Error('duplicate key value violates unique constraint "push_messages_trigger_event_uniq"'),
-      );
-    },
+    persist: () => ({
+      flush: async () => {
+        throw new UniqueConstraintViolationException(
+          new Error('duplicate key value violates unique constraint "push_messages_trigger_event_uniq"'),
+        );
+      },
+    }),
   };
 }
 

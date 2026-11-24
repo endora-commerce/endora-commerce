@@ -97,7 +97,7 @@ describe("a listing page reads its cards' assets and categories once, for the vi
       allowedOrganizationIds: [],
       attributeValues: {},
     });
-    await em.persistAndFlush(offChannel);
+    await em.persist(offChannel).flush();
     offChannelProductId = offChannel.id;
   }, 120_000);
 

@@ -111,7 +111,7 @@ export class FeedRunService {
       triggeredByAdminUserId: input.triggeredByAdminUserId,
       status: 'queued',
     });
-    await em.persistAndFlush(run);
+    await em.persist(run).flush();
     return run;
   }
 

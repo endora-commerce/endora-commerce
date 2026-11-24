@@ -100,7 +100,7 @@ describe('LanguageService — extended invariants', () => {
         label: 'German (Germany)',
         nativeLabel: 'Deutsch (Deutschland)',
       });
-      await em.persistAndFlush(de);
+      await em.persist(de).flush();
 
       // Set en-US.fallback_code = de-DE (no cycle yet).
       await service.update('en-US', { fallbackCode: 'de-DE' });
@@ -123,7 +123,7 @@ describe('LanguageService — extended invariants', () => {
         label: 'German (Austria)',
         nativeLabel: 'Österreichisches Deutsch',
       });
-      await em.persistAndFlush([de, deAt]);
+      await em.persist([de, deAt]).flush();
 
       // de-AT → de-DE — valid chain.
       const updated = await service.update('de-AT', { fallbackCode: 'de-DE' });

@@ -49,7 +49,7 @@ describe('Dictionary translations — cascade on language delete', () => {
     );
     await em.flush();
 
-    await em.removeAndFlush(language);
+    await em.remove(language).flush();
 
     const rows = await em.execute<Array<{ count: string }>>(
       `select count(*)::text as count

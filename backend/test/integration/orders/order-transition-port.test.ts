@@ -45,7 +45,7 @@ async function seedOrder(em: EntityManager): Promise<Order> {
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   return order;
 }
 

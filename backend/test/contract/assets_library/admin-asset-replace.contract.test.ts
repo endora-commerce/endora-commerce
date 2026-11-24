@@ -326,7 +326,7 @@ describe('POST /api/v1/admin/assets/:id/replace (feature 156)', () => {
       storageBackend: 'legacy',
       visibility: 'public',
     });
-    await em.persistAndFlush(legacy);
+    await em.persist(legacy).flush();
     created.push(legacy.id);
     const res = await replaceAsset(h, legacy.id, {
       filename: `${runName()}.pdf`,
@@ -382,7 +382,7 @@ describe('POST /api/v1/admin/assets/:id/replace (feature 156)', () => {
       storageBackend: 'legacy',
       visibility: 'public',
     });
-    await em.persistAndFlush(legacy);
+    await em.persist(legacy).flush();
     created.push(legacy.id);
     expect((await detail(legacy.id)).replaceable).toBe(false);
   });

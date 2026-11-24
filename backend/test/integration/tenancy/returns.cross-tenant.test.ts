@@ -44,7 +44,7 @@ describe('Returns — cross-tenant scoping (feature 050 US1)', () => {
           if (!role.permissions.includes(p)) role.permissions = [...role.permissions, p];
         }
       }
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
 
       const rep = em.create(AdminUser, {
         email: `sales-rep-050-ret-${Date.now()}@r.local`,
@@ -53,13 +53,13 @@ describe('Returns — cross-tenant scoping (feature 050 US1)', () => {
         firstName: '050',
         lastName: 'Rep',
       });
-      await em.persistAndFlush(rep);
-      await em.persistAndFlush([
+      await em.persist(rep).flush();
+      await em.persist([
         em.create(OrganizationSalesRepAssignment, { organizationId: orgAId, adminUserId: rep.id }),
         // #305 — Org B is another representative's: an unassigned organization
         // is in every representative's reach.
         em.create(OrganizationSalesRepAssignment, { organizationId: orgBId, adminUserId: OTHER_REP_ID }),
-      ]);
+      ]).flush();
 
       repCookie = `stub-sales-rep-050-ret-${Date.now()}`;
       ADMIN_COOKIES[repCookie] = { adminUserId: rep.id };
@@ -75,7 +75,7 @@ describe('Returns — cross-tenant scoping (feature 050 US1)', () => {
         customerAccountId: randomUUID(), organizationId: orgBId, statusCode: 'requested',
         currency: 'PLN', submittedAt: new Date(),
       });
-      await em2.persistAndFlush([rcA, rcB]);
+      await em2.persist([rcA, rcB]).flush();
       returnAId = rcA.id;
       returnBId = rcB.id;
     });

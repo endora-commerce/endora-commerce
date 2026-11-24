@@ -43,14 +43,14 @@ describe('credit_limit_reservations.order_id foreign key (D-94.1)', () => {
       vatStatus: 'vat_payer',
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     organizationId = org.id;
     const limit = em.create(CreditLimit, {
       organizationId: org.id,
       grantedAmount: '1000.00',
       currency: 'PLN',
     });
-    await em.persistAndFlush(limit);
+    await em.persist(limit).flush();
     creditLimitId = limit.id;
   });
   afterAll(async () => {

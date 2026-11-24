@@ -101,7 +101,7 @@ describe('D-260/A — the same refusal at the flush boundary, in an explicit sco
     const id = await runWithTenantContext(scopedToOrgA, async () => {
       const em = h.orm.em.fork();
       const row = em.create(Address, addressFor(TEST_ORGANIZATION_ID));
-      await em.persistAndFlush(row);
+      await em.persist(row).flush();
       return row.id;
     });
     expect(await storedOrganizationOf(id)).toBe(TEST_ORGANIZATION_ID);
@@ -111,7 +111,7 @@ describe('D-260/A — the same refusal at the flush boundary, in an explicit sco
     const id = await runWithTenantContext(scopedToOrgA, async () => {
       const em = h.orm.em.fork();
       const row = em.create(Address, addressFor(TEST_ORGANIZATION_ID));
-      await em.persistAndFlush(row);
+      await em.persist(row).flush();
       return row.id;
     });
 
@@ -130,7 +130,7 @@ describe('D-260/A — the same refusal at the flush boundary, in an explicit sco
     const id = await withSystemScope('D-260/A: the sanctioned cross-organization write', async () => {
       const em = h.orm.em.fork();
       const row = em.create(Address, addressFor(OTHER_TEST_ORGANIZATION_ID));
-      await em.persistAndFlush(row);
+      await em.persist(row).flush();
       return row.id;
     });
     expect(await storedOrganizationOf(id)).toBe(OTHER_TEST_ORGANIZATION_ID);

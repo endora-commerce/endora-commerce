@@ -82,7 +82,7 @@ function fakeEm(handlers: Record<string, unknown>): () => EntityManager {
     find: async (entity: { name?: string }) => dispatch(entity, []),
     count: async () => 0,
     create: (_entity: unknown, data: Record<string, unknown>) => ({ id: 'row-1', ...data }),
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
     flush: async () => undefined,
   };
   return () => em as unknown as EntityManager;

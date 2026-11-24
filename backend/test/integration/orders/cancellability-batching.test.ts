@@ -69,7 +69,7 @@ describe('the buyer order list resolves cancellability in a constant number of r
       statusOnSuccess: 'paid',
       statusOnFailure: 'on_hold',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     return method;
   }
 

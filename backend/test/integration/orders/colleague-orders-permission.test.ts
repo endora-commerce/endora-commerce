@@ -48,7 +48,7 @@ async function makeRootOrg(em: EntityManager, name: string): Promise<Organizatio
     vatStatus: 'vat_payer',
     registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
   });
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   await bindOrganizationsToFixtureChannelsSql(em, [org.id]);
   org.path = `/${org.id}/`;
   await em.flush();
@@ -70,7 +70,7 @@ async function makeAccount(
     subtreeRollupEnabled: options.rollup ?? false,
     emailVerifiedAt: new Date(),
   });
-  await em.persistAndFlush(account);
+  await em.persist(account).flush();
   return account.id;
 }
 
@@ -98,8 +98,8 @@ async function seedOrderWithLine(
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
-  await em.persistAndFlush(
+  await em.persist(order).flush();
+  await em.persist(
     em.create(OrderItem, {
       orderId: order.id,
       productId: SEED_PRODUCT_101_ID,
@@ -109,7 +109,7 @@ async function seedOrderWithLine(
       taxRate: '0.0000',
       lineTotal: '20.00',
     }),
-  );
+  ).flush();
   return order.id;
 }
 

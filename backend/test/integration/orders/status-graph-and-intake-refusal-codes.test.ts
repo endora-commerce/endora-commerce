@@ -245,7 +245,7 @@ describe('orders status-graph and intake refusals carry their own code and sente
         currency: 'PLN',
         placedAt: new Date(),
       });
-      await em.persistAndFlush(order);
+      await em.persist(order).flush();
       created.orders.push(order.id);
 
       const error = refusal(await adminCall('DELETE', `/api/v1/admin/orders/statuses/${code}`), 409, 'ORDER_STATUS_IN_USE');
@@ -271,7 +271,7 @@ describe('orders status-graph and intake refusals carry their own code and sente
         defaultCurrency: 'PLN',
         active: true,
       });
-      await em.persistAndFlush(channel);
+      await em.persist(channel).flush();
       await h.salesChannels.cache.invalidate(channelCode);
       await addOrganizationChannels(h, TEST_ORGANIZATION_ID, [channelCode]);
       await em

@@ -102,7 +102,7 @@ describe('boot-time default-channel reconciliation (T021)', () => {
         systemDefault: false,
         version: 1,
       });
-      await em.persistAndFlush([a, def]);
+      await em.persist([a, def]).flush();
 
       const reconciler = new DefaultChannelReconciler(() => em);
       const result = await reconciler.run();
@@ -132,7 +132,7 @@ describe('boot-time default-channel reconciliation (T021)', () => {
         systemDefault: true,
         version: 5,
       });
-      await em.persistAndFlush(def);
+      await em.persist(def).flush();
 
       const reconciler = new DefaultChannelReconciler(() => em);
       const result = await reconciler.run();

@@ -121,7 +121,7 @@ describe('public catalog reads honour visibility and the organisation allow-list
         allowedOrganizationIds: fixture.allowedOrganizationIds,
         attributeValues: { defaultPrice: 10 },
       });
-      await em.persistAndFlush(product);
+      await em.persist(product).flush();
       await em
         .getConnection()
         .execute(

@@ -39,7 +39,7 @@ function ownEntitiesOnly(): () => EntityManager {
   };
   const tx = {
     create,
-    persistAndFlush: async () => {},
+    persist: () => ({ flush: async () => {} }),
     flush: async () => {},
   };
   const em = {

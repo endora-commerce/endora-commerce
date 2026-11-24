@@ -36,7 +36,7 @@ describe('sales-channel cache coherence on deactivation (feature 053 / FR-008)',
       systemDefault: false,
       version: 1,
     });
-    await em.persistAndFlush(ch);
+    await em.persist(ch).flush();
   });
 
   afterAll(async () => {

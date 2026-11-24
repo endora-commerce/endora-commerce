@@ -60,7 +60,7 @@ describe('returns — consumer withdrawal: classification and recorded consent (
       isPersonal: true,
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     } as never);
-    await em.persistAndFlush(personal);
+    await em.persist(personal).flush();
     await bindOrganizationsToFixtureChannelsSql(em, [personalId]);
     (personal as { path: string }).path = `/${personalId}/`;
     await em.flush();
@@ -74,7 +74,7 @@ describe('returns — consumer withdrawal: classification and recorded consent (
       name: 'Returns reader (#905)',
       permissions: ['returns:read'],
     } as never);
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     const reader = em.create(AdminUser, {
       id: randomUUID(),
       email: `returns-reader-905-${randomUUID().slice(0, 8)}@example.com`,
@@ -84,7 +84,7 @@ describe('returns — consumer withdrawal: classification and recorded consent (
       adminRoleId: (role as { id: string }).id,
       status: 'active',
     } as never);
-    await em.persistAndFlush(reader);
+    await em.persist(reader).flush();
     ADMIN_COOKIES[READER_COOKIE] = { adminUserId: (reader as { id: string }).id };
     // The refusal sentences are asserted in both languages, so the bundle the
     // envelope reads them from has to be installed (the settle-refund precedent).

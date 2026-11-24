@@ -68,7 +68,7 @@ describe('admin Organization sales channels', () => {
         name: `orgsc ${label}`,
         permissions: [...permissions],
       });
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       const account = em.create(AdminUser, {
         email: `orgsc-${label}-${stamp}@example.test`,
         passwordHash: 'x'.repeat(60),
@@ -76,7 +76,7 @@ describe('admin Organization sales channels', () => {
         lastName: label,
         adminRoleId: role.id,
       });
-      await em.persistAndFlush(account);
+      await em.persist(account).flush();
       return account.id;
     }
     ADMIN_COOKIES[READER] = { adminUserId: await admin('reader', ['customers:read']) };
@@ -96,7 +96,7 @@ describe('admin Organization sales channels', () => {
     const a = make(`orgsc-a-${stamp}`);
     const b = make(`orgsc-b-${stamp}`);
     const inactive = make(`orgsc-off-${stamp}`, false);
-    await em.persistAndFlush([a, b, inactive]);
+    await em.persist([a, b, inactive]).flush();
     channelA = a.id;
     channelB = b.id;
     inactiveId = inactive.id;
@@ -109,7 +109,7 @@ describe('admin Organization sales channels', () => {
       vatStatus: 'vat_payer',
       registeredAddress: { street: 'ul. Kanałowa 1', city: 'Warszawa', postalCode: '00-154', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     orgId = org.id;
     await assignOrganizationChannels(h, orgId, [a.code]);
   });
@@ -173,7 +173,7 @@ describe('admin Organization sales channels', () => {
         registeredAddress: { street: 'x', city: 'y', postalCode: '00-000', country: 'PL' },
         deletedAt: new Date(),
       });
-      await em.persistAndFlush(gone);
+      await em.persist(gone).flush();
       expect((await put(gone.id, [channelA])).statusCode).toBe(404);
     });
 

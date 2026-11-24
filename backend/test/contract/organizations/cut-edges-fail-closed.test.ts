@@ -50,7 +50,7 @@ describe('organizations — the cut edges fail closed (feature 075, Phase C)', (
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     orgId = org.id;
   });
 

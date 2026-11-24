@@ -47,7 +47,7 @@ describe('the notify-when-available guest path, with the anonymous actor resolve
       visibility: 'public',
       attributeValues: { defaultPrice: 10 },
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
     productId = product.id;
 
     // `subscribe` narrows against the request's channel (issue #259), so the

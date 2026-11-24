@@ -41,8 +41,8 @@ describe('cart merge on login keeps a summed line at the bound (integration)', (
       status: 'active',
       salesChannelId: await systemDefaultSalesChannelId(em),
     });
-    await em.persistAndFlush(custCart);
-    await em.persistAndFlush(
+    await em.persist(custCart).flush();
+    await em.persist(
       em.create(CartItem, {
         cartId: custCart.id,
         productId: SEED_PRODUCT_101_ID,
@@ -50,7 +50,7 @@ describe('cart merge on login keeps a summed line at the bound (integration)', (
         unitPrice: '19.99',
         currency: 'PLN',
       }),
-    );
+    ).flush();
 
     const anonToken = `anon-351-login-${Date.now()}`;
     const added = await h.app.inject({

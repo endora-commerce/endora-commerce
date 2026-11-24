@@ -2672,7 +2672,7 @@ export class OrderService {
           ? { customFieldValues: { ...(carry?.values ?? {}), ...options.customFieldValues } }
           : {}),
       });
-      await tx.persistAndFlush(order);
+      await tx.persist(order).flush();
 
       // Feature 162 (FR-010a) — what could not be carried, as one internal,
       // author-less, non-notifying note in this transaction.
@@ -2799,7 +2799,7 @@ export class OrderService {
           lineTotal: lineMoney.gross,
         });
       });
-      await tx.persistAndFlush(orderItems);
+      await tx.persist(orderItems).flush();
 
       // US7 / T079 — persist one stock_allocations row per
       // (orderItem, warehouse) pair from the plan `inventory` returned, so
@@ -2808,7 +2808,7 @@ export class OrderService {
       // plan emits multiple allocations (only the `default_first` strategy
       // does this today).
       //
-      // After `persistAndFlush(orderItems)` and required to be:
+      // After `persist(orderItems).flush()` and required to be:
       // `stock_allocations_order_item_fk` (`on delete restrict`) means this
       // row cannot exist before its order item does. See the import.
       // `allocationPlan` is empty when `inventory` is not effectively present,

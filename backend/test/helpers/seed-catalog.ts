@@ -85,14 +85,14 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
     defaultLanguage: 'pl-PL',
     defaultCurrency: 'PLN',
   });
-  await em.persistAndFlush([retail, b2bVip]);
+  await em.persist([retail, b2bVip]).flush();
 
   // --- Categories --------------------------------------------------------
   const root = em.create(Category, {
     name: { 'en-US': 'Widgets', 'pl-PL': 'Widżety' },
     slug: 'widgets',
   });
-  await em.persistAndFlush(root);
+  await em.persist(root).flush();
   const childA = em.create(Category, {
     parentCategoryId: root.id,
     name: { 'en-US': 'Small widgets', 'pl-PL': 'Małe widżety' },
@@ -103,7 +103,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
     name: { 'en-US': 'Large widgets', 'pl-PL': 'Duże widżety' },
     slug: 'large-widgets',
   });
-  await em.persistAndFlush([childA, childB]);
+  await em.persist([childA, childB]).flush();
 
   // --- Attributes --------------------------------------------------------
   // Feature 061 — each fixture creates the product-host Custom Field
@@ -149,7 +149,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   // validation accepts these keys for the seeded Products. Membership is
   // definition-keyed since feature 061.
   const DEFAULT_ATTRIBUTE_SET_ID = 'defa0017-0000-4000-8000-000000000000';
-  await em.persistAndFlush(
+  await em.persist(
     [color, internalNotes, material, certification].map((attr, idx) =>
       em.create(AttributeSetAttribute, {
         attributeSetId: DEFAULT_ATTRIBUTE_SET_ID,
@@ -157,7 +157,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
         position: idx,
       }),
     ),
-  );
+  ).flush();
 
   // --- Products ----------------------------------------------------------
   const exampleSimple = em.create(Product, {
@@ -200,7 +200,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
     visibility: 'public',
     attributeValues: { color: 'green', material: 'plastic' },
   });
-  await em.persistAndFlush([exampleSimple, exampleB, exampleC]);
+  await em.persist([exampleSimple, exampleB, exampleC]).flush();
   // Feature 160 — the seed products' base prices, in the PLN base book. A
   // product has no price of its own any more (FR-042); these are the figures
   // the seed always priced them at, so every suite built on it keeps its prices.

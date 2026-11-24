@@ -50,7 +50,7 @@ describe('price books — a listing page costs a constant number of statements',
         attributeValues: { color: i % 2 === 0 ? 'red' : 'blue' },
       }),
     );
-    await em.persistAndFlush(page);
+    await em.persist(page).flush();
     for (const product of page) {
       await f.setBase(product, { product: [{ minQuantity: 1, maxQuantity: null, amount: '10' }], variants: {} });
     }

@@ -54,7 +54,7 @@ co-transactional audit entry and derive the actor from the ambient `TenantContex
 - **`recordAuditFromContext(auditLog, em, input)`** — the lightweight companion
   (`packages/platform/src/commands/audit-from-context.ts`). It records the audit entry on an
   `em` the caller already owns, committed by the caller's existing `flush()`. Use it
-  when a write already runs inside its own transaction or `persistAndFlush(...)` and
+  when a write already runs inside its own transaction or `persist(...).flush()` and
   cannot be wrapped in the bus's transaction without restructuring. The actor is
   best-effort here: with no ambient context (e.g. a worker path that opened none) it
   records null actor ids rather than throwing, so background writes still audit.

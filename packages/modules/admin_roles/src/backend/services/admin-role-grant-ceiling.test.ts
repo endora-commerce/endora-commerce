@@ -45,9 +45,11 @@ function serviceOver(existing: StoredRole | null): {
       row = { id: 'new-role', ...data };
       return row;
     },
-    persistAndFlush: async () => {
-      flushes += 1;
-    },
+    persist: () => ({
+      flush: async () => {
+        flushes += 1;
+      },
+    }),
     flush: async () => {
       flushes += 1;
     },

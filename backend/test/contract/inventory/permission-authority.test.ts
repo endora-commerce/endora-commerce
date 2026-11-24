@@ -85,7 +85,7 @@ describe('inventory permission authority', () => {
   ): Promise<string> {
     const em = h.em();
     const role = em.create(AdminRole, { code, name, permissions: [...permissions] });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     return role.id;
   }
 
@@ -151,7 +151,7 @@ describe('inventory permission authority', () => {
     const em = h.em();
     const code = `auth_${randomUUID().slice(0, 8)}`;
     const warehouse = em.create(Warehouse, { name: 'Authority warehouse', code, active: true });
-    await em.persistAndFlush(warehouse);
+    await em.persist(warehouse).flush();
     return { id: warehouse.id, code };
   }
 
@@ -165,7 +165,7 @@ describe('inventory permission authority', () => {
       currencies: ['PLN'],
       defaultCurrency: 'PLN',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     return channel.id;
   }
 

@@ -100,7 +100,7 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
         rolePermissionsBefore = [...role.permissions];
         role.permissions = Array.from(new Set([...role.permissions, ...grants]));
       }
-      await fork.persistAndFlush(role);
+      await fork.persist(role).flush();
       roleId = role.id;
       const org = (label: string, parent?: Organization, status = 'active'): Organization => {
         const id = randomUUID();
@@ -117,15 +117,15 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
         });
       };
       const own = org('own');
-      await fork.persistAndFlush(own);
+      await fork.persist(own).flush();
       const child = org('child', own);
-      await fork.persistAndFlush(child);
+      await fork.persist(child).flush();
       const foreign = org('foreign');
-      await fork.persistAndFlush(foreign);
+      await fork.persist(foreign).flush();
       const unassigned = org('unassigned');
-      await fork.persistAndFlush(unassigned);
+      await fork.persist(unassigned).flush();
       const pending = org('pending', undefined, 'pending_verification');
-      await fork.persistAndFlush(pending);
+      await fork.persist(pending).flush();
       const otherRep = fork.create(AdminUser, {
         email: `org-698-other-rep-${stamp}@scope.local`,
         passwordHash: 'x'.repeat(60),
@@ -133,14 +133,14 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
         firstName: '698',
         lastName: 'Other',
       });
-      await fork.persistAndFlush(otherRep);
+      await fork.persist(otherRep).flush();
       OTHER_REP_ID.value = otherRep.id;
       // The seeded Organization is the member routes' foreign one: another
       // representative's, so its real member is refused for the Organization.
-      await fork.persistAndFlush([
+      await fork.persist([
         fork.create(OrganizationSalesRepAssignment, { organizationId: foreign.id, adminUserId: otherRep.id }),
         fork.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: otherRep.id }),
-      ]);
+      ]).flush();
       const rep = fork.create(AdminUser, {
         email: `org-698-rep-${stamp}@scope.local`,
         passwordHash: 'x'.repeat(60),
@@ -148,10 +148,10 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
         firstName: '698',
         lastName: 'Rep',
       });
-      await fork.persistAndFlush(rep);
-      await fork.persistAndFlush(
+      await fork.persist(rep).flush();
+      await fork.persist(
         fork.create(OrganizationSalesRepAssignment, { organizationId: own.id, adminUserId: rep.id }),
-      );
+      ).flush();
       ownOrgId = own.id;
       childOrgId = child.id;
       foreignOrgId = foreign.id;

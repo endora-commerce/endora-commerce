@@ -67,8 +67,8 @@ async function seedPlacedOrder(
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
-  await em.persistAndFlush(
+  await em.persist(order).flush();
+  await em.persist(
     lines.map((l, i) =>
       em.create(OrderItem, {
         orderId: order.id,
@@ -81,7 +81,7 @@ async function seedPlacedOrder(
         lineTotal: l.lineTotal,
       }),
     ),
-  );
+  ).flush();
   return order.id;
 }
 

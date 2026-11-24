@@ -65,7 +65,7 @@ describe('blog URL-prefix validation through the Settings API (feature 171, T011
       status: 'active',
       prefixDefaultLanguage: true,
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     channel = { id: created.id, code: created.code };
 
     const page = await h.app.inject({

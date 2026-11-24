@@ -839,7 +839,7 @@ export class SettingsAdminService {
       });
       for (const c of channels) group.salesChannels.add(c);
     }
-    await em.persistAndFlush(group);
+    await em.persist(group).flush();
 
     if (this.auditLogService) {
       await this.auditLogService.record({

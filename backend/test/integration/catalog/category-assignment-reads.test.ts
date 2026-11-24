@@ -56,7 +56,7 @@ describe('catalog — the category assignment reads its neighbours read [integra
       sortOrder: 0,
       isActive: true,
     });
-    await em.persistAndFlush([parent, child]);
+    await em.persist([parent, child]).flush();
     child.parentCategoryId = parent.id;
     await em.flush();
     parentId = parent.id;
@@ -97,7 +97,7 @@ describe('catalog — the category assignment reads its neighbours read [integra
       visibility: 'public',
       attributeSetId,
     });
-    await em.persistAndFlush([live, deleted, inChild]);
+    await em.persist([live, deleted, inChild]).flush();
     liveProductId = live.id;
     deletedProductId = deleted.id;
 

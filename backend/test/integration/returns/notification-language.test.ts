@@ -53,7 +53,7 @@ describe('returns — the notification language comes from the case’s channel'
       defaultCurrency: 'PLN',
       currencies: ['PLN'],
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     polishChannelId = channel.id;
   });
   afterAll(async () => {

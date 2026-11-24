@@ -69,7 +69,7 @@ describe('invoices — the six ways this module reaches outside itself', () => {
       defaultCurrency: 'PLN',
       currencies: ['PLN'],
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     const audit = { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
     await h.settings.adminService.setValueForSubset(
       'invoices.numbering.invoice.pattern',

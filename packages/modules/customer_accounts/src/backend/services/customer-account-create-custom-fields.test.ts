@@ -32,7 +32,7 @@ function harness() {
         ...data,
       });
     },
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
     transactional: async <T>(fn: (inner: EntityManager) => Promise<T>): Promise<T> => fn(em),
     fork: () => em,
   } as unknown as EntityManager;

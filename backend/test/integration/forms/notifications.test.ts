@@ -223,7 +223,7 @@ describe('forms — e-mail notifications (US5)', () => {
       });
     const en = make('en', 'en-US');
     const pl = make('pl', 'pl-PL');
-    await em.persistAndFlush([en, pl]);
+    await em.persist([en, pl]).flush();
     english = { id: en.id, code: en.code };
     polish = { id: pl.id, code: pl.code };
     channels.push(en.id, pl.id);

@@ -197,7 +197,7 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
       placedAt: new Date(),
       sourceQuoteRequestId: quoteRequestId,
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     return { quoteRequestId, orderId: order.id };
   }
 
@@ -500,7 +500,7 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
           vatStatus: 'vat_payer',
           registeredAddress: { street: 'ul. Testowa 1', city: 'Warszawa', postalCode: '00-100', country: 'PL' },
         });
-        await em.persistAndFlush(org);
+        await em.persist(org).flush();
         const account = em.create(CustomerAccount, {
           organizationId: org.id,
           email: `146-off-${stamp}@off.local`,
@@ -508,7 +508,7 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
           firstName: '146',
           lastName: 'off',
         });
-        await em.persistAndFlush(account);
+        await em.persist(account).flush();
         organizationId = org.id;
         // Feature 154 — the tenant shops on the stores the harness seeds.
         await bindOrganizationsToFixtureChannelsSql(em, [org.id]);

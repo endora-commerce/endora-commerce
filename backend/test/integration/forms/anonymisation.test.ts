@@ -76,7 +76,7 @@ describe('forms — erasure of an anonymised customer account (FR-047)', () => {
       emailVerifiedAt: new Date(),
       deletedAt: due ? new Date(Date.now() - 3 * YEAR) : null,
     } as never);
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     accounts.push(row.id);
     return { id: row.id, email };
   }
@@ -215,7 +215,7 @@ describe('forms — erasure of an anonymised customer account (FR-047)', () => {
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
       deletedAt: scrubbedAt,
     } as never);
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     const row = em.create(CustomerAccount, {
       id,
       organizationId: org.id,
@@ -226,7 +226,7 @@ describe('forms — erasure of an anonymised customer account (FR-047)', () => {
       deletedAt: scrubbedAt,
       anonymizedAt: scrubbedAt,
     } as never);
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     accounts.push(id);
     // An entry still attributed to it: the subscriber would erase it if the
     // finish announced the account again. (The maintenance tick reconciles it;

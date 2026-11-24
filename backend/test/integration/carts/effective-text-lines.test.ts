@@ -92,7 +92,7 @@ describe('174 — basket texts at the basket (channel, language) [integration]',
       },
     ]);
     const link = em.create(ProductLink, { sourceProductId: source.id, targetProductId: drill.id, kind: 'up_sell' });
-    await em.persistAndFlush(link);
+    await em.persist(link).flush();
     linkIds.push(link.id);
   });
 

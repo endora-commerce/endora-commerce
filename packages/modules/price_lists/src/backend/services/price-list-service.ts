@@ -157,7 +157,7 @@ export class PriceListService {
     const change = this.overrideSurfaceChange(scope, targetId);
     if (mode === 'inherit') {
       if (existing) {
-        await em.removeAndFlush(existing);
+        await em.remove(existing).flush();
         await this.invalidatePricingCache(change);
       }
       return null;
@@ -170,7 +170,7 @@ export class PriceListService {
       return existing;
     }
     const row = em.create(PriceDisplayModeOverride, { scope, targetId, mode });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     await this.invalidatePricingCache(change);
     return row;
   }

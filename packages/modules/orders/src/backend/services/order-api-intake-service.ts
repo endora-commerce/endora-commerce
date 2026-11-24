@@ -164,7 +164,7 @@ export class OrderApiIntakeService {
           payloadFingerprint: fingerprint,
           status: 'pending',
         });
-        await em.persistAndFlush(intent);
+        await em.persist(intent).flush();
       } else {
         intent.status = 'pending';
         intent.lastError = null;

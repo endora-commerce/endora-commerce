@@ -95,7 +95,7 @@ describe('organization.register — audit state (176 T005, D-288, O-2)', () => {
       findOne: async (entity: unknown) => (entity === OrganizationRole ? { id: ADMIN_ROLE } : null),
       execute: async () => [],
       create: (_entity: unknown, data: Record<string, unknown>) => ({ ...data }),
-      persistAndFlush: async () => {},
+      persist: () => ({ flush: async () => {} }),
       flush: async () => {},
     };
     em['transactional'] = async <T>(fn: (inner: EntityManager) => Promise<T>): Promise<T> => fn(em as never);

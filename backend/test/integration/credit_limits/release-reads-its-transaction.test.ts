@@ -63,7 +63,7 @@ async function seedOrder(em: EntityManager, organizationId: string): Promise<str
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   return order.id;
 }
 
@@ -84,14 +84,14 @@ describe('credit-limit release reads its own transaction (issue #207)', () => {
       vatStatus: 'vat_payer',
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     organizationId = org.id;
     const limit = em.create(CreditLimit, {
       organizationId,
       grantedAmount: '1000.00',
       currency: 'PLN',
     });
-    await em.persistAndFlush(limit);
+    await em.persist(limit).flush();
     creditLimitId = limit.id;
   });
 
@@ -110,7 +110,7 @@ describe('credit-limit release reads its own transaction (issue #207)', () => {
       currency: 'PLN',
       status: 'active',
     });
-    await em.persistAndFlush(reservation);
+    await em.persist(reservation).flush();
 
     const result = await service.releaseByOrder({ orderId, reason: 'order_cancelled' });
 

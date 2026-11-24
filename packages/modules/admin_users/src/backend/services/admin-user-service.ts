@@ -476,7 +476,7 @@ export class AdminUserService {
     });
     this.#audit(em, 'admin_user.create', user.id, null, { email: user.email });
     try {
-      await em.persistAndFlush(user);
+      await em.persist(user).flush();
     } catch (err) {
       if (err instanceof UniqueConstraintViolationException) {
         throw new HttpError(

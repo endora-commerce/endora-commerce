@@ -121,7 +121,7 @@ export class NewsletterAutomationService {
     if (input.steps !== undefined) a.steps = input.steps as unknown as Array<Record<string, unknown>>;
     a.version += 1;
     this.#audit(em, 'newsletter_automation.update', a.id, { name: a.name });
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
     return this.toDetail(a);
   }
 
@@ -155,7 +155,7 @@ export class NewsletterAutomationService {
     a.status = 'active';
     a.version += 1;
     this.#audit(em, 'newsletter_automation.activate', a.id, { status: 'active' });
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
     return this.toDetail(a);
   }
 
@@ -168,7 +168,7 @@ export class NewsletterAutomationService {
     a.status = 'paused';
     a.version += 1;
     this.#audit(em, 'newsletter_automation.pause', a.id, { status: 'paused' });
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
     return this.toDetail(a);
   }
 
@@ -214,7 +214,7 @@ export class NewsletterAutomationService {
       run.status = 'cancelled';
       run.nextStepAt = null;
       run.nextStepJobId = null;
-      await em.persistAndFlush(run);
+      await em.persist(run).flush();
       return;
     }
 
@@ -223,7 +223,7 @@ export class NewsletterAutomationService {
     const step = steps[stepIndex];
     if (!step) {
       run.status = 'completed';
-      await em.persistAndFlush(run);
+      await em.persist(run).flush();
       return;
     }
 
@@ -238,12 +238,12 @@ export class NewsletterAutomationService {
       run.status = 'completed';
       run.nextStepAt = null;
       run.nextStepJobId = null;
-      await em.persistAndFlush(run);
+      await em.persist(run).flush();
       return;
     }
     const delayMs = step.type === 'wait' ? step.days * DAY_MS : 0;
     run.nextStepAt = new Date(Date.now() + delayMs);
-    await em.persistAndFlush(run);
+    await em.persist(run).flush();
     await this.deps.enqueueStep(runId, nextIndex, delayMs);
   }
 
@@ -333,7 +333,7 @@ export class NewsletterAutomationService {
       record.status = 'failed';
       record.error = err instanceof Error ? err.message : String(err);
     }
-    await em.persistAndFlush(record);
+    await em.persist(record).flush();
   }
 
   private async load(em: EntityManager, id: string): Promise<NewsletterAutomation> {

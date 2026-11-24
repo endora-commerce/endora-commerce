@@ -82,7 +82,7 @@ describe('a buyer cancels their own order (085 Phase F)', () => {
       statusOnSuccess: 'paid',
       statusOnFailure,
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     return method;
   }
 

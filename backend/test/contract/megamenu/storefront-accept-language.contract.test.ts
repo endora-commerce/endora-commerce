@@ -67,7 +67,7 @@ describe('Megamenu language from Accept-Language (issue #1011)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     await activeMenu('en-US', 'Phone');
     await activeMenu('pl-PL', 'Telefon');
   });

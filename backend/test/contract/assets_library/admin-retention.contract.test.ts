@@ -32,7 +32,7 @@ describe('asset retention setting (#322)', () => {
     // Children first; recursive deletion normally already removed these rows.
     for (const id of folderIds.reverse()) {
       const folder = await em.findOne(AssetFolder, { id });
-      if (folder) await em.removeAndFlush(folder);
+      if (folder) await em.remove(folder).flush();
     }
     assetIds.length = 0;
     folderIds.length = 0;
@@ -62,7 +62,7 @@ describe('asset retention setting (#322)', () => {
       storageLocator: 'https://example.test/retention.png',
       storageBackend: 'legacy', visibility: 'public', folderId,
     });
-    await em.persistAndFlush(asset);
+    await em.persist(asset).flush();
     assetIds.push(asset.id);
     return asset;
   }
@@ -70,7 +70,7 @@ describe('asset retention setting (#322)', () => {
   async function createFolder(parentId: string | null) {
     const em = h.em();
     const folder = em.create(AssetFolder, { name: `retention-${folderIds.length}`, parentId });
-    await em.persistAndFlush(folder);
+    await em.persist(folder).flush();
     folderIds.push(folder.id);
     return folder;
   }

@@ -25,7 +25,7 @@ export class AuditLogService implements AuditPort {
   async record(input: RecordAuditInput): Promise<AuditLogEntry> {
     const em = this.emFactory();
     const entry = this.build(em, input);
-    await em.persistAndFlush(entry);
+    await em.persist(entry).flush();
     return entry;
   }
 

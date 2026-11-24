@@ -224,8 +224,8 @@ describe('order placement honours the Organization method allow-lists', () => {
       // The basket of the channel buyer B places on — the system default.
       salesChannelId: await systemDefaultSalesChannelId(em),
     });
-    await em.persistAndFlush(cart);
-    await em.persistAndFlush(
+    await em.persist(cart).flush();
+    await em.persist(
       em.create(CartItem, {
         cartId: cart.id,
         productId: SEED_PRODUCT_101_ID,
@@ -233,7 +233,7 @@ describe('order placement honours the Organization method allow-lists', () => {
         unitPrice: '19.99',
         currency: 'PLN',
       }),
-    );
+    ).flush();
   };
 
   const place = (cookies: Record<string, string>, payload: Record<string, unknown>) =>
@@ -337,7 +337,7 @@ describe('order placement honours the Organization method allow-lists', () => {
       statusOnSuccess: 'paid',
       statusOnFailure: 'cancelled',
     });
-    await em.persistAndFlush([delivery, payment]);
+    await em.persist([delivery, payment]).flush();
     excludedDeliveryId = delivery.id;
     excludedPaymentId = payment.id;
 
@@ -382,7 +382,7 @@ describe('order placement honours the Organization method allow-lists', () => {
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     await h.salesChannels.cache.invalidate('allow-list-intake');
     // Issue #699 — the intake places only on one of the bound Organization's
     // active assigned channels.

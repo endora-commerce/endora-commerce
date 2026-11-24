@@ -238,7 +238,7 @@ describe.skipIf(!shouldRun)('price surface — SC-005', () => {
     // Buyers.
     const em = h.em();
     const groups = Array.from({ length: 20 }, (_, i) => em.create(CustomerGroup, { code: `bench-g-${stamp}-${i}`, name: `G${i}` }));
-    await em.persistAndFlush(groups);
+    await em.persist(groups).flush();
     const orgs = Array.from({ length: 1000 }, (_, i) =>
       em.create(Organization, {
         name: `Bench org ${stamp} ${i}`,
@@ -249,7 +249,7 @@ describe.skipIf(!shouldRun)('price surface — SC-005', () => {
         registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
       }),
     );
-    await em.persistAndFlush(orgs);
+    await em.persist(orgs).flush();
 
     // Books: one everyone, 20 group, 300 product-row, 150 category-%, 50 all-%.
     everyoneBookId = await book({

@@ -43,7 +43,7 @@ describe('Per-Organization restrictions (feature 026 US4)', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     orgId = org.id;
 
     // Reuse existing seeded payment + delivery methods so the FK constraints

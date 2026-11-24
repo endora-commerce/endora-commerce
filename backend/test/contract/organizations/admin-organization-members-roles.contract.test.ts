@@ -60,7 +60,7 @@ describe('operator member endpoints name roles by id (FR-062)', () => {
         name: 'Customers only',
         permissions: ['customers:read', 'customers:manage'],
       });
-      await fork.persistAndFlush(role);
+      await fork.persist(role).flush();
       const operator = fork.create(AdminUser, {
         email: `members-customers-only-${stamp}@scope.local`,
         passwordHash: 'x'.repeat(60),
@@ -68,7 +68,7 @@ describe('operator member endpoints name roles by id (FR-062)', () => {
         firstName: 'Customers',
         lastName: 'Only',
       });
-      await fork.persistAndFlush(operator);
+      await fork.persist(operator).flush();
       ADMIN_COOKIES[CUSTOMERS_ONLY] = { adminUserId: operator.id };
     });
   }, 90_000);

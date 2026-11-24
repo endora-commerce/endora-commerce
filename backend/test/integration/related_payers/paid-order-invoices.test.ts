@@ -60,14 +60,14 @@ describe('related payers — the invoice of a paid order is the payer\'s', () =>
     // X is governed by another representative; Y is in the representative's reach.
     await withSystemScope('test seed: X is another representative\'s', async () => {
       const em = h.em();
-      await em.persistAndFlush(em.create(OrganizationSalesRepAssignment, { organizationId: X, adminUserId: OTHER_REP }));
+      await em.persist(em.create(OrganizationSalesRepAssignment, { organizationId: X, adminUserId: OTHER_REP })).flush();
     });
     cleanupRep = await ensureSalesRep(h, [paid.payerId], ['invoices:read']);
     expect(ids(await list('limit=200', GS_COOKIES.salesRep))).toContain(invoiceId);
     await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id in (?, ?)', [OTHER_REP, GS_SALES_REP_ID]);
     await withSystemScope('test seed: Y is another representative\'s, X in reach', async () => {
       const em = h.em();
-      await em.persistAndFlush(em.create(OrganizationSalesRepAssignment, { organizationId: paid.payerId, adminUserId: OTHER_REP }));
+      await em.persist(em.create(OrganizationSalesRepAssignment, { organizationId: paid.payerId, adminUserId: OTHER_REP })).flush();
     });
     expect(ids(await list('limit=200', GS_COOKIES.salesRep))).not.toContain(invoiceId);
   });

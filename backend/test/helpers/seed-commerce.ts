@@ -58,7 +58,7 @@ export async function seedUs2Commerce(em: EntityManager): Promise<void> {
     statusOnSuccess: 'paid',
     statusOnFailure: 'cancelled',
   });
-  await em.persistAndFlush([delivery, payment]);
+  await em.persist([delivery, payment]).flush();
 
   const deliveryAddress = em.create(Address, {
     id: SEED_ADDRESS_DELIVERY_ID,
@@ -82,7 +82,7 @@ export async function seedUs2Commerce(em: EntityManager): Promise<void> {
     country: 'PL',
     isDefault: true,
   });
-  await em.persistAndFlush([deliveryAddress, billingAddress]);
+  await em.persist([deliveryAddress, billingAddress]).flush();
 
   const stock = em.create(StockLevel, {
     productId: SEED_PRODUCT_101_ID,
@@ -90,7 +90,7 @@ export async function seedUs2Commerce(em: EntityManager): Promise<void> {
     onHand: 100,
     reserved: 0,
   });
-  await em.persistAndFlush(stock);
+  await em.persist(stock).flush();
 }
 
 /**
@@ -140,7 +140,7 @@ export async function seedSuspendedOrganization(em: EntityManager): Promise<void
       country: 'PL',
     },
   });
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   // Feature 154 — an Organization with no sales channel may not shop anywhere;
   // bind the stores the harness seeds.
   await bindOrganizationsToFixtureChannelsSql(em, [TEST_SUSPENDED_ORGANIZATION_ID]);
@@ -156,14 +156,14 @@ export async function seedSuspendedOrganization(em: EntityManager): Promise<void
   });
   // Needs a non-empty cart so the order-place path passes the CART_EMPTY check
   // and reaches the suspended guard.
-  await em.persistAndFlush(customer);
+  await em.persist(customer).flush();
   const cart = em.create(Cart, {
     customerAccountId: customer.id,
     organizationId: org.id,
     status: 'active',
     salesChannelId: await systemDefaultSalesChannelId(em),
   });
-  await em.persistAndFlush(cart);
+  await em.persist(cart).flush();
   const item = em.create(CartItem, {
     cartId: cart.id,
     productId: SEED_PRODUCT_101_ID,
@@ -171,7 +171,7 @@ export async function seedSuspendedOrganization(em: EntityManager): Promise<void
     unitPrice: '19.99',
     currency: 'PLN',
   });
-  await em.persistAndFlush(item);
+  await em.persist(item).flush();
 }
 
 /**
@@ -200,7 +200,7 @@ export async function seedStockRaceFixture(em: EntityManager): Promise<void> {
     organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
-  await em.persistAndFlush([a, b]);
+  await em.persist([a, b]).flush();
 
   // Cap stock at 1 — overwrite whatever seedUs2Commerce wrote.
   await em.getConnection().execute(
@@ -216,7 +216,7 @@ export async function seedStockRaceFixture(em: EntityManager): Promise<void> {
       status: 'active',
       salesChannelId,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     const item = em.create(CartItem, {
       cartId: cart.id,
       productId: SEED_PRODUCT_101_ID,
@@ -224,7 +224,7 @@ export async function seedStockRaceFixture(em: EntityManager): Promise<void> {
       unitPrice: '19.99',
       currency: 'PLN',
     });
-    await em.persistAndFlush(item);
+    await em.persist(item).flush();
   }
 }
 
@@ -259,7 +259,7 @@ export async function seedCartForStubCustomer(
     status: 'active',
     salesChannelId: channelId,
   });
-  await em.persistAndFlush(cart);
+  await em.persist(cart).flush();
   const item = em.create(CartItem, {
     cartId: cart.id,
     productId: SEED_PRODUCT_101_ID,
@@ -267,7 +267,7 @@ export async function seedCartForStubCustomer(
     unitPrice: '19.99',
     currency: 'PLN',
   });
-  await em.persistAndFlush(item);
+  await em.persist(item).flush();
 }
 
 /** T101 fixture — an Order already in status=shipped. Admin shipped→new → 409. */
@@ -298,7 +298,7 @@ export async function seedShippedOrder(em: EntityManager): Promise<void> {
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
 }
 
 /** T102 fixture — two Orders plus their invoice rows in different states. */
@@ -333,7 +333,7 @@ export async function seedOrdersForInvoiceTests(em: EntityManager): Promise<void
 
   const pendingOrder = baseOrder(RFQ_ORDER_INVOICE_PENDING_ID);
   const readyOrder = baseOrder(RFQ_ORDER_INVOICE_READY_ID);
-  await em.persistAndFlush([pendingOrder, readyOrder]);
+  await em.persist([pendingOrder, readyOrder]).flush();
 
   const pendingInvoice = em.create(Invoice, {
     orderId: pendingOrder.id,
@@ -351,5 +351,5 @@ export async function seedOrdersForInvoiceTests(em: EntityManager): Promise<void
     total: '24.59',
     status: 'ready',
   });
-  await em.persistAndFlush([pendingInvoice, readyInvoice]);
+  await em.persist([pendingInvoice, readyInvoice]).flush();
 }

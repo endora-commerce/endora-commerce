@@ -146,7 +146,7 @@ export class MfaEnrolmentService {
     if (!active) return false;
     await em.nativeDelete(MfaRecoveryCode, { enrolmentId: active.id });
     this.#audit(em, 'mfa.disable', subject);
-    await em.removeAndFlush(active);
+    await em.remove(active).flush();
     return true;
   }
 

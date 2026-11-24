@@ -36,7 +36,7 @@ describe('storefront blog routing contract (feature 171, T013)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     return { id: created.id, code: created.code };
   }
 

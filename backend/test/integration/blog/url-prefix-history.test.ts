@@ -58,7 +58,7 @@ describe('blog URL-prefix history (feature 171, T012)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     channel = { id: created.id, code: created.code };
   });
 

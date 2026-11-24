@@ -167,14 +167,12 @@ function rig(
       if (entity === Cart) row['sourceQuoteRequestId'] ??= null;
       return row;
     },
-    persist: (row: Row) => {
+    // Returns the manager, as MikroORM's does, so `persist(row).flush()` is
+    // this `persist` and this `flush`.
+    persist: (row: Row): EntityManager => {
       const table = 'cartId' in row ? items : carts;
       if (!table.includes(row)) table.push(row);
-    },
-    persistAndFlush: async (row: Row) => {
-      writes.flushes += 1;
-      const table = 'cartId' in row ? items : carts;
-      if (!table.includes(row)) table.push(row);
+      return em;
     },
     flush: async () => {
       writes.flushes += 1;

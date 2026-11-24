@@ -26,7 +26,7 @@ describe('CMS slugs never collide with a language prefix', () => {
       currencies: ['PLN'],
       defaultCurrency: 'PLN',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     channelId = channel.id;
     await h.salesChannels.cache.invalidateAll();
   });

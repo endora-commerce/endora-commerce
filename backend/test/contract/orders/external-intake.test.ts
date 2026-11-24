@@ -125,7 +125,7 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     channelId = channel.id;
     await h.salesChannels.cache.invalidate('ext-orders');
     // Issue #699 — the intake places only on one of the bound Organization's
@@ -145,7 +145,7 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
       manageStock: false,
       attributeValues: {},
     });
-    await em.persistAndFlush(unpriced);
+    await em.persist(unpriced).flush();
 
     // Publish product 101 + the unpriced product on the bound channel.
     await em.getConnection().execute(
@@ -197,7 +197,7 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
       lastFour: LEGACY_ORDERS_TOKEN.slice(-4),
       scopes: ['orders:write', 'orders:read'],
     });
-    await em.persistAndFlush(legacy);
+    await em.persist(legacy).flush();
   });
 
   afterAll(async () => {

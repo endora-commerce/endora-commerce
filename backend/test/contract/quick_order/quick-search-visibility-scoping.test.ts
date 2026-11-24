@@ -101,7 +101,7 @@ describe('GET /api/v1/quick-order/search — visibility and organisation scoping
         allowedOrganizationIds: fixture.allowedOrganizationIds,
         attributeValues: { defaultPrice: 10 },
       });
-      await em.persistAndFlush(product);
+      await em.persist(product).flush();
 
       // Bound to the channel the buyer is shopping, so the channel filter
       // cannot be what excludes any of these rows.

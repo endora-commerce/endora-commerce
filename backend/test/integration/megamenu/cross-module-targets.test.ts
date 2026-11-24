@@ -112,7 +112,7 @@ describe('megamenu resolves its own cross-module targets (T118c)', () => {
       storageUrl: '/assets/megamenu/tile.png',
       label: 'Menu tile',
     });
-    await em.persistAndFlush([live, deactivated, page, asset]);
+    await em.persist([live, deactivated, page, asset]).flush();
 
     liveCategoryId = live.id;
     deactivatedCategoryId = deactivated.id;

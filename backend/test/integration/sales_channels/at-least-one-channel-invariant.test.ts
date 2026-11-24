@@ -52,7 +52,7 @@ describe('membership invariant: at-least-one-channel (T022)', () => {
       systemDefault: false,
       version: 1,
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     return channel;
   }
 
@@ -69,7 +69,7 @@ describe('membership invariant: at-least-one-channel (T022)', () => {
       attributeValues: {},
       allowedOrganizationIds: [],
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
     return product;
   }
 
@@ -177,7 +177,7 @@ describe('membership invariant: at-least-one-channel (T022)', () => {
           systemDefault: false,
           version: 1,
         });
-        await db.em().persistAndFlush(stranger);
+        await db.em().persist(stranger).flush();
         const r3 = await svc.removeFromChannel(stranger.id, 'product', product.id);
         expect(r3.changed).toBe(false);
       }

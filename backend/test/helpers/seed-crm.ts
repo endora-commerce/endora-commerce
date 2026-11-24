@@ -142,7 +142,7 @@ export async function seedCrmOrder(
     placedAt: new Date(),
     ...(overrides.sourceQuoteRequestId ? { sourceQuoteRequestId: overrides.sourceQuoteRequestId } : {}),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   return { id: order.id, businessId: order.businessId ?? null };
 }
 
@@ -195,10 +195,10 @@ export async function seedCrmOrganization(em: EntityManager, label: string): Pro
     vatStatus: 'vat_payer',
     registeredAddress: { street: 'ul. Testowa 1', city: 'Warszawa', postalCode: '00-100', country: 'PL' },
   });
-  await em.persistAndFlush(organization);
-  await em.persistAndFlush(
+  await em.persist(organization).flush();
+  await em.persist(
     em.create(OrganizationSalesRepAssignment, { organizationId: organization.id, adminUserId: CRM_BOOK_REP_ID }),
-  );
+  ).flush();
   // Feature 154 — an Organization with no sales channel may not shop anywhere;
   // bind the stores the harness seeds.
   await bindOrganizationsToFixtureChannelsSql(em, [organization.id]);
@@ -221,7 +221,7 @@ export async function seedCrmAdmin(
     name: `CRM ${label}`,
     permissions,
   });
-  await em.persistAndFlush(role);
+  await em.persist(role).flush();
   return registerAdmin(em, role.id, `crm-${label}-${suffix}`);
 }
 
@@ -254,7 +254,7 @@ export async function seedCrmSalesRep(
   } else {
     role.permissions = [...new Set([...role.permissions, ...permissions])];
   }
-  await em.persistAndFlush(role);
+  await em.persist(role).flush();
   const admin = await registerAdmin(em, role.id, `crm-rep-${randomUUID().slice(0, 8)}`);
   for (const organizationId of organizationIds) {
     em.create(OrganizationSalesRepAssignment, { organizationId, adminUserId: admin.adminUserId });
@@ -276,7 +276,7 @@ async function registerAdmin(
     lastName: slug,
     status: 'active',
   });
-  await em.persistAndFlush(admin);
+  await em.persist(admin).flush();
   const cookie = `stub-${slug}`;
   ADMIN_COOKIES[cookie] = { adminUserId: admin.id };
   return {

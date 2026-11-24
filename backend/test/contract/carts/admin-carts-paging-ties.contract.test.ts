@@ -46,7 +46,7 @@ describe('GET /api/v1/admin/carts — paging through equal sort keys (issue #162
         salesChannelId: ch?.id ?? null,
       }),
     );
-    await em.persistAndFlush(carts);
+    await em.persist(carts).flush();
     seededIds = carts.map((c) => c.id);
     // Raw SQL so the entity's `onUpdate` hook cannot move `updated_at`.
     await em

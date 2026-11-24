@@ -80,7 +80,7 @@ export class ProductListViewService {
         });
         // command-coverage-ignore: per-admin saved list preset — personal UI
         // configuration, not a domain mutation.
-        await tx.persistAndFlush(created);
+        await tx.persist(created).flush();
         return created;
       }),
     );
@@ -129,7 +129,7 @@ export class ProductListViewService {
       const found = await loadModifiable(tx, id, actor);
       // command-coverage-ignore: per-admin saved list preset — personal UI
       // configuration, not a domain mutation.
-      await tx.removeAndFlush(found);
+      await tx.remove(found).flush();
       return found;
     });
     this.logForeignWrite('saved_view.deleted', view, actor);

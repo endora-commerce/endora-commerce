@@ -387,7 +387,7 @@ export class SalesChannelsService {
     channel.active = false;
     channel.status = 'inactive';
     channel.version += 1;
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
 
     await this.auditLifecycle(context, channel.id, {
       action: 'deactivated',
@@ -404,7 +404,7 @@ export class SalesChannelsService {
     channel.active = true;
     channel.status = 'active';
     channel.version += 1;
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
 
     await this.auditLifecycle(context, channel.id, {
       action: 'activated',
@@ -505,7 +505,7 @@ export class SalesChannelsService {
       await this.rebindOrphansToDefault(em, defaultId, orphans);
     }
 
-    await em.removeAndFlush(channel);
+    await em.remove(channel).flush();
     await this.accessCache?.invalidateAllAfterWrite();
 
     await this.auditLifecycle(context, channel.id, {

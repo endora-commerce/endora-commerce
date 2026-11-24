@@ -39,7 +39,7 @@ describe('Picker search — diacritic-insensitive (feature 026 US8)', () => {
           country: 'PL',
         },
       });
-      await em.persistAndFlush(o);
+      await em.persist(o).flush();
     }
   });
 
@@ -98,7 +98,7 @@ describe('Picker search — diacritic-insensitive (feature 026 US8)', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(o);
+    await em.persist(o).flush();
 
     const res = await h.app.inject({
       method: 'GET',

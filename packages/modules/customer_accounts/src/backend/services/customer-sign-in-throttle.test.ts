@@ -81,7 +81,7 @@ function entityManager(account: Partial<CustomerAccount> | null): {
       created.push(data);
       return data;
     },
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
     flush: async () => undefined,
   } as unknown as EntityManager;
   return { em, lookups: () => lookups, created, outstanding };

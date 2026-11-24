@@ -56,7 +56,7 @@ describe('the customer’s own customer group is honoured on every storefront pa
       code: `own-group-${Date.now()}`,
       name: 'Own group',
     });
-    await em.persistAndFlush(group);
+    await em.persist(group).flush();
     const account = await em.findOneOrFail(CustomerAccount, { id: TEST_CUSTOMER_ID });
     previousGroupId = account.customerGroupId ?? null;
     account.customerGroupId = group.id;

@@ -34,7 +34,7 @@ function harness(config: Partial<DeliveryConfigService>): {
       written.push({ entity, data: row });
       return row;
     },
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
     getConnection: () => ({ execute: async () => undefined }),
     getTransactionContext: () => undefined,
   } as unknown as EntityManager;

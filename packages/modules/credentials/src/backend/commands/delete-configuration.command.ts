@@ -47,7 +47,7 @@ export function makeDeleteConfigurationCommand(input: {
       if (!entity) {
         throw new HttpError(404, ERROR_CODES.CREDENTIAL_NOT_FOUND, `Configuration "${code}" not found.`);
       }
-      await em.removeAndFlush(entity);
+      await em.remove(entity).flush();
       return { result: { code }, after: null };
     },
   };

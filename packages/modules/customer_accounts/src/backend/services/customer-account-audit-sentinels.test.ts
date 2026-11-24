@@ -124,10 +124,6 @@ class FakeEm {
     return this;
   }
 
-  async persistAndFlush(row: object): Promise<void> {
-    this.persist(row);
-  }
-
   async findOne(entity: { name: string }, where: Row): Promise<Row | null> {
     return this.table(entity.name).find((row) => Object.entries(where).every(([k, v]) => (row[k] ?? null) === v)) ?? null;
   }

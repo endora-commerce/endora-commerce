@@ -27,7 +27,7 @@ async function makeRootOrg(em: EntityManager, name: string): Promise<Organizatio
     vatStatus: 'vat_payer',
     registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
   });
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   org.path = `/${org.id}/`;
   await em.flush();
   return org;

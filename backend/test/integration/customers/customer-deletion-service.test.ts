@@ -248,7 +248,7 @@ describe('CustomerDeletionService', () => {
       firstName: 'Del',
       lastName: 'Target',
     });
-    await em.persistAndFlush(c);
+    await em.persist(c).flush();
     return c;
   }
 
@@ -274,7 +274,7 @@ describe('CustomerDeletionService', () => {
       firstName: 'Solo',
       lastName: 'Buyer',
     });
-    await em.persistAndFlush(c);
+    await em.persist(c).flush();
     return c;
   }
 
@@ -308,7 +308,7 @@ describe('CustomerDeletionService', () => {
       subject: 'Your registration was rejected',
       context: { reason: 'Forged registration documents' },
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     return row.id;
   }
 
@@ -432,7 +432,7 @@ describe('CustomerDeletionService', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     const before = { delivery: structuredClone(order.deliveryAddress), billing: structuredClone(order.billingAddress) };
 
     await svc.softDelete(c.id, actor);
@@ -487,7 +487,7 @@ describe('CustomerDeletionService', () => {
       isPersonal: false,
       registeredAddress: { street: 'Main 1', city: 'Warsaw', postalCode: '00-001', country: 'PL' },
     });
-    await em.persistAndFlush(company);
+    await em.persist(company).flush();
     const member = await makeCustomer();
     // The role moves with the Organization: the composite foreign key refuses
     // the old one (`specs/170-organization-roles/` WP-02b).
@@ -1343,7 +1343,7 @@ describe('CustomerDeletionService', () => {
     const pendingOrg = await em.findOneOrFail(Organization, { id: pending.organizationId });
     pendingOrg.name = 'Deleted customer';
     pendingOrg.legalName = ORG_LEGAL_NAME;
-    await em.persistAndFlush(company);
+    await em.persist(company).flush();
     await svc.softDelete(pending.id, actor);
 
     expect(await personalOrgs.listIncompletelyScrubbed()).not.toContain(company.id);
@@ -1409,7 +1409,7 @@ describe('CustomerDeletionService', () => {
       rejectedReason: 'Incomplete KRS extract',
       registeredAddress: { street: 'Main 2', city: 'Warsaw', postalCode: '00-002', country: 'PL' },
     });
-    await em.persistAndFlush(company);
+    await em.persist(company).flush();
     const companyMember = await predefinedRoleIdOf(em, company.id, 'member');
     const member = await makeCustomer();
     member.organizationId = company.id;
@@ -1639,7 +1639,7 @@ describe('CustomerDeletionService', () => {
         deletedAt: new Date(),
         mergeRefusal: 'COUNTRY_NOT_ALLOWED',
       });
-      await em.persistAndFlush(legacy);
+      await em.persist(legacy).flush();
 
       const own = { actorCustomerAccountId: c.id, ipAddress: SUBJECT_IP, userAgent: SUBJECT_UA, requestId: 'req-844-own' };
       const operator = { actorAdminUserId: actor.adminUserId, ipAddress: OPERATOR_IP, userAgent: OPERATOR_UA, requestId: 'req-844-op' };
@@ -1898,7 +1898,7 @@ describe('I-5 over HTTP — CUSTOMER_RESTORE_WINDOW_ELAPSED in the admin languag
       firstName: 'Window',
       lastName: 'Elapsed',
     });
-    await em.persistAndFlush(c);
+    await em.persist(c).flush();
     seeded.organizations.push(org.id);
     seeded.accounts.push(c.id);
     const deleted = await h.app.inject({
@@ -1989,7 +1989,7 @@ describe('CUSTOMER_ALREADY_DELETED over HTTP — in the admin language', () => {
       firstName: 'Already',
       lastName: 'Deleted',
     });
-    await em.persistAndFlush(c);
+    await em.persist(c).flush();
     seeded.organizations.push(org.id);
     seeded.accounts.push(c.id);
     const del = () =>

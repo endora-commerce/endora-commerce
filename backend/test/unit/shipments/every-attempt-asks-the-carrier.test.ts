@@ -81,8 +81,7 @@ function harness(recorder: Recorder): ShipmentService {
       recorder.opened.push(data);
       return { id: randomUUID(), ...data } as unknown as Shipment;
     },
-    async persistAndFlush(): Promise<void> {},
-    persist(): void {},
+    persist() { return { flush: async (): Promise<void> => {} }; },
   };
 
   const adapter: ShippingAdapter = {

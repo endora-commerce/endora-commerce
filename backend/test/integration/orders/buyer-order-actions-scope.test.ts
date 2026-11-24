@@ -88,7 +88,7 @@ describe('#665 — buyer order actions follow the order read scope', () => {
       lastName: 'C',
       emailVerifiedAt: new Date(),
     });
-    await em.persistAndFlush(viewer);
+    await em.persist(viewer).flush();
     viewerC = viewer.id;
     await seedMemberWithPermissions(em, {
       organizationId: TEST_ORGANIZATION_ID,
@@ -118,8 +118,8 @@ describe('#665 — buyer order actions follow the order read scope', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
-    await em.persistAndFlush(
+    await em.persist(order).flush();
+    await em.persist(
       em.create(OrderItem, {
         orderId: order.id,
         productId: SEED_PRODUCT_101_ID,
@@ -129,7 +129,7 @@ describe('#665 — buyer order actions follow the order read scope', () => {
         taxRate: '0.0000',
         lineTotal: '30.00',
       }),
-    );
+    ).flush();
     orderOfA = order.id;
   }, 60_000);
 

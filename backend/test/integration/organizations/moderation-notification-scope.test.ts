@@ -54,7 +54,7 @@ describe('organizations — the moderation notification crosses tenants (feature
         name: 'Sales Representative',
         permissions: ['orders:read', 'rfqs:handle', 'customers:manage'],
       });
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
     } else if (!role.permissions.includes('customers:manage')) {
       role.permissions = [...role.permissions, 'customers:manage'];
       await em.flush();
@@ -67,7 +67,7 @@ describe('organizations — the moderation notification crosses tenants (feature
       firstName: 'D87',
       lastName: 'Rep',
     });
-    await em.persistAndFlush(rep);
+    await em.persist(rep).flush();
 
     // No `OrganizationSalesRepAssignment` on purpose: this rep's allowed set is
     // empty, which is exactly the context a pending organisation is moderated
@@ -97,9 +97,9 @@ describe('organizations — the moderation notification crosses tenants (feature
         country: 'PL',
       },
     });
-    await em.persistAndFlush(organization);
+    await em.persist(organization).flush();
     const email = `d87-${label}-${Date.now()}@example.test`;
-    await em.persistAndFlush(
+    await em.persist(
       em.create(CustomerAccount, {
         organizationId: organization.id,
         email,
@@ -109,7 +109,7 @@ describe('organizations — the moderation notification crosses tenants (feature
         organizationRoleId: await predefinedRoleIdOf(em, organization.id, 'administrator'),
         emailVerifiedAt: new Date(),
       }),
-    );
+    ).flush();
     return { organization, email };
   };
 
@@ -158,10 +158,10 @@ describe('organizations — the moderation notification crosses tenants (feature
       firstName: 'D87',
       lastName: 'Other',
     });
-    await em.persistAndFlush(other);
-    await em.persistAndFlush(
+    await em.persist(other).flush();
+    await em.persist(
       em.create(OrganizationSalesRepAssignment, { organizationId: organization.id, adminUserId: other.id }),
-    );
+    ).flush();
 
     const res = await approveAs(salesRepCookie, organization);
     expect(res.statusCode, res.body).toBe(404);

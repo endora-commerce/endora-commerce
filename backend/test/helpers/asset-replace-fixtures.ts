@@ -213,7 +213,7 @@ export async function createAssetsReader(
     name: 'Assets reader (feature 156)',
     permissions: ['assets.read'],
   });
-  await em.persistAndFlush(role);
+  await em.persist(role).flush();
   const user = em.create(AdminUser, {
     email: `${runName()}@assets.local`,
     passwordHash: 'x'.repeat(60),
@@ -222,7 +222,7 @@ export async function createAssetsReader(
     lastName: 'Reader',
     status: 'active',
   });
-  await em.persistAndFlush(user);
+  await em.persist(user).flush();
   const cookie = `stub-${runName()}-assets-reader`;
   ADMIN_COOKIES[cookie] = { adminUserId: user.id };
   return {

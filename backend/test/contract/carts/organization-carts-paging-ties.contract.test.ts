@@ -45,7 +45,7 @@ describe('GET /api/v1/organization/carts — paging through equal sort keys (iss
         status: 'abandoned',
       }),
     );
-    await em.persistAndFlush(carts);
+    await em.persist(carts).flush();
     seededIds = carts.map((c) => c.id);
     // Raw SQL so the entity's `onUpdate` hook cannot move `updated_at`.
     await em

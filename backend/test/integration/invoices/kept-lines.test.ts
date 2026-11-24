@@ -103,7 +103,7 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     const widget = em.create(OrderItem, {
       orderId: order.id,
       productId: randomUUID(),
@@ -124,7 +124,7 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
       taxRate: '0.2300',
       lineTotal: '24.60',
     });
-    await em.persistAndFlush([widget, gadget]);
+    await em.persist([widget, gadget]).flush();
     return { orderId: order.id, widget: widget.id, gadget: gadget.id };
   }
 
@@ -164,7 +164,7 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     const item = em.create(OrderItem, {
       orderId: order.id,
       productId: randomUUID(),
@@ -175,7 +175,7 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
       taxRate: '0.2300',
       lineTotal: '36.94',
     });
-    await em.persistAndFlush(item);
+    await em.persist(item).flush();
     return { orderId: order.id, item: item.id };
   }
 

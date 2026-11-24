@@ -48,7 +48,7 @@ describe('Credit limits — cross-tenant scoping (feature 050 US1)', () => {
     } else if (!role.permissions.includes('credit_limits:manage')) {
       role.permissions = [...role.permissions, 'credit_limits:manage'];
     }
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
 
     const rep = em.create(AdminUser, {
       email: `sales-rep-050-${Date.now()}@cl.local`,
@@ -57,20 +57,20 @@ describe('Credit limits — cross-tenant scoping (feature 050 US1)', () => {
       firstName: '050',
       lastName: 'Rep',
     });
-    await em.persistAndFlush(rep);
+    await em.persist(rep).flush();
 
     const orgA = em.create(Organization, makeOrg('A'));
     const orgB = em.create(Organization, makeOrg('B'));
-    await em.persistAndFlush([orgA, orgB]);
+    await em.persist([orgA, orgB]).flush();
     orgAId = orgA.id;
     orgBId = orgB.id;
 
-    await em.persistAndFlush([
+    await em.persist([
       em.create(OrganizationSalesRepAssignment, { organizationId: orgA.id, adminUserId: rep.id }),
       // #305 — Org B is another representative's: an unassigned organization
       // is in every representative's reach.
       em.create(OrganizationSalesRepAssignment, { organizationId: orgB.id, adminUserId: OTHER_REP_ID }),
-    ]);
+    ]).flush();
 
     repCookie = `stub-sales-rep-050-${Date.now()}`;
     ADMIN_COOKIES[repCookie] = { adminUserId: rep.id };

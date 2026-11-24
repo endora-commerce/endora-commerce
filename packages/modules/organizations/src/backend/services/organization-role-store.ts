@@ -88,14 +88,14 @@ export function entityManagerRoleStore(em: EntityManager): OrganizationRoleStore
     },
     async create(values) {
       const row = em.create(OrganizationRole, { ...values, kind: 'custom' });
-      await em.persistAndFlush(row);
+      await em.persist(row).flush();
       return row;
     },
     async save() {
       await em.flush();
     },
     async remove(row) {
-      await em.removeAndFlush(row as OrganizationRole);
+      await em.remove(row as OrganizationRole).flush();
     },
     async countInvitations(organizationId, roleId) {
       return em.count(OrganizationInvitation, { organizationId, organizationRoleId: roleId });

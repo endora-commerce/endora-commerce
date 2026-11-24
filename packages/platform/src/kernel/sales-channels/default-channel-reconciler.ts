@@ -121,7 +121,7 @@ export class DefaultChannelReconciler {
     const winner = candidates[0]!;
     winner.systemDefault = true;
     winner.version += 1;
-    await em.persistAndFlush(winner);
+    await em.persist(winner).flush();
 
     await this.audit(
       winner.id,
@@ -162,7 +162,7 @@ export class DefaultChannelReconciler {
       // Legacy column preserved for one release (research R-12).
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
 
     await this.audit(
       channel.id,

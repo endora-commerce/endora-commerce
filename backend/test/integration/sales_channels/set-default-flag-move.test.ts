@@ -81,7 +81,7 @@ describe('moving the system-default flag (D-51) [real DB]', () => {
       systemDefault: false,
       version: 1,
     });
-    await em.persistAndFlush([def, other]);
+    await em.persist([def, other]).flush();
     return { def, other };
   }
 

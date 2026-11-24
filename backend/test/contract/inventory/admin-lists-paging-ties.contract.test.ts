@@ -42,7 +42,7 @@ describe('admin inventory lists — paging through equal sort keys (issue #1760)
     const notifications = Array.from({ length: TIE_ROW_COUNT }, (_, i) =>
       em.create(AvailabilityNotification, { productId, email: `${marker}-${i}@example.com` }),
     );
-    await em.persistAndFlush([...warehouses, ...notifications]);
+    await em.persist([...warehouses, ...notifications]).flush();
     warehouseIds = warehouses.map((w) => w.id);
     notificationIds = notifications.map((n) => n.id);
     const connection = em.getConnection();

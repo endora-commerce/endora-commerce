@@ -54,12 +54,12 @@ export async function seedTestAdmins(em: EntityManager): Promise<void> {
     name: 'Content Manager',
     permissions: ['blog.read', 'blog.write', 'cms.read', 'cms.write'],
   });
-  await em.persistAndFlush([
+  await em.persist([
     platformRole,
     readOnlyRole,
     blogManagerRole,
     contentManagerRole,
-  ]);
+  ]).flush();
 
   const platformAdmin = em.create(AdminUser, {
     id: TEST_ADMIN_ID,
@@ -97,5 +97,5 @@ export async function seedTestAdmins(em: EntityManager): Promise<void> {
     adminRoleId: contentManagerRole.id,
     status: 'active',
   });
-  await em.persistAndFlush([platformAdmin, restrictedAdmin, blogManager, contentManager]);
+  await em.persist([platformAdmin, restrictedAdmin, blogManager, contentManager]).flush();
 }

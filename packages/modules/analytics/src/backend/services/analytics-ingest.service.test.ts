@@ -23,7 +23,7 @@ function fakeEm(rows: Array<Record<string, unknown>>): () => EntityManager {
       rows.push(row);
       return row;
     },
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
   };
   return () => em as unknown as EntityManager;
 }

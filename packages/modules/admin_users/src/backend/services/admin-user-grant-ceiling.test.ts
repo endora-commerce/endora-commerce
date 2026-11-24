@@ -34,9 +34,11 @@ function serviceOver(existing?: AdminUser): {
   const em = {
     findOne: async () => existing ?? null,
     create: (_entity: unknown, data: Partial<AdminUser>) => Object.assign(new AdminUser(), data),
-    persistAndFlush: async (row: AdminUser) => {
-      persisted.push(row);
-    },
+    persist: (row: AdminUser) => ({
+      flush: async () => {
+        persisted.push(row);
+      },
+    }),
     flush: async () => {
       flushes += 1;
     },

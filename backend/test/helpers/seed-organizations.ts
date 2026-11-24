@@ -53,7 +53,7 @@ export const TEST_ORGANIZATION_TAX_ID = 'PL0000000099';
 export async function seedOtherTestOrganization(em: EntityManager): Promise<void> {
   const existing = await em.findOne(Organization, { id: OTHER_TEST_ORGANIZATION_ID });
   if (existing) return;
-  await em.persistAndFlush(
+  await em.persist(
     em.create(Organization, {
       id: OTHER_TEST_ORGANIZATION_ID,
       name: 'Other Test Organization',
@@ -67,7 +67,7 @@ export async function seedOtherTestOrganization(em: EntityManager): Promise<void
         country: 'PL',
       },
     }),
-  );
+  ).flush();
   // Feature 154 — an Organization with no sales channel may not shop anywhere;
   // bind the stores the harness seeds.
   await bindOrganizationsToFixtureChannelsSql(em, [OTHER_TEST_ORGANIZATION_ID]);
@@ -92,7 +92,7 @@ export async function seedOtherTestCustomer(
   if (organizationId === OTHER_TEST_ORGANIZATION_ID) await seedOtherTestOrganization(em);
   const existing = await em.findOne(CustomerAccount, { id: OTHER_TEST_CUSTOMER_ID }, { filters: false });
   if (existing) return;
-  await em.persistAndFlush(
+  await em.persist(
     em.create(CustomerAccount, {
       id: OTHER_TEST_CUSTOMER_ID,
       organizationId,
@@ -103,7 +103,7 @@ export async function seedOtherTestCustomer(
       organizationRoleId: await predefinedRoleIdOf(em, organizationId, 'member'),
       emailVerifiedAt: new Date(),
     }),
-  );
+  ).flush();
 }
 
 export async function seedTestOrganizations(em: EntityManager): Promise<void> {
@@ -122,7 +122,7 @@ export async function seedTestOrganizations(em: EntityManager): Promise<void> {
       country: 'PL',
     },
   });
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   // Feature 154 — an Organization with no sales channel may not shop anywhere;
   // bind the stores the harness seeds.
   await bindOrganizationsToFixtureChannelsSql(em, [TEST_ORGANIZATION_ID]);
@@ -157,7 +157,7 @@ export async function seedTestOrganizations(em: EntityManager): Promise<void> {
     organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
-  await em.persistAndFlush([admin, rfq, empty]);
+  await em.persist([admin, rfq, empty]).flush();
 }
 
 /**
@@ -198,7 +198,7 @@ export async function seedAdHocOrganization(
       country: 'PL',
     },
   });
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   // Feature 154 — an Organization with no sales channel may not shop anywhere;
   // bind the stores the harness seeds.
   await bindOrganizationsToFixtureChannelsSql(em, [org.id]);

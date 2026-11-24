@@ -53,7 +53,7 @@ describe('place order — configurable fulfilment strategy precedence', () => {
         name: 'Secondary',
         active: true,
       });
-      await em.persistAndFlush(secondary);
+      await em.persist(secondary).flush();
     }
 
     // Deterministic candidate set: default (is_default) + secondary, both on

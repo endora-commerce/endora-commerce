@@ -206,7 +206,7 @@ describe('forms — in the shopper’s language (US7)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     bilingual = { id: channel.id, code: channel.code };
     channels.push(channel.id);
     form = await published('Languages');

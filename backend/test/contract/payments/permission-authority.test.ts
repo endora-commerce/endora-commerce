@@ -96,7 +96,7 @@ describe('payments permission authority', () => {
       name: 'Sales representative',
       permissions: [...SALES_REPRESENTATIVE_PERMISSIONS],
     });
-    await em.persistAndFlush(salesRepRole);
+    await em.persist(salesRepRole).flush();
     const salesRepRoleId = salesRepRole.id;
 
     const passwordHash = await hashPassword(STUB_CUSTOMER_PASSWORD);
@@ -146,7 +146,7 @@ describe('payments permission authority', () => {
       statusOnSuccess: 'confirmed',
       statusOnFailure: 'cancelled',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     const address = {
       recipientName: 'A',
       street: 'S',
@@ -171,14 +171,14 @@ describe('payments permission authority', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     const payment = em.create(Payment, {
       orderId: order.id,
       paymentMethodId: method.id,
       amount: '12.30',
       currency: 'PLN',
     });
-    await em.persistAndFlush(payment);
+    await em.persist(payment).flush();
     return { orderId: order.id, paymentId: payment.id };
   }
 

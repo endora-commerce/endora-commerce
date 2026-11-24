@@ -55,7 +55,7 @@ describe('CustomerModerationService', () => {
       vatStatus: 'vat_payer',
       registeredAddress: { street: 'ul. Testowa 1', city: 'Warszawa', postalCode: '00-001', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     return org.id;
   }
 
@@ -115,7 +115,7 @@ describe('CustomerModerationService', () => {
       lastName: 'Target',
       ...over,
     });
-    await em.persistAndFlush(c);
+    await em.persist(c).flush();
     return c;
   }
 

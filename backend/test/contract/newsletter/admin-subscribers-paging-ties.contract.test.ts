@@ -29,7 +29,7 @@ describe('GET /api/v1/admin/newsletter/subscribers — paging through equal crea
     const subscribers = Array.from({ length: TIE_ROW_COUNT }, (_, i) =>
       em.create(NewsletterSubscriber, { email: `${marker}-${i}@example.com` } as never),
     );
-    await em.persistAndFlush(subscribers);
+    await em.persist(subscribers).flush();
     seededIds = subscribers.map((s) => (s as unknown as { id: string }).id);
     await em
       .getConnection()

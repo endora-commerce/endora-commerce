@@ -69,7 +69,7 @@ describe('price_lists — every write the display-mode tail reads bumps the pric
       status: 'active',
       registeredAddress: { street: 'X', city: 'X', postalCode: 'X', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     const calls = await bumpsDuring(() => handle().priceListService.upsertDisplayModeOverride('organization', org.id, 'both').then(() => undefined));
     expect(calls).toEqual([[{ kind: 'none' }]]);
   });

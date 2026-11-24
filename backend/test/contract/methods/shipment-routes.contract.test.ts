@@ -32,7 +32,7 @@ async function seedOrder(em: EntityManager): Promise<string> {
     statusOnSuccess: 'shipment_sent',
     statusOnFailure: 'processing',
   });
-  await em.persistAndFlush(method);
+  await em.persist(method).flush();
   const order = em.create(Order, {
     organizationId: randomUUID(),
     placedByCustomerAccountId: randomUUID(),
@@ -55,7 +55,7 @@ async function seedOrder(em: EntityManager): Promise<string> {
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   return order.id;
 }
 

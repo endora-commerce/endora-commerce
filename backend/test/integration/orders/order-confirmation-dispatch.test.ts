@@ -30,7 +30,7 @@ describe('placeOrder — order-confirmation e-mail dispatch', () => {
     const em = h.em();
     const method = await em.findOne(PaymentMethod, { id: SEED_PAYMENT_METHOD_ID });
     method!.additionalPrice = '5.00';
-    await em.persistAndFlush(method!);
+    await em.persist(method!).flush();
   });
   afterAll(async () => {
     await teardownBackendServer(h);

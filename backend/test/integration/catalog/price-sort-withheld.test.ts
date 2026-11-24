@@ -190,7 +190,7 @@ describe('a page that may not show prices refuses to order by them', () => {
       targetId: TEST_ORGANIZATION_ID,
       mode: 'none',
     });
-    await em.persistAndFlush(override);
+    await em.persist(override).flush();
     try {
       const buyer = await list('sort=price', PRICE_SORT_ORG_A);
       expect(buyer.status).toBe(400);

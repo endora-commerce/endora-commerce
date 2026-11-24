@@ -81,7 +81,7 @@ describe('GET /api/v1/catalog/products — the derived summary (feature 163)', (
       defaultCurrency: 'PLN',
       currencies: ['PLN'],
     });
-    await em.persistAndFlush(retail);
+    await em.persist(retail).flush();
     CHANNEL = { 'x-sales-channel': retail.code };
     for (const [key, description] of [
       // Feature 174: the Global description, one string.
@@ -101,7 +101,7 @@ describe('GET /api/v1/catalog/products — the derived summary (feature 163)', (
         attributeValues: { defaultPrice: 10 },
         returnable: true,
       });
-      await em.persistAndFlush(product);
+      await em.persist(product).flush();
       slugs[key] = product.slug;
       await em
         .getConnection()

@@ -41,7 +41,7 @@ describe('admin creates — custom-field values (feature 175)', () => {
       defaultCurrency: 'PLN',
       currencies: ['PLN'],
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     channelId = channel.id;
     await define({ entityType: 'organization', key: 'cf175a_note', labelDefault: 'Sales note', audience: 'internal' });
     await define({ entityType: 'customer', key: 'cf175a_badge', labelDefault: 'Badge number', audience: 'internal' });

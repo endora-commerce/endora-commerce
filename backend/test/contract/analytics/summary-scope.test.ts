@@ -62,7 +62,7 @@ describe('GET /api/v1/admin/analytics/summary — tenant scope', () => {
     } else {
       role.permissions = Array.from(new Set([...role.permissions, 'analytics:read']));
     }
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
 
     const organization = (name: string, suffix: string) =>
       em.create(Organization, {
@@ -79,7 +79,7 @@ describe('GET /api/v1/admin/analytics/summary — tenant scope', () => {
       });
     const assigned = organization('Analytics assigned org', 'A');
     const other = organization('Analytics other org', 'B');
-    await em.persistAndFlush([assigned, other]);
+    await em.persist([assigned, other]).flush();
 
     const rep = (label: string) =>
       em.create(AdminUser, {
@@ -91,13 +91,13 @@ describe('GET /api/v1/admin/analytics/summary — tenant scope', () => {
       });
     const assignedRep = rep('rep');
     const unassignedRep = rep('rep-none');
-    await em.persistAndFlush([assignedRep, unassignedRep]);
-    await em.persistAndFlush(
+    await em.persist([assignedRep, unassignedRep]).flush();
+    await em.persist(
       em.create(OrganizationSalesRepAssignment, {
         organizationId: assigned.id,
         adminUserId: assignedRep.id,
       }),
-    );
+    ).flush();
     ADMIN_COOKIES[ASSIGNED_REP] = { adminUserId: assignedRep.id };
     ADMIN_COOKIES[UNASSIGNED_REP] = { adminUserId: unassignedRep.id };
 

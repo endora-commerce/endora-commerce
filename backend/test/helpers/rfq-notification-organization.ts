@@ -65,7 +65,7 @@ export async function seedNotificationOrganization(
       name: `179 reader ${stamp}`,
       permissions: ['orders:read'],
     });
-    await em.persistAndFlush([handlerRole, readerRole]);
+    await em.persist([handlerRole, readerRole]).flush();
     const organization = em.create(Organization, {
       name: `179 matrix ${stamp}`,
       taxId: `PL179${randomUUID().replace(/-/g, '').slice(0, 10)}`,
@@ -73,7 +73,7 @@ export async function seedNotificationOrganization(
       vatStatus: 'vat_payer',
       registeredAddress: { street: 'ul. Testowa 1', city: 'Warszawa', postalCode: '00-100', country: 'PL' },
     });
-    await em.persistAndFlush(organization);
+    await em.persist(organization).flush();
     const administratorRoleId = await predefinedRoleIdOf(em, organization.id, 'administrator');
     const memberRoleId = await predefinedRoleIdOf(em, organization.id, 'member');
     const account = (who: string, firstName: string, organizationRoleId: string) =>
@@ -98,11 +98,11 @@ export async function seedNotificationOrganization(
       });
     const rep = admin('rep', handlerRole.id);
     const noHandle = admin('reader', readerRole.id);
-    await em.persistAndFlush([requester, administrator, member, rep, noHandle]);
-    await em.persistAndFlush([
+    await em.persist([requester, administrator, member, rep, noHandle]).flush();
+    await em.persist([
       em.create(OrganizationSalesRepAssignment, { organizationId: organization.id, adminUserId: rep.id }),
       em.create(OrganizationSalesRepAssignment, { organizationId: organization.id, adminUserId: noHandle.id }),
-    ]);
+    ]).flush();
     return {
       organizationId: organization.id,
       requester: requester.id,

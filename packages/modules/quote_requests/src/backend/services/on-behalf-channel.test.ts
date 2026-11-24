@@ -117,9 +117,11 @@ describe('163 — the channel an operator raises a quote request on', () => {
     const em = {
       findOne: vi.fn(async () => ({ id: B2C })),
       create,
-      persistAndFlush: vi.fn(async () => {
-        throw new Error('reached the write');
-      }),
+      persist: vi.fn(() => ({
+        flush: async () => {
+          throw new Error('reached the write');
+        },
+      })),
       // The write runs in a transaction of its own (`specs/179-…` WP-04).
       ...transactionStubs(),
     };
@@ -174,9 +176,11 @@ describe('163 — the channel an operator raises a quote request on', () => {
     const create = vi.fn((_entity: unknown, data: Record<string, unknown>) => data);
     const em = {
       create,
-      persistAndFlush: vi.fn(async () => {
-        throw new Error('reached the write');
-      }),
+      persist: vi.fn(() => ({
+        flush: async () => {
+          throw new Error('reached the write');
+        },
+      })),
       // The write runs in a transaction of its own (`specs/179-…` WP-04).
       ...transactionStubs(),
     };
@@ -207,9 +211,11 @@ describe('163 — the channel an operator raises a quote request on', () => {
     const create = vi.fn((_entity: unknown, data: Record<string, unknown>) => data);
     const em = {
       create,
-      persistAndFlush: vi.fn(async () => {
-        throw new Error('reached the write');
-      }),
+      persist: vi.fn(() => ({
+        flush: async () => {
+          throw new Error('reached the write');
+        },
+      })),
       // The write runs in a transaction of its own (`specs/179-…` WP-04).
       ...transactionStubs(),
     };

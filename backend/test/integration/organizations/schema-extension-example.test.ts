@@ -105,7 +105,7 @@ beforeAll(async () => {
     vatStatus: 'vat_payer',
     registeredAddress: { street: 'ul. Kolumnowa 2', city: 'Warszawa', postalCode: '00-178', country: 'PL' },
   });
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   orgId = org.id;
 }, 600_000);
 

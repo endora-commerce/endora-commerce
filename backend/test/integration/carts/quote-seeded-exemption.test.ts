@@ -326,7 +326,7 @@ describe('155 — quote-seeded lines are exempt while unchanged [integration]', 
       status: 'active',
       salesChannelId: BASKET_CTX.salesChannelId,
     });
-    await em.persistAndFlush(anon);
+    await em.persist(anon).flush();
     em.create(CartItem, {
       cartId: anon.id,
       productId: SEED_PRODUCT_101_ID,

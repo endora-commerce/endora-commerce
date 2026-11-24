@@ -76,7 +76,7 @@ describe('customer payment retry route (#264)', () => {
       statusOnSuccess: 'paid',
       statusOnFailure: 'on_hold',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     const order = em.create(Order, {
       organizationId: over.organizationId ?? TEST_ORGANIZATION_ID,
       placedByCustomerAccountId: over.customerAccountId ?? TEST_CUSTOMER_ID,
@@ -118,7 +118,7 @@ describe('customer payment retry route (#264)', () => {
       ...(over.paymentStatus ? { paymentStatus: over.paymentStatus } : {}),
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     const payment = em.create(Payment, {
       orderId: order.id,
       paymentMethodId: method.id,
@@ -127,7 +127,7 @@ describe('customer payment retry route (#264)', () => {
       status: over.paymentStatus === 'paid' ? 'paid' : 'failed',
       failureReason: over.paymentStatus === 'paid' ? null : 'Card declined',
     });
-    await em.persistAndFlush(payment);
+    await em.persist(payment).flush();
     return { orderId: order.id, paymentId: payment.id };
   }
 

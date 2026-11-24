@@ -112,7 +112,7 @@ describe('organizations domain refusals carry their own code and sentence (issue
       isPersonal: false,
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(company);
+    await em.persist(company).flush();
     companyId = company.id;
   }, 60_000);
 

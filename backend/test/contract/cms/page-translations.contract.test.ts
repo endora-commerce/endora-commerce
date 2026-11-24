@@ -71,7 +71,7 @@ describe('CMS page translations contract (feature 163, R24)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await h.em().persistAndFlush(channel);
+    await h.em().persist(channel).flush();
   });
 
   afterAll(async () => {

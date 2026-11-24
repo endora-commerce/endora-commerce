@@ -49,7 +49,7 @@ describe('Sales-rep orders scope (feature 026 US6)', () => {
         name: 'Sales Representative',
         permissions: ['orders:read', 'rfqs:handle'],
       });
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
     }
 
     // Sales rep WITH an assignment.
@@ -68,7 +68,7 @@ describe('Sales-rep orders scope (feature 026 US6)', () => {
       firstName: 'US6',
       lastName: 'Unassigned',
     });
-    await em.persistAndFlush([repAssigned, repUnassigned]);
+    await em.persist([repAssigned, repUnassigned]).flush();
 
     // An organization the first rep owns.
     const org = em.create(Organization, {
@@ -83,15 +83,15 @@ describe('Sales-rep orders scope (feature 026 US6)', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     assignedOrgId = org.id;
 
-    await em.persistAndFlush(
+    await em.persist(
       em.create(OrganizationSalesRepAssignment, {
         organizationId: org.id,
         adminUserId: repAssigned.id,
       }),
-    );
+    ).flush();
 
     const nobodys = em.create(Organization, {
       name: 'US6 Unassigned Org',
@@ -100,7 +100,7 @@ describe('Sales-rep orders scope (feature 026 US6)', () => {
       vatStatus: 'vat_payer',
       registeredAddress: { street: 'ul. Wolna 1', city: 'Warszawa', postalCode: '00-100', country: 'PL' },
     });
-    await em.persistAndFlush(nobodys);
+    await em.persist(nobodys).flush();
     unassignedOrgId = nobodys.id;
 
     await withSystemScope('US6: seed one order per organization', async () => {

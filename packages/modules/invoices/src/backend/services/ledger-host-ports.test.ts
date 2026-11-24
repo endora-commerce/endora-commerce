@@ -28,8 +28,12 @@ function fakeEm(store: { invoice: Invoice | null; byNumber?: Invoice | null }) {
       }
       return store.invoice?.id === where.id ? store.invoice : null;
     },
-    async persistAndFlush() {
-      return undefined;
+    persist() {
+      return {
+        flush: async () => {
+          return undefined;
+        },
+      };
     },
   };
   return () => em as never;

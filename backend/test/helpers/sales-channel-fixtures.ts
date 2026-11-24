@@ -56,7 +56,7 @@ export async function ensureSalesChannel(
     defaultCurrency: 'PLN',
     currencies: ['PLN'],
   });
-  await em.persistAndFlush(channel);
+  await em.persist(channel).flush();
   return channel;
 }
 

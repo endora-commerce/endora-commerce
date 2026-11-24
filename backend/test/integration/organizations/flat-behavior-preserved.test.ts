@@ -59,7 +59,7 @@ async function seedOrder(em: EntityManager, organizationId: string): Promise<str
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   return order.id;
 }
 
@@ -72,7 +72,7 @@ async function makeRootOrg(em: EntityManager, name: string): Promise<Organizatio
     vatStatus: 'vat_payer',
     registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
   });
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   org.path = `/${org.id}/`;
   await em.flush();
   return org;
@@ -130,7 +130,7 @@ describe('flat-behavior preservation (feature 056, FR-001/FR-013)', () => {
     const salesChannel = await em.findOneOrFail(SalesChannel, { systemDefault: true });
     const org = await makeRootOrg(em, 'Flat Pricing Org');
     const cg = em.create(CustomerGroup, { code: `flat-cg-${Date.now()}`, name: 'Flat CG' });
-    await em.persistAndFlush(cg);
+    await em.persist(cg).flush();
     org.customerGroupId = cg.id;
     await em.flush();
 

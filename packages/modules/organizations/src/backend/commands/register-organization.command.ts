@@ -149,7 +149,7 @@ export function makeRegisterOrganizationCommand(
         customFieldValues: input.customFieldValues.organization,
       });
       try {
-        await em.persistAndFlush(organization);
+        await em.persist(organization).flush();
       } catch (err) {
         throw organizationWriteError(err, () => taxIdExistsRefusal());
       }
@@ -178,7 +178,7 @@ export function makeRegisterOrganizationCommand(
         tokenHash: createHash('sha256').update(verificationToken, 'utf8').digest('hex'),
         expiresAt: new Date(Date.now() + TOKEN_TTL_HOURS * 60 * 60 * 1_000),
       });
-      await em.persistAndFlush(token);
+      await em.persist(token).flush();
 
       // Into the bus's event scope: dispatched on commit, dropped on rollback.
       // The same event `emitCustomerAccountCreated` sends from the other

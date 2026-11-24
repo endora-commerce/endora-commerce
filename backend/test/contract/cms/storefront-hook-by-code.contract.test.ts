@@ -28,7 +28,7 @@ describe('CMS storefront hook by code contract (T068)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(plChannel);
+    await em.persist(plChannel).flush();
   });
 
   afterAll(async () => {

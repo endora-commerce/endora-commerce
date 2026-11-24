@@ -101,7 +101,7 @@ export class ReturnDeliveryMethodService {
     this.#audit(em, 'return_delivery_method.delete', 'return_delivery_method', row.id, {
       deliveryMethodId: row.deliveryMethodId,
     }, null);
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
   }
 
   /** Apply an allowed return delivery method to a case and resolve cost + bearer. */

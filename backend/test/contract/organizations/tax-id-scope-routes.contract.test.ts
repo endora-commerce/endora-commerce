@@ -58,7 +58,7 @@ describe('/api/v1/admin/organizations/tax-id-scope', () => {
       name: `Tax scope without ${stamp}`,
       permissions: ['customers:manage', 'customers:read'],
     });
-    await em.persistAndFlush([rep, without]);
+    await em.persist([rep, without]).flush();
     const user = (role: AdminRole, tag: string) =>
       em.create(AdminUser, {
         email: `taxscope-${tag}-${stamp}@p.local`,
@@ -69,7 +69,7 @@ describe('/api/v1/admin/organizations/tax-id-scope', () => {
       });
     const repUser = user(rep, 'rep');
     const withoutUser = user(without, 'without');
-    await em.persistAndFlush([repUser, withoutUser]);
+    await em.persist([repUser, withoutUser]).flush();
     ADMIN_COOKIES[SCOPED] = { adminUserId: repUser.id };
     ADMIN_COOKIES[WITHOUT] = { adminUserId: withoutUser.id };
 

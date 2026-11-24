@@ -52,7 +52,7 @@ function fakeEm(handlers: Record<string, unknown>): () => EntityManager {
     findOne: async (entity: { name?: string }) => dispatch(entity, null),
     find: async (entity: { name?: string }) => dispatch(entity, []),
     create: (_entity: unknown, data: Record<string, unknown>) => ({ id: 'msg-1', ...data }),
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
   };
   return () => em as unknown as EntityManager;
 }
@@ -345,9 +345,11 @@ describe('pwa — rule-audience targeting resolves customer context over ports',
       find: async (entity: { name?: string }) =>
         entity.name === 'PushSubscription' ? [{ id: 'sub-1', customerAccountId: 'cust-1' }] : [],
       create: (_entity: unknown, data: Record<string, unknown>) => ({ id: 'msg-1', ...data }),
-      persistAndFlush: async (value: unknown) => {
-        persisted.push(value);
-      },
+      persist: (value: unknown) => ({
+        flush: async () => {
+          persisted.push(value);
+        },
+      }),
     } as unknown as EntityManager;
 
     const service = new PushMessageService(

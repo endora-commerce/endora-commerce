@@ -91,7 +91,7 @@ export class PushMessageService {
       createdByAdminUserId: input.createdByAdminUserId ?? null,
     });
     try {
-      await em.persistAndFlush(message);
+      await em.persist(message).flush();
     } catch (err) {
       // Two deliveries of one announcement can both pass the look-up above;
       // `push_messages_trigger_event_uniq` then refuses the second insert. That
@@ -118,7 +118,7 @@ export class PushMessageService {
       }),
     );
     if (deliveries.length > 0) {
-      await em.persistAndFlush(deliveries);
+      await em.persist(deliveries).flush();
       await this.queue.addBulk(
         deliveries.map((d) => ({
           name: 'deliver',

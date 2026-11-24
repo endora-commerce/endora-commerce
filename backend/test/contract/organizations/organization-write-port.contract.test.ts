@@ -89,7 +89,7 @@ describe('organizationWritePort [contract]', () => {
       });
     const a = make(`orgwrite-a-${stamp}`);
     const b = make(`orgwrite-b-${stamp}`);
-    await em.persistAndFlush([a, b]);
+    await em.persist([a, b]).flush();
     channelA = a.id;
     channelB = b.id;
   });

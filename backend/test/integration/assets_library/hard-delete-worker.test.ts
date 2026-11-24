@@ -87,7 +87,7 @@ describe('hard-delete worker (T099)', () => {
       previousContentVersion: 'a1b2c3d4e5f6',
       previousReplacedAt: new Date(Date.now() - 3600 * 1000),
     });
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
 
     const result = await worker.sweep();
     expect(result.hardDeleted).toBeGreaterThanOrEqual(1);
@@ -120,7 +120,7 @@ describe('hard-delete worker (T099)', () => {
       deletedAt: new Date(Date.now() - 2 * 24 * 3600 * 1000),
       purgeAfterAt: new Date(Date.now() - 60 * 1000),
     });
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
 
     const result = await worker.sweep();
     expect(result.pendingCleanup).toBeGreaterThanOrEqual(1);
@@ -130,6 +130,6 @@ describe('hard-delete worker (T099)', () => {
     expect(after.pendingCleanup).toBe(true);
 
     // Cleanup.
-    await fresh.removeAndFlush(after);
+    await fresh.remove(after).flush();
   });
 });

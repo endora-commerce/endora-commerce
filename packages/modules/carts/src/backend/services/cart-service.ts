@@ -304,7 +304,7 @@ export class CartService {
         status: 'active',
         salesChannelId: ctx.salesChannelId,
       });
-      await em.persistAndFlush(cart);
+      await em.persist(cart).flush();
       // Issue #755 — only a basket opened here, never one that exists (#169).
       // The restore writes the basket through its own manager, so the row this
       // one holds is re-read: a later flush of a stale version would fail its
@@ -401,7 +401,7 @@ export class CartService {
       status: 'working',
       salesChannelId: ctx.salesChannelId,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     return cart;
   }
 
@@ -429,7 +429,7 @@ export class CartService {
       status: 'active',
       salesChannelId,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     return cart;
   }
 

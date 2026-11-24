@@ -81,7 +81,7 @@ describe('invoice_ledger — deliveries list and retry [contract]', () => {
           if (!role.permissions.includes(p)) role.permissions = [...role.permissions, p];
         }
       }
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       const rep = em.create(AdminUser, {
         email: `sales-rep-119-del-${Date.now()}@i.local`,
         passwordHash: 'x'.repeat(60),
@@ -89,8 +89,8 @@ describe('invoice_ledger — deliveries list and retry [contract]', () => {
         firstName: '119',
         lastName: 'Ledger',
       });
-      await em.persistAndFlush(rep);
-      await em.persistAndFlush([
+      await em.persist(rep).flush();
+      await em.persist([
         em.create(OrganizationSalesRepAssignment, {
           organizationId: TEST_ORGANIZATION_ID,
           adminUserId: rep.id,
@@ -98,7 +98,7 @@ describe('invoice_ledger — deliveries list and retry [contract]', () => {
         // #305 — the foreign organization is another representative's: an
         // unassigned organization is in every representative's reach.
         em.create(OrganizationSalesRepAssignment, { organizationId: OTHER_TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }),
-      ]);
+      ]).flush();
       scopedCookie = `stub-sales-rep-119-del-${Date.now()}`;
       ADMIN_COOKIES[scopedCookie] = { adminUserId: rep.id };
     });

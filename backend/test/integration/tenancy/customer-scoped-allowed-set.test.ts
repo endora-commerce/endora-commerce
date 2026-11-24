@@ -97,7 +97,7 @@ describe('@CustomerScoped surfaces honour the sales-rep assignment scope', () =>
     } else {
       role.permissions = Array.from(new Set([...role.permissions, ...grants]));
     }
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
 
     const rep = em.create(AdminUser, {
       email: `customer-scope-rep-${stamp}@audit.local`,
@@ -108,11 +108,11 @@ describe('@CustomerScoped surfaces honour the sales-rep assignment scope', () =>
     });
     const assigned = newOrganization(em, 'Customer scope assigned org', 'A');
     const foreign = newOrganization(em, 'Customer scope foreign org', 'F');
-    await em.persistAndFlush([rep, assigned, foreign]);
+    await em.persist([rep, assigned, foreign]).flush();
     assignedOrgId = assigned.id;
     foreignOrgId = foreign.id;
 
-    await em.persistAndFlush([
+    await em.persist([
       em.create(OrganizationSalesRepAssignment, {
         organizationId: assignedOrgId,
         adminUserId: rep.id,
@@ -120,7 +120,7 @@ describe('@CustomerScoped surfaces honour the sales-rep assignment scope', () =>
       // #305 — the foreign organization is another representative's: an
       // unassigned organization is in every representative's reach.
       em.create(OrganizationSalesRepAssignment, { organizationId: foreignOrgId, adminUserId: OTHER_REP_ID }),
-    ]);
+    ]).flush();
 
     for (const key of ['own', 'foreign'] as const) {
       const organizationId = key === 'own' ? assignedOrgId : foreignOrgId;
@@ -131,7 +131,7 @@ describe('@CustomerScoped surfaces honour the sales-rep assignment scope', () =>
         firstName: 'Scope',
         lastName: key,
       });
-      await em.persistAndFlush(account);
+      await em.persist(account).flush();
       customers[key] = account.id;
 
       // The Organization book — the one book a customer has — written through
@@ -158,7 +158,7 @@ describe('@CustomerScoped surfaces honour the sales-rep assignment scope', () =>
           // fixture starts substituting for a row it never created.
           status: 'active',
         });
-        await em.persistAndFlush(cart);
+        await em.persist(cart).flush();
         carts[`${key}-${purpose}`] = cart.id;
       }
     }

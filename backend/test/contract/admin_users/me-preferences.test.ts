@@ -66,7 +66,7 @@ describe('Admin UI preferences — /api/v1/admin/me/preferences (spec 164)', () 
     let role = await em.findOne(AdminRole, { code });
     if (!role) {
       role = em.create(AdminRole, { code, name: code, permissions });
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
     }
     return role.id;
   }

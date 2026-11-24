@@ -40,7 +40,7 @@ describe('credit-limit reservations record the organization that drew them', () 
       vatStatus: 'vat_payer',
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     org.path = `/${org.id}/`;
     await em.flush();
     return org;
@@ -76,7 +76,7 @@ describe('credit-limit reservations record the organization that drew them', () 
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     return order.id;
   }
 

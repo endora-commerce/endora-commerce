@@ -46,7 +46,6 @@ interface FakeEm {
   create: ReturnType<typeof vi.fn>;
   persist: ReturnType<typeof vi.fn>;
   flush: ReturnType<typeof vi.fn>;
-  persistAndFlush: ReturnType<typeof vi.fn>;
   findOne: ReturnType<typeof vi.fn>;
 }
 
@@ -56,13 +55,14 @@ function fakeEm(existing: CustomerNotification | null = null): FakeEm {
     Object.assign(row, data);
     return row;
   });
-  const persist = vi.fn();
+  // Returns the manager, as MikroORM's does, so `persist(row).flush()` is
+  // this `persist` and this `flush`.
+  const persist = vi.fn((): EntityManager => em);
   const flush = vi.fn(async () => undefined);
-  const persistAndFlush = vi.fn(async () => undefined);
   const findOne = vi.fn(async () => existing);
-  const em = { create, persist, flush, persistAndFlush, findOne } as unknown as EntityManager;
+  const em = { create, persist, flush, findOne } as unknown as EntityManager;
   (em as unknown as { fork: () => EntityManager }).fork = () => em;
-  return { em, create, persist, flush, persistAndFlush, findOne };
+  return { em, create, persist, flush, findOne };
 }
 
 describe('customerNotificationRecordPort.recordWithin', () => {
@@ -97,7 +97,6 @@ describe('customerNotificationRecordPort.recordWithin', () => {
     });
     expect(record).toEqual({ id: persisted.id, createdAt: persisted.createdAt });
     expect(caller.flush).not.toHaveBeenCalled();
-    expect(caller.persistAndFlush).not.toHaveBeenCalled();
     // Nothing touches an EntityManager of the port's own.
     expect(own.persist).not.toHaveBeenCalled();
     expect(own.create).not.toHaveBeenCalled();
@@ -238,8 +237,9 @@ describe('customerNotificationRecordPort.record', () => {
       sourceModule: 'quote_requests',
       sourceKey: 'record-1',
     });
-    expect(own.persistAndFlush).toHaveBeenCalledTimes(1);
-    const persisted = own.persistAndFlush.mock.calls[0]![0] as CustomerNotification;
+    expect(own.persist).toHaveBeenCalledTimes(1);
+    expect(own.flush).toHaveBeenCalledTimes(1);
+    const persisted = own.persist.mock.calls[0]![0] as CustomerNotification;
     expect(record).toEqual({ id: persisted.id, createdAt: persisted.createdAt });
   });
 
@@ -254,7 +254,8 @@ describe('customerNotificationRecordPort.record', () => {
 
     expect(record).toEqual({ id: existing.id, createdAt: existing.createdAt });
     expect(own.create).not.toHaveBeenCalled();
-    expect(own.persistAndFlush).not.toHaveBeenCalled();
+    expect(own.persist).not.toHaveBeenCalled();
+    expect(own.flush).not.toHaveBeenCalled();
   });
 
   it('refuses invalid input before it reads anything', async () => {

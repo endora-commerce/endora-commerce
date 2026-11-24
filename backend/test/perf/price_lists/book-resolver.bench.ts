@@ -70,7 +70,7 @@ describe.skipIf(!shouldRun)('price books — listing cost', () => {
       status: 'active',
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     organization = { id: org.id };
     page = await em.find(Product, { id: { $in: ids.slice(0, 50) } });
   }, 10 * 60_000);

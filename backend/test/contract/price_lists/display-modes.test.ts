@@ -32,7 +32,7 @@ describe('Display-mode endpoints (feature 011 US7)', () => {
       status: 'active',
       registeredAddress: { street: 'X', city: 'X', postalCode: 'X', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     organizationId = org.id;
   });
 

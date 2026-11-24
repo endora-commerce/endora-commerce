@@ -43,7 +43,7 @@ describe('category main image (T086)', () => {
       storageBackend: 'legacy',
       visibility: 'public',
     });
-    await em.persistAndFlush(asset);
+    await em.persist(asset).flush();
 
     // Pick a category from the seed.
     const category = await em.findOneOrFail(Category, { deletedAt: null });
@@ -76,6 +76,6 @@ describe('category main image (T086)', () => {
       payload: JSON.stringify({ mainImageAssetId: null }),
     });
     const fresh = h.em().fork({ clear: true });
-    await fresh.removeAndFlush(await fresh.findOneOrFail(Asset, { id: asset.id }));
+    await fresh.remove(await fresh.findOneOrFail(Asset, { id: asset.id })).flush();
   });
 });

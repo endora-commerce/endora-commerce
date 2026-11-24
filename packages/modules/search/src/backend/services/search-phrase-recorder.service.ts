@@ -78,7 +78,7 @@ export class SearchPhraseRecorder {
         salesChannel: channel,
         resultCount: input.resultCount,
       });
-      await em.persistAndFlush(record);
+      await em.persist(record).flush();
     } catch (err) {
       this.onError(err);
     }

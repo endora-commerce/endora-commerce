@@ -60,7 +60,7 @@ export async function createMinimumProduct(
     minOrderQuantity: input.minOrderQuantity ?? null,
     returnable: input.returnable ?? false,
   });
-  await em.persistAndFlush(product);
+  await em.persist(product).flush();
   // Feature 160 — its price is a base-book row (the legacy `defaultPrice` it
   // carried is not a price any more, FR-018).
   await seedBasePriceSql(em, product.id, '10');
@@ -85,7 +85,7 @@ export async function createMinimumVariant(
     sku,
     variantAttributeValues: { color: sku },
   });
-  await em.persistAndFlush(variant);
+  await em.persist(variant).flush();
   return variant.id;
 }
 
@@ -99,7 +99,7 @@ export async function createMinimumPackagingUnit(
     baseQuantity: input.baseQuantity,
     minOrderUnits: input.minOrderUnits ?? null,
   });
-  await em.persistAndFlush(unit);
+  await em.persist(unit).flush();
   return unit.id;
 }
 

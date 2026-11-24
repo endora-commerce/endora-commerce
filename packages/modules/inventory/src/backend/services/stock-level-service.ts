@@ -504,7 +504,7 @@ export class StockLevelService {
         onHand: input.onHand,
       });
     }
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
 
     if (this.eventBus && before !== input.onHand) {
       this.eventBus.emit('inventory.adjusted.v1', {

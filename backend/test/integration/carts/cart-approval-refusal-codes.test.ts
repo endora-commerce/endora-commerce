@@ -147,7 +147,7 @@ describe('cart approval, reject and conversion refusals carry their own code (is
       salesChannelId: channelId,
       status: state.status,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     em.create(CartItem, {
       cartId: cart.id,
       productId: SEED_PRODUCT_101_ID,
@@ -257,7 +257,7 @@ describe('cart approval, reject and conversion refusals carry their own code (is
         salesChannelId: channelId,
         status: 'completed',
       });
-      await em.persistAndFlush(cart);
+      await em.persist(cart).flush();
       const res = await h.app.inject({
         method: 'POST',
         url: `/api/v1/organization/carts/${cart.id}/approve`,
@@ -313,7 +313,7 @@ describe('cart approval, reject and conversion refusals carry their own code (is
         organizationId: org.organizationId,
         customerAccountId: MEMBER_ID,
       });
-      await em.persistAndFlush(qr);
+      await em.persist(qr).flush();
       const res = await h.app.inject({
         method: 'POST',
         url: `/api/v1/cart/from-quote-request/${qr.id}`,

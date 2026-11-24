@@ -34,7 +34,7 @@ describe('POST /admin/webhooks/deliveries/:id/replay', () => {
       eventTypes: ['order.created.v1'],
       secret: 'a'.repeat(64),
     });
-    await em.persistAndFlush(w);
+    await em.persist(w).flush();
     webhookId = w.id;
   });
 
@@ -53,7 +53,7 @@ describe('POST /admin/webhooks/deliveries/:id/replay', () => {
       attemptCount: 8,
       lastError: 'receiver returned 500',
     });
-    await em.persistAndFlush(dead);
+    await em.persist(dead).flush();
 
     const res = await h.app.inject({
       method: 'POST',
@@ -96,7 +96,7 @@ describe('POST /admin/webhooks/deliveries/:id/replay', () => {
       status: 'pending',
       attemptCount: 0,
     });
-    await em.persistAndFlush(pending);
+    await em.persist(pending).flush();
 
     const res = await h.app.inject({
       method: 'POST',

@@ -79,7 +79,7 @@ describe('mfa — org policy tenant isolation [D-260]', () => {
       } else if (!role.permissions.includes('mfa:manage')) {
         role.permissions = [...role.permissions, 'mfa:manage'];
       }
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
 
       const rep = em.create(AdminUser, {
         email: `d260-mfa-policy-rep-${Date.now()}@i.local`,
@@ -88,8 +88,8 @@ describe('mfa — org policy tenant isolation [D-260]', () => {
         firstName: 'D260',
         lastName: 'MfaRep',
       });
-      await em.persistAndFlush(rep);
-      await em.persistAndFlush([
+      await em.persist(rep).flush();
+      await em.persist([
         em.create(OrganizationSalesRepAssignment, {
           organizationId: TEST_ORGANIZATION_ID,
           adminUserId: rep.id,
@@ -97,7 +97,7 @@ describe('mfa — org policy tenant isolation [D-260]', () => {
         // #305 — the foreign organization is another representative's: an
         // unassigned organization is in every representative's reach.
         em.create(OrganizationSalesRepAssignment, { organizationId: OTHER_TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }),
-      ]);
+      ]).flush();
 
       scopedCookie = `stub-d260-mfa-policy-${Date.now()}`;
       ADMIN_COOKIES[scopedCookie] = { adminUserId: rep.id };

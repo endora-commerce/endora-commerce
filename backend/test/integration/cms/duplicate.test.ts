@@ -43,7 +43,7 @@ describe('CMS duplicate (issue #1495)', () => {
       });
     first = make('a');
     second = make('b');
-    await em.persistAndFlush([first, second]);
+    await em.persist([first, second]).flush();
   });
 
   afterAll(async () => {

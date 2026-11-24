@@ -141,7 +141,7 @@ export class WarehouseService {
       defaultLowStockThreshold: input.defaultLowStockThreshold ?? null,
     });
     try {
-      await em.persistAndFlush(row);
+      await em.persist(row).flush();
     } catch (err) {
       if (err instanceof UniqueConstraintViolationException) {
         throw new HttpError(409, 'WAREHOUSE_CODE_TAKEN', 'Warehouse code already in use');
@@ -182,7 +182,7 @@ export class WarehouseService {
     if (input.defaultLowStockThreshold !== undefined) {
       row.defaultLowStockThreshold = input.defaultLowStockThreshold;
     }
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     // Feature 024 — emit deactivate / reactivate when the only meaningful
     // change was the active flip; otherwise emit a plain `warehouse.update`.
     const after = snapshotOf(row);
@@ -298,7 +298,7 @@ export class WarehouseService {
       {},
       auditCtx,
     );
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
   }
 
   private async collectTotals(em: EntityManager, ids: string[]): Promise<Map<string, WarehouseTotals>> {

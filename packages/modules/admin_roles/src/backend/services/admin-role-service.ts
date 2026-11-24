@@ -250,7 +250,7 @@ export class AdminRoleService {
     });
     this.#audit(em, 'admin_role.upsert', role.id, null, { code: role.code, name: role.name });
     try {
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
     } catch (err) {
       if (err instanceof UniqueConstraintViolationException) {
         throw new HttpError(
@@ -320,7 +320,7 @@ export class AdminRoleService {
     const refusal = roleInUseRefusal(live, assignees.length - live);
     if (refusal) throw refusal;
     this.#audit(em, 'admin_role.delete', role.id, { code: role.code }, null);
-    await em.removeAndFlush(role);
+    await em.remove(role).flush();
   }
 
   /**

@@ -145,7 +145,7 @@ describe('external order intake — org capability envelope (062 / T022)', () =>
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     channelId = channel.id;
     await h.salesChannels.cache.invalidate('ext-envelope');
     // Issue #699 — the intake places only on one of the bound Organization's
@@ -166,7 +166,7 @@ describe('external order intake — org capability envelope (062 / T022)', () =>
       currency: 'PLN',
       adapter: 'personal_pickup',
     });
-    await em.persistAndFlush(altDelivery);
+    await em.persist(altDelivery).flush();
     altDeliveryMethodId = altDelivery.id;
 
     orgAToken = await mint({
@@ -288,7 +288,7 @@ describe('external order intake — org capability envelope (062 / T022)', () =>
     expect(cart).not.toBeNull();
     const item = await em.findOne(CartItem, { cartId: cart!.id });
     item!.quantity = 80;
-    await em.persistAndFlush(item!);
+    await em.persist(item!).flush();
 
     const customerRes = await h.app.inject({
       method: 'POST',

@@ -82,11 +82,11 @@ describe('OrderReadPort.salesChannelIdsForCustomer', () => {
     await seedOrdersForInvoiceTests(h.em());
     channelA = await ensureSalesChannelId(h.em(), 'ord-read-chan-a');
     channelB = await ensureSalesChannelId(h.em(), 'ord-read-chan-b');
-    await h.em().persistAndFlush([
+    await h.em().persist([
       orderOn(channelA, new Date('2026-01-01T10:00:00Z'), TEST_CUSTOMER_ID),
       orderOn(channelA, new Date('2026-02-01T10:00:00Z'), TEST_CUSTOMER_ID),
       orderOn(channelB, new Date('2026-03-01T10:00:00Z'), TEST_CUSTOMER_ID),
-    ]);
+    ]).flush();
   });
 
   afterAll(async () => {

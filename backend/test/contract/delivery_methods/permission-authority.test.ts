@@ -62,7 +62,7 @@ describe('delivery_methods permission authority', () => {
   ): Promise<string> {
     const em = h.em();
     const role = em.create(AdminRole, { code, name, permissions: [...permissions] });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     return role.id;
   }
 
@@ -125,7 +125,7 @@ describe('delivery_methods permission authority', () => {
       status: 'active',
       adapter: 'in_person_pickup',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     return { id: method.id, code: method.code };
   }
 

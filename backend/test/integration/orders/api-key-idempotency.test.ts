@@ -65,7 +65,7 @@ describe('external order intake — idempotency (062 / T021)', () => {
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     await h.salesChannels.cache.invalidate('ext-idem');
     // Issue #699 — the intake places only on one of the bound Organization's
     // active assigned channels.

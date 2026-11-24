@@ -64,7 +64,7 @@ function generationFor(options: {
     getConnection: () => ({ execute: async () => undefined }),
     getTransactionContext: () => undefined,
     create: (_entity: unknown, data: Record<string, unknown>) => ({ id: 'artefact-1234', ...data }),
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
   } as unknown as EntityManager;
 
   const service = new FeedGenerationService({

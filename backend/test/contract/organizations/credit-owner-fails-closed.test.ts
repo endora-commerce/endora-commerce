@@ -60,7 +60,7 @@ describe('organizations — creditOwner asks credit_limits and fails closed (D-8
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     org.path = `/${org.id}/`;
     await em.flush();
     return org;

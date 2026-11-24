@@ -28,7 +28,7 @@ describe('Admin customer-group assignment (US6)', () => {
       payload: { scope: 'all', value: true },
     });
     const g = h.em().create(CustomerGroup, { code: `cg-${Date.now()}`, name: 'US6 Group' });
-    await h.em().persistAndFlush(g);
+    await h.em().persist(g).flush();
     groupId = g.id;
   });
 

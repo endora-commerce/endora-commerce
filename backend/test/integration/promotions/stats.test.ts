@@ -44,7 +44,7 @@ async function seedOrderId(em: EntityManager, organizationId: string): Promise<s
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   return order.id;
 }
 

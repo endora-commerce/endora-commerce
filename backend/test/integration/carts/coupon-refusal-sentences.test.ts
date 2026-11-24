@@ -62,7 +62,7 @@ describe('a refused coupon carries the sentence written for its reason (issue #2
     h = await setupBackendServer();
     const em = h.em();
     const vip = em.create(CustomerGroup, { code: 'i231-vip', name: 'VIP (issue 231)' });
-    await em.persistAndFlush(vip);
+    await em.persist(vip).flush();
     vipGroupId = vip.id;
   });
 

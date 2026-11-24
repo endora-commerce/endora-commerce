@@ -58,7 +58,7 @@ describe('admin catalog lists — paging through equal creation times (issue #17
         status: 'completed',
       } as never),
     );
-    await em.persistAndFlush([...products, ...operations]);
+    await em.persist([...products, ...operations]).flush();
     productIds = products.map((p) => p.id);
     operationIds = operations.map((o) => (o as unknown as { id: string }).id);
     const connection = em.getConnection();

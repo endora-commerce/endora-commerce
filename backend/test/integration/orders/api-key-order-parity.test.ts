@@ -64,7 +64,7 @@ describe('external order intake — storefront order parity (062 / SC-004)', () 
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     await h.salesChannels.cache.invalidate('ext-parity');
     // Issue #699 — the intake places only on one of the bound Organization's
     // active assigned channels.
