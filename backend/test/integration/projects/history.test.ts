@@ -157,8 +157,10 @@ describe('projects — history (US7)', () => {
           audited.id,
         ])) as Array<{ action: string; state_before: unknown; state_after: unknown }>;
       const text = JSON.stringify(rows);
-      expect(text).not.toContain('1234');
-      expect(text).not.toContain('987');
+      // The full decimal, not its digits: a bare '987' also occurs by chance inside
+      // the random UUIDs serialised in these rows.
+      expect(text).not.toContain('1234.56');
+      expect(text).not.toContain('987.65');
       expect(text).not.toContain('valueAmount');
       const create = rows.find((row) => row.action === 'projects.project.create');
       const update = rows.find((row) => row.action === 'projects.project.update');
