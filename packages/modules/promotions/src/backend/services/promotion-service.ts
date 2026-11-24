@@ -16,7 +16,7 @@ import {
 } from '@endora-commerce/contracts';
 import { linesGross, linesSubtotal, percentOf, round2 } from '../actions/util.js';
 import { HttpError } from '@endora-commerce/platform/http';
-import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import { recordAuditFromContext, type CommandBus } from '@endora-commerce/platform/commands';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
@@ -40,6 +40,11 @@ import {
   type UsageContext,
 } from './promotion-usage-service.js';
 import type { CartApplyContext } from '../actions/types.js';
+import { makeCreatePromotionCommand, type PromotionInputValidator } from '../commands/create-promotion.command.js';
+import { makeUpdatePromotionCommand } from '../commands/update-promotion.command.js';
+import type { UpsertPromotionInput } from './promotion-data.js';
+
+export type { UpsertPromotionInput } from './promotion-data.js';
 
 /**
  * The one question this service asks about promotion-rule attribute metadata.
@@ -175,6 +180,15 @@ export class PromotionService {
      * composition the absent branch described.
      */
     private readonly auditLog: AuditPort,
+    /**
+     * Issue #1844 — the Command Bus the promotion create and edit run through
+     * (Principle XIII). Both are hookable (`PROMOTION_HOOKABLE_ACTIONS`), so the
+     * bus records their one audit entry and runs the hooks on their
+     * transaction; `auditLog` above stays for the delete, which is not a
+     * Command yet. **Required**, for the reason the four before it are: every
+     * composition has a bus.
+     */
+    private readonly commandBus: Pick<CommandBus, 'run'>,
     /** Feature 012 / US8 — audit sink for FR-039 skip-on-toggle events. */
     private readonly auditLogger: PromotionAuditLogger = {
       info: (message, fields) => console.warn(`[audit] ${message}`, fields ?? {}),
@@ -250,41 +264,38 @@ export class PromotionService {
     return row;
   }
 
+  /**
+   * Create a promotion, or edit the one that already has `input.code` — the
+   * `promotion.create` and `promotion.update` Commands (issue #1844). A new
+   * promotion is bound to the system-default channel after its Command
+   * commits, as it was before the write was a Command.
+   */
   async upsert(input: UpsertPromotionInput): Promise<Promotion> {
-    const em = this.emFactory();
     const existing = input.code
-      ? await em.findOne(Promotion, { code: input.code })
+      ? await this.emFactory().findOne(Promotion, { code: input.code })
       : null;
-    await this.validateUpsertInput(em, input, existing);
-    const data = buildPromotionData(input);
     if (existing) {
-      Object.assign(existing, data);
-      this.#audit(em, 'promotion.update', existing.id, null, { name: existing.name, code: existing.code });
-      await em.flush();
-      return existing;
+      const { promotion } = await this.commandBus.run(
+        makeUpdatePromotionCommand({ promotionId: existing.id, input, validate: this.#validate }),
+      );
+      return promotion;
     }
-    // `data` is built from a partial input; `name` is always present per the
-    // schema, but the conditional spreads widen the inferred type.
-    const row = em.create(Promotion, data as unknown as Promotion);
-    em.persist(row);
-    this.#audit(em, 'promotion.create', row.id, null, { name: row.name, code: row.code });
-    await em.flush();
+    const row = await this.commandBus.run(makeCreatePromotionCommand({ input, validate: this.#validate }));
     await this.salesChannelMembership.bindToDefaultIfEmpty('promotion', row.id);
     return row;
   }
 
-  /** Feature 045 — update an existing promotion by id (admin edit path). */
+  /** Feature 045 — update an existing promotion by id (admin edit path): the `promotion.update` Command. */
   async updateById(id: string, input: UpsertPromotionInput): Promise<Promotion> {
-    const em = this.emFactory();
-    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${id} not found.`);
-    const existing = await em.findOne(Promotion, { id });
-    if (!existing) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${id} not found.`);
-    await this.validateUpsertInput(em, input, existing);
-    Object.assign(existing, buildPromotionData(input));
-    this.#audit(em, 'promotion.update', existing.id, null, { name: existing.name, code: existing.code });
-    await em.flush();
-    return existing;
+    const { promotion } = await this.commandBus.run(
+      makeUpdatePromotionCommand({ promotionId: id, input, validate: this.#validate }),
+    );
+    return promotion;
   }
+
+  /** The input checks, as the promotion Commands run them on their own transaction. */
+  readonly #validate: PromotionInputValidator = (em, input, existing) =>
+    this.validateUpsertInput(em, input, existing);
 
   private async validateUpsertInput(
     em: EntityManager,
@@ -826,86 +837,6 @@ function validateValuesShape(
       );
     }
   }
-}
-
-
-
-export interface UpsertPromotionInput {
-  code?: string | null;
-  name: string;
-  kind?: 'percentage_off' | 'amount_off' | 'free_delivery';
-  value?: number;
-  currency?: string | null;
-  minCartSubtotal?: number | null;
-  validFrom?: string | null;
-  validUntil?: string | null;
-  organizationId?: string | null;
-  customerGroupId?: string | null;
-  categoryId?: string | null;
-  productId?: string | null;
-  criteria?: PromotionCriterion[];
-  isActive?: boolean;
-  // Feature 045 — engine fields.
-  description?: string | null;
-  priority?: number;
-  stopFurther?: boolean;
-  action?: PromotionAction;
-  ruleId?: string | null;
-  rule?: PromotionRule | null;
-  usageLimitGlobal?: number | null;
-  usageLimitPerOrganization?: number | null;
-  usageLimitPerCustomer?: number | null;
-}
-
-/** Map an upsert input into the entity-assignable data object. */
-function buildPromotionData(input: UpsertPromotionInput): Record<string, unknown> {
-  const { actionType, actionConfig } = splitAction(input.action);
-  return {
-    name: input.name,
-    ...(input.kind !== undefined ? { kind: input.kind } : {}),
-    ...(input.value !== undefined ? { value: String(input.value) } : {}),
-    ...(input.code !== undefined ? { code: input.code } : {}),
-    ...(input.currency !== undefined ? { currency: input.currency } : {}),
-    ...(input.minCartSubtotal !== undefined && input.minCartSubtotal !== null
-      ? { minCartSubtotal: String(input.minCartSubtotal) }
-      : {}),
-    ...(input.validFrom !== undefined
-      ? { validFrom: input.validFrom ? new Date(input.validFrom) : null }
-      : {}),
-    ...(input.validUntil !== undefined
-      ? { validUntil: input.validUntil ? new Date(input.validUntil) : null }
-      : {}),
-    ...(input.organizationId !== undefined ? { organizationId: input.organizationId } : {}),
-    ...(input.customerGroupId !== undefined ? { customerGroupId: input.customerGroupId } : {}),
-    ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
-    ...(input.productId !== undefined ? { productId: input.productId } : {}),
-    ...(input.criteria !== undefined ? { criteria: input.criteria } : {}),
-    ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-    ...(input.description !== undefined ? { description: input.description } : {}),
-    ...(input.priority !== undefined ? { priority: input.priority } : {}),
-    ...(input.stopFurther !== undefined ? { stopFurther: input.stopFurther } : {}),
-    ...(input.action !== undefined ? { actionType, actionConfig } : {}),
-    // A rule source set clears the other (mutually exclusive).
-    ...(input.ruleId !== undefined ? { ruleId: input.ruleId, ruleDefinition: null } : {}),
-    ...(input.rule !== undefined ? { ruleDefinition: input.rule, ruleId: null } : {}),
-    ...(input.usageLimitGlobal !== undefined ? { usageLimitGlobal: input.usageLimitGlobal } : {}),
-    ...(input.usageLimitPerOrganization !== undefined
-      ? { usageLimitPerOrganization: input.usageLimitPerOrganization }
-      : {}),
-    ...(input.usageLimitPerCustomer !== undefined
-      ? { usageLimitPerCustomer: input.usageLimitPerCustomer }
-      : {}),
-  };
-}
-
-/** Split a `PromotionAction` union into the stored `(type, config)` pair. */
-function splitAction(action?: PromotionAction): {
-  actionType: PromotionAction['type'] | null;
-  actionConfig: Record<string, unknown>;
-} {
-  if (!action) return { actionType: null, actionConfig: {} };
-  const { type, ...config } = action;
-  return { actionType: type, actionConfig: config };
 }
 
 /** Reconstruct a `PromotionAction` from the stored `(type, config)` pair. */

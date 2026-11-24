@@ -16,6 +16,7 @@ import type {
   SalesChannelMembershipPort,
 } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { PromotionUsageFinalizer } from '../ports/index.js';
 import { PromotionService } from './services/promotion-service.js';
 import { Promotion } from './entities/promotion.entity.js';
@@ -86,6 +87,8 @@ export interface PromotionsCradle {
   };
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditPort;
+  /** Issue #1844 — the promotion and coupon creates and the promotion edit are Commands. */
+  readonly commandBus: CommandBus;
   readonly requireAdmin: RequireAdminFactory;
   readonly salesChannelMembershipPort: SalesChannelMembershipPort;
   readonly dictionaryValidator: DictionaryValidator;
@@ -141,8 +144,8 @@ export function registerModule(ctx: ModuleContext): void {
 
     promotionCouponService: ctx
       .asFunction(
-        ({ emFactory, auditLogService }: PromotionsCradle) =>
-          new CouponService(emFactory, auditLogService),
+        ({ emFactory, commandBus, auditLogService }: PromotionsCradle) =>
+          new CouponService(emFactory, commandBus, auditLogService),
       )
       .singleton(),
 
@@ -214,12 +217,12 @@ export function registerModule(ctx: ModuleContext): void {
     'promotionService',
     ctx
       .asFunction(
-        ({ emFactory, auditLogService }: PromotionsCradle) =>
+        ({ emFactory, auditLogService, commandBus }: PromotionsCradle) =>
           new PromotionService(
             emFactory,
-            // Every argument up to and including `auditLog` is required
-            // (issues #164 and #251): each is resolved for every composition,
-            // so the type no longer says otherwise. `auditLogger` and
+            // Every argument up to and including `commandBus` is required
+            // (issues #164, #251 and #1844): each is resolved for every
+            // composition, so the type no longer says otherwise. `auditLogger` and
             // `actionRegistry` follow, and are the only two with a default —
             // both are genuine defaults (a console sink, the built-in action
             // catalogue), not gates an omission opens.
@@ -234,6 +237,7 @@ export function registerModule(ctx: ModuleContext): void {
                   .organizationReadPort.loadEffectiveOrganization(orgId)
               )?.status ?? null,
             auditLogService,
+            commandBus,
           ),
       )
       .singleton(),
