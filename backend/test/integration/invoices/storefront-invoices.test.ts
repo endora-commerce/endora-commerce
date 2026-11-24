@@ -103,7 +103,7 @@ describe('invoices — storefront customer download (US4)', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     em.create(OrderItem, {
       orderId: order.id,
       productId: randomUUID(),

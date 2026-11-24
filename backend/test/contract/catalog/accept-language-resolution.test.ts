@@ -61,7 +61,7 @@ describe('Catalogue request language from Accept-Language (issue #397)', () => {
       manageStock: false,
       attributeValues: {},
     });
-    await em.persistAndFlush([channel, category, product]);
+    await em.persist([channel, category, product]).flush();
     await h.salesChannels.cache.invalidate(channelCode);
     channelId = channel.id;
     productId = product.id;

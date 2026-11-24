@@ -58,7 +58,7 @@ describe('placeOrder — coupon discount stamped on the order (feature 036)', ()
     // leaves `salesChannelId` unset, which no real cart is (D-47…D-51), so the
     // cart is placed in the default channel here.
     cart!.salesChannelId = (await h.salesChannels.resolver.getSystemDefault()).id;
-    await em.persistAndFlush(cart!);
+    await em.persist(cart!).flush();
   });
   afterAll(async () => {
     await teardownBackendServer(h);

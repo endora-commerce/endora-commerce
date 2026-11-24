@@ -102,7 +102,7 @@ describe('recursive folder delete refuses in-use assets (#535)', () => {
       },
       languages: ['en-US'],
     });
-    await em.persistAndFlush(page);
+    await em.persist(page).flush();
 
     try {
       const del = await h.app.inject({

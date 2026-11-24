@@ -48,7 +48,7 @@ describe('Storefront blog language from Accept-Language (issue #1011)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     channel = { id: created.id, code: created.code };
 
     const post = await admin('POST', '/api/v1/admin/blog/posts', {

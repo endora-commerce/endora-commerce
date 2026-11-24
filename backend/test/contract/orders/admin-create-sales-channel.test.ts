@@ -63,14 +63,14 @@ describe('POST /api/v1/admin/orders — the order\'s sales channel decides', () 
         'delete from sales_channel_products where sales_channel_id = ? and product_id = ?',
         [defaultId, probe.soldHereId],
       );
-    await h.em().persistAndFlush(
+    await h.em().persist(
       h.em().create(StockLevel, {
         productId: probe.soldHereId,
         warehouseId: '00000000-0000-4000-8000-00000000d017',
         onHand: 100,
         reserved: 0,
       }),
-    );
+    ).flush();
   }, 60_000);
 
   afterAll(async () => {

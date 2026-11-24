@@ -39,7 +39,7 @@ describe('CMS multi-channel scope (T061)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush([retail, vip]);
+    await em.persist([retail, vip]).flush();
   });
 
   afterAll(async () => {

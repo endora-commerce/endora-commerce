@@ -64,7 +64,7 @@ export class SessionService {
       ...(input.ipAddress !== undefined ? { ipAddress: input.ipAddress } : {}),
       ...(input.userAgent !== undefined ? { userAgent: input.userAgent } : {}),
     });
-    await em.persistAndFlush(session);
+    await em.persist(session).flush();
     await this.cache(session);
 
     return {
@@ -118,7 +118,7 @@ export class SessionService {
     const em = this.emFactory();
     const session = await em.findOne(Session, { id: sessionId });
     if (session) {
-      await em.removeAndFlush(session);
+      await em.remove(session).flush();
     }
     await this.redis.del(REDIS_KEY_PREFIX + sessionId);
   }
@@ -143,7 +143,7 @@ export class SessionService {
     if (sessions.length === 0) return;
     // Rows first, cache keys second — see `destroyAllForAdmin`.
     const ids = sessions.map((session) => session.id);
-    await em.removeAndFlush(sessions);
+    await em.remove(sessions).flush();
     for (const id of ids) {
       await this.redis.del(REDIS_KEY_PREFIX + id);
     }
@@ -185,7 +185,7 @@ export class SessionService {
     // that was still there and cached it again — after which the row was
     // deleted and the cache answered for it for up to thirty days.
     const ids = sessions.map((session) => session.id);
-    await em.removeAndFlush(sessions);
+    await em.remove(sessions).flush();
     for (const id of ids) {
       await this.redis.del(REDIS_KEY_PREFIX + id);
     }

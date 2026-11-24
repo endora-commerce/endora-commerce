@@ -106,7 +106,7 @@ describe('#1350 / #1396 — promotions discount and compare the gross, on every 
     const salesChannelId = await systemDefaultSalesChannelId(em);
     const cart = await em.findOneOrFail(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' });
     cart.salesChannelId = salesChannelId;
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     cartId = cart.id;
     customer = { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID, salesChannelId };
     productIds.push(simpleId, virtualId, configurableId);

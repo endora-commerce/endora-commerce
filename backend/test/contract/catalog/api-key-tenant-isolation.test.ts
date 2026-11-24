@@ -72,7 +72,7 @@ describe('External catalog tenant/channel isolation (062 / T016, SC-002)', () =>
         defaultCurrency: 'PLN',
         active: true,
       });
-      await em.persistAndFlush(ch);
+      await em.persist(ch).flush();
       await h.salesChannels.cache.invalidate(code);
       return ch;
     };
@@ -93,7 +93,7 @@ describe('External catalog tenant/channel isolation (062 / T016, SC-002)', () =>
         country: 'PL',
       },
     });
-    await em.persistAndFlush(orgB);
+    await em.persist(orgB).flush();
     const customerB = em.create(CustomerAccount, {
       id: CUSTOMER_B_ID,
       organizationId: ORG_B_ID,
@@ -104,7 +104,7 @@ describe('External catalog tenant/channel isolation (062 / T016, SC-002)', () =>
       organizationRoleId: await predefinedRoleIdOf(em, ORG_B_ID, 'administrator'),
       emailVerifiedAt: new Date(),
     });
-    await em.persistAndFlush(customerB);
+    await em.persist(customerB).flush();
 
     const makeProduct = async (sku: string, slug: string): Promise<ProductRow> => {
       const p = em.create(Product, {
@@ -118,7 +118,7 @@ describe('External catalog tenant/channel isolation (062 / T016, SC-002)', () =>
         manageStock: false,
         attributeValues: {},
       });
-      await em.persistAndFlush(p);
+      await em.persist(p).flush();
       return p;
     };
     const productCh1 = await makeProduct('ISO-CH1-ONLY', 'iso-ch1-only');
@@ -134,7 +134,7 @@ describe('External catalog tenant/channel isolation (062 / T016, SC-002)', () =>
       name: { 'en-US': 'Iso channel 2 cat' },
       slug: 'iso-cat-2',
     });
-    await em.persistAndFlush([categoryCh1, categoryCh2]);
+    await em.persist([categoryCh1, categoryCh2]).flush();
 
     const conn = em.getConnection();
     await conn.execute(

@@ -533,7 +533,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       language: scope.language,
     });
     if (row) {
-      await em.removeAndFlush(row);
+      await em.remove(row).flush();
       await this.audit(actor, 'transactional_email.content.reset', email.code, { scope });
     }
     const fallbackLanguage = email.languages[0];

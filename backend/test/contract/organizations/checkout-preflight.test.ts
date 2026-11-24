@@ -49,7 +49,7 @@ describe('Storefront preflight + payment-method allow-list (feature 026 US4)', (
         statusOnSuccess: 'paid',
         statusOnFailure: 'cancelled',
       });
-      await em.persistAndFlush(extra);
+      await em.persist(extra).flush();
       paymentMethodIds.push(extra.id);
     }
     restrictedPaymentId = paymentMethodIds[0]!;

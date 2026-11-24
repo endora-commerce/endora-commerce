@@ -83,7 +83,7 @@ describe('blog authors (feature 171, T074/T075/T083/T084)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     channel = { id: created.id, code: created.code };
 
     assetId = randomUUID();

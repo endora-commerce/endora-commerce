@@ -68,7 +68,7 @@ describe('GET /api/v1/quick-order/search — sales-channel scoping', () => {
       visibility: 'public',
       attributeValues: { defaultPrice: 10 },
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
     vipOnlyProductId = product.id;
 
     await em

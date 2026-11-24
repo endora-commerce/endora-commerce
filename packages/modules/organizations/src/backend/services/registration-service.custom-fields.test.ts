@@ -82,9 +82,11 @@ function harness(values?: RegistrationCustomFieldValues, steps: string[] = []) {
       created.push({ entity, data });
       return { id: entity === Organization ? ORGANIZATION_ID : 'token', ...data };
     },
-    persistAndFlush: async () => {
-      steps.push('flush');
-    },
+    persist: () => ({
+      flush: async () => {
+        steps.push('flush');
+      },
+    }),
     flush: async () => {
       steps.push('flush');
     },

@@ -73,7 +73,7 @@ describe('payment_methods permission authority', () => {
   ): Promise<string> {
     const em = h.em();
     const role = em.create(AdminRole, { code, name, permissions: [...permissions] });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     return role.id;
   }
 
@@ -146,7 +146,7 @@ describe('payment_methods permission authority', () => {
       statusOnSuccess: 'paid',
       statusOnFailure: 'cancelled',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     return { id: method.id, code: method.code };
   }
 

@@ -925,7 +925,7 @@ export class RfqAdminService {
           pairedRows: paired,
         });
         groupingAudit = { before: groupingShape(storedGroups, existing.map((row) => row.groupId)), after: plan.after };
-        await em.removeAndFlush(existing);
+        await em.remove(existing).flush();
         const groupIds = await writeLineGroups(em, rfq.id, storedGroups, plan);
         const items: QuoteRequestItem[] = [];
         // Issue #303 — every line, a new one too, keeps the request's currency.
@@ -981,7 +981,7 @@ export class RfqAdminService {
             }),
           );
         }
-        await em.persistAndFlush(items);
+        await em.persist(items).flush();
       }
 
       rfq.currentRevisionNumber += 1;
@@ -1219,7 +1219,7 @@ export class RfqAdminService {
             : null,
         customFieldValues,
       });
-      await em.persistAndFlush(rfq);
+      await em.persist(rfq).flush();
 
       // Feature 159 — the new quote's groups, written before its lines (FR-009).
       const plan = planLineGrouping({
@@ -1267,7 +1267,7 @@ export class RfqAdminService {
           ? { changedCustomFields: Object.keys(rfq.customFieldValues ?? {}).sort() }
           : {}),
       });
-      await em.persistAndFlush(items);
+      await em.persist(items).flush();
 
       const revision = await this.deps.revisionService.record(
         {

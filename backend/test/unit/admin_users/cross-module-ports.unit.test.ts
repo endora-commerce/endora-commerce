@@ -76,9 +76,11 @@ function ownTablesOnly(admin: AdminUser | null): {
       }
       return { id: 'a-new', ...data } as unknown as AdminUser;
     },
-    persistAndFlush: async () => {
-      flushes += 1;
-    },
+    persist: () => ({
+      flush: async () => {
+        flushes += 1;
+      },
+    }),
     flush: async () => {
       flushes += 1;
     },

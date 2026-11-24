@@ -95,7 +95,7 @@ describe('GET /api/v1/comparisons/me/pdf — feature 007 / US4', () => {
       salesChannelId: (channel as any).id,
       displayMode: 'all',
     });
-    await em.persistAndFlush(c);
+    await em.persist(c).flush();
 
     const res = await h.app.inject({
       method: 'GET',

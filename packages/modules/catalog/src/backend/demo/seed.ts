@@ -96,7 +96,7 @@ export async function seedDemo(
       name: { ...DEMO_ROOT_CATEGORY.name },
       slug: DEMO_ROOT_CATEGORY.slug,
     });
-    await em.persistAndFlush(root);
+    await em.persist(root).flush();
   }
 
   const sections = new Map<string, Category>();

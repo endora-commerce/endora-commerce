@@ -68,8 +68,12 @@ class FakeEm {
     return this.rows.find((r) => r.moduleId === where.moduleId) ?? null;
   }
   async flush(): Promise<void> {}
-  async persistAndFlush(payload: FakeRow): Promise<void> {
-    this.rows.push(payload);
+  persist(payload: FakeRow) {
+    return {
+      flush: async (): Promise<void> => {
+        this.rows.push(payload);
+      },
+    };
   }
   create(_entity: unknown, payload: FakeRow): FakeRow {
     return payload;

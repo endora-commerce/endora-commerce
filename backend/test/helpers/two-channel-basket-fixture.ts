@@ -48,7 +48,7 @@ async function createChannel(em: EntityManager, code: string): Promise<{ id: str
     defaultCurrency: 'PLN',
     active: true,
   });
-  await em.persistAndFlush(channel);
+  await em.persist(channel).flush();
   return { id: channel.id, code };
 }
 
@@ -86,7 +86,7 @@ export async function seedTwoChannelBasket(
     attributeValues: {},
     manageStock: false,
   });
-  await em.persistAndFlush(product);
+  await em.persist(product).flush();
 
   for (const channel of [a, b]) {
     await em

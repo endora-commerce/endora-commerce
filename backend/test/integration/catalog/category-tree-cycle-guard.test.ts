@@ -50,7 +50,7 @@ describe('expandCategoryProductIds — cyclic category data', () => {
     const a = em.create(Category, { name: { en: 'A' }, slug: `cycle-a-${suffix}` });
     const b = em.create(Category, { name: { en: 'B' }, slug: `cycle-b-${suffix}` });
     const c = em.create(Category, { name: { en: 'C' }, slug: `cycle-c-${suffix}` });
-    await em.persistAndFlush([a, b, c]);
+    await em.persist([a, b, c]).flush();
 
     b.parentCategoryId = a.id;
     c.parentCategoryId = b.id;

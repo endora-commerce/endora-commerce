@@ -54,7 +54,7 @@ async function makeRootOrg(em: EntityManager, name: string): Promise<Organizatio
     vatStatus: 'vat_payer',
     registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
   });
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   org.path = `/${org.id}/`;
   await em.flush();
   return org;
@@ -114,7 +114,7 @@ async function seedRecords(
     organizationId: orgId,
     customerAccountId: customer.id,
   });
-  await em.persistAndFlush([customer, order, quote]);
+  await em.persist([customer, order, quote]).flush();
   return { orderId: order.id, quoteId: quote.id, customerId: customer.id };
 }
 

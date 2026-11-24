@@ -31,7 +31,7 @@ describe('Quote Requests — VAT rate on read', () => {
   afterAll(async () => {
     const em = h.em();
     const row = await em.findOne(Tax, { code: 'rfq-test-vat' });
-    if (row) await em.removeAndFlush(row);
+    if (row) await em.remove(row).flush();
     await teardownBackendServer(h);
   });
 

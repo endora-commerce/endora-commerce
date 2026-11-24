@@ -90,7 +90,7 @@ describe('#305 — one sales-representative reach rule on every surface', () => 
         rolePermissionsBefore = [...role.permissions];
         role.permissions = Array.from(new Set([...role.permissions.filter((p) => p !== 'organizations:rollup'), ...grants]));
       }
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       roleId = role.id;
 
       const organization = (label: string, over: Partial<Organization> = {}): Organization =>
@@ -106,12 +106,12 @@ describe('#305 — one sales-representative reach rule on every surface', () => 
       const u = organization('u');
       const p = organization('p', { isPersonal: true, taxId: null }); // no tax ID (specs/177)
       const f = organization('f');
-      await em.persistAndFlush([o1, u, p, f]);
+      await em.persist([o1, u, p, f]).flush();
       // Issue #956 — the child's real path goes in with the insert; the roots'
       // come from the entity's create hook.
       const fcId = randomUUID();
       const fc = organization('fc', { id: fcId, parentId: f.id, path: organizationTreePath(fcId, f) } as Partial<Organization>);
-      await em.persistAndFlush(fc);
+      await em.persist(fc).flush();
       Object.assign(org, { O1: o1.id, U: u.id, P: p.id, F: f.id, Fc: fc.id });
 
       const admin = (label: string): AdminUser =>
@@ -124,12 +124,12 @@ describe('#305 — one sales-representative reach rule on every surface', () => 
         });
       const repA = admin('rep-a');
       const repB = admin('rep-b');
-      await em.persistAndFlush([repA, repB]);
+      await em.persist([repA, repB]).flush();
       repBId = repB.id;
-      await em.persistAndFlush([
+      await em.persist([
         em.create(OrganizationSalesRepAssignment, { organizationId: o1.id, adminUserId: repA.id }),
         em.create(OrganizationSalesRepAssignment, { organizationId: f.id, adminUserId: repB.id }),
-      ]);
+      ]).flush();
 
       const account = (organizationId: string, label: string): CustomerAccount =>
         em.create(CustomerAccount, {
@@ -140,7 +140,7 @@ describe('#305 — one sales-representative reach rule on every surface', () => 
           lastName: label,
         });
       const accounts = { O1: account(o1.id, 'o1'), U: account(u.id, 'u'), P: account(p.id, 'p'), F: account(f.id, 'f') };
-      await em.persistAndFlush(Object.values(accounts));
+      await em.persist(Object.values(accounts)).flush();
       for (const key of Object.keys(accounts) as Array<keyof typeof accounts>) member[key] = accounts[key].id;
       ADMIN_COOKIES[REP_SESSION] = { adminUserId: repA.id };
     });

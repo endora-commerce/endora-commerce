@@ -42,7 +42,7 @@ describe('invoices — numbering engine (US2)', () => {
           defaultCurrency: 'PLN',
           currencies: ['PLN'],
         });
-      await em.persistAndFlush(channel);
+      await em.persist(channel).flush();
       ids.push(channel.id);
     }
     [CH_A, CH_B, CH_C] = ids as [string, string, string];

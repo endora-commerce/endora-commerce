@@ -62,7 +62,7 @@ export class NewsletterCustomFieldService {
     if (!field) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Field not found.');
     if (input.label !== undefined) field.label = input.label;
     this.#audit(em, 'newsletter_custom_field.update', field.id, { label: field.label });
-    await em.persistAndFlush(field);
+    await em.persist(field).flush();
     return this.toDto(field);
   }
 
@@ -72,7 +72,7 @@ export class NewsletterCustomFieldService {
     const field = await em.findOne(NewsletterCustomField, { id });
     if (!field) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Field not found.');
     this.#audit(em, 'newsletter_custom_field.delete', field.id, null);
-    await em.removeAndFlush(field);
+    await em.remove(field).flush();
   }
 
   private toDto(f: NewsletterCustomField): NewsletterCustomFieldDto {

@@ -127,7 +127,7 @@ export async function seedRichListingCorpus(
       attributeValues: {},
     });
   });
-  await em.persistAndFlush(products);
+  await em.persist(products).flush();
   // Feature 160 — the corpus is priced by base-book rows (the legacy
   // `defaultPrice` it carried is not a price any more, FR-018).
   const baseBook = await ensureBaseBookSql(em);

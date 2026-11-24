@@ -181,7 +181,7 @@ describe('POST /api/v1/auth/customer/login — cart-merge response field', () =>
       // system default's (`specs/154-sales-channel-access/`).
       salesChannelId: await systemDefaultSalesChannelId(em),
     });
-    await em.persistAndFlush(custCart);
+    await em.persist(custCart).flush();
     em.persist(
       em.create(CartItem, {
         cartId: custCart.id,
@@ -231,7 +231,7 @@ describe('POST /api/v1/auth/customer/login — cart-merge response field', () =>
       status: 'active',
       salesChannelId: await systemDefaultSalesChannelId(em),
     });
-    await em.persistAndFlush(anon);
+    await em.persist(anon).flush();
 
     const res = await h.app.inject({
       method: 'POST',

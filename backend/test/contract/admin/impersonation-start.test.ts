@@ -83,7 +83,7 @@ describe('POST /api/v1/admin/organizations/:id/impersonate — audit-before-cook
         vatStatus: 'vat_payer',
         registeredAddress: { street: 'ul. Obca 1', city: 'Warszawa', postalCode: '00-100', country: 'PL' },
       });
-      await em.persistAndFlush(foreignOrg);
+      await em.persist(foreignOrg).flush();
       const make = (key: keyof typeof ids, organizationId: string, deleted: boolean) =>
         em.create(CustomerAccount, {
           organizationId,
@@ -98,7 +98,7 @@ describe('POST /api/v1/admin/organizations/:id/impersonate — audit-before-cook
         foreign: make('foreign', foreignOrg.id, false),
         foreignDeleted: make('foreignDeleted', foreignOrg.id, true),
       };
-      await em.persistAndFlush(Object.values(rows));
+      await em.persist(Object.values(rows)).flush();
       for (const key of Object.keys(rows) as Array<keyof typeof ids>) ids[key] = rows[key].id;
     });
 

@@ -118,7 +118,7 @@ export async function seedViewerPricedFixture(em: EntityManager): Promise<void> 
         country: 'PL',
       },
     });
-    await em.persistAndFlush(other);
+    await em.persist(other).flush();
   }
   // Feature 154 — an Organization with no sales channel may not shop anywhere;
   // bind the stores the harness seeds.
@@ -136,7 +136,7 @@ export async function seedViewerPricedFixture(em: EntityManager): Promise<void> 
     allowedOrganizationIds: [],
     attributeValues: { defaultPrice: FALLBACK_ATTRIBUTE_PRICE },
   });
-  await em.persistAndFlush(product);
+  await em.persist(product).flush();
 
   const retail = await em.findOne(SalesChannel, { code: 'pl_retail' });
   if (!retail) throw new Error('the harness seeds pl_retail');
@@ -159,7 +159,7 @@ export async function seedViewerPricedFixture(em: EntityManager): Promise<void> 
     allowedOrganizationIds: [],
     attributeValues: {},
   });
-  await em.persistAndFlush(source);
+  await em.persist(source).flush();
   await em
     .getConnection()
     .execute(

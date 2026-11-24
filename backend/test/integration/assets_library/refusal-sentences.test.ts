@@ -96,7 +96,7 @@ describe('assets_library refusals carry their values into both sentences (issue 
     const em = h.em();
     for (const id of [...folderIds].reverse()) {
       const row = await em.findOne(AssetFolder, { id });
-      if (row) await em.removeAndFlush(row);
+      if (row) await em.remove(row).flush();
     }
     await store.undo();
     await teardownBackendServer(h);

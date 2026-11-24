@@ -89,7 +89,7 @@ describe('organizations — the self-service password reset e-mails the link (is
         country: 'PL',
       },
     });
-    await em.persistAndFlush(organization);
+    await em.persist(organization).flush();
     const email = `${prefix}${stamp}@example.test`;
     const account = em.create(CustomerAccount, {
       organizationId: organization.id,
@@ -100,7 +100,7 @@ describe('organizations — the self-service password reset e-mails the link (is
       organizationRoleId: await predefinedRoleIdOf(em, organization.id, 'administrator'),
       emailVerifiedAt: new Date(),
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     return email;
   };
 

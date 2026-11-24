@@ -147,7 +147,7 @@ describe('product feed run reaper [integration]', () => {
         byteSize: 10,
         itemCount: 0,
       });
-      await em.persistAndFlush(artefact);
+      await em.persist(artefact).flush();
       const artefactId = artefact.id;
 
       await h.productFeeds.reaper.releaseStaleClaims();
@@ -160,7 +160,7 @@ describe('product feed run reaper [integration]', () => {
       const feedId = await createFeed();
       const runId = await abandonedRun(feedId);
       const em = h.orm.em.fork();
-      await em.persistAndFlush(
+      await em.persist(
         em.create(FeedArtefact, {
           productFeedId: feedId,
           feedRunId: runId,
@@ -171,7 +171,7 @@ describe('product feed run reaper [integration]', () => {
           byteSize: 0,
           itemCount: 0,
         }),
-      );
+      ).flush();
 
       await expect(h.productFeeds.reaper.releaseStaleClaims()).resolves.toBeTruthy();
 

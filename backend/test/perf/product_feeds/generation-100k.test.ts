@@ -150,7 +150,7 @@ describe.skipIf(!shouldRun)('product feed generation — 100k perf', () => {
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush([small, large]);
+    await em.persist([small, large]).flush();
     smallChannelId = small.id;
     largeChannelId = large.id;
     // Feature 160 — the feed is pinned to an everyone price book of both

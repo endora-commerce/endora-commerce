@@ -45,7 +45,7 @@ async function seedOrderWithPayment(
     statusOnSuccess: opts.statusOnSuccess ?? 'paid',
     statusOnFailure: opts.statusOnFailure ?? 'on_hold',
   });
-  await em.persistAndFlush(method);
+  await em.persist(method).flush();
 
   const order = em.create(Order, {
     organizationId: randomUUID(),
@@ -64,7 +64,7 @@ async function seedOrderWithPayment(
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
 
   const payment = em.create(Payment, {
     orderId: order.id,
@@ -72,7 +72,7 @@ async function seedOrderWithPayment(
     amount: '123.00',
     currency: 'PLN',
   });
-  await em.persistAndFlush(payment);
+  await em.persist(payment).flush();
 
   return { method, order, payment };
 }
@@ -298,7 +298,7 @@ describe('ReceivePaymentHandler', () => {
     for (const status of ['paid', 'refunded', 'partially_refunded', 'deferred'] as const) {
       const { order, payment } = await seedOrderWithPayment(h.em());
       payment.status = status;
-      await h.em().persistAndFlush(payment);
+      await h.em().persist(payment).flush();
       await expect(service.openRetry(order.id)).rejects.toMatchObject({ statusCode: 409, code: codes[status] });
       expect(await service.listForOrder(order.id)).toHaveLength(1);
     }
@@ -319,7 +319,7 @@ describe('ReceivePaymentHandler', () => {
 
     const settled = await seedOrderWithPayment(h.em());
     settled.payment.status = 'paid';
-    await h.em().persistAndFlush(settled.payment);
+    await h.em().persist(settled.payment).flush();
     await service.failAttempt(settled.payment.id, 'late');
     const [untouched] = await service.listForOrder(settled.order.id);
     expect(untouched?.status).toBe('paid');

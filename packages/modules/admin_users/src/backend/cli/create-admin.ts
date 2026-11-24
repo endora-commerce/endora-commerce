@@ -197,7 +197,7 @@ export async function createAdmin(
       adminRoleId: role.id,
       status: 'active',
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     out(`Created admin: ${args.email}`);
     out(`  id   : ${created.id}`);
     out(`  role : ${role.code} (${role.id})`);

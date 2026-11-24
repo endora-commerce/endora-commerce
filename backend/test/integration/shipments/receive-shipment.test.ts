@@ -52,7 +52,7 @@ async function seedOrder(
     statusOnSuccess: opts.statusOnSuccess ?? 'shipment_sent',
     statusOnFailure: opts.statusOnFailure ?? 'processing',
   });
-  await em.persistAndFlush(method);
+  await em.persist(method).flush();
 
   const order = em.create(Order, {
     organizationId: randomUUID(),
@@ -72,7 +72,7 @@ async function seedOrder(
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   return { method, order };
 }
 

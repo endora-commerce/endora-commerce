@@ -71,13 +71,13 @@ describe('146 — quote request pricing/history schema [integration]', () => {
       const em = h.orm.em.fork();
       const a = newOrganization(em, 'A');
       const b = newOrganization(em, 'B');
-      await em.persistAndFlush([a, b]);
+      await em.persist([a, b]).flush();
       orgA = a.id;
       orgB = b.id;
       const accA = newAccount(em, orgA, 'a');
       const colA = newAccount(em, orgA, 'colleague');
       const accB = newAccount(em, orgB, 'b');
-      await em.persistAndFlush([accA, colA, accB]);
+      await em.persist([accA, colA, accB]).flush();
       accountA = accA.id;
       colleagueA = colA.id;
       accountB = accB.id;
@@ -115,7 +115,7 @@ describe('146 — quote request pricing/history schema [integration]', () => {
       const quoteRequestId = await withSystemScope('146 T011: a quote request to hang item rows on', async () => {
         const em = h.orm.em.fork();
         const rfq = em.create(QuoteRequest, { organizationId: orgA, customerAccountId: accountA });
-        await em.persistAndFlush(rfq);
+        await em.persist(rfq).flush();
         return rfq.id;
       });
       const insert = (values: [string | null, string | null, string | null]) =>
@@ -179,9 +179,9 @@ describe('146 — quote request pricing/history schema [integration]', () => {
       const { orgId, accountId } = await withSystemScope('146 T011: a disposable owner for the cascade probe', async () => {
         const em = h.orm.em.fork();
         const org = newOrganization(em, 'C');
-        await em.persistAndFlush(org);
+        await em.persist(org).flush();
         const acc = newAccount(em, orgA, 'cascade');
-        await em.persistAndFlush(acc);
+        await em.persist(acc).flush();
         em.persist(em.create(QuoteRequestOrgPolicy, { organizationId: org.id, priceProposalsAllowed: false }));
         em.persist(em.create(QuoteRequestAccountPolicy, { customerAccountId: acc.id, priceProposalsAllowed: true }));
         await em.flush();

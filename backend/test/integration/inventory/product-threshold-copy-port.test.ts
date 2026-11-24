@@ -62,7 +62,7 @@ describe('InventoryProductThresholdWritePort — the per-warehouse threshold cop
       attributeValues: {},
       allowedOrganizationIds: [],
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
     return product.id;
   };
 
@@ -70,7 +70,7 @@ describe('InventoryProductThresholdWritePort — the per-warehouse threshold cop
     const em = h.em();
     const code = `w185-${randomUUID().slice(0, 8)}`;
     const warehouse = em.create(Warehouse, { name: code, code, active: true });
-    await em.persistAndFlush(warehouse);
+    await em.persist(warehouse).flush();
     return warehouse.id;
   };
 

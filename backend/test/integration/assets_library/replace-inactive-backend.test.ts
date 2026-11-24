@@ -91,7 +91,7 @@ describe('replace on a backend that is no longer the active one (feature 156)', 
       storageBackend: 'gcs',
       visibility: 'public',
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     created.push(row.id);
     const restore = await overrideAssetSetting(h, 'assets.gcs.bucket', '');
     h.assetsLibrary.adapters.invalidate();

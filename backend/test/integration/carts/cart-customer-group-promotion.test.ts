@@ -53,7 +53,7 @@ describe('cart — customer-group targeted promotions (issue #177)', () => {
       code: 'i177-wholesale',
       name: 'Wholesale (issue 177)',
     });
-    await em.persistAndFlush([vip, wholesale]);
+    await em.persist([vip, wholesale]).flush();
     vipGroupId = vip.id;
 
     const member = await em.findOne(CustomerAccount, { id: TEST_CUSTOMER_ID });
@@ -62,7 +62,7 @@ describe('cart — customer-group targeted promotions (issue #177)', () => {
     otherGroup!.customerGroupId = wholesale.id;
     const noGroup = await em.findOne(CustomerAccount, { id: TEST_CUSTOMER_EMPTY_ID });
     noGroup!.customerGroupId = null;
-    await em.persistAndFlush([member!, otherGroup!, noGroup!]);
+    await em.persist([member!, otherGroup!, noGroup!]).flush();
 
     for (const cookies of [MEMBER, OTHER_GROUP, NO_GROUP]) {
       const add = await h.app.inject({

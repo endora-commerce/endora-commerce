@@ -55,7 +55,7 @@ describe('webhooks — the delivery history retention runs on its schedule (#928
       status,
       attemptCount: 1,
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     await em.nativeUpdate(WebhookDelivery, { id: row.id }, { createdAt: new Date(Date.now() - daysAgo * DAY_MS) });
     return row.id;
   }
@@ -82,7 +82,7 @@ describe('webhooks — the delivery history retention runs on its schedule (#928
       eventTypes: ['organization.blocked.v1'],
       status: 'active',
     });
-    await em.persistAndFlush(webhook);
+    await em.persist(webhook).flush();
     webhookId = webhook.id;
     redis = new Redis(process.env['REDIS_URL'] ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
     queue = new Queue(WEBHOOK_DELIVERY_RETENTION_QUEUE, { connection: redis, prefix });

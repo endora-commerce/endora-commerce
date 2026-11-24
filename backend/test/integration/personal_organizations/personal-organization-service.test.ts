@@ -63,7 +63,7 @@ describe('PersonalOrganizationService', () => {
       firstName,
       lastName,
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     return account;
   };
 
@@ -118,7 +118,7 @@ describe('PersonalOrganizationService', () => {
       firstName: 'Anna',
       lastName: 'Nowak',
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
 
     const personal = await svc.provisionPersonalOrganizationFor(account.id);
 
@@ -146,7 +146,7 @@ describe('PersonalOrganizationService', () => {
       isPersonal: false,
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(company);
+    await em.persist(company).flush();
     await expect(svc.assertMembershipAllowed(company.id, em)).resolves.toBeUndefined();
   });
 });

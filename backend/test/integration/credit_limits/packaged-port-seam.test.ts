@@ -79,14 +79,14 @@ describe('CreditLimitPort across the package boundary (D-169/D-171)', () => {
       vatStatus: 'vat_payer',
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     organizationId = org.id;
     const limit = em.create(CreditLimit, {
       organizationId: org.id,
       grantedAmount: '1000.00',
       currency: 'PLN',
     });
-    await em.persistAndFlush(limit);
+    await em.persist(limit).flush();
   });
 
   afterAll(async () => {
@@ -114,7 +114,7 @@ describe('CreditLimitPort across the package boundary (D-169/D-171)', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     return order.id;
   };
 

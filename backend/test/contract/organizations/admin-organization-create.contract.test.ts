@@ -73,7 +73,7 @@ describe('POST /api/v1/admin/organizations', () => {
         name: `orgcreate ${label}`,
         permissions: [...permissions],
       });
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       const account = em.create(AdminUser, {
         email: `orgcreate-${label}-${stamp}@example.test`,
         passwordHash: 'x'.repeat(60),
@@ -81,7 +81,7 @@ describe('POST /api/v1/admin/organizations', () => {
         lastName: label,
         adminRoleId: role.id,
       });
-      await em.persistAndFlush(account);
+      await em.persist(account).flush();
       return account.id;
     }
     ADMIN_COOKIES[READER] = { adminUserId: await admin('reader', ['customers:read']) };
@@ -98,7 +98,7 @@ describe('POST /api/v1/admin/organizations', () => {
       });
     const a = make(`orgcreate-a-${stamp}`);
     const b = make(`orgcreate-b-${stamp}`);
-    await em.persistAndFlush([a, b]);
+    await em.persist([a, b]).flush();
     channelA = a.id;
     channelB = b.id;
   });
@@ -288,7 +288,7 @@ describe('POST /api/v1/admin/organizations', () => {
       } else {
         rep = em.create(AdminRole, { code: 'sales_representative', name: 'Sales Representative', permissions: ['customers:manage'] });
       }
-      await em.persistAndFlush(rep);
+      await em.persist(rep).flush();
       const user = em.create(AdminUser, {
         email: `orgcreate-rep-${stamp}@example.test`,
         passwordHash: 'x'.repeat(60),
@@ -296,7 +296,7 @@ describe('POST /api/v1/admin/organizations', () => {
         lastName: 'Rep',
         adminRoleId: rep.id,
       });
-      await em.persistAndFlush(user);
+      await em.persist(user).flush();
       ADMIN_COOKIES[SCOPED] = { adminUserId: user.id };
       const res = await h.app.inject({
         method: 'GET',

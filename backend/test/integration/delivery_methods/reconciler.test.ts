@@ -86,7 +86,7 @@ describe('DeliveryMethodSeedApi — delivery_methods\' published install surface
     const em = db.em();
     const row = await em.findOne(DeliveryMethod, { id: first.row.id });
     row!.statusOnSuccess = 'completed';
-    await em.persistAndFlush(row!);
+    await em.persist(row!).flush();
 
     const second = await seeder.ensureMethodForAdapter(db.em(), 'idem_carrier', {
       code,

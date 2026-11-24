@@ -69,9 +69,13 @@ class FakeEm {
   async flush(): Promise<void> {
     this.ops.push({ kind: 'flush', payload: null });
   }
-  async persistAndFlush(payload: FakeRow): Promise<void> {
-    this.rows.push(payload);
-    this.ops.push({ kind: 'persistAndFlush', payload });
+  persist(payload: FakeRow) {
+    return {
+      flush: async (): Promise<void> => {
+        this.rows.push(payload);
+        this.ops.push({ kind: 'persistAndFlush', payload });
+      },
+    };
   }
   remove(payload: FakeRow): void {
     this.rows = this.rows.filter((r) => r !== payload);

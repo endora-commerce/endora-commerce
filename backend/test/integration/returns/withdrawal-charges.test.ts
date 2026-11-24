@@ -130,7 +130,7 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     const item = em.create(OrderItem, {
       orderId: order.id,
       productId: randomUUID(),
@@ -155,7 +155,7 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
           returnableAtPurchase: false,
         })
       : null;
-    await em.persistAndFlush(other ? [item, other] : [item]);
+    await em.persist(other ? [item, other] : [item]).flush();
     if (opts.completedDaysAgo) {
       // The order entered `completed` that long ago: `orders.completed_at`, the withdrawal period's anchor (#905).
       await em.execute(`update orders set completed_at = now() - (? * interval '1 day') where id = ?`, [

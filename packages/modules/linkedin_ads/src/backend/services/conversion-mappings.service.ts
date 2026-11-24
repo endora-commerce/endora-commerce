@@ -67,7 +67,7 @@ export class LinkedInConversionMappingsService {
       conversionRuleUrn: input.conversionRuleUrn ?? null,
       enabled: input.enabled ?? true,
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     await this.audit?.record({
       action: 'linkedin_ads.conversion_mapping.created',
       objectType: 'linkedin_conversion_mapping',
@@ -107,7 +107,7 @@ export class LinkedInConversionMappingsService {
     if (input.conversionRuleUrn !== undefined) row.conversionRuleUrn = input.conversionRuleUrn;
     if (input.enabled !== undefined) row.enabled = input.enabled;
     row.version += 1;
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
 
     await this.audit?.record({
       action: 'linkedin_ads.conversion_mapping.updated',
@@ -131,7 +131,7 @@ export class LinkedInConversionMappingsService {
     const row = await em.findOne(LinkedInConversionMapping, { id });
     if (!row) throw this.notFound(id);
     const before = { triggerAction: row.triggerAction, conversionId: row.conversionId };
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
     await this.audit?.record({
       action: 'linkedin_ads.conversion_mapping.deleted',
       objectType: 'linkedin_conversion_mapping',

@@ -95,7 +95,7 @@ export class CustomerGroupService {
     if (!isUuidShape(id)) return;
     const row = await em.findOne(CustomerGroup, { id });
     if (!row) return;
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
   }
 
   #removeCommand(id: string): Command<void> {

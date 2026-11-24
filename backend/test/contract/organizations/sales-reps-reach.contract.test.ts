@@ -73,7 +73,7 @@ describe('GET /admin/organizations/:organizationId/sales-reps — the administra
         rolePermissionsBefore = [...role.permissions];
         role.permissions = Array.from(new Set([...role.permissions, ...grants]));
       }
-      await fork.persistAndFlush(role);
+      await fork.persist(role).flush();
       roleId = role.id;
       const org = (label: string, parent?: Organization): Organization => {
         const id = randomUUID();
@@ -90,13 +90,13 @@ describe('GET /admin/organizations/:organizationId/sales-reps — the administra
         });
       };
       const own = org('own');
-      await fork.persistAndFlush(own);
+      await fork.persist(own).flush();
       const child = org('child', own);
-      await fork.persistAndFlush(child);
+      await fork.persist(child).flush();
       const foreign = org('foreign');
-      await fork.persistAndFlush(foreign);
+      await fork.persist(foreign).flush();
       const unassigned = org('unassigned');
-      await fork.persistAndFlush(unassigned);
+      await fork.persist(unassigned).flush();
       const admin = (label: string): AdminUser =>
         fork.create(AdminUser, {
           email: `org-856-${label}-${stamp}@scope.local`,
@@ -107,11 +107,11 @@ describe('GET /admin/organizations/:organizationId/sales-reps — the administra
         });
       const otherRep = admin('other');
       const rep = admin('rep');
-      await fork.persistAndFlush([otherRep, rep]);
-      await fork.persistAndFlush([
+      await fork.persist([otherRep, rep]).flush();
+      await fork.persist([
         fork.create(OrganizationSalesRepAssignment, { organizationId: foreign.id, adminUserId: otherRep.id }),
         fork.create(OrganizationSalesRepAssignment, { organizationId: own.id, adminUserId: rep.id }),
-      ]);
+      ]).flush();
       adminIds.push(otherRep.id, rep.id);
       otherRepEmail = otherRep.email;
       ownOrgId = own.id;

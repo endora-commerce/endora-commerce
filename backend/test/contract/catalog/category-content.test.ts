@@ -213,7 +213,7 @@ describe('category page content — contract', () => {
         storageBackend: 'legacy',
         visibility: 'public',
       });
-      await em.persistAndFlush(asset);
+      await em.persist(asset).flush();
 
       const { id } = await createCategory();
       // Nested on purpose: a block keeps the id wherever its own props put it.

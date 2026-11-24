@@ -51,7 +51,7 @@ export class WarehouseChannelReconciler {
           salesChannelId: channel.id,
           isDefault: true,
         });
-        await this.em.persistAndFlush(row);
+        await this.em.persist(row).flush();
         created += 1;
       } else if (!existing.some((a) => a.isDefault)) {
         // Channel has assignments but no default — promote the first one.

@@ -60,7 +60,7 @@ describe('membership: which entities are offered in a channel', () => {
       systemDefault: false,
       version: 1,
     });
-    await em.persistAndFlush(b);
+    await em.persist(b).flush();
     return { a, b };
   }
 
@@ -77,7 +77,7 @@ describe('membership: which entities are offered in a channel', () => {
       currency: 'PLN',
       adapter: 'manual_courier',
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     return row.id;
   }
 
@@ -92,7 +92,7 @@ describe('membership: which entities are offered in a channel', () => {
       statusOnSuccess: 'paid',
       statusOnFailure: 'cancelled',
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     return row.id;
   }
 
@@ -157,7 +157,7 @@ describe('membership: which entities are offered in a channel', () => {
         attributeValues: {},
         allowedOrganizationIds: [],
       });
-      await em.persistAndFlush([bound, unbound]);
+      await em.persist([bound, unbound]).flush();
       const svc = service();
       await svc.addToChannel(a.id, 'product', bound.id);
 

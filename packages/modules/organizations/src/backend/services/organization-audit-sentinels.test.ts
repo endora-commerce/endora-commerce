@@ -478,7 +478,7 @@ describe('organization_invitation.create|revoke and organization.invite_accept â
         return null;
       },
       create: (_entity: unknown, data: Record<string, unknown>) => Object.assign(invitation, data),
-      persistAndFlush: async () => {},
+      persist: () => ({ flush: async () => {} }),
       flush: async () => {},
       count: async () => 0,
     };

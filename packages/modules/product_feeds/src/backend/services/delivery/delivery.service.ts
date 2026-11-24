@@ -446,7 +446,7 @@ export class DeliveryService {
       finishedAt,
       durationMs: Math.max(0, finishedAt.getTime() - startedAt.getTime()),
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     await this.sweepHistory(request.feedId);
 
     return {

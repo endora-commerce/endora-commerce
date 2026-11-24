@@ -78,7 +78,7 @@ describe('orders — releasing credit is scoped to the orders that drew it (D-17
       grantedAmount: '10000.00',
       currency: 'PLN',
     });
-    await em.persistAndFlush(limit);
+    await em.persist(limit).flush();
 
     const order = (id: string, kind: 'bank_transfer' | 'credit_limit') =>
       em.create(Order, {
@@ -118,7 +118,7 @@ describe('orders — releasing credit is scoped to the orders that drew it (D-17
       order(CREDIT_ORDER_TO_PAY_ID, 'credit_limit'),
       order(CREDIT_ORDER_CONTROL_ID, 'credit_limit'),
     ];
-    await em.persistAndFlush(orders);
+    await em.persist(orders).flush();
 
     for (const orderId of [
       CREDIT_ORDER_TO_CANCEL_ID,

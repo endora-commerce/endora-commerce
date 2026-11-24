@@ -76,7 +76,7 @@ describe('CartAbandonmentWorker.sweep', () => {
       salesChannelId: systemDefaultChannelId,
       lastActivityAt: new Date(Date.now() - 30 * 60_000), // 30 min ago
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     em.create(CartItem, {
       cartId: cart.id,
       productId: '00000000-0000-4000-8000-000000000101',
@@ -123,7 +123,7 @@ describe('CartAbandonmentWorker.sweep', () => {
       salesChannelId: systemDefaultChannelId,
       lastActivityAt: new Date(Date.now() - 30 * 60_000),
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     em.create(CartItem, {
       cartId: cart.id,
       productId: '00000000-0000-4000-8000-000000000101',
@@ -191,7 +191,7 @@ describe('CartAbandonmentWorker.sweep', () => {
         status,
         lastActivityAt: new Date(),
       });
-      await em.persistAndFlush(cart);
+      await em.persist(cart).flush();
       em.create(CartItem, {
         cartId: cart.id,
         productId: '00000000-0000-4000-8000-000000000101',
@@ -259,7 +259,7 @@ describe('CartAbandonmentWorker.sweep', () => {
         status,
         lastActivityAt: at,
       });
-      await em.persistAndFlush(cart);
+      await em.persist(cart).flush();
       await em.nativeUpdate(Cart, { id: cart.id }, { createdAt: at });
       em.clear();
       return cart.id;
@@ -314,7 +314,7 @@ describe('CartAbandonmentWorker.sweep', () => {
       salesChannelId: systemDefaultChannelId,
       lastActivityAt: new Date(Date.now() - 30 * 60_000),
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     em.create(CartItem, {
       cartId: cart.id,
       productId: '00000000-0000-4000-8000-000000000101',

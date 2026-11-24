@@ -95,7 +95,7 @@ export function makeCreateFeedCommand(
         // its link is just shown once and masked afterwards, exactly as before.
         tokenSecret: encryptFeedToken(issued.token, encryptionKey),
       });
-      await em.persistAndFlush(feed);
+      await em.persist(feed).flush();
       return {
         result: { feed, token: { token: issued.token, prefix: issued.prefix, rotatedAt } },
         after: auditState(feed),
@@ -126,7 +126,7 @@ export function makeUpdateFeedCommand(
       if (!feed) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
       Object.assign(feed, patch);
       feed.version += 1;
-      await em.persistAndFlush(feed);
+      await em.persist(feed).flush();
       return { result: feed, after: auditState(feed) };
     },
     event: (result) => ({
@@ -156,8 +156,8 @@ export function makeDeleteFeedCommand(feedId: string): Command<{ tokenHash: stri
       feed.publishedArtefactId = null;
       feed.currentRunId = null;
       feed.lastRunId = null;
-      await em.persistAndFlush(feed);
-      await em.removeAndFlush(feed);
+      await em.persist(feed).flush();
+      await em.remove(feed).flush();
       return { result: { tokenHash }, after: null };
     },
     event: () => ({
@@ -203,7 +203,7 @@ export function makeDuplicateFeedCommand(
         tokenRotatedAt: rotatedAt,
         tokenSecret: encryptFeedToken(issued.token, encryptionKey),
       });
-      await em.persistAndFlush(copy);
+      await em.persist(copy).flush();
       return {
         result: { feed: copy, token: { token: issued.token, prefix: issued.prefix, rotatedAt } },
         after: auditState(copy),
@@ -252,7 +252,7 @@ export function makeRotateTokenCommand(
       feed.tokenRotatedAt = rotatedAt;
       feed.tokenRevokedAt = null;
       feed.tokenSecret = encryptFeedToken(issued.token, encryptionKey);
-      await em.persistAndFlush(feed);
+      await em.persist(feed).flush();
       return {
         result: { feed, token: issued.token, prefix: issued.prefix, rotatedAt, previousTokenHash },
         after: { id: feed.id, tokenPrefix: issued.prefix, tokenRotatedAt: rotatedAt.toISOString() },
@@ -289,7 +289,7 @@ export function makeRevokeTokenCommand(
       // The recoverable copy goes with the hash. Revoking must not leave a
       // readable credential behind on a feed that can no longer serve.
       feed.tokenSecret = null;
-      await em.persistAndFlush(feed);
+      await em.persist(feed).flush();
       return {
         result: { feed, previousTokenHash },
         after: { id: feed.id, tokenPrefix: feed.tokenPrefix ?? null, tokenRevokedAt: revokedAt.toISOString() },
@@ -318,7 +318,7 @@ export function makeStartRunCommand(feedId: string): Command<FeedRun> {
         triggeredByAdminUserId: actor.actorAdminUserId,
         status: 'queued',
       });
-      await em.persistAndFlush(run);
+      await em.persist(run).flush();
       return { result: run, after: { runId: run.id, productFeedId: feedId, trigger: 'manual' } };
     },
   };

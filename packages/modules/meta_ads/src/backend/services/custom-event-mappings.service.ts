@@ -63,7 +63,7 @@ export class MetaCustomEventMappingsService {
       eventName: input.eventName,
       enabled: input.enabled ?? true,
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     await this.audit?.record({
       action: 'meta_ads.custom_event.created',
       objectType: 'meta_custom_event_mapping',
@@ -102,7 +102,7 @@ export class MetaCustomEventMappingsService {
     if (input.eventName !== undefined) row.eventName = input.eventName;
     if (input.enabled !== undefined) row.enabled = input.enabled;
     row.version += 1;
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
 
     await this.audit?.record({
       action: 'meta_ads.custom_event.updated',
@@ -126,7 +126,7 @@ export class MetaCustomEventMappingsService {
     const row = await em.findOne(MetaCustomEventMapping, { id });
     if (!row) throw this.notFound(id);
     const before = { triggerAction: row.triggerAction, eventName: row.eventName };
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
     await this.audit?.record({
       action: 'meta_ads.custom_event.deleted',
       objectType: 'meta_custom_event_mapping',

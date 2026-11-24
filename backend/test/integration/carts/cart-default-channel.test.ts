@@ -37,7 +37,7 @@ describe('a basket carries the channel it is created on (feature 053 / FR-010, 1
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush(other);
+    await em.persist(other).flush();
   });
 
   afterAll(async () => {

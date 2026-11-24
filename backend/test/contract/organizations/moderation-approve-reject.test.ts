@@ -45,7 +45,7 @@ describe('Admin organization moderation — approve / reject + storefront gate',
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     orgId = org.id;
     pendingOrg = org;
   });
@@ -99,7 +99,7 @@ describe('Admin organization moderation — approve / reject + storefront gate',
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     const res = await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/organizations/${org.id}/approve`,
@@ -126,7 +126,7 @@ describe('Admin organization moderation — approve / reject + storefront gate',
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     const res = await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/organizations/${org.id}/reject`,
@@ -162,7 +162,7 @@ describe('Admin organization moderation — approve / reject + storefront gate',
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
 
     // Attempt place-order with the org context wired via the
     // `customerResolver`. The test harness defaults to a fixed Organization,

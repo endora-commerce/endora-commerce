@@ -104,7 +104,7 @@ export class ReturnReasonService {
     const row = await em.findOne(ReturnReason, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return reason not found.');
     this.#audit(em, 'return_reason.delete', row.id, { appliesTo: row.appliesTo }, null);
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
   }
 }
 

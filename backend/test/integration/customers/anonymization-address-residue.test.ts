@@ -186,7 +186,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
       firstName: 'Ewa',
       lastName: 'Prywatna',
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     return account;
   }
 
@@ -202,7 +202,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
         firstName: 'Piotr',
         lastName: 'Firmowy',
       });
-      await em.persistAndFlush(account);
+      await em.persist(account).flush();
       return account;
     };
     const account = await make();
@@ -230,7 +230,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
       deletedAt: null,
       ...over,
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     return row.id;
   }
 

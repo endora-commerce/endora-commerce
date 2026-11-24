@@ -45,7 +45,7 @@ describe('PATCH /api/v1/admin/organizations/:id — custom-field values through 
       defaultCurrency: 'PLN',
       currencies: ['PLN'],
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     channelId = channel.id;
     await define({ key: `cfp_note_${stamp}`, labelDefault: 'Sales note' });
     await define({ key: `cfp_tier_${stamp}`, labelDefault: 'Tier' });

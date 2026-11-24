@@ -97,7 +97,7 @@ describe('permissionless admin routes, at runtime (issue #141)', () => {
       firstName: 'No',
       lastName: 'Role',
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     ADMIN_COOKIES[NO_ROLE] = { adminUserId: account.id };
   });
 
@@ -287,7 +287,7 @@ describe('permissionless admin routes, at runtime (issue #141)', () => {
         adminRoleId: (role.json() as { data: { id: string } }).data.id,
         status: 'active',
       });
-      await em.persistAndFlush(account);
+      await em.persist(account).flush();
       const cookie = `stub-runtime-crm-writer-${Date.now()}`;
       ADMIN_COOKIES[cookie] = { adminUserId: account.id };
       try {

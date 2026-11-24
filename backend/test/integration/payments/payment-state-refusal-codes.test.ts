@@ -104,7 +104,7 @@ describe('payments refusals carry their own code and sentence (issue #630)', () 
       statusOnSuccess: 'confirmed',
       statusOnFailure: 'cancelled',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     created.methods.push(method.id);
     const address = { recipientName: 'A', street: 'S', city: 'C', postalCode: '00-000', country: 'PL' };
     const order = em.create(Order, {
@@ -124,7 +124,7 @@ describe('payments refusals carry their own code and sentence (issue #630)', () 
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     created.orders.push(order.id);
     const payment = em.create(Payment, {
       orderId: order.id,
@@ -133,7 +133,7 @@ describe('payments refusals carry their own code and sentence (issue #630)', () 
       currency: 'PLN',
       status,
     });
-    await em.persistAndFlush(payment);
+    await em.persist(payment).flush();
     created.payments.push(payment.id);
     return { orderId: order.id, paymentId: payment.id };
   }

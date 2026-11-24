@@ -188,7 +188,7 @@ describe('catalog attribute refusals carry their own code and sentence (issue #6
       visibility: 'public',
       attributeValues: values,
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
     created.products.push(product.id);
   }
 

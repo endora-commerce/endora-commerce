@@ -139,7 +139,7 @@ export class LanguageCountryService {
     const row = await em.findOne(LanguageCountry, { languageCode, countryCode });
     if (!row) return;
     this.#audit(em, 'language_country.delete', `${languageCode}:${countryCode}`, null);
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
     await this.invalidateDictionaryCache?.();
   }
 }

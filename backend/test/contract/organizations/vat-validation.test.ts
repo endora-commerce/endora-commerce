@@ -46,7 +46,7 @@ describe('VAT validation (feature 026 US7)', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     return org.id;
   }
 
@@ -148,7 +148,7 @@ describe('VAT validation (feature 026 US7)', () => {
       vatStatus: 'vat_exempt',
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
 
     const res = await h.app.inject({
       method: 'POST',

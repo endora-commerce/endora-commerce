@@ -124,7 +124,7 @@ export async function seedReturnableOrder(
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
 
   if (opts.lines) {
     const items = opts.lines.map((line, i) =>
@@ -139,7 +139,7 @@ export async function seedReturnableOrder(
         returnableAtPurchase: line.returnableAtPurchase ?? null,
       }),
     );
-    await em.persistAndFlush(items);
+    await em.persist(items).flush();
     return { orderId: order.id, itemIds: items.map((it) => it.id) };
   }
 
@@ -161,7 +161,7 @@ export async function seedReturnableOrder(
     taxRate: '0.0000',
     lineTotal: '50.00',
   });
-  await em.persistAndFlush([item1, item2]);
+  await em.persist([item1, item2]).flush();
 
   return { orderId: order.id, itemIds: [item1.id, item2.id] };
 }

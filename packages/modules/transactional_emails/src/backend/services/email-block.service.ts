@@ -131,7 +131,7 @@ export class EmailBlockService {
       isSystem: false,
       version: 1,
     });
-    await em.persistAndFlush(block);
+    await em.persist(block).flush();
     for (const scId of req.salesChannelIds ?? []) {
       em.persist(em.create(EmailBlockSalesChannel, { blockId: block.id, salesChannelId: scId, code: block.code }));
     }
@@ -151,7 +151,7 @@ export class EmailBlockService {
     if (req.active !== undefined && !b.isSystem) b.active = req.active;
     if (req.salesChannelIds !== undefined && !b.isSystem) {
       const current = await em.find(EmailBlockSalesChannel, { blockId: b.id });
-      await em.removeAndFlush(current);
+      await em.remove(current).flush();
       for (const scId of req.salesChannelIds) {
         em.persist(em.create(EmailBlockSalesChannel, { blockId: b.id, salesChannelId: scId, code: b.code }));
       }
@@ -192,6 +192,6 @@ export class EmailBlockService {
     }
     const bridges = await em.find(EmailBlockSalesChannel, { blockId: b.id });
     this.#audit(em, 'email_block.delete', b.id, { code: b.code }, null);
-    await em.removeAndFlush([...bridges, b]);
+    await em.remove([...bridges, b]).flush();
   }
 }

@@ -67,7 +67,7 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
       status: 'active',
       registeredAddress: { street: 'X', city: 'X', postalCode: 'X', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     organization = org;
 
     // Reset pricing.* settings so each test starts from a known state —

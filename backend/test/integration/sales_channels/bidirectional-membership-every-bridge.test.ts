@@ -66,7 +66,7 @@ describe('bidirectional membership: every bridge (T043)', () => {
       systemDefault: false,
       version: 1,
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     return channel;
   }
 

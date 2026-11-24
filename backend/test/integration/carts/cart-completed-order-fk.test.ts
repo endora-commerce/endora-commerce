@@ -54,7 +54,7 @@ describe('carts.completed_order_id foreign key (D-94.1)', () => {
       salesChannelId,
       status: 'active',
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     return cart;
   };
 

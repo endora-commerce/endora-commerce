@@ -59,7 +59,7 @@ describe('POST /api/v1/admin/organizations/:id/convert-to-company', () => {
     const em = h.em();
     const user = async (label: string, permissions: string[]) => {
       const role = em.create(AdminRole, { code: `convert_${label}_${stamp}`, name: `convert ${label}`, permissions });
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       const account = em.create(AdminUser, {
         email: `convert-${label}-${stamp}@example.test`,
         passwordHash: 'x'.repeat(60),
@@ -67,7 +67,7 @@ describe('POST /api/v1/admin/organizations/:id/convert-to-company', () => {
         lastName: label,
         adminRoleId: role.id,
       });
-      await em.persistAndFlush(account);
+      await em.persist(account).flush();
       return account.id;
     };
     ADMIN_COOKIES[WITHOUT] = { adminUserId: await user('without', ['customers:read', 'customers:manage']) };

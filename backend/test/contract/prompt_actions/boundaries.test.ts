@@ -43,7 +43,7 @@ describe('US3 — ambiguity, refusal and failure handling (T049)', () => {
       name: 'Prompt user without write',
       permissions: ['prompt_actions:use', 'catalog:read'],
     });
-    await em.persistAndFlush(limitedRole);
+    await em.persist(limitedRole).flush();
     em.create(AdminUser, {
       id: LIMITED_ADMIN_ID,
       email: 'prompt-limited-043@example.com',

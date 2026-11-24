@@ -239,7 +239,7 @@ export function makeDeletePaymentMethodCommand(
         );
       }
       const before = paymentMethodAuditState(row);
-      await em.removeAndFlush(row);
+      await em.remove(row).flush();
       return { result: undefined, before, after: null };
     },
   };
@@ -274,7 +274,7 @@ export function makeWithdrawCreatedPaymentMethodCommand(id: string): Command<voi
       // Already gone: there is nothing left to take back, and nothing to audit.
       if (!row) return { result: undefined, skipAudit: true };
       const before = paymentMethodAuditState(row);
-      await em.removeAndFlush(row);
+      await em.remove(row).flush();
       return { result: undefined, before, after: null };
     },
   };

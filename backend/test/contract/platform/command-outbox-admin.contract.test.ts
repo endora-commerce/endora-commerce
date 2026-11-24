@@ -103,7 +103,7 @@ describe('command outbox operator API (176 T060)', () => {
       name: 'Outbox reader',
       permissions: ['platform.command_outbox.read'],
     });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     const admin = em.create(AdminUser, {
       email: `outbox-reader-${randomUUID().slice(0, 8)}@command-outbox.local`,
       passwordHash: 'x'.repeat(60),
@@ -112,7 +112,7 @@ describe('command outbox operator API (176 T060)', () => {
       lastName: 'Reader',
       status: 'active',
     });
-    await em.persistAndFlush(admin);
+    await em.persist(admin).flush();
     readerCookie = `stub-outbox-reader-${admin.id}`;
     ADMIN_COOKIES[readerCookie] = { adminUserId: admin.id };
 

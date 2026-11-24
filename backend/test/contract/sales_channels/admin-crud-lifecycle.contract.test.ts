@@ -675,7 +675,7 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
       name: 'Sales channel reader',
       permissions: ['sales_channels:read'],
     });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     const reader = em.create(AdminUser, {
       email: `sc-reader-${stamp}@audit.local`,
       passwordHash: 'x'.repeat(60),
@@ -683,7 +683,7 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
       firstName: 'Channel',
       lastName: 'Reader',
     });
-    await em.persistAndFlush(reader);
+    await em.persist(reader).flush();
     const session = `stub-sc-reader-${stamp}`;
     ADMIN_COOKIES[session] = { adminUserId: reader.id };
     try {

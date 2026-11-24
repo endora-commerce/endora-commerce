@@ -247,7 +247,7 @@ describe('RfqRevisionService — grouping (T025)', () => {
         created.push(data);
         return data;
       },
-      persistAndFlush: async () => undefined,
+      persist: () => ({ flush: async () => undefined }),
     };
     const recorder = new RfqRevisionService(() => em as never);
     const item = (productId: string, groupId: string | null, position: number) =>

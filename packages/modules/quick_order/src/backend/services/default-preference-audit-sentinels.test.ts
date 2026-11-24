@@ -32,7 +32,7 @@ function harness(stored: Record<string, unknown> | null) {
       row = { id: randomUUID(), ...data };
       return row;
     },
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
   };
   const audit = {
     record: async (input: RecordAuditInput) => {

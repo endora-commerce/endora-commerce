@@ -50,7 +50,7 @@ describe('Admin block / unblock — round-trip with transaction gate', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     orgId = org.id;
     initialVersion = org.version;
   });

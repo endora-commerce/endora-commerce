@@ -35,7 +35,7 @@ describe('174 — the product SEO read on catalog:read [contract]', () => {
     h = await setupBackendServer();
     const em = h.em();
     const role = em.create(AdminRole, { code: `seo_reader_${run}`, name: `seo reader ${run}`, permissions: ['catalog:read'] });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     const admin = em.create(AdminUser, {
       email: `seo-reader-${run}@seo.local`,
       passwordHash: 'x'.repeat(60),
@@ -43,7 +43,7 @@ describe('174 — the product SEO read on catalog:read [contract]', () => {
       firstName: 'Seo',
       lastName: 'Reader',
     });
-    await em.persistAndFlush(admin);
+    await em.persist(admin).flush();
     ADMIN_COOKIES[READER] = { adminUserId: admin.id };
 
     for (const [id, code] of [

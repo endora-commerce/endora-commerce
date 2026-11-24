@@ -230,7 +230,7 @@ describe('order refusals carry their own code and sentence (issue #86)', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     return order.id;
   }
 

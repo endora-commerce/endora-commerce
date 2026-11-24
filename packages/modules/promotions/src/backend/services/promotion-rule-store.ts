@@ -108,6 +108,6 @@ export class PromotionRuleStore {
       );
     }
     this.#audit(em, 'promotion_rule.delete', row.id, { name: row.name }, null);
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
   }
 }

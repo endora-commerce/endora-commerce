@@ -67,7 +67,7 @@ async function node(em: EntityManager, label: string, parent?: Organization): Pr
     // Issue #956 — the real path goes in with the insert the governor triggers read.
     ...(parent ? { parentId: parent.id, path: organizationTreePath(id, parent) } : {}),
   });
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   return org;
 }
 
@@ -339,7 +339,7 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
         });
       const r = rep('r');
       const s = rep('s');
-      await em.persistAndFlush([r, s]);
+      await em.persist([r, s]).flush();
       R2 = r.id;
       S2 = s.id;
       const channels = await em

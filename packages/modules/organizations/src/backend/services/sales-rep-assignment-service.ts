@@ -291,7 +291,7 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
         stateAfter: null,
       });
     }
-    await em.removeAndFlush(existing);
+    await em.remove(existing).flush();
     return true;
   }
 

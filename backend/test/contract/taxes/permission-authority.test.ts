@@ -78,7 +78,7 @@ describe('taxes permission authority', () => {
   ): Promise<string> {
     const em = h.em();
     const role = em.create(AdminRole, { code, name, permissions: [...permissions] });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     return role.id;
   }
 
@@ -145,7 +145,7 @@ describe('taxes permission authority', () => {
       isDefault: false,
       priority: 0,
     });
-    await em.persistAndFlush(rule);
+    await em.persist(rule).flush();
     return { id: rule.id, code: rule.code };
   }
 

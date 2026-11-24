@@ -100,7 +100,7 @@ export class NewsletterCampaignDispatchService {
     }
     if (campaign.status !== 'sent') {
       campaign.status = 'sending';
-      await em.persistAndFlush(campaign);
+      await em.persist(campaign).flush();
     }
     return claimed;
   }
@@ -158,12 +158,12 @@ export class NewsletterCampaignDispatchService {
       record.status = 'sent';
       record.sentAt = new Date();
       record.providerMessageId = res.providerMessageId ?? null;
-      await em.persistAndFlush(record);
+      await em.persist(record).flush();
       return 'sent';
     } catch (err) {
       record.status = 'failed';
       record.error = err instanceof Error ? err.message : String(err);
-      await em.persistAndFlush(record);
+      await em.persist(record).flush();
       return 'failed';
     }
   }
@@ -201,7 +201,7 @@ export class NewsletterCampaignDispatchService {
     const em = this.deps.emFactory();
     const campaign = await em.findOneOrFail(NewsletterCampaign, { id: campaignId });
     campaign.status = 'sent';
-    await em.persistAndFlush(campaign);
+    await em.persist(campaign).flush();
     return result;
   }
 }

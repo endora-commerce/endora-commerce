@@ -84,7 +84,7 @@ export async function createSalesRep(
   } else {
     role.permissions = Array.from(new Set([...role.permissions, 'price_lists:read', 'price_lists:write']));
   }
-  await em.persistAndFlush(role);
+  await em.persist(role).flush();
   const admin = (label: string) =>
     em.create(AdminUser, {
       email: `pb-${label}-${stamp}@audit.local`,
@@ -95,15 +95,15 @@ export async function createSalesRep(
     });
   const rep = admin('rep');
   const other = admin('other');
-  await em.persistAndFlush([rep, other]);
-  await em.persistAndFlush([
+  await em.persist([rep, other]).flush();
+  await em.persist([
     ...input.assignedOrganizationIds.map((organizationId) =>
       em.create(OrganizationSalesRepAssignment, { organizationId, adminUserId: rep.id }),
     ),
     ...(input.otherOrganizationIds ?? []).map((organizationId) =>
       em.create(OrganizationSalesRepAssignment, { organizationId, adminUserId: other.id }),
     ),
-  ]);
+  ]).flush();
   const session = `stub-pb-rep-${stamp}`;
   ADMIN_COOKIES[session] = { adminUserId: rep.id };
   return {

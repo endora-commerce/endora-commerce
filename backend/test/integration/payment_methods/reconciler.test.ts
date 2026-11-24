@@ -108,7 +108,7 @@ describe("PaymentMethodSeedApi — payment_methods' published install surface", 
     const em = db.em();
     const row = await em.findOne(PaymentMethod, { id: first.row.id });
     row!.statusOnSuccess = 'completed';
-    await em.persistAndFlush(row!);
+    await em.persist(row!).flush();
 
     const second = await seeder.ensureMethodForAdapter(db.em(), 'idem_adapter', {
       code,

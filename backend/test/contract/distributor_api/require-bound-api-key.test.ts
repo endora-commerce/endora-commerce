@@ -65,7 +65,7 @@ describe('requireBoundApiKey gate (062)', () => {
       lastFour: LEGACY_ORDERS_TOKEN.slice(-4),
       scopes: ['orders:write'],
     });
-    await em.persistAndFlush(legacy);
+    await em.persist(legacy).flush();
 
     probe = Fastify();
     registerErrorEnvelope(probe);

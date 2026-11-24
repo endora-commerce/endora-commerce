@@ -221,7 +221,7 @@ export class PersonalOrganizationService {
     // inserts a row whose `organization_id` foreign key points at this one. It
     // is the caller's `EntityManager` and therefore the caller's transaction, so
     // a rollback takes this row with it.
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     // Feature 154 — on the caller's `EntityManager`, so the bridge row shares
     // the transaction that creates the account and its Organization.
     if (input.salesChannelId) {

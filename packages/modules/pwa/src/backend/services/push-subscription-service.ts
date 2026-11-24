@@ -238,7 +238,7 @@ export class PushSubscriptionService {
       userAgent: input.userAgent ?? null,
       lastSeenAt: new Date(),
     });
-    await em.persistAndFlush(sub);
+    await em.persist(sub).flush();
     return { id: sub.id, status: 'active', created: true };
   }
 
@@ -257,7 +257,7 @@ export class PushSubscriptionService {
     if (!existing) return false;
     const authorised = provesOwnership(existing, proof);
     if (!authorised) return false;
-    await em.removeAndFlush(existing);
+    await em.remove(existing).flush();
     return true;
   }
 
@@ -268,7 +268,7 @@ export class PushSubscriptionService {
     const em = this.emFactory();
     const existing = await em.findOne(PushSubscription, { id: subscriptionId });
     if (!existing) return;
-    await em.removeAndFlush(existing);
+    await em.remove(existing).flush();
   }
 
   /**

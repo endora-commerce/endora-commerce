@@ -116,21 +116,21 @@ describe('feed taxonomies [contract]', () => {
       slug: `tax-pets-${suffix}`,
       sortOrder: 0,
     });
-    await em.persistAndFlush(root);
+    await em.persist(root).flush();
     const child = em.create(Category, {
       parentCategoryId: root.id,
       name: { 'en-US': 'Pet supplies', 'pl-PL': 'Artykuły dla zwierząt' },
       slug: `tax-supplies-${suffix}`,
       sortOrder: 0,
     });
-    await em.persistAndFlush(child);
+    await em.persist(child).flush();
     const grandchild = em.create(Category, {
       parentCategoryId: child.id,
       name: { 'en-US': 'Bird supplies', 'pl-PL': 'Artykuły dla ptaków' },
       slug: `tax-birds-${suffix}`,
       sortOrder: 0,
     });
-    await em.persistAndFlush(grandchild);
+    await em.persist(grandchild).flush();
     rootId = root.id;
     childId = child.id;
     grandchildId = grandchild.id;

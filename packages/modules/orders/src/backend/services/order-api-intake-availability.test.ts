@@ -30,7 +30,7 @@ function rig() {
         ? { id: CHANNEL_ID, defaultCurrency: 'PLN', defaultLanguage: 'pl-PL', languages: ['pl-PL', 'en-US'] }
         : null,
     create: (_entity: unknown, data: Record<string, unknown>) => ({ id: 'intent-1', ...data }),
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
     flush: async () => undefined,
     nativeUpdate: async () => 1,
   } as unknown as EntityManager;

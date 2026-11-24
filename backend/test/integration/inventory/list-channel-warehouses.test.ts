@@ -42,14 +42,14 @@ describe('listChannelWarehouses (D-94.4)', () => {
       currencies: ['PLN'],
       defaultCurrency: 'PLN',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     return channel.id;
   };
 
   const seedWarehouse = async (code: string, active: boolean): Promise<string> => {
     const em = h.em();
     const warehouse = em.create(Warehouse, { name: code, code, active });
-    await em.persistAndFlush(warehouse);
+    await em.persist(warehouse).flush();
     return warehouse.id;
   };
 

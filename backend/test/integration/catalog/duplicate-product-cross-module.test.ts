@@ -59,7 +59,7 @@ describe('duplicateProduct — the two cross-module copies [real DB]', () => {
     const em = h.em();
     const code = `w185d-${randomUUID().slice(0, 8)}`;
     const warehouse = em.create(Warehouse, { name: code, code, active: true });
-    await em.persistAndFlush(warehouse);
+    await em.persist(warehouse).flush();
     return warehouse.id;
   };
 
@@ -80,7 +80,7 @@ describe('duplicateProduct — the two cross-module copies [real DB]', () => {
       attributeValues: {},
       allowedOrganizationIds: [],
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
 
     await h.salesChannels.membershipService.addToChannel(
       defaultChannelId,

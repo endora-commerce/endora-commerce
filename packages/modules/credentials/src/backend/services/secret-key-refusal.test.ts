@@ -45,7 +45,7 @@ function contextWith(row: CredentialConfiguration | null): CommandContext {
   const em = {
     findOne: async () => row,
     create: (_cls: unknown, data: unknown) => data,
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
     flush: async () => undefined,
   } as unknown as EntityManager;
   return { em } as unknown as CommandContext;

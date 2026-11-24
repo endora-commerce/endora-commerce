@@ -184,7 +184,7 @@ export async function createAttributeFixture(
     sortOrder: input.sortOrder ?? 0,
     config: {},
   });
-  await em.persistAndFlush(definition);
+  await em.persist(definition).flush();
 
   for (const [i, o] of (input.options ?? []).entries()) {
     em.create(CustomFieldOption, {
@@ -215,7 +215,7 @@ export async function createAttributeFixture(
     scopable: input.scopable ?? false,
     massEditable: input.massEditable ?? false,
   });
-  await em.persistAndFlush(extension);
+  await em.persist(extension).flush();
   return { extension, definition };
 }
 

@@ -74,7 +74,7 @@ describe('cms body scan (T093)', () => {
       storageBackend: 'legacy',
       visibility: 'public',
     });
-    await em.persistAndFlush(asset);
+    await em.persist(asset).flush();
 
     const slug = `t093-page-${randomUUID().slice(0, 8)}`;
     // Page Builder content envelope with an embedded LibraryImage node
@@ -105,7 +105,7 @@ describe('cms body scan (T093)', () => {
       content,
       languages: ['en-US'],
     });
-    await em.persistAndFlush(page);
+    await em.persist(page).flush();
 
     // Reference registry sees it → soft-delete blocked.
     const refs = await h.assetsLibrary.referenceRegistry.findReferences(asset.id);
@@ -140,8 +140,8 @@ describe('cms body scan (T093)', () => {
 
     // Cleanup.
     const fresh = h.em().fork({ clear: true });
-    await fresh.removeAndFlush(await fresh.findOneOrFail(CmsPage, { id: page.id }));
-    await fresh.removeAndFlush(await fresh.findOneOrFail(Asset, { id: asset.id }));
+    await fresh.remove(await fresh.findOneOrFail(CmsPage, { id: page.id })).flush();
+    await fresh.remove(await fresh.findOneOrFail(Asset, { id: asset.id })).flush();
   });
 
   // Issue #1359 — only a string under a key ending in `assetId` is a
@@ -177,7 +177,7 @@ describe('cms body scan (T093)', () => {
       content: tree,
       languages: ['en-US'],
     });
-    await em.persistAndFlush(page);
+    await em.persist(page).flush();
     const conn = h.orm.em.getConnection();
     const blockId = randomUUID();
     const templateId = randomUUID();
@@ -240,7 +240,7 @@ describe('cms body scan (T093)', () => {
         content,
         languages: ['en-US'],
       });
-      await em.persistAndFlush(page);
+      await em.persist(page).flush();
       pageIds.push(page.id);
     }
     await h.orm.em
@@ -259,6 +259,6 @@ describe('cms body scan (T093)', () => {
     expect(out.get(unused)).toEqual([]);
 
     const fresh = h.em().fork({ clear: true });
-    for (const id of pageIds) await fresh.removeAndFlush(await fresh.findOneOrFail(CmsPage, { id }));
+    for (const id of pageIds) await fresh.remove(await fresh.findOneOrFail(CmsPage, { id })).flush();
   });
 });

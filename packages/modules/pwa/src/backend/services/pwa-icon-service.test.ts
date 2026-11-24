@@ -14,7 +14,7 @@ function fakeEmFactory() {
       },
       persist() {},
       async flush() {},
-      async removeAndFlush() {},
+      remove() { return { flush: async () => {} }; },
     }) as never;
 }
 

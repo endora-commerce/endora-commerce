@@ -68,7 +68,7 @@ describe('Invoices — cross-tenant scoping (feature 050 US1)', () => {
           if (!role.permissions.includes(p)) role.permissions = [...role.permissions, p];
         }
       }
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       const rep = em.create(AdminUser, {
         email: `sales-rep-050-inv-${Date.now()}@i.local`,
         passwordHash: 'x'.repeat(60),
@@ -76,13 +76,13 @@ describe('Invoices — cross-tenant scoping (feature 050 US1)', () => {
         firstName: '050',
         lastName: 'Rep',
       });
-      await em.persistAndFlush(rep);
-      await em.persistAndFlush([
+      await em.persist(rep).flush();
+      await em.persist([
         em.create(OrganizationSalesRepAssignment, { organizationId: orgAId, adminUserId: rep.id }),
         // #305 — Org B is another representative's: an unassigned organization
         // is in every representative's reach.
         em.create(OrganizationSalesRepAssignment, { organizationId: orgBId, adminUserId: OTHER_REP_ID }),
-      ]);
+      ]).flush();
       repCookie = `stub-sales-rep-050-inv-${Date.now()}`;
       ADMIN_COOKIES[repCookie] = { adminUserId: rep.id };
     });
@@ -121,10 +121,10 @@ describe('Invoices — cross-tenant scoping (feature 050 US1)', () => {
       const mine = await seedAdHocOrganization(em, 'Issue 1120 mine');
       const theirs = await seedAdHocOrganization(em, 'Issue 1120 theirs');
       const rep = await em.findOneOrFail(AdminUser, { id: ADMIN_COOKIES[repCookie]!.adminUserId });
-      await em.persistAndFlush([
+      await em.persist([
         em.create(OrganizationSalesRepAssignment, { organizationId: mine.id, adminUserId: rep.id }),
         em.create(OrganizationSalesRepAssignment, { organizationId: theirs.id, adminUserId: OTHER_REP_ID }),
-      ]);
+      ]).flush();
       return { mineId: mine.id, theirsId: theirs.id };
     });
     const port = h.container.resolve<ErpSaleDocumentWritePort>(ERP_SALE_DOCUMENT_WRITE_PORT);

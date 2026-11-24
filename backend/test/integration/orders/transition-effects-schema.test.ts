@@ -58,7 +58,7 @@ describe('order_transition_effects — schema (spec 142, T05)', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     return order.id;
   }
 
@@ -124,7 +124,7 @@ describe('order_transition_effects — schema (spec 142, T05)', () => {
         street: 'ul. Obca 1', city: 'Warszawa', postalCode: '00-100', country: 'PL',
       },
     });
-    await em.persistAndFlush(stranger);
+    await em.persist(stranger).flush();
     const strangerOrder = await seedOrder(h.em(), stranger.id);
     await insertEffect(strangerOrder, stranger.id, 'stock.release');
 

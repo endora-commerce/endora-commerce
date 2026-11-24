@@ -140,7 +140,7 @@ export class WebhookService {
     const webhook = await em.findOne(Webhook, { id });
     if (!webhook) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook not found.');
     this.#audit(em, 'webhook.delete', webhook.id, { name: webhook.name }, null);
-    await em.removeAndFlush(webhook);
+    await em.remove(webhook).flush();
   }
 
   /**
@@ -178,7 +178,7 @@ export class WebhookService {
       status: 'pending',
       attemptCount: 0,
     });
-    await em.persistAndFlush(copy);
+    await em.persist(copy).flush();
     return copy;
   }
 
@@ -249,7 +249,7 @@ export class WebhookService {
         : {}),
       ...(input.lastError !== undefined ? { lastError: input.lastError } : {}),
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     return row;
   }
 }

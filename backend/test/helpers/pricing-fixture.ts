@@ -168,13 +168,13 @@ export async function setupPricingFixture(h: BackendServerHandle): Promise<Prici
   const ch1 = channel('ch1', ['PLN']);
   const ch2 = channel('ch2', ['PLN', 'EUR']);
   const ch3 = channel('ch3', ['EUR']);
-  await em.persistAndFlush([ch1, ch2, ch3]);
+  await em.persist([ch1, ch2, ch3]).flush();
   const ref = (c: SalesChannel): ChannelRef => ({ id: c.id, code: c.code, defaultCurrency: c.defaultCurrency });
 
   // --- Categories and the price-rule attribute ------------------------------
   const screws = em.create(Category, { name: { 'en-US': 'Screws' }, slug: `screws-${stamp}` });
   const bolts = em.create(Category, { name: { 'en-US': 'Bolts' }, slug: `bolts-${stamp}` });
-  await em.persistAndFlush([screws, bolts]);
+  await em.persist([screws, bolts]).flush();
   const color = await findAttributeExtensionByKey(em, 'color');
   if (!color) throw new Error('pricing fixture: the seeded `color` attribute is missing.');
   color.isPriceRule = true;
@@ -197,7 +197,7 @@ export async function setupPricingFixture(h: BackendServerHandle): Promise<Prici
   const P3 = product('P3', 'Bolt 10', { color: 'red' });
   const P4 = product('P4', 'Screws 0400', { color: 'red', defaultPrice: 55 });
   const P5 = product('P5', 'Screws 0500', {}, 'configurable');
-  await em.persistAndFlush([P1, P2, P3, P4, P5]);
+  await em.persist([P1, P2, P3, P4, P5]).flush();
   const P5r = em.create(ProductVariant, {
     parentProductId: P5.id,
     sku: `P5R-${stamp}`,
@@ -208,7 +208,7 @@ export async function setupPricingFixture(h: BackendServerHandle): Promise<Prici
     sku: `P5B-${stamp}`,
     variantAttributeValues: { color: 'blue' },
   });
-  await em.persistAndFlush([P5r, P5b]);
+  await em.persist([P5r, P5b]).flush();
   await em
     .getConnection()
     .execute(
@@ -221,7 +221,7 @@ export async function setupPricingFixture(h: BackendServerHandle): Promise<Prici
   const VIP = group('vip');
   const Gold = group('gold');
   const Silver = group('silver');
-  await em.persistAndFlush([VIP, Gold, Silver]);
+  await em.persist([VIP, Gold, Silver]).flush();
   let tax = 0;
   const organization = (name: string, customerGroupId: string | null, parent?: Organization) => {
     tax += 1;
@@ -240,9 +240,9 @@ export async function setupPricingFixture(h: BackendServerHandle): Promise<Prici
   const Acme = organization('Acme B2B (demo)', VIP.id);
   const Beta = organization('Beta', VIP.id);
   const Gamma = organization('Gamma', null);
-  await em.persistAndFlush([Acme, Beta, Gamma]);
+  await em.persist([Acme, Beta, Gamma]).flush();
   const AcmeW = organization('AcmeW', VIP.id, Acme);
-  await em.persistAndFlush(AcmeW);
+  await em.persist(AcmeW).flush();
   const account = (organizationId: string, name: string, customerGroupId: string | null) =>
     em.create(CustomerAccount, {
       organizationId,
@@ -255,7 +255,7 @@ export async function setupPricingFixture(h: BackendServerHandle): Promise<Prici
   const ola = account(Gamma.id, 'ola', Gold.id);
   const betaSilver = account(Beta.id, 'beta-silver', Silver.id);
   const betaPlain = account(Beta.id, 'beta-plain', null);
-  await em.persistAndFlush([ola, betaSilver, betaPlain]);
+  await em.persist([ola, betaSilver, betaPlain]).flush();
 
   // --- The engine and the write path ----------------------------------------
   const container = h.container as unknown as { resolve<T>(name: string): T };

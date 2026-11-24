@@ -265,7 +265,7 @@ export class CountryService {
       );
     }
     this.#audit(em, 'country.delete', row.code, { label: row.label }, null);
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
     await this.invalidateDictionaryCache?.();
   }
 }

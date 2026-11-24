@@ -51,7 +51,7 @@ describe('Customer↔Organization membership shapes (feature 026 US2)', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
 
     const password = await hashPassword('TestPassword12345');
     const memberA = em.create(CustomerAccount, {
@@ -69,7 +69,7 @@ describe('Customer↔Organization membership shapes (feature 026 US2)', () => {
       firstName: 'Bartek',
       lastName: 'Aprobant',
     });
-    await em.persistAndFlush([memberA, memberB]);
+    await em.persist([memberA, memberB]).flush();
 
     em.clear();
 

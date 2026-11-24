@@ -37,7 +37,7 @@ describe('orderListPort.list — an explicit scope narrows a wider ambient one (
           vatStatus: 'vat_payer',
           registeredAddress: { street: 'ul. Q3 1', city: 'Warszawa', postalCode: '00-100', country: 'PL' },
         });
-        await em.persistAndFlush(org);
+        await em.persist(org).flush();
         orgIds.push(org.id);
       }
       const address = { recipientName: 'Q3', street: 'ul. Odbioru 1', city: 'Warszawa', postalCode: '00-100', country: 'PL' };

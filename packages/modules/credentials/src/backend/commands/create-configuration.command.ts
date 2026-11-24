@@ -77,7 +77,7 @@ export function makeCreateConfigurationCommand(input: {
         providerCode: data.providerCode,
         values,
       });
-      await em.persistAndFlush(entity);
+      await em.persist(entity).flush();
 
       return {
         result: entity,

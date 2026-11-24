@@ -67,7 +67,7 @@ describe('155 — storefront DTOs carry the minimums [contract]', () => {
         minOrderQuantity: f.minOrderQuantity,
         returnable: true,
       });
-      await em.persistAndFlush(product);
+      await em.persist(product).flush();
       ids[f.key] = product.id;
       slugs[f.key] = product.slug;
       await em
@@ -90,7 +90,7 @@ describe('155 — storefront DTOs carry the minimums [contract]', () => {
       baseQuantity: 6,
       position: 1,
     });
-    await em.persistAndFlush([unit, plainUnit]);
+    await em.persist([unit, plainUnit]).flush();
     unitId = unit.id;
   });
 

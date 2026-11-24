@@ -54,7 +54,7 @@ describe('GET /api/v1/cart/upsells', () => {
       targetProductId: targetId,
       kind: 'up_sell',
     });
-    await em.persistAndFlush(link);
+    await em.persist(link).flush();
     createdLinkIds.push(link.id);
   }
 

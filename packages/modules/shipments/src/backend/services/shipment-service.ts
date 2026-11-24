@@ -121,7 +121,7 @@ export class ShipmentService {
             : {}),
           attemptNo: (latest?.attemptNo ?? 0) + 1,
         });
-        await tx.persistAndFlush(shipment);
+        await tx.persist(shipment).flush();
 
         // Invoke the adapter's shipment_created hook. Status stays pending until
         // receive_shipment; a synchronous `generated` result still deposits the
@@ -156,7 +156,7 @@ export class ShipmentService {
               // `persistAndFlush` and not `flush`: the row is already managed by
               // this transaction, so the two are equivalent here, and this is the
               // spelling every other write in the method uses.
-              await tx.persistAndFlush(shipment);
+              await tx.persist(shipment).flush();
             }
           }
         } else if (absentCarrierModule) {

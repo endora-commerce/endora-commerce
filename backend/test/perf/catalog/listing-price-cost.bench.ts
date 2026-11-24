@@ -65,7 +65,7 @@ describe.skipIf(!shouldRun)('priced catalogue listing — p95 latency', () => {
         attributeValues: {},
       });
     });
-    await em.persistAndFlush(products);
+    await em.persist(products).flush();
     for (const product of products) {
       await h.salesChannels.membershipService.addToChannel(channel.id, 'product', product.id);
     }

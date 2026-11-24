@@ -68,7 +68,7 @@ describe('admin global search — visibility matrix (spec 150, SC-003)', () => {
         ['rfqB', orgB.id, custB.id],
       ] as const) {
         const rfq = em.create(QuoteRequest, { organizationId, customerAccountId, businessId: `ACME${T}-${key}` } as never);
-        await em.persistAndFlush(rfq);
+        await em.persist(rfq).flush();
         ids[key] = (rfq as { id: string }).id;
       }
       const product = em.create(Product, {
@@ -82,7 +82,7 @@ describe('admin global search — visibility matrix (spec 150, SC-003)', () => {
         attributeValues: {},
       } as never);
       const category = em.create(Category, { name: { 'en-US': `ACME${T} tools` }, slug: `tools-${T}` } as never);
-      await em.persistAndFlush([product, category]);
+      await em.persist([product, category]).flush();
       ids['product'] = (product as { id: string }).id;
       ids['category'] = (category as { id: string }).id;
     });

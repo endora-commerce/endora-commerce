@@ -241,7 +241,7 @@ async function seedRestrictedProduct(h: BackendServerHandle): Promise<string> {
     allowedOrganizationIds: [OWNER_ORG_ID, ALLOWED_ORG_ID],
     attributeValues: { defaultPrice: 5 },
   });
-  await em.persistAndFlush(product);
+  await em.persist(product).flush();
   // Publish it on the channel this file shops (issue #259). A comparison
   // column is an acquisition and is refused on a channel that does not sell
   // the row, so a probe bound to no channel could not be added at all — and

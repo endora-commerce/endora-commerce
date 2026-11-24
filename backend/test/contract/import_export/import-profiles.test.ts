@@ -37,7 +37,7 @@ describe('174 — import profiles [contract]', () => {
     h = await setupBackendServer();
     const em = h.em();
     const role = em.create(AdminRole, { code: `ip_reader_${run}`, name: `ip reader ${run}`, permissions: ['catalog:read'] });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     const admin = em.create(AdminUser, {
       email: `ip-reader-${run}@import-export.local`,
       passwordHash: 'x'.repeat(60),
@@ -45,7 +45,7 @@ describe('174 — import profiles [contract]', () => {
       firstName: 'Import',
       lastName: 'Reader',
     });
-    await em.persistAndFlush(admin);
+    await em.persist(admin).flush();
     ADMIN_COOKIES[READER] = { adminUserId: admin.id };
   });
 

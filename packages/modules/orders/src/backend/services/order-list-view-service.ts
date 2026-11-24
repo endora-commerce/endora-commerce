@@ -85,7 +85,7 @@ export class OrderListViewService {
       // command-coverage-ignore: per-admin saved list preset (filters/sort/columns
       // for the orders list) — personal UI configuration, not an order domain
       // mutation, so it is not an admin-audit target.
-      await tx.persistAndFlush(created);
+      await tx.persist(created).flush();
       return created;
     });
     return toDto(view, actor);
@@ -141,7 +141,7 @@ export class OrderListViewService {
       // command-coverage-ignore: per-admin saved list preset (filters/sort/columns
       // for the orders list) — personal UI configuration, not an order domain
       // mutation, so it is not an admin-audit target.
-      await tx.removeAndFlush(found);
+      await tx.remove(found).flush();
       return found;
     });
     this.logForeignWrite('saved_view.deleted', view, actor);

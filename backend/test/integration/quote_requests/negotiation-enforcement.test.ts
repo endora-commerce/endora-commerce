@@ -186,7 +186,7 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
       const l = newOrganization(em, 'L');
       const f = newOrganization(em, 'F');
       const o = newOrganization(em, 'O');
-      await em.persistAndFlush([l, f, o]);
+      await em.persist([l, f, o]).flush();
       orgLocked = l.id;
       orgFree = f.id;
       orgOther = o.id;
@@ -205,7 +205,7 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
         movedToFree: newAccount(em, orgLocked, 'moved-to-free'),
         movedToLocked: newAccount(em, orgFree, 'moved-to-locked'),
       };
-      await em.persistAndFlush(Object.values(accounts));
+      await em.persist(Object.values(accounts)).flush();
       lockedBuyer = accounts.lockedBuyer.id;
       overrideAllowed = accounts.overrideAllowed.id;
       overrideLocked = accounts.overrideLocked.id;
@@ -216,7 +216,7 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
       movedToFree = accounts.movedToFree.id;
       movedToLocked = accounts.movedToLocked.id;
 
-      await em.persistAndFlush([
+      await em.persist([
         em.create(QuoteRequestOrgPolicy, { organizationId: orgLocked, priceProposalsAllowed: false }),
         em.create(QuoteRequestOrgPolicy, { organizationId: orgOther, priceProposalsAllowed: true }),
         em.create(QuoteRequestAccountPolicy, { customerAccountId: overrideAllowed, priceProposalsAllowed: true }),
@@ -225,7 +225,7 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
         em.create(QuoteRequestAccountPolicy, { customerAccountId: otherBuyer, priceProposalsAllowed: true }),
         // "As organization", explicitly: the row exists and inherits.
         em.create(QuoteRequestAccountPolicy, { customerAccountId: lockedBuyer, priceProposalsAllowed: null }),
-      ]);
+      ]).flush();
     });
     for (const [account, org] of [
       [lockedBuyer, orgLocked],
@@ -421,7 +421,7 @@ describe('146 — price-negotiation lock enforcement [integration]', () => {
         await withSystemScope('146 T065: unlock the account again', async () => {
           const em = h.orm.em.fork();
           const row = await em.findOneOrFail(QuoteRequestAccountPolicy, { customerAccountId: colleagueAllowed });
-          await em.removeAndFlush(row);
+          await em.remove(row).flush();
         });
       }
     });

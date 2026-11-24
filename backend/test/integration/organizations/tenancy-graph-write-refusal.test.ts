@@ -118,7 +118,7 @@ describe('organizations — tenancy-graph writes require mode: all [D-260]', () 
         const missing = codes.filter((code) => !role!.permissions.includes(code));
         if (missing.length > 0) role.permissions = [...role.permissions, ...missing];
       }
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
 
       const rep = em.create(AdminUser, {
         email: `d260-tenancy-graph-rep-${Date.now()}@i.local`,
@@ -136,22 +136,22 @@ describe('organizations — tenancy-graph writes require mode: all [D-260]', () 
         firstName: 'D260',
         lastName: 'ForeignRep',
       });
-      await em.persistAndFlush([rep, foreignRep]);
+      await em.persist([rep, foreignRep]).flush();
       repId = rep.id;
       foreignRepId = foreignRep.id;
 
-      await em.persistAndFlush(
+      await em.persist(
         em.create(OrganizationSalesRepAssignment, {
           organizationId: TEST_ORGANIZATION_ID,
           adminUserId: rep.id,
         }),
-      );
-      await em.persistAndFlush(
+      ).flush();
+      await em.persist(
         em.create(OrganizationSalesRepAssignment, {
           organizationId: OTHER_TEST_ORGANIZATION_ID,
           adminUserId: foreignRep.id,
         }),
-      );
+      ).flush();
 
       scopedCookie = `stub-d260-tenancy-graph-${Date.now()}`;
       ADMIN_COOKIES[scopedCookie] = { adminUserId: rep.id };

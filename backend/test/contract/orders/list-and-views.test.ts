@@ -44,7 +44,7 @@ describe('Admin orders list, bulk, export, saved views', () => {
         currency: 'PLN',
         placedAt: new Date(),
       });
-      await em.persistAndFlush(order);
+      await em.persist(order).flush();
       ids[key] = order.id;
     }
   });
@@ -275,7 +275,7 @@ describe('Order saved views — names, ownership and the gate (spec 147)', () =>
       if (!widenedRoles.has(code)) widenedRoles.set(code, [...role.permissions]);
       role.permissions = Array.from(new Set([...role.permissions, ...permissions]));
     }
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     return role.id;
   }
 

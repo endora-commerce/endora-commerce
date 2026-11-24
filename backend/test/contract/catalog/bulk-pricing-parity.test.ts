@@ -138,7 +138,7 @@ describe('External bulk pricing parity with cart pricing (062 / T015, SC-001)', 
         country: 'PL',
       },
     });
-    await em.persistAndFlush(orgB);
+    await em.persist(orgB).flush();
     // Feature 154 — Organization B shops on the stores the harness seeds.
     await bindOrganizationsToFixtureChannelsSql(em, [ORG_B_ID]);
     const customerB = em.create(CustomerAccount, {
@@ -151,7 +151,7 @@ describe('External bulk pricing parity with cart pricing (062 / T015, SC-001)', 
       organizationRoleId: await predefinedRoleIdOf(em, ORG_B_ID, 'administrator'),
       emailVerifiedAt: new Date(),
     });
-    await em.persistAndFlush(customerB);
+    await em.persist(customerB).flush();
     CUSTOMER_COOKIES[ORG_B_COOKIE] = {
       customerAccountId: CUSTOMER_B_ID,
       organizationId: ORG_B_ID,
@@ -168,7 +168,7 @@ describe('External bulk pricing parity with cart pricing (062 / T015, SC-001)', 
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush(otherChannel);
+    await em.persist(otherChannel).flush();
     await h.salesChannels.cache.invalidate('parity-other');
 
     const shared = em.create(Product, {
@@ -204,7 +204,7 @@ describe('External bulk pricing parity with cart pricing (062 / T015, SC-001)', 
       manageStock: false,
       attributeValues: {},
     });
-    await em.persistAndFlush([shared, bracketless, foreign]);
+    await em.persist([shared, bracketless, foreign]).flush();
     productSharedId = shared.id;
 
     const conn = em.getConnection();

@@ -121,7 +121,7 @@ describe('quote request PDF — admin routes Q1–Q3 (spec 153)', () => {
     const a = await ensureSalesChannel(em, `qr153_a_${stamp}`);
     a.defaultLanguage = 'pl-PL';
     a.languages = ['pl-PL', 'en-US'];
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
     channelA = a.id;
     channelB = (await ensureSalesChannel(em, `qr153_b_${stamp}`)).id;
     quoteA = await raise();
@@ -138,7 +138,7 @@ describe('quote request PDF — admin routes Q1–Q3 (spec 153)', () => {
       const grants = ['rfqs:handle', 'price_lists:read'];
       if (!role) role = fork.create(AdminRole, { code: 'sales_representative', name: 'Sales Representative', permissions: grants });
       else role.permissions = Array.from(new Set([...role.permissions, ...grants]));
-      await fork.persistAndFlush(role);
+      await fork.persist(role).flush();
       const org = fork.create(Organization, {
         name: `153 foreign ${stamp}`,
         taxId: `PL153F${String(stamp).slice(-7)}`,
@@ -153,7 +153,7 @@ describe('quote request PDF — admin routes Q1–Q3 (spec 153)', () => {
         firstName: '153',
         lastName: 'Rep',
       });
-      await fork.persistAndFlush([org, rep]);
+      await fork.persist([org, rep]).flush();
       const account = fork.create(CustomerAccount, {
         organizationId: org.id,
         email: `153-foreign-${stamp}@scope.local`,
@@ -161,10 +161,10 @@ describe('quote request PDF — admin routes Q1–Q3 (spec 153)', () => {
         firstName: '153',
         lastName: 'Foreign',
       });
-      await fork.persistAndFlush([account, fork.create(OrganizationSalesRepAssignment, { organizationId: org.id, adminUserId: rep.id })]);
+      await fork.persist([account, fork.create(OrganizationSalesRepAssignment, { organizationId: org.id, adminUserId: rep.id })]).flush();
       // #305 — the seeded organization is another representative's: an
       // unassigned organization is in every representative's reach.
-      await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }));
+      await fork.persist(fork.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID })).flush();
       foreignOrg = org.id;
       ADMIN_COOKIES[REP_SESSION] = { adminUserId: rep.id };
       foreignQuote = account.id;

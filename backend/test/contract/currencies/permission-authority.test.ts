@@ -90,7 +90,7 @@ describe('currencies permission authority', () => {
   ): Promise<string> {
     const em = h.em();
     const role = em.create(AdminRole, { code, name, permissions: [...permissions] });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     return role.id;
   }
 

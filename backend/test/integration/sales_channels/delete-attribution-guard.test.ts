@@ -111,7 +111,7 @@ describe('sales channel delete — the attribution guard asks the owners', () =>
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
   }
 
   async function attributeQuoteRequestTo(salesChannelId: string): Promise<void> {
@@ -130,7 +130,7 @@ describe('sales channel delete — the attribution guard asks the owners', () =>
       customerAccountId: randomUUID(),
       salesChannelId,
     });
-    await em.persistAndFlush(quote);
+    await em.persist(quote).flush();
   }
 
   it('has every owner registered by its own boot hook', () => {

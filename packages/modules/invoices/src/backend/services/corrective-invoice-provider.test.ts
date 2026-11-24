@@ -93,7 +93,7 @@ function fakeStore() {
       tableOf(entity).push(row);
       return row;
     },
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
     flush: async () => undefined,
     transactional: async <T>(cb: (tx: unknown) => Promise<T>) => cb(em),
   };

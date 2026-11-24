@@ -74,7 +74,7 @@ describe('Credentials resolve [real DB]', () => {
       providerCode: 'x',
       values: {},
     });
-    await em.persistAndFlush(ghost);
+    await em.persist(ghost).flush();
 
     const result = await h.credentials.service.resolve('ghost-config');
     expect(result).toEqual({ status: 'unavailable', reason: 'inert_type' });

@@ -38,7 +38,7 @@ describe('CMS refuses a page under a blog prefix (feature 171, T014)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     return { id: created.id, code: created.code };
   }
 

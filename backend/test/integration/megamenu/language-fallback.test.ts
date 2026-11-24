@@ -33,7 +33,7 @@ describe('Megamenu language fallback (T053)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     multiLangChannelId = channel.id;
   });
 

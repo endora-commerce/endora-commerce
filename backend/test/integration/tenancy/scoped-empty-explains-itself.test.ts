@@ -94,7 +94,7 @@ describe('a scoped administrator is shown these lists, and told nothing about th
     } else {
       role.permissions = Array.from(new Set([...role.permissions, ...grants]));
     }
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
 
     const organization = em.create(Organization, {
       name: 'Notice assigned org',
@@ -108,7 +108,7 @@ describe('a scoped administrator is shown these lists, and told nothing about th
         country: 'PL',
       },
     });
-    await em.persistAndFlush(organization);
+    await em.persist(organization).flush();
     assignedOrgId = organization.id;
 
     const rep = em.create(AdminUser, {
@@ -118,13 +118,13 @@ describe('a scoped administrator is shown these lists, and told nothing about th
       firstName: 'Notice',
       lastName: 'Rep',
     });
-    await em.persistAndFlush(rep);
-    await em.persistAndFlush(
+    await em.persist(rep).flush();
+    await em.persist(
       em.create(OrganizationSalesRepAssignment, {
         organizationId: assignedOrgId,
         adminUserId: rep.id,
       }),
-    );
+    ).flush();
 
     const salesChannelId = await systemDefaultSalesChannelId(em);
 
@@ -138,7 +138,7 @@ describe('a scoped administrator is shown these lists, and told nothing about th
       firstName: 'Notice',
       lastName: 'Customer',
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
 
     // Feature 087 Group B / D-187 — `comparisons` carries its organisation, so
     // this row is *attributed* and the notice below is not emitted for it. It
@@ -153,7 +153,7 @@ describe('a scoped administrator is shown these lists, and told nothing about th
       salesChannelId,
       displayMode: 'all',
     });
-    await em.persistAndFlush(comparison);
+    await em.persist(comparison).flush();
     ownComparisonId = comparison.id;
 
     // Feature 087 Group B / D-187 — `newsletter_subscribers` carries its
@@ -162,7 +162,7 @@ describe('a scoped administrator is shown these lists, and told nothing about th
     // `newsletter_subscribers_organization_attribution_chk` refuses an owned
     // row without one.
     ownEmail = `notice-sub-${stamp}@audit.local`;
-    await em.persistAndFlush(
+    await em.persist(
       em.create(NewsletterSubscriber, {
         email: ownEmail,
         status: 'active',
@@ -170,20 +170,20 @@ describe('a scoped administrator is shown these lists, and told nothing about th
         organizationId: assignedOrgId,
         salesChannelId,
       }),
-    );
+    ).flush();
 
     // And one that belongs to nobody, which on this table is the ordinary case
     // rather than the edge: `POST /api/v1/newsletter/subscribe` names no
     // account, so every storefront sign-up is such a row. It is here to make
     // the *new* shape of the export visible — see the CSV case below.
     ownerlessEmail = `notice-ownerless-${stamp}@audit.local`;
-    await em.persistAndFlush(
+    await em.persist(
       em.create(NewsletterSubscriber, {
         email: ownerlessEmail,
         status: 'active',
         salesChannelId,
       }),
-    );
+    ).flush();
 
     // Feature 087 Group B / D-187 — `availability_notifications` carries its
     // organisation, so this row is *attributed* and the notice below is not
@@ -191,7 +191,7 @@ describe('a scoped administrator is shown these lists, and told nothing about th
     // `availability_notifications_organization_attribution_chk` refuses an
     // owned row without one.
     ownNotifyEmail = `notice-notify-${stamp}@audit.local`;
-    await em.persistAndFlush(
+    await em.persist(
       em.create(AvailabilityNotification, {
         productId: '00000000-0000-4000-8000-00000000f001',
         customerAccountId: account.id,
@@ -199,7 +199,7 @@ describe('a scoped administrator is shown these lists, and told nothing about th
         email: ownNotifyEmail,
         status: 'queued',
       }),
-    );
+    ).flush();
 
     repCookie = `stub-notice-rep-${stamp}`;
     ADMIN_COOKIES[repCookie] = { adminUserId: rep.id };

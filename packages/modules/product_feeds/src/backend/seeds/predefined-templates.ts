@@ -283,7 +283,7 @@ export async function reconcilePredefinedTemplates(em: EntityManager): Promise<n
     // The template row must exist before its fields: the field table's foreign
     // key is checked per statement, and MikroORM batches inserts by entity type
     // in an order it chooses, not in persist order.
-    await em.persistAndFlush(template);
+    await em.persist(template).flush();
     definition.fields.forEach((field, index) => {
       em.persist(
         em.create(FeedTemplateField, {

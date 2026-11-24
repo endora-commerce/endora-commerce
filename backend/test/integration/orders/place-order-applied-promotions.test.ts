@@ -51,7 +51,7 @@ describe('placeOrder — automatic promotion carried to order (feature 045)', ()
     // cart is placed in the default channel here.
     const cart = await em.findOne(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' });
     cart!.salesChannelId = (await h.salesChannels.resolver.getSystemDefault()).id;
-    await em.persistAndFlush(cart!);
+    await em.persist(cart!).flush();
 
     const promotionService = promotionServiceFor(h);
     const promo = await promotionService.upsert({

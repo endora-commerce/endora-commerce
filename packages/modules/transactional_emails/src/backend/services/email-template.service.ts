@@ -126,7 +126,7 @@ export class EmailTemplateService {
       isSystem: false,
       version: 1,
     });
-    await em.persistAndFlush(tpl);
+    await em.persist(tpl).flush();
     for (const scId of req.salesChannelIds ?? []) {
       em.persist(em.create(EmailTemplateSalesChannel, { templateId: tpl.id, salesChannelId: scId, code: tpl.code }));
     }
@@ -145,7 +145,7 @@ export class EmailTemplateService {
     if (req.description !== undefined) t.description = req.description;
     if (req.salesChannelIds !== undefined && !t.isSystem) {
       const current = await em.find(EmailTemplateSalesChannel, { templateId: t.id });
-      await em.removeAndFlush(current);
+      await em.remove(current).flush();
       for (const scId of req.salesChannelIds) {
         em.persist(em.create(EmailTemplateSalesChannel, { templateId: t.id, salesChannelId: scId, code: t.code }));
       }
@@ -188,6 +188,6 @@ export class EmailTemplateService {
     }
     const bridges = await em.find(EmailTemplateSalesChannel, { templateId: t.id });
     this.#audit(em, 'email_template.delete', t.id, { code: t.code }, null);
-    await em.removeAndFlush([...bridges, t]);
+    await em.remove([...bridges, t]).flush();
   }
 }

@@ -52,7 +52,7 @@ describe('customers — the admin password-reset e-mail is rendered from a templ
         country: 'PL',
       },
     });
-    await em.persistAndFlush(organization);
+    await em.persist(organization).flush();
     const email = `reset-1295-${Date.now()}@example.test`;
     const account = em.create(CustomerAccount, {
       organizationId: organization.id,
@@ -63,7 +63,7 @@ describe('customers — the admin password-reset e-mail is rendered from a templ
       organizationRoleId: await predefinedRoleIdOf(em, organization.id, 'administrator'),
       emailVerifiedAt: new Date(),
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     return { id: account.id, email };
   };
 

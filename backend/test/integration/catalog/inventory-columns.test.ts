@@ -125,7 +125,7 @@ async function seedRows(em: EntityManager): Promise<{ productId: string; categor
     inventoryThresholdMedium: 10,
     inventoryThresholdLow: 2,
   });
-  await em.persistAndFlush([product, category]);
+  await em.persist([product, category]).flush();
   return { productId: product.id, categoryId: category.id };
 }
 

@@ -93,7 +93,7 @@ describe('a buyer is refused a payment retry in their own language', () => {
       statusOnSuccess: 'paid',
       statusOnFailure: 'on_hold',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     return method;
   }
 

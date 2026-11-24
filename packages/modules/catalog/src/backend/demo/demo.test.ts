@@ -82,8 +82,7 @@ function fakeEm(seeded: readonly FakeRow[] = []): {
       created.push(row);
       return row;
     },
-    persist: () => undefined,
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
     flush: async () => undefined,
     nativeDelete: async (_entity: unknown, where: Record<string, unknown>) => {
       deletes.push(where);

@@ -65,7 +65,7 @@ describe('an asset a deactivated cms still references cannot be deleted (D-68)',
       storageBackend: 'legacy',
       visibility: 'public',
     });
-    await em.persistAndFlush(asset);
+    await em.persist(asset).flush();
     assetId = asset.id;
 
     const slug = `d68-page-${randomUUID().slice(0, 8)}`;
@@ -88,14 +88,14 @@ describe('an asset a deactivated cms still references cannot be deleted (D-68)',
       },
       languages: ['en-US'],
     });
-    await em.persistAndFlush(page);
+    await em.persist(page).flush();
     pageId = page.id;
   });
 
   afterAll(async () => {
     const fresh = h.em().fork({ clear: true });
-    await fresh.removeAndFlush(await fresh.findOneOrFail(CmsPage, { id: pageId }));
-    await fresh.removeAndFlush(await fresh.findOneOrFail(Asset, { id: assetId }));
+    await fresh.remove(await fresh.findOneOrFail(CmsPage, { id: pageId })).flush();
+    await fresh.remove(await fresh.findOneOrFail(Asset, { id: assetId })).flush();
     await teardownBackendServer(h);
   });
 

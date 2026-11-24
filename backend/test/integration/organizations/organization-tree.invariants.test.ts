@@ -31,7 +31,7 @@ async function makeRootOrg(em: EntityManager, name: string): Promise<Organizatio
     vatStatus: 'vat_payer',
     registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
   });
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   // Mirror the migration backfill: a freshly-created org is a root.
   org.path = `/${org.id}/`;
   await em.flush();

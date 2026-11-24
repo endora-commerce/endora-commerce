@@ -70,7 +70,7 @@ export async function seedProbeChannelAssortment(
     defaultCurrency: currency,
     active: true,
   });
-  await em.persistAndFlush(channel);
+  await em.persist(channel).flush();
 
   await em
     .getConnection()

@@ -405,7 +405,7 @@ export class FeedGenerationService {
       artefact.byteSize = measurement.byteSize;
       artefact.itemCount = counters.emittedCount;
       artefact.checksumSha256 = measurement.checksumSha256;
-      await em.persistAndFlush(artefact);
+      await em.persist(artefact).flush();
       artefactId = artefact.id;
 
       const terminal = terminalStatusFor(counters, skipThreshold);

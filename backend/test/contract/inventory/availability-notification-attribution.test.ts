@@ -58,7 +58,7 @@ describe('an availability notification carries the organisation of the account t
       visibility: 'public',
       attributeValues: { defaultPrice: 10 },
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
     productId = product.id;
 
     // Issue #259 — `subscribe` is an acquisition seam and narrows against the

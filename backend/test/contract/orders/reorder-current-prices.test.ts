@@ -68,7 +68,7 @@ describe('Order reorder — current prices, and lines with none reported (#166)'
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     em.create(OrderItem, {
       orderId: order.id,
       productId: pricedProductId,

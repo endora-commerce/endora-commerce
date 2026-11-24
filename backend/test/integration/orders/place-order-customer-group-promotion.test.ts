@@ -68,14 +68,14 @@ describe('placeOrder — customer-group targeted promotion (issue #177)', () => 
       code: 'i177-wholesale',
       name: 'Wholesale (issue 177)',
     });
-    await em.persistAndFlush([vip, wholesale]);
+    await em.persist([vip, wholesale]).flush();
     vipGroupId = vip.id;
 
     const member = await em.findOne(CustomerAccount, { id: TEST_CUSTOMER_ID });
     member!.customerGroupId = vip.id;
     const outsider = await em.findOne(CustomerAccount, { id: TEST_CUSTOMER_RFQ_ID });
     outsider!.customerGroupId = wholesale.id;
-    await em.persistAndFlush([member!, outsider!]);
+    await em.persist([member!, outsider!]).flush();
 
     // Issue #251 — the promotion engine's channel gate is live in every
     // composition now (`salesChannelMembership` used to be optional and this
@@ -93,7 +93,7 @@ describe('placeOrder — customer-group targeted promotion (issue #177)', () => 
       status: 'active',
     });
     memberCart!.salesChannelId = defaultChannelId;
-    await em.persistAndFlush(memberCart!);
+    await em.persist(memberCart!).flush();
 
     const outsiderCart = em.create(Cart, {
       customerAccountId: TEST_CUSTOMER_RFQ_ID,
@@ -101,8 +101,8 @@ describe('placeOrder — customer-group targeted promotion (issue #177)', () => 
       status: 'active',
       salesChannelId: defaultChannelId,
     });
-    await em.persistAndFlush(outsiderCart);
-    await em.persistAndFlush(
+    await em.persist(outsiderCart).flush();
+    await em.persist(
       em.create(CartItem, {
         cartId: outsiderCart.id,
         productId: SEED_PRODUCT_101_ID,
@@ -110,7 +110,7 @@ describe('placeOrder — customer-group targeted promotion (issue #177)', () => 
         unitPrice: '19.99',
         currency: 'PLN',
       }),
-    );
+    ).flush();
 
     const promotion = await promotionServiceFor(h).upsert({
       name: 'VIP 10% off',

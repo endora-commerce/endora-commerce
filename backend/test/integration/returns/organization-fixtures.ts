@@ -31,7 +31,7 @@ export async function makeOrganization(em: EntityManager, label: string): Promis
     vatStatus: 'vat_payer',
     registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
   });
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   await bindOrganizationsToFixtureChannelsSql(em, [org.id]);
   org.path = `/${org.id}/`;
   await em.flush();

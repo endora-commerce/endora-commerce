@@ -208,7 +208,7 @@ export function makeDeleteDeliveryMethodCommand(
         );
       }
       const before = deliveryMethodAuditState(row);
-      await em.removeAndFlush(row);
+      await em.remove(row).flush();
       return { result: undefined, before, after: null };
     },
   };
@@ -243,7 +243,7 @@ export function makeWithdrawCreatedDeliveryMethodCommand(id: string): Command<vo
       // Already gone: there is nothing left to take back, and nothing to audit.
       if (!row) return { result: undefined, skipAudit: true };
       const before = deliveryMethodAuditState(row);
-      await em.removeAndFlush(row);
+      await em.remove(row).flush();
       return { result: undefined, before, after: null };
     },
   };

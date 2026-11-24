@@ -133,7 +133,7 @@ export class ShoppingListService {
       name: input.name,
       isDefault: existingCount === 0,
     });
-    await em.persistAndFlush(list);
+    await em.persist(list).flush();
     return list;
   }
 
@@ -164,7 +164,7 @@ export class ShoppingListService {
     }
 
     const created = em.create(ShoppingList, { ...where, name: SHOPPING_LIST_AUTO_DEFAULT_NAME, isDefault: true });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     return created;
   }
 
@@ -258,7 +258,7 @@ export class ShoppingListService {
         'At least one shopping list must remain.',
       );
     }
-    await em.removeAndFlush(list);
+    await em.remove(list).flush();
   }
 
   async addItem(
@@ -311,7 +311,7 @@ export class ShoppingListService {
       ...(input.note ? { note: input.note } : {}),
     });
     list.updatedAt = new Date();
-    await em.persistAndFlush(item);
+    await em.persist(item).flush();
     return item;
   }
 
@@ -342,7 +342,7 @@ export class ShoppingListService {
     const item = await em.findOne(ShoppingListItem, { id: itemId, shoppingListId: list.id });
     if (!item) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Shopping list item not found.');
     list.updatedAt = new Date();
-    await em.removeAndFlush(item);
+    await em.remove(item).flush();
   }
 
   /**

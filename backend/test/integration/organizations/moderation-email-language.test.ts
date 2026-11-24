@@ -56,9 +56,9 @@ describe('organizations — moderation e-mails are rendered from a template, in 
         country: 'PL',
       },
     });
-    await em.persistAndFlush(organization);
+    await em.persist(organization).flush();
     const email = `o93-${label}-${Date.now()}@example.test`;
-    await em.persistAndFlush(
+    await em.persist(
       em.create(CustomerAccount, {
         organizationId: organization.id,
         email,
@@ -68,7 +68,7 @@ describe('organizations — moderation e-mails are rendered from a template, in 
         organizationRoleId: await predefinedRoleIdOf(em, organization.id, 'administrator'),
         emailVerifiedAt: new Date(),
       }),
-    );
+    ).flush();
     return { organization, email };
   };
 

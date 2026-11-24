@@ -173,7 +173,7 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
         currency: 'PLN',
         placedAt: new Date(),
       });
-      await em.persistAndFlush(order);
+      await em.persist(order).flush();
       return order.id;
     }
 
@@ -589,7 +589,7 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
         status: 'scheduled',
         startsAt: new Date(Date.now() - 86_400_000),
       });
-      await em.persistAndFlush(scheduled);
+      await em.persist(scheduled).flush();
       const before = await recorded(STATUS_SWEEP_SCOPE_REASON);
 
       expect(await tick()).toEqual({ scheduledToActive: 1, activeToExpired: 0 });
@@ -612,7 +612,7 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
         startsAt: new Date(Date.now() - 3 * 86_400_000),
         endsAt: new Date(Date.now() - 86_400_000),
       });
-      await em.persistAndFlush(active);
+      await em.persist(active).flush();
       const before = await recorded(STATUS_SWEEP_SCOPE_REASON);
 
       expect(await tick()).toEqual({ scheduledToActive: 0, activeToExpired: 1 });
@@ -632,7 +632,7 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
         status: 'scheduled',
         startsAt: new Date(Date.now() - 86_400_000),
       });
-      await em.persistAndFlush(scheduled);
+      await em.persist(scheduled).flush();
       const worker = new PriceListStatusWorker(emFactory);
       const before = await recorded(STATUS_SWEEP_SCOPE_REASON);
 

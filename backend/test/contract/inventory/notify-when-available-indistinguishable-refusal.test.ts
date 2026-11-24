@@ -89,7 +89,7 @@ describe('the anonymous notify-when-available endpoint answers one refusal for t
         attributeValues: { defaultPrice: 10 },
         ...extra,
       });
-      await em.persistAndFlush(product);
+      await em.persist(product).flush();
       return product.id;
     };
 
@@ -122,7 +122,7 @@ describe('the anonymous notify-when-available endpoint answers one refusal for t
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush([channel, elsewhere]);
+    await em.persist([channel, elsewhere]).flush();
 
     // Written with SQL rather than through `SalesChannelMembershipService` for
     // the reason `channel-assortment-fixture.ts` gives: the service audits and

@@ -52,7 +52,7 @@ describe('CatalogProductReadService.listProductIdsByAttributeValue', () => {
       deleted: make('DELETED', 'steel', { deletedAt: new Date() }),
       inactive: make('INACTIVE', 'steel', { status: 'inactive' }),
     };
-    await em.persistAndFlush(Object.values(rows));
+    await em.persist(Object.values(rows)).flush();
     for (const [name, row] of Object.entries(rows)) ids[name] = row.id;
   }, 120_000);
 

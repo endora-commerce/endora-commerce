@@ -38,7 +38,7 @@ describe('GET /api/v1/admin/sales-channels — paging through equal creation tim
         active: false,
       }),
     );
-    await em.persistAndFlush(channels);
+    await em.persist(channels).flush();
     seededIds = channels.map((c) => c.id);
     await em
       .getConnection()

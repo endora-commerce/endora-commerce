@@ -144,7 +144,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
     } else {
       role.permissions = Array.from(new Set([...role.permissions, 'orders:read', 'orders:write']));
     }
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
 
     const rep = em.create(AdminUser, {
       email: `phase-e-rep-${stamp}@085.local`,
@@ -155,7 +155,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
     });
     const assigned = newOrganization(em, 'Phase E assigned org', 'A');
     const foreign = newOrganization(em, 'Phase E foreign org', 'F');
-    await em.persistAndFlush([rep, assigned, foreign]);
+    await em.persist([rep, assigned, foreign]).flush();
     assignedOrgId = assigned.id;
     foreignOrgId = foreign.id;
     // Issue #515 — the admin create and preview accept only a channel the
@@ -163,7 +163,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
     // directly, so they are bound to the fixture channels here.
     await bindOrganizationsToFixtureChannelsSql(em, [assignedOrgId, foreignOrgId]);
 
-    await em.persistAndFlush([
+    await em.persist([
       em.create(OrganizationSalesRepAssignment, {
         organizationId: assignedOrgId,
         adminUserId: rep.id,
@@ -174,7 +174,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
       // …and so is the seeded customer's organization, which the "customer
       // outside the scope" cases below act for.
       em.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }),
-    ]);
+    ]).flush();
 
     // One pair per route under test, so no assertion depends on a transition an
     // earlier assertion applied.
@@ -193,7 +193,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
     const rows = keys.map((key) =>
       newOrder(em, key.startsWith('own') ? assignedOrgId : foreignOrgId),
     );
-    await em.persistAndFlush(rows);
+    await em.persist(rows).flush();
     keys.forEach((key, i) => {
       orders[key] = rows[i]!.id;
     });
@@ -204,7 +204,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
     await em.flush();
 
     for (const key of ['ownComment', 'foreignComment'] as const) {
-      await em.persistAndFlush(
+      await em.persist(
         em.create(OrderComment, {
           orderId: orders[key]!,
           authorAdminUserId: null,
@@ -213,13 +213,13 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
           isCustomerVisible: false,
           notifyCustomer: false,
         }),
-      );
+      ).flush();
     }
 
     for (const key of ['ownInvoice', 'foreignInvoice'] as const) {
       const number = `FV/085E/${key}/${stamp}`;
       invoiceNumbers[key] = number;
-      await em.persistAndFlush(
+      await em.persist(
         em.create(Invoice, {
           orderId: orders[key]!,
           kind: 'invoice',
@@ -228,7 +228,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
           total: '12.30',
           status: 'ready',
         }),
-      );
+      ).flush();
     }
 
     const assignedCustomer = em.create(CustomerAccount, {
@@ -238,7 +238,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
       firstName: 'Assigned',
       lastName: 'Buyer',
     });
-    await em.persistAndFlush(assignedCustomer);
+    await em.persist(assignedCustomer).flush();
     assignedCustomerId = assignedCustomer.id;
 
     repCookie = `stub-phase-e-rep-${stamp}`;

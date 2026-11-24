@@ -45,7 +45,7 @@ describe('carts foundation — entity round-trip & CHECK constraints', () => {
       salesChannelId: systemDefaultChannelId,
       appliedPromotionCode: 'WIOSNA10',
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
 
     const reload = await em.findOneOrFail(Cart, { id: cart.id });
     expect(reload.status).toBe('active');
@@ -63,7 +63,7 @@ describe('carts foundation — entity round-trip & CHECK constraints', () => {
       anonymousCartToken: `anon-version-${Date.now()}`,
       salesChannelId: systemDefaultChannelId,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     const initialVersion = cart.version;
 
     cart.appliedPromotionCode = 'CHANGED';
@@ -102,7 +102,7 @@ describe('carts foundation — entity round-trip & CHECK constraints', () => {
       anonymousCartToken: `anon-audit-${Date.now()}`,
       salesChannelId: systemDefaultChannelId,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
 
     await expect(
       em
@@ -121,7 +121,7 @@ describe('carts foundation — entity round-trip & CHECK constraints', () => {
       anonymousCartToken: `anon-cart-item-${Date.now()}`,
       salesChannelId: systemDefaultChannelId,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
 
     const item = em.create(CartItem, {
       cartId: cart.id,
@@ -133,7 +133,7 @@ describe('carts foundation — entity round-trip & CHECK constraints', () => {
       recomputedCurrency: 'PLN',
       recomputedAt: new Date(),
     });
-    await em.persistAndFlush(item);
+    await em.persist(item).flush();
 
     const reload = await em.findOneOrFail(CartItem, { id: item.id });
     expect(reload.unitPrice).toBe('19.99');
@@ -148,7 +148,7 @@ describe('carts foundation — entity round-trip & CHECK constraints', () => {
       anonymousCartToken: `anon-audit-row-${Date.now()}`,
       salesChannelId: systemDefaultChannelId,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
 
     const entry = em.create(CartAuditEntry, {
       cartId: cart.id,
@@ -158,7 +158,7 @@ describe('carts foundation — entity round-trip & CHECK constraints', () => {
       toState: 'abandoned',
       metadata: { threshold_minutes: 10080 },
     });
-    await em.persistAndFlush(entry);
+    await em.persist(entry).flush();
 
     const reload = await em.findOneOrFail(CartAuditEntry, { id: entry.id });
     expect(reload.action).toBe('abandonment_swept');

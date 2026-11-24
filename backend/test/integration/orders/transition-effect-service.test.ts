@@ -119,7 +119,7 @@ describe('OrderTransitionEffectService (spec 142, T08)', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     seededOrderIds.push(order.id);
     return order.id;
   }

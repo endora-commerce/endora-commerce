@@ -47,7 +47,7 @@ describe('products — generated admin name and search keys (161 G15, 174)', () 
       ids[key] = p.id;
       return p;
     };
-    await em.persistAndFlush([make('PL', 'Łącznik śrubowy'), make('EMPTY', ''), make('FOLD', 'Żaba ąę')]);
+    await em.persist([make('PL', 'Łącznik śrubowy'), make('EMPTY', ''), make('FOLD', 'Żaba ąę')]).flush();
   }, 60_000);
 
   afterAll(async () => {
@@ -112,7 +112,7 @@ describe('products — generated admin name and search keys (161 G15, 174)', () 
       attributeValues: {},
       ...({ adminNameKey: 'zzz' } as Record<string, unknown>),
     });
-    await em.persistAndFlush(p);
+    await em.persist(p).flush();
     expect((await keysOf(p.id)).admin_name_key).toBe('rivet');
     p.name = 'Washer';
     await em.flush();

@@ -75,7 +75,7 @@ function harness(hooks: ReadonlyArray<{ moduleId: string; entries: readonly Comm
     findOne: async (_entity: unknown, where: { id?: string }) => (where.id === ORG_ID ? stored : { id: 'role-1' }),
     execute: async () => [],
     create: (_entity: unknown, data: Record<string, unknown>) => ({ ...data }),
-    persistAndFlush: async () => undefined,
+    persist: () => ({ flush: async () => undefined }),
     flush: async () => undefined,
   };
   em['transactional'] = async <T>(fn: (inner: EntityManager) => Promise<T>): Promise<T> => fn(em as unknown as EntityManager);

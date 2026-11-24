@@ -190,7 +190,7 @@ describe('forms — place a form and receive submissions (US2)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     bilingual = { id: channel.id, code: channel.code };
     defaultChannelId = (await em.findOneOrFail(SalesChannel, { code: 'default' })).id;
   }, 60_000);

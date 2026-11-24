@@ -126,7 +126,7 @@ export class TaxService {
     const row = await em.findOne(Tax, { id });
     if (!row) return;
     this.#audit(em, 'tax.delete', row.id, { code: row.code }, null);
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
   }
 
   async taxRateFor(input: TaxResolutionInput): Promise<ResolvedTax> {

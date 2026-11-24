@@ -102,7 +102,7 @@ describe('command hooks on organizations’ hookable actions (176 T029)', () => 
       defaultCurrency: 'PLN',
       currencies: ['PLN'],
     });
-    await em.persistAndFlush(sales);
+    await em.persist(sales).flush();
     channel = sales.id;
   });
 

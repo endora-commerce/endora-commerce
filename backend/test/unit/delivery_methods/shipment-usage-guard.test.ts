@@ -44,9 +44,11 @@ function fakeEm(row: DeliveryMethod | null): {
   const removed: DeliveryMethod[] = [];
   const em = {
     findOne: async () => row,
-    removeAndFlush: async (entity: DeliveryMethod) => {
-      removed.push(entity);
-    },
+    remove: (entity: DeliveryMethod) => ({
+      flush: async () => {
+        removed.push(entity);
+      },
+    }),
   } as unknown as EntityManager;
   return { em, removed };
 }

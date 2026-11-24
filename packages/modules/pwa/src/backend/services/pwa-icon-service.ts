@@ -85,7 +85,7 @@ export class PwaIconService {
 
     // Replace the channel's prior renditions (best-effort cleanup of rows).
     const prior = await em.find(PwaIconRendition, { salesChannelId: input.salesChannelId });
-    if (prior.length > 0) await em.removeAndFlush(prior);
+    if (prior.length > 0) await em.remove(prior).flush();
 
     for (const plan of RENDITION_PLAN) {
       const pipeline = sharp(input.buffer).resize(plan.size, plan.size, { fit: 'cover' });

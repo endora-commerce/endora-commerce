@@ -55,7 +55,7 @@ describe('Megamenu link icons (T059 + T060)', () => {
       storageUrl: '/assets/videos/video.mp4',
       label: 'Video',
     });
-    await em.persistAndFlush([image, video]);
+    await em.persist([image, video]).flush();
     imageAssetId = image.id;
     videoAssetId = video.id;
   });

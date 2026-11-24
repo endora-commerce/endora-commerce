@@ -40,7 +40,7 @@ describe('Bound api-key tenant isolation (062 / Principle XI)', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(orgB);
+    await em.persist(orgB).flush();
     const customerB = em.create(CustomerAccount, {
       id: ISOLATION_CUSTOMER_B_ID,
       organizationId: ISOLATION_ORG_B_ID,
@@ -50,7 +50,7 @@ describe('Bound api-key tenant isolation (062 / Principle XI)', () => {
       lastName: 'B',
       emailVerifiedAt: new Date(),
     });
-    await em.persistAndFlush(customerB);
+    await em.persist(customerB).flush();
   });
 
   afterAll(async () => {

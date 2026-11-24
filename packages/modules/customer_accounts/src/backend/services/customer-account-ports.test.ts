@@ -37,9 +37,11 @@ function fakeEm() {
   const em = {
     create: <T extends object>(entity: new () => T, data: Partial<T>): T => Object.assign(new entity(), data),
     findOne: async () => null,
-    persistAndFlush: async (row: object) => {
-      rows.push(row);
-    },
+    persist: (row: object) => ({
+      flush: async () => {
+        rows.push(row);
+      },
+    }),
     transactional: async <T>(fn: (inner: unknown) => Promise<T>): Promise<T> => fn(em),
     fork: () => em,
   };

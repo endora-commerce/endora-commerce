@@ -27,7 +27,7 @@ describe('storefront CMS block-by-code contract (T052)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await h.em().persistAndFlush(otherChannel);
+    await h.em().persist(otherChannel).flush();
   });
 
   afterAll(async () => {

@@ -58,7 +58,7 @@ describe('GET /api/v1/admin/orders — paging through equal sort keys (issue #17
         placedAt,
       }),
     );
-    await em.persistAndFlush(orders);
+    await em.persist(orders).flush();
     seededIds = orders.map((o) => o.id);
   });
 

@@ -130,7 +130,7 @@ export class InvoiceNumberGenerator {
       counter = tx.create(InvoiceNumberCounter, { salesChannelId, kind, periodYear, currentValue: 0 });
     }
     counter.currentValue += 1;
-    await tx.persistAndFlush(counter);
+    await tx.persist(counter).flush();
 
     const pattern = await this.resolvePattern(kind, salesChannelId);
     return formatInvoiceNumber(pattern, {

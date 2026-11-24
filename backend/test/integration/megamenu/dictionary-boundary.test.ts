@@ -48,7 +48,7 @@ describe('Megamenu dictionary boundary', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     salesChannelId = channel.id;
   });
 

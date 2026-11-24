@@ -75,7 +75,7 @@ describe('contact form — storefront endpoint (feature 169, contract §2)', () 
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     const created = { id: channel.id, code: channel.code };
     createdChannels.push(created);
     return created;

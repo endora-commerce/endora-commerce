@@ -66,7 +66,7 @@ describe('admin Organization sales channels — Organization visibility (#515)',
       });
     const a = make(`orgsc515-a-${stamp}`);
     const b = make(`orgsc515-b-${stamp}`);
-    await em.persistAndFlush([a, b]);
+    await em.persist([a, b]).flush();
     channelA = a.id;
     channelB = b.id;
     channelACode = a.code;
@@ -80,7 +80,7 @@ describe('admin Organization sales channels — Organization visibility (#515)',
       } else {
         role.permissions = Array.from(new Set([...role.permissions, ...grants]));
       }
-      await fork.persistAndFlush(role);
+      await fork.persist(role).flush();
       const org = (label: string) =>
         fork.create(Organization, {
           name: `#515 ${label} ${stamp}`,
@@ -98,7 +98,7 @@ describe('admin Organization sales channels — Organization visibility (#515)',
         firstName: '515',
         lastName: 'Rep',
       });
-      await fork.persistAndFlush([own, foreign, rep]);
+      await fork.persist([own, foreign, rep]).flush();
       // Issue #698 — the foreign Organization is another representative's: one
       // nobody is assigned to is reachable by every representative (D-3W,
       // issue #305).
@@ -109,11 +109,11 @@ describe('admin Organization sales channels — Organization visibility (#515)',
         firstName: '515',
         lastName: 'Other',
       });
-      await fork.persistAndFlush(other);
-      await fork.persistAndFlush([
+      await fork.persist(other).flush();
+      await fork.persist([
         fork.create(OrganizationSalesRepAssignment, { organizationId: own.id, adminUserId: rep.id }),
         fork.create(OrganizationSalesRepAssignment, { organizationId: foreign.id, adminUserId: other.id }),
-      ]);
+      ]).flush();
       ownOrgId = own.id;
       foreignOrgId = foreign.id;
       ADMIN_COOKIES[REP] = { adminUserId: rep.id };

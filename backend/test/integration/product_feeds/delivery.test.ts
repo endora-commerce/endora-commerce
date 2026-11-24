@@ -305,7 +305,7 @@ describe('feed delivery [integration]', () => {
     const em = h.em();
     const feed = await em.findOneOrFail(ProductFeed, { id: feedId });
     feed.currentRunId = feed.lastRunId ?? null;
-    await em.persistAndFlush(feed);
+    await em.persist(feed).flush();
 
     const before = await attempts();
     try {
@@ -315,7 +315,7 @@ describe('feed delivery [integration]', () => {
       const release = h.em();
       const held = await release.findOneOrFail(ProductFeed, { id: feedId });
       held.currentRunId = null;
-      await release.persistAndFlush(held);
+      await release.persist(held).flush();
     }
 
     expect(sftp.sends).toHaveLength(0);

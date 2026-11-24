@@ -44,7 +44,7 @@ describe('afterCommit delivery restores the row’s tenant context (176 T044)', 
       defaultCurrency: 'PLN',
       currencies: ['PLN'],
     });
-    await em.persistAndFlush(sales);
+    await em.persist(sales).flush();
     channel = sales.id;
   });
 

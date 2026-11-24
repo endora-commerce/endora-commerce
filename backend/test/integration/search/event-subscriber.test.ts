@@ -89,7 +89,7 @@ describe('SearchEventSubscriber — incremental index updates', () => {
       description: 'Widget produced by the integration test.',
       attributeValues: {},
     });
-    await em.persistAndFlush(newProduct);
+    await em.persist(newProduct).flush();
     await em.getConnection().execute(
       `insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)`,
       [publicChannel.id, newProduct.id],

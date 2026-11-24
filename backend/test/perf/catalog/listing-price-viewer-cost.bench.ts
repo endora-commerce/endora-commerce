@@ -131,7 +131,7 @@ describe.skipIf(!shouldRun)('priced catalogue listing — anonymous vs signed-in
         attributeValues: {},
       });
     });
-    await em.persistAndFlush(products);
+    await em.persist(products).flush();
     productIds = products.map((p) => p.id);
     for (const product of products) {
       await h.salesChannels.membershipService.addToChannel(channel.id, 'product', product.id);

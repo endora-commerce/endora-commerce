@@ -46,7 +46,7 @@ describe('storefront blog posts list contract (feature 163, T064)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     createdChannelIds.push(channel.id);
     return { id: channel.id, code: channel.code };
   }

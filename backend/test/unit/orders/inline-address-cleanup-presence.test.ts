@@ -156,7 +156,7 @@ describe('OrderApiIntakeService — inline-address cleanup', () => {
         id: '00000000-0000-4000-8000-000000000040',
         ...data,
       }),
-      persistAndFlush: async () => undefined,
+      persist: () => ({ flush: async () => undefined }),
       flush: async () => undefined,
     }) as unknown as EntityManager;
 

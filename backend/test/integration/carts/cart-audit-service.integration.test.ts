@@ -49,7 +49,7 @@ describe('CartAuditService — dual-landing audit writer', () => {
       anonymousCartToken: `anon-audit-${Date.now()}`,
       salesChannelId: systemDefaultChannelId,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
 
     await cartAudit.record({
       cartId: cart.id,
@@ -82,7 +82,7 @@ describe('CartAuditService — dual-landing audit writer', () => {
       anonymousCartToken: `anon-admin-audit-${Date.now()}`,
       salesChannelId: systemDefaultChannelId,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
 
     await cartAudit.record({
       cartId: cart.id,
@@ -109,7 +109,7 @@ describe('CartAuditService — dual-landing audit writer', () => {
       anonymousCartToken: `anon-sweep-audit-${Date.now()}`,
       salesChannelId: systemDefaultChannelId,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
 
     await cartAudit.record({
       cartId: cart.id,

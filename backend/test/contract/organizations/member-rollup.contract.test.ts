@@ -29,7 +29,7 @@ describe('admin set member roll-up capability (T032)', () => {
       vatStatus: 'vat_payer',
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     org.path = `/${org.id}/`;
     await em.flush();
     orgId = org.id;
@@ -41,7 +41,7 @@ describe('admin set member roll-up capability (T032)', () => {
       lastName: 'Ber',
       organizationRoleId: await predefinedRoleIdOf(em, orgId, 'administrator'),
     });
-    await em.persistAndFlush(member);
+    await em.persist(member).flush();
     memberId = member.id;
   });
 

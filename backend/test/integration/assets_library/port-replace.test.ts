@@ -249,7 +249,7 @@ describe('assetsLibraryPort.replace (issue #694)', () => {
       storageBackend: 'legacy',
       visibility: 'public',
     });
-    await em.persistAndFlush(legacy);
+    await em.persist(legacy).flush();
     created.push(legacy.id);
     const replacement = pdfBytes('over legacy');
 

@@ -51,7 +51,7 @@ describe('customer_accounts — folding e-mail case over existing rows', () => {
       // seeded one, because this fixture is about e-mail folding and not tenancy.
       organizationId: TEST_ORGANIZATION_ID,
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     // `onCreate` stamps `createdAt`, and the tie-break under test is precisely
     // that column, so it is set explicitly afterwards.
     await em.execute('update customer_accounts set created_at = ? where id = ?', [

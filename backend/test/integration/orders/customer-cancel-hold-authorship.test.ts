@@ -76,7 +76,7 @@ describe('who held the order decides whether the buyer may cancel it (#284)', ()
       statusOnSuccess: 'paid',
       statusOnFailure: 'on_hold',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     return method;
   }
 

@@ -37,7 +37,7 @@ describe('155 — per-line totals on a case request [integration]', () => {
         label: { en: `Duplicate-lines reason ${RUN}-${active.length}` },
         appliesTo: 'both',
       });
-      await em.persistAndFlush(extra);
+      await em.persist(extra).flush();
       createdReasonIds.push(extra.id);
       active.push(extra);
     }

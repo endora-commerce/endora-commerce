@@ -85,7 +85,7 @@ export class GaCustomEventsService {
       enabled: input.enabled,
       fields: input.fields,
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     await this.audit?.record({
       action: 'google_analytics.custom_event.created',
       objectType: 'ga_custom_event',
@@ -121,7 +121,7 @@ export class GaCustomEventsService {
     if (input.enabled !== undefined) row.enabled = input.enabled;
     if (input.fields !== undefined) row.fields = input.fields;
     row.version += 1;
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
 
     await this.audit?.record({
       action: 'google_analytics.custom_event.updated',
@@ -140,7 +140,7 @@ export class GaCustomEventsService {
     if (!isUuidShape(id)) throw this.notFound(id);
     const row = await em.findOne(GaCustomEvent, { id });
     if (!row) throw this.notFound(id);
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
     await this.audit?.record({
       action: 'google_analytics.custom_event.deleted',
       objectType: 'ga_custom_event',

@@ -138,7 +138,7 @@ describe.skipIf(!shouldRun)('#305 — the sales-representative reach at 50 000 o
         rolePermissionsBefore = [...role.permissions];
         role.permissions = Array.from(new Set([...role.permissions, ...grants]));
       }
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       roleId = role.id;
       const rep = em.create(AdminUser, {
         email: `r305-perf-${stamp}@scope.local`,
@@ -147,7 +147,7 @@ describe.skipIf(!shouldRun)('#305 — the sales-representative reach at 50 000 o
         firstName: '305',
         lastName: 'Perf',
       });
-      await em.persistAndFlush(rep);
+      await em.persist(rep).flush();
       await db.execute(
         `insert into organization_sales_rep_assignments (id, organization_id, admin_user_id, created_at)
          select gen_random_uuid(), organization_id, ?, now() from organization_sales_rep_assignments where admin_user_id = ?`,

@@ -394,7 +394,7 @@ async function seedProducts(em: EntityManager): Promise<Record<string, string>> 
       deletedAt: new Date(),
     }),
   };
-  await em.persistAndFlush(Object.values(rows));
+  await em.persist(Object.values(rows)).flush();
   return Object.fromEntries(Object.entries(rows).map(([key, row]) => [key, row.id]));
 }
 
@@ -422,7 +422,7 @@ async function seedSkus(
       name: sku,
     }),
   );
-  await em.persistAndFlush(rows);
+  await em.persist(rows).flush();
   return Object.fromEntries(rows.map((row) => [row.sku, row.id]));
 }
 
@@ -467,7 +467,7 @@ async function seedAudienceMatrix(em: EntityManager): Promise<AudienceMatrixRow[
       name: `Audience ${index}`,
     }),
   );
-  await em.persistAndFlush(rows);
+  await em.persist(rows).flush();
   return rows.map((row) => ({
     id: row.id,
     sku: row.sku,

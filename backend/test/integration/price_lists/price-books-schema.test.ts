@@ -65,7 +65,7 @@ describe('price_lists — price-book schema (feature 160)', () => {
       registeredAddress: { street: 'Test 1', city: 'Warsaw', postalCode: '00-001', country: 'PL' },
     });
     const group = em.create(CustomerGroup, { code: `schema-${stamp}`, name: 'Schema group' });
-    await em.persistAndFlush([organization, group]);
+    await em.persist([organization, group]).flush();
     organizationId = organization.id;
     customerGroupId = group.id;
   });
@@ -129,7 +129,7 @@ describe('price_lists — price-book schema (feature 160)', () => {
   it('a permanently deleted member leaves the set (cascade)', async () => {
     const id = await insertBook({ audience_kind: 'customer_groups' });
     const gone = em.create(CustomerGroup, { code: `gone-${id.slice(0, 8)}`, name: 'Gone' });
-    await em.persistAndFlush(gone);
+    await em.persist(gone).flush();
     await sql(`insert into "price_list_audience_members" ("price_list_id", "customer_group_id") values (?, ?)`, [
       id,
       gone.id,

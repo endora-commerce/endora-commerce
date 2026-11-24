@@ -441,7 +441,7 @@ describe('Quote request notifications are recorded inside the transition (WP-04)
         placedAt: new Date(),
         sourceQuoteRequestId: quoteRequestId,
       });
-      await em.persistAndFlush(order);
+      await em.persist(order).flush();
       return order.id;
     };
 

@@ -63,7 +63,7 @@ describe('carts — channel backfill (M3)', () => {
       status: input.status ?? 'active',
       salesChannelId: input.salesChannelId ?? null,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     return cart.id;
   }
 
@@ -80,7 +80,7 @@ describe('carts — channel backfill (M3)', () => {
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush(other);
+    await em.persist(other).flush();
     otherId = other.id;
   });
 

@@ -58,7 +58,7 @@ async function seed(em: EntityManager): Promise<void> {
       attributeValues: {},
       createdAt,
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
     await em
       .getConnection()
       .execute(`insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)`, [

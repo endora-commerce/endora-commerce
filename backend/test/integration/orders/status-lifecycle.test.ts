@@ -47,7 +47,7 @@ describe('order status lifecycle (feature 038)', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     return order;
   }
 

@@ -35,7 +35,7 @@ describe('payments receive route', () => {
       statusOnSuccess: 'confirmed',
       statusOnFailure: 'cancelled',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     const order = em.create(Order, {
       organizationId: randomUUID(),
       placedByCustomerAccountId: randomUUID(),
@@ -53,14 +53,14 @@ describe('payments receive route', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     const payment = em.create(Payment, {
       orderId: order.id,
       paymentMethodId: method.id,
       amount: '12.30',
       currency: 'PLN',
     });
-    await em.persistAndFlush(payment);
+    await em.persist(payment).flush();
     return { orderId: order.id, paymentId: payment.id };
   }
 

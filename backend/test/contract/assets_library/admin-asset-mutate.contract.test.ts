@@ -103,7 +103,7 @@ describe('admin asset mutate (T036)', () => {
     const d = (r.json() as { data: { filename: string; label: string | null } }).data;
     expect(d.filename).toBe('renamed.png');
     expect(d.label).toBe('Hero');
-    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
+    await h.em().remove(await h.em().findOneOrFail(Asset, { id })).flush();
   });
 
   it('flips visibility from public to private', async () => {
@@ -118,7 +118,7 @@ describe('admin asset mutate (T036)', () => {
     expect(r.statusCode).toBe(200);
     const d = (r.json() as { data: { visibility: string } }).data;
     expect(d.visibility).toBe('private');
-    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
+    await h.em().remove(await h.em().findOneOrFail(Asset, { id })).flush();
   });
 
   it('returns 404 ASSET_NOT_FOUND for an unknown id', async () => {
@@ -146,7 +146,7 @@ describe('admin asset mutate (T036)', () => {
       storageBackend: 'legacy',
       visibility: 'public',
     });
-    await em.persistAndFlush(legacy);
+    await em.persist(legacy).flush();
     try {
       const r = await h.app.inject({
         method: 'PATCH',
@@ -160,7 +160,7 @@ describe('admin asset mutate (T036)', () => {
         error: { code: 'ASSET_LEGACY_LOCATOR_CANNOT_HARDEN' },
       });
     } finally {
-      await em.removeAndFlush(legacy);
+      await em.remove(legacy).flush();
     }
   });
 });

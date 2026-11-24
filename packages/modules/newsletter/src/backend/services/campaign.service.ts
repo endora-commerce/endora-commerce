@@ -103,7 +103,7 @@ export class NewsletterCampaignService {
     if (input.trackingEnabled !== undefined) campaign.trackingEnabled = input.trackingEnabled;
     campaign.version += 1;
     this.#audit(em, 'newsletter_campaign.update', campaign.id, { name: campaign.name });
-    await em.persistAndFlush(campaign);
+    await em.persist(campaign).flush();
     return this.toDetail(campaign);
   }
 
@@ -168,7 +168,7 @@ export class NewsletterCampaignService {
       campaign.scheduledAt = future ?? null;
       campaign.version += 1;
       this.#audit(em, 'newsletter_campaign.send', id, { status: campaign.status, scheduledAt: iso(campaign.scheduledAt) });
-      await em.persistAndFlush(campaign);
+      await em.persist(campaign).flush();
     } else {
       // Inline path (console fallback / tests): dispatch immediately.
       await this.deps.dispatch.dispatchCampaign(id);
@@ -193,7 +193,7 @@ export class NewsletterCampaignService {
     campaign.status = 'cancelled';
     campaign.version += 1;
     this.#audit(em, 'newsletter_campaign.cancel', id, { status: 'cancelled' });
-    await em.persistAndFlush(campaign);
+    await em.persist(campaign).flush();
     return this.toDetail(campaign);
   }
 
