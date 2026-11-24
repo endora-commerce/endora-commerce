@@ -293,9 +293,11 @@ audytowanym poleceniem. Przykład i wszystkie reguły są na stronie
 
 **Nigdy nie jest stopniem: nadpisywanie schematu rdzenia.** Kolumny, ograniczenia, indeksu ani
 klasy encji rdzenia nigdy nie zmienia się spoza ich modułu, a migracja pakietu zapisująca tabelę
-innego modułu jest odrzucana przy `migrate` — przez platformę, nie przez przegląd kodu. Moduł
-nakładkowy wdrożenia nie zawiera ani klas encji, ani migracji, a generator odrzuca jedno i drugie:
-utwórz tabelę we własnym module (D1) i odczytuj ją z nakładki przez port tego modułu.
+innego modułu jest odrzucana przy `migrate` — przez platformę, nie przez przegląd kodu. Dziś
+moduł nakładkowy wdrożenia nie zawiera ani klas encji, ani migracji, a jedno i drugie jest
+odrzucane: utwórz tabelę we własnym pakiecie modułu (D1) i odczytuj ją z nakładki przez port tego
+modułu. Jedno z kolejnych wydań znosi tę odmowę (zobacz [Wzorzec nakładki](./overlay-pattern.md));
+migracje modułu nakładkowego przechodzą wtedy przez to samo zabezpieczenie, bez wyjątku.
 
 Powodem **nie** jest kolejność migracji — ten argument sprawdzono pomiarem, okazał się fałszywy i
 został wycofany. Powód jest taki, że wspólny schemat rdzenia to jedyne, co w ogóle umożliwia

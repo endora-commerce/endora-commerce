@@ -86,7 +86,7 @@ takes one.
 | Run before or after another module's endpoint; veto it; rewrite its response | `ctx.interceptors` |
 | Vary a behaviour the owner anticipated | a strategy port the owner publishes, registered behind `ctx.di.providePort` and read through `lazyPort` |
 | Change configuration | a manifest-declared Setting, and `divergence.ts` to omit a module |
-| Add client-specific tables | from a **core** module, read from the overlay through that module's port — an overlay module contributes no schema, see below |
+| Add client-specific tables | today, from a module package you install (in a platform repository, from a module of its own tree), read from the overlay through that module's port. An overlay module does not contribute schema yet, see below |
 | **Replace a route handler wholesale** | **No seam. Not offered.** See *The one thing there is no seam for* below |
 
 ## An overlay module contributes no schema
@@ -106,22 +106,34 @@ measured and is false: adding a leaf module's migrations leaves the relative
 order of every existing migration exactly unchanged, because a leaf contributes
 dependency edges only out of itself. It is retired; do not repeat it.
 
-The real reason is smaller and holds regardless: **an overlay lives in the same
-repository and the same build as core**, so the remedy is always available and
-costs nothing but a directory. A deployment that wants client-specific tables
-ships them from a core module and reads them from the overlay module through that
-module's port — the overlay module keeps everything else: its own services, its
-routes, its decorations and its permissions. Allowing overlay schema would add a
-second schema-owning mechanism and buy no capability, and that is not worth its
-weight.
+**This rule is being lifted.** The reason this page gave for it was that an
+overlay lives in the same repository and the same build as core, so a table can
+always be shipped from a core module. That does not hold in an instance, which
+depends on released packages and has no core tree to put a table in, so the
+reason is retired too. A later release makes an overlay module a full module. It
+may then own entities and migrations, publish a port, and ship admin screens and
+command-palette actions, both in an instance and in a platform repository's own
+`apps/` tree. The same rules apply to it as to a package:
 
-**An extension package is the opposite case.** A third-party package author has
-no core module to ship a table from, so the same rule would not be a constraint
-to design around but a prohibition on the whole extension-package programme,
-every family of which persists state. The rule therefore allows a package its own
-entities and migrations. That mechanism is not built yet — today the only schema
-a running platform executes is core's — so nothing on this page changes for a
-deployment.
+- its migrations face the same foreign-schema guard as an installed package's,
+  with no exemption for being the deployment's own;
+- one build compiles the whole deployment's overlay code; there is no build,
+  `package.json` or `exports` map per module;
+- a module later promoted from an overlay to a package keeps its module id, so
+  the migrations a database has already recorded still match.
+
+**Until that release the refusal stands.** In an instance, a table the
+deployment needs ships in a module package you install, and the overlay module
+reads it through that package's port. The overlay module keeps everything else:
+its own services, its routes, its decorations and its permissions.
+
+**An extension package may already ship schema.** A third-party package author
+has no core module to ship a table from, so for a package the rule would not be
+a constraint to design around. It would forbid the whole extension-package
+programme, every family of which persists state. A package therefore has its own
+entities and migrations. The platform discovers them at runtime and runs every
+package migration under the foreign-schema guard, which refuses a write to a
+table the package does not own.
 
 ## Service overrides are decorations
 

@@ -24,8 +24,9 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 0 — Ruling (#1846)
 
-- [ ] T000 This spec merged; D-297 recorded in `spec.md` *Decisions*; #1846 closed by the merge
-  request that merges it (documentation and contract only) [FR-005]
+- [x] T000 This spec merged (#1876); D-297 recorded in `spec.md` *Decisions*. #1846 was not closed
+  by that merge; it is closed by the follow-up merge request that records D-297 in the convention
+  layer (documentation and contract only, `contracts/docs-pass.md` *Phase 0*) [FR-005]
 
 ## Phase 1 — Type-check of overlay code (#1847, US2)
 
