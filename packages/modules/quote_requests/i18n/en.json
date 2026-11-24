@@ -223,7 +223,7 @@
   "settingLabels.quote_requests.business_id.suffix.name": "Business Quote Request ID suffix",
   "settingLabels.quote_requests.business_id.suffix.description": "Text after the quote request number shown to the customer, e.g. -2026. Empty: no suffix.",
   "settingLabels.quote_requests.default_validity_days.name": "Default validity of operator quotes (days)",
-  "settingLabels.quote_requests.default_validity_days.description": "Days a quote prepared for a customer stays valid, counted from sharing it. New quotes take this value unless changed. 0: no deadline.",
+  "settingLabels.quote_requests.default_validity_days.description": "Days a quote for a customer stays valid, counted from sharing it. Applies to new quotes. 0: no deadline.",
   "transactionalEmails.quote_request_pdf.name": "Quote request PDF",
   "transactionalEmails.quote_request_pdf.description": "Sent when a sales representative uses Send PDF to customer on a quote request: the quote as a PDF attachment, with an optional personal message.",
   "transactionalEmails.quote_request_customer_submitted.name": "Quote request received (customer)",
