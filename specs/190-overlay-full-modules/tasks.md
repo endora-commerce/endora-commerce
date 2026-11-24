@@ -29,12 +29,14 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 1 — Type-check of overlay code (#1847, US2)
 
-- [ ] T001 Test: instance template renders `backend/tsconfig.apps.json` per `contracts/overlay-build.md` §1, `typecheck` script, `setup` runs it before `migrate` — `packages/cli/src/new-instance/template.test.ts` [FR-010, FR-011]
-- [ ] T002 Implement in `packages/cli/src/new-instance/template.ts` (`backendScripts`, file entries, setup steps) [FR-010, FR-011]
+- [x] T001 Test: instance template renders `backend/tsconfig.apps.json` per `contracts/overlay-build.md` §1, `typecheck` script, `setup` runs it before `migrate` — `packages/cli/src/new-instance/template.test.ts` [FR-010, FR-011]
+- [x] T002 Implement in `packages/cli/src/new-instance/template.ts` (`backendScripts`, file entries, setup steps) [FR-010, FR-011]
 - [ ] T003 Test: an overlay source with `enum` fails `tsc -p backend/tsconfig.apps.json`; a clean one passes — acceptance step in `backend/scripts/acceptance/instance.ts` [FR-010]
-- [ ] T004 This repository: `backend/tsconfig.apps.json` (`erasableSyntaxOnly`, `src/apps/**`), exclude `src/apps/**` from `backend/tsconfig.json`, `typecheck` names three programs; widen `backend/test/unit/harness/workspace-resolution.test.ts` to three programs (test first) [FR-010]
-- [ ] T005 Fix whatever `erasableSyntaxOnly` reports under `backend/src/apps/` (expected: none or a handful of parameter properties)
+  - Partial (#1847): measured by the compiler over the **rendered** configuration in a temporary tree — `packages/cli/src/new-instance/template.test.ts` (`enum`, `namespace`, parameter property, a type error, admin/test exclusion). The acceptance step is not written: it needs a new R6.3 assertion id and a recorded state from a real run
+- [x] T004 This repository: `backend/tsconfig.apps.json` (`erasableSyntaxOnly`, `src/apps/**`), exclude `src/apps/**` from `backend/tsconfig.json`, `typecheck` names three programs; widen `backend/test/unit/harness/workspace-resolution.test.ts` to three programs (test first) [FR-010]
+- [x] T005 Fix whatever `erasableSyntaxOnly` reports under `backend/src/apps/` (expected: none or a handful of parameter properties) — measured: none. The program resolves the packages through `paths: {}` (their `dist` declarations): with the source `paths` the flag also judged `packages/contracts/src`, which has parameter properties and is not overlay code
 - [ ] T006 Instance README text (`template.ts` overlay section): the type-check exists — convention sentence in `overlay-modules.md` updated in the same MR [FR-104]
+  - Partial (#1847): the README text, the scaffolded overlay comment and `create-your-first-module.md` (EN + PL) are done; the `overlay-modules.md` sentence waits for PR #1899, which changes that file
 
 ## Phase 2 — Overlay build and freshness (#1848, US2) — after Phase 1
 
