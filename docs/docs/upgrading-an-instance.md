@@ -5542,6 +5542,27 @@ the changesets of the release against its migrations and manifests. No pull requ
 an entry of its own on this page. No instance had been upgraded with `pnpm run upgrade 0.112.0` when it
 was written; the order of the steps is untried.
 
+### The MikroORM CLI is not supported {#mikro-orm-cli-removed}
+
+The platform no longer installs `@mikro-orm/cli`, and its `backend/package.json` no longer carries
+the `mikro-orm` block that pointed the CLI at a configuration file (issue #1865). An instance created
+with `create-endora-commerce` never declared either, so nothing changes in one that did not add them
+itself.
+
+An instance that added `@mikro-orm/cli` to run `mikro-orm debug`, `mikro-orm migration:up` or
+`mikro-orm schema:update` loses those commands: they are not supported, and the next MikroORM major
+(issue #1073) moves every `@mikro-orm/*` package together, so a CLI left at another major does not
+load. Remove it, and any `mikro-orm` block, and use the instance's own commands instead:
+`pnpm run migrate` applies the migrations in the order the installed manifests compute,
+`pnpm run setup` builds, migrates and installs every declared module, and `pnpm run module:status`
+reports what is installed. `mikro-orm debug` has no replacement — the ORM configuration is the
+platform's (`mikroOrmConfigFrom` in `@endora-commerce/platform/db`). Never run `mikro-orm
+schema:update` or `schema:create` against an instance's database: they change the schema outside the
+migrations, which then no longer describe it.
+
+This entry was written by the pull request that made the change, ahead of the release that carries
+it.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

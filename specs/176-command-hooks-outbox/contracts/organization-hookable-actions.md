@@ -112,3 +112,6 @@ unclaimed key answers `422 COMMAND_EXTENSION_UNCLAIMED` before anything is writt
 - Owners of the other custom-field hosts (`customer_accounts`, `orders`, `quote_requests`,
   `catalog`, `crm_opportunities`, `projects`, `tasks`) declare their own actions when 178 needs them.
   None is declared in 176.
+- `promotions` declares `promotion.create`, `promotion.update`, `coupon.create_single` and
+  `coupon.generate_batch` (issue #1844), published as `PROMOTION_HOOKABLE_ACTIONS` in
+  `packages/contracts/src/promotion-hooks.ts`, on the same API and with both phases.

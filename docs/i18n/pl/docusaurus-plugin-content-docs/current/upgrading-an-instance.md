@@ -5789,6 +5789,26 @@ podstawie zestawów zmian wydania porównanych z jego migracjami i manifestami. 
 cyklu nie dopisał na tej stronie własnego wpisu. W chwili jej pisania żadna instancja nie była
 aktualizowana przez `pnpm run upgrade 0.112.0`; kolejność kroków nie jest sprawdzona.
 
+### CLI MikroORM nie jest obsługiwane {#mikro-orm-cli-removed}
+
+Platforma nie instaluje już `@mikro-orm/cli`, a jej `backend/package.json` nie zawiera już bloku
+`mikro-orm`, który wskazywał CLI plik konfiguracji (zgłoszenie #1865). Instancja utworzona przez
+`create-endora-commerce` nigdy nie deklarowała żadnego z nich, więc w instancji, która nie dodała ich
+sama, nic się nie zmienia.
+
+Instancja, która dodała `@mikro-orm/cli`, by uruchamiać `mikro-orm debug`, `mikro-orm migration:up`
+lub `mikro-orm schema:update`, traci te polecenia: nie są obsługiwane, a następna główna wersja
+MikroORM (zgłoszenie #1073) przenosi wszystkie pakiety `@mikro-orm/*` razem, więc CLI pozostawione na
+innej głównej wersji się nie załaduje. Usuń je wraz z ewentualnym blokiem `mikro-orm` i używaj
+własnych poleceń instancji: `pnpm run migrate` stosuje migracje w kolejności wyliczonej z
+zainstalowanych manifestów, `pnpm run setup` buduje, migruje i instaluje każdy zadeklarowany moduł, a
+`pnpm run module:status` pokazuje, co jest zainstalowane. `mikro-orm debug` nie ma zastępnika —
+konfiguracja ORM należy do platformy (`mikroOrmConfigFrom` w `@endora-commerce/platform/db`). Nigdy
+nie uruchamiaj `mikro-orm schema:update` ani `schema:create` na bazie danych instancji: zmieniają
+schemat poza migracjami, które przestają go wtedy opisywać.
+
+Ten wpis napisał pull request, który wprowadził zmianę, przed wydaniem, które ją zawiera.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza
