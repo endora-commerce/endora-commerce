@@ -310,9 +310,11 @@ example and every rule are on [Declared extension columns](./schema-extensions.m
 **Never a rung: overriding core schema.** A core column, constraint, index or
 entity class is never changed from outside its module, and a package migration
 that writes another module's table is refused at `migrate` — by the platform, not
-by review. A per-deployment overlay module ships no entity class and no migration
-at all, and the generator refuses both: own the table from a module of yours (D1)
-and read it from the overlay through that module's port.
+by review. Today a per-deployment overlay module ships no entity class and no
+migration, and both are refused: own the table from a module package of yours (D1)
+and read it from the overlay through that module's port. A later release lifts
+that refusal (see [Overlay pattern](./overlay-pattern.md)); an overlay module's
+migrations then face the same guard, with no exemption.
 
 The reason is **not** migration ordering — that argument was measured false and
 is retired. The reason is that a shared core schema is the only thing that makes

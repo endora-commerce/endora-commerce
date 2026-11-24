@@ -133,8 +133,12 @@ number", never pick a number, never edit an execution list.
 **Entities are registered the same way.** `backend/src/db/entities-registry.generated.ts`
 comes out of the same command and the same walk: add the `@Entity()` class under the
 module's `entities/`, run `composer:generate`, commit the artefact. An **overlay** module
-contributes to neither — it can ship no migration (D-106), so the generator refuses an entity
-or a migration under `backend/src/apps/` rather than emitting schema nothing creates.
+contributes to neither, and that part stays true after D-297. Today it can ship no migration
+(D-106), so the generator refuses an entity or a migration under `backend/src/apps/` rather
+than emitting schema nothing creates. D-297 retires D-106 for overlays
+(`overlay-modules.md`): once overlay schema discovery lands (#1850), an overlay module's
+entities and migrations are discovered at runtime, take the foreign-schema guard with no
+deployment exemption, and are never baked into the committed registries.
 
 **A module that has become a workspace package contributes to all four artefacts, with a
 bare specifier** (feature 080, T041a; D-149). Until then the generator had no notion of one:
