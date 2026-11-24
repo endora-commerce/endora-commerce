@@ -8,7 +8,6 @@ import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actor
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { ReturnReason } from '../../helpers/package-entities.js';
 import { Order, OrderItem } from '../../helpers/package-entities.js';
-import { insertRows } from '../../helpers/sql-rows.js';
 
 export const CUSTOMER_COOKIE = { b2b_session: 'stub-customer-session' };
 export const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };
@@ -18,38 +17,51 @@ export const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };
  * are migration-seeded (not truncated between test files), and the US3 workflow
  * tests mutate them, so each returns test file resets the graph in `beforeAll`
  * to stay isolated regardless of file execution order.
+ *
+ * Only what differs from the defaults is touched: a status or transition the
+ * defaults do not name is removed, and each default row is written back in
+ * place (`on conflict … do update`), so the tables end as exactly the defaults
+ * without emptying them first.
  */
 export async function resetReturnGraph(em: EntityManager): Promise<void> {
-  await em.execute('delete from "return_status_transitions"');
-  await em.execute('delete from "return_statuses"');
-  const now = new Date();
-  await insertRows(
-    em,
-    'return_statuses',
-    DEFAULT_RETURN_STATUSES.map((s) => ({
-      id: randomUUID(),
-      code: s.code,
-      name: JSON.stringify(s.name),
-      default_name: s.defaultName,
-      is_initial: s.isInitial,
-      is_terminal: s.isTerminal,
-      is_system: s.isSystem,
-      weight: s.weight,
-      color: s.color,
-      created_at: now,
-      updated_at: now,
-    })),
+  const statuses = DEFAULT_RETURN_STATUSES;
+  const transitions = computeDefaultTransitions();
+  const pairs = transitions.map(() => '("from_status_code" = ? and "to_status_code" = ?)').join(' or ');
+  const pairParams = transitions.flatMap((t) => [t.fromStatusCode, t.toStatusCode]);
+  await em.execute(`delete from "return_status_transitions" where not (${pairs})`, pairParams);
+  await em.execute(
+    `delete from "return_statuses" where "code" not in (${statuses.map(() => '?').join(', ')})`,
+    statuses.map((s) => s.code),
   );
-  await insertRows(
-    em,
-    'return_status_transitions',
-    computeDefaultTransitions().map((t) => ({
-      id: randomUUID(),
-      from_status_code: t.fromStatusCode,
-      to_status_code: t.toStatusCode,
-      is_system: t.isSystem,
-      created_at: now,
-    })),
+  const now = new Date();
+  await em.execute(
+    `insert into "return_statuses"
+       ("id", "code", "name", "default_name", "is_initial", "is_terminal", "is_system", "weight", "color",
+        "created_at", "updated_at")
+     values ${statuses.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+     on conflict ("code") do update set
+       "name" = excluded."name", "default_name" = excluded."default_name", "is_initial" = excluded."is_initial",
+       "is_terminal" = excluded."is_terminal", "is_system" = excluded."is_system", "weight" = excluded."weight",
+       "color" = excluded."color", "updated_at" = excluded."updated_at"`,
+    statuses.flatMap((s) => [
+      randomUUID(),
+      s.code,
+      JSON.stringify(s.name),
+      s.defaultName,
+      s.isInitial,
+      s.isTerminal,
+      s.isSystem,
+      s.weight,
+      s.color,
+      now,
+      now,
+    ]),
+  );
+  await em.execute(
+    `insert into "return_status_transitions" ("id", "from_status_code", "to_status_code", "is_system", "created_at")
+     values ${transitions.map(() => '(?, ?, ?, ?, ?)').join(', ')}
+     on conflict ("from_status_code", "to_status_code") do update set "is_system" = excluded."is_system"`,
+    transitions.flatMap((t) => [randomUUID(), t.fromStatusCode, t.toStatusCode, t.isSystem, now]),
   );
 }
 
