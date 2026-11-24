@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { QUOTE_REQUEST_HOOKABLE_ACTIONS } from '@endora-commerce/contracts';
+import { expectHookableCommand } from '@endora-commerce/test-kit/command-hooks';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
 import { makeShareQuoteRequestCommand } from './share-command.js';
 
@@ -87,8 +88,9 @@ async function refusal(promise: Promise<unknown>): Promise<Record<string, unknow
 }
 
 describe('quote_request.share (contracts/admin-api.md §1)', () => {
-  it('is the hookable action, on the quote', () => {
-    const { command } = rig();
+  it('is the hookable action, on the quote, and supplies its hook data (contracts/share-hook.md §5)', () => {
+    const { command, quote } = rig();
+    expectHookableCommand(command, QUOTE_REQUEST_HOOKABLE_ACTIONS.share, { result: { quote: quote! } });
     expect(command).toMatchObject({
       action: QUOTE_REQUEST_HOOKABLE_ACTIONS.share.action,
       objectType: QUOTE_REQUEST_HOOKABLE_ACTIONS.share.objectType,

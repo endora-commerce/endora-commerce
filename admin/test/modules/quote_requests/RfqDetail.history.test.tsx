@@ -201,6 +201,8 @@ const FULL: QuoteRequestHistory = {
     entry('expired', SYSTEM),
     entry('completed', SYSTEM, { orderId: ORDER_ID }),
     entry('note_added', UNKNOWN, { note: 'Call back on Monday' }),
+    // `specs/192-quote-request-draft-share/` — an operator shared the quote.
+    entry('shared', REP),
     // Feature 153 (owner answer Q4) — the quote PDF e-mailed.
     entry('pdf_sent', REP, {
       delivery: { recipients: ['buyer@example.com', 'two@example.com'], templateName: 'With discounts', language: 'pl-PL', message: XSS },
