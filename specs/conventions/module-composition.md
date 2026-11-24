@@ -16,6 +16,51 @@ never add a "module options" object for something the module can read itself.
 2. **Ports you own** — `ctx.di.providePort('<name>', …)` for anything another module resolves.
    It wraps the registration in a transient gate on the module's effective state, so a caller
    gets the 503 `MODULE_DISABLED` envelope instead of a half-executed operation (Principle XVII).
+2a. **A write port is the port of its aggregate, never the port of a request** (ruling D-293.1,
+   OD-2, `specs/186-aggregate-ports/`). When another module, an overlay or an integration needs to
+   write an aggregate you own, **extend that aggregate's write port**; do not publish a new port
+   shaped by the one call somebody asked for. That shape is what this item exists to stop: three
+   Organization write ports were published in one month, and Organization still could not be
+   re-parented or moderated from server code.
+   1. **One per aggregate**, named `<aggregate>CommandPort` — container name and interface alike —
+      declared in your contracts file beside the aggregate's read port, with the `Container name:`
+      marker. An extensible host (`CUSTOM_FIELD_HOST_BINDINGS`) has exactly one.
+   2. **Each method runs exactly one of your Commands** — the one your admin route for that
+      operation runs, from the same factory under `src/backend/commands/`, so the port fires the same
+      command hooks and writes the same audit entry as the admin path. If the admin path is not a
+      Command yet, convert it first, on both paths, keeping its audit action string (Principle
+      XIII). Whatever the route does outside its write — a notice, a cache invalidation, a reindex —
+      moves to where the port call reaches it too.
+   3. **The actor is ambient**; there is no `actorAdminUserId` parameter. A worker calls under
+      `withSystemScope(reason)` or `withSystemScopeActingFor(adminUserId, reason)`, a detached caller
+      opens a scope with `enterSystemScope` (item 10a). A call with no administrator is the existing
+      `system` actor — there is no `automation` actor kind (D-293.6) — and the integration names
+      itself with a `source` code in the call's options, recorded in the audit entry.
+   4. **The last parameter is the shared options object** (`extensions`, `expectedVersion`,
+      `source`). Its contract type is `AggregateCommandOptions` (`specs/186-aggregate-ports/`
+      `data-model.md`); `OrganizationCommandPortOptions` is today's form of it and becomes its alias.
+   5. **Refusals are your admin route's**, as the platform's `HttpError` with its `code`. A status
+      change whose callers answer a third party (a payment callback) may return its refusals as an
+      outcome type instead, and says so in the method's JSDoc.
+   6. **No permission check, no reads, no optional methods.** The caller is the gate, so the port is
+      never resolved for a customer-facing route; reads belong on the read port; an optional method
+      is refused (D-97.3, `check:port-shape`).
+   7. **A call is its own Command transaction**, made after the caller's own commit. Atomicity with
+      another module's write is a `beforeCommit` command hook, not a port call.
+   8. **Say what happens when you are off**, in the port's JSDoc, in `module-activation.md`'s words.
+      A consumer declares the edge (item 4, or `refuses-without` under item 4a), resolves the port
+      per use (item 3) and never wraps the call in a bare `catch` (item 7).
+   9. **A capability port beside it** is allowed only for semantics the aggregate port does not
+      have — a bulk report, an announcement, a child-Command factory for your own Commands — and
+      its JSDoc says which. A port superseded by an aggregate port delegates to it and is
+      deprecated.
+   10. **A published method changes incompatibly only after one release that deprecated it**
+       (D-293.3, OD-4), and the one exception is a ruled break (D-293.7). The tiers, the deprecation
+       grammar and the exception are `contract-surface.md`'s, which is their single home.
+
+   The port's doc block opens with the container name, the owner and this item's three promises —
+   one audited Command per method with the ambient actor, no permission checked, called after
+   your own commit — and then the owner-off sentence of sub-item 8.
 3. **Reading someone else's port** — `lazyPort<T>(ctx, 'literalPortName')`. **Never resolve a
    port into a singleton**: Awilix strict mode refuses the capture, and it is right to — a
    captured gate keeps answering after its owner is switched off. The name must be a **string

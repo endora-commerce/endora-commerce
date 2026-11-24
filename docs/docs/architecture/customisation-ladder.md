@@ -197,6 +197,12 @@ name in its doc block is contract and a check holds you to it; and an **optional
 method on a published port is refused**, because the resolution proxy answers
 every property with a function and feature detection through it is impossible by
 construction.
+
+A **write** port is the port of its aggregate — extend the aggregate's
+`<aggregate>CommandPort` rather than publishing one shaped by a single request
+(see [the kernel guide](./kernel.md)) — and every published port method is on
+the [contract surface](./contract-surface.md): it is deprecated for a release
+before it is removed or changed.
 :::
 
 ---

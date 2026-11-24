@@ -159,6 +159,7 @@ the *Subject* column, which keeps the section names this file used to carry.
 | Adding or changing a `check-*` script, re-recording a read size, or meeting a check's obligations | Static checks and their escape hatches | `specs/conventions/check-estate.md` |
 | A check has reported against you, or you want to know whether a rule has an instrument | The full inventory | `specs/conventions/check-inventory.md` |
 | Changing anything a package publishes, or cutting a release | Release intent — changesets | `specs/conventions/release-intent.md` |
+| Changing, deprecating or removing a published port method, hookable action, hook data or other entry overlays compile against | Contract surface and deprecation | `specs/conventions/contract-surface.md` |
 | Judging whether something may be published, or reviewing a file, a changeset body or a commit message against the disclosure gate | Commercial data | `specs/conventions/commercial-data.md` |
 | Writing or changing anything under `backend/src/apps/<deployment>/` | Overlay modules | `specs/conventions/overlay-modules.md` |
 | Changing how a price is stored, resolved, displayed, sorted, indexed or cached, or specifying anything that touches price lists | Pricing | `specs/conventions/pricing.md` |
