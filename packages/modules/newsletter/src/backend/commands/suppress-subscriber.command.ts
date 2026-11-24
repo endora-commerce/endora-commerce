@@ -19,7 +19,7 @@ export type SuppressionTarget =
     };
 
 /**
- * `newsletter_bounce` / `newsletter_complaint` (feature 048 FR-035, issue
+ * `newsletter_suppression.bounce` / `newsletter_suppression.complaint` (feature 048 FR-035, issue
  * #1381, Principle XIII).
  *
  * Suppresses an address on provider feedback: writes or updates its
@@ -36,7 +36,7 @@ export function makeSuppressSubscriberCommand(input: {
 }): Command<void> {
   const { email, reason, detail, target } = input;
   return {
-    action: `newsletter_${reason}`,
+    action: `newsletter_suppression.${reason}`,
     objectType: target.objectType,
     objectId: target.objectId,
     run: async ({ em }) => {

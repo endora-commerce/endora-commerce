@@ -270,6 +270,8 @@ export * from './pwa.js';
 export * from './email.js';
 export * from './transactional-emails.js';
 export * from './newsletter.js';
+// Issue #1843 — `newsletter`'s hookable actions on the subscriber.
+export * from './newsletter-hooks.js';
 export * from './google-analytics.js';
 export * from './linkedin-ads.js';
 export * from './meta-ads.js';

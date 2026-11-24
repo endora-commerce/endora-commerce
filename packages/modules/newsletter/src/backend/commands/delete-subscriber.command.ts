@@ -5,7 +5,7 @@ import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.j
 import { NewsletterSuppression } from '../entities/newsletter-suppression.entity.js';
 
 /**
- * `newsletter_delete` (feature 048 US3, issue #1381, Principle XIII).
+ * `newsletter_subscriber.delete` (feature 048 US3, issue #1381, Principle XIII).
  *
  * An operator deletes a subscriber; its tag and campaign bridges cascade by
  * foreign key. A suppression keyed by the address is kept, so it stays
@@ -15,7 +15,7 @@ import { NewsletterSuppression } from '../entities/newsletter-suppression.entity
  */
 export function makeDeleteSubscriberCommand(input: { subscriberId: string }): Command<void> {
   return {
-    action: 'newsletter_delete',
+    action: 'newsletter_subscriber.delete',
     objectType: 'newsletter_subscriber',
     objectId: input.subscriberId,
     run: async ({ em }) => {

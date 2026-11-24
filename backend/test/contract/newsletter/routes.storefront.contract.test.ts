@@ -127,12 +127,12 @@ describe('Newsletter storefront routes (feature 048)', () => {
       [subscriber.id],
     )) as Array<{ action: string; state_before: unknown; state_after: unknown }>;
     expect(rows.map((row) => row.action)).toEqual(
-      expect.arrayContaining(['newsletter_subscribe', 'newsletter_unsubscribe', 'newsletter_delete']),
+      expect.arrayContaining(['newsletter_subscriber.subscribe', 'newsletter_subscriber.unsubscribe', 'newsletter_subscriber.delete']),
     );
     const states = JSON.stringify(rows.map((row) => [row.state_before, row.state_after]));
     expect(states).not.toContain(email);
     expect(states).not.toContain('S470');
-    expect(rows.find((row) => row.action === 'newsletter_unsubscribe')?.state_after).toEqual({
+    expect(rows.find((row) => row.action === 'newsletter_subscriber.unsubscribe')?.state_after).toEqual({
       status: 'unsubscribed',
       hasReason: true,
     });

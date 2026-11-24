@@ -4,7 +4,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 
 /**
- * `newsletter_deactivate` (feature 048 US3, issue #1381, Principle XIII).
+ * `newsletter_subscriber.deactivate` (feature 048 US3, issue #1381, Principle XIII).
  *
  * An operator deactivates a subscriber, version-checked: `404` for an unknown
  * or malformed id, `409 VERSION_CONFLICT` for a stale version, and neither
@@ -15,7 +15,7 @@ export function makeDeactivateSubscriberCommand(input: {
   expectedVersion: number;
 }): Command<NewsletterSubscriber> {
   return {
-    action: 'newsletter_deactivate',
+    action: 'newsletter_subscriber.deactivate',
     objectType: 'newsletter_subscriber',
     objectId: input.subscriberId,
     run: async ({ em }) => {

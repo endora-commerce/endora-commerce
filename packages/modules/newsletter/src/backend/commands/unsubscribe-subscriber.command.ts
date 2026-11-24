@@ -10,7 +10,7 @@ export interface UnsubscribeSubscriberResult {
 }
 
 /**
- * `newsletter_unsubscribe` (feature 048 US3/US9, issue #1381, Principle XIII).
+ * `newsletter_subscriber.unsubscribe` (feature 048 US3/US9, issue #1381, Principle XIII).
  *
  * Unsubscribes with an optional reason and keeps the address unmailable with an
  * `unsubscribe` suppression. Idempotent: an unknown or malformed id answers
@@ -23,7 +23,7 @@ export function makeUnsubscribeSubscriberCommand(input: {
   reason?: string | undefined;
 }): Command<UnsubscribeSubscriberResult> {
   return {
-    action: 'newsletter_unsubscribe',
+    action: 'newsletter_subscriber.unsubscribe',
     objectType: 'newsletter_subscriber',
     objectId: input.subscriberId,
     run: async ({ em }) => {

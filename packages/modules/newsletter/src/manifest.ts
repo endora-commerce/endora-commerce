@@ -1,5 +1,10 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
-import { NEWSLETTER_SETTING_CODES } from '@endora-commerce/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+  NEWSLETTER_HOOKABLE_ACTIONS,
+  NEWSLETTER_SETTING_CODES,
+  toHookableActionDeclaration,
+} from '@endora-commerce/contracts';
 
 /**
  * Newsletter module (feature 048). Owns the subscriber list, tags, custom
@@ -188,6 +193,17 @@ export const manifest = defineModuleManifest({
   ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
+  /**
+   * Issue #1843 (`specs/176-command-hooks-outbox/`) — the subscriber writes a
+   * deployment may take part in: a new address subscribing, a known one
+   * subscribing again, and a double opt-in confirmation. Both phases each; the
+   * hooks are handed ids and codes only, never the address or a token.
+   */
+  hookableActions: [
+    toHookableActionDeclaration(NEWSLETTER_HOOKABLE_ACTIONS.subscribe),
+    toHookableActionDeclaration(NEWSLETTER_HOOKABLE_ACTIONS.resubscribe),
+    toHookableActionDeclaration(NEWSLETTER_HOOKABLE_ACTIONS.confirm),
+  ],
   /**
    * Feature 163 (US7, FR-029, research R-17) — the sign-up block that
    * subscribes through this module. Declared here, by the module whose data it

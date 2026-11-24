@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { NEWSLETTER_HOOKABLE_ACTIONS, type NewsletterSubscriberHookData } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { NewsletterCustomField } from '../entities/newsletter-custom-field.entity.js';
 import { NewsletterSubscriberTag } from '../entities/newsletter-subscriber-tag.entity.js';
@@ -11,6 +12,7 @@ import {
   type CustomFieldValue,
   type ResolvedSubscriberOwner,
 } from '../services/subscriber-fields.js';
+import { subscriberHookData, subscriberOutboxData } from './subscriber-hook-data.js';
 import { subscriberPlanConflict } from './subscriber-plan.js';
 
 /**
@@ -32,14 +34,15 @@ export interface SubscribeSubscriberPlan {
   readonly customFields?: Readonly<Record<string, CustomFieldValue>> | undefined;
 }
 
-export interface SubscribeSubscriberResult {
-  readonly subscriberId: string;
-  readonly status: NewsletterSubscriber['status'];
-}
+/**
+ * The write's outcome, which is also what its hooks are handed (issue #1843):
+ * ids and codes only.
+ */
+export type SubscribeSubscriberResult = NewsletterSubscriberHookData;
 
 /**
- * `newsletter_subscribe` / `newsletter_resubscribe` (feature 048 US1, issue
- * #1381, Principle XIII).
+ * `newsletter_subscriber.subscribe` / `newsletter_subscriber.resubscribe`
+ * (feature 048 US1, issue #1381, Principle XIII).
  *
  * Creates or updates the subscriber for an address, lifts a self-unsubscribe
  * suppression on an explicit re-subscribe that ends active, merges the typed
@@ -48,20 +51,31 @@ export interface SubscribeSubscriberResult {
  * id and holds the status and the source only, never the address (#470,
  * D-288). The confirmation e-mail and the observability event are the
  * caller's, after the commit.
+ *
+ * Both actions are hookable (issue #1843, `NEWSLETTER_HOOKABLE_ACTIONS`): a
+ * `beforeCommit` hook runs on this transaction once the subscriber and its tags
+ * are flushed, and may veto the whole write; an `afterCommit` handler is
+ * delivered through the outbox. Before that issue the two actions were
+ * `newsletter_subscribe` and `newsletter_resubscribe`, which the hook
+ * mechanism's dotted action grammar refuses; entries recorded before keep them.
  */
 export function makeSubscribeSubscriberCommand(
   plan: SubscribeSubscriberPlan,
 ): Command<SubscribeSubscriberResult> {
+  const ref = plan.isNew ? NEWSLETTER_HOOKABLE_ACTIONS.subscribe : NEWSLETTER_HOOKABLE_ACTIONS.resubscribe;
   return {
-    action: plan.isNew ? 'newsletter_subscribe' : 'newsletter_resubscribe',
-    objectType: 'newsletter_subscriber',
+    action: ref.action,
+    objectType: ref.objectType,
     objectId: plan.subscriberId,
+    hookData: (result) => result,
+    outboxData: subscriberOutboxData,
     run: async ({ em }) => {
       const suppressed = await em.findOne(NewsletterSuppression, { email: plan.email });
       let subscriber = await em.findOne(NewsletterSubscriber, { email: plan.email });
       if (plan.isNew ? subscriber !== null : subscriber?.id !== plan.subscriberId) {
         throw subscriberPlanConflict();
       }
+      const previousStatus = subscriber?.status ?? null;
       if (!subscriber) {
         subscriber = em.create(NewsletterSubscriber, {
           id: plan.subscriberId,
@@ -107,7 +121,7 @@ export function makeSubscribeSubscriberCommand(
       await mergeTags(em, subscriber.id, plan.tags);
 
       return {
-        result: { subscriberId: subscriber.id, status: subscriber.status },
+        result: await subscriberHookData(em, subscriber, previousStatus),
         // No address (#470, D-288): the subscriber is the customer's, and the
         // audit log is read without that reach. The entry names it by id.
         after: { status: subscriber.status, source: plan.source },
