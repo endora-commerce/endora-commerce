@@ -7246,6 +7246,15 @@
         }
       }
     },
+    "/api/v1/admin/quote-requests/create-defaults": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/quote-requests/custom-field-filters": {
       "get": {
         "responses": {

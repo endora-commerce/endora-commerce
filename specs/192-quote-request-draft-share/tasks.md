@@ -256,28 +256,28 @@ flip are coupled — R-5); T027 in the same push.
 
 ## Phase 4 — US3 default validity, regression guards (P2)
 
-- [ ] T028 [P] [US3] Failing tests `backend/test/integration/quote_requests/default-validity.test.ts`
+- [x] T028 [P] [US3] Failing tests `backend/test/integration/quote_requests/default-validity.test.ts`
   (new, committing harness as T019): default 30 → create without `expiresInDays` stores 30,
   share at T → `expiresAt = T + 30 d` however long unshared (US3 #1); default 0 → no date
   (US3 #2); `0` typed on the draft → no date (US3 #3, FR-032); explicit 7 → 7, other quotes
   unchanged (US3 #4); default changed after create → the
   quote keeps its snapshot (FR-033); `expiresInDays: null` → no date; past the date: accept →
   `410 RFQ_EXPIRED`, convert → `410 QUOTE_VALIDITY_ENDED` (FR-034 unchanged).
-- [ ] T029 [US3] Setting `quote_requests.default_validity_days` in `QR/src/manifest.ts`
+- [x] T029 [US3] Setting `quote_requests.default_validity_days` in `QR/src/manifest.ts`
   (`QUOTE_REQUESTS_SETTING_CODES`, `valueType: 'number'`, default `0`, group `quote_requests`);
   `settingLabels.quote_requests.default_validity_days.{name,description}` in `QR/i18n/{en,pl}.json`.
-- [ ] T030 [US3] `resolveDefaultValidityDays` in `QR/src/backend/index.ts`
+- [x] T030 [US3] `resolveDefaultValidityDays` in `QR/src/backend/index.ts`
   (`setting(code, z.number().int().nonnegative(), 0)`, no channel) injected into
   `RfqAdminService`; `createOnBehalf` snapshots it when `expiresInDays` is absent (`0` → `null`).
-- [ ] T031 [US3] `GET /api/v1/admin/quote-requests/create-defaults` in `QR/src/backend/routes.admin.ts`,
+- [x] T031 [US3] `GET /api/v1/admin/quote-requests/create-defaults` in `QR/src/backend/routes.admin.ts`,
   registered before `/:id`, `guard`, answering `adminQuoteRequestCreateDefaultsSchema`; cases in
   `backend/test/contract/quote_requests/share-routes.contract.test.ts` (shape, `0` → `null`,
   permission).
-- [ ] T032 [P] FR-011 guard `backend/test/integration/quote_requests/same-product-lines.test.ts`
+- [x] T032 [P] FR-011 guard `backend/test/integration/quote_requests/same-product-lines.test.ts`
   (new): one product on two lines at two prices → create, modify, share, customer read, accept:
   two lines with their own prices throughout; a revision after the share (lines re-sent without
   ids) keeps them separate (`pairLines`, R-16).
-- [ ] T033 Off state (`specs/conventions/module-activation.md` item 6) in
+- [x] T033 Off state (`specs/conventions/module-activation.md` item 6) in
   `backend/test/integration/quote_requests/off-state.test.ts`: `POST …/:id/share` and
   `GET …/create-defaults` answer the module-disabled response while off and work again after
   re-activation; the new setting is not editable while off.

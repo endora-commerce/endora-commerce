@@ -579,6 +579,10 @@ export function registerModule(ctx: ModuleContext): void {
               z.boolean(),
               true,
             ),
+          // `specs/192-quote-request-draft-share/` (R-12) — one global value,
+          // read with no channel of its own: the module's settings channel.
+          resolveDefaultValidityDays: () =>
+            setting(QUOTE_REQUESTS_SETTING_CODES.DEFAULT_VALIDITY_DAYS, z.number().int().nonnegative(), 0),
           resolveBusinessIdPrefix: () =>
             setting(QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_PREFIX, z.string(), ''),
           resolveBusinessIdSuffix: () =>

@@ -73,6 +73,11 @@ export interface QuoteRequestsModuleOptions {
   resolveAdminContext: AdminContextResolver;
   /** Reads `quote_requests.expiry_days` for every sales channel (issue #239). */
   resolveExpiryRule: () => Promise<RfqExpiryRule>;
+  /**
+   * `specs/192-quote-request-draft-share/` (R-12) — reads
+   * `quote_requests.default_validity_days`, one global value; `0` = no deadline.
+   */
+  resolveDefaultValidityDays?: () => Promise<number>;
   /** Reads the storefront-visibility flags from settings. */
   resolveBoolSetting: (key: 'show_add_to_quote_on_card' | 'show_add_to_quote_on_pdp') => Promise<boolean>;
   /**
@@ -296,6 +301,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
   const adminService = new RfqAdminService({
     emFactory: options.emFactory,
     commandBus: options.commandBus,
+    ...(options.resolveDefaultValidityDays ? { resolveDefaultValidityDays: options.resolveDefaultValidityDays } : {}),
     channelMembership: options.channelMembership,
     events: options.eventBus as RfqEventBus,
     rfqService,

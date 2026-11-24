@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { quoteRequestSchema } from '@endora-commerce/contracts';
+import { adminQuoteRequestCreateDefaultsSchema, quoteRequestSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -9,6 +9,7 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ensureAdminWithRole } from '../../helpers/admin-search-fixtures.js';
 import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+import { QUOTE_REQUESTS_SETTING_CODES } from '../../../../packages/modules/quote_requests/src/manifest.js';
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
 const QR = '/api/v1/admin/quote-requests';
@@ -120,3 +121,49 @@ describe('POST /api/v1/admin/quote-requests/:id/share — shapes', () => {
     expect((res.json() as { error: { code: string } }).error.code).toBe('VERSION_CONFLICT');
   });
 });
+
+/**
+ * `specs/192-quote-request-draft-share/` T031 (contracts/admin-api.md §2,
+ * research R-12) — what the create screen pre-fills, under `rfqs:handle` rather
+ * than `settings:read`; `0` answers `null`.
+ */
+describe('GET /api/v1/admin/quote-requests/create-defaults — shapes', () => {
+  let h: BackendServerHandle;
+  const URL = `${QR}/create-defaults`;
+  const setDefault = async (days: number) => {
+    await h.settings.adminService.setValueForAllChannels(QUOTE_REQUESTS_SETTING_CODES.DEFAULT_VALIDITY_DAYS, days, null, {
+      actorAdminUserId: null,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  };
+
+  beforeAll(async () => {
+    h = await setupBackendServer();
+    await ensureAdminWithRole(h, NONE_ID, 'quote_share_none', ['orders:read']);
+    ADMIN_COOKIES[NONE_SESSION] = { adminUserId: NONE_ID };
+  }, 120_000);
+
+  afterAll(async () => {
+    await setDefault(0);
+    delete ADMIN_COOKIES[NONE_SESSION];
+    await teardownBackendServer(h);
+  });
+
+  it('answers the published shape: 0 is null, a number of days is that number', async () => {
+    const none = await h.app.inject({ method: 'GET', url: URL, cookies: ADMIN });
+    expect(none.statusCode, none.body).toBe(200);
+    const body = (none.json() as { data: unknown }).data;
+    expect(disagreements(deepStrict(adminQuoteRequestCreateDefaultsSchema), body)).toEqual([]);
+    expect(body).toEqual({ validityDays: null });
+
+    await setDefault(30);
+    const thirty = await h.app.inject({ method: 'GET', url: URL, cookies: ADMIN });
+    expect((thirty.json() as { data: unknown }).data).toEqual({ validityDays: 30 });
+  });
+
+  it('401 without a session, 403 without rfqs:handle', async () => {
+    expect((await h.app.inject({ method: 'GET', url: URL })).statusCode).toBe(401);
+    expect((await h.app.inject({ method: 'GET', url: URL, cookies: { b2b_session: NONE_SESSION } })).statusCode).toBe(403);
+  });
+});
+

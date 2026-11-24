@@ -7,6 +7,7 @@ import {
   adminCreateQuoteRequestSchema,
   adminPatchQuoteRequestSchema,
   adminPrepareCustomerBasketResponseSchema,
+  adminQuoteRequestCreateDefaultsSchema,
   adminQuoteRequestListQuerySchema,
   adminShareQuoteRequestSchema,
   createQuoteRequestSavedViewRequestSchema,
@@ -124,6 +125,13 @@ export async function registerQuoteRequestsAdminRoutes(
       } satisfies AdminQuoteRequestListPagination,
     };
   });
+
+  // `specs/192-quote-request-draft-share/` (contracts/admin-api.md §2) — what
+  // the create screen pre-fills. Declared before `/:id`, so the segment is
+  // never read as an id; `rfqs:handle`, not `settings:read` (research R-12).
+  app.get('/api/v1/admin/quote-requests/create-defaults', { preHandler: guard }, async () => ({
+    data: adminQuoteRequestCreateDefaultsSchema.parse(await adminService.createDefaults()),
+  }));
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/quote-requests/:id',

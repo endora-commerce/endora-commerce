@@ -186,6 +186,11 @@ export interface RfqAdminServiceDeps {
    * hook (research R-4).
    */
   commandBus: Pick<CommandBus, 'run'>;
+  /**
+   * `specs/192-quote-request-draft-share/` (R-12) — the
+   * `quote_requests.default_validity_days` setting; absent = `0`, no deadline.
+   */
+  resolveDefaultValidityDays?: () => Promise<number>;
   /** Feature 055 — validates + merges custom-field values on RFQ edit. */
   customFieldValues?: CustomFieldValuePort;
   /**
@@ -833,6 +838,20 @@ export class RfqAdminService {
     return this.deps.rfqService.serializeFull(em, rfq, true);
   }
 
+  /** `quote_requests.default_validity_days`; `0` when no reader is composed. */
+  private async defaultValidityDays(): Promise<number> {
+    return (await this.deps.resolveDefaultValidityDays?.()) ?? 0;
+  }
+
+  /**
+   * `GET /api/v1/admin/quote-requests/create-defaults`
+   * (`specs/192-quote-request-draft-share/`, contracts/admin-api.md §2) — what
+   * the create screen pre-fills: the default validity in days, `null` for none.
+   */
+  async createDefaults(): Promise<{ validityDays: number | null }> {
+    return { validityDays: normaliseShareValidityDays(await this.defaultValidityDays()) };
+  }
+
   // -------------------------------------------------------------------------
   // Share with the customer (`specs/192-quote-request-draft-share/`)
   // -------------------------------------------------------------------------
@@ -1263,6 +1282,9 @@ export class RfqAdminService {
     // a line may then have no price yet (FR-013, R-19), since sharing is
     // refused until every line has one.
     const startsUnshared = operatorQuoteStartsUnshared();
+    // FR-031, FR-033 — the default is snapshotted into the new quote, so a later
+    // change of the setting moves no quote already created.
+    const defaultValidityDays = body.expiresInDays === undefined ? await this.defaultValidityDays() : 0;
 
     const businessId = await this.deps.rfqService.generateBusinessId(em);
     // FR-001 — the request, its groups and lines, revision 1 and its history
@@ -1292,7 +1314,9 @@ export class RfqAdminService {
         // customer until shared; the validity is kept as days and becomes a
         // date at the share, so no date is written here.
         sharedWithCustomer: !startsUnshared,
-        shareValidityDays: body.expiresInDays === undefined ? null : normaliseShareValidityDays(body.expiresInDays),
+        shareValidityDays: normaliseShareValidityDays(
+          body.expiresInDays === undefined ? defaultValidityDays : body.expiresInDays,
+        ),
         expiresAt: null,
         customFieldValues,
       });
