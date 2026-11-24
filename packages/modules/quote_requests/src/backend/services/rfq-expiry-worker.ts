@@ -18,7 +18,7 @@ import type { NotificationKick } from './notifications/kick.js';
  * `quote_requests.expiry_days` is read **for the request's own sales channel**
  * (issue #239) — {@link RfqExpiryRule} — and `0` exempts that channel; a
  * request raised with no channel is held to the default channel's value. A
- * request is due when all three hold — {@link RfqExpiryWorker.dueRequests} is
+ * request is due when all four hold — {@link RfqExpiryWorker.dueRequests} is
  * the one statement of them, read by the probe to ask and by the pass to act:
  *
  *  1. **It is still open**: `Pending` or `Created from admin`. Both are named
@@ -39,6 +39,9 @@ import type { NotificationKick } from './notifications/kick.js';
  *     its `expiresAt` passed — that date is enforced where the buyer accepts
  *     or converts, and whether it should also close the request is not this
  *     sweep's to decide.
+ *  4. **Its customer can see it** (`specs/192-quote-request-draft-share/`,
+ *     FR-006). An operator's quote that has not been shared yet is a draft
+ *     being prepared, and a draft never expires — by inactivity or otherwise.
  *
  * ## One Quote Request, one unit of work
  *
@@ -232,8 +235,8 @@ export class RfqExpiryWorker {
    * statement of the rule**, read by {@link hasExpirable} to ask, by the pass
    * to list and by each unit of work to re-check under its lock. A condition
    * added here is added to all three by the same edit, so the question cannot
-   * drift from the pass. The three conditions are the ones the file header
-   * gives; the fourth leaves out what this process is backing off from.
+   * drift from the pass. The four conditions are the ones the file header
+   * gives; a fifth leaves out what this process is backing off from.
    */
   dueRequests(now: Date, rule: RfqExpiryRule): WorkRows {
     const backingOff = this.#backingOff(now);
@@ -259,6 +262,9 @@ export class RfqExpiryWorker {
       from:
         `from "quote_requests" q${join}` +
         ` where q."status" in (${EXPIRABLE_STATUSES.map(() => '?').join(', ')})` +
+        // `specs/192-quote-request-draft-share/` (FR-006) — an operator's quote
+        // the customer has not been shared yet never expires.
+        ` and q."shared_with_customer"` +
         ` and (${withChannel} or ${withoutChannel})` +
         ` and (q."expires_at" is null or q."expires_at" <= ?)` +
         (backingOff.length > 0 ? ` and q."id" not in (${backingOff.map(() => '?').join(', ')})` : ''),

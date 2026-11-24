@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -11,7 +12,9 @@ import {
   Product,
 } from '../../helpers/package-entities.js';
 import { removeBasePriceSql, seedBasePriceSql } from '../../helpers/price-book-sql.js';
-import { OTHER_TEST_ORGANIZATION_ID, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
+import { OTHER_TEST_ORGANIZATION_ID, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { markUnsharedForTest } from '../../helpers/quote-request-share.js';
 import {
   buyerChannelIds,
   createMinimumProduct,
@@ -68,6 +71,52 @@ describe('POST /api/v1/cart/from-quote-request/:quoteRequestId', () => {
       url: '/api/v1/cart/from-quote-request/00000000-0000-4000-8000-000000000001',
     });
     expect(res.statusCode).toBe(401);
+  });
+
+  // `specs/192-quote-request-draft-share/` (FR-004, research R-3) — a quote an
+  // operator has not shared yet answers its owner exactly as a quote that does
+  // not exist: without this check a buyer who knows its id could copy its lines
+  // into a basket and read the dropped lines' names.
+  it('answers an unshared quote as one that does not exist, and writes no basket line', async () => {
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/quote-requests',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {
+        organizationId: TEST_ORGANIZATION_ID,
+        customerAccountId: TEST_CUSTOMER_ID,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 3, agreedUnitPrice: 10 }],
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const quoteRequestId = (created.json() as { data: { id: string } }).data.id;
+    await markUnsharedForTest(h.em(), quoteRequestId);
+
+    const em = h.em().fork({ clear: true });
+    const cart = await em.findOne(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' });
+    const linesBefore = cart ? await em.count(CartItem, { cartId: cart.id }) : 0;
+
+    const unshared = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/cart/from-quote-request/${quoteRequestId}`,
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+    const missing = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/cart/from-quote-request/${randomUUID()}`,
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+    expect(unshared.statusCode).toBe(404);
+    expect(missing.statusCode).toBe(404);
+    const body = (res: typeof unshared) => {
+      const { error } = res.json() as { error: { code: string; message: string } };
+      return { code: error.code, message: error.message };
+    };
+    expect(body(unshared)).toEqual(body(missing));
+
+    const after = h.em().fork({ clear: true });
+    const cartAfter = await after.findOne(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' });
+    expect(cartAfter ? await after.count(CartItem, { cartId: cartAfter.id }) : 0).toBe(linesBefore);
   });
 });
 

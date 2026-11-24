@@ -21,6 +21,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import {
   makeSendDocumentCommand,
+  assertSharedForSend,
   makeSetDocumentTemplateCommand,
   type DocumentCommandDeps,
 } from '../commands/document-template-commands.js';
@@ -199,6 +200,9 @@ export class QuoteRequestDocumentService {
 
   /** Route Q4 — e-mail the PDF to 1–5 recipients through the *Quote request PDF* e-mail (owner answer Q4). */
   async send(ctx: AdminContext, id: string, body: QuoteRequestPdfSendRequest): Promise<QuoteRequestPdfSendResult> {
+    // `specs/192-quote-request-draft-share/` (FR-007) — refused before anything
+    // is rendered; the Command checks again inside its transaction.
+    assertSharedForSend(await this.findVisible(this.deps.emFactory(), ctx, id));
     const rendered = await this.render(ctx, id, {
       ...(body.templateId !== undefined ? { templateId: body.templateId } : {}),
       ...(body.language !== undefined ? { language: body.language } : {}),

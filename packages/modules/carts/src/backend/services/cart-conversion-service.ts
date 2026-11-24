@@ -220,6 +220,12 @@ export class CartConversionService {
     if (qr.customerAccountId !== ctx.customerAccountId) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'quote_request_not_found');
     }
+    // `specs/192-quote-request-draft-share/` (FR-004) — a quote an operator has
+    // not shared with its customer yet is no customer's to convert: it answers
+    // as a quote that does not exist, before any of its lines is read.
+    if (!qr.sharedWithCustomer) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'quote_request_not_found');
+    }
 
     const qrItems = await this.quoteRequests.listItems(qr.id);
     if (qrItems.length === 0) {

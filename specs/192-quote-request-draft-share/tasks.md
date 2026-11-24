@@ -101,10 +101,10 @@ conflict on the bundles and wait on each other. `[P]` marks only intra-phase ind
 Goal: FR-003…FR-009. `createOnBehalf` is **not** changed here; tests make a quote unshared with
 the helper of T008.
 
-- [ ] T008 Test helper `backend/test/helpers/quote-request-share.ts` (new, beside
+- [x] T008 Test helper `backend/test/helpers/quote-request-share.ts` (new, beside
   `backend/test/helpers/quote-conversion.ts`): `markUnsharedForTest(em, id)` (sets
   `shared_with_customer = false`, `expires_at = null`); `shareQuoteRequestForTest` is added in T027.
-- [ ] T009 [P] [US1] Failing tests `backend/test/integration/quote_requests/unshared-visibility.test.ts`
+- [x] T009 [P] [US1] Failing tests `backend/test/integration/quote_requests/unshared-visibility.test.ts`
   (new): an admin-created quote made unshared; as the customer, as the Organization
   *Administrator*, as a roll-up login: `GET /api/v1/quote-requests` omits it;
   `GET|PATCH /api/v1/quote-requests/:id`, `POST …/accept-revision`, `…/reject-revision`,
@@ -113,28 +113,28 @@ the helper of T008.
   (`packages/modules/customers/src/backend/routes.self.ts:242`) and admin customer-detail list
   (`routes.admin.ts:547`, OQ-4) omit it; a customer submission and an order's *Clone to quote*
   stay visible at once (FR-010). Covers FR-003, FR-004, FR-010, SC-001.
-- [ ] T010 [P] [US1] Failing unit cases in `QR/src/backend/services/customer-projection.test.ts`
+- [x] T010 [P] [US1] Failing unit cases in `QR/src/backend/services/customer-projection.test.ts`
   (FR-012, R-14): for a quote with `sharedAt`, the customer events are exactly those from the
   `shared` event on (`created`, the automatic note and drafting `modified` entries left out); a
   quote never unshared (`sharedAt` `null`) keeps every customer-visible event; `pdf-sent` and
   `custom-field-carry-skipped` stay admin-only.
-- [ ] T011 [US1] `QR/src/backend/services/rfq-service.ts`: `findVisibleForCustomer` → `404` for
+- [x] T011 [US1] `QR/src/backend/services/rfq-service.ts`: `findVisibleForCustomer` → `404` for
   `!sharedWithCustomer` (same message); `#listSummaries` `where` + `sharedWithCustomer: true`
   and its order taken from one function `customerListOrder()` answering today's
   `{ createdAt: 'desc' }` (R-20, OQ-6 open); `customerEventsOf` in
   `QR/src/backend/services/customer-projection.ts` takes `sharedAt` and cuts before the `shared`
   event (`serializeFull` passes it on the customer path).
-- [ ] T012 [US1] `packages/modules/carts/src/backend/services/cart-conversion-service.ts`
+- [x] T012 [US1] `packages/modules/carts/src/backend/services/cart-conversion-service.ts`
   `createCartFromQuoteRequest`: an unshared quote → the existing `404 quote_request_not_found`;
   case in `backend/test/contract/carts/cart-conversions.contract.test.ts` (no cart written).
-- [ ] T013 [US1] Notifications suppressed while unshared. Tests first in
+- [x] T013 [US1] Notifications suppressed while unshared. Tests first in
   `backend/test/integration/quote_requests/unshared-notifications.test.ts` (new): `modify`
   (lines, prices, groups, note, days, custom fields) and admin `cancel` of an unshared quote
   record zero `quote_request_notifications` rows, and each records its history event and audit
   row (FR-005, FR-008); then `RfqAdminService.modify` skips `record({ change: 'revised' })` and
   `cancel` skips `record({ change: 'canceled' })` when `!rfq.sharedWithCustomer`
   (`QR/src/backend/services/rfq-admin-service.ts` :1042, :797).
-- [ ] T014 [US1] Validity days on an unshared quote (R-10): `modify` writes `shareValidityDays`
+- [x] T014 [US1] Validity days on an unshared quote (R-10): `modify` writes `shareValidityDays`
   (`N > 0` as given; `0` or `null` clears — no deadline, FR-032; absent keeps), leaves `expiresAt`, and puts
   `validityDays: { before, after }` on the `modified` payload; on a shared quote `0`
   keeps today's meaning (`expiresAt = now`) and `expiresInDays: null` → `422 VALIDATION_FAILED` (`issue: 'not_clearable_once_shared'`); the
@@ -142,16 +142,16 @@ the helper of T008.
   `history-projection.ts`; `rfq.detail.history.change.validity_days` in `CORE_I18N`. Tests:
   `QR/src/backend/services/history/history-diff.test.ts`, `QR/src/backend/history-bundle-coverage.test.ts`,
   row values in `unshared-notifications.test.ts`.
-- [ ] T015 [US1] Sweep: `QR/src/backend/services/rfq-expiry-worker.ts` `dueRequests` adds
+- [x] T015 [US1] Sweep: `QR/src/backend/services/rfq-expiry-worker.ts` `dueRequests` adds
   `and q."shared_with_customer"` (shared by the batch select and the locked re-check). Test in
   `backend/test/integration/quote_requests/expiry-sweep.test.ts`: an unshared quote inactive past
   `expiry_days` stays `Created from admin` (FR-006).
-- [ ] T016 [US1] PDF: `quote_request.send_document`
+- [x] T016 [US1] PDF: `quote_request.send_document`
   (`QR/src/backend/commands/document-template-commands.ts:143`) refuses unshared with `409
   RFQ_NOT_SHARED` before rendering; tests in `backend/test/contract/quote_requests/pdf-send.test.ts`
   (refused, nothing sent) and `backend/test/contract/quote_requests/pdf-export.test.ts`
   (export still allowed) — FR-007.
-- [ ] T017 [US1] Admin read model: `serializeFull` adds the four keys on the admin path only;
+- [x] T017 [US1] Admin read model: `serializeFull` adds the four keys on the admin path only;
   `RfqAdminService.listAll` adds `sharedWithCustomer` per row and the `sharing` filter;
   `QR/src/backend/routes.admin.ts` passes the parsed query. Tests:
   `backend/test/contract/quote_requests/quote-request-response-schema.contract.test.ts` (a customer

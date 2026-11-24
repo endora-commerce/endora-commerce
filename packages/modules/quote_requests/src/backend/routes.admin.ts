@@ -85,6 +85,7 @@ export async function registerQuoteRequestsAdminRoutes(
       ...(query.assignmentScope ? { scope: query.assignmentScope } : {}),
       ...(customFieldFilters ? { customFieldFilters } : {}),
       ...(query.q ? { q: query.q } : {}),
+      ...(query.sharing ? { sharing: query.sharing } : {}),
       sort: query.sort,
       page: query.page,
       pageSize: query.pageSize,

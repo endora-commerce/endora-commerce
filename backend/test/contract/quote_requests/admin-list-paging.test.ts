@@ -149,6 +149,43 @@ describe('Admin quote request list — server-side page, filters and sort (issue
     expect(ours(asc.data)).toEqual(byAmount(1));
   });
 
+  // `specs/192-quote-request-draft-share/` (FR-009) — the list says which
+  // quotes the customer cannot see yet and narrows to them, or to the others.
+  it('narrows by sharing on the server, and marks each row', async () => {
+    const unshared = priced[0]!.id;
+    await h
+      .em()
+      .getConnection()
+      .execute(`update "quote_requests" set "shared_with_customer" = false where "id" = ?`, [unshared]);
+    try {
+      const drafts = await list('assignmentScope=all&pageSize=200&sharing=unshared');
+      expect(drafts.data.map((r) => r.id)).toContain(unshared);
+      expect(drafts.data.map((r) => r.id)).not.toContain(pendingId);
+      expect(new Set(drafts.data.map((r) => (r as Row & { sharedWithCustomer?: boolean }).sharedWithCustomer))).toEqual(
+        new Set([false]),
+      );
+      expect(drafts.pagination.total).toBe(drafts.data.length);
+
+      const shared = await list('assignmentScope=all&pageSize=200&sharing=shared');
+      expect(shared.data.map((r) => r.id)).not.toContain(unshared);
+      expect(shared.data.map((r) => r.id)).toContain(pendingId);
+      expect(new Set(shared.data.map((r) => (r as Row & { sharedWithCustomer?: boolean }).sharedWithCustomer))).toEqual(
+        new Set([true]),
+      );
+
+      const all = await list('assignmentScope=all&pageSize=200');
+      expect(all.pagination.total).toBe(drafts.pagination.total + shared.pagination.total);
+
+      const refused = await h.app.inject({ method: 'GET', url: `${LIST}?sharing=foo`, ...ADMIN });
+      expect(refused.statusCode, refused.body).toBe(400);
+    } finally {
+      await h
+        .em()
+        .getConnection()
+        .execute(`update "quote_requests" set "shared_with_customer" = true where "id" = ?`, [unshared]);
+    }
+  });
+
   it('sorts by the last change by default, newest first', async () => {
     const body = await list('assignmentScope=all&pageSize=200');
     const times = body.data.map((r) => Date.parse(r.updatedAt));

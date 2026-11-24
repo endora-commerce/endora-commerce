@@ -21,7 +21,7 @@ const RFQ = '00000000-0000-4000-8000-0000000000b1';
 function rig() {
   const orgWideViewerRoleIds = vi.fn(async (_organizationId: string) => [ADMIN_ROLE] as readonly string[]);
   const find = vi.fn(async () => []);
-  const findOne = vi.fn(async () => ({ id: RFQ, organizationId: ORG, customerAccountId: COLLEAGUE }));
+  const findOne = vi.fn(async () => ({ id: RFQ, organizationId: ORG, customerAccountId: COLLEAGUE, sharedWithCustomer: true }));
   const findInOrganization = vi.fn(async (id: string) => ({
     id,
     organizationId: ORG,
@@ -58,9 +58,9 @@ describe('one rule, two callers — #seesOrganization and the customer-side reci
   it('a role the rule names sees the whole Organization; any other sees only its own requests', async () => {
     const { service, find } = rig();
     await service.listVisibleForCustomer({ customerAccountId: COLLEAGUE, organizationId: ORG, organizationRoleId: ADMIN_ROLE });
-    expect(find).toHaveBeenLastCalledWith(expect.anything(), {}, expect.anything());
+    expect(find).toHaveBeenLastCalledWith(expect.anything(), { sharedWithCustomer: true }, expect.anything());
     await service.listVisibleForCustomer({ customerAccountId: REQUESTER, organizationId: ORG, organizationRoleId: MEMBER_ROLE });
-    expect(find).toHaveBeenLastCalledWith(expect.anything(), { customerAccountId: REQUESTER }, expect.anything());
+    expect(find).toHaveBeenLastCalledWith(expect.anything(), { customerAccountId: REQUESTER, sharedWithCustomer: true }, expect.anything());
   });
 
   it('a caller whose context carries no role is judged by its account’s role in that Organization', async () => {
@@ -78,6 +78,6 @@ describe('one rule, two callers — #seesOrganization and the customer-side reci
       organizationId: ORG,
       organizationRoleId: '00000000-0000-4000-8000-0000000000f9',
     });
-    expect(find).toHaveBeenLastCalledWith(expect.anything(), { customerAccountId: COLLEAGUE }, expect.anything());
+    expect(find).toHaveBeenLastCalledWith(expect.anything(), { customerAccountId: COLLEAGUE, sharedWithCustomer: true }, expect.anything());
   });
 });

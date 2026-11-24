@@ -44,6 +44,7 @@ function harness(options: {
           salesChannelId: null,
           businessId: 'QR-9',
           documentTemplateId: null,
+          sharedWithCustomer: true,
           version: 7,
           ...(options.quote ?? {}),
         };
@@ -223,6 +224,17 @@ describe('quote_request.send_document', () => {
     const h = harness({ canSee: false });
     expect(await refusal(makeSendDocumentCommand(input(), h.deps).run(h.ctx))).toMatchObject({ statusCode: 404 });
     expect(h.sender.send).not.toHaveBeenCalled();
+  });
+
+  // `specs/192-quote-request-draft-share/` (FR-007) — not sent while unshared.
+  it('a quote its customer cannot see yet is refused before anything is sent', async () => {
+    const h = harness({ quote: { sharedWithCustomer: false } });
+    expect(await refusal(makeSendDocumentCommand(input(), h.deps).run(h.ctx))).toMatchObject({
+      statusCode: 409,
+      code: 'RFQ_NOT_SHARED',
+    });
+    expect(h.sender.send).not.toHaveBeenCalled();
+    expect(h.created).toEqual([]);
   });
 
   it.each([['deactivated'], ['no_transport'], ['no_definition']] as const)(

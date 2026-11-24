@@ -74,6 +74,26 @@ describe('quote-request responses parse with the published schemas', () => {
     expect(disagreements(deepStrict(quoteRequestSchema), detail)).toEqual([]);
   });
 
+  // `specs/192-quote-request-draft-share/` (contracts/admin-api.md §7, §8) —
+  // the four sharing keys are the admin replies' alone, as `createdByAdminUserId`.
+  const SHARING_KEYS = ['sharedWithCustomer', 'sharedAt', 'sharedByAdminUserId', 'shareValidityDays'];
+
+  it('the admin detail and list row carry the sharing keys; no customer reply carries any', async () => {
+    const admin = (await data(`/api/v1/admin/quote-requests/${rfqId}`, ADMIN)) as Record<string, unknown>;
+    expect(admin).toMatchObject({ sharedWithCustomer: true, sharedAt: null, sharedByAdminUserId: null, shareValidityDays: null });
+
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/quote-requests?pageSize=200', ...ADMIN });
+    const row = (res.json() as { data: Array<Record<string, unknown>> }).data.find((r) => r['id'] === rfqId)!;
+    expect(row['sharedWithCustomer']).toBe(true);
+
+    const detail = (await data(`/api/v1/quote-requests/${rfqId}`, CUSTOMER)) as Record<string, unknown>;
+    const rows = (await data('/api/v1/quote-requests', CUSTOMER)) as Array<Record<string, unknown>>;
+    for (const key of SHARING_KEYS) {
+      expect(detail, key).not.toHaveProperty(key);
+      for (const listed of rows) expect(listed, key).not.toHaveProperty(key);
+    }
+  });
+
   it('GET /api/v1/admin/quote-requests/:id/history — the readable history', async () => {
     const history = await data(`/api/v1/admin/quote-requests/${rfqId}/history`, ADMIN);
     expect(disagreements(deepStrict(quoteRequestHistorySchema), history)).toEqual([]);

@@ -12,6 +12,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { markUnsharedForTest } from '../../helpers/quote-request-share.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ensureAdminWithRole } from '../../helpers/admin-search-fixtures.js';
@@ -242,6 +243,17 @@ describe('quote request PDF — admin routes Q1–Q3 (spec 153)', () => {
       const cancel = await h.app.inject({ method: 'POST', url: `${QR}/${id}/cancel`, cookies: ADMIN, headers: { 'if-match': '"1"' }, payload: { reason: 'test' } });
       expect([200, 409]).toContain(cancel.statusCode);
       expect((await exportPdf(id)).statusCode).toBe(200);
+    });
+
+    // `specs/192-quote-request-draft-share/` (FR-007) — the operator previews and
+    // downloads a draft's PDF; only sending it to the customer waits for the share.
+    it('an unshared quote is exportable (Q3) and its choices are offered (Q1)', async () => {
+      const id = await raise();
+      await markUnsharedForTest(h.em(), id);
+      const res = await exportPdf(id);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.rawPayload.subarray(0, 5).toString('utf8')).toBe('%PDF-');
+      await choices(id);
     });
   });
 

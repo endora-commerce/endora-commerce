@@ -125,6 +125,20 @@ export interface SendDocumentInput {
 const UNAVAILABLE = new Set(['deactivated', 'no_transport', 'no_definition']);
 
 /**
+ * `specs/192-quote-request-draft-share/` (FR-007, research R-13) — a quote its
+ * customer cannot see yet is not sent to them. Preview and download stay open.
+ */
+export function assertSharedForSend(quote: Pick<QuoteRequest, 'sharedWithCustomer'>): void {
+  if (!quote.sharedWithCustomer) {
+    throw new HttpError(
+      409,
+      ERROR_CODES.RFQ_NOT_SHARED,
+      'This quote request is not shared with its customer yet, so its PDF cannot be sent.',
+    );
+  }
+}
+
+/**
  * `quote_request.send_document` — e-mail the rendered quote PDF to each
  * recipient (owner answer Q4, FR-093–FR-097).
  *
@@ -145,6 +159,7 @@ export function makeSendDocumentCommand(
     objectId: input.quoteRequestId,
     run: async ({ em, actor }) => {
       const quote = await findVisible(em, actor, deps, input.quoteRequestId);
+      assertSharedForSend(quote);
       const sender = deps.sender();
       const unavailable = (code: string): HttpError =>
         new HttpError(

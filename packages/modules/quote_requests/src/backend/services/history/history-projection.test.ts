@@ -338,6 +338,24 @@ describe('projectHistory — modifications (FR-012, FR-013, R7)', () => {
     expect(entries[0]?.changes).toEqual([]);
   });
 
+  // `specs/192-quote-request-draft-share/` (R-10, FR-008) — the days of an
+  // unshared quote, recorded on its `modified` event.
+  it('lists the validity days an unshared quote will carry once shared', () => {
+    const entries = project(
+      [event('modified', { admin: ADMIN }, { diff: [], validityDays: { before: null, after: 30 } }, REV2)],
+      [revision(REV1, 1, [line()]), revision(REV2, 2, [line()], REV1)],
+    );
+    expect(entries[0]?.changes).toEqual([{ kind: 'validity_days', before: null, after: 30 }]);
+  });
+
+  it('a malformed validity-days payload is ignored rather than passed through', () => {
+    const entries = project(
+      [event('modified', { admin: ADMIN }, { diff: [], validityDays: { before: 'x', after: -1 } }, REV2)],
+      [revision(REV1, 1, [line()]), revision(REV2, 2, [line()], REV1)],
+    );
+    expect(entries[0]?.changes).toEqual([]);
+  });
+
   it('non-modification entries carry `changes: null`', () => {
     expect(project([event('expired', { role: 'System' })])[0]?.changes).toBeNull();
   });

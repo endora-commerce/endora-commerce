@@ -7,6 +7,8 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
 import { ageQuoteRequest } from '../../helpers/quote-request-age.js';
+import { markUnsharedForTest } from '../../helpers/quote-request-share.js';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from '../../../../packages/modules/quote_requests/src/manifest.js';
 
 const CUSTOMER = { b2b_session: 'stub-customer-session' };
@@ -303,6 +305,38 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
     for (const id of stale) expect(await notificationRows(id)).toBe(before.get(id));
     // Expiry within the grace period is: the customer by e-mail, the sales side on the bell.
     for (const id of recent) expect(await notificationRows(id)).toBeGreaterThan(before.get(id) ?? 0);
+  });
+
+  // `specs/192-quote-request-draft-share/` (FR-006) — a quote an operator has
+  // not shared yet is never expired, however long it was left untouched; a
+  // shared operator quote beside it still is.
+  it('an unshared operator quote is never expired by inactivity', async () => {
+    const operatorQuote = async (): Promise<string> => {
+      const created = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/quote-requests',
+        cookies: { b2b_session: 'stub-admin-session' },
+        payload: {
+          organizationId: TEST_ORGANIZATION_ID,
+          customerAccountId: TEST_CUSTOMER_ID,
+          items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1, agreedUnitPrice: 5 }],
+        },
+      });
+      expect(created.statusCode, created.body).toBe(201);
+      const id = (created.json() as { data: { id: string } }).data.id;
+      await ageQuoteRequest(h.em(), id, new Date(Date.now() - EXPIRY_DAYS * DAY_MS - 60 * DAY_MS));
+      return id;
+    };
+    const unshared = await operatorQuote();
+    await markUnsharedForTest(h.em(), unshared);
+    const shared = await operatorQuote();
+
+    const result = await worker().sweep();
+
+    expect(result.expiredCount).toBeGreaterThanOrEqual(1);
+    expect(await statusOf(shared)).toBe('Expired');
+    expect(await statusOf(unshared)).toBe('Created from admin');
+    expect(await expiredHistoryRows(unshared)).toBe(0);
   });
 
   it('expiry_days = 0 expires nothing, however overdue', async () => {

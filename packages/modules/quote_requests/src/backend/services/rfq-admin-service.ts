@@ -61,6 +61,7 @@ import { LINE_STORAGE_ORDER, loadArrangedQuoteLines } from './line-order.js';
 import { groupingShape, planLineGrouping, type GroupingShapeEntry, type LineGroupingPlan } from './line-grouping.js';
 import { storedReferenceColumns } from './reference-price.js';
 import { AUTOMATIC_ADMIN_CREATION_NOTE } from './history/constants.js';
+import { normaliseShareValidityDays } from './operator-quote-sharing.js';
 import {
   adminActorDirectory,
   customerActorDirectory,
@@ -121,6 +122,11 @@ export interface AdminListFilter {
   customFieldFilters?: CustomFieldFilters;
   /** Issue #317 — a fragment of the business id, the organization name or the customer's name, or a whole id. */
   q?: string;
+  /**
+   * `specs/192-quote-request-draft-share/` (FR-009) — only the quotes the
+   * customer cannot see yet, or only those it can; absent = both.
+   */
+  sharing?: 'unshared' | 'shared';
   /** Issue #317 — default `updatedAt:desc`. */
   sort?: AdminQuoteRequestListSort;
   /** Issue #317 — one-based; default 1. */
@@ -285,6 +291,7 @@ export class RfqAdminService {
     if (filter.status) {
       where['status'] = Array.isArray(filter.status) ? { $in: filter.status } : filter.status;
     }
+    if (filter.sharing) where['sharedWithCustomer'] = filter.sharing === 'shared';
     // Feature 157 — one condition, a member of `$and`: it narrows the
     // organization and status conditions above and never replaces them.
     const customFieldCondition = await this.customFieldCondition(filter.customFieldFilters);
@@ -393,6 +400,8 @@ export class RfqAdminService {
         version: rfq.version,
         organizationName: org?.name ?? '',
         customerDisplayName: customer ? customerDisplayName(customer) : null,
+        // `specs/192-quote-request-draft-share/` (FR-009) — the list's *Draft* badge.
+        sharedWithCustomer: rfq.sharedWithCustomer,
       };
     });
     return { rows, total };
@@ -794,12 +803,16 @@ export class RfqAdminService {
         em,
       );
 
-      await this.deps.notificationService.record(em, {
-        change: 'canceled',
-        sourceEvent: evt,
-        rfq,
-        actor: null,
-      });
+      // `specs/192-quote-request-draft-share/` (FR-005, amendment R-A1) — a
+      // quote the customer cannot see is cancelled without telling them.
+      if (rfq.sharedWithCustomer) {
+        await this.deps.notificationService.record(em, {
+          change: 'canceled',
+          sourceEvent: evt,
+          rfq,
+          actor: null,
+        });
+      }
     });
     this.kickNotificationDelivery();
 
@@ -849,8 +862,9 @@ export class RfqAdminService {
     }
     this.assertVersion(rfq, expectedVersion);
     // `specs/192-quote-request-draft-share/` (contracts/admin-api.md §4) — a
-    // shared quote's deadline is moved, never cleared.
-    if (body.expiresInDays === null) {
+    // shared quote's deadline is moved, never cleared. An unshared quote keeps
+    // days instead of a date, and `null` clears them.
+    if (body.expiresInDays === null && rfq.sharedWithCustomer) {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'The validity of a shared quote cannot be cleared.', [
         { path: 'expiresInDays', issue: 'not_clearable_once_shared' },
       ]);
@@ -858,7 +872,10 @@ export class RfqAdminService {
 
     // Research R7 — a validity change is recorded on the event, since no
     // revision snapshot carries `expiresAt`.
-    const recorded: { validity?: { before: string | null; after: string | null } } = {};
+    const recorded: {
+      validity?: { before: string | null; after: string | null };
+      validityDays?: { before: number | null; after: number | null };
+    } = {};
     // Feature 159 — the grouping's shape before and after, for the audit entry
     // (FR-081); set only when the body rewrites the lines.
     let groupingAudit: { before: GroupingShapeEntry[]; after: GroupingShapeEntry[] } | null = null;
@@ -994,7 +1011,13 @@ export class RfqAdminService {
       rfq.currentRevisionNumber += 1;
       rfq.awaitingCustomerRevisionAcceptance = true;
       rfq.assignedAdminUserId = ctx.adminUserId;
-      if (body.expiresInDays !== undefined && body.expiresInDays !== null) {
+      if (body.expiresInDays !== undefined && !rfq.sharedWithCustomer) {
+        // `specs/192-quote-request-draft-share/` (research R-10) — the days are
+        // applied when the quote is shared; no date is written before that.
+        const before = rfq.shareValidityDays ?? null;
+        rfq.shareValidityDays = normaliseShareValidityDays(body.expiresInDays);
+        if (before !== rfq.shareValidityDays) recorded.validityDays = { before, after: rfq.shareValidityDays };
+      } else if (body.expiresInDays !== undefined && body.expiresInDays !== null) {
         const before = rfq.expiresAt?.toISOString() ?? null;
         rfq.expiresAt = new Date(Date.now() + body.expiresInDays * 86_400_000);
         const after = rfq.expiresAt.toISOString();
@@ -1046,12 +1069,16 @@ export class RfqAdminService {
         em,
       );
 
-      await this.deps.notificationService.record(em, {
-        change: 'revised',
-        sourceEvent: evt,
-        rfq,
-        actor: null,
-      });
+      // `specs/192-quote-request-draft-share/` (FR-005, amendment R-A1) — an
+      // edit of a quote the customer cannot see is the operators' alone.
+      if (rfq.sharedWithCustomer) {
+        await this.deps.notificationService.record(em, {
+          change: 'revised',
+          sourceEvent: evt,
+          rfq,
+          actor: null,
+        });
+      }
     });
     this.kickNotificationDelivery();
 
