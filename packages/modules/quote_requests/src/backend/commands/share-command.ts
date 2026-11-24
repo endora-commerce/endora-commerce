@@ -108,6 +108,7 @@ export function makeShareQuoteRequestCommand(
         (deps.now ?? (() => new Date()))(),
         deps,
       );
+      await em.flush();
       return {
         result: { quote },
         // `specs/conventions/audit-state.md` list 1: a boolean, a date, a count.

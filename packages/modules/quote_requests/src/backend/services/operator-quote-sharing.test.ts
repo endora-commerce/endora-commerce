@@ -126,7 +126,6 @@ describe('applyShare (research R-4, R-5, R-10)', () => {
       expiresAt: new Date(NOW.getTime() + 30 * 86_400_000),
       version: 5,
     });
-    expect(em.flush).toHaveBeenCalled();
     expect(deps.eventService.append).toHaveBeenCalledWith(
       {
         quoteRequestId: quote.id,

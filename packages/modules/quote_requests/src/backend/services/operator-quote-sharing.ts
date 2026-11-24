@@ -122,7 +122,8 @@ export interface ApplyShareDeps {
  * content the customer is shown); and the existing `prepared` notification
  * announcing that entry. Answers the entry.
  *
- * The caller has already refused everything a share may be refused for.
+ * The caller has already refused everything a share may be refused for, and
+ * is the share Command, whose audit entry covers this write.
  */
 export async function applyShare(
   em: EntityManager,
@@ -137,7 +138,9 @@ export async function applyShare(
   quote.sharedByAdminUserId = actor.adminUserId;
   quote.expiresAt = days === null ? null : new Date(now.getTime() + days * DAY_MS);
   quote.version += 1;
-  await em.flush();
+  // No flush of its own: the `shared` entry below is persisted and flushed on
+  // the same `em`, which writes the row with it — and the one caller, the
+  // share Command, is what audits this write (Principle XIII).
 
   const revision = await deps.revisionService.byNumber(quote.id, quote.currentRevisionNumber);
   const shared = await deps.eventService.append(
