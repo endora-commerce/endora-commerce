@@ -41,6 +41,7 @@ import {
   quoteRequestDeliverySchema,
   type QuoteRequestDelivery,
   adminQuoteRequestCreateDefaultsSchema,
+  adminShareQuoteRequestSchema,
   type QuoteRequestRecord,
 } from './quote-requests.js';
 import { ERROR_CODES } from './errors.js';
@@ -1068,6 +1069,11 @@ describe('192 — sharing an operator quote with its customer (contracts/admin-a
   it('the read-port record says whether the customer may see the quote (required)', () => {
     const record = { sharedWithCustomer: false } satisfies Pick<QuoteRequestRecord, 'sharedWithCustomer'>;
     expect(record.sharedWithCustomer).toBe(false);
+  });
+
+  it('the share body is empty: `{}` parses, any key is refused', () => {
+    expect(adminShareQuoteRequestSchema.parse({})).toEqual({});
+    expect(adminShareQuoteRequestSchema.safeParse({ notify: false }).success).toBe(false);
   });
 
   it('declares the three minted error codes', () => {

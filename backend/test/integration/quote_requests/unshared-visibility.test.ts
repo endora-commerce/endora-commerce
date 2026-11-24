@@ -12,7 +12,7 @@ import { CUSTOMER_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../
 import { assignOrganizationRole, predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-channel-access.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
-import { markUnsharedForTest } from '../../helpers/quote-request-share.js';
+import { markUnsharedForTest, shareQuoteRequestForTest } from '../../helpers/quote-request-share.js';
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
 const CUSTOMER = { b2b_session: 'stub-customer-session' };
@@ -87,6 +87,8 @@ describe('an unshared quote is invisible to every customer surface', () => {
     h = await setupBackendServer();
     unshared = await operatorQuote();
     shared = await operatorQuote();
+    await shareQuoteRequestForTest(h.app, shared);
+    // An operator's quote starts unshared; said again so the case does not lean on it.
     await markUnsharedForTest(h.em(), unshared);
   }, 120_000);
 

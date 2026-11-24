@@ -7384,6 +7384,15 @@
         }
       }
     },
+    "/api/v1/admin/quote-requests/{id}/share": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/related-payers/links/{linkId}": {
       "patch": {
         "responses": {

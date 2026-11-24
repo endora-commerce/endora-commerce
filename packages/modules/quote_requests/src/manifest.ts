@@ -1,6 +1,8 @@
 import {
+  QUOTE_REQUEST_HOOKABLE_ACTIONS,
   defineModuleManifest,
   defineModuleSettingsManifest,
+  toHookableActionDeclaration,
   type CustomFieldWriteDeclaration,
 } from '@endora-commerce/contracts';
 
@@ -739,6 +741,14 @@ export const manifest = defineModuleManifest({
     // `backend/email-templates/quote-notification-defaults.ts`.
     ...QUOTE_NOTIFICATION_EMAILS,
   ],
+  /**
+   * Command hooks (`specs/192-quote-request-draft-share/`, `contracts/share-hook.md`,
+   * the mechanism of `specs/176-command-hooks-outbox/`): sharing an operator's
+   * quote with its customer is the one write another module may refuse — say, an
+   * approval still pending — before it commits. `beforeCommit` only;
+   * `share-command.ts` supplies the hook data.
+   */
+  hookableActions: [QUOTE_REQUEST_HOOKABLE_ACTIONS.share].map(toHookableActionDeclaration),
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   actions: [

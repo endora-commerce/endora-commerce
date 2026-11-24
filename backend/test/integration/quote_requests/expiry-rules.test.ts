@@ -6,6 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { shareQuoteRequestForTest } from '../../helpers/quote-request-share.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
@@ -103,7 +104,11 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
       },
     });
     expect(response.statusCode, response.body).toBe(201);
-    return (response.json() as { data: { id: string } }).data.id;
+    const id = (response.json() as { data: { id: string } }).data.id;
+    // `specs/192-quote-request-draft-share/` — only a shared quote expires; the
+    // share writes the date from the days.
+    await shareQuoteRequestForTest(h.app, id);
+    return id;
   };
 
   /** Nothing has happened to the request for `days`. */

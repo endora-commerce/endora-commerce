@@ -170,10 +170,10 @@ the helper of T008.
 Goal: FR-001, FR-020…FR-028. T018 and T026 land in **one commit** (the matrix move and the
 flip are coupled — R-5); T027 in the same push.
 
-- [ ] T018 [US2] Matrix (T004 done): `QR/src/backend/services/notifications/notification-matrix.ts`
+- [x] T018 [US2] Matrix (T004 done): `QR/src/backend/services/notifications/notification-matrix.ts`
   `prepared: row('shared', null, [C, C, C, null, null])` and the `CONTRACT` table of
   `notification-matrix.test.ts`.
-- [ ] T019 [P] [US2] Failing tests `backend/test/integration/quote_requests/share.test.ts` (new).
+- [x] T019 [P] [US2] Failing tests `backend/test/integration/quote_requests/share.test.ts` (new).
   The bus forks its own transaction, so rows **commit**: clean up by id in `afterEach`
   (precedents `backend/test/integration/quote_requests/expiry-sweep.test.ts`,
   `backend/test/integration/platform/outbox-drain-concurrency.test.ts`). Cases: share → `200`,
@@ -191,7 +191,7 @@ flip are coupled — R-5); T027 in the same push.
   `VERSION_CONFLICT`; a sales representative not assigned to the Organization → `404`.
   Concurrency: two shares through two forked EntityManagers with `Promise.all` → one `200`, one
   `409 RFQ_ALREADY_SHARED`, three records in total (FR-024).
-- [ ] T020 [P] [US2] Failing hook test `backend/test/integration/quote_requests/share-hook-veto.test.ts`
+- [x] T020 [P] [US2] Failing hook test `backend/test/integration/quote_requests/share-hook-veto.test.ts`
   (new) at **service level**, as `backend/test/integration/newsletter/hookable-actions.test.ts`
   wires it: a `CommandBus` with `sealedCommandHookRegistry` (`@endora-commerce/test-kit/command-hooks`)
   holding a test hook module on `QUOTE_REQUEST_HOOKABLE_ACTIONS.share`; veto with
@@ -200,10 +200,10 @@ flip are coupled — R-5); T027 in the same push.
   passing hook receives `QuoteRequestShareHookData` with the written `expiresAt`; the hook
   module switched off → skipped. (The HTTP passthrough of a hook's `HttpError` is the
   platform's, pinned by `packages/platform/src/commands/command-bus.hooks.test.ts`.)
-- [ ] T021 [P] [US2] Contract test `backend/test/contract/quote_requests/share-routes.contract.test.ts`
+- [x] T021 [P] [US2] Contract test `backend/test/contract/quote_requests/share-routes.contract.test.ts`
   (new): `200` body parses with `quoteRequestSchema`; each refusal's status, code and `details`
   shape as `contracts/admin-api.md` §1; `401`/`403` without `rfqs:handle`; unknown body keys → `422`.
-- [ ] T022 [US2] `QR/src/backend/services/operator-quote-sharing.ts` (new):
+- [x] T022 [US2] `QR/src/backend/services/operator-quote-sharing.ts` (new):
   `operatorQuoteStartsUnshared()` (R-2); `normaliseShareValidityDays` (R-10: `0`/`null` → `null`);
   `unpricedLinesRefusal` (display order via `loadArrangedQuoteLines`, `hasUnpricedLine`);
   `customerUnavailability` (R-9: `findById`, org mismatch → `not_member`,
@@ -213,22 +213,22 @@ flip are coupled — R-5); T027 in the same push.
   (new). History: `shared` entry projected in `history-projection.ts` with its deliveries;
   `rfq.detail.history.entry.shared` in `CORE_I18N`; `history-projection.test.ts`,
   `history-bundle-coverage.test.ts`.
-- [ ] T023 [US2] `QR/src/backend/commands/share-command.ts` (new):
+- [x] T023 [US2] `QR/src/backend/commands/share-command.ts` (new):
   `makeShareQuoteRequestCommand({ quoteRequestId, expectedVersion }, deps)` — check order of
   `contracts/admin-api.md` §1 inside `run`; row read with `LockMode.PESSIMISTIC_WRITE`;
   visibility via `adminCanSeeOrganization` (as `findVisible` in `document-template-commands.ts`);
   `hookData`, `before`, `after` per `data-model.md` §5; no `capture`/reversibility (sends e-mail).
-- [ ] T024 [US2] Declare the action in `QR/src/manifest.ts`
+- [x] T024 [US2] Declare the action in `QR/src/manifest.ts`
   (`hookableActions: [QUOTE_REQUEST_HOOKABLE_ACTIONS.share].map(toHookableActionDeclaration)`);
   test `QR/src/backend/manifest-hookable-actions.test.ts` (new; precedent
   `packages/modules/projects/src/backend/manifest.test.ts` from the projects hookable-actions
   merge `eccfc8dd6`).
-- [ ] T025 [US2] `RfqAdminService.share(ctx, id, expectedVersion)` runs the Command on
+- [x] T025 [US2] `RfqAdminService.share(ctx, id, expectedVersion)` runs the Command on
   `commandBus` (new `RfqAdminServiceDeps.commandBus`, wired in `QR/src/backend/index.ts` as the
   document service gets it), kicks delivery **after** `run` resolves, answers
   `serializeFull(…, true)`; route `POST /api/v1/admin/quote-requests/:id/share` in
   `QR/src/backend/routes.admin.ts` (`guard`, strict empty body, `If-Match` read as `PATCH /:id` does).
-- [ ] T026 [US1] Switch-over in `RfqAdminService.createOnBehalf`: `sharedWithCustomer` from
+- [x] T026 [US1] Switch-over in `RfqAdminService.createOnBehalf`: `sharedWithCustomer` from
   `operatorQuoteStartsUnshared()`; `shareValidityDays` from the body (`normaliseShareValidityDays`;
   absent → `null` until T030); a line without `agreedUnitPrice` stored with `null` (FR-013,
   R-19; `unitPriceText` only for a number); **no** `expiresAt`; **no** `prepared` record and no kick; still
@@ -238,7 +238,7 @@ flip are coupled — R-5); T027 in the same push.
   nothing recorded for the customer; visible and notified after the share", plus a create
   with one unpriced line that succeeds unshared (FR-001, FR-005, FR-013).
   Same commit as T018.
-- [ ] T027 Existing-test sweep: add `shareQuoteRequestForTest(app | service, id)` to
+- [x] T027 Existing-test sweep: add `shareQuoteRequestForTest(app | service, id)` to
   `backend/test/helpers/quote-request-share.ts`; then
   `git grep -ln "admin/quote-requests'\|createOnBehalf" -- backend/test 'packages/modules/*/src/**/*.test.ts'`
   and, in every hit that later acts as a customer or counts customer notifications, insert the

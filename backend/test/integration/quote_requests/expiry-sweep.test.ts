@@ -7,7 +7,7 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
 import { ageQuoteRequest } from '../../helpers/quote-request-age.js';
-import { markUnsharedForTest } from '../../helpers/quote-request-share.js';
+import { markUnsharedForTest, shareQuoteRequestForTest } from '../../helpers/quote-request-share.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from '../../../../packages/modules/quote_requests/src/manifest.js';
 
@@ -311,7 +311,7 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
   // not shared yet is never expired, however long it was left untouched; a
   // shared operator quote beside it still is.
   it('an unshared operator quote is never expired by inactivity', async () => {
-    const operatorQuote = async (): Promise<string> => {
+    const operatorQuote = async (shared: boolean): Promise<string> => {
       const created = await h.app.inject({
         method: 'POST',
         url: '/api/v1/admin/quote-requests',
@@ -324,12 +324,14 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
       });
       expect(created.statusCode, created.body).toBe(201);
       const id = (created.json() as { data: { id: string } }).data.id;
+      if (shared) await shareQuoteRequestForTest(h.app, id);
+      else await markUnsharedForTest(h.em(), id);
+      // Aged after the share, whose history entry restarts the clock.
       await ageQuoteRequest(h.em(), id, new Date(Date.now() - EXPIRY_DAYS * DAY_MS - 60 * DAY_MS));
       return id;
     };
-    const unshared = await operatorQuote();
-    await markUnsharedForTest(h.em(), unshared);
-    const shared = await operatorQuote();
+    const unshared = await operatorQuote(false);
+    const shared = await operatorQuote(true);
 
     const result = await worker().sweep();
 

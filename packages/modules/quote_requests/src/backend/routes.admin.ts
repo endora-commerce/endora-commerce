@@ -8,6 +8,7 @@ import {
   adminPatchQuoteRequestSchema,
   adminPrepareCustomerBasketResponseSchema,
   adminQuoteRequestListQuerySchema,
+  adminShareQuoteRequestSchema,
   createQuoteRequestSavedViewRequestSchema,
   customFieldFiltersQueryParamSchema,
   ERROR_CODES,
@@ -171,6 +172,23 @@ export async function registerQuoteRequestsAdminRoutes(
       const body = adminPatchQuoteRequestSchema.parse(request.body);
       const expectedVersion = parseIfMatch(request);
       const rfq = await adminService.modify(ctx, request.params.id, expectedVersion, body);
+      setEtag(reply, rfq.version);
+      return { data: rfq };
+    },
+  );
+
+  // `specs/192-quote-request-draft-share/` (contracts/admin-api.md §1) — share
+  // an unshared operator quote with its customer. No body; `If-Match` as on
+  // `PATCH /:id`.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/quote-requests/:id/share',
+    { preHandler: guard },
+    async (request, reply) => {
+      const ctx = await resolveAdminContext(request);
+      // No body, or an empty object; parsed here because an absent body
+      // reaches the handler as `null`.
+      adminShareQuoteRequestSchema.parse(request.body ?? {});
+      const rfq = await adminService.share(ctx, request.params.id, parseIfMatch(request));
       setEtag(reply, rfq.version);
       return { data: rfq };
     },

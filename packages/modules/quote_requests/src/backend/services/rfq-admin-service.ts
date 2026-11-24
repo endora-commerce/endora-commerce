@@ -31,7 +31,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
-import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import { recordAuditFromContext, type CommandBus } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { orgConstraintFor, orgScopeSql, reachesNoOrganization } from '@endora-commerce/platform/tenancy';
@@ -61,7 +61,8 @@ import { LINE_STORAGE_ORDER, loadArrangedQuoteLines } from './line-order.js';
 import { groupingShape, planLineGrouping, type GroupingShapeEntry, type LineGroupingPlan } from './line-grouping.js';
 import { storedReferenceColumns } from './reference-price.js';
 import { AUTOMATIC_ADMIN_CREATION_NOTE } from './history/constants.js';
-import { normaliseShareValidityDays } from './operator-quote-sharing.js';
+import { normaliseShareValidityDays, operatorQuoteStartsUnshared } from './operator-quote-sharing.js';
+import { makeShareQuoteRequestCommand } from '../commands/share-command.js';
 import {
   adminActorDirectory,
   customerActorDirectory,
@@ -179,6 +180,12 @@ export interface RfqAdminServiceDeps {
   salesRepAssignment: SalesRepAssignmentPort;
   /** Feature 054 — audits RFQ admin writes co-transactionally when provided. */
   auditLog?: AuditPort;
+  /**
+   * `specs/192-quote-request-draft-share/` — the share is a Command on the bus
+   * (`quote_request.share`), audited there and refusable by another module's
+   * hook (research R-4).
+   */
+  commandBus: Pick<CommandBus, 'run'>;
   /** Feature 055 — validates + merges custom-field values on RFQ edit. */
   customFieldValues?: CustomFieldValuePort;
   /**
@@ -827,6 +834,34 @@ export class RfqAdminService {
   }
 
   // -------------------------------------------------------------------------
+  // Share with the customer (`specs/192-quote-request-draft-share/`)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Share an unshared operator quote with its customer: the Command
+   * `quote_request.share` (research R-4) — its refusals, its write and every
+   * present `beforeCommit` hook in one transaction. Delivery of the `prepared`
+   * records is kicked once the Command committed, never before.
+   */
+  async share(ctx: AdminContext, rfqId: string, expectedVersion: number | null): Promise<RfqDto> {
+    await this.deps.commandBus.run(
+      makeShareQuoteRequestCommand(
+        { quoteRequestId: rfqId, expectedVersion, roleLabel: ctx.roleLabel },
+        {
+          salesRepScope: this.deps.salesRepAssignment,
+          customerAccounts: this.deps.customerAccounts,
+          eventService: this.deps.eventService,
+          notificationService: this.deps.notificationService,
+          revisionService: this.deps.revisionService,
+        },
+      ),
+    );
+    this.kickNotificationDelivery();
+    const em = this.deps.emFactory();
+    return this.deps.rfqService.serializeFull(em, await this.findVisibleForAdmin(em, ctx, rfqId), true);
+  }
+
+  // -------------------------------------------------------------------------
   // Internal-side claim (informational; visibility is per-org, not per-rfq)
   // -------------------------------------------------------------------------
 
@@ -1223,18 +1258,15 @@ export class RfqAdminService {
     // what was stored.
     const customFieldValues = await this.#newCustomFieldValues(body.customFieldValues);
 
-    // `specs/192-quote-request-draft-share/` — interim until the operator's
-    // quote starts unshared (T026): a line still needs its agreed price.
-    const unpriced = body.items.flatMap((line, index) =>
-      line.agreedUnitPrice == null ? [{ path: `items.${index}.agreedUnitPrice`, issue: 'required' }] : [],
-    );
-    if (unpriced.length > 0) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Every line needs an agreed unit price.', unpriced);
-    }
+    // `specs/192-quote-request-draft-share/` (FR-001, R-2) — the one place that
+    // decides whether the new quote starts unshared. It does, always, today;
+    // a line may then have no price yet (FR-013, R-19), since sharing is
+    // refused until every line has one.
+    const startsUnshared = operatorQuoteStartsUnshared();
 
     const businessId = await this.deps.rfqService.generateBusinessId(em);
-    // FR-001 — the request, its groups and lines, revision 1, its history
-    // entries and the records naming `created` commit together.
+    // FR-001 — the request, its groups and lines, revision 1 and its history
+    // entries commit together.
     const rfq = await inTransaction(em, async () => {
       const rfq = em.create(QuoteRequest, {
         ...(businessId ? { businessId } : {}),
@@ -1256,10 +1288,12 @@ export class RfqAdminService {
         // admin's later revisions set). Without this the customer had no way to
         // act on an admin-created quote.
         awaitingCustomerRevisionAcceptance: true,
-        expiresAt:
-          body.expiresInDays !== undefined && body.expiresInDays !== null
-            ? new Date(Date.now() + body.expiresInDays * 86_400_000)
-            : null,
+        // `specs/192-quote-request-draft-share/` (R-10) — invisible to the
+        // customer until shared; the validity is kept as days and becomes a
+        // date at the share, so no date is written here.
+        sharedWithCustomer: !startsUnshared,
+        shareValidityDays: body.expiresInDays === undefined ? null : normaliseShareValidityDays(body.expiresInDays),
+        expiresAt: null,
         customFieldValues,
       });
       await em.persistAndFlush(rfq);
@@ -1291,7 +1325,8 @@ export class RfqAdminService {
             productSlug: product.slug,
             variantId: lineInput.variantId ?? null,
             quantity: lineInput.quantity,
-            agreedUnitPrice: unitPriceText(lineInput.agreedUnitPrice!),
+            // FR-013 — a line the operator has not priced yet stays unpriced.
+            agreedUnitPrice: lineInput.agreedUnitPrice == null ? null : unitPriceText(lineInput.agreedUnitPrice),
             lineNote: lineInput.lineNote ?? null,
             lineCurrency,
             groupId: groupIds(plan.lines[index]!.group),
@@ -1304,6 +1339,9 @@ export class RfqAdminService {
         itemCount: items.length,
         salesChannelId: rfq.salesChannelId ?? null,
         groups: plan.after,
+        // `specs/192-quote-request-draft-share/` (data-model §5).
+        sharedWithCustomer: rfq.sharedWithCustomer,
+        shareValidityDays: rfq.shareValidityDays ?? null,
         // Feature 175 (FR-021) — the keys stored, never their values
         // (`specs/conventions/audit-state.md`, D-288).
         ...(Object.keys(rfq.customFieldValues ?? {}).length > 0
@@ -1322,7 +1360,7 @@ export class RfqAdminService {
         em,
       );
 
-      const created = await this.deps.eventService.append(
+      await this.deps.eventService.append(
         {
           quoteRequestId: rfq.id,
           eventType: 'created',
@@ -1344,17 +1382,12 @@ export class RfqAdminService {
         em,
       );
 
-      // The `created` entry is what the buyer is told about (`contracts/notification-matrix.md`
-      // §1, `prepared`); the automatic note beside it announces nothing (rule 6).
-      await this.deps.notificationService.record(em, {
-        change: 'prepared',
-        sourceEvent: created,
-        rfq,
-        actor: null,
-      });
+      // `specs/192-quote-request-draft-share/` (FR-005) — nothing is recorded for
+      // the customer here: the quote is unshared, and `prepared` announces the
+      // share (`contracts/notification-matrix-amendment.md`). The `created`
+      // entry and the automatic note are the operators' history.
       return rfq;
     });
-    this.kickNotificationDelivery();
 
     // Announced last, once every row of the request is written: a subscriber
     // may read it at once. This path does **not** emit `rfq.created.v1` — that

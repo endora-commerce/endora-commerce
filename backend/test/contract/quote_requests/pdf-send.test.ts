@@ -12,7 +12,7 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ensureAdminWithRole } from '../../helpers/admin-search-fixtures.js';
 import { withModuleOff } from '../../helpers/off-state.js';
-import { markUnsharedForTest } from '../../helpers/quote-request-share.js';
+import { markUnsharedForTest, shareQuoteRequestForTest } from '../../helpers/quote-request-share.js';
 import {
   InMemoryMailer,
   type MailerSendInput,
@@ -84,6 +84,8 @@ describe('quote request PDF — Send PDF to customer, route Q4 (spec 153, owner 
     });
     expect(res.statusCode, res.body).toBe(201);
     ({ id: quote, businessId } = (res.json() as { data: { id: string; businessId: string } }).data);
+    // `specs/192-quote-request-draft-share/` — sent only once shared.
+    await shareQuoteRequestForTest(h.app, quote);
   }, 60_000);
 
   afterAll(async () => {

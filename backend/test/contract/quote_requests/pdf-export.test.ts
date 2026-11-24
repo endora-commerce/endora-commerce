@@ -12,7 +12,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { markUnsharedForTest } from '../../helpers/quote-request-share.js';
+import { markUnsharedForTest, shareQuoteRequestForTest } from '../../helpers/quote-request-share.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ensureAdminWithRole } from '../../helpers/admin-search-fixtures.js';
@@ -81,7 +81,11 @@ describe('quote request PDF — admin routes Q1–Q3 (spec 153)', () => {
       },
     });
     expect(res.statusCode, res.body).toBe(201);
-    return (res.json() as { data: { id: string } }).data.id;
+    const id = (res.json() as { data: { id: string } }).data.id;
+    // `specs/192-quote-request-draft-share/` — an operator's quote starts
+    // unshared; these cases are about quotes its customer can see.
+    await shareQuoteRequestForTest(h.app, id);
+    return id;
   };
   const sql = (query: string, params: unknown[] = []) => h.em().getConnection().execute(query, params);
   const onChannel = (id: string, channelId: string | null) =>

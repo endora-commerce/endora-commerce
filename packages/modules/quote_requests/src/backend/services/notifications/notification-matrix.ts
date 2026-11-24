@@ -83,7 +83,9 @@ export const NOTIFICATION_MATRIX: Readonly<Record<QuoteRequestNotificationChange
   offer_accepted: row('approved', { approvedBy: 'customer' }, [C, CA, CA, O, null]),
   offer_rejected: row('canceled', { canceledBy: 'customer' }, [C, CA, CA, O, null]),
   expired: row('expired', null, [C, C, C, O, null]),
-  prepared: row('created', null, [C, C, C, null, null]),
+  // `specs/192-quote-request-draft-share/contracts/notification-matrix-amendment.md`
+  // — announced by the share, not by the operator's create.
+  prepared: row('shared', null, [C, C, C, null, null]),
   revised: row('modified', null, [C, C, C, null, null]),
   approved: row('approved', { approvedBy: 'admin' }, [C, C, C, null, null]),
   canceled: row('canceled', { canceledBy: 'admin' }, [C, C, C, null, null]),

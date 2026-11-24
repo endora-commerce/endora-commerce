@@ -978,6 +978,15 @@ export const adminApproveQuoteRequestSchema = z
   .strict();
 export type AdminApproveQuoteRequest = z.infer<typeof adminApproveQuoteRequestSchema>;
 
+/**
+ * `POST /api/v1/admin/quote-requests/:id/share`
+ * (`specs/192-quote-request-draft-share/`, contracts/admin-api.md §1) — no
+ * body: an empty object is accepted, any key refused. `If-Match` carries the
+ * version, as on `PATCH /:id`.
+ */
+export const adminShareQuoteRequestSchema = z.object({}).strict();
+export type AdminShareQuoteRequest = z.infer<typeof adminShareQuoteRequestSchema>;
+
 export const adminCancelQuoteRequestSchema = z
   .object({ reason: z.string().max(2000).optional() })
   .strict();
