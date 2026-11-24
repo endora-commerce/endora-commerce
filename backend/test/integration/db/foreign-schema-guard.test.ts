@@ -257,8 +257,11 @@ describe('the foreign-schema guard on raw database handles (#1860)', () => {
   const connectionOf = (self: Migration): Connection => self.getEntityManager().getConnection();
   const rawOf = (handle: unknown): { raw(sql: string): Promise<unknown> } => handle as { raw(sql: string): Promise<unknown> };
   const driverOf = (self: Migration) =>
-    (self as unknown as { driver: Record<string, (...args: unknown[]) => Promise<unknown>> & { getConnection(): Connection } })
-      .driver;
+    (
+      self as unknown as {
+        driver: { execute(sql: string): Promise<unknown>; createEntityManager(): unknown; getConnection(): Connection };
+      }
+    ).driver;
 
   const RAW_ACCESS_ROUTES: readonly RawAccessRoute[] = [
     ['getEntityManager().getKnex()', (self) => deleteRogue(self.getEntityManager().getKnex())],
@@ -279,7 +282,7 @@ describe('the foreign-schema guard on raw database handles (#1860)', () => {
     ],
     [
       'this.getEntityManager().getDriver().nativeDelete()',
-      (self) => self.getEntityManager().getDriver().nativeDelete(X178Host, { name: 'rogue' }),
+      (self) => self.getEntityManager().getDriver().nativeDelete(X178Host.name, { name: 'rogue' }),
     ],
     ['this.driver.execute()', (self) => driverOf(self).execute(rogueDelete)],
     ['this.driver.getConnection().execute()', (self) => driverOf(self).getConnection().execute(rogueDelete)],
