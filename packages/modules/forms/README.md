@@ -35,8 +35,9 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 **Third-party**
 
 - `@fastify/rate-limit` ^10
-- `@mikro-orm/core` ^6
-- `@mikro-orm/migrations` ^6
+- `@mikro-orm/core` ^7.2.11
+- `@mikro-orm/decorators` ^7.2.11
+- `@mikro-orm/migrations` ^7.2.11
 - `bullmq` ^5
 - `fastify` ^5.11.0
 - `ioredis` ^5
