@@ -94,14 +94,14 @@ export class NewsletterSubscriberAdminService {
     return this.toDetail(sub, tagMap.get(id) ?? []);
   }
 
-  /** The `newsletter_deactivate` Command (issue #1381): the write and its entry commit together. */
+  /** The `newsletter_subscriber.deactivate` Command (issue #1381): the write and its entry commit together. */
   async deactivate(id: string, expectedVersion: number): Promise<SubscriberDetail> {
     const sub = await this.commandBus.run(makeDeactivateSubscriberCommand({ subscriberId: id, expectedVersion }));
     const tagMap = await this.tagsFor(this.emFactory(), [sub.id]);
     return this.toDetail(sub, tagMap.get(sub.id) ?? []);
   }
 
-  /** The `newsletter_delete` Command (issue #1381): the delete and its entry commit together. */
+  /** The `newsletter_subscriber.delete` Command (issue #1381): the delete and its entry commit together. */
   async remove(id: string): Promise<void> {
     await this.commandBus.run(makeDeleteSubscriberCommand({ subscriberId: id }));
   }

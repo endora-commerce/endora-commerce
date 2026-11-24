@@ -64,17 +64,17 @@ export type NewsletterSubscriberOutbox = {
  */
 export const NEWSLETTER_HOOKABLE_ACTIONS = {
   subscribe: hookableAction<NewsletterSubscriberHookData, NewsletterSubscriberOutbox>(
-    'newsletter.subscriber.subscribe',
+    'newsletter_subscriber.subscribe',
     'newsletter_subscriber',
     ['beforeCommit', 'afterCommit'],
   ),
   resubscribe: hookableAction<NewsletterSubscriberHookData, NewsletterSubscriberOutbox>(
-    'newsletter.subscriber.resubscribe',
+    'newsletter_subscriber.resubscribe',
     'newsletter_subscriber',
     ['beforeCommit', 'afterCommit'],
   ),
   confirm: hookableAction<NewsletterSubscriberHookData, NewsletterSubscriberOutbox>(
-    'newsletter.subscriber.confirm',
+    'newsletter_subscriber.confirm',
     'newsletter_subscriber',
     ['beforeCommit', 'afterCommit'],
   ),

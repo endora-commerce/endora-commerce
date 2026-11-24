@@ -41,7 +41,7 @@ export interface SubscribeSubscriberPlan {
 export type SubscribeSubscriberResult = NewsletterSubscriberHookData;
 
 /**
- * `newsletter.subscriber.subscribe` / `newsletter.subscriber.resubscribe`
+ * `newsletter_subscriber.subscribe` / `newsletter_subscriber.resubscribe`
  * (feature 048 US1, issue #1381, Principle XIII).
  *
  * Creates or updates the subscriber for an address, lifts a self-unsubscribe

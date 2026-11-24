@@ -222,7 +222,7 @@ JavaScript. The handler:
 
 Whether the answer is `pending` or `active` follows the channel's opt-in mode.
 The subscription is recorded as any other: `consentAt` is set, the
-`newsletter.subscriber.subscribe` audit entry carries `source: 'cms-block'`, so these
+`newsletter_subscriber.subscribe` audit entry carries `source: 'cms-block'`, so these
 sign-ups can be told apart from the others, and a topic code that matches no
 existing tag is ignored — no tag is created from the storefront. The module
 checks each attribute value again against its own custom-field definitions and
@@ -253,11 +253,24 @@ unsubscribe gave a reason (`hasReason`). The address is on the subscriber, the
 reason on the subscriber and its suppression. Entries recorded before this change
 keep what they were written with.
 
-Subscribing, resubscribing and confirming are recorded as
-`newsletter.subscriber.subscribe`, `newsletter.subscriber.resubscribe` and
-`newsletter.subscriber.confirm`. Entries recorded before issue #1843 keep the
-earlier names `newsletter_subscribe`, `newsletter_resubscribe` and
-`newsletter_confirm`, so a search or a report over both periods asks for both.
+The entries are recorded under these actions. Entries recorded before issue
+#1843 keep the earlier names, so a search, a report or a filter over both periods
+must ask for both.
+
+| Action | Before issue #1843 |
+| --- | --- |
+| `newsletter_subscriber.subscribe` | `newsletter_subscribe` |
+| `newsletter_subscriber.resubscribe` | `newsletter_resubscribe` |
+| `newsletter_subscriber.confirm` | `newsletter_confirm` |
+| `newsletter_subscriber.unsubscribe` | `newsletter_unsubscribe` |
+| `newsletter_subscriber.deactivate` | `newsletter_deactivate` |
+| `newsletter_subscriber.delete` | `newsletter_delete` |
+| `newsletter_suppression.bounce` | `newsletter_bounce` |
+| `newsletter_suppression.complaint` | `newsletter_complaint` |
+
+A bounce or a complaint is recorded as `newsletter_suppression.*` whether the
+entry names the address's subscriber or, for an address with no subscriber, its
+suppression row.
 
 ## Hookable actions
 
@@ -278,9 +291,9 @@ described on the *Command Bus* architecture page.
 
 | Action | Ref | Runs when |
 | --- | --- | --- |
-| `newsletter.subscriber.subscribe` | `NEWSLETTER_HOOKABLE_ACTIONS.subscribe` | An address with no subscriber signs up: `POST /api/v1/newsletter/subscribe` (also the Page Builder block), the customer account's newsletter page, or an operator adding a subscriber |
-| `newsletter.subscriber.resubscribe` | `NEWSLETTER_HOOKABLE_ACTIONS.resubscribe` | An address that already has a subscriber signs up again, through the same entry points |
-| `newsletter.subscriber.confirm` | `NEWSLETTER_HOOKABLE_ACTIONS.confirm` | A `pending` subscriber follows the double opt-in link and becomes `active` |
+| `newsletter_subscriber.subscribe` | `NEWSLETTER_HOOKABLE_ACTIONS.subscribe` | An address with no subscriber signs up: `POST /api/v1/newsletter/subscribe` (also the Page Builder block), the customer account's newsletter page, or an operator adding a subscriber |
+| `newsletter_subscriber.resubscribe` | `NEWSLETTER_HOOKABLE_ACTIONS.resubscribe` | An address that already has a subscriber signs up again, through the same entry points |
+| `newsletter_subscriber.confirm` | `NEWSLETTER_HOOKABLE_ACTIONS.confirm` | A `pending` subscriber follows the double opt-in link and becomes `active` |
 
 All three offer both phases. The hook and the outbox row get the same data, and
 it contains ids and codes only: `subscriberId`, `status` (after the write),

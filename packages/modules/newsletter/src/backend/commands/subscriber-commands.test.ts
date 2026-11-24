@@ -149,7 +149,7 @@ function plan(overrides: Partial<SubscribeSubscriberPlan> = {}): SubscribeSubscr
   };
 }
 
-describe('newsletter.subscriber.subscribe / .resubscribe (issue #1381, #1843)', () => {
+describe('newsletter_subscriber.subscribe / .resubscribe (issue #1381, #1843)', () => {
   it('creates a pending subscriber with the planned id and records exactly one entry, status and source only', async () => {
     const h = harness();
     const result = await asSystem(() => h.bus.run(makeSubscribeSubscriberCommand(plan())));
@@ -158,7 +158,7 @@ describe('newsletter.subscriber.subscribe / .resubscribe (issue #1381, #1843)', 
     expect(h.subscribers()).toHaveLength(1);
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter.subscriber.subscribe',
+      action: 'newsletter_subscriber.subscribe',
       objectType: 'newsletter_subscriber',
       objectId: NEW_ID,
       stateBefore: null,
@@ -180,7 +180,7 @@ describe('newsletter.subscriber.subscribe / .resubscribe (issue #1381, #1843)', 
     expect(h.suppressions()).toHaveLength(0);
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter.subscriber.resubscribe',
+      action: 'newsletter_subscriber.resubscribe',
       objectId: SUB,
       stateAfter: { status: 'active', source: 'storefront' },
     });
@@ -202,7 +202,7 @@ describe('newsletter.subscriber.subscribe / .resubscribe (issue #1381, #1843)', 
   });
 });
 
-describe('newsletter.subscriber.confirm (issue #1381, #1843)', () => {
+describe('newsletter_subscriber.confirm (issue #1381, #1843)', () => {
   it('activates a pending subscriber and records exactly one entry', async () => {
     const h = harness({ subscribers: [subscriber({ status: 'pending', confirmedAt: null })] });
     const result = await asSystem(() => h.bus.run(makeConfirmSubscriberCommand({ subscriberId: SUB })));
@@ -211,7 +211,7 @@ describe('newsletter.subscriber.confirm (issue #1381, #1843)', () => {
     expect(h.subscribers()[0]!['status']).toBe('active');
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter.subscriber.confirm',
+      action: 'newsletter_subscriber.confirm',
       objectType: 'newsletter_subscriber',
       objectId: SUB,
       stateAfter: { status: 'active' },
@@ -239,7 +239,7 @@ describe('newsletter.subscriber.confirm (issue #1381, #1843)', () => {
   });
 });
 
-describe('newsletter_unsubscribe (issue #1381)', () => {
+describe('newsletter_subscriber.unsubscribe (issue #1381)', () => {
   it('unsubscribes, writes the suppression and records whether a reason was given, never its text', async () => {
     const h = harness({ subscribers: [subscriber()] });
     const result = await asSystem(() =>
@@ -250,7 +250,7 @@ describe('newsletter_unsubscribe (issue #1381)', () => {
     expect(h.suppressions()).toMatchObject([{ email: EMAIL, reason: 'unsubscribe' }]);
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter_unsubscribe',
+      action: 'newsletter_subscriber.unsubscribe',
       objectId: SUB,
       stateAfter: { status: 'unsubscribed', hasReason: true },
     });
@@ -271,7 +271,7 @@ describe('newsletter_unsubscribe (issue #1381)', () => {
   });
 });
 
-describe('newsletter_bounce / newsletter_complaint (issue #1381)', () => {
+describe('newsletter_suppression.bounce / .complaint (issue #1381)', () => {
   it('deactivates the subscriber and files the entry under it, the reason code only', async () => {
     const h = harness({ subscribers: [subscriber()] });
     await asSystem(() =>
@@ -289,7 +289,7 @@ describe('newsletter_bounce / newsletter_complaint (issue #1381)', () => {
     expect(h.suppressions()).toMatchObject([{ email: EMAIL, reason: 'complaint' }]);
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter_complaint',
+      action: 'newsletter_suppression.complaint',
       objectType: 'newsletter_subscriber',
       objectId: SUB,
       stateAfter: { reason: 'complaint' },
@@ -312,7 +312,7 @@ describe('newsletter_bounce / newsletter_complaint (issue #1381)', () => {
     expect(h.suppressions()).toMatchObject([{ id: SUPPRESSION_ID, email: EMAIL, reason: 'bounce' }]);
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter_bounce',
+      action: 'newsletter_suppression.bounce',
       objectType: 'newsletter_suppression',
       objectId: SUPPRESSION_ID,
     });
@@ -336,7 +336,7 @@ describe('newsletter_bounce / newsletter_complaint (issue #1381)', () => {
   });
 });
 
-describe('newsletter_deactivate (issue #1381)', () => {
+describe('newsletter_subscriber.deactivate (issue #1381)', () => {
   it('deactivates a subscriber at the expected version and records exactly one entry', async () => {
     const h = harness({ subscribers: [subscriber()] });
     const result = await asSystem(() =>
@@ -347,7 +347,7 @@ describe('newsletter_deactivate (issue #1381)', () => {
     expect(result.version).toBe(3);
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter_deactivate',
+      action: 'newsletter_subscriber.deactivate',
       objectId: SUB,
       stateAfter: { status: 'deactivated' },
     });
@@ -368,7 +368,7 @@ describe('newsletter_deactivate (issue #1381)', () => {
   });
 });
 
-describe('newsletter_delete (issue #1381)', () => {
+describe('newsletter_subscriber.delete (issue #1381)', () => {
   it('deletes the subscriber, keeps the address suppressed and records one entry, the status before only', async () => {
     const h = harness({ subscribers: [subscriber()] });
     await asSystem(() => h.bus.run(makeDeleteSubscriberCommand({ subscriberId: SUB })));
@@ -377,7 +377,7 @@ describe('newsletter_delete (issue #1381)', () => {
     expect(h.suppressions()).toMatchObject([{ email: EMAIL, reason: 'unsubscribe', detail: 'deleted' }]);
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter_delete',
+      action: 'newsletter_subscriber.delete',
       objectType: 'newsletter_subscriber',
       objectId: SUB,
       stateBefore: { status: 'active' },
@@ -437,11 +437,11 @@ describe('the services run every subscriber write on the bus (issue #1381)', () 
     await asSystem(() => admin.remove(id));
 
     expect(h.audits.map((entry) => entry['action'])).toEqual([
-      'newsletter.subscriber.subscribe',
-      'newsletter.subscriber.resubscribe',
-      'newsletter_unsubscribe',
-      'newsletter_deactivate',
-      'newsletter_delete',
+      'newsletter_subscriber.subscribe',
+      'newsletter_subscriber.resubscribe',
+      'newsletter_subscriber.unsubscribe',
+      'newsletter_subscriber.deactivate',
+      'newsletter_subscriber.delete',
     ]);
     expect(new Set(h.audits.map((entry) => entry['objectId']))).toEqual(new Set([id]));
     expect(events).toEqual(['newsletter.subscribed.v1', 'newsletter.subscribed.v1', 'newsletter.unsubscribed.v1']);
@@ -458,7 +458,7 @@ describe('the services run every subscriber write on the bus (issue #1381)', () 
     expect(await asSystem(() => subscribers.confirm('not-a-uuid'))).toEqual({ ok: false });
 
     expect(h.subscribers()[0]!['status']).toBe('active');
-    expect(h.audits.map((entry) => entry['action'])).toEqual(['newsletter.subscriber.confirm']);
+    expect(h.audits.map((entry) => entry['action'])).toEqual(['newsletter_subscriber.confirm']);
   });
 
   it('suppress files an address with no subscriber under a suppression id and no address', async () => {
@@ -468,7 +468,7 @@ describe('the services run every subscriber write on the bus (issue #1381)', () 
 
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]).toMatchObject({
-      action: 'newsletter_bounce',
+      action: 'newsletter_suppression.bounce',
       objectType: 'newsletter_suppression',
       objectId: h.suppressions()[0]!.id,
     });

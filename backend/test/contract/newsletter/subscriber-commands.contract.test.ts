@@ -69,9 +69,9 @@ describe('newsletter subscriber writes are Commands (issue #1381)', () => {
 
     const entries = await entriesFor(id);
     expect(entries.map((entry) => entry.action)).toEqual([
-      'newsletter.subscriber.subscribe',
-      ...(pending ? ['newsletter.subscriber.confirm'] : []),
-      'newsletter_unsubscribe',
+      'newsletter_subscriber.subscribe',
+      ...(pending ? ['newsletter_subscriber.confirm'] : []),
+      'newsletter_subscriber.unsubscribe',
     ]);
     for (const entry of entries) {
       expect(entry.objectType).toBe('newsletter_subscriber');
@@ -122,9 +122,9 @@ describe('newsletter subscriber writes are Commands (issue #1381)', () => {
 
     const entries = await entriesFor(id);
     expect(entries.map((entry) => entry.action)).toEqual([
-      'newsletter.subscriber.subscribe',
-      'newsletter_deactivate',
-      'newsletter_delete',
+      'newsletter_subscriber.subscribe',
+      'newsletter_subscriber.deactivate',
+      'newsletter_subscriber.delete',
     ]);
     for (const entry of entries) expect(entry.actorAdminUserId).toBe(TEST_ADMIN_ID);
     expect(entries[0]!.stateAfter).toMatchObject({ source: 'api' });

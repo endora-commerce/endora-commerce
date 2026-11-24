@@ -72,8 +72,8 @@ describe('newsletter subscribe from the cms block (T077)', () => {
       `select action, state_after from audit_log_entries where object_type = 'newsletter_subscriber' and object_id = ?`,
       [subscriber.id],
     )) as Array<{ action: string; state_after: { source?: string; email?: string } }>;
-    expect(audit.map((row) => row.action)).toContain('newsletter.subscriber.subscribe');
-    const entry = audit.find((row) => row.action === 'newsletter.subscriber.subscribe');
+    expect(audit.map((row) => row.action)).toContain('newsletter_subscriber.subscribe');
+    const entry = audit.find((row) => row.action === 'newsletter_subscriber.subscribe');
     expect(entry?.state_after).toMatchObject({ source: 'cms-block' });
     // The subscriber by id, never the address (#470, D-288).
     expect(JSON.stringify(entry?.state_after)).not.toContain(email);

@@ -5,7 +5,7 @@ import { subscriberHookData, subscriberOutboxData } from './subscriber-hook-data
 import { subscriberPlanConflict } from './subscriber-plan.js';
 
 /**
- * `newsletter.subscriber.confirm` (feature 048 US1, issue #1381, Principle
+ * `newsletter_subscriber.confirm` (feature 048 US1, issue #1381, Principle
  * XIII; `newsletter_confirm` before issue #1843).
  *
  * Activates a double opt-in subscriber from a verified confirmation token. The

@@ -217,7 +217,7 @@ describe('newsletter declares three hookable actions (issue #1843)', () => {
   });
 });
 
-describe('newsletter.subscriber.subscribe runs its hooks', () => {
+describe('newsletter_subscriber.subscribe runs its hooks', () => {
   it('hands a beforeCommit hook ids and codes on the uncommitted write, and an afterCommit handler one outbox row', async () => {
     const recording = recordingCommandHooks();
     let seenOnTransaction: unknown = null;
@@ -241,7 +241,7 @@ describe('newsletter.subscriber.subscribe runs its hooks', () => {
 
     expect(result).toMatchObject({ subscriberId: NEW_ID, status: 'pending' });
     expect(recording.calls).toHaveLength(1);
-    expect(recording.calls[0]).toMatchObject({ action: 'newsletter.subscriber.subscribe', objectId: NEW_ID });
+    expect(recording.calls[0]).toMatchObject({ action: 'newsletter_subscriber.subscribe', objectId: NEW_ID });
     expect(recording.calls[0]!.data).toEqual({
       subscriberId: NEW_ID,
       status: 'pending',
@@ -254,10 +254,10 @@ describe('newsletter.subscriber.subscribe runs its hooks', () => {
     expect(seenOnTransaction).toMatchObject({ id: NEW_ID, status: 'pending' });
     expectNoAddress(recording.calls);
 
-    expect(h.audits.map((entry) => entry['action'])).toEqual(['newsletter.subscriber.subscribe']);
+    expect(h.audits.map((entry) => entry['action'])).toEqual(['newsletter_subscriber.subscribe']);
     expect(h.outbox).toHaveLength(1);
     expect(h.outbox[0]).toMatchObject({
-      action: 'newsletter.subscriber.subscribe',
+      action: 'newsletter_subscriber.subscribe',
       objectType: 'newsletter_subscriber',
       objectId: NEW_ID,
       organizationId: ORG,
@@ -287,7 +287,7 @@ describe('newsletter.subscriber.subscribe runs its hooks', () => {
       h.bus.run(makeSubscribeSubscriberCommand(plan({ subscriberId: SUB, isNew: false, mode: 'single', tags: [] }))),
     );
 
-    expect(recording.calls.map((call) => call.action)).toEqual(['newsletter.subscriber.resubscribe']);
+    expect(recording.calls.map((call) => call.action)).toEqual(['newsletter_subscriber.resubscribe']);
     expect(recording.calls[0]!.data).toMatchObject({ subscriberId: SUB, status: 'active', previousStatus: 'unsubscribed' });
   });
 
@@ -349,7 +349,7 @@ describe('newsletter.subscriber.subscribe runs its hooks', () => {
   });
 });
 
-describe('newsletter.subscriber.confirm runs its hooks', () => {
+describe('newsletter_subscriber.confirm runs its hooks', () => {
   it('hands a beforeCommit hook the activation and an afterCommit handler one outbox row', async () => {
     const recording = recordingCommandHooks();
     const h = harness({
@@ -378,10 +378,10 @@ describe('newsletter.subscriber.confirm runs its hooks', () => {
       tagIds: [TAG_A, TAG_B],
     };
     expect(recording.calls).toHaveLength(1);
-    expect(recording.calls[0]).toMatchObject({ action: 'newsletter.subscriber.confirm', objectId: SUB, data: expected });
-    expect(h.audits).toMatchObject([{ action: 'newsletter.subscriber.confirm', stateAfter: { status: 'active' } }]);
+    expect(recording.calls[0]).toMatchObject({ action: 'newsletter_subscriber.confirm', objectId: SUB, data: expected });
+    expect(h.audits).toMatchObject([{ action: 'newsletter_subscriber.confirm', stateAfter: { status: 'active' } }]);
     expect(h.outbox).toMatchObject([
-      { action: 'newsletter.subscriber.confirm', objectId: SUB, organizationId: ORG, hookId: 'grant-code', data: expected },
+      { action: 'newsletter_subscriber.confirm', objectId: SUB, organizationId: ORG, hookId: 'grant-code', data: expected },
     ]);
     expectNoAddress([recording.calls, h.outbox]);
   });

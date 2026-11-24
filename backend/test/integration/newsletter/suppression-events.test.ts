@@ -116,7 +116,7 @@ describe('newsletter suppression + events (US3/US6 edge cases)', () => {
     const suppression = await db.em().findOneOrFail(NewsletterSuppression, { email: 's470-nobody@x.test' });
     expect(recorded).toHaveLength(1);
     expect(recorded[0]).toMatchObject({
-      action: 'newsletter_bounce',
+      action: 'newsletter_suppression.bounce',
       objectType: 'newsletter_suppression',
       objectId: suppression.id,
     });

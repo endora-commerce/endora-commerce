@@ -190,24 +190,24 @@ describe('newsletter hookable actions on Postgres (issue #1843)', () => {
     };
     expect(calls.before).toEqual([
       {
-        action: 'newsletter.subscriber.subscribe',
+        action: 'newsletter_subscriber.subscribe',
         objectId: subscriber.id,
         data: { ...base, status: 'pending', previousStatus: null },
         seen: 'pending',
       },
       {
-        action: 'newsletter.subscriber.confirm',
+        action: 'newsletter_subscriber.confirm',
         objectId: subscriber.id,
         data: { ...base, status: 'active', previousStatus: 'pending' },
         seen: 'active',
       },
     ]);
-    expect(await auditActionsFor(subscriber.id)).toEqual(['newsletter.subscriber.subscribe', 'newsletter.subscriber.confirm']);
+    expect(await auditActionsFor(subscriber.id)).toEqual(['newsletter_subscriber.subscribe', 'newsletter_subscriber.confirm']);
 
     const rows = await outboxRowsFor(subscriber.id);
     expect(rows).toEqual([
       expect.objectContaining({
-        action: 'newsletter.subscriber.subscribe',
+        action: 'newsletter_subscriber.subscribe',
         object_type: 'newsletter_subscriber',
         hook_module: HOOK_MODULE,
         hook_id: 'grant-on-subscribe',
@@ -216,7 +216,7 @@ describe('newsletter hookable actions on Postgres (issue #1843)', () => {
         data: { ...base, status: 'pending', previousStatus: null },
       }),
       expect.objectContaining({
-        action: 'newsletter.subscriber.confirm',
+        action: 'newsletter_subscriber.confirm',
         hook_id: 'grant-on-confirm',
         status: 'pending',
         data: { ...base, status: 'active', previousStatus: 'pending' },
@@ -228,13 +228,13 @@ describe('newsletter hookable actions on Postgres (issue #1843)', () => {
     expect((await outboxRowsFor(subscriber.id)).map((row) => row['status'])).toEqual(['delivered', 'delivered']);
     expect(calls.after.filter((call) => call.objectId === subscriber.id)).toEqual([
       {
-        action: 'newsletter.subscriber.subscribe',
+        action: 'newsletter_subscriber.subscribe',
         objectId: subscriber.id,
         organizationId: null,
         data: { ...base, status: 'pending', previousStatus: null },
       },
       {
-        action: 'newsletter.subscriber.confirm',
+        action: 'newsletter_subscriber.confirm',
         objectId: subscriber.id,
         organizationId: null,
         data: { ...base, status: 'active', previousStatus: 'pending' },
@@ -280,8 +280,8 @@ describe('newsletter hookable actions on Postgres (issue #1843)', () => {
     const after = await db.em().findOneOrFail(NewsletterSubscriber, { id: subscriber.id });
     expect(after.status).toBe('pending');
     expect(after.confirmedAt ?? null).toBeNull();
-    expect(await auditActionsFor(subscriber.id)).toEqual(['newsletter.subscriber.subscribe']);
-    expect((await outboxRowsFor(subscriber.id)).map((row) => row['action'])).toEqual(['newsletter.subscriber.subscribe']);
+    expect(await auditActionsFor(subscriber.id)).toEqual(['newsletter_subscriber.subscribe']);
+    expect((await outboxRowsFor(subscriber.id)).map((row) => row['action'])).toEqual(['newsletter_subscriber.subscribe']);
   });
 
   it('skips a hook module that is switched off: no call, no outbox row, the writes unchanged', async () => {
@@ -294,7 +294,7 @@ describe('newsletter hookable actions on Postgres (issue #1843)', () => {
 
     expect(calls.before).toEqual([]);
     expect(await outboxRowsFor(subscriber.id)).toEqual([]);
-    expect(await auditActionsFor(subscriber.id)).toEqual(['newsletter.subscriber.subscribe', 'newsletter.subscriber.confirm']);
+    expect(await auditActionsFor(subscriber.id)).toEqual(['newsletter_subscriber.subscribe', 'newsletter_subscriber.confirm']);
     expect(mailer.sent).toHaveLength(1);
   });
 });
