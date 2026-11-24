@@ -5,6 +5,10 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import {
+  approveRegisteredOrganization,
+  registeredOrganizationId,
+} from '../../helpers/approve-registered-organization.js';
 
 /**
  * Feature 043 (US3) — placing an order from a cart that contains a
@@ -42,6 +46,7 @@ describe('Cart → Order packaging snapshot (043)', () => {
 
     const { token } = (await h.app.inject({ method: 'GET', url: '/api/v1/_test/latest-verification-token' })).json() as { token: string };
     await h.app.inject({ method: 'POST', url: '/api/v1/auth/email-verification/verify', payload: { token } });
+    await approveRegisteredOrganization(h, registeredOrganizationId(register));
 
     const login = await h.app.inject({
       method: 'POST',

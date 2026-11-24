@@ -16,8 +16,9 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
  * Email verification flow (T118).
  *
  * Consumes a raw token, looks up the matching EmailVerificationToken row by
- * sha256 hash, marks it consumed (one-shot), sets CustomerAccount.emailVerifiedAt,
- * and transitions the Organization to `active`. Emits organization.verified.v1.
+ * sha256 hash, marks it consumed (one-shot) and sets CustomerAccount.emailVerifiedAt.
+ * Emits organization.verified.v1. It does not touch the Organization status —
+ * moderation is that status's one writer (issue #1893).
  */
 export interface EmailVerificationAccountPorts {
   /**
@@ -105,16 +106,19 @@ export class EmailVerificationService {
     // is the recoverable one — the token is still unconsumed if the second
     // flush fails, so a retried verification re-runs the whole flow, and
     // `markEmailVerified` keeps the first timestamp rather than moving it.
+    //
+    // The Organization status is left alone (issue #1893). `auto` moderation
+    // approves on `organization.registered.v1`; `manual` waits for an operator,
+    // and a verified address is not that operator's decision — nor does it undo
+    // a rejection or a block.
     await this.accounts.write.markEmailVerified(customer.id, now);
-    organization.status = 'active';
     token.consumedAt = now;
     if (this.auditLog) {
       recordAuditFromContext(this.auditLog, em, {
         action: 'organization.email_verified',
         objectType: 'organization',
         objectId: organization.id,
-        stateBefore: { status: 'pending' },
-        stateAfter: { status: 'active', customerAccountId: customer.id },
+        stateAfter: { customerAccountId: customer.id },
       });
     }
     await em.flush();
