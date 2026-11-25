@@ -56,14 +56,18 @@
   "peerDependencies": {
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
-    "@mikro-orm/core": "^6",
-    "@mikro-orm/postgresql": "^6",
+    "@mikro-orm/core": "^7.2.11",
+    "@mikro-orm/decorators": "^7.2.11",
+    "@mikro-orm/postgresql": "^7.2.11",
     "fastify": "^5.11.0",
     "ioredis": "^5",
     "pg": "^8",
     "vitest": "^4.1.11"
   },
   "peerDependenciesMeta": {
+    "@mikro-orm/decorators": {
+      "optional": true
+    },
     "vitest": {
       "optional": true
     }
@@ -71,8 +75,9 @@
   "devDependencies": {
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
-    "@mikro-orm/core": "^6.6.13",
-    "@mikro-orm/postgresql": "^6.6.13",
+    "@mikro-orm/core": "^7.2.11",
+    "@mikro-orm/decorators": "^7.2.11",
+    "@mikro-orm/postgresql": "^7.2.11",
     "@types/node": "^22.9.0",
     "@types/pg": "^8.20.0",
     "fastify": "^5.12.8",

@@ -138,7 +138,7 @@ describe('forms schema (data-model §§1–5)', () => {
   }
 
   it('is a migration the migrator executed — the registration is the claim that it runs', async () => {
-    const executed = await orm.getMigrator().getExecutedMigrations();
+    const executed = await orm.migrator.getExecuted();
     expect(executed.map((migration) => migration.name)).toContain(initMigration().name);
   });
 

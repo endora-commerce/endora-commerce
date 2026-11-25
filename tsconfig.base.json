@@ -30,7 +30,6 @@
     "declarationMap": true,
     "sourceMap": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
     "paths": {
       "@core/*": ["./backend/src/*"],
       "@endora-commerce/contracts": ["./packages/contracts/src/index.ts"],

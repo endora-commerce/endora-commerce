@@ -781,9 +781,11 @@ function entity(spec: ModuleScaffoldSpec): string {
   const decorator = TENANT_SCOPE_DECORATORS[spec.tenantScope];
   const tenant = tenantColumn(spec);
   const lines: string[] = [];
-  lines.push(
-    `import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';`,
-  );
+  lines.push(`import { OptionalProps } from '@mikro-orm/core';`);
+  // MikroORM 7 (#1866): the entity decorators are `@mikro-orm/decorators`'s,
+  // in their legacy (`experimentalDecorators`) form — and only from there,
+  // which `check:entity-decorators` holds.
+  lines.push(`import { Entity, Index, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';`);
   lines.push(`import { ${decorator} } from '@endora-commerce/platform/tenancy';`);
   lines.push(`import { randomUUID } from 'node:crypto';`);
   lines.push('');

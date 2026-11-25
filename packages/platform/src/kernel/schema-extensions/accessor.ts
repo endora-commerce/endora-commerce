@@ -1,4 +1,4 @@
-import type { EntityManager } from '@mikro-orm/core';
+import type { EntityManager, EntityName } from '@mikro-orm/core';
 import { effectiveState } from '../lifecycle/effective-state.js';
 import { ModuleDisabledError } from '../lifecycle/plugin-helpers.js';
 import { resolvedColumnExtension } from './define.js';
@@ -7,7 +7,7 @@ import {
   ExtensionValueCorruptError,
   ExtensionWriteOutsideCommandError,
 } from './errors.js';
-import { projectionEntityNameOf } from './registry.js';
+import { projectionEntityOf } from './registry.js';
 import { columnExtensionPatchSchema } from './zod.js';
 import type {
   ColumnExtension,
@@ -81,9 +81,9 @@ export function extensionColumnsWithPresence<D extends ColumnExtension>(
   const resolved = resolvedColumnExtension(declaration);
   const keys = resolved.columns.map((column) => column.key);
 
-  const gate = (): string => {
+  const gate = (): EntityName<Record<string, unknown>> => {
     if (!state.isPresent(declaration.module)) throw new ModuleDisabledError(declaration.module);
-    return projectionEntityNameOf(declaration);
+    return projectionEntityOf(declaration) as EntityName<Record<string, unknown>>;
   };
 
   const valuesOf = (row: Record<string, unknown>, id: string): ColumnExtensionValues<D> => {

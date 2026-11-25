@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { MikroORM } from '@mikro-orm/postgresql';
 import { describe, expect, it } from 'vitest';
 import { GlobalEntity } from '../tenancy/org-scoped.decorator.js';
@@ -9,7 +9,7 @@ import { DuplicateTableMappingError } from '../kernel/schema-extensions/errors.j
 
 /**
  * `specs/178-extensible-columns/` FR-031, research R-1 / R-3 — the port of the
- * spike, with no database (`connect: false`).
+ * spike, with no database (MikroORM 7 connects only on the first query).
  *
  * MikroORM refuses two entities on one table by default. The platform turns that
  * check off only together with a rule of its own, which lets through exactly the
@@ -58,7 +58,6 @@ async function init(options: {
   return MikroORM.init({
     entities: options.entities as never[],
     dbName: 'x178_never_connected',
-    connect: false,
     allowGlobalContext: true,
     ...(options.discovery === undefined ? {} : { discovery: options.discovery }),
   });
@@ -78,7 +77,7 @@ describe('the duplicate-table rule', () => {
       entities: [X178RuleHost, ...projections.schemas],
       discovery: schemaExtensionDiscovery(projections.allowed),
     });
-    const names = Object.values(orm.getMetadata().getAll())
+    const names = [...new Set(orm.getMetadata().getAll().values())]
       .filter((meta) => meta.tableName === 'x178_rule_hosts')
       .map((meta) => meta.className)
       .sort();

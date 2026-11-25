@@ -1,4 +1,4 @@
-import { knex } from '@mikro-orm/postgresql';
+import { raw } from '@mikro-orm/core';
 import type { ExcludedOrganizationsQuery } from './tenant-context.js';
 
 /**
@@ -25,23 +25,26 @@ import type { ExcludedOrganizationsQuery } from './tenant-context.js';
  * literal the size of the list (~160 KB, ~5–10 ms a statement at 4 380 ids;
  * `specs/175-sales-rep-reach-rule/research.md` R-5). S costs a hashed SubPlan.
  *
- * ## The spelling: `$nin` with a query-builder subquery, under the property
+ * ## The spelling: `$nin` with a `raw()` subquery, under the property
  *
- * `{ [field]: { $ne: null, $nin: <knex query builder> } }`. It must be
- * `NOT IN` — the ANY-sublink form, the one PostgreSQL hashes; `<> all(S)` never
- * is. It must be property-keyed: a `raw()` **key** is dropped when the filter
- * runs for a joined `populate` (R-1), and `$nin: raw('select …')` renders as
- * `not in select …` there, a syntax error (R-5). The spike for #955 matched the
- * one-id rule row for row over `find`, `count`, `findAndCount`,
- * `findByCursor`, a joined and a select-in `populate`, `Collection.init`, a
- * fork, a transaction, `nativeUpdate` / `nativeDelete`, a filter merged with a
- * `where` on the same column, an empty S and a null organization, with
- * MikroORM's raw-fragment cache left empty
- * (`test/integration/organizations/reach-governor-maintenance.test.ts`).
+ * `{ [field]: { $ne: null, $nin: raw('select * from (<S>) as …', params) } }`.
+ * It must be `NOT IN` — the ANY-sublink form, the one PostgreSQL hashes;
+ * `<> all(S)` never is. It must be property-keyed: a `raw()` **key** is dropped
+ * when the filter runs for a joined `populate` (R-1). On MikroORM 6 the value
+ * was a connection-less knex builder, because `$nin: raw('select …')` rendered
+ * as `not in select …` there, a syntax error (R-5); MikroORM 7 (#1866) has no
+ * knex and wraps a raw `$in` / `$nin` value in parentheses itself
+ * (`QueryBuilderHelper`, `col not in (<sql>)`), so the fragment is the value.
+ * The spike for #955 matched the one-id rule row for row over `find`,
+ * `count`, `findAndCount`, `findByCursor`, a joined and a select-in
+ * `populate`, `Collection.init`, a fork, a transaction, `nativeUpdate` /
+ * `nativeDelete`, a filter merged with a `where` on the same column, an empty
+ * S and a null organization
+ * (`test/integration/organizations/reach-governor-maintenance.test.ts`), and
+ * holds the MikroORM 7 spelling to the same rows.
  *
- * The builder comes from a connection-less knex instance: it is only ever
- * compiled into the outer statement, so it needs the PostgreSQL dialect and
- * nothing else — and `orgScopeWhere` stays a pure function of the scope.
+ * The fragment is built fresh per call and binds `query.params` beside the
+ * outer statement's own, so `orgScopeWhere` stays a pure function of the scope.
  *
  * ## Never a null organization
  *
@@ -49,19 +52,15 @@ import type { ExcludedOrganizationsQuery } from './tenant-context.js';
  * a representative from whom nothing is excluded still reads no row that
  * belongs to no organization (Principle XI's "no-organization path").
  */
-const dialect = knex({ client: 'pg' });
-
 /** The alias S is wrapped under, so any uncorrelated SELECT is a valid derived table. */
 const SUBQUERY_ALIAS = 'reach_excluded';
 
 export function excludedOrganizationsPredicate(query: ExcludedOrganizationsQuery): Record<string, unknown> {
-  const subquery = dialect
-    .select('*')
-    .fromRaw(dialect.raw(`(${query.sql}) as "${SUBQUERY_ALIAS}"`, [...query.params]));
+  const subquery = raw(`select * from (${query.sql}) as "${SUBQUERY_ALIAS}"`, [...query.params]);
   return { $ne: null, $nin: subquery };
 }
 
-/** The same predicate for raw SQL: knex binds `query.params` beside the caller's own. */
+/** The same predicate for raw SQL: `query.params` bind beside the caller's own. */
 export function excludedOrganizationsSql(
   columnSql: string,
   query: ExcludedOrganizationsQuery,

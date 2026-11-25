@@ -40,7 +40,8 @@ let unexempted: ForeignWriteAudit;
 let runtimeOnly: ForeignWriteAudit;
 
 beforeAll(async () => {
-  orm = await MikroORM.init({ ...(await mikroOrmConfig()), connect: false });
+  // MikroORM 7 connects lazily (#1866): `init` opens no connection, which is what 6's `connect: false` asked for.
+  orm = await MikroORM.init(await mikroOrmConfig());
   const layout = await requireModuleLayout('[instance-foreign-writes]');
   const scan = await scanModuleBoundaryTree(layout);
   const owners = buildTableOwners(scan.input.schema, scan.input.packageTables, scan.input.hostResidentModules).owners;
