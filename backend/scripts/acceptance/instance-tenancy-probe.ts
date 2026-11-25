@@ -45,6 +45,8 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { companyTenantSeed } from './instance-tenant-seed.js';
+
 /** Thrown for "the probe could not run", never for "the guard answered wrong". */
 class Inconclusive extends Error {}
 
@@ -266,7 +268,10 @@ async function main(): Promise<void> {
                 'value for, so the two tenants cannot be created',
             );
           }
-          const created = em.create(organizations.class, seed) as { id?: string };
+          const created = em.create(
+            organizations.class,
+            companyTenantSeed(seed, organizations.properties),
+          ) as { id?: string };
           await em.flush();
           if (typeof created.id !== 'string') {
             throw new Inconclusive(

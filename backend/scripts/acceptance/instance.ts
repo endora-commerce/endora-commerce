@@ -176,6 +176,7 @@ import {
   type PackageDependencyDeclaration,
   type ShippedFiles,
   type SuppliedPackage,
+  registryModuleIds,
 } from './instance-assertions.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -1214,11 +1215,7 @@ function bundleEvidence(adminDist: string): { named: readonly string[]; bytes: n
   for (const file of filesWithSuffix(adminDist, ['.js', '.mjs'])) {
     const text = readFileSync(file, 'utf8');
     bytes += text.length;
-    // The registry's own shape, which survives minification: the property is a
-    // plain object key and esbuild does not mangle one.
-    for (const match of text.matchAll(/moduleId\s*:\s*["']([a-z0-9_]+)["']/g)) {
-      named.add(match[1]!);
-    }
+    for (const moduleId of registryModuleIds(text)) named.add(moduleId);
   }
   return { named: [...named].sort(), bytes };
 }
