@@ -225,7 +225,7 @@
   "settingLabels.quote_requests.business_id.suffix.name": "Sufiks numeru zapytania",
   "settingLabels.quote_requests.business_id.suffix.description": "Tekst po numerze zapytania widocznym dla klienta, np. -2026. Pusty: bez sufiksu.",
   "settingLabels.quote_requests.default_validity_days.name": "Domyślna ważność ofert przygotowanych przez sprzedaż (dni)",
-  "settingLabels.quote_requests.default_validity_days.description": "Liczba dni ważności oferty dla klienta, liczona od jej udostępnienia. Dotyczy nowych ofert. 0: bez terminu. Najwyżej 3650; większa wartość jest traktowana jak 0.",
+  "settingLabels.quote_requests.default_validity_days.description": "Liczba dni ważności oferty dla klienta, liczona od jej udostępnienia. Dotyczy nowych ofert. Od 0 do 3650; 0: bez terminu.",
   "transactionalEmails.quote_request_pdf.name": "PDF zapytania ofertowego",
   "transactionalEmails.quote_request_pdf.description": "Wysyłany, gdy handlowiec użyje opcji „Wyślij PDF do klienta” w zapytaniu ofertowym: oferta jako załącznik PDF, z opcjonalną osobistą wiadomością.",
   "transactionalEmails.quote_request_customer_submitted.name": "Przyjęcie zapytania ofertowego (klient)",
