@@ -50,6 +50,7 @@ import {
   lineAmountHalfUp,
   QUOTE_VALIDITY_DAYS_MAX,
   unitPriceDisplayText,
+  adminQuoteRequestCreateDefaultsSchema,
   type AdminQuoteRequestCreateDefaults,
   type AdminQuoteRequestWarning,
   type OrganizationSalesChannelOption,
@@ -429,8 +430,12 @@ export function RfqCreatePage(): ReactNode {
       .get<{ data: AdminQuoteRequestCreateDefaults }>('/api/v1/admin/quote-requests/create-defaults')
       .then((res) => {
         if (!alive) return;
-        const days = res?.data?.validityDays;
-        setDefaultDays({ status: 'ready', days: typeof days === 'number' && days > 0 ? days : null });
+        // 0 is no deadline, as `null` is (the server already answers 0 as `null`).
+        // A reply the contract does not describe says nothing about the default:
+        // it is worded as the store's default, as a failed read is.
+        const days: unknown = (res?.data as { validityDays?: unknown } | undefined)?.validityDays;
+        const parsed = adminQuoteRequestCreateDefaultsSchema.safeParse({ validityDays: days === 0 ? null : days });
+        setDefaultDays(parsed.success ? { status: 'ready', days: parsed.data.validityDays } : { status: 'failed', days: null });
       })
       .catch(() => {
         if (alive) setDefaultDays({ status: 'failed', days: null });

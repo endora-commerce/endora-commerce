@@ -267,6 +267,17 @@ describe('RfqCreatePage — validity from the store default (T041, FR-031)', () 
     expect(creates()[0]).not.toHaveProperty('expiresInDays');
   });
 
+  it('a defaults reply the contract does not describe is worded as the store default, and sends nothing', async () => {
+    defaults = {} as { validityDays: number | null };
+    await ready();
+    await waitFor(() => expect(shareButton()).toBeEnabled());
+    expect(daysField()).toHaveAccessibleDescription(STORE_DEFAULT_HINT);
+
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(creates()).toHaveLength(1));
+    expect(creates()[0]).not.toHaveProperty('expiresInDays');
+  });
+
   it('after a failed defaults read, a typed 0 or emptied field is no deadline, said and sent', async () => {
     defaults = 'fail';
     await ready();
