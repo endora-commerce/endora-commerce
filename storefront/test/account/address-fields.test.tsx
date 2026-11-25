@@ -43,9 +43,21 @@ describe('AddressFields', () => {
   });
 });
 
+/**
+ * React's own form-replay bootstrap, which `renderToString` appends after the first
+ * `<form>` whose `action` is a function. It is React's markup, not this component's, and
+ * its minified body changes between React releases (19.2 → 19.3 rewrote it) — so a
+ * snapshot that kept it would go red on a React upgrade with nothing of ours changed, as
+ * `acceptance:storefront-scaffold` A8 measured in a scaffold that resolved React 19.3.
+ */
+function withoutReactFormReplay(html: string): string {
+  return html.replace(/<script>[^<]*\$\$reactFormReplay[^<]*<\/script>/g, '');
+}
+
 describe('AddressForm through AddressFields', () => {
   it('renders the same markup as before', () => {
     const html = renderToString(<AddressForm action={async (s) => s} locale="en-US" returnTo="/addresses" />);
-    expect(html).toMatchSnapshot();
+    expect(html).toContain('$$reactFormReplay');
+    expect(withoutReactFormReplay(html)).toMatchSnapshot();
   });
 });
