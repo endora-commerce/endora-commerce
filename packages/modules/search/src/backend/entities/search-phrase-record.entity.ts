@@ -1,11 +1,7 @@
 import {
-  Entity,
-  Index,
-  ManyToOne,
   OptionalProps,
-  PrimaryKey,
-  Property,
 } from '@mikro-orm/core';
+import { Entity, Index, ManyToOne, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import { SalesChannel } from '@endora-commerce/platform/kernel';

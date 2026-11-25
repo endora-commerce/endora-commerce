@@ -34,9 +34,10 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 
 **Third-party**
 
-- `@mikro-orm/core` ^6
-- `@mikro-orm/migrations` ^6
-- `@mikro-orm/postgresql` ^6
+- `@mikro-orm/core` ^7.2.11
+- `@mikro-orm/decorators` ^7.2.11
+- `@mikro-orm/migrations` ^7.2.11
+- `@mikro-orm/postgresql` ^7.2.11
 - `@puckeditor/core` ^0 — *optional*
 - `@types/pdfmake` ^0
 - `fastify` ^5.11.0

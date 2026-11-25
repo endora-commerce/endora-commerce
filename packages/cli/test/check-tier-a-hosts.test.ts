@@ -92,6 +92,61 @@ describe('check:transaction-context over a package', () => {
   });
 });
 
+/* ------------------------------------------------------- entity-decorators */
+
+describe('check:entity-decorators over a package (#1866)', () => {
+  it('reports an entity decorator imported from @mikro-orm/core', () => {
+    const dir = fixture({
+      files: [
+        MANIFEST,
+        {
+          path: 'src/backend/entities/widget.entity.ts',
+          content: [
+            "import { Entity, PrimaryKey } from '@mikro-orm/core';",
+            "@Entity({ tableName: 'widgets' })",
+            'export class Widget {',
+            "  @PrimaryKey({ type: 'uuid' })",
+            '  id!: string;',
+            '}',
+          ].join('\n'),
+        },
+      ],
+    });
+
+    const result = only(dir, 'check:entity-decorators');
+
+    expect(result.verdict).toBe('ran');
+    expect(result.findings.map((finding) => finding.message)).toEqual([
+      expect.stringContaining('Entity'),
+      expect.stringContaining('PrimaryKey'),
+    ]);
+    expect(result.findings[0]?.message).toContain('@mikro-orm/decorators/legacy');
+  });
+
+  it('says nothing about the same entity importing from @mikro-orm/decorators/legacy', () => {
+    const dir = fixture({
+      files: [
+        MANIFEST,
+        {
+          path: 'src/backend/entities/widget.entity.ts',
+          content: [
+            "import { Entity, PrimaryKey } from '@mikro-orm/decorators/legacy';",
+            "@Entity({ tableName: 'widgets' })",
+            'export class Widget {',
+            "  @PrimaryKey({ type: 'uuid' })",
+            '  id!: string;',
+            '}',
+          ].join('\n'),
+        },
+      ],
+    });
+
+    const result = only(dir, 'check:entity-decorators');
+    expect(result.verdict).toBe('ran');
+    expect(result.findings).toEqual([]);
+  });
+});
+
 /* ------------------------------------------------------- channel:resolution */
 
 describe('channel:resolution over a package', () => {

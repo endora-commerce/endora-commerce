@@ -57,7 +57,7 @@ export function registerModule(ctx) {
 `;
 
 const ENTITY_SOURCE = `
-import { Entity } from '@mikro-orm/core';
+import { Entity } from '@mikro-orm/decorators/legacy';
 @Entity({ tableName: 'payment_methods' })
 export class PaymentMethod {}
 `;
@@ -417,7 +417,7 @@ const FILINGS: ModulePackageSurface = {
 
 const CHAIN_FILES: Record<string, string> = {
   'packages/modules/billing/src/backend/entities/document.entity.ts':
-    "import { Entity } from '@mikro-orm/core';\n" +
+    "import { Entity } from '@mikro-orm/decorators/legacy';\n" +
     "@Entity({ tableName: 'documents' })\nexport class Document {}\n",
   // The service between the consumer and the entity: it names the class, the
   // consumer names the service, and nothing in the consumer mentions `Document`.
@@ -432,7 +432,7 @@ const CHAIN_FILES: Record<string, string> = {
   // module boundary (D-169), so a fixture with one package would prove a
   // narrower rule than the one that exists.
   'packages/modules/filings/src/backend/entities/filing.entity.ts':
-    "import { Entity } from '@mikro-orm/core';\n" +
+    "import { Entity } from '@mikro-orm/decorators/legacy';\n" +
     "import { TransitivelyScoped } from '@endora-commerce/platform/tenancy';\n" +
     "@Entity({ tableName: 'filings' })\n@TransitivelyScoped('Document', 'documentId')\n" +
     'export class Filing {}\n',

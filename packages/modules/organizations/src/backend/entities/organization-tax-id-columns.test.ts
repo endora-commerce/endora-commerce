@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MetadataStorage, type EntityProperty } from '@mikro-orm/core';
+import { MetadataStorage, type EntityMetadata, type EntityProperty } from '@mikro-orm/core';
 import { Organization } from './organization.entity.js';
 import { OrganizationTaxIdPolicy } from './organization-tax-id-policy.entity.js';
 
@@ -12,7 +12,12 @@ import { OrganizationTaxIdPolicy } from './organization-tax-id-policy.entity.js'
  * would be wrong in `per-tree-root`. `root_id` is a stored generated column the
  * entity must not map — every `em.create` would otherwise try to write it.
  */
-const meta = MetadataStorage.getMetadataFromDecorator(Organization);
+/** The metadata a legacy decorator keeps on the class (MikroORM 7, #1866), read without side effects. */
+function decoratedMetadataOf(cls: object): EntityMetadata {
+  return (cls as Record<symbol, EntityMetadata>)[MetadataStorage.META_SYMBOL]!;
+}
+
+const meta = decoratedMetadataOf(Organization);
 const properties = meta.properties as unknown as Record<string, EntityProperty | undefined>;
 
 describe('Organization — the tax-ID columns [unit]', () => {
@@ -21,7 +26,7 @@ describe('Organization — the tax-ID columns [unit]', () => {
     expect(taxId.nullable).toBe(true);
     expect(taxId.length).toBe(32);
     expect(taxId.unique).toBeFalsy();
-    const uniques = (meta.uniques ?? []).flatMap((u) => [u.properties ?? []].flat());
+    const uniques = (meta.uniques ?? []).flatMap((u: { properties?: unknown }) => [u.properties ?? []].flat());
     expect(uniques).not.toContain('taxId');
   });
 
@@ -45,7 +50,7 @@ describe('Organization — the tax-ID columns [unit]', () => {
 });
 
 describe('OrganizationTaxIdPolicy [unit]', () => {
-  const policy = MetadataStorage.getMetadataFromDecorator(OrganizationTaxIdPolicy);
+  const policy = decoratedMetadataOf(OrganizationTaxIdPolicy);
   const policyProperties = policy.properties as unknown as Record<string, EntityProperty | undefined>;
 
   it('maps the single-row policy table', () => {

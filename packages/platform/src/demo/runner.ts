@@ -100,7 +100,7 @@ export interface DemoComposition {
    *
    * A `demo reset` is one transaction, and that `EntityManager` is what
    * carries it. A statement sent any other way — `em.getConnection()`,
-   * `em.getKnex()`, a fork — runs on a second connection, outside the reset,
+   * `em.getKysely()`, a fork — runs on a second connection, outside the reset,
    * and waits on rows the reset has locked. So the entry point asks before it
    * starts, and refuses a reset over a composition that does not say `true`:
    * one written for a release in which a reset was a sequence of commits.

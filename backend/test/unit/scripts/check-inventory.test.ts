@@ -30,6 +30,7 @@ import {
   type ActionRecord,
 } from '../../../scripts/check-action-route-permissions.js';
 import { analyzeSource as containerAnalyze } from '../../../scripts/check-container-imports.js';
+import { analyzeSource as entityDecoratorsAnalyze } from '../../../scripts/check-entity-decorators.js';
 import {
   checkEnvironmentInputs,
   collectEnvironmentReads,
@@ -244,6 +245,7 @@ import {
 } from '../../helpers/block-renderers-fixture.js';
 import * as hostBundlePairing from '../../../scripts/check-bundle-pairing.js';
 import * as hostContainerImports from '../../../scripts/check-container-imports.js';
+import * as hostEntityDecorators from '../../../scripts/check-entity-decorators.js';
 import * as hostSubscribeSeam from '../../../scripts/check-subscribe-seam.js';
 import * as hostQueueNames from '../../../scripts/check-queue-names.js';
 import * as hostCommandCoverage from '../../../scripts/check-command-coverage.js';
@@ -251,6 +253,7 @@ import * as ruleNulBytes from '@endora-commerce/cli/rules/nul-bytes.js';
 import * as ruleBlockRenderers from '@endora-commerce/cli/rules/block-renderers.js';
 import * as ruleBundlePairing from '@endora-commerce/cli/rules/bundle-pairing.js';
 import * as ruleContainerImports from '@endora-commerce/cli/rules/container-imports.js';
+import * as ruleEntityDecorators from '@endora-commerce/cli/rules/entity-decorators.js';
 import * as ruleSubscribeSeam from '@endora-commerce/cli/rules/subscribe-seam.js';
 import * as ruleQueueNames from '@endora-commerce/cli/rules/queue-names.js';
 import * as hostExtensibleTables from '../../../scripts/check-extensible-tables.js';
@@ -5546,6 +5549,52 @@ const CHECKS: readonly CheckEntry[] = [
       // is matched, not the exact string.
       require: top(
         () => containerAnalyze("const a = require('awilix/lib/awilix.js');\n", MODULE_FILE).length,
+      ),
+    },
+  },
+  {
+    // Issue #1866 — MikroORM 7's decorators come only from
+    // `@mikro-orm/decorators/legacy`. One proof per shape the rule refuses:
+    // the MikroORM 6 spelling, the ES form, a driver package's re-export under
+    // an alias, a re-export, and a namespace application.
+    script: 'backend/scripts/check-entity-decorators.ts',
+    npmScript: 'check:entity-decorators',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-entity-decorators.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    residueGuard: 'derived-population',
+    red: {
+      'decorator-from-core': top(
+        () =>
+          entityDecoratorsAnalyze("import { Entity } from '@mikro-orm/core';\n", MODULE_FILE).filter(
+            (f) => f.kind === 'decorator-from-elsewhere',
+          ).length,
+      ),
+      'decorator-from-es': top(
+        () =>
+          entityDecoratorsAnalyze("import { Property } from '@mikro-orm/decorators/es';\n", MODULE_FILE).filter(
+            (f) => f.kind === 'decorator-from-elsewhere',
+          ).length,
+      ),
+      'aliased-from-driver': top(
+        () =>
+          entityDecoratorsAnalyze("import { ManyToOne as Ref } from '@mikro-orm/postgresql';\n", MODULE_FILE).filter(
+            (f) => f.kind === 'decorator-from-elsewhere',
+          ).length,
+      ),
+      're-export': top(
+        () =>
+          entityDecoratorsAnalyze("export { Index } from '@mikro-orm/core';\n", MODULE_FILE).filter(
+            (f) => f.kind === 'decorator-from-elsewhere',
+          ).length,
+      ),
+      'namespace-decorator': top(
+        () =>
+          entityDecoratorsAnalyze(
+            "import * as orm from '@mikro-orm/decorators/es';\n@orm.Entity()\nexport class P {}\n",
+            MODULE_FILE,
+          ).filter((f) => f.kind === 'namespace-decorator').length,
       ),
     },
   },
@@ -12229,6 +12278,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // half's new subtraction.
       'backend/scripts/check-command-coverage.ts': 10,
       'backend/scripts/check-container-imports.ts': 5,
+      'backend/scripts/check-entity-decorators.ts': 5,
       // Two decomposing forms, four spellings of the strip, the strip standing
       // alone, five exclusions proven as discriminations, the ledger's stale
       // direction, and the guard that is the exemption itself. The population
@@ -13296,6 +13346,7 @@ describe('a relocated analysis has one implementation and two hosts', () => {
       ['check:bundle-pairing', hostBundlePairing as unknown as Record<string, unknown>, ruleBundlePairing as unknown as Record<string, unknown>],
       ['check:block-renderers', hostBlockRenderers as unknown as Record<string, unknown>, ruleBlockRenderers as unknown as Record<string, unknown>],
       ['check:container-imports', hostContainerImports as unknown as Record<string, unknown>, ruleContainerImports as unknown as Record<string, unknown>],
+      ['check:entity-decorators', hostEntityDecorators as unknown as Record<string, unknown>, ruleEntityDecorators as unknown as Record<string, unknown>],
       ['check:queue-names', hostQueueNames as unknown as Record<string, unknown>, ruleQueueNames as unknown as Record<string, unknown>],
       ['check:extensible-tables', hostExtensibleTables as unknown as Record<string, unknown>, ruleExtensibleTables as unknown as Record<string, unknown>],
       ['check:subscribe-seam', hostSubscribeSeam as unknown as Record<string, unknown>, ruleSubscribeSeam as unknown as Record<string, unknown>],

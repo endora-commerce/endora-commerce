@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { Migration } from '@mikro-orm/migrations';
 import { MikroORM, type Options } from '@mikro-orm/postgresql';
 import { Client } from 'pg';
@@ -236,5 +236,5 @@ export function fixtureMigrations(declarations: readonly ColumnExtension[], opti
  * It is spelled here, once, rather than in each test file for that reason.
  */
 export async function revertMigration(orm: MikroORM, name: string): Promise<void> {
-  await orm.getMigrator().down({ migrations: [name] });
+  await orm.migrator.down({ migrations: [name] });
 }

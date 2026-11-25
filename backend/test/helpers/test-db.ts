@@ -150,7 +150,7 @@ function transactionHandle(orm: MikroORM): Omit<TestDb, 'systemDefaultChannelId'
  * A database of this file's own, for a test that drives the real migrator.
  *
  * Every other fixture in this file mutates rows inside a transaction that is
- * rolled back. `orm.getMigrator().up()` / `.down()` mutates the **schema**,
+ * rolled back. `orm.migrator.up()` / `.down()` mutates the **schema**,
  * outside any such fixture — and since per-invocation isolation (issue #189)
  * the run database is the invocation's only copy, so a migration sequence that
  * dies half-way is not one red file: measured, it was 21 red files in
@@ -195,7 +195,7 @@ export async function setupMigratorTestDb(): Promise<TestDb> {
         // mode that needs it pays. A failure re-migrating is the run's problem
         // and is raised, but the ORM is closed either way.
         try {
-          await shared.orm.getMigrator().up();
+          await shared.orm.migrator.up();
         } finally {
           await closeShared();
         }

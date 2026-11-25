@@ -5,6 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { settlePriceSurface } from '../../helpers/price-surface.js';
+import { statementsDuring } from '../../helpers/statement-tap.js';
 import { setupPricingFixture, type PricingFixture } from '../../helpers/pricing-fixture.js';
 
 /**
@@ -56,21 +57,18 @@ describe('price surface — its statements probe by index on unanalysed tables',
   };
   const SURFACE = new Set(['price_profile_prices', 'price_profile_stale_products']);
 
-  /** Every statement `run` issues that matches `pattern`, with its parameters. */
+  /**
+   * Every statement `run` issues that matches `pattern`, with its parameters.
+   *
+   * Read off the ORM logger through `tapStatements` (#1864): MikroORM 7 hands
+   * `Connection.execute` a query object as often as a string, so a wrapper that
+   * read `String(args[0])` threw on the first insert of a flush.
+   */
   async function captured(pattern: RegExp, run: () => Promise<unknown>): Promise<Array<{ sql: string; params: unknown[] }>> {
-    const conn = h.em().getConnection() as unknown as { execute: (...args: unknown[]) => Promise<unknown> };
-    const original = conn.execute.bind(conn);
-    const seen: Array<{ sql: string; params: unknown[] }> = [];
-    conn.execute = (...args: unknown[]) => {
-      if (pattern.test(String(args[0]))) seen.push({ sql: String(args[0]), params: (args[1] as unknown[]) ?? [] });
-      return original(...args);
-    };
-    try {
-      await run();
-    } finally {
-      conn.execute = original;
-    }
-    return seen;
+    const { statements } = await statementsDuring(h.em(), run);
+    return statements
+      .filter((statement) => pattern.test(statement.sql))
+      .map((statement) => ({ sql: statement.sql, params: [...statement.params] }));
   }
 
   async function expectProbes(statement: { sql: string; params: unknown[] }, label: string, probedRows: number): Promise<void> {

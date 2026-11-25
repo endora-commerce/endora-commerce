@@ -1143,6 +1143,30 @@ describe('the tree (§1, §2)', () => {
     }
   });
 
+  /**
+   * Issue #1866 — `@mikro-orm/decorators/legacy` imports `reflect-metadata` at
+   * module load, through its `ReflectMetadataProvider` re-export, while its own
+   * manifest marks that peer optional. An instance that declares the decorators
+   * and not `reflect-metadata` fails the first import of the platform's kernel
+   * (`Cannot find package 'reflect-metadata'`), so the instance root declares it,
+   * at the range the platform's peer names.
+   */
+  it('#1866 — the instance root declares reflect-metadata at the platform\'s range', () => {
+    const written = new Map(
+      devDependenciesFor(
+        planInput({
+          declaredRanges: new Map([
+            ['@mikro-orm/core', '^7.2.11'],
+            ['@mikro-orm/decorators', '^7.2.11'],
+            ['reflect-metadata', '^0.2.2'],
+          ]),
+        }),
+      ),
+    );
+    expect(written.get('@mikro-orm/decorators')).toBe('^7.2.11');
+    expect(written.get('reflect-metadata')).toBe('^0.2.2');
+  });
+
   it('R2.5a — the four peer ranges are the platform\'s own, not this command\'s', () => {
     const plan = planInstance(
       planInput({ declaredRanges: new Map([['zod', '^99-from-the-platform']]) }),

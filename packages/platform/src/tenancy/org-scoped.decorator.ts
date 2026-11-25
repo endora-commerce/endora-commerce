@@ -1,4 +1,4 @@
-import { Filter } from '@mikro-orm/core';
+import { Filter } from '@mikro-orm/decorators/legacy';
 import {
   ORG_FILTER,
   CUSTOMER_FILTER,

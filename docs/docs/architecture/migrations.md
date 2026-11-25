@@ -444,7 +444,7 @@ owner that rebuilds it (`drop table`, `rename to`, a `create table … as select
 ### The foreign-schema guard
 
 Every migration an installed package ships runs inside a platform guard. It reads each statement
-the migration hands to `addSql` or `execute` — a knex builder by the SQL it renders, a
+the migration hands to `addSql` or `execute` — a `raw()` fragment or a query builder by the SQL it renders, a
 `do $$ … $$` block and a function body by their text, the string a PL/pgSQL `execute` runs as
 SQL — and **refuses** DDL or DML on a table the package's module does not own. The refusal is
 `foreign-schema-write`, naming the package, the migration, the table and the statement, and the

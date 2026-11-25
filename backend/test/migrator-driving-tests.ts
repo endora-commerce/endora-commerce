@@ -6,7 +6,7 @@
  *
  * Every other integration test mutates *rows*, inside a transaction the fixture
  * rolls back, or inside a truncate the next file repeats. A test that calls
- * `orm.getMigrator().up()` or `.down()` mutates the **schema**, outside any
+ * `orm.migrator.up()` or `.down()` mutates the **schema**, outside any
  * such fixture, and leaves it changed for whatever runs next.
  *
  * That was survivable while every invocation shared one already-migrated

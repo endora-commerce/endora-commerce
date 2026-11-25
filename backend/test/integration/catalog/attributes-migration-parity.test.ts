@@ -193,7 +193,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
       await executedMigrations(),
       `${TARGET_MIGRATION} (stamp ${TARGET_STAMP}) must be applied before this file reverts it`,
     ).toContain(TARGET_MIGRATION);
-    await db.orm.getMigrator().down({ migrations: [TARGET_MIGRATION] });
+    await db.orm.migrator.down({ migrations: [TARGET_MIGRATION] });
   }
 
   async function seedLegacyFixtures(): Promise<void> {
@@ -272,7 +272,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
   it('re-applies migration 102 over legacy fixtures with full parity (SC-001)', async () => {
     await revert102();
     await seedLegacyFixtures();
-    await db.orm.getMigrator().up();
+    await db.orm.migrator.up();
 
     // --- Definitions: one per legacy attribute, content preserved.
     const defs = await conn().execute<
@@ -484,7 +484,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
       [randomUUID()],
     );
 
-    await expect(db.orm.getMigrator().up()).rejects.toThrow(/reserved|collid/i);
+    await expect(db.orm.migrator.up()).rejects.toThrow(/reserved|collid/i);
 
     // Atomic: still legacy shape, nothing partially migrated.
     const cols = await conn().execute<Array<{ column_name: string }>>(
@@ -501,7 +501,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
     // 102 is the only pending migration, `revert102` having reverted it alone,
     // so this `up()` runs exactly it.
     await conn().execute(`delete from "product_attributes" where "key" = 'name'`);
-    await db.orm.getMigrator().up();
+    await db.orm.migrator.up();
     const executed = await conn().execute<Array<{ name: string }>>(
       `select "name" from "mikro_orm_migrations"`,
     );
