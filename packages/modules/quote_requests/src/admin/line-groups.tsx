@@ -3,6 +3,7 @@ import type { LineGroupsEditorLabels, SplitLineDialogLabels } from '@endora-comm
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { compareDecimals, moneyDifference, moneySum, taxAmountHalfUp } from '@endora-commerce/contracts';
 import { useRfqNumberFormat } from './number-format.js';
+import { translatePlural } from './plural.js';
 
 /**
  * Feature 159 — what the quote request screens share about line groups: the
@@ -96,12 +97,8 @@ export function useSectionSummaryText(): (totals: SectionTotals, currency: strin
   const { language } = useTranslationContext();
   const format = useRfqNumberFormat();
   return useMemo(() => {
-    const plural = new Intl.PluralRules(language);
     return (totals, currency) => {
-      const form = plural.select(totals.count);
-      const itemsKey = `lineGroups.summary.items.${form}`;
-      const items = t(itemsKey, { count: totals.count });
-      const parts = [items.startsWith('quote_requests.') ? t('lineGroups.summary.items.other', { count: totals.count }) : items];
+      const parts = [translatePlural(t, language, 'lineGroups.summary.items', totals.count)];
       const money = (n: number): string => (currency === null ? format.amount(n) : format.money(n, currency));
       if (totals.net !== null) parts.push(t('lineGroups.summary.net', { amount: money(totals.net) }));
       if (totals.vat !== null) parts.push(t('lineGroups.summary.vat', { amount: money(totals.vat) }));

@@ -14,6 +14,8 @@ import { Alert, AlertDescription, Badge, Button, type BadgeProps } from '@endora
 import { resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { adminNumberLocale, rfqNumberFormat } from '../number-format.js';
+import { translatePlural } from '../plural.js';
+import { validityDeadlineDays } from '../validity.js';
 
 /**
  * Feature 146, T059 — the History tab of the admin quote request detail
@@ -67,6 +69,8 @@ interface Formatters {
   /** A unit price: its significant places, up to four (owner ruling of 2026-10-25). */
   unitAmount: (n: number | null) => string;
   dateTime: (iso: string) => string;
+  /** `specs/192` — a validity in days as a whole phrase: "1 day", "14 days", "no deadline" (0 or none). */
+  validityDays: (days: number | null) => string;
   /** The name a carry-skip line gives its field: stored label (reader's language, then default), else the key. */
   fieldName: (skip: CarrySkip) => string;
 }
@@ -91,6 +95,10 @@ function useFormatters(): Formatters {
       dateTime: (iso) => {
         const d = new Date(iso);
         return Number.isNaN(d.getTime()) ? iso : dates.format(d);
+      },
+      validityDays: (days) => {
+        const runs = validityDeadlineDays(days);
+        return runs === null ? h('validityDays.none') : translatePlural(h, language, 'validityDays', runs, { days: runs });
       },
       fieldName: (skip) => {
         const name = skip.label ? resolveCustomFieldLabel(skip.label.labels, skip.label.labelDefault, language) : '';
@@ -189,10 +197,7 @@ function changeSentence(f: Formatters, change: QuoteRequestHistoryChange): strin
     // `specs/192-quote-request-draft-share/` — the days an unshared quote will
     // carry once shared; `null` = no deadline.
     case 'validity_days':
-      return t('change.validity_days', {
-        before: change.before === null ? t('none') : change.before,
-        after: change.after === null ? t('none') : change.after,
-      });
+      return t('change.validity_days', { before: f.validityDays(change.before), after: f.validityDays(change.after) });
     // Feature 159 — the grouping. Group names are operator content, shown as
     // recorded; `null` is the ungrouped section.
     case 'group_added':

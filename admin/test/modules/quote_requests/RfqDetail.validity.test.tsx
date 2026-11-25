@@ -89,12 +89,14 @@ const INTERPOLATED: Record<string, string> = {
 /** `specs/192-quote-request-draft-share/` — the module's own sentences about the days. */
 const OWN: Record<string, string> = {
   'validity.unshared.field': 'valid for (days from sharing)',
-  'validity.unshared.days': 'valid for {days} days from sharing',
+  'validity.unshared.days.one': 'valid for {days} day from sharing',
+  'validity.unshared.days.other': 'valid for {days} days from sharing',
   'validity.unshared.none': 'no deadline after sharing',
   'validity.previewNone': '0 days: saving removes the deadline',
   'share.badge.unshared': 'draft-badge',
   'share.meta.unshared': 'not shared yet',
-  'share.meta.validityDays': 'valid {days} days from sharing',
+  'share.meta.validityDays.one': 'valid {days} day from sharing',
+  'share.meta.validityDays.other': 'valid {days} days from sharing',
 };
 
 const FULL_BUNDLE = { core: { ...BUNDLE['core'], ...INTERPOLATED }, quote_requests: OWN };

@@ -175,7 +175,7 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     expect(button.className.split(/\s+/)).toContain('bg-primary');
     const meta = document.querySelector('header p')?.textContent ?? '';
     expect(meta).toContain(quote('share.meta.unshared'));
-    expect(meta).toContain(quote('share.meta.validityDays', { days: 30 }));
+    expect(meta).toContain(quote('share.meta.validityDays.other', { days: 30 }));
     // Not awaiting a customer who cannot see it yet.
     expect(screen.queryByText(core('rfq.detail.badge.awaitingRevision'))).not.toBeInTheDocument();
   });
@@ -203,6 +203,17 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     expect(dialog).toHaveTextContent('valid for 30 days');
     expect(dialog).toHaveTextContent('cannot return to draft');
     expect(postSpy).not.toHaveBeenCalledWith(SHARE_URL, expect.anything(), expect.anything());
+  });
+
+  it('says one day in the singular, in the meta line and the question', async () => {
+    const user = userEvent.setup();
+    serve(rfqPayload({ shareValidityDays: 1 }));
+    renderDetail();
+
+    await user.click(await shareButton());
+    expect(document.querySelector('header p')?.textContent ?? '').toContain('valid 1 day from sharing');
+    const dialog = await answerConfirm(false);
+    expect(dialog).toHaveTextContent('valid for 1 day, until');
   });
 
   it('says no deadline in the question when the quote carries no days', async () => {

@@ -82,6 +82,7 @@ import { quoteTotals } from '../quote-totals.js';
 import { rfqStatusLabels } from '../lib/labels.js';
 import { QuoteRequestPdfDialog, type QuoteRequestPdfMode } from '../components/QuoteRequestPdfDialog.js';
 import { shareConfirmMessage, shareCustomerName } from '../share-confirm.js';
+import { translatePlural } from '../plural.js';
 
 /**
  * Admin Quote Request detail (feature 008 / T043). Restructured to mirror the
@@ -727,7 +728,9 @@ export function RfqDetail(): ReactNode {
                 and, until they do, the days its validity will count from sharing. */}
             {unshared
               ? ` · ${tPdf('share.meta.unshared')}${
-                  rfq.shareValidityDays ? ` · ${tPdf('share.meta.validityDays', { days: rfq.shareValidityDays })}` : ''
+                  rfq.shareValidityDays
+                    ? ` · ${translatePlural(tPdf, language, 'share.meta.validityDays', rfq.shareValidityDays, { days: rfq.shareValidityDays })}`
+                    : ''
                 }`
               : rfq.sharedAt
                 ? ` · ${tPdf('share.meta.shared', { date: formatDateTime(rfq.sharedAt, language) })}`
@@ -1692,7 +1695,7 @@ function ModifyCard({
     if (daysInvalid) return t('rfq.detail.validity.error.days');
     if (unshared) {
       return typedInput.kind === 'days' && typedInput.days > 0
-        ? tGroups('validity.unshared.days', { days: typedInput.days })
+        ? translatePlural(tGroups, language, 'validity.unshared.days', typedInput.days, { days: typedInput.days })
         : tGroups('validity.unshared.none');
     }
     if (previewDeadline !== null) {

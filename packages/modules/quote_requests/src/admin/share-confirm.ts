@@ -1,4 +1,5 @@
 import { formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { translatePlural } from './plural.js';
 import { MS_PER_DAY, validityDeadlineDays } from './validity.js';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
@@ -29,7 +30,7 @@ export function shareConfirmMessage(
   const days = validityDeadlineDays(input.days);
   const validity =
     days !== null
-      ? t('share.confirm.validityDays', {
+      ? translatePlural(t, input.language, 'share.confirm.validityDays', days, {
           days,
           date: formatDateTime(new Date(input.now.getTime() + days * MS_PER_DAY).toISOString(), input.language),
         })
