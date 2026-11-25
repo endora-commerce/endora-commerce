@@ -94,12 +94,17 @@ Admin UI shows. Owner decisions:
 
 - What does the Admin UI call a quote that is not shared yet? → **Not shared** (Polish
   **Nieudostępniona**), not "Draft" / "Szkic": the badge on the quote's screen and in the list, the
-  list filter and the history label (FR-009). "Draft" / "szkic" stays only for unsaved edits on the
-  *Modify* tab, so each word has one meaning on a screen.
+  list filter and the line under the quote's title (FR-009). No history label says "Draft" /
+  "Szkic" or "Not shared": the generic creation entry reads "Request created" (Polish "Zapytanie
+  utworzone") for every quote, customer-created ones included, and an operator-created quote adds
+  "Request created by sales on the customer's behalf". "Draft" / "szkic" stays only for unsaved
+  edits on the *Modify* tab, so each word has one meaning on a screen.
 - What is the create screen's secondary button (save without sharing)? → **Save without sharing**
   (Polish **Zapisz bez udostępniania**) (FR-020).
-- What does the quote's screen say while the quote is not shared? → The line "Only your team can
-  see this quote. The customer is not notified until you share it." (FR-009).
+- What does the quote's screen say while the quote is not shared? → The line under the title
+  "Only your team sees this quote. The customer is not notified until shared." (Polish "Ofertę
+  widzi tylko Twój zespół. Klient dostanie powiadomienie po udostępnieniu."), singular and at most
+  80 characters (FR-009).
 - The create screen's primary button? → Stays **Create and share**; the confirm dialog guards it
   (FR-020).
 
@@ -117,8 +122,8 @@ every customer surface.
 
 1. **Given** an operator creates a quote for a customer, **When** it is saved, **Then** it is a
    draft, the Admin UI shows it as **Not shared** (Polish **Nieudostępniona**) on its screen and in
-   the list, the quote's screen says "Only your team can see this quote. The customer is not
-   notified until you share it.", and the customer receives no e-mail, notification-centre entry or
+   the list, the quote's screen says "Only your team sees this quote. The customer is not notified
+   until shared.", and the customer receives no e-mail, notification-centre entry or
    push.
 2. **Given** a draft, **When** the customer signs in, **Then** their list does not contain it and
    its direct address answers as for a quote that does not exist.
@@ -263,9 +268,14 @@ validity, wait, share it, and read its date; override the days on another quote.
 - **FR-009**: The Admin UI MUST show whether a quote is a draft or shared, on its screen and in
   the list, and the list MUST be filterable by it. The Admin UI names a draft **Not shared**
   (Polish **Nieudostępniona**) in the badge on the quote's screen and in the list, in the list
-  filter and in the history label; it MUST NOT call it "Draft" / "Szkic", which stays only for
-  unsaved edits on the *Modify* tab. While the quote is a draft, its screen MUST show the line
-  "Only your team can see this quote. The customer is not notified until you share it."
+  filter and in the line under the quote's title; it MUST NOT call it "Draft" / "Szkic", which
+  stays only for unsaved edits on the *Modify* tab. No history label uses "Draft" / "Szkic" or
+  "Not shared": the creation entry reads "Request created" (Polish "Zapytanie utworzone") for
+  every quote, and an operator-created quote's paired entry reads "Request created by sales on the
+  customer's behalf". While the quote is a draft, its screen MUST show, under the title, the line
+  "Only your team sees this quote. The customer is not notified until shared." (Polish "Ofertę
+  widzi tylko Twój zespół. Klient dostanie powiadomienie po udostępnieniu."), each at most 80
+  characters.
 - **FR-010**: Quote requests a customer submits MUST stay visible to the customer at once.
 - **FR-011**: The same product and variant MAY appear on several lines of a quote, each with its
   own quantity and price; saving a draft, sharing it, the customer's acceptance and a later
