@@ -558,8 +558,11 @@ export function backendScripts(input: PlanInput): Record<string, string> {
     // `tsc` and `node --watch` rather than `tsx`: no manifest this run can
     // read declares a range for `tsx`, and a range this command chose would
     // be a value nobody reviewed (R2.5a).
-    dev: `tsc -p tsconfig.json --watch & ${node} --watch dist/index.js`,
-    build: 'tsc -p tsconfig.json',
+    // The overlay code under `apps/` is compiled too (#1848): `endora build overlays`
+    // runs this instance's own `tsc -p tsconfig.apps.json` into `dist/apps` and mirrors
+    // the modules' `i18n/`, and the compiled entry points refuse a stale build.
+    dev: `tsc -p tsconfig.json --watch & endora build overlays --watch & ${node} --watch dist/index.js`,
+    build: 'tsc -p tsconfig.json && endora build overlays',
     // Two programs (issue #1847): the backend's own `src`, and the overlay code
     // under `apps/` that Node loads by type stripping and nothing else compiles.
     // `tsconfig.apps.json` sets `erasableSyntaxOnly`, so an `enum`, a `namespace`
@@ -1237,7 +1240,8 @@ export function planInstance(input: PlanInput): InstancePlan {
   // outside the backend's `rootDir`, so without it nothing in this tree
   // type-checks an overlay module. Bare specifiers resolve through the root's
   // `node_modules` to the installed packages' `dist` declarations — the types
-  // the runtime loads. `noEmit` until the overlay build (#1848) emits it.
+  // the runtime loads. `noEmit` stays in the file: `typecheck` reads it as written,
+  // and `endora build overlays` (#1848) passes `--noEmit false` when it emits.
   files.push({
     path: 'backend/tsconfig.apps.json',
     kind: 'client',
@@ -1463,13 +1467,14 @@ if (sessionCookieSecret === '') {
   process.exit(1);
 }
 
-// The directory that holds \`apps/\` — this workspace's root, one level up from
-// the backend member. It is the one thing the platform cannot derive for
-// itself, and it is deliberately a required argument rather than a default that
-// would silently name a directory holding no \`apps/\` at all.
-const deploymentRoot = fileURLToPath(new URL('../..', import.meta.url));
+// Where \`apps/\` is: compiled, beside this file (\`backend/dist\`, which
+// \`endora build overlays\` fills), and as written, at this workspace's root. The
+// platform cannot derive either; the second is what it judges the first against,
+// so a stale build is refused before any of it runs.
+const deploymentRoot = fileURLToPath(new URL('.', import.meta.url));
+const deploymentSourceRoot = fileURLToPath(new URL('../..', import.meta.url));
 
-const composition = await composeApp({ deploymentRoot }).catch(exitOnRefusal);
+const composition = await composeApp({ deploymentRoot, deploymentSourceRoot }).catch(exitOnRefusal);
 const app = await buildServer({
   sessionCookieSecret,
   openApi: { title: '${input.name}', version: '0.0.0', serverUrl: \`http://localhost:\${port}\` },
@@ -1507,9 +1512,10 @@ if (sessionCookieSecret === '') {
   process.exit(1);
 }
 
-const deploymentRoot = fileURLToPath(new URL('../..', import.meta.url));
+const deploymentRoot = fileURLToPath(new URL('.', import.meta.url));
+const deploymentSourceRoot = fileURLToPath(new URL('../..', import.meta.url));
 
-const composition = await composeApp({ deploymentRoot }).catch(exitOnRefusal);
+const composition = await composeApp({ deploymentRoot, deploymentSourceRoot }).catch(exitOnRefusal);
 const app = await buildServer({
   sessionCookieSecret,
   openApi: { title: '${input.name} worker', version: '0.0.0', serverUrl: 'http://localhost' },
@@ -1603,7 +1609,10 @@ try {
 import { fileURLToPath } from 'node:url';
 import { runCli } from '${scope}platform/cli';
 
-await runCli({ deploymentRoot: fileURLToPath(new URL('../..', import.meta.url)) });
+await runCli({
+  deploymentRoot: fileURLToPath(new URL('.', import.meta.url)),
+  deploymentSourceRoot: fileURLToPath(new URL('../..', import.meta.url)),
+});
 `,
   });
 
@@ -1628,15 +1637,16 @@ import { runInstanceOperatorCommand } from '${scope}platform/lifecycle';
 import type { OperatorRuntime } from '${scope}platform/lifecycle';
 import config from '../mikro-orm.config.js';
 
-// The directory that holds \`apps/\` — the same value \`index.ts\` hands
-// \`composeApp\`, two levels up from the compiled command rather than one.
-const deploymentRoot = fileURLToPath(new URL('../../..', import.meta.url));
+// Where \`apps/\` is, compiled and as written — the values \`index.ts\` hands
+// \`composeApp\`, one level further up from the compiled command.
+const deploymentRoot = fileURLToPath(new URL('..', import.meta.url));
+const deploymentSourceRoot = fileURLToPath(new URL('../../..', import.meta.url));
 
 /** Build the runtime, run one command inside a system scope, close, exit. */
 export function runOperatorCommand(
   run: (argv: readonly string[], rt: OperatorRuntime) => Promise<number>,
 ): Promise<never> {
-  return runInstanceOperatorCommand({ deploymentRoot, ormConfig: config, run });
+  return runInstanceOperatorCommand({ deploymentRoot, deploymentSourceRoot, ormConfig: config, run });
 }
 `,
   });
