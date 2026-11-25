@@ -26,7 +26,7 @@ describe('the unshared quote is named Not shared / Nieudostepniona, never Draft 
 
   it('keeps the header line and the create warning short and in the singular register', () => {
     for (const locale of [own(en), own(pl)]) {
-      expect(locale['share.unshared.notice'].length).toBeLessThanOrEqual(80);
+      expect((locale['share.unshared.notice'] ?? '').length).toBeLessThanOrEqual(80);
     }
     expect(own(en)['create.warnings.notShared']).toBe('Nothing was shared: only your team can see the quote.');
     expect(own(pl)['create.warnings.notShared']).toBe('Nic nie udostępniono: ofertę widzi tylko Twój zespół.');
