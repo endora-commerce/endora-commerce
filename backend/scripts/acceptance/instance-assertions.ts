@@ -721,6 +721,27 @@ export interface AdminBundleObservation {
 }
 
 /**
+ * The module ids a built admin bundle's contribution registry names — A5's
+ * evidence, and A7's bundle half.
+ *
+ * The generated registry is `{ moduleId: '<id>', contributions: … }`, and the
+ * property survives minification because esbuild and Vite do not mangle a
+ * plain object key. The **quote** does not: Vite 8 prints string literals as
+ * template literals (`{moduleId:`admin_roles`,…}`), so every quoting a
+ * minifier prints is read, with the closing mark matching the opening one.
+ * Only an entry whose next key is `contributions` counts: other code carries a
+ * `moduleId` key too (audit_logs' filter writes `{ action, moduleId: 'core' }`),
+ * and that is not a module the bundle composes.
+ */
+export function registryModuleIds(text: string): readonly string[] {
+  const named = new Set<string>();
+  for (const match of text.matchAll(/\bmoduleId\s*:\s*(["'`])([a-z0-9_]+)\1\s*,\s*contributions\s*:/g)) {
+    named.add(match[2]!);
+  }
+  return [...named].sort();
+}
+
+/**
  * A5 — the admin bundle holds the admin layers of **exactly** the installed
  * modules.
  *

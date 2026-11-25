@@ -38,6 +38,7 @@ import {
   evaluateA15,
   ADMIN_LOGIN_PATH,
   evaluateA5,
+  registryModuleIds,
   evaluateA6,
   evaluateA7,
   evaluateA8,
@@ -423,6 +424,45 @@ describe('A5 — the built admin bundle holds exactly the installed modules', ()
     const noLayers = evaluateA5(bundle({ expected: [], named: [] }));
     expect(noLayers.state).toBe('unmeasured');
     expect(noLayers.detail).toContain('publishes an admin layer');
+  });
+});
+
+/**
+ * A5's reading of the bundle. The registry is `{ moduleId: '<id>', … }` in the
+ * generated source; what reaches `dist` is whatever the minifier prints, and
+ * Vite 8 prints string literals as template literals — measured on a created
+ * instance: `{moduleId:`admin_roles`,contributions:Bf}`. A reading bound to
+ * `"` and `'` found 0 of 20 there, and A7's bundle half read the same empty set.
+ */
+describe('registryModuleIds — the module ids the built admin registry names', () => {
+  it('reads them in every quoting a minifier prints', () => {
+    const text =
+      'im=[{moduleId:`admin_roles`,contributions:Bf},{moduleId:"catalog",contributions:Kf},' +
+      "{ moduleId: 'orders', contributions: x }]";
+    expect(registryModuleIds(text)).toEqual(['admin_roles', 'catalog', 'orders']);
+  });
+
+  it('names nothing that is not a registry entry, and no id twice', () => {
+    expect(
+      registryModuleIds(
+        'const moduleIdLabel = `catalog`; moduleId:`a`,contributions:x,moduleId:`a`,contributions:y',
+      ),
+    ).toEqual(['a']);
+    expect(registryModuleIds('moduleId:`not-an-id`,contributions:x')).toEqual([]);
+    expect(registryModuleIds('moduleId:`a",contributions:x')).toEqual([]);
+  });
+
+  /**
+   * Measured on a created instance: with the quote fixed, the bundle named a
+   * 21st module, `core` — audit_logs' filter keeps an unrecorded action as
+   * `{ action: current, moduleId: 'core' }`. Only the registry entry, whose next
+   * key is `contributions`, is a module the bundle names.
+   */
+  it('reads only the registry entry, not every object that carries a moduleId', () => {
+    const text =
+      "[...e,{action:t,moduleId:`core`}];im=[{moduleId:`catalog`,contributions:Bf}," +
+      "{ moduleId: 'orders',\n  contributions: x }]";
+    expect(registryModuleIds(text)).toEqual(['catalog', 'orders']);
   });
 });
 
