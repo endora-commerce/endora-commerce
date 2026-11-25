@@ -26,7 +26,9 @@ function port() {
     [],
   );
   const workflowRead = { loadGraph: vi.fn(async () => graph) } as unknown as WorkflowReadService;
-  return new OpportunityReadPortService((() => ({})) as unknown as () => EntityManager, workflowRead);
+  return new OpportunityReadPortService((() => ({})) as unknown as () => EntityManager, workflowRead, () => ({
+    listNotes: vi.fn(),
+  }));
 }
 
 describe('OpportunityReadPort.statusName (issue #455)', () => {
