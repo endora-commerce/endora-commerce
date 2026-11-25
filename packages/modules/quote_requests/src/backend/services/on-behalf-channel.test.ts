@@ -73,12 +73,22 @@ const ORG_CHANNELS = [
   { id: INACTIVE, active: false },
 ];
 
+/** A bus that runs a Command's `run` on `em` and answers its result — no audit, no transaction. */
+function inlineCommandBus(em: unknown) {
+  return {
+    run: async <T>(command: { run: (ctx: never) => Promise<{ result: T }> }) =>
+      (await command.run({ em, actor: { actorAdminUserId: null, impersonatedCustomerAccountId: null, kind: 'system' } } as never)).result,
+  };
+}
+
 function service(em: Record<string, unknown>, filterAvailable = vi.fn(async () => new Set<string>())) {
   const generateBusinessId = vi.fn(async () => null);
   const listChannelsForEntity = vi.fn(async () => ORG_CHANNELS);
   const svc = new RfqAdminService({
     channelMembership: { listChannelsForEntity },
     emFactory: () => em,
+    // The create is a Command (issue #1824): run inline on the same double.
+    commandBus: inlineCommandBus(em),
     customerAccounts: { findById: async () => ({ id: CUSTOMER_ID, organizationId: ORG_ID }) },
     catalogProducts: { findByIds: async () => [record] },
     catalogAvailability: { filterAvailable },

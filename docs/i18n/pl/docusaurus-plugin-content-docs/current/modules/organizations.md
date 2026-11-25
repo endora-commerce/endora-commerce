@@ -284,6 +284,15 @@ platformy `organizations.moderation.mode` (`manual` / `auto`) decyduje, czy prze
 transakcją administrator musi ją ręcznie zatwierdzić. Gdy status jest inny niż `active`, platforma
 odrzuca składanie zamówień, wysyłanie zapytań ofertowych i dodawanie pozycji do koszyka z HTTP 423.
 
+Każde przejście — zatwierdzenie, odrzucenie, zablokowanie, odblokowanie — jest jednym poleceniem:
+`organization.approved`, `organization.rejected`, `organization.blocked` i `organization.unblocked`.
+Zmiana statusu i jej wpis w dzienniku audytu zapisują się w jednej transakcji, a wpis wskazuje, kto
+działał: administratora albo nikogo przy zatwierdzeniu, którego tryb `auto` dokonuje przy rejestracji
+(aktor `system`). Zdarzenie `organization.status_changed.v1` wychodzi dopiero po zatwierdzeniu
+zmiany w bazie i nigdy dla zmiany odrzuconej lub wycofanej. Wiadomość e-mail do klienta o
+zatwierdzeniu lub odrzuceniu wysyłana jest po zapisie, a wiadomość, której nie udało się wysłać, nie
+cofa przejścia.
+
 Dawny status `suspended` zmieniono na `blocked` w migracji
 `20260611T140349_organizations_consolidation.ts`, która w każdym przepisanym wierszu zapisuje
 wyjaśniający `blocked_reason` (nie tworzy wpisu w dzienniku audytu).
