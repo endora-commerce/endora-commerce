@@ -2105,6 +2105,8 @@
   "rfq.detail.history.change.validity_removed": "Validity removed (was until {before})",
   "rfq.detail.history.change.validity_days": "Validity after sharing: {before} → {after}",
   "rfq.detail.history.validityDays.one": "{days} day",
+  "rfq.detail.history.validityDays.few": "{days} days",
+  "rfq.detail.history.validityDays.many": "{days} days",
   "rfq.detail.history.validityDays.other": "{days} days",
   "rfq.detail.history.validityDays.none": "no deadline",
   "rfq.detail.history.change.group_added": "Group {name} added",

@@ -401,6 +401,8 @@ export function RfqCreatePage(): ReactNode {
     version: number;
     warnings: AdminQuoteRequestWarning[];
     viaShare: boolean;
+    /** The validity the create sent, as the share question words it — the field may change after. */
+    confirmDays: number | null | undefined;
   } | null>(null);
   const [lines, setLines] = useState<LineRow[]>([]);
   const [browserOpen, setBrowserOpen] = useState(false);
@@ -760,7 +762,7 @@ export function RfqCreatePage(): ReactNode {
       // the customer on the chosen channel: named here before the operator
       // leaves. `specs/192` (OQ-7) — and nothing is shared on the operator's behalf.
       if (res.warnings && res.warnings.length > 0) {
-        setCreated({ ...createdQuote, warnings: res.warnings, viaShare: mode === 'share' });
+        setCreated({ ...createdQuote, warnings: res.warnings, viaShare: mode === 'share', confirmDays: validity.confirmDays });
       } else if (mode === 'share') {
         await shareCreated(createdQuote.id, createdQuote.version);
       } else {
@@ -779,7 +781,7 @@ export function RfqCreatePage(): ReactNode {
   const shareAfterWarnings = (): Promise<void> => once(shareAfterWarningsNow);
   const shareAfterWarningsNow = async (): Promise<void> => {
     if (!created || busy !== null) return;
-    if (!(await confirmShare(validity.confirmDays, { reference: created.businessId ?? created.id.slice(0, 8) }))) return;
+    if (!(await confirmShare(created.confirmDays, { reference: created.businessId ?? created.id.slice(0, 8) }))) return;
     setBusy('share');
     try {
       await shareCreated(created.id, created.version);

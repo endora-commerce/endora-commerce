@@ -53,6 +53,7 @@ import {
   parseValidityDays,
   rfqValidity,
   unsharedValidityDaysPayload,
+  validityDeadlineDays,
 } from '../validity.js';
 import {
   shareRefusalIsAlreadyShared,
@@ -580,6 +581,7 @@ export function RfqDetail(): ReactNode {
   // `specs/192-quote-request-draft-share/` — strictly `false`: a reply without the
   // key (one that predates the feature) is a quote the customer already sees.
   const unshared = rfq.sharedWithCustomer === false;
+  const shareDays = validityDeadlineDays(rfq.shareValidityDays);
 
   const openValidityEditor = (): void => {
     setTab('modify');
@@ -753,8 +755,8 @@ export function RfqDetail(): ReactNode {
                 and, until they do, the days its validity will count from sharing. */}
             {unshared
               ? ` · ${tPdf('share.meta.unshared')}${
-                  rfq.shareValidityDays
-                    ? ` · ${translatePlural(tPdf, language, 'share.meta.validityDays', rfq.shareValidityDays, { days: rfq.shareValidityDays })}`
+                  shareDays !== null
+                    ? ` · ${translatePlural(tPdf, language, 'share.meta.validityDays', shareDays, { days: shareDays })}`
                     : ''
                 }`
               : rfq.sharedAt
@@ -1736,8 +1738,9 @@ function ModifyCard({
   const validityHelp = ((): string => {
     if (daysInvalid) return t('rfq.detail.validity.error.days');
     if (unshared) {
-      return typedInput.kind === 'days' && typedInput.days > 0
-        ? translatePlural(tGroups, language, 'validity.unshared.days', typedInput.days, { days: typedInput.days })
+      const days = validityDeadlineDays(typedInput.kind === 'days' ? typedInput.days : null);
+      return days !== null
+        ? translatePlural(tGroups, language, 'validity.unshared.days', days, { days })
         : tGroups('validity.unshared.none');
     }
     if (previewDeadline !== null) {
