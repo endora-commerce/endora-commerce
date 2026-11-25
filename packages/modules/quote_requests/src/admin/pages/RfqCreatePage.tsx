@@ -396,6 +396,7 @@ export function RfqCreatePage(): ReactNode {
   // (`viaShare`) nothing was shared: the operator may open the draft or share it anyway.
   const [created, setCreated] = useState<{
     id: string;
+    businessId?: string | undefined;
     version: number;
     warnings: AdminQuoteRequestWarning[];
     viaShare: boolean;
@@ -677,10 +678,14 @@ export function RfqCreatePage(): ReactNode {
     navigate(openedWith.returnTo ? withReturnTo(target, openedWith.returnTo) : target, { state });
   };
 
-  /** The question before a share — who is told, and the validity written. */
-  const confirmShare = (days: number | null | undefined): Promise<boolean> =>
+  /**
+   * The question before a share — who is told, and the validity written. Before
+   * *Create and share* it asks about a quote still to be created; after a create
+   * that warned (`existing`), about the quote that now exists, as the detail does.
+   */
+  const confirmShare = (days: number | null | undefined, existing?: { reference: string }): Promise<boolean> =>
     confirm({
-      title: tGroups('create.confirm.title'),
+      title: existing ? tGroups('share.confirm.title', { id: existing.reference }) : tGroups('create.confirm.title'),
       message:
         days === undefined
           ? tGroups('share.confirm.message', {
@@ -693,7 +698,7 @@ export function RfqCreatePage(): ReactNode {
               now: new Date(),
               language,
             }),
-      confirmLabel: tGroups('create.share'),
+      confirmLabel: existing ? tGroups('share.action') : tGroups('create.share'),
     });
 
   /** Shares a quote just created; lands on it either way. */
@@ -713,7 +718,7 @@ export function RfqCreatePage(): ReactNode {
     setError(null);
     setCustomFieldErrors({});
     try {
-      const res = await apiClient.post<{ data: { id: string; version: number }; warnings?: AdminQuoteRequestWarning[] }>('/api/v1/admin/quote-requests', {
+      const res = await apiClient.post<{ data: { id: string; businessId?: string; version: number }; warnings?: AdminQuoteRequestWarning[] }>('/api/v1/admin/quote-requests', {
         organizationId: customer.organizationId,
         customerAccountId: customer.id,
         salesChannelId: chosenChannelId,
@@ -733,7 +738,7 @@ export function RfqCreatePage(): ReactNode {
         ...(openedWith.origin ? { origin: openedWith.origin } : {}),
         ...(canSeeCustomFields && Object.keys(customFieldValues).length > 0 ? { customFieldValues } : {}),
       });
-      const createdQuote = { id: res.data.id, version: res.data.version };
+      const createdQuote = { id: res.data.id, businessId: res.data.businessId, version: res.data.version };
       // Feature 163 (FR-018) — accepted, but some lines are not available to
       // the customer on the chosen channel: named here before the operator
       // leaves. `specs/192` (OQ-7) — and nothing is shared on the operator's behalf.
@@ -756,7 +761,7 @@ export function RfqCreatePage(): ReactNode {
   /** *Share with customer* after a create that warned (US2 #8). */
   const shareAfterWarnings = async (): Promise<void> => {
     if (!created || busy !== null) return;
-    if (!(await confirmShare(daysPayload))) return;
+    if (!(await confirmShare(daysPayload, { reference: created.businessId ?? created.id.slice(0, 8) }))) return;
     setBusy('share');
     try {
       await shareCreated(created.id, created.version);

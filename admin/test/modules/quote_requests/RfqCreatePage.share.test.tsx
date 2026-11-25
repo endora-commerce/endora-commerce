@@ -325,6 +325,11 @@ describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', 
     await screen.findByText(core('rfqCreate.warnings.title'));
 
     await userEvent.click(screen.getByRole('button', { name: quote('share.action') }));
+    // The quote exists now: the question is about sharing it, not creating it.
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).not.toHaveTextContent(quote('create.confirm.title'));
+    expect(within(dialog).getByRole('button', { name: quote('share.action') })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: quote('create.share') })).toBeNull();
     await answerConfirm(true);
     await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith(`/quote-requests/${NEW_ID}`));
     expect(shares()).toEqual([[SHARE, {}, { headers: { 'If-Match': '"1"' } }]]);

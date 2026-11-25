@@ -333,6 +333,18 @@ export function RfqDetail(): ReactNode {
   });
   const rfq = resource.data;
   const reread = resource.refresh;
+  // `specs/192-quote-request-draft-share/` — once the quote is shared, however the
+  // screen learns it (its own share, a re-read), the Modify card starts again from
+  // the stored quote: its days field meant "days from sharing" and must not be
+  // saved as a new deadline on a quote the customer now sees.
+  const unsharedNow = rfq?.sharedWithCustomer === false;
+  const unsharedBefore = useRef(unsharedNow);
+  useEffect(() => {
+    if (unsharedBefore.current === unsharedNow) return;
+    unsharedBefore.current = unsharedNow;
+    setModifyDirty(false);
+    setModifyEpoch((n) => n + 1);
+  }, [unsharedNow]);
   // A re-read clears the previous action's error, as the old full reload did.
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -1076,7 +1088,8 @@ export function RfqDetail(): ReactNode {
                 rfq={rfq}
                 currentPrices={currentPrices}
                 onSaved={async (): Promise<void> => {
-                  setModifySaved(t('rfq.detail.modify.info.saved'));
+                  // Saved on a quote not shared yet, the customer is told nothing.
+                  setModifySaved(unshared ? tPdf('share.modify.saved') : t('rfq.detail.modify.info.saved'));
                   await refresh();
                   setModifyDirty(false);
                   setModifyEpoch((n) => n + 1);
@@ -1107,6 +1120,7 @@ export function RfqDetail(): ReactNode {
           onClose={(): void => setCancelOpen(false)}
           busy={busy}
           error={error}
+          unshared={unshared}
         />
       ) : null}
       {confirmDialog}
@@ -1165,8 +1179,11 @@ function CancelDialog(props: {
   onClose: () => void;
   busy: boolean;
   error: string | null;
+  /** `specs/192-quote-request-draft-share/` — not shared yet: the customer is never told (FR-005). */
+  unshared: boolean;
 }): ReactNode {
   const t = useTranslation('core');
+  const own = useTranslation('quote_requests');
   const reasonRef = useRef<HTMLTextAreaElement>(null);
   const errorId = useId();
   return (
@@ -1200,7 +1217,7 @@ function CancelDialog(props: {
           id="cancel-reason"
           value={props.reason}
           onChange={(e): void => props.onReasonChange(e.target.value)}
-          placeholder={t('rfq.detail.cancelReasonPlaceholder')}
+          placeholder={props.unshared ? own('share.cancel.placeholder') : t('rfq.detail.cancelReasonPlaceholder')}
           rows={3}
           aria-describedby={errorId}
         />
@@ -1929,7 +1946,7 @@ function ModifyCard({
         dirty={dirty}
         error={saveError}
         status={saveStatus}
-        note={t('rfq.detail.modify.notifiesCustomer')}
+        note={unshared ? tGroups('share.modify.note') : t('rfq.detail.modify.notifiesCustomer')}
         primary={
           <Button onClick={(): void => void save()} disabled={busy} aria-busy={busy || undefined}>
             {t('rfq.detail.modify.saveRevision')}

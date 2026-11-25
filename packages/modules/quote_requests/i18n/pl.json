@@ -239,7 +239,7 @@
   "transactionalEmails.quote_request_customer_expired.name": "Wygaśnięcie zapytania ofertowego (klient)",
   "transactionalEmails.quote_request_customer_expired.description": "Wysyłany do strony klienta, gdy zapytanie ofertowe wygaśnie po ustawionym okresie bez aktywności.",
   "transactionalEmails.quote_request_customer_prepared.name": "Zapytanie ofertowe przygotowane dla klienta",
-  "transactionalEmails.quote_request_customer_prepared.description": "Wysyłany do strony klienta, gdy handlowiec udostępni ofertę przygotowaną w imieniu kupującego.",
+  "transactionalEmails.quote_request_customer_prepared.description": "Wysyłany do strony klienta, gdy handlowiec utworzy zapytanie ofertowe w imieniu kupującego.",
   "transactionalEmails.quote_request_customer_revised.name": "Oferta gotowa (klient)",
   "transactionalEmails.quote_request_customer_revised.description": "Wysyłany do strony klienta, gdy handlowiec zapisze nową wersję oferty, która czeka na odpowiedź kupującego.",
   "transactionalEmails.quote_request_customer_approved.name": "Akceptacja zapytania ofertowego (klient)",
@@ -281,5 +281,8 @@
   "create.line.priceInvalid": "Podaj uzgodnioną cenę jednostkową równą 0 lub większą.",
   "create.validity.hint": "Liczone od udostępnienia. Puste lub 0: bez terminu.",
   "create.warnings.notShared": "Nic nie udostępniono: oferta jest zapisana jako szkic.",
+  "share.modify.note": "Klient nie dostaje żadnej informacji, dopóki nie udostępnisz oferty.",
+  "share.modify.saved": "Zapisano. Klient zobaczy ofertę, gdy ją udostępnisz.",
+  "share.cancel.placeholder": "Dlaczego ten szkic jest anulowany? Klient nigdy go nie zobaczy.",
   "module.description": "Proces zapytań ofertowych (RFQ) inicjowanych przez klienta, z wyceną przez administratora, akceptacjami i wygasaniem."
 }

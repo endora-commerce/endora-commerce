@@ -237,7 +237,7 @@
   "transactionalEmails.quote_request_customer_expired.name": "Quote request expired (customer)",
   "transactionalEmails.quote_request_customer_expired.description": "Sent to the customer side when a quote request expires after the configured period without activity.",
   "transactionalEmails.quote_request_customer_prepared.name": "Quote prepared for the customer",
-  "transactionalEmails.quote_request_customer_prepared.description": "Sent to the customer side when a sales representative shares a quote prepared on the buyer’s behalf.",
+  "transactionalEmails.quote_request_customer_prepared.description": "Sent to the customer side when a sales representative creates a quote request on the buyer’s behalf.",
   "transactionalEmails.quote_request_customer_revised.name": "Offer ready (customer)",
   "transactionalEmails.quote_request_customer_revised.description": "Sent to the customer side when a sales representative saves an offer revision awaiting the buyer’s answer.",
   "transactionalEmails.quote_request_customer_approved.name": "Quote request approved (customer)",
@@ -279,5 +279,8 @@
   "create.line.priceInvalid": "Enter an agreed unit price of 0 or more.",
   "create.validity.hint": "Counted from sharing. Empty or 0: no deadline.",
   "create.warnings.notShared": "Nothing was shared: the quote is saved as a draft.",
+  "share.modify.note": "The customer is told nothing until you share the quote.",
+  "share.modify.saved": "Saved. The customer sees it once you share the quote.",
+  "share.cancel.placeholder": "Why is this draft canceled? The customer never sees it.",
   "module.description": "Customer-initiated RFQ workflow with admin pricing, approvals, and expiry."
 }

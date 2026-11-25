@@ -232,6 +232,45 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     expect(document.querySelector('header p')?.textContent ?? '').toMatch(/shared /);
   });
 
+  it('says in Modify that a save tells the customer nothing while unshared', async () => {
+    const user = userEvent.setup();
+    serve(rfqPayload({ shareValidityDays: 30 }));
+    renderDetail();
+
+    await user.click(await screen.findByRole('tab', { name: core('rfq.detail.tabs.modify') }));
+    expect(await screen.findByText(quote('share.modify.note'))).toBeInTheDocument();
+    expect(screen.queryByText(core('rfq.detail.modify.notifiesCustomer'))).not.toBeInTheDocument();
+  });
+
+  it('starts Modify again from the shared quote once shared: its days are not left behind as a change', async () => {
+    const user = userEvent.setup();
+    serve(
+      rfqPayload({ shareValidityDays: 30 }),
+      rfqPayload({ sharedWithCustomer: true, sharedAt: '2026-11-25T09:00:00.000Z', expiresAt: '2026-12-25T09:00:00.000Z', version: 8 }),
+    );
+    postSpy.mockImplementation((url: string) =>
+      Promise.resolve(url === SHARE_URL ? { data: {} } : { data: [] }),
+    );
+    renderDetail();
+
+    // Modify opened on the unshared quote, holding its 30 days, then left.
+    await user.click(await screen.findByRole('tab', { name: core('rfq.detail.tabs.modify') }));
+    expect(screen.getByLabelText(quote('validity.unshared.field'))).toHaveValue(30);
+    await user.click(screen.getByRole('tab', { name: core('rfq.detail.tabs.overview') }));
+
+    await user.click(await shareButton());
+    await answerConfirm(true);
+    await screen.findByText(quote('share.success'));
+    await waitFor(() => expect(screen.queryByRole('button', { name: quote('share.action') })).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('tab', { name: core('rfq.detail.tabs.modify') }));
+    const field = screen.getByLabelText(core('rfq.detail.validity.field'));
+    expect(field).toHaveValue(null);
+    expect(screen.getByText(core('rfq.detail.modify.notifiesCustomer'))).toBeInTheDocument();
+    expect(screen.queryByText(core('rfq.detail.tabs.modifyUnsaved'))).not.toBeInTheDocument();
+    expect(screen.queryByText(core('form.unsavedChanges.hint'))).not.toBeInTheDocument();
+  });
+
   it('names the unpriced lines when the share is refused for them (FR-026)', async () => {
     const user = userEvent.setup();
     serve(rfqPayload());
