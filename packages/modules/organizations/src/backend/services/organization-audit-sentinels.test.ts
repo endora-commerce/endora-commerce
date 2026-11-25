@@ -20,7 +20,7 @@
  * (`commands/admin-patch-organization.command.test.ts`, #1039).
  */
 import { AssertionError } from 'node:assert';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type {
   AdminOrganizationCreateBody,
@@ -29,7 +29,7 @@ import type {
 import { CommandBus } from '@endora-commerce/platform/commands';
 import { EventBus, type EventBase } from '@endora-commerce/platform/events';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import { withSystemScope } from '@endora-commerce/platform/tenancy';
+import { withSystemScope, withSystemScopeActingFor } from '@endora-commerce/platform/tenancy';
 import { makeConvertToCompanyCommand } from '../commands/convert-to-company.command.js';
 import { makeCreateOrganizationCommand } from '../commands/create-organization.command.js';
 import { makeCreateOrganizationInvitationCommand } from '../commands/organization-invitation-create.command.js';
@@ -52,7 +52,6 @@ import {
 import { OrganizationModerationService } from './organization-moderation-service.js';
 import { OrganizationRoleCatalogue } from './organization-role-catalogue.js';
 import type { NewOrganizationRole, OrganizationRoleRow, OrganizationRoleStore } from './organization-role-store.js';
-import type { OrganizationEventBus } from './registration-service.js';
 
 // ---------------------------------------------------------------------------
 // The sentinel assertion. A local copy of `expectNoAuditValues` from
@@ -331,10 +330,11 @@ describe('organization.approved|rejected|blocked|unblocked — audit state (D-28
       },
       transactional: async <T>(cb: (em: EntityManager) => Promise<T>): Promise<T> => cb(em as unknown as EntityManager),
     } as unknown as EntityManager;
+    // The four transitions are Commands (186 T026): the bus, not the service, records the entry.
+    const bus = busOver(em as unknown as Record<string, unknown>, audit);
     const service = new OrganizationModerationService(
       () => em,
-      audit,
-      { emit: vi.fn() } as unknown as OrganizationEventBus,
+      { run: (command) => withSystemScopeActingFor(ADMIN, 'organizations unit test: moderation', () => bus.run(command)) },
       { send: async () => ({ messageId: 'm' }) } as never,
       { listByOrganization: async () => [] } as never,
       async () => 'manual',
@@ -353,7 +353,7 @@ describe('organization.approved|rejected|blocked|unblocked — audit state (D-28
     await blocked.service.unblock(ORG, { expectedVersion: 4 });
 
     const approvable = moderation(sentinelOrganization({ status: 'pending_verification', blockedReason: null, rejectedReason: null }));
-    await approvable.service.approve(ORG, { expectedVersion: 4, actorAdminUserId: ADMIN });
+    await approvable.service.approve(ORG, { expectedVersion: 4 });
 
     const entries = [...pending.audits, ...active.audits, ...blocked.audits, ...approvable.audits];
     expect(entries.map((entry) => entry['action'])).toEqual([
