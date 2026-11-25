@@ -16,8 +16,10 @@ klienta i ta w panelu administracyjnym pokazują tę samą historię w kolejnoś
 
 Sześć wartości, które zastąpiły zestaw z wczesnej wersji platformy:
 
-- `Created from admin` — utworzone przez opiekuna handlowego lub administratora, czeka na akceptację
-  klienta.
+- `Created from admin` — przygotowane przez opiekuna handlowego lub administratora, czeka na
+  akceptację klienta. Oferta utworzona przez operatora pozostaje **nieudostępniona** — klient jej
+  nie widzi — dopóki nie zostanie udostępniona; zob. *Oferty nieudostępnione i udostępnianie*.
+  Udostępnienie to znacznik obok statusu, a nie osobny status.
 - `Pending` — wysłane przez klienta, czeka na odpowiedź strony wewnętrznej.
 - `Approved` — zatwierdzone przez odpowiedzialną stronę.
 - `Completed` — na podstawie tego zapytania złożono zamówienie.
@@ -36,7 +38,7 @@ dodatkowo wymagają podania `expectedRevisionNumber`.
 
 | Metoda + ścieżka | Odbiorca | Cel |
 | --- | --- | --- |
-| `GET /api/v1/quote-requests` | klient | Lista widocznych zapytań ofertowych (rola *Administrator* rozszerza widoczność na całą organizację — zob. *Model widoczności*). |
+| `GET /api/v1/quote-requests` | klient | Lista widocznych zapytań ofertowych (rola *Administrator* rozszerza widoczność na całą organizację — zob. *Model widoczności*), od ostatnio otrzymanego: według chwili, w której operator udostępnił ofertę, a w jej braku według utworzenia. Oferty nieudostępnione nigdy się na niej nie pojawiają. |
 | `GET /api/v1/quote-requests/:id` | klient | Szczegóły, z opcjonalnym blokiem `comparisonAgainstLastSeen`, gdy zapytanie czeka na akceptację. |
 | `POST /api/v1/quote-requests` | klient | Utworzenie i wysłanie w jednym wywołaniu. Wymaga `quote_requests.create`. |
 | `PATCH /api/v1/quote-requests/:id` | klient | Edycja zapytania w statusie Pending, którego strona wewnętrzna jeszcze nie zmieniła — zob. *Edycja szkicu przez klienta*. |
@@ -44,11 +46,13 @@ dodatkowo wymagają podania `expectedRevisionNumber`.
 | `POST /api/v1/quote-requests/:id/reject-revision` | klient | Odrzucenie najnowszej wersji z opcjonalnym powodem. |
 | `POST /api/v1/quote-requests/:id/resubmit` | klient | Skopiowanie starego zapytania do nowego, w statusie Pending, według bieżących cen klienta. Wymaga `quote_requests.create`. |
 | `POST /api/v1/quote-requests/:id/convert-to-order` | klient | Wypełnienie koszyka klienta pozycjami zapytania w statusie Approved po uzgodnionych cenach jednostkowych i zwrócenie adresu procesu zamówienia. Wymaga `carts.create`. |
-| `GET /api/v1/admin/quote-requests` | administrator | Jedna strona listy, zawężonej do przypisań opiekuna handlowego. Serwer stosuje `assignmentScope`, `organizationId`, `status`, `q` (numer zapytania, nazwa organizacji lub klienta albo pełny identyfikator), `sort` (`updatedAt` lub `total`, `asc` / `desc`) i stronicowanie (`page`, `pageSize` do 200, domyślnie 25); `pagination` podaje `page`, `pageSize` i `total`. |
+| `GET /api/v1/admin/quote-requests` | administrator | Jedna strona listy, zawężonej do przypisań opiekuna handlowego. Serwer stosuje `assignmentScope`, `organizationId`, `status`, `q` (numer zapytania, nazwa organizacji lub klienta albo pełny identyfikator), `sharing` (`unshared` lub `shared`; brak = oba), `sort` (`updatedAt` lub `total`, `asc` / `desc`) i stronicowanie (`page`, `pageSize` do 200, domyślnie 25); `pagination` podaje `page`, `pageSize` i `total`. |
 | `GET /api/v1/admin/quote-requests/:id` | administrator | Szczegóły z pełną tożsamością wykonawców w dzienniku zdarzeń oraz, dla każdej pozycji, ceną referencyjną i propozycją klienta — zob. *Cena referencyjna*. |
 | `GET /api/v1/admin/quote-requests/:id/history` | administrator | Historia zapytania w postaci czytelnych wpisów — zob. *Historia*. |
-| `POST /api/v1/admin/quote-requests` | administrator | Utworzenie w imieniu klienta → status `Created from admin`. |
-| `PATCH /api/v1/admin/quote-requests/:id` | administrator | Zmiana zapytania w statusie Pending lub Created from admin → wymaga ponownej akceptacji klienta. |
+| `POST /api/v1/admin/quote-requests` | administrator | Utworzenie w imieniu klienta → status `Created from admin`, oferta nieudostępniona. Pozycje mogą pozostać bez ceny. |
+| `GET /api/v1/admin/quote-requests/create-defaults` | administrator | `{ validityDays }` — domyślna ważność, z którą startuje nowa oferta (`null` = bez terminu). |
+| `POST /api/v1/admin/quote-requests/:id/share` | administrator | Udostępnienie nieudostępnionej oferty jej klientowi — zob. *Oferty nieudostępnione i udostępnianie*. Opcjonalny `If-Match`. |
+| `PATCH /api/v1/admin/quote-requests/:id` | administrator | Zmiana zapytania w statusie Pending lub Created from admin → wymaga ponownej akceptacji klienta (przy ofercie nieudostępnionej nikt nie dostaje powiadomienia). |
 | `POST /api/v1/admin/quote-requests/:id/approve` | administrator | Zatwierdzenie zapytania w statusie Pending, którego każda pozycja ma uzgodnioną cenę jednostkową. |
 | `POST /api/v1/admin/quote-requests/:id/prepare-customer-basket` | administrator | Wypełnienie koszyka klienta, do którego należy zatwierdzone zapytanie, pozycjami po uzgodnionych cenach jednostkowych — z zastąpieniem jego dotychczasowej zawartości — aby klient sfinalizował zakup w checkoucie. Koszyk należy do kanału, w którym złożono zapytanie. Te same zasady co przy konwersji wykonywanej przez klienta; zapisywane w audycie jako `quote_request.prepare_customer_basket`. |
 | `POST /api/v1/admin/quote-requests/:id/cancel` | administrator | Anulowanie z opcjonalnym powodem. |
@@ -71,6 +75,124 @@ także wtedy, gdy moduł zapytań ofertowych jest wyłączony, i nie może być 
 modułu, który może zniknąć. Jedyny pozostały wyżej endpoint odczytuje zapytania ofertowe i jest
 chroniony przez `rfqs:handle` właśnie po to, by znikał razem z tym modułem.
 
+## Oferty nieudostępnione i udostępnianie {#unshared-quotes-and-sharing}
+
+Oferta, którą operator tworzy dla klienta na ekranie *Utwórz zapytanie ofertowe* — bez względu na
+to, z którego ekranu go otworzył, także z szansy sprzedaży w CRM — powstaje jako
+**nieudostępniona**: klient jej nie widzi, dopóki operator jej nie udostępni. Operator może ją więc
+przygotowywać w kilku podejściach i udostępnić jednym działaniem, gdy będzie gotowa. Zapytanie
+złożone przez klienta, *Skopiuj do zapytania* z zamówienia oraz szybkie zamówienie
+budowane przez operatora przechodzą ścieżką kupującego i klient widzi je od razu, jak dotąd. Oferty
+operatorów utworzone przed wprowadzeniem tego zachowania pozostają widoczne dla klientów: migracja
+oznacza wszystkie istniejące oferty jako udostępnione.
+
+Panel administracyjny oznacza nieudostępnioną ofertę plakietką **Szkic** na jej ekranie i na
+liście. Filtr **Udostępnienie** na liście (w API `sharing=unshared` lub `shared`) zawęża ją do ofert
+nieudostępnionych albo udostępnionych.
+
+### Dopóki oferta jest nieudostępniona {#while-a-quote-is-unshared}
+
+- **Żaden klient jej nie widzi.** Nie pojawia się w żadnym odczycie po stronie klienta: na liście
+  samego zgłaszającego, *Administratora* organizacji, loginu z wglądem w strukturę organizacji ani
+  na listach, które odczytuje moduł `customers` — także na karcie klienta w panelu
+  administracyjnym; operatorzy znajdują nieudostępnione oferty na liście zapytań ofertowych. Jej
+  adres i każde działanie klienta (edycja, akceptacja, odrzucenie, ponowne złożenie, zamiana na
+  koszyk, a także `POST /api/v1/cart/from-quote-request/:id` modułu `carts`) odpowiadają `404`,
+  dokładnie tak jak dla oferty, która nie istnieje, i niczego nie zmieniają.
+- **Nikt po stronie kupującego nie dostaje powiadomienia.** Utworzenie, zmiana i anulowanie takiej
+  oferty nie zapisują powiadomienia klienta w żadnym kanale.
+- **Nigdy nie wygasa** — ani z powodu bezczynności (`expiry_days`), ani z innego.
+- **Można wprowadzać wszystkie zmiany, na które pozwala panel administracyjny**, a każda trafia do
+  Historii. Jej pozycje mogą pozostać bez ceny.
+- **Jej ważność to liczba dni, a nie data.** Datę zapisuje dopiero udostępnienie — zob. *Termin
+  ważności*.
+- **Jej PDF można wyeksportować, ale nie wysłać.** Opcja *Wyślij PDF do klienta* nie jest
+  dostępna, a endpoint wysyłki odpowiada `409 RFQ_NOT_SHARED` — zob. *PDF oferty*.
+- **Anulowanie** nikogo nie powiadamia, a oferta pozostaje niewidoczna dla klienta.
+
+### Udostępnianie {#sharing}
+
+**Udostępnij klientowi** to główne działanie na ekranie nieudostępnionej oferty. Najpierw pyta o
+potwierdzenie — podając klienta i ważność, którą zapisze udostępnienie — a następnie wywołuje
+`POST /api/v1/admin/quote-requests/:id/share`. Udostępnić może każdy, kto ma `rfqs:handle` i widzi
+organizację oferty. Udostępnienie:
+
+- pokazuje ofertę klientowi, który może ją zaakceptować lub odrzucić jak każdą ofertę przygotowaną
+  przez operatora;
+- zapisuje termin ważności: chwila udostępnienia plus liczba dni oferty albo brak terminu;
+- dodaje do Historii wpis *Udostępniono klientowi* — kto i kiedy — i wysyła stronie kupującego
+  powiadomienie *oferta przygotowana* (`quote_request_customer_prepared`), jeden raz, w kanałach
+  opisanych w *Powiadomieniach*;
+- jest ostateczne. Udostępniona oferta nie wraca do stanu nieudostępnionego; późniejsze zmiany jej
+  pozycji i cen są rewizjami, o których klient dostaje powiadomienie, jak dotąd.
+
+Historia oferty widziana przez klienta zaczyna się od udostępnienia. Historia w panelu
+administracyjnym zachowuje zmiany wprowadzone wcześniej.
+
+Udostępnienie jest odrzucane — nic nie jest zapisywane i nikt nie dostaje powiadomienia — gdy:
+
+| Sytuacja | Odpowiedź |
+| --- | --- |
+| Oferta jest już udostępniona — dotyczy to także zapytania złożonego przez klienta i oferty operatora sprzed tego zachowania | `409 RFQ_ALREADY_SHARED` |
+| Oferta nie ma już statusu `Created from admin` (została anulowana lub wygasła) | `409 RFQ_NOT_QUOTED` |
+| `If-Match` wskazuje starszą wersję | `409 VERSION_CONFLICT` |
+| Pozycja nie ma uzgodnionej ceny jednostkowej | `409 QUOTE_INCOMPLETE`; `details.code` to `share`, a `details.lines` wymienia każdą taką pozycję (`id`, `position`, `productName`, `variantLabel`, `groupName`) w kolejności wyświetlania |
+| Konto klienta nie należy już do organizacji oferty, zostało usunięte lub zanonimizowane albo jest zablokowane | `409 RFQ_SHARE_CUSTOMER_UNAVAILABLE`; `details.code` to `not_member`, `inactive` lub `blocked` |
+| Odmawia hook innego modułu | status, kod i `details` tego hooka — zob. [Akcja dostępna dla hooków](#hookable-action) |
+
+Oferta organizacji, której wywołujący nie widzi, odpowiada `404`. Dwa jednoczesne udostępnienia tej
+samej oferty są wykonywane po kolei: drugie odpowiada `409 RFQ_ALREADY_SHARED`, a klient dostaje
+powiadomienie raz.
+
+**Utwórz i udostępnij.** Ekran *Utwórz zapytanie ofertowe* ma dwa przyciski. **Zapisz jako szkic**
+tworzy nieudostępnioną ofertę. **Utwórz i udostępnij** tworzy ją i udostępnia w jednym kroku, po
+tym samym pytaniu; jest nieaktywny, dopóki któraś pozycja nie ma ceny. Gdy udostępnienie zostanie
+odrzucone, oferta pozostaje nieudostępniona, a operator trafia na jej ekran z widocznym powodem
+odmowy. Gdy utworzenie zwróci ostrzeżenia — o produktach, których klient nie może kupić w wybranym
+kanale — nic nie jest udostępniane: ekran wymienia ostrzeżenia i proponuje **Udostępnij klientowi**
+dla właśnie utworzonej oferty.
+
+### Akcja dostępna dla hooków {#hookable-action}
+
+Udostępnienie jest zadeklarowane jako dostępne dla hooków, więc inny moduł — moduł nakładkowy wdrożenia
+lub zainstalowany pakiet — może je zablokować, na przykład dopóki trwa wewnętrzna akceptacja.
+Zarejestruj hook polecenia dla referencji z `QUOTE_REQUEST_HOOKABLE_ACTIONS`
+(`@endora-commerce/contracts`) i dodaj `quote_requests` do `dependencies` w manifeście swojego
+modułu. Jak hooki są uruchamiane, porządkowane i jak odmawiają, opisuje strona architektury *Command
+Bus*. Ekran *Hooki modułów* w panelu administracyjnym pokazuje tę akcję i zarejestrowane dla niej
+hooki.
+
+| Akcja | Referencja | Zapisywana przez | Dane hooka |
+| --- | --- | --- | --- |
+| `quote_request.share` | `QUOTE_REQUEST_HOOKABLE_ACTIONS.share` | `POST /api/v1/admin/quote-requests/:id/share`, które wywołuje też *Utwórz i udostępnij* | `quoteRequestId`, `organizationId`, `customerAccountId`, `salesChannelId`, `currentRevisionNumber`, `expiresAt` |
+
+Dostępna jest tylko faza `beforeCommit`, więc udostępnienie nie zapisuje wiersza outboxa. Typ danych
+to `QuoteRequestShareHookData`: identyfikatory, numer rewizji i data, nic z pozycji ani cen.
+`expiresAt` to zapisywany przez udostępnienie termin ważności albo `null`; `salesChannelId` ma
+wartość `null` dla oferty bez kanału. Hook, który potrzebuje pozycji, odczytuje je przez
+`quoteRequestReadPort.listItems` — udostępnienie nie zmienia żadnej pozycji.
+
+- **Kiedy działa.** W transakcji udostępnienia, po przejściu wbudowanych odmów opisanych wyżej
+  i po zapisaniu oferty jako udostępnionej, przed wpisem audytu i zatwierdzeniem transakcji.
+- **Odmowa.** Rzuć `CommandHookRefusal` (`@endora-commerce/platform/commands`) z kodem, który Twój
+  moduł deklaruje w `errorCodes` swojego manifestu, i ze zdaniem dla niego we własnym pakiecie
+  tłumaczeń. Całe udostępnienie jest wycofywane — oferta, wpis w Historii i rekordy powiadomień —
+  więc oferta pozostaje nieudostępniona i nikt nie dostaje powiadomienia. Wywołujący otrzymuje Twój
+  status, kod i `details` bez zmian, a panel administracyjny pokazuje Twoje przetłumaczone zdanie.
+- **Odmowa trafia do administratora.** Komunikat i `details` docierają w niezmienionej postaci do
+  administratora, który nacisnął *Udostępnij*: bez sekretów, danych uwierzytelniających, tokenów
+  i wewnętrznych adresów URL, bez stosów wywołań i bez danych żadnej organizacji poza organizacją
+  oferty.
+- **Najwyżej sekunda.** Hook działa, gdy udostępnienie trzyma blokadę oferty i otwartą transakcję,
+  więc każdy inny zapis tej oferty na niego czeka. Utrzymuj czas wyraźnie poniżej 100 ms; sekunda to
+  budżet na całość. Nie wykonuj zewnętrznych operacji wejścia-wyjścia (HTTP, serwer pocztowy,
+  kolejka) bez limitu czasu mieszczącego się w tym budżecie i odczytuj raczej własne tabele. Hook,
+  który nie zdąży rozstrzygnąć, odmawia z własnym kodem, zamiast trzymać blokadę.
+- **Zapis.** Tylko do tabel własnego modułu, przez `ctx.em`, z nazwaniem zapisanych zmian przez
+  `ctx.noteAuditChanges`.
+
+Żaden inny zapis tego modułu nie jest dostępny dla hooków.
+
 ## Uzgodnione ceny
 
 Zapytanie ofertowe staje się zamówieniem wyłącznie po cenach jednostkowych uzgodnionych przez
@@ -87,6 +209,7 @@ Zależą od niej trzy operacje, a każda odpowiada `409`, gdy reguła nie jest s
 | `accept-revision` | Oferta sprzedawcy pozostawia pozycję bez uzgodnionej ceny jednostkowej. | `QUOTE_INCOMPLETE` |
 | `approve` (administrator) | Którakolwiek pozycja nie ma uzgodnionej ceny jednostkowej. | `QUOTE_INCOMPLETE` |
 | `convert-to-order` | Którakolwiek pozycja nie ma uzgodnionej ceny jednostkowej. | `QUOTE_INCOMPLETE` |
+| `share` (administrator) | Którakolwiek pozycja nie ma uzgodnionej ceny jednostkowej (`details.code` `share`, z wymienionymi pozycjami). | `QUOTE_INCOMPLETE` |
 
 W praktyce oznacza to, że:
 
@@ -111,6 +234,9 @@ W praktyce oznacza to, że:
   walucie: zmiana waluty zmieniłaby znaczenie tych cen. Zapytanie bez kanału, złożone zanim zapytania go zapisywały,
   jest w PLN. Zapytania utworzone przed tą regułą pozostają w walucie, w której je zapisano (PLN),
   niezależnie od waluty ich kanału.
+- Operator może **utworzyć** ofertę z pozycjami, które jeszcze nie mają ceny, i dokończyć ją
+  później: pozostaje ona nieudostępniona, a jej udostępnienie jest odrzucane, dopóki każda pozycja
+  nie ma ceny. Zapytanie złożone przez klienta podlega powyższym regułom bez zmian.
 - `reject-revision` pozostaje bez zmian: klient nadal może wycofać zapytanie, na które sprzedawca
   jeszcze nie odpowiedział.
 - Zapytania, które otrzymało status `Approved` z niewycenioną pozycją, zanim te reguły zaczęły
@@ -120,7 +246,23 @@ W praktyce oznacza to, że:
 ## Termin ważności
 
 Operator może nadać ofercie termin — *Ważna przez N dni* przy rewizji zapytania lub przy tworzeniu
-go w imieniu klienta (`expiresInDays`, zapisywane jako `expiresAt`). Obie strony widzą *ważna do
+go w imieniu klienta (`expiresInDays`, liczba całkowita od 0 do 3650, zapisywane jako `expiresAt`).
+**0 dni albo brak liczby oznacza brak terminu** przy każdym zapisie: przy nowej ofercie, przy
+ofercie nieudostępnionej i przy rewizji oferty już udostępnionej. Rewizja z 0 dni albo bez liczby
+usuwa termin, a klient nadal może zaakceptować ofertę; aby zamknąć ofertę, anuluj ją. (Wcześniejsze
+wydania odczytywały 0 dni przy rewizji jako „wygasa natychmiast”).
+
+- **W ofercie utworzonej przez operatora dni liczą się od udostępnienia**, a nie od utworzenia.
+  Nieudostępniona oferta przechowuje liczbę dni, a udostępnienie zapisuje datę: chwilę udostępnienia
+  plus te dni. Oferta przygotowywana przez miesiąc nadal daje klientowi pełny okres.
+- **Nowa oferta startuje z domyślną wartością sklepu**, ustawieniem
+  `quote_requests.default_validity_days` (zob. *Ustawienia*). Ekran *Utwórz zapytanie ofertowe*
+  wpisuje ją w pole, a operator może ją zmienić lub wyczyścić dla danej oferty. Zmiana ustawienia
+  nie zmienia ofert już utworzonych. Domyślnie wynosi 0: bez terminu.
+- **Przy rewizji oferty udostępnionej** albo zapytania klienta dni liczą się od rewizji, jak
+  dotąd.
+
+Obie strony widzą *ważna do
 &lt;data&gt;*, a ta data jest **ostatnią chwilą, w której można złożyć zamówienie po uzgodnionych
 cenach**, a nie tylko ostatnią chwilą na przygotowanie koszyka. Bez terminu uzgodnione ceny nie
 mają daty końcowej.
@@ -274,6 +416,12 @@ angielsku:
   grupy) oraz *zmieniono kolejność pozycji*, gdy pozycje lub grupy jedynie przestawiono — zob.
   *Grupy pozycji*. Rewizja bez wymienionej zmiany brzmi *oferta wysłana ponownie bez zmian*. Powód lub
   notatka podane przy anulowaniu, odrzuceniu albo zatwierdzeniu są pokazywane.
+- **Udostępnienie.** Udostępnienie to jeden wpis, *Udostępniono klientowi*, wskazujący
+  administratora, który udostępnił ofertę, z doręczeniami powiadomienia *oferta przygotowana* pod
+  nim. Zmiana liczby dni nieudostępnionej oferty jest wymieniana jako *Ważność po udostępnieniu*,
+  stara → nowa wartość (*bez terminu*, gdy jej brak). Historia oferty udostępnionej przez operatora
+  widziana przez klienta zaczyna się od tego wpisu: to, co działo się wcześniej, widać tylko w
+  panelu administracyjnym. Zob. *Oferty nieudostępnione i udostępnianie*.
 - **Wartości nieprzeniesione z szansy sprzedażowej.** Gdy zapytanie utworzone z szansy
   sprzedażowej nie mogło przyjąć części jej wartości pól niestandardowych (zob. *Pola
   niestandardowe*), historia zawiera jeden wpis autorstwa *System*, *Nie przeniesiono wartości pól
@@ -563,7 +711,7 @@ wewnętrzna akceptacja zapytań ofertowych, ta widoczność przejdzie na osobne 
 
 `RfqCustomerPort.listForCustomer` — z którego `customers` czyta własną listę kupującego i listę
 jednego klienta w panelu administracyjnym — zawsze zwraca zapytania wysłane przez to konto, bez
-względu na jego rolę.
+względu na jego rolę, i nigdy oferty nieudostępnionej.
 
 ## Uprawnienia organizacyjne
 
@@ -773,7 +921,8 @@ pozycja to **— Wybierz widok —**, a obok niej dwa przyciski: **Zapisz widok*
 ## PDF oferty: eksport i wysyłka do klienta
 
 Handlowiec zamienia zapytanie ofertowe w PDF na jego ekranie w panelu administracyjnym, w **każdym
-statusie** oferty. Dwa przyciski w nagłówku strony otwierają to samo okno:
+statusie** oferty — z tym że ofertę nieudostępnioną można wyeksportować, ale nie wysłać. Dwa
+przyciski w nagłówku strony otwierają to samo okno:
 
 - **Eksportuj PDF** pobiera PDF, nazwany numerem oferty.
 - **Wyślij PDF do klienta** wysyła go e-mailem.
@@ -863,6 +1012,7 @@ bez żadnego zapisu, gdy:
 | PDF jest większy niż 10 MiB | `422 QUOTE_REQUEST_PDF_TOO_LARGE` |
 | Serwer poczty odrzucił wszystkie adresy | `502 QUOTE_REQUEST_PDF_SEND_FAILED` |
 | Ponad 10 wysyłek jednego administratora w ciągu minuty | `429 RATE_LIMITED` |
+| Oferta nie jest jeszcze udostępniona klientowi (opcja *Wyślij PDF do klienta* nie jest przy niej dostępna) | `409 RFQ_NOT_SHARED` |
 
 **API** (wszystkie trasy wymagają `rfqs:handle` i dostępu do oferty; `503 MODULE_DISABLED`, gdy
 szablony dokumentów są wyłączone):
@@ -879,12 +1029,13 @@ tego modułu.
 
 ## Ustawienia
 
-Modułem sterują trzy ustawienia — wszystkie w grupie `quote_requests`, konfigurowane przez
+Modułem sterują poniższe ustawienia — wszystkie w grupie `quote_requests`, konfigurowane przez
 istniejący moduł ustawień.
 
 | Kod | Typ | Wartość domyślna | Działanie |
 | --- | --- | --- | --- |
 | `quote_requests.expiry_days` | integer | `0` | Wygaszanie zapytań w statusie Pending lub Created from admin po N dniach bez aktywności, o ile nie niosą oferty, która jest jeszcze ważna. Osobno dla każdego kanału sprzedaży: każde zapytanie podlega wartości swojego kanału, a `0` wyłącza kanał z wygaszania. Ustawienie wartości wygasza istniejące zaległości — zobacz *Zadania w tle*. |
+| `quote_requests.default_validity_days` | integer | `0` | *Domyślna ważność ofert przygotowanych przez sprzedaż (dni)*: liczba dni ważności oferty utworzonej przez operatora, liczona od jej udostępnienia — zob. *Termin ważności*. `0` = bez terminu. Od `0` do `3650`; zapisana wartość spoza tego zakresu jest odczytywana jako `0` i odnotowywana w logu jako ostrzeżenie. Jedna wartość dla całego sklepu, nie osobno dla kanałów sprzedaży. Dotyczy ofert utworzonych po zmianie. |
 | `quote_requests.show_add_to_quote_on_card` | boolean | `true` | Pokazuje lub ukrywa przycisk „Add to quote” na kartach produktów w storefroncie. |
 | `quote_requests.show_add_to_quote_on_pdp` | boolean | `true` | Pokazuje lub ukrywa przycisk „Add to quote” na stronach produktów. |
 
@@ -905,7 +1056,7 @@ Każde uruchomienie odczytuje `quote_requests.expiry_days` **dla każdego kanał
 stosuje do zapytania wartość jego własnego kanału — zobacz
 [Osobno dla każdego kanału sprzedaży](#per-sales-channel). `0` — wartość domyślna — wyłącza kanał
 z wygaszania; przy `0` wszędzie zadanie nic nie robi. W przeciwnym razie zapytanie przechodzi do statusu `Expired`, gdy spełnione są
-**wszystkie trzy** warunki:
+**wszystkie cztery** warunki:
 
 1. **Jest nadal otwarte** — `Pending` albo `Created from admin`. Obejmuje to zapytanie czekające
    na pierwszą odpowiedź sprzedawcy i ofertę czekającą na kupującego.
@@ -919,6 +1070,8 @@ z wygaszania; przy `0` wszędzie zadanie nic nie robi. W przeciwnym razie zapyta
    nie wygasza zapytania, dopóki termin jest przed nami, bez względu na to, jak długo nic się nie
    działo. Gdy termin minął albo sprzedawca go nie ustawił, reguła bezczynności działa jak dla
    każdego innego zapytania.
+4. **Klient je widzi.** Nieudostępniona oferta operatora nigdy nie wygasa — zob. *Oferty
+   nieudostępnione i udostępnianie*.
 
 Zadanie nie wygasza zapytania *dlatego*, że minął termin ważności. Ten termin jest egzekwowany,
 gdy kupujący akceptuje ofertę, zamienia ją na koszyk i składa zamówienie (`410`, zob. *Termin
@@ -953,7 +1106,8 @@ ważności*); sam z siebie nie zamyka zapytania.
 **Zmiana z `0` na `N` wygasza, w kolejnych uruchomieniach, każde otwarte zapytanie, z którym nic
 się nie działo dłużej niż `N` dni** — w instancji, która przez rok działała z wartością `0`, może
 to być większość otwartych zapytań. To samo dotyczy zmniejszenia wartości. Zapytania z ofertą,
-która jest jeszcze ważna, pozostają nietknięte (warunek 3), a dla tych, które powinny były wygasnąć
+która jest jeszcze ważna, pozostają nietknięte (warunek 3), podobnie jak oferty nieudostępnione
+(warunek 4), a dla tych, które powinny były wygasnąć
 ponad 24 godziny wcześniej, nikt nie jest powiadamiany.
 
 Wydania do 0.104.0 włącznie opisywały to zadanie i nigdy go nie uruchamiały, więc instancja, w
@@ -990,6 +1144,15 @@ Trzy tabele uzupełniające podstawowe `quote_requests` i `quote_request_items`:
   tabeli odbiorcy. Zastąpiła `quote_request_notification_events`, którą migracja
   `20261113T081826_quote_requests_notifications_redesign.ts` usunęła razem z wierszami — nic ich
   nigdy nie doręczyło.
+
+`quote_requests.shared_with_customer` (not null, domyślnie `true`, więc każda oferta istniejąca przed
+wprowadzeniem udostępniania jest udostępniona), `shared_at`, `shared_by_admin_user_id` i
+`share_validity_days` (liczba dni, którą nieudostępniona oferta zastosuje przy udostępnieniu;
+`null` = bez terminu) opisują udostępnienie — zob. *Oferty nieudostępnione i udostępnianie*.
+Odpowiedzi administracyjne zawierają je jako `sharedWithCustomer`, `sharedAt`,
+`sharedByAdminUserId` i `shareValidityDays`; odpowiedzi dla klienta nigdy. Inne moduły czytają
+`sharedWithCustomer` z rekordów `quoteRequestReadPort`: `carts` odmawia wypełnienia koszyka z
+oferty nieudostępnionej.
 
 `quote_request_items` przechowuje zapisaną cenę referencyjną w `reference_unit_price`,
 `reference_currency` i `reference_captured_at` — wszystkie trzy ustawione albo wszystkie trzy
@@ -1092,7 +1255,7 @@ Są dwie strony.
 | Kupujący akceptuje ofertę | jak wyżej | dzwonek |
 | Kupujący odrzuca ofertę | jak wyżej | dzwonek |
 | Zapytanie wygasa | e-mail, wpis w centrum, push | dzwonek |
-| Operator tworzy zapytanie w imieniu kupującego | e-mail, wpis w centrum, push | — |
+| Operator udostępnia ofertę przygotowaną w imieniu kupującego | e-mail, wpis w centrum, push | — |
 | Operator zapisuje nową ofertę (rewizję) | e-mail, wpis w centrum, push | — |
 | Operator zatwierdza zapytanie | e-mail, wpis w centrum, push | — |
 | Operator anuluje zapytanie | e-mail, wpis w centrum, push | — |
@@ -1101,7 +1264,9 @@ Są dwie strony.
 Kupujący, którego własne działanie wywołało zmianę, dostaje **e-mail** jako
 potwierdzenie, ale nie dostaje wpisu w centrum ani powiadomienia push: właśnie
 patrzy na wynik. Edycje szkicu przez kupującego, notatki, *Wyślij PDF do
-klienta* i pozostałe wpisy historii nikogo nie powiadamiają.
+klienta* i pozostałe wpisy historii nikogo nie powiadamiają. Nie powiadamia też
+nic, co dzieje się z ofertą operatora przed jej udostępnieniem: jej utworzenie,
+zmiany ani anulowanie.
 
 **To, kto jest powiadamiany, ustala się w chwili zapisu zmiany.** Przy
 doręczeniu każda osoba jest sprawdzana ponownie: konto, które w międzyczasie
@@ -1161,7 +1326,7 @@ e-maili**; każdy ma domyślną treść po angielsku i po polsku.
 | `quote_request_customer_offer_accepted` | strona kupującego | kupujący akceptuje ofertę |
 | `quote_request_customer_offer_rejected` | strona kupującego | kupujący odrzuca ofertę |
 | `quote_request_customer_expired` | strona kupującego | zapytanie wygasa |
-| `quote_request_customer_prepared` | strona kupującego | operator tworzy zapytanie w imieniu kupującego |
+| `quote_request_customer_prepared` | strona kupującego | operator udostępnia ofertę przygotowaną w imieniu kupującego |
 | `quote_request_customer_revised` | strona kupującego | operator zapisuje ofertę czekającą na kupującego |
 | `quote_request_customer_approved` | strona kupującego | operator zatwierdza zapytanie |
 | `quote_request_customer_canceled` | strona kupującego | operator anuluje zapytanie |
@@ -1174,8 +1339,8 @@ Każdy e-mail może używać `quote.number`, `customer.name` (odbiorca),
 poszczególnych e-maili: `actor.name` (kupujący, który działał) przy złożeniu,
 ponownym złożeniu, akceptacji, odrzuceniu i w obu e-mailach do operatora;
 `quote.previousNumber` w obu e-mailach o ponownym złożeniu; `reason` przy
-odrzuceniu i anulowaniu; `quote.validUntil` przy przygotowaniu, rewizji i
-zatwierdzeniu; `quote.revisionNumber` przy rewizji; `quote.lineCount` oraz
+odrzuceniu i anulowaniu; `quote.validUntil` przy przygotowaniu (termin zapisany
+przez udostępnienie), rewizji i zatwierdzeniu; `quote.revisionNumber` przy rewizji; `quote.lineCount` oraz
 `quote.adminUrl` (odnośnik do zapytania w panelu administracyjnym) w obu
 e-mailach do operatora. `quote.adminUrl` jest pusty, gdy nie ustawiono
 `ADMIN_BASE_URL`, i wtedy przycisk zostaje pominięty. Szablon zmieniony, zanim
@@ -1238,7 +1403,11 @@ którym ustala się odbiorców — a obie strony ustala
 Regułą strony kupującego jest `orgWideViewerRoleIds`, ta sama funkcja, której
 używa sprawdzenie widoczności w sklepie, więc nikt nie jest powiadamiany o
 zapytaniu, na którym dostałby `404`. Rekord jest unikalny dla trójki (wpis
-historii, odbiorca, kanał).
+historii, odbiorca, kanał). Zmiana `prepared` jest zapisywana z wpisu historii
+`shared`, który tworzy udostępnienie; rekordy zapisane, zanim istniało
+udostępnianie, wskazują wpis `created` i pozostają bez zmian. Dopóki oferta jest
+nieudostępniona, `revised` i `canceled` niczego nie zapisują dla strony
+kupującego.
 
 **Doręczanie.** Po każdej zatwierdzonej zmianie zapisujący dodaje jedno zadanie
 do kolejki BullMQ `quote_requests.notifications.deliver` (stały identyfikator
@@ -1361,6 +1530,10 @@ wierszy:
 | `adminUserId` | Administrator, który je utworzył. |
 | `origin` | To, co żądanie utworzenia niosło jako `origin`, albo `null`. |
 
+Jest emitowane przy utworzeniu oferty, gdy jest ona jeszcze nieudostępniona: to ogłoszenie po
+stronie operatora, które nie dociera do żadnego klienta. Udostępnienie nie emituje żadnego zdarzenia
+na szynie.
+
 `rfq.created.v1` pozostaje zdarzeniem zapytania przesłanego przez samego klienta i na tej ścieżce
 **nie** jest emitowane, więc nic, co go nasłuchuje, nie zaczyna widzieć zapytań przygotowanych przez
 administratora.
@@ -1438,18 +1611,29 @@ odpowiada już wtedy żadnej ilości — a po poprawieniu ilości jest wyznaczan
 klienta czyści każdą cenę, która nie została wpisana ręcznie, i wyznacza ją ponownie dla nowego
 klienta, więc taka cena może stać się pusta.
 
-**Niekompletna pozycja blokuje zapytanie zamiast z niego znikać.** Pozycja bez uzgodnionej ceny
-albo z ilością, która nie jest liczbą całkowitą równą 1 lub większą, jest oznaczona, a **Utwórz
-zapytanie ofertowe** pozostaje nieaktywne, dopóki nie zostanie poprawiona albo usunięta; wysyłana
-jest każda pozycja widoczna na ekranie. Suma bieżąca liczy pozycje, które mają i poprawną ilość, i
-cenę. Klient bez organizacji nadal wywołuje dotychczasowe ostrzeżenie, bo zapytanie ofertowe jej
-wymaga.
+**Ofertę tworzą dwa przyciski**: **Zapisz jako szkic** tworzy ją jako nieudostępnioną, a **Utwórz
+i udostępnij** tworzy ją i udostępnia klientowi — zob. *Oferty nieudostępnione i udostępnianie*.
+
+**Niekompletna pozycja jest oznaczana, nigdy pomijana**; wysyłana jest każda pozycja widoczna na
+ekranie. Pozycja z ilością, która nie jest liczbą całkowitą równą 1 lub większą, albo z ceną, która
+nie jest liczbą równą 0 lub większą, blokuje oba przyciski, dopóki nie zostanie poprawiona albo
+usunięta. Pozycję **jeszcze bez ceny** można zapisać: **Zapisz jako szkic** pozostaje dostępne, a
+tylko **Utwórz i udostępnij** czeka, aż każda pozycja będzie miała cenę. Suma bieżąca liczy
+pozycje, które mają i poprawną ilość, i cenę. Klient bez organizacji nadal wywołuje dotychczasowe
+ostrzeżenie, bo zapytanie ofertowe jej wymaga.
+
+**Ważność.** Pole *Ważne przez (dni od udostępnienia)* jest wypełniane domyślną wartością sklepu
+(`quote_requests.default_validity_days`, odczytywaną z
+`GET /api/v1/admin/quote-requests/create-defaults`). Puste pole albo 0 oznacza brak terminu. Dopóki
+wartość domyślna się wczytuje albo gdy nie da się jej odczytać, pole pozostaje puste z podpowiedzią
+*Domyślna ze sklepu*, a wartość domyślną stosuje serwer; **Utwórz i udostępnij** czeka, aż wartość
+domyślna zostanie odczytana.
 
 **Kanał sprzedaży, w którym powstaje zapytanie,** wybiera się pod klientem, spośród aktywnych
 kanałów sprzedaży organizacji klienta. Gdy organizacja ma dokładnie jeden, jest on wybrany z góry;
-gdy ma kilka, wybierz jeden — do tego czasu **Utwórz zapytanie ofertowe** pozostaje nieaktywne.
-Gdy organizacja nie ma żadnego aktywnego kanału sprzedaży, ekran to komunikuje, a **Utwórz
-zapytanie ofertowe** pozostaje nieaktywne, dopóki organizacja nie zostanie przypisana do jednego z nich.
+gdy ma kilka, wybierz jeden — do tego czasu oba przyciski pozostają nieaktywne.
+Gdy organizacja nie ma żadnego aktywnego kanału sprzedaży, ekran to komunikuje, a oba przyciski
+pozostają nieaktywne, dopóki organizacja nie zostanie przypisana do jednego z nich.
 Kanał jest wysyłany jako `salesChannelId`: zapytanie jest w nim zapisywane, nazwy pozycji są brane
 w domyślnym języku tego kanału, a dostępność produktów jest oceniana właśnie tam. W tym kanale
 podpowiadane są też uzgodnione ceny, a wybór innego kanału czyści każdą cenę, która nie została
@@ -1461,7 +1645,7 @@ przypisany tylko innym organizacjom albo nieaktywny — jest odrzucany z
 `422 RFQ_SALES_CHANNEL_NOT_ALLOWED`, zanim cokolwiek zostanie zapisane, także wtedy, gdy nie wybrano
 żadnego kanału, a kanał zastępczy do nich nie należy. Gdy nie da się odczytać kanałów organizacji —
 odczyt się nie powiedzie albo zostanie odrzucony, na przykład przy błędzie sieci — ekran to
-komunikuje i pokazuje przycisk **Ponów**, a **Utwórz zapytanie ofertowe** pozostaje nieaktywne,
+komunikuje i pokazuje przycisk **Ponów**, a oba przyciski pozostają nieaktywne,
 dopóki kanały nie zostaną odczytane; w trakcie ponawiania przycisk jest nieaktywny. Uzgodnione ceny
 są podpowiadane dopiero wtedy, gdy kanał jest już ustalony.
 
@@ -1469,7 +1653,9 @@ Gdy produkt z pozycji nie jest dostępny dla klienta w tym kanale — jest w nim
 publikacji albo poza swoją grupą odbiorców — zapytanie i tak powstaje, a odpowiedź wymienia tę
 pozycję w `warnings` z kodem `PRODUCT_UNAVAILABLE_IN_SCOPE`. Ekran pozostaje wtedy otwarty i
 wymienia te produkty pod nagłówkiem **Zapytanie ofertowe utworzone z ostrzeżeniami**, a **Otwórz
-zapytanie ofertowe** przechodzi do niego; z tego miejsca zapytania nie da się wysłać drugi raz.
+szkic** przechodzi do niego; z tego miejsca zapytania nie da się wysłać drugi raz. Oferta jest
+nieudostępniona, także po **Utwórz i udostępnij**: nic nie zostaje udostępnione, a ekran proponuje
+**Udostępnij klientowi** obok **Otwórz szkic**.
 
 ## Panele na ekranie zapytania ofertowego
 
