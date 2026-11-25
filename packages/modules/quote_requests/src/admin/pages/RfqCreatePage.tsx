@@ -43,7 +43,7 @@ import { createPricePrefillQueue, type PricePrefillQueue } from '../lib/price-pr
 import { SectionSummary, sectionTotals, useQuoteLineGroupLabels, useSectionSummaryText } from '../line-groups.js';
 import { quoteNet } from '../quote-totals.js';
 import { createValidity } from '../validity.js';
-import { shareRefusalOf, type ShareRefusal } from '../share-refusal.js';
+import { SHARE_FAILED_CODE, shareRefusalOf, type ShareRefusal } from '../share-refusal.js';
 import { shareConfirmMessage, shareCustomerName } from '../share-confirm.js';
 import type { RfqDetailArrival } from './rfq-page-notice.js';
 import {
@@ -701,7 +701,7 @@ export function RfqCreatePage(): ReactNode {
       await apiClient.post(`/api/v1/admin/quote-requests/${id}/share`, {}, { headers: { 'If-Match': `"${version}"` } });
       leaveFor(id);
     } catch (err) {
-      leaveRefused(id, shareRefusalOf(err) ?? { code: 'SHARE_FAILED', message: tGroups('share.error'), lines: [] });
+      leaveRefused(id, shareRefusalOf(err) ?? { code: SHARE_FAILED_CODE, message: tGroups('share.error'), lines: [] });
     }
   };
 

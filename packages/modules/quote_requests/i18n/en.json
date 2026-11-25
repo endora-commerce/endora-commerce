@@ -267,6 +267,7 @@
   "share.refusal.afterCreate": "The quote was created as a draft but not shared.",
   "share.refusal.lineVariant": "{product} — {variant}",
   "share.refusal.lineInGroup": "{line} (in {group})",
+  "share.refusal.goToPrices": "Go to prices",
   "validity.unshared.field": "Valid for (days from sharing)",
   "validity.unshared.days.one": "Valid for {days} day from the moment you share the quote.",
   "validity.unshared.days.other": "Valid for {days} days from the moment you share the quote.",

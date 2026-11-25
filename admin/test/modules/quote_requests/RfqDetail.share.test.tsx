@@ -323,6 +323,24 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     ]);
     // Still a draft, still shareable once priced.
     expect(screen.getByRole('button', { name: quote('share.action') })).toBeEnabled();
+
+    // The remedy is one press away: the Modify tab, with the list still in view.
+    await user.click(within(pageAlert()).getByRole('button', { name: quote('share.refusal.goToPrices') }));
+    expect(screen.getByRole('tab', { name: core('rfq.detail.tabs.modify') })).toHaveAttribute('aria-selected', 'true');
+    expect(pageAlert()).toHaveTextContent('some lines have no agreed price');
+  });
+
+  it('offers no "Go to prices" for a refusal prices do not cure', async () => {
+    const user = userEvent.setup();
+    serve(rfqPayload());
+    postSpy.mockRejectedValue(refusal(409, 'APPROVAL_PENDING', 'A manager has to approve this discount first.'));
+    renderDetail();
+
+    await user.click(await shareButton());
+    await answerConfirm(true);
+
+    await waitFor(() => expect(pageAlert()).toHaveTextContent('A manager has to approve this discount first.'));
+    expect(within(pageAlert()).queryByRole('button', { name: quote('share.refusal.goToPrices') })).toBeNull();
   });
 
   it.each([

@@ -273,6 +273,7 @@
   "share.refusal.afterCreate": "Oferta została utworzona jako szkic, ale nie została udostępniona.",
   "share.refusal.lineVariant": "{product} — {variant}",
   "share.refusal.lineInGroup": "{line} (w grupie {group})",
+  "share.refusal.goToPrices": "Przejdź do cen",
   "validity.unshared.field": "Ważne przez (dni od udostępnienia)",
   "validity.unshared.days.one": "Ważna {days} dzień od chwili udostępnienia oferty.",
   "validity.unshared.days.few": "Ważna {days} dni od chwili udostępnienia oferty.",

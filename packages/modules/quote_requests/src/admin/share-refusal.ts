@@ -1,4 +1,5 @@
 import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 
 /**
  * `specs/192-quote-request-draft-share/` — why `POST …/:id/share` was refused,
@@ -11,6 +12,20 @@ import { ApiError } from '@endora-commerce/admin-kit/lib';
  * share hook of another module words its own refusal. What the screen adds is
  * the unpriced lines `QUOTE_INCOMPLETE` names in `details.lines` (FR-026).
  */
+/**
+ * The `details.code` token a `QUOTE_INCOMPLETE` share refusal carries (the
+ * manifest's `{ code: 'QUOTE_INCOMPLETE', tokens: ['share'] }`). The contracts
+ * export no details schema for it, so the token is named once here.
+ */
+export const QUOTE_INCOMPLETE_SHARE_TOKEN = 'share';
+
+/**
+ * The screen's own code for a share that failed without a refusal (a network
+ * failure): there is no envelope, so the sentence is the screen's `share.error`.
+ * Not an API code — nothing on the server answers it.
+ */
+export const SHARE_FAILED_CODE = 'SHARE_FAILED';
+
 export interface ShareRefusalLine {
   id: string;
   productName: string;
@@ -29,7 +44,7 @@ export interface ShareRefusal {
 function readLines(details: unknown): ShareRefusalLine[] {
   if (typeof details !== 'object' || details === null) return [];
   const { code, lines } = details as { code?: unknown; lines?: unknown };
-  if (code !== 'share' || !Array.isArray(lines)) return [];
+  if (code !== QUOTE_INCOMPLETE_SHARE_TOKEN || !Array.isArray(lines)) return [];
   return lines.flatMap((line): ShareRefusalLine[] => {
     if (typeof line !== 'object' || line === null) return [];
     const l = line as Record<string, unknown>;
@@ -49,10 +64,23 @@ function readLines(details: unknown): ShareRefusalLine[] {
 export function shareRefusalOf(err: unknown): ShareRefusal | null {
   if (!(err instanceof ApiError)) return null;
   const { code, message, details } = err.envelope.error as { code: string; message: string; details?: unknown };
-  return { code, message, lines: code === 'QUOTE_INCOMPLETE' ? readLines(details) : [] };
+  return { code, message, lines: code === ERROR_CODES.QUOTE_INCOMPLETE ? readLines(details) : [] };
 }
 
 /** Whether the refusal means the screen shows an older version of the quote than the server holds. */
 export function shareRefusalNeedsReread(refusal: ShareRefusal): boolean {
-  return refusal.code === 'RFQ_ALREADY_SHARED' || refusal.code === 'VERSION_CONFLICT';
+  return shareRefusalIsAlreadyShared(refusal) || refusal.code === ERROR_CODES.VERSION_CONFLICT;
+}
+
+/**
+ * Somebody else shared the quote meanwhile: what the operator asked for is
+ * done, so the screen says it as news, not as an error.
+ */
+export function shareRefusalIsAlreadyShared(refusal: ShareRefusal): boolean {
+  return refusal.code === ERROR_CODES.RFQ_ALREADY_SHARED;
+}
+
+/** The share waits for agreed prices: the remedy is the Modify tab. */
+export function shareRefusalWantsPrices(refusal: ShareRefusal): boolean {
+  return refusal.code === ERROR_CODES.QUOTE_INCOMPLETE;
 }

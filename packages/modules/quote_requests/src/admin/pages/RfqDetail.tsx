@@ -54,7 +54,12 @@ import {
   rfqValidity,
   unsharedValidityDaysPayload,
 } from '../validity.js';
-import { shareRefusalNeedsReread, shareRefusalOf } from '../share-refusal.js';
+import {
+  shareRefusalIsAlreadyShared,
+  shareRefusalNeedsReread,
+  shareRefusalOf,
+  shareRefusalWantsPrices,
+} from '../share-refusal.js';
 import { useRfqNumberFormat } from '../number-format.js';
 import type { ReferenceAmount } from '../reference-difference.js';
 import {
@@ -478,14 +483,18 @@ export function RfqDetail(): ReactNode {
       const refusal = shareRefusalOf(err);
       if (refusal === null) {
         setError(tPdf('share.error'));
-      } else if (refusal.code === 'RFQ_ALREADY_SHARED') {
-        // Somebody else shared it meanwhile: what the operator wanted is done,
-        // so it is news, not an error — and the screen catches up.
-        actionStatus.show(refusal.message, 'info');
-        setHistoryNonce((n) => n + 1);
+        return;
+      }
+      if (shareRefusalNeedsReread(refusal)) {
+        // The screen catches up with the server before it says anything.
+        if (shareRefusalIsAlreadyShared(refusal)) setHistoryNonce((n) => n + 1);
         await refresh();
+      }
+      if (shareRefusalIsAlreadyShared(refusal)) {
+        // Somebody else shared it meanwhile: what the operator wanted is done,
+        // so it is news, not an error.
+        actionStatus.show(refusal.message, 'info');
       } else {
-        if (shareRefusalNeedsReread(refusal)) await refresh();
         setShareRefusal(refusal);
       }
     } finally {
@@ -767,7 +776,11 @@ export function RfqDetail(): ReactNode {
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>
             {shareRefusal !== null && error === null ? (
-              <ShareRefusalText refusal={shareRefusal} />
+              <ShareRefusalText
+                refusal={shareRefusal}
+                // The prices are set under Modify, which a closed quote does not have.
+                {...(!isTerminal ? { onGoToPrices: (): void => setTab('modify') } : {})}
+              />
             ) : (
               (error ?? loadError)
             )}
@@ -1157,7 +1170,13 @@ export function RfqDetail(): ReactNode {
  * and, when lines have no price, which ones (FR-026), so the operator knows
  * what to price under Modify without hunting for it.
  */
-function ShareRefusalText({ refusal }: { refusal: ShownShareRefusal }): ReactNode {
+function ShareRefusalText({
+  refusal,
+  onGoToPrices,
+}: {
+  refusal: ShownShareRefusal;
+  onGoToPrices?: () => void;
+}): ReactNode {
   const t = useTranslation('quote_requests');
   return (
     <>
@@ -1181,6 +1200,13 @@ function ShareRefusalText({ refusal }: { refusal: ShownShareRefusal }): ReactNod
             })}
           </ul>
         </>
+      ) : null}
+      {/* Fix round B — the refusal names its remedy, as the unsaved-draft banner does (the
+          banner stays: it lists what to price). */}
+      {onGoToPrices && shareRefusalWantsPrices(refusal) ? (
+        <Button variant="outline" size="sm" className="mt-3 bg-card" onClick={onGoToPrices}>
+          {t('share.refusal.goToPrices')}
+        </Button>
       ) : null}
     </>
   );
