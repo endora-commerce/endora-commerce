@@ -20,7 +20,7 @@
 // English, never the language the code happened to be written in.
 
 import { describe, expect, it } from 'vitest';
-import type { EntityManager } from '@mikro-orm/postgresql';
+import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type {
   CustomerAccountReadPort,
   EmailMailerPort,
@@ -28,7 +28,10 @@ import type {
   TransactionalEmailSendInput,
   TransactionalSendOutcome,
 } from '@endora-commerce/contracts';
+import { CommandBus } from '@endora-commerce/platform/commands';
+import { EventBus } from '@endora-commerce/platform/events';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { makeTemplateEmail } from '../../../../packages/modules/transactional_emails/src/backend/services/template-email.js';
 import { ContentResolver } from '../../../../packages/modules/transactional_emails/src/backend/services/content-resolver.js';
 import {
@@ -136,6 +139,20 @@ function fakeOrganization(status: 'pending_verification'): Organization {
   } as unknown as Organization;
 }
 
+/**
+ * The moderation transitions are Commands (`specs/186-aggregate-ports/` T026):
+ * a real bus over the fake `em`, run under a system scope, as the auto-approval
+ * runs them.
+ */
+function systemBus(em: object): { run: CommandBus['run'] } {
+  const bus = new CommandBus(
+    { em: { fork: () => em } } as unknown as MikroORM,
+    { recordWithin: () => ({}) } as unknown as AuditPort,
+    new EventBus(),
+  );
+  return { run: (command) => withSystemScope('organizations unit test: moderation e-mail', () => bus.run(command)) };
+}
+
 interface Harness {
   service: OrganizationModerationService;
   organization: Organization;
@@ -179,8 +196,7 @@ function harness(options: { channelLanguage: string | null; senderWired?: boolea
 
   const service = new OrganizationModerationService(
     () => em as unknown as EntityManager,
-    { async record(): Promise<void> {} } as unknown as AuditPort,
-    { emit: (): void => {} } as never,
+    systemBus(em),
     mailer,
     {
       async listByOrganization() {
@@ -258,8 +274,7 @@ describe('organizations — the moderation e-mails are sent in the recipient\'s 
     });
     const service = new OrganizationModerationService(
       () => em as unknown as EntityManager,
-      { async record(): Promise<void> {} } as unknown as AuditPort,
-      { emit: (): void => {} } as never,
+      systemBus(em),
       { async send() { return { status: 'sent' as const }; } },
       {
         async listByOrganization() {
