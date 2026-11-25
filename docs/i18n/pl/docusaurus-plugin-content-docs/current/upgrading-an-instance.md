@@ -5809,6 +5809,34 @@ schemat poza migracjami, które przestają go wtedy opisywać.
 
 Ten wpis napisał pull request, który wprowadził zmianę, przed wydaniem, które ją zawiera.
 
+### Oferty operatora startują jako nieudostępnione {#quote-requests-unshared-operator-quotes}
+
+Zapytanie ofertowe, które operator tworzy dla klienta w panelu administracyjnym albo przez
+`POST /api/v1/admin/quote-requests`, startuje teraz jako **nieudostępnione**: klient go nie widzi
+i nikt po stronie kupującego nie dostaje powiadomienia, dopóki operator nie udostępni oferty
+przyciskiem **Udostępnij klientowi** albo przez `POST /api/v1/admin/quote-requests/:id/share`
+(`specs/192-quote-request-draft-share/`). Nie ma ustawienia, które to wyłącza. Strona modułu
+`quote_requests` opisuje to w części *Oferty nieudostępnione i udostępnianie*.
+
+- **Oferty istniejące w chwili aktualizacji pozostają bez zmian.** Migracja oznacza każdą istniejącą
+  ofertę jako udostępnioną, więc klienci nadal je widzą. Zapytania składane przez klienta,
+  *Skopiuj do zapytania* z zamówienia i szybkie zamówienie są widoczne od razu, jak dotąd.
+- **E-mail *oferta przygotowana* jest wysyłany przy udostępnieniu, a nie przy utworzeniu.**
+  `quote_request_customer_prepared`, wpis w centrum powiadomień i push wychodzą teraz, gdy operator
+  udostępnia ofertę. Jego `quote.validUntil` to termin zapisany przez udostępnienie. Operator, który
+  przywykł, że oferta trafia do klienta przy utworzeniu, musi ją teraz także udostępnić; uprzedź
+  dział sprzedaży.
+- **Ważność liczy się od udostępnienia.** Nowe ustawienie `quote_requests.default_validity_days`
+  (0–3650, domyślnie `0` = bez terminu) wypełnia liczbę dni nowej oferty.
+- **`0` dni w rewizji udostępnionej oferty oznacza brak terminu.** Wcześniej oznaczało „wygasa
+  natychmiast”; teraz usuwa termin ważności, a klient nadal może zaakceptować ofertę. Aby zamknąć
+  ofertę, anuluj ją. Integracja, która wysyłała `expiresInDays: 0`, by zakończyć ofertę, musi zamiast
+  tego wywołać `POST /api/v1/admin/quote-requests/:id/cancel`.
+- **`expiresInDays` powyżej 3650 jest odrzucane** z `400 VALIDATION_FAILED`, przy tworzeniu i przy
+  zmianie oferty przez administratora.
+
+Ten wpis napisał pull request, który wprowadził zmianę, przed wydaniem, które ją zawiera.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

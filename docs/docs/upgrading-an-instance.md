@@ -5563,6 +5563,34 @@ migrations, which then no longer describe it.
 This entry was written by the pull request that made the change, ahead of the release that carries
 it.
 
+### Operator quotes start unshared {#quote-requests-unshared-operator-quotes}
+
+A quote request an operator creates for a customer in the Admin UI, or through
+`POST /api/v1/admin/quote-requests`, now starts **unshared**: the customer cannot see it, and nobody
+on the buyer side is told, until an operator shares it with **Share with customer** or
+`POST /api/v1/admin/quote-requests/:id/share` (`specs/192-quote-request-draft-share/`). There is no
+setting to turn this off. The `quote_requests` module page describes it under *Unshared quotes and
+sharing*.
+
+- **Quotes that exist when you upgrade stay as they are.** The migration marks every existing quote
+  shared, so customers keep seeing them. Quote requests a customer submits, an order's *Clone to
+  quote* and the quick-order build are visible at once, as before.
+- **The *quote prepared* e-mail is sent on share, not on create.** `quote_request_customer_prepared`,
+  its notification-centre entry and its push now go out when the operator shares the quote. Its
+  `quote.validUntil` is the date the share wrote. An operator used to a quote reaching the customer
+  on create now has to share it as well; tell your sales team.
+- **Validity counts from the share.** The new setting `quote_requests.default_validity_days`
+  (0–3650, default `0` = no deadline) fills in a new quote's days.
+- **`0` days on a revision of a shared quote means no deadline.** It used to mean "expires now"; it
+  now removes the validity date, and the customer can still accept the quote. To close an offer,
+  cancel it. An integration that sent `expiresInDays: 0` to end a quote must call
+  `POST /api/v1/admin/quote-requests/:id/cancel` instead.
+- **`expiresInDays` above 3650 is refused** with `400 VALIDATION_FAILED`, on the admin create and on
+  the admin patch.
+
+This entry was written by the pull request that made the change, ahead of the release that carries
+it.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

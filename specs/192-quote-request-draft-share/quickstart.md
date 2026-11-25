@@ -25,7 +25,7 @@ login above it.
 7. **Create and share.** New quote → *Create and share*: lands on a shared quote. With a line the
    channel does not sell, nothing is shared: the draft is kept and the warnings are shown. Leave
    one price empty: *Save as draft* works, *Create and share* is disabled.
-8. **Default validity.** Settings → Quote requests → *Default validity (days)* = 30. New quote
+8. **Default validity.** Settings → Quote requests → *Default validity of operator quotes (days)* = 30. New quote
    shows 30 prefilled; clear the field → shared quote has no date.
 9. **Expiry sweep.** Set `expiry_days` to 1, backdate a draft's events, run the sweep: the draft
    stays `Created from admin`.
