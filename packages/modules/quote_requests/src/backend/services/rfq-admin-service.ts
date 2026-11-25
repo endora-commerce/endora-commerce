@@ -412,7 +412,7 @@ export class RfqAdminService {
         version: rfq.version,
         organizationName: org?.name ?? '',
         customerDisplayName: customer ? customerDisplayName(customer) : null,
-        // `specs/192-quote-request-draft-share/` (FR-009) — the list's *Draft* badge.
+        // `specs/192-quote-request-draft-share/` (FR-009) — the list's *Not shared* badge.
         sharedWithCustomer: rfq.sharedWithCustomer,
       };
     });
@@ -828,6 +828,7 @@ export class RfqAdminService {
     });
     this.kickNotificationDelivery();
 
+    // Emitted for unshared quotes too — a customer-facing subscriber must check `sharedWithCustomer`.
     this.deps.events.emit('rfq.canceled.v1', {
       eventId: randomUUID(),
       occurredAt: now.toISOString(),
@@ -1131,6 +1132,7 @@ export class RfqAdminService {
     });
     this.kickNotificationDelivery();
 
+    // Emitted for unshared quotes too — a customer-facing subscriber must check `sharedWithCustomer`.
     this.deps.events.emit('rfq.modified.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),

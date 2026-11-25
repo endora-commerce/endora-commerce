@@ -284,7 +284,7 @@ export function RfqDetail(): ReactNode {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   /**
-   * Fix round B — a share is asked before `busy` is set (the question is not the
+   * A share is asked before `busy` is set (the question is not the
    * work, so no spinner while it is open); this guard holds from the first click,
    * so a second click before the dialog renders asks nothing twice.
    */
@@ -779,13 +779,15 @@ export function RfqDetail(): ReactNode {
           </span>
         }
         actions={headerActions}
+        // The unshared line below sits close under the header; the header owns the gap.
+        {...(unshared ? { className: 'mb-2' } : {})}
       />
       {/* `specs/192-quote-request-draft-share/` — who sees a quote not shared yet,
           in plain text under the header while it is unshared. Not in the meta
           line (clamped to one row), not a page notice (one at a time, so an error
           would hide it), and not an alert: a standing fact, not news. */}
       {unshared ? (
-        <p className="-mt-4 mb-6 text-sm text-muted-foreground">{tPdf('share.unshared.notice')}</p>
+        <p className="mb-6 text-sm text-muted-foreground">{tPdf('share.unshared.notice')}</p>
       ) : null}
 
       {pageNotice === 'error' ? (
@@ -1196,7 +1198,7 @@ function ShareRefusalText({
   const t = useTranslation('quote_requests');
   return (
     <>
-      {/* Fix round B — *Create and share* did half of what was asked: say the half that happened first. */}
+      {/* *Create and share* did half of what was asked: say the half that happened first. */}
       {refusal.afterCreate ? <p className="mb-2 font-medium">{t('share.refusal.afterCreate')}</p> : null}
       <p>{refusal.message}</p>
       {refusal.lines.length > 0 ? (
@@ -1217,7 +1219,7 @@ function ShareRefusalText({
           </ul>
         </>
       ) : null}
-      {/* Fix round B — the refusal names its remedy, as the unsaved-draft banner does (the
+      {/* The refusal names its remedy, as the unsaved-draft banner does (the
           banner stays: it lists what to price). */}
       {onGoToPrices && shareRefusalWantsPrices(refusal) ? (
         <Button variant="outline" size="sm" className="mt-3 bg-card" onClick={onGoToPrices}>

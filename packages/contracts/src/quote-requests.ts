@@ -585,7 +585,7 @@ export const quoteRequestSchema = z.object({
   documentTemplateId: uuidSchema.nullable().optional(),
   /**
    * `specs/192-quote-request-draft-share/` — whether the customer may see the
-   * quote (`false` = the Admin UI's *Draft*), when and by whom it was shared,
+   * quote (`false` = the Admin UI's *Not shared*), when and by whom it was shared,
    * and the validity days applied at the share (`null` = no deadline). **Admin
    * replies only** — a customer reply carries none of the keys, as
    * `createdByAdminUserId`.
@@ -677,7 +677,7 @@ export const quoteRequestSummarySchema = z.object({
   statusName: z.string().optional(),
   /**
    * `specs/192-quote-request-draft-share/` — `false` for a quote the customer
-   * cannot see yet (the list's *Draft* badge). **Admin list only.**
+   * cannot see yet (the list's *Not shared* badge). **Admin list only.**
    */
   sharedWithCustomer: z.boolean().optional(),
 });

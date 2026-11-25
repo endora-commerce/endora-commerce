@@ -40,8 +40,9 @@ import type { NotificationKick } from './notifications/kick.js';
  *     or converts, and whether it should also close the request is not this
  *     sweep's to decide.
  *  4. **Its customer can see it** (`specs/192-quote-request-draft-share/`,
- *     FR-006). An operator's quote that has not been shared yet is a draft
- *     being prepared, and a draft never expires — by inactivity or otherwise.
+ *     FR-006). An operator's quote that has not been shared yet is an unshared
+ *     quote being prepared, and an unshared quote never expires — by inactivity
+ *     or otherwise.
  *
  * ## One Quote Request, one unit of work
  *

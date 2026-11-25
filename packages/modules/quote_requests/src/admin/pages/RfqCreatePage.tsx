@@ -451,7 +451,7 @@ export function RfqCreatePage(): ReactNode {
   const validity = createValidity(defaultDays, validityTouched, expiresInDays);
   const [busy, setBusy] = useState<'save' | 'share' | null>(null);
   /**
-   * Fix round B — set on the first click, before the share question is awaited
+   * Set on the first click, before the share question is awaited
    * (`busy` waits for the answer, so no spinner shows while it is open): a second
    * click that lands before the dialog renders starts nothing.
    */
@@ -671,7 +671,7 @@ export function RfqCreatePage(): ReactNode {
 
   /**
    * `specs/192-quote-request-draft-share/` (FR-020, US2 #7) — the quote exists
-   * but its share was refused: the operator lands on it, a draft, with the
+   * but its share was refused: the operator lands on it, an unshared quote, with the
    * refusal said there once. The opener's way back stays on its address.
    */
   const leaveRefused = (id: string, refusal: ShareRefusal): void => {
@@ -965,7 +965,7 @@ export function RfqCreatePage(): ReactNode {
                   const { quantity, price, priceInvalid } = parsedByKey.get(row.key)!;
                   const rowId = `${itemsId}-${row.key}`;
                   const isResolving = resolving.has(row.key);
-                  // No price yet is allowed on a draft (FR-013): said, not flagged as an error.
+                  // No price yet is allowed on an unshared quote (FR-013): said, not flagged as an error.
                   const priceMissing = price === null && !priceInvalid && !isResolving;
                   const priceNoteShown = priceMissing || priceInvalid;
                   return (

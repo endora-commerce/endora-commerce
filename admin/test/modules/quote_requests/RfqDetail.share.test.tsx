@@ -479,6 +479,33 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     ]);
   });
 
+  it('arrives with malformed refusal lines in navigation state without throwing, keeping only the well-formed ones', async () => {
+    serve(rfqPayload());
+    renderDetail(undefined, {
+      shareRefusal: {
+        code: 'QUOTE_INCOMPLETE',
+        message: 'Price every line before sharing.',
+        lines: [null, 'line-1', { id: 7 }, { productName: 'No id' }, { id: 'line-ok', productName: 'Steel bolt' }],
+      },
+      afterCreate: true,
+    });
+
+    await shareButton();
+    expect(pageAlert()).toHaveTextContent('Price every line before sharing.');
+    expect(pageAlert()).toHaveTextContent('Steel bolt');
+    expect(pageAlert()).not.toHaveTextContent('No id');
+  });
+
+  it('arrives with a refusal whose lines are not an array without throwing', async () => {
+    serve(rfqPayload());
+    renderDetail(undefined, {
+      shareRefusal: { code: 'QUOTE_INCOMPLETE', message: 'Price every line before sharing.', lines: { id: 'x' } },
+    });
+
+    await shareButton();
+    expect(pageAlert()).toHaveTextContent('Price every line before sharing.');
+  });
+
   it('a share refused on the detail itself has no "created but not shared" lead line', async () => {
     const user = userEvent.setup();
     serve(rfqPayload());

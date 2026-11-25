@@ -1,17 +1,16 @@
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 
-/**
- * `specs/192-quote-request-draft-share/` — why `POST …/:id/share` was refused,
- * read once for the detail screen and for the create screen's *Create and
- * share* (which hands it to the detail screen through navigation state).
- *
- * The sentence is the server's: the error envelope's `message` is already in
- * the operator's language, token sentences included (`RFQ_SHARE_CUSTOMER_UNAVAILABLE`
- * `not_member` / `inactive` / `blocked`, `QUOTE_INCOMPLETE` `share`), and a
- * share hook of another module words its own refusal. What the screen adds is
- * the unpriced lines `QUOTE_INCOMPLETE` names in `details.lines` (FR-026).
- */
+// `specs/192-quote-request-draft-share/` — why `POST …/:id/share` was refused,
+// read once for the detail screen and for the create screen's *Create and
+// share* (which hands it to the detail screen through navigation state).
+//
+// The sentence is the server's: the error envelope's `message` is already in
+// the operator's language, token sentences included (`RFQ_SHARE_CUSTOMER_UNAVAILABLE`
+// `not_member` / `inactive` / `blocked`, `QUOTE_INCOMPLETE` `share`), and a
+// share hook of another module words its own refusal. What the screen adds is
+// the unpriced lines `QUOTE_INCOMPLETE` names in `details.lines` (FR-026).
+
 /**
  * The `details.code` token a `QUOTE_INCOMPLETE` share refusal carries (the
  * manifest's `{ code: 'QUOTE_INCOMPLETE', tokens: ['share'] }`). The contracts
@@ -44,7 +43,17 @@ export interface ShareRefusal {
 function readLines(details: unknown): ShareRefusalLine[] {
   if (typeof details !== 'object' || details === null) return [];
   const { code, lines } = details as { code?: unknown; lines?: unknown };
-  if (code !== QUOTE_INCOMPLETE_SHARE_TOKEN || !Array.isArray(lines)) return [];
+  if (code !== QUOTE_INCOMPLETE_SHARE_TOKEN) return [];
+  return shareRefusalLinesOf(lines);
+}
+
+/**
+ * The well-formed unpriced lines in `lines`: an entry without a string `id` and
+ * `productName` is dropped, anything that is not an array reads as none. Shared
+ * by the error envelope and by the navigation state the detail screen arrives with.
+ */
+export function shareRefusalLinesOf(lines: unknown): ShareRefusalLine[] {
+  if (!Array.isArray(lines)) return [];
   return lines.flatMap((line): ShareRefusalLine[] => {
     if (typeof line !== 'object' || line === null) return [];
     const l = line as Record<string, unknown>;

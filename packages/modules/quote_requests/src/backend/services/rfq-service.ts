@@ -103,6 +103,9 @@ import {
 export interface RfqEvents extends Record<string, EventBase> {
   'rfq.created.v1': EventBase & { rfqId: string; organizationId: string };
   'rfq.approved.v1': EventBase & { rfqId: string };
+  // `specs/192-quote-request-draft-share/` — the operator's cancel and modify
+  // emit these for unshared quotes too: a customer-facing subscriber must check
+  // `sharedWithCustomer` before telling anyone.
   'rfq.canceled.v1': EventBase & { rfqId: string; reason: string | null };
   'rfq.modified.v1': EventBase & { rfqId: string; revisionNumber: number };
 }

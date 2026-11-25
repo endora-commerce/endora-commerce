@@ -1,4 +1,4 @@
-import type { ShareRefusal } from '../share-refusal.js';
+import { shareRefusalLinesOf, type ShareRefusal } from '../share-refusal.js';
 
 /**
  * Issue #1499 (UX audit SALES-17) — the one banner the quote-request screen
@@ -48,8 +48,8 @@ export function rfqPageNotice(input: RfqPageNoticeInput): RfqPageNotice | null {
 export interface RfqDetailArrival {
   shareRefusal?: ShareRefusal;
   /**
-   * The refusal came from *Create and share*: the quote was just created, as a
-   * draft, and the screen says so before the refusal — the operator pressed one
+   * The refusal came from *Create and share*: the quote was just created, not
+   * shared yet, and the screen says so before the refusal — the operator pressed one
    * button and has to learn that half of it happened.
    */
   afterCreate?: boolean;
@@ -67,7 +67,8 @@ export function shareRefusalFromArrival(state: unknown): ShownShareRefusal | nul
   return {
     code: refusal.code,
     message: refusal.message,
-    lines: Array.isArray(refusal.lines) ? refusal.lines : [],
+    // Navigation state is not typed at run time: the lines are read as the envelope's are.
+    lines: shareRefusalLinesOf(refusal.lines),
     ...(afterCreate === true ? { afterCreate: true } : {}),
   };
 }

@@ -22,7 +22,7 @@ const DAY_MS = 86_400_000;
 /**
  * Whether a new operator quote starts unshared (research R-2, FR-001) — **the
  * one decision point**, and `RfqAdminService.createOnBehalf` its one caller.
- * Always, by owner decision; a setting that makes drafts optional reads here,
+ * Always, by owner decision; a setting that makes unshared quotes optional reads here,
  * and its `false` branch then shares at create through {@link applyShare} —
  * deciding whether that runs the share's hooks, and refusing unpriced lines
  * (R-19). Not written now: with this answer fixed, no test could reach it.
@@ -130,7 +130,7 @@ export interface ApplyShareDeps {
 /**
  * What a share writes, on the caller's transactional `em` (research R-4 step 6,
  * R-5, R-10): the row shared — when, by whom — with its validity date counted
- * from `now` by the days stored on the draft (`null` = no deadline) and its
+ * from `now` by the days stored on the unshared quote (`null` = no deadline) and its
  * `version` moved; the `shared` history entry on the current revision (the
  * content the customer is shown); and the existing `prepared` notification
  * announcing that entry. Answers the entry.
