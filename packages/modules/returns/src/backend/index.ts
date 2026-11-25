@@ -105,6 +105,10 @@ import { ReturnShipment } from './entities/return-shipment.entity.js';
 import { ReturnStatusTransition } from './entities/return-status-transition.entity.js';
 import { ReturnStatus } from './entities/return-status.entity.js';
 import { ReturnWithdrawalStatement } from './entities/return-withdrawal-statement.entity.js';
+import {
+  RETURNS_MERGE_PARTICIPATION_KEY,
+  ReturnsOrganizationMergeParticipant,
+} from './merge/organization-merge-participant.js';
 
 /**
  * `returns` — four settlement ports and a dead callback (feature 072, wave 2,
@@ -582,6 +586,20 @@ export function registerModule(ctx: ModuleContext): void {
       createReturnsTimeZoneValidator(),
     );
   });
+  /**
+   * `specs/192-organization-merge/` T050 — this module's part of an
+   * Organization merge: the loser's return cases, attachments and withdrawal
+   * statements move to the survivor in the `records` phase, through
+   * `return_case.merge_reassign`. Registration only; the platform's runner calls it.
+   */
+  ctx.merge.participate(
+    'organization',
+    RETURNS_MERGE_PARTICIPATION_KEY,
+    new ReturnsOrganizationMergeParticipant({
+      emFactory: () => ctx.cradle<ReturnsCradle>().emFactory(),
+      commandBus: () => ctx.cradle<ReturnsCradle>().commandBus,
+    }),
+  );
 }
 
 /**

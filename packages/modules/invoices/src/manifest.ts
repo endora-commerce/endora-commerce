@@ -459,4 +459,19 @@ export const manifest = defineModuleManifest({
   blockCategories: [
     { key: 'invoice', titleKey: 'blocks.category.invoice', contexts: ['invoice'], weight: 10 },
   ],
+  /**
+   * `specs/192-organization-merge/` T044 — an Organization merge re-points the
+   * loser's invoices to the survivor in the `records` phase; the printed
+   * document is unchanged (FR-043, `contracts/participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'invoices',
+        phase: 'records',
+        references: [{ entity: 'Invoice', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

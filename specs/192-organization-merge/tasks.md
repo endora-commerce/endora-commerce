@@ -115,15 +115,25 @@ co-located at `packages/modules/<m>/src/backend/merge/organization-merge-partici
 and the manifest declaration; (4) cache and index refresh; (5) removal of the module's pending-ledger
 entries. The disposition is in `contracts/participant-dispositions.md` §A.
 
-- [ ] T042 [P] `addresses`: R, survivor's defaults kept (C1)
-- [ ] T043 [P] `carts`: R, `buyingFor` cleared when equal to self, reprice mark (C1)
-- [ ] T044 [P] `invoices`: R, printed data unchanged (C1)
-- [ ] T045 [P] `invoice_ledger`: client map S+f with the loser's listed as a preview warning; document map R; deliveries K (C1)
-- [ ] T046 [P] `credit_limits`: limit S+f, reservations and top-ups R, over-limit warning (C1)
-- [ ] T047 [P] `related_payers`: links and requests R, self-links and duplicates revoked, self-requests closed with a merge reason (C1)
-- [ ] T048 [P] `price_lists`: audience U, matrix S+f per product, display override S+f, price cache invalidated for both ids (C1)
-- [ ] T049 [P] `promotions`: promotions and usage R, per-Organization counters Σ (C1)
-- [ ] T050 [P] `returns`: cases, attachments, withdrawal statements R (C1)
+**As implemented (MR-C1, T042 – T050).** Step (1) is DB-backed rather than co-located: a
+participant's rows are only meaningful over the real schema (unions and sums ride on its unique
+indexes, re-points on its foreign keys), so each conformance test is
+`backend/test/integration/<m>/organization-merge-participant.test.ts`, driving the participant the
+composition registered through `backend/test/helpers/organization-merge-participants.ts` (merge
+scope, event count, audit read-back, and a row trigger narrowed to the loser as the injected
+failure). The participant lives in `src/backend/merge/organization-merge-participant.ts`. Modules
+whose rows sit in two phases declare two participations: `credit_limits` (`credit-limit`,
+`credit-exposure`) and `invoice_ledger` (`client-maps`, `document-maps`).
+
+- [x] T042 [P] `addresses`: R, survivor's defaults kept (C1)
+- [x] T043 [P] `carts`: R, `buyingFor` cleared when equal to self, reprice mark (C1)
+- [x] T044 [P] `invoices`: R, printed data unchanged (C1)
+- [x] T045 [P] `invoice_ledger`: client map S+f with the loser's listed as a preview warning; document map R; deliveries K (C1)
+- [x] T046 [P] `credit_limits`: limit S+f, reservations and top-ups R, over-limit warning (C1)
+- [x] T047 [P] `related_payers`: links and requests R, self-links and duplicates revoked, self-requests closed with a merge reason (C1)
+- [x] T048 [P] `price_lists`: audience U, ~~matrix S+f per product~~ (no Organization column on the price-book matrix, see `participant-dispositions.md` §A), display override S+f, pricing generation bumped with the changed books (C1)
+- [x] T049 [P] `promotions`: promotions and usage R, per-Organization counters Σ (C1)
+- [x] T050 [P] `returns`: cases, attachments, withdrawal statements R (C1)
 - [x] T051 [P] `shopping_lists`, `comparisons`, `inventory`: R (C2)
 - [x] T052 [P] `forms`, `newsletter`, `customer_notifications`: R (C2)
 - [x] T053 [P] `pwa`: subscriptions R, preferences R (**corrected in C2**: a preference is unique per customer account, so there is nothing to de-duplicate) (C2)

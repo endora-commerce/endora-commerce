@@ -355,4 +355,26 @@ export const manifest = defineModuleManifest({
       ],
     },
   ],
+  /**
+   * `specs/192-organization-merge/` T047 — an Organization merge re-points the
+   * loser's payer links and requests on either side to the survivor in the
+   * `records` phase; a link between the two, or one duplicating the survivor's,
+   * is revoked, and a pending request between them is closed with a merge
+   * reason (`contracts/participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'payer-links',
+        phase: 'records',
+        references: [
+          { entity: 'RelatedPayerLink', property: 'organizationId', disposition: 're_point' },
+          { entity: 'RelatedPayerLink', property: 'payerOrganizationId', disposition: 're_point' },
+          { entity: 'RelatedPayerRequest', property: 'organizationId', disposition: 're_point' },
+          { entity: 'RelatedPayerRequest', property: 'counterpartyOrganizationId', disposition: 're_point' },
+        ],
+      },
+    ],
+  },
 });

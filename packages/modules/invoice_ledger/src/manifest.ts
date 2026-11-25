@@ -130,4 +130,33 @@ export const manifest = defineModuleManifest({
       weight: 245,
     },
   ],
+  /**
+   * `specs/192-organization-merge/` T045 (FR-044, OQ-10) — in an Organization
+   * merge a loser's client mapping moves only where the survivor has none for
+   * its adapter, credential and environment (`configuration`; the loser's
+   * others stay on the archived loser and are listed in the preview); document
+   * mappings follow the survivor (`records`); the delivery log is kept
+   * (`contracts/participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'client-maps',
+        phase: 'configuration',
+        references: [
+          { entity: 'InvoiceLedgerClientMap', property: 'organizationId', disposition: 'survivor_wins_fill_gaps' },
+        ],
+      },
+      {
+        host: 'organization',
+        key: 'document-maps',
+        phase: 'records',
+        references: [
+          { entity: 'InvoiceLedgerDocumentMap', property: 'organizationId', disposition: 're_point' },
+          { entity: 'InvoiceLedgerDelivery', property: 'organizationId', disposition: 'kept' },
+        ],
+      },
+    ],
+  },
 });

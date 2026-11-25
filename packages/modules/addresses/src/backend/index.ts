@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DictionaryValidator,
   DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { AddressReadPort, AddressServicePort } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
@@ -10,6 +11,10 @@ import { AddressService } from './services/address-service.js';
 import { AddressReadService, createAddressServicePort } from './services/address-ports.js';
 import { registerAddressCountryReferences } from './services/address-country-reference.js';
 import { Address } from './entities/address.entity.js';
+import {
+  ADDRESSES_MERGE_PARTICIPATION_KEY,
+  AddressOrganizationMergeParticipant,
+} from './merge/organization-merge-participant.js';
 
 /**
  * `addresses` — one service, where there were three (feature 072, wave 1,
@@ -46,6 +51,7 @@ import { Address } from './entities/address.entity.js';
 
 export interface AddressesCradle {
   readonly emFactory: () => EntityManager;
+  readonly commandBus: CommandBus;
   readonly auditLogService: AuditPort;
   readonly dictionaryValidator: DictionaryValidator | undefined;
   readonly addressService: AddressService;
@@ -91,6 +97,21 @@ export function registerModule(ctx: ModuleContext): void {
           ),
       )
       .singleton(),
+  );
+
+  /**
+   * `specs/192-organization-merge/` T042 — this module's part of an
+   * Organization merge: the loser's addresses move to the survivor in the
+   * `addresses` phase, through `address.merge_reassign`, keeping the survivor's
+   * defaults. Registration only; the platform's runner calls it per merge.
+   */
+  ctx.merge.participate(
+    'organization',
+    ADDRESSES_MERGE_PARTICIPATION_KEY,
+    new AddressOrganizationMergeParticipant({
+      emFactory: () => ctx.cradle<AddressesCradle>().emFactory(),
+      commandBus: () => ctx.cradle<AddressesCradle>().commandBus,
+    }),
   );
 
   /**

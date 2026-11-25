@@ -32,6 +32,10 @@ import { PromotionStatsService } from './services/promotion-stats-service.js';
 import { registerPromotionRoutes } from './routes.js';
 import type { PromotionRuleTargetPorts } from './routes.js';
 import { registerPromotionCurrencyReferences } from './services/promotion-currency-reference.js';
+import {
+  PROMOTIONS_MERGE_PARTICIPATION_KEY,
+  PromotionOrganizationMergeParticipant,
+} from './merge/organization-merge-participant.js';
 
 /**
  * `promotions` — six optional arguments, four of which were gates (feature 072,
@@ -286,6 +290,21 @@ export function registerModule(ctx: ModuleContext): void {
       ctx.cradle<PromotionsCradle>().emFactory,
     );
   });
+  /**
+   * `specs/192-organization-merge/` T049 — this module's part of an
+   * Organization merge: the loser's promotions and usages move to the survivor
+   * and its per-Organization usage counters are summed into the survivor's, in
+   * the `records` phase, through `promotion.merge_reassign`. Registration only;
+   * the platform's runner calls it.
+   */
+  ctx.merge.participate(
+    'organization',
+    PROMOTIONS_MERGE_PARTICIPATION_KEY,
+    new PromotionOrganizationMergeParticipant({
+      emFactory: () => ctx.cradle<PromotionsCradle>().emFactory(),
+      commandBus: () => ctx.cradle<PromotionsCradle>().commandBus,
+    }),
+  );
 }
 
 /**

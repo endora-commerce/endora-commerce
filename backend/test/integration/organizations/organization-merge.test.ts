@@ -141,8 +141,12 @@ describe('Organization merge — the organizations host', () => {
       const preview = res.json().data;
       expect(preview.fields.map((field: { code: string }) => field.code)).toEqual(expect.arrayContaining(['name', 'taxId']));
       expect(preview.participants.find((p: { moduleId: string }) => p.moduleId === 'organizations')).toBeDefined();
-      // Stage 1: every module still holding an undeclared Organization reference.
-      expect(preview.incomplete).toEqual(expect.arrayContaining(['orders', 'carts', 'customer_accounts']));
+      // Every module still holding an undeclared Organization reference; the
+      // participants delivered so far (MR-C1, T042 – T050) are no longer among them.
+      expect(preview.incomplete).toEqual(expect.arrayContaining(['orders', 'customer_accounts']));
+      for (const declared of ['addresses', 'carts', 'invoices', 'invoice_ledger', 'credit_limits', 'related_payers', 'price_lists', 'promotions', 'returns']) {
+        expect(preview.incomplete).not.toContain(declared);
+      }
       expect(preview.refusals.map((r: { code: string }) => r.code)).toContain('RECORD_MERGE_PARTICIPATION_INCOMPLETE');
       const after = await sql<Array<{ count: string }>>('select count(*)::text as "count" from "record_merges"');
       expect(after[0]!.count).toBe(before[0]!.count);
@@ -295,7 +299,8 @@ describe('Organization merge — the organizations host', () => {
       expect(outcome).toBe('completed');
       const record = await cradle().recordMergeService.get(merge.id);
       expect(record?.state).toBe('completed');
-      expect(record?.steps[0]).toMatchObject({ state: 'done' });
+      expect(record?.steps.find((step) => step.key === 'host-structure')).toMatchObject({ state: 'done' });
+      expect(record?.steps.filter((step) => !step.trailing && step.state !== 'done')).toEqual([]);
     });
 
     it('moves the loser’s children under the survivor (FR-042)', async () => {

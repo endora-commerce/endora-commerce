@@ -599,4 +599,23 @@ export const manifest = defineModuleManifest({
     { code: 'RETURN_GUEST_LIMIT_REACHED', tokens: [] },
     { code: 'RETURN_GUEST_DATA_ERASED' },
   ],
+  /**
+   * `specs/192-organization-merge/` T050 — an Organization merge re-points the
+   * loser's return cases, attachments and withdrawal statements to the
+   * survivor in the `records` phase (`contracts/participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'returns',
+        phase: 'records',
+        references: [
+          { entity: 'ReturnCase', property: 'organizationId', disposition: 're_point' },
+          { entity: 'ReturnCaseAttachment', property: 'organizationId', disposition: 're_point' },
+          { entity: 'ReturnWithdrawalStatement', property: 'organizationId', disposition: 're_point' },
+        ],
+      },
+    ],
+  },
 });

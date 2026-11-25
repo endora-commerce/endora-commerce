@@ -562,7 +562,7 @@ are the proposed defaults. *R* = re-point, *U* = union without duplicates, *S* =
 | `related_payers` | `related-payer-link.entity.ts` (both sides) | R; self-links and duplicates revoked | records |
 | `related_payers` | `related-payer-request.entity.ts` (both sides) | R; self-requests closed | records |
 | `price_lists` | `price-list-audience-member.entity.ts` | U | configuration |
-| `price_lists` | `price-list-matrix-entry.entity.ts` (Organization-specific prices) | S+f per product | configuration |
+| `price_lists` | ~~`price-list-matrix-entry.entity.ts` (Organization-specific prices)~~ — the price-book matrix (2026-11) names no Organization; nothing to merge | — | — |
 | `price_lists` | `price-display-mode-override.entity.ts` (scope `organization`) | S+f | configuration |
 | `promotions` | `promotion.entity.ts` (Organization-specific), `promotion-usage.entity.ts` | R | records |
 | `promotions` | `promotion-usage-counter.entity.ts` (scope `organization`) | Σ | records |
