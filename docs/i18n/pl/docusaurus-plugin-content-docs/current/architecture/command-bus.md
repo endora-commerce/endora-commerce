@@ -25,6 +25,32 @@ Zatwierdzone polecenie zapisuje więc jeden wiersz audytu i raz emituje zdarzeni
 nie zapisuje wiersza audytu i nie emituje zdarzenia. Zapis, wpis audytu i zdarzenie nigdy nie mogą
 sobie przeczyć.
 
+### Praca, która musi poczekać na zatwierdzenie: `EventBus.afterScope`
+
+Zdarzenie jest wstrzymywane, ponieważ `CommandBus.run` obejmuje swoją transakcję zakresem
+`EventBus.run`, a zakres buforuje każde `emit()`, dopóki jego funkcja się nie zakończy. Zapis, który
+musi zrobić coś **jeszcze** dopiero po zatwierdzeniu — na przykład usunąć z pamięci podręcznej dane,
+które zatwierdzenie czyni nieaktualnymi — odkłada to do tego samego zakresu przez
+`eventBus.afterScope(fn)`:
+
+- wewnątrz zakresu `fn` trafia do kolejki najbardziej wewnętrznego z nich. Gdy zakres zakończy się
+  powodzeniem, funkcje z kolejki są wykonywane po kolei, każda z oczekiwaniem na wynik, i dopiero
+  **potem** wysyłane są zbuforowane zdarzenia — subskrybent nigdy nie zobaczy tego, co `fn` miała
+  zastąpić;
+- jeśli zakres zgłosi błąd, kolejka jest odrzucana razem ze zdarzeniami;
+- poza jakimkolwiek zakresem `fn` jest wykonywana od razu, z oczekiwaniem na wynik.
+
+Odłożona funkcja jest częścią zapisu, a nie subskrybentem: jeśli zgłosi błąd, zakres kończy się
+błędem, a jego zdarzenia nie są wysyłane. Moduł zapisujący przynależność do kanałów sprzedaży używa
+jej do usunięcia wpisu z pamięci podręcznej dostępu, gdy wywołujący przekazuje `em` swojej transakcji
+(zgłoszenie #1926). Zwykłe `em.transactional(...)` poza poleceniem nie ma własnego zakresu; aby
+uzyskać tę samą kolejność, należy objąć je wywołaniem `eventBus.run(...)`.
+
+To nie jest procedura `afterCommit`: te są deklarowane dla akcji z hookami i wykonywane później z
+kolejki dostarczeń, co najmniej raz i w dowolnej kolejności — to właściwy kontrakt dla zewnętrznego
+efektu ubocznego i niewłaściwy dla usunięcia danych z pamięci podręcznej, od którego zależy już
+następne żądanie.
+
 ## Budowa polecenia
 
 ```ts

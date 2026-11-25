@@ -69,9 +69,23 @@ export interface MembershipMutationOptions {
    * transaction — instead of a fresh fork (feature 154, research R-8). A caller
    * creating an Organization binds its channels in the creating transaction,
    * so "no Organization without a channel" holds by construction: a rolled-back
-   * create leaves no bridge row, and a failed bind rolls the create back. The
-   * audit row, the access-cache drop and the event follow the statements as
-   * they do without it.
+   * create leaves no bridge row, and a failed bind rolls the create back.
+   *
+   * When the manager has a transaction open, the writer **enlists** in it
+   * (issue #1926, `specs/186-aggregate-ports/` research R-16.1):
+   *
+   * - each `sales_channel.membership.changed` entry is recorded on this manager
+   *   through `AuditPort.recordWithin`, so it commits or rolls back with the
+   *   caller's write — the caller's transaction flushes it;
+   * - the access-cache drop is deferred through `EventBus.afterScope` until the
+   *   enclosing EventBus scope has succeeded, and runs before that scope's
+   *   events dispatch. A Command's scope encloses its commit; a caller that
+   *   opens its own `transactional` outside a Command wraps it in
+   *   `EventBus.run` to get the same guarantee, or the drop runs at once;
+   * - the event is emitted as before, and is buffered by that scope.
+   *
+   * A manager with no transaction open runs each statement on its own, so the
+   * writer behaves exactly as without one.
    */
   em?: EntityManager;
 }
@@ -98,8 +112,10 @@ export class SalesChannelMembershipService {
     /**
      * Feature 154 — the per-Organization permitted-channel cache the access
      * rule reads. Dropped as part of every committed change of an
-     * Organization's channels, before the event is emitted (D-93). Optional so
-     * a composition with no access rule — a unit test — keeps working.
+     * Organization's channels, before the event is dispatched (D-93): at once
+     * when the writer's own statements have committed, after the enclosing
+     * scope when it enlisted in a caller's transaction (issue #1926). Optional
+     * so a composition with no access rule — a unit test — keeps working.
      */
     private readonly accessCache?: SalesChannelAccessCacheInvalidation,
   ) {}
@@ -117,9 +133,28 @@ export class SalesChannelMembershipService {
   private async afterChannelsChanged(
     entityType: ChannelMemberEntityType,
     entityId: string,
+    options: MembershipMutationOptions,
   ): Promise<void> {
     if (entityType !== 'organization' || !this.accessCache) return;
-    await this.accessCache.invalidateAfterWrite(entityId);
+    const accessCache = this.accessCache;
+    const drop = async (): Promise<void> => {
+      await accessCache.invalidateAfterWrite(entityId);
+    };
+    // Enlisted: the statements are not committed yet, and the cache contract is
+    // "a write that has already committed" — so wait for the scope (#1926).
+    if (this.enlists(options)) await this.eventBus.afterScope(drop);
+    else await drop();
+  }
+
+  /**
+   * True when the mutation runs inside the caller's open transaction, so its
+   * audit entries and its cache drop have to follow that transaction's outcome
+   * rather than the statements' (issue #1926).
+   */
+  private enlists(options: MembershipMutationOptions): options is MembershipMutationOptions & {
+    em: EntityManager;
+  } {
+    return options.em !== undefined && options.em.isInTransaction();
   }
 
   /**
@@ -153,7 +188,7 @@ export class SalesChannelMembershipService {
     }
 
     await this.auditMembership(channelId, entityType, entityId, 'add', options);
-    await this.afterChannelsChanged(entityType, entityId);
+    await this.afterChannelsChanged(entityType, entityId, options);
     this.emitMembershipChanged(channelId, entityType, entityId, 'add');
     return { changed: true };
   }
@@ -223,7 +258,7 @@ export class SalesChannelMembershipService {
 
     if (!wouldOrphan) {
       await this.auditMembership(channelId, entityType, entityId, 'remove', options);
-      await this.afterChannelsChanged(entityType, entityId);
+      await this.afterChannelsChanged(entityType, entityId, options);
       this.emitMembershipChanged(channelId, entityType, entityId, 'remove');
       return { changed: true };
     }
@@ -242,7 +277,7 @@ export class SalesChannelMembershipService {
       );
 
     await this.auditMembership(channelId, entityType, entityId, 'remove', options, true);
-    await this.afterChannelsChanged(entityType, entityId);
+    await this.afterChannelsChanged(entityType, entityId, options);
     this.emitMembershipChanged(channelId, entityType, entityId, 'remove');
     return { changed: true, fallbackAppliedToDefault: true };
   }
@@ -279,7 +314,7 @@ export class SalesChannelMembershipService {
     // The actor when the caller has one: a create that falls back to Default is
     // still somebody's create, and its audit row should say whose.
     await this.auditMembership(defaultId, entityType, entityId, 'add', options);
-    await this.afterChannelsChanged(entityType, entityId);
+    await this.afterChannelsChanged(entityType, entityId, options);
     this.emitMembershipChanged(defaultId, entityType, entityId, 'add');
     return { changed: true };
   }
@@ -392,7 +427,7 @@ export class SalesChannelMembershipService {
 
     // One drop for the whole replacement, after the statements and before any
     // of the events below — the set changed once, whatever the row count.
-    await this.afterChannelsChanged(entityType, entityId);
+    await this.afterChannelsChanged(entityType, entityId, options);
     const desiredSet = new Set(desiredIds);
     const existingSet = new Set(existingIds);
     for (const channelId of existingIds) {
@@ -456,7 +491,7 @@ export class SalesChannelMembershipService {
         em.getTransactionContext(),
       );
     if (removed.length === 0) return { changed: false };
-    await this.afterChannelsChanged(entityType, entityId);
+    await this.afterChannelsChanged(entityType, entityId, options);
     for (const row of removed) {
       await this.auditMembership(row.sales_channel_id, entityType, entityId, 'remove', options);
       this.emitMembershipChanged(row.sales_channel_id, entityType, entityId, 'remove');
@@ -712,7 +747,7 @@ export class SalesChannelMembershipService {
     fallbackAppliedToDefault?: boolean,
   ): Promise<void> {
     if (!this.auditLogService) return;
-    await this.auditLogService.record({
+    const entry = {
       actorAdminUserId: options.actorAdminUserId ?? null,
       action: SALES_CHANNEL_AUDIT_ACTIONS.MEMBERSHIP_CHANGED,
       objectType: 'sales_channel_membership',
@@ -724,7 +759,11 @@ export class SalesChannelMembershipService {
         op,
         ...(fallbackAppliedToDefault ? { fallbackAppliedToDefault: true } : {}),
       },
-    });
+    };
+    // Enlisted, the entry lives or dies with the caller's write (#1926); on its
+    // own fork it would outlive a rollback and describe a change that never was.
+    if (this.enlists(options)) this.auditLogService.recordWithin(options.em, entry);
+    else await this.auditLogService.record(entry);
   }
 
   private emitMembershipChanged(
