@@ -2264,6 +2264,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // is derived after the exclusion rather than despite it.
     sources: ['manifest-index'],
   },
+  'backend/scripts/check-entity-decorators.ts': {
+    prefix: '[entity-decorators]',
+    run: { kind: 'tsx', path: 'scripts/check-entity-decorators.ts', args: [] },
+    // **Issue #1866: new.** Every `.ts` / `.tsx` file under the source roots —
+    // the application's `src`, the platform's and each module package's —
+    // skipping `node_modules`, `dist` and declarations.
+    files: 4558,
+    sites: null,
+    sources: ['manifest-index'],
+  },
   'backend/scripts/check-container-imports.ts': {
     prefix: '[container-imports]',
     run: { kind: 'tsx', path: 'scripts/check-container-imports.ts', args: [] },
@@ -16618,6 +16628,9 @@ export const READ_SIZE_WITHOUT_A_SITE_POPULATION: Readonly<Record<string, string
     '`analyzeSource` discards as it goes.',
   'backend/scripts/check-container-imports.ts':
     'the unit is the file: one import of the container library per file is the whole rule.',
+  'backend/scripts/check-entity-decorators.ts':
+    'the unit is the import: a decorator name from the wrong specifier is the rule, and the ' +
+    'imports that come from the right one are not collected.',
   'backend/scripts/check-entry-presence.ts':
     'reports the entry points that fail the rule; the ones that decide presence correctly ' +
     'are not collected.',

@@ -5809,6 +5809,59 @@ schemat poza migracjami, które przestają go wtedy opisywać.
 
 Ten wpis napisał pull request, który wprowadził zmianę, przed wydaniem, które ją zawiera.
 
+### MikroORM 7 {#mikro-orm-7}
+
+Platforma i wszystkie pakiety modułów działają teraz na **MikroORM 7.2.11** (zgłoszenie #1866, część
+#1073), a ich zależności równorzędne `@mikro-orm/*` to `^7.2.11`. To zmiana łamiąca zgodność dla
+instancji: `pnpm run upgrade` przenosi tylko pakiety wydania, więc własne zakresy `@mikro-orm/*`
+instancji trzeba zmienić ręcznie, a własny kod instancji korzystający z MikroORM — moduł nakładkowy,
+encja, migracja, skrypt — musi przejść na nową główną wersję. W bazie danych nic się nie zmienia: ze
+zmianą nie przychodzi żadna migracja, a tabela historii migracji jest odczytywana jak dotąd.
+
+**Przed uruchomieniem `pnpm run upgrade`**, w `backend/package.json`:
+
+1. Ustaw `@mikro-orm/core`, `@mikro-orm/postgresql` i `@mikro-orm/migrations` na `^7.2.11`.
+2. Dodaj `@mikro-orm/decorators` w wersji `^7.2.11`. MikroORM 7 przeniósł dekoratory encji z
+   `@mikro-orm/core` do tego pakietu.
+   Obok niego dodaj `reflect-metadata` w wersji `^0.2.2`: `@mikro-orm/decorators/legacy` go
+   ładuje, a bez niego backend zatrzymuje się na pierwszym imporcie z błędem
+   `Cannot find package 'reflect-metadata'`.
+3. Usuń `@mikro-orm/cli`, jeśli instancja je dodała ([CLI MikroORM nie jest
+   obsługiwane](#mikro-orm-cli-removed)); CLI pozostawione na wersji 6 się nie załaduje.
+
+**We własnym kodzie instancji**, jeśli go ma:
+
+| MikroORM 6 | MikroORM 7 |
+| --- | --- |
+| `import { Entity, Property, … } from '@mikro-orm/core'` | `import { Entity, Property, … } from '@mikro-orm/decorators/legacy'` — każdy dekorator, także dekoratory relacji i zaczepów. Typy (`Collection`, `OptionalProps`, `EntityManager`, …) zostają tam, gdzie były. `experimentalDecorators` pozostaje włączone; `emitDecoratorMetadata` nie jest potrzebne i można je usunąć |
+| `em.persistAndFlush(x)` / `em.removeAndFlush(x)` | `em.persist(x).flush()` / `em.remove(x).flush()` |
+| `em.getKnex()`, `getConnection().getKnex()`, `this.getKnex()` w migracji | `em.execute(sql, params)` z wartościami `?` i identyfikatorami `??`; w migracji `this.addSql(…)` z tekstem albo `raw(sql, params)` |
+| `orm.getMigrator()`, `getPendingMigrations()`, `getExecutedMigrations()` | `orm.migrator`, `getPending()`, `getExecuted()` |
+| `orm.getMetadata().getAll()` jako obiekt (`Object.values(…)`) | `Map`: `[...orm.getMetadata().getAll().values()]` — `Object.values` z niej jest puste, bez błędu |
+| encja wskazana napisem (`em.find('Product', …)`) | klasa (`em.find(Product, …)`) |
+| `MikroORM.initSync(options)` | `new MikroORM(options)` |
+| `MetadataStorage.getMetadataFromDecorator(cls)` | własne metadane klasy, `cls[MetadataStorage.META_SYMBOL]` |
+
+`check:entity-decorators` — oraz `endora check` dla pakietu modułu — zgłasza dekorator importowany
+skądkolwiek poza `@mikro-orm/decorators/legacy`, więc pierwszego wiersza nie da się w pakiecie
+przeoczyć.
+
+**Co się nie zmienia.** Konfiguracja ORM platformy zachowuje z MikroORM 6 ładowanie `joined`,
+`forceUtcTimezone: false` i późne zaczepy `onCreate`, więc zapytanie wysyła te same instrukcje co
+wcześniej, a znacznik czasu odczytuje się tak samo; domyślne wartości MikroORM 7 dla tych trzech
+ustawień nie są przyjmowane. `em.execute(sql, params)` nadal wstawia wartości po stronie klienta
+(`Platform.formatQuery`), jak w wersji 6: za mało wartości zostawia w miejscu znacznika `NULL`, a
+tablica JavaScript podana do jednego `?` staje się listą rozdzieloną przecinkami. Filtry dzierżawy
+odpowiadają na pusty zbiór organizacji warunkiem zawsze fałszywym także w złączeniu `populate`, gdzie
+MikroORM 6 wysyłał `in ()` i kończył się błędem.
+
+**Migracja pakietu ma mniej surowych uchwytów.** Strażnik obcego schematu odmawia `getKysely()` na
+menedżerze encji migracji pakietu, a `Migration` z MikroORM 7 nie oferuje własnego konstruktora
+zapytań; instrukcję dla `addSql` zbuduj jako tekst albo jako `raw(sql, params)`, które strażnik ocenia
+w postaci wyrenderowanej.
+
+Ten wpis napisał pull request, który wprowadził zmianę, przed wydaniem, które ją zawiera.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

@@ -122,6 +122,11 @@ interface EntityProperty {
   readonly kind?: string;
 }
 interface EntityMetadata {
+  /**
+   * The entity class. MikroORM 7 (#1866) types an entity named by string as
+   * refused on the entity manager, so every call below hands it the class.
+   */
+  readonly class: unknown;
   readonly className: string;
   readonly tableName: string;
   readonly abstract?: boolean;
@@ -191,7 +196,7 @@ async function main(): Promise<void> {
     MikroORM: {
       init: (options: unknown) => Promise<{
         em: { fork: () => never };
-        getMetadata: () => { getAll: () => Record<string, EntityMetadata> };
+        getMetadata: () => { getAll: () => Map<unknown, EntityMetadata> };
         close: (force?: boolean) => Promise<void>;
       }>;
     };
@@ -218,7 +223,10 @@ async function main(): Promise<void> {
   }
 
   try {
-    const metadata = Object.values(orm.getMetadata().getAll()).filter(
+    // MikroORM 7 answers `getAll()` with a `Map` keyed by class (#1866);
+    // `Object.values` of it is `[]`, which would read as "no entity maps
+    // `organizations`" and end the probe as inconclusive rather than wrong.
+    const metadata = [...new Set(orm.getMetadata().getAll().values())].filter(
       (meta) => meta.abstract !== true,
     );
     const organizations = metadata.find((meta) => meta.tableName === 'organizations');
@@ -261,7 +269,7 @@ async function main(): Promise<void> {
             );
           }
           const created = em.create(
-            organizations.className,
+            organizations.class,
             companyTenantSeed(seed, organizations.properties),
           ) as { id?: string };
           await em.flush();
@@ -299,8 +307,8 @@ async function main(): Promise<void> {
             create: (entity: unknown, data: Record<string, unknown>) => unknown;
             flush: () => Promise<void>;
           };
-          em.create(candidate.className, { ...seedA, [ORG_KEY]: organizationIds[0] });
-          em.create(candidate.className, { ...seedB, [ORG_KEY]: organizationIds[1] });
+          em.create(candidate.class, { ...seedA, [ORG_KEY]: organizationIds[0] });
+          em.create(candidate.class, { ...seedB, [ORG_KEY]: organizationIds[1] });
           await em.flush();
         });
         subject = candidate;
@@ -326,7 +334,7 @@ async function main(): Promise<void> {
       const em = orm.em.fork() as unknown as {
         find: (entity: unknown, where: Record<string, unknown>) => Promise<unknown[]>;
       };
-      await em.find(subject.className, {});
+      await em.find(subject.class, {});
     } catch (error) {
       unscopedRead = 'refused';
       refusalName = error instanceof Error ? error.name : String(error);
@@ -347,7 +355,7 @@ async function main(): Promise<void> {
         const em = orm.em.fork() as unknown as {
           find: (entity: unknown, where: Record<string, unknown>) => Promise<unknown[]>;
         };
-        return rowsOf(await em.find(subject.className, {}));
+        return rowsOf(await em.find(subject.class, {}));
       },
     );
 
@@ -366,7 +374,7 @@ async function main(): Promise<void> {
               find: (entity: unknown, where: Record<string, unknown>) => Promise<unknown[]>;
             };
             return rowsOf(
-              await em.find(subject.className, { [ORG_KEY]: constraint.organizationId }),
+              await em.find(subject.class, { [ORG_KEY]: constraint.organizationId }),
             );
           })
         : null;

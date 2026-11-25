@@ -313,7 +313,10 @@ quality:
     # same change: it reshapes the programs and their one-owner invariant,
     # and this restores the margin while that is weighed. When 3072 is
     # reached, split rather than raise again.
-    NODE_OPTIONS: --max-old-space-size=3072
+    # MikroORM 7 (#1866): `backend/test/tsconfig.json` measured at 3.58 GB tsc
+    # `Memory used` (6836 files, 6.95M instantiations; 2.63 GB / 3.96M on 6),
+    # so 3072 dies `heap out of memory` (exit 134). 4608 restores ~1 GB over it.
+    NODE_OPTIONS: --max-old-space-size=4608
   before_script:
     # `node:22.18-slim` carries no git, and `check:release-intent` below asks
     # it. The line was first written for `check:root-dispositions`, which died
@@ -388,6 +391,7 @@ quality:
     # Feature 072 (FR-032) — no module imports the container library. Modules see
     # only `ModuleContext`, so the container stays swappable behind that seam.
     - pnpm --filter backend run check:container-imports
+    - pnpm --filter backend run check:entity-decorators
     # Feature 072 (FR-040) — a module declares the modules whose ports it
     # resolves. Hard from the first run: it measures container resolutions, not
     # imports, so it found one violation while three modules are converted —

@@ -3,7 +3,7 @@
 // that `generate-composer.ts` and every source-text probe look for appears
 // nowhere in the published artefact. This comment does not spell it either —
 // the test asserts its absence over the whole file.
-import { Entity } from '@mikro-orm/core';
+import { Entity } from '@mikro-orm/decorators/legacy';
 
 export class FixtureWidget {}
 

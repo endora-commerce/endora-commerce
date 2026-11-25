@@ -1,4 +1,4 @@
-import { Entity, Index, PrimaryKey } from '@mikro-orm/core';
+import { Entity, Index, PrimaryKey } from '@mikro-orm/decorators/legacy';
 import { RuleScoped } from '@endora-commerce/platform/tenancy';
 
 /**

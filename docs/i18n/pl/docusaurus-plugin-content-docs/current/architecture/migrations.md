@@ -443,8 +443,8 @@ kopia przez `create table … as select`).
 ### Strażnik obcego schematu
 
 Każda migracja dostarczana przez zainstalowany pakiet wykonuje się wewnątrz strażnika platformy.
-Strażnik czyta każdą instrukcję, którą migracja przekazuje do `addSql` albo `execute` — builder
-knex po SQL, który generuje, blok `do $$ … $$` i ciało funkcji po ich tekście, a ciąg wykonywany
+Strażnik czyta każdą instrukcję, którą migracja przekazuje do `addSql` albo `execute` — fragment
+`raw()` albo builder zapytań po SQL, który generuje, blok `do $$ … $$` i ciało funkcji po ich tekście, a ciąg wykonywany
 przez `execute` w PL/pgSQL jako SQL — i **odrzuca** DDL albo DML na tabeli, której moduł pakietu
 nie jest właścicielem. Odmowa to `foreign-schema-write` z nazwą pakietu, migracji, tabeli i
 instrukcji, a cały przebieg `migrate` jest wycofywany.

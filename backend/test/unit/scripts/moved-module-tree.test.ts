@@ -131,6 +131,12 @@ const CHECKS: readonly MovedTreeCheck[] = [
   { script: 'check-channel-resolution.ts', args: ['--enforce'], prefix: '[channel-resolution]' },
   { script: 'check-command-coverage.ts', args: ['--strict'], prefix: '[command-coverage]' },
   { script: 'check-container-imports.ts', args: [], prefix: '[container-imports]' },
+  // Issue #1866. Its walk is the whole source tree — `src`, the platform's and
+  // every module package's — so over a moved tree the platform's own entities
+  // still give it hundreds of files with legal imports in them, and a check
+  // that asked "did I read anything?" would print a clean line over modules it
+  // never opened. The floor is per module and refuses first.
+  { script: 'check-entity-decorators.ts', args: [], prefix: '[entity-decorators]' },
   // Feature 175. Its walk is each registered module's own directory — the
   // manifest a host declares its custom-field writes in, and the route sources
   // those declarations are held to. Over a moved tree the index still registers
