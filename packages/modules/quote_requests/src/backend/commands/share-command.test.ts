@@ -117,6 +117,14 @@ describe('quote_request.share (contracts/admin-api.md §1)', () => {
     });
   });
 
+  it('records the validity date the draft carried before the share in the audit `before`', async () => {
+    const stale = new Date('2026-11-01T00:00:00.000Z');
+    const { command, ctx } = rig({ quote: { expiresAt: stale } });
+    const outcome = await command.run(ctx);
+    expect(outcome.before).toEqual({ sharedWithCustomer: false, expiresAt: stale.toISOString(), version: 3 });
+    expect(outcome.after).toEqual({ sharedWithCustomer: true, expiresAt: '2026-12-08T12:00:00.000Z', version: 4 });
+  });
+
   it.each([
     ['an unknown quote', { quote: null }, 404, 'NOT_FOUND'],
     ['a quote the caller may not see', { canSee: false }, 404, 'NOT_FOUND'],

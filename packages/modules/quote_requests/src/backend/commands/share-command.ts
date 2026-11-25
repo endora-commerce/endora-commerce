@@ -100,7 +100,11 @@ export function makeShareQuoteRequestCommand(
       );
       if (unavailable) throw customerUnavailableError(unavailable);
 
-      const before = { sharedWithCustomer: false, expiresAt: null, version: quote.version };
+      const before = {
+        sharedWithCustomer: false,
+        expiresAt: quote.expiresAt?.toISOString() ?? null,
+        version: quote.version,
+      };
       await applyShare(
         em,
         quote,

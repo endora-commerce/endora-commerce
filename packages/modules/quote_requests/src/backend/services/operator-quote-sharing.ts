@@ -139,9 +139,10 @@ export async function applyShare(
   quote.sharedByAdminUserId = actor.adminUserId;
   quote.expiresAt = days === null ? null : new Date(now.getTime() + days * DAY_MS);
   quote.version += 1;
-  // No flush of its own: the `shared` entry below is persisted and flushed on
-  // the same `em`, which writes the row with it — and the one caller, the
-  // share Command, is what audits this write (Principle XIII).
+  // No flush of its own. Everything here is written on the caller's
+  // transactional `em`: appending the `shared` entry below flushes the row
+  // with it, and the one caller, the share Command, flushes the rest
+  // (`em.flush()`) after this returns and audits the write (Principle XIII).
 
   const revision = await deps.revisionService.byNumber(quote.id, quote.currentRevisionNumber);
   const shared = await deps.eventService.append(
