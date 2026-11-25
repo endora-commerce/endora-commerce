@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
-import { mergeOrganization, mergeSql, seedRows } from '../../helpers/organization-merge-participants.js';
+import { insertCompanyOrganization, mergeSql, seedRows } from '../../helpers/organization-merge-conformance.js';
 import { expectComposedProjectParticipant } from '../../helpers/project-merge-participants.js';
 
 /**
@@ -24,7 +24,7 @@ describe('Project merge — the projects records step', () => {
   });
 
   it('moves the loser’s records to the survivor (conformance)', async () => {
-    const organizationId = await mergeOrganization(h, 'Project records');
+    const organizationId = await insertCompanyOrganization(h, 'Project records');
     const reader = randomUUID();
     const sharedAsset = randomUUID();
     const outcome = await expectComposedProjectParticipant(h, {

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
-import { mergeSql } from '../../helpers/organization-merge-participants.js';
+import { mergeSql } from '../../helpers/organization-merge-conformance.js';
 import { expectComposedProjectParticipant } from '../../helpers/project-merge-participants.js';
 import { createStageTask } from '../projects/helpers.js';
 

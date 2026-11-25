@@ -4,7 +4,7 @@ import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { AuditSentinel, AuditStateCarrier } from '@endora-commerce/test-kit/audit';
 import { expectMergeParticipant } from '@endora-commerce/test-kit/merge';
 import { TEST_ADMIN_ID } from './test-actors.js';
-import { mergeSql } from './organization-merge-participants.js';
+import { mergeSql } from './organization-merge-conformance.js';
 import type { BackendServerHandle } from './test-server.js';
 
 /**
@@ -12,7 +12,7 @@ import type { BackendServerHandle } from './test-server.js';
  * **Project** merge, as the composition registered it, held to
  * `expectMergeParticipant` over a real database
  * (`contracts/merge-participant.md` §3). The Project-host twin of
- * `organization-merge-participants.ts`, with the same seams:
+ * `organization-merge-conformance.ts`, with the same seams:
  *
  *  - **scope** — every call runs under the merge's system scope;
  *  - **events** — the composition's bus is counted around the step;

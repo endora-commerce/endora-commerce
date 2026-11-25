@@ -5,7 +5,7 @@ import { enterSystemScope } from '@endora-commerce/platform/kernel';
 import { expectNoAuditValues } from '@endora-commerce/test-kit/audit';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
-import { mergeOrganization } from '../../helpers/organization-merge-participants.js';
+import { insertCompanyOrganization } from '../../helpers/organization-merge-conformance.js';
 import {
   PROJECTS_ADMIN,
   callProjects,
@@ -97,8 +97,8 @@ describe('Project merge (US6)', () => {
     const events: unknown[] = [];
 
     beforeAll(async () => {
-      organizationA = await mergeOrganization(h, 'Project merge A');
-      organizationB = await mergeOrganization(h, 'Project merge B');
+      organizationA = await insertCompanyOrganization(h, 'Project merge A');
+      organizationB = await insertCompanyOrganization(h, 'Project merge B');
       p = await project('Tender P', [organizationA]);
       q = await project(`${SENTINEL}Tender Q`, [organizationB], { description: `${SENTINEL}details` });
       r = await project('Elsewhere R', []);
