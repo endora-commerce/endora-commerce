@@ -84,3 +84,18 @@ Keys and Commands of the participants built in this stage. Each is proven over a
 
 The port methods (T059, T061, T063, T065, T067) are not published yet: they wait for their
 aggregate ports.
+
+## E. As implemented (MR-G, #1907, owner decision 2026-11-25)
+
+Project merge ships in the #1907 PR without waiting for #1828 and #1829; the port methods of §B's
+*Aggregate-port method* column are follow-ups of those issues. Proven over a real database by
+`backend/test/integration/{projects,tasks,crm}/project-merge-participant(s).test.ts` through
+`backend/test/helpers/project-merge-participants.ts`, and end to end by
+`backend/test/integration/projects/project-merge.e2e.test.ts`.
+
+| Module | Key (phase) | Command | Notes |
+| --- | --- | --- | --- |
+| `projects` (host) | `host-structure` (structure) | `projects.project.merge.structure` | **U, the loser keeping its own rows**: the survivor gains the Organizations, Members (with the loser's Roles) and viewers it lacks; the archived loser keeps its rows, so whoever could open it still can and is led to the survivor. The count is "loser rows with no survivor twin", so a re-run moves 0 by construction. Bumps the survivor's `configurationVersion` |
+| `projects` | `project-records` (records) | `projects.project.merge_reassign` | a participant of its own host. Comment-sourced references move with their comments; the loser's **description** references stay with it (its description stays). An attachment of a file the survivor holds is dropped. `ProjectMessageRead` is declared `union`: the survivor's marker becomes the later of the two (FR-094) |
+| `tasks` | `project-tasks` (records) | `task.merge_move_context` | `contextGroupId` cleared; `sourceKey` kept (it names the loser's Stage Task definition, unique per context). Both references declared polymorphic (`contextType` / `targetType` = `project`) |
+| `crm` | `project-references` (records) | `crm.opportunity_reference.merge_reassign` | polymorphic declaration (`targetType` = `project`) |

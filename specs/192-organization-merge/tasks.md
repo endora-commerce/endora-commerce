@@ -183,16 +183,20 @@ Each step is built **now**. The port method that publishes the same Command wait
 - [x] T079 [P] Module docs: `packages/modules/organizations/docs/` merge page en + pl (what moves, what is kept, no unmerge, the off-module behaviour), the docs site page plus Polish translation, and the module-reference updates
 - [x] T080 Changesets (consumer-facing: new port methods, events, webhook type, permission)
 
-## Phase 8: US6 Project merge, MR-G (⛔ #1828, #1829)
+## Phase 8: US6 Project merge, MR-G (owner decision 2026-11-25: ships in the one #1907 PR, without waiting for #1828 / #1829)
 
-- [ ] T081 ⛔ #1828: Failing tests for the project preview, Commands, structure and records steps, finalize, archived reads and refusals, and the off-state, in `packages/modules/projects/src/backend/...merge*.test.ts`
-- [ ] T082 ⛔ #1866: `projects` migration (pointer columns) and the list and read filters
-- [ ] T083 ⛔ #1828: Host declaration, Commands, `projectCommandPort.startMerge / resumeMerge / cancelMerge`, `projectReadPort.previewMerge / resolveMerged`, `project.merged.v1` (plus a webhook type), permission `projects:merge`, routes
-- [ ] T084 ⛔ #1829: `tasks` participant: `taskCommandPort.moveContext` and `task.merge_move_context` (context moved, group cleared), task references R, conformance test
-- [ ] T085 [P] `crm` participant for references with `targetType = project` (no port needed), conformance test
-- [ ] T086 Mention rendering resolves merged projects through `resolveMerged`
-- [ ] T087 Admin flow for projects, palette `merge-projects`, i18n en + pl, docs en + pl
-- [ ] T088 Integration `backend/test/integration/projects/project-merge.e2e.test.ts` (US6 scenarios), with the Project section of the pending ledger empty
+The port methods of the two aggregate ports that do not exist yet are follow-ups, not part of this phase:
+`projectCommandPort.startMerge / resumeMerge / cancelMerge` (#1828) and `taskCommandPort.moveContext`
+(#1829). Everything else is delivered through the modules' own Commands and routes.
+
+- [x] T081 Failing tests for the project preview, Commands, structure and records steps, finalize, archived reads and refusals, and the off-state: `packages/modules/projects/src/backend/merge/project-merge-rules.test.ts`, the hookable start in `services/project-hookable-actions.test.ts`, `backend/test/integration/projects/project-merge-participants.test.ts` (records step), `project-merge.e2e.test.ts` and `off-state.test.ts`
+- [x] T082 `projects` migration (pointer columns, `20261125T124200_projects_merge_pointer.ts`, MikroORM-6 style) and the list and read filters (`LIVE_PROJECT_SQL` in `ProjectAccess`; the deadline-alert sweep)
+- [x] T083 Host declaration, Commands, `projectReadPort.previewMerge / resolveMerged`, `getMerge`, `project.merged.v1` (plus a webhook type), permission `projects:merge`, routes. **Not done:** `projectCommandPort.startMerge / resumeMerge / cancelMerge` — follow-up of #1828; `ProjectMergeService` is what they will call
+- [x] T084 `tasks` participant: `task.merge_move_context` (context moved, group cleared), task references R, conformance test (`backend/test/integration/tasks/project-merge-participant.test.ts`). **Not done:** `taskCommandPort.moveContext` — follow-up of #1829
+- [x] T085 [P] `crm` participant for references with `targetType = project` (no port needed), conformance test (`backend/test/integration/crm/project-merge-participant.test.ts`)
+- [x] T086 Mention rendering resolves merged projects through `resolveMerged` (projects, crm and tasks renderers)
+- [x] T087 Admin flow for projects, palette `merge-projects` (and `open-project-merges`), i18n en + pl, docs en + pl (`packages/modules/projects/docs/projects.md` § *Merging duplicate projects*, *Project merge*)
+- [x] T088 Integration `backend/test/integration/projects/project-merge.e2e.test.ts` (US6 scenarios), with the Project section of the pending ledger empty
 
 ## Phase 9: Polish (each MR carries its own; T089 closes)
 
@@ -210,7 +214,8 @@ MR-A (T003–T025; T020 ⛔ #1866)
   ├─► MR-C1 / MR-C2 (T042–T057)                       start now
   ├─► MR-D1–D5 steps (T058, T060, T062, T064, T066)   start now
   │     └─► port methods T059 ⛔#1823, T061 ⛔#1824/PR #1914, T063 ⛔#1827, T065 ⛔#1825, T067 ⛔#1828
-  └─► MR-G (T081–T088 ⛔ #1828, #1829)
+  └─► MR-G (T081–T088; owner decision 2026-11-25: in the #1907 PR, the port methods of
+        #1828 / #1829 follow those issues)
 ```
 
 The start of an Organization merge is usable when MR-A, MR-B, MR-C1, MR-C2, the MR-D steps and MR-E
@@ -231,7 +236,8 @@ do not gate operators.
 2. **MVP-1, Organization merge.** Add MR-C1, MR-C2, the MR-D steps and MR-E (#1831). Start opens
    by itself.
 3. **Server-side merge and per-owner port methods.** These follow each port issue.
-4. **Project merge** (MR-G) after #1828 and #1829.
+4. **Project merge** (MR-G), shipped in the same PR by owner decision (2026-11-25); its
+   `projectCommandPort` and `taskCommandPort` methods follow #1828 and #1829.
 
 ## Traceability (FR → tasks)
 

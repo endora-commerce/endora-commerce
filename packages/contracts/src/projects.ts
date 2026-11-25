@@ -5,6 +5,7 @@ import { customFieldFiltersQueryParamSchema, customFieldValuesSchema } from './c
 import { twoDecimalAmountString } from './money-input.js';
 import { RecordReferenceSchema } from './record-references.js';
 import { TaskSummarySchema } from './tasks.js';
+import type { ProjectMergePreview, ProjectMergeRecord } from './projects.merge.js';
 
 /**
  * Projects (`specs/163-projects-and-tasks/`).
@@ -733,6 +734,14 @@ export const ProjectDetailSchema = ProjectSummarySchema.extend({
   /** What the Project's sets — Stages added or reordered, workflow, Organizations, Members — name (issue #449). */
   configurationVersion: z.number().int().positive(),
   permissions: z.object({ canWrite: z.boolean(), canConfigure: z.boolean() }),
+  /**
+   * `specs/192-organization-merge/` FR-051, FR-052 — set on an archived
+   * (merged) Project only: the Project it was merged into, when, and by which
+   * merge. Such a Project is read-only; its screen leads to the survivor.
+   */
+  mergedIntoProjectId: uuid.nullable().optional(),
+  mergedAt: isoTimestampSchema.nullable().optional(),
+  mergeId: uuid.nullable().optional(),
 });
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
 
@@ -1055,6 +1064,8 @@ export const PROJECTS_ERROR_CODES = [
   'PROJECT_ATTACHMENT_TOO_LARGE',
   /** A saved view of the Projects list named as one its owner already has, case-insensitively (#1734). */
   'PROJECT_SAVED_VIEW_NAME_TAKEN',
+  /** A write names a Project merged into another one; `details.survivorId` (`specs/192-organization-merge/` OQ-6). */
+  'PROJECT_MERGED',
 ] as const;
 export type ProjectsErrorCode = (typeof PROJECTS_ERROR_CODES)[number];
 
@@ -1148,6 +1159,14 @@ export interface ProjectRecord {
   templateId: string | null;
   closedAt: Date | null;
   createdAt: Date;
+  /**
+   * `specs/192-organization-merge/` FR-051, FR-052 — set on an archived
+   * (merged) Project, which only {@link ProjectReadPort.findById} answers: the
+   * Project it was merged into, when, and by which merge. `null` otherwise.
+   */
+  mergedIntoProjectId: string | null;
+  mergedAt: Date | null;
+  mergeId: string | null;
 }
 
 /**
@@ -1197,6 +1216,24 @@ export interface ProjectReadPort {
    * issue, or an invalid `Date`, is refused with 422 `VALIDATION_FAILED`.
    */
   listNotes(query: ProjectNoteQuery): Promise<ProjectNotePage>;
+  /**
+   * `specs/192-organization-merge/` FR-002, FR-062 — what merging `loserId`
+   * into `survivorId` would do: every refusal (the host's, the participants'
+   * and the completeness twin's), per present participant the rows that would
+   * follow, and the values that differ. Writes nothing. Both Projects must be
+   * visible to the caller, or it is refused `404 PROJECT_NOT_FOUND` as for a
+   * missing one.
+   */
+  previewMerge(survivorId: string, input: { readonly loserId: string }): Promise<ProjectMergePreview>;
+  /**
+   * The survivor's id when `id` was merged into it, else `id` itself — what a
+   * renderer of `[[project:<id>]]` tokens asks before it reads the Project, so
+   * a mention of a merged Project leads to its survivor (FR-093). One hop by
+   * construction: an archived Project can never be merged again.
+   */
+  resolveMerged(id: string): Promise<string>;
+  /** One Project merge with its steps, or `null` — also when either Project is not visible to the caller. */
+  getMerge(mergeId: string): Promise<ProjectMergeRecord | null>;
 }
 
 /** What `ProjectReadPort.search` is asked. */

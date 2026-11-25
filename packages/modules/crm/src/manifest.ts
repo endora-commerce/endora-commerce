@@ -545,6 +545,21 @@ export const manifest = defineModuleManifest({
         phase: 'records',
         references: [{ entity: 'CrmOpportunity', property: 'organizationId', disposition: 're_point' }],
       },
+      // US6, T085 — references naming a merged-away Project name the survivor
+      // (`crm.opportunity_reference.merge_reassign`); the texts are not rewritten.
+      {
+        host: 'project',
+        key: 'project-references',
+        phase: 'records',
+        references: [
+          {
+            entity: 'CrmOpportunityReference',
+            property: 'targetId',
+            polymorphic: { discriminator: 'targetType', value: 'project' },
+            disposition: 're_point',
+          },
+        ],
+      },
     ],
   },
 });

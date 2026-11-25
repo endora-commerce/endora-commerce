@@ -107,7 +107,7 @@ function dueAlerts(today: string): WorkRows {
     from: `from "project_stages" s
              join "projects" p on p."id" = s."project_id"
              cross join lateral unnest(s."alert_offsets_days") as a("offset_days")
-            where p."state" = 'open' and p."current_stage_id" = s."id"
+            where p."state" = 'open' and p."current_stage_id" = s."id" and p."merged_into_project_id" is null
               and s."deadline_on" between (?::date + 1) and (?::date + 365)
               and s."deadline_on" - a."offset_days" = ?::date
               and not exists (select 1 from "project_stage_alert_deliveries" d
@@ -255,7 +255,7 @@ export class StageAlertStore implements StageAlertStorePort {
   async stillDue(claim: ClaimedStageAlert): Promise<boolean> {
     const rows = (await this.deps.emFactory().execute(
       `select 1 as "due" from "project_stages" s join "projects" p on p."id" = s."project_id"
-        where s."id" = ? and p."state" = 'open' and p."current_stage_id" = s."id"
+        where s."id" = ? and p."state" = 'open' and p."current_stage_id" = s."id" and p."merged_into_project_id" is null
           and s."deadline_on" = ?::date and ? = any(s."alert_offsets_days")`,
       [claim.stageId, claim.deadlineOn, claim.offsetDays],
     )) as unknown[];

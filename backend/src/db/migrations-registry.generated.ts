@@ -398,6 +398,7 @@ import { Migration20261028T143448ProjectsReferenceKinds } from '@endora-commerce
 import { Migration20261114T145439ProjectsStageAlertInterrupted } from '@endora-commerce/mod-projects/migrations';
 import { Migration20261114T153132ProjectsConfigurationVersions } from '@endora-commerce/mod-projects/migrations';
 import { Migration20261122T074256ProjectsListSavedViews } from '@endora-commerce/mod-projects/migrations';
+import { Migration20261125T124200ProjectsMergePointer } from '@endora-commerce/mod-projects/migrations';
 
 // ── promotions ──────────────────────────────────────────────────────────────
 import { Migration20260505T074605PromotionsCriteria } from '@endora-commerce/mod-promotions/migrations';
@@ -858,6 +859,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('projects', Migration20261114T145439ProjectsStageAlertInterrupted),
   migration('projects', Migration20261114T153132ProjectsConfigurationVersions),
   migration('projects', Migration20261122T074256ProjectsListSavedViews),
+  migration('projects', Migration20261125T124200ProjectsMergePointer),
 
   // ── promotions ──────────────────────────────────────────────────────────────
   migration('promotions', Migration20260505T074605PromotionsCriteria),

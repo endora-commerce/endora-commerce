@@ -713,7 +713,12 @@ export class ProjectReadService {
       customFieldValues: customFieldValues as ProjectDetail['customFieldValues'],
       version: row.version,
       configurationVersion: row.configuration_version,
-      permissions,
+      // `specs/192-organization-merge/` FR-051, FR-052 — an archived (merged)
+      // Project is read-only, and its screen leads to the survivor.
+      permissions: row.merged_into_project_id ? { canWrite: false, canConfigure: false } : permissions,
+      mergedIntoProjectId: row.merged_into_project_id ?? null,
+      mergedAt: row.merged_at ? new Date(row.merged_at).toISOString() : null,
+      mergeId: row.merge_id ?? null,
     };
   }
 

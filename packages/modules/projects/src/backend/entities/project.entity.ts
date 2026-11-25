@@ -42,6 +42,9 @@ export class Project {
     | 'customFieldValues'
     | 'version'
     | 'configurationVersion'
+    | 'mergedIntoProjectId'
+    | 'mergedAt'
+    | 'mergeId'
     | 'createdAt'
     | 'updatedAt';
 
@@ -114,6 +117,22 @@ export class Project {
    */
   @Property({ type: 'integer' })
   configurationVersion: number = 1;
+
+  /**
+   * The archived loser of a Project merge (`specs/192-organization-merge/`
+   * US6, FR-051): the Project it was merged into, when, and by which merge —
+   * set by `projects.project.merge.finalize` only. A merged Project is kept,
+   * read-only, with its own Stage history; every list, count, search and
+   * picker leaves it out, and a read by id answers it with this pointer.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  mergedIntoProjectId?: string | null;
+
+  @Property({ type: 'datetime', nullable: true })
+  mergedAt?: Date | null;
+
+  @Property({ type: 'uuid', nullable: true })
+  mergeId?: string | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

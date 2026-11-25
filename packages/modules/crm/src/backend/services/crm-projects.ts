@@ -12,6 +12,11 @@ export interface CrmProjects {
   findByIds(ids: readonly string[]): Promise<ProjectRecord[]>;
   /** Projects the caller may see by number or title, newest first. The same precondition. */
   search(q: string, limit: number): Promise<ProjectRecord[]>;
+  /**
+   * The survivor's id when the Project was merged into another one, else the
+   * id itself (`specs/192-organization-merge/` FR-093). The same precondition.
+   */
+  resolveMerged(id: string): Promise<string>;
 }
 
 /**
@@ -35,5 +40,6 @@ export function createCrmProjects(port: ProjectReadPort): CrmProjects {
     isPresent: () => effectiveState.isPresent('projects'),
     findByIds: (ids) => port.findByIds(ids),
     search: (q, limit) => port.search({ ...(q !== '' ? { q } : {}), limit }),
+    resolveMerged: (id) => port.resolveMerged(id),
   };
 }

@@ -40,6 +40,9 @@ const CONFIGURE_PERMISSION = 'projects:configure';
 /** The code that opens analytics: every `GET /projects/analytics/*` enforces it. */
 const ANALYTICS_PERMISSION = 'projects:analytics';
 
+/** The code that opens the Project merge's flow and its merges list (`specs/192-organization-merge/` US6). */
+const MERGE_PERMISSION = 'projects:merge';
+
 const PROJECTS_PATH = '/projects';
 
 export const contributions: AdminContributions = {
@@ -97,6 +100,27 @@ export const contributions: AdminContributions = {
       path: `${PROJECTS_PATH}/analytics`,
       component: () => import('./pages/AnalyticsPage.js'),
       requiredPermission: ANALYTICS_PERMISSION,
+    },
+    // `specs/192-organization-merge/` US6 (`contracts/project-merge.md` §4) —
+    // the ⌘K action's screen, the merges list and one merge's progress. Static,
+    // so ahead of `/:id`. The flow and the list are under the code their API
+    // enforces; one merge's progress is read under `projects:read`, as
+    // `GET /project-merges/:mergeId` is, and offers resume and cancel only to
+    // `projects:merge`.
+    {
+      path: `${PROJECTS_PATH}/merge`,
+      component: () => import('./pages/MergeProjectsPage.js'),
+      requiredPermission: MERGE_PERMISSION,
+    },
+    {
+      path: `${PROJECTS_PATH}/merges`,
+      component: () => import('./pages/ProjectMergesPage.js'),
+      requiredPermission: MERGE_PERMISSION,
+    },
+    {
+      path: `${PROJECTS_PATH}/merges/:mergeId`,
+      component: () => import('./pages/ProjectMergePage.js'),
+      requiredPermission: READ_PERMISSION,
     },
     {
       path: `${PROJECTS_PATH}/:id`,

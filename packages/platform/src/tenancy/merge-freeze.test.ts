@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { HttpError } from '../http/error-envelope.js';
-import { mergeFreezeState, refuseMergingTenantWrite } from './merge-freeze.js';
+import { mergeFreezeState, mergeWriteRefusal, refuseMergingTenantWrite } from './merge-freeze.js';
 import type { TenantContext } from './tenant-context.js';
 
 /**
@@ -64,5 +64,31 @@ describe('refuseMergingTenantWrite', () => {
   it('leaves an administrator to the guard and the host routes', () => {
     mergeFreezeState.freeze('organization', LOSER, MERGE);
     expect(refusal(() => refuseMergingTenantWrite(admin, 'POST'))).toBeNull();
+  });
+});
+
+/**
+ * `specs/192-organization-merge/` US6, T083 — the Project host's merged code:
+ * a write naming an archived Project answers `PROJECT_MERGED` with its
+ * survivor, a frozen one `RECORD_MERGE_IN_PROGRESS` outside its own merge.
+ */
+describe('mergeWriteRefusal for a Project', () => {
+  afterEach(() => mergeFreezeState.clear());
+
+  it('answers PROJECT_MERGED with the survivor for an archived Project', () => {
+    mergeFreezeState.archive('project', LOSER, MERGE, SURVIVOR);
+    const error = mergeWriteRefusal('project', LOSER, admin);
+    expect(error?.statusCode).toBe(409);
+    expect(error?.code).toBe('PROJECT_MERGED');
+    expect(error?.details).toMatchObject({ survivorId: SURVIVOR, mergeId: MERGE });
+  });
+
+  it('refuses a frozen Project outside its merge, and lets its own merge scope write', () => {
+    mergeFreezeState.freeze('project', LOSER, MERGE);
+    expect(mergeWriteRefusal('project', LOSER, admin)?.code).toBe('RECORD_MERGE_IN_PROGRESS');
+    expect(
+      mergeWriteRefusal('project', LOSER, { mode: 'system', actor: { kind: 'system' }, reason: `record-merge:${MERGE}` }),
+    ).toBeNull();
+    expect(mergeWriteRefusal('organization', LOSER, admin)).toBeNull();
   });
 });

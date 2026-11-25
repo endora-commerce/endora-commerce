@@ -101,6 +101,10 @@ describe('projects (contract) — projectReadPort', () => {
       templateId: null,
       closedAt: null,
       createdAt: expect.any(Date),
+      // `specs/192-organization-merge/` FR-051 — set on an archived (merged) Project only.
+      mergedIntoProjectId: null,
+      mergedAt: null,
+      mergeId: null,
     });
     expect(Object.getPrototypeOf(record)).toBe(Object.prototype);
   });

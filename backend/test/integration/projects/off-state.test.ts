@@ -145,6 +145,15 @@ describe('projects off-state (Constitution XVII)', () => {
         { url: `${API}/lookups/documents`, cookies: admin },
         // User Story 9's route — the custom fields the list filters on.
         { url: `${API}/custom-field-filters`, cookies: admin },
+        // `specs/192-organization-merge/` US6 scenario 4 (FR-072) — Project merge
+        // does not exist while the module is off. The write probes name a
+        // Project or a merge that does not exist, so the "on" phases write nothing.
+        write('POST', `${API}/${ID}/merge-preview`, { loserId: STAGE }),
+        write('POST', `${API}/${ID}/merges`, { loserId: STAGE }),
+        { url: '/api/v1/admin/project-merges', cookies: admin },
+        { url: `/api/v1/admin/project-merges/${ID}`, cookies: admin },
+        write('POST', `/api/v1/admin/project-merges/${ID}/resume`, { expectedVersion: 1 }),
+        write('POST', `/api/v1/admin/project-merges/${ID}/cancel`, { expectedVersion: 1 }),
         // User Story 10's routes — the seven analytics figures.
         ...['summary', 'durations', 'time-in-stage', 'losses', 'value', 'top-open', 'managers'].map((figure) => ({
           url: `${API}/analytics/${figure}?from=2026-01-01&to=2026-01-31`,
@@ -174,9 +183,12 @@ describe('projects off-state (Constitution XVII)', () => {
   describe('palette, global search and projectReadPort (User Story 11)', () => {
     // Six since issue #516 added the role and loss-reason dictionaries.
     const ACTIONS = [
+      // `specs/192-organization-merge/` US6 (FR-072) — the merge's two.
+      'merge-projects',
       'new-project',
       'open-project-analytics',
       'open-project-loss-reasons',
+      'open-project-merges',
       'open-project-roles',
       'open-project-templates',
       'open-projects',

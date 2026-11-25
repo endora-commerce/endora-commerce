@@ -38,3 +38,36 @@ describe('TaskReferenceService — a mentioned Product (issue #963)', () => {
     expect(findById).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * `specs/192-organization-merge/` US6, T086 (FR-093) — a mention of a merged
+ * Project is named and linked as its survivor, under the token's own id.
+ */
+describe('TaskReferenceService — a mention of a merged Project', () => {
+  const LOSER = '00000000-0000-4000-8000-000000192e31';
+  const SURVIVOR = '00000000-0000-4000-8000-000000192e32';
+
+  it('leads to the survivor', async () => {
+    const service = new TaskReferenceService({
+      products: { findByIds: vi.fn(async () => []) } as never,
+      orders: { findByIds: vi.fn(async () => []) } as never,
+      adminUsers: { findByIds: vi.fn(async () => []), findById: vi.fn(async () => null) } as never,
+      owners: {
+        isPresent: () => true,
+        labels: vi.fn(async () => new Map([[LOSER, { id: SURVIVOR, label: 'PRJ-000032' }]])),
+      },
+      tasks: vi.fn(async () => []),
+      mayRead: {
+        orders: async () => false,
+        products: async () => false,
+        quoteRequests: async () => false,
+        opportunities: async () => false,
+        projects: async () => true,
+        customFields: async () => false,
+      },
+    });
+    expect(await service.resolve(`[[project:${LOSER}]]`)).toEqual([
+      { type: 'project', id: LOSER, available: true, label: 'PRJ-000032', url: `/projects/${SURVIVOR}` },
+    ]);
+  });
+});

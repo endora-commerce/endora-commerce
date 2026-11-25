@@ -865,6 +865,13 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted with saved views on the Projects list (issue #1734): a saved view of the list named as one ' +
       'its owner already has, case-insensitively. One raise site, `ProjectListViewService`.',
   },
+  PROJECT_MERGED: {
+    to: 'projects',
+    reason:
+      'Minted by `specs/192-organization-merge/` US6 (data-model §6) for a write naming an archived (merged) Project, ' +
+      'carrying the id of the one it was merged into (409, OQ-6). The noun is the Project; the raise sites are ' +
+      '`lockProject` of `projects` and the platform merge freeze, whose host code it is.',
+  },
   TASK_VIEW_NAME_TAKEN: {
     to: 'tasks',
     reason:

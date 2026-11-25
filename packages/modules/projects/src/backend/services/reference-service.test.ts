@@ -23,7 +23,7 @@ describe('ProjectReferenceService — a mentioned Product (issue #963)', () => {
       adminUsers: { findByIds: vi.fn(async () => []), findById } as never,
       quoteRequests: { isPresent: () => false, findMany: vi.fn(async () => new Map()) },
       tasks: { present: () => false, read: { findByIds: vi.fn(async () => []) } } as never,
-      projects: { findVisibleMany: vi.fn(async () => []) },
+      projects: { findVisibleMany: vi.fn(async () => []), mergedInto: vi.fn(async () => new Map()) },
       mayRead: {
         orders: async () => false,
         products: async () => true,
@@ -58,7 +58,7 @@ describe('ProjectReferenceService — a reference to an Order or a Quote Request
       adminUsers: { findByIds: vi.fn(async () => []), findById: vi.fn(async () => null) } as never,
       quoteRequests: { isPresent: () => true, findMany },
       tasks: { present: () => false, read: { findByIds: vi.fn(async () => []) } } as never,
-      projects: { findVisibleMany: vi.fn(async () => []) },
+      projects: { findVisibleMany: vi.fn(async () => []), mergedInto: vi.fn(async () => new Map()) },
       mayRead: {
         orders: async () => true,
         products: async () => false,
@@ -74,5 +74,40 @@ describe('ProjectReferenceService — a reference to an Order or a Quote Request
     // Looked for, and not found: unavailable is the answer, not a refusal.
     expect(findOrders).toHaveBeenCalledWith([GONE_ORDER]);
     expect(findMany).toHaveBeenCalledWith('quote_request', [GONE_QUOTE]);
+  });
+});
+
+/**
+ * `specs/192-organization-merge/` US6, T086 (FR-093) — a mention of a Project
+ * merged into another one is not rewritten: it resolves to the survivor when
+ * rendered, so the chip names the survivor and leads to it.
+ */
+describe('ProjectReferenceService — a mention of a merged Project', () => {
+  const LOSER = '00000000-0000-4000-8000-000000192e01';
+  const SURVIVOR = '00000000-0000-4000-8000-000000192e02';
+
+  it('renders the survivor’s number and leads to the survivor, under the token’s own id', async () => {
+    const findVisibleMany = vi.fn(async (ids: readonly string[]) =>
+      ids.includes(SURVIVOR) ? [{ id: SURVIVOR, number: 'PRJ-000002' }] : [],
+    );
+    const service = new ProjectReferenceService({
+      products: { findByIds: vi.fn(async () => []) } as never,
+      orders: { findByIds: vi.fn(async () => []) } as never,
+      adminUsers: { findByIds: vi.fn(async () => []), findById: vi.fn(async () => null) } as never,
+      quoteRequests: { isPresent: () => false, findMany: vi.fn(async () => new Map()) },
+      tasks: { present: () => false, read: { findByIds: vi.fn(async () => []) } } as never,
+      projects: { findVisibleMany: findVisibleMany as never, mergedInto: vi.fn(async () => new Map([[LOSER, SURVIVOR]])) },
+      mayRead: {
+        orders: async () => false,
+        products: async () => false,
+        quoteRequests: async () => false,
+        tasks: async () => false,
+        opportunities: async () => false,
+      },
+    });
+    expect(await service.resolve(`See [[project:${LOSER}]].`)).toEqual([
+      { type: 'project', id: LOSER, available: true, label: 'PRJ-000002', url: `/projects/${SURVIVOR}` },
+    ]);
+    expect(findVisibleMany).toHaveBeenCalledWith([SURVIVOR]);
   });
 });

@@ -178,6 +178,10 @@ export interface VisibleProjectRow {
   configuration_version: number;
   closed_at: Date | null;
   created_at: Date;
+  /** `specs/192-organization-merge/` FR-051 — set on an archived (merged) Project only. */
+  merged_into_project_id: string | null;
+  merged_at: Date | null;
+  merge_id: string | null;
   /** `created_at` at full precision — a keyset cursor's key. */
   cursor_at: string;
 }
@@ -187,7 +191,22 @@ export const VISIBLE_PROJECT_COLUMNS = `p."id", p."number", p."title", p."descri
   p."current_stage_id", p."value_amount"::text as "value_amount", p."value_currency",
   to_char(p."start_on", 'YYYY-MM-DD') as "start_on", p."visibility", p."template_id",
   p."lost_stage_id", p."loss_reason_id", p."loss_comment", p."custom_field_values", p."version",
-  p."configuration_version", p."closed_at", p."created_at", p."created_at"::text as "cursor_at"`;
+  p."configuration_version", p."closed_at", p."created_at", p."created_at"::text as "cursor_at",
+  p."merged_into_project_id", p."merged_at", p."merge_id"`;
+
+/**
+ * `specs/192-organization-merge/` US6, FR-051 — a Project merged into another
+ * one is archived: every list, count, search, picker and analytics figure
+ * leaves it out with this predicate over `projects p`. A read **by id**
+ * ({@link ProjectAccess.findVisible}, {@link ProjectAccess.visibleIds}) still
+ * answers it, with its pointer, so its screen can lead to the survivor.
+ */
+export const LIVE_PROJECT_SQL = `p."merged_into_project_id" is null`;
+
+/** The visibility predicate, narrowed to Projects that were not merged away. */
+function live(visible: SqlFragment | null): SqlFragment {
+  return visible === null ? { sql: LIVE_PROJECT_SQL, params: [] } : { sql: `(${visible.sql} and ${LIVE_PROJECT_SQL})`, params: visible.params };
+}
 
 export function projectNotFound(): HttpError {
   return new HttpError(404, ERROR_CODES.PROJECT_NOT_FOUND, 'Project not found.');
@@ -339,19 +358,25 @@ export class ProjectAccess {
   /**
    * The predicate every list, count, search and analytics query of the module
    * carries, over `projects p`, for the caller — or for `viewer` when given.
-   * `null` when nothing narrows.
+   * It leaves out a Project merged into another one ({@link LIVE_PROJECT_SQL}),
+   * so it always narrows.
    */
   async visibleProjectSql(viewer?: ProjectViewer): Promise<SqlFragment | null> {
     const resolved = viewer ?? (await this.currentViewer());
-    return visibleProjectSqlFor(resolved, await this.visibilitySetting());
+    return live(visibleProjectSqlFor(resolved, await this.visibilitySetting()));
   }
 
-  /** One Project the caller may see, or `null` — out of reach, invisible and missing alike. */
+  /**
+   * One Project the caller may see, or `null` — out of reach, invisible and
+   * missing alike. A Project merged into another one is answered, with its
+   * pointer (FR-052): a read by id is how its screen leads to the survivor, and
+   * every write that starts here is refused by `lockProject`.
+   */
   async findVisible(id: string): Promise<VisibleProjectRow | null> {
     if (!isUuid(id)) return null;
     const viewer = await this.currentViewer();
     if (!viewer.canRead) return null;
-    const visible = await this.visibleProjectSql(viewer);
+    const visible = visibleProjectSqlFor(viewer, await this.visibilitySetting());
     const rows = (await this.deps.emFactory().execute(
       `select ${VISIBLE_PROJECT_COLUMNS} from "projects" p
         where p."id" = ?${visible ? ` and ${visible.sql}` : ''}`,
@@ -535,13 +560,30 @@ export class ProjectAccess {
     return holds(await this.deps.permissions.listPermissions(adminUserId), code);
   }
 
-  /** Which of `ids` the caller may see. */
+  /**
+   * `specs/192-organization-merge/` FR-093 — for each of `ids` merged into
+   * another Project, the survivor's id; an id that was not merged is absent.
+   * An id and nothing else: what the caller may see of the survivor is asked
+   * of it afterwards, by the reader of the mention. One hop by construction.
+   */
+  async mergedInto(ids: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    const candidates = [...new Set(ids.filter(isUuid))];
+    if (candidates.length === 0) return new Map();
+    const rows = (await this.deps.emFactory().execute(
+      `select p."id", p."merged_into_project_id" from "projects" p
+        where p."id" = any(?::uuid[]) and p."merged_into_project_id" is not null`,
+      [uuidArray(candidates)],
+    )) as Array<{ id: string; merged_into_project_id: string }>;
+    return new Map(rows.map((row) => [row.id, row.merged_into_project_id]));
+  }
+
+  /** Which of `ids` the caller may see — merged (archived) Projects included: a read by id. */
   async visibleIds(ids: readonly string[]): Promise<Set<string>> {
     const candidates = ids.filter(isUuid);
     if (candidates.length === 0) return new Set();
     const viewer = await this.currentViewer();
     if (!viewer.canRead) return new Set();
-    const visible = await this.visibleProjectSql(viewer);
+    const visible = visibleProjectSqlFor(viewer, await this.visibilitySetting());
     const rows = (await this.deps.emFactory().execute(
       `select p."id" from "projects" p
         where p."id" = any(?::uuid[])${visible ? ` and ${visible.sql}` : ''}`,

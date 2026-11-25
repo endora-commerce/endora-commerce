@@ -48,6 +48,14 @@ The rules for these events:
 - **Payload.** The event payload above, unchanged.
 - `bridged-equals-offered.test.ts` and `webhook-event-registry.test.ts` gain the new types.
 
+**As implemented (MR-G).** The Project event lives in `packages/contracts/src/projects.merge.ts`
+as `PROJECT_MERGE_EVENTS.MERGED` with `ProjectMergedEventV1`
+(`{ eventId, occurredAt, projectId, mergedProjectId, mergeId, mergedAt, source, organizationIds }`),
+beside `PROJECT_WEBHOOK_EVENT_TYPES = ['project.merged.v1']`, which `projects` registers from a
+contribution-only boot hook. A Project belongs to no single Organization, so its payload carries no
+`organizationId`: the bridge delivers it to **platform-wide** subscriptions only, never to an
+Organization-bound one.
+
 ## 3. Admin notifications
 
 On `needs_attention`, holders of `organizations:merge` (or `projects:merge`) who reach the pair

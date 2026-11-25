@@ -459,6 +459,7 @@ on again.
 | `projects:see_all` | See every project within your reach, whatever the module setting and each project's own choice (see *Who sees a project*). Requires `projects:read`; it never widens Organization reach. |
 | `projects:configure` | Create, edit, duplicate, archive and restore templates; add, rename, archive, restore and delete project roles and loss reasons. Requires `projects:read`; anybody who may view projects can read the templates, roles and loss reasons, to use them on a project. |
 | `projects:analytics` | View project analytics (see *Analytics*) — every figure over the projects you may see. Requires `projects:read`. |
+| `projects:merge` | Merge a duplicate project into another one, and resume or cancel such a merge (see *Merging duplicate projects*). You must also see both projects and hold `projects:write`. Requires `projects:write`; no predefined role holds it. |
 
 A project role is not one of these: holding one grants no permission (see
 *Project roles*).
@@ -669,6 +670,52 @@ so around midnight a preset means the same days the figures are counted over.
 
 While Projects is switched off the screen and its sidebar entry are gone, and
 the figures are not served.
+
+## Merging duplicate projects
+
+When two representatives opened the same tender as two projects, merge the
+duplicate into the one that stays. Open the project that stays and choose
+**Merge a duplicate…**, or use **Merge projects** in the command palette
+(⌘K / CTRL+K) and choose the project to keep first. You need the
+**Merge duplicate projects** permission (`projects:merge`), and you must be
+able to see and edit both projects.
+
+The flow has three steps:
+
+1. **Choose the duplicate.** The picker lists the projects you can see, other
+   than this one; an already merged project is never offered.
+2. **Review and choose values.** The preview says what moves to the project
+   that stays, per area — comments, attachments, links, tasks, references — and
+   shows each value that differs: title, description, value, start date and
+   who sees the project. The value of the project that stays is chosen by
+   default; an empty one takes the duplicate's. Custom fields are offered the
+   same way. The stages, the state and the workflow of the project that stays
+   are never offered: a merge does not merge two workflows.
+3. **Confirm.** Tick that a merge cannot be undone, then start it.
+
+What happens to the duplicate's records:
+
+| Records | What happens |
+| --- | --- |
+| Comments (notes and messages) and their references | Move to the project that stays and appear in its thread in the order they were written. Messages you had read stay read. |
+| Attachments | Move; a file the project that stays already holds is not attached twice. |
+| Linked Orders, Quote requests and Opportunities | Move — a record stays in one project. |
+| Organizations, members and listed people | Added to the project that stays where missing; a person who is a member of both keeps their role on the project that stays. |
+| Tasks | Move to the project that stays, without their stage: a task of one of the duplicate's stages has no stage afterwards. |
+| References to the duplicate in other projects', tasks' and opportunities' texts | Lead to the project that stays. The texts themselves are not rewritten: a mention of the duplicate is shown as the project that stays. |
+| Stages, stage history, moves, value changes and deadline alerts | Stay with the duplicate. |
+
+While the merge runs the duplicate cannot be changed. When it completes, the
+duplicate is **archived**: it no longer appears in the list, in pickers, in
+search or in analytics, and its page — still readable, with its own stage
+history — says *Merged into …* and leads to the project that stays. Any change
+to an archived project is refused. Each merge has its own page
+(**Project merges** in the palette, `/projects/merges`) with its progress; a
+merge that **needs attention** is listed there first, with **Resume**. A merge
+can be cancelled only before any record has moved.
+
+While Projects is switched off, project merge does not exist: no action, no
+screen and no API.
 
 ## For developers
 
@@ -1024,8 +1071,15 @@ It is gated: resolving it while Projects is off throws, and the call answers
 | `findByIds(ids)` | The projects of `ids`, in no particular order; an id the caller may not see, or that does not exist, is left out. |
 | `search({ q, limit })` | The projects whose number or title contains `q`, newest first, at most `limit` (20 at most). |
 | `listNotes({ organizationId?, authorAdminUserId?, createdFrom?, createdBefore?, cursor?, limit })` | The notes written on projects, oldest first, as `{ items, nextCursor }`, at most `limit` (100 at most) per page. Each item is a `ProjectNoteRecord` — `id`, `projectId`, `organizationIds`, `author` (`id`, `name`), `body`, `createdAt`, `editedAt`. |
+| `previewMerge(survivorId, { loserId })` | What merging `loserId` into `survivorId` would do: every refusal, what each module would move, and the values that differ. Writes nothing. Both projects must be visible to the caller, or it is refused `404` `PROJECT_NOT_FOUND`. |
+| `resolveMerged(id)` | The id of the project `id` was merged into, else `id` itself — what a renderer of `[[project:<id>]]` asks before it reads the project. |
+| `getMerge(mergeId)` | One project merge with its steps, or `null` — also when the caller does not see both projects. |
 
-All five answer for the caller, through `ProjectAccess` under the caller's own
+A merged (archived) project is answered by `findById` only, with
+`mergedIntoProjectId`, `mergedAt` and `mergeId` set; every other method leaves
+it out.
+
+All of them answer for the caller, through `ProjectAccess` under the caller's own
 tenant context: a project that does not exist, one out of the caller's reach
 and one the caller may not see are the same `null` — or are left out. The answer is a plain
 object, never an entity.
@@ -1044,6 +1098,45 @@ not issue, or an invalid date, is refused with `422 VALIDATION_FAILED`.
 number sequence — the next `PRJ-…` number, for code that writes projects
 without a Command, such as the demo composition; one format and one sequence,
 whoever creates the project.
+
+### Project merge
+
+`projects` is the **host** of the `project` record type in the platform's merge
+mechanism (`specs/192-organization-merge/`, the Organization merge's
+mechanism). Its manifest declares `merge.hosts: [{ type: 'project' }]`; the
+platform runs the phases `structure` → `records` → `finalize`.
+
+| Route | Permission | What it does |
+| --- | --- | --- |
+| `POST /api/v1/admin/projects/:id/merge-preview` `{ loserId }` | `projects:merge` | The preview; `:id` is the project that stays. |
+| `POST /api/v1/admin/projects/:id/merges` `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true }` | `projects:merge` | Starts the merge; `202` with the merge. Without the acknowledgement `422` `RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED`. |
+| `GET /api/v1/admin/project-merges[?state=&projectId=]` | `projects:merge` | The merges both of whose projects the caller sees. |
+| `GET /api/v1/admin/project-merges/:mergeId` | `projects:read` | One merge with its steps. |
+| `POST /api/v1/admin/project-merges/:mergeId/resume` / `cancel` `{ expectedVersion }` | `projects:merge` | Resume a merge that needs attention; cancel one before any record moved. |
+
+Every route also asks the caller to see both projects and to hold
+`projects:write`; a project they may not see answers `404`
+`PROJECT_NOT_FOUND`. A write naming an archived project answers `409`
+`PROJECT_MERGED` with `details.survivorId`; a write naming a project being
+merged away answers `409` `RECORD_MERGE_IN_PROGRESS`.
+
+The audited Commands, each against the project that stays and carrying the
+merge id, never a value: `projects.project.merge.start` (hookable — a
+deployment may veto a merge), `projects.project.merge.cancel`,
+`projects.project.merge.resume`, `projects.project.merge.structure`
+(Organizations, members and viewers unioned), `projects.project.merge_reassign`
+(links, comments, attachments, references, read markers) and
+`projects.project.merge.finalize` (the chosen values, the archive pointer and
+the event). Two other modules move their own rows in the `records` phase, in
+their own Commands: `tasks` (`task.merge_move_context` — a task's context,
+without its stage, and task references) and `crm`
+(`crm.opportunity_reference.merge_reassign` — references in opportunities'
+texts).
+
+`project.merged.v1` — `{ projectId, mergedProjectId, mergeId, mergedAt, source }`,
+ids only — is published once per completed merge and offered as a webhook
+event type. A project belongs to no single Organization, so it reaches
+platform-wide webhook subscriptions.
 
 ### One read path
 

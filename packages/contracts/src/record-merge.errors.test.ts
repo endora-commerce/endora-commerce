@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from './errors.js';
 import { ORGANIZATION_MERGE_ERROR_CODES } from './organizations.merge.js';
+import { PROJECT_MERGE_ERROR_CODES } from './projects.merge.js';
 import { RECORD_MERGE_ERROR_CODES } from './record-merge.js';
 
 /**
@@ -10,7 +11,11 @@ import { RECORD_MERGE_ERROR_CODES } from './record-merge.js';
  * for it. The sentences themselves are that check's to judge, not this test's.
  */
 describe('merge error codes', () => {
-  it.each([...Object.values(RECORD_MERGE_ERROR_CODES), ...Object.values(ORGANIZATION_MERGE_ERROR_CODES)])(
+  it.each([
+    ...Object.values(RECORD_MERGE_ERROR_CODES),
+    ...Object.values(ORGANIZATION_MERGE_ERROR_CODES),
+    ...Object.values(PROJECT_MERGE_ERROR_CODES),
+  ])(
     '%s is in ERROR_CODES',
     (code) => {
       expect((ERROR_CODES as Record<string, string>)[code]).toBe(code);
@@ -36,5 +41,7 @@ describe('merge error codes', () => {
       'ORGANIZATION_MERGE_PERSONAL',
       'ORGANIZATION_MERGE_TREE_INVALID',
     ]);
+    // The Project host's one code (US6, OQ-6): a write naming an archived Project.
+    expect(Object.values(PROJECT_MERGE_ERROR_CODES)).toEqual(['PROJECT_MERGED']);
   });
 });

@@ -113,10 +113,10 @@ const notFoundIsRendered = (): boolean => screen.queryAllByText(/app\.notFound/)
 
 const concreteUrl = (pattern: string): string => pattern.replace(/:[A-Za-z]+/g, '00000000-0000-4000-8000-0000000000f1');
 
-const READ_AND_WRITE = ['projects:read', 'projects:write', 'projects:configure', 'projects:analytics'];
+const READ_AND_WRITE = ['projects:read', 'projects:write', 'projects:configure', 'projects:analytics', 'projects:merge'];
 
 describe('projects admin surface', () => {
-  it('is registered: the list, the create screen, the configuration (Templates, Roles, loss reasons) and its old addresses, analytics and one Project', () => {
+  it('is registered: the list, the create screen, the configuration (Templates, Roles, loss reasons) and its old addresses, analytics, the merge screens and one Project', () => {
     expect(routes.map((route) => route.path)).toEqual([
       '/projects',
       '/projects/new',
@@ -132,6 +132,10 @@ describe('projects admin surface', () => {
       '/projects/roles',
       '/projects/loss-reasons',
       '/projects/analytics',
+      // `specs/192-organization-merge/` US6 — the merge flow, the merges list and one merge.
+      '/projects/merge',
+      '/projects/merges',
+      '/projects/merges/:mergeId',
       '/projects/:id',
     ]);
   });

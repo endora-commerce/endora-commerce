@@ -27,13 +27,16 @@ import type {
   TaskReadPort,
   TaskWritePort,
   TransactionalEmailSender,
+  WebhookEventRegistryPort,
 } from '@endora-commerce/contracts';
+import { PROJECT_WEBHOOK_EVENT_TYPES } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import {
   effectiveState,
   lazyPort,
   type AuditPort,
   type ModuleContext,
+  type RecordMergeService,
   type RequireAdminFactory,
   type SettingsReadPort,
 } from '@endora-commerce/platform/kernel';
@@ -113,6 +116,10 @@ import { createProjectTaskContext } from './services/task-context-descriptor.js'
 import { TemplateService } from './services/template-service.js';
 import { stageAlertTick, startStageAlerts } from './workers/stage-alert-worker.js';
 import { PROJECTS_MERGE_PARTICIPATION_KEY, ProjectsOrganizationMergeParticipant } from './merge/organization-merge-participant.js';
+import { PROJECT_RECORDS_PARTICIPATION_KEY, ProjectMergeHost, ProjectRecordsMergeParticipant } from './merge/project-merge-host.js';
+import { createProjectMergeNotifier } from './merge/project-merge-notifier.js';
+import { ProjectMergeService } from './merge/project-merge-service.js';
+import { registerProjectMergeRoutes } from './routes/routes.merge.js';
 
 /**
  * `projects` — composed by the kernel container.
@@ -156,6 +163,7 @@ interface ProjectsCradle {
   readonly projectsHistoryService: ProjectHistoryService;
   readonly projectsAnalyticsService: ProjectAnalyticsService;
   readonly projectsListViewService: ProjectListViewService;
+  readonly projectsMergeService: ProjectMergeService;
 }
 
 /** What the deadline-alert section registers and reads (User Story 8). */
@@ -449,6 +457,7 @@ export function registerModule(ctx: ModuleContext): void {
             read: projectsReadService,
             records: projectsRecordProjectService,
             notes: projectsCommentService,
+            merges: () => ctx.cradle<ProjectsCradle>().projectsMergeService,
           }),
       )
       .singleton(),
@@ -851,6 +860,100 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
   // --- end of Routes -----------------------------------------------------------------
+
+  // --- Project merge (`specs/192-organization-merge/` US6) ----------------------
+  // This module hosts the `project` record type in the platform's merge
+  // mechanism: the operation (preview, start / cancel / resume Commands), the
+  // host's own structure and finalize phases, its own records step, the
+  // archived loser and the merged event. `tasks` and `crm` move their own rows
+  // in their own steps; this module names neither (Principle I).
+  // `recordMergeService` is the platform's, registered by the composition root.
+  // Everything here is gated with the module: the routes stop with it, the
+  // runner never calls a host or participant whose module is off, and the
+  // read port's merge methods sit behind its gate.
+  const recordMerge = (): RecordMergeService => ctx.cradle<{ recordMergeService: RecordMergeService }>().recordMergeService;
+  const customFieldValues = (): CustomFieldValuePort => lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService');
+  ctx.di.register({
+    projectsMergeService: ctx
+      .asFunction(
+        ({ emFactory, commandBus, projectsAccess }: ProjectsCradle) =>
+          new ProjectMergeService({
+            emFactory,
+            commandBus,
+            recordMerge,
+            assertVisibleUnderLock: (em, id) => projectsAccess.assertVisibleUnderLock(em, id, 'visible'),
+            customFieldValues,
+            adminUsers: () => lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          }),
+      )
+      .singleton(),
+  });
+  // The bell on `needs_attention` (holders of `projects:merge` who see both
+  // Projects) and on completion (the starter), through `admin_notifications`,
+  // whose presence the notifier decides first (`degrades-without` above).
+  const mergeNotifier = createProjectMergeNotifier({
+    isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+    notifications: () => lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort'),
+    merges: () => ctx.cradle<ProjectsCradle>().projectsMergeService,
+    labels: (ids) => ctx.cradle<ProjectsCradle>().projectsMergeService.labels(ids),
+    holders: async () => {
+      const admins = await lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort').listAll({ activeOnly: true });
+      const active = admins.filter((admin) => admin.status === 'active').map((admin) => admin.id);
+      if (active.length === 0) return [];
+      const holding = await lazyPort<{ holdersOf(ids: readonly string[], permission: string): Promise<Set<string>> }>(
+        ctx,
+        'permissionService',
+      ).holdersOf(active, 'projects:merge');
+      return active.filter((id) => holding.has(id));
+    },
+    seeingBoth: async (adminUserIds, survivorId, loserId) => {
+      const access = ctx.cradle<ProjectsCradle>().projectsAccess;
+      const [survivor, loser] = await Promise.all([
+        access.canSeeAsMany(adminUserIds, survivorId),
+        access.canSeeAsMany(adminUserIds, loserId),
+      ]);
+      return adminUserIds.filter((id) => survivor.has(id) && loser.has(id));
+    },
+  });
+  ctx.merge.host(
+    'project',
+    new ProjectMergeHost({
+      emFactory: () => ctx.cradle<ProjectsCradle>().emFactory(),
+      commandBus: { run: (command) => ctx.cradle<ProjectsCradle>().commandBus.run(command) },
+      recordMerge,
+      customFieldValues,
+      notifier: () => mergeNotifier,
+    }),
+  );
+  ctx.merge.participate(
+    'project',
+    PROJECT_RECORDS_PARTICIPATION_KEY,
+    new ProjectRecordsMergeParticipant({
+      emFactory: () => ctx.cradle<ProjectsCradle>().emFactory(),
+      commandBus: { run: (command) => ctx.cradle<ProjectsCradle>().commandBus.run(command) },
+    }),
+  );
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<ProjectsCradle>();
+    await registerProjectMergeRoutes(app, {
+      access: cradle.projectsAccess,
+      merges: () => ctx.cradle<ProjectsCradle>().projectsMergeService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  /**
+   * `project.merged.v1` offered for outbound webhook delivery — the first
+   * Project webhook type (`contracts/events-and-webhooks.md` §2). A push from a
+   * contribution-only boot hook, as `organizations` does; nothing is read back,
+   * and the registry leaves the type out while this module is off.
+   */
+  ctx.onBoot(() => {
+    const registry = lazyPort<WebhookEventRegistryPort>(ctx, 'webhookEventRegistry');
+    for (const eventType of PROJECT_WEBHOOK_EVENT_TYPES) {
+      registry.register({ ownerModuleId: 'projects', eventType });
+    }
+  });
+  // --- end of Project merge --------------------------------------------------------
 
   // `specs/192-organization-merge/` T066 — this module as a holder of
   // Organization references in an Organization merge: the survivor joins the

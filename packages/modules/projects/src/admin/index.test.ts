@@ -39,6 +39,11 @@ describe('projects admin contributions', () => {
       ['/projects/loss-reasons', 'projects:configure'],
       // User Story 10 — analytics, on a code of its own.
       ['/projects/analytics', 'projects:analytics'],
+      // `specs/192-organization-merge/` US6 — the merge flow and the merges list
+      // on the code their API enforces; one merge's progress on the read code.
+      ['/projects/merge', 'projects:merge'],
+      ['/projects/merges', 'projects:merge'],
+      ['/projects/merges/:mergeId', 'projects:read'],
       ['/projects/:id', 'projects:read'],
     ]);
     expect((contributions.routes ?? []).filter((route) => route.index)).toHaveLength(1);

@@ -51,7 +51,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `prompt_actions` | nie | contributes-to `promptActionBulkProgressRegistry` |
 | `prompt_actions` | nie | contributes-to `promptActionToolRegistry` |
 | `search` | nie | degrades-without `searchQueryPort` — listy produktów w sklepie są pobierane z PostgreSQL zamiast z indeksu wyszukiwarki |
-| `search` | nie | degrades-without `searchReindexPort` — zmiana flagi `searchable` atrybutu nie przebudowuje indeksu wyszukiwarki |
+| `search` | nie | degrades-without `searchReindexPort` — zmiana flagi `searchable` atrybutu ani scalenie organizacji nie przebudowuje indeksu wyszukiwarki |
 | `seo` | nie | degrades-without `seoProductMetaPort` — strony produktów pokazują metadane wyprowadzone z nazwy i opisu, a stare klucze URL odpowiadają „nie znaleziono” |
 | `seo` | nie | refuses-without `seoProductMetaWritePort` — zapis produktu zmieniający pola SEO jest odrzucany, gdy moduł SEO jest wyłączony; zapisy bez zmian SEO i duplikowanie działają bez zmian |
 | `webhooks` | nie | contributes-to `webhookEventRegistry` |

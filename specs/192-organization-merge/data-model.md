@@ -140,6 +140,15 @@ Every list, count, search and read-port query adds `merged_into_project_id is nu
 `findById`, which returns the archived record with its pointer. Projects keep their `state` (they
 have no soft delete). A merged project is read-only through the guard on its own routes and port.
 
+As implemented (MR-G): the filter is `LIVE_PROJECT_SQL` in `ProjectAccess.visibleProjectSql`, so
+lists, totals, search, the `@@` lists, analytics and `projectReadPort.findByIds / search` leave the
+archived loser out; reads **by id** (`findVisible`, `visibleIds` — the detail, its Stage history,
+audit labels) answer it. The deadline-alert sweep leaves it out too. The write guard is
+`lockProject` (`409 PROJECT_MERGED`, or `409 RECORD_MERGE_IN_PROGRESS` while frozen), and the
+`project` Task context refuses a new Task into it. The foreign key cascades
+(`on delete cascade`): deleting the survivor deletes its archived duplicates, whose records it had
+already absorbed, so a pointer never dangles. A check refuses a self-pointer.
+
 ## 4. Participants: no schema change
 
 Every participant moves its rows with the columns it already has (R-3). There is no new column in

@@ -115,13 +115,15 @@ class MergeFreezeState {
 export const mergeFreezeState = new MergeFreezeState();
 
 /**
- * The host's merged code per host type. `project` has none until the Project
- * merge lands its `PROJECT_MERGED` (`contracts/project-merge.md`); until then a
- * write naming an archived Project answers the platform's
- * `RECORD_MERGE_RECORD_UNAVAILABLE`, with the same `survivorId`.
+ * The host's merged code per host type (OQ-6): `ORGANIZATION_MERGED` and, for
+ * the Project host (US6, `contracts/project-merge.md`), `PROJECT_MERGED`, each
+ * carrying the survivor's id.
  */
-const MERGED_CODE: Readonly<Partial<Record<RecordMergeHostType, typeof ERROR_CODES.ORGANIZATION_MERGED>>> = {
+const MERGED_CODE: Readonly<
+  Record<RecordMergeHostType, typeof ERROR_CODES.ORGANIZATION_MERGED | typeof ERROR_CODES.PROJECT_MERGED>
+> = {
   organization: ERROR_CODES.ORGANIZATION_MERGED,
+  project: ERROR_CODES.PROJECT_MERGED,
 };
 
 /**
@@ -148,7 +150,7 @@ export function mergeWriteRefusal(
   if (refusal.kind === 'archived') {
     return new HttpError(
       409,
-      MERGED_CODE[hostType] ?? ERROR_CODES.RECORD_MERGE_RECORD_UNAVAILABLE,
+      MERGED_CODE[hostType],
       `This ${hostType} was merged into another one; write to the survivor instead.`,
       { survivorId: refusal.survivorId, mergeId: refusal.mergeId },
     );

@@ -6,6 +6,7 @@ import {
   type TaskContextDescriptor,
   type TaskContextSearchHit,
 } from '@endora-commerce/contracts';
+import { mergeWriteRefusal } from '@endora-commerce/platform/tenancy';
 import { isUuid, PROJECTS_WRITE_PERMISSION, uuidArray, type ProjectAccess } from './project-access.js';
 import { PROJECT_TASK_CONTEXT_TYPE } from './project-tasks.js';
 
@@ -94,8 +95,14 @@ export function createProjectTaskContext(deps: {
     canSeeAs: (adminUserId, id) => access.canSeeAs(adminUserId, id),
     // Putting a Task into a Project, taking one out or deleting one is a change
     // to the Project's work: it needs `projects:write` and a Project the caller sees.
-    canChangeTasks: async (id) =>
-      (await access.callerHolds(PROJECTS_WRITE_PERMISSION)) && (await access.visibleIds([id])).has(id),
+    // A Project merged into another one, or being merged away, takes no Task
+    // (`specs/192-organization-merge/` FR-053): its Tasks have moved, or are
+    // moving, to the survivor.
+    canChangeTasks: async (id) => {
+      if (!(await access.callerHolds(PROJECTS_WRITE_PERMISSION)) || mergeWriteRefusal('project', id) !== null) return false;
+      const row = await access.findVisible(id);
+      return row !== null && !row.merged_into_project_id;
+    },
     existingContexts: (ids) => access.existingWithStages(ids),
     describe: async (ids) => {
       const visible = [...(await access.visibleIds(ids))];

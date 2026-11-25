@@ -246,6 +246,18 @@ export const manifest = defineModuleManifest({
         'of the gate and answers `UTC` without it; the figures are counted either way, and no table of that ' +
         "owner is referenced from this module's schema.",
     },
+    // `specs/192-organization-merge/` US6 — `project.merged.v1` for outbound webhooks.
+    {
+      moduleId: 'webhooks',
+      name: 'webhookEventRegistry',
+      kind: 'contributes-to',
+      reason:
+        '`specs/192-organization-merge/` US6 — a push, from a contribution-only boot hook, of ' +
+        '`project.merged.v1`, the first Project event offered for outbound delivery. Nothing is read ' +
+        'back: the registry leaves out every event type whose owner is not present, and `webhooks` ' +
+        'bridges and delivers through its own gated subscription. Not `dependencies`: that would make ' +
+        'webhooks a reason this module cannot be switched off.',
+    },
     // User Story 7 — the bell. A message and a mention are stored either way.
     {
       moduleId: 'admin_notifications',
@@ -306,6 +318,15 @@ export const manifest = defineModuleManifest({
       module: 'projects',
       requires: ['projects:read'],
     },
+    {
+      // `specs/192-organization-merge/` US6, FR-050 — merging a duplicate
+      // Project into another one: irreversible, so its own grant, in no
+      // predefined role. The actor must also see and edit both Projects.
+      code: 'projects:merge',
+      label: 'Merge duplicate projects',
+      module: 'projects',
+      requires: ['projects:write'],
+    },
   ],
   /**
    * The refusals this module raises, each with its sentence under
@@ -354,6 +375,8 @@ export const manifest = defineModuleManifest({
     { code: 'PROJECT_STAGE_LIMIT' },
     { code: 'PROJECT_ATTACHMENT_NOT_PRIVATE' },
     { code: 'PROJECT_TEMPLATE_ROLE_ARCHIVED' },
+    // `specs/192-organization-merge/` US6 (OQ-6) — a write naming a Project merged into another one.
+    { code: 'PROJECT_MERGED' },
   ],
   /**
    * The one e-mail this module sends: a Stage deadline alert, to every Member
@@ -456,6 +479,33 @@ export const manifest = defineModuleManifest({
       keywordsKey: 'actions.openProjectLossReasons.keywords',
       weight: 345,
     },
+    // `specs/192-organization-merge/` US6, FR-082 (Principle XVI) — the merge
+    // flow's screen and the merges list, both under `projects:merge`, the code
+    // every merge write and the list enforce.
+    {
+      id: 'merge-projects',
+      labelKey: 'actions.mergeProjects.label',
+      descriptionKey: 'actions.mergeProjects.description',
+      icon: 'ClipboardList',
+      targetRoute: '/projects/merge',
+      entryApiRoute: '/api/v1/admin/project-merges',
+      requiredPermission: 'projects:merge',
+      keywords: ['merge', 'duplicate', 'project', 'combine'],
+      keywordsKey: 'actions.mergeProjects.keywords',
+      weight: 346,
+    },
+    {
+      id: 'open-project-merges',
+      labelKey: 'actions.openProjectMerges.label',
+      descriptionKey: 'actions.openProjectMerges.description',
+      icon: 'ClipboardList',
+      targetRoute: '/projects/merges',
+      entryApiRoute: '/api/v1/admin/project-merges',
+      requiredPermission: 'projects:merge',
+      keywords: ['merge', 'merges', 'attention', 'resume', 'project'],
+      keywordsKey: 'actions.openProjectMerges.keywords',
+      weight: 347,
+    },
   ],
   /**
    * Command hooks (issue #1845, `specs/176-command-hooks-outbox/`): the eight
@@ -481,7 +531,60 @@ export const manifest = defineModuleManifest({
    * `projects.project.merge_reassign_organization`.
    */
   merge: {
+    /**
+     * `specs/192-organization-merge/` US6 (`contracts/project-merge.md`,
+     * `participant-dispositions.md` §B) — this module hosts the `project`
+     * record type. Its structure step unions the loser's Organizations,
+     * Members and viewers into the survivor (the archived loser keeps its own,
+     * so whoever could open it still can and is led to the survivor); its
+     * records step moves the links, comments, attachments, references and read
+     * markers; the workflow and its history stay with the archived loser.
+     */
+    hosts: [{ type: 'project' }],
     participates: [
+      {
+        host: 'project',
+        key: 'host-structure',
+        phase: 'structure',
+        references: [
+          { entity: 'ProjectOrganization', property: 'projectId', disposition: 'union' },
+          { entity: 'ProjectMember', property: 'projectId', disposition: 'union' },
+          { entity: 'ProjectViewer', property: 'projectId', disposition: 'union' },
+        ],
+      },
+      {
+        host: 'project',
+        key: 'project-records',
+        phase: 'records',
+        references: [
+          { entity: 'ProjectLink', property: 'projectId', disposition: 're_point' },
+          { entity: 'ProjectComment', property: 'projectId', disposition: 're_point' },
+          { entity: 'ProjectAttachment', property: 'projectId', disposition: 're_point' },
+          // A comment's references follow it; the loser's description and its references stay with it.
+          { entity: 'ProjectReference', property: 'projectId', disposition: 're_point' },
+          {
+            entity: 'ProjectReference',
+            property: 'targetId',
+            polymorphic: { discriminator: 'targetType', value: 'project' },
+            disposition: 're_point',
+          },
+          // Read markers are carried, so moved messages are not unread (FR-094).
+          { entity: 'ProjectMessageRead', property: 'projectId', disposition: 'union' },
+        ],
+      },
+      {
+        host: 'project',
+        key: 'kept-on-loser',
+        references: [
+          // The loser's workflow and its history stay with it (FR-093).
+          { entity: 'ProjectStage', property: 'projectId', disposition: 'kept' },
+          { entity: 'ProjectStageEntry', property: 'projectId', disposition: 'kept' },
+          { entity: 'ProjectStageMove', property: 'projectId', disposition: 'kept' },
+          { entity: 'ProjectValueChange', property: 'projectId', disposition: 'kept' },
+          // The archived loser's own pointer to its survivor (FR-051).
+          { entity: 'Project', property: 'mergedIntoProjectId', disposition: 'kept' },
+        ],
+      },
       {
         host: 'organization',
         key: 'organization-projects',

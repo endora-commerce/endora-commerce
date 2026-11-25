@@ -49,6 +49,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `tasks` | no | contributes-to `taskContextRegistry` |
 | `tasks` | no | degrades-without `taskReadPort` — Projects work without Tasks: no Tasks tab, no Stage Tasks, no completion gates. |
 | `tasks` | no | degrades-without `taskWritePort` — Projects work without Tasks: no Tasks tab, no Stage Tasks, no completion gates. |
+| `webhooks` | no | contributes-to `webhookEventRegistry` |
 
 ## Permissions
 
@@ -56,6 +57,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | --- | --- | --- |
 | `projects:analytics` | View project analytics | `projects:read` |
 | `projects:configure` | Configure projects (roles, templates, loss reasons) | `projects:read` |
+| `projects:merge` | Merge duplicate projects | `projects:write` |
 | `projects:read` | View projects | — |
 | `projects:see_all` | See every project regardless of visibility | `projects:read` |
 | `projects:write` | Create and run projects | `projects:read` |
@@ -64,9 +66,11 @@ An operator switches this module on and off on **/platform/modules**. The choice
 
 | Action | Opens | Permission |
 | --- | --- | --- |
+| `merge-projects` | `/projects/merge` | `projects:merge` |
 | `new-project` | `/projects/new` | `projects:write` |
 | `open-project-analytics` | `/projects/analytics` | `projects:analytics` |
 | `open-project-loss-reasons` | `/projects/settings/loss-reasons` | `projects:configure` |
+| `open-project-merges` | `/projects/merges` | `projects:merge` |
 | `open-project-roles` | `/projects/settings/roles` | `projects:configure` |
 | `open-project-templates` | `/projects/settings` | `projects:configure` |
 | `open-projects` | `/projects` | `projects:read` |

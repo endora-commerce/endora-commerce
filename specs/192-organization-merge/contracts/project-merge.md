@@ -60,3 +60,32 @@ project banner links to the survivor. Mentions of the loser render as the surviv
 - the `tasks` and `crm` participant conformance tests;
 - `backend/test/integration/projects/project-merge.e2e.test.ts` (US6 scenarios);
 - the off-state test (`check:off-state-coverage`).
+
+## 6. As implemented (MR-G, #1907)
+
+Owner decision (2026-11-25): Project merge ships in the #1907 PR without waiting for the aggregate
+ports. What differs from the sections above:
+
+- **Ports.** `projectReadPort.previewMerge / resolveMerged / getMerge` are published;
+  `previewMerge` refuses `404 PROJECT_NOT_FOUND` unless the caller sees both Projects, and `getMerge`
+  answers `null` for a merge one of whose Projects the caller does not see. `ProjectRecord` carries
+  `mergedIntoProjectId`, `mergedAt`, `mergeId`. **Not published:** `projectCommandPort.startMerge /
+  resumeMerge / cancelMerge` and `replaceOrganization` (follow-ups of #1828) and
+  `taskCommandPort.moveContext` (follow-up of #1829); `ProjectMergeService` and
+  `task.merge_move_context` are what they will call.
+- **Finalize** applies the chosen values in its own Command (`projects.project.merge.finalize`)
+  rather than through `projects.project.update` and `projects.project.custom_fields_update`: one
+  audited entry carrying the merge id, as the Organization host does. It still validates custom
+  fields through `custom_fields`, records title, value and custom-field values in the Project's own
+  value store (`valueChangeId`), re-derives the description's references when the description is
+  taken from the loser, and moves the survivor's `version`.
+- **Structure** is a union that leaves the loser its own rows (`participant-dispositions.md` §E).
+- **Admin API.** Besides `projects:merge`, every route asks the actor to hold `projects:write`
+  (edit of both, FR-050). The palette gains `open-project-merges` (`/projects/merges`) beside
+  `merge-projects` (`/projects/merge`); the progress view is `/projects/merges/:mergeId`.
+- **Admin notifications** (`events-and-webhooks.md` §3) are the host's `onStateChanged`:
+  `needs_attention` tells holders of `projects:merge` who see both Projects, completion tells the
+  starter.
+- **Mentions** resolve to the survivor in all three renderers of `[[project:<id>]]`: `projects`'
+  own reference service (`ProjectAccess.mergedInto`), `crm`'s and `tasks`' (through
+  `projectReadPort.resolveMerged`).

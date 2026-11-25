@@ -248,6 +248,8 @@ export * from './aggregate-ports.js';
 // `specs/192-organization-merge/` — the platform's merge vocabulary and the Organization host's shapes.
 export * from './record-merge.js';
 export * from './organizations.merge.js';
+// US6 — the Project host's shapes.
+export * from './projects.merge.js';
 // Issue #1845 — `projects`' hookable actions.
 export * from './project-hooks.js';
 // Issue #1844 — `promotions`' promotion and coupon writes.

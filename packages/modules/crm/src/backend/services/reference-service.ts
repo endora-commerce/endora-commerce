@@ -30,7 +30,7 @@ export interface ReferenceServiceDeps {
   /** This module's own Opportunities, under the reader's tenant scope (`specs/165-task-management/` R-5). */
   opportunities: Pick<OpportunityReadPort, 'findByIds'>;
   /** The one door to `projects` — operator-switchable, so asked `isPresent()` first. */
-  projects: Pick<CrmProjects, 'isPresent' | 'findByIds'>;
+  projects: Pick<CrmProjects, 'isPresent' | 'findByIds' | 'resolveMerged'>;
   /** Whether the reader may read each kind of target in the module that owns it. */
   mayRead: Pick<OwnerReadChecks, 'orders' | 'products' | 'quoteRequests' | 'tasks' | 'projects'>;
 }
@@ -181,9 +181,18 @@ export class ReferenceService {
     ]);
     // An Opportunity is this module's own, read under the reader's tenant scope
     // with the `crm:read` the text is read with.
+    // A Project merged into another one renders as its survivor
+    // (`specs/192-organization-merge/` FR-093): the token is never rewritten,
+    // it is resolved here, through the owner's port.
+    const survivorOf = new Map<string, string>();
+    if (mayReadProjects) {
+      const resolved = await Promise.all(projectIds.map((id) => this.deps.projects.resolveMerged(id)));
+      projectIds.forEach((id, index) => survivorOf.set(id, resolved[index] ?? id));
+    }
+    const projectTarget = (id: string): string => survivorOf.get(id) ?? id;
     const [opportunities, projects] = await Promise.all([
       opportunityIds.length > 0 ? this.deps.opportunities.findByIds(opportunityIds) : Promise.resolve([]),
-      mayReadProjects ? this.deps.projects.findByIds(projectIds) : Promise.resolve([]),
+      mayReadProjects ? this.deps.projects.findByIds([...new Set(projectIds.map(projectTarget))]) : Promise.resolve([]),
     ]);
     const [products, orders, people, quoteRequests, tasks] = await Promise.all([
       // Live products only: one that was deleted is gone for the reader.
@@ -222,7 +231,11 @@ export class ReferenceService {
     }
     for (const task of tasks) labels.set(`task:${task.id}`, task.number);
     for (const opportunity of opportunities) labels.set(`opportunity:${opportunity.id}`, opportunity.number);
-    for (const project of projects) labels.set(`project:${project.id}`, project.number);
+    const projectNumbers = new Map(projects.map((project) => [project.id, project.number]));
+    for (const id of projectIds) {
+      const number = projectNumbers.get(projectTarget(id));
+      if (number !== undefined) labels.set(`project:${id}`, number);
+    }
 
     return tokens.map((list) =>
       list.map((token) => {
@@ -234,7 +247,7 @@ export class ReferenceService {
               id: token.id,
               available: true,
               label,
-              url: adminUrl(token),
+              url: adminUrl(token.type === 'project' ? { type: 'project', id: projectTarget(token.id) } : token),
               ...(token.type === 'order' && orderFacts.has(token.id)
                 ? { order: orderFacts.get(token.id) as OpportunityReferenceOrder }
                 : {}),

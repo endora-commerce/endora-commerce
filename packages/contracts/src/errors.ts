@@ -1338,6 +1338,12 @@ export const ERROR_CODES = {
   PROJECT_HAS_LINKS: 'PROJECT_HAS_LINKS',
   /** A saved Projects list view name its owner already uses, case-insensitively (#1734). */
   PROJECT_SAVED_VIEW_NAME_TAKEN: 'PROJECT_SAVED_VIEW_NAME_TAKEN',
+  /**
+   * `specs/192-organization-merge/` US6 (OQ-6) — a write names a Project merged
+   * into another one; `details.survivorId`, `details.mergeId`. Refused, never
+   * redirected.
+   */
+  PROJECT_MERGED: 'PROJECT_MERGED',
   /** An Organization outside the caller's reach, or one that does not exist — indistinguishable. */
   PROJECT_ORGANIZATION_OUT_OF_SCOPE: 'PROJECT_ORGANIZATION_OUT_OF_SCOPE',
   /** The Stage the Project is in cannot be deleted. */

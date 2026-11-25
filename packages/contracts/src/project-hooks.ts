@@ -93,6 +93,21 @@ export type ProjectReopenHookData = {
   readonly previousState: ProjectOutcome;
 };
 
+/**
+ * `projects.project.merge.start` (`specs/192-organization-merge/` FR-061): a
+ * deployment may veto a Project merge before it starts (`beforeCommit`) or
+ * start its own work after it (`afterCommit`). Ids and the source code only —
+ * the field choices are the merge record's.
+ */
+export type ProjectMergeStartHookData = {
+  /** The survivor — the Project the merge is recorded against. */
+  readonly projectId: string;
+  readonly mergeId: string;
+  readonly survivorId: string;
+  readonly loserId: string;
+  readonly source: string | null;
+};
+
 /** `afterCommit` rows carry the same ids and codes as the hook data. */
 export type ProjectCreateOutbox = ProjectCreateHookData;
 export type ProjectUpdateOutbox = ProjectUpdateHookData;
@@ -101,6 +116,7 @@ export type ProjectOrganizationOutbox = ProjectOrganizationHookData;
 export type ProjectStageMoveOutbox = ProjectStageMoveHookData;
 export type ProjectCloseOutbox = ProjectCloseHookData;
 export type ProjectReopenOutbox = ProjectReopenHookData;
+export type ProjectMergeStartOutbox = ProjectMergeStartHookData;
 
 /**
  * The refs a hook author registers against (`ctx.commandHooks([{ on: PROJECTS.create, … }])`,
@@ -143,4 +159,9 @@ export const PROJECT_HOOKABLE_ACTIONS = {
     'beforeCommit',
     'afterCommit',
   ]),
+  mergeStart: hookableAction<ProjectMergeStartHookData, ProjectMergeStartOutbox>(
+    'projects.project.merge.start',
+    'project',
+    ['beforeCommit', 'afterCommit'],
+  ),
 } as const;
