@@ -106,7 +106,10 @@ jobs:
       # `backend/tsconfig.json` dies at 1920 and passes at 2048 (5692 files).
       # 3072 restores ~512 MB over the larger one. The brackets are in
       # `.gitlab-ci.yml`'s `quality` job; the two values move together.
-      NODE_OPTIONS: --max-old-space-size=3072
+      # MikroORM 7 (#1866): `backend/test/tsconfig.json` measured at 3.58 GB tsc
+      # `Memory used` (6836 files, 6.95M instantiations; 2.63 GB / 3.96M on 6),
+      # so 3072 dies `heap out of memory` (exit 134). 4608 restores ~1 GB over it.
+      NODE_OPTIONS: --max-old-space-size=4608
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -134,7 +137,8 @@ jobs:
       # 3072 above stays the type-check's measured value, so lint is a step of
       # its own with its own heap.
       - env:
-          NODE_OPTIONS: --max-old-space-size=3584
+          # Raised with the type-check above for MikroORM 7's heavier types (#1866).
+          NODE_OPTIONS: --max-old-space-size=5120
         run: pnpm -r run lint
       - run: |
           pnpm --filter backend exec tsx scripts/check-entity-tenant-classification.ts
