@@ -341,6 +341,31 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
     expect(await expiredHistoryRows(unshared)).toBe(0);
   });
 
+  // A draft left idle far past `expiry_days` and then shared is a fresh offer:
+  // the share's history entry restarts the inactivity clock, so the sweep that
+  // follows must not expire it at once (FR-006, FR-021).
+  it('a long-idle draft that is then shared is not expired by the next sweep', async () => {
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/quote-requests',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {
+        organizationId: TEST_ORGANIZATION_ID,
+        customerAccountId: TEST_CUSTOMER_ID,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1, agreedUnitPrice: 5 }],
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const id = (created.json() as { data: { id: string } }).data.id;
+    await ageQuoteRequest(h.em(), id, new Date(Date.now() - EXPIRY_DAYS * DAY_MS - 60 * DAY_MS));
+    await shareQuoteRequestForTest(h.app, id);
+
+    await worker().sweep();
+
+    expect(await statusOf(id)).toBe('Created from admin');
+    expect(await expiredHistoryRows(id)).toBe(0);
+  });
+
   it('expiry_days = 0 expires nothing, however overdue', async () => {
     const id = await dueRequest(400 * DAY_MS);
     await h.settings.adminService.setValueForAllChannels(QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS, 0, null, {
