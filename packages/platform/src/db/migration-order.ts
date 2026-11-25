@@ -42,8 +42,11 @@ export type MigrationClass = MigrationObject['class'];
  * Where a registry entry came from. Absent means `'core'`. `'generated'` is the
  * platform's own schema-extension step (`specs/178-extensible-columns/` FR-020)
  * — the one origin allowed the reserved stamp {@link GENERATED_STAMP}.
+ * `'overlay'` is a deployment's overlay module (`specs/190-overlay-full-modules/`
+ * R-7): guarded like `'external'`, and told apart from it so a diagnostic, the
+ * test template digest and `module:status` can say which of the two it was.
  */
-export type MigrationOrigin = 'core' | 'external' | 'generated';
+export type MigrationOrigin = 'core' | 'external' | 'generated' | 'overlay';
 
 /**
  * The stamp of a generated schema-extension step: a real instant that sorts

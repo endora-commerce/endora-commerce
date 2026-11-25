@@ -43,6 +43,8 @@ import { effectiveState } from '../kernel/lifecycle/effective-state.js';
 import { ModuleDisabledError } from '../kernel/lifecycle/plugin-helpers.js';
 import { enterSystemScope } from '../kernel/scope.js';
 import { instanceManifestEntries } from '../lifecycle/commands/operator-entry.js';
+import { OverlayBuildError } from '../overlay/overlay-freshness.js';
+import { OverlayLayoutError } from '../overlay/overlay-layout.js';
 import { OverlaySchemaError } from '../overlay/overlay-schema.js';
 import type { RegisteredManifestEntry } from '../lifecycle/index.js';
 import {
@@ -475,8 +477,14 @@ export function cliFailureExitCode(thrown: unknown, err: (chunk: string) => void
     return 3;
   }
   // A refusal written for the operator is printed as the sentence it is; a
-  // stack under it says "defect", which it is not.
-  if (error instanceof OverlaySchemaError) {
+  // stack under it says "defect", which it is not. The overlay family is the
+  // schema, layout and build refusals (`specs/190-overlay-full-modules/` data
+  // model §3) — the same three `exitOnRefusal` recognises.
+  if (
+    error instanceof OverlaySchemaError ||
+    error instanceof OverlayLayoutError ||
+    error instanceof OverlayBuildError
+  ) {
     err(`${error.message}\n`);
     return 1;
   }
