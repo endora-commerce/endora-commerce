@@ -1750,6 +1750,18 @@ async function measureOverlay(
       `booting instance accepts: the two it refuses are recorded beside \`OVERLAY_MODULE_ID\``,
   );
 
+  // Overlay code is compiled (#1848): a module added to `apps/` is composed only once
+  // the backend member's build has run `endora build overlays` over it — what an
+  // operator does after adding one. Without it the compiled entry points refuse the
+  // boot as `unbuilt` (FR-015), which is the guard and not this assertion's subject.
+  const rebuilt = run('pnpm', ['-C', 'backend', 'run', 'build'], { cwd: target, env: environment });
+  if (rebuilt.code !== 0) {
+    return unreachable(
+      `the backend member's own \`build\` exited ${String(rebuilt.code)} over the tree carrying ` +
+        `A8's overlay module: ${failureExcerpt(rebuilt.output, 5)}`,
+    );
+  }
+
   const rendered = renderedDivergence(target, deployment, environment);
 
   // The overlay module is a module: its `module_registrations` row is written

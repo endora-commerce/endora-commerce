@@ -423,7 +423,9 @@ export function overlayModulesFor(
   const deployment = selectedDeployment(env);
   let judged = false;
   const judge = (): void => {
-    if (judged || root === null || deployment === null) return;
+    // Not gated on the compiled modules root: a deployment whose `modules/` was never
+    // built has none, and that is exactly the `unbuilt` case the guard exists for.
+    if (judged || deployment === null) return;
     assertOverlayBuildFresh(roots, deployment, {
       rebuild: options.rebuild ?? 'pnpm run build',
       ...(options.info === undefined ? {} : { info: options.info }),

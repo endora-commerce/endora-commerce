@@ -149,6 +149,23 @@ describe('overlay resolution runs the guard before anything is imported (T017)',
     await expect(modules.manifests()).rejects.toBeInstanceOf(OverlayBuildError);
   });
 
+  it('refuses a module added to the sources and never built, even with no compiled modules/', async () => {
+    // Measured by acceptance:instance A8 on #1848: the compiled deployment held only
+    // `divergence.js`, so there was no compiled modules root, the resolution saw no overlay
+    // at all and the boot composed without the module — silently.
+    const { overlayModulesFor } = await import('./overlay-runtime.js');
+    const { source, compiled } = roots();
+    write(source, 'apps/acme/divergence.ts', OLD);
+    write(compiled, 'apps/acme/divergence.js', NEW);
+    write(source, 'apps/acme/modules/added/manifest.ts', NEW);
+    const modules = overlayModulesFor(
+      { deploymentRoot: compiled, deploymentSourceRoot: source },
+      { DEPLOYMENT: 'acme' },
+      () => [],
+    );
+    expect(() => modules.ids()).toThrow(OverlayBuildError);
+  });
+
   it('resolves a fresh build as overlayModulesUnder does', async () => {
     const { overlayModulesFor } = await import('./overlay-runtime.js');
     const { source, compiled } = roots();
