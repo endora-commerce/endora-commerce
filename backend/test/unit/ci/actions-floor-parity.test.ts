@@ -86,9 +86,12 @@ const ACCEPTANCE_PUBLIC_JOBS = readWorkflowJobs(ACCEPTANCE_PUBLIC_WORKFLOW);
  * triggers — is `actions-tranche-one-parity.test.ts`; it is read here only so
  * the host-wide rules below reach it.
  */
-const TRANCHE_ONE_JOBS = ['pack-gate.yml', 'boot-gate.yml', 'build-docs.yml'].flatMap((file) =>
-  readWorkflowJobs(workflowSource(file)),
-);
+const TRANCHE_ONE_JOBS = [
+  'pack-gate.yml',
+  'boot-gate.yml',
+  'build-docs.yml',
+  'acceptance-instance.yml',
+].flatMap((file) => readWorkflowJobs(workflowSource(file)));
 /**
  * The documentation publication (129 T046b), held by
  * `docs-publish-workflow.test.ts`; read here only so the host-wide rules below
@@ -136,8 +139,9 @@ describe('the floor parsed a population that looks like both hosts', () => {
     // `test/unit/ci/dco-signoff.test.ts`), the public acceptance mode is a
     // dormant `workflow_dispatch` (W5.4), and the open-source demo's build and
     // deploy (W7.5, D-274) are held by `test/unit/ci/demo-workflow.test.ts`.
-    // `pack-gate.yml`, `boot-gate.yml` and `build-docs.yml` are tranche 1, not
-    // the floor, and are held by `actions-tranche-one-parity.test.ts`;
+    // `pack-gate.yml`, `boot-gate.yml`, `build-docs.yml` and
+    // `acceptance-instance.yml` are tranche 1, not the floor, and are held by
+    // `actions-tranche-one-parity.test.ts`;
     // `publish-docs.yml` (T046b) by `docs-publish-workflow.test.ts`;
     // `release.yml` (the release page and the Discord post, keyed on the
     // release tag) by `release-workflow.test.ts`. `backend-suite.yml` is the
@@ -149,6 +153,7 @@ describe('the floor parsed a population that looks like both hosts', () => {
     // All are listed so that any new workflow still has to be named here by
     // whoever adds it.
     expect(WORKFLOW_FILES).toEqual([
+      'acceptance-instance.yml',
       'acceptance-public.yml',
       'backend-suite.yml',
       'boot-gate.yml',
@@ -162,7 +167,12 @@ describe('the floor parsed a population that looks like both hosts', () => {
       'release.yml',
       'storefront-build.yml',
     ]);
-    expect(TRANCHE_ONE_JOBS.map((job) => job.name)).toEqual(['pack-gate', 'boot-gate', 'build:docs']);
+    expect(TRANCHE_ONE_JOBS.map((job) => job.name)).toEqual([
+      'pack-gate',
+      'boot-gate',
+      'build:docs',
+      'acceptance:instance',
+    ]);
     expect(DOCS_PUBLICATION_JOBS).toHaveLength(2);
     // The shards, the deployment overlays and the per-tree-root organizations run (177).
     expect(BACKEND_SUITE_JOBS).toHaveLength(3);
