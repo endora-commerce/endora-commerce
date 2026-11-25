@@ -162,7 +162,11 @@
         },
         "A18": {
           "status": "pass",
-          "reason": "MEASURED, AS THE RUN THAT ADDED IT PRINTED IT: \"stale, unbuilt, orphan, package-in-disguise were each refused by name before any overlay code ran (asked of module:status and api), and the restored tree, rebuilt, composed\". The probe breaks the compiled overlay tree A8 left one way at a time, asks the instance's own processes, and restores it, modification times included (specs/190-overlay-full-modules/ T021, #1848). `migrate` resolves no overlay module until schema discovery (#1850), so it is not asked yet."
+          "reason": "MEASURED, AS THE RUN THAT ADDED IT PRINTED IT: \"stale, unbuilt, orphan, package-in-disguise were each refused by name before any overlay code ran (asked of module:status and api), and the restored tree, rebuilt, composed\". The probe breaks the compiled overlay tree A8 left one way at a time, asks the instance's own processes, and restores it, modification times included (specs/190-overlay-full-modules/ T021, #1848). `migrate` resolves no overlay module until schema discovery (#1850), so it is not asked yet; since #1850 it reads the compiled overlay schema but is handed the compiled deployment root alone, so it compares nothing with the sources and A19 asks it over a tree that was built."
+        },
+        "A19": {
+          "status": "pass",
+          "reason": "MEASURED, AS THE RUN PRINTED IT: \"'instance_acceptance_notes' owns a table: the instance's own `setup` passed over it and applied 'Migration20270101T000000InstanceAcceptanceNotesInit' out of the compiled overlay, and its route answered 200 with the row that migration seeded, read through the entity its backend exports\". The fixture is written after A18 has put A8's tree back: one global entity exported as `entities` from `backend.ts`, one migration file in `migrations/` that creates the table and seeds one row, and a route reading it through `emFactory` (specs/190-overlay-full-modules/ T080, US1, SC-001; #1850). Global, because the subject is the table and its mapping; the cross-tenant half of an overlay table is `backend/test/integration/overlay/overlay-table.test.ts` (T079)."
         }
       }
     },

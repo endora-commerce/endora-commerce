@@ -70,7 +70,8 @@ export type AssertionId =
   | 'A15'
   | 'A16'
   | 'A17'
-  | 'A18';
+  | 'A18'
+  | 'A19';
 
 /**
  * What each assertion is, independently of any run.
@@ -100,6 +101,7 @@ export const ASSERTION_CATALOGUE: Readonly<Record<AssertionId, string>> = {
   A16: 'the module packages the instance installs are exactly the ones its own manifests declare, whichever supply route it took',
   A17: 'a request is confined to what its authenticated actor may reach: a customer to its organization, an admin to the scope its role resolves to, a bound API key to its binding',
   A18: 'a compiled overlay that no longer matches its sources, or one that breaks the module layout, is refused before it runs, and a clean build composes',
+  A19: 'an overlay module that owns a table: `setup` passes over it, applies its migration, and its route serves the row it seeded',
 };
 
 export const ASSERTION_IDS = Object.keys(ASSERTION_CATALOGUE) as readonly AssertionId[];
@@ -2491,3 +2493,82 @@ export function evaluateA18(observed: OverlayBuildObservation): AssertionResult 
   };
 }
 
+/** What A19's probe read (`specs/190-overlay-full-modules/` T080, #1850). */
+export interface OverlaySchemaObservation {
+  readonly moduleId: string;
+  /** The class the fixture's one migration file exports. */
+  readonly migrationName: string;
+  /** The body that migration inserts into the module's own table. */
+  readonly seeded: string;
+  readonly built: { readonly code: number; readonly output: string } | null;
+  /** The instance's own `setup` — `generate`, `build`, `typecheck`, `migrate`, `module:install --all`. */
+  readonly migrated: { readonly code: number; readonly output: string } | null;
+  /** `mikro_orm_migrations`' names after `setup`; `null` when it could not be read. */
+  readonly applied: readonly string[] | null;
+  /** The fixture route's answer; `null` when the instance never answered. */
+  readonly probe: { readonly status: number; readonly body: unknown } | null;
+  /** Why nothing could be measured, when nothing could. */
+  readonly failure?: string;
+}
+
+/**
+ * A19 — an overlay module owns a table in a created instance (US1, SC-001).
+ *
+ * Three facts, each by a different author: `setup` exits 0 over the overlay — its `typecheck` and
+ * its `migrate` among them — the
+ * database records the fixture's migration under its class name, and the fixture's route — reading
+ * through the entity its `backend.ts` exports — answers with the row that migration inserted. A
+ * route that answered without the row is the ORM mapping the class to no table, which is the
+ * silent state the `entities` export exists to prevent.
+ */
+export function evaluateA19(observed: OverlaySchemaObservation): AssertionResult {
+  if (observed.failure !== undefined) return { id: 'A19', state: 'unmeasured', detail: observed.failure };
+  if (observed.built === null || observed.built.code !== 0) {
+    return {
+      id: 'A19',
+      state: 'unmeasured',
+      detail:
+        `the backend member's own \`build\` did not compile the overlay module ` +
+        `'${observed.moduleId}'${observed.built === null ? '' : `: ${failureExcerpt(observed.built.output, 3)}`}`,
+    };
+  }
+  if (observed.migrated === null || observed.migrated.code !== 0) {
+    return {
+      id: 'A19',
+      state: 'fail',
+      detail:
+        `\`setup\` ${observed.migrated === null ? 'was not run' : `exited ${String(observed.migrated.code)}`} ` +
+        `over an overlay module that owns a table${observed.migrated === null ? '' : `: ${failureExcerpt(observed.migrated.output, 3)}`}`,
+    };
+  }
+  if (observed.applied === null || !observed.applied.includes(observed.migrationName)) {
+    return {
+      id: 'A19',
+      state: 'fail',
+      detail:
+        `\`setup\` exited 0 and ${observed.applied === null ? 'the migrations table could not be read' : `recorded no '${observed.migrationName}'`}: ` +
+        `the overlay module's migration was not applied`,
+    };
+  }
+  if (observed.probe === null) {
+    return { id: 'A19', state: 'unmeasured', detail: 'the instance never answered, so the route was not asked' };
+  }
+  const bodies = (observed.probe.body as { bodies?: unknown } | null)?.bodies;
+  if (observed.probe.status !== 200 || !Array.isArray(bodies) || !bodies.includes(observed.seeded)) {
+    return {
+      id: 'A19',
+      state: 'fail',
+      detail:
+        `'${observed.migrationName}' is applied, and the module's route answered ${String(observed.probe.status)} ` +
+        `with ${JSON.stringify(observed.probe.body).slice(0, 160)} rather than the row it seeded`,
+    };
+  }
+  return {
+    id: 'A19',
+    state: 'pass',
+    detail:
+      `'${observed.moduleId}' owns a table: the instance's own \`setup\` passed over it and applied ` +
+      `'${observed.migrationName}' out of the compiled overlay, and its route answered 200 with the row ` +
+      `that migration seeded, read through the entity its backend exports`,
+  };
+}
