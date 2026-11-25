@@ -37,6 +37,10 @@
       "types": "./dist/module/index.d.ts",
       "default": "./dist/module/index.js"
     },
+    "./merge": {
+      "types": "./dist/merge/index.d.ts",
+      "default": "./dist/merge/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

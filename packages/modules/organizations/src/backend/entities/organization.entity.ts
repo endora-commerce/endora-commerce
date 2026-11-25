@@ -76,6 +76,9 @@ export class Organization {
     | 'taxId'
     | 'personalAccountId'
     | 'convertedToCompanyAt'
+    | 'mergedIntoOrganizationId'
+    | 'mergedAt'
+    | 'mergeId'
     | 'version';
 
   @PrimaryKey({ type: 'uuid' })
@@ -264,6 +267,22 @@ export class Organization {
 
   @Property({ type: 'datetime', nullable: true })
   deletedAt?: Date | null;
+
+  // ── specs/192-organization-merge/: the archived loser ──────────────────
+
+  /**
+   * The survivor this Organization was merged into (FR-051). Set only by
+   * `organization.merge.finalize`, always together with `deletedAt`, and never
+   * cleared: a merge has no undo (D-299).
+   */
+  @Property({ type: 'uuid', nullable: true })
+  mergedIntoOrganizationId?: string | null;
+
+  @Property({ type: 'datetime', nullable: true })
+  mergedAt?: Date | null;
+
+  @Property({ type: 'uuid', nullable: true })
+  mergeId?: string | null;
 
   // ── lifecycle hooks ────────────────────────────────────────────────────
 

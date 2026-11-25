@@ -24,6 +24,7 @@ here.
 | `actor_kind` / `actor_admin_user_id` | text / uuid null | the ambient actor at start (D-293.6) |
 | `source` | text null | D-293.6 source code |
 | `started_at`, `completed_at`, `cancelled_at`, `needs_attention_at` | timestamptz | — |
+| `finalized_at` | timestamptz null | set by the runner once the host's finalize committed, so a resumed merge never calls finalize twice (the host's finalize is idempotent besides) |
 | `last_error_code` | text null | code only, with no values (audit-state discipline) |
 | `version` | int | optimistic concurrency on resume and cancel |
 
@@ -165,12 +166,13 @@ The full shapes are in `contracts/merge-mechanism.md` and `contracts/merge-parti
 | `RECORD_MERGE_RECORD_UNAVAILABLE` | 409 | either is deleted or already merged, or the survivor is rejected |
 | `RECORD_MERGE_ALREADY_RUNNING` | 409 | a lock exists for either id |
 | `RECORD_MERGE_PARTICIPATION_INCOMPLETE` | 409 | a present module holds an undeclared reference (R-9); `details.modules` |
-| `RECORD_MERGE_PARTICIPANT_CONFLICT` | 409 | a participant reports an unresolvable conflict; `details.module`, `details.conflict` |
-| `RECORD_MERGE_BUSY` | 409 (retryable) | in-flight placement or payment (R-20) |
+| `RECORD_MERGE_PARTICIPANT_CONFLICT` | 409 | a participant reports a conflict with `resolution: 'unresolvable'` (`MERGE_CONFLICT_UNRESOLVABLE`); `details.module`, `details.conflict` |
+| `RECORD_MERGE_BUSY` | 409 (retryable) | in-flight placement or payment (R-20). Added to `ERROR_CODES` with the `orders` participant that raises it (T058), not before: `check:error-translations` refuses a declared code nothing raises |
 | `RECORD_MERGE_IN_PROGRESS` | 409 | a write naming a frozen record |
 | `RECORD_MERGE_NOT_CANCELLABLE` | 409 | a participant step has committed |
 | `RECORD_MERGE_NOT_RESUMABLE` | 409 | the state is not `needs_attention` |
 | `RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED` | 422 | the start body lacks the irreversible acknowledgement |
+| `RECORD_MERGE_RESIDUE` | — (recorded on the merge) | finalize's re-count still found rows naming the loser after three sweeps (`merge-mechanism.md` §3) |
 | `ORGANIZATION_MERGE_PERSONAL` | 409 | either is personal (D-299) |
 | `ORGANIZATION_MERGE_TREE_INVALID` | 409 | token `ancestor` \| `different_trees` (D-299) |
 | `ORGANIZATION_MERGED` | 409 | a write naming an archived Organization; `details.survivorId` |

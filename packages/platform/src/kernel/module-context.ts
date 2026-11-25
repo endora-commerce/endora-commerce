@@ -9,7 +9,12 @@ import {
   type Resolver,
 } from 'awilix';
 import type { FastifyInstance } from 'fastify';
-import type { HookableActionRef } from '@endora-commerce/contracts';
+import type {
+  HookableActionRef,
+  MergeHostImplementation,
+  MergeParticipant,
+  RecordMergeHostType,
+} from '@endora-commerce/contracts';
 import type { Worker } from 'bullmq';
 import type { ModulePlugin } from '../http/server.js';
 import type { EventBus } from '../events/bus.js';
@@ -17,6 +22,7 @@ import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { InterceptorRegistration } from '../http/interceptors/types.js';
 import type { CommandHookRegistry } from '../commands/hooks/registry.js';
 import type { CommandHookEntry } from '../commands/hooks/types.js';
+import type { RecordMergeRegistry } from './merge/registry.js';
 import {
   defineModuleRoutes,
   defineModuleWorker,
@@ -720,6 +726,29 @@ export interface ModuleContext {
   ): void;
 
   /**
+   * The record merge (`specs/192-organization-merge/`,
+   * `contracts/merge-mechanism.md` §2). Registration only — nothing resolves,
+   * and the runner calls the implementation later, per merge, inside the
+   * merge's own system scope.
+   *
+   *  - `host` — the module that declares `merge.hosts` for a record type
+   *    registers what the runner calls for that type's own phases;
+   *  - `participate` — every module whose manifest declares a
+   *    `merge.participates` entry that moves records registers its participant
+   *    under the same key. The runner never calls it while this module is off;
+   *    its step is deferred and caught up when the module is back (D-299).
+   *
+   * Composition seals the registry and refuses a registration without a
+   * declaration, a declaration without a registration, and a host declared by
+   * two modules. In a context built without a registry (one module composed
+   * for a unit test) both are no-ops: there is no merge runner to call them.
+   */
+  readonly merge: {
+    host<H extends RecordMergeHostType>(type: H, implementation: MergeHostImplementation<H>): void;
+    participate<H extends RecordMergeHostType>(host: H, key: string, participant: MergeParticipant<H>): void;
+  };
+
+  /**
    * The explicit boot phase (FR-021). Runs once every module has registered,
    * inside `enterSystemScope('boot: <module id>')`, so it may resolve.
    *
@@ -793,6 +822,12 @@ export interface ModuleContextOptions {
    * then refuses, as `interceptors` does without a registry.
    */
   readonly commandHookRegistry?: CommandHookRegistry;
+  /**
+   * The composition's record-merge registry (`specs/192-organization-merge/`).
+   * Absent in a context built by hand for one module; `ctx.merge` is then a
+   * no-op, because there is no runner to call what it would register.
+   */
+  readonly mergeRegistry?: RecordMergeRegistry;
   /**
    * Shared across every module of one composition, so a name registered twice
    * is caught naming both modules (T042). Absent for a hand-built context — a
@@ -1166,6 +1201,21 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
           (entry) => ({ id: entry.id, on: entry.on, phase: entry.phase, handler: entry.handler }) as CommandHookEntry,
         ),
       );
+    },
+
+    merge: {
+      host(type, implementation) {
+        if (implementation.host !== type) {
+          throw new Error(
+            `[kernel] module '${module.id}' registers merge host '${type}' with an implementation for ` +
+              `'${implementation.host}'.`,
+          );
+        }
+        options.mergeRegistry?.registerHost(module.id, implementation as MergeHostImplementation);
+      },
+      participate(host, key, participant) {
+        options.mergeRegistry?.registerParticipant(module.id, host, key, participant);
+      },
     },
 
     onBoot(hook) {

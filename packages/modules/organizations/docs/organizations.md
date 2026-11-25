@@ -1588,6 +1588,73 @@ the roles and the sales representatives.
   decides the tax on every order the organization places from then on; orders, invoices and quote
   documents already issued keep theirs. Validating the tax ID does not change the VAT status.
 
+## Merging duplicate organizations {#merging-duplicate-organizations}
+
+A **merge** declares that two organizations were always one: the duplicate (the *loser*) is
+archived with a pointer to the organization that stays (the *survivor*), and everything the
+loser holds follows the survivor. A merge is **forward-only** — there is no unmerge, and the
+Command Bus undo is not offered for any merge Command.
+
+The mechanism belongs to the platform; this module is the host of the `organization` record
+type in it. Every other module moves its own rows that reference the loser, in its own step and
+its own audited Commands. Until every module that holds such a reference has declared how its
+rows follow, the preview works and a start is refused with
+`409 RECORD_MERGE_PARTICIPATION_INCOMPLETE`, naming the modules in `details.modules`.
+
+### Who may merge, and which pairs {#merge-who-and-which-pairs}
+
+- The permission is `organizations:merge`. It is not part of the predefined
+  sales-representative role. The actor must also reach **both** organizations under the
+  sales-representative reach rule; an unreachable one answers `404`, as if it did not exist.
+- A personal (B2C) organization is never merged: `409 ORGANIZATION_MERGE_PERSONAL`.
+- Two roots, or two members of the same tree, may merge. The loser may never be above the
+  survivor (`409 ORGANIZATION_MERGE_TREE_INVALID`, `details.code: ancestor`), and non-roots of
+  two different trees are refused (`different_trees`). The loser's children move under the
+  survivor.
+- A deleted, rejected or already merged organization is refused
+  (`RECORD_MERGE_RECORD_UNAVAILABLE`), and so is a pair one of whose records is in another
+  running merge (`RECORD_MERGE_ALREADY_RUNNING`).
+
+### The admin API {#merge-admin-api}
+
+| Method and path | Permission | What it does |
+| --- | --- | --- |
+| `POST /api/v1/admin/organizations/:id/merge-preview` | `organizations:merge` | `{ loserId }` — refusals, per area how many records would follow, and the values that differ. Writes nothing. |
+| `POST /api/v1/admin/organizations/:id/merges` | `organizations:merge` | `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true }` — re-checks the preview and starts the merge (`202`). |
+| `GET /api/v1/admin/organization-merges` | `organizations:merge` | `?state=&organizationId=` — merges both of whose organizations you reach. |
+| `GET /api/v1/admin/organization-merges/:mergeId` | `customers:read` | One merge with its steps. |
+| `POST /api/v1/admin/organization-merges/:mergeId/resume` | `organizations:merge` | `{ expectedVersion }` — a merge that needs attention runs again; finished steps are not repeated. |
+| `POST /api/v1/admin/organization-merges/:mergeId/cancel` | `organizations:merge` | `{ expectedVersion }` — only before any record has moved. |
+
+`fieldChoices` takes, per field, `survivor` or `loser` for the name, legal name, tax ID, VAT
+status, registered address, customer group, credit inheritance mode and fulfilment strategy.
+The survivor's value wins by default, and a field the survivor left empty takes the loser's.
+Order confirmation e-mails are always the union of both. Custom-field values follow the same
+rule per field and are validated against the current definitions. Status, moderation stamps and
+the tree position are never offered. When the survivor takes the loser's tax ID, the loser
+releases it in the same write, and the loser's latest VAT validation result comes with it.
+
+### While a merge runs, and after {#merge-during-and-after}
+
+- From the start until completion the loser is **frozen**: a write naming it — from an
+  operator, a buyer, an API key or another module — is refused with
+  `409 RECORD_MERGE_IN_PROGRESS`. Writes to the survivor continue.
+- The merge runs as a background job in phases (structure, configuration, addresses, members,
+  records, finalize). A failed step is retried; when the retries are exhausted the merge stops
+  in *needs attention* and can be resumed. A module that is switched off when the merge reaches
+  it is skipped, and its part runs automatically once it is switched back on.
+- After completion the loser is archived: it is soft-deleted, carries
+  `mergedIntoOrganizationId`, `mergedAt` and `mergeId`, and appears in no list, picker or
+  search. `GET /api/v1/admin/organizations/:id` still answers it, with the survivor's id; a
+  write naming it is refused with `409 ORGANIZATION_MERGED` and `details.survivorId`.
+  Server code resolves an old id with `organizationDetailsPort.resolveMerged(id)`.
+- `organization.merged.v1` is published once, with `organizationId` (the survivor),
+  `mergedOrganizationId`, `mergeId`, `mergedAt` and `source`. It is offered for outbound
+  webhooks. `organization.merge.start` is a hookable action, so a deployment can veto a merge
+  before it starts.
+- Every audit entry a merge writes carries its `mergeId`, with field names and codes, never the
+  values.
+
 ## Audit entries
 
 The platform audit log is one table read by every operator with

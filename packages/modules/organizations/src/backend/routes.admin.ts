@@ -316,6 +316,14 @@ export async function registerOrganizationsAdminRoutes(
     salesRepScope: deps.salesRepScope,
     param: 'id',
   });
+  // `specs/192-organization-merge/` FR-052 — the detail answers an archived
+  // (merged) Organization, with its survivor's id; every other route 404s it.
+  const organizationOrArchivedInReach = organizationInReachPreHandler({
+    emFactory,
+    salesRepScope: deps.salesRepScope,
+    param: 'id',
+    allowMerged: true,
+  });
 
   /**
    * `specs/178-extensible-columns/` FR-051, FR-052 — attach the requested
@@ -517,14 +525,17 @@ export async function registerOrganizationsAdminRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id',
-    { preHandler: [customersRead, organizationInReach] },
+    { preHandler: [customersRead, organizationOrArchivedInReach] },
     async (request): Promise<{ data: AdminOrganizationDetail }> => {
       const { extensions } = ExtensionsQuerySchema.parse(request.query);
       const em = emFactory();
       if (!isUuidShape(request.params.id)) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       }
-      const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
+      const org = await em.findOne(Organization, {
+        id: request.params.id,
+        $or: [{ deletedAt: null }, { mergedIntoOrganizationId: { $ne: null } }],
+      });
       if (!org) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       }
@@ -1510,6 +1521,10 @@ function serializeOrg(o: Organization): AdminOrganization {
       validatedAt: o.vatValidatedAt?.toISOString() ?? null,
     },
     customFieldValues: o.customFieldValues ?? {},
+    // `specs/192-organization-merge/` FR-051, FR-052 — set on an archived loser.
+    mergedIntoOrganizationId: o.mergedIntoOrganizationId ?? null,
+    mergedAt: o.mergedAt?.toISOString() ?? null,
+    mergeId: o.mergeId ?? null,
     createdAt: o.createdAt.toISOString(),
     updatedAt: o.updatedAt.toISOString(),
   };

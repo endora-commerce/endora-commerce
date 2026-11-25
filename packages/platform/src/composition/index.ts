@@ -197,6 +197,19 @@ export { CommandOutboxEntry } from '../commands/outbox/command-outbox-entry.enti
 export { PostgresOutboxStore } from '../commands/outbox/store.js';
 export { drainCommandOutbox } from '../commands/outbox/drain.js';
 export { runCommandOutboxDrainTick } from '../commands/outbox/drain-worker.js';
+// `specs/192-organization-merge/` — the record merge's host half: the registry
+// a root hands `composeModules`, the declarations it seals against, the runtime
+// it builds and registers, the entity classes the generated registry names, and
+// the kernel's own (kept) participations the static check reads beside the
+// modules' declarations. A module reaches none of these; a host resolves
+// `recordMergeService` and a participant registers through `ctx.merge`.
+export { RecordMergeRegistry } from '../kernel/merge/registry.js';
+export { mergeDeclarationsFrom } from '../kernel/merge/declarations.js';
+export { createRecordMergeRuntime, type RecordMergeRuntime } from '../kernel/merge/runtime.js';
+export { KERNEL_MERGE_PARTICIPATIONS } from '../kernel/merge/completeness.js';
+export { RecordMerge } from '../kernel/merge/record-merge.entity.js';
+export { RecordMergeStep } from '../kernel/merge/record-merge-step.entity.js';
+export { RecordMergeLock } from '../kernel/merge/record-merge-lock.entity.js';
 // `specs/110-instance-repository/` T119c. The platform-availability row itself —
 // the entity class `module_registrations` is mapped by. It is here and **not** on
 // `./kernel`, and that is `host-package.md` §1.3's **A** classification applied

@@ -194,6 +194,12 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // seals it. Platform infrastructure as `apiInterceptors` is: `_lifecycle`
   // reads it for the execution plan, and no module owns it.
   'commandHookRegistry',
+  // `specs/192-organization-merge/` — the record merge's service a host's
+  // Commands call, and the runtime `_lifecycle` starts the runner from. Built by
+  // both roots around the merge registry they hand `composeModules`; no module
+  // owns either name.
+  'recordMergeService',
+  'recordMergeRuntime',
   'settingsReadPort',
   // The same kernel object as `settingsReadPort`, seen from the writing side:
   // `composeSettingsKernel` builds one `SettingsCache` and a root contributes

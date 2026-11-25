@@ -1,6 +1,8 @@
 import type { EventBus } from '../events/bus.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { CommandHookCompositionInput, CommandHookRegistry } from '../commands/hooks/registry.js';
+import type { RecordMergeRegistry } from './merge/registry.js';
+import type { MergeCompositionDeclarations } from './merge/declarations.js';
 import { registerValues, type KernelContainer } from './container.js';
 import { effectiveState } from './lifecycle/effective-state.js';
 import {
@@ -188,6 +190,20 @@ export interface ComposeModulesOptions {
    * no action is hookable, so any registered hook refuses the composition.
    */
   readonly commandHooks?: CommandHookCompositionInput | undefined;
+  /**
+   * The composition's record-merge registry (`specs/192-organization-merge/`).
+   * Every module's `ctx.merge` registers into it, and this call **seals** it
+   * once the last module has registered, against {@link mergeDeclarations}.
+   * Absent in a composition root that runs no merge; `ctx.merge` is then a no-op.
+   */
+  readonly mergeRegistry?: RecordMergeRegistry | undefined;
+  /**
+   * What the merge registry is sealed against — `mergeDeclarationsFrom(manifests)`,
+   * derived by the root from the same manifest set as `commandHooks`. Omitted
+   * with a registry present, it is sealed against nothing: a registration then
+   * refuses for want of a declaration.
+   */
+  readonly mergeDeclarations?: MergeCompositionDeclarations | undefined;
   /**
    * Share one ledger across several `composeModules` calls — which is what a
    * root does while modules are converted one batch at a time, so a converted
@@ -393,6 +409,7 @@ export function composeModules(
         ...(options.commandHookRegistry
           ? { commandHookRegistry: options.commandHookRegistry }
           : {}),
+        ...(options.mergeRegistry ? { mergeRegistry: options.mergeRegistry } : {}),
       });
 
       try {
@@ -454,6 +471,16 @@ export function composeModules(
     options.commandHookRegistry.seal(
       options.commandHooks ?? { hookableActions: [], moduleDependencies: {}, commandHookOrder: {} },
     );
+  }
+
+  // ---- Sealing the record-merge registry (`specs/192-organization-merge/`) --
+  //
+  // At the same point and for the same reason as the command hooks: every
+  // module has registered, and nothing has resolved yet.
+  if (options.mergeRegistry) {
+    options.mergeRegistry.seal({
+      declarations: options.mergeDeclarations ?? { hosts: [], participations: [] },
+    });
   }
 
   // The report is emitted, not merely available: a deployment running a client
@@ -519,6 +546,7 @@ export function composeModules(
         ...(options.commandHookRegistry
           ? { commandHookRegistry: options.commandHookRegistry }
           : {}),
+        ...(options.mergeRegistry ? { mergeRegistry: options.mergeRegistry } : {}),
       });
     },
     contribute(values: Readonly<Record<string, unknown>>): void {

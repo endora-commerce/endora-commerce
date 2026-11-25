@@ -257,6 +257,8 @@ import * as ruleEntityDecorators from '@endora-commerce/cli/rules/entity-decorat
 import * as ruleSubscribeSeam from '@endora-commerce/cli/rules/subscribe-seam.js';
 import * as ruleQueueNames from '@endora-commerce/cli/rules/queue-names.js';
 import * as hostExtensibleTables from '../../../scripts/check-extensible-tables.js';
+import * as hostMergeParticipation from '../../../scripts/check-merge-participation.js';
+import * as ruleMergeParticipation from '@endora-commerce/cli/rules/merge-participation.js';
 import * as ruleExtensibleTables from '@endora-commerce/cli/rules/extensible-tables.js';
 import * as ruleCommandCoverage from '@endora-commerce/cli/rules/command-coverage.js';
 import * as hostActionRoute from '../../../scripts/check-action-route-permissions.js';
@@ -363,6 +365,7 @@ import { checkPortShape } from '../../../scripts/check-port-shape.js';
 import { checkSubscribeSeam, checkWorkerSeam } from '../../../scripts/check-subscribe-seam.js';
 import { checkQueueNames } from '../../../scripts/check-queue-names.js';
 import { checkExtensibleTables } from '../../../scripts/check-extensible-tables.js';
+import { checkMergeParticipation } from '../../../scripts/check-merge-participation.js';
 import { checkTransactionContext } from '../../../scripts/check-transaction-context.js';
 import {
   checkSingletonIdentity,
@@ -9439,6 +9442,64 @@ const CHECKS: readonly CheckEntry[] = [
     ),
   },
   {
+    // `specs/192-organization-merge/` FR-045, SC-008 — every persisted
+    // reference to a mergeable record is declared by its own module. One proof
+    // per finding, each entering with the population and the declarations the
+    // host derives (the source reader under them is proven in the companion
+    // test), over one fixture where every reference is otherwise covered.
+    script: 'backend/scripts/check-merge-participation.ts',
+    npmScript: 'check:merge-participation',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-merge-participation.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is every `@Entity()` class under the module roots, so a
+    // moved module tree is refused by `refuseVacuousModulePopulation` against
+    // the manifest index.
+    residueGuard: 'derived-population',
+    red: (() => {
+      const population = [
+        { moduleId: 'orders', entity: 'Order', properties: ['id', 'organizationId', 'kind'] },
+        { moduleId: 'carts', entity: 'Cart', properties: ['id', 'organizationId'] },
+      ];
+      const covered = (moduleId: string, entity: string, key = moduleId) => ({
+        moduleId,
+        host: 'organization' as const,
+        key,
+        phase: 'records',
+        references: [{ entity, property: 'organizationId', disposition: 're_point' as const }],
+      });
+      const count = (
+        kind: string,
+        declarations: ReturnType<typeof covered>[],
+        pending: { moduleId: string; entity: string; property: string }[] = [],
+      ): number =>
+        checkMergeParticipation({ population, declarations, pending }).findings.filter((finding) => finding.kind === kind)
+          .length;
+      return {
+        'undeclared-reference': top(() => count('undeclared-reference', [covered('orders', 'Order')])),
+        'declared-missing-property': top(() =>
+          count('declared-missing-property', [
+            covered('orders', 'Order'),
+            covered('carts', 'Cart'),
+            { ...covered('carts', 'Cart', 'ghost'), references: [{ entity: 'Cart', property: 'ghostOrganizationId', disposition: 're_point' }] },
+          ]),
+        ),
+        'foreign-declaration': top(() =>
+          count('foreign-declaration', [covered('orders', 'Order'), covered('carts', 'Cart'), covered('orders', 'Cart', 'foreign')]),
+        ),
+        'double-coverage': top(() =>
+          count('double-coverage', [covered('orders', 'Order'), covered('carts', 'Cart'), covered('orders', 'Order', 'second')]),
+        ),
+        'stale-pending': top(() =>
+          count('stale-pending', [covered('orders', 'Order'), covered('carts', 'Cart')], [
+            { moduleId: 'orders', entity: 'Order', property: 'organizationId' },
+          ]),
+        ),
+      };
+    })(),
+  },
+  {
     // One rule and one finding, and the proofs are about the **resolver**
     // rather than about the predicate. `'a:b'.includes(':')` cannot rot;
     // reaching `'a:b'` from `new Queue(COMARCH_XL_DETECT_QUEUE, …)` is the part
@@ -12621,6 +12682,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // One per rebuild shape. `binding-owner-mismatch` is proven in the
       // companion test, where the owner map it reads is built.
       'backend/scripts/check-extensible-tables.ts': 5,
+      // One per finding of `contracts/merge-participation-check.md` §2; the
+      // composition refusals (`unknown-host`, `bad-phase`) are the manifest
+      // schema's and the merge registry's, proven where they are raised.
+      'backend/scripts/check-merge-participation.ts': 5,
       // Two findings — the centre and the undecidable gate — plus the ledger's
       // three directions and the three refusals `vacuousReason` answers. The
       // fourth refusal is `readSizeRefusal`'s `short-walk` over the
@@ -13349,6 +13414,7 @@ describe('a relocated analysis has one implementation and two hosts', () => {
       ['check:entity-decorators', hostEntityDecorators as unknown as Record<string, unknown>, ruleEntityDecorators as unknown as Record<string, unknown>],
       ['check:queue-names', hostQueueNames as unknown as Record<string, unknown>, ruleQueueNames as unknown as Record<string, unknown>],
       ['check:extensible-tables', hostExtensibleTables as unknown as Record<string, unknown>, ruleExtensibleTables as unknown as Record<string, unknown>],
+      ['check:merge-participation', hostMergeParticipation as unknown as Record<string, unknown>, ruleMergeParticipation as unknown as Record<string, unknown>],
       ['check:subscribe-seam', hostSubscribeSeam as unknown as Record<string, unknown>, ruleSubscribeSeam as unknown as Record<string, unknown>],
       ['check:command-coverage', hostCommandCoverage as unknown as Record<string, unknown>, ruleCommandCoverage as unknown as Record<string, unknown>],
       // Phase 2. Two of these — `check:action-route-permissions` and

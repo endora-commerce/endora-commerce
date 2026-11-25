@@ -359,7 +359,10 @@ learn to ignore them.
 
 **R-14a, the tax ID under `global`.** In one Command, set the loser's `tax_id` to null (allowed for
 merged rows by the relaxed CHECK), then set the survivor's, and copy the loser's latest validation
-outcome. Under `per-tree-root`, if the loser's tax ID is the tree's, the loser keeps it, because
+outcome. **As implemented (stage 1):** the loser releases its tax ID whenever the survivor takes it,
+under both scopes — under `per-tree-root` two merged *roots* are two trees, and the archived loser
+keeping the tax ID would hold it in a second tree. The loser keeps its own tax ID when the survivor
+keeps its own. The earlier sentence follows, superseded: Under `per-tree-root`, if the loser's tax ID is the tree's, the loser keeps it, because
 both are in one tree after the structure phase.
 
 **Alternative rejected.** Applying values at start. The survivor would change before the records

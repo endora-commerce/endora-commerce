@@ -18,53 +18,67 @@ are tagged **⛔ #nnnn**. A task without a tag can start once its phase's predec
 
 ---
 
+## Stage 1 status (2026-11-25)
+
+Phases 1 – 3 are implemented on `feat/1907-organization-merge`. What differs from the text below is
+recorded in the contracts it changes (`organization-merge.md` §2 and §4, `merge-mechanism.md` §1,
+§3 and §5, `merge-participation-check.md` §1 and §3, `participant-dispositions.md` §A,
+`data-model.md` §1.1 and §6, `research.md` R-14a). Where a task's file name differs from the one
+written here: T005's schema test is `packages/contracts/src/record-merge.test.ts` (the manifest
+schema is in `@endora-commerce/contracts`), T016 and T031 are DB-backed in
+`backend/test/integration/organizations/organization-merge.test.ts`, T017's tenant-resolution half
+is `packages/platform/src/tenancy/merge-freeze.test.ts`, and T026 – T030 are
+`packages/modules/organizations/src/backend/merge/organization-merge-rules.test.ts` (pure host rules)
+plus the same integration file. Until the participants of Phases 4 – 6 land, a start is refused with
+`409 RECORD_MERGE_PARTICIPATION_INCOMPLETE` by the runtime twin; the preview works.
+
 ## Phase 1: Setup
 
-- [ ] T001 Create one implementation branch per MR from `origin/master` in its own worktree (`git worktree add ../wt-1907-<mr> -b feat/1907-<mr> origin/master`, `bash ../wt-1907-<mr>/scripts/setup-worktree.sh`), then run `pnpm run build:packages`
-- [ ] T002 [P] Read `specs/conventions/module-composition.md`, `module-activation.md`, `audit-state.md`, `module-migrations.md`, `check-estate.md`, `custom-field-writes.md`, `module-admin-surfaces.md`, `module-i18n.md`, and `specs/186-aggregate-ports/contracts/aggregate-port-convention.md`. Record in the MR description which of #1821 – #1829, #1831 and PR #1914 are merged
+- [x] T001 (Stage 1, owner decision 2026-11-25: the whole feature is **one** pull request on `feat/1907-organization-merge` in `../wt-1907`; the MR letters below are ordering only) Create one implementation branch per MR from `origin/master` in its own worktree (`git worktree add ../wt-1907-<mr> -b feat/1907-<mr> origin/master`, `bash ../wt-1907-<mr>/scripts/setup-worktree.sh`), then run `pnpm run build:packages`
+- [x] T002 [P] Read `specs/conventions/module-composition.md`, `module-activation.md`, `audit-state.md`, `module-migrations.md`, `check-estate.md`, `custom-field-writes.md`, `module-admin-surfaces.md`, `module-i18n.md`, and `specs/186-aggregate-ports/contracts/aggregate-port-convention.md`. Record in the MR description which of #1821 – #1829, #1831 and PR #1914 are merged
 
 ## Phase 2: Foundational, MR-A (framework; blocks everything)
 
 ### Contracts: tests first
 
-- [ ] T003 [P] Failing schema tests for host types, phases, states, dispositions, `RecordMergePreview`, `RecordMergeRecord`, `MergeStepInput` and `MergeParticipantPreview` in `packages/contracts/src/record-merge.test.ts`
-- [ ] T004 [P] Failing test that every error code of data-model §6 exists with en + pl messages, in `packages/contracts/src/record-merge.errors.test.ts`
-- [ ] T005 [P] Failing test for the manifest `merge` schema (hosts and participates, polymorphic references) in `packages/platform/src/kernel/merge/manifest-schema.test.ts`
+- [x] T003 [P] Failing schema tests for host types, phases, states, dispositions, `RecordMergePreview`, `RecordMergeRecord`, `MergeStepInput` and `MergeParticipantPreview` in `packages/contracts/src/record-merge.test.ts`
+- [x] T004 [P] Failing test that every error code of data-model §6 exists with en + pl messages, in `packages/contracts/src/record-merge.errors.test.ts`
+- [x] T005 [P] Failing test for the manifest `merge` schema (hosts and participates, polymorphic references) in `packages/platform/src/kernel/merge/manifest-schema.test.ts`
 
 ### Contracts: implementation
 
-- [ ] T006 Implement `packages/contracts/src/record-merge.ts` and the error codes (T003, T004)
-- [ ] T007 Add the `merge` field to the platform manifest schema (T005)
+- [x] T006 Implement `packages/contracts/src/record-merge.ts` and the error codes (T003, T004)
+- [x] T007 Add the `merge` field to the platform manifest schema (T005)
 
 ### Completeness analysis and the static check: tests first
 
-- [ ] T008 [P] Failing red/green fixture tests for every finding of `contracts/merge-participation-check.md` §2, plus exit 2 and the read-size line, in `backend/test/unit/scripts/check-merge-participation.test.ts`
-- [ ] T009 [P] Failing test for the runtime twin (uncovered references per present module, off modules excluded) in `packages/platform/src/kernel/merge/completeness.test.ts`
+- [x] T008 [P] Failing red/green fixture tests for every finding of `contracts/merge-participation-check.md` §2, plus exit 2 and the read-size line, in `backend/test/unit/scripts/check-merge-participation.test.ts`
+- [x] T009 [P] Failing test for the runtime twin (uncovered references per present module, off modules excluded) in `packages/platform/src/kernel/merge/completeness.test.ts`
 
 ### Completeness: implementation
 
-- [ ] T010 Implement the shared analysis in `packages/platform/src/kernel/merge/completeness.ts` (T009)
-- [ ] T011 Implement `backend/scripts/check-merge-participation.ts` and the `package` verdict in `packages/cli/src/check/estate.ts`. Register it in `check-inventory.test.ts`, the `quality` / `quality:static` blocks and `backend/package.json` (T008)
-- [ ] T012 Seed `backend/scripts/ledgers/merge-participation-pending.ts` with every reference of `contracts/participant-dispositions.md` §A. Each entry names the MR that removes it and its blocking issue
+- [x] T010 Implement the shared analysis in `packages/platform/src/kernel/merge/completeness.ts` (T009)
+- [x] T011 Implement `backend/scripts/check-merge-participation.ts` and the `package` verdict in `packages/cli/src/check/estate.ts`. Register it in `check-inventory.test.ts`, the `quality` / `quality:static` blocks and `backend/package.json` (T008)
+- [x] T012 Seed `backend/scripts/ledgers/merge-participation-pending.ts` with every reference of `contracts/participant-dispositions.md` §A. Each entry names the MR that removes it and its blocking issue
 
 ### Registry, runner, freeze: tests first
 
-- [ ] T013 [P] Failing composition tests (`contracts/merge-mechanism.md` §1 refusals; `ctx.merge.participate` / `ctx.merge.host`) in `packages/platform/src/kernel/merge/composition.test.ts`
-- [ ] T014 [P] Failing runner tests: phase order, parallelism within a phase, retry → `needs_attention`, resume skips done steps, cancel window, finalize residue sweep, trailing steps. In `packages/platform/src/kernel/merge/runner.test.ts`
-- [ ] T015 [P] Failing deferred and catch-up tests (pub/sub path and sweep path) in `packages/platform/src/kernel/merge/catch-up.test.ts`
-- [ ] T016 [P] Failing race test (two starts over overlapping ids → exactly one) in `packages/platform/src/kernel/merge/locks.test.ts`
-- [ ] T017 [P] Failing freeze/archive tests in `packages/platform/src/tenancy/org-write-guard.merge.test.ts` and `packages/platform/src/tenancy/resolve-tenant-context.merge.test.ts`
-- [ ] T018 [P] Failing tests for the conformance helper itself (it fails on a non-idempotent double participant, an over-sized batch, an event dispatched) in `packages/test-kit/src/merge/expect-merge-participant.test.ts`
+- [x] T013 [P] Failing composition tests (`contracts/merge-mechanism.md` §1 refusals; `ctx.merge.participate` / `ctx.merge.host`) in `packages/platform/src/kernel/merge/composition.test.ts`
+- [x] T014 [P] Failing runner tests: phase order, parallelism within a phase, retry → `needs_attention`, resume skips done steps, cancel window, finalize residue sweep, trailing steps. In `packages/platform/src/kernel/merge/runner.test.ts`
+- [x] T015 [P] Failing deferred and catch-up tests (pub/sub path and sweep path) in `packages/platform/src/kernel/merge/catch-up.test.ts`
+- [x] T016 [P] Failing race test (two starts over overlapping ids → exactly one) in `packages/platform/src/kernel/merge/locks.test.ts`
+- [x] T017 [P] Failing freeze/archive tests in `packages/platform/src/tenancy/org-write-guard.merge.test.ts` and `packages/platform/src/tenancy/resolve-tenant-context.merge.test.ts`
+- [x] T018 [P] Failing tests for the conformance helper itself (it fails on a non-idempotent double participant, an over-sized batch, an event dispatched) in `packages/test-kit/src/merge/expect-merge-participant.test.ts`
 
 ### Registry, runner, freeze: implementation
 
-- [ ] T019 Composition and registry in `packages/platform/src/kernel/merge/registry.ts`, plus `ctx.merge` on the module context (T013)
-- [ ] T020 ⛔ #1866: Entities `record-merge.entity.ts`, `record-merge-step.entity.ts`, `record-merge-lock.entity.ts` (`@RuleScoped`), and the platform cross-cutting migration including the audit expression index (data-model §1). Use `migration:new`, then `composer:generate`
-- [ ] T021 `RecordMergeService` (begin, cancel, resume, get, list, preview aggregation) in `packages/platform/src/kernel/merge/record-merge-service.ts` (T014, T016, T020)
-- [ ] T022 Runner worker on queue `platform.record-merge` and catch-up repeatable job, through the platform worker seam (T014, T015)
-- [ ] T023 Frozen and archived sets, the `b2b:record-merge:changed` channel and the 5-min reload. Wire them into `org-write-guard.ts` and `resolve-tenant-context.ts` (T017)
-- [ ] T024 `expectMergeParticipant` in `packages/test-kit/src/merge/expect-merge-participant.ts` (T018)
-- [ ] T025 Kernel `kept` declaration for `AuditLogEntry` (merge participation with no participant step) and the ledger update
+- [x] T019 Composition and registry in `packages/platform/src/kernel/merge/registry.ts`, plus `ctx.merge` on the module context (T013)
+- [x] T020 (written in MikroORM 6 style, ahead of #1866 by owner decision; rebased with the ORM 7 freeze) ⛔ #1866: Entities `record-merge.entity.ts`, `record-merge-step.entity.ts`, `record-merge-lock.entity.ts` (`@RuleScoped`), and the platform cross-cutting migration including the audit expression index (data-model §1). Use `migration:new`, then `composer:generate`
+- [x] T021 `RecordMergeService` (begin, cancel, resume, get, list, preview aggregation) in `packages/platform/src/kernel/merge/record-merge-service.ts` (T014, T016, T020)
+- [x] T022 Runner worker on queue `platform.record-merge` and catch-up repeatable job, through the platform worker seam (T014, T015)
+- [x] T023 Frozen and archived sets, the `b2b:record-merge:changed` channel and the 5-min reload. Wire them into `org-write-guard.ts` and `resolve-tenant-context.ts` (T017)
+- [x] T024 `expectMergeParticipant` in `packages/test-kit/src/merge/expect-merge-participant.ts` (T018)
+- [x] T025 Kernel `kept` declaration for `AuditLogEntry` (merge participation with no participant step) and the ledger update
 
 **Checkpoint MR-A**: no user-visible change. `check:merge-participation` is green with the pending
 ledger.
@@ -73,25 +87,25 @@ ledger.
 
 ### Tests first
 
-- [ ] T026 [P] [US2] Failing preview refusal tests, each FR-020 – FR-027 refusal under both tax-ID scopes (D-299 tree and personal rules), in `packages/modules/organizations/src/backend/services/organization-merge-preview.test.ts`
-- [ ] T027 [P] [US1] Failing tests for `organization.merge.start` (re-checks the preview, acknowledgement required, hook veto writes nothing, audit sentinel with field-choice codes only) in `packages/modules/organizations/src/backend/commands/merge-start.command.test.ts`
-- [ ] T028 [P] [US1] Failing structure-step tests (children through `organization.move`, role map by name or copy into `host_context`, invitations re-pointed with mapped role, sales-rep union, sales-channel union through `SalesChannelMembershipService`), with the conformance helper, in `.../services/organization-merge-structure.test.ts`
-- [ ] T029 [P] [US1] Failing finalize tests (field and custom-field choice through child Commands, union of order confirmation e-mails, tax-ID take-over under `global` in one Command (R-14a), pointer and `deleted_at`, event once, search removal), in `.../commands/merge-finalize.command.test.ts`
-- [ ] T030 [P] [US3] Failing read-resolution and write-refusal tests (`findById` of an archived loser, `resolveMerged`, `ORGANIZATION_MERGED` with `survivorId` from routes, guard and API key), in `.../services/organization-merge-identity.test.ts`
-- [ ] T031 [P] [US1] Failing contract tests for the admin routes (permission, reach 404, 202, list filtered by reach, resume/cancel version) in `backend/test/contract/organizations/organization-merge.routes.test.ts`
-- [ ] T032 [P] [US3] Failing webhook tests: `organization.merged.v1` offered and bridged (`bridged-equals-offered.test.ts`, `webhook-event-registry.test.ts`)
+- [x] T026 [P] [US2] Failing preview refusal tests, each FR-020 – FR-027 refusal under both tax-ID scopes (D-299 tree and personal rules), in `packages/modules/organizations/src/backend/services/organization-merge-preview.test.ts`
+- [x] T027 [P] [US1] Failing tests for `organization.merge.start` (re-checks the preview, acknowledgement required, hook veto writes nothing, audit sentinel with field-choice codes only) in `packages/modules/organizations/src/backend/commands/merge-start.command.test.ts`
+- [x] T028 [P] [US1] Failing structure-step tests (children through `organization.move`, role map by name or copy into `host_context`, invitations re-pointed with mapped role, sales-rep union, sales-channel union through `SalesChannelMembershipService`), with the conformance helper, in `.../services/organization-merge-structure.test.ts`
+- [x] T029 [P] [US1] Failing finalize tests (field and custom-field choice through child Commands, union of order confirmation e-mails, tax-ID take-over under `global` in one Command (R-14a), pointer and `deleted_at`, event once, search removal), in `.../commands/merge-finalize.command.test.ts`
+- [x] T030 [P] [US3] Failing read-resolution and write-refusal tests (`findById` of an archived loser, `resolveMerged`, `ORGANIZATION_MERGED` with `survivorId` from routes, guard and API key), in `.../services/organization-merge-identity.test.ts`
+- [x] T031 [P] [US1] Failing contract tests for the admin routes (permission, reach 404, 202, list filtered by reach, resume/cancel version) in `backend/test/contract/organizations/organization-merge.routes.test.ts`
+- [x] T032 [P] [US3] Failing webhook tests: `organization.merged.v1` offered and bridged (`bridged-equals-offered.test.ts`, `webhook-event-registry.test.ts`)
 
 ### Implementation
 
-- [ ] T033 ⛔ #1866: `organizations` migration (pointer columns, CHECKs, relaxation of the 177 tax-ID constraint for merged rows, index), plus entity fields (data-model §2)
-- [ ] T034 [US2] Merge preview service and `organizationDetailsPort.previewMerge / resolveMerged / getMerge` (T026, T030)
-- [ ] T035 [US1] Commands `organization.merge.start` (declared hookable in the manifest), `.cancel`, `.resume`, `.structure`, `.finalize`, all `reversible: false` (T027 – T029)
-- [ ] T036 [US1] Host declaration (`merge.hosts`), the host's own participation declarations (§A `organizations` rows) and `ctx.merge.host(...)`. Remove the `organizations` and kernel-channel entries from the pending ledger
-- [ ] T037 [US3] Archived-loser exclusion check: lists, pickers, `admin-search-provider.ts` and storefront resolution use soft-delete already, so add tests only where a path reads with deleted rows included
-- [ ] T038 [US1] Admin routes `routes.merge.ts` and the schemas in `packages/contracts/src/organizations.merge.ts`. Permission `organizations:merge` in the manifest, not in the sales-rep role (T031)
-- [ ] T039 [US3] `organization.merged.v1` and `ORGANIZATION_WEBHOOK_EVENT_TYPES` (T032)
-- [ ] T040 [US5] ⛔ #1821: `organizationCommandPort.startMerge / resumeMerge / cancelMerge`, plus the parity test `backend/test/contract/organizations/organization-command-port.merge.test.ts` and the worker test with `source` (US5)
-- [ ] T041 [P] Test fixture `seed-merge-pair` for the integration suite and quickstart
+- [x] T033 (MikroORM 6 style, as T020) ⛔ #1866: `organizations` migration (pointer columns, CHECKs, relaxation of the 177 tax-ID constraint for merged rows, index), plus entity fields (data-model §2)
+- [x] T034 [US2] Merge preview service and `organizationDetailsPort.previewMerge / resolveMerged / getMerge` (T026, T030)
+- [x] T035 [US1] Commands `organization.merge.start` (declared hookable in the manifest), `.cancel`, `.resume`, `.structure`, `.finalize`, all `reversible: false` (T027 – T029)
+- [x] T036 [US1] Host declaration (`merge.hosts`), the host's own participation declarations (§A `organizations` rows) and `ctx.merge.host(...)`. Remove the `organizations` and kernel-channel entries from the pending ledger
+- [x] T037 [US3] Archived-loser exclusion check: lists, pickers, `admin-search-provider.ts` and storefront resolution use soft-delete already, so add tests only where a path reads with deleted rows included
+- [x] T038 [US1] Admin routes `routes.merge.ts` and the schemas in `packages/contracts/src/organizations.merge.ts`. Permission `organizations:merge` in the manifest, not in the sales-rep role (T031)
+- [x] T039 [US3] `organization.merged.v1` and `ORGANIZATION_WEBHOOK_EVENT_TYPES` (T032)
+- [ ] T040 (**skipped in stage 1**: `organizationCommandPort` is not widened on `master` (#1821); `OrganizationMergeService.start / cancel / resume` are what the port methods will call) [US5] ⛔ #1821: `organizationCommandPort.startMerge / resumeMerge / cancelMerge`, plus the parity test `backend/test/contract/organizations/organization-command-port.merge.test.ts` and the worker test with `source` (US5)
+- [ ] T041 (**not done in stage 1**: a seeded pair is only useful once the participants exist; the host's integration test seeds its own rows) [P] Test fixture `seed-merge-pair` for the integration suite and quickstart
 
 ## Phase 4: Participants without aggregate ports, MR-C1 / MR-C2 (parallel)
 

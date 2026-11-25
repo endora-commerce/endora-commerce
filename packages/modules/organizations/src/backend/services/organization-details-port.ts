@@ -1,9 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   OrganizationDetailsPort,
+  OrganizationMergePreview,
+  OrganizationMergeRecord,
   OrganizationRecord,
   TaxIdResolution,
 } from '@endora-commerce/contracts';
+import type { OrganizationMergeService } from '../merge/organization-merge-service.js';
 import { normalizeOrganizationName } from '@endora-commerce/contracts';
 import { Organization } from '../entities/organization.entity.js';
 import { TaxIdLookupService } from './tax-id-lookup-service.js';
@@ -33,8 +36,29 @@ import { TaxIdLookupService } from './tax-id-lookup-service.js';
 export class OrganizationDetailsService implements OrganizationDetailsPort {
   readonly #lookups: TaxIdLookupService;
 
-  constructor(private readonly emFactory: () => EntityManager) {
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** `specs/192-organization-merge/` — the merge reads; resolved per call. */
+    private readonly merges?: () => Pick<OrganizationMergeService, 'preview' | 'resolveMerged' | 'get'>,
+  ) {
     this.#lookups = new TaxIdLookupService(emFactory);
+  }
+
+  previewMerge(survivorId: string, input: { readonly loserId: string }): Promise<OrganizationMergePreview> {
+    return this.#merges().preview(survivorId, input.loserId);
+  }
+
+  resolveMerged(id: string): Promise<string> {
+    return this.#merges().resolveMerged(id);
+  }
+
+  getMerge(mergeId: string): Promise<OrganizationMergeRecord | null> {
+    return this.#merges().get(mergeId);
+  }
+
+  #merges(): Pick<OrganizationMergeService, 'preview' | 'resolveMerged' | 'get'> {
+    if (this.merges === undefined) throw new Error('organizationDetailsPort: no merge service in this composition.');
+    return this.merges();
   }
 
   async findById(id: string): Promise<OrganizationRecord | null> {
@@ -129,5 +153,8 @@ export function toOrganizationRecord(organization: Organization): OrganizationRe
     updatedAt: organization.updatedAt,
     deletedAt: organization.deletedAt ?? null,
     convertedToCompanyAt: organization.convertedToCompanyAt ?? null,
+    mergedIntoOrganizationId: organization.mergedIntoOrganizationId ?? null,
+    mergedAt: organization.mergedAt ?? null,
+    mergeId: organization.mergeId ?? null,
   };
 }

@@ -59,6 +59,9 @@ import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
 import { SettingValue } from '../kernel/settings/setting-value.entity.js';
 import { SchemaExtensionElement } from '../kernel/schema-extensions/schema-extension-element.entity.js';
 import { CommandOutboxEntry } from '../commands/outbox/command-outbox-entry.entity.js';
+import { RecordMerge } from '../kernel/merge/record-merge.entity.js';
+import { RecordMergeStep } from '../kernel/merge/record-merge-step.entity.js';
+import { RecordMergeLock } from '../kernel/merge/record-merge-lock.entity.js';
 import {
   Migration20260424T165847CoreFoundationInit,
   Migration20260425T050720CoreCommerceInit,
@@ -80,6 +83,7 @@ import {
   Migration20261103T162518CoreAuditActorCustomerAccount,
   Migration20261110T140633CoreSchemaExtensionsLedger,
   Migration20261112T124348CoreCommandOutbox,
+  Migration20261125T082017CoreRecordMerges,
 } from '../migrations/index.js';
 import type { MigrationRegistryEntry } from './migration-order.js';
 
@@ -112,6 +116,9 @@ export const PLATFORM_ENTITIES: readonly EntityClassLike[] = [
   SettingValue,
   SchemaExtensionElement,
   CommandOutboxEntry,
+  RecordMerge,
+  RecordMergeStep,
+  RecordMergeLock,
 ];
 
 /**
@@ -149,6 +156,7 @@ export const PLATFORM_MIGRATION_ENTRIES: readonly MigrationRegistryEntry[] = [
   Migration20261103T162518CoreAuditActorCustomerAccount,
   Migration20261110T140633CoreSchemaExtensionsLedger,
   Migration20261112T124348CoreCommandOutbox,
+  Migration20261125T082017CoreRecordMerges,
 ].map((cls) => ({ moduleId: CORE_MODULE_ID, cls }));
 
 /**

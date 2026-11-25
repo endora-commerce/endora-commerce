@@ -161,6 +161,12 @@ const CHECKS: readonly MovedTreeCheck[] = [
   { script: 'check-error-translations.ts', args: [], prefix: '[error-translations]' },
   { script: 'check-entry-scope.ts', args: [], prefix: '[entry-scope]' },
   { script: 'check-kernel-boundary.ts', args: [], prefix: '[kernel-boundary]' },
+  // `specs/192-organization-merge/` FR-045. Its population is every
+  // `@Entity()` class under the module roots: over a moved tree only the
+  // platform's entities remain, every module's declarations still arrive
+  // through the index, and a check asking "is every reference I read
+  // declared?" would answer yes. The floor is per module and refuses first.
+  { script: 'check-merge-participation.ts', args: [], prefix: '[merge-participation]' },
   // Issue #216. Only *part* of its population is the module tree — the
   // manifests; its ledger shards and the checks' own ledgers live under
   // `scripts/`, which a module move does not touch. That is what makes it the

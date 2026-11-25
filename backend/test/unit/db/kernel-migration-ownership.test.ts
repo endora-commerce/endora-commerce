@@ -55,6 +55,11 @@ describe('kernel-owned schema is filed under the core migration group', () => {
       // D-37 absorbed the presence machinery, `ModuleRegistration` with it. The
       // migration was already filed under `core`, so only this guard moved.
       'module_registrations',
+      // `specs/192-organization-merge/` data-model §1 — the record merge's three
+      // tables, platform-owned and created by a `core` migration.
+      'record_merge_locks',
+      'record_merge_steps',
+      'record_merges',
       'sales_channels',
       // `specs/178-extensible-columns/` FR-022 — the declared-extension ledger,
       // platform-owned and created by a `core` migration.

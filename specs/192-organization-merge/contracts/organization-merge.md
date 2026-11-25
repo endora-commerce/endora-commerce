@@ -32,7 +32,8 @@ export interface OrganizationMergeStartInput {
 }
 export type OrganizationMergeFieldCode =
   | 'name' | 'legalName' | 'taxId' | 'vatStatus' | 'registeredAddress'
-  | 'customerGroupId' | 'creditInheritanceMode' | 'fulfilmentStrategyWarehouseOrder';
+  | 'customerGroupId' | 'creditInheritanceMode' | 'fulfilmentStrategy';
+// `fulfilmentStrategy` carries the strategy and its warehouse order together (one choice).
 // orderConfirmationEmails: always the union; status, moderation stamps, parent: never offered (FR-032).
 ```
 
@@ -48,8 +49,8 @@ interface. The Commands and routes below do not wait for it.
 | `organization.merge.start` | **yes** (`beforeCommit` veto, `afterCommit` outbox; hook data `{ survivorId, loserId, mergeId, source }`) | re-runs the preview, refuses on any refusal, and calls `recordMergeService.begin` (locks, freeze, steps, enqueue). Audit: field-choice codes, counts per participant |
 | `organization.merge.cancel` | no | allowed while every participant step is pending (`RECORD_MERGE_NOT_CANCELLABLE`) |
 | `organization.merge.resume` | no | `needs_attention` → `running` |
-| `organization.merge.structure` | no | the host's structure batches: children (child `organization.move`), role map → `host_context`, invitations, sales-rep union, sales-channel union |
-| `organization.merge.finalize` | no | child `organization.update` and `organization.set_custom_field_values` for the chosen values; tax-ID take-over (R-14a); loser `deleted_at` + pointer; `organization.merged.v1`; search removal and reindex |
+| `organization.merge.structure` | no | the host's structure batches: role map → `host_context` (custom roles the survivor lacks copied first), invitations, sales-rep union, sales-channel union, children. Children move by the tree service's own rules (cycle, depth, subtree tax-ID locks, 177's one-tree rule) **inside this Command**, not as a child `organization.move`, so the move is recorded in an entry that carries the merge id (FR-060) |
+| `organization.merge.finalize` | no | the chosen values, the e-mail union and the custom-field values (validated through `customFieldValueService.validateAndMerge`, as `organization.set_custom_field_values` validates) written **inside this Command**, so one entry with the merge id names every changed field; tax-ID take-over (R-14a); loser `deleted_at` + pointer; `organization.merged.v1`. Idempotent: a loser already merged into this survivor writes, audits and emits nothing. Admin search is a live query that already excludes soft-deleted rows, so there is no index to remove from |
 
 All are `reversible: false` and audit with `mergeId` (R-12).
 
@@ -74,7 +75,7 @@ In order, each with nothing written:
 | `POST /api/v1/admin/organizations/:id/merge-preview` | `organizations:merge` | `{ loserId }` → `OrganizationMergePreview` (200, even with refusals) |
 | `POST /api/v1/admin/organizations/:id/merges` | `organizations:merge` | `OrganizationMergeStartInput` → `202 OrganizationMergeRecord` |
 | `GET /api/v1/admin/organization-merges` | `organizations:merge` | `?state=&organizationId=` → list (reach-filtered) |
-| `GET /api/v1/admin/organization-merges/:mergeId` | `organizations:read` + reach to both | the record with its steps |
+| `GET /api/v1/admin/organization-merges/:mergeId` | `customers:read` (there is no `organizations:read` code; the Organization screens read under `customers:read`) + reach to both | the record with its steps |
 | `POST /api/v1/admin/organization-merges/:mergeId/resume` | `organizations:merge` | `{ expectedVersion }` |
 | `POST /api/v1/admin/organization-merges/:mergeId/cancel` | `organizations:merge` | `{ expectedVersion }` |
 | `GET /api/v1/admin/organizations/:id` (existing) | unchanged | an archived loser answers 200 with `mergedIntoOrganizationId` |

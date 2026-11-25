@@ -2,6 +2,7 @@ import type { EntityName, EventArgs, EventSubscriber } from '@mikro-orm/core';
 import { tenantClassifications } from './org-scoped.decorator.js';
 import { orgInScope } from './derived-scope.js';
 import { OrgWriteOutOfScopeError } from './tenant-context.js';
+import { mergeWriteRefusal } from './merge-freeze.js';
 
 /**
  * The tenant guard on the **write** side (D-260/A, feature 050 FR-003).
@@ -141,6 +142,12 @@ export class OrgWriteGuardSubscriber implements EventSubscriber<object> {
     if (!this.orgScopedClassNames().has(className)) return;
     const organizationId = (entity as { organizationId?: unknown }).organizationId;
     if (typeof organizationId !== 'string') return;
+    // `specs/192-organization-merge/` R-6 seam 2, R-8: a row naming the loser of
+    // a running merge is written only by that merge's own steps, and a row
+    // naming an archived loser by nobody. An in-memory lookup, asked before the
+    // scope question because it needs no reach.
+    const merging = mergeWriteRefusal('organization', organizationId);
+    if (merging !== null) throw merging;
     if (await orgInScope(organizationId)) return;
     throw new OrgWriteOutOfScopeError(className);
   }

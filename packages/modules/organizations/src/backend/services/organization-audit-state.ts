@@ -100,6 +100,23 @@ export const ORGANIZATION_AUDIT_KEYS: ReadonlySet<string> = new Set([
   // the bus as `extensions.<moduleId>.changedFields`: module ids and field
   // names, never values (the bus refuses anything that is not a field name).
   'extensions',
+  // `specs/192-organization-merge/` R-12 — every merge Command: the merge's id,
+  // the loser's id, the batch's count and moved ids, the field choices as codes
+  // (`name: 'loser'`, never the name), the D-293.6 source code, the
+  // participants' per-module counts, the role map's size, and whether the tax
+  // ID moved.
+  'mergeId',
+  'loserId',
+  'survivorId',
+  'moved',
+  'ids',
+  'fieldChoices',
+  'customFieldChoices',
+  'source',
+  'participantCounts',
+  'roleMapSize',
+  'taxIdTaken',
+  'state',
 ]);
 
 /**

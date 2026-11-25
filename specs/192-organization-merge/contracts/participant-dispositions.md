@@ -15,8 +15,8 @@ Dispositions: *R* re-point, *U* union, *S* survivor wins, *S+f* survivor wins wi
 
 | Module (MR) | Phase | References (`Entity.property`) → disposition | Batch Command | Aggregate-port method | Blocked by |
 | --- | --- | --- | --- | --- | --- |
-| `organizations` (host, MR-B) | structure | `Organization.parentId` (children) → R via `organization.move`; `OrganizationRole.organizationId` → name match or copy; `OrganizationInvitation.organizationId` → R + role map; `OrganizationSalesRepAssignment.organizationId` → U | host structure batch + child `organization.move` | `organizationCommandPort.startMerge / resumeMerge / cancelMerge` | **#1821** (same interface) |
-| `organizations` | configuration | `OrganizationPaymentMethodLink`, `OrganizationDeliveryMethodLink`, `OrganizationWarehouseLink` `.organizationId` → S | — (no write) | — | — |
+| `organizations` (host, MR-B) | structure (declared under the reserved key `host-structure`) | `Organization.parentId` (children) → R by the tree service's rules inside the structure Command; `OrganizationRole.organizationId` → name match or copy; `OrganizationInvitation.organizationId` → R + role map; `OrganizationSalesRepAssignment.organizationId` → U | host structure batch (`organization.merge.structure`) | `organizationCommandPort.startMerge / resumeMerge / cancelMerge` | **#1821** (same interface) |
+| `organizations` | — (no step: plain *survivor wins* and *kept* write nothing) | `OrganizationPaymentMethodLink`, `OrganizationDeliveryMethodLink`, `OrganizationWarehouseLink` `.organizationId` → S; `Organization.mergedIntoOrganizationId` (the archived loser's own pointer) → K | — (no write) | — | — |
 | `organizations` | finalize | `OrganizationTaxIdValidation.organizationId` → K (latest copied with a chosen tax ID) | `organization.merge.finalize` | — | — |
 | platform kernel (MR-B) | structure | sales-channel memberships of `organization` → U through `SalesChannelMembershipService.addToChannel` | `organization.sales_channels.set` (186 #1821 conversion) or the membership service under the host's structure Command | — | #1821 for the converted Command; otherwise the host calls the kernel service inside its own structure Command |
 | `customer_accounts` (MR-E) | members | `CustomerAccount.organizationId` + `organizationRoleId` → R with role map | 191 `customer_account.organization.change`, mode `merge` | `membershipPort.changeOrganization({ mode: 'merge' })` | **#1831** (hard, the step too) |
@@ -28,7 +28,7 @@ Dispositions: *R* re-point, *U* union, *S* survivor wins, *S+f* survivor wins wi
 | `invoice_ledger` (C1) | configuration / records | `InvoiceLedgerClientMap.organizationId` → S+f (loser's listed, OQ-10); `InvoiceLedgerDocumentMap.organizationId` → R; `InvoiceLedgerDelivery.organizationId` → K | `invoice_ledger.merge_reassign` | — | — |
 | `credit_limits` (C1) | configuration / records | `CreditLimit.organizationId` → S+f; `CreditLimitReservation.reservingOrganizationId`, `CreditLimitReturnTopup.organizationId` → R; over-limit warning in preview (OQ-8) | `credit_limit.merge_reassign` | — | — |
 | `related_payers` (C1) | records | `RelatedPayerLink.organizationId` / `.payerOrganizationId` → R, self-links and duplicates revoked; `RelatedPayerRequest.organizationId` / `.counterpartyOrganizationId` → R, self-requests closed | `related_payer.merge_reassign` | `relatedPayerWritePort` unchanged (not an aggregate port) | — |
-| `price_lists` (C1) | configuration | `PriceListAudienceMember.organizationId` → U; `PriceListMatrixEntry.organizationId` → S+f per product; `PriceDisplayModeOverride` (`scope = organization`) → S+f; price cache invalidated for both | `price_list.merge_reassign` | — | — |
+| `price_lists` (C1) | configuration | `PriceListAudienceMember.organizationId` → U; `PriceListMatrixEntry.organizationId` → S+f per product (**re-derive**: on `master` after the 2026-11 price-book model the matrix entry holds no `organizationId`; `check:merge-participation` does not list it); `PriceDisplayModeOverride` (`scope = organization`) → S+f; price cache invalidated for both | `price_list.merge_reassign` | — | — |
 | `promotions` (C1) | records | `Promotion.organizationId`, `PromotionUsage.organizationId` → R; `PromotionUsageCounter` (`scopeType = organization`) → Σ | `promotion.merge_reassign` | — | — |
 | `returns` (C1) | records | `ReturnCase`, `ReturnCaseAttachment`, `ReturnWithdrawalStatement` `.organizationId` → R | `return_case.merge_reassign` | — | — |
 | `catalog` (D4) | configuration | `Product.allowedOrganizationIds`, `ProductChannelScope.allowedOrganizationIds` → loser replaced by survivor, U | `catalog.product.merge_reassign` | `productCommandPort.replaceAllowedOrganization` | **#1825** |
@@ -47,7 +47,7 @@ Dispositions: *R* re-point, *U* union, *S* survivor wins, *S+f* survivor wins wi
 | `webhooks` (C2) | records | `Webhook.organizationId` → R (before finalize, so the merged event reaches them) | `webhook.merge_reassign` | — | — |
 | `analytics` (C2) | records, **trailing** | `AnalyticsEvent.organizationId` → R (OQ-12) | `analytics.merge_reassign` | — | — |
 | `admin_users` (C2) | — | `ImpersonationReason.organizationId` → K | — | — | — |
-| platform kernel audit (MR-A) | — | `AuditLogEntry` (`objectType = organization`) → K | — | — | — |
+| platform kernel (MR-A) | — | `AuditLogEntry.objectId` (`objectType = organization`) → K; `CommandOutboxEntry.organizationId` (delivery log of committed Commands) → K. Declared in `KERNEL_MERGE_PARTICIPATIONS` (the kernel has no manifest) | — | — | — |
 
 Saved admin list views that store an Organization filter are not references (no persisted
 Organization-id property). They are excluded by the check's population rule and are not rewritten.

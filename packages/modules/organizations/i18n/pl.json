@@ -381,5 +381,11 @@
   "transactionalEmails.organization_approved.name": "Weryfikacja organizacji (klient)",
   "transactionalEmails.organization_rejected.name": "Odrzucenie rejestracji organizacji (klient)",
   "module.description": "Organizacje B2B: członkowie, adresy, przypisani handlowcy, proces moderacji i warunki handlowe właściwe dla organizacji.",
-  "module.nonDeactivatableReason": "Jedyna jednostka podziału danych — przez nią przechodzi każda encja przypisana do organizacji, każde członkostwo i każdy klient dokonujący zakupów; po wyłączeniu platforma nie ma żadnej organizacji."
+  "module.nonDeactivatableReason": "Jedyna jednostka podziału danych — przez nią przechodzi każda encja przypisana do organizacji, każde członkostwo i każdy klient dokonujący zakupów; po wyłączeniu platforma nie ma żadnej organizacji.",
+  "adminRoles.permission.organizations:merge": "Scalanie zduplikowanych organizacji",
+  "errors.ORGANIZATION_MERGE_PERSONAL": "Organizacji osobistej (konta osoby prywatnej) nie można scalić. Przenieś tę osobę do firmy, zmieniając jej członkostwo.",
+  "errors.ORGANIZATION_MERGE_TREE_INVALID": "Tych dwóch organizacji nie można scalić ze względu na ich położenie w drzewie organizacji.",
+  "errors.ORGANIZATION_MERGE_TREE_INVALID.ancestor": "Duplikat jest w drzewie nad organizacją, która ma pozostać, więc nie można go do niej scalić. Scal je w odwrotnym kierunku albo najpierw przenieś jedną z nich.",
+  "errors.ORGANIZATION_MERGE_TREE_INVALID.different_trees": "Te dwie organizacje należą do różnych drzew organizacji. Najpierw przenieś jedną z nich do drugiego drzewa, a potem je scal.",
+  "errors.ORGANIZATION_MERGED": "Ta organizacja została scalona z inną i nie można jej już zmieniać. Wprowadź zmianę w organizacji, z którą ją scalono."
 }

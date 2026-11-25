@@ -5,9 +5,11 @@ lands in MR-A, and its obligations are those of `specs/conventions/check-estate.
 
 ## 1. Population
 
-Every persisted entity class in `packages/modules/*/src/backend/entities/`, in overlay modules
-under `backend/src/apps/<deployment>/modules/`, in the platform's kernel entities, and in installed
-packages (read from the emitted artefact, as the tenant-classification check does). From these:
+Every persisted entity class under the module roots `lib/module-roots.ts` derives and in the
+platform's own source (attributed to `core`). Overlay modules persist nothing (D-106). Installed
+packages are not walked by the repository host: the package host (`endora check`) holds a
+package's own sources to the rule, and the runtime twin (§4) holds every composed entity,
+installed or not, before a merge may start. From these:
 
 - **Organization references:** properties named `organizationId`, `organizationIds`, or ending in
   `OrganizationId` or `OrganizationIds` (for example `payerOrganizationId`,
@@ -36,8 +38,9 @@ line through `backend/scripts/lib/read-size.ts`, for example
 
 ## 3. The pending ledger
 
-`backend/scripts/ledgers/merge-participation-pending.ts` is seeded in MR-A with every reference of
-`participant-dispositions.md` §A, and with §B's when MR-G starts. Each entry carries the module,
+`backend/scripts/ledgers/merge-participation-pending.ts` is seeded in MR-A from the check's own
+`--undeclared` output (every name-derived reference of §A; a polymorphic reference enters the
+population only with its declaration, so it is never ledgered), and with §B's when MR-G starts. Each entry carries the module,
 entity, property, the MR that removes it and the issue that blocks it. It only shrinks
 (`stale-pending`), and it must be empty when MR-E (Organization) and MR-G (Project) are merged.
 

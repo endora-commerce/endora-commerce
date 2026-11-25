@@ -36,6 +36,11 @@ export interface MergeParticipationDeclaration {
 }
 ```
 
+A participation whose every reference is `kept` or plain `survivor_wins` writes nothing: it has no
+phase, no step and no participant. The host module declares its own moved references under the
+reserved key `host-structure` in the `structure` phase; they are moved by the host's
+`applyStructureBatch`, not by a registered participant, and no other module may use the key.
+
 Composition refuses each of the following at boot (FR-045 runtime half):
 
 - a `participates` entry for a host type no composed module declares (dropped with a warning, like
@@ -77,7 +82,8 @@ export interface MergeHostImplementation<H extends RecordMergeHostType> {
   `applyBatch` until `moved: 0`, recording counts after each batch.
 - **Failure.** A thrown batch is retried 5 times with exponential backoff (2 s base). After that the
   step becomes `failed` and the merge `needs_attention`. The runner publishes on
-  `b2b:record-merge:changed` and notifies admins.
+  `b2b:record-merge:changed` and logs it. (The admin notification through `admin_notifications`
+  is the admin stage's, MR-F: the platform cannot name a module, so it needs a seam of its own.)
 - **Finalize.** The runner re-runs `preview` for every present, non-trailing participant. A non-zero
   remaining count re-queues that step, up to 3 sweeps, and then `needs_attention` with
   `RECORD_MERGE_RESIDUE`. With zero everywhere it calls `host.finalize`, releases the locks, moves the
@@ -113,6 +119,16 @@ export interface RecordMergeService {   // container name: recordMergeService (p
   archivedInto(hostType, id: string): string | null;
 }
 ```
+
+As implemented, the service also carries what a host's Commands need inside their own
+transaction: `setHostContext(em, mergeId, patch)` and `hostContextWithin(em, mergeId)` (the
+Organization role map), `getWithin(em, mergeId)`, and `announce(mergeId)`, which the host calls
+**after** its Command committed — it refreshes this process's frozen set, publishes on
+`b2b:record-merge:changed` and enqueues a running merge. `begin` takes an optional `mergeId` so the
+start Command's audit entry and hook data carry the id it is about to insert. The type is published
+on `./kernel` (`RecordMergeService`); the instance is root-registered as `recordMergeService`.
+`ctx.merge.host` / `ctx.merge.participate` are no-ops in a context built by hand for one module
+(no registry, no runner).
 
 ## 6. Shapes returned to hosts and admin
 

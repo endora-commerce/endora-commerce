@@ -7,6 +7,7 @@ import {
   type TenantContext,
 } from '../tenancy/tenant-context.js';
 import { enterPlatformScope } from './scope.js';
+import { refuseMergingTenantWrite } from '../tenancy/merge-freeze.js';
 
 /**
  * The HTTP entry into `enterPlatformScope` (feature 072, FR-015…FR-021).
@@ -133,6 +134,8 @@ export async function scopeRequestToActor(request: FastifyRequest): Promise<void
   if (binding.derivedFrom === actor) return;
   binding.cell.current = await binding.buildTenantContext(request);
   binding.derivedFrom = actor;
+  // `specs/192-organization-merge/` R-6 seam 1 — the actor is known now.
+  refuseMergingTenantWrite(binding.cell.current, request.method);
 }
 
 export async function registerRequestScopeHook(
@@ -147,6 +150,15 @@ export async function registerRequestScopeHook(
         const derivedFrom = actorOf(request);
         options.buildTenantContext(request).then(
           (tenant) => {
+            // `specs/192-organization-merge/` R-6 seam 1: a customer or bound
+            // API-key request pinned to a merging (or merged) Organization may
+            // read, and is refused on an unsafe method before any handler runs.
+            try {
+              refuseMergingTenantWrite(tenant, request.method);
+            } catch (refusal) {
+              done(refusal as Error);
+              return;
+            }
             const cell = new RequestTenantContextCell(tenant);
             bindings.set(request, {
               cell,

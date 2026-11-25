@@ -26,6 +26,7 @@ import { transactionalEmailManifestEntrySchema } from './transactional-emails.js
 import { BlockCategorySchema, BlockDefinitionSchema, blockNameRe } from './cms.js';
 import { EnvironmentInputSchema } from './environment-inputs.js';
 import { HookableActionDeclarationSchema, hookableActionRe } from './command-hooks.js';
+import { moduleMergeDeclarationSchema } from './record-merge.js';
 
 // ---------------------------------------------------------------------------
 // Identifier / version regexes
@@ -1113,6 +1114,25 @@ export const ModuleManifestSchema = z.object({
    * modules and is not a finding.
    */
   hookableActions: z.array(HookableActionDeclarationSchema).optional(),
+  /**
+   * The record merge (`specs/192-organization-merge/`,
+   * `contracts/merge-mechanism.md` §1): `hosts` — the record types this module
+   * owns and lets the platform merge; `participates` — every reference this
+   * module's persisted rows hold to a host's records, with its disposition and
+   * phase. Each participation that moves anything is registered at composition
+   * with `ctx.merge.participate(host, key, participant)`, and the host with
+   * `ctx.merge.host(type, impl)`; a declaration without its registration (or
+   * the reverse) refuses the boot.
+   *
+   * `check:merge-participation` holds every persisted `organizationId` /
+   * `*OrganizationId(s)` / `projectId` / `*ProjectId` property to exactly one
+   * declaration of its own module (FR-045), and the platform refuses a merge
+   * start while a present module holds an undeclared one (R-9).
+   *
+   * Absent means "this module neither hosts nor references a mergeable
+   * record", which is true of most modules and is not a finding.
+   */
+  merge: moduleMergeDeclarationSchema.optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 

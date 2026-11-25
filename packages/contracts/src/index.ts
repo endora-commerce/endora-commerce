@@ -245,6 +245,9 @@ export * from './command-hooks.js';
 export * from './organization-hooks.js';
 // `specs/186-aggregate-ports/` — the options and the custom-field merge every aggregate write port shares.
 export * from './aggregate-ports.js';
+// `specs/192-organization-merge/` — the platform's merge vocabulary and the Organization host's shapes.
+export * from './record-merge.js';
+export * from './organizations.merge.js';
 // Issue #1845 — `projects`' hookable actions.
 export * from './project-hooks.js';
 // Issue #1844 — `promotions`' promotion and coupon writes.

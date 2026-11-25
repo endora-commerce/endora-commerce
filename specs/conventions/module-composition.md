@@ -61,6 +61,36 @@ never add a "module options" object for something the module can read itself.
    The port's doc block opens with the container name, the owner and this item's three promises —
    one audited Command per method with the ambient actor, no permission checked, called after
    your own commit — and then the owner-off sentence of sub-item 8.
+2b. **A record you own can be merged; a record you reference must follow** (`specs/192-organization-merge/`,
+   D-299). The platform merges two records of one host type (`organization`, `project`): the loser is
+   archived with a pointer to the survivor, and every module holding a reference to it moves its own
+   rows, in its own step, through its own audited Commands — never another module's tables.
+   1. **A persisted property that references a host is declared by its own module** — any
+      `organizationId`, `organizationIds`, `*OrganizationId(s)`, or `projectId` / `*ProjectId` outside
+      `projects`, plus a polymorphic column (`scope = 'organization'`) — in the manifest's
+      `merge.participates`, with a disposition per reference (`re_point`, `union`, `survivor_wins`,
+      `survivor_wins_fill_gaps`, `sum`, `stricter`, `kept`) and a phase of the host's.
+      `check:merge-participation` fails the build for an undeclared one, and the platform refuses a
+      merge start (`409 RECORD_MERGE_PARTICIPATION_INCOMPLETE`) while an effectively present module
+      holds one. A participation of only `kept` and plain `survivor_wins` writes nothing and needs
+      no phase and no participant.
+   2. **A participation that moves rows registers its participant** —
+      `ctx.merge.participate(host, key, participant)` under the declared key; composition refuses a
+      declaration without its registration and the reverse. The participant
+      (`MergeParticipant` in `@endora-commerce/contracts`) previews what is still the loser's and
+      moves at most `batchSize` rows per `applyBatch`, in **one** Command of its own
+      (`<prefix>.merge_reassign`, irreversible, no event, audit `objectType` = host type,
+      `objectId` = survivor, `stateAfter = { mergeId, loserId, moved, ids }`), consuming loser-side
+      state so a re-run never duplicates. It checks no permission and no presence: the host's start
+      was the gate, and the runner never calls a module that is off — its step is deferred and runs
+      when the module is back. Prove it with `expectMergeParticipant`
+      (`@endora-commerce/test-kit/merge`). Where the owner has an aggregate port, the same Command is
+      also published on it (item 2a).
+   3. **The host module** declares `merge.hosts` and registers `ctx.merge.host(type, impl)`; it owns
+      the preview, the start / cancel / resume / finalize Commands (calling the root-registered
+      `recordMergeService`), the archive pointer and the `<host>.merged.v1` event. Its own records
+      are moved by its structure step, declared under the reserved key `host-structure`.
+
 3. **Reading someone else's port** — `lazyPort<T>(ctx, 'literalPortName')`. **Never resolve a
    port into a singleton**: Awilix strict mode refuses the capture, and it is right to — a
    captured gate keeps answering after its owner is switched off. The name must be a **string

@@ -377,6 +377,17 @@ export const manifest = defineModuleManifest({
         'is the documented "GUS not configured" path (owner decision OD-1). The `cms` translation precedent.',
     },
     {
+      moduleId: 'webhooks',
+      name: 'webhookEventRegistry',
+      kind: 'contributes-to',
+      reason:
+        '`specs/192-organization-merge/` — a push, from a contribution-only boot hook, of ' +
+        '`organization.merged.v1`, the first Organization event offered for outbound delivery. Nothing ' +
+        'is read back: the registry leaves out every event type whose owner is not present, and ' +
+        '`webhooks` bridges and delivers through its own gated subscription. Not `dependencies`: this ' +
+        'module is non-deactivatable, so that would make `webhooks.enabled` a dead switch.',
+    },
+    {
       moduleId: 'admin_search',
       name: 'adminSearchProviderRegistry',
       kind: 'contributes-to',
@@ -512,6 +523,14 @@ export const manifest = defineModuleManifest({
     {
       code: 'organizations:change-tax-id',
       label: "Change a company organization's tax ID",
+      requires: ['customers:read'],
+    },
+    // `specs/192-organization-merge/` FR-050 — irreversible, so its own grant
+    // (not `customers:manage`), and not in the predefined sales-representative
+    // role. The reach rule still applies to both Organizations.
+    {
+      code: 'organizations:merge',
+      label: 'Merge duplicate organizations',
       requires: ['customers:read'],
     },
   ],
@@ -836,6 +855,10 @@ export const manifest = defineModuleManifest({
     { code: 'ORGANIZATION_ROLE_PROTECTED' },
     { code: 'ORGANIZATION_ROLE_REPLACEMENT_REQUIRED' },
     { code: 'ORGANIZATION_PERMISSION_UNKNOWN' },
+    // `specs/192-organization-merge/` data-model §6 — the host's own merge refusals.
+    { code: 'ORGANIZATION_MERGE_PERSONAL' },
+    { code: 'ORGANIZATION_MERGE_TREE_INVALID', tokens: ['ancestor', 'different_trees'] },
+    { code: 'ORGANIZATION_MERGED' },
   ],
   /**
    * The Organization writes an instance may take part in through a command
@@ -859,5 +882,43 @@ export const manifest = defineModuleManifest({
     ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues,
     ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany,
     ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId,
+    // `specs/192-organization-merge/` FR-061 — a deployment may veto a merge.
+    ORGANIZATION_HOOKABLE_ACTIONS.mergeStart,
   ].map(toHookableActionDeclaration),
+  /**
+   * `specs/192-organization-merge/` — this module hosts the `organization`
+   * record type (`contracts/merge-mechanism.md` §1), and declares what its own
+   * rows referencing an Organization do in a merge (`participant-dispositions.md`
+   * §A). The host's structure step moves the first group itself; the
+   * allow-lists stay the survivor's (the loser's rows stay on the archived
+   * loser), and the tax-ID validations stay where they were recorded — the
+   * latest travels with a tax ID the survivor takes (FR-033).
+   */
+  merge: {
+    hosts: [{ type: 'organization' }],
+    participates: [
+      {
+        host: 'organization',
+        key: 'host-structure',
+        phase: 'structure',
+        references: [
+          { entity: 'OrganizationRole', property: 'organizationId', disposition: 'union' },
+          { entity: 'OrganizationInvitation', property: 'organizationId', disposition: 're_point' },
+          { entity: 'OrganizationSalesRepAssignment', property: 'organizationId', disposition: 'union' },
+        ],
+      },
+      {
+        host: 'organization',
+        key: 'kept-on-loser',
+        references: [
+          { entity: 'OrganizationPaymentMethodLink', property: 'organizationId', disposition: 'survivor_wins' },
+          { entity: 'OrganizationDeliveryMethodLink', property: 'organizationId', disposition: 'survivor_wins' },
+          { entity: 'OrganizationWarehouseLink', property: 'organizationId', disposition: 'survivor_wins' },
+          { entity: 'OrganizationTaxIdValidation', property: 'organizationId', disposition: 'kept' },
+          // The archived loser's own pointer to its survivor (FR-051).
+          { entity: 'Organization', property: 'mergedIntoOrganizationId', disposition: 'kept' },
+        ],
+      },
+    ],
+  },
 });

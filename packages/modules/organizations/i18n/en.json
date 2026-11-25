@@ -381,5 +381,11 @@
   "transactionalEmails.organization_approved.name": "Organization verified (customer)",
   "transactionalEmails.organization_rejected.name": "Organization registration rejected (customer)",
   "module.description": "B2B organization records, members, addresses, sales-rep assignment, moderation lifecycle, and per-org commercial scoping.",
-  "module.nonDeactivatableReason": "The single unit of tenancy — every organization-scoped entity, membership and transacting customer resolves through it; switched off, the platform has no tenant."
+  "module.nonDeactivatableReason": "The single unit of tenancy — every organization-scoped entity, membership and transacting customer resolves through it; switched off, the platform has no tenant.",
+  "adminRoles.permission.organizations:merge": "Merge duplicate organizations",
+  "errors.ORGANIZATION_MERGE_PERSONAL": "A personal (individual) organization cannot be merged. Move the person into the company with a membership change instead.",
+  "errors.ORGANIZATION_MERGE_TREE_INVALID": "These two organizations cannot be merged because of where they sit in the organization tree.",
+  "errors.ORGANIZATION_MERGE_TREE_INVALID.ancestor": "The duplicate is above the organization to keep in the tree, so it cannot be merged into it. Merge them the other way round, or move one of them first.",
+  "errors.ORGANIZATION_MERGE_TREE_INVALID.different_trees": "The two organizations belong to different organization trees. Move one of them into the other tree first, then merge.",
+  "errors.ORGANIZATION_MERGED": "This organization was merged into another one and can no longer be changed. Make the change on the organization it was merged into."
 }

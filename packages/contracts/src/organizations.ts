@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { OrganizationMergePreview, OrganizationMergeRecord } from './organizations.merge.js';
 import {
   addressSnapshotSchema,
   isoDateTimeSchema,
@@ -163,6 +164,14 @@ export const adminOrganizationSchema = organizationSchema.extend({
     .optional(),
   /** Feature 055 — this Organization's custom-field values. */
   customFieldValues: customFieldValuesSchema.optional(),
+  /**
+   * `specs/192-organization-merge/` FR-051, FR-052 — on an archived loser, the
+   * survivor it was merged into, when and by which merge; `null` otherwise.
+   * Only the detail ever answers an archived Organization.
+   */
+  mergedIntoOrganizationId: uuidSchema.nullable().optional(),
+  mergedAt: isoDateTimeSchema.nullable().optional(),
+  mergeId: uuidSchema.nullable().optional(),
   extensions: ExtensionAttributesSchema.optional(),
 });
 export type AdminOrganization = z.infer<typeof adminOrganizationSchema>;
@@ -864,6 +873,16 @@ export interface OrganizationRecord {
    * consumer's withdrawal right for orders placed before it (FR-040).
    */
   convertedToCompanyAt: Date | null;
+  /**
+   * `specs/192-organization-merge/` (FR-051, FR-052) — set on an archived
+   * loser by the merge's finalize: the survivor it was merged into, when and by
+   * which merge. An archived loser is always soft-deleted too. Optional so a
+   * record built before the merge existed still type-checks; the owner always
+   * sets the three, `null` for an Organization that was never merged.
+   */
+  mergedIntoOrganizationId?: string | null;
+  mergedAt?: Date | null;
+  mergeId?: string | null;
 }
 
 // --- Tax-ID scope (specs/177-tax-id-scope/) ----------------------------------
@@ -1327,6 +1346,23 @@ export interface OrganizationDetailsPort {
    * organization holds it. See {@link TaxIdResolution} for `ambiguous`.
    */
   resolveByTaxId(taxId: string): Promise<TaxIdResolution>;
+  /**
+   * `specs/192-organization-merge/` (FR-002) — what merging `loserId` into
+   * `survivorId` would do: every refusal (the host's, the participants' and
+   * the completeness twin's), per present participant the rows that would
+   * follow, the conflicts and warnings, and the values that differ. Writes
+   * nothing and reserves nothing. **No reach is checked** — the caller is the
+   * gate, as for every method here; an admin route applies the reach rule to
+   * both ids before calling.
+   */
+  previewMerge(survivorId: string, input: { readonly loserId: string }): Promise<OrganizationMergePreview>;
+  /**
+   * The survivor's id when `id` was merged into it, else `id` itself. One hop
+   * by construction: an archived loser can never be merged again (FR-052).
+   */
+  resolveMerged(id: string): Promise<string>;
+  /** One Organization merge with its steps, or `null`. No reach is checked. */
+  getMerge(mergeId: string): Promise<OrganizationMergeRecord | null>;
 }
 
 /**

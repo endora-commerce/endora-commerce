@@ -2867,5 +2867,15 @@
   "profile.tabs.security": "Bezpieczeństwo",
   "module.name": "Tłumaczenia panelu",
   "module.description": "Język panelu administracyjnego wybrany przez każdego użytkownika i pakiety tłumaczeń poszczególnych modułów. Gdy brakuje tłumaczenia, platforma pokazuje tekst po angielsku (FR-013 / FR-016).",
-  "module.nonDeactivatableReason": "Stąd pochodzi każdy tekst widoczny dla użytkownika na każdej powierzchni, także etykiety na ekranie platformy, na którym włącza się i wyłącza moduły."
+  "module.nonDeactivatableReason": "Stąd pochodzi każdy tekst widoczny dla użytkownika na każdej powierzchni, także etykiety na ekranie platformy, na którym włącza się i wyłącza moduły.",
+  "errors.RECORD_MERGE_SAME_RECORD": "Rekordu nie można scalić z nim samym. Wybierz duplikat, który ma zostać scalony z tym rekordem.",
+  "errors.RECORD_MERGE_RECORD_UNAVAILABLE": "Jeden z tych rekordów nie może już brać udziału w scalaniu: został usunięty, był już scalony albo został odrzucony.",
+  "errors.RECORD_MERGE_ALREADY_RUNNING": "Jeden z tych rekordów bierze już udział w innym scalaniu. Poczekaj, aż się zakończy, albo wznów je, jeśli wymaga uwagi.",
+  "errors.RECORD_MERGE_PARTICIPATION_INCOMPLETE": "Tego scalania nie można jeszcze rozpocząć: niektóre obszary platformy nie potrafią przenieść swoich rekordów do rekordu, który zostaje ({modules}).",
+  "errors.RECORD_MERGE_PARTICIPANT_CONFLICT": "Nie można rozpocząć scalania: {module} zgłasza konflikt, którego nie potrafi rozwiązać.",
+  "errors.RECORD_MERGE_IN_PROGRESS": "Ten rekord jest właśnie scalany i nie można go zmieniać do zakończenia scalania.",
+  "errors.RECORD_MERGE_NOT_CANCELLABLE": "Rekordy zaczęły już być przenoszone, więc tego scalania nie można anulować. Zamiast tego je wznów.",
+  "errors.RECORD_MERGE_NOT_RESUMABLE": "Wznowić można tylko scalanie, które wymaga uwagi.",
+  "errors.RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED": "Scalania nie można cofnąć. Potwierdź, że to rozumiesz, zanim je rozpoczniesz.",
+  "errors.RECORD_MERGE_RESIDUE": "Po przeniesieniu rekordów niektóre z nich nadal wskazywały na duplikat, więc scalanie zostało zatrzymane. Wznów je, aby je przenieść."
 }

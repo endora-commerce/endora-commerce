@@ -3,6 +3,7 @@ import {
   CATALOG_WEBHOOK_EVENT_TYPES,
   CREDIT_LIMIT_WEBHOOK_EVENT_TYPES,
   CRM_WEBHOOK_EVENT_TYPES,
+  ORGANIZATION_WEBHOOK_EVENT_TYPES,
   QUOTE_REQUEST_WEBHOOK_EVENT_TYPES,
   WEBHOOK_BUILT_IN_EVENT_TYPES,
   deliverableWebhookEventTypes,
@@ -96,19 +97,22 @@ describe('webhooks — the bridged set equals the offered set', () => {
       ...QUOTE_REQUEST_WEBHOOK_EVENT_TYPES,
       ...CREDIT_LIMIT_WEBHOOK_EVENT_TYPES,
       ...CRM_WEBHOOK_EVENT_TYPES,
+      ...ORGANIZATION_WEBHOOK_EVENT_TYPES,
     ]) {
       expect(subscribed).not.toContain(eventType);
       expect(offeredEventTypes([])).not.toContain(eventType);
     }
   });
 
-  it('with every contributing module present the bridged set and the offered set are the same eleven names', () => {
+  it('with every contributing module present the bridged set and the offered set are the same twelve names', () => {
     const { subscribed, registry } = compose();
     const contributions: Array<[string, readonly string[]]> = [
       ['crm', CRM_WEBHOOK_EVENT_TYPES],
       ['catalog', CATALOG_WEBHOOK_EVENT_TYPES],
       ['quote_requests', QUOTE_REQUEST_WEBHOOK_EVENT_TYPES],
       ['credit_limits', CREDIT_LIMIT_WEBHOOK_EVENT_TYPES],
+      // `specs/192-organization-merge/` FR-054 — the first Organization event.
+      ['organizations', ORGANIZATION_WEBHOOK_EVENT_TYPES],
     ];
     for (const [ownerModuleId, eventTypes] of contributions) {
       for (const eventType of eventTypes) registry.register({ ownerModuleId, eventType });
@@ -131,6 +135,7 @@ describe('webhooks — the bridged set equals the offered set', () => {
       'rfq.created.v1',
       'rfq.expired.v1',
       'credit_limit.adjusted.v1',
+      'organization.merged.v1',
     ]);
     expect(new Set(subscribed).size).toBe(subscribed.length);
   });

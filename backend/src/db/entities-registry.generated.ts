@@ -41,6 +41,9 @@ import type { EntityClassLike } from '../packages/package-runtime.js';
 import { CommandOutboxEntry } from '@endora-commerce/platform/composition';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { ModuleRegistration } from '@endora-commerce/platform/composition';
+import { RecordMergeLock } from '@endora-commerce/platform/composition';
+import { RecordMergeStep } from '@endora-commerce/platform/composition';
+import { RecordMerge } from '@endora-commerce/platform/composition';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { SchemaExtensionElement } from '@endora-commerce/platform/composition';
 import { SettingGroup } from '@endora-commerce/platform/kernel';
@@ -114,6 +117,9 @@ export const ALL_ENTITIES = [
   CommandOutboxEntry,
   AuditLogEntry,
   ModuleRegistration,
+  RecordMergeLock,
+  RecordMergeStep,
+  RecordMerge,
   SalesChannel,
   SchemaExtensionElement,
   SettingGroup,
