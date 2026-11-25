@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feat/192-quote-request-draft-share`
 **Created**: 2026-11-24
-**Status**: Draft — owner decisions of 2026-11-24 recorded under *Owner decisions* and *Clarifications* (plan questions OQ-1 – OQ-8 of `research.md`); one question open (OQ-6)
+**Status**: Draft — owner decisions of 2026-11-24 recorded under *Owner decisions* and *Clarifications* (plan questions OQ-1 – OQ-8 of `research.md`); no question open
 **Input**: Issue #1901. A sales representative prepares a quote for a customer in the Admin UI over
 several sittings. Today the quote reaches the customer's account, with an e-mail, the moment it is
 created. The operator needs to build it as a draft the customer cannot see, and to share it with
@@ -80,7 +80,12 @@ in the paths below. Module paths are relative to `packages/modules/quote_request
 - OQ-7: What does **Create and share** do when the create answers warnings (for example unavailable products)? → It stops before sharing, keeps the quote as a draft and shows the warnings (FR-020).
 - OQ-8: The operator's quick-order build, which creates a quote through the buyer's path? → Unchanged in this feature; no follow-up unless a need appears (FR-001).
 - Public contract (approved): a new required `QuoteRequestRecord.sharedWithCustomer` field, read by `carts`, and a frozen hookable action id `quote_request.share` with a `beforeCommit` phase only (FR-028).
-- OQ-6 (customer list order of a draft shared long after creation) is open; until answered the plan keeps today's order (by creation).
+- OQ-6 (customer list order of a draft shared long after creation) was open at this round; answered in round 4 below.
+
+### Session 2026-11-24 (round 4 — owner decisions after the build)
+
+- OQ-6: On the customer's list, does a quote shared long after it was created sort by its creation or by its share? → By the share, newest shared first. A quote with no share moment (one the customer submitted, or an operator quote from before this feature) sorts by its creation moment; that is, by the share moment when there is one, else the creation moment, descending (FR-035).
+- What does `0` days mean on a revision of a quote that is already shared? → No deadline, the same as everywhere else: `0` (or no days) never means "expires immediately", and a revision with `0` removes the quote's validity date. Until now the platform read `0` on such a revision as "expires immediately"; that changes. To close an offer, the operator cancels it (FR-032).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -161,6 +166,10 @@ account, mailbox and the quote's history.
 10. **Given** a draft with the same product on two lines at different prices, **When** it is saved
    and shared, **Then** the customer sees two lines with their own prices, and a later revision
    keeps them separate.
+11. **Given** a customer has a quote they submitted last week, an operator quote created before
+   this feature (so with no share moment), and a draft created a month ago, **When** the operator shares the
+   draft today and the customer opens their quote list, **Then** the newly shared quote is first,
+   and the others follow by their creation moment, newest first.
 
 ---
 
@@ -188,6 +197,9 @@ validity, wait, share it, and read its date; override the days on another quote.
 6. **Given** the create screen or a draft, **When** the operator reads the validity, **Then** it
    shows the number of days and that they count from sharing; after sharing, both sides see the
    date.
+7. **Given** a shared quote with a validity date, **When** the operator revises it with 0 days (or
+   no days), **Then** the revision has no validity date, the customer can still accept it, and it
+   does not expire; an operator who wants to close the offer cancels it instead.
 
 ---
 
@@ -198,7 +210,10 @@ validity, wait, share it, and read its date; override the days on another quote.
 - Quotes created by operators before the feature is installed stay visible as shared quotes.
 - A quote created from a CRM opportunity (or any screen that opens the create screen) is a draft
   like any other.
-- A revision of a shared quote with *Valid for N days* counts from the revision, as today.
+- A revision of a shared quote with *Valid for N days* counts from the revision, as today. A
+  revision with 0 days, or none, means no deadline and removes the date (changed by owner decision
+  of 2026-11-24: 0 no longer means "expires immediately"); the operator closes an offer by
+  cancelling it.
 - The quote-requests module is switched off: there is no customer surface (Principle XVII).
 
 ## Requirements *(mandatory)*
@@ -270,10 +285,21 @@ validity, wait, share it, and read its date; override the days on another quote.
   changes it for that quote; the create screen and a draft MUST show the days and that they count
   from sharing.
 - **FR-032**: The validity date MUST be set at the moment of sharing: that moment plus the quote's
-  number of days; no days, or 0 days typed on the draft, means no date.
+  number of days; no days, or 0 days typed on the draft, means no date. 0 days, or no days, MUST
+  mean no deadline on every write of the validity, including a revision of a quote already shared:
+  such a revision removes the validity date and MUST NOT make the quote expire immediately. An
+  operator closes an offer by cancelling it.
 - **FR-033**: Changing the default MUST NOT change quotes already created.
 - **FR-034**: The existing refusals after the validity date (acceptance, conversion, order
   placement) MUST stay as they are.
+
+**Customer list**
+
+- **FR-035**: The customer's quote list MUST be ordered by the moment the customer received each
+  quote, newest first: the share moment for a quote an operator shared, and the creation moment for
+  a quote with no share moment (one the customer submitted, or an operator quote from before this
+  feature). A draft shared long after its creation sorts with the quotes received at the time of
+  its share.
 
 ### Key Entities
 
@@ -307,5 +333,5 @@ validity, wait, share it, and read its date; override the days on another quote.
 
 ## Open questions
 
-- **OQ-6** — On the customer's list, does a draft shared long after it was created sort by its
-  creation or by its share? Today's order (creation) applies until the owner answers.
+None. **OQ-6** (customer list order of a quote shared long after it was created) was closed by
+the owner on 2026-11-24: by the share moment, falling back to the creation moment (FR-035).
