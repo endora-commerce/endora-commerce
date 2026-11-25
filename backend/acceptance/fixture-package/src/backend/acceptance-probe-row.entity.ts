@@ -1,3 +1,4 @@
+import { OrgScoped } from '@endora-commerce/platform/tenancy';
 import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 
 /**
@@ -9,25 +10,25 @@ import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
  * source-text probe cannot see this class, and the entity registry the ORM is
  * configured with cannot carry it — which is what assertion A4 measures.
  *
- * **It carries no tenant-scope decorator, and that is a gap this fixture
- * surfaces rather than papers over.** `@GlobalEntity()`, `@OrgScoped()` and
- * `@CustomerScoped()` live in `backend/src/tenancy/` and no package publishes
- * them, so a third-party module physically cannot classify its own entity
- * today. Importing them by a relative path back into the repository is exactly
- * the trap A8 refuses, and inventing a second classification mechanism here
- * would make the fixture prove something the platform does not do. The column
- * below is the tenant column the migration declares; nothing filters on it yet.
+ * **It is `@OrgScoped()`, through the platform's published `./tenancy` barrel**
+ * — what any third-party module does. Since #1849 the platform refuses to boot
+ * with a persisted entity that carries no tenancy classification, so the
+ * fixture that once surfaced the gap ("a package cannot classify its own
+ * entity") now has to close it the way a real package would. The decorator
+ * comes from the one platform copy host and package share (the peer link A8
+ * holds), so it writes into the registry the host's filters are built from.
  *
  * `@mikro-orm/core` is an optional peer dependency, resolved from the host —
  * one copy, or the decorators write into a MetadataStorage the host's ORM never
  * reads.
  */
 @Entity({ tableName: 'acceptance_probe_rows' })
+@OrgScoped()
 export class AcceptanceProbeRow {
   @PrimaryKey({ type: 'uuid' })
   id!: string;
 
-  /** The tenant column, as the migration declares it. See the note above. */
+  /** The tenant column, as the migration declares it; `@OrgScoped()` filters on it. */
   @Property({ type: 'uuid', nullable: true })
   organizationId?: string | null;
 

@@ -1,4 +1,5 @@
 import { discoverPackageSchema, type EntityClassLike } from '../packages/package-runtime.js';
+import { assertEntitiesClassified } from '../tenancy/entity-classification.js';
 import { assertTransitiveParentsResolve } from '../tenancy/org-scoped.decorator.js';
 import { platformLogger } from '../kernel/logging.js';
 import { PLATFORM_ENTITIES, mergeByIdentity } from './platform-schema.js';
@@ -58,6 +59,14 @@ import { PLATFORM_ENTITIES, mergeByIdentity } from './platform-schema.js';
  * `customer`, which is legal and has a gap worth naming; the logger is passed
  * from here because that is where the platform's destination is nameable, and
  * `tenancy/` deliberately imports nothing from `kernel/`.
+ *
+ * ## And where an unclassified entity is refused (#1849)
+ *
+ * The same instant answers the plainer question first: does every persisted
+ * entity in the list carry exactly one tenancy classification? The static
+ * checks ask it of this repository's source text; this asks it of the classes
+ * the ORM is about to be handed, whichever tree they came from, and throws
+ * `UnclassifiedEntityError` naming each class and its contributor.
  */
 export type ConfiguredEntity = EntityClassLike;
 
@@ -80,16 +89,24 @@ export async function configuredEntitiesFrom(
   inputs: EntityConfigurationInputs,
 ): Promise<readonly ConfiguredEntity[]> {
   const packages = await discoverPackageSchema(inputs.env ?? process.env);
-  const entities = [
-    // The platform's own six first (`specs/110-instance-repository/` T141).
-    // They are this package's, and an instance supplies `coreEntities: []` —
-    // which used to mean it registered none of them, so nothing mapped the
-    // tables its own migrations create. Where a host names them, as this
-    // repository's generated registry does by bare specifier, the merge is an
-    // identity de-duplication over the same class objects.
-    ...mergeByIdentity(PLATFORM_ENTITIES, inputs.coreEntities),
-    ...packages.flatMap((contribution) => contribution.entities),
-  ];
+  // The platform's own six first (`specs/110-instance-repository/` T141).
+  // They are this package's, and an instance supplies `coreEntities: []` —
+  // which used to mean it registered none of them, so nothing mapped the
+  // tables its own migrations create. Where a host names them, as this
+  // repository's generated registry does by bare specifier, the merge is an
+  // identity de-duplication over the same class objects.
+  const core = mergeByIdentity(PLATFORM_ENTITIES, inputs.coreEntities);
+  const entities = [...core, ...packages.flatMap((contribution) => contribution.entities)];
+  // Principle XI's backstop for what the static checks cannot read — a
+  // compiled package, an instance (`specs/190-overlay-full-modules/` FR-020,
+  // #1849). Before the chains, so a class with no classification is named as
+  // that rather than as a chain that happens not to resolve through it.
+  assertEntitiesClassified([
+    ...core.map((cls) => ({ cls, contributor: 'core' })),
+    ...packages.flatMap((contribution) =>
+      contribution.entities.map((cls) => ({ cls, contributor: contribution.packageName })),
+    ),
+  ]);
   assertTransitiveParentsResolve(platformLogger());
   return entities;
 }
