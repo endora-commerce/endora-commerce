@@ -1,3 +1,5 @@
+import type { ShareRefusal } from '../share-refusal.js';
+
 /**
  * Issue #1499 (UX audit SALES-17) — the one banner the quote-request screen
  * shows above its tabs, if any.
@@ -35,4 +37,23 @@ export function rfqPageNotice(input: RfqPageNoticeInput): RfqPageNotice | null {
   if (input.validityLapsed) return 'validity';
   if (input.draftOpen && !input.onModifyTab) return 'draft';
   return null;
+}
+
+/**
+ * `specs/192-quote-request-draft-share/` (FR-020, US2 #7) — what the create
+ * screen hands the detail screen when *Create and share* created the quote but
+ * its share was refused: the quote is there, not shared yet, and the refusal is
+ * said once on arrival, in the `error` place above the tabs.
+ */
+export interface RfqDetailArrival {
+  shareRefusal?: ShareRefusal;
+}
+
+/** The refusal carried by `location.state`, or `null` when the state holds none. */
+export function shareRefusalFromArrival(state: unknown): ShareRefusal | null {
+  if (typeof state !== 'object' || state === null) return null;
+  const refusal = (state as RfqDetailArrival).shareRefusal;
+  if (typeof refusal !== 'object' || refusal === null) return null;
+  if (typeof refusal.code !== 'string' || typeof refusal.message !== 'string') return null;
+  return { code: refusal.code, message: refusal.message, lines: Array.isArray(refusal.lines) ? refusal.lines : [] };
 }

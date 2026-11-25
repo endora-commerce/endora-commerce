@@ -473,6 +473,22 @@ describe.each<Language>(['en', 'pl'])('RfqHistory — %s', (language) => {
     expect(screen.getByText(tr(language, 'change.validity_removed', { before: date }))).toBeInTheDocument();
   });
 
+  // `specs/192-quote-request-draft-share/` T040 — the days a quote not shared
+  // yet will carry, with a number and with none.
+  it('says the days a quote will carry once shared, and "none" for no days (specs/192)', async () => {
+    answerHistory({
+      truncated: false,
+      entries: [
+        entry('modified', REP, { changes: [{ kind: 'validity_days', before: null, after: 30 }] }),
+        entry('modified', REP, { changes: [{ kind: 'validity_days', before: 30, after: null }] }),
+      ],
+    });
+    renderHistory(language);
+    const none = tr(language, 'none');
+    expect(await screen.findByText(tr(language, 'change.validity_days', { before: none, after: 30 }))).toBeInTheDocument();
+    expect(screen.getByText(tr(language, 'change.validity_days', { before: 30, after: none }))).toBeInTheDocument();
+  });
+
   it('names every actor (FR-017, FR-018; US3 #1–#5)', async () => {
     answerHistory(FULL);
     renderHistory(language);

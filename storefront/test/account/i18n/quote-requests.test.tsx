@@ -177,4 +177,31 @@ describe('account quote-request detail — the shop language (issue #85)', () =>
     expect(text).toContain('Klient zaakceptował zmiany');
     expect(text).toMatch(/Utworzone \S/);
   });
+
+  // `specs/192-quote-request-draft-share/` (FR-012) — a quote an operator shared
+  // shows the customer a history that starts at the share, labelled, not its code.
+  it('labels the share entry in both languages', async () => {
+    const original = detail.events;
+    detail.events = [
+      {
+        id: 'e0',
+        eventType: 'shared',
+        actorCustomerAccountId: null,
+        actorRoleLabel: null,
+        payload: {},
+        revisionId: null,
+        createdAt: '2026-10-01T10:00:00.000Z',
+      },
+    ];
+    try {
+      locale = 'en-US';
+      const en = await renderDetail();
+      expect(en).toContain('Quote prepared for you');
+      expect(en).not.toMatch(/\bshared\b/);
+      locale = 'pl-PL';
+      expect(await renderDetail()).toContain('Przygotowano dla Ciebie ofertę');
+    } finally {
+      detail.events = original;
+    }
+  });
 });

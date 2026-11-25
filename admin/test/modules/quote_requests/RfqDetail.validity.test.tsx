@@ -81,15 +81,27 @@ const INTERPOLATED: Record<string, string> = {
   'rfq.detail.validity.help.keepActive': 'keep the current deadline, {date}',
   'rfq.detail.validity.help.keepLapsed': 'keep the deadline that has passed, {date}',
   'rfq.detail.validity.help.preview': 'saving sets the deadline to {date}',
-  'rfq.detail.validity.help.previewImmediate': 'ends validity immediately ({date})',
-  'rfq.detail.validity.error.days': 'enter a whole number of days',
+  'rfq.detail.validity.error.days': 'enter a whole number of days from 0 to 3650',
   'rfq.detail.meta.expires': 'expires {date}',
   'rfq.detail.meta.validityEnded': 'validity ended {date}',
 };
 
-const FULL_BUNDLE = { core: { ...BUNDLE['core'], ...INTERPOLATED } };
+/** `specs/192-quote-request-draft-share/` — the module's own sentences about the days. */
+const OWN: Record<string, string> = {
+  'validity.unshared.field': 'valid for (days from sharing)',
+  'validity.unshared.days': 'valid for {days} days from sharing',
+  'validity.unshared.none': 'no deadline after sharing',
+  'validity.previewNone': '0 days: saving removes the deadline',
+  'share.badge.unshared': 'draft-badge',
+  'share.meta.unshared': 'not shared yet',
+  'share.meta.validityDays': 'valid {days} days from sharing',
+};
+
+const FULL_BUNDLE = { core: { ...BUNDLE['core'], ...INTERPOLATED }, quote_requests: OWN };
 
 interface RfqOverrides {
+  sharedWithCustomer?: boolean;
+  shareValidityDays?: number | null;
   status?: string;
   expiresAt?: string | null;
   awaitingCustomerRevisionAcceptance?: boolean;
@@ -134,6 +146,8 @@ function rfqPayload(overrides: RfqOverrides = {}): Record<string, unknown> {
     expiredAt: null,
     expiresAt: overrides.expiresAt === undefined ? null : overrides.expiresAt,
     convertedOrderId: null,
+    ...(overrides.sharedWithCustomer !== undefined ? { sharedWithCustomer: overrides.sharedWithCustomer } : {}),
+    ...(overrides.shareValidityDays !== undefined ? { shareValidityDays: overrides.shareValidityDays } : {}),
     taxRate: 0,
     createdAt: '2026-08-01T10:00:00.000Z',
     updatedAt: '2026-08-01T10:00:00.000Z',
@@ -260,7 +274,9 @@ describe('RfqDetail — the operator sets and changes the validity deadline', ()
     expect(help?.textContent ?? '').toContain(expected);
   });
 
-  it('says what a zero-day deadline does rather than looking like "no deadline"', async () => {
+  // `specs/192-quote-request-draft-share/` FR-032 (owner decision of 2026-11-24,
+  // server since b4e3b74fe): 0 days removes the deadline; it never ends validity now.
+  it('says a zero-day revision removes the deadline, and sends the zero', async () => {
     const user = userEvent.setup();
     renderDetail({ status: 'Pending', expiresAt: futureIso(7) });
 
@@ -268,9 +284,30 @@ describe('RfqDetail — the operator sets and changes the validity deadline', ()
     const field = screen.getByLabelText(/rfq\.detail\.validity\.field/);
     await user.type(field, '0');
 
-    expect(
-      document.getElementById(field.getAttribute('aria-describedby') ?? ''),
-    ).toHaveTextContent('ends validity immediately');
+    const help = document.getElementById(field.getAttribute('aria-describedby') ?? '');
+    expect(help).toHaveTextContent('0 days: saving removes the deadline');
+    expect(field).not.toHaveAttribute('aria-invalid');
+
+    await user.click(screen.getByRole('button', { name: 'rfq.detail.modify.saveRevision' }));
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
+    expect((patchSpy.mock.calls[0] as [string, Record<string, unknown>])[1]).toMatchObject({ expiresInDays: 0 });
+  });
+
+  it('refuses more days than the contract allows (3650), and sends nothing', async () => {
+    const user = userEvent.setup();
+    renderDetail({ status: 'Pending', expiresAt: null });
+
+    await user.click(await screen.findByRole('tab', { name: /rfq\.detail\.tabs\.modify/ }));
+    const field = screen.getByLabelText(/rfq\.detail\.validity\.field/);
+    expect(field).toHaveAttribute('max', '3650');
+    await user.type(field, '3651');
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(document.getElementById(field.getAttribute('aria-describedby') ?? '')).toHaveTextContent(
+      'from 0 to 3650',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'rfq.detail.modify.saveRevision' }));
+    expect(patchSpy).not.toHaveBeenCalled();
   });
 
   it('refuses a deadline the contract would refuse, and sends nothing', async () => {
@@ -405,5 +442,83 @@ describe('RfqDetail — the operator sets and changes the validity deadline', ()
       `/api/v1/admin/quote-requests/${RFQ_ID}/prepare-customer-basket`,
       expect.anything(),
     );
+  });
+});
+
+describe('RfqDetail — the days of a quote not shared yet (specs/192-quote-request-draft-share/, US3)', () => {
+  const unshared = (days: number | null): RfqOverrides => ({
+    status: 'Created from admin',
+    sharedWithCustomer: false,
+    shareValidityDays: days,
+    expiresAt: null,
+  });
+
+  async function openModify(): Promise<HTMLElement> {
+    await userEvent.click(await screen.findByRole('tab', { name: /rfq\.detail\.tabs\.modify/ }));
+    return screen.getByLabelText('valid for (days from sharing)');
+  }
+
+  function helpOf(field: HTMLElement): HTMLElement | null {
+    return document.getElementById(field.getAttribute('aria-describedby') ?? '');
+  }
+
+  it('shows the days and that they count from sharing — and no date', async () => {
+    renderDetail(unshared(30));
+
+    const field = await openModify();
+    expect(field).toHaveValue(30);
+    expect(helpOf(field)).toHaveTextContent('valid for 30 days from sharing');
+    const meta = document.querySelector('header p')?.textContent ?? '';
+    expect(meta).toContain('not shared yet');
+    expect(meta).toContain('valid 30 days from sharing');
+    expect(meta).not.toContain('expires');
+  });
+
+  it('says no deadline for no days, and for zero', async () => {
+    const user = userEvent.setup();
+    renderDetail(unshared(null));
+
+    const field = await openModify();
+    expect(field).toHaveValue(null);
+    expect(helpOf(field)).toHaveTextContent('no deadline after sharing');
+    await user.type(field, '0');
+    expect(helpOf(field)).toHaveTextContent('no deadline after sharing');
+  });
+
+  it('is not an unsaved change when it opens holding the quote\'s days', async () => {
+    renderDetail(unshared(30));
+
+    await openModify();
+    // The tab's unsaved marker is absent and Save sends nothing about the days.
+    expect(screen.getByRole('tab', { name: /rfq\.detail\.tabs\.modify/ })).not.toHaveAccessibleName(/unsaved/i);
+    await userEvent.click(screen.getByRole('button', { name: 'rfq.detail.modify.saveRevision' }));
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
+    expect((patchSpy.mock.calls[0] as [string, Record<string, unknown>])[1]).not.toHaveProperty('expiresInDays');
+  });
+
+  it('sends the typed number', async () => {
+    const user = userEvent.setup();
+    renderDetail(unshared(30));
+
+    const field = await openModify();
+    await user.clear(field);
+    await user.type(field, '45');
+    await user.click(screen.getByRole('button', { name: 'rfq.detail.modify.saveRevision' }));
+
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
+    expect((patchSpy.mock.calls[0] as [string, Record<string, unknown>])[1]).toMatchObject({ expiresInDays: 45 });
+  });
+
+  it('sends null once the operator empties the field — no deadline', async () => {
+    const user = userEvent.setup();
+    renderDetail(unshared(30));
+
+    const field = await openModify();
+    await user.clear(field);
+    expect(helpOf(field)).toHaveTextContent('no deadline after sharing');
+    await user.click(screen.getByRole('button', { name: 'rfq.detail.modify.saveRevision' }));
+
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
+    expect((patchSpy.mock.calls[0] as [string, Record<string, unknown>])[1]).toMatchObject({ expiresInDays: null });
   });
 });

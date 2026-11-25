@@ -17,3 +17,13 @@ export const rfqStatusLabels = defineEnumLabels<RfqStatus>({
   Completed: 'rfq.status.completed',
   Expired: 'rfq.status.expired',
 });
+
+/**
+ * `specs/192-quote-request-draft-share/` (FR-009) — the list's sharing filter,
+ * the values `adminQuoteRequestListQuerySchema.sharing` takes. The keys are this
+ * module's own bundle: read with `useTranslation('quote_requests')`.
+ */
+export const rfqSharingLabels = defineEnumLabels<'unshared' | 'shared'>({
+  unshared: 'list.sharing.unshared',
+  shared: 'list.sharing.shared',
+});

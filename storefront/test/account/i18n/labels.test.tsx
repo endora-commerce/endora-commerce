@@ -43,6 +43,11 @@ describe('quote-request labels', () => {
     expect(quoteRequestEventLabel(pl, 're-submitted')).toBe('Złożono ponownie');
     expect(quoteRequestEventLabel(pl, 'merged')).toBe('merged');
   });
+
+  it('labels the share of a quote an operator prepared — the first entry of its history (specs/192, FR-012)', () => {
+    expect(quoteRequestEventLabel(tForLocale('en-US'), 'shared')).toBe('Quote prepared for you');
+    expect(quoteRequestEventLabel(tForLocale('pl-PL'), 'shared')).toBe('Przygotowano dla Ciebie ofertę');
+  });
 });
 
 describe('richText', () => {

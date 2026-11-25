@@ -308,16 +308,16 @@ sales-representative scoping on both new routes. Findings fixed before Phase 5.
 New screen strings go in `QR/i18n/{en,pl}.json` read through `useTranslation('quote_requests')`
 (as `tPdf`/`tGroups` already do); `pnpm --filter backend run i18n:hardcoded` stays green.
 
-- [ ] T034 [P] [US2] Failing tests `admin/test/modules/quote_requests/RfqDetail.share.test.tsx`
+- [x] T034 [P] [US2] Failing tests `admin/test/modules/quote_requests/RfqDetail.share.test.tsx`
   (new): unshared → *Draft* badge beside the status and a **Share with customer** header action;
   the confirm dialog (`useConfirmDialog`) names the customer and the validity the share will
   write; success refetches and shows the shared state without the action (US2 #3);
   `QUOTE_INCOMPLETE`/`share` lists the named lines; `RFQ_SHARE_CUSTOMER_UNAVAILABLE` shows its
   token sentence; a hook's own code shows the envelope's message; `RFQ_ALREADY_SHARED` refetches
   with an info notice; *Send PDF to customer* absent while unshared, export present (FR-007).
-- [ ] T035 [US2] `QR/src/admin/pages/RfqDetail.tsx`: badge, header action, confirm, refusal
+- [x] T035 [US2] `QR/src/admin/pages/RfqDetail.tsx`: badge, header action, confirm, refusal
   rendering, PDF-send gating; notices through `QR/src/admin/pages/rfq-page-notice.ts`.
-- [ ] T036 [P] [US3] Failing cases in `admin/test/modules/quote_requests/RfqDetail.validity.test.tsx`
+- [x] T036 [P] [US3] Failing cases in `admin/test/modules/quote_requests/RfqDetail.validity.test.tsx`
   and `rfq-validity.test.ts`: unshared shows the days (`shareValidityDays`) and "counts from
   sharing", no date; editing days sends a number or `null` when cleared. Shared (FR-032 amended,
   server since `b4e3b74fe`): date and lapsed display unchanged, a typed `N > 0` previews now + N;
@@ -325,19 +325,19 @@ New screen strings go in `QR/i18n/{en,pl}.json` read through `useTranslation('qu
   *says what a zero-day deadline does rather than looking like "no deadline"* (`'ends validity
   immediately'`) and `rfq-validity.test.ts` *treats zero as a real deadline of "now"*, which now
   contradict the server; blank still sends nothing (keeps the deadline).
-- [ ] T037 [US3] `QR/src/admin/validity.ts` (unshared branch: "N days from sharing";
+- [x] T037 [US3] `QR/src/admin/validity.ts` (unshared branch: "N days from sharing";
   `deadlineForDays('0')` answers no deadline, as `normaliseShareValidityDays` does) and the
   validity block of `RfqDetail.tsx` (`0` → the no-deadline sentence; retire
   `rfq.detail.validity.help.previewImmediate` from `CORE_I18N` en/pl). Blank leaves the value as
   it is in both states; on an unshared quote an emptied field that held days sends `null`.
-- [ ] T038 [P] [US1] Failing tests `admin/test/modules/quote_requests/RfqList.sharing-filter.test.tsx`
+- [x] T038 [P] [US1] Failing tests `admin/test/modules/quote_requests/RfqList.sharing-filter.test.tsx`
   (new): *Draft* badge on unshared rows; *Draft / Shared* filter sends `sharing=…`; a saved view
   stores and restores it; *Clear filters* clears it (FR-009).
-- [ ] T039 [US1] `QR/src/admin/pages/RfqList.tsx`: badge in the status cell from the summary's
+- [x] T039 [US1] `QR/src/admin/pages/RfqList.tsx`: badge in the status cell from the summary's
   `sharedWithCustomer === false`, filter (same control family as the status filter) sending
   `sharing=unshared|shared` (`adminQuoteRequestListQuerySchema`), URL param, saved-view `filters.sharing`; option labels
   through `defineEnumLabels` in `QR/src/admin/lib/labels.ts` (+ `labels.test.ts`).
-- [ ] T040 [P] [US2] `QR/src/admin/pages/RfqHistory.tsx`: `shared` entry with its deliveries,
+- [x] T040 [P] [US2] `QR/src/admin/pages/RfqHistory.tsx`: `shared` entry with its deliveries,
   `validity_days` change. Already on the branch from `e788fe3e2` (the exhaustive switch needed it):
   the `validity_days` sentence in `changeSentence`, and a `shared` entry in the `FULL` fixture of
   `RfqDetail.history.test.tsx`; the entry title and deliveries render through the generic
@@ -345,7 +345,7 @@ New screen strings go in `QR/i18n/{en,pl}.json` read through `useTranslation('qu
   `prepared` deliveries (`RfqHistory.deliveries.test.tsx`), and the `validity_days` sentence with
   a number and with `null` → *none* (`RfqDetail.history.test.tsx`).
 
-- [ ] T054 [P] [US2] Storefront label for the customer's first history entry (FR-012, R-5):
+- [x] T054 [P] [US2] Storefront label for the customer's first history entry (FR-012, R-5):
   `shared` in `QUOTE_REQUEST_EVENT_KEYS` (`storefront/lib/account/labels.tsx`) and
   `account.quoteRequest.event.shared` (en, pl) in `storefront/lib/i18n/messages/account.ts`;
   cases in `storefront/test/account/i18n/labels.test.tsx` and
