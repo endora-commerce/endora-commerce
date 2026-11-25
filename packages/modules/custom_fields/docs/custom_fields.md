@@ -18,15 +18,18 @@ filtered on wherever records of that kind are handled.
 | Orders | always | yes — the Orders list |
 | Quote requests | while the `quote_requests` module is on | yes — the Quote requests list |
 | Sales opportunities | while the `crm` module is on | yes — the Opportunities list |
-| Organizations | always | no |
-| Customers | always | no |
+| Projects | while the `projects` module is on | yes — the Projects list |
+| Tasks | while the `tasks` module is on | yes — the Tasks list |
+| Organizations | always | yes — the Organizations list |
+| Customers | always | yes — the Customers list |
 | Categories | always | no |
 | Products | managed on **Catalog → Attributes**, read-only here | no |
 
 **A type that follows a module disappears with it.** While `quote_requests` is switched off, quote
 request fields are not listed, cannot be created or edited, and are not offered by the definitions
-API — exactly as opportunity fields are while `crm` is off. Nothing is deleted: the fields, their
-options and every stored value come back unchanged when the module is switched on again.
+API — exactly as opportunity fields are while `crm` is off, project fields while `projects` is off
+and task fields while `tasks` is off. Nothing is deleted: the fields, their options and every stored
+value come back unchanged when the module is switched on again.
 
 ## Creating a field
 
@@ -60,7 +63,7 @@ that later edits it, with the same sections in the same order. The page has its 
    - **Collect from the buyer at registration** — offered for Organization and Customer fields
      only. See [Collecting a field from the buyer](#collecting-a-field-from-the-buyer).
 5. **Behaviour**
-   - **Use as list filter** — offered only for orders, quote requests and opportunities. See
+   - **Use as list filter** — offered for the record types the table above marks *yes*. See
      [List filters](#list-filters).
    - **Carry value to …** — one checkbox per record type the value can follow, each with its own
      help line, offered only for quote requests, orders and opportunities. See
@@ -199,8 +202,11 @@ module documentation describes it.
 
 **Use as list filter** offers the field as a filter on the admin list of its records: the Orders
 list for an order field, the Quote requests list for a quote request field, the Opportunities list
-for an opportunity field. The table on **Custom fields** shows which fields are list filters in its
-*List filter* column. Turning the option on or off changes no stored value.
+for an opportunity field, and likewise the Projects, Tasks, Organizations and Customers lists. The
+table on **Custom fields** shows which fields are list filters in its *List filter* column. Turning
+the option on or off changes no stored value. On every list the filters are behind **More filters**;
+on the Projects, Tasks, Organizations and Customers lists they are shown only to an administrator
+who may view custom fields.
 
 The filter is labelled with the field's label in the administrator's language, falling back to the
 default label, and works by type:
@@ -219,13 +225,14 @@ Several values of one field match any of them; filters on different fields, and 
 filters, must all match. The filter narrows the whole list — its total and every page — not only
 the rows on screen, and it stays within what the administrator may see.
 
-On every list the filters are in the page address, so a filtered list can be bookmarked or sent to
-a colleague, and changing a filter returns the list to its first page. On the Orders and Quote
-Requests lists they are also shown as removable chips beside the other active filters and are kept
-in saved views.
+Changing a filter returns the list to its first page. On the Orders, Quote Requests, Opportunities,
+Projects and Tasks lists the filters are in the page address, so a filtered list can be bookmarked or
+sent to a colleague; on the Organizations and Customers lists, like those lists' other filters, they
+are not. On the Orders and Quote Requests lists they are also shown as removable chips beside the
+other active filters and are kept in saved views.
 
 **A filter that is no longer available.** If a field's option has been switched off, or the field
-deleted, since an address was written, the list refuses the request and says so by the field's
+deleted, since the filter was set or an address holding it was written, the list refuses the request and says so by the field's
 name, with **Remove this filter**. A saved view is checked when it is loaded instead: a filter it
 holds that is no longer available is dropped, with a notice naming it, before the list is asked
 for, and the rest of the view loads. An option removed from a field since is dropped from the
@@ -392,16 +399,19 @@ The definition and option routes refuse with these codes:
 | `422` | `CUSTOM_FIELD_DEFINITION_INVALID` | an invalid definition, among them `listFilter` on a record type that does not offer it (`list_filter_unsupported`), and four about buyer input and admin access: `customer_input_unsupported` (a surface the record type does not offer), `customer_input_audience` (open on a surface while *Internal*), `customer_input_value_type` (a Page Builder field opened on a surface) and `admin_access_required` (required while read-only or hidden) | `code` and `reason` for those four, and `key` |
 | `422` | `CUSTOM_FIELD_CARRY_INCOMPATIBLE` | turning on a `carryTo` entry the target cannot take | `code` — `target_missing`, `value_type_mismatch`, `options_missing`, `audience_mismatch`, `pair_unsupported` (a pair that is not offered, the field's own type included) or `target_unavailable` (the target's module is switched off); `targetEntityType`, `key`; `sourceValueType` and `targetValueType` for a type mismatch; `missingOptionValues` (a comma-separated string) and `missingOptionValueList` (an array) for missing options |
 
-The three lists take the filters as a request parameter:
+The lists take the filters as a request parameter:
 
-- `GET /api/v1/admin/orders`, `GET /api/v1/admin/orders/export` and
-  `GET /api/v1/admin/quote-requests` take `customFieldFilters`, a URL-encoded JSON object keyed by
-  field key: `{"region":{"in":["north"]},"weight":{"min":"1.5"}}`.
+- `GET /api/v1/admin/orders`, `GET /api/v1/admin/orders/export`,
+  `GET /api/v1/admin/quote-requests`, `GET /api/v1/admin/projects`, `GET /api/v1/admin/tasks`,
+  `GET /api/v1/admin/organizations` and `GET /api/v1/admin/customers` take `customFieldFilters`, a
+  URL-encoded JSON object keyed by field key: `{"region":{"in":["north"]},"weight":{"min":"1.5"}}`.
 - `GET /api/v1/admin/crm/opportunities` takes the same filters as `custom:<key>` references in
   `fieldFilters`.
 - Each list answers its offered fields at `…/custom-field-filters` — `GET
-  /api/v1/admin/orders/custom-field-filters`, `…/quote-requests/custom-field-filters` and
-  `…/crm/opportunities/custom-field-filters`.
+  /api/v1/admin/orders/custom-field-filters`, `…/quote-requests/custom-field-filters`,
+  `…/crm/opportunities/custom-field-filters`, `…/projects/custom-field-filters`,
+  `…/tasks/custom-field-filters`, `…/organizations/custom-field-filters` and
+  `…/customers/custom-field-filters`.
 
 The operators are `contains`, `in`, `is`, `min` / `max` (decimal strings) and `from` / `to`
 (`YYYY-MM-DD`). At most 10 fields and 100 `in` values in all per request. A field that is not a list

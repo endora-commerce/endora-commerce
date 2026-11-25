@@ -706,6 +706,15 @@ export class CustomerAccountAdminSearchService implements CustomerAccountAdminSe
 
     if (criteria.excludeDeleted) and.push({ deletedAt: null, anonymizedAt: null });
 
+    // Issue #1903 — the custom-field filters, one id sub-select built by
+    // `custom_fields`' list-filter port over this table. It is intersected with
+    // this statement, whose tenant filter is the reach rule, so it narrows and
+    // never widens; `findAndCount` applies it to both the page and the total,
+    // as the Quote Requests list's does. The raw fragment is created fresh per
+    // call, never kept (threat model F-2).
+    const custom = criteria.customFieldCondition;
+    if (custom) and.push({ id: { $in: raw(`(${custom.sql})`, [...custom.params]) } });
+
     const q = criteria.q?.trim();
     // `specs/150-admin-global-search/` — a field selection makes the match
     // literal and the order relevance-first; without one, nothing changes.

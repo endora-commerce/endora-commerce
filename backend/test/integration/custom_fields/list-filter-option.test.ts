@@ -263,7 +263,8 @@ describe('custom_fields — the list-filter option of a definition', () => {
     expect(await audit('custom_fields.option.deleted', optionId)).toHaveLength(1);
   });
 
-  it.each(['category', 'customer', 'organization'])(
+  // Issue #1903 — `organization` and `customer` offer the option now; `category` still does not.
+  it.each(['category'])(
     'refuses the option on "%s" (422) on create and on edit, and accepts false',
     async (entityType) => {
       const refusedCreate = await define(entityType, fixtureKey(`refused_${entityType}`), { listFilter: true });
@@ -287,7 +288,7 @@ describe('custom_fields — the list-filter option of a definition', () => {
     },
   );
 
-  it('answers listFilter: true in entity-types for exactly order, quote_request, opportunity, project and task', async () => {
+  it('answers listFilter: true in entity-types for exactly order, organization, customer, quote_request, opportunity, project and task', async () => {
     const response = await h.app.inject({ method: 'GET', url: `${API}/entity-types`, ...ADMIN });
     expect(response.statusCode, response.body).toBe(200);
     const rows = (response.json() as { data: Array<{ entityType: string; listFilter: boolean }> }).data;
@@ -296,7 +297,7 @@ describe('custom_fields — the list-filter option of a definition', () => {
         .filter((row) => row.listFilter)
         .map((row) => row.entityType)
         .sort(),
-    ).toEqual(['opportunity', 'order', 'project', 'quote_request', 'task']);
+    ).toEqual(['customer', 'opportunity', 'order', 'organization', 'project', 'quote_request', 'task']);
     for (const row of rows) expect(typeof row.listFilter).toBe('boolean');
   });
 
