@@ -1846,6 +1846,65 @@ describe('a migration\u2019s cross-module SQL \u2014 the ledgers are two-way', (
   });
 });
 
+/**
+ * `specs/190-overlay-full-modules/` FR-034 (T078) — an overlay module's
+ * migrations under `src/apps/<deployment>/modules/<id>/migrations/` are read by
+ * R1 and R2 exactly as a core module's are, and run under the platform's
+ * foreign-schema guard with **no** exemption (OR-4). So an R2 entry cannot
+ * excuse an overlay's foreign write: the guard would refuse it at `migrate`
+ * whatever the ledger said, and an entry that let this check go green over it
+ * would be a pass over a migration no database can apply.
+ */
+describe('a migration\u2019s cross-module SQL \u2014 an overlay module\u2019s', () => {
+  const OVERLAY_MIGRATION = 'apps/shop/modules/notes/migrations/20261125T120000_notes_init.ts';
+  const WRITE = 'this.addSql(`update "b_table" set "flag" = true where "id" is not null;`);';
+  const KEY = `${OVERLAY_MIGRATION}:b_table`;
+
+  function check(source: string, ledgers: MigrationLedgers) {
+    return checkModuleBoundary(
+      {
+        sources: new Map([
+          ['apps/shop/modules/notes/backend.ts', 'export function registerModule(ctx) {}'],
+          ['modules/b/backend.ts', 'export function registerModule(ctx) {}'],
+          [OVERLAY_MIGRATION, source],
+        ]),
+        schema: new Map([...MIGRATION_SCHEMA, [OVERLAY_MIGRATION, source]]),
+        dependencyClosures: dependencyClosures(new Map([['notes', ['b']], ['b', []]])),
+      },
+      [],
+      ledgers,
+    );
+  }
+
+  it('is read: a foreign write is an R2 finding, and an undeclared one an R1 finding too', () => {
+    const declared = check(WRITE, { undeclaredReferences: [], foreignWrites: [] });
+    expect(declared.foreignWrites.violations.map((f) => [f.file, f.table])).toEqual([[OVERLAY_MIGRATION, 'b_table']]);
+    const undeclared = checkModuleBoundary(
+      {
+        sources: new Map([
+          ['apps/shop/modules/notes/backend.ts', 'export function registerModule(ctx) {}'],
+          ['modules/b/backend.ts', 'export function registerModule(ctx) {}'],
+          [OVERLAY_MIGRATION, WRITE],
+        ]),
+        schema: new Map([...MIGRATION_SCHEMA, [OVERLAY_MIGRATION, WRITE]]),
+        dependencyClosures: dependencyClosures(new Map([['notes', []], ['b', []]])),
+      },
+      [],
+    );
+    expect(undeclared.undeclaredReferences.violations.map((f) => f.table)).toEqual(['b_table']);
+  });
+
+  it('cannot be ledgered: the write stays a violation and the entry is reported stale (OR-4)', () => {
+    const result = check(WRITE, {
+      undeclaredReferences: [],
+      foreignWrites: [{ moduleId: 'notes', entries: { [KEY]: 'a deployment exemption' } }],
+    });
+    expect(result.foreignWrites.violations.map((f) => f.table)).toEqual(['b_table']);
+    expect(result.foreignWrites.ledgered).toEqual([]);
+    expect(result.foreignWrites.stale).toEqual([KEY]);
+  });
+});
+
 describe('a migration\u2019s cross-module SQL \u2014 the refusals (contract §6)', () => {
   const READ = {
     moduleFiles: ['modules/orders/a.ts'],
