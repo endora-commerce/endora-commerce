@@ -43,11 +43,11 @@ built with `DEPLOYMENT=example`.
 
 - [x] T010 Test: layout refusals `nested-module`, `package-in-disguise` over a temp tree — `packages/platform/src/overlay/overlay-layout.test.ts` [FR-002, FR-003]
 - [x] T011 Implement `overlay-layout.ts`; call `assertOverlayLayout` in `overlayModuleIdsUnder` **beside** (not yet instead of) the schema refusal [FR-002, FR-003]
-- [ ] T012 [P] Test: CLI mirror of the layout walk agrees with the platform's on the same fixture (the two walks must agree) — `packages/cli/src/build/layout.test.ts` [FR-003]
+- [x] T012 [P] Test: CLI mirror of the layout walk agrees with the platform's on the same fixture (the two walks must agree) — `packages/cli/src/build/layout.test.ts` [FR-003]
 - [x] T013 Move the runtime-asset classification `backend/scripts/lib/runtime-assets.ts` → `packages/cli/src/lib/runtime-assets.ts`; `copy-runtime-assets.ts` imports it; grep `backend/test/**` for the old path [FR-013]
   - Done differently (owner ruling 2026-11-25): the owner stays `scripts/lib/runtime-assets.mjs` (D-218), which module packages run under bare `node` and which would otherwise make every package build wait for the CLI's. The CLI **carries** it — `packages/cli/scripts/write-runtime-assets.mjs` copies it into `dist/runtime-assets.mjs`, `prepack` refuses a tarball without it, and `packages/cli/src/lib/runtime-assets.ts` (`loadRuntimeAssets`) loads the carried copy, else a checkout's owner (the backend supervisor's arrangement). `copy-runtime-assets.ts` is unchanged; no `backend/test/**` path moved
-- [ ] T014 Test: `endora build overlays` compiles to `backend/dist/apps/**`, mirrors `i18n/*.json`, refuses an unclassified extension, exit codes 0/1/2 — `packages/cli/src/build/build.test.ts` [FR-012, FR-013]
-- [ ] T015 Implement `packages/cli/src/build/` (spawn the instance's own `tsc`; `--watch` + recursive `fs.watch` for assets) [FR-012 – FR-014]
+- [x] T014 Test: `endora build overlays` compiles to `backend/dist/apps/**`, mirrors `i18n/*.json`, refuses an unclassified extension, exit codes 0/1/2 — `packages/cli/src/build/build.test.ts` [FR-012, FR-013]
+- [x] T015 Implement `packages/cli/src/build/` (spawn the instance's own `tsc`; `--watch` + recursive `fs.watch` for assets) [FR-012 – FR-014]
 - [ ] T016 Test: freshness pairing — `fresh`, `stale`, `unbuilt` (file and whole module), `orphan`; admin, test, `.d.ts` excluded; no source root → one `info` line — `packages/platform/src/overlay/overlay-freshness.test.ts` [FR-015]
 - [ ] T017 Implement `overlay-freshness.ts`, `OverlayBuildError`; `exitOnRefusal` prints the refusal family; `ComposeAppOptions.deploymentSourceRoot` [FR-015]
 - [ ] T018 Test + implement: instance wiring passes `deploymentRoot = backend/dist` and `deploymentSourceRoot = root` in `index`, `worker`, `migrate`, `cli`, `module-commands/*`, `mikro-orm.config`; `build`/`dev` scripts per `overlay-build.md` §2 — `template.test.ts` [FR-012, FR-014, FR-016]

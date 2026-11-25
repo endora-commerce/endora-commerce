@@ -54,6 +54,7 @@ Usage:
                          [--topology single-host|three-host] [--non-interactive] [--dry-run]
   endora generate [--dry-run]
   endora dev [--storefront-dir <path>] [--no-storefront]
+  endora build overlays [--watch]
   endora upgrade [<version>] [--storefront-dir <path>] [--no-storefront] [--dry-run]
   endora --help
 
@@ -248,6 +249,14 @@ Options for \`dev\`:
                                 beside the instance, when it exists)
   --no-storefront               start the API and the admin preview only
 
+\`endora build overlays\` compiles the instance's overlay modules (\`apps/<deployment>/
+modules/*\`) with its own \`tsc -p backend/tsconfig.apps.json\` into \`backend/dist/apps\`,
+after refusing a nested module or one that is a package in disguise, and mirrors their
+runtime assets (\`i18n/*.json\`) beside the code. The instance's \`build\` script runs it.
+
+Options for \`build overlays\`:
+  --watch                       recompile and re-mirror on every change (\`dev\`)
+
 \`endora upgrade\` is what an instance's \`pnpm run upgrade\` runs: it moves every package
 of the release this CLI belongs to — the platform, every module, the admin shell,
 the contracts — to one version, in every member of the instance and in the
@@ -432,6 +441,7 @@ function parse(argv: readonly string[], declaredInputFlags: readonly string[] = 
       topology: { type: 'string' },
       'non-interactive': { type: 'boolean' },
       'dry-run': { type: 'boolean' },
+      watch: { type: 'boolean' },
       // `endora install` (feature 125). `--no-*` is a flag of its own rather
       // than a negation `parseArgs` understands: the library has no negation,
       // and a default that is `true` needs a name to be turned off by.
@@ -1118,6 +1128,18 @@ export async function main(
     return runDevCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
 
+  if (command === 'build') {
+    if (subject !== 'overlays' || rest.length > 0) {
+      process.stderr.write(
+        `endora: \`build\` builds one thing, \`overlays\`; got ` +
+          `${[subject, ...rest].filter((v) => v !== undefined).join(' ') || '<none>'}.\n`,
+      );
+      return 1;
+    }
+    const { runBuildOverlays } = await import('../build/index.js');
+    return runBuildOverlays({ cwd, watch: asFlag(parsed.values['watch']) });
+  }
+
   if (command === 'upgrade') {
     return runUpgradeCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
@@ -1125,8 +1147,8 @@ export async function main(
   if (command !== 'new') {
     process.stderr.write(
       `endora: unknown command "${command}". This build provides \`new module\`, ` +
-        `\`new instance\`, \`new storefront\`, \`install\`, \`generate\`, \`dev\`, \`upgrade\` and ` +
-        `\`check\`.\n`,
+        `\`new instance\`, \`new storefront\`, \`install\`, \`generate\`, \`dev\`, ` +
+        `\`build overlays\`, \`upgrade\` and \`check\`.\n`,
     );
     return 1;
   }
