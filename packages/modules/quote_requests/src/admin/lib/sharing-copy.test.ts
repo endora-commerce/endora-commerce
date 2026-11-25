@@ -17,9 +17,24 @@ describe('the unshared quote is named Not shared / Nieudostepniona, never Draft 
     expect(own(pl)['share.badge.unshared']).toBe('Nieudostępniona');
     expect(own(en)['list.sharing.unshared']).toBe('Not shared');
     expect(own(en)['share.unshared.notice']).toBe(
-      'Only your team can see this quote. The customer is not notified until you share it.',
+      'Only your team sees this quote. The customer is not notified until shared.',
     );
-    expect(own(pl)['share.unshared.notice']).toBeTruthy();
+    expect(own(pl)['share.unshared.notice']).toBe(
+      'Ofertę widzi tylko Twój zespół. Klient dostanie powiadomienie po udostępnieniu.',
+    );
+  });
+
+  it('keeps the header line and the create warning short and in the singular register', () => {
+    for (const locale of [own(en), own(pl)]) {
+      expect(locale['share.unshared.notice'].length).toBeLessThanOrEqual(80);
+    }
+    expect(own(en)['create.warnings.notShared']).toBe('Nothing was shared: only your team can see the quote.');
+    expect(own(pl)['create.warnings.notShared']).toBe('Nic nie udostępniono: ofertę widzi tylko Twój zespół.');
+  });
+
+  it('labels the list filter default All / Wszystkie', () => {
+    expect(own(en)['list.sharing.all']).toBe('All');
+    expect(own(pl)['list.sharing.all']).toBe('Wszystkie');
   });
 
   it('says Draft / Szkic in none of the sharing strings', () => {
