@@ -60,7 +60,8 @@
  *
  * The ORM configuration below is the one place an instance restates its own
  * artefacts, and it has none, so the platform's `*From` factories answer over
- * the packages it installed: `configuredEntitiesFrom`,
+ * the packages it installed and, given the deployment root, its own overlay
+ * modules (`specs/190-overlay-full-modules/` FR-035): `configuredEntitiesFrom`,
  * `discoverConfiguredMigrations` and `mikroOrmConfigFrom` on `./db`, and
  * `resolveManifestEntries` on `./lifecycle` with its three suppliers.
  *
@@ -1548,21 +1549,26 @@ app.log.info('worker started');
 // migration options an \`allOrNothing\` run takes. A hand-written
 // \`defineConfig\` here would compile and then create tables the installed
 // migrations do not name.
+import { fileURLToPath } from 'node:url';
 import {
   configuredEntitiesFrom,
   discoverConfiguredMigrations,
   mikroOrmConfigFrom,
 } from '${scope}platform/db';
 
+// Where \`apps/\` is, compiled — the value \`index.ts\` hands \`composeApp\`. Your
+// overlay modules' entities and migrations are read from there.
+const deploymentRoot = fileURLToPath(new URL('.', import.meta.url));
+
 export default async function config() {
   const url = process.env['DATABASE_URL'];
   if (url === undefined || url === '') throw new Error('DATABASE_URL must be set.');
   // The committed half is empty, which is what an instance is: it ships no
   // generated manifest index and no committed registry, so its entities and
-  // its migrations are the packages it installed and nothing else.
+  // its migrations are the packages it installed and its own overlay modules.
   const [entities, migrations] = await Promise.all([
-    configuredEntitiesFrom({ coreEntities: [] }),
-    discoverConfiguredMigrations({ coreEntries: [], manifests: [] }),
+    configuredEntitiesFrom({ coreEntities: [], deploymentRoot }),
+    discoverConfiguredMigrations({ coreEntries: [], manifests: [] }, process.env, deploymentRoot),
   ]);
   return mikroOrmConfigFrom({ entities, migrations });
 }
@@ -1573,21 +1579,16 @@ export default async function config() {
     path: 'backend/src/migrate.ts',
     kind: 'wiring',
     member: 'backend',
-    // `refuseOverlaySchema` is the one thing here that is not the migrator: the
-    // configuration is built from the installed packages and never looks at
-    // `apps/`, so without it a `migrations/` directory under an overlay module
-    // is applied by nothing and reported by nothing (`overlay-schema.ts`).
+    // Nothing here but the migrator: the configuration carries the deployment
+    // root, so an overlay module's migrations are in the order it applies
+    // (`specs/190-overlay-full-modules/` FR-035).
     content: `// The schema, in the order the installed manifests compute — no second
 // ordering here. Verified: one transaction, the declared extension columns
 // checked before commit (specs/178-extensible-columns/ FR-025).
-import { fileURLToPath } from 'node:url';
 import { MikroORM } from '@mikro-orm/postgresql';
-import { refuseOverlaySchema } from '${scope}platform/composition';
 import { migrateUpVerified } from '${scope}platform/db';
 import config from './mikro-orm.config.js';
 
-// An overlay module ships no schema: said here, before anything is migrated.
-refuseOverlaySchema(fileURLToPath(new URL('../..', import.meta.url)));
 const orm = await MikroORM.init(await config());
 try {
   await migrateUpVerified(orm);
@@ -1827,10 +1828,14 @@ shadow, because there is no file.
 \`pnpm exec endora new module <id> --name … --description …\` writes one there: a manifest, an
 entry point with a route, and both translation files. \`.env\` sets \`DEPLOYMENT=${input.deployment}\`,
 which is what makes this instance compose that directory — unset, it starts as the bare platform
-and none of your modules is there. An overlay module owns no database table: a \`migrations/\`
-or \`entities/\` directory in one is refused by \`generate\`, by \`migrate\`, by every
-\`module:*\` command and by the API when it starts, each naming the file. A module that needs
-a table is a package.
+and none of your modules is there. An overlay module may own a database table: export its
+entity classes as \`entities\` from \`backend.ts\` (each with a tenancy decorator, from
+\`@mikro-orm/decorators/legacy\`), and put its migrations in its \`migrations/\` directory, one
+class per file named after the file (\`20270101T000000_<module>_<slug>.ts\` exports
+\`Migration20270101T000000<Module><Slug>\`). \`pnpm run migrate\` applies them in the module's
+dependency order, under the foreign-schema guard every installed package's migrations take: a
+migration may write only the tables its own entities map. \`endora new module\` does not write
+either for you yet.
 
 An overlay module is compiled like the rest of the backend. \`pnpm run build\` runs
 \`endora build overlays\`, which compiles \`apps/\` with this instance's own

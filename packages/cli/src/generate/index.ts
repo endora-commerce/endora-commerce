@@ -90,7 +90,6 @@ import {
 } from '../lib/release-index.js';
 import { InstanceHostError } from '../new-instance/host.js';
 import {
-  overlaySchemaFiles,
   renderInstanceDivergence,
   DivergenceHostError,
   type InstanceDivergence,
@@ -259,27 +258,6 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
       `${join(root, 'node_modules')} is not there, so which modules this instance installed ` +
         `cannot be read and the artefacts would name none. Run \`pnpm install\` first — an ` +
         `empty registry is a bundle with no screens in it, rendered without an error.`,
-    );
-  }
-
-  // Before anything is rendered, and therefore before anything is written
-  // (R5.2): an overlay module that ships schema is refused rather than skipped.
-  // Exit 1 — the remedy is the author's, and it is a directory to move.
-  const schema = overlaySchemaFiles(root);
-  if (schema.length > 0) {
-    throw new GenerateInputError(
-      `an overlay module under \`apps/<deployment>/modules/\` contributes no schema, and ` +
-        `${String(schema.length)} file(s) here are schema:\n` +
-        `${schema.map((file) => `  - ${file}`).join('\n')}\n` +
-        `An overlay module contributes settings, routes, registrations, decorations, ` +
-        `interceptors, permissions and translations — and no \`@Entity()\` class and no ` +
-        `migration. Nothing in this instance would run them: the platform reads entities and ` +
-        `migrations from installed module packages alone, so \`pnpm run migrate\` would apply ` +
-        `none of these, no table would exist, and nothing would say so. Keep small state in ` +
-        `Settings (declare it in the module's manifest). A module that owns a table is a ` +
-        `module package: move the entity and its migration into one, install the packed ` +
-        `tarball, and read it from this overlay module through that package's port. Nothing ` +
-        `was written.`,
     );
   }
 

@@ -5,7 +5,8 @@
  * ## What it touches
  *
  * - the compiled entry points that name where `apps/` is — `backend/src/{index,worker,cli}.ts`
- *   and `backend/src/module-commands/runtime.ts`;
+ *   and `backend/src/module-commands/runtime.ts` — and the two that read an overlay module's
+ *   schema from there, `backend/src/mikro-orm.config.ts` and `backend/src/migrate.ts` (#1850);
  * - `backend/tsconfig.apps.json`, written when absent;
  * - the backend member's `build`, `dev` and `typecheck` scripts, and the root's `typecheck`
  *   and the `typecheck` term of `setup`.
@@ -30,6 +31,11 @@ export const WIRING_FILES = [
   'backend/src/worker.ts',
   'backend/src/cli.ts',
   'backend/src/module-commands/runtime.ts',
+  // `specs/190-overlay-full-modules/` FR-035 / FR-037 (#1850): the ORM configuration
+  // hands the platform the deployment root, and `migrate` loses the refusal the
+  // platform no longer exports.
+  'backend/src/mikro-orm.config.ts',
+  'backend/src/migrate.ts',
 ] as const;
 
 const APPS_CONFIG = 'backend/tsconfig.apps.json';

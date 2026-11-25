@@ -320,7 +320,7 @@ describe('which deployment', () => {
 
 describe('what an overlay module cannot be is refused before anything is written', () => {
   const refused: ReadonlyArray<readonly [string, Partial<NewModuleOptions>, string]> = [
-    ['--entities', { entities: true }, 'no schema'],
+    ['--entities', { entities: true }, 'by hand'],
     ['--admin', { admin: 'catalog', permissions: ['store_notice:read=View'] }, 'module package'],
     [
       '--action',
@@ -331,7 +331,7 @@ describe('what an overlay module cannot be is refused before anything is written
     ['--worker', { worker: true }, 'ctx.worker'],
     ['--subscriber', { subscriber: true }, 'ctx.subscribe'],
     ['--dir', { dir: 'somewhere' }, 'apps/acme/modules'],
-    ['--tenant-scope', { tenantScope: 'global' }, 'no schema'],
+    ['--tenant-scope', { tenantScope: 'global' }, 'by hand'],
   ];
   for (const [flag, extra, names] of refused) {
     it(`${flag} — exit 1, naming why`, async () => {
