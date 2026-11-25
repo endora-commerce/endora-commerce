@@ -132,3 +132,46 @@ describe('assertOverlayBuildFresh', () => {
     expect(lines).toEqual([]);
   });
 });
+
+describe('overlay resolution runs the guard before anything is imported (T017)', () => {
+  it('overlayModulesFor refuses a stale build at ids(), before a manifest is imported', async () => {
+    const { overlayModulesFor } = await import('./overlay-runtime.js');
+    const { source, compiled } = roots();
+    write(source, 'apps/acme/modules/a/manifest.ts', NEW);
+    write(compiled, 'apps/acme/modules/a/manifest.js', OLD, 'throw new Error("imported");\n');
+
+    const modules = overlayModulesFor(
+      { deploymentRoot: compiled, deploymentSourceRoot: source },
+      { DEPLOYMENT: 'acme' },
+      () => [],
+    );
+    expect(() => modules.ids()).toThrow(OverlayBuildError);
+    await expect(modules.manifests()).rejects.toBeInstanceOf(OverlayBuildError);
+  });
+
+  it('resolves a fresh build as overlayModulesUnder does', async () => {
+    const { overlayModulesFor } = await import('./overlay-runtime.js');
+    const { source, compiled } = roots();
+    write(source, 'apps/acme/modules/a/manifest.ts', OLD);
+    write(compiled, 'apps/acme/modules/a/manifest.js', NEW);
+    const modules = overlayModulesFor(
+      { deploymentRoot: compiled, deploymentSourceRoot: source },
+      { DEPLOYMENT: 'acme' },
+      () => [],
+    );
+    expect(modules.ids()).toEqual(['a']);
+  });
+
+  it('compares nothing and says so once when no source root is given', async () => {
+    const { overlayModulesFor } = await import('./overlay-runtime.js');
+    const { compiled } = roots();
+    write(compiled, 'apps/acme/modules/a/manifest.js', NEW);
+    const lines: string[] = [];
+    const modules = overlayModulesFor({ deploymentRoot: compiled }, { DEPLOYMENT: 'acme' }, () => [], {
+      info: (line) => lines.push(line),
+    });
+    expect(modules.ids()).toEqual(['a']);
+    modules.ids();
+    expect(lines).toEqual(['[overlay] no source root; build freshness not compared']);
+  });
+});

@@ -141,8 +141,7 @@ import {
   type RegisteredManifestEntry,
 } from '../lifecycle/index.js';
 import { lifecycleModuleFromStaticEntries } from '../lifecycle/plugin.js';
-import { activeOverlayModulesRoot } from '../overlay/deployment-roots.js';
-import { overlayModulesUnder } from '../overlay/overlay-runtime.js';
+import { overlayModulesFor } from '../overlay/overlay-runtime.js';
 import {
   discoverPackageModuleManifests,
   installedPackageModuleIdClaims,
@@ -274,6 +273,17 @@ export interface ComposeAppOptions {
    * absent declaration and an empty one are deliberately the same answer.
    */
   readonly deploymentRoot: string;
+  /**
+   * The directory that holds `apps/` **as written**, when {@link deploymentRoot} holds it
+   * compiled (`specs/190-overlay-full-modules/` FR-015 – FR-016, #1848).
+   *
+   * An instance's compiled entry points pass `backend/dist` as the deployment root and the
+   * instance root here; every overlay unit is then judged against its source before
+   * anything is imported, and a stale, unbuilt or orphaned one refuses the boot
+   * (`OverlayBuildError`). Absent, nothing is compared and one line says so. Equal to
+   * {@link deploymentRoot} — a run from sources — there is nothing to compare.
+   */
+  readonly deploymentSourceRoot?: string;
   /** What only this build knows — see {@link AppComposition}. */
   readonly composition?: AppComposition;
   /**
@@ -451,6 +461,7 @@ interface PlatformContainerReads {
 export async function defaultComposition(
   deploymentRoot: string,
   env: NodeJS.ProcessEnv,
+  deploymentSourceRoot?: string,
 ): Promise<Required<AppComposition>> {
   // Both overlay seams off one reader, over one id set
   // (`specs/124-instance-customisation-gap/` FR-001, FR-002). The registration
@@ -461,8 +472,11 @@ export async function defaultComposition(
   // fewer than the presence projection enumerated, which is A4's own
   // arithmetic, and no operator could switch the module off because there was
   // no manifest to gate it against (Principle XVII).
-  const overlayModules = overlayModulesUnder(activeOverlayModulesRoot(deploymentRoot, env), () =>
-    installedPackageModuleIdClaims(nodeModulesRootsFor(env)),
+  const overlayModules = overlayModulesFor(
+    { deploymentRoot, deploymentSourceRoot },
+    env,
+    () => installedPackageModuleIdClaims(nodeModulesRootsFor(env)),
+    { info: (line) => platformLogger().info({}, line) },
   );
   const overlay = await overlayModules.entries();
   const packages = await loadPackageModuleEntries(env);
@@ -541,7 +555,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   const fallback =
     supplied.modules !== undefined && supplied.manifests !== undefined && supplied.orm !== undefined
       ? undefined
-      : await defaultComposition(deploymentRoot, process.env);
+      : await defaultComposition(deploymentRoot, process.env, options.deploymentSourceRoot);
   const moduleEntries = supplied.modules ?? fallback?.modules ?? [];
   const resolvedRegistry = supplied.manifests ?? fallback?.manifests ?? [];
   const ormLifecycle = supplied.orm ?? (fallback?.orm as AppOrmLifecycle);

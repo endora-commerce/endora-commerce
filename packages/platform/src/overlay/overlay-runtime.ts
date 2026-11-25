@@ -43,7 +43,9 @@ import {
 } from '../lifecycle/services/module-id-claims.js';
 import { assertOverlayModulesShipNoSchema } from './overlay-schema.js';
 import { assertOverlayLayout } from './overlay-layout.js';
+import { assertOverlayBuildFresh, type OverlayRoots } from './overlay-freshness.js';
 import { listOverlayModuleDirs } from './resolve-overlay.js';
+import { activeOverlayModulesRoot, selectedDeployment } from './deployment-roots.js';
 
 /**
  * The two spellings one unit has: `<stem>.js` in a compiled tree, `<stem>.ts`
@@ -395,5 +397,51 @@ export function overlayModulesUnder(
     ids,
     manifests: async () => (root === null ? [] : await overlayModuleManifestsUnder(root, ids())),
     entries: async () => (root === null ? [] : await overlayModuleEntriesForIds(root, ids())),
+  };
+}
+
+/**
+ * The active deployment's overlay modules, judged against their sources first
+ * (`specs/190-overlay-full-modules/` FR-015, contract `overlay-build.md` §4, #1848).
+ *
+ * The one resolution every process that composes or lists overlay modules goes
+ * through — the API and the worker (`defaultComposition`), the operator CLI and
+ * `module:*` (`instanceManifestEntries`). The guard runs inside {@link OverlayModules.ids},
+ * which both halves call before they import anything, so a stale, unbuilt or orphaned
+ * compiled unit is refused before a line of it runs. With no source root it says once
+ * that nothing was compared; run from sources (source root = deployment root) it has
+ * nothing to compare.
+ */
+export function overlayModulesFor(
+  roots: OverlayRoots,
+  env: NodeJS.ProcessEnv,
+  claimsOutsideTheOverlay: () => readonly ModuleIdClaim[],
+  options: { readonly rebuild?: string; readonly info?: (line: string) => void } = {},
+): OverlayModules {
+  const root = activeOverlayModulesRoot(roots.deploymentRoot, env);
+  const resolved = overlayModulesUnder(root, claimsOutsideTheOverlay);
+  const deployment = selectedDeployment(env);
+  let judged = false;
+  const judge = (): void => {
+    if (judged || root === null || deployment === null) return;
+    assertOverlayBuildFresh(roots, deployment, {
+      rebuild: options.rebuild ?? 'pnpm run build',
+      ...(options.info === undefined ? {} : { info: options.info }),
+    });
+    judged = true;
+  };
+  return {
+    ids: () => {
+      judge();
+      return resolved.ids();
+    },
+    manifests: async () => {
+      judge();
+      return await resolved.manifests();
+    },
+    entries: async () => {
+      judge();
+      return await resolved.entries();
+    },
   };
 }
