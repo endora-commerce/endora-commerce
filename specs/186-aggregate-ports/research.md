@@ -38,7 +38,7 @@ N = no audit; ? = to confirm in T001–T009):
 
 | Aggregate | C | H-in | H-post | N / ? |
 | --- | --- | --- | --- | --- |
-| Organization | create, update, set_parent, move, delete, set_custom_field_values, convert_to_company, tax_id.change, set_credit_mode, sales_rep_assign/unassign | allow_lists_replace, allow_list_patch (`organization-restriction-service.ts`) | approved, rejected, blocked, unblocked (`organization-moderation-service.ts` `transition`, audit after commit) | sales channels (?: `routes.admin.ts` writes through `sales_channels`' membership) |
+| Organization | create, update, set_parent, move, delete, set_custom_field_values, convert_to_company, tax_id.change, set_credit_mode | allow_lists_replace, allow_list_patch (`organization-restriction-service.ts`); sales_rep_assign/unassign (`sales-rep-assignment-service.ts`, measured by T001) | approved, rejected, blocked, unblocked (`organization-moderation-service.ts` `transition`, audit after commit); sales channels (T001: the kernel membership writer, see below) | — |
 | CustomerAccount | create, change_role, set_preferred_language, remove_member, promote_organization_admin, set_subtree_rollup, custom_fields.update | block, unblock, soft-delete, restore, group assign, create standalone, anonymise (`customer-account-lifecycle-ports.ts`) | — | update_profile, email_verified (?) |
 | Order | custom_fields.update, external_reference.set | status_transition (`order-transition-service.ts`), payment_status_transition (`order-service.ts`) | place_on_behalf (impersonation only) | comments (`order-comment-service.ts`, N); buyer placement (N) |
 | QuoteRequest | send_document | create, create_on_behalf, patch_draft, modify, approve, assign, cancel (`rfq-service.ts`, `rfq-admin-service.ts` `#audit`) | — | admin custom-field values (?) |
@@ -47,6 +47,21 @@ N = no audit; ? = to confirm in T001–T009):
 | Opportunity | all listed (`crm`: 33 `commandBus.run` sites, 0 hand audits) | — | — | — |
 | Project | all listed (`projects`: 38 sites, 0 hand audits) | — | — | archive/restore: no such operation |
 | Task | all listed except below | — | — | create many (?) |
+
+**Inventory (T001, Organization, 2026-11-25).** Measured against the table above:
+`sales_rep_assign` / `sales_rep_unassign` are **H-in**, not C (`sales-rep-assignment-service.ts`
+calls `recordAuditFromContext` on the write's unit of work), so they convert rather than ship as
+"port only". The sales-channel `?` resolves to **H-post through the kernel**: the write is
+`@endora-commerce/platform`'s `SalesChannelMembershipService.replaceChannelsForEntity`, which commits
+its statements, then drops the access cache and records one `sales_channel.membership.changed` entry
+per membership through `AuditPort.record` on its own fork — outside any caller's transaction, also
+when `organization.create` hands it the Command's `em`. Converting it to
+`organization.sales_channels.set` (T028) needs an **owner question**: whether the kernel writer's
+per-membership entries stay beside the new one, and the cache drop moving after the commit, both
+being changes to `packages/platform` rather than to `organizations`
+(`contracts/organization-command-port.md` § *Inventory findings* 1). No operation moves in or out of
+FR-020. The other findings (detach, the reject reason, `expectedVersion`, a refusal code) are
+interface decisions for T019, listed there.
 
 **Rationale.** The issues' definition of done — "each operation is one audited Command … the admin
 routes and the port run the same Commands, so command hooks and the audit trail see one write path" —
