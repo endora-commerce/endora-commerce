@@ -22,7 +22,8 @@ type Where = Record<string, unknown>;
 
 /** The ids an `idNotAmong` clause leaves out, read back from its raw fragment; `null` when `clause` is not one. */
 function excludedIds(clause: Where): string[] | null {
-  const [key] = Object.keys(clause);
+  // MikroORM 7 (#1866) keys a raw fragment by a symbol, which `Object.keys` skips.
+  const [key] = [...Object.keys(clause), ...Object.getOwnPropertySymbols(clause)];
   const fragment = key === undefined ? undefined : RawQueryFragment.getKnownFragment(key);
   if (!fragment || !fragment.sql.includes('<> all(?::uuid[])')) return null;
   return String(fragment.params[0]).replace(/[{}]/g, '').split(',');

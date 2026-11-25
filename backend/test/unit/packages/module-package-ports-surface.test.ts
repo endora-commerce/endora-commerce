@@ -333,7 +333,7 @@ describe('a real module package publishes `./ports` and a consumer type-checks a
       mkdirSync(join(dir, 'src', 'ports'), { recursive: true });
       mkdirSync(join(dir, 'src', 'backend', 'entities'), { recursive: true });
       mkdirSync(join(dir, 'node_modules', '@mikro-orm'), { recursive: true });
-      for (const name of ['core', 'postgresql']) {
+      for (const name of ['core', 'decorators', 'postgresql']) {
         symlinkSync(
           join(repoRoot, 'backend', 'node_modules', '@mikro-orm', name),
           join(dir, 'node_modules', '@mikro-orm', name),
@@ -438,7 +438,7 @@ describe('a real module package publishes `./ports` and a consumer type-checks a
       mkdirSync(join(consumer, 'node_modules', '@d169'), { recursive: true });
       mkdirSync(join(consumer, 'node_modules', '@mikro-orm'), { recursive: true });
       symlinkSync(packageDir, join(consumer, 'node_modules', PACKAGE_NAME));
-      for (const name of ['core', 'postgresql', 'knex']) {
+      for (const name of ['core', 'decorators', 'postgresql']) {
         symlinkSync(
           join(repoRoot, 'backend', 'node_modules', '@mikro-orm', name),
           join(consumer, 'node_modules', '@mikro-orm', name),

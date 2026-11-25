@@ -42,7 +42,7 @@ const TEST_ROOT = join(BACKEND_ROOT, 'test');
  * that builds a double and passes it through a seam — `migratorFor` in the
  * lifecycle orchestrator — never touches the schema and is not this population.
  */
-const DRIVES_THE_MIGRATOR = /\.migrator\b/;
+const DRIVES_THE_MIGRATOR = /\borm\.migrator\b/;
 
 /** The seam a ledgered file must be using. */
 const OWN_DATABASE_SEAM = /setupMigratorTestDb\(/;

@@ -260,9 +260,13 @@ describe('the host package `exports` map', () => {
     // the name — and it needs it as a peer for the same reason as the other
     // four, since a second copy of the migrator is a second `Migration` base
     // class and the twelve would fail `instanceof` at the migrator's own gate.
+    // `@mikro-orm/decorators` joined them with MikroORM 7 (#1866): the
+    // platform's own entities import their decorators from it, and it writes
+    // into the one `@mikro-orm/core` metadata registry the host's ORM reads.
     const peers = MANIFEST.peerDependencies ?? {};
     expect(Object.keys(peers).sort()).toEqual([
       '@mikro-orm/core',
+      '@mikro-orm/decorators',
       '@mikro-orm/migrations',
       '@mikro-orm/postgresql',
       'fastify',
