@@ -183,7 +183,7 @@ export async function createFixtureSchema(): Promise<void> {
   const lifecycle = fixtureOrm();
   const orm = await lifecycle.open();
   try {
-    await orm.getSchemaGenerator().updateSchema({ safe: false, wrap: false });
+    await orm.schema.update({ safe: false, wrap: false });
     const connection = orm.em.getConnection();
     await connection.execute(
       `create table if not exists "mikro_orm_migrations" (
