@@ -79,7 +79,13 @@ and build against the refusal. What D-297 holds every design to:
   guard every installed package's migrations take; being the deployment's own buys nothing.
 - **One build, no package in disguise.** Overlay code is compiled by one deployment-level `tsc`
   project (#1848). There is no per-module build, and no `package.json`, `exports` map or build
-  configuration under `apps/`.
+  configuration under `apps/`. In an instance that project is run by `endora build overlays`
+  (the backend member's `build` and `dev`), which also mirrors each module's `i18n/` into
+  `backend/dist/apps`. Two refusals hold it, in the build and in every process that resolves
+  overlay modules: the layout (`nested-module`, `package-in-disguise` — platform
+  `overlay/overlay-layout.ts`, the CLI's twin `build-overlays/layout.ts`, held to agree) and the
+  freshness of the compiled tree against its sources (`stale`, `unbuilt`, `orphan` — platform
+  `overlay/overlay-freshness.ts`, given `deploymentSourceRoot`).
 - **Promotion keeps the id.** A module promoted from an overlay to a package keeps its module
   id, so the migration class names a database has already recorded still match.
 - **The trust tier is derived, never claimed.** An overlay module's tier is `deployment`, read

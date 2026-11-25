@@ -564,7 +564,7 @@ export function backendScripts(input: PlanInput): Record<string, string> {
     dev: `tsc -p tsconfig.json --watch & endora build overlays --watch & ${node} --watch dist/index.js`,
     build: 'tsc -p tsconfig.json && endora build overlays',
     // Two programs (issue #1847): the backend's own `src`, and the overlay code
-    // under `apps/` that Node loads by type stripping and nothing else compiles.
+    // under `apps/`, which `build` compiles into `dist/apps` (#1848).
     // `tsconfig.apps.json` sets `erasableSyntaxOnly`, so an `enum`, a `namespace`
     // or a constructor parameter property is a type-check failure here rather
     // than `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` at boot.
@@ -1830,11 +1830,15 @@ or \`entities/\` directory in one is refused by \`generate\`, by \`migrate\`, by
 \`module:*\` command and by the API when it starts, each naming the file. A module that needs
 a table is a package.
 
-An overlay module is TypeScript that **nothing in this tree compiles** — Node loads it and
-strips the types as it goes. So it is written in the subset stripping accepts: an \`enum\`, a
-\`namespace\` or a constructor parameter property raises
-\`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX\` at boot. \`pnpm run typecheck\` reports all three before
-that, and every type error in \`apps/\` beside them: \`backend/tsconfig.apps.json\` checks your
+An overlay module is compiled like the rest of the backend. \`pnpm run build\` runs
+\`endora build overlays\`, which compiles \`apps/\` with this instance's own
+\`tsc -p backend/tsconfig.apps.json\` into \`backend/dist/apps\` and copies each module's
+\`i18n/\` beside the code; \`pnpm run dev\` does the same on every change. The API, the worker
+and every \`module:*\` command run the compiled code and compare it with \`apps/\` first: an edit
+that was not rebuilt, a module that was never built or a compiled file whose source is gone stops
+them, naming both files — run \`pnpm run build\`. A module is a direct child of \`modules/\` (a
+second \`manifest.ts\` deeper down is refused: make it a sibling module with a dependency) and
+has no \`package.json\` or build configuration of its own. \`pnpm run typecheck\` checks your
 overlay code against the installed packages' declarations with \`erasableSyntaxOnly\` set, and
 \`pnpm run setup\` runs it before \`migrate\`. A union of string literals is the \`enum\` you want.
 
