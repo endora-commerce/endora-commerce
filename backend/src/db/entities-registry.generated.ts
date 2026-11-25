@@ -16,9 +16,10 @@
 // here, in path order. Detection is by that decorator, not by the
 // `.entity.ts` suffix, because nothing enforces the suffix — and the decorator
 // is deliberately not spelled out in this comment, so that a walk looking for
-// it does not find its own output. A per-deployment overlay contributes no
-// schema (D-106), so an entity under `src/apps/` is refused by the generator
-// rather than registered for a table nothing creates. A **module package** is
+// it does not find its own output. A per-deployment overlay module's entities
+// are not here either: they are read at runtime from the deployment root, so this
+// list is bare core under every value of `DEPLOYMENT` (D-104,
+// `specs/190-overlay-full-modules/` FR-038). A **module package** is
 // the opposite case and is here: its entities are named by a bare specifier
 // derived from that package's own `exports` map (D-149), and they arrive as
 // **one `entities` array** rather than as a class per name (D-168) — the same
