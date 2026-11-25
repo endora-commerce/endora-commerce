@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import en from '../../../i18n/en.json' with { type: 'json' };
 import pl from '../../../i18n/pl.json' with { type: 'json' };
-import coreEn from '../../../../_i18n/i18n/en.json' with { type: 'json' };
-import corePl from '../../../../_i18n/i18n/pl.json' with { type: 'json' };
 
 /**
  * `specs/192-quote-request-draft-share/` — the owner's 2026-11-25 naming
  * decisions (FR-009, FR-020), pinned to the shipped words in both languages.
- * The page tests resolve keys, so a reworded catalogue would pass them.
+ * The page tests resolve keys, so a reworded catalogue would pass them. The
+ * core bundle's half (the create screen's buttons) is pinned in
+ * `admin/test/modules/quote_requests/sharing-copy.core.test.ts`: a module
+ * package's test may not read another module's files.
  */
 const own = (locale: Record<string, string>) => locale;
 
@@ -51,11 +52,7 @@ describe('the unshared quote is named Not shared / Nieudostepniona, never Draft 
 });
 
 describe('the create screen buttons (FR-020)', () => {
-  it('keeps Create and share, and names the secondary Save without sharing', () => {
+  it('keeps Create and share', () => {
     expect(own(en)['create.share']).toBe('Create and share');
-    expect(coreEn['rfqCreate.submit']).toBe('Save without sharing');
-    expect(corePl['rfqCreate.submit']).toBe('Zapisz bez udostępniania');
-    expect(coreEn['rfqCreate.warnings.open']).toBe('Open quote');
-    expect(corePl['rfqCreate.warnings.open']).toBe('Otwórz ofertę');
   });
 });
