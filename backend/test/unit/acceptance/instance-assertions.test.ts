@@ -43,6 +43,7 @@ import {
   evaluateA7,
   evaluateA8,
   evaluateA9,
+  evaluateA18,
   evaluateA16,
   evaluateA17,
   type ActorScopeObservation,
@@ -1392,6 +1393,50 @@ describe('A8 — an overlay module is composed and its decoration is in the repo
     const result = evaluateA8(overlay({ entries: null, renderFailure: 'endora generate exited 1' }));
     expect(result.state).toBe('fail');
     expect(result.detail).toContain('endora generate exited 1');
+  });
+});
+
+/**
+ * `specs/190-overlay-full-modules/` T021 (FR-015, FR-003): a compiled overlay that no longer
+ * matches `apps/`, or one that breaks the layout, is refused before it runs, and a clean build
+ * composes. The probe is the instance's own `module:status` (and its API, for one case).
+ */
+describe('A18 — a stale or malformed overlay build is refused, a clean one composes', () => {
+  type Case = Parameters<typeof evaluateA18>[0]['cases'][number];
+  const refused = (kind: Case['kind']): Case => ({
+    kind,
+    probe: 'module:status',
+    code: 1,
+    output: `[overlay] … [${kind}] apps/x`,
+  });
+  const observation = (overrides: Partial<Parameters<typeof evaluateA18>[0]> = {}): Parameters<typeof evaluateA18>[0] => ({
+    cases: [refused('stale'), refused('unbuilt'), refused('orphan'), refused('package-in-disguise')],
+    clean: { code: 0, output: 'installed=29' },
+    ...overrides,
+  });
+
+  it('passes when every case is refused by name and the clean build composes', () => {
+    const result = evaluateA18(observation());
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('stale, unbuilt, orphan, package-in-disguise');
+  });
+
+  it('fails on a case that ran instead of being refused', () => {
+    const result = evaluateA18(observation({ cases: [{ kind: 'stale', probe: 'api', code: 0, output: 'listening' }] }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('stale');
+  });
+
+  it('fails on a refusal that does not name the case — another refusal is not this one', () => {
+    const result = evaluateA18(
+      observation({ cases: [{ kind: 'orphan', probe: 'module:status', code: 1, output: 'DATABASE_URL must be set' }] }),
+    );
+    expect(result.state).toBe('fail');
+  });
+
+  it('fails when the clean build does not compose, and is unmeasured when nothing was probed', () => {
+    expect(evaluateA18(observation({ clean: { code: 1, output: 'x' } })).state).toBe('fail');
+    expect(evaluateA18(observation({ failure: 'no overlay module to edit' })).state).toBe('unmeasured');
   });
 });
 
