@@ -273,5 +273,13 @@
   "list.sharing.all": "Szkice i udostępnione",
   "list.sharing.unshared": "Szkice (nieudostępnione)",
   "list.sharing.shared": "Udostępnione klientowi",
+  "create.share": "Utwórz i udostępnij",
+  "create.sharing": "Udostępnianie…",
+  "create.confirm.title": "Utworzyć ofertę i udostępnić ją klientowi?",
+  "share.confirm.validityDefault": "Jej ważność wynika z domyślnego ustawienia sklepu, liczona od teraz.",
+  "create.gate.prices": "Przed udostępnieniem każda pozycja musi mieć cenę. Zapisz jako szkic, by dokończyć później.",
+  "create.line.priceInvalid": "Podaj uzgodnioną cenę jednostkową równą 0 lub większą.",
+  "create.validity.hint": "Liczone od udostępnienia. Puste lub 0: bez terminu.",
+  "create.warnings.notShared": "Nic nie udostępniono: oferta jest zapisana jako szkic.",
   "module.description": "Proces zapytań ofertowych (RFQ) inicjowanych przez klienta, z wyceną przez administratora, akceptacjami i wygasaniem."
 }

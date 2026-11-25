@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
-import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, useAuth, withReturnTo } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -34,6 +34,7 @@ import {
   parsePositiveInt,
   productDisplayName,
   StickyFormActions,
+  useConfirmDialog,
   type ProductBrowserItem,
   type ProductBrowserRules,
 } from '@endora-commerce/admin-kit/components';
@@ -41,9 +42,15 @@ import { useTranslation, useTranslationContext } from '@endora-commerce/admin-ki
 import { createPricePrefillQueue, type PricePrefillQueue } from '../lib/price-prefill-queue';
 import { SectionSummary, sectionTotals, useQuoteLineGroupLabels, useSectionSummaryText } from '../line-groups.js';
 import { quoteNet } from '../quote-totals.js';
+import { parseValidityDays } from '../validity.js';
+import { shareRefusalOf, type ShareRefusal } from '../share-refusal.js';
+import { shareConfirmMessage, shareCustomerName } from '../share-confirm.js';
+import type { RfqDetailArrival } from './rfq-page-notice.js';
 import {
   lineAmountHalfUp,
+  QUOTE_VALIDITY_DAYS_MAX,
   unitPriceDisplayText,
+  type AdminQuoteRequestCreateDefaults,
   type AdminQuoteRequestWarning,
   type OrganizationSalesChannelOption,
   type OrganizationSalesChannelsResponse,
@@ -385,7 +392,14 @@ export function RfqCreatePage(): ReactNode {
     };
   }, [organizationId, channelsAttempt]);
   // After a create the answer warned about: the request exists, the operator reads the warning.
-  const [created, setCreated] = useState<{ id: string; warnings: AdminQuoteRequestWarning[] } | null>(null);
+  // `specs/192-quote-request-draft-share/` (FR-020, US2 #8) — after *Create and share*
+  // (`viaShare`) nothing was shared: the operator may open the draft or share it anyway.
+  const [created, setCreated] = useState<{
+    id: string;
+    version: number;
+    warnings: AdminQuoteRequestWarning[];
+    viaShare: boolean;
+  } | null>(null);
   const [lines, setLines] = useState<LineRow[]>([]);
   const [browserOpen, setBrowserOpen] = useState(false);
   // Feature 159 — the new quote's groups, and where the browser's products go:
@@ -397,8 +411,41 @@ export function RfqCreatePage(): ReactNode {
   const itemsId = useId();
   const [headerNote, setHeaderNote] = useState('');
   const [expiresInDays, setExpiresInDays] = useState('');
-  const [busy, setBusy] = useState(false);
+  /**
+   * `specs/192-quote-request-draft-share/` (FR-031) — the store's default days
+   * prefill the field until the operator touches it. A failed read leaves the
+   * field empty and the screen usable; an untouched empty field sends nothing,
+   * so the server applies the default itself.
+   */
+  const [validityTouched, setValidityTouched] = useState(false);
+  const [defaultDays, setDefaultDays] = useState<{ status: 'loading' | 'ready' | 'failed'; days: number | null }>({
+    status: 'loading',
+    days: null,
+  });
+  useEffect(() => {
+    let alive = true;
+    apiClient
+      .get<{ data: AdminQuoteRequestCreateDefaults }>('/api/v1/admin/quote-requests/create-defaults')
+      .then((res) => {
+        if (!alive) return;
+        const days = res?.data?.validityDays;
+        setDefaultDays({ status: 'ready', days: typeof days === 'number' && days > 0 ? days : null });
+      })
+      .catch(() => {
+        if (alive) setDefaultDays({ status: 'failed', days: null });
+      });
+    return (): void => {
+      alive = false;
+    };
+  }, []);
+  useEffect(() => {
+    // A late answer never overwrites what the operator typed.
+    if (defaultDays.status === 'ready' && !validityTouched) setExpiresInDays(defaultDays.days === null ? '' : String(defaultDays.days));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultDays]);
+  const [busy, setBusy] = useState<'save' | 'share' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   // ---- agreed-price prefill (FR-031…FR-033, research R-11)
   //
@@ -565,15 +612,19 @@ export function RfqCreatePage(): ReactNode {
     setBrowserOpen(true);
   };
 
-  // Every line is sent; a line with an invalid quantity or no price blocks
-  // submit rather than being dropped from the request (FR-034).
+  // Every line is sent; a line with an invalid quantity or a price that is not
+  // one blocks both actions rather than being dropped from the request
+  // (FR-034). `specs/192-quote-request-draft-share/` (FR-013) — a line with no
+  // price yet may be saved; only sharing needs every price (FR-026).
   const parsedLines = lines.map((row) => ({
     row,
     quantity: parsePositiveInt(row.quantityInput),
     price: parsePrice(row.agreedUnitPrice),
+    priceInvalid: row.agreedUnitPrice.trim() !== '' && parsePrice(row.agreedUnitPrice) === null,
   }));
   const parsedByKey = new Map(parsedLines.map((l) => [l.row.key, l]));
-  const allLinesComplete = parsedLines.every((l) => l.quantity !== null && l.price !== null);
+  const linesSavable = parsedLines.every((l) => l.quantity !== null && !l.priceInvalid);
+  const allPriced = parsedLines.every((l) => l.price !== null);
   const hasOrg = Boolean(customer?.organizationId);
   // Exact decimal arithmetic (issue #417).
   const total = quoteNet(
@@ -582,7 +633,23 @@ export function RfqCreatePage(): ReactNode {
   // Feature 159 — every group needs a name before the request can be created.
   const groupsNamed = groups.every((group) => group.name.trim() !== '');
   const channelChosen = !channelsLoading && !channelsFailed && channelOptions !== null && chosenChannelId !== '';
-  const canSubmit = hasOrg && lines.length > 0 && allLinesComplete && groupsNamed && channelChosen && !busy && !created;
+  const daysInput = parseValidityDays(expiresInDays);
+  const daysInvalid = daysInput.kind === 'invalid';
+  const canSave =
+    hasOrg && lines.length > 0 && linesSavable && groupsNamed && channelChosen && !daysInvalid && busy === null && !created;
+  const canShare = canSave && allPriced;
+  /**
+   * What the create sends as `expiresInDays`: the prefilled default while the
+   * field is untouched, absent when there is none to send (the server applies
+   * its default), `null` once the operator emptied it, else the typed days.
+   */
+  const daysPayload: number | null | undefined = !validityTouched
+    ? defaultDays.status === 'ready' && defaultDays.days !== null
+      ? defaultDays.days
+      : undefined
+    : daysInput.kind === 'days'
+      ? daysInput.days
+      : null;
   // In display order: each group's lines, then the ungrouped ones.
   const knownGroups = new Set(groups.map((group) => group.key));
   const orderedLines = [
@@ -599,25 +666,66 @@ export function RfqCreatePage(): ReactNode {
     }
   };
 
-  const submit = async (): Promise<void> => {
-    if (!customer?.organizationId || !allLinesComplete || !groupsNamed || !channelChosen || created) return;
-    setBusy(true);
+  /**
+   * `specs/192-quote-request-draft-share/` (FR-020, US2 #7) — the quote exists
+   * but its share was refused: the operator lands on it, a draft, with the
+   * refusal said there once. The opener's way back stays on its address.
+   */
+  const leaveRefused = (id: string, refusal: ShareRefusal): void => {
+    const target = `/quote-requests/${id}`;
+    const state: RfqDetailArrival = { shareRefusal: refusal };
+    navigate(openedWith.returnTo ? withReturnTo(target, openedWith.returnTo) : target, { state });
+  };
+
+  /** The question before a share — who is told, and the validity written. */
+  const confirmShare = (days: number | null | undefined): Promise<boolean> =>
+    confirm({
+      title: tGroups('create.confirm.title'),
+      message:
+        days === undefined
+          ? tGroups('share.confirm.message', {
+              customer: shareCustomerName(tGroups, customer),
+              validity: tGroups('share.confirm.validityDefault'),
+            })
+          : shareConfirmMessage(tGroups, {
+              customer: shareCustomerName(tGroups, customer),
+              days,
+              now: new Date(),
+              language,
+            }),
+      confirmLabel: tGroups('create.share'),
+    });
+
+  /** Shares a quote just created; lands on it either way. */
+  const shareCreated = async (id: string, version: number): Promise<void> => {
+    try {
+      await apiClient.post(`/api/v1/admin/quote-requests/${id}/share`, {}, { headers: { 'If-Match': `"${version}"` } });
+      leaveFor(id);
+    } catch (err) {
+      leaveRefused(id, shareRefusalOf(err) ?? { code: 'SHARE_FAILED', message: tGroups('share.error'), lines: [] });
+    }
+  };
+
+  const submit = async (mode: 'save' | 'share'): Promise<void> => {
+    if (!customer?.organizationId || !(mode === 'share' ? canShare : canSave)) return;
+    if (mode === 'share' && !(await confirmShare(daysPayload))) return;
+    setBusy(mode);
     setError(null);
     setCustomFieldErrors({});
     try {
-      const trimmedExpiry = expiresInDays.trim();
-      const res = await apiClient.post<{ data: { id: string }; warnings?: AdminQuoteRequestWarning[] }>('/api/v1/admin/quote-requests', {
+      const res = await apiClient.post<{ data: { id: string; version: number }; warnings?: AdminQuoteRequestWarning[] }>('/api/v1/admin/quote-requests', {
         organizationId: customer.organizationId,
         customerAccountId: customer.id,
         salesChannelId: chosenChannelId,
         ...(headerNote.trim() ? { headerNote: headerNote.trim() } : {}),
-        ...(trimmedExpiry !== '' ? { expiresInDays: Number(trimmedExpiry) } : {}),
+        ...(daysPayload !== undefined ? { expiresInDays: daysPayload } : {}),
         // Sent only when there is a group: a request without one is unchanged.
         ...(groups.length > 0 ? { groups: groups.map((group) => ({ key: group.key, name: group.name.trim() })) } : {}),
         items: orderedLines.map((l) => ({
           productId: l.row.productId,
           quantity: l.quantity ?? 0,
-          agreedUnitPrice: l.price ?? 0,
+          // No price yet: the key is left out, never sent as 0 (FR-013).
+          ...(l.price !== null ? { agreedUnitPrice: l.price } : {}),
           ...(groups.length > 0
             ? { groupKey: l.row.groupKey !== null && knownGroups.has(l.row.groupKey) ? l.row.groupKey : null }
             : {}),
@@ -625,18 +733,35 @@ export function RfqCreatePage(): ReactNode {
         ...(openedWith.origin ? { origin: openedWith.origin } : {}),
         ...(canSeeCustomFields && Object.keys(customFieldValues).length > 0 ? { customFieldValues } : {}),
       });
+      const createdQuote = { id: res.data.id, version: res.data.version };
       // Feature 163 (FR-018) — accepted, but some lines are not available to
-      // the customer on the chosen channel: named here before the operator leaves.
+      // the customer on the chosen channel: named here before the operator
+      // leaves. `specs/192` (OQ-7) — and nothing is shared on the operator's behalf.
       if (res.warnings && res.warnings.length > 0) {
-        setCreated({ id: res.data.id, warnings: res.warnings });
+        setCreated({ ...createdQuote, warnings: res.warnings, viaShare: mode === 'share' });
+      } else if (mode === 'share') {
+        await shareCreated(createdQuote.id, createdQuote.version);
       } else {
-        leaveFor(res.data.id);
+        leaveFor(createdQuote.id);
       }
     } catch (err) {
+      // Only the create can land here: a refused share leaves for the quote.
       setCustomFieldErrors(customFieldErrorsOf(err) ?? {});
       setError(err instanceof ApiError ? err.envelope.error.message : t('rfqCreate.error'));
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  };
+
+  /** *Share with customer* after a create that warned (US2 #8). */
+  const shareAfterWarnings = async (): Promise<void> => {
+    if (!created || busy !== null) return;
+    if (!(await confirmShare(daysPayload))) return;
+    setBusy('share');
+    try {
+      await shareCreated(created.id, created.version);
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -773,7 +898,7 @@ export function RfqCreatePage(): ReactNode {
               }
               groups={groups}
               lines={lines}
-              disabled={busy}
+              disabled={busy !== null}
               labels={groupLabels}
               createGroupKey={(): string => `group-${(groupCounter.current += 1)}`}
               getLineLabel={(row): string => row.name}
@@ -812,10 +937,12 @@ export function RfqCreatePage(): ReactNode {
                 ) : null
               }
               renderLine={(row, slots): ReactNode => {
-                  const { quantity, price } = parsedByKey.get(row.key)!;
+                  const { quantity, price, priceInvalid } = parsedByKey.get(row.key)!;
                   const rowId = `${itemsId}-${row.key}`;
                   const isResolving = resolving.has(row.key);
-                  const priceMissing = price === null && !isResolving;
+                  // No price yet is allowed on a draft (FR-013): said, not flagged as an error.
+                  const priceMissing = price === null && !priceInvalid && !isResolving;
+                  const priceNoteShown = priceMissing || priceInvalid;
                   return (
                     <>
                       <TableCell>
@@ -848,16 +975,20 @@ export function RfqCreatePage(): ReactNode {
                           min={0}
                           step="0.0001"
                           aria-labelledby={`${itemsId}-price ${rowId}-name`}
-                          aria-invalid={priceMissing || undefined}
-                          aria-describedby={priceMissing ? `${rowId}-price-reason` : undefined}
+                          aria-invalid={priceInvalid || undefined}
+                          aria-describedby={priceNoteShown ? `${rowId}-price-reason` : undefined}
                           aria-busy={isResolving || undefined}
                           value={row.agreedUnitPrice}
                           onChange={(e): void => setPrice(row.key, e.target.value)}
                         />
                         {isResolving ? (
                           <p className="mt-1 text-xs text-muted-foreground">{t('rfqCreate.loading')}</p>
-                        ) : priceMissing ? (
+                        ) : priceInvalid ? (
                           <p id={`${rowId}-price-reason`} className="mt-1 text-xs text-destructive">
+                            {tGroups('create.line.priceInvalid')}
+                          </p>
+                        ) : priceMissing ? (
+                          <p id={`${rowId}-price-reason`} className="mt-1 text-xs text-muted-foreground">
                             {t('rfqCreate.line.priceMissing')}
                           </p>
                         ) : null}
@@ -905,16 +1036,35 @@ export function RfqCreatePage(): ReactNode {
               onChange={(e): void => setHeaderNote(e.target.value)}
             />
           </div>
-          <div className="w-40 space-y-1">
-            <Label htmlFor="expiresInDays">{t('rfqCreate.field.expiresInDays')}</Label>
+          {/* `specs/192-quote-request-draft-share/` (FR-031) — the days count from
+              sharing, so the store's default can be shown here without committing
+              the customer to a date. */}
+          <div className="space-y-1">
+            <Label htmlFor="expiresInDays">{tGroups('validity.unshared.field')}</Label>
             <Input
               id="expiresInDays"
+              className="w-40 tabular-nums"
               type="number"
               min={0}
+              max={QUOTE_VALIDITY_DAYS_MAX}
+              step={1}
+              inputMode="numeric"
               value={expiresInDays}
               placeholder={t('rfqCreate.placeholder.expiresInDays')}
-              onChange={(e): void => setExpiresInDays(e.target.value)}
+              aria-invalid={daysInvalid || undefined}
+              aria-describedby="expiresInDays-help"
+              aria-busy={(defaultDays.status === 'loading' && !validityTouched) || undefined}
+              onChange={(e): void => {
+                setValidityTouched(true);
+                setExpiresInDays(e.target.value);
+              }}
             />
+            <p
+              id="expiresInDays-help"
+              className={daysInvalid ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}
+            >
+              {daysInvalid ? t('rfq.detail.validity.error.days') : tGroups('create.validity.hint')}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -937,6 +1087,7 @@ export function RfqCreatePage(): ReactNode {
           <AlertTitle>{t('rfqCreate.warnings.title')}</AlertTitle>
           <AlertDescription>
             <p>{t('rfqCreate.warnings.description')}</p>
+            {created.viaShare ? <p className="mt-1 font-medium">{tGroups('create.warnings.notShared')}</p> : null}
             <ul className="mt-2 list-disc pl-5">
               {created.warnings.map((warning) => (
                 <li key={warning.productId}>
@@ -951,24 +1102,66 @@ export function RfqCreatePage(): ReactNode {
       {/* Issue #1449 (DS-19) — the one action stays in view over a long list of lines; a refused
           create is said beside it, and so is why it is disabled (the order create screen's gate
           hint), as the note that describes it. */}
+      {/* Issue #1449 (DS-19) — the actions stay in view over a long list of lines; a refused
+          create is said beside them, and so is why *Create and share* is disabled, as the note
+          that describes it. `specs/192-quote-request-draft-share/` — *Save as draft* is the
+          outlined secondary, *Create and share* the one filled primary (Von Restorff); sharing
+          tells the customer, so it is asked first. */}
       <StickyFormActions
         desktop="sticky"
         error={error}
         note={
-          !channelChosen && !created && (channelOptions?.length ?? 0) > 0
-            ? t('rfqCreate.gate.missingChannel')
-            : null
+          created
+            ? null
+            : !channelChosen && (channelOptions?.length ?? 0) > 0
+              ? t('rfqCreate.gate.missingChannel')
+              : canSave && !allPriced
+                ? tGroups('create.gate.prices')
+                : null
+        }
+        secondary={
+          created ? (
+            created.viaShare ? (
+              <Button variant="outline" disabled={busy !== null} onClick={(): void => leaveFor(created.id)}>
+                {t('rfqCreate.warnings.open')}
+              </Button>
+            ) : null
+          ) : (
+            <Button
+              variant="outline"
+              disabled={!canSave}
+              aria-busy={busy === 'save' || undefined}
+              onClick={(): void => void submit('save')}
+            >
+              {busy === 'save' ? t('rfqCreate.submitting') : t('rfqCreate.submit')}
+            </Button>
+          )
         }
         primary={
           created ? (
-            <Button onClick={(): void => leaveFor(created.id)}>{t('rfqCreate.warnings.open')}</Button>
+            created.viaShare ? (
+              <Button
+                disabled={busy !== null}
+                aria-busy={busy === 'share' || undefined}
+                onClick={(): void => void shareAfterWarnings()}
+              >
+                {busy === 'share' ? tGroups('create.sharing') : tGroups('share.action')}
+              </Button>
+            ) : (
+              <Button onClick={(): void => leaveFor(created.id)}>{t('rfqCreate.warnings.open')}</Button>
+            )
           ) : (
-            <Button disabled={!canSubmit} aria-busy={busy || undefined} onClick={(): void => void submit()}>
-              {busy ? t('rfqCreate.submitting') : t('rfqCreate.submit')}
+            <Button
+              disabled={!canShare}
+              aria-busy={busy === 'share' || undefined}
+              onClick={(): void => void submit('share')}
+            >
+              {busy === 'share' ? tGroups('create.sharing') : tGroups('create.share')}
             </Button>
           )
         }
       />
+      {confirmDialog}
     </div>
   );
 }

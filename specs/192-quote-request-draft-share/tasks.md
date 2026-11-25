@@ -360,25 +360,25 @@ New screen strings go in `QR/i18n/{en,pl}.json` read through `useTranslation('qu
 
 ## Phase 6 — Admin UI: create screen (US2, US3)
 
-- [ ] T041 [P] [US3] Failing tests `admin/test/modules/quote_requests/RfqCreatePage.share.test.tsx`
+- [x] T041 [P] [US3] Failing tests `admin/test/modules/quote_requests/RfqCreatePage.share.test.tsx`
   (new): validity prefilled from `GET /api/v1/admin/quote-requests/create-defaults`
   (`data.validityDays`, positive or `null`; `null` → empty) with "counted from
   sharing"; clearing sends `expiresInDays: null`; untouched sends the prefilled number; a failed
   defaults request leaves the field empty and the screen usable.
-- [ ] T042 [P] [US2] Same file: **Save as draft** lands on the draft; **Create and share**
+- [x] T042 [P] [US2] Same file: **Save as draft** lands on the draft; **Create and share**
   creates, then shares with `If-Match` = the returned `version`, and lands on the shared quote;
   share refused → lands on the draft with the refusal shown (FR-020, US2 #7); create `warnings`
   → **no share request is sent**, the quote stays a draft and the warnings are shown with
   **Open draft** and **Share with customer** (US2 #8); a line with an empty price → **Save as
   draft** sends it without `agreedUnitPrice` (FR-013), **Create and share** is disabled with a hint;
   an empty quantity still blocks both; both actions disabled while busy.
-- [ ] T043 [US2][US3] `QR/src/admin/pages/RfqCreatePage.tsx`: defaults fetch, prefill and hint,
+- [x] T043 [US2][US3] `QR/src/admin/pages/RfqCreatePage.tsx`: defaults fetch, prefill and hint,
   two actions, the create → share sequence (skipped when the create answers `warnings`), the
   price no longer required per line for **Save as draft** (`allLinesComplete` split into
   quantities-complete and prices-complete), refusal carried to `RfqDetail.tsx` through
   navigation state (`rfq-page-notice.ts`); `openedWith.returnTo` (CRM opener) kept for
   both actions after they succeed.
-- [ ] T044 [P] Regression: `admin/test/modules/quote_requests/RfqCreatePage.{origin,groups,sales-channel,product-browser,catalog-permission}.test.tsx`
+- [x] T044 [P] Regression: `admin/test/modules/quote_requests/RfqCreatePage.{origin,groups,sales-channel,product-browser,catalog-permission}.test.tsx`
   stay green.
 
 **Verification**: `pnpm --filter admin run typecheck`;

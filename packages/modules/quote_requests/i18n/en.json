@@ -271,5 +271,13 @@
   "list.sharing.all": "Drafts and shared",
   "list.sharing.unshared": "Drafts (not shared)",
   "list.sharing.shared": "Shared with customer",
+  "create.share": "Create and share",
+  "create.sharing": "Sharing…",
+  "create.confirm.title": "Create this quote and share it with the customer?",
+  "share.confirm.validityDefault": "Its validity follows the store's default, counted from now.",
+  "create.gate.prices": "Every line needs a price before sharing. Save as draft to finish it later.",
+  "create.line.priceInvalid": "Enter an agreed unit price of 0 or more.",
+  "create.validity.hint": "Counted from sharing. Empty or 0: no deadline.",
+  "create.warnings.notShared": "Nothing was shared: the quote is saved as a draft.",
   "module.description": "Customer-initiated RFQ workflow with admin pricing, approvals, and expiry."
 }
