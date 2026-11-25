@@ -1071,7 +1071,9 @@ export function planInstance(input: PlanInput): InstancePlan {
       scripts: rootScripts,
       dependencies: Object.fromEntries([...dependencies].sort(([a], [b]) => a.localeCompare(b))),
       devDependencies: Object.fromEntries(
-        devDependenciesFor(input, generatesArtefacts),
+        // The CLI is declared whatever there is to generate: the backend member's
+        // `build` runs `endora build overlays` (#1848).
+        devDependenciesFor(input, true),
       ),
     }),
   });

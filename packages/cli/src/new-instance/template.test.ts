@@ -255,6 +255,14 @@ describe('T018 — compiled entry points and the overlay build', () => {
     );
   });
 
+  it('declares the CLI even with nothing to generate, because build runs it', () => {
+    const bare = planInstance(planInput({ modules: [], docsRanges: new Map() }));
+    const root = JSON.parse(bare.files.find((file) => file.path === 'package.json')!.content) as {
+      devDependencies: Record<string, string>;
+    };
+    expect(root.devDependencies[`${SCOPE}cli`]).toBeDefined();
+  });
+
   it('the overlay project emits now (noEmit is the build flag, not the file)', () => {
     const config = JSON.parse(content(APPS_CONFIG)) as { compilerOptions: Record<string, unknown> };
     expect(config.compilerOptions['outDir']).toBe('dist/apps');

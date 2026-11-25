@@ -56,6 +56,7 @@ Usage:
   endora dev [--storefront-dir <path>] [--no-storefront]
   endora build overlays [--watch]
   endora upgrade [<version>] [--storefront-dir <path>] [--no-storefront] [--dry-run]
+  endora upgrade --finish [--dry-run]
   endora --help
 
 \`endora new module\` writes a module package that is composed by the platform,
@@ -277,6 +278,11 @@ Options for \`upgrade\`:
   --dry-run                     report every range it would move, every lockfile
                                 entry it would drop and every command; write nothing
                                 and run nothing
+  --finish                      the second half, which \`upgrade\` hands to the CLI its
+                                install put in place: bring the wiring files (entry
+                                points, \`backend/tsconfig.apps.json\`, the build scripts)
+                                to this release's rendering — a file you edited is
+                                reported, not overwritten — then run \`setup\`
 
 \`endora generate\` renders the two files an instance's admin project is built
 from and commits neither: the contribution registry of the module packages this
@@ -442,6 +448,7 @@ function parse(argv: readonly string[], declaredInputFlags: readonly string[] = 
       'non-interactive': { type: 'boolean' },
       'dry-run': { type: 'boolean' },
       watch: { type: 'boolean' },
+      finish: { type: 'boolean' },
       // `endora install` (feature 125). `--no-*` is a flag of its own rather
       // than a negation `parseArgs` understands: the library has no negation,
       // and a default that is `true` needs a name to be turned off by.
@@ -1025,7 +1032,30 @@ async function runUpgradeCommand(
   rest: readonly string[],
   cwd: string,
 ): Promise<number> {
-  const { runUpgrade, UpgradeHostError, UpgradeInputError } = await import('../upgrade/index.js');
+  const { runUpgrade, runUpgradeFinish, UpgradeHostError, UpgradeInputError } = await import(
+    '../upgrade/index.js'
+  );
+  // The second half of an upgrade, run by the CLI the first half installed (#1848).
+  if (asFlag(parsed.values['finish'])) {
+    if (rest.length > 0) {
+      process.stderr.write('endora: `upgrade --finish` takes no version: it finishes the one installed.\n');
+      return 1;
+    }
+    try {
+      const finished = await runUpgradeFinish({
+        cwd,
+        dryRun: asFlag(parsed.values['dry-run']),
+        echo: (line: string) => void process.stdout.write(`${line}\n`),
+      });
+      return finished.exitCode;
+    } catch (error: unknown) {
+      if (error instanceof UpgradeHostError) {
+        process.stderr.write(`endora: ${error.message}\n`);
+        return 2;
+      }
+      throw error;
+    }
+  }
   if (rest.length > 1) {
     process.stderr.write(
       `endora: \`upgrade\` takes one version at most; got ${rest.join(', ')}.\n`,
