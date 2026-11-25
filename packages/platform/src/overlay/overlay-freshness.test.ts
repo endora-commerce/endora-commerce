@@ -166,6 +166,23 @@ describe('overlay resolution runs the guard before anything is imported (T017)',
     expect(() => modules.ids()).toThrow(OverlayBuildError);
   });
 
+  it('refuses a broken layout in the sources, which the compiled tree does not carry', async () => {
+    // Measured by acceptance:instance A18 on #1848: `tsc` emits no `package.json`, so a
+    // layout check over the compiled tree alone let a package in disguise through.
+    const { overlayModulesFor } = await import('./overlay-runtime.js');
+    const { OverlayLayoutError } = await import('./overlay-layout.js');
+    const { source, compiled } = roots();
+    write(source, 'apps/acme/modules/a/manifest.ts', OLD);
+    write(source, 'apps/acme/modules/a/package.json', OLD, '{}');
+    write(compiled, 'apps/acme/modules/a/manifest.js', NEW);
+    const modules = overlayModulesFor(
+      { deploymentRoot: compiled, deploymentSourceRoot: source },
+      { DEPLOYMENT: 'acme' },
+      () => [],
+    );
+    expect(() => modules.ids()).toThrow(OverlayLayoutError);
+  });
+
   it('resolves a fresh build as overlayModulesUnder does', async () => {
     const { overlayModulesFor } = await import('./overlay-runtime.js');
     const { source, compiled } = roots();

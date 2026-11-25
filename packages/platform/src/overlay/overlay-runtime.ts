@@ -45,7 +45,7 @@ import { assertOverlayModulesShipNoSchema } from './overlay-schema.js';
 import { assertOverlayLayout } from './overlay-layout.js';
 import { assertOverlayBuildFresh, type OverlayRoots } from './overlay-freshness.js';
 import { listOverlayModuleDirs } from './resolve-overlay.js';
-import { activeOverlayModulesRoot, selectedDeployment } from './deployment-roots.js';
+import { activeOverlayModulesRoot, overlayModulesRootFor, selectedDeployment } from './deployment-roots.js';
 
 /**
  * The two spellings one unit has: `<stem>.js` in a compiled tree, `<stem>.ts`
@@ -430,6 +430,14 @@ export function overlayModulesFor(
       rebuild: options.rebuild ?? 'pnpm run build',
       ...(options.info === undefined ? {} : { info: options.info }),
     });
+    // The layout is the sources' (FR-002 – FR-003): `tsc` emits no `package.json` and no
+    // build configuration, so a check over the compiled tree alone would let a package in
+    // disguise through — measured by acceptance:instance A18.
+    const source = roots.deploymentSourceRoot;
+    if (source !== undefined && source !== roots.deploymentRoot) {
+      const sourceModules = overlayModulesRootFor(source, deployment);
+      assertOverlayLayout(sourceModules, listOverlayModuleDirs(sourceModules));
+    }
     judged = true;
   };
   return {
