@@ -87,7 +87,7 @@ operatorów utworzone przed wprowadzeniem tego zachowania pozostają widoczne dl
 oznacza wszystkie istniejące oferty jako udostępnione.
 
 Panel administracyjny oznacza nieudostępnioną ofertę plakietką **Nieudostępniona** na jej ekranie
-i na liście, a jej ekran mówi pod nagłówkiem, że widzi ją tylko Wasz zespół i klient nie dostaje
+i na liście, a jej ekran mówi pod nagłówkiem, że widzi ją tylko Twój zespół i klient nie dostaje
 powiadomienia, dopóki nie zostanie udostępniona. Filtr **Udostępnienie** na liście (w API `sharing=unshared` lub `shared`) zawęża ją do ofert
 nieudostępnionych albo udostępnionych.
 
