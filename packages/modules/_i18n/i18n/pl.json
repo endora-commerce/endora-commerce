@@ -2873,6 +2873,7 @@
   "errors.RECORD_MERGE_ALREADY_RUNNING": "Jeden z tych rekordów bierze już udział w innym scalaniu. Poczekaj, aż się zakończy, albo wznów je, jeśli wymaga uwagi.",
   "errors.RECORD_MERGE_PARTICIPATION_INCOMPLETE": "Tego scalania nie można jeszcze rozpocząć: niektóre obszary platformy nie potrafią przenieść swoich rekordów do rekordu, który zostaje ({modules}).",
   "errors.RECORD_MERGE_PARTICIPANT_CONFLICT": "Nie można rozpocząć scalania: {module} zgłasza konflikt, którego nie potrafi rozwiązać.",
+  "errors.RECORD_MERGE_BUSY": "Nie można jeszcze rozpocząć scalania: {module} ma w toku sprawy duplikatu (na przykład składane zamówienie lub płatność oczekującą na operatora płatności). Spróbuj ponownie, gdy się zakończą.",
   "errors.RECORD_MERGE_IN_PROGRESS": "Ten rekord jest właśnie scalany i nie można go zmieniać do zakończenia scalania.",
   "errors.RECORD_MERGE_NOT_CANCELLABLE": "Rekordy zaczęły już być przenoszone, więc tego scalania nie można anulować. Zamiast tego je wznów.",
   "errors.RECORD_MERGE_NOT_RESUMABLE": "Wznowić można tylko scalanie, które wymaga uwagi.",

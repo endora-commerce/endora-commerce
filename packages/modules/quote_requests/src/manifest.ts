@@ -759,6 +759,33 @@ export const manifest = defineModuleManifest({
       weight: 310,
     },
   ],
+  /**
+   * `specs/192-organization-merge/` T060 (`contracts/participant-dispositions.md`
+   * §A) — what this module's rows naming an Organization do when it is merged
+   * away, through `quote_request.merge_reassign`: the negotiation policy is the
+   * survivor's, filled from the loser's only when the survivor has none
+   * (`configuration` phase); quote requests and their notification rows follow
+   * the survivor (`records` phase).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'organization-policy',
+        phase: 'configuration',
+        references: [{ entity: 'QuoteRequestOrgPolicy', property: 'organizationId', disposition: 'survivor_wins_fill_gaps' }],
+      },
+      {
+        host: 'organization',
+        key: 'organization-records',
+        phase: 'records',
+        references: [
+          { entity: 'QuoteRequest', property: 'organizationId', disposition: 're_point' },
+          { entity: 'QuoteRequestNotification', property: 'organizationId', disposition: 're_point' },
+        ],
+      },
+    ],
+  },
 });
 
 /** Legacy export retained for backward compatibility. */

@@ -177,3 +177,26 @@ own depletion pre-check removed (R-5). Both keep `assertAuthorized`. Routes and 
   (actor `system`, `source: 'integration'` in the audit entry and the event), the next
   authenticated request resolves the branch (SC-004);
 - event: exactly one `customer_account.organization_changed.v1` per commit, none per rollback.
+
+## 8. Amendment: mode `merge` (`specs/192-organization-merge/`, issue #1907)
+
+`specs/192-organization-merge/contracts/membership-merge-mode.md` adds a third mode, `merge`, used
+by an Organization merge to move the loser's members. It is additive: `move` and
+`detach_to_personal` behave as above. **A hook module that switches on `mode` treats a value it does
+not know as `move`.**
+
+**Landed ahead of WP-1.** #1907 needed the move before #1831, so it published part of this
+contract in `customer_accounts`, built so that WP-1 widens it rather than replaces it:
+
+- types in `packages/contracts/src/customer-accounts.membership.ts` (not `customer-accounts.ts`), and
+  the hookable action and event there too (not in a `customer-account-hooks.ts`);
+- `MembershipPort` with `changeOrganization` and `changeCommand` only — **`detachToPersonal` is
+  WP-1's**, as are the `detach_to_personal` branch of the Command, the §5 deprecations and §6;
+- the Command `customer_account.organization.change`
+  (`customer_accounts/src/backend/commands/customer-account-change-organization.command.ts`) in the
+  modes `move` (steps 1 – 8 above, the role default and the company last-administrator refusal) and
+  `merge`; declared hookable in the manifest; event `customer_account.organization_changed.v1`;
+- `MembershipChangeInput.merge` (`{ mergeId, fromOrganizationId }`) selects the mode `merge`; the
+  hook data and the event carry `mergeId` (`null` outside a merge); `MEMBERSHIP_CHANGE_SOURCES`
+  gains `recordMerge: 'record_merge'`.
+

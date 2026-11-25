@@ -27,18 +27,4 @@ export interface MergeParticipationPendingEntry {
  * (`contracts/participant-dispositions.md` §A), not before.
  */
 export const MERGE_PARTICIPATION_PENDING: readonly MergeParticipationPendingEntry[] = [
-  { moduleId: 'catalog', entity: 'Product', property: 'allowedOrganizationIds', removedBy: 'T064' },
-  { moduleId: 'catalog', entity: 'ProductChannelScope', property: 'allowedOrganizationIds', removedBy: 'T064' },
-  { moduleId: 'crm', entity: 'CrmOpportunity', property: 'organizationId', removedBy: 'T062' },
-  { moduleId: 'customer_accounts', entity: 'CustomerAccount', property: 'organizationId', removedBy: 'T070' },
-  { moduleId: 'orders', entity: 'Order', property: 'organizationId', removedBy: 'T058' },
-  { moduleId: 'orders', entity: 'Order', property: 'payerOrganizationId', removedBy: 'T058' },
-  { moduleId: 'orders', entity: 'OrderExternalReference', property: 'organizationId', removedBy: 'T058' },
-  { moduleId: 'orders', entity: 'OrderPlacementIntent', property: 'organizationId', removedBy: 'T058' },
-  { moduleId: 'orders', entity: 'OrderTransitionEffect', property: 'organizationId', removedBy: 'T058' },
-  { moduleId: 'projects', entity: 'ProjectLink', property: 'organizationId', removedBy: 'T066' },
-  { moduleId: 'projects', entity: 'ProjectOrganization', property: 'organizationId', removedBy: 'T066' },
-  { moduleId: 'quote_requests', entity: 'QuoteRequest', property: 'organizationId', removedBy: 'T060' },
-  { moduleId: 'quote_requests', entity: 'QuoteRequestNotification', property: 'organizationId', removedBy: 'T060' },
-  { moduleId: 'quote_requests', entity: 'QuoteRequestOrgPolicy', property: 'organizationId', removedBy: 'T060' },
 ];

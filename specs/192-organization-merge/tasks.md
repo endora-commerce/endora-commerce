@@ -146,23 +146,23 @@ whose rows sit in two phases declare two participations: `credit_limits` (`credi
 
 Each step is built **now**. The port method that publishes the same Command waits for its port.
 
-- [ ] T058 [P] `orders` step: failing conformance test plus a refusal test (`RECORD_MERGE_BUSY` on an unsettled placement intent or a pending payment), then `order.merge_reassign` (`organizationId`, `payerOrganizationId`, external references, transition effects, settled intents) and the declaration (D1)
+- [x] T058 [P] `orders` step: failing conformance test plus a refusal test (`RECORD_MERGE_BUSY` on an unsettled placement intent or a pending payment), then `order.merge_reassign` (`organizationId`, `payerOrganizationId`, external references, transition effects, settled intents) and the declaration (D1)
 - [ ] T059 ⛔ #1823: `orderCommandPort.reassignOrganization` and its parity test against the participant (D1)
-- [ ] T060 [P] `quote_requests` step: conformance, `quote_request.merge_reassign`, org policy S+f (D2)
+- [x] T060 [P] `quote_requests` step: conformance, `quote_request.merge_reassign`, org policy S+f (D2)
 - [ ] T061 ⛔ #1824 (PR #1914, in review): `quoteRequestCommandPort.reassignOrganization` plus the parity test (D2)
-- [ ] T062 [P] `crm` step: opportunities R (D3)
+- [x] T062 [P] `crm` step: opportunities R (D3)
 - [ ] T063 ⛔ #1827: `opportunityCommandPort.reassignOrganization` plus the parity test (D3)
-- [ ] T064 [P] `catalog` step: allow-lists of products and channel scopes, loser → survivor, U, reindex products (D4)
+- [x] T064 [P] `catalog` step: allow-lists of products and channel scopes, loser → survivor, U, reindex products (D4)
 - [ ] T065 ⛔ #1825: `productCommandPort.replaceAllowedOrganization` plus the parity test (D4)
-- [ ] T066 [P] `projects` (as Organization holder) step: `project_organizations` U, then `project_links.organization_id` R (D5)
+- [x] T066 [P] `projects` (as Organization holder) step: `project_organizations` U, then `project_links.organization_id` R (D5)
 - [ ] T067 ⛔ #1828: `projectCommandPort.replaceOrganization` plus the parity test (D5)
 
 ## Phase 6: Members, MR-E
 
-- [ ] T068 ⛔ #1831: Failing tests for the `membershipPort` mode `merge` (`contracts/membership-merge-mode.md` §4) in `packages/modules/customer_accounts/src/backend/commands/customer-account-change-organization.merge.test.ts`
-- [ ] T069 ⛔ #1831: Implement the mode (types in `packages/contracts/src/customer-accounts.membership.ts`, Command branch, scope check, event `mode: 'merge'`). Amend `specs/191-membership-join-requests/contracts/membership-port.md` with a pointer to this amendment
-- [ ] T070 ⛔ #1831: `customer_accounts` participant (members phase, batch of 50 accounts, role from `host_context.roleMap`), conformance test, declaration, ledger entry removed
-- [ ] T071 If #1832 (191 WP-2) is on `master`: `organizations` declares `OrganizationJoinRequest` target and placement references (R, pending only), with a test. Otherwise add it to the pending ledger in the #1832 MR
+- [x] T068 (#1907, ahead of #1831: `membership-merge-mode.md` §5) Failing tests for the `membershipPort` mode `merge` (`contracts/membership-merge-mode.md` §4) in `packages/modules/customer_accounts/src/backend/commands/customer-account-change-organization.merge.test.ts`
+- [x] T069 (#1907, ahead of #1831; the port is published in part, 191 `membership-port.md` §8) Implement the mode (types in `packages/contracts/src/customer-accounts.membership.ts`, Command branch, scope check, event `mode: 'merge'`). Amend `specs/191-membership-join-requests/contracts/membership-port.md` with a pointer to this amendment
+- [x] T070 (#1907, ahead of #1831) `customer_accounts` participant (members phase, batch of 50 accounts, role from `host_context.roleMap`), conformance test, declaration, ledger entry removed
+- [ ] T071 (#1907: #1832 is not on `master` — no `OrganizationJoinRequest` entity, so nothing to declare or ledger yet) If #1832 (191 WP-2) is on `master`: `organizations` declares `OrganizationJoinRequest` target and placement references (R, pending only), with a test. Otherwise add it to the pending ledger in the #1832 MR
 - [ ] T072 [US1] Integration `backend/test/integration/organizations/organization-merge.e2e.test.ts`: seed every participant, merge, SC-001 zero-reference query over the derived columns, SC-003 fault injection plus resume, SC-004 merge id on every entry, and US4 deferred catch-up with `crm` switched off and then on
 - [ ] T073 Assert that the pending ledger's Organization section is empty (the check fails otherwise). Start is now enabled on a full stack
 

@@ -532,4 +532,19 @@ export const manifest = defineModuleManifest({
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   demo,
+  /**
+   * `specs/192-organization-merge/` T062 (`contracts/participant-dispositions.md`
+   * §A) — the loser's Opportunities follow the survivor of an Organization
+   * merge, in the `records` phase, through `crm.opportunity.merge_reassign`.
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'organization-opportunities',
+        phase: 'records',
+        references: [{ entity: 'CrmOpportunity', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

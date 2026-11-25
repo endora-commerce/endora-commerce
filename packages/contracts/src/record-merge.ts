@@ -109,10 +109,7 @@ export type RecordMergeChoice = (typeof RECORD_MERGE_CHOICES)[number];
 export const MERGE_CONFLICT_UNRESOLVABLE = 'unresolvable';
 
 /**
- * The platform's merge error codes (data-model §6). `RECORD_MERGE_BUSY` (an
- * in-flight placement or payment, R-20) is not here yet: it arrives with the
- * `orders` participant that raises it (tasks T058), because a code nothing
- * raises is refused by `check:error-translations`. A host's own codes
+ * The platform's merge error codes (data-model §6). A host's own codes
  * (`ORGANIZATION_MERGE_*`) are its contract's. Reach failures answer the
  * platform's `404 NOT_FOUND`, indistinguishable from absence.
  */
@@ -127,6 +124,13 @@ export const RECORD_MERGE_ERROR_CODES = {
   PARTICIPATION_INCOMPLETE: 'RECORD_MERGE_PARTICIPATION_INCOMPLETE',
   /** 409 — a participant reports a conflict it cannot resolve; `details.module`, `details.conflict`. */
   PARTICIPANT_CONFLICT: 'RECORD_MERGE_PARTICIPANT_CONFLICT',
+  /**
+   * 409, retryable — a participant has business in flight for the loser that
+   * cannot move mid-way (R-20): today the `orders` participant, for an
+   * unsettled placement intent or a pending gateway payment; `details.module`,
+   * `details.reason`.
+   */
+  BUSY: 'RECORD_MERGE_BUSY',
   /** 409 — a write names a record a running merge has frozen. */
   IN_PROGRESS: 'RECORD_MERGE_IN_PROGRESS',
   /** 409 — a participant step has committed, so the merge can no longer be cancelled. */

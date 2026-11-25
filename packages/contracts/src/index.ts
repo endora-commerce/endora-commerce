@@ -306,6 +306,7 @@ export * from './organization-registry-lookup.js';
 // contracts file of their own.
 export * from './auth.js';
 export * from './customer-accounts.js';
+export * from './customer-accounts.membership.js';
 export * from './email.js';
 export * from './languages.js';
 export * from './currencies.js';

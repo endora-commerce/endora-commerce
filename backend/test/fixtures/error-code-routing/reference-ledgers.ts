@@ -307,6 +307,12 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted by `specs/192-organization-merge/` (data-model §6) for a start a participant reports an unresolvable conflict for (409). The raiser is the ' +
       'platform record-merge mechanism, shared by every host type.',
   },
+  RECORD_MERGE_BUSY: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a start while a participant has business in flight for the loser (409, retryable; the `orders` participant today). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
   RECORD_MERGE_IN_PROGRESS: {
     to: '_i18n',
     reason:
@@ -3550,6 +3556,12 @@ export const PLATFORM_OWNED_ERROR_CODES: PlatformOwnedErrorCodes = {
     tier: 'T3',
     reason:
       'A record-merge refusal: a start a participant reports an unresolvable conflict for (409). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  RECORD_MERGE_BUSY: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a start while a participant has business in flight for the loser — an unsettled placement intent or a pending gateway payment (409, retryable). The noun is a record merge, which the platform runs for ' +
       'every host type (`organizations` today, `projects` next), so no host module may own it.',
   },
   RECORD_MERGE_IN_PROGRESS: {

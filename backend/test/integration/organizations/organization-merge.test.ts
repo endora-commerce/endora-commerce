@@ -141,25 +141,25 @@ describe('Organization merge — the organizations host', () => {
       const preview = res.json().data;
       expect(preview.fields.map((field: { code: string }) => field.code)).toEqual(expect.arrayContaining(['name', 'taxId']));
       expect(preview.participants.find((p: { moduleId: string }) => p.moduleId === 'organizations')).toBeDefined();
-      // Every module still holding an undeclared Organization reference; the
-      // participants delivered so far (MR-C1, T042 – T050) are no longer among them.
-      expect(preview.incomplete).toEqual(expect.arrayContaining(['orders', 'customer_accounts']));
-      for (const declared of ['addresses', 'carts', 'invoices', 'invoice_ledger', 'credit_limits', 'related_payers', 'price_lists', 'promotions', 'returns']) {
+      // Every module still holding an undeclared Organization reference; a declared one is not listed.
+      for (const declared of ['addresses', 'carts', 'invoices', 'invoice_ledger', 'credit_limits', 'related_payers', 'price_lists', 'promotions', 'returns', 'shopping_lists', 'comparisons', 'inventory', 'forms', 'newsletter', 'customer_notifications', 'pwa', 'quick_order', 'mfa', 'api_keys', 'webhooks', 'analytics', 'admin_users', 'orders', 'quote_requests', 'crm', 'catalog', 'projects', 'customer_accounts']) {
         expect(preview.incomplete).not.toContain(declared);
       }
-      expect(preview.refusals.map((r: { code: string }) => r.code)).toContain('RECORD_MERGE_PARTICIPATION_INCOMPLETE');
+      const codes = preview.refusals.map((r: { code: string }) => r.code);
+      if (preview.incomplete.length > 0) expect(codes).toContain('RECORD_MERGE_PARTICIPATION_INCOMPLETE');
+      else expect(codes).not.toContain('RECORD_MERGE_PARTICIPATION_INCOMPLETE');
       const after = await sql<Array<{ count: string }>>('select count(*)::text as "count" from "record_merges"');
       expect(after[0]!.count).toBe(before[0]!.count);
     });
 
-    it('refuses a start with the same answer as the preview, writing nothing (FR-003, SC-005)', async () => {
+    it('accepts a start once every Organization reference is declared, as the preview says (T073, FR-003)', async () => {
       const survivor = await company();
       const loser = await company();
       const res = await startRoute(survivor.id, { loserId: loser.id, acknowledgeIrreversible: true });
-      expect(res.statusCode, res.body).toBe(409);
-      expect(res.json().error.code).toBe(ERROR_CODES.RECORD_MERGE_PARTICIPATION_INCOMPLETE);
+      expect(res.statusCode, res.body).toBe(202);
+      expect(res.json().data.state).toBe('running');
       const rows = await sql<unknown[]>('select 1 from "record_merges" where "loser_id" = ?', [loser.id]);
-      expect(rows).toEqual([]);
+      expect(rows).toHaveLength(1);
     });
 
     it('refuses a start without the irreversible acknowledgement (FR-012)', async () => {

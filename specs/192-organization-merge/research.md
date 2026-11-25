@@ -447,6 +447,12 @@ match corrupts stage history.
 - **Refuse, retryable:** the `orders` participant's preview refuses with
   `RECORD_MERGE_BUSY` (409, retryable) while the loser has an `order_placement_intent` that is not
   settled, or a payment in a pending provider state.
+  **As implemented (T058):** *a payment in a pending provider state* is read from `orders`' own
+  rows (a participant reads no other module's tables): an order of the loser, as buyer or as payer,
+  whose payment method snapshot is of kind `gateway`, `awaiting_payment`, placed within the last
+  24 hours — an older one is an abandoned attempt whose late settlement still finds the order by
+  id. An unsettled intent that appears after the start is left in place, and the step then throws
+  `RECORD_MERGE_BUSY`, so the merge waits in *needs attention* instead of archiving it.
 - **Move, never refuse:** carts, quotes, returns, payer requests and join requests follow the
   survivor.
 

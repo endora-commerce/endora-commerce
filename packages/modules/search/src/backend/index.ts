@@ -82,7 +82,7 @@ export interface SearchCradle {
    * it on the bulk operation — so the port hands back that rather than the
    * per-channel summaries, and no consumer has to know an index uid exists.
    */
-  readonly searchReindexPort: { reindexAll(): Promise<{ documentCount: number }> };
+  readonly searchReindexPort: SearchReindexPort;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -200,6 +200,11 @@ export function registerModule(ctx: ModuleContext): void {
         async reindexAll(): Promise<{ documentCount: number }> {
           const results = await search.handle.indexer.reindexAllChannels(emFactory());
           return { documentCount: results.reduce((sum, r) => sum + r.documentCount, 0) };
+        },
+        async reindexProducts(productIds: readonly string[]): Promise<void> {
+          for (const productId of productIds) {
+            await search.handle.subscriber.onProductUpserted(productId, 'organization.merge');
+          }
         },
       }))
       .singleton(),

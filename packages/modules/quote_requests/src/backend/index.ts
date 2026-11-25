@@ -53,6 +53,10 @@ import {
   createQuoteRequestAdminSearchProvider,
   type QuoteRequestAdminSearchProviderDeps,
 } from './admin-search-provider.js';
+import {
+  QUOTE_REQUEST_MERGE_PARTICIPATION_KEYS,
+  QuoteRequestMergeParticipant,
+} from './merge/organization-merge-participant.js';
 import type { AdminContext } from './services/rfq-admin-service.js';
 import { NegotiationPolicyService } from './services/negotiation-policy-service.js';
 import { startRfqExpirySweep } from './workers/rfq-expiry-sweep-worker.js';
@@ -912,6 +916,22 @@ export function registerModule(ctx: ModuleContext): void {
       },
     });
   });
+
+  // `specs/192-organization-merge/` T060 — this module's part of an
+  // Organization merge, through its own Command (`quote_request.merge_reassign`):
+  // the negotiation policy (survivor wins, fill gaps) and the quote requests
+  // with their notification rows (re-point). Registration only; the runner
+  // calls them per merge, never while this module is off.
+  for (const part of ['policy', 'records'] as const) {
+    ctx.merge.participate(
+      'organization',
+      QUOTE_REQUEST_MERGE_PARTICIPATION_KEYS[part],
+      new QuoteRequestMergeParticipant(part, {
+        emFactory: () => ctx.cradle<QuoteRequestsCradle>().emFactory(),
+        commandBus: { run: (command) => ctx.cradle<QuoteRequestsCradle>().commandBus.run(command) },
+      }),
+    );
+  }
 }
 
 /**

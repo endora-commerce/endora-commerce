@@ -66,3 +66,21 @@ Organization-id property). They are excluded by the check's population rule and 
 
 - **#1822** (`customerAccountCommandPort`): members move through `membershipPort` (D-293.2).
 - **#1826** (`categoryCommandPort`): categories hold no Organization or Project reference.
+
+## D. As implemented (MR-D steps and MR-E, #1907)
+
+Keys and Commands of the participants built in this stage. Each is proven over a real database by
+`backend/test/integration/<module>/organization-merge-participant.test.ts` with
+`expectMergeParticipant` (through `backend/test/helpers/organization-merge-conformance.ts`).
+
+| Module | Key (phase) | Command | Notes |
+| --- | --- | --- | --- |
+| `orders` | `organization-records` (records) | `order.merge_reassign` | `RECORD_MERGE_BUSY` as research R-20 *as implemented* |
+| `quote_requests` | `organization-policy` (configuration), `organization-records` (records) | `quote_request.merge_reassign` | two participations, one Command with a part |
+| `crm` | `organization-opportunities` (records) | `crm.opportunity.merge_reassign` | |
+| `catalog` | `organization-audiences` (configuration) | `catalog.product.merge_reassign` | after each batch: storefront page revalidation, and `searchReindexPort.reindexProducts(ids)` (new, additive) while `search` is present — catalogue writes otherwise reindex through `product.updated.v1`, which R-13 forbids here |
+| `projects` | `organization-projects` (records) | `projects.project.merge_reassign_organization` | per Project: twin, links, then the loser row (the links' foreign key) |
+| `customer_accounts` | `organization-members` (members, batch 50) | `customer_account.organization.change`, mode `merge` | `membership-merge-mode.md` §5 |
+
+The port methods (T059, T061, T063, T065, T067) are not published yet: they wait for their
+aggregate ports.

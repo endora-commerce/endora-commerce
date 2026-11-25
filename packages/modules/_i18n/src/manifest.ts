@@ -229,7 +229,7 @@ export const manifest = defineModuleManifest({
     // command outbox, the platform's own table of afterCommit deliveries for
     // every module: an operator retried a row that is not dead (409).
     { code: 'COMMAND_OUTBOX_NOT_DEAD' },
-    // T3 by noun (10) — `specs/192-organization-merge/` data-model §6. The noun is
+    // T3 by noun (11) — `specs/192-organization-merge/` data-model §6. The noun is
     // a record merge, which the platform's merge mechanism runs for every host
     // type: `organizations` hosts one today and `projects` will host another,
     // so no host may own the codes. The host's own refusals
@@ -239,6 +239,7 @@ export const manifest = defineModuleManifest({
     { code: 'RECORD_MERGE_ALREADY_RUNNING' },
     { code: 'RECORD_MERGE_PARTICIPATION_INCOMPLETE' },
     { code: 'RECORD_MERGE_PARTICIPANT_CONFLICT' },
+    { code: 'RECORD_MERGE_BUSY' },
     { code: 'RECORD_MERGE_IN_PROGRESS' },
     { code: 'RECORD_MERGE_NOT_CANCELLABLE' },
     { code: 'RECORD_MERGE_NOT_RESUMABLE' },

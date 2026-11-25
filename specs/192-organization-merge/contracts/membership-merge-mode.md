@@ -56,3 +56,26 @@ contract telling hook modules that switch on `mode` to treat an unknown value as
   attention*.
 - The event carries `mode: 'merge'`.
 - The participant conformance helper covers the batch of accounts.
+
+## 5. As implemented (#1907, ahead of #1831)
+
+191 WP-1 was not on `master`, so this amendment landed with the part of 191's port the merge needs;
+`specs/191-membership-join-requests/contracts/membership-port.md` §8 lists it. Differences from the
+text above:
+
+- **Mode selection.** There is no `mode` input: the presence of `merge` selects `merge`, its
+  absence `move`. `organizationRoleId` missing with `merge` is `422 VALIDATION_FAILED`.
+- **Removed accounts move.** In the mode `merge` a soft-deleted (removed or anonymised) account is
+  moved too, so no row is left naming the archived loser (SC-001); outside a merge it is still
+  `404 CUSTOMER_NOT_FOUND`.
+- **Hook data and event** carry `mergeId` (`null` outside a merge) besides `mode: 'merge'`; the
+  source a merge writes is `record_merge`.
+- **Events in the step.** The members step is the one participant that publishes an event per
+  record, by §2.5 and R-5; its conformance test does not count events.
+- **Tests.** §4's unit cases are
+  `customer_accounts/src/backend/commands/customer-account-change-organization.merge.test.ts`; the
+  batch, the conformance helper and the refusal through the port are
+  `backend/test/integration/customer_accounts/organization-merge-participant.test.ts`. The
+  `beforeCommit` veto case is covered only by the injected-failure rollback of the conformance
+  helper, not by a registered hook.
+

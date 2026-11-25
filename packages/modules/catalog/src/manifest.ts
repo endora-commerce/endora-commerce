@@ -342,7 +342,7 @@ export const manifest = defineModuleManifest({
       // attribute edit because an optional module is off is not.
       name: 'searchReindexPort',
       kind: 'degrades-without',
-      whenAbsent: 'an attribute’s `searchable` flip rebuilds no search index',
+      whenAbsent: 'an attribute’s `searchable` flip, or an organization merge, rebuilds no search index',
       reason:
         'The same ground as `searchQueryPort` below and the same owner: PostgreSQL is the ' +
         'default backend for every catalogue read, so a switched-off `search` costs the ' +
@@ -1024,6 +1024,26 @@ export const manifest = defineModuleManifest({
     { key: 'catalog', titleKey: 'blocks.category.catalog', contexts: ['cms'], weight: 40 },
     { key: 'content', titleKey: 'blocks.category.content', contexts: ['email'] },
   ],
+
+  /**
+   * `specs/192-organization-merge/` T064 (`contracts/participant-dispositions.md`
+   * §A) — product audience allow-lists, global and per channel, name the
+   * survivor instead of the loser of an Organization merge (union), in the
+   * `configuration` phase, through `catalog.product.merge_reassign`.
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'organization-audiences',
+        phase: 'configuration',
+        references: [
+          { entity: 'Product', property: 'allowedOrganizationIds', disposition: 'union' },
+          { entity: 'ProductChannelScope', property: 'allowedOrganizationIds', disposition: 'union' },
+        ],
+      },
+    ],
+  },
 });
 
 /**

@@ -112,6 +112,7 @@ import { StageTaskService } from './services/stage-task-service.js';
 import { createProjectTaskContext } from './services/task-context-descriptor.js';
 import { TemplateService } from './services/template-service.js';
 import { stageAlertTick, startStageAlerts } from './workers/stage-alert-worker.js';
+import { PROJECTS_MERGE_PARTICIPATION_KEY, ProjectsOrganizationMergeParticipant } from './merge/organization-merge-participant.js';
 
 /**
  * `projects` — composed by the kernel container.
@@ -850,6 +851,20 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
   // --- end of Routes -----------------------------------------------------------------
+
+  // `specs/192-organization-merge/` T066 — this module as a holder of
+  // Organization references in an Organization merge: the survivor joins the
+  // loser's Projects and the records linked under the loser follow it, through
+  // this module's own Command. Registration only; never called while this
+  // module is off (its step is deferred and caught up).
+  ctx.merge.participate(
+    'organization',
+    PROJECTS_MERGE_PARTICIPATION_KEY,
+    new ProjectsOrganizationMergeParticipant({
+      emFactory: () => ctx.cradle<ProjectsCradle>().emFactory(),
+      commandBus: { run: (command) => ctx.cradle<ProjectsCradle>().commandBus.run(command) },
+    }),
+  );
 }
 
 /**

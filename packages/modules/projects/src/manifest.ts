@@ -472,4 +472,25 @@ export const manifest = defineModuleManifest({
   // demo body (research R-20, T134); `false` is a decision, absent would be
   // "nobody has decided".
   demo: false,
+  /**
+   * `specs/192-organization-merge/` T066 (`contracts/participant-dispositions.md`
+   * §A) — this module holds Organization references as well as hosting
+   * Projects: when an Organization is merged away, the survivor joins its
+   * Projects (union) and the records linked under it follow (re-point, after
+   * the union, which their foreign key needs), in the `records` phase, through
+   * `projects.project.merge_reassign_organization`.
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'organization-projects',
+        phase: 'records',
+        references: [
+          { entity: 'ProjectOrganization', property: 'organizationId', disposition: 'union' },
+          { entity: 'ProjectLink', property: 'organizationId', disposition: 're_point' },
+        ],
+      },
+    ],
+  },
 });

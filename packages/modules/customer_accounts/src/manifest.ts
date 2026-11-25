@@ -1,4 +1,9 @@
-import { defineModuleManifest, type ModuleDemoManifest } from '@endora-commerce/contracts';
+import {
+  CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS,
+  defineModuleManifest,
+  toHookableActionDeclaration,
+  type ModuleDemoManifest,
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
@@ -234,4 +239,28 @@ export const manifest = defineModuleManifest({
       weight: 140,
     },
   ],
+  /**
+   * `specs/191-membership-join-requests/` §4, `specs/192-organization-merge/`
+   * T069 — the membership move is hookable: a deployment may veto it
+   * (`beforeCommit`) or follow it (`afterCommit`), and tell a merge from a move
+   * by its `mode`.
+   */
+  hookableActions: [CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS.changeOrganization].map(toHookableActionDeclaration),
+  /**
+   * `specs/192-organization-merge/` T070 (`contracts/participant-dispositions.md`
+   * §A) — the loser's members follow the survivor of an Organization merge in
+   * the `members` phase, one `customer_account.organization.change` per account
+   * in the mode `merge`, 50 accounts a batch (R-16).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'organization-members',
+        phase: 'members',
+        batchSize: 50,
+        references: [{ entity: 'CustomerAccount', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

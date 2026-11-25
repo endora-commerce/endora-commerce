@@ -960,6 +960,29 @@ export const manifest = defineModuleManifest({
   blockCategories: [
     { key: 'order', titleKey: 'blocks.category.order', contexts: ['email'], weight: 20 },
   ],
+  /**
+   * `specs/192-organization-merge/` T058 (`contracts/participant-dispositions.md`
+   * §A) — what this module's rows naming an Organization do when it is merged
+   * away: every one follows the survivor, in the `records` phase, through
+   * `order.merge_reassign`. An unsettled placement intent or a pending gateway
+   * payment refuses the start instead (`RECORD_MERGE_BUSY`, R-20).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'organization-records',
+        phase: 'records',
+        references: [
+          { entity: 'Order', property: 'organizationId', disposition: 're_point' },
+          { entity: 'Order', property: 'payerOrganizationId', disposition: 're_point' },
+          { entity: 'OrderExternalReference', property: 'organizationId', disposition: 're_point' },
+          { entity: 'OrderTransitionEffect', property: 'organizationId', disposition: 're_point' },
+          { entity: 'OrderPlacementIntent', property: 'organizationId', disposition: 're_point' },
+        ],
+      },
+    ],
+  },
 });
 
 /**

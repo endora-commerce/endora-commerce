@@ -21,6 +21,7 @@ describe('merge error codes', () => {
     expect(Object.values(RECORD_MERGE_ERROR_CODES).sort()).toEqual([
       'RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED',
       'RECORD_MERGE_ALREADY_RUNNING',
+      'RECORD_MERGE_BUSY',
       'RECORD_MERGE_IN_PROGRESS',
       'RECORD_MERGE_NOT_CANCELLABLE',
       'RECORD_MERGE_NOT_RESUMABLE',

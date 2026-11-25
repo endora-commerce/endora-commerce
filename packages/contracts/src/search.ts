@@ -357,5 +357,14 @@ export type SearchMatchingIdsOutcome =
  */
 export interface SearchReindexPort {
   reindexAll(): Promise<{ documentCount: number }>;
+  /**
+   * Re-read these products into every channel index that should hold them
+   * (`specs/192-organization-merge/` FR-055, R-17): what `catalog` calls after
+   * a write that announces no event — an Organization merge's audience batch
+   * (R-13: re-parenting publishes no per-record event). Best-effort per
+   * product, as the event path is: a document that fails is caught up by the
+   * product's next write or a full reindex.
+   */
+  reindexProducts(productIds: readonly string[]): Promise<void>;
 }
 
