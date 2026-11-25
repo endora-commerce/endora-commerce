@@ -62,6 +62,12 @@ const TRANCHE = [
   // recorded drifts (A5, A9) had been measured and closed, so the first run on
   // Actions starts from a record a clean tree reproduces.
   { name: 'acceptance:instance', workflow: '.github/workflows/acceptance-instance.yml' },
+  // The same, one criterion over: "a package can ship schema" (feature 080, D-110),
+  // ported once a run on `master` answered exactly its record (11 of 11).
+  {
+    name: 'acceptance:package-schema',
+    workflow: '.github/workflows/acceptance-package-schema.yml',
+  },
 ] as const;
 
 function workflowSource(path: string): string {
