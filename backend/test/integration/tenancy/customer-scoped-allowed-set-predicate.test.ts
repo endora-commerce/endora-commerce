@@ -108,7 +108,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
       firstName: 'Predicate',
       lastName: label,
     });
-    await em.persistAndFlush(rep);
+    await em.persist(rep).flush();
     return rep.id;
   };
 
@@ -153,16 +153,16 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     } else {
       role.permissions = Array.from(new Set([...role.permissions, ...grants]));
     }
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
 
     const assigned = newOrganization(em, 'Predicate assigned org', 'A');
     const foreign = newOrganization(em, 'Predicate foreign org', 'F');
-    await em.persistAndFlush([assigned, foreign]);
+    await em.persist([assigned, foreign]).flush();
     assignedOrgId = assigned.id;
     foreignOrgId = foreign.id;
 
     const repId = await newRep(em, role.id, 'assigned');
-    await em.persistAndFlush([
+    await em.persist([
       em.create(OrganizationSalesRepAssignment, {
         organizationId: assignedOrgId,
         adminUserId: repId,
@@ -171,7 +171,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
       // unassigned organization is in every representative's reach. The
       // representative with no assignment below then reaches neither.
       em.create(OrganizationSalesRepAssignment, { organizationId: foreignOrgId, adminUserId: OTHER_REP_ID }),
-    ]);
+    ]).flush();
 
     // A second representative with the same role and **no** assignment at all.
     // Their allowed set is empty, which on every `@OrgScoped` entity means
@@ -191,7 +191,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
         firstName: 'Predicate',
         lastName: key,
       });
-      await em.persistAndFlush(account);
+      await em.persist(account).flush();
       accounts[key] = account.id;
 
       const comparison = em.create(Comparison, {
@@ -206,7 +206,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
         salesChannelId,
         displayMode: 'all',
       });
-      await em.persistAndFlush(comparison);
+      await em.persist(comparison).flush();
       comparisons[key] = comparison.id;
 
       // One row per read assertion and one per write, so a write case that is
@@ -226,7 +226,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
           organizationId,
           salesChannelId,
         });
-        await em.persistAndFlush(subscriber);
+        await em.persist(subscriber).flush();
         subscribers[`${key}-${purpose}`] = subscriber.id;
 
         const notification = em.create(AvailabilityNotification, {
@@ -242,7 +242,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
           email: `predicate-notify-${key}-${purpose}-${stamp}@audit.local`,
           status: 'queued',
         });
-        await em.persistAndFlush(notification);
+        await em.persist(notification).flush();
         notifications[`${key}-${purpose}`] = notification.id;
       }
 
@@ -251,7 +251,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
         organizationId,
         status: 'active',
       });
-      await em.persistAndFlush(cart);
+      await em.persist(cart).flush();
       carts[key] = cart.id;
 
       // One subscribed device per organisation (feature 087 Group B, D-187).
@@ -268,7 +268,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
         auth: 'a',
         status: 'active',
       });
-      await em.persistAndFlush(subscription);
+      await em.persist(subscription).flush();
       pushSubscriptions[key] = subscription.id;
     }
 

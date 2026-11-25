@@ -33,7 +33,7 @@ function memoryEm() {
       rows.push(row);
       return row;
     }),
-    persistAndFlush: vi.fn(async () => undefined),
+    persist: vi.fn(() => ({ flush: async () => undefined })),
   };
   return { em: em as unknown as EntityManager, rows, filters };
 }

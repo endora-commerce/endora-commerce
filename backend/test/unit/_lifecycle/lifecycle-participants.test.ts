@@ -66,14 +66,16 @@ class FakeEm {
     return this.rows.find((r) => r.moduleId === where.moduleId) ?? null;
   }
   async flush(): Promise<void> {}
-  async persistAndFlush(payload: FakeRow): Promise<void> {
-    this.rows.push(payload);
+  persist(payload: FakeRow) {
+    return {
+      flush: async (): Promise<void> => {
+        this.rows.push(payload);
+      },
+    };
   }
-  remove(payload: FakeRow): void {
+  remove(payload: FakeRow): this {
     this.rows = this.rows.filter((r) => r !== payload);
-  }
-  async removeAndFlush(payload: FakeRow): Promise<void> {
-    this.remove(payload);
+    return this;
   }
   create(_entity: unknown, payload: FakeRow): FakeRow {
     return payload;

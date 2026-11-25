@@ -45,7 +45,7 @@ describe('GaCustomEventsService (integration)', () => {
     const e = em();
     for (const id of created) {
       const row = await e.findOne(GaCustomEvent, { id });
-      if (row) await e.removeAndFlush(row);
+      if (row) await e.remove(row).flush();
     }
     await orm.close(true);
   });

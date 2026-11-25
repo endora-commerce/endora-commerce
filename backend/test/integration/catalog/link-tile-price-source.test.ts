@@ -70,7 +70,7 @@ describe('product link tile price source (#132)', () => {
       attributeValues,
       allowedOrganizationIds: [],
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
     await h.salesChannels.membershipService.addToChannel(channelId, 'product', product.id);
     return product;
   }

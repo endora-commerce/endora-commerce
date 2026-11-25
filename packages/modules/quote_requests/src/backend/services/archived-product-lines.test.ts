@@ -78,7 +78,7 @@ describe('163 P-3 — a quote request refuses an archived product', () => {
     const generateBusinessId = vi.fn();
     const service = new RfqAdminService({
       channelMembership,
-      emFactory: () => ({ create, persistAndFlush: vi.fn() }),
+      emFactory: () => ({ create, persist: vi.fn(() => ({ flush: async () => undefined })) }),
       customerAccounts: { findById: async () => ({ id: CUSTOMER_ID, organizationId: ORG_ID }) },
       catalogProducts: { findByIds },
       rfqService: { generateBusinessId },

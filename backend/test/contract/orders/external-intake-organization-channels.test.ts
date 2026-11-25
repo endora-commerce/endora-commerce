@@ -96,7 +96,7 @@ describe('POST /api/v1/external/orders — the bound Organization’s channels (
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     channelId = channel.id;
     await h.salesChannels.cache.invalidate(CODE);
     await em.getConnection().execute(

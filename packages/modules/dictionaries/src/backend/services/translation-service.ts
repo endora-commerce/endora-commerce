@@ -93,7 +93,7 @@ export class TranslationService {
         stateAfter: null,
       });
     }
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
     await this.invalidateDictionaryCache?.();
   }
 

@@ -382,7 +382,7 @@ describe('Quote request notification matrix, end to end (WP-12, T110)', () => {
       placedAt: new Date(),
       sourceQuoteRequestId: rfq.id,
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     await handle().orderCompletionReactor.onOrderCreated({ orderId: order.id });
     const status = await h.em().fork().execute<Array<{ status: string }>>(`select "status" from "quote_requests" where "id" = ?`, [rfq.id]);
     expect(status[0]!.status).toBe('Completed');

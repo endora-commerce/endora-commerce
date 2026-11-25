@@ -26,7 +26,7 @@ export async function makeOrganization(
       isPersonal: options.isPersonal ?? false,
       registeredAddress: { street: 'S182-STREET', city: 'Warszawa', postalCode: '00-001', country: 'PL' },
     } as never);
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     await bindOrganizationsToFixtureChannelsSql(em, [id]);
     (org as { path: string }).path = `/${id}/`;
     await em.flush();
@@ -51,7 +51,7 @@ export async function makeAddress(
       country: 'PL',
       isDefault: false,
     } as never);
-    await em.persistAndFlush(address);
+    await em.persist(address).flush();
     return (address as { id: string }).id;
   });
 }
@@ -71,7 +71,7 @@ export async function makeAdmin(
       name: `Related payers ${slug}`,
       permissions: [...permissions],
     } as never);
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     const admin = em.create(AdminUser, {
       email: `rp-${slug}-${randomUUID().slice(0, 8)}@example.test`,
       passwordHash: 'x'.repeat(60),
@@ -80,7 +80,7 @@ export async function makeAdmin(
       lastName: slug,
       status: 'active',
     } as never);
-    await em.persistAndFlush(admin);
+    await em.persist(admin).flush();
     const cookie = `stub-related-payers-${slug}-${randomUUID().slice(0, 8)}`;
     const adminUserId = (admin as { id: string }).id;
     ADMIN_COOKIES[cookie] = { adminUserId };

@@ -117,7 +117,7 @@ describe('AddressBookRetirementService', () => {
       firstName: 'Anna',
       lastName: 'Nowak',
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     return account;
   }
 
@@ -130,7 +130,7 @@ describe('AddressBookRetirementService', () => {
       firstName: 'Piotr',
       lastName: 'Firma',
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     return account;
   }
 
@@ -153,7 +153,7 @@ describe('AddressBookRetirementService', () => {
       createdAt: new Date(clock),
       ...over,
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     return row;
   }
 

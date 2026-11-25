@@ -145,7 +145,7 @@ export class TaxonomyRefreshService {
       trigger: input.trigger,
       startedAt: this.now(),
     });
-    await em.persistAndFlush(check);
+    await em.persist(check).flush();
     return check;
   }
 
@@ -474,7 +474,7 @@ export class TaxonomyRefreshService {
       row.bytesRead = outcome.bytesRead ?? null;
       row.contentHash = outcome.contentHash ?? null;
       row.installedTaxonomyId = outcome.installedTaxonomyId ?? null;
-      await em.persistAndFlush(row);
+      await em.persist(row).flush();
       await this.trimHistory(em, check.providerCode);
     } catch (err) {
       this.deps.logWarn?.('product_feeds: taxonomy check row could not be closed', {

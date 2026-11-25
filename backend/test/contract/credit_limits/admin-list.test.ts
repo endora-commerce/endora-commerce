@@ -90,7 +90,7 @@ describe('GET /api/v1/admin/credit-limits', () => {
         registeredAddress: { street: 'ul. Testowa 1', city: 'Warszawa', postalCode: '00-100', country: 'PL' },
       }),
     );
-    await em.persistAndFlush(orgs);
+    await em.persist(orgs).flush();
     for (const org of orgs) {
       const grant = await h.app.inject({
         method: 'POST',

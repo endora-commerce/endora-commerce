@@ -77,14 +77,14 @@ describe('External catalog reads (062 / T013)', () => {
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     await h.salesChannels.cache.invalidate('ext-read');
 
     const category = em.create(Category, {
       name: 'External widgets',
       slug: 'external-widgets',
     });
-    await em.persistAndFlush(category);
+    await em.persist(category).flush();
 
     const priced = em.create(Product, {
       sku: 'EXT-PRICED-001',
@@ -108,7 +108,7 @@ describe('External catalog reads (062 / T013)', () => {
       manageStock: false,
       attributeValues: {},
     });
-    await em.persistAndFlush([priced, unpriced]);
+    await em.persist([priced, unpriced]).flush();
     productPricedId = priced.id;
     productUnpricedId = unpriced.id;
 

@@ -170,7 +170,7 @@ describe('returns — comments (US4)', () => {
         isCustomerVisible: true,
         notifyCustomer: true,
       } as never);
-      await em.persistAndFlush(legacy);
+      await em.persist(legacy).flush();
       // A later comment on the same case enqueues its own job and nothing for the old one.
       await post(id, { body: 'A new message.', isCustomerVisible: true, notifyCustomer: true });
       expect(commentJobs((legacy as unknown as { id: string }).id)).toHaveLength(0);

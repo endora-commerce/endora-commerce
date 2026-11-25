@@ -99,7 +99,7 @@ describe('megamenu navigation bar contract (feature 168)', () => {
       status: 'active',
     });
     tools = em.create(Category, { name: { [PL]: 'Narzędzia', [EN]: 'Tools' }, slug: `${RUN}-tools`, sortOrder: 0, isActive: true });
-    await em.persistAndFlush([channel, tools]);
+    await em.persist([channel, tools]).flush();
     drills = em.create(Category, {
       name: { [PL]: 'Wiertarki', [EN]: 'Drills' },
       slug: `${RUN}-drills`,
@@ -114,7 +114,7 @@ describe('megamenu navigation bar contract (feature 168)', () => {
       sortOrder: 0,
       isActive: true,
     });
-    await em.persistAndFlush([drills, saws]);
+    await em.persist([drills, saws]).flush();
 
     // Both test organisations shop on this channel; the first is in the group.
     await em.getConnection().execute(

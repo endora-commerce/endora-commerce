@@ -65,7 +65,7 @@ describe('CMS nested page URLs contract (feature 163, R19D)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await h.em().persistAndFlush(otherChannel);
+    await h.em().persist(otherChannel).flush();
   });
 
   afterAll(async () => {

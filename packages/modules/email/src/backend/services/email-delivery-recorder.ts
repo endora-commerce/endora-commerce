@@ -56,7 +56,7 @@ export class PersistentEmailDeliveryRecorder implements EmailDeliveryRecorder {
         ...(input.documentId !== undefined ? { documentId: input.documentId } : {}),
         ...(input.context !== undefined ? { context: input.context } : {}),
       });
-      await em.persistAndFlush(row);
+      await em.persist(row).flush();
       return row.id;
     } catch (error) {
       // A switched-off module is a presence answer and travels: this recorder is

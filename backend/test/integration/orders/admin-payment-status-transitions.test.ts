@@ -111,7 +111,7 @@ describe('admin payment-status transitions are enforced by the server (issue #15
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     created.push(order.id);
     return order.id;
   }

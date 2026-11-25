@@ -74,7 +74,7 @@ describe('admin orders list — payment-status filter (085 Phase G)', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     return order;
   }
 

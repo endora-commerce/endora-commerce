@@ -52,7 +52,7 @@ export class OrderCommentService {
       isCustomerVisible: input.isCustomerVisible,
       notifyCustomer: input.notifyCustomer,
     });
-    await em.persistAndFlush(comment);
+    await em.persist(comment).flush();
 
     if (input.isCustomerVisible && input.notifyCustomer) {
       await this.notifyCustomer(em, order, input.body);
@@ -78,7 +78,7 @@ export class OrderCommentService {
       isCustomerVisible: true,
       notifyCustomer: false,
     });
-    await em.persistAndFlush(comment);
+    await em.persist(comment).flush();
     return comment;
   }
 

@@ -37,7 +37,7 @@ describe('Admin organization addresses (feature 039)', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     orgId = org.id;
 
     const billing = em.create(Address, {
@@ -59,7 +59,7 @@ describe('Admin organization addresses (feature 039)', () => {
       postalCode: '30-001',
       country: 'PL',
     });
-    await em.persistAndFlush([billing, delivery]);
+    await em.persist([billing, delivery]).flush();
     billingId = billing.id;
     deliveryId = delivery.id;
   });

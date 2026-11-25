@@ -30,7 +30,7 @@ describe('admin CMS Hooks contract (T067)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(plOnly);
+    await em.persist(plOnly).flush();
     plOnlyChannelId = plOnly.id;
   });
 

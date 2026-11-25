@@ -37,7 +37,7 @@ describe('admin name rule — the grid label and the catalogue key agree (161 G1
         attributeValues: {},
       }),
     );
-    await em.persistAndFlush(products);
+    await em.persist(products).flush();
     ids.push(...products.map((p) => p.id));
   }, 60_000);
 

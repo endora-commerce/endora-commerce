@@ -25,7 +25,7 @@ describe('placeOrder — payment-method adapter dispatch', () => {
     const method = await em.findOne(PaymentMethod, { id: SEED_PAYMENT_METHOD_ID });
     method!.additionalPrice = '5.00';
     method!.statusOnPending = 'pending';
-    await em.persistAndFlush(method!);
+    await em.persist(method!).flush();
   });
 
   afterAll(async () => {

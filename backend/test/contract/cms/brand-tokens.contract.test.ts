@@ -101,7 +101,7 @@ describe('brand tokens (feature 163, contract §1)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     createdChannelIds.push(channel.id);
     return { id: channel.id, code: channel.code };
   }

@@ -36,7 +36,7 @@ describe('an administrator always holds a role', () => {
       firstName: 'No',
       lastName: 'Role',
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     noRoleAdminId = account.id;
     ADMIN_COOKIES[NO_ROLE] = { adminUserId: account.id };
   });

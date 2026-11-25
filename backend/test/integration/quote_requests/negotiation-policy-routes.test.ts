@@ -133,7 +133,7 @@ describe('146 — price-negotiation admin and storefront routes [integration]', 
         name: 'Feature 146 — no customer codes',
         permissions: ['orders:read'],
       });
-      await em.persistAndFlush([repRole, readerRole, noneRole]);
+      await em.persist([repRole, readerRole, noneRole]).flush();
 
       const organization = (label: string) =>
         em.create(Organization, {
@@ -146,7 +146,7 @@ describe('146 — price-negotiation admin and storefront routes [integration]', 
       const a = organization('A');
       const b = organization('B');
       const c = organization('C');
-      await em.persistAndFlush([a, b, c]);
+      await em.persist([a, b, c]).flush();
       orgA = a.id;
       orgB = b.id;
       orgC = c.id;
@@ -164,7 +164,7 @@ describe('146 — price-negotiation admin and storefront routes [integration]', 
       const ca = account(orgA, 'a');
       const cb = account(orgB, 'b');
       const moved = account(orgA, 'moved');
-      await em.persistAndFlush([ca, cb, moved]);
+      await em.persist([ca, cb, moved]).flush();
       customerA = ca.id;
       customerB = cb.id;
       movedCustomer = moved.id;
@@ -181,13 +181,13 @@ describe('146 — price-negotiation admin and storefront routes [integration]', 
       const otherRep = admin('other-rep', repRole.id);
       const reader = admin('reader', readerRole.id);
       const none = admin('none', noneRole.id);
-      await em.persistAndFlush([rep, otherRep, reader, none]);
+      await em.persist([rep, otherRep, reader, none]).flush();
       repId = rep.id;
-      await em.persistAndFlush([
+      await em.persist([
         em.create(OrganizationSalesRepAssignment, { organizationId: orgA, adminUserId: rep.id }),
         em.create(OrganizationSalesRepAssignment, { organizationId: orgB, adminUserId: otherRep.id }),
         em.create(OrganizationSalesRepAssignment, { organizationId: orgC, adminUserId: otherRep.id }),
-      ]);
+      ]).flush();
       ADMIN_COOKIES[REP_SESSION] = { adminUserId: rep.id };
       ADMIN_COOKIES[READER_SESSION] = { adminUserId: reader.id };
       ADMIN_COOKIES[NONE_SESSION] = { adminUserId: none.id };

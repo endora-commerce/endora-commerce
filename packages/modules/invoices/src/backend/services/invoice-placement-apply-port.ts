@@ -41,7 +41,7 @@ export class InvoicePlacementApplyService implements InvoicePlacementApplyPort {
       total: input.total,
       status: 'pending',
     });
-    await em.persistAndFlush(invoice);
+    await em.persist(invoice).flush();
     // A published record, never the managed entity (D-77's first narrowing).
     return { id: invoice.id, orderId: invoice.orderId!, number: invoice.number };
   }

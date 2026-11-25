@@ -61,7 +61,7 @@ describe('POST /api/v1/admin/orders — the Organization\'s active channels only
     defaultId = await systemDefaultSalesChannelId(em);
     const unassigned = channel('order-515-unassigned', true);
     const inactive = channel('order-515-inactive', false);
-    await em.persistAndFlush([unassigned, inactive]);
+    await em.persist([unassigned, inactive]).flush();
     unassignedId = unassigned.id;
     inactiveId = inactive.id;
     // Both sell the product, so only the Organization's assignment separates

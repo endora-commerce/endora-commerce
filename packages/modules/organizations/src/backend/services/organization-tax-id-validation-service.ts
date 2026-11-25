@@ -103,7 +103,7 @@ export class OrganizationTaxIdValidationService {
       errorKind: result.errorKind,
       requestedByAdminUserId: input.actorAdminUserId ?? null,
     });
-    await em.persistAndFlush(record);
+    await em.persist(record).flush();
 
     // Stamp the org's "last validation" summary fields regardless of
     // outcome — the admin panel reads `vatValidatedAt`, `vatValidationProvider`,

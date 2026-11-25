@@ -63,7 +63,7 @@ describe('sales-channel removal cascades to setting_values (T054)', () => {
         defaultLanguage: 'en',
         defaultCurrency: 'USD',
       });
-      await em.persistAndFlush([main, wholesale]);
+      await em.persist([main, wholesale]).flush();
 
       const setting = await em.findOneOrFail(Setting, { code: 'sc_rem.url' });
       em.create(SettingValue, {

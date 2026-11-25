@@ -74,8 +74,8 @@ describe('Order clone-to-quote language from Accept-Language (issue #1011)', () 
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
-    await em.persistAndFlush(
+    await em.persist(order).flush();
+    await em.persist(
       em.create(OrderItem, {
         orderId: order.id,
         productId,
@@ -85,7 +85,7 @@ describe('Order clone-to-quote language from Accept-Language (issue #1011)', () 
         taxRate: '0.0000',
         lineTotal: '10.00',
       }),
-    );
+    ).flush();
     orderId = order.id;
   });
 

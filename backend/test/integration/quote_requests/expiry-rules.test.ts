@@ -298,7 +298,7 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
         languages: ['en-US'],
         currencies: ['PLN'],
       });
-      await em.persistAndFlush(channel);
+      await em.persist(channel).flush();
       otherChannel = { id: channel.id, code: channel.code };
     });
 

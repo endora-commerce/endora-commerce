@@ -103,7 +103,7 @@ describe('159 — quote request line groups [contract]', () => {
       const grants = ['rfqs:handle'];
       if (!role) role = fork.create(AdminRole, { code: 'sales_representative', name: 'Sales Representative', permissions: grants });
       else role.permissions = Array.from(new Set([...role.permissions, ...grants]));
-      await fork.persistAndFlush(role);
+      await fork.persist(role).flush();
       const org = fork.create(Organization, {
         name: `159 foreign ${stamp}`,
         taxId: `PL159F${String(stamp).slice(-7)}`,
@@ -118,11 +118,11 @@ describe('159 — quote request line groups [contract]', () => {
         firstName: '159',
         lastName: 'Rep',
       });
-      await fork.persistAndFlush([org, rep]);
-      await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: org.id, adminUserId: rep.id }));
+      await fork.persist([org, rep]).flush();
+      await fork.persist(fork.create(OrganizationSalesRepAssignment, { organizationId: org.id, adminUserId: rep.id })).flush();
       // #305 — the seeded organization is another representative's: an
       // unassigned organization is in every representative's reach.
-      await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }));
+      await fork.persist(fork.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID })).flush();
       ADMIN_COOKIES[REP_SESSION] = { adminUserId: rep.id };
     });
   }, 90_000);

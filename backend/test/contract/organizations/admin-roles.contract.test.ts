@@ -50,7 +50,7 @@ describe('operator organization roles', () => {
         name: 'Customers only',
         permissions: ['customers:manage'],
       });
-      await fork.persistAndFlush([readerRole, nobodyRole]);
+      await fork.persist([readerRole, nobodyRole]).flush();
       const reader = fork.create(AdminUser, {
         email: `org-roles-reader-${stamp}@scope.local`,
         passwordHash: 'x'.repeat(60),
@@ -65,7 +65,7 @@ describe('operator organization roles', () => {
         firstName: 'No',
         lastName: 'Roles',
       });
-      await fork.persistAndFlush([reader, nobody]);
+      await fork.persist([reader, nobody]).flush();
       ADMIN_COOKIES[READER] = { adminUserId: reader.id };
       ADMIN_COOKIES[NOBODY] = { adminUserId: nobody.id };
     });

@@ -68,7 +68,7 @@ describe('customers — the cut edges fail closed (feature 075, Phase C)', () =>
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     // Org-bound on purpose: the organisation name and the org-shared address
     // book are only reached for a customer that has one.
     const customer = em.create(CustomerAccount, {
@@ -78,7 +78,7 @@ describe('customers — the cut edges fail closed (feature 075, Phase C)', () =>
       lastName: 'Edges',
       organizationId: org.id,
     });
-    await em.persistAndFlush(customer);
+    await em.persist(customer).flush();
     customerId = customer.id;
   });
 

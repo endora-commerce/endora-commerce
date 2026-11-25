@@ -326,7 +326,7 @@ describe('GET /api/v1/catalog/products — a page is cut from the rows that matc
         name: `Issue 151 ${slug}`,
         slug,
       });
-      await em.persistAndFlush(category);
+      await em.persist(category).flush();
       categoryIdBySlug.set(slug, category.id);
     }
 
@@ -344,7 +344,7 @@ describe('GET /api/v1/catalog/products — a page is cut from the rows that matc
         createdAt: new Date(NEWEST - f.index * 1000),
       }),
     );
-    await em.persistAndFlush(products);
+    await em.persist(products).flush();
 
     for (const [i, f] of fixtures.entries()) {
       if (f.storedMaterial !== undefined) {

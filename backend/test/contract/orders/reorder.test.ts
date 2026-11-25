@@ -60,7 +60,7 @@ describe('Order reorder', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     const items = [
       em.create(OrderItem, {
         orderId: order.id,
@@ -81,7 +81,7 @@ describe('Order reorder', () => {
         lineTotal: '10.00',
       }),
     ];
-    await em.persistAndFlush(items);
+    await em.persist(items).flush();
     return order.id;
   }
 

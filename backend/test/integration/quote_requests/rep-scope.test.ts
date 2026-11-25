@@ -64,7 +64,7 @@ describe('146 — sales representative scope [integration]', () => {
       } else {
         role.permissions = Array.from(new Set([...role.permissions, ...grants]));
       }
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       const org = (label: string) =>
         em.create(Organization, {
           name: `146 scope ${label}`,
@@ -76,7 +76,7 @@ describe('146 — sales representative scope [integration]', () => {
       const own = org('O');
       const foreign = org('F');
       const unassigned = org('U');
-      await em.persistAndFlush([own, foreign, unassigned]);
+      await em.persist([own, foreign, unassigned]).flush();
       orgOwnId = own.id;
       orgForeign = foreign.id;
       orgUnassigned = unassigned.id;
@@ -90,12 +90,12 @@ describe('146 — sales representative scope [integration]', () => {
         });
       const rep = admin('rep');
       const otherRep = admin('other');
-      await em.persistAndFlush([rep, otherRep]);
+      await em.persist([rep, otherRep]).flush();
       otherRepId = otherRep.id;
-      await em.persistAndFlush([
+      await em.persist([
         em.create(OrganizationSalesRepAssignment, { organizationId: own.id, adminUserId: rep.id }),
         em.create(OrganizationSalesRepAssignment, { organizationId: foreign.id, adminUserId: otherRep.id }),
-      ]);
+      ]).flush();
       const account = (organizationId: string, label: string) =>
         em.create(CustomerAccount, {
           organizationId,
@@ -107,7 +107,7 @@ describe('146 — sales representative scope [integration]', () => {
       const aOwn = account(own.id, 'own');
       const aForeign = account(foreign.id, 'foreign');
       const aUnassigned = account(unassigned.id, 'unassigned');
-      await em.persistAndFlush([aOwn, aForeign, aUnassigned]);
+      await em.persist([aOwn, aForeign, aUnassigned]).flush();
       accountOwn = aOwn.id;
       accountForeign = aForeign.id;
       accountUnassigned = aUnassigned.id;
@@ -261,7 +261,7 @@ describe('146 — sales representative scope [integration]', () => {
         name: 'RFQ desk (957)',
         permissions: ['rfqs:handle'],
       });
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       const admin = em.create(AdminUser, {
         email: `957-custom-${stamp}@scope.local`,
         passwordHash: 'x'.repeat(60),
@@ -269,7 +269,7 @@ describe('146 — sales representative scope [integration]', () => {
         firstName: '957',
         lastName: 'Custom',
       });
-      await em.persistAndFlush(admin);
+      await em.persist(admin).flush();
       ADMIN_COOKIES[CUSTOM_SESSION] = { adminUserId: admin.id };
     });
     try {
@@ -341,7 +341,7 @@ describe('146 — sales representative scope [integration]', () => {
           lastName: 'Buyer',
           deletedAt: new Date(),
         });
-        await em.persistAndFlush(acc);
+        await em.persist(acc).flush();
         deletedAccountId = acc.id;
       });
       const lock = await call('PUT', `/api/v1/admin/organizations/${orgUnassigned}/quote-price-negotiation`, PLATFORM, {

@@ -68,7 +68,7 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
       systemDefault: false,
       version: 1,
     });
-    await em.persistAndFlush(channelA);
+    await em.persist(channelA).flush();
     channelACode = channelA.code;
     channelAId = channelA.id;
   });
@@ -92,7 +92,7 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
       attributeValues: {},
       allowedOrganizationIds: [],
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
     return product;
   }
 

@@ -387,7 +387,7 @@ describe('146 — readable history: authority and bounds [integration]', () => {
       const em = h.orm.em.fork();
       const stranger = newOrganization(em, 'S');
       const own = newOrganization(em, 'O');
-      await em.persistAndFlush([stranger, own]);
+      await em.persist([stranger, own]).flush();
       strangerOrgId = stranger.id;
       // The `sales_representative` role itself: only it is reach-scoped
       // (issue #957); a custom role holding `rfqs:handle` sees every
@@ -398,7 +398,7 @@ describe('146 — readable history: authority and bounds [integration]', () => {
       } else {
         role.permissions = Array.from(new Set([...role.permissions, 'rfqs:handle']));
       }
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       const owner = em.create(AdminUser, {
         email: `146-history-owner-${stamp}@h.local`,
         passwordHash: 'x'.repeat(60),
@@ -413,11 +413,11 @@ describe('146 — readable history: authority and bounds [integration]', () => {
         firstName: '146',
         lastName: 'Outsider',
       });
-      await em.persistAndFlush([owner, outsider]);
-      await em.persistAndFlush([
+      await em.persist([owner, outsider]).flush();
+      await em.persist([
         em.create(OrganizationSalesRepAssignment, { organizationId: stranger.id, adminUserId: owner.id }),
         em.create(OrganizationSalesRepAssignment, { organizationId: own.id, adminUserId: outsider.id }),
-      ]);
+      ]).flush();
       const account = em.create(CustomerAccount, {
         organizationId: stranger.id,
         email: `146-history-buyer-${stamp}@h.local`,
@@ -436,7 +436,7 @@ describe('146 — readable history: authority and bounds [integration]', () => {
         lastName: 'Buyer',
         deletedAt: new Date(),
       });
-      await em.persistAndFlush([account, gone]);
+      await em.persist([account, gone]).flush();
       strangerAccountId = account.id;
       deletedAccountId = gone.id;
       outsiderCookie = `stub-146-history-outsider-${stamp}`;

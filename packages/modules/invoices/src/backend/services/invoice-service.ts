@@ -369,7 +369,7 @@ export class InvoiceService {
         issuedBy: opts.issuedBy ?? 'system',
         status: holdForVendor ? 'pending' : 'ready',
       });
-      await tx.persistAndFlush(inv);
+      await tx.persist(inv).flush();
       let ordinal = 0;
       for (const l of built.lines) {
         ordinal += 1;
@@ -480,7 +480,7 @@ export class InvoiceService {
     // flow (`ksef.submission.accepted`); this is the sole-writer projection of it.
     inv.ksefReferenceNumber = assignment.ksefReferenceNumber;
     inv.ksefProcessedAt = assignment.ksefProcessedAt;
-    await em.persistAndFlush(inv);
+    await em.persist(inv).flush();
   }
 
   /**
@@ -515,7 +515,7 @@ export class InvoiceService {
     // the ledger webhook already claimed — same shape as `recordKsefAssignment`.
     inv.number = number;
     inv.status = 'ready';
-    await em.persistAndFlush(inv);
+    await em.persist(inv).flush();
     await this.emailOnReady?.(invoiceId);
   }
 
@@ -531,7 +531,7 @@ export class InvoiceService {
     // command-coverage-ignore: idempotent paidTotal projection of Infakt
     // `invoice_paid` — the webhook receipt is the claim; this is the sole-writer stamp.
     inv.paidTotal = inv.total;
-    await em.persistAndFlush(inv);
+    await em.persist(inv).flush();
   }
 
   /** Load an invoice as a render-ready detail (lines + derived VAT summary). */

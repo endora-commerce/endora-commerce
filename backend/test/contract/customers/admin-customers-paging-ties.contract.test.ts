@@ -37,7 +37,7 @@ describe('GET /api/v1/admin/customers — paging through equal creation times (i
         lastName: `Ties ${i}`,
       } as never),
     );
-    await em.persistAndFlush(accounts);
+    await em.persist(accounts).flush();
     seededIds = accounts.map((a) => (a as unknown as { id: string }).id);
     await em
       .getConnection()

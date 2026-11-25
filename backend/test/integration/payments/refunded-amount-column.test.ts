@@ -86,7 +86,7 @@ async function seedPayment(em: EntityManager, refundedAmount: string): Promise<s
     statusOnSuccess: 'completed',
     statusOnFailure: 'cancelled',
   });
-  await em.persistAndFlush(method);
+  await em.persist(method).flush();
   const order = em.create(Order, {
     organizationId: randomUUID(),
     placedByCustomerAccountId: randomUUID(),
@@ -109,7 +109,7 @@ async function seedPayment(em: EntityManager, refundedAmount: string): Promise<s
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   const payment = em.create(Payment, {
     orderId: order.id,
     paymentMethodId: method.id,
@@ -117,7 +117,7 @@ async function seedPayment(em: EntityManager, refundedAmount: string): Promise<s
     currency: 'PLN',
     refundedAmount,
   });
-  await em.persistAndFlush(payment);
+  await em.persist(payment).flush();
   return payment.id;
 }
 

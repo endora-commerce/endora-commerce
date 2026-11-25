@@ -73,7 +73,7 @@ describe('shipment refusals carry their own code and sentence (issue #637)', () 
       statusOnSuccess: 'shipment_sent',
       statusOnFailure: 'processing',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     const address = {
       recipientName: 'A',
       street: 'S',
@@ -99,7 +99,7 @@ describe('shipment refusals carry their own code and sentence (issue #637)', () 
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     return order.id;
   }
 

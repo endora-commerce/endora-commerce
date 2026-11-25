@@ -144,7 +144,7 @@ describe('returns — what a settlement refunds and credits', () => {
         currency: 'PLN',
         placedAt: new Date(),
       });
-      await em.persistAndFlush(order);
+      await em.persist(order).flush();
       em.create(OrderItem, {
         orderId: order.id,
         productId: randomUUID(),

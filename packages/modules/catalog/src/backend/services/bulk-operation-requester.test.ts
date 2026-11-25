@@ -32,7 +32,7 @@ function harness(checker: AdminPermissionChecker | undefined, requester: string 
       return 1;
     }),
     findOne: vi.fn(async () => op),
-    persistAndFlush: vi.fn(async () => undefined),
+    persist: vi.fn(() => ({ flush: async () => undefined })),
   };
   const bulkUpdate = vi.fn(async () => ({
     summary: { total: 1, succeeded: 1, skipped: 0, failed: 0 },
@@ -103,7 +103,7 @@ describe('a product write bulk operation needs a known requester (163 S-L3)', ()
   ])('refuses to enqueue a product write requested by %s, persisting nothing', async (_label, requester) => {
     const h = harness(checker(true, true));
     await expect(h.service.create({ requestedByAdminUserId: requester, payload })).rejects.toThrow(/requester/i);
-    expect(h.em.persistAndFlush).not.toHaveBeenCalled();
+    expect(h.em.persist).not.toHaveBeenCalled();
   });
 
   it('still enqueues a search_reindex operation with no requester', async () => {
@@ -113,7 +113,7 @@ describe('a product write bulk operation needs a known requester (163 S-L3)', ()
       requestedByAdminUserId: NO_REQUESTER,
       payload: { productIds: [], fields: {} },
     });
-    expect(h.em.persistAndFlush).toHaveBeenCalledTimes(1);
+    expect(h.em.persist).toHaveBeenCalledTimes(1);
   });
 
   it.each([

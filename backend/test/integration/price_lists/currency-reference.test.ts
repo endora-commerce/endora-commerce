@@ -37,7 +37,7 @@ describe('price_lists — a currency in use by a price book is not deletable (fe
       currencies: ['XBA'],
       defaultCurrency: 'XBA',
     });
-    await h.em().persistAndFlush(channel);
+    await h.em().persist(channel).flush();
     const book = await f.book({ name: 'XBA book', currency: 'XBA', channels: [{ id: channel.id, code: channel.code, defaultCurrency: 'XBA' }], audience: 'everyone', activate: false });
     const refused = await api.delete('/api/v1/admin/currencies/XBA');
     expect(refused.status).toBe(409);

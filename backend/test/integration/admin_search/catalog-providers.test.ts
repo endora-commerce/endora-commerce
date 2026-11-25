@@ -64,7 +64,7 @@ describe('admin global search — Product and Category providers (spec 150)', ()
         attributeValues: over.attributeValues ?? {},
         ...(over.archivedAt ? { archivedAt: over.archivedAt } : {}),
       } as never);
-      await em.persistAndFlush(row);
+      await em.persist(row).flush();
       ids[key] = (row as { id: string }).id;
     };
     await product('sku', { sku: `SKU${T}-1` });
@@ -85,7 +85,7 @@ describe('admin global search — Product and Category providers (spec 150)', ()
 
     const category = async (key: string, name: Record<string, string>, slug: string, parentCategoryId?: string) => {
       const row = em.create(Category, { name, slug, ...(parentCategoryId ? { parentCategoryId } : {}) } as never);
-      await em.persistAndFlush(row);
+      await em.persist(row).flush();
       ids[key] = (row as { id: string }).id;
     };
     await category('root', { 'en-US': `Furniture ${T}`, 'pl-PL': `Meble ${T}` }, `furniture-${T}`);

@@ -76,7 +76,7 @@ describe('155 — buyer quote-request writes refuse lines below a minimum [integ
         vatStatus: 'vat_payer',
         registeredAddress: { street: 'ul. Testowa 1', city: 'Warszawa', postalCode: '00-100', country: 'PL' },
       });
-      await fork.persistAndFlush(org);
+      await fork.persist(org).flush();
       const account = fork.create(CustomerAccount, {
         organizationId: org.id,
         email: `148-qmin-${RUN}@qmin.local`,
@@ -84,8 +84,8 @@ describe('155 — buyer quote-request writes refuse lines below a minimum [integ
         firstName: '148',
         lastName: 'locked',
       });
-      await fork.persistAndFlush(account);
-      await fork.persistAndFlush(fork.create(QuoteRequestOrgPolicy, { organizationId: org.id, priceProposalsAllowed: false }));
+      await fork.persist(account).flush();
+      await fork.persist(fork.create(QuoteRequestOrgPolicy, { organizationId: org.id, priceProposalsAllowed: false })).flush();
       // Feature 154 — the tenant shops on the stores the harness seeds.
       await bindOrganizationsToFixtureChannelsSql(fork, [org.id]);
       lockedOrg = org.id;
@@ -313,8 +313,8 @@ describe('155 — buyer quote-request writes refuse lines below a minimum [integ
         currency: 'PLN',
         placedAt: new Date(),
       });
-      await em.persistAndFlush(order);
-      await em.persistAndFlush(
+      await em.persist(order).flush();
+      await em.persist(
         em.create(OrderItem, {
           orderId: order.id,
           productId: A.id,
@@ -324,7 +324,7 @@ describe('155 — buyer quote-request writes refuse lines below a minimum [integ
           taxRate: '0.0000',
           lineTotal: '50.00',
         }),
-      );
+      ).flush();
       const before = await countRequests();
       const res = await h.app.inject({
         method: 'POST',

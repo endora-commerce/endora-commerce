@@ -187,7 +187,7 @@ describe('taxonomy reconciler [integration]', () => {
         name: { 'en-US': 'Live animals' },
         slug: `taxonomy-stale-${Math.random().toString(36).slice(2, 8)}`,
       });
-      await em.persistAndFlush(category);
+      await em.persist(category).flush();
       categoryId = category.id;
     });
 

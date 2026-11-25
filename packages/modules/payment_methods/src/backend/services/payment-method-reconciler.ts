@@ -70,7 +70,7 @@ export class PaymentMethodReconciler implements PaymentMethodSeedApi {
       // missing adapter link (e.g. a legacy row predating this feature).
       if (!existing.adapter) {
         existing.adapter = adapterKey;
-        await em.persistAndFlush(existing);
+        await em.persist(existing).flush();
       }
       return { row: recordOf(existing), created: false };
     }
@@ -91,7 +91,7 @@ export class PaymentMethodReconciler implements PaymentMethodSeedApi {
       // exist to correct (`contracts/foreign-write-repair.md` §4).
       statusOnFailure: defaults.statusOnFailure ?? 'on_hold',
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     return { row: recordOf(row), created: true };
   }
 

@@ -61,7 +61,7 @@ describe('catalogue listing prices its page in one resolution', () => {
         attributeValues: {},
       });
     });
-    await em.persistAndFlush(extra);
+    await em.persist(extra).flush();
     for (const product of extra) {
       await h.salesChannels.membershipService.addToChannel(channel.id, 'product', product.id);
     }

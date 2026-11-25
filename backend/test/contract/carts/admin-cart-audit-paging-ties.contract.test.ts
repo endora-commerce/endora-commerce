@@ -29,13 +29,13 @@ describe('GET /api/v1/admin/carts/:id/audit — paging through equal timestamps 
       anonymousCartToken: `anon-audit-ties-${Date.now()}`,
       salesChannelId: await systemDefaultSalesChannelId(em),
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     cartId = cart.id;
     const occurredAt = new Date('2001-02-03T04:05:06.000Z');
     const entries = Array.from({ length: TIE_ROW_COUNT }, () =>
       em.create(CartAuditEntry, { cartId, occurredAt, actorType: 'system', action: 'status_changed' }),
     );
-    await em.persistAndFlush(entries);
+    await em.persist(entries).flush();
     seededIds = entries.map((e) => e.id);
   });
 

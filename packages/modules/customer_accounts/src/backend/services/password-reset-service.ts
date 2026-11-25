@@ -102,7 +102,7 @@ export class PasswordResetService {
       tokenHash: sha256Hex(rawToken),
       expiresAt: new Date(Date.now() + TOKEN_TTL_HOURS * 60 * 60 * 1_000),
     });
-    await em.persistAndFlush(token);
+    await em.persist(token).flush();
     return { rawToken, customerAccountId: customer.id };
   }
 

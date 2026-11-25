@@ -57,7 +57,7 @@ describe('blog per-language URL keys (feature 171, T052)', () => {
       status: 'active',
       prefixDefaultLanguage: true,
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     return { id: created.id, code: created.code };
   }
 

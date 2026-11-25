@@ -584,7 +584,7 @@ export class ModuleLifecycleOrchestrator {
         // keeps them: a row waits for its handler module to come back.
         await this.purgeCommandOutboxRows(moduleId);
         // Hard uninstall deletes the row; soft preserves it as 'uninstalled'.
-        await em.removeAndFlush(row);
+        await em.remove(row).flush();
         // Hard-uninstall drops every projection of this module's manifest —
         // its translation bundles and its palette actions. Soft-uninstall
         // preserves them so a re-install picks them up unchanged
@@ -1095,7 +1095,7 @@ export class ModuleLifecycleOrchestrator {
       // left to the entity's field default, like every other column here.
       bootConvergedAt: patch.bootConvergedAt ?? null,
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
   }
 
   /** Set of moduleIds whose state is 'installed' OR 'disabled' (i.e. present, not removed). */

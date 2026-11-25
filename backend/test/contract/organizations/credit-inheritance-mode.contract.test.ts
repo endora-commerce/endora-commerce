@@ -30,7 +30,7 @@ describe('set organization credit-inheritance mode (US3)', () => {
       vatStatus: 'vat_payer',
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     org.path = `/${org.id}/`;
     await em.flush();
     orgId = org.id;
@@ -47,7 +47,7 @@ describe('set organization credit-inheritance mode (US3)', () => {
     } else if (!role.permissions.includes('customers:manage')) {
       role.permissions = [...role.permissions, 'customers:manage'];
     }
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     const rep = em.create(AdminUser, {
       email: `icm-rep-${Date.now()}@p.local`,
       passwordHash: 'x'.repeat(60),
@@ -55,10 +55,10 @@ describe('set organization credit-inheritance mode (US3)', () => {
       firstName: 'ICM',
       lastName: 'Rep',
     });
-    await em.persistAndFlush(rep);
-    await em.persistAndFlush(
+    await em.persist(rep).flush();
+    await em.persist(
       em.create(OrganizationSalesRepAssignment, { organizationId: orgId, adminUserId: rep.id }),
-    );
+    ).flush();
     repCookie = `stub-icm-rep-${Date.now()}`;
     ADMIN_COOKIES[repCookie] = { adminUserId: rep.id };
   });

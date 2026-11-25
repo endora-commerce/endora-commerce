@@ -50,7 +50,7 @@ describe('Quick-order default preferences', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(foreignOrg);
+    await em.persist(foreignOrg).flush();
     const foreign = em.create(Address, {
       organizationId: foreignOrg.id,
       kind: 'delivery',
@@ -60,7 +60,7 @@ describe('Quick-order default preferences', () => {
       postalCode: '30-769',
       country: 'PL',
     });
-    await em.persistAndFlush(foreign);
+    await em.persist(foreign).flush();
     foreignAddressId = foreign.id;
     // Issue #769 — an address from the caller's **personal** book (`customers`).
     // The preference table's address columns reference the organisation book
@@ -74,7 +74,7 @@ describe('Quick-order default preferences', () => {
       postalCode: '00-769',
       country: 'PL',
     });
-    await em.persistAndFlush(personal);
+    await em.persist(personal).flush();
     personalAddressId = personal.id;
   });
 

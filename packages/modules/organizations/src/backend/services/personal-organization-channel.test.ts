@@ -21,7 +21,7 @@ function stubEm(): EntityManager {
       id: 'org-1',
       ...data,
     })),
-    persistAndFlush: vi.fn(async () => undefined),
+    persist: vi.fn(() => ({ flush: async () => undefined })),
   } as unknown as EntityManager;
 }
 

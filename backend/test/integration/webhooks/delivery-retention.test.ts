@@ -36,7 +36,7 @@ describe('webhooks — finished deliveries past the retention window are deleted
       eventTypes: ['organization.blocked.v1'],
       status: 'active',
     });
-    await em.persistAndFlush(webhook);
+    await em.persist(webhook).flush();
     webhookId = webhook.id;
   });
 
@@ -57,7 +57,7 @@ describe('webhooks — finished deliveries past the retention window are deleted
       status,
       attemptCount: 1,
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     await em.nativeUpdate(WebhookDelivery, { id: row.id }, { createdAt: new Date(NOW.getTime() - daysAgo * DAY_MS) });
     return row.id;
   }

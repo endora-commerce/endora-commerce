@@ -124,7 +124,7 @@ describe('delivery-method delete guard — the count comes from `shipments`', ()
       statusOnSuccess: 'shipment_sent',
       statusOnFailure: 'processing',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     return method;
   }
 
@@ -165,10 +165,10 @@ describe('delivery-method delete guard — the count comes from `shipments`', ()
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
-    await em.persistAndFlush(
+    await em.persist(order).flush();
+    await em.persist(
       em.create(Shipment, { orderId: order.id, deliveryMethodId: method.id }),
-    );
+    ).flush();
   }
 
   it.each(['en', 'pl'] as const)(

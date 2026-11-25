@@ -83,7 +83,7 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
       emailVerifiedAt: new Date(),
       deletedAt: new Date(Date.now() - daysAgo * DAY_MS),
     } as never);
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     accounts.push(row.id);
     return row.id;
   }
@@ -112,7 +112,7 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
       deletedAt: scrubbedAt,
     } as never);
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     const row = em.create(CustomerAccount, {
       id: accountId,
       organizationId: org.id,
@@ -123,7 +123,7 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
       deletedAt: scrubbedAt,
       anonymizedAt: scrubbedAt,
     } as never);
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     accounts.push(accountId);
     return { accountId, organizationId: org.id };
   }
@@ -189,7 +189,7 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
       rejectedByActor: `admin:${randomUUID()}`,
       rejectedReason: reason,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     return cart.id;
   }
 
@@ -204,7 +204,7 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
       subject,
       context: { reason: subject },
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     deliveries.push(row.id);
     return row.id;
   }

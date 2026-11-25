@@ -104,7 +104,7 @@ describe('CartPricingRecompute — resolver call counts & write-back', () => {
       name: 'T021 fixture',
       description: 'T021 fixture',
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
     seedProductId = product.id;
     await redis.del(CartRecomputeCache.keyFor(testCartId));
   });

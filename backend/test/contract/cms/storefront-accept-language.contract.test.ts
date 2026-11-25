@@ -56,7 +56,7 @@ describe('CMS storefront language from Accept-Language (issue #1011)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
 
     const page = await admin('POST', '/api/v1/admin/cms/pages', {
       name: `Accept-Language page ${run}`,

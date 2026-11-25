@@ -29,9 +29,9 @@ describe('admin global search — record types follow their module’s presence 
       const org = await seedOrganization(em, { name: `OFF${T} Org` });
       orgId = org.id;
       const customer = await seedCustomer(em, org.id, { email: `off${T}@example.com` });
-      await em.persistAndFlush(
+      await em.persist(
         em.create(QuoteRequest, { organizationId: org.id, customerAccountId: customer.id, businessId: `OFF${T}-rfq` } as never),
-      );
+      ).flush();
     });
     await createCrmOpportunity(h, { organizationId: orgId, title: `OFF${T} deal` });
   });

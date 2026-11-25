@@ -77,7 +77,7 @@ describe('admin global search — capability and search API (spec 150)', () => {
           name: 'Global search catalog reader',
           permissions: ['catalog:read'],
         });
-        await em.persistAndFlush(role);
+        await em.persist(role).flush();
       }
       if (!(await em.findOne(AdminUser, { id: RESTRICTED_ID }))) {
         em.create(AdminUser, {

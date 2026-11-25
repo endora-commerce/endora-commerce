@@ -253,7 +253,7 @@ export class BulkOperationService {
         ? logEntry('info', 'bulkOperations.log.reindexQueued')
         : logEntry('info', 'bulkOperations.log.queued', { total: op.total }),
     ];
-    await em.persistAndFlush(op);
+    await em.persist(op).flush();
     // Producer side (Principle X): enqueue and return. Never block the HTTP
     // response on actual processing. Enqueue errors are non-fatal — the row
     // stays `pending` and the worker's boot reconciliation re-enqueues it.

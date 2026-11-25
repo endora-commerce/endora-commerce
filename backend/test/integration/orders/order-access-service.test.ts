@@ -54,7 +54,7 @@ describe('OrderAccessService.scopedWhere', () => {
       });
     const viewer = make('viewer');
     const member = make('member');
-    await em.persistAndFlush([viewer, member]);
+    await em.persist([viewer, member]).flush();
     viewerId = viewer.id;
     memberId = member.id;
     await seedMemberWithPermissions(em, {

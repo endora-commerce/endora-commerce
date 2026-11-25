@@ -50,7 +50,7 @@ describe('import_export — per-entity permissions [integration]', () => {
   ): Promise<void> {
     const em = h.em();
     const role = em.create(AdminRole, { code, name: code, permissions });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     const admin = em.create(AdminUser, {
       email: `${code}@import-export.local`,
       passwordHash: 'x'.repeat(60),
@@ -58,7 +58,7 @@ describe('import_export — per-entity permissions [integration]', () => {
       firstName: 'Import',
       lastName: 'Export',
     });
-    await em.persistAndFlush(admin);
+    await em.persist(admin).flush();
     ADMIN_COOKIES[cookie] = { adminUserId: admin.id };
   }
 
@@ -86,7 +86,7 @@ describe('import_export — per-entity permissions [integration]', () => {
         name: 'Sales Representative',
         permissions: [],
       });
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
     }
     salesRepRole = role;
     salesRepOriginalPermissions = [...role.permissions];
@@ -100,8 +100,8 @@ describe('import_export — per-entity permissions [integration]', () => {
       firstName: 'Scoped',
       lastName: 'Rep',
     });
-    await em.persistAndFlush([role, rep]);
-    await em.persistAndFlush([
+    await em.persist([role, rep]).flush();
+    await em.persist([
       em.create(OrganizationSalesRepAssignment, {
         organizationId: OTHER_TEST_ORGANIZATION_ID,
         adminUserId: rep.id,
@@ -109,7 +109,7 @@ describe('import_export — per-entity permissions [integration]', () => {
       // #305 — the foreign organization is another representative's: an
       // unassigned organization is in every representative's reach.
       em.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }),
-    ]);
+    ]).flush();
     ADMIN_COOKIES[cookies.scopedRep] = { adminUserId: rep.id };
   }, 120_000);
 
@@ -121,7 +121,7 @@ describe('import_export — per-entity permissions [integration]', () => {
       const role = await em.findOne(AdminRole, { id: salesRepRole.id });
       if (role) {
         role.permissions = salesRepOriginalPermissions;
-        await em.persistAndFlush(role);
+        await em.persist(role).flush();
       }
     }
     await teardownBackendServer(h);

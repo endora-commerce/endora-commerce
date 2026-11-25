@@ -556,7 +556,7 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
       {
         id: 'setup',
         command: 'pnpm run setup',
-        purpose: 'generate, build, migrate and install any module the release adds — each idempotent',
+        purpose: 'generate, build, type-check, migrate and install any module the release adds — each idempotent',
         bin: 'pnpm',
         argv: ['run', 'setup'],
         cwd: instanceDir,

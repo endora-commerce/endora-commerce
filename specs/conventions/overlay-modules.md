@@ -62,33 +62,52 @@ two are reconciled **both ways** by `check:divergence`, and both renderings are 
 `overlay:check`'s four verdicts. Which seam to reach for and what each costs is
 `docs/docs/architecture/customisation-ladder.md`; the rung on every report entry is what makes
 arriving repeatedly at a high one measurable rather than anecdotal.
-**An overlay module contributes no schema** (D-106, narrowing D-105): a per-deployment overlay
-module under `backend/src/apps/` contributes registrations, routes, decorations, interceptors,
-permissions, i18n bundles and a manifest, and **no `@Entity()` class and no migration**. The
-reason is **not** migration ordering. That argument — "the order is only meaningful over a fixed
-set" — was measured false (`specs/080-f4-real-scope/README.md` §2: adding a leaf module's
-migrations leaves the relative order of all 141 existing ones exactly unchanged) and is retired;
-do not cite it and do not repeat it to an overlay author. The reason is that **an overlay lives
-in the same repository and the same build as core**, so the remedy is always available and costs
-nothing but a directory: own the table from a core module and read it from the overlay through
-that module's port. A second schema-owning mechanism that buys no capability is not worth its
-weight. The generator refuses both (`generate-composer.ts`), which is the same rule
-`module-migrations.md` states. **In a client's instance the refusal is `endora generate`'s**
-(`packages/cli/src/generate/divergence.ts`' `overlaySchemaFiles`): an instance has no composer
-generator and the platform reads entities and migrations from installed packages alone, so
-without it the directory is ignored rather than refused. **And the platform refuses it again
-wherever overlay modules are resolved** (`packages/platform/src/overlay/overlay-schema.ts`, called
-from `overlayModuleIdsUnder`), because `generate` is a command somebody has to run: the API, the
-worker, the operator CLI and the `module:*` commands stop before composing or opening anything.
-The two walks are written twice — the CLI reads an instance without loading the platform — and
-must agree. A bare `migrate` reaches neither: its configuration is handed no deployment root.
-There the remedy is a module package, not a core module — an instance has no core tree to move
-the table into.
-**An extension package is the opposite case and may ship entities and migrations** (D-106.2, an
-owner ruling). A third-party author has no core module, so for a package the same rule would not
-be a constraint to design around but a prohibition on the entire extension-package programme,
-every family of which persists state. The mechanism that lets it is Wave 3 of
-`specs/080-f4-real-scope/tasks.md`; until it lands, the only schema a running platform executes
-is core's. See `docs/docs/architecture/overlay-pattern.md` and
+**An overlay module contributes no schema — today** (D-106, narrowing D-105). **D-297 retires
+D-106 for overlays** (`specs/190-overlay-full-modules/`, owner clauses OR-1 – OR-6, issue #1846);
+D-106.2 below is unchanged. The ruling is accepted and the code does not implement it yet, so
+the refusal described at the end of this paragraph is still the behaviour, and stays this
+paragraph's subject until overlay schema discovery (#1850, WP6 of that plan) removes the
+refusal and rewrites the paragraph in the same merge request. Until then, design against D-297
+and build against the refusal. What D-297 holds every design to:
+
+- **An overlay module is a full module.** It may own entities and migrations, declare
+  `x_<moduleId>_*` columns and side tables, publish a port, and ship admin screens and
+  command-palette actions. There is no second "local instance package" mechanism beside it.
+- **In both trees.** It holds in a client's instance and in this repository's
+  `backend/src/apps/` alike.
+- **No deployment exemption.** An overlay module's migrations take the full foreign-schema
+  guard every installed package's migrations take; being the deployment's own buys nothing.
+- **One build, no package in disguise.** Overlay code is compiled by one deployment-level `tsc`
+  project (#1848). There is no per-module build, and no `package.json`, `exports` map or build
+  configuration under `apps/`.
+- **Promotion keeps the id.** A module promoted from an overlay to a package keeps its module
+  id, so the migration class names a database has already recorded still match.
+- **The trust tier is derived, never claimed.** An overlay module's tier is `deployment`, read
+  from the `origin` the loader stamps on its module entry from where it discovered the module
+  (`specs/189-command-middleware/contracts/module-origin.md`). No manifest field feeds it.
+
+**D-106's stated reason is retired with it, so do not cite it.** That reason was "an overlay
+lives in the same repository and the same build as core, so own the table from a core module
+and read it through that module's port", and it has no referent in an instance, which depends on
+released packages and has no core tree. The older migration-ordering argument stays retired as
+well. It was measured false: per `specs/080-f4-real-scope/README.md` §2, adding a leaf module's
+migrations leaves the relative order of all 141 existing ones exactly unchanged. **Where the
+refusal lives today.** In this repository it is `generate-composer.ts`'s (the same rule
+`module-migrations.md` states). In a client's instance it is `endora generate`'s
+(`packages/cli/src/generate/divergence.ts`' `overlaySchemaFiles`). **And the platform refuses it
+again wherever overlay modules are resolved** (`packages/platform/src/overlay/overlay-schema.ts`,
+called from `overlayModuleIdsUnder`), so the API, the worker, the operator CLI and the
+`module:*` commands stop before composing or opening anything. The two walks are written twice,
+because the CLI reads an instance without loading the platform, and they must agree. A bare
+`migrate` reaches neither, because its configuration is handed no deployment root. Until #1850
+lands, a deployment's table ships from a module of this tree here, and from an installed module
+package in an instance.
+**An extension package may ship entities and migrations** (D-106.2, an owner ruling). A
+third-party author has no core module, so for a package the same rule would not be a constraint
+to design around but a prohibition on the entire extension-package programme, every family of
+which persists state. The platform discovers a package's schema at runtime
+(`discoverPackageSchema`, `packages/platform/src/packages/package-runtime.ts`) and runs every
+package migration under the foreign-schema guard (`packages/platform/src/db/foreign-schema-guard.ts`).
+See `docs/docs/architecture/overlay-pattern.md` and
 `specs/057-overlay-pattern-multideploy/`.
 

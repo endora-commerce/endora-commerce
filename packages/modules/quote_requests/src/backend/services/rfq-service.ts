@@ -634,7 +634,7 @@ export class RfqService {
         currentRevisionNumber: 1,
         lastCustomerSeenRevisionNumber: 1,
       });
-      await em.persistAndFlush(rfq);
+      await em.persist(rfq).flush();
 
       const items: QuoteRequestItem[] = [];
       for (const [index, lineInput] of input.items.entries()) {
@@ -673,7 +673,7 @@ export class RfqService {
         itemCount: items.length,
         salesChannelId: rfq.salesChannelId ?? null,
       });
-      await em.persistAndFlush(items);
+      await em.persist(items).flush();
 
       const revision = await this.deps.revisionService.record(
         {
@@ -901,9 +901,9 @@ export class RfqService {
       if (body.headerNote !== undefined) rfq.headerNote = body.headerNote ?? null;
 
       if (rewrite) {
-        await em.removeAndFlush(rewrite.existing);
+        await em.remove(rewrite.existing).flush();
         const items = rewrite.lines.map((line) => em.create(QuoteRequestItem, line));
-        await em.persistAndFlush(items);
+        await em.persist(items).flush();
       }
 
       rfq.currentRevisionNumber += 1;
@@ -1041,7 +1041,7 @@ export class RfqService {
         currentRevisionNumber: 1,
         lastCustomerSeenRevisionNumber: 1,
       });
-      await em.persistAndFlush(newRfq);
+      await em.persist(newRfq).flush();
 
       const newItems: QuoteRequestItem[] = sourceItems.map((src, index) =>
         em.create(QuoteRequestItem, {
@@ -1064,7 +1064,7 @@ export class RfqService {
         itemCount: newItems.length,
         salesChannelId: newRfq.salesChannelId ?? null,
       });
-      await em.persistAndFlush(newItems);
+      await em.persist(newItems).flush();
 
       const revision = await this.deps.revisionService.record(
         {

@@ -70,7 +70,7 @@ export class DeliveryMethodReconciler implements DeliveryMethodSeedApi {
       // adapter link (e.g. a legacy row predating this feature).
       if (!existing.adapter) {
         existing.adapter = adapterKey;
-        await em.persistAndFlush(existing);
+        await em.persist(existing).flush();
       }
       return { row: recordOf(existing), created: false };
     }
@@ -85,7 +85,7 @@ export class DeliveryMethodReconciler implements DeliveryMethodSeedApi {
       statusOnSuccess: defaults.statusOnSuccess ?? 'shipment_sent',
       statusOnFailure: defaults.statusOnFailure ?? 'processing',
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     return { row: recordOf(row), created: true };
   }
 

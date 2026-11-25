@@ -71,7 +71,7 @@ describe('group delete reassigns to general (T033)', () => {
           defaultCurrency: 'USD',
         });
       if (!(await em.findOne(SalesChannel, { id: channel.id }))) {
-        await em.persistAndFlush(channel);
+        await em.persist(channel).flush();
       }
 
       // Admin sets a per-channel value.

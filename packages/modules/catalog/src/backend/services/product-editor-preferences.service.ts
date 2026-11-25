@@ -60,7 +60,7 @@ export class ProductEditorPreferencesService {
       lastChannelId: fields.lastChannelId,
       lastLanguageCode: fields.lastLanguageCode,
     });
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
     return row;
   }
 }

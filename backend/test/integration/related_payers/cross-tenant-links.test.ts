@@ -38,7 +38,7 @@ describe('related payers — tenancy of links', () => {
     otherPayer = await makeOrganization(h.em(), 'Other payer');
     await withSystemScope('test seed: another representative governs the out-of-reach buyer', async () => {
       const em = h.em();
-      await em.persistAndFlush(em.create(OrganizationSalesRepAssignment, { organizationId: outOfReach, adminUserId: OTHER_REP_ID }));
+      await em.persist(em.create(OrganizationSalesRepAssignment, { organizationId: outOfReach, adminUserId: OTHER_REP_ID })).flush();
     });
     cleanupRep = await ensureSalesRep(h, [inReach, payer], ['related_payers:read', 'related_payers:manage']);
     expect((await inject('POST', `/api/v1/admin/organizations/${inReach}/related-payers`, ADMIN, { payerOrganizationId: payer })).statusCode).toBe(201);

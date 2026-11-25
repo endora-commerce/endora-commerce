@@ -741,7 +741,7 @@ const FOUNDATION_STEPS: readonly CompositionStep[] = [
           currencies: ['PLN', 'EUR'],
           defaultCurrency: 'PLN',
         });
-      await em.persistAndFlush([retail, b2bVip]);
+      await em.persist([retail, b2bVip]).flush();
     },
     async withdraw(em) {
       // **The VIP channel only, and the asymmetry is the adoption above.**
@@ -845,7 +845,7 @@ const STEPS: readonly CompositionStep[] = [
         name: DEMO_MENU_NAME,
         description: 'Predefined dev megamenu — a catalogue tab over the seeded category tree.',
       });
-      await em.persistAndFlush(menu);
+      await em.persist(menu).flush();
 
       const catalogTab = em.create(MegamenuItem, {
         megamenuId: menu.id,
@@ -867,8 +867,8 @@ const STEPS: readonly CompositionStep[] = [
         presentation: 'link',
         alignment: 'end',
       });
-      await em.persistAndFlush([catalogTab, quickOrder]);
-      await em.persistAndFlush(
+      await em.persist([catalogTab, quickOrder]).flush();
+      await em.persist(
         em.create(MegamenuItem, {
           megamenuId: menu.id,
           parentId: catalogTab.id,
@@ -880,7 +880,7 @@ const STEPS: readonly CompositionStep[] = [
           // when the root is gone, so the tab never opens empty.
           target: { rootCategoryId: root?.id ?? null, depth: 2 },
         }),
-      );
+      ).flush();
 
       const channels = await em.find(SalesChannel, {});
       for (const channel of channels) {
@@ -1279,7 +1279,7 @@ const STEPS: readonly CompositionStep[] = [
         organizationRoleId: administrator.id,
         emailVerifiedAt: new Date(),
       });
-      await em.persistAndFlush(buyer);
+      await em.persist(buyer).flush();
     },
     async withdraw(em) {
       // The buyer this step created, and only that one. Whoever joined the
@@ -1296,7 +1296,7 @@ const STEPS: readonly CompositionStep[] = [
       const { CustomerAccount } = await customerAccountRows();
       const buyer = await em.findOne(CustomerAccount, { email: DEMO_BUYER_EMAIL });
       if (buyer === null) return;
-      await em.removeAndFlush(buyer);
+      await em.remove(buyer).flush();
     },
   },
   {

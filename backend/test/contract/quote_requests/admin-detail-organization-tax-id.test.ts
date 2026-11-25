@@ -29,7 +29,7 @@ describe('GET /api/v1/admin/quote-requests/:id — Organization tax id (#767)', 
     await withSystemScope('test seed: quote request organization tax id', async () => {
       const em = h.em();
       const rfq = em.create(QuoteRequest, { organizationId: TEST_ORGANIZATION_ID, customerAccountId: TEST_CUSTOMER_ID });
-      await em.persistAndFlush(rfq);
+      await em.persist(rfq).flush();
       rfqId = rfq.id;
     });
   });

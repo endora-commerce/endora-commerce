@@ -82,7 +82,7 @@ describe('notify-when-available applies the audience and the channel gate every 
         attributeValues: { defaultPrice: 10 },
         ...extra,
       });
-      await em.persistAndFlush(product);
+      await em.persist(product).flush();
       return product.id;
     };
 
@@ -115,7 +115,7 @@ describe('notify-when-available applies the audience and the channel gate every 
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush([channel, elsewhere]);
+    await em.persist([channel, elsewhere]).flush();
     // Feature 154 — the buyer shops on both probe stores.
     await addOrganizationChannels(h, TEST_ORGANIZATION_ID, [code, `${code}-elsewhere`]);
 

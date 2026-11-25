@@ -78,7 +78,7 @@ describe('PromotionService — the gates its optional arguments used to skip (is
       systemDefault: false,
       version: 1,
     });
-    await em.persistAndFlush([blocked, otherChannel]);
+    await em.persist([blocked, otherChannel]).flush();
     blockedOrgId = blocked.id;
     otherChannelId = otherChannel.id;
     defaultChannelId = (await h.salesChannels.resolver.getSystemDefault()).id;

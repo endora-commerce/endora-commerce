@@ -60,7 +60,7 @@ async function seedOrder(
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   return order.id;
 }
 
@@ -116,7 +116,7 @@ describe('GET /api/v1/me/credit-limit — reservation list scope (issue #748)', 
       grantedAmount: '10000.00',
       currency: 'PLN',
     });
-    await em.persistAndFlush(limit);
+    await em.persist(limit).flush();
     for (const [orderId, amount] of [
       [orders.plain, '300.00'],
       [orders.colleague, '1200.00'],

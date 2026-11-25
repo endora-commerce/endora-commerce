@@ -84,7 +84,7 @@ describe('forms — read and process entries (US4)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     otherChannel = channel.id;
 
     // Version 2 relabels the name and drops the message field.

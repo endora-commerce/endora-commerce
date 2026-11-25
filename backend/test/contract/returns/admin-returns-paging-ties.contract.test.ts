@@ -48,7 +48,7 @@ describe('GET /api/v1/admin/returns — paging through equal sort keys (issue #1
         submittedAt,
       } as never),
     );
-    await em.persistAndFlush(cases);
+    await em.persist(cases).flush();
     seededIds = cases.map((c) => (c as unknown as { id: string }).id);
   });
 

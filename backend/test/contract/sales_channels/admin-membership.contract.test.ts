@@ -79,7 +79,7 @@ describe('admin membership routes (Phase 5b)', () => {
       attributeValues: {},
       allowedOrganizationIds: [],
     });
-    await em.persistAndFlush(product);
+    await em.persist(product).flush();
     return product;
   }
 

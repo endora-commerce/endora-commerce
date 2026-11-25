@@ -89,7 +89,7 @@ export class RfqRevisionService {
       itemsSnapshot,
       previousRevisionId: input.previousRevisionId ?? null,
     });
-    await em.persistAndFlush(rev);
+    await em.persist(rev).flush();
     return rev;
   }
 

@@ -560,6 +560,12 @@ export function backendScripts(input: PlanInput): Record<string, string> {
     // be a value nobody reviewed (R2.5a).
     dev: `tsc -p tsconfig.json --watch & ${node} --watch dist/index.js`,
     build: 'tsc -p tsconfig.json',
+    // Two programs (issue #1847): the backend's own `src`, and the overlay code
+    // under `apps/` that Node loads by type stripping and nothing else compiles.
+    // `tsconfig.apps.json` sets `erasableSyntaxOnly`, so an `enum`, a `namespace`
+    // or a constructor parameter property is a type-check failure here rather
+    // than `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` at boot.
+    typecheck: 'tsc -p tsconfig.json --noEmit && tsc -p tsconfig.apps.json --noEmit',
     start: `${node} dist/index.js`,
     worker: `${node} dist/worker.js`,
     migrate: `${node} dist/migrate.js`,
@@ -957,12 +963,17 @@ export function planInstance(input: PlanInput): InstancePlan {
   const setupSteps: readonly string[] = [
     ...(generatesArtefacts ? ['generate'] : []),
     'build',
+    // After `generate`, whose `divergence.generated.ts` is in the overlay
+    // program, and before `migrate`, so a type error in `apps/` stops the
+    // sequence before anything touches the database (issue #1847).
+    'typecheck',
     'migrate',
     'module:install --all',
   ];
   const rootScripts: Record<string, string> = {
     migrate: 'pnpm -C backend run migrate',
     dev: 'pnpm -C backend run dev',
+    typecheck: 'pnpm -C backend run typecheck',
     ...Object.fromEntries(layerBuilds),
     // §2.5's `build` is the whole instance's, and §2.5's `generate` is the
     // three derived artefacts — two of which are the admin member's, so
@@ -1219,6 +1230,31 @@ export function planInstance(input: PlanInput): InstancePlan {
         esModuleInterop: true,
       },
       include: ['src'],
+    }),
+  });
+
+  // The overlay code's own program (issue #1847,
+  // `specs/190-overlay-full-modules/contracts/overlay-build.md` §1). `apps/` is
+  // outside the backend's `rootDir`, so without it nothing in this tree
+  // type-checks an overlay module. Bare specifiers resolve through the root's
+  // `node_modules` to the installed packages' `dist` declarations — the types
+  // the runtime loads. `noEmit` until the overlay build (#1848) emits it.
+  files.push({
+    path: 'backend/tsconfig.apps.json',
+    kind: 'client',
+    member: 'backend',
+    content: json({
+      extends: './tsconfig.json',
+      compilerOptions: {
+        rootDir: '../apps',
+        outDir: 'dist/apps',
+        erasableSyntaxOnly: true,
+        noEmit: true,
+      },
+      // `apps/<deployment>/*.ts` too: `divergence.ts` and its generated twin are
+      // read at composition.
+      include: ['../apps/*/modules/**/*.ts', '../apps/*/*.ts'],
+      exclude: ['../apps/*/modules/*/admin/**', '../apps/**/*.test.ts'],
     }),
   });
 
@@ -1654,9 +1690,10 @@ const README_COMMANDS: readonly (readonly [script: string, argument: string, not
   // can look at was baseline step D1.
   ['dev:services', '', 'PostgreSQL, Redis, Meilisearch and a mail catcher, from\n`compose.dev.yml` beside this file. It waits for each one to\nreport healthy'],
   ['dev:services:down', '', 'stops them, keeping their data'],
-  ['setup', '', 'generate, build, migrate and install every module — the four\nsteps below, in one line. Each still exists on its own'],
+  ['setup', '', 'generate, build, type-check, migrate and install every module —\nthe five steps below, in one line. Each still exists on its own'],
   ['generate', '', 'the files the admin and the docs site are built from,\nand your deployment\'s divergence report. A module of the\nrelease that an installed module needs is declared and\ninstalled first'],
   ['build', '', 'the entry points, compiled, and every member built'],
+  ['typecheck', '', 'the backend and your overlay code in `apps/`, type-checked against\nthe installed packages. An `enum` there is reported here, not at boot'],
   ['build:backend', '', 'one layer at a time. Each of the three is deployed on its own\nhost, on its own schedule, so each is built on its own too'],
   ['build:admin', '', ''],
   ['build:docs', '', ''],
@@ -1778,8 +1815,10 @@ a table is a package.
 An overlay module is TypeScript that **nothing in this tree compiles** — Node loads it and
 strips the types as it goes. So it is written in the subset stripping accepts: an \`enum\`, a
 \`namespace\` or a constructor parameter property raises
-\`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX\` at boot, and no type-check you can run here reports it,
-because all three type-check cleanly. A union of string literals is the \`enum\` you want.
+\`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX\` at boot. \`pnpm run typecheck\` reports all three before
+that, and every type error in \`apps/\` beside them: \`backend/tsconfig.apps.json\` checks your
+overlay code against the installed packages' declarations with \`erasableSyntaxOnly\` set, and
+\`pnpm run setup\` runs it before \`migrate\`. A union of string literals is the \`enum\` you want.
 
 Whatever you reach for, \`pnpm run generate\` records it in
 \`apps/${input.deployment}/divergence.generated.md\`: every seam you used, which module owns

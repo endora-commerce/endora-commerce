@@ -62,13 +62,17 @@ class FakeEm {
     return this.rows.find((row) => Object.entries(where).every(([k, v]) => row[k] === v)) ?? null;
   }
 
-  async persistAndFlush(row: Row): Promise<void> {
-    if (this.failNextFlushWith) {
-      const err = this.failNextFlushWith;
-      this.failNextFlushWith = null;
-      throw err;
-    }
-    this.rows.push(row);
+  persist(row: Row) {
+    return {
+      flush: async (): Promise<void> => {
+        if (this.failNextFlushWith) {
+          const err = this.failNextFlushWith;
+          this.failNextFlushWith = null;
+          throw err;
+        }
+        this.rows.push(row);
+      },
+    };
   }
 
   async transactional<T>(fn: (em: FakeEm) => Promise<T>): Promise<T> {

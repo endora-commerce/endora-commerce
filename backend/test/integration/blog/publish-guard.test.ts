@@ -65,7 +65,7 @@ describe('blog publish guard (feature 171, T043)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     channelId = channel.id;
   });
 

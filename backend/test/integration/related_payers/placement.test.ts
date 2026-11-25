@@ -315,7 +315,7 @@ describe('related payers — placement with a payer (US2)', () => {
         status: 'active',
         salesChannelId: await systemDefaultSalesChannelId(em),
       } as never);
-      await em.persistAndFlush(cart);
+      await em.persist(cart).flush();
       em.create(CartItem, {
         cartId: (cart as { id: string }).id,
         productId: SEED_PRODUCT_101_ID,

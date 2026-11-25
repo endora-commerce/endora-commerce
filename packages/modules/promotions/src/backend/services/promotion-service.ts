@@ -335,7 +335,7 @@ export class PromotionService {
     const row = await em.findOne(Promotion, { id });
     if (!row) return;
     this.#audit(em, 'promotion.delete', row.id, { name: row.name, code: row.code }, null);
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
   }
 
   private async validateCurrency(

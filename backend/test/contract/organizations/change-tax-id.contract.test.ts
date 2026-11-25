@@ -61,7 +61,7 @@ describe('POST /api/v1/admin/organizations/:id/change-tax-id', () => {
     const em = h.em();
     const user = async (label: string, permissions: string[]) => {
       const role = em.create(AdminRole, { code: `change_tax_id_${label}_${stamp}`, name: `change tax id ${label}`, permissions });
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       const account = em.create(AdminUser, {
         email: `change-tax-id-${label}-${stamp}@example.test`,
         passwordHash: 'x'.repeat(60),
@@ -69,7 +69,7 @@ describe('POST /api/v1/admin/organizations/:id/change-tax-id', () => {
         lastName: label,
         adminRoleId: role.id,
       });
-      await em.persistAndFlush(account);
+      await em.persist(account).flush();
       return account.id;
     };
     ADMIN_COOKIES[WITHOUT] = { adminUserId: await user('without', ['customers:read', 'customers:manage']) };

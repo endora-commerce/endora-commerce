@@ -44,7 +44,7 @@ describe('returns — migration A: the authorizer backfill', () => {
       submittedAt: new Date('2026-10-01T10:00:00Z'),
       authorizedAt: opts.authorizedAt,
     } as never);
-    await em.persistAndFlush(rc);
+    await em.persist(rc).flush();
     const id = (rc as unknown as { id: string }).id;
     await em.execute('update "return_cases" set "authorized_by_admin_user_id" = ? where "id" = ?', [
       opts.authorizedBy ?? null,

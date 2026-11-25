@@ -737,10 +737,11 @@ export function nextSteps(
           `${addresses.map(([name, value]) => `${name}=${value}`).join(', ')}. ` +
           `They match \`compose.dev.yml\` as it stands; on a machine that is not a ` +
           `development one, they are not what you want.`),
-    `pnpm run setup — generate, build, migrate and \`module:install --all\`, in that order. ` +
-      `Each of the four is still its own script and can be run on its own: \`generate\` ` +
-      `renders what your admin project and documentation site are built from, \`build\` ` +
-      `compiles every member, \`migrate\` applies the schema in the order the installed ` +
+    `pnpm run setup — generate, build, typecheck, migrate and \`module:install --all\`, in ` +
+      `that order. Each of the five is still its own script and can be run on its own: ` +
+      `\`generate\` renders what your admin project and documentation site are built from, ` +
+      `\`build\` compiles every member, \`typecheck\` checks the backend and your overlay ` +
+      `code in \`apps/\`, \`migrate\` applies the schema in the order the installed ` +
       `manifests compute, and \`module:install --all\` installs every module you declared ` +
       `in dependency order. Until that last one has run, the platform refuses to start, ` +
       `naming the modules it requires.`,

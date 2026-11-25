@@ -171,7 +171,7 @@ describe('CartService.mergeAnonymousIntoCustomer', () => {
         status: 'active',
         salesChannelId: defaultChannelId,
       });
-      await em.persistAndFlush(custCart);
+      await em.persist(custCart).flush();
       em.persist(
         em.create(CartItem, {
           cartId: custCart.id,
@@ -288,7 +288,7 @@ describe('CartService.mergeAnonymousIntoCustomer', () => {
         status: 'active',
         salesChannelId: defaultChannelId,
       });
-      await em.persistAndFlush(anon);
+      await em.persist(anon).flush();
       const anonId = anon.id;
 
       const outcome = await cartService!.mergeAnonymousIntoCustomer(anonToken, {
@@ -348,7 +348,7 @@ describe('CartService.mergeAnonymousIntoCustomer', () => {
         status: 'active',
         salesChannelId: defaultChannelId,
       });
-      await em.persistAndFlush(destCart);
+      await em.persist(destCart).flush();
       em.persist(
         em.create(CartItem, {
           cartId: destCart.id,
@@ -381,7 +381,7 @@ describe('CartService.mergeAnonymousIntoCustomer', () => {
         status: 'active',
         salesChannelId: defaultChannelId,
       });
-      await em.persistAndFlush(anonCart);
+      await em.persist(anonCart).flush();
       em.persist(
         em.create(CartItem, {
           cartId: anonCart.id,
@@ -460,7 +460,7 @@ describe('CartService.mergeAnonymousIntoCustomer', () => {
         salesChannelId: defaultChannelId,
         appliedPromotionCode: 'CUSTOMER_KEEPS_THIS',
       });
-      await em.persistAndFlush(destCart);
+      await em.persist(destCart).flush();
       em.persist(
         em.create(CartItem, {
           cartId: destCart.id,
@@ -478,7 +478,7 @@ describe('CartService.mergeAnonymousIntoCustomer', () => {
         salesChannelId: defaultChannelId,
         appliedPromotionCode: 'ANON_SHOULD_DROP',
       });
-      await em.persistAndFlush(anonCart);
+      await em.persist(anonCart).flush();
       em.persist(
         em.create(CartItem, {
           cartId: anonCart.id,
@@ -524,7 +524,7 @@ describe('CartService.mergeAnonymousIntoCustomer', () => {
         salesChannelId: defaultChannelId,
         appliedPromotionCode: 'DEST_COUPON',
       });
-      await em.persistAndFlush(destCart);
+      await em.persist(destCart).flush();
       em.persist(
         em.create(CartItem, {
           cartId: destCart.id,
@@ -541,7 +541,7 @@ describe('CartService.mergeAnonymousIntoCustomer', () => {
         salesChannelId: defaultChannelId,
         appliedPromotionCode: 'ANON_COUPON',
       });
-      await em.persistAndFlush(anonCart);
+      await em.persist(anonCart).flush();
       em.persist(
         em.create(CartItem, {
           cartId: anonCart.id,

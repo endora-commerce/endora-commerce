@@ -87,7 +87,7 @@ describe('#168 — the cart read shows the price placement charges', () => {
       sku: `READ-VAR-${stamp}`,
       variantAttributeValues: {},
     });
-    await h.em().persistAndFlush(variant);
+    await h.em().persist(variant).flush();
     variantId = variant.id;
     const baseBook = await ensureBaseBookSql(h.em());
     await h

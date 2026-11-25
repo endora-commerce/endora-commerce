@@ -37,10 +37,13 @@ describe('ShipmentService.createShipment — generated tracking number', () => {
       create(_entity: unknown, data: Record<string, unknown>): Shipment {
         return { id: randomUUID(), ...data } as unknown as Shipment;
       },
-      async persistAndFlush(entity: Shipment): Promise<void> {
-        flushed.push({ ...entity } as Shipment);
+      persist(entity: Shipment) {
+        return {
+          flush: async (): Promise<void> => {
+            flushed.push({ ...entity } as Shipment);
+          },
+        };
       },
-      persist(): void {},
     };
 
     const adapter: ShippingAdapter = {

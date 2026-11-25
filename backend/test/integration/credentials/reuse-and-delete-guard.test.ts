@@ -67,13 +67,13 @@ describe('Credentials reuse + delete guard [real DB]', () => {
       defaultValue: '',
       ownerModule: 'credentials_test',
     });
-    await em.persistAndFlush([sGlobal, sChannel]);
+    await em.persist([sGlobal, sChannel]).flush();
     const channelValue = em.create(SettingValue, {
       setting: sChannel,
       salesChannel: channel,
       value: CODE,
     });
-    await em.persistAndFlush(channelValue);
+    await em.persist(channelValue).flush();
   });
 
   afterAll(async () => {

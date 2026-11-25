@@ -52,7 +52,7 @@ describe('admin global search — Quote Request provider (spec 150)', () => {
           businessId,
           ...(headerNote !== undefined ? { headerNote } : {}),
         } as never);
-        await em.persistAndFlush(row);
+        await em.persist(row).flush();
         ids[key] = (row as { id: string }).id;
       };
       await rfq('number', orgA.id, custA.id, `NUM${T}-1`);
@@ -84,7 +84,7 @@ describe('admin global search — Quote Request provider (spec 150)', () => {
     await withSystemScope('test cleanup: global search rfq assignment', async () => {
       const em = h.em();
       const rows = await em.find(OrganizationSalesRepAssignment, { adminUserId: GS_RESTRICTED_ID });
-      if (rows.length > 0) await em.removeAndFlush(rows);
+      if (rows.length > 0) await em.remove(rows).flush();
     });
     await cleanupSalesRep?.();
     await teardownBackendServer(h);

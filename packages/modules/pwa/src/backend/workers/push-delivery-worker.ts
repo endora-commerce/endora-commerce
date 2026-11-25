@@ -85,7 +85,7 @@ export function makePushDeliveryProcessor(deps: PushDeliveryProcessorDeps) {
       subscription.status = 'invalid';
       message.failedCount += 1;
       await em.flush();
-      await em.removeAndFlush(subscription);
+      await em.remove(subscription).flush();
       await maybeFinalize(em, message);
       return;
     }

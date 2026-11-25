@@ -53,7 +53,7 @@ function harness(options: { type?: string; failed?: number; throws?: Error } = {
       return 1;
     }),
     findOne: vi.fn(async () => op),
-    persistAndFlush: vi.fn(async () => undefined),
+    persist: vi.fn(() => ({ flush: async () => undefined })),
   };
   const failed = options.failed ?? 0;
   const bulkUpdate = vi.fn(async () => {

@@ -84,7 +84,7 @@ describe('payment settlement moves the order through the lifecycle (085 Phase D)
       statusOnSuccess: statuses.statusOnSuccess ?? 'paid',
       statusOnFailure: statuses.statusOnFailure ?? 'on_hold',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     return method;
   }
 

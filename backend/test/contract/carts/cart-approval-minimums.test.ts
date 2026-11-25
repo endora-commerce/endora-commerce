@@ -85,7 +85,7 @@ describe('155 — submit-for-approval refuses a basket below a minimum [contract
       lastName: 'Member',
       emailVerifiedAt: new Date(),
     });
-    await em.persistAndFlush(member);
+    await em.persist(member).flush();
     // `specs/170-organization-roles/` WP-04 — the member's basket needs approval
     // because their role lacks `carts.order_without_approval` (R-4).
     await assignOrganizationRole(em, MEMBER_ID, await seedRoleGranting(em, TEST_ORGANIZATION_ID, ['carts.create']));

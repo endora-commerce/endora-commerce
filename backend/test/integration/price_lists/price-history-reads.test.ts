@@ -382,7 +382,7 @@ describe('price_lists — reading a price book’s price-change history (#470, s
       firstName: '',
       lastName: '',
     });
-    await em.persistAndFlush(unnamed);
+    await em.persist(unnamed).flush();
     ownAdmins.push(unnamed.id);
     const gone = randomUUID();
     await seedChange({ bookId: book.id, at: '2001-01-04T00:00:00.000Z', actorKind: 'admin', actorAdminUserId: unnamed.id, headerAfter: { name: 'a' } });

@@ -39,7 +39,7 @@ describe('GET /api/v1/admin/carts', () => {
       anonymousCartToken: `anon-admin-list-${Date.now()}`,
       salesChannelId: ch?.id ?? null,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     cartId = cart.id;
     em.create(CartItem, {
       cartId: cart.id,
@@ -69,7 +69,7 @@ describe('GET /api/v1/admin/carts', () => {
       salesChannelId: ch.id,
       status: 'working',
     });
-    await em.persistAndFlush(working);
+    await em.persist(working).flush();
     try {
       for (const url of ['/api/v1/admin/carts?pageSize=200', '/api/v1/admin/carts?status=working,active&pageSize=200']) {
         const res = await h.app.inject({ method: 'GET', url, cookies: ADMIN_COOKIE });
@@ -131,7 +131,7 @@ describe('GET /api/v1/admin/carts/:id', () => {
       anonymousCartToken: `anon-admin-detail-${Date.now()}`,
       salesChannelId: ch?.id ?? null,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     cartId = cart.id;
     em.create(CartItem, {
       cartId: cart.id,
@@ -197,7 +197,7 @@ describe('POST /api/v1/admin/carts/:id/reject', () => {
       salesChannelId: ch?.id ?? null,
       status: 'completed',
     });
-    await em.persistAndFlush([active, completed]);
+    await em.persist([active, completed]).flush();
     activeCartId = active.id;
     completedCartId = completed.id;
   });
@@ -264,7 +264,7 @@ describe('GET /api/v1/admin/carts/:id/audit', () => {
       anonymousCartToken: `anon-admin-audit-${Date.now()}`,
       salesChannelId: ch?.id ?? null,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
 
     const res = await h.app.inject({
       method: 'GET',

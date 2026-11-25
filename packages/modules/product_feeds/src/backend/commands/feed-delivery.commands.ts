@@ -93,7 +93,7 @@ export function makeUpsertFeedDeliveryCommand(input: {
         }
         Object.assign(existing, input.values);
         existing.version += 1;
-        await em.persistAndFlush(existing);
+        await em.persist(existing).flush();
         return { result: existing, after: auditState(existing) };
       }
 
@@ -101,7 +101,7 @@ export function makeUpsertFeedDeliveryCommand(input: {
         productFeedId: input.productFeedId,
         ...input.values,
       });
-      await em.persistAndFlush(created);
+      await em.persist(created).flush();
       return { result: created, after: auditState(created) };
     },
     event: (result) => ({
@@ -133,7 +133,7 @@ export function makeDeleteFeedDeliveryCommand(
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'This feed has no delivery configuration.');
       }
       const credentialCode = existing.credentialCode;
-      await em.removeAndFlush(existing);
+      await em.remove(existing).flush();
       return { result: { credentialCode }, after: null };
     },
     event: () => ({

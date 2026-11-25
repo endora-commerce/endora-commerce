@@ -133,12 +133,12 @@ describe('the route decides which session scopes a request', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(foreign);
+    await em.persist(foreign).flush();
     foreignOrganizationId = foreign.id;
 
     const own = newOrder(em, TEST_ORGANIZATION_ID);
     const other = newOrder(em, foreignOrganizationId);
-    await em.persistAndFlush([own, other]);
+    await em.persist([own, other]).flush();
     ownOrderId = own.id;
     foreignOrderId = other.id;
 

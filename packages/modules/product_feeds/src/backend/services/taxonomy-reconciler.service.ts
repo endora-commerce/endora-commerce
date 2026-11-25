@@ -239,7 +239,7 @@ export class TaxonomyReconcilerService {
         promotedAt: input.markCurrent ? new Date() : null,
         flags: input.flags ?? [],
       });
-      await tx.persistAndFlush(taxonomy);
+      await tx.persist(taxonomy).flush();
       taxonomyId = taxonomy.id;
 
       for (let offset = 0; offset < drafts.length; offset += INSERT_CHUNK) {

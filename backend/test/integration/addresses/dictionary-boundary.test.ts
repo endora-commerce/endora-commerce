@@ -39,7 +39,7 @@ describe('Addresses dictionary boundary', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     organizationId = org.id;
   });
 

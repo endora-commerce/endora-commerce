@@ -48,7 +48,7 @@ async function seedOrder(em: EntityManager, organizationId: string): Promise<str
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   return order.id;
 }
 
@@ -68,9 +68,9 @@ describe('credit-limit reservation compares exact amounts (#417)', () => {
       vatStatus: 'vat_payer',
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     organizationId = org.id;
-    await em.persistAndFlush(em.create(CreditLimit, { organizationId, grantedAmount: '0.30', currency: 'PLN' }));
+    await em.persist(em.create(CreditLimit, { organizationId, grantedAmount: '0.30', currency: 'PLN' })).flush();
   });
 
   afterAll(async () => {

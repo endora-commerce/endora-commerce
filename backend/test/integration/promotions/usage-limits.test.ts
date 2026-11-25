@@ -45,7 +45,7 @@ async function seedOrderId(em: EntityManager, organizationId: string): Promise<s
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   return order.id;
 }
 
@@ -74,7 +74,7 @@ describe('promotion usage limits', () => {
       vatStatus: 'vat_payer',
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await h.em().persistAndFlush(org);
+    await h.em().persist(org).flush();
     ORG = org.id;
   });
   afterAll(async () => {

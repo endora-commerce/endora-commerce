@@ -337,7 +337,7 @@ export class AvailabilityNotificationService {
       salesChannelId: scope?.channelId ?? null,
       languageCode: scope?.languageCode ?? null,
     });
-    await em.persistAndFlush(subscription);
+    await em.persist(subscription).flush();
     return subscription;
   }
 

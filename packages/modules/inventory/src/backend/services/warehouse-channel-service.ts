@@ -234,7 +234,7 @@ export class WarehouseChannelService {
       isDefault: row.isDefault,
       sortOrder: row.sortOrder,
     }, null);
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
   }
 
   /**

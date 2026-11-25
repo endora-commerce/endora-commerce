@@ -56,7 +56,7 @@ describe('CMS page tree and breadcrumbs contract (feature 163, T079)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await h.em().persistAndFlush(otherChannel);
+    await h.em().persist(otherChannel).flush();
   });
 
   afterAll(async () => {

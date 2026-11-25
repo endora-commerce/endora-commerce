@@ -108,7 +108,7 @@ describe('invoices — a correction leaves what the invoice keeps (#873, #885)',
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     const items = lines.map((l, position) =>
       em.create(OrderItem, {
         orderId: order.id,
@@ -121,7 +121,7 @@ describe('invoices — a correction leaves what the invoice keeps (#873, #885)',
         lineTotal: l.lineTotal,
       }),
     );
-    await em.persistAndFlush(items);
+    await em.persist(items).flush();
     return { orderId: order.id, items: items.map((i) => i.id), total };
   }
 

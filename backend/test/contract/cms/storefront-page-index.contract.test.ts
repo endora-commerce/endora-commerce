@@ -47,7 +47,7 @@ describe('storefront CMS page index contract (feature 105, FR-021)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await h.em().persistAndFlush(otherChannel);
+    await h.em().persist(otherChannel).flush();
   });
 
   afterAll(async () => {

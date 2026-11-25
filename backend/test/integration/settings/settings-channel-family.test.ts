@@ -110,7 +110,7 @@ describe('settings reads name a real channel or say they have none', () => {
         salesChannelId: channel.id,
         lastActivityAt: new Date(Date.now() - 30 * 60_000),
       });
-      await em.persistAndFlush(cart);
+      await em.persist(cart).flush();
       em.create(CartItem, {
         cartId: cart.id,
         productId: '00000000-0000-4000-8000-000000000101',

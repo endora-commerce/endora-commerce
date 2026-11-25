@@ -90,7 +90,7 @@ describe('product feed channel isolation [integration]', () => {
       defaultCurrency: 'PLN',
       active: true,
     });
-    await em.persistAndFlush([emptyChannel, closingChannel]);
+    await em.persist([emptyChannel, closingChannel]).flush();
     emptyChannelId = emptyChannel.id;
     closingChannelId = closingChannel.id;
 

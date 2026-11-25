@@ -427,7 +427,7 @@ describe('worked examples — §10.17 and §10.18 every document an order produc
     await em.getConnection().execute(`update "stock_levels" set "on_hand" = 100000 where "product_id" = ?`, [SEED_PRODUCT_101_ID]);
     const method = await em.findOneOrFail(PaymentMethod, { id: SEED_PAYMENT_METHOD_ID });
     method.additionalPrice = SURCHARGE;
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     await setSellerSettings(h);
   }, 5 * 60_000);
 
@@ -726,7 +726,7 @@ describe('worked examples — §10.17 and §10.18 every document an order produc
       currency: 'PLN',
       placedAt: new Date('2026-09-01T10:00:00Z'),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     const lineA = em.create(OrderItem, {
       orderId: order.id,
       productId: randomUUID(),

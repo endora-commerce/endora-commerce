@@ -47,7 +47,7 @@ describe('PATCH /api/v1/admin/organizations/:id — status is moderation-only (#
       vatStatus: 'vat_payer',
       registeredAddress: { street: 'ul. Moderacji 1', city: 'Warszawa', postalCode: '00-001', country: 'PL' },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     orgId = org.id;
   });
 

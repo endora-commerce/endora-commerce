@@ -65,7 +65,7 @@ describe('PromotionService — org-status gate (feature 026 US5)', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush([active, blocked, pending]);
+    await em.persist([active, blocked, pending]).flush();
     activeOrgId = active.id;
     blockedOrgId = blocked.id;
     pendingOrgId = pending.id;

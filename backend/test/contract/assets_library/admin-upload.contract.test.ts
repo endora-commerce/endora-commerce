@@ -120,7 +120,7 @@ describe('admin upload (T035)', () => {
 
     // Cleanup the row so subsequent tests start from a clean state.
     const em = h.em();
-    await em.removeAndFlush(await em.findOneOrFail(Asset, { id: json.data.id }));
+    await em.remove(await em.findOneOrFail(Asset, { id: json.data.id })).flush();
   });
 
   it('returns 400 ASSET_UPLOAD_NO_FILE when no file part is included', async () => {
@@ -186,7 +186,7 @@ describe('admin upload (T035)', () => {
       if (r.statusCode === 201) {
         const json = r.json() as { data: { id: string } };
         const a = await h.em().findOneOrFail(Asset, { id: json.data.id });
-        await h.em().removeAndFlush(a);
+        await h.em().remove(a).flush();
       }
     } finally {
       await restore();
@@ -212,7 +212,7 @@ describe('admin upload (T035)', () => {
     const s = await stat(join(baseDir, aa, bb, `${id}.png`));
     expect(s.isFile()).toBe(true);
     // Cleanup.
-    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
+    await h.em().remove(await h.em().findOneOrFail(Asset, { id })).flush();
   });
 
   // Mark mkdir as used to avoid the unused-import lint.

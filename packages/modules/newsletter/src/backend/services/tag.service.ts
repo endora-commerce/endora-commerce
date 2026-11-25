@@ -59,7 +59,7 @@ export class NewsletterTagService {
     if (input.name !== undefined) tag.name = input.name;
     if (input.description !== undefined) tag.description = input.description;
     this.#audit(em, 'newsletter_tag.update', tag.id, { name: tag.name });
-    await em.persistAndFlush(tag);
+    await em.persist(tag).flush();
     return this.toDto(tag);
   }
 
@@ -85,7 +85,7 @@ export class NewsletterTagService {
     }
     // Subscriber-tag bridge rows cascade via FK.
     this.#audit(em, 'newsletter_tag.delete', tag.id, null);
-    await em.removeAndFlush(tag);
+    await em.remove(tag).flush();
   }
 
   private toDto(t: NewsletterTag): NewsletterTagDto {

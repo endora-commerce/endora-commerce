@@ -41,7 +41,7 @@ describe('Applicable price lists (feature 026 US5)', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(org);
+    await em.persist(org).flush();
     orgId = org.id;
 
     // A book whose audience names the organization.
@@ -105,7 +105,7 @@ describe('Applicable price lists (feature 026 US5)', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(otherOrg);
+    await em.persist(otherOrg).flush();
 
     const res = await h.app.inject({
       method: 'GET',

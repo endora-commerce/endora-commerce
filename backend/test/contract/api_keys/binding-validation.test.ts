@@ -85,7 +85,7 @@ describe('API key binding validation (062 / B1–B5)', () => {
     });
     // Flush the org first — organizationId is a plain uuid column (no ORM
     // relation), so MikroORM cannot order the inserts by FK on its own.
-    await em.persistAndFlush(foreignOrg);
+    await em.persist(foreignOrg).flush();
     const foreignCustomer = em.create(CustomerAccount, {
       id: FOREIGN_CUSTOMER_ID,
       organizationId: FOREIGN_ORG_ID,
@@ -105,7 +105,7 @@ describe('API key binding validation (062 / B1–B5)', () => {
       emailVerifiedAt: new Date(),
       blockedAt: new Date(),
     });
-    await em.persistAndFlush([foreignCustomer, blockedCustomer]);
+    await em.persist([foreignCustomer, blockedCustomer]).flush();
 
     // Feature 075 (D-87) — a soft-deleted organisation. B4's read was
     // `select 1 from "organizations" where "id" = ? and "deleted_at" is null`
@@ -126,7 +126,7 @@ describe('API key binding validation (062 / B1–B5)', () => {
       },
       deletedAt: new Date(),
     });
-    await em.persistAndFlush(deletedOrg);
+    await em.persist(deletedOrg).flush();
   });
 
   afterAll(async () => {

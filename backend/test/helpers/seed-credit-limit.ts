@@ -40,7 +40,7 @@ export async function seedCreditLimitRaceFixture(em: EntityManager): Promise<voi
     statusOnSuccess: 'paid',
     statusOnFailure: 'cancelled',
   });
-  await em.persistAndFlush(cl);
+  await em.persist(cl).flush();
 
   // 2. CreditLimit grant. Use 1500 → each cart of 1000 (50 unit @ 19.99 ≈ 999.50)
   //    fits individually, but two together = ~2000 > 1500.
@@ -49,7 +49,7 @@ export async function seedCreditLimitRaceFixture(em: EntityManager): Promise<voi
     grantedAmount: '1500.00',
     currency: 'PLN',
   });
-  await em.persistAndFlush(limit);
+  await em.persist(limit).flush();
 
   // 3. Two customer accounts inside the same org.
   const a = em.create(CustomerAccount, {
@@ -72,7 +72,7 @@ export async function seedCreditLimitRaceFixture(em: EntityManager): Promise<voi
     organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
-  await em.persistAndFlush([a, b]);
+  await em.persist([a, b]).flush();
 
   // 4. Each gets a cart with quantity 50 of product 101 (price 19.99) → ~999.50.
   const salesChannelId = await systemDefaultSalesChannelId(em);
@@ -83,7 +83,7 @@ export async function seedCreditLimitRaceFixture(em: EntityManager): Promise<voi
       status: 'active',
       salesChannelId,
     });
-    await em.persistAndFlush(cart);
+    await em.persist(cart).flush();
     const item = em.create(CartItem, {
       cartId: cart.id,
       productId: SEED_PRODUCT_101_ID,
@@ -91,7 +91,7 @@ export async function seedCreditLimitRaceFixture(em: EntityManager): Promise<voi
       unitPrice: '19.99',
       currency: 'PLN',
     });
-    await em.persistAndFlush(item);
+    await em.persist(item).flush();
   }
 }
 
@@ -111,14 +111,14 @@ export async function seedCreditLimitWithActiveReservation(em: EntityManager): P
     statusOnSuccess: 'paid',
     statusOnFailure: 'cancelled',
   });
-  await em.persistAndFlush(cl);
+  await em.persist(cl).flush();
 
   const limit = em.create(CreditLimit, {
     organizationId: TEST_ORGANIZATION_ID,
     grantedAmount: '10000.00',
     currency: 'PLN',
   });
-  await em.persistAndFlush(limit);
+  await em.persist(limit).flush();
 
   // Pre-existing Order (status='processing', payment_status='deferred') with
   // payment method credit_limit. The reservation amount is 5000 — enough so a
@@ -152,7 +152,7 @@ export async function seedCreditLimitWithActiveReservation(em: EntityManager): P
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
 
   const payment = em.create(Payment, {
     orderId: order.id,
@@ -161,7 +161,7 @@ export async function seedCreditLimitWithActiveReservation(em: EntityManager): P
     currency: 'PLN',
     status: 'deferred',
   });
-  await em.persistAndFlush(payment);
+  await em.persist(payment).flush();
 
   const invoice = em.create(Invoice, {
     orderId: order.id,
@@ -171,7 +171,7 @@ export async function seedCreditLimitWithActiveReservation(em: EntityManager): P
     total: '5000.00',
     status: 'pending',
   });
-  await em.persistAndFlush(invoice);
+  await em.persist(invoice).flush();
 
   const reservation = em.create(CreditLimitReservation, {
     creditLimitId: limit.id,
@@ -181,5 +181,5 @@ export async function seedCreditLimitWithActiveReservation(em: EntityManager): P
     currency: 'PLN',
     status: 'active',
   });
-  await em.persistAndFlush(reservation);
+  await em.persist(reservation).flush();
 }

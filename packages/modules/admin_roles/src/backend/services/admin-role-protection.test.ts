@@ -15,9 +15,11 @@ function serviceOver(role: { id: string; code: string }): { service: AdminRoleSe
   const removed: string[] = [];
   const em = {
     findOne: async () => role,
-    removeAndFlush: async (row: { id: string }) => {
-      removed.push(row.id);
-    },
+    remove: (row: { id: string }) => ({
+      flush: async () => {
+        removed.push(row.id);
+      },
+    }),
   } as unknown as EntityManager;
   const adminUsers = { listByRoleId: async () => [] } as unknown as AdminUserReadPort;
   const service = new AdminRoleService(

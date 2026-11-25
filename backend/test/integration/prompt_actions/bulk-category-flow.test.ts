@@ -38,7 +38,7 @@ describe('US2 — bulk category assignment (T041/T042)', () => {
       name: { 'en-US': 'Helmets', 'pl-PL': 'Kaski' },
       slug: 'helmets-043',
     });
-    await em.persistAndFlush(category);
+    await em.persist(category).flush();
     categoryId = category.id;
 
     helmetIds = [];
@@ -148,7 +148,7 @@ describe('US2 — bulk category assignment (T041/T042)', () => {
       name: { 'en-US': 'Gear', 'pl-PL': 'Sprzęt' },
       slug: 'gear-043',
     });
-    await em.persistAndFlush(other);
+    await em.persist(other).flush();
     const ids = [...helmetIds.slice(0, 3)];
     // Pre-assign the 3 products to BOTH categories.
     for (const pid of ids) {

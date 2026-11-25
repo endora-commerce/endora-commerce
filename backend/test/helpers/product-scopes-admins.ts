@@ -30,7 +30,7 @@ async function ensureRole(h: BackendServerHandle, code: string, permissions: str
     let role = await em.findOne(AdminRole, { code });
     if (!role) role = em.create(AdminRole, { code, name: code, permissions });
     else role.permissions = permissions;
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     return role.id;
   });
 }

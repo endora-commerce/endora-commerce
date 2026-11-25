@@ -49,7 +49,7 @@ describe('SessionService.destroyAllForCustomer', () => {
       firstName: 'Test',
       lastName: 'Customer',
     });
-    await em.persistAndFlush(c);
+    await em.persist(c).flush();
     return c.id;
   }
 

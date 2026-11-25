@@ -91,7 +91,7 @@ function makeCreateCustomerAccountCommand(
         ...(input.emailVerified ? { emailVerifiedAt: new Date() } : {}),
       });
       try {
-        await em.persistAndFlush(account);
+        await em.persist(account).flush();
       } catch (err) {
         // The unique index is the real arbiter; the pre-check above only buys a
         // better message for the common case. Two registrations racing on one

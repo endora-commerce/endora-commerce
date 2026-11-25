@@ -9,6 +9,15 @@ Two kinds of change, two timings (FR-104):
   the docs pass (WP11), after #1850, #1855, #1840, the warning release of #1841 and 189's
   constitution sentences (OR-9).
 
+**Phase 0 (#1846) went first, and only as far as the code allows.** It records D-297 without
+claiming the capability: `overlay-modules.md`'s D-106 paragraph names D-297 and its clauses but
+keeps the refusal as today's behaviour; `module-migrations.md`'s overlay sentence says the same;
+`overlay-pattern.md` and `customisation-ladder.md` (+ pl) drop D-106's retired justification
+("same repository and same build as core") and the stale "package schema is not built yet"
+sentence, and state that a later release lifts the refusal. The rows below still own the
+rewrite that describes the capability, at the timing they name. The constitution is untouched
+until WP11 (#1857).
+
 Every published page changes in English **and** Polish (`docs/i18n/pl/docusaurus-plugin-content-docs/current/…`,
 manual workflow `docs/docs/contributing/documentation-i18n.md`).
 

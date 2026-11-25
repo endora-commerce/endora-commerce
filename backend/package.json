@@ -67,6 +67,7 @@
     "check:text-budget": "tsx scripts/check-text-budget.ts",
     "check:transaction-context": "tsx scripts/check-transaction-context.ts",
     "cli": "tsx --env-file-if-exists=.env src/cli.ts",
+    "codemod:persist-and-flush": "tsx scripts/codemods/persist-and-flush.ts ..",
     "composer:check": "tsx scripts/generate-composer.ts --check",
     "composer:generate": "tsx scripts/generate-composer.ts",
     "docs:collect": "tsx scripts/generate-composer.ts --docs-only",
@@ -108,7 +109,7 @@
     "test:unit": "vitest run test/unit",
     "test:unit:fast": "vitest run --config vitest.unit.config.ts",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json --noEmit && tsc -p tsconfig.apps.json --noEmit",
     "verify:docs-build": "tsx scripts/verify-docs-build.ts",
     "worker": "node dist/worker.js",
     "worker:dev": "node scripts/dev.mjs src/worker.ts"

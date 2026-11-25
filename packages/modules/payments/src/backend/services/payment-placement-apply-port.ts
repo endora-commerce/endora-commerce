@@ -43,7 +43,7 @@ export class PaymentPlacementApplyService implements PaymentPlacementApplyPort {
       amount: input.amount,
       currency: input.currency,
     });
-    await em.persistAndFlush(payment);
+    await em.persist(payment).flush();
     return recordOf(payment);
   }
 

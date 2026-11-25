@@ -100,9 +100,11 @@ describe('email — the delivery record is written and never costs a send (D-59)
     const broken = (): EntityManager =>
       ({
         create: () => ({}),
-        persistAndFlush: async () => {
-          throw new Error('deadlock detected');
-        },
+        persist: () => ({
+          flush: async () => {
+            throw new Error('deadlock detected');
+          },
+        }),
       }) as unknown as EntityManager;
     const logged: Array<Record<string, unknown>> = [];
     const recorder = new PersistentEmailDeliveryRecorder(broken, (_m, context) =>

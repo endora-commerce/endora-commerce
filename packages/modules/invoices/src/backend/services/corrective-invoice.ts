@@ -888,7 +888,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
         issuedBy: 'system',
         status: holdForVendor ? 'pending' : 'ready',
       });
-      await tx.persistAndFlush(inv);
+      await tx.persist(inv).flush();
 
       // Snapshot the corrected lines (already capped at the credited remainder).
       for (const s of snapshots) {

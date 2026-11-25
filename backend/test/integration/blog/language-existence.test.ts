@@ -72,7 +72,7 @@ describe('blog language existence (feature 171, T042)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     channel = { id: created.id, code: created.code };
 
     const category = await admin('POST', '/api/v1/admin/blog/categories', {

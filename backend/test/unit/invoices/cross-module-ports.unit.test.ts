@@ -55,7 +55,7 @@ function ownEntitiesOnly(): () => EntityManager {
   };
   const tx = {
     create,
-    persistAndFlush: async () => {},
+    persist: () => ({ flush: async () => {} }),
     flush: async () => {},
     getConnection: () => {
       throw new Error('invoices reached for raw SQL in a unit test');

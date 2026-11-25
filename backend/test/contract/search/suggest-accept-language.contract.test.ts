@@ -62,7 +62,7 @@ describe('Search suggest language from Accept-Language (issue #1011)', () => {
       currencies: ['PLN'],
       active: true,
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     await h.salesChannels.cache.invalidate(channelCode);
     product = await createMinimumProduct(em, {
       sku: `SG1011-${RUN}`,

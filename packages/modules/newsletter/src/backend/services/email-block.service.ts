@@ -97,7 +97,7 @@ export class NewsletterEmailBlockService {
     if (input.content !== undefined) block.content = wrap(input.content) as unknown as Record<string, unknown>;
     block.version += 1;
     this.#audit(em, 'newsletter_email_block.update', block.id, { name: block.name });
-    await em.persistAndFlush(block);
+    await em.persist(block).flush();
     return this.toDetail(block);
   }
 
@@ -111,7 +111,7 @@ export class NewsletterEmailBlockService {
       });
     }
     this.#audit(em, 'newsletter_email_block.delete', block.id, null);
-    await em.removeAndFlush(block);
+    await em.remove(block).flush();
   }
 
   /** Build the renderer embeds map from active blocks for the given language. */

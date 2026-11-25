@@ -211,7 +211,7 @@ describe('Quote request notification delivery (WP-05)', () => {
         lastName: 'Colleague',
         organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'administrator'),
       });
-      await em.persistAndFlush(account);
+      await em.persist(account).flush();
       colleagues.push(account.id);
       return account.id;
     });

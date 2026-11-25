@@ -137,7 +137,7 @@ export class PaymentService {
         currency: latest.currency,
         attemptNo: latest.attemptNo + 1,
       });
-      await tx.persistAndFlush(next);
+      await tx.persist(next).flush();
       return { payment: next, opened: true };
     });
   }

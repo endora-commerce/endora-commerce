@@ -95,7 +95,7 @@ describe('PromotionUsageFinalizer across the package boundary (D-169/D-171)', ()
       isActive: true,
       usageLimitGlobal: limit,
     });
-    await em.persistAndFlush(promo);
+    await em.persist(promo).flush();
     return promo.id;
   };
 
@@ -153,7 +153,7 @@ describe('PromotionUsageFinalizer across the package boundary (D-169/D-171)', ()
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
+    await em.persist(order).flush();
     return order.id;
   };
 

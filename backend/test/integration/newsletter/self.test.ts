@@ -58,7 +58,7 @@ describe('newsletter self-service (US9)', () => {
         country: 'PL',
       },
     });
-    await em.persistAndFlush(organization);
+    await em.persist(organization).flush();
     organizationId = organization.id;
 
     const account = em.create(CustomerAccount, {
@@ -68,7 +68,7 @@ describe('newsletter self-service (US9)', () => {
       firstName: 'Self',
       lastName: 'Service',
     });
-    await em.persistAndFlush(account);
+    await em.persist(account).flush();
     accountId = account.id;
 
     const optIn = new NewsletterOptInService(new FakeSettings() as unknown as SettingsService, new NewsletterTokenHelper('s'));

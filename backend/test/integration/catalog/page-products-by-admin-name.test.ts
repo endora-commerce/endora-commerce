@@ -48,7 +48,7 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
       ids[key] = p.id;
       return p;
     };
-    await em.persistAndFlush([
+    await em.persist([
       make('anchor', 'G15N-A', 'Anchor'),
       make('bolt2', 'G15N-B2', 'Bolt'),
       make('bolt1', 'G15N-B1', 'Bolt'),
@@ -57,8 +57,8 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
       make('empty', 'G15N-E', ''),
       make('gone', 'G15N-F', 'Fastener', { deletedAt: new Date(), status: 'inactive' }),
       make('outside', 'G15N-O', 'Aardvark'),
-    ]);
-    await em.persistAndFlush(em.create(ProductVariant, { parentProductId: ids['anchor']!, sku: `G15N-AV-${stamp}`, variantAttributeValues: {} }));
+    ]).flush();
+    await em.persist(em.create(ProductVariant, { parentProductId: ids['anchor']!, sku: `G15N-AV-${stamp}`, variantAttributeValues: {} })).flush();
     const members = Object.entries(ids).filter(([k]) => k !== 'outside').map(([, id]) => id);
     membership = { sql: 'select m.id from unnest(?::uuid[]) as m(id)', params: [`{${members.join(',')}}`] };
   }, 60_000);

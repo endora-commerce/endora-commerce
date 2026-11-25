@@ -86,7 +86,7 @@ rozszerzenia nie przyjmuje ścieżki.
 | Wykonać kod przed endpointem innego modułu lub po nim, zablokować go albo przepisać jego odpowiedź | `ctx.interceptors` |
 | Zmienić zachowanie, które właściciel przewidział jako zmienne | port strategii publikowany przez właściciela, rejestrowany przez `ctx.di.providePort` i odczytywany przez `lazyPort` |
 | Zmienić konfigurację | ustawienie zadeklarowane w manifeście, a `divergence.ts`, aby pominąć moduł |
-| Dodać tabele specyficzne dla klienta | w **module rdzenia**, odczytywane z nakładki przez port tego modułu — moduł nakładkowy nie wnosi schematu, zobacz niżej |
+| Dodać tabele specyficzne dla klienta | dziś w instalowanym pakiecie modułu (w repozytorium platformy: w module z jej własnego drzewa), odczytywane z nakładki przez port tego modułu. Moduł nakładkowy jeszcze nie wnosi schematu, zobacz niżej |
 | **Zastąpić w całości handler trasy** | **Brak punktu rozszerzenia. Nie jest oferowane.** Zobacz *Jedyna rzecz bez punktu rozszerzenia* poniżej |
 
 ## Moduł nakładkowy nie wnosi schematu
@@ -105,20 +105,32 @@ sprawdzono pomiarem i okazał się fałszywy: dodanie migracji modułu-liścia n
 kolejności żadnej istniejącej migracji, bo liść wnosi wyłącznie krawędzie zależności wychodzące od
 siebie. Argument wycofano; nie powtarzaj go.
 
-Prawdziwy powód jest skromniejszy i obowiązuje niezależnie od tamtego: **nakładka znajduje się w
-tym samym repozytorium i w tym samym buildzie co rdzeń**, więc rozwiązanie jest zawsze pod ręką i
-kosztuje tylko jeden katalog. Wdrożenie, które potrzebuje tabel specyficznych dla klienta, dostarcza
-je w module rdzenia i odczytuje z modułu nakładkowego przez port tego modułu — moduł nakładkowy
-zachowuje całą resztę: własne usługi, trasy, dekoracje i uprawnienia. Dopuszczenie schematu w
-nakładce dodałoby drugi mechanizm posiadania schematu, nie dając żadnej nowej możliwości, a to nie
-jest warte swojej ceny.
+**Ta reguła zostanie zniesiona.** Ta strona uzasadniała ją tym, że nakładka znajduje się w tym
+samym repozytorium i w tym samym buildzie co rdzeń, więc tabelę zawsze można dostarczyć w module
+rdzenia. W instancji to nie obowiązuje: instancja zależy od wydanych pakietów i nie ma drzewa
+rdzenia, w którym mogłaby umieścić tabelę, więc i to uzasadnienie wycofano. Jedno z kolejnych
+wydań czyni moduł nakładkowy pełnoprawnym modułem. Będzie on mógł mieć własne encje i migracje,
+publikować port oraz dostarczać ekrany panelu administracyjnego i akcje palety poleceń, zarówno w
+instancji, jak i we własnym drzewie `apps/` repozytorium platformy. Obowiązują go te same reguły co
+pakiet:
 
-**Pakiet rozszerzenia to przypadek odwrotny.** Autor pakietu zewnętrznego nie ma modułu rdzenia, w
-którym mógłby dostarczyć tabelę, więc ta sama reguła nie byłaby dla niego ograniczeniem do
-obejścia, lecz zakazem całego programu pakietów rozszerzeń — a każda ich rodzina przechowuje stan.
-Reguła pozwala więc pakietowi na własne encje i migracje. Ten mechanizm nie jest jeszcze zbudowany —
-dziś jedynym schematem, który wykonuje działająca platforma, jest schemat rdzenia — więc dla
-wdrożenia nic na tej stronie się nie zmienia.
+- jego migracje przechodzą przez to samo zabezpieczenie przed zapisem do cudzego schematu co
+  migracje zainstalowanego pakietu, bez wyjątku z tego powodu, że należy do wdrożenia;
+- cały kod nakładek wdrożenia kompiluje jeden build; nie ma osobnego buildu, `package.json` ani
+  mapy `exports` dla każdego modułu;
+- moduł przeniesiony później z nakładki do pakietu zachowuje identyfikator modułu, więc migracje,
+  które baza danych już zapisała, nadal się zgadzają.
+
+**Do tego wydania odmowa obowiązuje.** W instancji tabela potrzebna wdrożeniu trafia do
+instalowanego pakietu modułu, a moduł nakładkowy odczytuje ją przez port tego pakietu. Moduł
+nakładkowy zachowuje całą resztę: własne usługi, trasy, dekoracje i uprawnienia.
+
+**Pakiet rozszerzenia już może dostarczać schemat.** Autor pakietu zewnętrznego nie ma modułu
+rdzenia, w którym mógłby dostarczyć tabelę, więc dla pakietu ta reguła nie byłaby ograniczeniem do
+obejścia. Zakazywałaby całego programu pakietów rozszerzeń, a każda ich rodzina przechowuje stan.
+Pakiet ma więc własne encje i migracje. Platforma wykrywa je w czasie działania i uruchamia każdą
+migrację pakietu za zabezpieczeniem przed zapisem do cudzego schematu, które odrzuca zapis do
+tabeli niebędącej własnością pakietu.
 
 ## Nadpisanie usługi to dekoracja
 

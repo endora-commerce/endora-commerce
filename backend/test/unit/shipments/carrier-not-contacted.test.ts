@@ -66,8 +66,7 @@ function fakeEmFactory(): () => EntityManager {
     create(_entity: unknown, data: Record<string, unknown>): Shipment {
       return { id: randomUUID(), ...data } as unknown as Shipment;
     },
-    async persistAndFlush(): Promise<void> {},
-    persist(): void {},
+    persist() { return { flush: async (): Promise<void> => {} }; },
   };
   return () => em as unknown as EntityManager;
 }

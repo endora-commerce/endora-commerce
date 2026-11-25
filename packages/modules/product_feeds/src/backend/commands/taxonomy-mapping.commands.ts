@@ -72,7 +72,7 @@ export function makeSetTaxonomyMappingCommand(args: {
             skipAudit: true,
           };
         }
-        await em.removeAndFlush(existing);
+        await em.remove(existing).flush();
         return {
           result: {
             providerCode: args.providerCode,
@@ -93,7 +93,7 @@ export function makeSetTaxonomyMappingCommand(args: {
       row.nodeExternalId = args.nodeExternalId;
       // The operator just picked a node from the current revision.
       row.stale = false;
-      await em.persistAndFlush(row);
+      await em.persist(row).flush();
 
       return {
         result: {

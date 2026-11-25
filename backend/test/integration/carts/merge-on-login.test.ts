@@ -63,7 +63,7 @@ describe('cart merges anon→customer on login (integration)', () => {
       // system default's (`specs/154-sales-channel-access/`).
       salesChannelId: await systemDefaultSalesChannelId(em),
     });
-    await em.persistAndFlush(custCart);
+    await em.persist(custCart).flush();
     em.persist(
       em.create(CartItem, {
         cartId: custCart.id,

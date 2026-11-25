@@ -59,7 +59,7 @@ describe('the i18n reload and coverage routes require a settings permission', ()
           name: `i18n ${label}`,
           permissions: [...permissions],
         });
-        await em.persistAndFlush(role);
+        await em.persist(role).flush();
         adminRoleId = role.id;
       }
       // Written straight to the table: the admin surface refuses to create an
@@ -72,7 +72,7 @@ describe('the i18n reload and coverage routes require a settings permission', ()
         lastName: label,
         ...(adminRoleId === undefined ? {} : { adminRoleId }),
       });
-      await em.persistAndFlush(account);
+      await em.persist(account).flush();
       return account.id;
     }
 

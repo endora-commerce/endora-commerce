@@ -170,7 +170,7 @@ describe('forms — server-side validation and conditional logic (US3)', () => {
       systemDefault: false,
       status: 'active',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     bilingual = { id: channel.id, code: channel.code };
 
     const draft = detailOf(await adminCall('POST', '', { name: `Validation ${RUN}`, defaultLanguage: LANGUAGE }));

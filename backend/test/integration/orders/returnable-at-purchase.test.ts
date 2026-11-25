@@ -270,7 +270,7 @@ describe('155 — placement stamps returnable_at_purchase on every path [integra
       taxRate: '0.0000',
       lineTotal: '10.00',
     });
-    await em.persistAndFlush(legacy);
+    await em.persist(legacy).flush();
     try {
       const rows = await em
         .getConnection()

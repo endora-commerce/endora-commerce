@@ -7,6 +7,7 @@ import {
   type AutomationSummary,
   type CreateAutomationRequest,
   type NewsletterSendProvider,
+  type SubscriberStatus,
   type UpdateAutomationRequest,
   isUuidShape,
 } from '@endora-commerce/contracts';
@@ -17,6 +18,7 @@ import { NewsletterAutomation } from '../entities/newsletter-automation.entity.j
 import { NewsletterAutomationRun } from '../entities/newsletter-automation-run.entity.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterSendRecord } from '../entities/newsletter-send-record.entity.js';
+import { NewsletterSuppression } from '../entities/newsletter-suppression.entity.js';
 import type {
   NewsletterContentService,
   EmailBrandingResolver,
@@ -27,6 +29,18 @@ import type { NewsletterOptInService } from './opt-in.service.js';
 import type { NewsletterLinkBuilder } from './subscriber.service.js';
 
 const DAY_MS = 86_400_000;
+
+/**
+ * A committed subscriber write, as automation enrolment reads it (issue
+ * #1833): the status before and after, and the tag ids before and after.
+ */
+export interface SubscriberEnrolmentTransition {
+  subscriberId: string;
+  previousStatus: SubscriberStatus | null;
+  status: SubscriberStatus;
+  tagIdsBefore: readonly string[];
+  tagIdsAfter: readonly string[];
+}
 
 export interface AutomationServiceDeps {
   emFactory: () => EntityManager;
@@ -121,7 +135,7 @@ export class NewsletterAutomationService {
     if (input.steps !== undefined) a.steps = input.steps as unknown as Array<Record<string, unknown>>;
     a.version += 1;
     this.#audit(em, 'newsletter_automation.update', a.id, { name: a.name });
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
     return this.toDetail(a);
   }
 
@@ -155,7 +169,7 @@ export class NewsletterAutomationService {
     a.status = 'active';
     a.version += 1;
     this.#audit(em, 'newsletter_automation.activate', a.id, { status: 'active' });
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
     return this.toDetail(a);
   }
 
@@ -168,7 +182,7 @@ export class NewsletterAutomationService {
     a.status = 'paused';
     a.version += 1;
     this.#audit(em, 'newsletter_automation.pause', a.id, { status: 'paused' });
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
     return this.toDetail(a);
   }
 
@@ -198,6 +212,54 @@ export class NewsletterAutomationService {
     return id;
   }
 
+  /**
+   * Enrol a subscriber into every active automation its committed transition
+   * newly matches (issue #1833). Called by the subscriber flow after the write
+   * commits — never inside it — so a rolled-back subscribe enqueues nothing.
+   *
+   * - `all` matches a subscriber that has just **become** `active` (a single
+   *   opt-in subscribe, a double opt-in confirmation, a re-subscribe after an
+   *   unsubscribe). A `pending` one is not enrolled.
+   * - `tag` / `tag_list` (both "any of the trigger's tags", as campaign
+   *   targeting reads them) match an active subscriber that has just become
+   *   active carrying one of the tags, or an already active one that has just
+   *   been given one.
+   *
+   * Only **transitions** match: a subscriber already active that re-submits
+   * the form with nothing new is not enrolled, and activating an automation
+   * does not back-fill the subscribers that already match it. A suppressed
+   * address is enrolled nowhere — the same rule the campaign audience applies.
+   * `enrol` keeps the `once` re-entry index authoritative. Returns the ids of
+   * the runs created.
+   */
+  async enrolMatching(transition: SubscriberEnrolmentTransition): Promise<string[]> {
+    if (transition.status !== 'active') return [];
+    const becameActive = transition.previousStatus !== 'active';
+    const before = new Set(transition.tagIdsBefore);
+    const candidateTagIds = new Set(
+      becameActive ? transition.tagIdsAfter : transition.tagIdsAfter.filter((id) => !before.has(id)),
+    );
+    if (!becameActive && candidateTagIds.size === 0) return [];
+
+    const em = this.deps.emFactory();
+    const active = await em.find(NewsletterAutomation, { status: 'active' }, { orderBy: { createdAt: 'asc' } });
+    const matching = active.filter((a) =>
+      a.triggerType === 'all' ? becameActive : a.triggerTagIds.some((id) => candidateTagIds.has(id)),
+    );
+    if (matching.length === 0) return [];
+
+    const subscriber = await em.findOne(NewsletterSubscriber, { id: transition.subscriberId });
+    if (!subscriber || subscriber.status !== 'active') return [];
+    if (await em.findOne(NewsletterSuppression, { email: subscriber.email })) return [];
+
+    const runIds: string[] = [];
+    for (const automation of matching) {
+      const runId = await this.enrol(automation.id, subscriber.id);
+      if (runId) runIds.push(runId);
+    }
+    return runIds;
+  }
+
   /** Execute one automation step for a run. Idempotent on (run, stepIndex). */
   async processStep(runId: string, stepIndex: number): Promise<void> {
     // command-coverage-ignore: automation run execution — advances a run to its
@@ -214,7 +276,7 @@ export class NewsletterAutomationService {
       run.status = 'cancelled';
       run.nextStepAt = null;
       run.nextStepJobId = null;
-      await em.persistAndFlush(run);
+      await em.persist(run).flush();
       return;
     }
 
@@ -223,7 +285,7 @@ export class NewsletterAutomationService {
     const step = steps[stepIndex];
     if (!step) {
       run.status = 'completed';
-      await em.persistAndFlush(run);
+      await em.persist(run).flush();
       return;
     }
 
@@ -238,12 +300,12 @@ export class NewsletterAutomationService {
       run.status = 'completed';
       run.nextStepAt = null;
       run.nextStepJobId = null;
-      await em.persistAndFlush(run);
+      await em.persist(run).flush();
       return;
     }
     const delayMs = step.type === 'wait' ? step.days * DAY_MS : 0;
     run.nextStepAt = new Date(Date.now() + delayMs);
-    await em.persistAndFlush(run);
+    await em.persist(run).flush();
     await this.deps.enqueueStep(runId, nextIndex, delayMs);
   }
 
@@ -333,7 +395,7 @@ export class NewsletterAutomationService {
       record.status = 'failed';
       record.error = err instanceof Error ? err.message : String(err);
     }
-    await em.persistAndFlush(record);
+    await em.persist(record).flush();
   }
 
   private async load(em: EntityManager, id: string): Promise<NewsletterAutomation> {

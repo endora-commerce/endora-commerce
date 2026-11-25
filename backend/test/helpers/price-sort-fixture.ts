@@ -95,7 +95,7 @@ async function seedProduct(
     attributeValues: input.attributeValues,
     createdAt: input.createdAt,
   });
-  await em.persistAndFlush(product);
+  await em.persist(product).flush();
   await em
     .getConnection()
     .execute(`insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)`, [

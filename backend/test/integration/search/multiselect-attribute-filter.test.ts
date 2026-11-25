@@ -75,7 +75,7 @@ describe('catalog list — a multiselect attribute filter on the Meilisearch bac
         attributeValues: { [KEY]: p.series },
       }),
     );
-    await em.persistAndFlush(products);
+    await em.persist(products).flush();
     await em.getConnection().execute(
       `insert into sales_channel_products (sales_channel_id, product_id) values ` +
         products.map(() => '(?,?)').join(','),

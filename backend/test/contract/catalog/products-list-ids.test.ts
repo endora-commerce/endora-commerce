@@ -88,7 +88,7 @@ describe('GET /api/v1/catalog/products?ids= (issue #590)', () => {
         allowedOrganizationIds: fixture.allowedOrganizationIds,
         attributeValues: {},
       });
-      await em.persistAndFlush(product);
+      await em.persist(product).flush();
       ids[fixture.key] = product.id;
       if (fixture.inChannel) {
         await em
@@ -237,7 +237,7 @@ describe('GET /api/v1/catalog/products?ids= under a price ordering or range (rev
         allowedOrganizationIds: [],
         attributeValues: {},
       });
-      await em.persistAndFlush(product);
+      await em.persist(product).flush();
       await em
         .getConnection()
         .execute('insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)', [

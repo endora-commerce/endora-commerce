@@ -113,7 +113,7 @@ Zależność od kanału ma dwie warstwy:
    stronach). Dodaj tę tabelę w kolejnej migracji modułu.
 2. **Usługa** — każda ścieżka odczytu encji, która ma być filtrowana według kanału, przyjmuje
    parametr `salesChannelId` i łączy dane przez tabelę łączącą. Każda ścieżka tworzenia lub
-   aktualizacji, która tworzy nową encję, po `persistAndFlush` wywołuje
+   aktualizacji, która tworzy nową encję, po `persist(entity).flush()` wywołuje
    `bindToDefaultIfEmpty(entityType, entity.id)` na `salesChannelMembershipPort`, aby nowe encje
    domyślnie trafiały do domyślnego kanału systemowego.
 

@@ -102,7 +102,7 @@ export class AdminNotificationService {
     // alert record / read-state, not an audited domain-state mutation.
     const em = this.emFactory();
     const entry = this.#create(em, input);
-    await em.persistAndFlush(entry);
+    await em.persist(entry).flush();
     await this.pruneStale(input.audience, input.targetAdminUserId ?? null);
     return entry;
   }
@@ -284,7 +284,7 @@ export class AdminNotificationService {
     if (entry.audience === 'admin_user') {
       if (entry.readAt) return;
       entry.readAt = new Date();
-      await em.persistAndFlush(entry);
+      await em.persist(entry).flush();
       return;
     }
     // Broadcast — record the per-admin read cursor (idempotent).
@@ -297,7 +297,7 @@ export class AdminNotificationService {
       notificationId,
       adminUserId,
     });
-    await em.persistAndFlush(cursor);
+    await em.persist(cursor).flush();
   }
 
   async markAllRead(adminUserId: string, access: BroadcastAccess): Promise<number> {

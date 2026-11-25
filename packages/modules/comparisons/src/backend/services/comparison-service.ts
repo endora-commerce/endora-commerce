@@ -393,7 +393,7 @@ export class ComparisonService {
 
     const existing = await em.findOne(Comparison, { customerAccountId });
     if (existing) {
-      await em.removeAndFlush(anon);
+      await em.remove(anon).flush();
       return;
     }
 
@@ -478,7 +478,7 @@ export class ComparisonService {
         salesChannelId,
         displayMode: 'all' as ComparisonDisplayMode,
       });
-      await em.persistAndFlush(comparison);
+      await em.persist(comparison).flush();
     }
 
     const existingRows = await em.find(ComparisonProduct, {
@@ -500,7 +500,7 @@ export class ComparisonService {
       position: existingRows.length,
     });
     comparison.updatedAt = new Date();
-    await em.persistAndFlush(next);
+    await em.persist(next).flush();
     return comparison;
   }
 
@@ -515,7 +515,7 @@ export class ComparisonService {
       productId,
     });
     if (!row) throw new ProductNotInComparisonError(productId);
-    await em.removeAndFlush(row);
+    await em.remove(row).flush();
     comparison.updatedAt = new Date();
     await em.flush();
     return comparison;
@@ -543,7 +543,7 @@ export class ComparisonService {
     const comparison = await em.findOne(Comparison, ownerWhere(owner));
     if (!comparison) throw new ComparisonNotFoundError();
     // FK on comparison_products cascades; we can simply remove the row.
-    await em.removeAndFlush(comparison);
+    await em.remove(comparison).flush();
   }
 
   // ------------------------------------------------------------------

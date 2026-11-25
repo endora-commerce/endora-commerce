@@ -47,7 +47,7 @@ describe('admin soft-delete + reference protection (T056)', () => {
       storageBackend: 'legacy',
       visibility: 'public',
     });
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
 
     const del = await h.app.inject({
       method: 'DELETE',
@@ -68,7 +68,7 @@ describe('admin soft-delete + reference protection (T056)', () => {
     const detail = (restore.json() as { data: { id: string; deletedAt: string | null } }).data;
     expect(detail.deletedAt).toBeNull();
 
-    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id: a.id }));
+    await h.em().remove(await h.em().findOneOrFail(Asset, { id: a.id })).flush();
   });
 
   it('returns 409 ASSET_REFERENCED when an asset is in use by a Product gallery item', async () => {
@@ -84,7 +84,7 @@ describe('admin soft-delete + reference protection (T056)', () => {
       storageBackend: 'legacy',
       visibility: 'public',
     });
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
 
     const conn = em.getConnection();
     // Pick any active product to attach to.
@@ -93,7 +93,7 @@ describe('admin soft-delete + reference protection (T056)', () => {
     )) as Array<{ id: string }>;
     if (productRows.length === 0) {
       // No products in this test seed; skip the assertion path.
-      await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id: a.id }));
+      await h.em().remove(await h.em().findOneOrFail(Asset, { id: a.id })).flush();
       return;
     }
     const productId = productRows[0]!.id;
@@ -121,7 +121,7 @@ describe('admin soft-delete + reference protection (T056)', () => {
       `delete from gallery_items where asset_id = ?`,
       [a.id],
     );
-    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id: a.id }));
+    await h.em().remove(await h.em().findOneOrFail(Asset, { id: a.id })).flush();
   });
 
   // specs/156-asset-stable-url/ T042 — the reported purge date follows the
@@ -139,7 +139,7 @@ describe('admin soft-delete + reference protection (T056)', () => {
       storageBackend: 'legacy',
       visibility: 'public',
     });
-    await em.persistAndFlush(a);
+    await em.persist(a).flush();
     const restoreSeven = await overrideAssetSetting(h, 'assets.soft_delete_retention_days', 7);
     try {
       const del = await h.app.inject({ method: 'DELETE', url: `/api/v1/admin/assets/${a.id}`, cookies: adminCookie });
@@ -159,7 +159,7 @@ describe('admin soft-delete + reference protection (T056)', () => {
       }
     } finally {
       await restoreSeven();
-      await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id: a.id }));
+      await h.em().remove(await h.em().findOneOrFail(Asset, { id: a.id })).flush();
     }
   });
 

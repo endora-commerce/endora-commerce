@@ -79,7 +79,7 @@ export async function seedInvoiceableOrder(
     currency: 'PLN',
     placedAt: new Date(),
   });
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
 
   const item1 = em.create(OrderItem, {
     orderId: order.id,
@@ -106,7 +106,7 @@ export async function seedInvoiceableOrder(
     taxRate: lineTaxRate.toFixed(4),
     lineTotal: grossFromNetHalfUp('4505.00', lineTaxRate, 'fraction'),
   });
-  await em.persistAndFlush([item1, item2]);
+  await em.persist([item1, item2]).flush();
 
   return { orderId: order.id, salesChannelId, itemIds: [item1.id, item2.id] };
 }

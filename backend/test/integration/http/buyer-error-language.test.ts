@@ -52,7 +52,7 @@ describe('the language a buyer is answered in (issue #234)', () => {
     h = await setupBackendServer();
     const em = h.em();
     if (!(await em.findOne(SalesChannel, { code: PL_CHANNEL_CODE }))) {
-      await em.persistAndFlush(
+      await em.persist(
         em.create(SalesChannel, {
           code: PL_CHANNEL_CODE,
           name: { en: 'Polish market (issue 234)' },
@@ -61,7 +61,7 @@ describe('the language a buyer is answered in (issue #234)', () => {
           defaultCurrency: 'PLN',
           currencies: ['PLN'],
         }),
-      );
+      ).flush();
     }
     // The R3/R4 basket is this channel's, so the channel sells its line.
     const channel = await em.findOneOrFail(SalesChannel, { code: PL_CHANNEL_CODE });

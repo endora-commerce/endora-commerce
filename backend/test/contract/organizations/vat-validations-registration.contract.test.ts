@@ -108,7 +108,7 @@ describe('VAT validation history with registration rows (feature 173)', () => {
       } else {
         role.permissions = Array.from(new Set([...role.permissions, ...grants]));
       }
-      await fork.persistAndFlush(role);
+      await fork.persist(role).flush();
       const own = fork.create(Organization, {
         name: `VAT173 own ${stamp}`,
         taxId: `PL173O${stamp}`,
@@ -123,8 +123,8 @@ describe('VAT validation history with registration rows (feature 173)', () => {
         firstName: '173',
         lastName: 'Rep',
       });
-      await fork.persistAndFlush([own, rep]);
-      await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: own.id, adminUserId: rep.id }));
+      await fork.persist([own, rep]).flush();
+      await fork.persist(fork.create(OrganizationSalesRepAssignment, { organizationId: own.id, adminUserId: rep.id })).flush();
       // Issue #698 — the registration is another representative's, so it is
       // foreign under either visibility rule: an unassigned one is reachable by
       // every representative (D-3W, issue #305).
@@ -135,10 +135,10 @@ describe('VAT validation history with registration rows (feature 173)', () => {
         firstName: '173',
         lastName: 'Other',
       });
-      await fork.persistAndFlush(other);
-      await fork.persistAndFlush(
+      await fork.persist(other).flush();
+      await fork.persist(
         fork.create(OrganizationSalesRepAssignment, { organizationId, adminUserId: other.id }),
-      );
+      ).flush();
       ADMIN_COOKIES[REP] = { adminUserId: rep.id };
     });
     const foreign = await history(organizationId, { b2b_session: REP });

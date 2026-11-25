@@ -194,7 +194,7 @@ async function seedRows(db: TestDb): Promise<SeededRows> {
     startsAt: longPast,
     endsAt: past,
   });
-  await em.persistAndFlush([scheduled, active]);
+  await em.persist([scheduled, active]).flush();
 
   return { scheduledId: scheduled.id, activeId: active.id };
 }

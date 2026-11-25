@@ -59,7 +59,7 @@ describe('API description — access', () => {
       name: 'API describer',
       permissions: [CODE],
     });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     const admin = em.create(AdminUser, {
       email: `api-describer-${randomUUID().slice(0, 8)}@api-description.local`,
       passwordHash: 'x'.repeat(60),
@@ -68,7 +68,7 @@ describe('API description — access', () => {
       lastName: 'Describer',
       status: 'active',
     });
-    await em.persistAndFlush(admin);
+    await em.persist(admin).flush();
     describerCookie = `stub-api-describer-${admin.id}`;
     ADMIN_COOKIES[describerCookie] = { adminUserId: admin.id };
 

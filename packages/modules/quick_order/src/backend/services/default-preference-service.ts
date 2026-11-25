@@ -133,7 +133,7 @@ export class DefaultPreferenceService {
         row[field] = input[field] ?? null;
       }
     }
-    await em.persistAndFlush(row);
+    await em.persist(row).flush();
 
     const after = this.toContract(row);
     await this.auditLog.record({

@@ -93,7 +93,7 @@ export async function seedOrganization(
     ...(over.isPersonal !== undefined ? { isPersonal: over.isPersonal } : {}),
     registeredAddress: { street: 'ul. Szukana 1', city: 'Kraków', postalCode: '30-001', country: 'PL' },
   } as never);
-  await em.persistAndFlush(org);
+  await em.persist(org).flush();
   // Feature 154 — an Organization with no sales channel may not shop anywhere;
   // bind the stores the harness seeds.
   await bindOrganizationsToFixtureChannelsSql(em, [org.id]);
@@ -114,7 +114,7 @@ export async function seedCustomer(
     organizationRoleId: await predefinedRoleIdOf(em, organizationId, 'administrator'),
     emailVerifiedAt: new Date(),
   } as never);
-  await em.persistAndFlush(customer);
+  await em.persist(customer).flush();
   return customer;
 }
 
@@ -157,7 +157,7 @@ export async function seedOrder(
     currency: 'PLN',
     placedAt: new Date(),
   } as never);
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
   return order;
 }
 
@@ -182,7 +182,7 @@ export async function ensureSalesRep(
       previous = [...role.permissions];
       role.permissions = Array.from(new Set([...role.permissions, ...permissions]));
     }
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     await upsertAdmin(em, GS_SALES_REP_ID, 'global-search-sales-rep@example.com', role.id);
     for (const organizationId of organizationIds) {
       const existing = await em.findOne(OrganizationSalesRepAssignment, { adminUserId: GS_SALES_REP_ID, organizationId });
@@ -194,7 +194,7 @@ export async function ensureSalesRep(
     await withSystemScope('test cleanup: global search sales representative', async () => {
       const em = h.em();
       const rows = await em.find(OrganizationSalesRepAssignment, { adminUserId: GS_SALES_REP_ID });
-      if (rows.length > 0) await em.removeAndFlush(rows);
+      if (rows.length > 0) await em.remove(rows).flush();
       if (previous !== null) {
         const role = await em.findOne(AdminRole, { code: 'sales_representative' });
         if (role) {
@@ -233,7 +233,7 @@ export async function assignToAnotherRepresentative(
     await withSystemScope('test cleanup: global search, another representative', async () => {
       const em = h.em();
       const rows = await em.find(OrganizationSalesRepAssignment, { adminUserId: GS_OTHER_REP_ID });
-      if (rows.length > 0) await em.removeAndFlush(rows);
+      if (rows.length > 0) await em.remove(rows).flush();
     });
   };
 }
@@ -250,7 +250,7 @@ export async function ensureAdminWithRole(
     let role = await em.findOne(AdminRole, { code: roleCode });
     if (!role) role = em.create(AdminRole, { code: roleCode, name: roleCode, permissions: [...permissions] });
     else role.permissions = [...permissions];
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     await upsertAdmin(em, adminUserId, `${roleCode.replace(/_/g, '-')}@example.com`, role.id);
   });
 }

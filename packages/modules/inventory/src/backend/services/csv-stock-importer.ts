@@ -132,7 +132,7 @@ export class CsvStockImporter {
           onHand,
         });
       }
-      await em.persistAndFlush(row);
+      await em.persist(row).flush();
       rowsApplied += 1;
 
       if (this.eventBus && before !== onHand) {

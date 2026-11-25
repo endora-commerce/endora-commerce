@@ -72,7 +72,7 @@ describe('Admin quick-order default preferences', () => {
       postalCode: '00-769',
       country: 'PL',
     });
-    await em.persistAndFlush(personal);
+    await em.persist(personal).flush();
 
     const put = await h.app.inject({
       method: 'PUT',

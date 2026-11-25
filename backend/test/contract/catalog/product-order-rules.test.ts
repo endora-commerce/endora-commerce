@@ -423,7 +423,7 @@ describe('155 — catalogue writes of minOrderQuantity and returnable [contract]
         currency: 'PLN',
         placedAt: new Date(),
       });
-      await em.persistAndFlush(order);
+      await em.persist(order).flush();
       const orderItem = em.create(OrderItem, {
         orderId: order.id,
         productId,
@@ -433,7 +433,7 @@ describe('155 — catalogue writes of minOrderQuantity and returnable [contract]
         taxRate: '0.0000',
         lineTotal: '30.00',
       });
-      await em.persistAndFlush(orderItem);
+      await em.persist(orderItem).flush();
       seeded.push({ table: 'orders', id: order.id }, { table: 'order_items', id: orderItem.id });
 
       const caseId = randomUUID();

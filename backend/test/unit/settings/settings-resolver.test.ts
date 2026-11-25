@@ -44,7 +44,7 @@ describe('SettingsService resolver (T048)', () => {
       defaultLanguage: 'en',
       defaultCurrency: 'USD',
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     return channel;
   }
 

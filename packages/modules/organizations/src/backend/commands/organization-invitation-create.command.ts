@@ -65,7 +65,7 @@ export function makeCreateOrganizationInvitationCommand(
         expiresAt: input.expiresAt,
       });
       try {
-        await em.persistAndFlush(invitation);
+        await em.persist(invitation).flush();
       } catch (err) {
         if (err instanceof UniqueConstraintViolationException) {
           throw new HttpError(

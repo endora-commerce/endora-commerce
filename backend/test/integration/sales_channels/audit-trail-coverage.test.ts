@@ -74,13 +74,13 @@ describe('audit trail coverage (T048)', () => {
       // Ensure language + currency seeds the create-validate path needs.
       // Bypassing the partial-unique index on `is_default` is easier with
       // `is_default = false` than juggling cross-test state.
-      await em.persistAndFlush(
+      await em.persist(
         em.create(
           (await import('../../helpers/package-entities.js')).Language,
           { code: 'en-T048', label: 'English (T048)', isDefault: false, isActive: true, sortOrder: 99 },
         ),
-      );
-      await em.persistAndFlush(
+      ).flush();
+      await em.persist(
         em.create(
           (await import('../../helpers/package-entities.js')).Currency,
           {
@@ -92,7 +92,7 @@ describe('audit trail coverage (T048)', () => {
             sortOrder: 99,
           },
         ),
-      );
+      ).flush();
 
       const svc = identityService();
 
@@ -264,7 +264,7 @@ describe('audit trail coverage (T048)', () => {
         attributeValues: {},
         allowedOrganizationIds: [],
       });
-      await em.persistAndFlush(product);
+      await em.persist(product).flush();
 
       const channel = em.create(SalesChannel, {
         code: 't048-mem',
@@ -277,7 +277,7 @@ describe('audit trail coverage (T048)', () => {
         systemDefault: false,
         version: 1,
       });
-      await em.persistAndFlush(channel);
+      await em.persist(channel).flush();
 
       const auditLogService = new AuditLogService(() => db.em());
       const eventBus = new EventBus();

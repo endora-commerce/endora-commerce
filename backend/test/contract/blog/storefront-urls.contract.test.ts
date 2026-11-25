@@ -46,7 +46,7 @@ describe('storefront blog URLs (feature 171, T008)', () => {
       status: 'active',
       prefixDefaultLanguage,
     });
-    await em.persistAndFlush(channel);
+    await em.persist(channel).flush();
     createdChannelIds.push(channel.id);
     return { id: channel.id, code: channel.code };
   }

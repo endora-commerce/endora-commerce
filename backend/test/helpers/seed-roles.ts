@@ -35,7 +35,7 @@ export async function seedRoleScopingFixture(em: EntityManager): Promise<void> {
     organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'member'),
     emailVerifiedAt: new Date(),
   });
-  await em.persistAndFlush(regular);
+  await em.persist(regular).flush();
 
   // Order owned by the org admin (TEST_CUSTOMER_ID). Used as the read target.
   const order = em.create(Order, {
@@ -68,5 +68,5 @@ export async function seedRoleScopingFixture(em: EntityManager): Promise<void> {
   // what the contract reads.
   void SEED_ADDRESS_BILLING_ID;
   void SEED_ADDRESS_DELIVERY_ID;
-  await em.persistAndFlush(order);
+  await em.persist(order).flush();
 }

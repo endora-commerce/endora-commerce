@@ -44,9 +44,11 @@ describe('payment-method delete-guard (feature 075)', () => {
     let removedCount = 0;
     const em = {
       findOne: async () => row,
-      removeAndFlush: async () => {
-        removedCount += 1;
-      },
+      remove: () => ({
+        flush: async () => {
+          removedCount += 1;
+        },
+      }),
     } as unknown as EntityManager;
     return { em, removed: () => removedCount };
   }

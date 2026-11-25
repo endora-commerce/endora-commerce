@@ -2381,7 +2381,7 @@ function plan(input: {
       'setup',
       input.targetDir,
       ['run', 'setup'],
-      'generate, build, migrate and install every module — the four steps, in order',
+      'generate, build, type-check, migrate and install every module — the five steps, in order',
     ),
     step(
       'admin',

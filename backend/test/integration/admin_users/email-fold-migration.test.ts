@@ -47,7 +47,7 @@ describe('admin_users — folding e-mail case over existing rows', () => {
       firstName: 'Fold',
       lastName: 'Fixture',
     });
-    await em.persistAndFlush(admin);
+    await em.persist(admin).flush();
     // `onCreate` stamps `createdAt`, and the tie-break under test is precisely
     // that column, so it is set explicitly afterwards.
     await em.execute('update admin_users set created_at = ? where id = ?', [createdAt, admin.id]);

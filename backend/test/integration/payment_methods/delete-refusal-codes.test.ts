@@ -74,7 +74,7 @@ describe('payment-method delete refusals carry their own code and sentence (issu
       statusOnSuccess: 'confirmed',
       statusOnFailure: 'cancelled',
     });
-    await em.persistAndFlush(method);
+    await em.persist(method).flush();
     return { id: method.id, code: method.code };
   }
 
@@ -105,15 +105,15 @@ describe('payment-method delete refusals carry their own code and sentence (issu
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
-    await em.persistAndFlush(
+    await em.persist(order).flush();
+    await em.persist(
       em.create(Payment, {
         orderId: order.id,
         paymentMethodId: method.id,
         amount: '12.30',
         currency: 'PLN',
       }),
-    );
+    ).flush();
   }
 
   async function methodStillThere(id: string): Promise<boolean> {

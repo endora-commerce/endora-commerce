@@ -48,7 +48,7 @@ export class RfqEventService {
       payload: input.payload,
       revisionId: input.revisionId ?? null,
     });
-    await em.persistAndFlush(event);
+    await em.persist(event).flush();
     return event;
   }
 

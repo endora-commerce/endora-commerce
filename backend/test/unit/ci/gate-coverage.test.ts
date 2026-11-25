@@ -266,6 +266,14 @@ const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
       'demand, with a clamped UTC stamp and a derived class name. It answers no question about ' +
       'the tree; a pipeline running it would add a migration to the branch.',
   },
+  'backend::codemod:persist-and-flush': {
+    kind: 'developer-tool',
+    reason:
+      'It rewrites `persistAndFlush` / `removeAndFlush` call sites and test doubles across the ' +
+      'tree on demand (issue #1863, before the MikroORM 7 switch) and is re-run by hand when a ' +
+      'branch carrying it is rebased. It answers no question about the tree; a pipeline running ' +
+      'it would rewrite source on the branch it is supposed to be judging.',
+  },
   'backend::dev': {
     kind: 'developer-tool',
     reason:

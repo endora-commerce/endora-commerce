@@ -25,7 +25,7 @@ describe('174 — import profile channel targets [contract]', () => {
   async function actor(cookie: string, permissions: string[]): Promise<void> {
     const em = h.em();
     const role = em.create(AdminRole, { code: `ct_${cookie.slice(-14)}`.replace(/-/g, '_'), name: cookie, permissions });
-    await em.persistAndFlush(role);
+    await em.persist(role).flush();
     const admin = em.create(AdminUser, {
       email: `${cookie}@import-export.local`,
       passwordHash: 'x'.repeat(60),
@@ -33,7 +33,7 @@ describe('174 — import profile channel targets [contract]', () => {
       firstName: 'Channel',
       lastName: 'Targets',
     });
-    await em.persistAndFlush(admin);
+    await em.persist(admin).flush();
     ADMIN_COOKIES[cookie] = { adminUserId: admin.id };
   }
 
