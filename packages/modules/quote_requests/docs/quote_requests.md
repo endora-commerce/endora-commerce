@@ -92,9 +92,11 @@ customer at once, as before. Operator quotes that existed before this
 behaviour was installed stay visible: the migration marks every existing quote
 shared.
 
-The Admin UI marks an unshared quote with the **Draft** badge on its screen and
-in the list. The list's **Sharing** filter (`sharing=unshared` or `shared` on
-the API) narrows it to unshared or shared quotes.
+The Admin UI marks an unshared quote with the **Not shared** badge on its
+screen and in the list, and its screen says under the header that only your
+team can see it and the customer is not notified until it is shared. The list's
+**Sharing** filter (`sharing=unshared` or `shared` on the API) narrows it to
+unshared or shared quotes.
 
 ### While a quote is unshared {#while-a-quote-is-unshared}
 
@@ -154,7 +156,7 @@ the same quote at the same moment are serialised: the second answers
 `409 RFQ_ALREADY_SHARED`, and the customer is told once.
 
 **Create and share.** The *Create quote request* screen has two buttons.
-**Save as draft** creates the quote unshared. **Create and share** creates it
+**Save without sharing** creates the quote unshared. **Create and share** creates it
 and shares it in one step, after the same question; it is disabled while a
 line has no price. When the share part is refused, the quote stays unshared
 and the operator lands on it with the refusal shown. When the create answers
@@ -1736,14 +1738,14 @@ quantity — then resolved again once the quantity is valid. Changing the
 customer clears every price that was not typed by hand and resolves it again
 for the new customer, so such a price may become empty.
 
-**Two buttons create the quote**: **Save as draft** creates it unshared, and
+**Two buttons create the quote**: **Save without sharing** creates it unshared, and
 **Create and share** creates it and shares it with the customer — see
 *Unshared quotes and sharing*.
 
 **An incomplete line is marked, never dropped**; every line on screen is sent.
 A line with a quantity that is not a whole number of 1 or more, or a price that
 is not a number of 0 or more, keeps both buttons disabled until it is fixed or
-removed. A line with **no price yet** may be saved: **Save as draft** stays
+removed. A line with **no price yet** may be saved: **Save without sharing** stays
 available, and only **Create and share** waits until every line is priced. The
 running total counts the lines that have both a valid quantity and a price. A
 customer without an organization still shows the existing warning, since a
@@ -1783,10 +1785,10 @@ When a line's product is not available to the customer on that channel —
 switched off there, outside its publication window or outside its audience —
 the request is still created and the answer names the line in `warnings` with
 `PRODUCT_UNAVAILABLE_IN_SCOPE`. The screen then stays open and lists those
-products under **Quote request created with warnings**, and **Open draft** goes
+products under **Quote request created with warnings**, and **Open quote** goes
 on to it; the request cannot be sent a second time from there. The quote is
 unshared, also after **Create and share**: nothing is shared, and the screen
-offers **Share with customer** beside **Open draft**.
+offers **Share with customer** beside **Open quote**.
 
 ## Panels on the quote request screen
 

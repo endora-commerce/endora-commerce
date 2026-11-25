@@ -86,8 +86,9 @@ budowane przez operatora przechodzą ścieżką kupującego i klient widzi je od
 operatorów utworzone przed wprowadzeniem tego zachowania pozostają widoczne dla klientów: migracja
 oznacza wszystkie istniejące oferty jako udostępnione.
 
-Panel administracyjny oznacza nieudostępnioną ofertę plakietką **Szkic** na jej ekranie i na
-liście. Filtr **Udostępnienie** na liście (w API `sharing=unshared` lub `shared`) zawęża ją do ofert
+Panel administracyjny oznacza nieudostępnioną ofertę plakietką **Nieudostępniona** na jej ekranie
+i na liście, a jej ekran mówi pod nagłówkiem, że widzi ją tylko Wasz zespół i klient nie dostaje
+powiadomienia, dopóki nie zostanie udostępniona. Filtr **Udostępnienie** na liście (w API `sharing=unshared` lub `shared`) zawęża ją do ofert
 nieudostępnionych albo udostępnionych.
 
 ### Dopóki oferta jest nieudostępniona {#while-a-quote-is-unshared}
@@ -144,8 +145,8 @@ Oferta organizacji, której wywołujący nie widzi, odpowiada `404`. Dwa jednocz
 samej oferty są wykonywane po kolei: drugie odpowiada `409 RFQ_ALREADY_SHARED`, a klient dostaje
 powiadomienie raz.
 
-**Utwórz i udostępnij.** Ekran *Utwórz zapytanie ofertowe* ma dwa przyciski. **Zapisz jako szkic**
-tworzy nieudostępnioną ofertę. **Utwórz i udostępnij** tworzy ją i udostępnia w jednym kroku, po
+**Utwórz i udostępnij.** Ekran *Utwórz zapytanie ofertowe* ma dwa przyciski. **Zapisz bez
+udostępniania** tworzy nieudostępnioną ofertę. **Utwórz i udostępnij** tworzy ją i udostępnia w jednym kroku, po
 tym samym pytaniu; jest nieaktywny, dopóki któraś pozycja nie ma ceny. Gdy udostępnienie zostanie
 odrzucone, oferta pozostaje nieudostępniona, a operator trafia na jej ekran z widocznym powodem
 odmowy. Gdy utworzenie zwróci ostrzeżenia — o produktach, których klient nie może kupić w wybranym
@@ -1614,13 +1615,13 @@ odpowiada już wtedy żadnej ilości — a po poprawieniu ilości jest wyznaczan
 klienta czyści każdą cenę, która nie została wpisana ręcznie, i wyznacza ją ponownie dla nowego
 klienta, więc taka cena może stać się pusta.
 
-**Ofertę tworzą dwa przyciski**: **Zapisz jako szkic** tworzy ją jako nieudostępnioną, a **Utwórz
+**Ofertę tworzą dwa przyciski**: **Zapisz bez udostępniania** tworzy ją jako nieudostępnioną, a **Utwórz
 i udostępnij** tworzy ją i udostępnia klientowi — zob. *Oferty nieudostępnione i udostępnianie*.
 
 **Niekompletna pozycja jest oznaczana, nigdy pomijana**; wysyłana jest każda pozycja widoczna na
 ekranie. Pozycja z ilością, która nie jest liczbą całkowitą równą 1 lub większą, albo z ceną, która
 nie jest liczbą równą 0 lub większą, blokuje oba przyciski, dopóki nie zostanie poprawiona albo
-usunięta. Pozycję **jeszcze bez ceny** można zapisać: **Zapisz jako szkic** pozostaje dostępne, a
+usunięta. Pozycję **jeszcze bez ceny** można zapisać: **Zapisz bez udostępniania** pozostaje dostępne, a
 tylko **Utwórz i udostępnij** czeka, aż każda pozycja będzie miała cenę. Suma bieżąca liczy
 pozycje, które mają i poprawną ilość, i cenę. Klient bez organizacji nadal wywołuje dotychczasowe
 ostrzeżenie, bo zapytanie ofertowe jej wymaga.
@@ -1656,9 +1657,9 @@ Gdy produkt z pozycji nie jest dostępny dla klienta w tym kanale — jest w nim
 publikacji albo poza swoją grupą odbiorców — zapytanie i tak powstaje, a odpowiedź wymienia tę
 pozycję w `warnings` z kodem `PRODUCT_UNAVAILABLE_IN_SCOPE`. Ekran pozostaje wtedy otwarty i
 wymienia te produkty pod nagłówkiem **Zapytanie ofertowe utworzone z ostrzeżeniami**, a **Otwórz
-szkic** przechodzi do niego; z tego miejsca zapytania nie da się wysłać drugi raz. Oferta jest
+ofertę** przechodzi do niej; z tego miejsca zapytania nie da się wysłać drugi raz. Oferta jest
 nieudostępniona, także po **Utwórz i udostępnij**: nic nie zostaje udostępnione, a ekran proponuje
-**Udostępnij klientowi** obok **Otwórz szkic**.
+**Udostępnij klientowi** obok **Otwórz ofertę**.
 
 ## Panele na ekranie zapytania ofertowego
 

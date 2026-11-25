@@ -29,4 +29,4 @@
 
 `@endora-commerce/mod-carts`: `POST /api/v1/cart/from-quote-request/:id` answers `404` for a quote that is not shared with its customer, before reading its lines.
 
-`@endora-commerce/mod-i18n`: the Admin UI strings for the share history entry, the *Validity after sharing* change and the create screen (*Save as draft*) are added. `rfqCreate.field.expiresInDays` and `rfq.detail.validity.help.previewImmediate` are removed; a deployment that overrides either drops it.
+`@endora-commerce/mod-i18n`: the Admin UI strings for the share history entry, the *Validity after sharing* change and the create screen (*Save without sharing*, *Open quote*) are added; the history entry `rfq.detail.history.entry.created` now reads *Request created*. `rfqCreate.field.expiresInDays` and `rfq.detail.validity.help.previewImmediate` are removed; a deployment that overrides either drops it.
