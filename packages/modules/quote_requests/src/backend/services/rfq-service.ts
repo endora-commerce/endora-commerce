@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { raw, type EntityManager } from '@mikro-orm/postgresql';
+import { QueryOrder, raw, type EntityManager, type QueryOrderMap } from '@mikro-orm/postgresql';
 import {
   type CustomFieldValuePort,
   ERROR_CODES,
@@ -1698,8 +1698,12 @@ export class RfqService {
  * a draft prepared long ago and shared today sorts with today's quotes. The
  * id breaks ties, so the order is stable.
  */
-function customerListOrder() {
-  return [{ [raw((alias) => `coalesce(${alias}."shared_at", ${alias}."created_at")`)]: 'desc' }, { id: 'desc' }] as never;
+export function customerListOrder(): QueryOrderMap<QuoteRequest>[] {
+  // A fresh fragment per call: MikroORM forgets a raw key once a query used it.
+  return [
+    { [raw((alias: string) => `coalesce(${alias}."shared_at", ${alias}."created_at")`)]: QueryOrder.DESC },
+    { id: QueryOrder.DESC },
+  ];
 }
 
 /**

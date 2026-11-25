@@ -81,3 +81,33 @@ describe('one rule, two callers — #seesOrganization and the customer-side reci
     expect(find).toHaveBeenLastCalledWith(expect.anything(), { customerAccountId: COLLEAGUE, sharedWithCustomer: true }, expect.anything());
   });
 });
+
+/**
+ * `specs/192-quote-request-draft-share/` FR-035 (research R-20) — the
+ * customer's list orders by when the customer received each quote: the
+ * share, else the creation, newest first, the id breaking ties. Typed as a
+ * `QueryOrderMap`, not cast away, so a wrong key fails `tsc`.
+ */
+describe('customerListOrder', () => {
+  it('orders by coalesce(shared_at, created_at) desc, then id desc', async () => {
+    const { RawQueryFragment } = await import('@mikro-orm/core');
+    const { customerListOrder } = await import('./rfq-service.js');
+    const [byReceipt, byId] = customerListOrder();
+    const keys = Object.keys(byReceipt!);
+    expect(keys).toHaveLength(1);
+    expect(Object.values(byReceipt!)).toEqual(['DESC']);
+    expect(RawQueryFragment.getKnownFragment(keys[0]!)?.sql).toBe(
+      'coalesce([::alias::]."shared_at", [::alias::]."created_at")',
+    );
+    expect(byId).toEqual({ id: 'DESC' });
+  });
+
+  it('is the order the customer list reads with', async () => {
+    const { service, find } = rig();
+    await service.listForCustomer({ customerAccountId: REQUESTER, organizationId: ORG });
+    const options = (find.mock.lastCall as unknown as [unknown, unknown, { orderBy: Array<Record<string, string>> }])[2];
+    expect(options.orderBy).toHaveLength(2);
+    expect(Object.values(options.orderBy[0]!)).toEqual(['DESC']);
+    expect(options.orderBy[1]).toEqual({ id: 'DESC' });
+  });
+});
