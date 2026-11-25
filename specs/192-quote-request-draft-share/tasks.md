@@ -395,21 +395,21 @@ states, WCAG 2.2 AA), with QA and code-quality review in parallel on the Phase 5
 
 ## Phase 7 — Docs, generated artefacts, release intent
 
-- [ ] T045 [P] `QR/docs/quote_requests.md`: drafts and sharing (who sees what, refusals,
+- [x] T045 [P] `QR/docs/quote_requests.md`: drafts and sharing (who sees what, refusals,
   *Create and share*, PDF), the default-validity setting, the hookable action (`quote_request.share`,
   `QUOTE_REQUEST_HOOKABLE_ACTIONS.share`, route, hook data — format of
   `packages/modules/projects/docs/projects.md`'s command-hook table), `shared` as the source of
   *quote prepared*. Polish mirror `docs/i18n/pl/docusaurus-plugin-content-docs/current/modules/quote_requests.md`
   and its pin `docs/translation-cache/pl/packages--modules--quote_requests--docs--quote_requests.md.json`
   (`docs/docs/contributing/documentation-i18n.md`; `specs/conventions/module-documentation.md`).
-- [ ] T046 [P] `docs/docs/module-reference/quote-requests.md` and
+- [x] T046 [P] `docs/docs/module-reference/quote-requests.md` and
   `docs/i18n/pl/docusaurus-plugin-content-docs/current/module-reference/quote-requests.md`
   (+ `docs/translation-cache/pl/generated:module-reference--quote-requests.json` if the generator
   rewrites it).
-- [ ] T047 `.changeset/192-quote-request-sharing.md` for `@endora-commerce/contracts`,
+- [x] T047 `.changeset/192-quote-request-sharing.md` for `@endora-commerce/contracts`,
   `@endora-commerce/mod-quote-requests`, `@endora-commerce/mod-carts`
   (`specs/conventions/release-intent.md`; disclosure per `specs/conventions/commercial-data.md`).
-- [ ] T048 Generated artefacts clean: `pnpm --filter backend run composer:generate`,
+- [x] T048 Generated artefacts clean: `pnpm --filter backend run composer:generate`,
   `pnpm --filter backend run manifests:generate` and `pnpm install --lockfile-only` if either
   changed anything; `pnpm run check:naming && pnpm run check:language`.
 - [ ] T049 Walk `quickstart.md` 1–10 on a local stack; record the result in the MR description.
