@@ -394,6 +394,33 @@ describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', 
     await waitFor(() => expect(navigateSpy).toHaveBeenCalled());
   });
 
+  it('a share that fails without an answer (network) still lands on the created draft, with a readable sentence', async () => {
+    shareAnswer = new TypeError('Failed to fetch');
+    await ready();
+    await userEvent.click(shareButton());
+    await answerConfirm(true);
+
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalledTimes(1));
+    const [target, options] = navigateSpy.mock.calls[0] as [string, { state: { shareRefusal: { code: string; message: string } } }];
+    expect(target).toBe(`/quote-requests/${NEW_ID}`);
+    expect(options.state.shareRefusal.message).toBe(quote('share.error'));
+    expect(creates()).toHaveLength(1);
+  });
+
+  it('0 typed on Create and share is no deadline: the question says so and the create sends 0', async () => {
+    await ready();
+    await waitFor(() => expect(daysField()).toHaveValue(30));
+    await userEvent.clear(daysField());
+    await userEvent.type(daysField(), '0');
+    await userEvent.click(shareButton());
+
+    const dialog = await answerConfirm(true);
+    expect(dialog).toHaveTextContent(quote('share.confirm.validityNone'));
+    expect(dialog).not.toHaveTextContent('immediately');
+    await waitFor(() => expect(creates()).toHaveLength(1));
+    expect(creates()[0]).toMatchObject({ expiresInDays: 0 });
+  });
+
   it('sends the channel it was given', async () => {
     await ready();
     await userEvent.click(saveButton());
