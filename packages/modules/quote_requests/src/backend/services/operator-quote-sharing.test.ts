@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { QUOTE_VALIDITY_DAYS_MAX } from '@endora-commerce/contracts';
 import type { CustomerAccountRecord } from '@endora-commerce/contracts';
@@ -168,5 +171,44 @@ describe('defaultValidityDaysFromSetting (research R-12)', () => {
     for (const stored of [3651, 1e9, -1, 1.5, Number.NaN, '30', null, undefined]) {
       expect(defaultValidityDaysFromSetting(stored), String(stored)).toBeNull();
     }
+  });
+});
+
+/**
+ * `specs/192-quote-request-draft-share/` (FR-001, research R-2) — the only
+ * code that makes a quote invisible to its customer is the operator's create,
+ * `RfqAdminService.createOnBehalf`. Any other writer of `sharedWithCustomer`
+ * that is not `true` would hide a quote the customer already has, so a new one
+ * fails here and must be reviewed.
+ */
+describe('the only writer of sharedWithCustomer = false', () => {
+  const backend = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+  const sources = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return sources(path);
+      return entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [path] : [];
+    });
+
+  it('is createOnBehalf (the share Command’s audit `before` is a record, not a write)', () => {
+    const found: string[] = [];
+    for (const file of sources(backend)) {
+      const lines = readFileSync(file, 'utf8').split('\n');
+      lines.forEach((line, index) => {
+        const sql = /shared_with_customer"?\s*=\s*false/i.test(line);
+        const write = /sharedWithCustomer\s*(?::|=(?!=))(?!\s*(?:true|boolean|(?:rfq|quote)\.sharedWithCustomer)\b)/.test(line);
+        if (!sql && !write) return;
+        const method = lines
+          .slice(0, index)
+          .reverse()
+          .map((above) => /^ {2}(?:async |private |public |static )*#?(\w+)\(/.exec(above)?.[1] ?? /^(?:export )?(?:async )?function (\w+)/.exec(above)?.[1])
+          .find(Boolean);
+        found.push(`${relative(backend, file)} ${method ?? '?'}: ${line.trim()}`);
+      });
+    }
+    expect(found).toEqual([
+      'commands/share-command.ts makeShareQuoteRequestCommand: sharedWithCustomer: false,',
+      'services/rfq-admin-service.ts createOnBehalf: sharedWithCustomer: !startsUnshared,',
+    ]);
   });
 });
