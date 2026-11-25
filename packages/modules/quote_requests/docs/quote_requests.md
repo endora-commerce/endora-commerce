@@ -100,8 +100,8 @@ the API) narrows it to unshared or shared quotes.
 
 - **No customer can see it.** It is left out of every customer read: the
   requester's own list, an Organization *Administrator*'s, a roll-up login's,
-  and the lists the `customers` module reads, the Admin UI's customer-detail
-  tab included — operators find unshared quotes in the quote request list. Its
+  and the lists the `customers` module reads, the quote requests tab of a
+  customer's screen in the Admin UI included — operators find unshared quotes in the quote request list. Its
   address and every customer action on it (edit, accept, reject, resubmit,
   convert to a basket, and the `carts` module's
   `POST /api/v1/cart/from-quote-request/:id`) answer `404`, exactly as for a
@@ -269,11 +269,14 @@ What this means in practice:
 
 An operator can date an offer — *Valid for N days* when revising a request or
 creating one on a customer's behalf (`expiresInDays`, a whole number from 0 to
-3650, stored as `expiresAt`). **0 days, or none, means no deadline** on every
-write: on a new quote, on an unshared one and on a revision of a shared one. A
-revision with 0 days or none removes the date, and the customer can still
+3650, stored as `expiresAt`). **0 days means no deadline** on every write — on
+a new quote, on an unshared one and on a revision of a shared one — and so does
+`null`. A revision with 0 days removes the date, and the customer can still
 accept the quote; to close an offer, cancel it. (Earlier releases read 0 days
-on a revision as "expires now".)
+on a revision as "expires now".) Leaving `expiresInDays` out is different: a
+revision keeps the current date — the Modify tab's empty field on a shared
+quote — and a new quote takes the store's default. On an unshared quote's
+Modify tab, emptying the field sends `null` and removes its days.
 
 - **On a quote an operator creates, the days count from the share**, not from
   the create. The unshared quote keeps the number of days, and the share writes
@@ -1750,8 +1753,9 @@ quote request needs one.
 store's default (`quote_requests.default_validity_days`, read from
 `GET /api/v1/admin/quote-requests/create-defaults`). Empty or 0 means no
 deadline. While the default is being read, or when it cannot be read, the
-field stays empty with the placeholder *Store default* and the server applies
-the default; **Create and share** waits until the default has been read.
+field stays empty with the placeholder *Store default*, and the server gives
+the quote the default. While the default is still loading and no days were
+typed, **Create and share** waits.
 
 **The sales channel the request is raised on** is chosen under the customer,
 among the active sales channels of the customer's organization. When the

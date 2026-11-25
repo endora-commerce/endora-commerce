@@ -93,9 +93,9 @@ nieudostępnionych albo udostępnionych.
 ### Dopóki oferta jest nieudostępniona {#while-a-quote-is-unshared}
 
 - **Żaden klient jej nie widzi.** Nie pojawia się w żadnym odczycie po stronie klienta: na liście
-  samego zgłaszającego, *Administratora* organizacji, loginu z wglądem w strukturę organizacji ani
-  na listach, które odczytuje moduł `customers` — także na karcie klienta w panelu
-  administracyjnym; operatorzy znajdują nieudostępnione oferty na liście zapytań ofertowych. Jej
+  samego zgłaszającego, *Administratora* organizacji, loginu z widokiem zbiorczym (roll-up) ani
+  na listach, które odczytuje moduł `customers` — także na zakładce zapytań ofertowych na ekranie
+  klienta w panelu administracyjnym; operatorzy znajdują nieudostępnione oferty na liście zapytań ofertowych. Jej
   adres i każde działanie klienta (edycja, akceptacja, odrzucenie, ponowne złożenie, zamiana na
   koszyk, a także `POST /api/v1/cart/from-quote-request/:id` modułu `carts`) odpowiadają `404`,
   dokładnie tak jak dla oferty, która nie istnieje, i niczego nie zmieniają.
@@ -175,8 +175,8 @@ wartość `null` dla oferty bez kanału. Hook, który potrzebuje pozycji, odczyt
 - **Kiedy działa.** W transakcji udostępnienia, po przejściu wbudowanych odmów opisanych wyżej
   i po zapisaniu oferty jako udostępnionej, przed wpisem audytu i zatwierdzeniem transakcji.
 - **Odmowa.** Rzuć `CommandHookRefusal` (`@endora-commerce/platform/commands`) z kodem, który Twój
-  moduł deklaruje w `errorCodes` swojego manifestu, i ze zdaniem dla niego we własnym pakiecie
-  tłumaczeń. Całe udostępnienie jest wycofywane — oferta, wpis w Historii i rekordy powiadomień —
+  moduł deklaruje w `errorCodes` swojego manifestu, i ze zdaniem dla niego we własnych plikach
+  tłumaczeń (`i18n/`). Całe udostępnienie jest wycofywane — oferta, wpis w Historii i rekordy powiadomień —
   więc oferta pozostaje nieudostępniona i nikt nie dostaje powiadomienia. Wywołujący otrzymuje Twój
   status, kod i `details` bez zmian, a panel administracyjny pokazuje Twoje przetłumaczone zdanie.
 - **Odmowa trafia do administratora.** Komunikat i `details` docierają w niezmienionej postaci do
@@ -247,10 +247,13 @@ W praktyce oznacza to, że:
 
 Operator może nadać ofercie termin — *Ważna przez N dni* przy rewizji zapytania lub przy tworzeniu
 go w imieniu klienta (`expiresInDays`, liczba całkowita od 0 do 3650, zapisywane jako `expiresAt`).
-**0 dni albo brak liczby oznacza brak terminu** przy każdym zapisie: przy nowej ofercie, przy
-ofercie nieudostępnionej i przy rewizji oferty już udostępnionej. Rewizja z 0 dni albo bez liczby
+**0 dni oznacza brak terminu** przy każdym zapisie — przy nowej ofercie, przy ofercie
+nieudostępnionej i przy rewizji oferty już udostępnionej — podobnie jak `null`. Rewizja z 0 dni
 usuwa termin, a klient nadal może zaakceptować ofertę; aby zamknąć ofertę, anuluj ją. (Wcześniejsze
-wydania odczytywały 0 dni przy rewizji jako „wygasa natychmiast”).
+wydania odczytywały 0 dni przy rewizji jako „wygasa natychmiast”). Pominięcie `expiresInDays` działa
+inaczej: rewizja zachowuje bieżący termin — tak działa puste pole na zakładce Modyfikacja oferty
+udostępnionej — a nowa oferta dostaje domyślną wartość sklepu. Na zakładce Modyfikacja oferty
+nieudostępnionej wyczyszczenie pola wysyła `null` i usuwa jej liczbę dni.
 
 - **W ofercie utworzonej przez operatora dni liczą się od udostępnienia**, a nie od utworzenia.
   Nieudostępniona oferta przechowuje liczbę dni, a udostępnienie zapisuje datę: chwilę udostępnienia
@@ -1626,8 +1629,8 @@ ostrzeżenie, bo zapytanie ofertowe jej wymaga.
 (`quote_requests.default_validity_days`, odczytywaną z
 `GET /api/v1/admin/quote-requests/create-defaults`). Puste pole albo 0 oznacza brak terminu. Dopóki
 wartość domyślna się wczytuje albo gdy nie da się jej odczytać, pole pozostaje puste z podpowiedzią
-*Domyślna ze sklepu*, a wartość domyślną stosuje serwer; **Utwórz i udostępnij** czeka, aż wartość
-domyślna zostanie odczytana.
+*Domyślna ze sklepu*, a wartość domyślną nadaje ofercie serwer. Dopóki wartość domyślna się wczytuje
+i nie wpisano liczby dni, **Utwórz i udostępnij** czeka.
 
 **Kanał sprzedaży, w którym powstaje zapytanie,** wybiera się pod klientem, spośród aktywnych
 kanałów sprzedaży organizacji klienta. Gdy organizacja ma dokładnie jeden, jest on wybrany z góry;
