@@ -1136,7 +1136,7 @@ export async function main(
       );
       return 1;
     }
-    const { runBuildOverlays } = await import('../build/index.js');
+    const { runBuildOverlays } = await import('../build-overlays/index.js');
     return runBuildOverlays({ cwd, watch: asFlag(parsed.values['watch']) });
   }
 
