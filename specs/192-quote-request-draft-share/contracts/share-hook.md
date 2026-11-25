@@ -50,8 +50,9 @@ Listed in `packages/modules/quote_requests/src/manifest.ts`:
   it. Budget: **1 second** for the hook in total, well under 100 ms in the normal case. No
   external I/O (HTTP, a mail server, a queue) without a timeout that fits inside that budget;
   prefer reading the hook module's own tables. A hook that cannot decide in time vetoes with its
-  own code rather than holding the lock. Work that may be slow belongs after the commit
-  (`afterCommit`, §4), not here.
+  own code rather than holding the lock. Work that may be slow does not belong in a
+  `beforeCommit` hook; until an `afterCommit` phase is offered (§4) it has no place on this
+  action.
 - **Admin-safe refusals.** The refusal's message and `details` reach the sharing administrator
   as they are thrown (and the bundle sentence is shown in the admin UI). They must be safe for
   that caller: no secrets, credentials, tokens or internal URLs, no stack traces, and no data of
