@@ -36,18 +36,27 @@ Listed in `packages/modules/quote_requests/src/manifest.ts`:
 - `ctx.data` is `QuoteRequestShareHookData`; `ctx.objectId` is the quote id; `ctx.actor` is the
   sharing administrator.
 - Reading the lines: `quoteRequestReadPort.listItems(quoteRequestId)` (a share changes no line).
-- **Veto**: throw a `CommandHookRefusal` (`@endora-commerce/platform/commands`; any `HttpError`
-  vetoes, the subclass only says so at the throw) whose code the hook's own module declares in its manifest
-  `errorCodes`, with a sentence in its own bundle. The bus rolls the whole Command back (row,
+- **Veto**: any throw rolls the share back (fail-closed); use `CommandHookRefusal`
+  (`@endora-commerce/platform/commands`) for a clean refusal the admin can read, with a code the
+  hook's own module declares in its manifest `errorCodes` and a sentence in its own bundle. Any
+  other throw (a bug, a failed read) also rolls the share back, but reaches the caller as an
+  error, not as a refusal it can act on. The bus rolls the whole Command back (row,
   `shared` event, `prepared` notification records); the caller receives that status, code and
   `details` unchanged; the admin UI shows the translated sentence. The quote stays unshared and
   nobody is told.
 - Writing: only the hook module's own tables, on `ctx.em`, naming what it wrote with
   `ctx.noteAuditChanges` (176 rules).
 - Ordering between several hooks: the platform's (`commandHookOrder`), not this module's.
+- **Present modules only.** The bus runs a hook only while its module is present: a hook whose
+  module is switched off (or not installed) is skipped, with no error and no restart. An approval
+  gate written as a share hook therefore disappears with its module — shares go through ungated
+  while it is off.
 - **Fast.** A `beforeCommit` hook runs while the share holds the quote row's lock
   (`SELECT … FOR UPDATE`) and an open transaction, so every other write to that quote waits on
-  it. Budget: **1 second** for the hook in total, well under 100 ms in the normal case. No
+  it. Budget: **1 second** for the hook in total, well under 100 ms in the normal case. The
+  budget is a **requirement on hook authors, not enforced by the bus**: the bus awaits each hook
+  with no timeout while the quote row is locked `FOR UPDATE`, so a slow hook blocks every write to
+  that quote for as long as it runs. No
   external I/O (HTTP, a mail server, a queue) without a timeout that fits inside that budget;
   prefer reading the hook module's own tables. A hook that cannot decide in time vetoes with its
   own code rather than holding the lock. Work that may be slow does not belong in a
