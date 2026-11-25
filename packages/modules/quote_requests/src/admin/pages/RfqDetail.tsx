@@ -658,12 +658,9 @@ export function RfqDetail(): ReactNode {
   // the transactional e-mails are too (FR-099).
   const pdfPresent = isPresent('document_templates');
   // Not while the quote is unshared (FR-007): the customer may not receive what
-  // their account does not show yet. Preview and download stay; the send stays in
-  // the menu, disabled with the reason, so the operator learns the next step
-  // instead of looking for an entry that vanished.
-  const pdfSendPresent = pdfPresent && isPresent('transactional_emails');
+  // their account does not show yet. Preview and download stay.
+  const pdfSendPresent = pdfPresent && isPresent('transactional_emails') && !unshared;
   const draftBlockedTitle = draftOpen ? t('rfq.detail.modify.unsaved.blocked') : undefined;
-  const pdfSendBlockedTitle = unshared ? tPdf('share.pdfSend.blocked') : draftBlockedTitle;
   const headerActions = (
     <DetailHeaderActions primary={primaryAction} moreDisabled={busy} status={actionStatus.props}>
       {pdfPresent ? (
@@ -673,13 +670,7 @@ export function RfqDetail(): ReactNode {
         </RowActionMenuItem>
       ) : null}
       {pdfSendPresent ? (
-        <RowActionMenuItem
-          onSelect={(): void => {
-            if (!unshared) setPdfMode('send');
-          }}
-          disabled={unshared || draftOpen}
-          title={pdfSendBlockedTitle}
-        >
+        <RowActionMenuItem onSelect={(): void => setPdfMode('send')} disabled={draftOpen} title={draftBlockedTitle}>
           <Send aria-hidden="true" />
           {tPdf('pdf.send')}
         </RowActionMenuItem>

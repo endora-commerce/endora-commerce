@@ -268,7 +268,6 @@
   "share.confirm.customerFallback": "Klient",
   "share.success": "Udostępniono klientowi.",
   "share.error": "Nie udało się udostępnić oferty. Spróbuj ponownie.",
-  "share.pdfSend.blocked": "Najpierw udostępnij ofertę. Klient nie może dostać oferty, której nie widzi na koncie.",
   "share.refusal.linesTitle": "Pozycje bez ceny:",
   "share.refusal.afterCreate": "Oferta została utworzona jako szkic, ale nie została udostępniona.",
   "share.refusal.lineVariant": "{product} — {variant}",
