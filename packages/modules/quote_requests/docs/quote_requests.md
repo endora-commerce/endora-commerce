@@ -1462,7 +1462,7 @@ A quote request an administrator creates through
 | --- | --- |
 | `rfqId` | The new quote request. |
 | `organizationId` | The organization it was created for. |
-| `adminUserId` | The administrator who created it. |
+| `adminUserId` | The administrator who created it, or `null` when server code created it with no administrator present — see *Server-side writes*. |
 | `origin` | What the create request carried as `origin`, or `null`. |
 
 `rfq.created.v1` remains the event of a customer's own submission and is
@@ -1482,6 +1482,75 @@ The create screen (`/quote-requests/new`) reads the same from its query string
 when another screen opens it: `originType` and `originId`, `organizationId` and
 `customerAccountId` to preselect the customer, and `returnTo`, a path inside
 the Admin UI to go back to once the quote request exists.
+
+## Server-side writes
+
+Another module, an overlay module or an integration worker (an ERP or CRM
+connector) writes a quote request through **`quoteRequestCommandPort`**, the
+QuoteRequest aggregate's write port, declared as `QuoteRequestCommandPort` in
+`@endora-commerce/contracts`. It never writes this module's tables itself.
+
+| Method | Audit action | What the admin does the same way |
+| --- | --- | --- |
+| `create(input, options?)` | `quote_request.create_on_behalf` | `POST /api/v1/admin/quote-requests` |
+| `update(id, patch, options?)` | `quote_request.modify` | `PATCH /api/v1/admin/quote-requests/:id` |
+| `setCustomFieldValues(id, merge, options?)` | `quote_request.custom_fields.update` | — (the admin sends values with `PATCH`) |
+| `assign(id, { adminUserId }, options?)` | `quote_request.assign` | `POST /api/v1/admin/quote-requests/:id/assign` |
+| `approve(id, { note? }, options?)` | `quote_request.approve` | `POST /api/v1/admin/quote-requests/:id/approve` |
+| `cancel(id, { reason }, options?)` | `quote_request.cancel` | `POST /api/v1/admin/quote-requests/:id/cancel` |
+| `sendDocument(id, input, options?)` | `quote_request.send_document` | `POST /api/v1/admin/quote-requests/:id/pdf/send` |
+
+**One write path.** Each method runs the same Command the admin endpoint runs,
+built by the same factory and run by the same runner, so the two cannot write
+differently: one audit entry with the same state, the same history entries and
+revision, the same notifications to the buyer and the team — delivered once —
+and the same event (`rfq.created_by_admin.v1`, `rfq.modified.v1`,
+`rfq.approved.v1`, `rfq.canceled.v1`). Inputs are the endpoints' request
+bodies, validated with the same schemas, and refusals are the endpoints' errors
+with their codes.
+
+**Who wrote it.** The actor is the ambient one, never a parameter: an
+administrator inside an admin request, or under `withSystemScopeActingFor`;
+the **system** actor under `withSystemScope` in a worker. A write with no
+administrator shows as *System* in the quote request's history and keeps the
+current assignee, and a quote created that way has no creating or assigned
+administrator. The port checks no permission — the caller is the gate — so
+never resolve it for a customer-facing route.
+
+**Options** (the last parameter of every method):
+
+- `source` — a lower-case code naming the integration (`erp`, `pim.sync`, at
+  most 64 characters), recorded as `source` in the audit entry beside the
+  actor. It is what tells two integrations apart when both write as the
+  system. Any other value is refused with `422 VALIDATION_FAILED` before
+  anything is written.
+- `expectedVersion` — the `version` you read; a request that has moved on is
+  refused with `409 VERSION_CONFLICT`, as an `If-Match` is. `create` and
+  `sendDocument` ignore it.
+- `extensions` — input for command hooks on the action. No quote request
+  action is hookable yet, so any key is refused with
+  `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+
+**From a worker, name the channel.** `create` raises the request on
+`salesChannelId`, else on the channel of the current request; a worker has no
+request, so without `salesChannelId` the create is refused with
+`422 RFQ_SALES_CHANNEL_NOT_ALLOWED` (`no_channel`).
+
+**Custom-field values alone.** `setCustomFieldValues` takes a `merge` — a
+function from the current values to the new ones — and runs it inside its
+Command. The module does not validate: call `CustomFieldValuePort.validateAndMerge`
+inside the merge. Unlike `update`, it records no revision and notifies nobody;
+the audit entry names the changed keys, never their values, and a merge that
+changes nothing writes nothing.
+
+**Deliberately not offered:** resubmitting, accepting or rejecting a revision,
+and converting to an order. They are the buyer's own decisions, taken in the
+storefront.
+
+**When the module is off**, resolving the port fails closed with
+`503 MODULE_DISABLED` and nothing is written. A module that uses it declares
+`quote_requests` in its manifest's `dependencies`, or as a
+`nonBindingDependencies` edge `refuses-without`, and resolves the port per use.
 
 ## Events offered to outbound webhooks
 

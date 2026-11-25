@@ -1358,7 +1358,7 @@ wierszy:
 | --- | --- |
 | `rfqId` | Nowe zapytanie ofertowe. |
 | `organizationId` | Organizacja, dla której je utworzono. |
-| `adminUserId` | Administrator, który je utworzył. |
+| `adminUserId` | Administrator, który je utworzył, albo `null`, gdy utworzył je kod serwerowy bez udziału administratora — zob. *Zapisy po stronie serwera*. |
 | `origin` | To, co żądanie utworzenia niosło jako `origin`, albo `null`. |
 
 `rfq.created.v1` pozostaje zdarzeniem zapytania przesłanego przez samego klienta i na tej ścieżce
@@ -1375,6 +1375,69 @@ utworzono. Endpoint klienta takiego pola nie przyjmuje.
 Ekran tworzenia (`/quote-requests/new`) czyta to samo z adresu, gdy otwiera go inny ekran:
 `originType` i `originId`, `organizationId` i `customerAccountId` do wstępnego wyboru klienta oraz
 `returnTo`, czyli ścieżkę w Admin UI, do której wraca się po utworzeniu zapytania.
+
+## Zapisy po stronie serwera
+
+Inny moduł, moduł nakładki (overlay) albo worker integracji (konektor ERP lub CRM) zapisuje
+zapytanie ofertowe przez **`quoteRequestCommandPort`** — port zapisu agregatu QuoteRequest,
+zadeklarowany jako `QuoteRequestCommandPort` w `@endora-commerce/contracts`. Nigdy nie zapisuje
+sam do tabel tego modułu.
+
+| Metoda | Akcja audytu | Co administrator robi w ten sam sposób |
+| --- | --- | --- |
+| `create(input, options?)` | `quote_request.create_on_behalf` | `POST /api/v1/admin/quote-requests` |
+| `update(id, patch, options?)` | `quote_request.modify` | `PATCH /api/v1/admin/quote-requests/:id` |
+| `setCustomFieldValues(id, merge, options?)` | `quote_request.custom_fields.update` | — (administrator wysyła wartości przez `PATCH`) |
+| `assign(id, { adminUserId }, options?)` | `quote_request.assign` | `POST /api/v1/admin/quote-requests/:id/assign` |
+| `approve(id, { note? }, options?)` | `quote_request.approve` | `POST /api/v1/admin/quote-requests/:id/approve` |
+| `cancel(id, { reason }, options?)` | `quote_request.cancel` | `POST /api/v1/admin/quote-requests/:id/cancel` |
+| `sendDocument(id, input, options?)` | `quote_request.send_document` | `POST /api/v1/admin/quote-requests/:id/pdf/send` |
+
+**Jedna ścieżka zapisu.** Każda metoda uruchamia to samo polecenie (Command), które uruchamia
+endpoint administracyjny — zbudowane przez tę samą fabrykę i uruchamiane przez ten sam mechanizm —
+więc oba zapisy nie mogą się różnić: jeden wpis audytu z tym samym stanem, te same wpisy historii
+i rewizja, te same powiadomienia dla kupującego i zespołu — dostarczone raz — i to samo zdarzenie
+(`rfq.created_by_admin.v1`, `rfq.modified.v1`, `rfq.approved.v1`, `rfq.canceled.v1`). Dane
+wejściowe to treści żądań endpointów, walidowane tymi samymi schematami, a odmowy to błędy
+endpointów z ich kodami.
+
+**Kto zapisał.** Aktor jest ten z bieżącego kontekstu, nigdy parametr: administrator w żądaniu
+administracyjnym albo pod `withSystemScopeActingFor`; aktor **system** pod `withSystemScope` w
+workerze. Zapis bez administratora widnieje w historii zapytania jako *System* i zachowuje
+bieżącego opiekuna, a zapytanie utworzone w ten sposób nie ma administratora tworzącego ani
+przypisanego. Port nie sprawdza uprawnień — bramką jest wywołujący — więc nigdy nie rozwiązuj go
+dla trasy dostępnej dla klienta.
+
+**Opcje** (ostatni parametr każdej metody):
+
+- `source` — kod pisany małymi literami, który nazywa integrację (`erp`, `pim.sync`, najwyżej
+  64 znaki), zapisywany jako `source` we wpisie audytu obok aktora. To on odróżnia dwie
+  integracje, gdy obie zapisują jako system. Każda inna wartość jest odrzucana z
+  `422 VALIDATION_FAILED`, zanim cokolwiek zostanie zapisane.
+- `expectedVersion` — odczytana `version`; zapytanie, które się w międzyczasie zmieniło, jest
+  odrzucane z `409 VERSION_CONFLICT`, tak jak przy `If-Match`. `create` i `sendDocument` ją
+  pomijają.
+- `extensions` — dane wejściowe dla hooków poleceń na danej akcji. Żadna akcja zapytań ofertowych
+  nie jest jeszcze hookowalna, więc każdy klucz jest odrzucany z
+  `422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek zostanie zapisane.
+
+**Z workera podaj kanał.** `create` zakłada zapytanie w kanale `salesChannelId`, a bez niego w
+kanale bieżącego żądania; worker nie ma żądania, więc bez `salesChannelId` utworzenie jest
+odrzucane z `422 RFQ_SALES_CHANNEL_NOT_ALLOWED` (`no_channel`).
+
+**Same wartości pól niestandardowych.** `setCustomFieldValues` przyjmuje `merge` — funkcję z
+bieżących wartości na nowe — i uruchamia ją wewnątrz swojego polecenia. Moduł nie waliduje:
+wywołaj `CustomFieldValuePort.validateAndMerge` wewnątrz `merge`. W odróżnieniu od `update` nie
+zapisuje rewizji i nikogo nie powiadamia; wpis audytu wymienia zmienione klucze, nigdy ich
+wartości, a `merge`, który niczego nie zmienia, niczego nie zapisuje.
+
+**Celowo niedostępne:** ponowne przesłanie, przyjęcie lub odrzucenie rewizji oraz zamiana na
+zamówienie. To decyzje samego kupującego, podejmowane w sklepie.
+
+**Gdy moduł jest wyłączony**, rozwiązanie portu kończy się bezpieczną odmową
+`503 MODULE_DISABLED` i nic nie jest zapisywane. Moduł, który z niego korzysta, deklaruje
+`quote_requests` w `dependencies` swojego manifestu albo jako krawędź `nonBindingDependencies`
+`refuses-without` i rozwiązuje port przy każdym użyciu.
 
 ## Zdarzenia oferowane webhookom wychodzącym
 
