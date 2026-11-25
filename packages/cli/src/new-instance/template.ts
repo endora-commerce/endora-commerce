@@ -1375,6 +1375,10 @@ export const deployment = '${deployment}';
  *     include `@mikro-orm/decorators`: the entity decorators left
  *     `@mikro-orm/core` for its `./legacy` subpath, and the platform's own
  *     entities, every module package's and an overlay's import them from there.
+ *     `reflect-metadata` came with them: `@mikro-orm/decorators/legacy`
+ *     imports it at load time while its manifest calls that peer optional, so
+ *     pnpm installs it only where something declares it, and an instance that
+ *     did not could not import the platform's kernel.
  *   * `@mikro-orm/migrations`, from the range the platform declares for
  *     `@mikro-orm/core`. The MikroORM packages version in lockstep and a
  *     migrator from another major does not load the driver from this one.
@@ -1411,6 +1415,7 @@ export function devDependenciesFor(
     ['@mikro-orm/postgresql', input.declaredRanges.get('@mikro-orm/postgresql') ?? ''],
     ['@mikro-orm/migrations', input.declaredRanges.get('@mikro-orm/core') ?? ''],
     ['fastify', input.declaredRanges.get('fastify') ?? ''],
+    ['reflect-metadata', input.declaredRanges.get('reflect-metadata') ?? ''],
     ['zod', input.declaredRanges.get('zod') ?? ''],
     ['ioredis', input.declaredRanges.get('ioredis') ?? ''],
     ['typescript', input.declaredRanges.get('typescript') ?? ''],

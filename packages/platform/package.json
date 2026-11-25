@@ -111,6 +111,7 @@
     "@mikro-orm/migrations": "^7.2.11",
     "@mikro-orm/postgresql": "^7.2.11",
     "fastify": "^5.11.0",
+    "reflect-metadata": "^0.2.2",
     "zod": "^4"
   },
   "devDependencies": {
@@ -120,6 +121,7 @@
     "@mikro-orm/postgresql": "^7.2.11",
     "@types/node": "^22.9.0",
     "fastify": "^5.12.8",
+    "reflect-metadata": "^0.2.2",
     "typescript": "^5.9.3",
     "vitest": "^4.1.12",
     "zod": "^4.2.0"

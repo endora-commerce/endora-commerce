@@ -5823,6 +5823,9 @@ zmianą nie przychodzi żadna migracja, a tabela historii migracji jest odczytyw
 1. Ustaw `@mikro-orm/core`, `@mikro-orm/postgresql` i `@mikro-orm/migrations` na `^7.2.11`.
 2. Dodaj `@mikro-orm/decorators` w wersji `^7.2.11`. MikroORM 7 przeniósł dekoratory encji z
    `@mikro-orm/core` do tego pakietu.
+   Obok niego dodaj `reflect-metadata` w wersji `^0.2.2`: `@mikro-orm/decorators/legacy` go
+   ładuje, a bez niego backend zatrzymuje się na pierwszym imporcie z błędem
+   `Cannot find package 'reflect-metadata'`.
 3. Usuń `@mikro-orm/cli`, jeśli instancja je dodała ([CLI MikroORM nie jest
    obsługiwane](#mikro-orm-cli-removed)); CLI pozostawione na wersji 6 się nie załaduje.
 

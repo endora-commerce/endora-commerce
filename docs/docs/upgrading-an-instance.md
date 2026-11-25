@@ -5577,6 +5577,8 @@ with the switch, and the migration history table is read as before.
 1. Set `@mikro-orm/core`, `@mikro-orm/postgresql` and `@mikro-orm/migrations` to `^7.2.11`.
 2. Add `@mikro-orm/decorators` at `^7.2.11`. MikroORM 7 moved the entity decorators out of
    `@mikro-orm/core` into this package.
+   Add `reflect-metadata` at `^0.2.2` beside it: `@mikro-orm/decorators/legacy` loads it, and
+   without it the backend stops at its first import with `Cannot find package 'reflect-metadata'`.
 3. Remove `@mikro-orm/cli` if the instance added it ([The MikroORM CLI is not
    supported](#mikro-orm-cli-removed)); a CLI left at 6 does not load.
 

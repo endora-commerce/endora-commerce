@@ -263,6 +263,10 @@ describe('the host package `exports` map', () => {
     // `@mikro-orm/decorators` joined them with MikroORM 7 (#1866): the
     // platform's own entities import their decorators from it, and it writes
     // into the one `@mikro-orm/core` metadata registry the host's ORM reads.
+    // `reflect-metadata` came with it: `@mikro-orm/decorators/legacy` imports
+    // it at load time although its manifest calls that peer optional, so a
+    // consumer that installs the host's peers and nothing else could not load
+    // the host at all — `acceptance:instance` measured exactly that.
     const peers = MANIFEST.peerDependencies ?? {};
     expect(Object.keys(peers).sort()).toEqual([
       '@mikro-orm/core',
@@ -270,6 +274,7 @@ describe('the host package `exports` map', () => {
       '@mikro-orm/migrations',
       '@mikro-orm/postgresql',
       'fastify',
+      'reflect-metadata',
       'zod',
     ]);
     for (const name of Object.keys(peers)) {
