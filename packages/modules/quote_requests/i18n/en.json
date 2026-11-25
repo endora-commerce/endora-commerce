@@ -262,6 +262,7 @@
   "share.confirm.customerFallback": "The customer",
   "share.success": "Shared with the customer.",
   "share.error": "The quote could not be shared. Try again.",
+  "share.pdfSend.blocked": "Share the quote first. The customer cannot receive a quote they cannot see.",
   "share.refusal.linesTitle": "Lines without a price:",
   "share.refusal.afterCreate": "The quote was created as a draft but not shared.",
   "share.refusal.lineVariant": "{product} — {variant}",

@@ -180,7 +180,7 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     expect(screen.queryByText(core('rfq.detail.badge.awaitingRevision'))).not.toBeInTheDocument();
   });
 
-  it('keeps the PDF export but offers no send to the customer while unshared (FR-007)', async () => {
+  it('keeps the PDF export; the send to the customer is disabled and says to share first (FR-007)', async () => {
     const user = userEvent.setup();
     serve(rfqPayload());
     renderDetail();
@@ -189,6 +189,22 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     await user.click(screen.getByRole('button', { name: core('common.action.more') }));
     const menu = await screen.findByRole('menu');
     expect(within(menu).getByRole('menuitem', { name: quote('pdf.export') })).toBeInTheDocument();
+    const send = within(menu).getByRole('menuitem', { name: quote('pdf.send') });
+    expect(send).toHaveAttribute('aria-disabled', 'true');
+    expect(send).toHaveAccessibleDescription(quote('share.pdfSend.blocked'));
+    await user.click(send);
+    // Nothing opens: the customer cannot be sent what their account does not show.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('offers no PDF send at all without the transactional e-mails, shared or not', async () => {
+    const user = userEvent.setup();
+    serve(rfqPayload());
+    renderDetail(['quote_requests', 'document_templates']);
+
+    await shareButton();
+    await user.click(screen.getByRole('button', { name: core('common.action.more') }));
+    const menu = await screen.findByRole('menu');
     expect(within(menu).queryByRole('menuitem', { name: quote('pdf.send') })).not.toBeInTheDocument();
   });
 
