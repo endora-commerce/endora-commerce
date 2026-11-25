@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feat/192-quote-request-draft-share`
 **Created**: 2026-11-24
-**Status**: Draft — owner decisions of 2026-11-24 recorded under *Owner decisions* and *Clarifications* (plan questions OQ-1 – OQ-8 of `research.md`); no question open
+**Status**: Draft — owner decisions of 2026-11-24 recorded under *Owner decisions* and *Clarifications* (plan questions OQ-1 – OQ-8 of `research.md`), Admin UI naming of 2026-11-25 under *Clarifications*; no question open
 **Input**: Issue #1901. A sales representative prepares a quote for a customer in the Admin UI over
 several sittings. Today the quote reaches the customer's account, with an e-mail, the moment it is
 created. The operator needs to build it as a draft the customer cannot see, and to share it with
@@ -87,6 +87,22 @@ in the paths below. Module paths are relative to `packages/modules/quote_request
 - OQ-6: On the customer's list, does a quote shared long after it was created sort by its creation or by its share? → By the share, newest shared first. A quote with no share moment (one the customer submitted, or an operator quote from before this feature) sorts by its creation moment; that is, by the share moment when there is one, else the creation moment, descending (FR-035).
 - What does `0` days mean on a revision of a quote that is already shared? → No deadline, the same as everywhere else: `0` (or no days) never means "expires immediately", and a revision with `0` removes the quote's validity date. Until now the platform read `0` on such a revision as "expires immediately"; that changes. To close an offer, the operator cancels it (FR-032).
 
+### Session 2026-11-25 (round 5 — Admin UI naming of the unshared quote)
+
+"Draft" stays this spec's internal name for the state (and the FRs keep it); it is not the word the
+Admin UI shows. Owner decisions:
+
+- What does the Admin UI call a quote that is not shared yet? → **Not shared** (Polish
+  **Nieudostępniona**), not "Draft" / "Szkic": the badge on the quote's screen and in the list, the
+  list filter and the history label (FR-009). "Draft" / "szkic" stays only for unsaved edits on the
+  *Modify* tab, so each word has one meaning on a screen.
+- What is the create screen's secondary button (save without sharing)? → **Save without sharing**
+  (Polish **Zapisz bez udostępniania**) (FR-020).
+- What does the quote's screen say while the quote is not shared? → The line "Only your team can
+  see this quote. The customer is not notified until you share it." (FR-009).
+- The create screen's primary button? → Stays **Create and share**; the confirm dialog guards it
+  (FR-020).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — The operator builds a quote the customer cannot see (Priority: P1)
@@ -100,8 +116,10 @@ every customer surface.
 **Acceptance Scenarios**:
 
 1. **Given** an operator creates a quote for a customer, **When** it is saved, **Then** it is a
-   draft, the Admin UI shows it as a draft on its screen and in the list, and the customer receives
-   no e-mail, notification-centre entry or push.
+   draft, the Admin UI shows it as **Not shared** (Polish **Nieudostępniona**) on its screen and in
+   the list, the quote's screen says "Only your team can see this quote. The customer is not
+   notified until you share it.", and the customer receives no e-mail, notification-centre entry or
+   push.
 2. **Given** a draft, **When** the customer signs in, **Then** their list does not contain it and
    its direct address answers as for a quote that does not exist.
 3. **Given** a draft for a member of an Organization, **When** the Organization's Administrator or
@@ -155,9 +173,10 @@ account, mailbox and the quote's history.
 6. **Given** a rule registered by another module forbids sharing a draft, **When** the operator
    shares it, **Then** the share is refused with that rule's reason, the quote stays a draft and
    nobody is told.
-7. **Given** the create screen, **When** the operator chooses **Create and share**, **Then** the
-   quote is created and shared in one step; when the share part is refused, the quote is saved as
-   a draft and the refusal is shown.
+7. **Given** the create screen, **When** the operator chooses **Create and share** and confirms the
+   dialog that guards it, **Then** the quote is created and shared in one step; when the share part
+   is refused, the quote is saved as a draft and the refusal is shown. Choosing **Save without
+   sharing** (Polish **Zapisz bez udostępniania**) instead saves it as a draft.
 8. **Given** the create screen, **When** the operator chooses **Create and share** and the
    create answers warnings (for example unavailable products), **Then** the quote is saved as a
    draft, the warnings are shown and nothing is shared.
@@ -242,7 +261,11 @@ validity, wait, share it, and read its date; override the days on another quote.
 - **FR-008**: An operator MUST be able to make every edit the Admin UI allows today on a draft,
   each recorded in the history.
 - **FR-009**: The Admin UI MUST show whether a quote is a draft or shared, on its screen and in
-  the list, and the list MUST be filterable by it.
+  the list, and the list MUST be filterable by it. The Admin UI names a draft **Not shared**
+  (Polish **Nieudostępniona**) in the badge on the quote's screen and in the list, in the list
+  filter and in the history label; it MUST NOT call it "Draft" / "Szkic", which stays only for
+  unsaved edits on the *Modify* tab. While the quote is a draft, its screen MUST show the line
+  "Only your team can see this quote. The customer is not notified until you share it."
 - **FR-010**: Quote requests a customer submits MUST stay visible to the customer at once.
 - **FR-011**: The same product and variant MAY appear on several lines of a quote, each with its
   own quantity and price; saving a draft, sharing it, the customer's acceptance and a later
@@ -258,7 +281,9 @@ validity, wait, share it, and read its date; override the days on another quote.
 - **FR-020**: An operator holding the quote-handling permission MUST be able to share a draft with
   one action on the quote's screen, and to create and share in one step on the create screen;
   when the share part of the latter is refused, or the create answers warnings, the quote is saved
-  as a draft, the refusal or the warnings are shown and nothing is shared.
+  as a draft, the refusal or the warnings are shown and nothing is shared. On the create screen
+  the primary button is **Create and share**, guarded by a confirm dialog, and the secondary
+  button, which saves a draft, is **Save without sharing** (Polish **Zapisz bez udostępniania**).
 - **FR-021**: From the moment of sharing the quote MUST be visible to the customer as an
   operator-prepared quote is today, and the customer MUST be able to accept or reject it.
 - **FR-022**: On sharing, and not on creation, the customer MUST receive the existing "quote
