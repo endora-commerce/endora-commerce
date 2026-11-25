@@ -92,6 +92,7 @@ const TRANCHE_ONE_JOBS = [
   'build-docs.yml',
   'acceptance-instance.yml',
   'acceptance-package-schema.yml',
+  'acceptance-storefront-scaffold.yml',
 ].flatMap((file) => readWorkflowJobs(workflowSource(file)));
 /**
  * The documentation publication (129 T046b), held by
@@ -141,7 +142,8 @@ describe('the floor parsed a population that looks like both hosts', () => {
     // dormant `workflow_dispatch` (W5.4), and the open-source demo's build and
     // deploy (W7.5, D-274) are held by `test/unit/ci/demo-workflow.test.ts`.
     // `pack-gate.yml`, `boot-gate.yml`, `build-docs.yml`,
-    // `acceptance-instance.yml` and `acceptance-package-schema.yml` are tranche 1, not the floor, and are held by
+    // `acceptance-instance.yml`, `acceptance-package-schema.yml` and
+    // `acceptance-storefront-scaffold.yml` are tranche 1, not the floor, and are held by
     // `actions-tranche-one-parity.test.ts`;
     // `publish-docs.yml` (T046b) by `docs-publish-workflow.test.ts`;
     // `release.yml` (the release page and the Discord post, keyed on the
@@ -157,6 +159,7 @@ describe('the floor parsed a population that looks like both hosts', () => {
       'acceptance-instance.yml',
       'acceptance-package-schema.yml',
       'acceptance-public.yml',
+      'acceptance-storefront-scaffold.yml',
       'backend-suite.yml',
       'boot-gate.yml',
       'build-docs.yml',
@@ -175,6 +178,7 @@ describe('the floor parsed a population that looks like both hosts', () => {
       'build:docs',
       'acceptance:instance',
       'acceptance:package-schema',
+      'acceptance:storefront-scaffold',
     ]);
     expect(DOCS_PUBLICATION_JOBS).toHaveLength(2);
     // The shards, the deployment overlays and the per-tree-root organizations run (177).
