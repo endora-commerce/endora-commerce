@@ -170,16 +170,16 @@ Each step is built **now**. The port method that publishes the same Command wait
 
 ### Tests first
 
-- [ ] T074 [P] [US1] Failing admin tests: flow states (loading, refusals, conflicts, value choices, acknowledgement, incomplete-participation notice), progress view, attention list with resume, archived banner (`packages/modules/organizations/src/admin/merge/*.test.tsx`)
-- [ ] T075 [P] Palette coverage (`merge-organizations`, `open-record-merges`) and permission inventory tests
+- [x] T074 [P] [US1] Failing admin tests: flow states (loading, refusals, conflicts, value choices, acknowledgement, incomplete-participation notice), progress view, attention list with resume, archived banner (`packages/modules/organizations/src/admin/merge/*.test.tsx`)
+- [x] T075 [P] Palette coverage (`merge-organizations`, `open-record-merges`) and permission inventory tests
 
 ### Implementation
 
-- [ ] T076 [US1] Merge flow dialog, progress view and attention list using admin-kit primitives. Apply the UX laws (`.claude/skills/ux-laws/SKILL.md`), with the irreversible confirmation as an explicit checkbox
-- [ ] T077 [US3] Archived banner and *Merged from* entries in the history
-- [ ] T078 Palette actions, i18n en + pl (labels, refusal messages, step names), and `check:error-translations`
-- [ ] T079 [P] Module docs: `packages/modules/organizations/docs/` merge page en + pl (what moves, what is kept, no unmerge, the off-module behaviour), the docs site page plus Polish translation, and the module-reference updates
-- [ ] T080 Changesets (consumer-facing: new port methods, events, webhook type, permission)
+- [x] T076 [US1] Merge flow dialog, progress view and attention list using admin-kit primitives. Apply the UX laws (`.claude/skills/ux-laws/SKILL.md`), with the irreversible confirmation as an explicit checkbox
+- [x] T077 [US3] Archived banner and *Merged from* entries in the history
+- [x] T078 Palette actions, i18n en + pl (labels, refusal messages, step names), and `check:error-translations`
+- [x] T079 [P] Module docs: `packages/modules/organizations/docs/` merge page en + pl (what moves, what is kept, no unmerge, the off-module behaviour), the docs site page plus Polish translation, and the module-reference updates
+- [x] T080 Changesets (consumer-facing: new port methods, events, webhook type, permission)
 
 ## Phase 8: US6 Project merge, MR-G (⛔ #1828, #1829)
 

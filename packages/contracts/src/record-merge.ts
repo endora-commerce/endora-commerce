@@ -358,6 +358,25 @@ export interface MergeHostImplementation<H extends RecordMergeHostType = RecordM
    * again (the runner reads that from the merge's state).
    */
   finalize(input: MergeStepInput): Promise<void>;
+  /**
+   * The runner stopped a merge of this type in `needs_attention`, or completed
+   * it (`contracts/events-and-webhooks.md` §3). Called after the state is
+   * committed and announced; a throw is logged and never changes the merge.
+   * The host's seam for telling people — the platform cannot name the module
+   * that would (`admin_notifications`). Optional: a host with nobody to tell
+   * leaves it out. It may be called twice for one stop when two steps of a
+   * phase fail together; the host de-duplicates.
+   */
+  onStateChanged?(change: RecordMergeStateChange): Promise<void>;
+}
+
+/** What {@link MergeHostImplementation.onStateChanged} is told: ids and the new state only. */
+export interface RecordMergeStateChange {
+  readonly mergeId: string;
+  readonly hostType: RecordMergeHostType;
+  readonly survivorId: string;
+  readonly loserId: string;
+  readonly state: RecordMergeState;
 }
 
 // --- shapes served to hosts and the admin (`contracts/merge-mechanism.md` §6) ---

@@ -1601,6 +1601,9 @@ its own audited Commands. Until every module that holds such a reference has dec
 rows follow, the preview works and a start is refused with
 `409 RECORD_MERGE_PARTICIPATION_INCOMPLETE`, naming the modules in `details.modules`.
 
+How an operator merges, follows and resumes a merge in the Admin UI is the
+[merge guide](./organization-merge.md).
+
 ### Who may merge, and which pairs {#merge-who-and-which-pairs}
 
 - The permission is `organizations:merge`. It is not part of the predefined
@@ -1625,6 +1628,10 @@ rows follow, the preview works and a start is refused with
 | `GET /api/v1/admin/organization-merges/:mergeId` | `customers:read` | One merge with its steps. |
 | `POST /api/v1/admin/organization-merges/:mergeId/resume` | `organizations:merge` | `{ expectedVersion }` — a merge that needs attention runs again; finished steps are not repeated. |
 | `POST /api/v1/admin/organization-merges/:mergeId/cancel` | `organizations:merge` | `{ expectedVersion }` — only before any record has moved. |
+
+Every route that answers a merge answers it with `survivorName`, `loserName` and `actorName`
+beside the ids (`OrganizationMergeView`), so the merge screens read no organization per row; the
+loser's name is answered after it is archived too, and a name that cannot be read is `null`.
 
 `fieldChoices` takes, per field, `survivor` or `loser` for the name, legal name, tax ID, VAT
 status, registered address, customer group, credit inheritance mode and fulfilment strategy.
@@ -1654,6 +1661,10 @@ releases it in the same write, and the loser's latest VAT validation result come
   before it starts.
 - Every audit entry a merge writes carries its `mergeId`, with field names and codes, never the
   values.
+- When a merge stops in *needs attention*, every active administrator holding
+  `organizations:merge` who reaches both organizations gets a bell entry linking to the merge;
+  when it completes, the administrator who started it gets one. With `admin_notifications`
+  switched off nobody is told, and the merge is unaffected.
 
 ## Audit entries
 

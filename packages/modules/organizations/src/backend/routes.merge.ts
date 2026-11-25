@@ -11,11 +11,13 @@ import {
   type OrganizationMergePreviewResponse,
   type OrganizationMergeRecord,
   type OrganizationMergeRecordResponse,
+  type OrganizationMergeView,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { RequireAdminAnyFactory, RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { orgConstraintFor } from '@endora-commerce/platform/tenancy';
 import { Organization } from './entities/organization.entity.js';
+import { organizationMergeViews } from './merge/organization-merge-names.js';
 import type { OrganizationMergeService } from './merge/organization-merge-service.js';
 import { adminActorOf, organizationInReach } from './organization-reach.js';
 import type { SalesRepAssignmentPort } from './services/sales-rep-assignment-service.js';
@@ -38,6 +40,9 @@ export interface OrganizationMergeRoutesDeps {
   readonly requireAdminAny: RequireAdminAnyFactory;
   readonly salesRepScope: Pick<SalesRepAssignmentPort, 'canSeeOrganization'>;
   readonly merges: () => OrganizationMergeService;
+  /** Names beside the ids in every merge answered (`OrganizationMergeView`). */
+  readonly organizationNames: (ids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
+  readonly adminNames: (ids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
 }
 
 function notFound(what = 'Organization'): HttpError {
@@ -48,6 +53,10 @@ export async function registerOrganizationMergeRoutes(
   app: FastifyInstance,
   deps: OrganizationMergeRoutesDeps,
 ): Promise<void> {
+  const views = (records: readonly OrganizationMergeRecord[]): Promise<OrganizationMergeView[]> =>
+    organizationMergeViews(records, { organizationNames: deps.organizationNames, adminNames: deps.adminNames });
+  const view = async (record: OrganizationMergeRecord): Promise<OrganizationMergeView> => (await views([record]))[0]!;
+
   const survivorInReach = organizationInReach({ emFactory: deps.emFactory, salesRepScope: deps.salesRepScope, param: 'id' });
   const merge = deps.requireAdmin('organizations:merge');
   const customersRead = deps.requireAdminAny(['customers:read', 'customers:manage']);
@@ -98,7 +107,7 @@ export async function registerOrganizationMergeRoutes(
         ...(body.acknowledgeIrreversible !== undefined ? { acknowledgeIrreversible: body.acknowledgeIrreversible } : {}),
       });
       reply.status(202);
-      return { data: record };
+      return { data: await view(record) };
     },
   );
 
@@ -115,7 +124,7 @@ export async function registerOrganizationMergeRoutes(
       for (const record of records) {
         if ((await reaches(request, record.survivorId)) && (await reaches(request, record.loserId))) visible.push(record);
       }
-      return { data: visible };
+      return { data: await views(visible) };
     },
   );
 
@@ -123,7 +132,7 @@ export async function registerOrganizationMergeRoutes(
     '/api/v1/admin/organization-merges/:mergeId',
     { preHandler: [customersRead] },
     async (request): Promise<OrganizationMergeRecordResponse> => ({
-      data: await reachableMerge(request, request.params.mergeId),
+      data: await view(await reachableMerge(request, request.params.mergeId)),
     }),
   );
 
@@ -133,7 +142,7 @@ export async function registerOrganizationMergeRoutes(
     async (request): Promise<OrganizationMergeRecordResponse> => {
       const { expectedVersion } = organizationMergeVersionBodySchema.parse(request.body);
       await reachableMerge(request, request.params.mergeId);
-      return { data: await deps.merges().resume(request.params.mergeId, expectedVersion) };
+      return { data: await view(await deps.merges().resume(request.params.mergeId, expectedVersion)) };
     },
   );
 
@@ -143,7 +152,7 @@ export async function registerOrganizationMergeRoutes(
     async (request): Promise<OrganizationMergeRecordResponse> => {
       const { expectedVersion } = organizationMergeVersionBodySchema.parse(request.body);
       await reachableMerge(request, request.params.mergeId);
-      return { data: await deps.merges().cancel(request.params.mergeId, expectedVersion) };
+      return { data: await view(await deps.merges().cancel(request.params.mergeId, expectedVersion)) };
     },
   );
 }

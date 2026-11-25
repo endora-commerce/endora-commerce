@@ -63,7 +63,11 @@ interface Harness {
 
 function harness(
   participants: Record<string, { phase: string; participant: MergeParticipant<'organization'>; trailing?: boolean; batchSize?: number }>,
-  options: { structureRows?: { left: number }; log?: string[] } = {},
+  options: {
+    structureRows?: { left: number };
+    log?: string[];
+    onStateChanged?: MergeHostImplementation<'organization'>['onStateChanged'];
+  } = {},
 ): Harness {
   const log: string[] = options.log ?? [];
   const structureRows = options.structureRows ?? { left: 0 };
@@ -80,6 +84,7 @@ function harness(
       return { moved };
     },
     finalize,
+    ...(options.onStateChanged ? { onStateChanged: options.onStateChanged } : {}),
   };
   const manifests = [manifest('organizations', { hosts: [{ type: 'organization' }] })];
   const registry = new RecordMergeRegistry();
@@ -376,5 +381,32 @@ describe('runRecordMerge', () => {
       loserId: LOSER,
       hostContext: { roleMap: { a: 'b' } },
     });
+  });
+
+  it('tells the host when its merge needs attention and when it completes, and a host that throws stops nothing', async () => {
+    const told: { mergeId: string; state: RecordMergeState; survivorId: string; loserId: string }[] = [];
+    const log: string[] = [];
+    const failing = counterParticipant(log, 'orders', { left: 1 }, { failTimes: 10 });
+    const h = harness(
+      { orders: { phase: 'records', participant: failing } },
+      {
+        onStateChanged: async (change) => {
+          told.push({ mergeId: change.mergeId, state: change.state, survivorId: change.survivorId, loserId: change.loserId });
+          throw new Error('the bell is down');
+        },
+      },
+    );
+    await runRecordMerge(MERGE, h.deps);
+    expect(told).toEqual([{ mergeId: MERGE, state: 'needs_attention', survivorId: SURVIVOR, loserId: LOSER }]);
+    // The platform's own announcement still went out, whatever the host did.
+    expect(h.changed).toEqual([{ mergeId: MERGE, state: 'needs_attention' }]);
+
+    const ok = harness(
+      { orders: { phase: 'records', participant: counterParticipant(log, 'orders', { left: 1 }) } },
+      { onStateChanged: async (change) => void told.push({ mergeId: change.mergeId, state: change.state, survivorId: change.survivorId, loserId: change.loserId }) },
+    );
+    await runRecordMerge(MERGE, ok.deps);
+    expect(told.at(-1)).toEqual({ mergeId: MERGE, state: 'completed', survivorId: SURVIVOR, loserId: LOSER });
+    expect((await ok.store.load(MERGE))!.merge.state).toBe('completed');
   });
 });

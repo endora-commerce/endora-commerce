@@ -405,6 +405,13 @@ describe('Organization merge — the organizations host', () => {
       expect(read.statusCode, read.body).toBe(200);
       const record = read.json().data;
       expect(record).toMatchObject({ id: merge.id, state: 'completed', fieldChoices: { name: 'loser', taxId: 'loser' } });
+      // MR-F — the names beside the ids, the archived loser's included, for the merge screens.
+      const [names] = await sql<Array<{ survivor: string; loser: string }>>(
+        'select s."name" as survivor, l."name" as loser from "organizations" s, "organizations" l where s."id" = ? and l."id" = ?',
+        [survivor.id, loser.id],
+      );
+      expect(record).toMatchObject({ survivorName: names!.survivor, loserName: names!.loser });
+      expect(record).toHaveProperty('actorName');
       const cancel = await h.app.inject({
         method: 'POST',
         url: `/api/v1/admin/organization-merges/${merge.id}/cancel`,
@@ -421,6 +428,7 @@ describe('Organization merge — the organizations host', () => {
       expect(resume.json().error.code).toBe('RECORD_MERGE_NOT_RESUMABLE');
       const list = await h.app.inject({ method: 'GET', url: `/api/v1/admin/organization-merges?organizationId=${survivor.id}`, cookies });
       expect(list.json().data.map((m: { id: string }) => m.id)).toContain(merge.id);
+      expect(list.json().data.find((m: { id: string }) => m.id === merge.id)).toMatchObject({ loserName: names!.loser });
     });
   });
 

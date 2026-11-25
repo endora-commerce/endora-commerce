@@ -622,6 +622,35 @@ export const manifest = defineModuleManifest({
       keywordsKey: 'actions.changeOrganizationTaxId.keywords',
       weight: 180,
     },
+    // `specs/192-organization-merge/` FR-082 (Principle XVI) — the merge flow's
+    // screen and the merges list, both under `organizations:merge`. Each names
+    // the list route as its entry API: the flow's screen reads organizations
+    // through the picker, whose route is `customers:read`, and gates every
+    // merge call on `organizations:merge`.
+    {
+      id: 'merge-organizations',
+      labelKey: 'actions.mergeOrganizations.label',
+      descriptionKey: 'actions.mergeOrganizations.description',
+      icon: 'Building2',
+      targetRoute: '/organizations/merge',
+      entryApiRoute: '/api/v1/admin/organization-merges',
+      requiredPermission: 'organizations:merge',
+      keywords: ['merge', 'duplicate', 'organization', 'combine'],
+      keywordsKey: 'actions.mergeOrganizations.keywords',
+      weight: 175,
+    },
+    {
+      id: 'open-record-merges',
+      labelKey: 'actions.openRecordMerges.label',
+      descriptionKey: 'actions.openRecordMerges.description',
+      icon: 'Building2',
+      targetRoute: '/organizations/merges',
+      entryApiRoute: '/api/v1/admin/organization-merges',
+      requiredPermission: 'organizations:merge',
+      keywords: ['merge', 'merges', 'attention', 'resume', 'duplicate'],
+      keywordsKey: 'actions.openRecordMerges.keywords',
+      weight: 170,
+    },
     // Feature 173 (`contracts/admin-surfaces.md` §5, Principle XVI) — the three
     // registration-lookup settings. The generic Settings screen has no
     // per-group address (the cms / google_tag_manager precedent), so the action

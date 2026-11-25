@@ -73,8 +73,10 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | --- | --- | --- |
 | `change-organization-tax-id` | `/organizations/change-tax-id` | `organizations:change-tax-id` |
 | `convert-personal-organization` | `/organizations/convert-to-company` | `organizations:convert-to-company` |
+| `merge-organizations` | `/organizations/merge` | `organizations:merge` |
 | `new-organization` | `/organizations/new` | `customers:manage` |
 | `open-organizations` | `/organizations` | `customers:read` |
+| `open-record-merges` | `/organizations/merges` | `organizations:merge` |
 | `open-registration-registry-lookup-settings` | `/settings` | `settings:read` |
 | `open-tax-id-scope` | `/organizations/tax-id-scope` | `organizations:manage-tax-id-scope` |
 

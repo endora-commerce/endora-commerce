@@ -325,4 +325,19 @@ async function announce(merge: StoredMerge, state: RecordMergeState, deps: Recor
     // The state is committed; a lost announcement is caught by the reload.
     deps.log.warn({ mergeId: merge.id, error: redactMergeError(error).code }, 'record-merge: announcing a state change failed');
   }
+  // The host's own seam (`contracts/events-and-webhooks.md` §3): whom to tell
+  // is the host's question, and the platform names no module that answers it.
+  const host = deps.registry.hostOf(merge.hostType);
+  if (host?.implementation.onStateChanged === undefined) return;
+  try {
+    await host.implementation.onStateChanged({
+      mergeId: merge.id,
+      hostType: merge.hostType,
+      survivorId: merge.survivorId,
+      loserId: merge.loserId,
+      state,
+    });
+  } catch (error) {
+    deps.log.warn({ mergeId: merge.id, error: redactMergeError(error).code }, 'record-merge: the host could not be told of a state change');
+  }
 }

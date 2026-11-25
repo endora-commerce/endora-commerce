@@ -4,6 +4,7 @@ import type {
   HostMergePreview,
   MergeHostImplementation,
   MergeStepInput,
+  RecordMergeStateChange,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { RecordMergeService, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -14,6 +15,7 @@ import { runOrganizationWrite, taxIdExistsRefusal } from '../services/organizati
 import type { OrganizationRoleCache } from '../services/organization-role-cache.js';
 import type { OrganizationTreeService } from '../services/organization-tree-service.js';
 import { customFieldDifferences, fieldDifferences, organizationMergeRefusals } from './organization-merge-rules.js';
+import type { OrganizationMergeNotifier } from './organization-merge-notifier.js';
 import { structureCounts } from './organization-merge-structure.js';
 
 /**
@@ -35,6 +37,8 @@ export interface OrganizationMergeHostDeps {
   readonly customFieldValues?: () => Pick<CustomFieldValuePort, 'validateAndMerge'>;
   readonly roleCache?: () => Pick<OrganizationRoleCache, 'dropAndAnnounce'>;
   readonly warn?: (message: string, error: unknown) => void;
+  /** The bell entries on `needs_attention` and on completion (`contracts/events-and-webhooks.md` §3). */
+  readonly notifier?: () => OrganizationMergeNotifier;
 }
 
 export class OrganizationMergeHost implements MergeHostImplementation<'organization'> {
@@ -91,6 +95,11 @@ export class OrganizationMergeHost implements MergeHostImplementation<'organizat
     );
     await this.#dropRoles(input.survivorId);
     await this.#dropRoles(input.loserId);
+  }
+
+  /** The runner's state announcement, committed by now: tell whom the merge concerns. */
+  async onStateChanged(change: RecordMergeStateChange): Promise<void> {
+    await this.deps.notifier?.().onStateChanged(change);
   }
 
   /** Committed by now: a role cache that cannot be dropped expires by itself. */

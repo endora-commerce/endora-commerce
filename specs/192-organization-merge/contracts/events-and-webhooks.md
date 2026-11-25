@@ -50,7 +50,16 @@ The rules for these events:
 
 ## 3. Admin notifications
 
-On `needs_attention`, the platform runner asks `admin_notifications` (a non-binding dependency,
-which degrades to nothing when off) to notify holders of `organizations:merge` (or
-`projects:merge`) who reach the pair, with a link to the progress view. On completion, the starting
-administrator is notified.
+On `needs_attention`, holders of `organizations:merge` (or `projects:merge`) who reach the pair
+are notified through `admin_notifications` (a non-binding dependency, which degrades to nothing
+when off), with a link to the progress view. On completion, the starting administrator is
+notified.
+
+As implemented (MR-F): the platform cannot name `admin_notifications`, so the runner calls the
+host's optional `MergeHostImplementation.onStateChanged({ mergeId, hostType, survivorId, loserId,
+state })` after it committed and announced `needs_attention` or `completed`; a throw is logged and
+changes nothing. The host decides whom to tell. `organizations` asks for the bell's presence
+first, de-duplicates a stop announced twice by two failing steps, and records `admin_user`
+entries of kind `organization.merge.needs_attention` / `organization.merge.completed`
+(`packages/modules/organizations/src/backend/merge/organization-merge-notifier.ts`). A merge
+started by server code notifies nobody on completion.

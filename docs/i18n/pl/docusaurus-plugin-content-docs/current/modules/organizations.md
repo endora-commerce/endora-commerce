@@ -1536,6 +1536,9 @@ kroku i własnymi audytowanymi poleceniami. Dopóki każdy moduł z takim odwoł
 co dzieje się z jego rekordami, podgląd działa, a rozpoczęcie scalania jest odrzucane kodem
 `409 RECORD_MERGE_PARTICIPATION_INCOMPLETE` z listą modułów w `details.modules`.
 
+Jak operator scala organizacje, śledzi scalanie i je wznawia w panelu administracyjnym, opisuje
+[przewodnik po scalaniu](./organization-merge.md).
+
 ### Kto może scalać i jakie pary {#merge-who-and-which-pairs}
 
 - Wymagane uprawnienie to `organizations:merge`. Nie należy ono do predefiniowanej roli
@@ -1560,6 +1563,11 @@ co dzieje się z jego rekordami, podgląd działa, a rozpoczęcie scalania jest 
 | `GET /api/v1/admin/organization-merges/:mergeId` | `customers:read` | Jedno scalenie wraz z krokami. |
 | `POST /api/v1/admin/organization-merges/:mergeId/resume` | `organizations:merge` | `{ expectedVersion }` — scalenie wymagające uwagi rusza ponownie; zakończone kroki nie są powtarzane. |
 | `POST /api/v1/admin/organization-merges/:mergeId/cancel` | `organizations:merge` | `{ expectedVersion }` — tylko zanim jakikolwiek rekord został przeniesiony. |
+
+Każda trasa zwracająca scalenie podaje obok identyfikatorów także `survivorName`, `loserName`
+i `actorName` (`OrganizationMergeView`), dzięki czemu ekrany scalania nie odczytują organizacji
+osobno dla każdego wiersza. Nazwa duplikatu jest zwracana także po jego zarchiwizowaniu, a nazwa,
+której nie da się odczytać, ma wartość `null`.
 
 `fieldChoices` przyjmuje dla każdego pola `survivor` albo `loser`: dla nazwy, nazwy prawnej,
 NIP-u, statusu VAT, adresu rejestrowego, grupy klientów, sposobu dziedziczenia limitu kredytowego
@@ -1592,6 +1600,10 @@ a razem z NIP-em przechodzi ostatni wynik walidacji VAT duplikatu.
   wdrożenie może zablokować scalanie, zanim się rozpocznie.
 - Każdy wpis audytu zapisany przez scalanie zawiera jego `mergeId`, z nazwami pól i kodami, nigdy
   z wartościami.
+- Gdy scalanie zatrzyma się w stanie *wymaga uwagi*, każdy aktywny administrator z uprawnieniem
+  `organizations:merge`, który ma dostęp do obu organizacji, otrzymuje powiadomienie z odnośnikiem
+  do scalania; po zakończeniu powiadomienie dostaje administrator, który je rozpoczął. Przy
+  wyłączonym module `admin_notifications` nikt nie jest powiadamiany, a scalanie przebiega bez zmian.
 
 ## Wpisy audytu
 

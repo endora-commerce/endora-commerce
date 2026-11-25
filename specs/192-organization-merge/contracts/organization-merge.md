@@ -82,6 +82,11 @@ In order, each with nothing written:
 
 `check:action-route-permissions` covers every new route.
 
+As implemented (MR-F): every route that answers a merge answers an `OrganizationMergeView` —
+the `RecordMergeRecord` with `survivorName`, `loserName` and `actorName` (`string | null`)
+beside the ids — so the progress view, the attention list and the archived banner read no
+Organization or administrator per row. The port's `getMerge` keeps answering the bare record.
+
 ## 5. Admin surfaces (MR-F)
 
 - On the Organization screen, the action *Merge a duplicate into this organization* opens a dialog
@@ -90,7 +95,15 @@ In order, each with nothing written:
 - **Progress view** at `/organizations/merges/:mergeId`, with steps, counts and states.
 - **Attention list** at `/organizations/merges?state=needs_attention`, with resume.
 - **Archived banner** on a loser: *Merged into {name} on {date} by {actor}*, linking to the survivor.
-  On the survivor, the history shows *Merged from …*.
+  On the survivor, the history shows *Merged from …*. As implemented: the Organization screen has
+  no history tab of its own, so the survivor's completed merges are listed as *Merged from …*
+  in a *Merged organizations* section of its Overview tab, each linking to the merge; the audit
+  log keeps the entries. A running merge shows a notice on both organizations' screens. Both
+  read the merges list, so they are shown to holders of `organizations:merge`; the archived
+  banner reads the merge under `customers:read`.
+- **Routes**: `/organizations/merge` (the palette's flow, choosing the survivor first),
+  `/organizations/merges` and `/organizations/merges/:mergeId`. The flow is also opened from
+  the Organization screen's "More" menu.
 - **Permission manifest**: `organizations:merge` (en + pl label and description). It is not in the
   predefined sales-representative role.
 - **Palette**: `merge-organizations` (opens the picker for a survivor, then the flow) and

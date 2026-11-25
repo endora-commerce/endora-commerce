@@ -95,10 +95,24 @@ export type OrganizationMergeListQuery = z.infer<typeof organizationMergeListQue
 export const organizationMergePreviewResponseSchema = z.object({ data: recordMergePreviewSchema });
 export type OrganizationMergePreviewResponse = z.infer<typeof organizationMergePreviewResponseSchema>;
 
-export const organizationMergeRecordResponseSchema = z.object({ data: recordMergeRecordSchema });
+/**
+ * A merge as the admin routes answer it: the record, with the names of both
+ * Organizations and of the administrator who started it beside their ids, so
+ * the merge screens need no read per row. A name that cannot be read is `null`
+ * and the screen shows the id. The loser's name is read even once it is
+ * archived. Not on the port: server code holds the ids and asks for names itself.
+ */
+export const organizationMergeViewSchema = recordMergeRecordSchema.extend({
+  survivorName: z.string().nullable(),
+  loserName: z.string().nullable(),
+  actorName: z.string().nullable(),
+});
+export type OrganizationMergeView = z.infer<typeof organizationMergeViewSchema>;
+
+export const organizationMergeRecordResponseSchema = z.object({ data: organizationMergeViewSchema });
 export type OrganizationMergeRecordResponse = z.infer<typeof organizationMergeRecordResponseSchema>;
 
-export const organizationMergeListResponseSchema = z.object({ data: z.array(recordMergeRecordSchema) });
+export const organizationMergeListResponseSchema = z.object({ data: z.array(organizationMergeViewSchema) });
 export type OrganizationMergeListResponse = z.infer<typeof organizationMergeListResponseSchema>;
 
 export type OrganizationMergePreview = RecordMergePreview;
