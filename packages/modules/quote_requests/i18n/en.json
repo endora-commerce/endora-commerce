@@ -18,6 +18,8 @@
   "errors.RFQ_SAVED_VIEW_NAME_TAKEN": "You already have a saved view with this name on the quote request list. Choose a different name.",
   "errors.RFQ_SALES_CHANNEL_NOT_ALLOWED": "This sales channel is not one of the organization's active sales channels. Choose one of them.",
   "errors.RFQ_SALES_CHANNEL_NOT_ALLOWED.no_channel": "No sales channel to raise this quote request on. Name the sales channel.",
+  "errors.RFQ_ASSIGNEE_NOT_ELIGIBLE": "This administrator cannot be assigned to the quote request: they must be active, hold the permission to handle quote requests and reach its organization. Choose another administrator.",
+  "errors.RFQ_ASSIGNEE_NOT_ELIGIBLE.submission": "Your quote request could not be routed to a sales representative, so it was not submitted. Try again later or contact us.",
   "nav.quoteRequests.label": "Quote requests",
   "negotiation.title": "Price negotiation on quote requests",
   "negotiation.organization.label": "Members may propose prices",

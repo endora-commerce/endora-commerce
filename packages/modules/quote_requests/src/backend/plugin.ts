@@ -4,6 +4,7 @@ import type { EventBus } from '@endora-commerce/platform/events';
 import type { AuditPort, PlatformLogger } from '@endora-commerce/platform/kernel';
 import type {
   AdminNotificationRecordPort,
+  AdminTenantScopePort,
   AdminUserReadPort,
   BuyerLinePricePort,
   CartWritePort,
@@ -32,6 +33,7 @@ import { RfqRevisionService } from './services/rfq-revision-service.js';
 import { RfqNotificationService } from './services/rfq-notification-service.js';
 import type { NotificationKick } from './services/notifications/kick.js';
 import { createRecipientResolver, orgWideViewerRoleIds } from './services/notifications/recipients.js';
+import { createAssigneeEligibility } from './services/assignee-eligibility.js';
 import { RfqExpiryWorker, type RfqExpiryRule } from './services/rfq-expiry-worker.js';
 import { RfqNotificationDeliveryService } from './services/notifications/delivery-service.js';
 import { createChannelAdapters } from './services/notifications/channel-adapters.js';
@@ -198,6 +200,12 @@ export interface QuoteRequestsModuleOptions {
    */
   permissions: Pick<PermissionReadPort, 'listPermissions'>;
   /**
+   * Issue #1906 — `organizations`' reach of one administrator, for the assignee
+   * a command hook on the buyer's create names: it must reach the request's
+   * Organization (`services/assignee-eligibility.ts`).
+   */
+  adminTenantScope: Pick<AdminTenantScopePort, 'resolveForAdmin'>;
+  /**
    * Wakes the notification delivery worker after a transition that recorded
    * deliveries has committed (`specs/179-rfq-and-customer-notifications/`
    * research R-8). Never throws. Absent: nothing is kicked.
@@ -269,6 +277,14 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
       : undefined,
   );
 
+  // Issue #1906 — one assignee rule for the hooks, the assign route and port, and the picker.
+  const assigneeEligibility = createAssigneeEligibility({
+    adminUsers: options.adminUsers,
+    permissions: options.permissions,
+    adminTenantScope: options.adminTenantScope,
+    salesRepAssignment,
+  });
+
   const rfqService = new RfqService({
     emFactory: options.emFactory,
     events: options.eventBus as RfqEventBus,
@@ -291,6 +307,9 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
     ...(options.log ? { log: options.log } : {}),
+    // Issue #1906 — the buyer's create is a Command, hookable.
+    commandBus: options.commandBus,
+    assigneeEligibility,
   });
 
   const adminService = new RfqAdminService({
@@ -313,6 +332,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
     ...(options.customFieldListFilter ? { customFieldListFilter: options.customFieldListFilter } : {}),
+    assigneeEligibility,
   });
 
   const expiryWorker = new RfqExpiryWorker({

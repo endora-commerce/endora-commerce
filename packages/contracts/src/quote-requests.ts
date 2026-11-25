@@ -1245,9 +1245,11 @@ export interface QuoteRequestReadPort {
  * whose routes read `If-Match`, and `assign` and `setCustomFieldValues`;
  * `create` has no version to compare and `sendDocument` never touches the
  * offer, so both ignore it. `source` is recorded on the audit entry beside the
- * actor. `extensions` reaches the command hooks of the action; no action of
- * this module is declared hookable yet, so any key is refused
- * `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+ * actor. `extensions` reaches the command hooks of the action; none of these
+ * actions is declared hookable (the module's one hookable action is the
+ * buyer's `quote_request.create`, issue #1906, which this port does not run),
+ * so any key is refused `422 COMMAND_EXTENSION_UNCLAIMED` before anything is
+ * written.
  *
  * **Not offered, deliberately**: `resubmit`, `acceptRevision`,
  * `rejectRevision` and `convertToOrder`. They are the buyer's own decisions on
@@ -1295,7 +1297,10 @@ export interface QuoteRequestCommandPort {
   ): Promise<QuoteRequestRecord>;
   /**
    * `quote_request.assign` — the request's handling administrator; `null`
-   * clears it. Notifies nobody.
+   * clears it. Notifies nobody. A named administrator must be active, hold
+   * `rfqs:handle` and reach the request's Organization, else
+   * `422 RFQ_ASSIGNEE_NOT_ELIGIBLE` before anything is written (issue #1906,
+   * the rule `POST /api/v1/admin/quote-requests/:id/assign` applies too).
    */
   assign(
     id: string,

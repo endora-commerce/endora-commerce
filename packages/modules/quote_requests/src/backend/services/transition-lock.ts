@@ -75,9 +75,9 @@ export async function lockUnchangedRow(em: EntityManager, rfq: QuoteRequest): Pr
  * Run `change` in one transaction on `em` itself — no fork, so the entities the
  * caller holds are the ones written — and commit, or roll back and re-throw.
  *
- * For a write with no row to lock yet: a new request (`createForCustomer`,
- * `resubmit`, `createOnBehalf`), whose row, lines, revision, history entries
- * and notification records commit together.
+ * {@link underRowLock}'s transaction. The writes that create a request — the
+ * buyer's create and resubmit (issue #1906) and the operator's on-behalf create
+ * (issue #1824) — are Commands now, whose transaction the Command Bus opens.
  */
 export async function inTransaction<T>(em: EntityManager, change: () => Promise<T>): Promise<T> {
   await em.begin();

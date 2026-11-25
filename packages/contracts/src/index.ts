@@ -249,6 +249,8 @@ export * from './aggregate-ports.js';
 export * from './project-hooks.js';
 // Issue #1844 — `promotions`' promotion and coupon writes.
 export * from './promotion-hooks.js';
+// Issue #1906 — `quote_requests`' buyer create-and-submit.
+export * from './quote-request-hooks.js';
 export * from './platform-info.js';
 export * from './admin-feedback.js';
 export * from './admin-actions.js';
