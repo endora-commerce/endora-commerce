@@ -105,7 +105,7 @@ describe('Share with customer', () => {
       firstName: 'Share',
       lastName: 'Test',
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     const cookie = `stub-192-share-${created.id.slice(0, 8)}`;
     CUSTOMER_COOKIES[cookie] = { customerAccountId: created.id, organizationId };
     cookies.push(cookie);
@@ -294,7 +294,7 @@ describe('Share with customer', () => {
       vatStatus: 'vat_payer',
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
-    await em.persistAndFlush(other);
+    await em.persist(other).flush();
     await bindOrganizationsToFixtureChannelsSql(em, [other.id]);
 
     const moved = await account();
@@ -372,7 +372,7 @@ describe('Share with customer', () => {
       let role = await em.findOne(AdminRole, { code: 'sales_representative' });
       if (!role) role = em.create(AdminRole, { code: 'sales_representative', name: 'Sales Representative', permissions: ['rfqs:handle'] });
       else role.permissions = Array.from(new Set([...role.permissions, 'rfqs:handle']));
-      await em.persistAndFlush(role);
+      await em.persist(role).flush();
       const elsewhere = em.create(Organization, {
         name: `192 share rep ${stamp}`,
         taxId: `PL192RP${String(stamp).slice(-7)}`,
@@ -387,12 +387,12 @@ describe('Share with customer', () => {
         firstName: '192',
         lastName: 'rep',
       });
-      await em.persistAndFlush([elsewhere, rep]);
-      await em.persistAndFlush([
+      await em.persist([elsewhere, rep]).flush();
+      await em.persist([
         em.create(OrganizationSalesRepAssignment, { organizationId: elsewhere.id, adminUserId: rep.id }),
         // The quote's Organization is governed by somebody else.
         em.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: TEST_ADMIN_ID }),
-      ]);
+      ]).flush();
       ADMIN_COOKIES[session] = { adminUserId: rep.id };
       admins.push(session);
     });

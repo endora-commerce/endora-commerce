@@ -76,7 +76,7 @@ describe('an unshared quote is invisible to every customer surface', () => {
       lastName: label,
       ...extra,
     });
-    await em.persistAndFlush(created);
+    await em.persist(created).flush();
     const cookie = `stub-192-${label}-${created.id.slice(0, 8)}`;
     CUSTOMER_COOKIES[cookie] = { customerAccountId: created.id, organizationId };
     cookies.push(cookie);
@@ -200,7 +200,7 @@ describe('an unshared quote is invisible to every customer surface', () => {
         vatStatus: 'vat_payer',
         registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
       });
-      await em.persistAndFlush(created);
+      await em.persist(created).flush();
       await bindOrganizationsToFixtureChannelsSql(em, [created.id]);
       return created;
     };
@@ -281,8 +281,8 @@ describe('an unshared quote is invisible to every customer surface', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await em.persistAndFlush(order);
-    await em.persistAndFlush(
+    await em.persist(order).flush();
+    await em.persist(
       em.create(OrderItem, {
         orderId: order.id,
         productId: SEED_PRODUCT_101_ID,
@@ -292,7 +292,7 @@ describe('an unshared quote is invisible to every customer surface', () => {
         taxRate: '0.0000',
         lineTotal: '20.00',
       }),
-    );
+    ).flush();
     const cloned = await inject('POST', `/api/v1/admin/orders/${order.id}/clone-to-quote`, ADMIN);
     expect(cloned.statusCode, cloned.body).toBe(200);
     const clonedId = (cloned.json() as { data: { quoteRequestId: string } }).data.quoteRequestId;
