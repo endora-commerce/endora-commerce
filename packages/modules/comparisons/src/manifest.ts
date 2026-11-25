@@ -344,6 +344,20 @@ export const manifest = defineModuleManifest({
   blockCategories: [
     { key: 'comparison', titleKey: 'blocks.category.comparison', contexts: ['document'], weight: 20 },
   ],
+  /**
+   * `specs/192-organization-merge/` T051 — in an Organization merge the loser's comparisons move to
+   * the survivor (`participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'comparisons',
+        phase: 'records',
+        references: [{ entity: 'Comparison', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });
 
 /** Legacy export retained for backward compatibility. */

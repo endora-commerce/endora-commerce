@@ -124,13 +124,13 @@ entries. The disposition is in `contracts/participant-dispositions.md` §A.
 - [ ] T048 [P] `price_lists`: audience U, matrix S+f per product, display override S+f, price cache invalidated for both ids (C1)
 - [ ] T049 [P] `promotions`: promotions and usage R, per-Organization counters Σ (C1)
 - [ ] T050 [P] `returns`: cases, attachments, withdrawal statements R (C1)
-- [ ] T051 [P] `shopping_lists`, `comparisons`, `inventory`: R (C2)
-- [ ] T052 [P] `forms`, `newsletter`, `customer_notifications`: R (C2)
-- [ ] T053 [P] `pwa`: subscriptions R, preferences de-duplicated per account (C2)
-- [ ] T054 [P] `quick_order` (S+f), `mfa` (stricter) (C2)
-- [ ] T055 [P] `api_keys` (R, OQ-9) and `webhooks` (R, before finalize) (C2)
-- [ ] T056 [P] `analytics`: R, `trailing: true`, batch 500 (C2)
-- [ ] T057 [P] `admin_users`: `kept` declaration for `ImpersonationReason` (C2)
+- [x] T051 [P] `shopping_lists`, `comparisons`, `inventory`: R (C2)
+- [x] T052 [P] `forms`, `newsletter`, `customer_notifications`: R (C2)
+- [x] T053 [P] `pwa`: subscriptions R, preferences R (**corrected in C2**: a preference is unique per customer account, so there is nothing to de-duplicate) (C2)
+- [x] T054 [P] `quick_order` (S+f), `mfa` (stricter) (C2)
+- [x] T055 [P] `api_keys` (R, OQ-9) and `webhooks` (R, before finalize) (C2)
+- [x] T056 [P] `analytics`: R, `trailing: true`, batch 500 (C2)
+- [x] T057 [P] `admin_users`: `kept` declaration for `ImpersonationReason` (C2)
 
 ## Phase 5: Participants of aggregate owners, MR-D1 – MR-D5
 

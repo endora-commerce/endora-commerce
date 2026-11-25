@@ -143,4 +143,19 @@ export const manifest = defineModuleManifest({
     // token, so no `tokens`.
     { code: 'WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE' },
   ],
+  /**
+   * `specs/192-organization-merge/` T055 — in an Organization merge the loser's Organization-bound
+   * webhooks move to the survivor before finalize, so `organization.merged.v1` reaches them
+   * (`participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'bound-webhooks',
+        phase: 'records',
+        references: [{ entity: 'Webhook', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

@@ -302,4 +302,18 @@ export const manifest = defineModuleManifest({
       weight: 900,
     },
   ],
+  /**
+   * `specs/192-organization-merge/` T054 — in an Organization merge the customer MFA policy takes
+   * the stricter of the two (`participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'organization-policy',
+        phase: 'configuration',
+        references: [{ entity: 'MfaOrganizationPolicy', property: 'organizationId', disposition: 'stricter' }],
+      },
+    ],
+  },
 });

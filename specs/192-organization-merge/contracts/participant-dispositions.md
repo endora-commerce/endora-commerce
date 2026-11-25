@@ -34,16 +34,16 @@ Dispositions: *R* re-point, *U* union, *S* survivor wins, *S+f* survivor wins wi
 | `catalog` (D4) | configuration | `Product.allowedOrganizationIds`, `ProductChannelScope.allowedOrganizationIds` → loser replaced by survivor, U | `catalog.product.merge_reassign` | `productCommandPort.replaceAllowedOrganization` | **#1825** |
 | `crm` (D3) | records | `CrmOpportunity.organizationId` → R | `crm.opportunity.merge_reassign` | `opportunityCommandPort.reassignOrganization` | **#1827** |
 | `projects` (D5) | records | `ProjectOrganization.organizationId` → U; `ProjectLink.organizationId` → R (after the union) | `projects.project.merge_reassign_organization` | `projectCommandPort.replaceOrganization` | **#1828** |
-| `shopping_lists` (C2) | records | `ShoppingList.organizationId` → R | `shopping_list.merge_reassign` | — | — |
+| `shopping_lists` (C2) | records | `ShoppingList.organizationId` → R; a moved default list is demoted when its customer already has a default on the survivor (one default per Organization and customer) | `shopping_list.merge_reassign` | — | — |
 | `comparisons` (C2) | records | `Comparison.organizationId` → R | `comparison.merge_reassign` | — | — |
 | `inventory` (C2) | records | `AvailabilityNotification.organizationId` → R | `availability_notification.merge_reassign` | — | — |
 | `forms` (C2) | records | `FormEntry.organizationId` → R | `form_entry.merge_reassign` | — | — |
 | `newsletter` (C2) | records | `NewsletterSubscriber.organizationId` → R | `newsletter_subscriber.merge_reassign` | — | — |
 | `customer_notifications` (C2) | records | `CustomerNotification.organizationId` → R | `customer_notification.merge_reassign` | — | — |
-| `pwa` (C2) | records | `PushSubscription.organizationId` → R; `PushNotificationPreference.organizationId` → R, de-duplicated per account | `pwa.merge_reassign` | — | — |
-| `quick_order` (C2) | configuration | `QuickOrderDefaultPreference` (`scope = organization`) → S+f | `quick_order.merge_reassign` | — | — |
-| `mfa` (C2) | configuration | `MfaOrganizationPolicy.organizationId` → str | `mfa.merge_reassign` | — | — |
-| `api_keys` (C2) | records | `ApiKey.organizationId` (bound key) → R (OQ-9) | `api_key.merge_reassign` | — | — |
+| `pwa` (C2) | records | `PushSubscription.organizationId` → R; `PushNotificationPreference.organizationId` → R (unique per customer account, never per Organization, so there is no twin to de-duplicate; corrected in MR-C2) | `pwa.merge_reassign` | — | — |
+| `quick_order` (C2) | configuration | `QuickOrderDefaultPreference.scopeId` (polymorphic, `scope = organization`) → S+f per row: adopted when the survivor has none, otherwise left on the loser | `quick_order.merge_reassign` | — | — |
+| `mfa` (C2) | configuration | `MfaOrganizationPolicy.organizationId` → str: adopted when the survivor has none; the survivor's raised to enforcement when only the loser's enforces; the loser's row stays | `mfa.merge_reassign` | — | — |
+| `api_keys` (C2) | records | `ApiKey.organizationId` (bound key) → R (OQ-9); the preview lists the keys as warning `API_KEY_BOUND_KEYS_REPOINTED` (`details.count`, up to 50 `details.ids`) | `api_key.merge_reassign` | — | — |
 | `webhooks` (C2) | records | `Webhook.organizationId` → R (before finalize, so the merged event reaches them) | `webhook.merge_reassign` | — | — |
 | `analytics` (C2) | records, **trailing** | `AnalyticsEvent.organizationId` → R (OQ-12) | `analytics.merge_reassign` | — | — |
 | `admin_users` (C2) | — | `ImpersonationReason.organizationId` → K | — | — | — |

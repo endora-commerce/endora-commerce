@@ -256,4 +256,22 @@ export const manifest = defineModuleManifest({
       weight: 1400,
     },
   ],
+  /**
+   * `specs/192-organization-merge/` T053 — in an Organization merge the loser's push subscriptions
+   * and push preferences move to the survivor; a preference is unique per account, so nothing is
+   * de-duplicated (`participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'push',
+        phase: 'records',
+        references: [
+          { entity: 'PushSubscription', property: 'organizationId', disposition: 're_point' },
+          { entity: 'PushNotificationPreference', property: 'organizationId', disposition: 're_point' },
+        ],
+      },
+    ],
+  },
 });

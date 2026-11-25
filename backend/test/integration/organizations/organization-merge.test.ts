@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES, type OrganizationDetailsPort, type RecordMergeRecord } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
+import type { RecordMergeRuntime } from '@endora-commerce/platform/composition';
 import type { RecordMergeService, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { expectNoAuditValues } from '@endora-commerce/test-kit/audit';
 import {
@@ -245,7 +246,14 @@ describe('Organization merge — the organizations host', () => {
 
       merge = await begin(survivor.id, loser.id, { name: 'loser', taxId: 'loser' });
       expect(merge.state).toBe('running');
-      expect(merge.steps.map((step) => `${step.moduleId}/${step.key}`)).toEqual(['organizations/host-structure']);
+      // The host's own step, plus one per composed participant (MR-C / MR-D add
+      // them; each proves its own step in its own test).
+      const composed = (h.container.cradle as unknown as { recordMergeRuntime: RecordMergeRuntime }).recordMergeRuntime.registry
+        .participantsOf('organization')
+        .map((participant) => `${participant.moduleId}/${participant.key}`);
+      expect(merge.steps.map((step) => `${step.moduleId}/${step.key}`).sort()).toEqual(
+        ['organizations/host-structure', ...composed].sort(),
+      );
     });
 
     it('freezes the loser while the merge runs: a write naming it is refused, the survivor stays writable (R-6)', async () => {

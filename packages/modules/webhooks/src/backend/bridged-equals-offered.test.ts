@@ -60,6 +60,8 @@ function compose(): { subscribed: string[]; registry: WebhookEventRegistryPort }
     },
     routes: () => undefined,
     cradle: () => ({}),
+    // `specs/192-organization-merge/` T055 — the merge participant's registration.
+    merge: { host: () => undefined, participate: () => undefined },
   } as unknown as ModuleContext;
 
   registerModule(ctx);

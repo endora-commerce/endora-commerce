@@ -577,7 +577,7 @@ are the proposed defaults. *R* = re-point, *U* = union without duplicates, *S* =
 | `forms` | `form-entry.entity.ts` (nullable Organization) | R | records |
 | `newsletter` | `newsletter-subscriber.entity.ts` | R | records |
 | `customer_notifications` | `customer-notification.entity.ts` | R | records |
-| `pwa` | `push-subscription.entity.ts`, `push-notification-preference.entity.ts` | R (preference de-duplicated per account) | records |
+| `pwa` | `push-subscription.entity.ts`, `push-notification-preference.entity.ts` | R (a preference is unique per account, so it cannot meet a twin) | records |
 | `quick_order` | `quick-order-default-preference.entity.ts` (scope `organization`) | S+f | configuration |
 | `mfa` | `mfa-organization-policy.entity.ts` | stricter | configuration |
 | `api_keys` | `api-key.entity.ts` (bound distributor key) | R (OQ-9) | records |

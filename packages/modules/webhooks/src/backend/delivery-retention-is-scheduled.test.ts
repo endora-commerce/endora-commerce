@@ -90,6 +90,8 @@ async function composeAndMountRoutes(host: { webhooksRunWorkers: boolean }) {
     },
     cradle: () => cradle,
     log: silent,
+    // `specs/192-organization-merge/` T055 — the merge participant's registration.
+    merge: { host: noop, participate: noop },
   } as unknown as ModuleContext;
 
   registerModule(ctx);

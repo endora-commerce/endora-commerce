@@ -128,4 +128,19 @@ export const manifest = defineModuleManifest({
     { code: 'SHOPPING_LIST_CANNOT_DELETE_DEFAULT' },
     { code: 'SHOPPING_LIST_CANNOT_DELETE_LAST' },
   ],
+  /**
+   * `specs/192-organization-merge/` T051 — in an Organization merge the
+   * loser's lists move to the survivor (`participant-dispositions.md` §A), one
+   * `shopping_list.merge_reassign` per batch.
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'shopping-lists',
+        phase: 'records',
+        references: [{ entity: 'ShoppingList', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

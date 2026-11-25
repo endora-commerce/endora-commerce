@@ -13,6 +13,7 @@ import { AnalyticsQueryService } from './services/analytics-query.service.js';
 import { buildForwarderFromEnv, type AnalyticsForwarder } from './services/ga4-forwarder.js';
 import { AnalyticsEvent } from './entities/analytics-event.entity.js';
 import { createReportingTimeZonePort, createReportingTimeZoneValidator } from './services/reporting-time-zone.js';
+import { AnalyticsEventOrganizationMergeParticipant, type AnalyticsEventMergeParticipantDeps } from './merge/organization-merge-participant.js';
 
 /**
  * `analytics` — the first wave-1 module whose conversion is only a conversion
@@ -38,6 +39,18 @@ export interface AnalyticsCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/192-organization-merge/` T056 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  const mergeDeps = (): AnalyticsEventMergeParticipantDeps => ctx.cradle<AnalyticsEventMergeParticipantDeps>();
+  ctx.merge.participate(
+    'organization',
+    'events',
+    new AnalyticsEventOrganizationMergeParticipant({
+      emFactory: () => mergeDeps().emFactory(),
+      commandBus: { run: (command) => mergeDeps().commandBus.run(command) },
+    }),
+  );
+
   ctx.di.register({
     analyticsForwarder: ctx.asFunction(() => buildForwarderFromEnv(process.env)).singleton(),
 

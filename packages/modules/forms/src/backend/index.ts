@@ -56,6 +56,7 @@ import {
   type FormsNotificationJobLike,
   type FormsNotificationProducer,
 } from './workers/forms-notifications-worker.js';
+import { FormEntryOrganizationMergeParticipant, type FormEntryMergeParticipantDeps } from './merge/organization-merge-participant.js';
 
 /**
  * `forms` — composed by the kernel container (`specs/170-forms-module/` plan § Composition).
@@ -88,6 +89,18 @@ interface FormsCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/192-organization-merge/` T052 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  const mergeDeps = (): FormEntryMergeParticipantDeps => ctx.cradle<FormEntryMergeParticipantDeps>();
+  ctx.merge.participate(
+    'organization',
+    'form-entries',
+    new FormEntryOrganizationMergeParticipant({
+      emFactory: () => mergeDeps().emFactory(),
+      commandBus: { run: (command) => mergeDeps().commandBus.run(command) },
+    }),
+  );
+
   // --- Foreign ports (plan § Composition 2) --------------------------------------------------
   // Every owner below but `cms` is a binding, non-deactivatable dependency of the manifest. Each
   // port is a `lazyPort` resolved per call — never a captured registration — under a literal name,

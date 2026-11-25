@@ -97,6 +97,7 @@
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
+    "@endora-commerce/test-kit": "workspace:*",
     "@fastify/cookie": "^11.0.2",
     "@mikro-orm/core": "^7.2.11",
     "@mikro-orm/decorators": "^7.2.11",
