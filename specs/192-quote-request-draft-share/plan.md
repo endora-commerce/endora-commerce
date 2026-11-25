@@ -5,6 +5,11 @@
 **Measured against**: `origin/master` `230f04c30` (release 0.112.0). Upstream drift check at plan
 time: `git log origin/master --oneline -- packages/modules/quote_requests packages/contracts/src/quote-requests.ts`
 → newest `4f3baa620` (already in `230f04c30`); nothing newer. Re-run before building (§ *Risks*).
+**Master merged into the branch** at `a4603d8f2` (after Phase 4): it brought the
+`persistAndFlush` → `persist(…).flush()` codemod (new code and test doubles use
+`em.persist(x).flush()`; `persistAndFlush` no longer exists) and the sealing of the raw database
+handles a package migration can reach (#1889; 192's migration, T005, is already in and uses only
+`addSql`). No remaining task needs either beyond following the new spelling.
 
 ## Summary
 
@@ -24,7 +29,10 @@ into new quotes. The Admin UI gets the share action, *Create and share*, a *Draf
 filter, and the "counts from sharing" validity hint. Owner answers of 2026-11-24 (round 3,
 `spec.md` § *Clarifications*): an operator draft may hold unpriced lines (FR-013); the customer's
 history starts at the share (FR-012); a typed `0` on a draft means no deadline; a blocked account
-refuses the share; *Create and share* stops on create warnings.
+refuses the share; *Create and share* stops on create warnings. Two later owner decisions the
+same day (built in `b4e3b74fe`): the customer's list sorts by the share (OQ-6, FR-035), and `0`
+or no validity days means no deadline everywhere, a revision of a shared quote included
+(FR-032 amended).
 
 ## Technical Context
 
@@ -76,7 +84,7 @@ nothing (single transaction, hooks inside it).
 specs/192-quote-request-draft-share/
 ├── spec.md
 ├── plan.md                 # this file
-├── research.md             # R-1 … R-17 (decisions, rejected alternatives)
+├── research.md             # R-1 … R-20 (decisions, rejected alternatives)
 ├── data-model.md           # columns, invariants, readers, setting, audit
 ├── quickstart.md           # manual acceptance walk-through
 ├── contracts/
@@ -103,10 +111,10 @@ packages/modules/quote_requests/
 ├── src/migrations/<stamp>_quote_requests_quote_request_sharing.ts   # NEW (scaffolded) + index.ts
 ├── src/backend/entities/quote-request.entity.ts        # four properties
 ├── src/backend/entities/quote-request-event.entity.ts  # 'shared'
-├── src/backend/services/operator-quote-sharing.ts      # NEW: operatorQuoteStartsUnshared(), applyShare(), shareRefusals
+├── src/backend/services/operator-quote-sharing.ts      # NEW: operatorQuoteStartsUnshared(), normaliseShareValidityDays(), applyShare(), refusals
 ├── src/backend/commands/share-command.ts               # NEW: makeShareQuoteRequestCommand
 ├── src/backend/services/rfq-admin-service.ts           # createOnBehalf, modify, cancel, listAll, share()
-├── src/backend/services/rfq-service.ts                 # findVisibleForCustomer, #listSummaries, serializeFull
+├── src/backend/services/rfq-service.ts                 # findVisibleForCustomer, #listSummaries (customerListOrder), serializeFull
 ├── src/backend/services/rfq-expiry-worker.ts           # dueRequests predicate
 ├── src/backend/services/quote-request-read-port.ts     # record field
 ├── src/backend/services/customer-projection.ts         # customer history from the `shared` event on (FR-012)
@@ -180,7 +188,7 @@ run by hand, and the builder reports which ran.
 | Hook dispatch semantics change in the platform. | Contract test with a test-only veto hook pins the behaviour this module relies on. |
 | A future "drafts off" setting shares at create without running the hooks. | Recorded in `contracts/share-hook.md` §3 and R-2 as a decision that setting's spec must make. |
 
-## Owner answers and the one open question
+## Owner answers
 
 Answered 2026-11-24 (`spec.md` § *Clarifications*, round 3), folded into the phases:
 
@@ -188,6 +196,8 @@ Answered 2026-11-24 (`spec.md` § *Clarifications*, round 3), folded into the ph
 | --- | --- | --- |
 | OQ-1 pre-share history for the customer | hidden; history starts at the share (FR-012) | R-14; T010, T011, T019 |
 | OQ-2 `0` days typed on a draft | no deadline (FR-032) | R-10; T014, T022, T026, T028 |
+| `0` days on a revision of a shared quote (decision of 2026-11-24, later the same day) | no deadline too, never "expires now"; `null` no longer refused (FR-032 amended) | R-10; T014, T022, T028; UI T036, T037 |
+| OQ-6 customer list order | by the share, else the creation, newest first (FR-035) | R-20; T011, T055 |
 | OQ-3 blocked account | refuses the share, token `blocked` (FR-027) | R-9; T007, T019, T022 |
 | OQ-4 `customers`' admin tab | drafts hidden (FR-003) | R-3; T009 |
 | OQ-5 unpriced lines on an operator draft | allowed on create and save; share still refused (FR-013) | R-19; T001, T026, T042, T043 |
@@ -195,9 +205,11 @@ Answered 2026-11-24 (`spec.md` § *Clarifications*, round 3), folded into the ph
 | OQ-8 quick-order operator build | unchanged (FR-001) | R-18 |
 | Contract | `QuoteRequestRecord.sharedWithCustomer` required; `quote_request.share` frozen, `beforeCommit` only | R-3, R-4 |
 
-Still open — **OQ-6**: a draft created long ago and shared today sorts by `createdAt` on the
-customer's list. Built: today's order, from one function `customerListOrder()` (R-20). Gated:
-T055.
+No question is open. Both later decisions are built in `b4e3b74fe`:
+`customerListOrder()` answers `coalesce(shared_at, created_at) desc, id desc` (T055), and
+`normaliseShareValidityDays` decides `0`/`null` for the create, the unshared edit and the shared
+revision alike. The admin detail screen's validity preview still says `0` "ends validity
+immediately" and must follow (T036/T037).
 
 ## Complexity Tracking
 

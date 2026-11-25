@@ -61,8 +61,12 @@ Zod: `adminQuoteRequestCreateDefaultsSchema = z.object({ validityDays: z.number(
 - **Unshared quote**: `N > 0` writes `shareValidityDays`, `0` or `null` clears it (no deadline),
   absent keeps it; `expiresAt` is not touched; the `modified` event records
   `validityDays: { before, after }`; **no** `revised` notification is recorded.
-- **Shared quote**: unchanged, including `0` → `expiresAt = now` (`N` → `expiresAt = now + N days`; the `revised` notification);
-  `null` → `422 VALIDATION_FAILED` with `details: [{ path: 'expiresInDays', issue: 'not_clearable_once_shared' }]`.
+- **Shared quote** (FR-032 as amended, owner decision of 2026-11-24): `N > 0` →
+  `expiresAt = now + N days`; `0` or `null` → `expiresAt = null` (no deadline — never "expires
+  now"); absent keeps it; the `revised` notification as before. The same
+  `normaliseShareValidityDays` decides `0`/`null` here as on the unshared branch. Nothing is
+  refused: the former `422 VALIDATION_FAILED` / `not_clearable_once_shared` is gone (`b4e3b74fe`).
+  An operator closes an offer by cancelling it.
 
 ## 5. `POST /api/v1/admin/quote-requests/:id/cancel` (behaviour)
 

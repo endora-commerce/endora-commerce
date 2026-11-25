@@ -7,11 +7,13 @@ unless they start with `packages/` or `backend/`.
 Every decision below is *decision → rationale → alternatives rejected*. Owner decisions recorded
 in `spec.md` § *Owner decisions* are not re-opened here; where the spec leaves a product call
 open, the item says so and names the question it went back with (`OQ-n`, listed in `plan.md`
-§ *Open questions for the owner*).
+§ *Owner answers*).
 
 **Owner answers of 2026-11-24 (round 3, `spec.md` § *Clarifications*, commit `640cc924e`)** closed
-OQ-1, OQ-2, OQ-3, OQ-4, OQ-5, OQ-7 and OQ-8; the items below record the answered design. OQ-6 is
-still with the owner (R-20).
+OQ-1, OQ-2, OQ-3, OQ-4, OQ-5, OQ-7 and OQ-8; the items below record the answered design. Two
+later decisions of the same day closed OQ-6 (customer list order, FR-035, R-20) and extended
+"`0` days = no deadline" to revisions of a shared quote (FR-032 amended, R-10). No question is
+open.
 
 ## Vocabulary — "draft" in code is taken
 
@@ -321,17 +323,36 @@ which.
   absent → unchanged; `expiresAt` untouched. The history records it as a new change kind
   `validity_days { before, after }` on the `modified` event (FR-008), since the existing
   `validity` kind is date-typed.
-- `modify` on a shared quote: unchanged behaviour; `expiresInDays: null` is refused
-  `422 VALIDATION_FAILED` (clearing a shared deadline is not a feature of this spec).
+- `modify` on a shared quote (a revision): `N > 0` → `expiresAt = now + N days`; `0` or `null`
+  → `expiresAt = null`, no deadline (FR-032 as amended — see below); absent → unchanged.
 - Contracts: `adminCreateQuoteRequestSchema.expiresInDays` and
   `adminPatchQuoteRequestSchema.expiresInDays` widen to `.nullable().optional()` (write
   direction: accepted values widen — compatible).
 
 **`0` days on a draft (OQ-2 answered, FR-032).** `0` typed on a draft — on create or on a draft
 `modify` — means **no deadline**, like the setting's `0`: `normaliseShareValidityDays` maps `0`
-and `null` to `null`. On a **shared** quote `expiresInDays: 0` keeps today's meaning
-("expires now"); the two contexts are told apart by `sharedWithCustomer`, and the contract
-documents both.
+and `null` to `null`.
+
+**`0` days on a revision of a shared quote (owner decision of 2026-11-24, FR-032 amended).**
+`0` or no days means no deadline **everywhere**, a revision of a shared quote included; `0` never
+means "expires now". Before this decision a shared revision read `0` as `expiresAt = now` and
+refused `null` (`422`, `not_clearable_once_shared`); both are gone (`b4e3b74fe`).
+`normaliseShareValidityDays` (`src/backend/services/operator-quote-sharing.ts`) is the one place
+that decides it, for the create, the unshared edit and the shared revision alike
+(`RfqAdminService.modify` calls it on both branches). Test: *a shared quote revised with 0 days,
+or none, has no deadline and stays acceptable* in
+`backend/test/integration/quote_requests/unshared-notifications.test.ts`.
+
+*Rejected:* keeping `0` = "expires now" on a shared revision (the owner's call: one meaning of `0`
+on every screen; an operator who wants to close an offer cancels it); refusing `null` on a shared
+quote (it would make "no deadline" reachable by `0` but not by an emptied field — two spellings of
+one intent with different outcomes).
+
+**Admin UI consequence.** The detail screen's validity field still previews `0` as "ends validity
+immediately" (`deadlineForDays` in `src/admin/validity.ts`, key
+`rfq.detail.validity.help.previewImmediate`, test in
+`admin/test/modules/quote_requests/RfqDetail.validity.test.tsx` and `rfq-validity.test.ts`). That
+preview now contradicts the server; T036/T037 correct it.
 
 **Rejected.** *Store `expiresAt` at create and shift it at share*: the arithmetic would depend on
 the draft's age; *compute the default at share time*: violates FR-033 (a later default change
@@ -460,11 +481,23 @@ shared-at-create branch (`QUOTE_INCOMPLETE`); recorded here so that setting's sp
 **Rejected.** *A separate "save as draft" endpoint with looser rules*: every operator create is a
 draft already, so one widened schema is the whole change.
 
-## R-20 Customer list order is one function (OQ-6 — with the owner)
+## R-20 Customer list order is one function (OQ-6 answered 2026-11-24, FR-035)
 
 **Decision.** `RfqService.#listSummaries` takes its order from one function,
-`customerListOrder()`, which answers today's `{ createdAt: 'desc' }`. If the owner rules that a
-quote shared long after its creation should sort by when the customer received it, that function
-answers `coalesce(shared_at, created_at) desc` (a raw order expression) and one test changes —
-gated task in `tasks.md`.
+`customerListOrder()` (`src/backend/services/rfq-service.ts`). By owner decision of 2026-11-24
+(FR-035) it orders by when the customer received each quote:
+`coalesce(shared_at, created_at) desc`, then `id desc` as a stable tie-break — a raw order
+expression (`raw((alias) => …)` from `@mikro-orm/postgresql`). A quote without a share moment
+(a customer submission, an operator quote from before this feature) sorts by its creation.
+Built in `b4e3b74fe` (T055). Test: *the customer's list sorts by the share* in
+`backend/test/integration/quote_requests/unshared-visibility.test.ts`.
+
+**Rationale.** The customer's list answers "what did I receive, newest first"; a draft prepared
+weeks ago and shared today is today's news to the customer.
+
+**Rejected.** *Keep `createdAt desc`* (the pre-decision order): a draft shared today would sink
+below quotes the customer has already seen. *Backfill `shared_at = created_at` on existing rows
+and order by `shared_at` alone*: rewrites history the migration deliberately left `null` (R-17,
+FR-002) for an ordering the `coalesce` gives without it. *An index on the expression*: the list
+is already narrowed by `customer_account_id` and the tenant filter; no measured need.
 

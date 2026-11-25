@@ -120,8 +120,8 @@ the helper of T008.
   `custom-field-carry-skipped` stay admin-only.
 - [x] T011 [US1] `QR/src/backend/services/rfq-service.ts`: `findVisibleForCustomer` → `404` for
   `!sharedWithCustomer` (same message); `#listSummaries` `where` + `sharedWithCustomer: true`
-  and its order taken from one function `customerListOrder()` answering today's
-  `{ createdAt: 'desc' }` (R-20, OQ-6 open); `customerEventsOf` in
+  and its order taken from one function `customerListOrder()` (R-20; first built as
+  `{ createdAt: 'desc' }`, changed by T055 after OQ-6 was answered); `customerEventsOf` in
   `QR/src/backend/services/customer-projection.ts` takes `sharedAt` and cuts before the `shared`
   event (`serializeFull` passes it on the customer path).
 - [x] T012 [US1] `packages/modules/carts/src/backend/services/cart-conversion-service.ts`
@@ -136,8 +136,12 @@ the helper of T008.
   (`QR/src/backend/services/rfq-admin-service.ts` :1042, :797).
 - [x] T014 [US1] Validity days on an unshared quote (R-10): `modify` writes `shareValidityDays`
   (`N > 0` as given; `0` or `null` clears — no deadline, FR-032; absent keeps), leaves `expiresAt`, and puts
-  `validityDays: { before, after }` on the `modified` payload; on a shared quote `0`
-  keeps today's meaning (`expiresAt = now`) and `expiresInDays: null` → `422 VALIDATION_FAILED` (`issue: 'not_clearable_once_shared'`); the
+  `validityDays: { before, after }` on the `modified` payload. On a shared quote (a revision)
+  `N > 0` → `expiresAt = now + N days` and — **owner decision of 2026-11-24, FR-032 amended,
+  built in `b4e3b74fe`** — `0` or `null` → `expiresAt = null`, no deadline (no longer "expires
+  now"; the `422 not_clearable_once_shared` refusal is removed); both branches go through
+  `normaliseShareValidityDays` (T022). Test: *a shared quote revised with 0 days, or none, has no
+  deadline and stays acceptable* in `unshared-notifications.test.ts`. The
   `validity_days` change projected in `QR/src/backend/services/history/history-diff.ts` /
   `history-projection.ts`; `rfq.detail.history.change.validity_days` in `CORE_I18N`. Tests:
   `QR/src/backend/services/history/history-diff.test.ts`, `QR/src/backend/history-bundle-coverage.test.ts`,
@@ -204,7 +208,9 @@ flip are coupled — R-5); T027 in the same push.
   (new): `200` body parses with `quoteRequestSchema`; each refusal's status, code and `details`
   shape as `contracts/admin-api.md` §1; `401`/`403` without `rfqs:handle`; unknown body keys → `422`.
 - [x] T022 [US2] `QR/src/backend/services/operator-quote-sharing.ts` (new):
-  `operatorQuoteStartsUnshared()` (R-2); `normaliseShareValidityDays` (R-10: `0`/`null` → `null`);
+  `operatorQuoteStartsUnshared()` (R-2); `normaliseShareValidityDays` (R-10: `0`/`null` → `null`;
+  since `b4e3b74fe` the one decision for every validity write — create, unshared edit and shared
+  revision, FR-032 amended);
   `unpricedLinesRefusal` (display order via `loadArrangedQuoteLines`, `hasUnpricedLine`);
   `customerUnavailability` (R-9: `findById`, org mismatch → `not_member`,
   `deletedAt`/`anonymizedAt` → `inactive`, `blockedAt` → `blocked`); `applyShare(em, rfq, actor, now)` (row fields,
@@ -262,7 +268,9 @@ flip are coupled — R-5); T027 in the same push.
   (US3 #2); `0` typed on the draft → no date (US3 #3, FR-032); explicit 7 → 7, other quotes
   unchanged (US3 #4); default changed after create → the
   quote keeps its snapshot (FR-033); `expiresInDays: null` → no date; past the date: accept →
-  `410 RFQ_EXPIRED`, convert → `410 QUOTE_VALIDITY_ENDED` (FR-034 unchanged).
+  `410 RFQ_EXPIRED`, convert → `410 QUOTE_VALIDITY_ENDED` (FR-034 unchanged). `0`/`null` on a
+  revision **after** the share (FR-032 amended) is covered by T014's case in
+  `unshared-notifications.test.ts`, not here.
 - [x] T029 [US3] Setting `quote_requests.default_validity_days` in `QR/src/manifest.ts`
   (`QUOTE_REQUESTS_SETTING_CODES`, `valueType: 'number'`, default `0`, group `quote_requests`);
   `settingLabels.quote_requests.default_validity_days.{name,description}` in `QR/i18n/{en,pl}.json`.
@@ -309,20 +317,33 @@ New screen strings go in `QR/i18n/{en,pl}.json` read through `useTranslation('qu
   with an info notice; *Send PDF to customer* absent while unshared, export present (FR-007).
 - [ ] T035 [US2] `QR/src/admin/pages/RfqDetail.tsx`: badge, header action, confirm, refusal
   rendering, PDF-send gating; notices through `QR/src/admin/pages/rfq-page-notice.ts`.
-- [ ] T036 [P] [US3] Failing cases in `admin/test/modules/quote_requests/RfqDetail.validity.test.tsx`:
-  unshared shows the days and "counts from sharing", no date; editing days sends a number or
-  `null` when cleared; shared unchanged (date, lapsed).
-- [ ] T037 [US3] `QR/src/admin/validity.ts` (unshared branch: "N days from sharing") and the
-  validity block of `RfqDetail.tsx`; clearing means `null` only while unshared.
+- [ ] T036 [P] [US3] Failing cases in `admin/test/modules/quote_requests/RfqDetail.validity.test.tsx`
+  and `rfq-validity.test.ts`: unshared shows the days (`shareValidityDays`) and "counts from
+  sharing", no date; editing days sends a number or `null` when cleared. Shared (FR-032 amended,
+  server since `b4e3b74fe`): date and lapsed display unchanged, a typed `N > 0` previews now + N;
+  a typed `0` previews **no deadline** and sends `expiresInDays: 0` — rewrite the existing case
+  *says what a zero-day deadline does rather than looking like "no deadline"* (`'ends validity
+  immediately'`) and `rfq-validity.test.ts` *treats zero as a real deadline of "now"*, which now
+  contradict the server; blank still sends nothing (keeps the deadline).
+- [ ] T037 [US3] `QR/src/admin/validity.ts` (unshared branch: "N days from sharing";
+  `deadlineForDays('0')` answers no deadline, as `normaliseShareValidityDays` does) and the
+  validity block of `RfqDetail.tsx` (`0` → the no-deadline sentence; retire
+  `rfq.detail.validity.help.previewImmediate` from `CORE_I18N` en/pl). Blank leaves the value as
+  it is in both states; on an unshared quote an emptied field that held days sends `null`.
 - [ ] T038 [P] [US1] Failing tests `admin/test/modules/quote_requests/RfqList.sharing-filter.test.tsx`
   (new): *Draft* badge on unshared rows; *Draft / Shared* filter sends `sharing=…`; a saved view
   stores and restores it; *Clear filters* clears it (FR-009).
-- [ ] T039 [US1] `QR/src/admin/pages/RfqList.tsx`: badge in the status cell, filter (same
-  control family as the status filter), URL param, saved-view `filters.sharing`; option labels
+- [ ] T039 [US1] `QR/src/admin/pages/RfqList.tsx`: badge in the status cell from the summary's
+  `sharedWithCustomer === false`, filter (same control family as the status filter) sending
+  `sharing=unshared|shared` (`adminQuoteRequestListQuerySchema`), URL param, saved-view `filters.sharing`; option labels
   through `defineEnumLabels` in `QR/src/admin/lib/labels.ts` (+ `labels.test.ts`).
 - [ ] T040 [P] [US2] `QR/src/admin/pages/RfqHistory.tsx`: `shared` entry with its deliveries,
-  `validity_days` change; cases in `admin/test/modules/quote_requests/RfqHistory.deliveries.test.tsx`
-  and `RfqDetail.history.test.tsx`.
+  `validity_days` change. Already on the branch from `e788fe3e2` (the exhaustive switch needed it):
+  the `validity_days` sentence in `changeSentence`, and a `shared` entry in the `FULL` fixture of
+  `RfqDetail.history.test.tsx`; the entry title and deliveries render through the generic
+  `entry.${kind}` / `DeliveryList` path. Left: assertions — a `shared` entry lists its three
+  `prepared` deliveries (`RfqHistory.deliveries.test.tsx`), and the `validity_days` sentence with
+  a number and with `null` → *none* (`RfqDetail.history.test.tsx`).
 
 - [ ] T054 [P] [US2] Storefront label for the customer's first history entry (FR-012, R-5):
   `shared` in `QUOTE_REQUEST_EVENT_KEYS` (`storefront/lib/account/labels.tsx`) and
@@ -340,7 +361,8 @@ New screen strings go in `QR/i18n/{en,pl}.json` read through `useTranslation('qu
 ## Phase 6 — Admin UI: create screen (US2, US3)
 
 - [ ] T041 [P] [US3] Failing tests `admin/test/modules/quote_requests/RfqCreatePage.share.test.tsx`
-  (new): validity prefilled from `GET …/create-defaults` (`null` → empty) with "counted from
+  (new): validity prefilled from `GET /api/v1/admin/quote-requests/create-defaults`
+  (`data.validityDays`, positive or `null`; `null` → empty) with "counted from
   sharing"; clearing sends `expiresInDays: null`; untouched sends the prefilled number; a failed
   defaults request leaves the field empty and the screen usable.
 - [ ] T042 [P] [US2] Same file: **Save as draft** lands on the draft; **Create and share**
@@ -397,16 +419,22 @@ states, WCAG 2.2 AA), with QA and code-quality review in parallel on the Phase 5
 
 ---
 
-## Gated on the owner's answer to OQ-6 (not built until answered)
+## OQ-6 — customer list order (answered 2026-11-24, FR-035)
 
 T050–T053 of the first revision are retired: OQ-1, OQ-2, OQ-3 and OQ-7 were answered and are in
 T010/T011/T019, T014/T022/T026/T028, T007/T019/T022 and T042/T043.
 
-- [ ] T055 [OQ-6] If the customer list should order a shared draft by when it was shared:
+- [x] T055 [US1] Customer list by the share (FR-035, R-20), built in `b4e3b74fe`:
   `customerListOrder()` (`QR/src/backend/services/rfq-service.ts`) answers
-  `coalesce(shared_at, created_at) desc`; case in
-  `backend/test/integration/quote_requests/unshared-visibility.test.ts` (a draft created before
-  a newer quote and shared after it lists first).
+  `coalesce(shared_at, created_at) desc`, then `id desc` (stable tie-break), as a MikroORM `raw`
+  order expression; `#listSummaries` is its only caller. Test: *the customer's list sorts by the
+  share: a quote shared later sorts above one created later but shared earlier* in
+  `backend/test/integration/quote_requests/unshared-visibility.test.ts` — two operator quotes
+  shared in the reverse order of their creation plus a customer submission between the shares;
+  expects `[older-but-shared-last, submission, younger-but-shared-first]`.
+
+**Verification**: `pnpm --filter $MOD run typecheck`;
+`pnpm --filter backend exec vitest run test/integration/quote_requests/unshared-visibility.test.ts test/integration/quote_requests/unshared-notifications.test.ts`.
 
 ---
 
@@ -434,13 +462,16 @@ T010/T011/T019, T014/T022/T026/T028, T007/T019/T022 and T042/T043.
 | FR-026 | T019, T022, T034 |
 | FR-027 | T019, T022 (incl. blocked) |
 | FR-028 | T020 |
-| FR-030 … FR-033 / SC-003 | T028, T041 |
+| FR-030 / FR-033 / SC-003 | T028, T041 |
+| FR-031 | T028, T030, T037, T041, T043 |
+| FR-032 (incl. revision of a shared quote, amended) | T014, T022, T028, T036, T037 |
 | FR-034 | T028 |
+| FR-035 | T055 |
 
 ## Dependencies
 
 Phase 1 → 2 → 3 → 4 → checkpoint A → 5 → 6 → checkpoint B → 7. T018 needs T004 and lands with
-T026. T027 in the same push as T026. T043 needs T025 and T031. T054 needs T011. T055 waits for OQ-6.
+T026. T027 in the same push as T026. T043 needs T025 and T031. T054 needs T011. T055 done (`b4e3b74fe`).
 
 ## Implementation strategy
 
