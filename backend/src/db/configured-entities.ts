@@ -18,8 +18,9 @@
  * process may scan `node_modules` is a fact about that process, not about the
  * merge. The result is memoised because there are fourteen direct importers of
  * the ORM config and fourteen call sites must not mean fourteen scans; `env` is
- * read on the first call only, because it selects the `node_modules` roots and
- * an instance does not move underneath a running platform.
+ * read on the first call per deployment only, because it selects the
+ * `node_modules` roots and an instance does not move underneath a running
+ * platform.
  *
  * A **factory, not a promise-valued export**: a promise created at import scans
  * `node_modules` in every process that touches the module, including one that
@@ -27,16 +28,29 @@
  */
 import { configuredEntitiesFrom, type ConfiguredEntity } from '@endora-commerce/platform/db';
 
+import { deploymentRoot, selectedDeployment } from '../overlay/overlay-roots.js';
 import { ALL_ENTITIES } from './entities-registry.generated.js';
 
 /** Re-exported so a caller that already reads this seam has one import. */
 export type { ConfiguredEntity } from '@endora-commerce/platform/db';
 
-let memoised: Promise<readonly ConfiguredEntity[]> | undefined;
+/**
+ * One answer per deployment the process asks about, `''` for bare core
+ * (`specs/190-overlay-full-modules/` FR-035, FR-040): the active deployment's
+ * overlay entities are read from {@link deploymentRoot}, so a test that selects
+ * a deployment in-process gets that deployment's set, and a bare-core caller in
+ * the same process keeps its own.
+ */
+const memoised = new Map<string, Promise<readonly ConfiguredEntity[]>>();
 
 export async function configuredEntities(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<readonly ConfiguredEntity[]> {
-  memoised ??= configuredEntitiesFrom({ coreEntities: ALL_ENTITIES, env });
-  return memoised;
+  const key = selectedDeployment(env) ?? '';
+  let entities = memoised.get(key);
+  if (entities === undefined) {
+    entities = configuredEntitiesFrom({ coreEntities: ALL_ENTITIES, env, deploymentRoot: deploymentRoot() });
+    memoised.set(key, entities);
+  }
+  return entities;
 }

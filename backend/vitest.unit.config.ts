@@ -18,7 +18,7 @@
 
 import { configDefaults, defineConfig } from 'vitest/config';
 import baseConfig from '../vitest.config.base.js';
-import { backendTestOptions, mergeBackendConfig } from './vitest.shared.js';
+import { BACKEND_TRANSFORM, backendTestOptions, mergeBackendConfig } from './vitest.shared.js';
 import { SERVICE_DEPENDENT_UNIT_TEST_PATHS } from './test/service-dependent-unit-tests.js';
 import { SERVICE_FREE_OUTER_TEST_PATHS } from './test/service-free-outer-tests.js';
 
@@ -32,6 +32,7 @@ process.env['BACKEND_TEST_SERVICES'] = 'none';
 export default mergeBackendConfig(
   baseConfig,
   defineConfig({
+    ...BACKEND_TRANSFORM,
     test: {
       name: 'backend-unit',
       // `test/unit`, plus the unit tests that live beside the source they

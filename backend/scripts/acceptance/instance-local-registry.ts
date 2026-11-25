@@ -792,45 +792,49 @@ async function main(): Promise<number> {
           : `module:install exit ${String(overlayInstalled.code)}, generate exit ${String(overlayGenerated?.code ?? 'not run')}`,
     });
 
-    // An overlay module that ships schema is refused by name, not ignored.
-    // Written and removed before the boot, so the instance that starts below
-    // is the one a client has.
+    // An overlay module may own a table (`specs/190-overlay-full-modules/` D-297,
+    // #1850): `generate` no longer refuses a `migrations/` directory under one, and
+    // the platform reads it at runtime — so a malformed migration there is refused
+    // by every process that reads it, by name and as a sentence, rather than by
+    // `generate`. Written and removed before the boot, so the instance that starts
+    // below is the one a client has.
     let schemaRefusal: Verdict = {
       id: 'L9',
-      title: 'an overlay module with a `migrations/` directory is refused, with a remedy',
+      title: 'an overlay module with a `migrations/` directory is accepted by `generate`',
       status: 'unmeasured',
       detail: 'no overlay module was written',
     };
     let bootRefusal: Verdict = {
       id: 'L20',
-      title: 'the same tree is refused by the API, a `module:*` command and `migrate`, each as a sentence',
+      title: 'a malformed overlay migration is refused by the API, a `module:*` command and `migrate`, each as a sentence',
       status: 'unmeasured',
       detail: 'no overlay module was written',
     };
     if (overlayGenerated?.code === 0) {
       const migrations = join(target, 'apps', dirName, 'modules', OVERLAY_MODULE_ID, 'migrations');
+      const compiled = join(target, 'backend', 'dist', 'apps', dirName, 'modules', OVERLAY_MODULE_ID, 'migrations');
       mkdirSync(migrations, { recursive: true });
+      // Not named like a migration: the runtime reader refuses it (`migration-file-shape`).
       writeFileSync(join(migrations, 'Migration20270101T000000_proof.ts'), 'export {};\n', 'utf8');
-      const refused = await exec('pnpm', ['run', 'generate'], { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS });
-      // The same tree, met by the two processes that never run `generate`: the
-      // API and a `module:*` command. Each must stop before it composes or
-      // opens anything — an API that came up here would be killed by the
-      // timeout and reported as the failure it is.
+      const accepted = await exec('pnpm', ['run', 'generate'], { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS });
+      // Built, so the processes that compare the compiled tree with its sources
+      // (#1848) reach the reader rather than refusing the build as stale.
+      const built = await exec('pnpm', ['-C', 'backend', 'run', 'build'], { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS });
+      // Each must stop before it composes or migrates anything — an API that came
+      // up here would be killed by the timeout and reported as the failure it is.
       const booted = await exec('pnpm', ['run', 'start'], { cwd: target, env: environment, timeoutMs: 120_000 });
       const commanded = await exec('pnpm', ['run', 'module:status', OVERLAY_MODULE_ID], {
         cwd: target,
         env: environment,
         timeoutMs: STEP_TIMEOUT_MS,
       });
-      // And `migrate`, which composes nothing and is handed the deployment root
-      // for exactly this: over such a tree it applied every package's schema,
-      // none of that directory's, and exited 0.
       const migratedOver = await exec('pnpm', ['run', 'migrate'], { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS });
       rmSync(migrations, { recursive: true, force: true });
+      rmSync(compiled, { recursive: true, force: true });
       const refusedAtBoot = (run: { code: number; output: string }): boolean =>
         run.code !== 0 &&
-        run.output.includes(join('apps', dirName, 'modules', OVERLAY_MODULE_ID, 'migrations', 'Migration20270101T000000_proof.ts')) &&
-        run.output.includes('contributes no schema');
+        run.output.includes('Migration20270101T000000_proof') &&
+        run.output.includes('is not named like a migration');
       // Each prints the refusal as a sentence. A stack frame under it is the
       // uncaught exception this verdict was first measured against.
       const runs = [
@@ -842,19 +846,17 @@ async function main(): Promise<number> {
       const withStack = runs.filter(([, run]) => /\n\s+at .*(?:file:|node:)/.test(run.output)).map(([name]) => name);
       bootRefusal = {
         ...bootRefusal,
-        status: notRefused.length === 0 && withStack.length === 0 ? 'pass' : 'fail',
+        status: built.code === 0 && notRefused.length === 0 && withStack.length === 0 ? 'pass' : 'fail',
         detail:
+          `build exit ${String(built.code)}, ` +
           `${runs.map(([name, run]) => `${name} exit ${String(run.code)}`).join(', ')}` +
           (notRefused.length === 0 ? ', each naming the file' : `; not refused by name: ${notRefused.join(', ')}`) +
           (withStack.length === 0 ? ', none with a stack trace' : `; printed a stack trace: ${withStack.join(', ')}`),
       };
-      const named =
-        refused.output.includes(`apps/${dirName}/modules/${OVERLAY_MODULE_ID}/migrations/Migration20270101T000000_proof.ts`) &&
-        refused.output.includes('module package');
       schemaRefusal = {
         ...schemaRefusal,
-        status: refused.code !== 0 && named ? 'pass' : 'fail',
-        detail: `generate exit ${String(refused.code)}, ${named ? 'naming the file and the remedy' : 'without naming the file and the remedy'}`,
+        status: accepted.code === 0 ? 'pass' : 'fail',
+        detail: `generate exit ${String(accepted.code)}${accepted.code === 0 ? '' : `: ${accepted.output.trim().split('\n').slice(-2).join(' / ')}`}`,
       };
     }
     verdicts.push(schemaRefusal);
