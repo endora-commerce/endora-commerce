@@ -53,12 +53,14 @@ function projectionEntityName(declaration: ColumnExtension): string {
 
 /** The table a decorated entity class maps, read without side effects; `null` when undecorated. */
 function decoratedTableOf(cls: EntityClassLike): string | null {
-  if (!Object.hasOwn(cls, MetadataStorage.PATH_SYMBOL)) return null;
-  const meta = MetadataStorage.getMetadataFromDecorator(cls as never) as {
-    tableName?: string;
-    collection?: string;
-  };
-  return meta.tableName ?? meta.collection ?? null;
+  // MikroORM 7 (#1866): a legacy decorator keeps the class's metadata on the
+  // class itself, under `META_SYMBOL` — an own property, so a subclass of a
+  // decorated class that is not decorated itself reads as undecorated.
+  if (!Object.hasOwn(cls, MetadataStorage.META_SYMBOL)) return null;
+  const meta = (cls as unknown as Record<symbol, { tableName?: string; collection?: string }>)[
+    MetadataStorage.META_SYMBOL
+  ];
+  return meta?.tableName ?? meta?.collection ?? null;
 }
 
 /**
@@ -203,7 +205,7 @@ export function projectionSchemaOf(
   } as never);
 
   built.set(declaration, { schema, facts: host });
-  recordProjectionEntityName(declaration, entityName);
+  recordProjectionEntityName(declaration, entityName, schema);
   return schema;
 }
 

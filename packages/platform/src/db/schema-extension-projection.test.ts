@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { MikroORM } from '@mikro-orm/postgresql';
 import { describe, expect, it } from 'vitest';
 import { GlobalEntity, OrgScoped, RuleScoped, tenantClassifications } from '../tenancy/org-scoped.decorator.js';
@@ -56,7 +56,6 @@ async function orm(): Promise<MikroORM> {
   return MikroORM.init({
     entities: [...entities, ...projections.schemas],
     dbName: 'x178_never_connected',
-    connect: false,
     allowGlobalContext: true,
     discovery: schemaExtensionDiscovery(projections.allowed),
   });

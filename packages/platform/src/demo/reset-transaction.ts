@@ -113,7 +113,7 @@ const NOTHING_CHANGED =
 const WROTE_OUTSIDE =
   'a reset body wrote outside the reset transaction — a demo composition or a module\'s ' +
   '`demo.reset` that takes a database connection of its own (`em.getConnection()`, ' +
-  '`em.getKnex()`, `em.fork()`, its own `emFactory()`) instead of using the EntityManager it ' +
+  '`em.getKysely()`, `em.fork()`, its own `emFactory()`) instead of using the EntityManager it ' +
   'was handed. A composition or module written for a release before the one-transaction ' +
   'reset does this; upgrade it';
 
@@ -127,17 +127,36 @@ interface ResetRun {
 
 const currentReset = new AsyncLocalStorage<ResetRun>();
 
-/** The part of knex this file reaches: where every non-transactional statement gets its connection. */
-interface PoolClient {
-  acquireConnection(...args: unknown[]): Promise<unknown>;
+/**
+ * The part of the `pg` pool this file reaches: where every connection the
+ * entity manager asks for comes from.
+ *
+ * On MikroORM 7 (#1866) the connection is kysely over a `pg.Pool`, which
+ * `getNativeClient()` returns; kysely's driver calls `pool.connect()` for every
+ * statement sent outside a transaction and for every transaction it begins, so
+ * replacing `connect` on the pool refuses all of them. MikroORM 6 reached the
+ * same place through knex (`getKnex().client.acquireConnection`), and a lookup
+ * left on that path finds nothing on 7 — the guard would be silently inert,
+ * which is why a connection without a pool is refused below, not skipped.
+ */
+interface ConnectionPool {
+  connect(...args: unknown[]): Promise<unknown>;
 }
 
-function poolClientOf(em: EntityManager): PoolClient | undefined {
+async function poolOf(em: EntityManager): Promise<ConnectionPool> {
   const connection = (em as { getConnection?: () => unknown }).getConnection?.() as
-    | { getKnex?: () => { client?: PoolClient } }
+    | { getNativeClient?: () => Promise<unknown> }
     | undefined;
-  const client = connection?.getKnex?.().client;
-  return typeof client?.acquireConnection === 'function' ? client : undefined;
+  const pool = (await connection?.getNativeClient?.()) as Partial<ConnectionPool> | undefined;
+  if (typeof pool?.connect !== 'function') {
+    throw new DemoResetFailedError(
+      new Error(
+        'the entity manager offers no connection pool to guard, so the reset cannot refuse a ' +
+          'second connection; it was not started',
+      ),
+    );
+  }
+  return pool as ConnectionPool;
 }
 
 /** The SQLSTATE of the database error at the bottom of a failure, if there is one. */
@@ -187,18 +206,17 @@ export async function runDemoResetTransaction<T>(
   bounds: DemoResetBounds = DEFAULT_DEMO_RESET_BOUNDS,
 ): Promise<T> {
   const run: ResetRun = { active: true, violated: false };
-  const pool = poolClientOf(em);
-  const acquire = pool?.acquireConnection;
-  if (pool !== undefined && acquire !== undefined) {
-    pool.acquireConnection = function guarded(this: unknown, ...args: unknown[]) {
-      const inside = currentReset.getStore();
-      if (inside?.active === true) {
-        inside.violated = true;
-        return Promise.reject(wroteOutside());
-      }
-      return acquire.apply(this, args);
-    };
-  }
+  const pool = await poolOf(em);
+  const connect = pool.connect;
+  const ownConnect = Object.hasOwn(pool, 'connect');
+  pool.connect = function guarded(this: unknown, ...args: unknown[]) {
+    const inside = currentReset.getStore();
+    if (inside?.active === true) {
+      inside.violated = true;
+      return Promise.reject(wroteOutside());
+    }
+    return connect.apply(this, args);
+  };
   let backendPid: number | undefined;
   try {
     return await em.transactional(
@@ -223,7 +241,9 @@ export async function runDemoResetTransaction<T>(
     throw await presentable(error, em, backendPid, bounds);
   } finally {
     run.active = false;
-    if (pool !== undefined && acquire !== undefined) pool.acquireConnection = acquire;
+    // `connect` is the pool's prototype method; put back exactly what was there.
+    if (ownConnect) pool.connect = connect;
+    else delete (pool as Partial<ConnectionPool>).connect;
   }
 }
 

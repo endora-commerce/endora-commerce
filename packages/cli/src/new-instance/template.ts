@@ -1226,7 +1226,6 @@ export function planInstance(input: PlanInput): InstancePlan {
         strict: true,
         skipLibCheck: true,
         experimentalDecorators: true,
-        emitDecoratorMetadata: true,
         esModuleInterop: true,
       },
       include: ['src'],
@@ -1370,9 +1369,12 @@ export const deployment = '${deployment}';
  * the **ranges** come from, which is the question R2.5a answers: a value with
  * no source is one the command would have to invent. So each is derived:
  *
- *   * the four peers, from `@endora-commerce/platform`'s own
+ *   * the platform's peers, from `@endora-commerce/platform`'s own
  *     `peerDependencies`. A platform that widens `zod` to `^5` widens this in
- *     the same run, with nothing here to edit.
+ *     the same run, with nothing here to edit. Since MikroORM 7 (#1866) they
+ *     include `@mikro-orm/decorators`: the entity decorators left
+ *     `@mikro-orm/core` for its `./legacy` subpath, and the platform's own
+ *     entities, every module package's and an overlay's import them from there.
  *   * `@mikro-orm/migrations`, from the range the platform declares for
  *     `@mikro-orm/core`. The MikroORM packages version in lockstep and a
  *     migrator from another major does not load the driver from this one.
@@ -1405,6 +1407,7 @@ export function devDependenciesFor(
 ): readonly (readonly [string, string])[] {
   const wanted: readonly (readonly [string, string])[] = [
     ['@mikro-orm/core', input.declaredRanges.get('@mikro-orm/core') ?? ''],
+    ['@mikro-orm/decorators', input.declaredRanges.get('@mikro-orm/decorators') ?? ''],
     ['@mikro-orm/postgresql', input.declaredRanges.get('@mikro-orm/postgresql') ?? ''],
     ['@mikro-orm/migrations', input.declaredRanges.get('@mikro-orm/core') ?? ''],
     ['fastify', input.declaredRanges.get('fastify') ?? ''],

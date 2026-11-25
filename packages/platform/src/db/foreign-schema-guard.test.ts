@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey } from '@mikro-orm/core';
+import { Entity, PrimaryKey } from '@mikro-orm/decorators/legacy';
 import { Migration } from '@mikro-orm/migrations';
 import { MikroORM, PostgreSqlPlatform, raw } from '@mikro-orm/postgresql';
 import { describe, expect, it, vi } from 'vitest';
@@ -182,11 +182,32 @@ describe('guardExternalMigration — refusals', () => {
     expect((await refusal(run(cls, context(), driver))).table).toBe('organizations');
   });
 
-  it('refuses a knex builder by what it renders', async () => {
-    const cls = migration('Migration20261201T100006AcmeErpRogue', (self) =>
-      self.addSql({ toQuery: () => 'alter table "organizations" add column "foo" text' } as never),
+  // MikroORM 7 (#1866) — `addSql` takes a `raw()` fragment and a native query
+  // builder beside a string. Each is judged by what it renders, parameters
+  // substituted: a fragment rendered as `[object …]` would name no table.
+  it('refuses a raw() fragment by what it renders, its parameters substituted', async () => {
+    const plain = migration('Migration20261201T100006AcmeErpRogue', (self) =>
+      self.addSql(raw('alter table "organizations" add column "foo" text')),
+    );
+    expect((await refusal(run(plain))).table).toBe('organizations');
+    const named = migration('Migration20261201T100007AcmeErpRogue', (self) =>
+      self.addSql(raw('delete from ?? where true', ['organizations'])),
+    );
+    expect((await refusal(run(named))).table).toBe('organizations');
+  });
+
+  it('refuses a native query builder by what it renders', async () => {
+    const cls = migration('Migration20261201T100008AcmeErpRogue', (self) =>
+      self.addSql(new PostgreSqlPlatform().createNativeQueryBuilder().delete().from('organizations')),
     );
     expect((await refusal(run(cls))).table).toBe('organizations');
+  });
+
+  it('refuses a statement of a shape it cannot render, rather than judging its [object …] text', async () => {
+    const cls = migration('Migration20261201T100012AcmeErpRogue', (self) =>
+      self.addSql({ toQuery: () => 'delete from "organizations"' } as never),
+    );
+    await expect(run(cls)).rejects.toThrow(/cannot render/);
   });
 });
 
@@ -341,10 +362,10 @@ describe('dryRunStatements — fails closed on every database handle', () => {
           ran.push(sql);
           return [];
         },
-        getKnex: () => ({
-          raw: (sql: string) => {
-            ran.push(sql);
-            return Promise.resolve([]);
+        getClient: () => ({
+          executeQuery: (query: { sql: string }) => {
+            ran.push(query.sql);
+            return Promise.resolve({ rows: [] });
           },
         }),
       }),
@@ -352,14 +373,16 @@ describe('dryRunStatements — fails closed on every database handle', () => {
     return { ran, driver };
   }
 
-  it('does not run SQL through this.getKnex()', async () => {
+  it('does not offer this.getKysely() in a dry run', async () => {
     const { ran, driver } = spyingDriver();
-    const cls = migration('Migration20261201T100041AcmeErpKnex', async (self) => {
-      await (self.getKnex() as unknown as { raw: (sql: string) => Promise<unknown> }).raw('delete from "organizations"');
+    const cls = migration('Migration20261201T100041AcmeErpKysely', async (self) => {
+      await (self as unknown as { getKysely(): { executeQuery(q: unknown): Promise<unknown> } })
+        .getKysely()
+        .executeQuery({ sql: 'delete from "organizations"' });
     });
     const { error } = await dryRunStatements(cls, driver, {});
     expect(ran).toEqual([]);
-    expect(error).not.toBeNull();
+    expect(String(error)).toMatch(/this\.getKysely\(\)/);
   });
 
   it('does not run SQL through this.driver', async () => {
@@ -374,15 +397,16 @@ describe('dryRunStatements — fails closed on every database handle', () => {
     expect(error).not.toBeNull();
   });
 
-  it('still lets a migration build SQL with knex for addSql', async () => {
+  it('still lets a migration build SQL with raw() and a native builder for addSql', async () => {
     const { driver } = spyingDriver();
     const cls = migration('Migration20261201T100043AcmeErpBuilds', (self) => {
-      const knex = self.getKnex() as unknown as { schema: { createTable: (t: string, f: (b: { uuid: (c: string) => void }) => void) => unknown } };
-      self.addSql(knex.schema.createTable('acme_built', (table) => table.uuid('id')) as never);
+      self.addSql(raw('create table ?? ("id" uuid primary key)', ['acme_built']));
+      self.addSql(new PostgreSqlPlatform().createNativeQueryBuilder().delete().from('acme_built'));
     });
     const { statements, error } = await dryRunStatements(cls, driver, {});
     expect(error).toBeNull();
     expect(statements.join('\n')).toMatch(/create table "acme_built"/);
+    expect(statements.join('\n')).toMatch(/delete from "acme_built"/);
   });
 });
 
@@ -414,7 +438,6 @@ describe('guardExternalMigration — over a real MetadataStorage (#1860)', () =>
     const orm = await MikroORM.init({
       entities: [RealAcmeRow, RealOrganizationLike],
       dbName: 'x1860_never_connected',
-      connect: false,
       allowGlobalContext: true,
     });
     try {
@@ -569,7 +592,7 @@ describe('guardExternalMigration — R-A7 down() exemption', () => {
 
 /**
  * Issue #1889 — the raw database handles a guarded migration can reach: its own
- * `getKnex()` and `driver`, the entity manager's driver, the connection's client,
+ * `getKysely()` and `driver`, the entity manager's driver, the connection's kysely client,
  * `begin()` and the transaction a `transactional(cb)` callback receives, and the
  * migration's own transaction context. Each one either judges what it runs or is
  * refused — none passes a raw handle through. The real-database half is
@@ -590,7 +613,7 @@ describe('guardExternalMigration — raw database handles (#1889)', () => {
     const settled: Array<readonly [string, unknown]> = [];
     const connection = {
       client: { raw: async (sql: string) => ran.push({ sql, ctx: 'client' }) },
-      getKnex: () => connection.client,
+      getClient: () => connection.client,
       getPlatform: base.getPlatform,
       execute: vi.fn(async (sql: string, _params?: unknown[], _method?: string, ctx?: unknown) => {
         ran.push({ sql, ctx });
@@ -624,7 +647,7 @@ describe('guardExternalMigration — raw database handles (#1889)', () => {
       getConnection(): Connection;
     };
     readonly ctx: unknown;
-    getKnex(): unknown;
+    getKysely(): unknown;
     execute(sql: string, params?: unknown[]): Promise<unknown>;
     addSql(sql: unknown): void;
     setTransactionContext(ctx: unknown): void;
@@ -632,7 +655,7 @@ describe('guardExternalMigration — raw database handles (#1889)', () => {
   }
   interface Connection {
     execute(...args: unknown[]): Promise<unknown>;
-    getKnex(): unknown;
+    getClient(): unknown;
     loadFile(path: string): Promise<unknown>;
     commit(ctx: unknown): Promise<unknown>;
     transactional(cb: (trx: Trx) => Promise<unknown>): Promise<unknown>;
@@ -656,13 +679,12 @@ describe('guardExternalMigration — raw database handles (#1889)', () => {
   };
 
   it.each<[string, (self: Self) => Promise<unknown>]>([
-    ['this.getKnex().raw()', (self) => (self.getKnex() as unknown as Trx).raw('delete from "organizations"')],
-    ['this.getKnex() builder', (self) => (self.getKnex() as unknown as Trx)('organizations').delete()],
+    ['this.getKysely()', (self) => (self.getKysely() as unknown as Trx).raw('delete from "organizations"')],
     ['this.driver.execute()', (self) => self.driver.execute('delete from "organizations"')],
     ['this.driver.nativeDelete()', (self) => self.driver.nativeDelete('Organization', {})],
     ['this.driver.connection', async (self) => (self.driver as unknown as { connection: Connection }).connection.execute('select 1')],
     ['this.driver.getConnection().client', async (self) => (self.driver.getConnection() as unknown as { client: Trx }).client.raw('delete from "organizations"')],
-    ['this.driver.getConnection().getKnex()', async (self) => self.driver.getConnection().getKnex()],
+    ['this.driver.getConnection().getClient()', async (self) => self.driver.getConnection().getClient()],
     ['this.driver.getConnection().loadFile()', (self) => self.driver.getConnection().loadFile('rogue.sql')],
     ['getConnection().execute()', (self) => self.driver.getConnection().execute('delete from "organizations"')],
     ['getEntityManager-free getDriver chain: driver.getConnection().begin() + trx()', async (self) => (await self.driver.getConnection().begin())('organizations').delete()],
@@ -717,14 +739,13 @@ describe('guardExternalMigration — raw database handles (#1889)', () => {
     ]);
   });
 
-  it('still lets the migration build SQL with this.getKnex() for addSql, judged as queued', async () => {
+  it('still lets the migration build SQL with raw() for addSql, judged as queued', async () => {
     const own = await attempt(async (self) => {
-      const builder = self.getKnex() as { schema: { createTable(t: string, f: (b: { uuid(c: string): void }) => void): unknown } };
-      self.addSql(builder.schema.createTable('acme_built', (table) => table.uuid('id')));
+      self.addSql(raw('create table ?? ("id" uuid primary key)', ['acme_built']));
     });
     expect(own.outcome).toBeNull();
     const foreign = await attempt(async (self) => {
-      self.addSql((self.getKnex() as unknown as (t: string) => { del(): never })('organizations').del());
+      self.addSql(raw('delete from ??', ['organizations']));
     });
     expect(foreign.outcome).toBeInstanceOf(ForeignSchemaWriteError);
   });

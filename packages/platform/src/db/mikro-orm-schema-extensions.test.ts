@@ -73,3 +73,16 @@ describe('mikroOrmConfigFrom — schema extensions', () => {
     expect(activeSchemaExtensions()).toEqual([declaration]);
   });
 });
+
+describe('mikroOrmConfigFrom — the MikroORM 6 runtime defaults it keeps (#1866)', () => {
+  // MikroORM 7 changed these three defaults. The estate's statement counts, the
+  // tenant filters' join conditions and its timestamps were characterised on
+  // 6's values (#1860), so the configuration names them rather than inheriting
+  // 7's: a change to any of them is a change of its own.
+  it('loads joined, reads timestamps without forcing UTC, and runs onCreate hooks late', () => {
+    const config = mikroOrmConfigFrom({ entities: [X178ConfigHost], migrations: migrationsWith([]) });
+    expect(config.loadStrategy).toBe('joined');
+    expect(config.forceUtcTimezone).toBe(false);
+    expect(config.processOnCreateHooksEarly).toBe(false);
+  });
+});

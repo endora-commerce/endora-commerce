@@ -79,9 +79,13 @@ export class PriceList {
   @Property({ type: 'boolean', default: false })
   everActivated: boolean = false;
 
+  // MikroORM 7 (#1866) infers no property type: a formula names its own. The
+  // callback's first argument is now the column map, whose string form is
+  // still the table alias, so `${alias}."id"` reads as it did on 6.
   @Formula(
     (alias) =>
       `exists(select 1 from "price_list_matrix_entries" pme where pme."price_list_id" = ${alias}."id")`,
+    { type: 'boolean' },
   )
   hasMatrixEntries?: boolean;
 

@@ -15,7 +15,12 @@ import type { MigrationOwnership } from '../../lifecycle/services/migration-owne
  * finding before it is anything here.
  */
 
-const projectionNames = new WeakMap<ColumnExtension, string>();
+/**
+ * The projection's entity name, and the entity itself. MikroORM 7 (#1866)
+ * refuses an entity named by string on the entity manager, so the accessor
+ * queries the recorded entity; the name stays for the readers that report it.
+ */
+const projections = new WeakMap<ColumnExtension, { readonly name: string; readonly entity: object }>();
 
 /** What the verifier needs beside the declarations: who owns each host, and their chains. */
 export interface SchemaExtensionContext {
@@ -27,8 +32,8 @@ export interface SchemaExtensionContext {
 let active: SchemaExtensionContext = { declarations: [], hosts: new Map(), ownership: null };
 
 /** Recorded by the projection builder. */
-export function recordProjectionEntityName(declaration: ColumnExtension, entityName: string): void {
-  projectionNames.set(declaration, entityName);
+export function recordProjectionEntityName(declaration: ColumnExtension, entityName: string, entity: object): void {
+  projections.set(declaration, { name: entityName, entity });
 }
 
 /**
@@ -39,15 +44,24 @@ export function recordProjectionEntityName(declaration: ColumnExtension, entityN
  * would name a private class instead of the cause.
  */
 export function projectionEntityNameOf(declaration: ColumnExtension): string {
-  const name = projectionNames.get(declaration);
-  if (name === undefined) {
+  return projectionOf(declaration).name;
+}
+
+/** The entity of `declaration`'s projection — what an entity manager is handed. Throws as {@link projectionEntityNameOf}. */
+export function projectionEntityOf(declaration: ColumnExtension): object {
+  return projectionOf(declaration).entity;
+}
+
+function projectionOf(declaration: ColumnExtension): { readonly name: string; readonly entity: object } {
+  const projection = projections.get(declaration);
+  if (projection === undefined) {
     throw new Error(
       `[schema-extensions] "${declaration.id}" is not registered with this platform's ORM. ` +
         `A declaration is registered when its package's ./backend export lists it in ` +
         `'schemaExtensions' and the package is installed.`,
     );
   }
-  return name;
+  return projection;
 }
 
 let recorded = false;

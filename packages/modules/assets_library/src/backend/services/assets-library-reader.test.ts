@@ -23,7 +23,7 @@ type Where = Record<string, unknown>;
 /** The ids an `idNotAmong` clause leaves out, read back from its raw fragment; `null` when `clause` is not one. */
 function excludedIds(clause: Where): string[] | null {
   const [key] = Object.keys(clause);
-  const fragment = key === undefined ? undefined : RawQueryFragment.getKnownFragment(key, false);
+  const fragment = key === undefined ? undefined : RawQueryFragment.getKnownFragment(key);
   if (!fragment || !fragment.sql.includes('<> all(?::uuid[])')) return null;
   return String(fragment.params[0]).replace(/[{}]/g, '').split(',');
 }

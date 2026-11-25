@@ -26,7 +26,7 @@ describe('the test-kit fixture ORM', () => {
   });
 
   it('registers no schema-extension projection', () => {
-    const names = Object.values(orm.getMetadata().getAll()).map((meta) => meta.className);
+    const names = [...new Set(orm.getMetadata().getAll().values())].map((meta) => meta.className);
     expect(names.filter((name) => name.startsWith('__x_'))).toEqual([]);
     expect(names).toEqual(['TestKitOrgRow']);
   });
