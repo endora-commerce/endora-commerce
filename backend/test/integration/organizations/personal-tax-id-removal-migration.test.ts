@@ -35,15 +35,26 @@ describe('organizations — M1: personal organizations lose the synthetic tax ID
     }
   }
 
-  /** The pg client of the test transaction, to hear what a `raise notice` says. */
+  /**
+   * The pg clients of the ORM's pool, to hear what a `raise notice` says. On
+   * MikroORM 7 (#1866) the test transaction is a kysely transaction, which does
+   * not hand out its pg client; the notice is raised on one of the pool's
+   * clients, so every one of them is listened to (pg-pool keeps them in
+   * `_clients`), and any client the pool opens meanwhile as well.
+   */
   async function listenForNotices(): Promise<() => void> {
-    const trx = em.getTransactionContext() as {
-      client: { acquireConnection(): Promise<NodeJS.EventEmitter> };
+    const pool = (await em.getConnection().getNativeClient()) as unknown as NodeJS.EventEmitter & {
+      _clients: NodeJS.EventEmitter[];
     };
-    const connection = await trx.client.acquireConnection();
     const listener = (notice: { message?: string }) => notices.push(String(notice.message));
-    connection.on('notice', listener);
-    return () => connection.off('notice', listener);
+    const attach = (client: NodeJS.EventEmitter) => client.on('notice', listener);
+    const clients = [...pool._clients];
+    for (const client of clients) attach(client);
+    pool.on('connect', attach);
+    return () => {
+      for (const client of [...clients, ...pool._clients]) client.off('notice', listener);
+      pool.off('connect', attach);
+    };
   }
 
   async function insertOrganization(input: {
