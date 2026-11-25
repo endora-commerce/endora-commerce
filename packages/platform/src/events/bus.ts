@@ -68,11 +68,14 @@ export class EventBus<Events extends Record<string, EventBase> = Record<string, 
    * Outside any scope there is nothing to wait for, and `fn` runs and is awaited
    * immediately.
    *
-   * Unlike an event handler, a deferred function is part of the write that
-   * deferred it and is not isolated: if it throws, the scope rejects with its
-   * error and the buffered events are not dispatched. A function deferred here
-   * should therefore not fail for a reason the write cannot answer for — the
-   * access-cache drop degrades to `null` rather than throwing.
+   * Like an event handler, a deferred function is isolated: if it throws, the
+   * error is logged the way a failing handler is, the remaining deferred
+   * functions still run and the buffered events are still dispatched — the
+   * write has already committed, and one failed follow-up must not hide it
+   * from the caller or from subscribers. Outside a scope the same holds: the
+   * returned promise resolves. A function deferred here should still not fail
+   * for a reason the write could answer for — the access-cache drop degrades
+   * to `null` rather than throwing.
    */
   afterScope(fn: () => void | Promise<void>): Promise<void> {
     const scope = scopeStorage.getStore();
@@ -80,20 +83,30 @@ export class EventBus<Events extends Record<string, EventBase> = Record<string, 
       scope.deferred.push(fn);
       return Promise.resolve();
     }
-    return Promise.resolve().then(fn);
+    return this.runDeferred(fn);
+  }
+
+  /** One deferred function, isolated as a handler is (issue #1926). */
+  private async runDeferred(fn: () => void | Promise<void>): Promise<void> {
+    try {
+      await fn();
+    } catch (err) {
+      console.warn(JSON.stringify({ level: 'warn', msg: 'deferred scope work threw', error: String(err) }));
+    }
   }
 
   /**
    * Run fn inside a scope that buffers emitted events. If fn succeeds, the work
    * deferred through {@link afterScope} runs, then the buffered events are
-   * dispatched. If fn throws, both are dropped.
+   * dispatched; a deferred function that throws is logged and skipped. If fn
+   * throws, both are dropped.
    */
   async run<T>(fn: () => Promise<T>): Promise<T> {
     const scope: Scope = { pending: [], deferred: [] };
     return scopeStorage.run(scope, async () => {
       const result = await fn();
       for (const deferred of scope.deferred) {
-        await deferred();
+        await this.runDeferred(deferred);
       }
       for (const entry of scope.pending) {
         await this.dispatch(entry.eventName, entry.payload);

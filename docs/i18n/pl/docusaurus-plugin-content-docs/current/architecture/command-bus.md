@@ -40,8 +40,9 @@ które zatwierdzenie czyni nieaktualnymi — odkłada to do tego samego zakresu 
 - jeśli zakres zgłosi błąd, kolejka jest odrzucana razem ze zdarzeniami;
 - poza jakimkolwiek zakresem `fn` jest wykonywana od razu, z oczekiwaniem na wynik.
 
-Odłożona funkcja jest częścią zapisu, a nie subskrybentem: jeśli zgłosi błąd, zakres kończy się
-błędem, a jego zdarzenia nie są wysyłane. Moduł zapisujący przynależność do kanałów sprzedaży używa
+Odłożona funkcja jest odizolowana tak samo jak procedura obsługi zdarzenia: jeśli zgłosi błąd,
+błąd jest zapisywany w logu, pozostałe odłożone funkcje nadal są wykonywane, a zbuforowane zdarzenia
+nadal są wysyłane. Zakres nie kończy się błędem, ponieważ zapis został już zatwierdzony. Moduł zapisujący przynależność do kanałów sprzedaży używa
 jej do usunięcia wpisu z pamięci podręcznej dostępu, gdy wywołujący przekazuje `em` swojej transakcji
 (zgłoszenie #1926). Zwykłe `em.transactional(...)` poza poleceniem nie ma własnego zakresu; aby
 uzyskać tę samą kolejność, należy objąć je wywołaniem `eventBus.run(...)`.

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EventBus, type EventBase } from './bus.js';
 
 /**
@@ -105,17 +105,44 @@ describe('EventBus.afterScope', () => {
     expect(log).toEqual(['inner deferred', 'event:2', 'outer body done', 'outer deferred']);
   });
 
-  it('a deferred function that throws fails the scope, and the buffered events are not dispatched', async () => {
+  it('a deferred function that throws is logged like a failing handler; the rest run and the events dispatch', async () => {
     const { bus, log, ping } = harness();
-    await expect(
-      bus.run(async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      await bus.run(async () => {
         bus.emit('ping', ping(1));
         await bus.afterScope(() => {
           throw new Error('drop failed');
         });
-      }),
-    ).rejects.toThrow('drop failed');
-    expect(log).toEqual([]);
+        await bus.afterScope(() => {
+          log.push('later deferred');
+        });
+      });
+      expect(log).toEqual(['later deferred', 'event:1']);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(warn.mock.calls[0]![0] as string)).toEqual({
+        level: 'warn',
+        msg: 'deferred scope work threw',
+        error: 'Error: drop failed',
+      });
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('outside a scope, a deferred function that throws is logged and does not reject', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { bus } = harness();
+      await expect(
+        bus.afterScope(() => {
+          throw new Error('drop failed');
+        }),
+      ).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

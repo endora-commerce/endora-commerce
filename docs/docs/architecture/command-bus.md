@@ -37,8 +37,9 @@ stale — defers it into the same scope with `eventBus.afterScope(fn)`:
 - if the scope throws, the queue is discarded together with the events;
 - outside any scope, `fn` runs and is awaited at once.
 
-A deferred function is part of the write, not a subscriber: if it throws, the scope rejects
-and its events are not dispatched. The sales-channel membership writer uses it for the
+A deferred function is isolated the way an event handler is: if it throws, the error is
+logged, the remaining deferred functions still run and the buffered events are still
+dispatched. The scope does not reject, because the write has already committed. The sales-channel membership writer uses it for the
 access-cache drop when a caller passes its transaction's `em` (issue #1926). A plain
 `em.transactional(...)` outside a Command has no scope of its own; wrap it in
 `eventBus.run(...)` to get the same ordering.

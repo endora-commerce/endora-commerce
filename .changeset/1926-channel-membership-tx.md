@@ -10,8 +10,8 @@
 run in order, each awaited, and only then do the scope's buffered events dispatch. When the
 scope throws, they are discarded with the events. Outside any scope `fn` runs and is awaited
 immediately. `CommandBus.run` wraps its transaction in a scope, so for a Command `fn` runs after
-the commit. A deferred function that throws makes the scope reject, and its events are not
-dispatched.
+the commit. A deferred function that throws is logged the way a failing event handler is; the
+remaining deferred functions still run, the events still dispatch, and the scope does not reject.
 
 `SalesChannelMembershipService` (`salesChannelMembershipPort`) now enlists in the caller's
 transaction when `options.em` has one open. Each `sales_channel.membership.changed` audit entry is
