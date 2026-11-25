@@ -33,6 +33,7 @@ import type {
   OrganizationRoleReadPort,
   PermissionReadPort,
   OrganizationTaxProfilePort,
+  QuoteRequestCommandPort,
   QuoteRequestReadPort,
   RfqCustomerPort,
   SalesChannelAttributionRegistryPort,
@@ -45,6 +46,7 @@ import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type { Redis } from 'ioredis';
 import { QuoteRequestReadService } from './services/quote-request-read-port.js';
 import { QuoteRequestCustomFieldCarryReceiver } from './services/quote-request-custom-field-carry-receiver.js';
+import { QuoteRequestCommandService } from './services/quote-request-command-port.js';
 import {
   createQuoteRequestAdminSearchProvider,
   type QuoteRequestAdminSearchProviderDeps,
@@ -64,7 +66,7 @@ import {
   SettingOutOfScopeForChannel,
 } from '@endora-commerce/platform/kernel';
 import type { RequireAdminAnyFactory, RequireAdminFactory } from '@endora-commerce/platform/kernel';
-import type { CommandBus } from '@endora-commerce/platform/commands';
+import { resolveCommandActor, type CommandBus } from '@endora-commerce/platform/commands';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelResolutionPort, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { QUOTE_REQUESTS_SETTING_CODES } from '../manifest.js';
@@ -655,6 +657,34 @@ export function registerModule(ctx: ModuleContext): void {
             customFieldCarry: lazyPort<CustomFieldCarryPort>(ctx, 'customFieldCarryPort'),
           }),
       )
+      .singleton(),
+  );
+
+  /**
+   * Issue #1824 (`specs/186-aggregate-ports/` US5, D-293) — the QuoteRequest
+   * aggregate's write port: each method runs the Command the admin route for
+   * the same operation runs, through the same runner, with the ambient actor.
+   * The semantics, the refusals and the owner-off answer are on
+   * `QuoteRequestCommandPort` in the contracts. The history names the ambient
+   * administrator with the label the admin routes show, else the system.
+   */
+  ctx.di.providePort<QuoteRequestCommandPort>(
+    'quoteRequestCommandPort',
+    ctx
+      .asFunction(({ quoteRequests }: QuoteRequestsCradle) => {
+        const admins = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
+        const roles = lazyPort<AdminRolePort>(ctx, 'adminRolePort');
+        return new QuoteRequestCommandService({
+          admin: () => quoteRequests.handle().adminService,
+          documents: () => ctx.cradle<QuoteRequestsCradle>().quoteRequestDocumentService,
+          operator: async () => {
+            const adminUserId = resolveCommandActor().actorAdminUserId;
+            if (adminUserId === null) return { adminUserId: null, roleLabel: 'System' };
+            const { roleLabel } = await rfqAdminContextFor(admins, roles, adminUserId);
+            return { adminUserId, roleLabel };
+          },
+        });
+      })
       .singleton(),
   );
 

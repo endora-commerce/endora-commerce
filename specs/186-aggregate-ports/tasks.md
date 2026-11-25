@@ -23,7 +23,7 @@ events). No code change.
 - [ ] T001 [P] Inventory Organization operations, including the sales-channel write path through `sales_channels`, in `specs/186-aggregate-ports/contracts/organization-command-port.md`
 - [ ] T002 [P] Inventory CustomerAccount operations (`createStandalone`, `updateProfile`, `markEmailVerified` actions and the session revocation on block) in `specs/186-aggregate-ports/contracts/customer-account-command-port.md`
 - [ ] T003 [P] Inventory Order operations (status, payment status, comments, external reference; placement for US11) in `specs/186-aggregate-ports/contracts/order-command-port.md`
-- [ ] T004 [P] Inventory QuoteRequest operations, the send-document route path and whether admin custom-field values ride on `modify`, in `specs/186-aggregate-ports/contracts/quote-request-command-port.md`
+- [x] T004 [P] Inventory QuoteRequest operations, the send-document route path and whether admin custom-field values ride on `modify`, in `specs/186-aggregate-ports/contracts/quote-request-command-port.md` — done with #1824: `update` is `modify` only (`patch_draft` is the buyer's), values ride on `modify`, the path is `/pdf/send`
 - [ ] T005 [P] Inventory Product and Attribute operations, the scoped-values route and the validator a caller uses for attribute values, in `specs/186-aggregate-ports/contracts/catalog-product-command-port.md`
 - [ ] T006 [P] Inventory Project operations and the stage-move route in `specs/186-aggregate-ports/contracts/project-command-port.md`
 - [ ] T007 [P] Inventory Category operations (move, values-only update, the threshold audit split with `inventory`) in `specs/186-aggregate-ports/contracts/catalog-category-command-port.md`
@@ -35,8 +35,8 @@ events). No code change.
 
 ## Phase 2: Foundational (blocks every story)
 
-- [ ] T011 [P] Write a failing type test for `AggregateCommandOptions` and `CustomFieldMerge` (`expectTypeOf`) in `packages/contracts/src/aggregate-ports.test.ts`
-- [ ] T012 Add `packages/contracts/src/aggregate-ports.ts` (types per `data-model.md`) and export it from `packages/contracts/src/index.ts`; make `OrganizationCommandPortOptions` an alias in `packages/contracts/src/organizations.ts`
+- [x] T011 [P] Write a failing type test for `AggregateCommandOptions` and `CustomFieldMerge` (`expectTypeOf`) in `packages/contracts/src/aggregate-ports.test.ts` — landed with #1824
+- [ ] T012 Add `packages/contracts/src/aggregate-ports.ts` (types per `data-model.md`) and export it from `packages/contracts/src/index.ts`; make `OrganizationCommandPortOptions` an alias in `packages/contracts/src/organizations.ts` — the file and the export landed with #1824 (plus `aggregateCommandSourceSchema`); the `OrganizationCommandPortOptions` alias is left to US1, whose port would otherwise advertise `expectedVersion` and `source` it does not honour
 - [ ] T013 [P] Write a failing test that every `CUSTOM_FIELD_HOST_BINDINGS` entry carries a non-empty `aggregatePort` in `packages/contracts/src/custom-fields.test.ts`
 - [ ] T014 Add `aggregatePort` to each entry of `CUSTOM_FIELD_HOST_BINDINGS` in `packages/contracts/src/custom-fields.ts` (values per `data-model.md`)
 - [ ] T015 [P] Write `backend/test/helpers/aggregate-port-parity.ts`: `expectPortParity({ viaRoute, viaPort })` asserting the same audit action, object type, `stateBefore`/`stateAfter` shape (modulo actor and `source`), the same hooks fired and outbox rows written, and a caller-supplied side-effect probe; with its own test `backend/test/unit/helpers/aggregate-port-parity.test.ts`
@@ -142,13 +142,13 @@ the exit-2 rules, the `--since` / `release-changeset` placement) and `backend/te
 
 ## Phase 7: User Story 5 — QuoteRequest (Priority: P2)
 
-- [ ] T063 [US5] Declare `QuoteRequestCommandPort` in `packages/contracts/src/quote-requests.ts`, with the "not offered" paragraph
-- [ ] T064 [P] [US5] (after #1866) Failing co-located Command tests (create on behalf, patch draft, modify, approve, assign, cancel, custom-field values) in `packages/modules/quote_requests/src/backend/commands/`
-- [ ] T065 [P] [US5] (after #1866) Failing parity test and off-state test (owner off → 503, nothing written) in `backend/test/contract/quote_requests/quote-request-command-port.test.ts`
-- [ ] T066 [P] [US5] (after #1866) Failing worker test (create for a customer and approve) in `backend/test/integration/quote_requests/quote-request-command-port.worker.test.ts`
-- [ ] T067 [US5] (after #1866) Convert the `#audit` writes in `packages/modules/quote_requests/src/backend/services/rfq-admin-service.ts` and `rfq-service.ts` to Commands, removing `#audit` from each converted path (buyer-side paths keep theirs — out of scope)
-- [ ] T068 [US5] (after #1866) Implement and register `packages/modules/quote_requests/src/backend/services/quote-request-command-port.ts`; routes use the factories
-- [ ] T069 [US5] Drain the `quote_request` ledger entry; docs; changesets
+- [x] T063 [US5] Declare `QuoteRequestCommandPort` in `packages/contracts/src/quote-requests.ts`, with the "not offered" paragraph
+- [x] T064 [P] [US5] (after #1866) Failing co-located Command tests (create on behalf, patch draft, modify, approve, assign, cancel, custom-field values) in `packages/modules/quote_requests/src/backend/commands/` — #1824: approve, cancel, assign and custom-field values in `quote-request-admin-commands.test.ts`; create on behalf and modify are measured against Postgres in the T065 parity test; patch draft is the buyer's and not on the port
+- [x] T065 [P] [US5] (after #1866) Failing parity test and off-state test (owner off → 503, nothing written) in `backend/test/contract/quote_requests/quote-request-command-port.test.ts`
+- [x] T066 [P] [US5] (after #1866) Failing worker test (create for a customer and approve) in `backend/test/integration/quote_requests/quote-request-command-port.worker.test.ts`
+- [x] T067 [US5] (after #1866) Convert the `#audit` writes in `packages/modules/quote_requests/src/backend/services/rfq-admin-service.ts` and `rfq-service.ts` to Commands, removing `#audit` from each converted path (buyer-side paths keep theirs — out of scope) — #1824: the five operator writes on the port; every `#audit` of `rfq-service.ts` is buyer-side, and `quote_request.prepare_customer_basket` (an operator write the port does not offer) keeps its hand audit
+- [x] T068 [US5] (after #1866) Implement and register `packages/modules/quote_requests/src/backend/services/quote-request-command-port.ts`; routes use the factories
+- [ ] T069 [US5] Drain the `quote_request` ledger entry; docs; changesets — docs and changesets landed with #1824; the ledger does not exist yet (T042), so there is no entry to drain
 
 ---
 

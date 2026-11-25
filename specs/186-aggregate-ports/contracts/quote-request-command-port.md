@@ -4,19 +4,37 @@ Owner `quote_requests` (**deactivatable**). Declared in `packages/contracts/src/
 
 ## Operations
 
-Every admin write of the module is hand-audited inside its transaction today (`#audit` in
-`packages/modules/quote_requests/src/backend/services/rfq-admin-service.ts` and `rfq-service.ts`) except
-`quote_request.send_document`; this port is mostly conversion work.
+Inventory (T004, issue #1824). Every operator write of the module except `quote_request.send_document`
+was hand-audited inside its transaction (`#audit` in `rfq-admin-service.ts`); they are now Commands in
+`packages/modules/quote_requests/src/backend/commands/quote-request-admin-commands.ts`, run by the admin
+routes and the port through the same runner (`RfqAdminService.runWrite`). The `#audit` calls of
+`rfq-service.ts` are **all buyer-side** (`create`, `patch_draft`, `resubmit`, `respond_to_revision`,
+`convert_to_order`) and keep their hand audit (T067). `quote_request.prepare_customer_basket` — an
+operator write not on the port — keeps its hand audit too.
 
-| Method | Command action (kept) | Admin route | Readiness | Work |
+| Method | Command action (kept) | Admin route | Readiness (was) | Side effects outside the write (all on both paths now) |
 | --- | --- | --- | --- | --- |
-| `create(input, options?)` | `quote_request.create_on_behalf` | `POST /api/v1/admin/quote-requests` | H-in | convert |
-| `update(id, patch, options?)` | `quote_request.modify` (submitted) / `quote_request.patch_draft` (draft) | `PATCH …/:id` | H-in | convert both; the route's choice by status is kept |
-| `setCustomFieldValues(id, merge, options?)` | `quote_request.custom_fields.update` (new action if the values ride on `modify` today; T004 confirms) | values carried by `PATCH …/:id` | ? | convert |
-| `assign(id, { adminUserId }, options?)` | `quote_request.assign` | `POST …/:id/assign` | H-in | convert |
-| `approve(id, input, options?)` | `quote_request.approve` | `POST …/:id/approve` | H-in | convert |
-| `cancel(id, { reason }, options?)` | `quote_request.cancel` | `POST …/:id/cancel` | H-in | convert |
-| `sendDocument(id, input, options?)` | `quote_request.send_document` | `POST …/:id/send-pdf` (T004 confirms path) | C | port only |
+| `create(input, options?)` | `quote_request.create_on_behalf` | `POST /api/v1/admin/quote-requests` | H-in | revision 1, `created` + automatic `note-added` history entries, `prepared` notification records, delivery kick after commit, `rfq.created_by_admin.v1` on commit (`adminUserId` `null` with no administrator); the route alone adds the availability `warnings` to its response |
+| `update(id, patch, options?)` | `quote_request.modify` | `PATCH …/:id` | H-in | new revision, `modified` entry, `revised` notification records, kick, `rfq.modified.v1` |
+| `setCustomFieldValues(id, merge, options?)` | `quote_request.custom_fields.update` (**new**) | none — the route carries values on `PATCH …/:id` (`quote_request.modify`), which also records a revision and asks the buyer to accept it | N | none: no revision, no history entry, no notification |
+| `assign(id, { adminUserId }, options?)` | `quote_request.assign` | `POST …/:id/assign` | H-in | none |
+| `approve(id, input, options?)` | `quote_request.approve` | `POST …/:id/approve` | H-in | optional `note-added`, `approved` entry, `approved` notification records, kick, `rfq.approved.v1` |
+| `cancel(id, { reason }, options?)` | `quote_request.cancel` | `POST …/:id/cancel` | H-in | `canceled` entry (with the reason), `canceled` notification records, kick, `rfq.canceled.v1` |
+| `sendDocument(id, input, options?)` | `quote_request.send_document` | `POST …/:id/pdf/send` (T004: the path is `/pdf/send`) | C | the render may first run `quote_request.set_document_template` when an explicit template differs from the remembered one — on both paths; the per-administrator rate limit is the route's alone |
+
+**`update` runs `quote_request.modify` only.** The contract's "`quote_request.patch_draft` (draft)" was
+wrong: `patch_draft` is the **buyer's** draft edit (`RfqService.patchDraft`, `PATCH /api/v1/quote-requests/:id`),
+and the admin `PATCH` route always runs `modify`, for `Pending` and `Created from admin` alike.
+
+**`sendDocument` answers `QuoteRequestPdfSendResult`**, the route's response, rather than `void`: a
+caller needs to know which recipients failed. A `void` method could later widen to it compatibly, so
+nothing is lost by shipping the result now.
+
+**Actor.** With no administrator the Command Bus records the `system` actor (D-293.6: no `automation`
+kind); `options.source` is recorded as `source` in `stateAfter` **only when given**, so the admin
+routes' entries stay byte-identical to the hand audit they replace. The history the buyer and the team
+read names such a write `System`, as the carry receiver and the order-completion reactor do; it keeps
+the current assignee rather than clearing it.
 
 **Not offered, and the contract says so**: `resubmit`, `acceptRevision`, `rejectRevision`,
 `convertToOrder` — the buyer's own decisions on their quote; no server-side caller acts for the buyer
@@ -24,6 +42,8 @@ in them (research R-9). A future case adds them additively. Customer policy (`qu
 and document templates are configuration, not the aggregate.
 
 ## Interface (shape)
+
+As declared (`packages/contracts/src/quote-requests.ts`):
 
 ```ts
 export interface QuoteRequestCommandPort {
@@ -33,12 +53,13 @@ export interface QuoteRequestCommandPort {
   assign(id: string, input: { adminUserId: string | null }, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
   approve(id: string, input: AdminApproveQuoteRequest, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
   cancel(id: string, input: { reason: string | null }, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
-  sendDocument(id: string, input: AdminSendQuoteDocument, options?: AggregateCommandOptions): Promise<void>;
+  sendDocument(id: string, input: QuoteRequestPdfSendRequest, options?: AggregateCommandOptions): Promise<QuoteRequestPdfSendResult>;
 }
 ```
 
-Input types are the admin routes' existing body contracts (T004 names them). `expectedVersion` is
-honoured — `QuoteRequestRecord.version` exists.
+Input types are the admin routes' existing body contracts, parsed with the same schemas. `expectedVersion`
+is honoured by every method that changes the request (`update`, `approve`, `cancel`, `assign`,
+`setCustomFieldValues`); `create` and `sendDocument` ignore it.
 
 ## Owner off
 
@@ -53,6 +74,9 @@ for orders, kept).
 
 ## Tests
 
-`backend/test/contract/quote_requests/quote-request-command-port.test.ts` (parity),
+`backend/test/contract/quote_requests/quote-request-command-port.test.ts` (parity per method, `source`,
+unclaimed extension, off state: owner off → `ModuleDisabledError`, nothing written),
 `backend/test/integration/quote_requests/quote-request-command-port.worker.test.ts` (create for a
-customer and approve from a worker), off-state test (owner off → 503, nothing written).
+customer, then price and approve a submitted request, from a worker), and the co-located
+`commands/quote-request-admin-commands.test.ts` (each Command's entry, refusals, event and notification
+once, through the real `CommandBus`).

@@ -120,6 +120,10 @@ export interface SendDocumentInput {
   /** Recorded on the history event as the actor's role, as every admin event is. */
   readonly roleLabel: string | null;
   readonly variables: Record<string, unknown>;
+  /** Issue #1824 — the integration a `quoteRequestCommandPort` caller named, recorded as `source`. */
+  readonly source?: string;
+  /** Issue #1824 — extension input for the command hooks on the action, keyed by module id. */
+  readonly extensions?: Readonly<Record<string, unknown>>;
 }
 
 const UNAVAILABLE = new Set(['deactivated', 'no_transport', 'no_definition']);
@@ -143,6 +147,7 @@ export function makeSendDocumentCommand(
     action: 'quote_request.send_document',
     objectType: 'quote_request',
     objectId: input.quoteRequestId,
+    ...(input.extensions ? { extensions: input.extensions } : {}),
     run: async ({ em, actor }) => {
       const quote = await findVisible(em, actor, deps, input.quoteRequestId);
       const sender = deps.sender();
@@ -225,6 +230,7 @@ export function makeSendDocumentCommand(
           language: input.language,
           recipientCount: sent.length,
           failedRecipientCount: failed.length,
+          ...(input.source !== undefined ? { source: input.source } : {}),
         },
       };
     },

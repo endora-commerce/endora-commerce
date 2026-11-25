@@ -295,6 +295,8 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
 
   const adminService = new RfqAdminService({
     emFactory: options.emFactory,
+    // Issue #1824 — the operator's writes are Commands on the bus.
+    commandBus: options.commandBus,
     channelMembership: options.channelMembership,
     events: options.eventBus as RfqEventBus,
     rfqService,
