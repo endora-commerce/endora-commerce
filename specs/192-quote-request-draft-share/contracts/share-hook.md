@@ -45,6 +45,17 @@ Listed in `packages/modules/quote_requests/src/manifest.ts`:
 - Writing: only the hook module's own tables, on `ctx.em`, naming what it wrote with
   `ctx.noteAuditChanges` (176 rules).
 - Ordering between several hooks: the platform's (`commandHookOrder`), not this module's.
+- **Fast.** A `beforeCommit` hook runs while the share holds the quote row's lock
+  (`SELECT … FOR UPDATE`) and an open transaction, so every other write to that quote waits on
+  it. Budget: **1 second** for the hook in total, well under 100 ms in the normal case. No
+  external I/O (HTTP, a mail server, a queue) without a timeout that fits inside that budget;
+  prefer reading the hook module's own tables. A hook that cannot decide in time vetoes with its
+  own code rather than holding the lock. Work that may be slow belongs after the commit
+  (`afterCommit`, §4), not here.
+- **Admin-safe refusals.** The refusal's message and `details` reach the sharing administrator
+  as they are thrown (and the bundle sentence is shown in the admin UI). They must be safe for
+  that caller: no secrets, credentials, tokens or internal URLs, no stack traces, and no data of
+  any other Organization than the quote's own.
 
 ## 3. What this module promises
 
