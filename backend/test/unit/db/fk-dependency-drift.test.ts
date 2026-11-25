@@ -1014,7 +1014,7 @@ describe('fk position — T021 proofs', () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, `${table}.entity.ts`),
-      `import { Entity } from '@mikro-orm/core';\n` +
+      `import { Entity } from '@mikro-orm/decorators/legacy';\n` +
         `@Entity({ tableName: '${table}' })\n` +
         `export class Some {}\n`,
       'utf8',

@@ -196,7 +196,7 @@ export class ModuleLifecycleOrchestrator {
       // the tree had no `installHook` at all.
       //
       // With `bootConvergedAt` set, the normal body below runs instead, and every
-      // step of it is already safe on a converged database: `getPendingMigrations`
+      // step of it is already safe on a converged database: `getPending`
       // returns none so the rollback set is empty, the settings reconcile is
       // idempotent, the participants upsert-and-prune, and the hook is idempotent
       // by contract (`module-composition.md` item 9). Step 4 clears the marker, so
@@ -278,7 +278,7 @@ export class ModuleLifecycleOrchestrator {
         //    module's migrations also runs any prior pending ones, which is
         //    the expected outcome.
         const migrator = await this.migrator();
-        const pendingBefore = await migrator.getPendingMigrations();
+        const pendingBefore = await migrator.getPending();
         if (pendingBefore.length > 0) {
           // `specs/178-extensible-columns/` FR-025 — verified against the
           // declared extension columns inside the run's own transaction. A
@@ -1158,7 +1158,7 @@ export class ModuleLifecycleOrchestrator {
   }
 
   private async migrator(): Promise<IMigrator> {
-    const accessor = this.deps.migratorFor ?? (async (orm: MikroORM) => orm.getMigrator());
+    const accessor = this.deps.migratorFor ?? (async (orm: MikroORM) => orm.migrator);
     return accessor(this.deps.orm);
   }
 

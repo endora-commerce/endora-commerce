@@ -1,4 +1,5 @@
-import { ArrayType, Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { ArrayType, OptionalProps } from '@mikro-orm/core';
+import { Entity, Index, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { OrgScoped } from '@endora-commerce/platform/tenancy';
 import type { OrganizationRoleKind } from '@endora-commerce/contracts';
 import { randomUUID } from 'crypto';

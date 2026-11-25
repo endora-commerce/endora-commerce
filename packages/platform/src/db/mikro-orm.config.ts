@@ -166,6 +166,17 @@ export function mikroOrmConfigFrom(inputs: OrmConfigurationInputs): Options {
     debug: process.env['NODE_ENV'] === 'development' && process.env['DB_DEBUG'] === 'true',
     allowGlobalContext: false,
     forceUndefined: true,
+    // MikroORM 7 (#1866) changed three runtime defaults the estate was built and
+    // characterised on (#1860), and each is pinned to 6's value here rather than
+    // taken silently with the major: `balanced` loading turns a joined to-many
+    // populate into a second statement — what the bounded-statement-count tests
+    // and the tenant filters' join conditions were measured against —
+    // `forceUtcTimezone` changes how a `timestamp` without a zone is read, and
+    // early `onCreate` hooks change when a default is computed. Moving any of
+    // them is a change of its own, with its own measurement.
+    loadStrategy: 'joined',
+    forceUtcTimezone: false,
+    processOnCreateHooksEarly: false,
     extensions: [Migrator],
     migrations: {
       migrationsList: inputs.migrations.migrations,

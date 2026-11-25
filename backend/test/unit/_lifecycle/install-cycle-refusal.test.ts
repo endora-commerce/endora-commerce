@@ -83,7 +83,7 @@ class FakeEm {
 class FakeMigrator {
   pending: Array<{ name: string }> = [];
   applied: string[] = [];
-  async getPendingMigrations(): Promise<Array<{ name: string }>> {
+  async getPending(): Promise<Array<{ name: string }>> {
     return this.pending;
   }
   async up(): Promise<Array<{ name: string }>> {

@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import { EntitySchema, MikroORM, RawQueryFragment } from '@mikro-orm/postgresql';
+import { EntitySchema, MikroORM } from '@mikro-orm/postgresql';
 import { orgScopeSql, orgScopeWhere, type TenantContext } from '@endora-commerce/platform/tenancy';
 import { resolveTenantContext } from '@endora-commerce/platform/composition';
 import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
+import { rawFragmentReferences } from '../../helpers/raw-fragments.js';
 import { Cart, QuoteRequestOrgPolicy } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
@@ -219,7 +220,7 @@ describe('#955 — the reach governor table and the subquery that reads it', () 
         expect([rows.length, total]).toEqual([1, 1]);
         const cursor = await h.orm.em
           .fork()
-          .findByCursor(QuoteRequestOrgPolicy, policyWhere(), { first: 10, orderBy: { organizationId: 'asc' } });
+          .findByCursor(QuoteRequestOrgPolicy, { where: policyWhere(), first: 10, orderBy: { organizationId: 'asc' } });
         expect([cursor.items.length, cursor.totalCount]).toEqual([1, 1]);
         const inTx = await h.orm.em.fork().transactional(async (tx) =>
           [(await tx.fork().find(QuoteRequestOrgPolicy, policyWhere())).length, (await tx.find(QuoteRequestOrgPolicy, policyWhere())).length],
@@ -326,6 +327,8 @@ describe('#955 — the reach governor table and the subquery that reads it', () 
       holder!: Holder;
     }
     let orm: MikroORM;
+    /** MikroORM 7 (#1866) refuses an entity named by string, so the schema is held here. */
+    let CartLikeSchema: EntitySchema<{ id: string; organizationId: string | null; customerAccountId: string | null }>;
     let holderId = '';
     let governed = '';
     let free = '';
@@ -352,7 +355,7 @@ describe('#955 — the reach governor table and the subquery that reads it', () 
         },
         filters: { org: { name: 'org', cond: () => orgFilterCond(), default: true, args: false } },
       });
-      const CartLikeSchema = new EntitySchema<{ id: string; organizationId: string | null; customerAccountId: string | null }>({
+      CartLikeSchema = new EntitySchema<{ id: string; organizationId: string | null; customerAccountId: string | null }>({
         name: 'R955CartLike',
         tableName: 'r955_cart_like',
         properties: {
@@ -403,22 +406,28 @@ describe('#955 — the reach governor table and the subquery that reads it', () 
         const collection = lazy.items as { init(): Promise<unknown>; getItems(): Item[] };
         await collection.init();
         expect(orgsOf(collection.getItems())).toEqual(expected());
-        expect(orgsOf(await orm.em.fork().find('R955CartLike', {}) as Array<{ organizationId: string | null }>)).toEqual(expected());
+        expect(orgsOf(await orm.em.fork().find(CartLikeSchema, {}) as Array<{ organizationId: string | null }>)).toEqual(expected());
       });
     });
 
-    it("leaves MikroORM's raw-fragment cache empty over a thousand statements", async () => {
-      const before = RawQueryFragment.checkCacheSize();
+    // MikroORM 7 (#1866) keeps a raw fragment's back-reference in a `WeakMap`
+    // keyed by the fragment's symbol (`RawQueryFragment.js`), so a fragment no
+    // statement consumed is collected with its key: the process-wide cache 6
+    // counted with `checkCacheSize()` is gone, and with it the leak. What is
+    // left to hold is that the registry stays weak, and that the thousand
+    // statements still run.
+    it("holds MikroORM's raw-fragment references weakly over a thousand statements", async () => {
+      expect(rawFragmentReferences()).toBeInstanceOf(WeakMap);
       await runWithTenantContext(await repContext(R), async () => {
         for (let i = 0; i < 250; i += 1) {
           const em = orm.em.fork();
           await em.find(Item, {});
           await em.count(Item, {});
           await em.findOneOrFail(Holder, { id: holderId }, { populate: ['items' as never] });
-          await em.find('R955CartLike', {});
+          await em.find(CartLikeSchema, {});
         }
       });
-      expect(RawQueryFragment.checkCacheSize()).toBe(before);
+      expect(rawFragmentReferences()).toBeInstanceOf(WeakMap);
     }, 120_000);
   });
 });

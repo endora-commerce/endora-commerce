@@ -12,15 +12,17 @@ export interface ConnectionPoolGauge {
  * The ORM connection's pool, for the tests that measure how many connections a
  * path holds (issue #1864).
  *
- * MikroORM 6 pools through knex's `tarn` pool, and no ORM API reports it, so
- * this is the harness's one driver-specific read: kept here, behind a
- * structural type, so the MikroORM 7 switch (#1866) changes this file and no
- * test.
+ * On MikroORM 7 (#1866) the connection is kysely over a `pg.Pool`, which
+ * `getNativeClient()` returns — asynchronously, because it opens the connection
+ * first. A checked-out client is one the pool counts and does not hold idle.
+ * Kept here, behind a structural type, so a driver change edits this file and
+ * not the tests.
  */
-export function connectionPool(em: EntityManager): ConnectionPoolGauge {
-  const connection = em.getConnection() as unknown as {
-    getKnex(): { client: { pool: { numUsed(): number; max: number } } };
+export async function connectionPool(em: EntityManager): Promise<ConnectionPoolGauge> {
+  const pool = (await em.getConnection().getNativeClient()) as unknown as {
+    readonly totalCount: number;
+    readonly idleCount: number;
+    readonly options: { readonly max: number };
   };
-  const pool = connection.getKnex().client.pool;
-  return { used: () => pool.numUsed(), max: pool.max };
+  return { used: () => pool.totalCount - pool.idleCount, max: pool.options.max };
 }
