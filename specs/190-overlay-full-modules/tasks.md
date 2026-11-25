@@ -92,11 +92,12 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 5 — Classification refusal (#1849, US7)
 
-- [ ] T060 Test: undecorated class per origin (core list, package fixture, overlay fixture) refused naming class + contributor; doubly classified refused; embeddable ignored — `packages/platform/src/tenancy/entity-classification.test.ts` [FR-020, FR-021]
-- [ ] T061 Implement `UnclassifiedEntityError` and the call in `configuredEntitiesFrom` (v7 metadata storage API) [FR-020, FR-021]
-- [ ] T062 Integration: this repository's full composition boots (no false positive) — existing boot integration test, run it
+- [x] T060 Test: undecorated class per origin (core list, package fixture, overlay fixture) refused naming class + contributor; doubly classified refused; embeddable ignored — `packages/platform/src/tenancy/entity-classification.test.ts` [FR-020, FR-021]
+- [x] T061 Implement `UnclassifiedEntityError` and the call in `configuredEntitiesFrom` (v7 metadata storage API) [FR-020, FR-021]
+- [x] T062 Integration: this repository's full composition boots (no false positive) — existing boot integration test, run it
 - [ ] T063 C-6: the `/legacy`-only decorator check from #1866 includes `backend/src/apps/**` and instance overlay sources [FR-022]
-- [ ] T064 Changeset platform `minor` (a third-party package with an unclassified entity now refuses boot — upgrade note)
+  - Partial (#1849): this repository's walk reaches `backend/src/apps/**` through the application's `src` root, now pinned by `check-entity-decorators.test.ts` (*reads the overlay modules under backend/src/apps*). An instance's overlay sources are not walked: `endora check` judges one package, and no instance-level host exists yet — the boot refusal of T061 is what reaches an instance today
+- [x] T064 Changeset platform `minor` (a third-party package with an unclassified entity now refuses boot — upgrade note)
 
 ## Phase 6 — Overlay schema discovery (#1850, US1) — after Phases 2 and 5 — **one merge request**
 

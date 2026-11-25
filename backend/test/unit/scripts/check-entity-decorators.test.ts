@@ -95,4 +95,16 @@ describe('the real tree', () => {
     const findings = files.flatMap((file) => analyzeSource(readFileSync(file, 'utf8'), file));
     expect(findings.map((f) => `${layout.displayOf(f.file)}:${f.line} ${f.name} from ${f.specifier}`)).toEqual([]);
   });
+
+  /**
+   * `specs/190-overlay-full-modules/` T063 (FR-022): overlay code is held to the
+   * same specifier. This repository's overlays sit under `backend/src/apps/`,
+   * which the application's `src` root reaches — pinned here so a narrowed walk
+   * cannot drop them without a red.
+   */
+  it('reads the overlay modules under backend/src/apps', async () => {
+    const layout = await resolveModuleLayout();
+    const files = collectSourceFiles(layout.sourceRoots).map((file) => layout.displayOf(file));
+    expect(files.some((file) => /(^|\/)src\/apps\/[^/]+\/modules\//.test(file))).toBe(true);
+  });
 });

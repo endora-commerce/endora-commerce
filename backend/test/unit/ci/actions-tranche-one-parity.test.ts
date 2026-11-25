@@ -68,6 +68,12 @@ const TRANCHE = [
     name: 'acceptance:package-schema',
     workflow: '.github/workflows/acceptance-package-schema.yml',
   },
+  // The third: `endora new storefront` (roadmap 071 F7), ported once its one
+  // drift (A8, a snapshot of React internals) had been measured and closed.
+  {
+    name: 'acceptance:storefront-scaffold',
+    workflow: '.github/workflows/acceptance-storefront-scaffold.yml',
+  },
 ] as const;
 
 function workflowSource(path: string): string {

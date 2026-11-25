@@ -216,7 +216,13 @@ async function phaseSchema(): Promise<AssertionResult[]> {
             'and compilation removes that probe',
         };
       } else {
-        await orm.em.fork().find(entity as never, {});
+        // Widened through the sanctioned escape hatch: the entity is
+        // `@OrgScoped()`, so an unscoped read is refused by design (#1849), and
+        // this probe has no tenant of its own to scope one to.
+        const { withSystemScope } = await import('@endora-commerce/platform/tenancy');
+        await withSystemScope('acceptance: A4 reads the package entity', () =>
+          orm.em.fork().find(entity as never, {}),
+        );
         a4 = {
           id: 'A4',
           title: 'the ORM can query the package entity',
