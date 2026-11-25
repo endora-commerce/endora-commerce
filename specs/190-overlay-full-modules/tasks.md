@@ -41,8 +41,8 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 2 — Overlay build and freshness (#1848, US2) — after Phase 1
 
-- [ ] T010 Test: layout refusals `nested-module`, `package-in-disguise` over a temp tree — `packages/platform/src/overlay/overlay-layout.test.ts` [FR-002, FR-003]
-- [ ] T011 Implement `overlay-layout.ts`; call `assertOverlayLayout` in `overlayModuleIdsUnder` **beside** (not yet instead of) the schema refusal [FR-002, FR-003]
+- [x] T010 Test: layout refusals `nested-module`, `package-in-disguise` over a temp tree — `packages/platform/src/overlay/overlay-layout.test.ts` [FR-002, FR-003]
+- [x] T011 Implement `overlay-layout.ts`; call `assertOverlayLayout` in `overlayModuleIdsUnder` **beside** (not yet instead of) the schema refusal [FR-002, FR-003]
 - [ ] T012 [P] Test: CLI mirror of the layout walk agrees with the platform's on the same fixture (the two walks must agree) — `packages/cli/src/build/layout.test.ts` [FR-003]
 - [ ] T013 Move the runtime-asset classification `backend/scripts/lib/runtime-assets.ts` → `packages/cli/src/lib/runtime-assets.ts`; `copy-runtime-assets.ts` imports it; grep `backend/test/**` for the old path [FR-013]
 - [ ] T014 Test: `endora build overlays` compiles to `backend/dist/apps/**`, mirrors `i18n/*.json`, refuses an unclassified extension, exit codes 0/1/2 — `packages/cli/src/build/build.test.ts` [FR-012, FR-013]

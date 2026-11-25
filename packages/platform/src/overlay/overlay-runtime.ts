@@ -42,6 +42,7 @@ import {
   type ModuleIdClaim,
 } from '../lifecycle/services/module-id-claims.js';
 import { assertOverlayModulesShipNoSchema } from './overlay-schema.js';
+import { assertOverlayLayout } from './overlay-layout.js';
 import { listOverlayModuleDirs } from './resolve-overlay.js';
 
 /**
@@ -143,6 +144,10 @@ export function overlayModuleIdsUnder(
   // Before the claims are checked and long before anything is imported: a tree
   // that ships schema is refused whole, whichever seam asked (`overlay-schema.ts`).
   assertOverlayModulesShipNoSchema(root, ids);
+  // Beside it, and in the same position: flat, and not a package
+  // (`specs/190-overlay-full-modules/` FR-002 – FR-003). Not yet instead of it —
+  // the schema refusal goes when overlay schema discovery lands (T075, #1850).
+  assertOverlayLayout(root, ids);
   assertNoModuleIdCollisions([
     ...claimsOutsideTheOverlay,
     ...ids.map((id) => ({
