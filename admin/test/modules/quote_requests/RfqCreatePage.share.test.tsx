@@ -13,7 +13,7 @@ import { ORGANIZATION_CHANNEL_ID, organizationSalesChannelsAnswer } from '../../
 /**
  * `specs/192-quote-request-draft-share/` T041, T042 (US2, US3; FR-013, FR-020,
  * FR-031) — the create screen makes a quote the customer cannot see yet.
- * *Save as draft* creates it; *Create and share* creates it and then shares it
+ * *Save without sharing* creates it; *Create and share* creates it and then shares it
  * with `If-Match` = the version the create answered, and stops before sharing
  * when the create warns. The validity field is prefilled from the store's
  * default, counted from sharing. The bundles are the shipped English ones.
@@ -200,7 +200,7 @@ describe('RfqCreatePage — validity from the store default (T041, FR-031)', () 
     expect(creates()[0]).toMatchObject({ expiresInDays: 0 });
   });
 
-  it('while the default loads: the store default is said, Create and share waits and says why, Save as draft sends nothing', async () => {
+  it('while the default loads: the store default is said, Create and share waits and says why, Save without sharing sends nothing', async () => {
     let answer: (value: unknown) => void = () => undefined;
     defaults = new Promise((done) => (answer = done));
     await ready();
@@ -218,7 +218,7 @@ describe('RfqCreatePage — validity from the store default (T041, FR-031)', () 
     expect(shareButton()).toBeEnabled();
   });
 
-  it('while the default loads, Save as draft leaves the default to the server', async () => {
+  it('while the default loads, Save without sharing leaves the default to the server', async () => {
     defaults = new Promise(() => undefined);
     await ready();
 
@@ -304,8 +304,8 @@ describe('RfqCreatePage — validity from the store default (T041, FR-031)', () 
   });
 });
 
-describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', () => {
-  it('Save as draft creates and lands on the quote, sharing nothing', async () => {
+describe('RfqCreatePage — Save without sharing and Create and share (T042, FR-020)', () => {
+  it('Save without sharing creates and lands on the quote, sharing nothing', async () => {
     await ready();
     await userEvent.click(saveButton());
 
@@ -350,7 +350,7 @@ describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', 
     );
   });
 
-  it('a refused share lands on the draft with the refusal, keeping the way back (US2 #7)', async () => {
+  it('a refused share lands on the unshared quote with the refusal, keeping the way back (US2 #7)', async () => {
     const RETURN_TO = '/crm/opportunities/00000000-0000-4000-8000-0000000000b1';
     shareAnswer = new ApiError(409, {
       error: { code: 'RFQ_SHARE_CUSTOMER_UNAVAILABLE', message: "This quote cannot be shared: its customer's account is blocked.", details: { code: 'blocked' } },
@@ -370,14 +370,14 @@ describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', 
         message: "This quote cannot be shared: its customer's account is blocked.",
         lines: [],
       },
-      // The detail says the quote was created as a draft before the refusal.
+      // The detail says the quote was created but not shared before the refusal.
       afterCreate: true,
     });
     // One create: a refused share never creates a second quote.
     expect(creates()).toHaveLength(1);
   });
 
-  it('create warnings stop before the share: the draft stays, the warnings are shown with Open draft and Share (US2 #8)', async () => {
+  it('create warnings stop before the share: the quote stays unshared, the warnings are shown with Open quote and Share (US2 #8)', async () => {
     createAnswer = {
       data: { id: NEW_ID, version: 1 },
       warnings: [{ productId: 'prod-1', code: 'PRODUCT_UNAVAILABLE_IN_SCOPE' }],
@@ -421,7 +421,7 @@ describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', 
     expect(creates()).toHaveLength(1);
   });
 
-  it('a line with no price: Save as draft sends it without a price; Create and share is disabled and says why (FR-013)', async () => {
+  it('a line with no price: Save without sharing sends it without a price; Create and share is disabled and says why (FR-013)', async () => {
     resolvedPrice = null;
     renderPage();
     await addLine();
@@ -479,7 +479,7 @@ describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', 
     await waitFor(() => expect(navigateSpy).toHaveBeenCalled());
   });
 
-  it('a share that fails without an answer (network) still lands on the created draft, with a readable sentence', async () => {
+  it('a share that fails without an answer (network) still lands on the created quote, with a readable sentence', async () => {
     shareAnswer = new TypeError('Failed to fetch');
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await ready();

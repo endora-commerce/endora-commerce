@@ -84,14 +84,14 @@ function view(id: string, name: string, filters: Record<string, unknown>): Saved
   };
 }
 
-const DRAFTS_VIEW = view('11111111-1111-4111-8111-111111111111', 'My drafts', { scope: 'all', sharing: 'unshared' });
+const UNSHARED_VIEW = view('11111111-1111-4111-8111-111111111111', 'My unshared quotes', { scope: 'all', sharing: 'unshared' });
 const PLAIN_VIEW = view('22222222-2222-4222-8222-222222222222', 'Plain', { scope: 'all' });
 const ODD_VIEW = view('33333333-3333-4333-8333-333333333333', 'Odd', { scope: 'all', sharing: 'hidden' });
 
 beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockReset();
   api.get.mockImplementation(async (path: string) => {
-    if (path.startsWith(VIEWS_ENDPOINT)) return { data: [DRAFTS_VIEW, PLAIN_VIEW, ODD_VIEW] };
+    if (path.startsWith(VIEWS_ENDPOINT)) return { data: [UNSHARED_VIEW, PLAIN_VIEW, ODD_VIEW] };
     if (path.startsWith(LIST)) {
       const rows = [row(3, false), row(2, true), row(1)];
       return { data: rows, pagination: { page: 1, pageSize: 25, total: rows.length } };
@@ -119,7 +119,7 @@ async function renderList(path = '/quote-requests'): Promise<ReturnType<typeof u
     { core: CORE, quote_requests: OWN },
   );
   await screen.findByText('#RFQ-3');
-  await screen.findByRole('option', { name: DRAFTS_VIEW.name });
+  await screen.findByRole('option', { name: UNSHARED_VIEW.name });
   return user;
 }
 
@@ -154,7 +154,7 @@ describe('RfqList — draft or shared (specs/192-quote-request-draft-share/, FR-
     expect(within(rowOf('RFQ-1')).queryByText(OWN['share.badge.unshared']!)).toBeNull();
   });
 
-  it('offers both, drafts and shared, and asks for both by default', async () => {
+  it('offers both, shared and not shared, and asks for both by default', async () => {
     await renderList();
     expect(within(sharingSelect()).getAllByRole('option').map((o) => o.textContent)).toEqual([
       OWN['list.sharing.all'],
@@ -205,7 +205,7 @@ describe('RfqList — draft or shared (specs/192-quote-request-draft-share/, FR-
 
     await user.click(screen.getByRole('button', { name: 'Save view' }));
     const dialog = await screen.findByRole('dialog', { name: 'Save view' });
-    await user.type(within(dialog).getByLabelText('Name'), 'Drafts{Enter}');
+    await user.type(within(dialog).getByLabelText('Name'), 'Unshared{Enter}');
     await waitFor(() => expect(api.post).toHaveBeenCalled());
     const body = api.post.mock.calls.find(([path]) => path === VIEWS_ENDPOINT)?.[1] as Record<string, unknown>;
     expect(body['filters']).toMatchObject({ sharing: 'unshared' });
@@ -215,7 +215,7 @@ describe('RfqList — draft or shared (specs/192-quote-request-draft-share/, FR-
     const user = await renderList();
     const views = screen.getByRole('combobox', { name: 'Saved views' });
 
-    await user.selectOptions(views, DRAFTS_VIEW.id);
+    await user.selectOptions(views, UNSHARED_VIEW.id);
     await waitFor(() => expect(lastListRequest().get('sharing')).toBe('unshared'));
     expect(sharingSelect().value).toBe('unshared');
 
@@ -223,7 +223,7 @@ describe('RfqList — draft or shared (specs/192-quote-request-draft-share/, FR-
     await waitFor(() => expect(lastListRequest().has('sharing')).toBe(false));
     expect(sharingSelect().value).toBe('');
 
-    await user.selectOptions(views, DRAFTS_VIEW.id);
+    await user.selectOptions(views, UNSHARED_VIEW.id);
     await waitFor(() => expect(lastListRequest().get('sharing')).toBe('unshared'));
     await user.selectOptions(views, ODD_VIEW.id);
     await waitFor(() => expect(lastListRequest().has('sharing')).toBe(false));

@@ -165,7 +165,7 @@ beforeEach(() => {
 });
 
 describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-share/)', () => {
-  it('says it is a draft beside its status, and offers sharing as its one next step', async () => {
+  it('says it is not shared beside its status, and offers sharing as its one next step', async () => {
     serve(rfqPayload({ shareValidityDays: 30 }));
     renderDetail();
 
@@ -178,6 +178,27 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     expect(meta).toContain(quote('share.meta.validityDays.other', { days: 30 }));
     // Not awaiting a customer who cannot see it yet.
     expect(screen.queryByText(core('rfq.detail.badge.awaitingRevision'))).not.toBeInTheDocument();
+  });
+
+  it('says under the header, in plain text, that only the team sees it; the line is gone once shared', async () => {
+    const user = userEvent.setup();
+    const sharedAt = '2026-11-25T09:00:00.000Z';
+    serve(rfqPayload({ shareValidityDays: 30 }), rfqPayload({ sharedWithCustomer: true, sharedAt, version: 8 }));
+    postSpy.mockResolvedValue({ data: rfqPayload({ sharedWithCustomer: true, sharedAt, version: 8 }) });
+    renderDetail();
+
+    await shareButton();
+    const notice = screen.getByText(quote('share.unshared.notice'));
+    expect(notice.tagName).toBe('P');
+    // A standing fact, not news: no live region announces it.
+    expect(notice.closest('[role="alert"], [role="status"], [aria-live]')).toBeNull();
+    // Under the header, not inside its one-row (clamped) meta line.
+    expect(notice.closest('header')).toBeNull();
+
+    await user.click(await shareButton());
+    await answerConfirm(true);
+    expect(await screen.findByText(quote('share.success'))).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText(quote('share.unshared.notice'))).not.toBeInTheDocument());
   });
 
   it('keeps the PDF export but offers no send to the customer while unshared (FR-007)', async () => {
@@ -204,7 +225,7 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     // The day the customer is held to, not the second the operator answered.
     expect(dialog.textContent ?? '').not.toMatch(/\d{1,2}:\d{2}/);
     expect(dialog).toHaveTextContent(quote('share.confirm.title', { id: 'RFQ-0001' }));
-    expect(dialog).toHaveTextContent('cannot return to draft');
+    expect(dialog).toHaveTextContent('Sharing cannot be undone.');
     expect(postSpy).not.toHaveBeenCalledWith(SHARE_URL, expect.anything(), expect.anything());
   });
 
@@ -327,7 +348,7 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
       quote('share.refusal.lineInGroup', { line: 'Steel beam', group: 'Hall A' }),
       quote('share.refusal.lineVariant', { product: 'Bolt', variant: 'M8' }),
     ]);
-    // Still a draft, still shareable once priced.
+    // Still not shared, still shareable once priced.
     expect(screen.getByRole('button', { name: quote('share.action') })).toBeEnabled();
 
     // The remedy is one press away: the Modify tab, with the list still in view.
@@ -443,7 +464,7 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     expect(pageAlert()).not.toHaveTextContent(quote('share.refusal.afterCreate'));
   });
 
-  it('says first that the quote was created as a draft when *Create and share* was refused', async () => {
+  it('says first that the quote was created but not shared when *Create and share* was refused', async () => {
     serve(rfqPayload());
     renderDetail(undefined, {
       shareRefusal: { code: 'RFQ_SHARE_CUSTOMER_UNAVAILABLE', message: "This quote cannot be shared: its customer's account is blocked.", lines: [] },
@@ -458,7 +479,7 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     ]);
   });
 
-  it('a share refused on the detail itself has no "created as a draft" lead line', async () => {
+  it('a share refused on the detail itself has no "created but not shared" lead line', async () => {
     const user = userEvent.setup();
     serve(rfqPayload());
     renderDetail(undefined, {
@@ -492,6 +513,7 @@ describe('RfqDetail — a shared quote (specs/192-quote-request-draft-share/)', 
 
     await screen.findByRole('tablist');
     expect(screen.queryByText(quote('share.badge.unshared'))).not.toBeInTheDocument();
+    expect(screen.queryByText(quote('share.unshared.notice'))).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: quote('share.action') })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: core('common.action.more') }));
     const menu = await screen.findByRole('menu');

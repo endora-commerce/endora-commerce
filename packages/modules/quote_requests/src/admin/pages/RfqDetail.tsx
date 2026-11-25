@@ -780,6 +780,13 @@ export function RfqDetail(): ReactNode {
         }
         actions={headerActions}
       />
+      {/* `specs/192-quote-request-draft-share/` — who sees a quote not shared yet,
+          in plain text under the header while it is unshared. Not in the meta
+          line (clamped to one row), not a page notice (one at a time, so an error
+          would hide it), and not an alert: a standing fact, not news. */}
+      {unshared ? (
+        <p className="-mt-4 mb-6 text-sm text-muted-foreground">{tPdf('share.unshared.notice')}</p>
+      ) : null}
 
       {pageNotice === 'error' ? (
         <Alert variant="destructive" className="mb-4">

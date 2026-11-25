@@ -394,7 +394,7 @@ export function RfqCreatePage(): ReactNode {
   }, [organizationId, channelsAttempt]);
   // After a create the answer warned about: the request exists, the operator reads the warning.
   // `specs/192-quote-request-draft-share/` (FR-020, US2 #8) — after *Create and share*
-  // (`viaShare`) nothing was shared: the operator may open the draft or share it anyway.
+  // (`viaShare`) nothing was shared: the operator may open the quote or share it anyway.
   const [created, setCreated] = useState<{
     id: string;
     businessId?: string | undefined;
@@ -1137,7 +1137,7 @@ export function RfqCreatePage(): ReactNode {
           hint), as the note that describes it. */}
       {/* Issue #1449 (DS-19) — the actions stay in view over a long list of lines; a refused
           create is said beside them, and so is why *Create and share* is disabled, as the note
-          that describes it. `specs/192-quote-request-draft-share/` — *Save as draft* is the
+          that describes it. `specs/192-quote-request-draft-share/` — *Save without sharing* is the
           outlined secondary, *Create and share* the one filled primary (Von Restorff); sharing
           tells the customer, so it is asked first. */}
       <StickyFormActions

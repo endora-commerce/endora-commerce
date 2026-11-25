@@ -509,7 +509,7 @@ describe('RfqCreatePage — Browse products and the quick search (US3)', () => {
 
   // `specs/192-quote-request-draft-share/` (FR-013, OQ-5) replaced "no price blocks the
   // create": a line with no price is said, not flagged as an error, and the quote may be
-  // saved as a draft; only *Create and share* waits for every price (FR-026, T042).
+  // saved without sharing; only *Create and share* waits for every price (FR-026, T042).
   it('says which line has no price yet, holds back only the share, then sends every line once it is priced (sc. 5, FR-034)', async () => {
     const user = userEvent.setup();
     renderPage();

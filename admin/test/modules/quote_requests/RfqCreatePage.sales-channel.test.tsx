@@ -193,7 +193,7 @@ describe('RfqCreatePage — the sales channel', () => {
     expect(resolves.at(-1)?.[1]).toMatchObject({ salesChannelId: B2C });
   });
 
-  // `specs/192-quote-request-draft-share/` — two actions now: *Save as draft* (this key)
+  // `specs/192-quote-request-draft-share/` — two actions now: *Save without sharing* (this key)
   // and *Create and share*, the bar's primary, which the gate note describes.
   it('puts Create in the sticky save bar, described by why it is disabled (issue #1449, DS-19)', async () => {
     assigned = [B2B, B2C];
