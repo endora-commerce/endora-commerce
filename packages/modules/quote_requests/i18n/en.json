@@ -254,7 +254,7 @@
   "share.meta.validityDays.one": "valid {days} day from sharing",
   "share.meta.validityDays.other": "valid {days} days from sharing",
   "share.meta.shared": "shared {date}",
-  "share.confirm.title": "Share quote request {id} with the customer?",
+  "share.confirm.title": "Share quote {id} with the customer?",
   "share.confirm.message": "{customer} will see this quote in their account and get the “quote prepared” notification. {validity} A shared quote cannot return to draft.",
   "share.confirm.validityDays.one": "It will be valid for {days} day, until {date}.",
   "share.confirm.validityDays.other": "It will be valid for {days} days, until {date}.",

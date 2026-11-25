@@ -217,6 +217,9 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     const dialog = await answerConfirm(false);
     expect(dialog).toHaveTextContent('Anna Nowak');
     expect(dialog).toHaveTextContent('valid for 30 days');
+    // The day the customer is held to, not the second the operator answered.
+    expect(dialog.textContent ?? '').not.toMatch(/\d{1,2}:\d{2}/);
+    expect(dialog).toHaveTextContent(quote('share.confirm.title', { id: 'RFQ-0001' }));
     expect(dialog).toHaveTextContent('cannot return to draft');
     expect(postSpy).not.toHaveBeenCalledWith(SHARE_URL, expect.anything(), expect.anything());
   });
@@ -430,13 +433,18 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
   it('says a failure that is not a refusal in its own words', async () => {
     const user = userEvent.setup();
     serve(rfqPayload());
-    postSpy.mockRejectedValue(new TypeError('Failed to fetch'));
+    const failure = new TypeError('Failed to fetch');
+    postSpy.mockRejectedValue(failure);
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     renderDetail();
 
     await user.click(await shareButton());
     await answerConfirm(true);
 
     await waitFor(() => expect(pageAlert()).toHaveTextContent(quote('share.error')));
+    // The whole failure is logged, not only the sentence shown.
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining('share failed'), expect.objectContaining({ error: failure }));
+    logged.mockRestore();
   });
 
   it('shows the refusal *Create and share* carried here, once (FR-020)', async () => {

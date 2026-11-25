@@ -258,7 +258,7 @@
   "share.meta.validityDays.many": "ważna {days} dni od udostępnienia",
   "share.meta.validityDays.other": "ważna {days} dni od udostępnienia",
   "share.meta.shared": "udostępniono {date}",
-  "share.confirm.title": "Udostępnić klientowi zapytanie ofertowe {id}?",
+  "share.confirm.title": "Udostępnić klientowi ofertę {id}?",
   "share.confirm.message": "{customer} zobaczy tę ofertę na swoim koncie i otrzyma powiadomienie „oferta przygotowana”. {validity} Udostępniona oferta nie wróci do szkicu.",
   "share.confirm.validityDays.one": "Będzie ważna {days} dzień, do {date}.",
   "share.confirm.validityDays.few": "Będzie ważna {days} dni, do {date}.",

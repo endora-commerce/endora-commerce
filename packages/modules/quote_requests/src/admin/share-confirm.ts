@@ -1,4 +1,4 @@
-import { formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { formatDate } from '@endora-commerce/admin-kit/lib';
 import { translatePlural } from './plural.js';
 import { MS_PER_DAY, validityDeadlineDays } from './validity.js';
 
@@ -32,7 +32,8 @@ export function shareConfirmMessage(
     days !== null
       ? translatePlural(t, input.language, 'share.confirm.validityDays', days, {
           days,
-          date: formatDateTime(new Date(input.now.getTime() + days * MS_PER_DAY).toISOString(), input.language),
+          // The day the customer is held to; the time of day would be the second the operator pressed Yes.
+          date: formatDate(new Date(input.now.getTime() + days * MS_PER_DAY).toISOString(), input.language),
         })
       : t('share.confirm.validityNone');
   return t('share.confirm.message', { customer: input.customer, validity });

@@ -19,7 +19,7 @@ import {
   Split,
   XCircle,
 } from 'lucide-react';
-import type { AdminPrepareCustomerBasketResponse } from '@endora-commerce/contracts';
+import type { AdminPrepareCustomerBasketResponse, QuoteRequest } from '@endora-commerce/contracts';
 import { apiClient, ApiError, cn, formatDateTime, isDraftEqual, readReturnTo, useDetailResource, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, EditorSection, Input, Label, PageHeader, RecordTabs, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import {
@@ -213,10 +213,10 @@ interface AdminRfqDetail {
    * operator's quote is not shared with its customer yet; absent on replies that
    * predate the feature, which read as shared (FR-002).
    */
-  sharedWithCustomer?: boolean;
-  sharedAt?: string | null;
+  sharedWithCustomer?: QuoteRequest['sharedWithCustomer'];
+  sharedAt?: QuoteRequest['sharedAt'];
   /** The days applied when the quote is shared; `null` = no deadline. Unshared quotes only. */
-  shareValidityDays?: number | null;
+  shareValidityDays?: QuoteRequest['shareValidityDays'];
   /** Flat VAT rate (fraction) applied to this quote's net prices. */
   taxRate?: number;
   createdAt: string;
@@ -496,6 +496,8 @@ export function RfqDetail(): ReactNode {
     } catch (err) {
       const refusal = shareRefusalOf(err);
       if (refusal === null) {
+        // No envelope to show: the operator gets a sentence, the console the whole failure.
+        console.error('[quote_requests] share failed without an API refusal', { quoteRequestId: rfq.id, error: err });
         setError(tPdf('share.error'));
         return;
       }

@@ -707,7 +707,12 @@ export function RfqCreatePage(): ReactNode {
       await apiClient.post(`/api/v1/admin/quote-requests/${id}/share`, {}, { headers: { 'If-Match': `"${version}"` } });
       leaveFor(id);
     } catch (err) {
-      leaveRefused(id, shareRefusalOf(err) ?? { code: SHARE_FAILED_CODE, message: tGroups('share.error'), lines: [] });
+      const refusal = shareRefusalOf(err);
+      if (refusal === null) {
+        // No envelope to show: the operator gets a sentence, the console the whole failure.
+        console.error('[quote_requests] share after create failed without an API refusal', { quoteRequestId: id, error: err });
+      }
+      leaveRefused(id, refusal ?? { code: SHARE_FAILED_CODE, message: tGroups('share.error'), lines: [] });
     }
   };
 

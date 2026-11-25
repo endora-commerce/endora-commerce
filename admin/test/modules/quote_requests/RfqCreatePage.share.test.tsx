@@ -481,6 +481,7 @@ describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', 
 
   it('a share that fails without an answer (network) still lands on the created draft, with a readable sentence', async () => {
     shareAnswer = new TypeError('Failed to fetch');
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await ready();
     await userEvent.click(shareButton());
     await answerConfirm(true);
@@ -494,6 +495,8 @@ describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', 
     expect(options.state.shareRefusal.message).toBe(quote('share.error'));
     expect(options.state.afterCreate).toBe(true);
     expect(creates()).toHaveLength(1);
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining('share after create failed'), expect.objectContaining({ error: shareAnswer }));
+    logged.mockRestore();
   });
 
   it('0 typed on Create and share is no deadline: the question says so and the create sends 0', async () => {
