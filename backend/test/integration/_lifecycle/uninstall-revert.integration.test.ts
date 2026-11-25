@@ -79,8 +79,8 @@ function recordingMigrator(): RecordingMigrator {
       return names.map((name) => ({ name }));
     },
     up: async () => [],
-    getPendingMigrations: async () => [],
-    getExecutedMigrations: async () => [],
+    getPending: async () => [],
+    getExecuted: async () => [],
   } as unknown as IMigrator;
   return { migrator, reverted };
 }

@@ -74,7 +74,7 @@ const thrownHere = new HttpErrorFromApplication(409, 'VERSION_CONFLICT', 'alread
 
 let discovered: readonly string[] | string;
 try {
-  const orm = MikroORM.initSync({
+  const orm = new MikroORM({
     // The two shapes as a **set**, which is what an entity registry really is:
     // `db/entities-registry.generated.ts` names `SalesChannel` once and a
     // packaged module names its own imports, and MikroORM is handed the union.
@@ -83,14 +83,15 @@ try {
     // references is not the test — MikroORM refuses even *one* class listed
     // twice, so it would throw whether or not the duplication were fixed.
     entities: [...new Set([SalesChannelFromPackage, SalesChannelFromApplication])],
-    discovery: { requireEntitiesArray: true },
+    // MikroORM 6's `discovery.requireEntitiesArray` is gone: 7 discovers only
+    // the entities it is handed, which is what the option asked for.
     dbName: 'platform-cross-boundary-probe',
-    // Never connected: `initSync` defers the connection until the first query
-    // and this probe issues none. Discovery — the half under test — is
+    // Never connected: the synchronous constructor (MikroORM 7's spelling of
+    // 6's `initSync`) defers the connection until the first query and this
+    // probe issues none. Discovery — the half under test — is
     // synchronous and has already run by the time this returns.
-    connect: false,
   });
-  discovered = Object.keys(orm.getMetadata().getAll()).sort();
+  discovered = [...new Set(orm.getMetadata().getAll().values())].map((meta) => meta.className).sort();
 } catch (error: unknown) {
   discovered = error instanceof Error ? error.message : String(error);
 }

@@ -126,9 +126,9 @@ export async function walkPreservation(input: {
   const reported = new Set<string>();
   let steps = 0;
   try {
-    const migrator = orm.getMigrator();
+    const migrator = orm.migrator;
     const connection = orm.em.getConnection();
-    const pending = (await migrator.getPendingMigrations()).map((migration) => migration.name);
+    const pending = (await migrator.getPending()).map((migration) => migration.name);
     const hosts = [...input.hosts];
     for (const name of pending) {
       await migrator.up({ migrations: [name] });

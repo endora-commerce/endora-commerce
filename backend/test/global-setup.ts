@@ -84,7 +84,7 @@ async function applyMigrations(): Promise<void> {
   const { establishPlatformInvariants, establishTaxIdScope } = await import('./template-seed.js');
   const orm = await initOrm();
   try {
-    const migrator = orm.getMigrator();
+    const migrator = orm.migrator;
     const applied = await migrator.up();
     if (applied.length > 0) {
       process.stdout.write(`[test-setup] applied ${applied.length} migration(s)\n`);

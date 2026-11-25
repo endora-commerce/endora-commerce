@@ -81,7 +81,7 @@ function mapReader(files: Readonly<Record<string, string>>): SourceReader {
 
 const ENTITY_FILE = '/pkg/src/backend/entities/quote-request.entity.ts';
 const ENTITY_SOURCE = [
-  "import { Entity, PrimaryKey } from '@mikro-orm/core';",
+  "import { Entity, PrimaryKey } from '@mikro-orm/decorators/legacy';",
   '',
   "@Entity({ tableName: 'quote_requests' })",
   'export class QuoteRequest {',
@@ -364,7 +364,7 @@ describe('a real module package publishes `./ports` and a consumer type-checks a
       writeFileSync(
         join(dir, 'src', 'backend', 'entities', 'fixture-row.entity.ts'),
         [
-          "import { Entity, PrimaryKey } from '@mikro-orm/core';",
+          "import { Entity, PrimaryKey } from '@mikro-orm/decorators/legacy';",
           '',
           "@Entity({ tableName: 'd169_fixture_rows' })",
           'export class FixtureRow {',

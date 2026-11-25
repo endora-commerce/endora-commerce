@@ -64,7 +64,7 @@ export async function migrateComposition(
     clientUrl: url,
   });
   try {
-    const applied = await orm.getMigrator().up();
+    const applied = await orm.migrator.up();
     return applied.map((migration) => migration.name);
   } finally {
     await orm.close(true);
@@ -73,5 +73,5 @@ export async function migrateComposition(
 
 /** Apply the named migrations, and nothing else, on an open ORM. */
 export async function applyMigration(orm: MikroORM, name: string): Promise<void> {
-  await orm.getMigrator().up({ migrations: [name] });
+  await orm.migrator.up({ migrations: [name] });
 }

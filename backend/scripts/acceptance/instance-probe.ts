@@ -201,7 +201,10 @@ async function phaseSchema(): Promise<AssertionResult[]> {
       }
       const entity = declared[0] as new () => object;
       const metadata = orm.getMetadata();
-      if (!metadata.has(entity.name)) {
+      // MikroORM 7 (#1866) keys metadata by class, and `has(name)` asks the
+      // class-keyed map, so a string answers `false` whatever is registered;
+      // `find` takes the class and also reads the class-name index.
+      if (metadata.find(entity) === undefined) {
         a4 = {
           id: 'A4',
           title: 'the ORM can query the package entity',

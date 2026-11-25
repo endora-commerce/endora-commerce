@@ -130,7 +130,8 @@ function coveredClasses(orm: MikroORM): CoveredClass[] {
   const covered: CoveredClass[] = [];
   const unknownToTheOrm: string[] = [];
   for (const meta of customerScoped) {
-    const entity = storage.find(meta.className);
+    // By class: MikroORM 7 (#1866) refuses an entity named by string.
+    const entity = storage.find(meta.target);
     if (!entity) {
       unknownToTheOrm.push(meta.className);
       continue;

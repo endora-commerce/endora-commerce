@@ -114,7 +114,7 @@ function cliShapedOrchestrator(db: TestDb, redis: Redis): ModuleLifecycleOrchest
     migrationOwnership: migrationOwnershipOf([], [MODULE_ID]),
     migratorFor: async () =>
       ({
-        getPendingMigrations: async () => [],
+        getPending: async () => [],
         up: async () => [],
         down: async () => [],
       }) as never,

@@ -562,7 +562,7 @@ describe('projects init migration', () => {
     // property with no column behind it loads fine and fails on the first
     // query; this is where it fails instead. `filters: false`: the subject is
     // the mapping, not the tenant scope.
-    const metadata = Object.values(h.orm.getMetadata().getAll()).filter(
+    const metadata = [...new Set(h.orm.getMetadata().getAll().values())].filter(
       (meta) => meta.tableName === 'projects' || meta.tableName?.startsWith('project_'),
     );
     expect(metadata.map((meta) => meta.tableName).sort()).toEqual(TABLES);

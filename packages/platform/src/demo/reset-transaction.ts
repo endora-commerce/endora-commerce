@@ -238,6 +238,11 @@ export async function runDemoResetTransaction<T>(
       { isolationLevel: IsolationLevel.REPEATABLE_READ },
     );
   } catch (error) {
+    // The guard tripped: that is the cause, whatever the ORM made of the
+    // rejection on its way out. A statement on a fork reaches the pool through
+    // MikroORM's exception conversion, which keeps the message and drops the
+    // refusal from the cause chain `refusalIn` walks (MikroORM 7, #1866).
+    if (run.violated) throw wroteOutside();
     throw await presentable(error, em, backendPid, bounds);
   } finally {
     run.active = false;

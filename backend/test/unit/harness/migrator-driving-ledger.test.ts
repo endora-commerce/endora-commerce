@@ -37,11 +37,12 @@ const BACKEND_ROOT = join(HERE, '..', '..', '..');
 const TEST_ROOT = join(BACKEND_ROOT, 'test');
 
 /**
- * The migrator handle, in the one shape that reaches the real thing. A test
+ * The migrator handle, in the one shape that reaches the real thing — MikroORM
+ * 7's `orm.migrator` accessor (#1866; 6 spelled it `getMigrator()`). A test
  * that builds a double and passes it through a seam — `migratorFor` in the
  * lifecycle orchestrator — never touches the schema and is not this population.
  */
-const DRIVES_THE_MIGRATOR = /\.getMigrator\(\)/;
+const DRIVES_THE_MIGRATOR = /\.migrator\b/;
 
 /** The seam a ledgered file must be using. */
 const OWN_DATABASE_SEAM = /setupMigratorTestDb\(/;
@@ -93,7 +94,7 @@ describe('migrator-driving tests ledger', () => {
     const unledgered = observed.filter((path) => !ledgered.has(path));
     expect(
       unledgered,
-      'These tests call orm.getMigrator() against a live database. That mutates the schema ' +
+      'These tests call orm.migrator against a live database. That mutates the schema ' +
         'every other file in the invocation shares, and a sequence that dies half-way takes ' +
         'them all with it. Take a database of your own with setupMigratorTestDb() and add an ' +
         'entry to MIGRATOR_DRIVING_TESTS saying what the file drives the migrator for.',
@@ -106,7 +107,7 @@ describe('migrator-driving tests ledger', () => {
     );
     expect(
       stale,
-      'These files are ledgered as driving the migrator but no longer call getMigrator() — ' +
+      'These files are ledgered as driving the migrator but no longer reach orm.migrator — ' +
         'either they were deleted or renamed, or they stopped. Remove the entry, and the ' +
         'database clone it pays for.',
     ).toEqual([]);
