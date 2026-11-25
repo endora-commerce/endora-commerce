@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
+import { QUOTE_VALIDITY_DAYS_MAX } from '@endora-commerce/contracts';
 import type { CustomerAccountRecord } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
 import {
   applyShare,
   customerUnavailability,
+  defaultValidityDaysFromSetting,
   normaliseShareValidityDays,
   operatorQuoteStartsUnshared,
   unpricedLinesRefusal,
@@ -152,5 +154,19 @@ describe('applyShare (research R-4, R-5, R-10)', () => {
     expect(deps.eventService.append.mock.calls[0]![0]).toMatchObject({
       payload: { type: 'shared', validityDays: null, expiresAt: null },
     });
+  });
+});
+
+describe('defaultValidityDaysFromSetting (research R-12)', () => {
+  it('keeps a whole number of days from 0 to the bound', () => {
+    expect(defaultValidityDaysFromSetting(0)).toBe(0);
+    expect(defaultValidityDaysFromSetting(30)).toBe(30);
+    expect(defaultValidityDaysFromSetting(QUOTE_VALIDITY_DAYS_MAX)).toBe(3650);
+  });
+
+  it('answers null — read as 0, no deadline — for anything else', () => {
+    for (const stored of [3651, 1e9, -1, 1.5, Number.NaN, '30', null, undefined]) {
+      expect(defaultValidityDaysFromSetting(stored), String(stored)).toBeNull();
+    }
   });
 });

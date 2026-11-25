@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type CustomerAccountRecord } from '@endora-commerce/contracts';
+import { ERROR_CODES, quoteValidityDaysSchema, type CustomerAccountRecord } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { QuoteRequestEvent } from '../entities/quote-request-event.entity.js';
@@ -44,6 +44,18 @@ export function operatorQuoteStartsUnshared(): boolean {
  */
 export function normaliseShareValidityDays(days: number | null): number | null {
   return days === null || days === 0 ? null : days;
+}
+
+/**
+ * The `quote_requests.default_validity_days` setting as stored, read as days
+ * (research R-12): a whole number from `0` to `QUOTE_VALIDITY_DAYS_MAX`, the
+ * bound `expiresInDays` has. Anything else — a negative, a fraction, a value
+ * past the bound or no number at all — answers `null`, which the reader turns
+ * into `0`, no deadline, rather than a refused create or a `500` at the share.
+ */
+export function defaultValidityDaysFromSetting(stored: unknown): number | null {
+  const parsed = quoteValidityDaysSchema.safeParse(stored);
+  return parsed.success ? parsed.data : null;
 }
 
 /**

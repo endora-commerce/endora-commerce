@@ -845,6 +845,16 @@ export const adminCreateQuoteRequestLineSchema = z.object({
 });
 export type AdminCreateQuoteRequestLine = z.infer<typeof adminCreateQuoteRequestLineSchema>;
 
+/**
+ * `specs/192-quote-request-draft-share/` — the most validity days a quote may
+ * carry, ten years: the typed `expiresInDays` and the
+ * `quote_requests.default_validity_days` setting alike. Without a bound a huge
+ * value made the share's date invalid and the share a `500`.
+ */
+export const QUOTE_VALIDITY_DAYS_MAX = 3650;
+/** Validity days: a whole number from `0` (no deadline) to {@link QUOTE_VALIDITY_DAYS_MAX}. */
+export const quoteValidityDaysSchema = z.number().int().min(0).max(QUOTE_VALIDITY_DAYS_MAX);
+
 export const adminCreateQuoteRequestSchema = z
   .object({
     organizationId: uuidSchema,
@@ -859,7 +869,7 @@ export const adminCreateQuoteRequestSchema = z
      * the share: absent = the `quote_requests.default_validity_days` setting;
      * `null` or `0` = no deadline.
      */
-    expiresInDays: z.number().int().nonnegative().nullable().optional(),
+    expiresInDays: quoteValidityDaysSchema.nullable().optional(),
     /**
      * Feature 163 (FR-018) — the sales channel the operator raises the request on:
      * the channel it is stored on, its lines' names are snapshotted at (in that
@@ -965,7 +975,7 @@ export const adminPatchQuoteRequestSchema = z
      * `N` = N days. Unshared quote: the days are applied at the share. Shared
      * quote: the deadline is now + N days, or none.
      */
-    expiresInDays: z.number().int().nonnegative().nullable().optional(),
+    expiresInDays: quoteValidityDaysSchema.nullable().optional(),
     /** Feature 055 — custom-field values for this quote request (validated on write). */
     customFieldValues: z.record(z.string(), z.unknown()).optional(),
   })

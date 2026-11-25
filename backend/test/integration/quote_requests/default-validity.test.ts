@@ -119,6 +119,47 @@ describe('default validity of an operator quote, counted from the share', () => 
     expect((await draft()).shareValidityDays).toBe(5);
   });
 
+  it('validity days are bounded at 3650: 3651 typed is refused on create and on edit, 3650 shares with a date', async () => {
+    const refusedCreate = await h.app.inject({
+      method: 'POST',
+      url: QR,
+      cookies: ADMIN,
+      payload: {
+        organizationId: TEST_ORGANIZATION_ID,
+        customerAccountId: TEST_CUSTOMER_ID,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1, agreedUnitPrice: 15 }],
+        expiresInDays: 3651,
+      },
+    });
+    expect(refusedCreate.statusCode, refusedCreate.body).toBe(400);
+    expect((refusedCreate.json() as { error: { code: string } }).error.code).toBe('VALIDATION_FAILED');
+
+    const quote = await draft(3650);
+    expect(quote.shareValidityDays).toBe(3650);
+    const detail = await h.app.inject({ method: 'GET', url: `${QR}/${quote.id}`, cookies: ADMIN });
+    const version = (detail.json() as { data: { version: number } }).data.version;
+    const refusedEdit = await h.app.inject({
+      method: 'PATCH',
+      url: `${QR}/${quote.id}`,
+      cookies: ADMIN,
+      headers: { 'if-match': `"${version}"` },
+      payload: { expiresInDays: 3651 },
+    });
+    expect(refusedEdit.statusCode, refusedEdit.body).toBe(400);
+    expect((refusedEdit.json() as { error: { code: string } }).error.code).toBe('VALIDATION_FAILED');
+
+    const shared = await share(quote.id);
+    expect(Date.parse(shared.expiresAt!)).toBeGreaterThanOrEqual(shared.at + 3650 * DAY_MS - 2000);
+  });
+
+  it('a default past 3650 days is read as 0: no days on a new quote, none pre-filled', async () => {
+    await setDefault(3651);
+    expect((await draft()).shareValidityDays).toBeNull();
+    const defaults = await h.app.inject({ method: 'GET', url: `${QR}/create-defaults`, cookies: ADMIN });
+    expect(defaults.statusCode, defaults.body).toBe(200);
+    expect((defaults.json() as { data: { validityDays: number | null } }).data.validityDays).toBeNull();
+  });
+
   it('past the date: accept answers 410 RFQ_EXPIRED; an accepted one converts to 410 QUOTE_VALIDITY_ENDED (FR-034)', async () => {
     const lapse = async (id: string) =>
       h

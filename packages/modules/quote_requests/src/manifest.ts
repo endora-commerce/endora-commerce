@@ -15,7 +15,7 @@ import {
  *   - quote_requests.showAddToQuoteOnPdp  (boolean, default true)
  *   - quote_requests.business_id.prefix   (string, default '')
  *   - quote_requests.business_id.suffix   (string, default '')
- *   - quote_requests.default_validity_days (number, default 0)
+ *   - quote_requests.default_validity_days (number, default 0, 0…3650)
  */
 
 export const QUOTE_REQUESTS_SETTING_CODES = {
@@ -96,7 +96,7 @@ const settings = defineModuleSettingsManifest({
       code: QUOTE_REQUESTS_SETTING_CODES.DEFAULT_VALIDITY_DAYS,
       name: 'Default validity of operator quotes (days)',
       description:
-        'Number of days a quote an operator creates for a customer stays valid, counted from the moment it is shared with the customer. Each new quote takes this value unless the operator changes it for that quote; changing it does not change quotes already created. 0 = no deadline.',
+        'Number of days a quote an operator creates for a customer stays valid, counted from the moment it is shared with the customer. Each new quote takes this value unless the operator changes it for that quote; changing it does not change quotes already created. 0 = no deadline. At most 3650 days; a larger value is read as 0.',
       groupCode: 'quote_requests',
       valueType: 'number',
       defaultValue: 0,

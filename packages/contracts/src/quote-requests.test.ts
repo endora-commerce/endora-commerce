@@ -38,6 +38,7 @@ import {
   setQuoteRequestDocumentTemplateSchema,
   adminCreateQuoteRequestSchema,
   adminPatchQuoteRequestSchema,
+  QUOTE_VALIDITY_DAYS_MAX,
   quoteRequestDeliverySchema,
   type QuoteRequestDelivery,
   adminQuoteRequestCreateDefaultsSchema,
@@ -1029,6 +1030,18 @@ describe('192 — sharing an operator quote with its customer (contracts/admin-a
     expect(parsed).toMatchObject({ sharedWithCustomer: true, sharedAt: AT, sharedByAdminUserId: ID(5), shareValidityDays: 30 });
     expect(quoteRequestSchema.parse({ ...QUOTE, sharedWithCustomer: false, sharedAt: null, sharedByAdminUserId: null, shareValidityDays: null }).sharedWithCustomer).toBe(false);
     expect(quoteRequestSchema.safeParse({ ...QUOTE, shareValidityDays: -1 }).success).toBe(false);
+  });
+
+  it('validity days are bounded at QUOTE_VALIDITY_DAYS_MAX (3650) on the create and the edit', () => {
+    expect(QUOTE_VALIDITY_DAYS_MAX).toBe(3650);
+    for (const days of [0, 3650, null]) {
+      expect(adminCreateQuoteRequestSchema.safeParse({ ...createBase, expiresInDays: days }).success, String(days)).toBe(true);
+      expect(adminPatchQuoteRequestSchema.safeParse({ expiresInDays: days }).success, String(days)).toBe(true);
+    }
+    for (const days of [3651, -1, 1.5, 1e9]) {
+      expect(adminCreateQuoteRequestSchema.safeParse({ ...createBase, expiresInDays: days }).success, String(days)).toBe(false);
+      expect(adminPatchQuoteRequestSchema.safeParse({ expiresInDays: days }).success, String(days)).toBe(false);
+    }
   });
 
   it('a `shared` event and a `shared` history entry', () => {
