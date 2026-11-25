@@ -65,6 +65,9 @@
     "vitest": "^4.1.11"
   },
   "peerDependenciesMeta": {
+    "@mikro-orm/decorators": {
+      "optional": true
+    },
     "vitest": {
       "optional": true
     }
