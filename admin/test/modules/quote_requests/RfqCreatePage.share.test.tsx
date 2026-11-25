@@ -359,6 +359,8 @@ describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', 
         message: "This quote cannot be shared: its customer's account is blocked.",
         lines: [],
       },
+      // The detail says the quote was created as a draft before the refusal.
+      afterCreate: true,
     });
     // One create: a refused share never creates a second quote.
     expect(creates()).toHaveLength(1);
@@ -473,9 +475,13 @@ describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', 
     await answerConfirm(true);
 
     await waitFor(() => expect(navigateSpy).toHaveBeenCalledTimes(1));
-    const [target, options] = navigateSpy.mock.calls[0] as [string, { state: { shareRefusal: { code: string; message: string } } }];
+    const [target, options] = navigateSpy.mock.calls[0] as [
+      string,
+      { state: { shareRefusal: { code: string; message: string }; afterCreate?: boolean } },
+    ];
     expect(target).toBe(`/quote-requests/${NEW_ID}`);
     expect(options.state.shareRefusal.message).toBe(quote('share.error'));
+    expect(options.state.afterCreate).toBe(true);
     expect(creates()).toHaveLength(1);
   });
 

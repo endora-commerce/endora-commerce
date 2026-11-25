@@ -261,6 +261,7 @@
   "share.success": "Shared with the customer.",
   "share.error": "The quote could not be shared. Try again.",
   "share.refusal.linesTitle": "Lines without a price:",
+  "share.refusal.afterCreate": "The quote was created as a draft but not shared.",
   "share.refusal.lineVariant": "{product} — {variant}",
   "share.refusal.lineInGroup": "{line} (in {group})",
   "validity.unshared.field": "Valid for (days from sharing)",

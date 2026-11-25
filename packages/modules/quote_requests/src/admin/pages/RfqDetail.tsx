@@ -54,7 +54,7 @@ import {
   rfqValidity,
   unsharedValidityDaysPayload,
 } from '../validity.js';
-import { shareRefusalNeedsReread, shareRefusalOf, type ShareRefusal } from '../share-refusal.js';
+import { shareRefusalNeedsReread, shareRefusalOf } from '../share-refusal.js';
 import { useRfqNumberFormat } from '../number-format.js';
 import type { ReferenceAmount } from '../reference-difference.js';
 import {
@@ -70,7 +70,7 @@ import {
   type ReferenceView,
 } from '../reference-view.js';
 import { RfqHistory } from './RfqHistory.js';
-import { rfqPageNotice, shareRefusalFromArrival } from './rfq-page-notice.js';
+import { rfqPageNotice, shareRefusalFromArrival, type ShownShareRefusal } from './rfq-page-notice.js';
 import {
   SectionSummary,
   sectionTotals,
@@ -258,7 +258,7 @@ export function RfqDetail(): ReactNode {
    * ones. *Create and share* hands one over through navigation state when the
    * quote was created but its share was refused (FR-020); it is read once.
    */
-  const [shareRefusal, setShareRefusal] = useState<ShareRefusal | null>(() => shareRefusalFromArrival(location.state));
+  const [shareRefusal, setShareRefusal] = useState<ShownShareRefusal | null>(() => shareRefusalFromArrival(location.state));
   useEffect(() => {
     if (shareRefusalFromArrival(location.state) === null) return;
     // Said once: a reload or a way back to this entry does not repeat it.
@@ -1145,10 +1145,12 @@ export function RfqDetail(): ReactNode {
  * and, when lines have no price, which ones (FR-026), so the operator knows
  * what to price under Modify without hunting for it.
  */
-function ShareRefusalText({ refusal }: { refusal: ShareRefusal }): ReactNode {
+function ShareRefusalText({ refusal }: { refusal: ShownShareRefusal }): ReactNode {
   const t = useTranslation('quote_requests');
   return (
     <>
+      {/* Fix round B — *Create and share* did half of what was asked: say the half that happened first. */}
+      {refusal.afterCreate ? <p className="mb-2 font-medium">{t('share.refusal.afterCreate')}</p> : null}
       <p>{refusal.message}</p>
       {refusal.lines.length > 0 ? (
         <>

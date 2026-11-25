@@ -663,7 +663,7 @@ export function RfqCreatePage(): ReactNode {
    */
   const leaveRefused = (id: string, refusal: ShareRefusal): void => {
     const target = `/quote-requests/${id}`;
-    const state: RfqDetailArrival = { shareRefusal: refusal };
+    const state: RfqDetailArrival = { shareRefusal: refusal, afterCreate: true };
     navigate(openedWith.returnTo ? withReturnTo(target, openedWith.returnTo) : target, { state });
   };
 

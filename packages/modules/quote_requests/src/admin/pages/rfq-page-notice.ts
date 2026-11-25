@@ -47,13 +47,27 @@ export function rfqPageNotice(input: RfqPageNoticeInput): RfqPageNotice | null {
  */
 export interface RfqDetailArrival {
   shareRefusal?: ShareRefusal;
+  /**
+   * The refusal came from *Create and share*: the quote was just created, as a
+   * draft, and the screen says so before the refusal — the operator pressed one
+   * button and has to learn that half of it happened.
+   */
+  afterCreate?: boolean;
 }
 
+/** A refusal on screen, with whether it followed the create of the quote. */
+export type ShownShareRefusal = ShareRefusal & { afterCreate?: boolean };
+
 /** The refusal carried by `location.state`, or `null` when the state holds none. */
-export function shareRefusalFromArrival(state: unknown): ShareRefusal | null {
+export function shareRefusalFromArrival(state: unknown): ShownShareRefusal | null {
   if (typeof state !== 'object' || state === null) return null;
-  const refusal = (state as RfqDetailArrival).shareRefusal;
+  const { shareRefusal: refusal, afterCreate } = state as RfqDetailArrival;
   if (typeof refusal !== 'object' || refusal === null) return null;
   if (typeof refusal.code !== 'string' || typeof refusal.message !== 'string') return null;
-  return { code: refusal.code, message: refusal.message, lines: Array.isArray(refusal.lines) ? refusal.lines : [] };
+  return {
+    code: refusal.code,
+    message: refusal.message,
+    lines: Array.isArray(refusal.lines) ? refusal.lines : [],
+    ...(afterCreate === true ? { afterCreate: true } : {}),
+  };
 }

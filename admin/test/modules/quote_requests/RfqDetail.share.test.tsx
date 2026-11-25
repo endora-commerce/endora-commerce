@@ -383,6 +383,40 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
 
     await shareButton();
     expect(pageAlert()).toHaveTextContent("its customer's account is blocked");
+    // Not flagged as following a create: no lead line.
+    expect(pageAlert()).not.toHaveTextContent(quote('share.refusal.afterCreate'));
+  });
+
+  it('says first that the quote was created as a draft when *Create and share* was refused', async () => {
+    serve(rfqPayload());
+    renderDetail(undefined, {
+      shareRefusal: { code: 'RFQ_SHARE_CUSTOMER_UNAVAILABLE', message: "This quote cannot be shared: its customer's account is blocked.", lines: [] },
+      afterCreate: true,
+    });
+
+    await shareButton();
+    const paragraphs = Array.from(pageAlert().querySelectorAll('p')).map((p) => p.textContent);
+    expect(paragraphs.slice(0, 2)).toEqual([
+      quote('share.refusal.afterCreate'),
+      "This quote cannot be shared: its customer's account is blocked.",
+    ]);
+  });
+
+  it('a share refused on the detail itself has no "created as a draft" lead line', async () => {
+    const user = userEvent.setup();
+    serve(rfqPayload());
+    renderDetail(undefined, {
+      shareRefusal: { code: 'RFQ_SHARE_CUSTOMER_UNAVAILABLE', message: 'Blocked earlier.', lines: [] },
+      afterCreate: true,
+    });
+    await shareButton();
+    postSpy.mockRejectedValue(refusal(409, 'APPROVAL_PENDING', 'A manager has to approve this discount first.'));
+
+    await user.click(await shareButton());
+    await answerConfirm(true);
+
+    await waitFor(() => expect(pageAlert()).toHaveTextContent('A manager has to approve this discount first.'));
+    expect(pageAlert()).not.toHaveTextContent(quote('share.refusal.afterCreate'));
   });
 });
 
