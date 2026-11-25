@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import type { MergeDeclarationWithModule, MergePopulationEntity } from '@endora-commerce/contracts';
+import { isHostReferenceProperty, type MergeDeclarationWithModule, type MergePopulationEntity } from '@endora-commerce/contracts';
 import {
   checkMergeParticipation,
   declarationsFrom,
@@ -173,6 +173,12 @@ describe('the pending ledger', () => {
     const keys = MERGE_PARTICIPATION_PENDING.map((entry) => `${entry.moduleId}:${entry.entity}.${entry.property}`);
     expect(new Set(keys).size).toBe(keys.length);
     for (const entry of MERGE_PARTICIPATION_PENDING) expect(entry.removedBy).toMatch(/^T\d{3}$/);
+  });
+
+  it('holds no Organization reference: every Organization participant is delivered, so a start is accepted (T073)', () => {
+    expect(
+      MERGE_PARTICIPATION_PENDING.filter((entry) => isHostReferenceProperty('organization', entry.moduleId, entry.property)),
+    ).toEqual([]);
   });
 });
 

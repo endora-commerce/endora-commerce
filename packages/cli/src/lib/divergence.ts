@@ -137,6 +137,18 @@ export const SEAM_CLASSIFICATION: Readonly<Record<string, SeamClassification>> =
     verdict: 'own-surface',
     why: "the module's own boot hook, run inside its own system scope; it contributes nothing another module resolves",
   },
+  // `specs/192-organization-merge/` — a record-merge host or participant is a
+  // module moving its **own** records: the registry refuses a participation
+  // that declares another module's entity (`foreign-declaration`), and a host
+  // is the module that owns the record type.
+  'merge.host': {
+    verdict: 'own-surface',
+    why: "the module's own record type made mergeable; the runner calls it for that record type only",
+  },
+  'merge.participate': {
+    verdict: 'own-surface',
+    why: "the module's own records following a merge, declared in its own manifest; a participation naming another module's entity is refused at composition",
+  },
 
   module: { verdict: 'not-a-seam', why: 'the module identity the context was built for' },
   asClass: { verdict: 'not-a-seam', why: 'a registration builder — it constructs a registration, it does not register one' },

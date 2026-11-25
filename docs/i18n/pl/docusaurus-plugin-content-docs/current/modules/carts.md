@@ -592,3 +592,11 @@ Zasady przechowywania:
 - **Wspólna tabela `audit_log_entries` podlega zasadom przechowywania modułu audit_logs** (ustalanym
   poza tą funkcją). Kopie wpisów po stronie koszyków w `cart_audit_entries` pozostają źródłem prawdy
   dla ekranów koszyków, nawet gdy wpisy we wspólnej tabeli zostaną już usunięte.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Otwarte koszyki przechodzą wraz z kupującymi do organizacji, która zostaje, i przy następnym
+odczycie są przeliczane w jej kontekście; pozycja, która traci cenę, zostaje w koszyku oznaczona
+jako bez ceny. Koszyk *Kupuję dla* duplikatu kupuje odtąd dla organizacji, która zostaje, a
+ustawienie jest czyszczone, gdy jest to organizacja samego koszyka. Zobacz *Scalanie
+zduplikowanych organizacji* w dokumentacji modułu Organizacje.

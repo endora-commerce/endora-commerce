@@ -318,3 +318,9 @@ is withdrawn; invoice templates are managed through
 `/api/v1/admin/document-templates`. Invoicing cannot be switched on without
 Document templates, and Document templates cannot be switched off while
 invoicing is on.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+The duplicate's invoices move to the organization that stays. The issued document, with the
+buyer's name, tax ID and address as printed, does not change. See *Merging duplicate
+organizations* in the Organizations documentation.

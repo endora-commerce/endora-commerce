@@ -20,3 +20,11 @@ Vendor adapter modules own the HTTP to their vendor. This module calls no vendor
 ## Engineers
 
 Schema lives here. A vendor adapter ships no migration of its own. Invoice ids on maps and deliveries are UUIDs with no foreign key to the invoices module.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+The organization that stays keeps its own client mapping in the accounting system for each
+adapter and credential; a mapping only the duplicate had is adopted, and one that conflicts
+stays with the duplicate and is listed in the merge preview. Document mappings move to the
+organization that stays; the delivery history stays as it was recorded. See *Merging duplicate
+organizations* in the Organizations documentation.

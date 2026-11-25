@@ -1,19 +1,28 @@
 import { randomUUID } from 'node:crypto';
+import { asValue, type AwilixContainer } from 'awilix';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS,
   CUSTOMER_ACCOUNT_ORGANIZATION_CHANGED_EVENT,
+  defineModuleErrorCodes,
   type MembershipPort,
   type OrganizationRoleReadPort,
 } from '@endora-commerce/contracts';
-import type { Command, CommandBus } from '@endora-commerce/platform/commands';
-import type { RecordMergeService } from '@endora-commerce/platform/kernel';
+import { CommandBus, CommandHookRefusal, type Command } from '@endora-commerce/platform/commands';
+import type { AuditPort, RecordMergeService } from '@endora-commerce/platform/kernel';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
+import { sealedCommandHookRegistry } from '@endora-commerce/test-kit/command-hooks';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import {
   expectOrganizationParticipantConforms,
   insertOrganizationPair,
 } from '../../helpers/organization-merge-conformance.js';
 import { CustomerAccountMergeParticipant } from '../../../../packages/modules/customer_accounts/src/backend/merge/organization-merge-participant.js';
+import { manifest as customerAccountsManifest } from '../../../../packages/modules/customer_accounts/src/manifest.js';
+
+/** The hook module of the veto case, as a deployment's overlay would register it. */
+const VETO_MODULE = 'merge_veto_fixture';
+const VETO = defineModuleErrorCodes(['MERGE_VETO_FIXTURE_REFUSED']);
 
 /**
  * `specs/192-organization-merge/` T068 – T070 — the `customer_accounts`
@@ -164,6 +173,125 @@ describe('Organization merge — the customer_accounts participant', () => {
       ),
     ).rejects.toMatchObject({ statusCode: 409, code: 'ORG_OWNER_DEPLETION' });
   });
+
+  /**
+   * `contracts/membership-merge-mode.md` §4 — a hook module that refuses one
+   * member's move. The hook is registered and sealed in a command-hook
+   * registry with `customer_accounts`' own hookable-action declaration, on a
+   * Command Bus over the same ORM, audit log and event bus; for the length of
+   * the test the composition's `commandBus` hands that bus the membership
+   * Command (and only it), so the composed participant, driven by the
+   * platform's runner, meets a real `beforeCommit` veto.
+   */
+  it('a registered beforeCommit veto rolls back that account only; the step retries, stops in needs_attention, and resumes (§4)', async () => {
+    const ids = await insertOrganizationPair(h);
+    const loserRoles = await roles(ids.loserId);
+    const survivorRoles = await roles(ids.survivorId);
+    // The step takes the loser's members in id order: the first moves, the second is vetoed, the third waits.
+    const members = [
+      await account(ids.loserId, loserRoles.administrator),
+      await account(ids.loserId, loserRoles.member),
+      await account(ids.loserId, loserRoles.member),
+    ].sort();
+    const [first, vetoed, third] = members as [string, string, string];
+    await account(ids.survivorId, survivorRoles.administrator);
+
+    let veto = true;
+    const seen: Array<{ objectId: string; mode: string; mergeId: string | null }> = [];
+    const hooks = sealedCommandHookRegistry({
+      hookableActions: (customerAccountsManifest.hookableActions ?? []).map((declaration) => ({
+        moduleId: 'customer_accounts',
+        ...declaration,
+      })),
+      moduleDependencies: { [VETO_MODULE]: ['customer_accounts'] },
+      hooks: [
+        {
+          moduleId: VETO_MODULE,
+          entries: [
+            {
+              id: 'refuse-one-member',
+              on: CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS.changeOrganization,
+              phase: 'beforeCommit',
+              handler: async (ctx) => {
+                seen.push({ objectId: ctx.objectId, mode: ctx.data.mode, mergeId: ctx.data.mergeId });
+                if (veto && ctx.objectId === vetoed) {
+                  throw new CommandHookRefusal(409, VETO.MERGE_VETO_FIXTURE_REFUSED, 'This member may not follow the merge.');
+                }
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const container = h.container as unknown as AwilixContainer<{ commandBus: CommandBus; auditLogService: AuditPort }>;
+    const composed = container.cradle.commandBus;
+    const hooked = new CommandBus(h.orm, container.cradle.auditLogService, h.eventBus, { hooks });
+    const routed: Pick<CommandBus, 'run'> = {
+      run: (command) => (command.action === CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS.changeOrganization.action ? hooked : composed).run(command),
+    };
+    const original = container.registrations['commandBus']!;
+    container.register({ commandBus: asValue(routed) });
+    const cookies = { b2b_session: 'stub-admin-session' };
+    try {
+      const start = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/organizations/${ids.survivorId}/merges`,
+        cookies,
+        payload: { loserId: ids.loserId, acknowledgeIrreversible: true },
+      });
+      expect(start.statusCode, start.body).toBe(202);
+      const mergeId: string = start.json().data.id;
+
+      // Every batch meets the veto; the runner retries with backoff and then stops the merge.
+      await h.recordMergeRuntime.run(mergeId);
+      const stopped = await cradle().recordMergeService.get(mergeId);
+      expect(stopped?.state).toBe('needs_attention');
+      expect(stopped?.steps.find((step) => step.moduleId === 'customer_accounts')).toMatchObject({
+        state: 'failed',
+        lastErrorCode: VETO.MERGE_VETO_FIXTURE_REFUSED,
+      });
+      expect(seen.filter((call) => call.objectId === vetoed).length).toBeGreaterThan(1);
+      expect(seen.every((call) => call.mode === 'merge' && call.mergeId === mergeId)).toBe(true);
+
+      // The vetoed account only rolled back: the one before it committed, the one after it was never tried.
+      const where = async () =>
+        new Map(
+          (
+            await sql<Array<{ id: string; organization_id: string }>>(
+              `select "id","organization_id" from "customer_accounts" where "id" = any(?::uuid[])`,
+              [`{${members.join(',')}}`],
+            )
+          ).map((row) => [row.id, row.organization_id]),
+        );
+      expect(await where()).toEqual(
+        new Map([
+          [first, ids.survivorId],
+          [vetoed, ids.loserId],
+          [third, ids.loserId],
+        ]),
+      );
+      const audited = await sql<Array<{ object_id: string }>>(
+        `select "object_id" from "audit_log_entries" where "action" = 'customer_account.organization.change' and "state_after" ->> 'mergeId' = ?`,
+        [mergeId],
+      );
+      expect(audited.map((row) => row.object_id)).toEqual([first]);
+
+      // The hook stops objecting; a resume finishes the step and the merge.
+      veto = false;
+      const resume = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/organization-merges/${mergeId}/resume`,
+        cookies,
+        payload: { expectedVersion: stopped!.version },
+      });
+      expect(resume.statusCode, resume.body).toBe(200);
+      await h.recordMergeRuntime.run(mergeId);
+      expect((await cradle().recordMergeService.get(mergeId))?.state).toBe('completed');
+      expect([...(await where()).values()]).toEqual([ids.survivorId, ids.survivorId, ids.survivorId]);
+    } finally {
+      container.register({ commandBus: original });
+    }
+  }, 120_000);
 
   /**
    * A running merge between the pair, recorded through the platform's own

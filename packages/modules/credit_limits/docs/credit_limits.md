@@ -119,3 +119,10 @@ amounts they were written with.
   `'invoice_paid'`, `'order_cancelled'` and `'admin_revocation'` today. New reasons (e.g.
   `'manual_override'`) are added by extending the enum and wiring the
   caller.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+The organization that stays keeps its own credit limit; if it has none, it takes the
+duplicate's. Open reservations and return top-ups move to its exposure, which may take it over
+its limit: the merge preview warns about that, and the merge is not refused for it. See *Merging
+duplicate organizations* in the Organizations documentation.

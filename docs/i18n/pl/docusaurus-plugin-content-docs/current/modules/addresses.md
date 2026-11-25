@@ -69,3 +69,10 @@ poziomie bazy danych regułę „najwyżej jeden adres domyślny każdego rodzaj
   do walidatora właściwego dla kraju; przy wejściu na nowe rynki dodawaj walidatory właśnie tutaj.
 - **Kopia adresu w zamówieniu** — zamówienia zapisują obiekt wartości `AddressSnapshot`, aby
   późniejsze zmiany adresu źródłowego nie zmieniały zamówień historycznych.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Adresy duplikatu przechodzą do organizacji, która zostaje. Zachowuje ona własne domyślne adresy
+dostawy i rozliczeniowy: przeniesiony adres, który był domyślnym adresem duplikatu, przestaje
+być domyślny, jeśli organizacja, która zostaje, ma już domyślny adres tego rodzaju. Zobacz
+*Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

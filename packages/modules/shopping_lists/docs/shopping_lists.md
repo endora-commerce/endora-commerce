@@ -138,3 +138,9 @@ surfaces them in the skip report instead.
 - **Convert-to-quote-only-mode** — the converter already returns an RFQ
   id; the storefront can deep-link the buyer into the draft to add a
   requester note before submission.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Shopping lists move to the organization that stays. A moved default list stops being the default
+when its owner already has one there. See *Merging duplicate organizations* in the Organizations
+documentation.

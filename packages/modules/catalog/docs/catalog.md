@@ -816,3 +816,10 @@ The admin's global search (the command palette, ⌘K / Ctrl+K) finds products an
 | Category: URL key (slug) | yes |
 
 Names match in every language and are shown in the admin's language. Inactive and archived products are found and show their status; deleted products and categories are not. A category result opens the category tree with that category highlighted. Both appear for a role holding `catalog:read`.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Products and channel settings visible only to selected organizations list the organization that
+stays in place of the duplicate, without listing it twice, so its members see what the
+duplicate's members saw. The affected products are reindexed for search. See *Merging duplicate
+organizations* in the Organizations documentation.

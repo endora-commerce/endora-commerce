@@ -759,3 +759,10 @@ Wyszukiwanie globalne w panelu administracyjnym (paleta poleceń, ⌘K / Ctrl+K)
 | Kategoria: Klucz URL (slug) | tak |
 
 Nazwy są dopasowywane we wszystkich językach i wyświetlane w języku administratora. Produkty nieaktywne i zarchiwizowane są znajdowane i pokazują swój status; usunięte produkty i kategorie nie są znajdowane. Wynik kategorii otwiera drzewo kategorii z wyróżnioną tą kategorią. Oba typy pojawiają się dla roli z uprawnieniem `catalog:read`.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Produkty i ustawienia kanałów widoczne tylko dla wybranych organizacji wymieniają organizację,
+która zostaje, w miejsce duplikatu, bez powtórzeń, więc jej członkowie widzą to, co widzieli
+członkowie duplikatu. Produkty, których to dotyczy, są ponownie indeksowane w wyszukiwarce.
+Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

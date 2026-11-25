@@ -1804,3 +1804,9 @@ The admin's global search (the command palette, ⌘K / Ctrl+K) finds quote reque
 | Customer's note | no |
 
 A result shows the number, the organization, the date submitted and the status, and opens the quote request. Quote requests appear for a role holding `rfqs:handle`, with the same organization visibility as the Quote Requests list.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Quote requests and their notifications move to the organization that stays. It keeps its own
+quote request policy; if it has none, it takes the duplicate's. See *Merging duplicate
+organizations* in the Organizations documentation.

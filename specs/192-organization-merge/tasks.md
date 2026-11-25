@@ -119,9 +119,11 @@ entries. The disposition is in `contracts/participant-dispositions.md` §A.
 participant's rows are only meaningful over the real schema (unions and sums ride on its unique
 indexes, re-points on its foreign keys), so each conformance test is
 `backend/test/integration/<m>/organization-merge-participant.test.ts`, driving the participant the
-composition registered through `backend/test/helpers/organization-merge-participants.ts` (merge
-scope, event count, audit read-back, and a row trigger narrowed to the loser as the injected
-failure). The participant lives in `src/backend/merge/organization-merge-participant.ts`. Modules
+composition registered through `expectComposedOrganizationParticipant` in
+`backend/test/helpers/organization-merge-conformance.ts` (merge scope, event count, audit read-back
+by merge id, and a row trigger narrowed to the loser as the injected failure; the MR-D / MR-E tests
+use the same file's `expectOrganizationParticipantConforms`, which injects the failure through a
+wrapped Command Bus). The participant lives in `src/backend/merge/organization-merge-participant.ts`. Modules
 whose rows sit in two phases declare two participations: `credit_limits` (`credit-limit`,
 `credit-exposure`) and `invoice_ledger` (`client-maps`, `document-maps`).
 
@@ -163,8 +165,8 @@ Each step is built **now**. The port method that publishes the same Command wait
 - [x] T069 (#1907, ahead of #1831; the port is published in part, 191 `membership-port.md` §8) Implement the mode (types in `packages/contracts/src/customer-accounts.membership.ts`, Command branch, scope check, event `mode: 'merge'`). Amend `specs/191-membership-join-requests/contracts/membership-port.md` with a pointer to this amendment
 - [x] T070 (#1907, ahead of #1831) `customer_accounts` participant (members phase, batch of 50 accounts, role from `host_context.roleMap`), conformance test, declaration, ledger entry removed
 - [ ] T071 (#1907: #1832 is not on `master` — no `OrganizationJoinRequest` entity, so nothing to declare or ledger yet) If #1832 (191 WP-2) is on `master`: `organizations` declares `OrganizationJoinRequest` target and placement references (R, pending only), with a test. Otherwise add it to the pending ledger in the #1832 MR
-- [ ] T072 [US1] Integration `backend/test/integration/organizations/organization-merge.e2e.test.ts`: seed every participant, merge, SC-001 zero-reference query over the derived columns, SC-003 fault injection plus resume, SC-004 merge id on every entry, and US4 deferred catch-up with `crm` switched off and then on
-- [ ] T073 Assert that the pending ledger's Organization section is empty (the check fails otherwise). Start is now enabled on a full stack
+- [x] T072 [US1] Integration `backend/test/integration/organizations/organization-merge.e2e.test.ts`: seed every participant, merge, SC-001 zero-reference query over the derived columns, SC-003 fault injection plus resume, SC-004 merge id on every entry, and US4 deferred catch-up with `crm` switched off and then on. **As implemented:** the columns come from the composed registry's declarations and the ORM's metadata, and the test fails when a moving column has no seeded loser row (so a new participation must extend the seed). Two merges of the same seed — one uninterrupted, one with a row trigger failing the `orders` step and `crm` off throughout — are compared for SC-003; SC-001 holds two exceptions the inventory makes (§A: the loser's role definitions, a revoked related-payer self-link). The `beforeCommit` veto of the members step (`membership-merge-mode.md` §4) is in `backend/test/integration/customer_accounts/organization-merge-participant.test.ts`
+- [x] T073 Assert that the pending ledger's Organization section is empty (the check fails otherwise). Start is now enabled on a full stack. **As implemented:** the ledger has no per-host sections, so `backend/test/unit/scripts/check-merge-participation.test.ts` asserts that no entry is an Organization reference by the population rule; the accepted start is asserted over the routes by `organization-merge.test.ts` and the e2e
 
 ## Phase 7: Admin flow and docs, MR-F (parallel with Phases 4 – 6 once MR-B is in)
 

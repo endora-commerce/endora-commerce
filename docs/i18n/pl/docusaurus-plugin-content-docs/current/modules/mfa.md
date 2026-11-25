@@ -118,3 +118,9 @@ w ten sam sposób.
   organizacji — jest odrzucane z `409 MFA_ENFORCEMENT_UNAVAILABLE`; wyłączenie jest zawsze
   przyjmowane. Ustawienie włączone przy braku klucza pokazuje *Nie obowiązuje: brak klucza
   szyfrowania*, a każde uruchomienie zapisuje to w logu na poziomie błędu.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Wygrywa surowsza zasada: jeśli duplikat wymagał drugiego składnika, a organizacja, która
+zostaje, nie, organizacja, która zostaje, wymaga go od tej chwili. Zobacz *Scalanie
+zduplikowanych organizacji* w dokumentacji modułu Organizacje.

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
-import { expectComposedOrganizationParticipant, mergeSql, seedRows } from '../../helpers/organization-merge-participants.js';
+import { expectComposedOrganizationParticipant, mergeSql, seedRows } from '../../helpers/organization-merge-conformance.js';
 
 /**
  * `specs/192-organization-merge/` T043 — the `carts` participant: carts of the

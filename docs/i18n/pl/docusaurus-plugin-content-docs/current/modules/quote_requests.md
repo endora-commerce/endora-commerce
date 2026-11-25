@@ -1673,3 +1673,9 @@ Wyszukiwanie globalne w panelu administracyjnym (paleta poleceń, ⌘K / Ctrl+K)
 | Uwagi klienta | nie |
 
 Wynik pokazuje numer, organizację, datę złożenia i status, a jego wybranie otwiera zapytanie ofertowe. Zapytania ofertowe pojawiają się dla roli z uprawnieniem `rfqs:handle`, z taką samą widocznością organizacji jak na liście zapytań ofertowych.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Zapytania ofertowe i ich powiadomienia przechodzą do organizacji, która zostaje. Zachowuje ona
+własne zasady zapytań ofertowych; jeśli ich nie ma, przejmuje zasady duplikatu. Zobacz *Scalanie
+zduplikowanych organizacji* w dokumentacji modułu Organizacje.

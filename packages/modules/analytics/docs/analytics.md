@@ -101,3 +101,9 @@ module's presence first and counts in `UTC` while Analytics is switched off.
 - **Pre-aggregated rollups** — the dashboard query is fine at hundreds of
   thousands of events; for sustained million-event volumes, materialise a
   daily rollup table here and have the indexer fold inserts into it.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Events recorded for the duplicate are re-pointed to the organization that stays, so reports show
+both histories as one customer. This step may finish shortly after the merge itself has
+completed. See *Merging duplicate organizations* in the Organizations documentation.

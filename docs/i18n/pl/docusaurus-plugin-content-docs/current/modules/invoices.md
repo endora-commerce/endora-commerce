@@ -288,3 +288,9 @@ Dawne API administracji szablonami faktur (`/api/v1/admin/invoice-templates*`) z
 szablonami faktur zarządza się przez `/api/v1/admin/document-templates`. Fakturowania nie można
 włączyć bez Szablonów dokumentów, a Szablonów dokumentów nie można wyłączyć, dopóki fakturowanie jest
 włączone.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Faktury duplikatu przechodzą do organizacji, która zostaje. Wystawiony dokument, z nazwą
+nabywcy, NIP-em i adresem w wydrukowanej postaci, nie zmienia się. Zobacz *Scalanie
+zduplikowanych organizacji* w dokumentacji modułu Organizacje.

@@ -339,3 +339,9 @@ Migration `20260629T200954_newsletter_init.ts` creates `newsletter_subscribers`,
 `newsletter_automation_runs`. The sender, the send rate and the opt-in mode
 live in the **Settings** module, and the SMTP connection in the **Credentials**
 module (no bespoke credential table).
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Subscribers linked to the duplicate are linked to the organization that stays; their
+subscription status does not change. See *Merging duplicate organizations* in the Organizations
+documentation.

@@ -118,3 +118,9 @@ requirement the same way.
   `409 MFA_ENFORCEMENT_UNAVAILABLE`; turning one off is always accepted. A setting that is on
   while the key is missing shows *Not in force: no encryption key*, and every boot logs it at
   error level.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+The stricter policy wins: if the duplicate required a second factor and the organization that
+stays did not, the organization that stays requires it from then on. See *Merging duplicate
+organizations* in the Organizations documentation.

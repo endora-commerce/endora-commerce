@@ -215,3 +215,11 @@ then expire.
 `credit_limits` absent — no credit-limit payment method is offered for a payer.
 `customer_notifications` and `admin_notifications` absent — no notification-centre or bell
 entries; e-mails still go out and the queue still lists every entry.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Payer links and requests move to the organization that stays. A link between the two merged
+organizations would make it its own payer, so it is revoked, and a pending request between them
+is closed with a merge reason. Where both had a link to the same payer, the link of the
+organization that stays is kept and the other is revoked. See *Merging duplicate organizations*
+in the Organizations documentation.

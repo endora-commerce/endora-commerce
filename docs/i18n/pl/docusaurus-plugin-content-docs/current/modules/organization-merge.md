@@ -102,3 +102,33 @@ Po zakończeniu scalania powiadomienie otrzymuje administrator, który je rozpoc
   nigdy ich wartości.
 - Integracje otrzymują jedno zdarzenie i webhook `organization.merged.v1`. Żądanie, które nadal
   wskazuje identyfikator duplikatu, jest odrzucane z identyfikatorem organizacji, która została.
+
+## Co dzieje się z rekordami poszczególnych obszarów {#what-happens-to-each-area}
+
+Każdy obszar przenosi własne rekordy, we własnej fazie. Więcej mówi sekcja *Po scaleniu
+organizacji* na stronie dokumentacji danego obszaru.
+
+| Obszar | Rekordy duplikatu |
+| --- | --- |
+| Organizacje | Organizacje podrzędne przechodzą pod organizację, która zostaje; oczekujące zaproszenia, przedstawiciele handlowi i kanały sprzedaży przechodzą za nimi; role są dopasowywane po nazwie lub kopiowane. Ustawienia płatności, dostaw i magazynów organizacji, która zostaje, pozostają bez zmian. |
+| Konta klientów | Każdy członek przechodzi z rolą dopasowaną po nazwie i pozostaje zalogowany. |
+| Adresy | Przechodzą; domyślne adresy organizacji, która zostaje, pozostają. |
+| Zamówienia | Przechodzą, jako nabywca i jako płatnik, wraz z odwołaniami zewnętrznymi. Trwające składanie zamówienia lub płatność bramką blokuje rozpoczęcie. |
+| Zapytania ofertowe | Przechodzą; wygrywają zasady zapytań organizacji, która zostaje. |
+| Faktury | Przechodzą; wystawione dokumenty się nie zmieniają. |
+| Rejestr faktur | Wygrywają mapowania klienta organizacji, która zostaje, brakujące są przejmowane; mapowania dokumentów przechodzą; historia wysyłek pozostaje. |
+| Limity kredytowe | Wygrywa limit organizacji, która zostaje; rezerwacje i zasilenia przechodzą i mogą go przekroczyć. |
+| Powiązani płatnicy | Powiązania i wnioski przechodzą; powiązanie między tymi dwiema jest odwoływane. |
+| Cenniki | Odbiorcy są łączeni; wygrywa ustawienie wyświetlania cen organizacji, która zostaje. |
+| Promocje | Przechodzą; liczniki wykorzystania na organizację są sumowane. |
+| Katalog | Listy widoczności produktów wskazują w zamian organizację, która zostaje. |
+| Koszyki | Przechodzą i są przeliczane przy następnym odczycie. |
+| Zwroty | Zwroty, reklamacje, załączniki i oświadczenia o odstąpieniu przechodzą. |
+| CRM | Szanse sprzedaży przechodzą. |
+| Projekty | Udziały w projektach są łączone; powiązania przechodzą. |
+| Listy zakupowe, porównania, formularze, newsletter, powiadomienia, prośby o dostępność, push | Przechodzą. |
+| Szybkie zamówienie | Wygrywają ustawienia domyślne organizacji, która zostaje. |
+| Uwierzytelnianie dwuskładnikowe | Wygrywa surowsza zasada. |
+| Klucze API, webhooki | Klucze i webhooki powiązane z duplikatem zostają powiązane z organizacją, która zostaje. |
+| Analityka | Zdarzenia są przepinane, czasem chwilę po zakończeniu scalania. |
+| Administratorzy, dziennik audytu | Powody personifikacji i wpisy dziennika audytu pozostają takie, jak zostały zapisane. |

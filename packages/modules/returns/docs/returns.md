@@ -869,3 +869,9 @@ guest session that uploaded a file and `uploaded_by_guest`. It creates
 `return_guest_verifications`, one row per link requested, which becomes the guest
 session once redeemed and holds only a hash of the session token. Rolling it back is
 refused while a guest case exists.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Returns and complaints of the duplicate, with their attachments and withdrawal statements, move
+to the organization that stays. See *Merging duplicate organizations* in the Organizations
+documentation.

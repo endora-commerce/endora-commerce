@@ -208,3 +208,9 @@ coupon/counters lookup. At the platform's target scale this is sufficient; a
 Redis per-channel candidate cache (invalidated via the module-lifecycle
 pub/sub channel) is the documented next optimization if profiling shows the
 per-request load becomes hot — deliberately deferred under YAGNI until then.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Promotions limited to the duplicate and their usage move to the organization that stays.
+Per-organization usage counts are added together, so a merge cannot reset a usage limit. See
+*Merging duplicate organizations* in the Organizations documentation.

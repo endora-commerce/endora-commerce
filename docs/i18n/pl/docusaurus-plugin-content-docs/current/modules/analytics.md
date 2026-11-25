@@ -96,3 +96,9 @@ sprawdza obecność tego modułu i liczy w `UTC`, gdy Analityka jest wyłączona
 - **Wstępnie przeliczone zestawienia** — zapytanie pulpitu wystarcza przy setkach tysięcy zdarzeń;
   przy stałych wolumenach rzędu milionów utwórz tu dzienną tabelę zestawień i zapisuj do niej przy
   indeksowaniu.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Zdarzenia zapisane dla duplikatu są przepinane na organizację, która zostaje, więc raporty
+pokazują obie historie jako jednego klienta. Ten krok może się zakończyć chwilę po zakończeniu
+samego scalania. Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

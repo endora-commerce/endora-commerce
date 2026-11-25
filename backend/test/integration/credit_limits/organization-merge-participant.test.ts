@@ -4,10 +4,10 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import {
   composedOrganizationParticipant,
   expectComposedOrganizationParticipant,
-  mergeOrganization,
+  insertCompanyOrganization,
   mergeSql,
   seedRows,
-} from '../../helpers/organization-merge-participants.js';
+} from '../../helpers/organization-merge-conformance.js';
 
 /**
  * `specs/192-organization-merge/` T046 — the `credit_limits` participants
@@ -62,8 +62,8 @@ describe('credit_limits — Organization merge participants', () => {
   });
 
   it('keeps the survivor’s limit and leaves the loser’s on the archived loser', async () => {
-    const survivorId = await mergeOrganization(h, 'Survivor');
-    const loserId = await mergeOrganization(h, 'Loser');
+    const survivorId = await insertCompanyOrganization(h, 'Survivor');
+    const loserId = await insertCompanyOrganization(h, 'Loser');
     const [survivorLimit, loserLimit] = [randomUUID(), randomUUID()];
     await seedRows(h, [limit(survivorLimit, survivorId, 100), limit(loserLimit, loserId, 500)]);
     const participant = composedOrganizationParticipant(h, 'credit_limits', 'credit-limit');

@@ -225,3 +225,12 @@ the platform moves off it, and will be removed.
   superseded scaffolding this bullet used to point at
   (`totp-enrolment-service.ts`) was deleted on 2026-08-25 — it could never
   complete a single enrolment.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Every member of the duplicate, removed and blocked accounts included, moves to the organization
+that stays, one audited membership change per account (`customer_account.organization.change` in
+the mode `merge`). Roles are matched by name, and a custom role the organization that stays
+lacks is copied first. Members stay signed in and act for the organization that stays from their
+next request. Two accounts of one person stay two accounts. See *Merging duplicate
+organizations* in the Organizations documentation.

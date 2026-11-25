@@ -303,3 +303,8 @@ through the AssetByteFetcher.
 The comparisons module has zero compile-time dependencies on the
 `carts` module. Removing the comparisons module leaves catalog,
 settings, sales_channels, and carts working — no dangling references.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Comparisons saved by the duplicate's buyers move to the organization that stays. See *Merging
+duplicate organizations* in the Organizations documentation.

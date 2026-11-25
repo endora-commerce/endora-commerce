@@ -179,3 +179,9 @@ per subscription naming that type, a thousand deliveries.
 - **Subscription scope policy** — `webhook-service.ts` accepts any
   deliverable event type; layer authorization (e.g. only certain integrations
   may subscribe to one module's events) by injecting a policy callback.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Webhooks bound to the duplicate move to the organization that stays before the merge completes,
+so they receive its `organization.merged.v1` event. See *Merging duplicate organizations* in the
+Organizations documentation.

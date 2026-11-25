@@ -76,6 +76,7 @@ text above:
   `customer_accounts/src/backend/commands/customer-account-change-organization.merge.test.ts`; the
   batch, the conformance helper and the refusal through the port are
   `backend/test/integration/customer_accounts/organization-merge-participant.test.ts`. The
-  `beforeCommit` veto case is covered only by the injected-failure rollback of the conformance
-  helper, not by a registered hook.
+  `beforeCommit` veto case is there too, with a registered hook: the vetoed account rolls back
+  alone (the one before it stays moved, the one after it is not tried), the runner retries the
+  step and stops the merge in `needs_attention` with the hook's code, and a resume completes it.
 

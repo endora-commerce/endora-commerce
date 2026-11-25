@@ -396,3 +396,10 @@ instance that used it:
 
 What the migrations did, and which API calls replaced the removed ones, is in
 [Pricing for developers](./price_lists/developer-guide.md#upgrading-from-the-old-model-migration-note).
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Price lists whose audience includes the duplicate include the organization that stays instead,
+once. It keeps its own price display setting; one only the duplicate had is adopted. Cached
+prices of both organizations are refreshed. See *Merging duplicate organizations* in the
+Organizations documentation.

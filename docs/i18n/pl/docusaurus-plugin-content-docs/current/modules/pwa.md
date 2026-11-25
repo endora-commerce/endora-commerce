@@ -176,3 +176,8 @@ techniczna:
 3. Kliknij **Generate VAPID keys** (albo wywołaj `POST /api/v1/admin/pwa/vapid/generate`).
 4. Ustaw `NEXT_PUBLIC_BUILD_ID` / `VITE_BUILD_ID` w procesie wdrożenia.
 5. Przetestuj instalację i powiadomienia push przez HTTPS na urządzeniu.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Subskrypcje i preferencje powiadomień push członków duplikatu przechodzą do organizacji, która
+zostaje. Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

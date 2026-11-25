@@ -1095,3 +1095,10 @@ Wyszukiwanie globalne w panelu administracyjnym (paleta poleceń, ⌘K / Ctrl+K)
 | NIP do faktury | nie |
 
 Wynik pokazuje numer zamówienia, organizację, datę złożenia, wartość i status, a jego wybranie otwiera zamówienie. Dokładnie pasujący numer zamówienia jest pokazywany jako pierwszy. Zamówienia pojawiają się dla roli z uprawnieniem `orders:read`, a przedstawiciel handlowy widzi tylko zamówienia przypisanych mu organizacji — te same, które pokazuje mu lista zamówień.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Zamówienia złożone lub opłacone przez duplikat, wraz z odwołaniami zewnętrznymi, przechodzą do
+organizacji, która zostaje. Scalania nie można rozpocząć, dopóki trwa składanie zamówienia albo
+płatność bramką duplikatu: jest odrzucane jako chwilowo niedostępne i można je ponowić. Zobacz
+*Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

@@ -2643,3 +2643,9 @@ Wyszukiwanie globalne w panelu administracyjnym (paleta poleceń, ⌘K / Ctrl+K)
 | Opis | nie |
 
 Wynik pokazuje numer i tytuł, organizację oraz status, a jego wybranie otwiera szansę sprzedażową. Szanse sprzedażowe pojawiają się dla roli z uprawnieniem `crm:read`, w zakresie organizacji administratora. Gdy CRM jest wyłączony, nie są przeszukiwane ani widoczne na ekranie konfiguracji; ich konfiguracja zostaje zachowana.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Szanse sprzedaży duplikatu przechodzą do organizacji, która zostaje. Jeśli moduł CRM jest
+wyłączony podczas scalania, jego krok zostaje odroczony i wykonuje się sam po ponownym włączeniu
+modułu. Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

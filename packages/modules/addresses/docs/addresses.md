@@ -77,3 +77,10 @@ is_default = true` enforces "at most one default per kind" at the DB level.
   go live.
 - **Snapshot on order** — Orders embed an `AddressSnapshot` value object so
   later edits to the source address don't mutate historical orders.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+The duplicate's addresses move to the organization that stays. It keeps its own default delivery
+and billing addresses: a moved address that was the duplicate's default of a kind the
+organization that stays already has a default for is no longer a default. See *Merging duplicate
+organizations* in the Organizations documentation.

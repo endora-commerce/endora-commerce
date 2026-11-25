@@ -6,7 +6,7 @@ import {
   expectComposedOrganizationParticipant,
   mergeSql,
   seedRows,
-} from '../../helpers/organization-merge-participants.js';
+} from '../../helpers/organization-merge-conformance.js';
 
 /**
  * `specs/192-organization-merge/` T045 (FR-044, OQ-10) — the `invoice_ledger`

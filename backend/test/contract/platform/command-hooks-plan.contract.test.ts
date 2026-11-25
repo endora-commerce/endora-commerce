@@ -31,7 +31,7 @@ describe('GET /api/v1/admin/command-hooks (176 T037)', () => {
     await teardownBackendServer(h);
   });
 
-  it("lists organizations' six declarations and the fixture's two hooks, in execution order", async () => {
+  it("lists organizations' seven declarations and the fixture's two hooks, in execution order", async () => {
     const res = await h.app.inject({ method: 'GET', url: PLAN, cookies: { b2b_session: 'stub-admin-session' } });
     expect(res.statusCode).toBe(200);
     const body = CommandHookPlanResponseSchema.parse(res.json());
@@ -39,6 +39,8 @@ describe('GET /api/v1/admin/command-hooks (176 T037)', () => {
       'organization.admin_patch',
       'organization.convert_to_company',
       'organization.create',
+      // `specs/192-organization-merge/` T035 — the merge start is hookable (FR-061).
+      'organization.merge.start',
       'organization.register',
       'organization.set_custom_field_values',
       'organization.tax_id.change',

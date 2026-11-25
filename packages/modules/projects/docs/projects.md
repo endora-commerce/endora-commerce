@@ -1053,3 +1053,9 @@ place — the `ProjectAccess` service. Every list, count and read by id in the
 module either carries its SQL predicate or starts from a project it returned,
 and a test of the module's own refuses a read of a project table anywhere else.
 Code added to this module reads projects through it.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Projects the duplicate takes part in list the organization that stays instead, without
+duplicates, and links to the duplicate's orders, quote requests and opportunities move with it.
+See *Merging duplicate organizations* in the Organizations documentation.

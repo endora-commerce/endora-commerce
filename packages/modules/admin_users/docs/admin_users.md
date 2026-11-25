@@ -507,3 +507,8 @@ it is stored as exactly `['*']`, and only a holder of `*` may write it (see *Wha
 - **Impersonation audit consumers** — every audit row with action
   `impersonation.start|end` is structured the same way; downstream
   reporting can join on those.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Impersonation reasons recorded for the duplicate stay as they were recorded: they are history.
+See *Merging duplicate organizations* in the Organizations documentation.

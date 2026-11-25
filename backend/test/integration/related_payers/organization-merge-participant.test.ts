@@ -6,7 +6,7 @@ import {
   expectComposedOrganizationParticipant,
   mergeSql,
   seedRows,
-} from '../../helpers/organization-merge-participants.js';
+} from '../../helpers/organization-merge-conformance.js';
 
 /**
  * `specs/192-organization-merge/` T047 — the `related_payers` participant

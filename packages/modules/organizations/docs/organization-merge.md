@@ -98,3 +98,33 @@ When a merge completes, the administrator who started it is notified.
   the names of the fields chosen.
 - Integrations receive one `organization.merged.v1` event and webhook. A request that still
   names the duplicate's id is refused with the id of the organization that stays.
+
+## What happens to each area's records {#what-happens-to-each-area}
+
+Each area moves its own records, in its own phase. An area's documentation page says more in
+its *When organizations are merged* section.
+
+| Area | Records of the duplicate |
+| --- | --- |
+| Organizations | Child organizations move under the organization that stays; pending invitations, sales representatives and sales channels follow; roles are matched by name or copied. Payment, delivery and warehouse settings of the organization that stays are kept. |
+| Customer accounts | Every member moves, with the role matched by name, and stays signed in. |
+| Addresses | Move; the defaults of the organization that stays are kept. |
+| Orders | Move, as buyer and as payer, with external references. An order placement or gateway payment in progress blocks the start. |
+| Quote requests | Move; the quote policy of the organization that stays wins. |
+| Invoices | Move; the issued documents do not change. |
+| Invoice ledger | Client mappings of the organization that stays win, missing ones are adopted; document mappings move; delivery history is kept. |
+| Credit limits | The limit of the organization that stays wins; reservations and top-ups move and may exceed it. |
+| Related payers | Links and requests move; a link between the two is revoked. |
+| Price lists | Audiences are combined; the price display setting of the organization that stays wins. |
+| Promotions | Move; per-organization usage counts are added together. |
+| Catalog | Product visibility lists name the organization that stays instead. |
+| Carts | Move and are repriced on their next read. |
+| Returns | Returns, complaints, attachments and withdrawal statements move. |
+| CRM | Opportunities move. |
+| Projects | Participations are combined; links move. |
+| Shopping lists, comparisons, forms, newsletter, notifications, back-in-stock requests, push | Move. |
+| Quick order | The defaults of the organization that stays win. |
+| Two-factor authentication | The stricter policy wins. |
+| API keys, webhooks | Keys and webhooks bound to the duplicate are bound to the organization that stays. |
+| Analytics | Events are re-pointed, possibly shortly after the merge completes. |
+| Administrators, audit log | Impersonation reasons and audit entries stay as recorded. |

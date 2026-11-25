@@ -602,7 +602,10 @@ describe('foreign-gate sweep — this build', () => {
       ['enforcement', 'code', importExport],
       ['admin-control', 'code', importExport],
     ]);
+    // Three routes (the roster, `specs/192-organization-merge/`'s merge
+    // progress, the detail) and the nav row.
     expect(spreadSites('organizations', '[...READ_PERMISSION]')).toEqual([
+      ['enforcement', 'code', ['customers:read', 'customers:manage']],
       ['enforcement', 'code', ['customers:read', 'customers:manage']],
       ['enforcement', 'code', ['customers:read', 'customers:manage']],
       ['admin-control', 'code', ['customers:read', 'customers:manage']],

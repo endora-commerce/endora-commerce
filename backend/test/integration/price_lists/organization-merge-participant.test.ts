@@ -4,10 +4,10 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import {
   composedOrganizationParticipant,
   expectComposedOrganizationParticipant,
-  mergeOrganization,
+  insertCompanyOrganization,
   mergeSql,
   seedRows,
-} from '../../helpers/organization-merge-participants.js';
+} from '../../helpers/organization-merge-conformance.js';
 
 /**
  * `specs/192-organization-merge/` T048 — the `price_lists` participant, in the
@@ -105,8 +105,8 @@ describe('price_lists — Organization merge participant', () => {
   });
 
   it('keeps the survivor’s display mode and leaves the loser’s on the archived loser (S+f)', async () => {
-    const survivorId = await mergeOrganization(h, 'Survivor');
-    const loserId = await mergeOrganization(h, 'Loser');
+    const survivorId = await insertCompanyOrganization(h, 'Survivor');
+    const loserId = await insertCompanyOrganization(h, 'Loser');
     await seedRows(h, [override(survivorId, 'gross_only'), override(loserId, 'net_only')]);
     const participant = composedOrganizationParticipant(h, 'price_lists', 'price-audiences');
     const preview = await participant.preview({ hostType: 'organization', survivorId, loserId, hostContext: {} });

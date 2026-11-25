@@ -1099,3 +1099,10 @@ liczba i odczyt po identyfikatorze w module albo zawiera jej predykat SQL, albo
 zaczyna od projektu, który ona zwróciła, a własny test modułu odrzuca odczyt
 tabeli projektu w każdym innym miejscu. Kod dodawany do tego modułu odczytuje
 projekty przez nią.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Projekty, w których uczestniczy duplikat, wymieniają w zamian organizację, która zostaje, bez
+powtórzeń, a powiązania z zamówieniami, zapytaniami ofertowymi i szansami sprzedaży duplikatu
+przechodzą razem z nią. Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu
+Organizacje.

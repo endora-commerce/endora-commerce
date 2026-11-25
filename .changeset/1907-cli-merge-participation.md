@@ -6,3 +6,7 @@
 (issue #1907): every persisted `organizationId` / `*OrganizationId(s)` / `projectId` / `*ProjectId`
 property of the package's own entities must be declared, with a disposition, by its manifest's
 `merge.participates`. New rule module `@endora-commerce/cli/rules/merge-participation.js`.
+
+`check:divergence` classifies the two record-merge members of `ModuleContext`, `ctx.merge.host` and
+`ctx.merge.participate`, as `own-surface`: a module making its own record type mergeable, or moving
+its own records after a merge, is not a divergence from core.
