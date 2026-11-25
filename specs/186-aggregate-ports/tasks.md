@@ -20,7 +20,7 @@ contract, and rewrites the contract's table with: Command action, readiness (C /
 and every side effect the route performs outside its write (notices, cache invalidation, reindex,
 events). No code change.
 
-- [ ] T001 [P] Inventory Organization operations, including the sales-channel write path through `sales_channels`, in `specs/186-aggregate-ports/contracts/organization-command-port.md`
+- [x] T001 [P] Inventory Organization operations, including the sales-channel write path through `sales_channels`, in `specs/186-aggregate-ports/contracts/organization-command-port.md` — #1821: the sales-channel write is the kernel membership writer (H-post), the sales-rep writes are H-in, seven findings for T019/T028 in § *Inventory findings*
 - [ ] T002 [P] Inventory CustomerAccount operations (`createStandalone`, `updateProfile`, `markEmailVerified` actions and the session revocation on block) in `specs/186-aggregate-ports/contracts/customer-account-command-port.md`
 - [ ] T003 [P] Inventory Order operations (status, payment status, comments, external reference; placement for US11) in `specs/186-aggregate-ports/contracts/order-command-port.md`
 - [x] T004 [P] Inventory QuoteRequest operations, the send-document route path and whether admin custom-field values ride on `modify`, in `specs/186-aggregate-ports/contracts/quote-request-command-port.md` — done with #1824: `update` is `modify` only (`patch_draft` is the buyer's), values ride on `modify`, the path is `/pdf/send`
@@ -29,7 +29,7 @@ events). No code change.
 - [ ] T007 [P] Inventory Category operations (move, values-only update, the threshold audit split with `inventory`) in `specs/186-aggregate-ports/contracts/catalog-category-command-port.md`
 - [ ] T008 [P] Inventory Opportunity operations in `specs/186-aggregate-ports/contracts/opportunity-command-port.md`
 - [ ] T009 [P] Inventory Task operations (`createMany`, child Commands on `update`, the 8 hand audits) in `specs/186-aggregate-ports/contracts/task-command-port.md`
-- [ ] T010 Record in `specs/186-aggregate-ports/research.md` R-2 any readiness the inventory changed, and any operation it moves in or out of scope (an owner question if it changes FR-020–FR-028)
+- [ ] T010 Record in `specs/186-aggregate-ports/research.md` R-2 any readiness the inventory changed, and any operation it moves in or out of scope (an owner question if it changes FR-020–FR-028) — Organization recorded with #1821 (sales reps H-in, sales channels H-post through the kernel; one owner question for T028); the other eight inventories are open
 
 ---
 
@@ -37,9 +37,9 @@ events). No code change.
 
 - [x] T011 [P] Write a failing type test for `AggregateCommandOptions` and `CustomFieldMerge` (`expectTypeOf`) in `packages/contracts/src/aggregate-ports.test.ts` — landed with #1824
 - [ ] T012 Add `packages/contracts/src/aggregate-ports.ts` (types per `data-model.md`) and export it from `packages/contracts/src/index.ts`; make `OrganizationCommandPortOptions` an alias in `packages/contracts/src/organizations.ts` — the file and the export landed with #1824 (plus `aggregateCommandSourceSchema`); the `OrganizationCommandPortOptions` alias is left to US1, whose port would otherwise advertise `expectedVersion` and `source` it does not honour
-- [ ] T013 [P] Write a failing test that every `CUSTOM_FIELD_HOST_BINDINGS` entry carries a non-empty `aggregatePort` in `packages/contracts/src/custom-fields.test.ts`
-- [ ] T014 Add `aggregatePort` to each entry of `CUSTOM_FIELD_HOST_BINDINGS` in `packages/contracts/src/custom-fields.ts` (values per `data-model.md`)
-- [ ] T015 [P] Write `backend/test/helpers/aggregate-port-parity.ts`: `expectPortParity({ viaRoute, viaPort })` asserting the same audit action, object type, `stateBefore`/`stateAfter` shape (modulo actor and `source`), the same hooks fired and outbox rows written, and a caller-supplied side-effect probe; with its own test `backend/test/unit/helpers/aggregate-port-parity.test.ts`
+- [x] T013 [P] Write a failing test that every `CUSTOM_FIELD_HOST_BINDINGS` entry carries a non-empty `aggregatePort` in `packages/contracts/src/custom-fields.test.ts`
+- [x] T014 Add `aggregatePort` to each entry of `CUSTOM_FIELD_HOST_BINDINGS` in `packages/contracts/src/custom-fields.ts` (values per `data-model.md`)
+- [x] T015 [P] Write `backend/test/helpers/aggregate-port-parity.ts`: `expectPortParity({ viaRoute, viaPort })` asserting the same audit action, object type, `stateBefore`/`stateAfter` shape (modulo actor and `source`), the same hooks fired and outbox rows written, and a caller-supplied side-effect probe; with its own test `backend/test/unit/helpers/aggregate-port-parity.test.ts` — #1821: `expectPortParity` plus `observeWrite`, the measurement of one path against PostgreSQL; the test sits in `backend/test/unit/harness/`, beside the other helpers' tests (`bounded-pool.test.ts`)
 - [x] T016 Write the port-per-aggregate rule into `specs/conventions/module-composition.md` as item 2a from `specs/186-aggregate-ports/contracts/aggregate-port-convention.md`, and the server-side-writes paragraph of `specs/conventions/custom-field-writes.md` naming the aggregate ports instead of the two narrow ones — done as a pointer to item 2a (#1820); the list itself is rewritten by T033 and T053, when the two ports exist
 - [x] T017 Create `specs/conventions/contract-surface.md` from `specs/186-aggregate-ports/contracts/contract-surface.md` (sanctioned-break section included), add its one router row to `AGENTS.md` § *Where the rest of it lives*, and run `pnpm --filter backend exec vitest run test/unit/docs/agents-router.test.ts`
 - [x] T018 Add a paragraph on surface stability (OD-4, the deprecation grammar, the comparison inside `check:release-intent --since`, the D-293.7 ledger) to `specs/conventions/release-intent.md`, pointing at `contract-surface.md` rather than restating it
