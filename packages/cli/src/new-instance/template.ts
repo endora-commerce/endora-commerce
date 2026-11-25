@@ -1579,17 +1579,20 @@ export default async function config() {
     path: 'backend/src/migrate.ts',
     kind: 'wiring',
     member: 'backend',
-    // Nothing here but the migrator: the configuration carries the deployment
-    // root, so an overlay module's migrations are in the order it applies
-    // (`specs/190-overlay-full-modules/` FR-035).
+    // The configuration carries the deployment root, so an overlay module's
+    // migrations are in the order it applies (`specs/190-overlay-full-modules/`
+    // FR-035) — and a refusal of one (a migration file of the wrong shape, an
+    // unexported entity) is printed as the sentence it is, as `index.ts` prints
+    // a refusal met while composing.
     content: `// The schema, in the order the installed manifests compute — no second
 // ordering here. Verified: one transaction, the declared extension columns
 // checked before commit (specs/178-extensible-columns/ FR-025).
 import { MikroORM } from '@mikro-orm/postgresql';
+import { exitOnRefusal } from '${scope}platform/composition';
 import { migrateUpVerified } from '${scope}platform/db';
 import config from './mikro-orm.config.js';
 
-const orm = await MikroORM.init(await config());
+const orm = await MikroORM.init(await config().catch(exitOnRefusal));
 try {
   await migrateUpVerified(orm);
 } finally {

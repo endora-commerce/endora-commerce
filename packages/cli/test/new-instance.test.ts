@@ -871,7 +871,9 @@ describe('the tree (§1, §2)', () => {
     }
     const migrate = content('backend/src/migrate.ts');
     expect(migrate).not.toContain('refuseOverlaySchema');
-    expect(migrate).toContain('await MikroORM.init(await config())');
+    // A refusal raised while the configuration reads the overlay is a sentence too.
+    expect(migrate).toContain("import { exitOnRefusal } from '@endora-commerce/platform/composition';");
+    expect(migrate).toContain('await MikroORM.init(await config().catch(exitOnRefusal))');
     const config = content('backend/src/mikro-orm.config.ts');
     // `backend/dist` compiled, `backend/src` under a source run — the same value
     // `index.ts` hands `composeApp`, from the same directory.
