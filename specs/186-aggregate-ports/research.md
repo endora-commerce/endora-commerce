@@ -343,3 +343,257 @@ command hooks, so no write-port change is owed to it.
 **Rationale.** D-293.4; the conversions touch services the codemod and the decorator switch also touch.
 
 **Rejected.** *Implementing before #1866* — every conversion would be rebased through the freeze.
+
+## R-16 US1 (Organization, #1821): rulings on the T001 inventory findings (2026-11-25)
+
+The T001 inventory (`contracts/organization-command-port.md` § *Inventory findings*, PR #1923)
+raised eight questions and a delivery split. Each is ruled here. **None needs the owner**: none is a
+business call, and none reverses a decision `spec.md` records. Item 5 narrows the wording of FR-008
+without changing its intent, and says so. Code references are to `origin/master` `d97b9dd0a`.
+
+### R-16.1 Sales channels: the kernel writer enlists in the caller's transaction; both records are kept
+
+**Finding, confirmed as a defect that exists today.** `SalesChannelMembershipService`
+(`packages/platform/src/kernel/sales-channels/sales-channel-membership.service.ts`) accepts
+`options.em` and runs its bridge statements on it. Its audit entries still go through
+`AuditPort.record`, which forks and commits on its own. Its access-cache drop
+(`afterChannelsChanged` → `invalidateAfterWrite`) also runs before the caller has committed, and
+that breaks the contract of `SalesChannelAccessCacheInvalidation.invalidateAfterWrite`, which says
+"on behalf of a write that has **already committed**". It can be reached today without any of this
+feature's code:
+
+- `organization.create` (`commands/create-organization.command.ts`) is hookable. A `beforeCommit`
+  veto rolls the create back after the bind, and leaves committed `sales_channel.membership.changed`
+  entries for an Organization that does not exist.
+- `organization.register` (`commands/register-organization.command.ts`) binds and then runs the
+  account child Command. If the child fails, the result is the same.
+- Personal-organisation provisioning (`services/personal-organization-service.ts`) and
+  `price_lists` (`price-book-service.ts`, three sites) pass `em` too, and leave the same orphaned
+  entries on rollback.
+- A customer request that lands between the early drop and the commit re-caches the old set,
+  which then lasts for the Redis TTL (5 min) and the LRU window (30 s).
+
+Events are not affected on a Command path: `emitMembershipChanged` runs inside the bus's
+`EventBus.run` scope, so the events are buffered and dropped on rollback.
+
+**Decision.**
+
+1. **Fix it in `packages/platform`, now, in its own pull request** (it is not a Command conversion,
+   so R-15's sequencing does not hold it). When `options.em` is given, the writer *enlists*:
+   - each membership entry is recorded with `AuditPort.recordWithin(options.em, …)`, so it commits
+     or rolls back with the caller;
+   - the access-cache drop is deferred until the enclosing scope has succeeded. `EventBus` gains an
+     additive deferral, for example `afterScope(fn)`. Inside a `run` scope it queues `fn`. When the
+     scope's function resolves, the queued functions run and are awaited **before** the buffered
+     events dispatch, which keeps D-93's "drop before the event". On a throw they are dropped.
+     Outside any scope `fn` runs and is awaited immediately. Because the Command Bus wraps
+     `transactional` in `events.run`, "scope succeeded" means "committed" for every Command, child
+     Commands included.
+   - Without `options.em` nothing changes: the writer's own transaction has already committed when
+     it audits and drops.
+   - The JSDoc of `MembershipMutationOptions.em` is rewritten. It currently says the audit row and
+     the drop "follow the statements as they do without it", which is the defect. The
+     `sales_channels` doc and `SALES_CHANNEL_AUDIT_ACTIONS`' header (`packages/contracts/src/sales-channels.ts`)
+     say `MEMBERSHIP_CHANGED` is co-transactional when the caller passes `em`. The change needs a
+     `@endora-commerce/platform` changeset (minor, for the additive `EventBus` member) and tests
+     for each of the three facts: an entry is gone on rollback, the drop happens after commit, and
+     the drop happens before the event.
+2. **`organization.sales_channels.set` keeps the per-membership entries beside its own entry.** The
+   Command runs `replaceChannelsForEntity(…, { em: ctx.em, actorAdminUserId: ctx.actor.actorAdminUserId })`
+   and records one entry of its own: object type `organization`, `before`/`after`
+   `{ salesChannelIds }` (ids, `audit-state.md` list 1). `skipAudit` applies when the writer answers
+   `changed: false`. The writer then adds its `sales_channel.membership.changed` entries, one per
+   membership, in the same transaction.
+
+**Rationale.** The writer is the platform's single mutator for all of the bridge types, and "every
+add and remove is audited" is its invariant. A per-caller opt-out would make that audit optional,
+which is what Principle XIII exists to prevent, and would cut the membership trail for one entity
+type only. FR-003 asks for audit history to read continuously, and the membership trail is history
+that operators already read. The two records answer different readers. The Organization's record
+history reads object type `organization`, and the membership trail reads
+`sales_channel_membership`. `organization.create` already writes this pair: its `after` carries
+`salesChannelIds`, and the writer adds the membership entries. The objection in
+`specs/154-sales-channel-access/` R-10, "wrapping a replace in a Command would record the same
+change twice under two object types", was written before D-293. FR-002 and FR-003 now require the
+operation to be a Command, so command hooks and the port see it. The remaining cost is one extra
+entry, at a different granularity, and that is accepted.
+
+**Rejected.**
+- *Writing the new Command's entry alone, through an `audit: false` option on the writer*: this
+  makes membership auditing opt-out, and leaves the channel-side trail missing Organization changes
+  from 0.113.0 onwards.
+- *Membership changes as child Commands*: the writer is not a Command, and N child Commands record
+  the same N entries at more cost.
+- *The caller drops the cache after `commandBus.run` returns*: every caller that passes `em` (create,
+  register, provisioning, the new Command, and child runs such as `specs/188-policy-points/`'s) would
+  have to remember to do it, and a child run has no "after" of its own.
+- *Dropping the cache from a subscriber of `sales_channels.membership_changed`*: the cache's own
+  header rejects this, because handler failures are swallowed and an unscoped emit is not awaited.
+- *Leaving the defect for T028 to work around*: create and register keep it whatever T028 does.
+
+### R-16.2 `setCustomFieldValues` runs `organization.set_custom_field_values`; `organization.admin_patch` stays off the port
+
+**Decision.** As proposed. Parity for `setCustomFieldValues` (T023) is measured against
+`organizationCustomFieldWritePort.setCustomFieldValues`, and parity for `update` is measured against
+`organizationWritePort.update`. Both are the deprecated ports that T025 holds to delegation.
+`organization.admin_patch` remains the route's own Command, for the combined edit (issue #470
+O-2), and is not a port method.
+
+**Rationale.** Convention item 2a.2 binds a method to "the one your admin route **for that
+operation** runs". The admin PATCH is a different operation: columns and the custom-field bag in
+one write. No admin route sets the bag on its own. FR-012 fixes the method's shape to the existing
+merge-callback port, and that port already runs `set_custom_field_values`, which is declared
+hookable in `manifest.ts`. A port method for `admin_patch` would give two methods for one column
+write.
+
+**Consequence.** A hook author who needs every custom-field change has to register on both
+`admin_patch` and `set_custom_field_values`, which is already true today. T033's *Server-side
+writes* section states it.
+
+**Rejected.** *Pointing the port at `admin_patch`*: the port's `update` already covers the columns,
+and the deprecated custom-field port could no longer delegate to a method with identical entries.
+
+### R-16.3 Detach: `setParent` takes `{ parentId: string | null }`
+
+**Decision.** Widen the input type to `string | null`. `null` detaches to a root and records
+`organization.set_parent`, as the route `POST …/:id/parent` already does.
+
+**Rationale.** The port offers the route's operation (2a.2), and the route's operation is "place in
+the tree", which includes "at the root". R-9 already keeps `move` inside this method for the same
+reason. An integration that mirrors an ERP hierarchy needs to reverse an assignment. The method is
+not published yet, so this costs no deprecation.
+
+**Rejected.** *Listing detach under Not offered*: it would leave an ERP no way to undo its own
+`setParent`.
+
+### R-16.4 `reject` takes `{ reason: string; notifyCustomerEmail?: boolean }`; `block` takes `{ reason?: string | null }`
+
+**Decision.** The input types are the admin bodies' contract types without `version`, which moves
+to `options.expectedVersion`. This is what the contract's "Input types reuse the admin bodies'
+contract types" already requires.
+
+- `reject` takes `reason: string`. It is required and is refused `VALIDATION_FAILED` when empty or
+  longer than 2000 characters, as the route and the service refuse it.
+- `notifyCustomerEmail` is an input member, defaulting to `true`.
+- `block` keeps the route's optional, nullable reason.
+
+**Rationale.** FR-013 says the side effects of the route follow the port call. The route lets its
+caller choose whether the rejection notice is sent. A port without that choice cannot perform the
+route's operation when the choice is `false`. For example, an ERP that sends its own rejection
+letter would have the customer e-mailed twice.
+
+**Consequence for T026.** `specs/188-policy-points/` runs `approve` as a **child** Command and
+requires "the approval e-mail is sent as today" (188 FR-037). A child has no "after the
+`commandBus.run` call" of its own, so the notice cannot stay in the route or port wrapper. It moves
+to a module-owned subscriber of `organization.status_changed.v1`, which the bus dispatches once, on
+commit, for parent and child runs alike. Sending stays best effort, in a system scope, as in
+`notifyCustomer` today. The reject choice travels on that event as an additive payload member,
+`notifyCustomer: boolean`.
+
+**Rejected.**
+- *Omitting `notifyCustomerEmail`*: the notice would always be sent, and the port would not have
+  parity for the route's `false` case.
+- *`reason: string | null` on `reject`*: the type would allow a call that the Command always
+  refuses.
+
+### R-16.5 An unknown sales channel on `create` is refused with `422 UNKNOWN_SALES_CHANNEL`
+
+**Decision.** As proposed. The port's `create` answers the code that the deprecated
+`organizationWritePort.create` answers today. The admin route keeps `VALIDATION_FAILED`. Both
+answers come from the one shared guard, `assertSalesChannelsExist`
+(`services/organization-write-guards.ts`), with the same status, message and `details` paths. Only
+the `code` argument differs, so `create` parity compares everything except the code.
+
+**Rationale.** The guard's header records why the code differs: a server caller can distinguish
+the refusal from malformed input without reading `details`. The published JSDoc of
+`organizationWritePort` (`packages/contracts/src/organizations.ts`) lists
+`422 UNKNOWN_SALES_CHANNEL` as part of its contract. US1 scenario 4 and T025 require the deprecated
+port to behave "exactly as before" once it delegates, which is only true if the port keeps this
+code. A consumer that moves from the old port to the new one must not see its refusal code change.
+
+**Effect on FR-008.** This narrows FR-008's wording ("the same typed refusals the admin route
+answers") for the one refusal where a server-side port already publishes a more specific code. The
+intent is unchanged: one guard, one refusal, one status. T019 records this in the method's JSDoc.
+
+**Rejected.**
+- *`VALIDATION_FAILED` on the port*: it changes the behaviour of the deprecated port in the release
+  that only deprecates it.
+- *Changing the admin route to `UNKNOWN_SALES_CHANNEL`*: it changes a published admin API refusal
+  that this feature does not need to change.
+
+### R-16.6 `expectedVersion`: optional on the port, and honoured where the route checks it
+
+**Decision.** Accepted, within R-5's rule.
+- Where the admin route checks `expectedVersion` (`update`, the four moderation methods,
+  `setRestrictions`, `patchRestriction`), the port honours it: a stale version is refused
+  `409 VERSION_CONFLICT` with `currentVersion`.
+- When it is absent, the Command writes over the version it reads. The row's optimistic lock still
+  applies, and `OptimisticLockError` is mapped to `VERSION_CONFLICT` as the moderation service
+  does now. The status guard still applies, so approving an Organization that is already active is
+  refused whatever the version.
+- On every other method the JSDoc says the option is ignored, as R-5 already requires.
+- The admin routes keep `version` required in their bodies.
+
+**Rationale.** FR-006 requires the port to *accept* the version "where the admin route offers that
+concurrency rule". It does not require callers to send it. A worker that reacts to an event has no
+version that it read, and `handleNewlyRegistered` today reads the version only to pass it straight
+back. The status guard, not the version, is what makes a repeated moderation call safe.
+
+**Rejected.** *Requiring it on those methods*: it makes every worker read before it writes, for
+protection the status guard already gives.
+
+### R-16.7 Sales-rep assignment becomes a Command; this is in US1's scope
+
+**Decision.** Confirmed. `assign` and `unassign` in `services/sales-rep-assignment-service.ts`
+become Commands that keep their action strings, `organization.sales_rep_assign` and
+`organization.sales_rep_unassign`. An idempotent repeat answers `skipAudit`, which matches today's
+"audits nothing". The `recordAuditFromContext` calls are removed in the same change. Both the
+routes and the port run the new factories. The D-260 refusal of scoped administrators stays in the
+route, because it is the caller's gate (FR-009). T029's route list already names
+`routes.sales-reps.ts`.
+
+**Rationale.** FR-003 makes conversion a precondition for any in-scope operation that is not a
+Command, and US1 lists sales representatives among those operations. The R-2 row marked "C" was a
+measurement error, which T001 corrected. Correcting it does not change the scope.
+
+### R-16.8 The four moderation actions are not declared hookable in US1
+
+**Decision.** `organization.approved`, `.rejected`, `.blocked` and `.unblocked` become Commands
+with no `hookData` and no `outboxData`, and are not added to `hookableActions`.
+
+**Rationale.**
+- The manifest's own rule (`manifest.ts`, the `hookableActions` comment) is that "a declaration is
+  a public contract, so each is added when something needs it".
+- `specs/188-policy-points/` needs three things from this feature (188 `plan.md` § *Coordination*,
+  `spec.md` § *Assumptions*): `approve` runnable as a child, with a source code recorded, and the
+  port running the same Command. 188 needs no hook on moderation.
+- Declaring the actions later is additive (`contracts/contract-surface.md`, hookable actions).
+- US1 scenario 3 is already met by the six actions that are declared.
+
+**Rejected.** *Declaring them now "for symmetry"*: it publishes four hook-data shapes that nobody
+consumes, and every one of them would then be a frozen or stable entry.
+
+### R-16.9 Delivery: US1 is split into three pull requests
+
+**Decision.**
+
+| PR | Content | Closes |
+| --- | --- | --- |
+| **P0**: platform fix | R-16.1 item 1: the writer enlists when given `em`; `EventBus` deferral; tests; `@endora-commerce/platform` changeset. Independent of the rest, and may start now | its own issue (to be filed as a `bug`) |
+| **US1a**: the port | T019 (interface **without** `setSalesChannels`), T020, T021, T022 (restriction Commands only), T023–T025, T026 (**first**, then notify 188), T027, sales-rep conversion (R-16.7), T029–T031, T033 | part of #1821 |
+| **US1b**: sales channels | T028 on P0, `setSalesChannels` added to the interface (additive, unreleased), its T022 and T023 cases, the route `PUT …/:id/sales-channels` moved onto the Command, and T032 if it is still owed | #1821 |
+
+**Rationale.**
+- `approve` unblocks 188, and it should not wait for a platform fix.
+- #1821's definition of done and US1's story both include sales channels, so the issue closes with
+  US1b and not before.
+- A method cannot be declared without being implemented over a Command (R-2), so `setSalesChannels`
+  enters the interface with its Command.
+- None of the deprecations in US1a depends on `setSalesChannels`, so US1b can slip a release
+  without holding US1a back.
+
+**Rejected.**
+- *Closing #1821 with US1a*: it closes the issue with one of its operations still missing.
+- *One pull request*: it puts 188's dependency behind the platform fix.
+- *Folding P0 into US1b*: it leaves the create and registration defect open until the port work is
+  done.
