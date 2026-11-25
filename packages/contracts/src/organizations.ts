@@ -16,6 +16,7 @@ import {
 } from './organization-registry-lookup.js';
 import { ExtensionAttributesSchema } from './schema-extensions.js';
 import { customFieldValuesSchema } from './custom-fields.js';
+import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -941,14 +942,141 @@ export type OrganizationConvertToCompanyInput = Omit<
 
 /**
  * Container name: `organizationCommandPort`. Owner: `organizations`
- * (`specs/177-tax-id-scope/` `contracts/convert-to-company.md` §4).
+ * (`specs/186-aggregate-ports/`, D-293, issue #1821; the conversion and the
+ * tax-ID correction since `specs/177-tax-id-scope/`).
  *
- * Server-side writes on the Organization aggregate, each one audited Command.
- * **No permission is checked here** — the caller is the gate: an admin route
- * behind `organizations:convert-to-company` and the reach rule, or
- * operator-run server code. Never resolve it for a customer-facing route.
+ * The Organization aggregate's write port: each method runs one audited
+ * Command, the one the admin route for the same operation runs, with the
+ * ambient actor — an administrator inside an admin request (or under
+ * `withSystemScopeActingFor`), the `system` actor under `withSystemScope` in a
+ * worker. **No permission is checked** — the caller is the gate; never resolve
+ * it for a customer-facing route. Call it after your own commit: each call is a
+ * transaction of its own.
+ *
+ * What the route does beside its write happens here too: the moderation
+ * notices (sent by this module's subscriber of `organization.status_changed.v1`,
+ * after the commit, best effort), the role cache a conversion drops. The
+ * admin route's own gates are not here: the platform-administrator-only rule
+ * for parentage, the credit mode and sales representatives (D-260), and the
+ * sales-representative reach of every `/:id` route, are the caller's.
+ *
+ * **Inputs and refusals are the admin route's**, as the platform's `HttpError`
+ * with its `code`: `422 VALIDATION_FAILED` for an input outside the route's
+ * limits, `404 NOT_FOUND` for an unknown, soft-deleted or malformed id, and
+ * each method's own below. The one difference is on `create`, which answers an
+ * unknown sales channel `422 UNKNOWN_SALES_CHANNEL` where the admin route
+ * answers `VALIDATION_FAILED` (research R-16.5): the code the deprecated
+ * `organizationWritePort.create` has always answered.
+ *
+ * **Options** ({@link AggregateCommandOptions}): `expectedVersion` is honoured
+ * by `update`, the four moderation methods, `setRestrictions` and
+ * `patchRestriction` — the operations whose admin route checks a version — and
+ * a row that has moved on is refused `409 VERSION_CONFLICT` with
+ * `currentVersion`; absent, they write over the version they read, the status
+ * guard still applying. Every other method ignores it. `source` is recorded on
+ * the audit entry beside the actor; a code outside
+ * `aggregateCommandSourceSchema` is refused `422 VALIDATION_FAILED` before
+ * anything is read or written. `extensions` reaches the command hooks of the
+ * action (`organization.create`, `organization.set_custom_field_values`,
+ * `organization.convert_to_company`, `organization.tax_id.change` are
+ * hookable); a key no present hook module claims is refused
+ * `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+ *
+ * **Not offered, deliberately**: members, invitations and roles (their own
+ * aggregates; moving an account is `membershipPort`); the tax-ID scope (a
+ * platform setting, not one Organization); VAT validation runs (not a write of
+ * the aggregate); the admin edit `organization.admin_patch`, which writes the
+ * columns and the custom-field bag in one Command — `update` covers the
+ * columns and `setCustomFieldValues` the bag (research R-16.2).
+ *
+ * **Owner off:** `organizations` is the platform's one tenant concept and
+ * declares itself non-deactivatable, so the gate cannot close in practice; it
+ * is registered anyway, and closed it would answer 503 `MODULE_DISABLED`.
  */
 export interface OrganizationCommandPort {
+  /**
+   * `organization.create` — the Command the admin create runs, the channels
+   * bound in the same transaction, optionally as a branch under `parentId`.
+   * Refusals: `409 ORGANIZATION_TAX_ID_EXISTS`, `422 UNKNOWN_SALES_CHANNEL`,
+   * `409 DICTIONARY_ENTRY_NOT_FOUND` / `DICTIONARY_ENTRY_INACTIVE` (the
+   * country), `422 CUSTOM_FIELD_VALUE_INVALID`, `404 NOT_FOUND` (the parent),
+   * `422 ORGANIZATION_TREE_INVALID` (the depth bound). Ignores
+   * `expectedVersion`.
+   */
+  create(input: OrganizationWriteCreateInput, options?: OrganizationCommandPortOptions): Promise<OrganizationRecord>;
+  /**
+   * `organization.update` — identity and contact fields; an absent key is left
+   * as it is. A patch that changes nothing writes and records nothing.
+   * Refusals: `409 VERSION_CONFLICT`, `409 DICTIONARY_ENTRY_*` (a changed
+   * country), `409 ORGANIZATION_WRITE_CONTENDED`.
+   */
+  update(
+    id: string,
+    patch: OrganizationWriteUpdatePatch,
+    options?: OrganizationCommandPortOptions,
+  ): Promise<OrganizationRecord>;
+  /**
+   * Places the Organization in the tree, as `POST …/:id/parent` does:
+   * `organization.set_parent` for a first parent or `parentId: null` (detach
+   * to a root), `organization.move` for a new parent of a branch. Refusals:
+   * `404 NOT_FOUND` (the Organization or the parent), `ORGANIZATION_TREE_INVALID`
+   * (a cycle or the depth bound; `409` with `details.code`
+   * `tax_id_shared_across_trees` for a tax ID the move would split across two
+   * trees). Ignores `expectedVersion`.
+   */
+  setParent(
+    id: string,
+    input: { readonly parentId: string | null },
+    options?: OrganizationCommandPortOptions,
+  ): Promise<OrganizationRecord>;
+  /**
+   * `organization.approved` — `pending_verification` → `active`; stamps the
+   * ambient administrator (none under the `system` actor). The customer's
+   * approval notice follows the commit. Refusals:
+   * `422 ORGANIZATION_STATUS_INVALID`, `409 VERSION_CONFLICT`.
+   */
+  approve(id: string, options?: OrganizationCommandPortOptions): Promise<OrganizationRecord>;
+  /**
+   * `organization.rejected` — `pending_verification` → `rejected`. `reason` is
+   * required, 1–2000 characters (`422 VALIDATION_FAILED` otherwise), stored on
+   * the row and sent in the customer's notice, never in the audit entry. The
+   * notice follows the commit unless `notifyCustomerEmail` is `false` (default
+   * `true`). Refusals: `422 ORGANIZATION_STATUS_INVALID`, `409 VERSION_CONFLICT`.
+   */
+  reject(
+    id: string,
+    input: OrganizationRejectInput,
+    options?: OrganizationCommandPortOptions,
+  ): Promise<OrganizationRecord>;
+  /**
+   * `organization.blocked` — `active` → `blocked`, with an optional reason (at
+   * most 2000 characters). No notice. Refusals: `422 ORGANIZATION_STATUS_INVALID`,
+   * `409 VERSION_CONFLICT`.
+   */
+  block(id: string, input: OrganizationBlockInput, options?: OrganizationCommandPortOptions): Promise<OrganizationRecord>;
+  /**
+   * `organization.unblocked` — `blocked` → `active`. No notice. Refusals:
+   * `422 ORGANIZATION_STATUS_INVALID`, `409 VERSION_CONFLICT`.
+   */
+  unblock(id: string, options?: OrganizationCommandPortOptions): Promise<OrganizationRecord>;
+  /**
+   * `organization.delete` — the soft delete. Refusals:
+   * `409 ORGANIZATION_HAS_CHILDREN` while the Organization has live children.
+   * Ignores `expectedVersion`.
+   */
+  delete(id: string, options?: OrganizationCommandPortOptions): Promise<void>;
+  /**
+   * `organization.set_custom_field_values` — the caller's `merge` over the
+   * current bag, inside one Command; the owner does not validate (call
+   * `CustomFieldValuePort.validateAndMerge` inside it), and a refusal `merge`
+   * throws propagates unchanged and writes nothing. The entry names the keys
+   * that changed, never their values. Ignores `expectedVersion`.
+   */
+  setCustomFieldValues(
+    id: string,
+    merge: CustomFieldMerge,
+    options?: OrganizationCommandPortOptions,
+  ): Promise<OrganizationRecord>;
   /**
    * Runs `organization.convert_to_company` as one Command with the ambient
    * actor (an administrator inside an admin request; the system under
@@ -957,7 +1085,7 @@ export interface OrganizationCommandPort {
    * one after it resolves if you need it. Refusals: `404 NOT_FOUND`,
    * `409 ORGANIZATION_CONVERSION_REFUSED`, `409 ORGANIZATION_TAX_ID_EXISTS`,
    * and whatever a command hook on the action vetoes with. `options.extensions`
-   * reaches those hooks (issue #1057).
+   * reaches those hooks (issue #1057). Ignores `expectedVersion`.
    */
   convertToCompany(
     organizationId: string,
@@ -974,28 +1102,109 @@ export interface OrganizationCommandPort {
    * own; `options.extensions` reaches those hooks (issue #1057). No VAT validation runs: trigger one after it resolves if you
    * need it. Refusals: `404 NOT_FOUND`, `409 ORGANIZATION_TAX_ID_CHANGE_REFUSED`
    * (`not_company` | `deleted`), `409 ORGANIZATION_TAX_ID_EXISTS`,
-   * `409 ORGANIZATION_WRITE_CONTENDED`.
+   * `409 ORGANIZATION_WRITE_CONTENDED`. Ignores `expectedVersion`.
    */
   changeTaxId(
     organizationId: string,
     input: OrganizationChangeTaxIdInput,
     options?: OrganizationCommandPortOptions,
   ): Promise<OrganizationRecord>;
+  /**
+   * `organization.allow_lists_replace` — replaces all three allow-lists
+   * (payment methods, delivery methods, warehouses; an empty list means the
+   * platform defaults apply) and answers them, sorted, with the Organization's
+   * new `version`. Refusals: `409 VERSION_CONFLICT`.
+   */
+  setRestrictions(
+    id: string,
+    input: OrganizationAllowListsReplace,
+    options?: OrganizationCommandPortOptions,
+  ): Promise<OrganizationRestrictions>;
+  /**
+   * `organization.allow_list_patch` — adds and removes ids on one allow-list,
+   * as the three `PATCH …/restrictions/*` routes do, and answers all three.
+   * Refusals: `409 VERSION_CONFLICT`.
+   */
+  patchRestriction(
+    id: string,
+    kind: OrganizationAllowListKind,
+    patch: OrganizationAllowListPatch,
+    options?: OrganizationCommandPortOptions,
+  ): Promise<OrganizationRestrictions>;
+  /**
+   * `organization.set_credit_mode` — the credit-inheritance mode; `null` falls
+   * back to the platform default. Ignores `expectedVersion`.
+   */
+  setCreditInheritanceMode(
+    id: string,
+    input: { readonly mode: CreditInheritanceMode | null },
+    options?: OrganizationCommandPortOptions,
+  ): Promise<OrganizationRecord>;
+  /**
+   * `organization.sales_rep_assign` — assigns the administrator as a sales
+   * representative of the Organization. An existing assignment is left as it
+   * is and records nothing. Refusals: `404 NOT_FOUND` (the Organization or the
+   * administrator), `422 ORGANIZATION_PERSONAL`. Ignores `expectedVersion`.
+   */
+  assignSalesRep(
+    id: string,
+    input: { readonly adminUserId: string },
+    options?: OrganizationCommandPortOptions,
+  ): Promise<void>;
+  /**
+   * `organization.sales_rep_unassign` — removes the assignment. Refusals:
+   * `404 NOT_FOUND` when there is no such assignment, as the admin route
+   * answers. Ignores `expectedVersion`.
+   */
+  unassignSalesRep(
+    id: string,
+    input: { readonly adminUserId: string },
+    options?: OrganizationCommandPortOptions,
+  ): Promise<void>;
 }
 
 /**
- * What a server-side caller may hand either {@link OrganizationCommandPort}
- * method besides its input (issue #1057, as `OrganizationCustomFieldWriteOptions`
- * for the custom-field port).
- *
- * `extensions` is extension input for the command-hook modules on
- * `organization.convert_to_company` / `organization.tax_id.change`, keyed by
- * module id; each hook sees only its own module's key. A key no present hook
- * module claims is refused `422 COMMAND_EXTENSION_UNCLAIMED` before anything is
- * written. No HTTP body carries it — that field is spec 178's.
+ * What a server-side caller may hand any {@link OrganizationCommandPort}
+ * method besides its input: {@link AggregateCommandOptions} (issue #1057 for
+ * `extensions`; `specs/186-aggregate-ports/` for `expectedVersion` and
+ * `source`). No HTTP body carries `extensions` — that field is spec 178's.
  */
-export interface OrganizationCommandPortOptions {
-  readonly extensions?: Readonly<Record<string, unknown>>;
+export type OrganizationCommandPortOptions = AggregateCommandOptions;
+
+/** {@link OrganizationCommandPort.reject}'s input — the admin body without its version. */
+export interface OrganizationRejectInput {
+  /** Required, 1–2000 characters. */
+  readonly reason: string;
+  /** Whether the customer's rejection notice is sent; default `true`. */
+  readonly notifyCustomerEmail?: boolean;
+}
+
+/** {@link OrganizationCommandPort.block}'s input — the admin body without its version. */
+export interface OrganizationBlockInput {
+  /** At most 2000 characters; absent or `null` blocks without one. */
+  readonly reason?: string | null;
+}
+
+/** {@link OrganizationCommandPort.setRestrictions}'s input — the admin body without its version. */
+export interface OrganizationAllowListsReplace {
+  readonly paymentMethodIds: readonly string[];
+  readonly deliveryMethodIds: readonly string[];
+  readonly warehouseIds: readonly string[];
+}
+
+/** {@link OrganizationCommandPort.patchRestriction}'s input — the admin body without its version. */
+export interface OrganizationAllowListPatch {
+  readonly add?: readonly string[];
+  readonly remove?: readonly string[];
+}
+
+/** An Organization's three allow-lists, sorted, and its `version` after the write. */
+export interface OrganizationRestrictions {
+  readonly organizationId: string;
+  readonly paymentMethodIds: string[];
+  readonly deliveryMethodIds: string[];
+  readonly warehouseIds: string[];
+  readonly version: number;
 }
 
 // --- Tax-ID correction (issue #1040, follow-up to specs/177-tax-id-scope/) ----
@@ -1103,6 +1312,10 @@ export interface OrganizationDetailsPort {
 /**
  * Container name: `organizationCustomFieldWritePort`. Owner: `organizations`.
  *
+ * **Deprecated since 0.113.0** (`specs/186-aggregate-ports/`): the write is
+ * {@link OrganizationCommandPort.setCustomFieldValues}, with the same merge and
+ * the same entry; this port delegates to it until it is removed.
+ *
  * The server-side write of an Organization's custom-field values — for code
  * with no admin request to ride on: a subscriber on
  * `organization.registered.v1`, an overlay module, an integration worker. The
@@ -1161,6 +1374,12 @@ export interface OrganizationDetailsPort {
  * cannot close.
  */
 export interface OrganizationCustomFieldWritePort {
+  /**
+   * Runs `organization.set_custom_field_values`, delegating to the aggregate
+   * port's method of the same name: the same Command, the same entry.
+   *
+   * @deprecated since 0.113.0; use {@link OrganizationCommandPort.setCustomFieldValues} instead.
+   */
   setCustomFieldValues(
     organizationId: string,
     merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
@@ -1221,6 +1440,11 @@ export interface OrganizationWriteUpdateOptions {
 /**
  * Container name: `organizationWritePort` ({@link ORGANIZATION_WRITE_PORT}).
  * Owner: `organizations`. Issue #1029.
+ *
+ * **Deprecated since 0.113.0, removed in a later release** (`specs/186-aggregate-ports/`):
+ * every method has its replacement on {@link OrganizationCommandPort} or
+ * {@link OrganizationDetailsPort}, and delegates to it meanwhile, so the
+ * entries, the refusals and the actor rules below are unchanged.
  *
  * Find, create and update an Organization's own identity and contact fields
  * from another module — the case it was published for is a connector that
@@ -1285,13 +1509,23 @@ export interface OrganizationWritePort {
    * office and its branches share one tax ID; in `global` it holds at most one.
    * A caller that needs the single match uses
    * {@link OrganizationDetailsPort.resolveByTaxId}.
+   *
+   * @deprecated since 0.113.0; use {@link OrganizationDetailsPort.findByTaxId} instead.
    */
   findByTaxId(taxId: string): Promise<OrganizationRecord[]>;
 
-  /** Runs `organization.create`, the same Command the admin create uses. */
+  /**
+   * Runs `organization.create`, the same Command the admin create uses.
+   *
+   * @deprecated since 0.113.0; use {@link OrganizationCommandPort.create} instead.
+   */
   create(input: OrganizationWriteCreateInput): Promise<OrganizationRecord>;
 
-  /** Updates identity and contact fields only, through the `organization.update` Command. */
+  /**
+   * Updates identity and contact fields only, through the `organization.update` Command.
+   *
+   * @deprecated since 0.113.0; use {@link OrganizationCommandPort.update} instead.
+   */
   update(
     id: string,
     patch: OrganizationWriteUpdatePatch,

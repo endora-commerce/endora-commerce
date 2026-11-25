@@ -11,6 +11,7 @@ export function makeUnblockOrganizationCommand(input: ModerationCommandInput): C
     {
       action: 'organization.unblocked',
       requireStatus: 'blocked',
+      notifyCustomer: false,
       newStatus: 'active',
       mutate: (org) => {
         org.status = 'active';

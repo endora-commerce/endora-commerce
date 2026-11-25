@@ -45,8 +45,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getTenantContext, orgScopeWhere } from '@endora-commerce/platform/tenancy';
 import type { OrganizationTreeService } from './services/organization-tree-service.js';
-import { makeSetParentCommand } from './commands/set-parent.command.js';
-import { makeMoveCommand } from './commands/move.command.js';
+import { makePlaceInTreeCommand } from './commands/set-parent.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
 import { makeDeleteOrganizationCommand } from './commands/delete-organization.command.js';
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
@@ -78,16 +77,14 @@ import {
 } from '@endora-commerce/platform/kernel';
 import type {
   OrganizationModerationService} from './services/organization-moderation-service.js';
-import {
-  OrganizationNotFoundError,
-  OrganizationStatusGuardError,
-  OrganizationVersionMismatchError,
-} from './services/organization-moderation-service.js';
+import { OrganizationStatusGuardError } from './services/organization-moderation-service.js';
 import type {
   OrganizationRestrictionService} from './services/organization-restriction-service.js';
 import {
-  OrganizationVersionMismatchError as RestrictionVersionMismatchError,
-} from './services/organization-restriction-service.js';
+  moderationHttpError as mapModerationError,
+  restrictionHttpError as mapRestrictionError,
+  statusGuardRefusal,
+} from './services/organization-refusals.js';
 import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
 import type { OrganizationTaxIdValidationService } from './services/organization-tax-id-validation-service.js';
 import { serializeTaxIdValidation } from './registry-lookup/validation-record.js';
@@ -1322,22 +1319,14 @@ export async function registerOrganizationsAdminRoutes(
           );
         }
         const body = assignOrganizationParentRequestSchema.parse(request.body);
-        const em = emFactory();
-        if (!isUuidShape(request.params.id)) {
-          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-        }
-        const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
-        if (!org) {
-          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-        }
         // A distinct command action for a clean audit label: first-assign /
-        // detach ⇒ set_parent; re-parent of an existing child ⇒ move.
-        const input = { organizationId: request.params.id, parentId: body.parentId };
-        const wasChild = (org.parentId ?? null) !== null;
-        const command =
-          wasChild && body.parentId !== null
-            ? makeMoveCommand({ tree: treeService }, input)
-            : makeSetParentCommand({ tree: treeService }, input);
+        // detach ⇒ set_parent; re-parent of an existing child ⇒ move. The
+        // choice is shared with `organizationCommandPort.setParent`.
+        const command = await makePlaceInTreeCommand(
+          emFactory(),
+          { tree: treeService },
+          { organizationId: request.params.id, parentId: body.parentId },
+        );
         // The deferred `per-tree-root` constraint answers at commit, as the
         // pre-check would have (`specs/177-tax-id-scope/` FR-021).
         const updated = await runOrganizationWrite(commandBus, command, () =>
@@ -1542,76 +1531,6 @@ function rethrowOrganizationNotFound(err: unknown): never {
     throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
   }
   throw err;
-}
-
-function mapRestrictionError(err: unknown): HttpError {
-  if (err instanceof RestrictionVersionMismatchError) {
-    return new HttpError(
-      409,
-      ERROR_CODES.VERSION_CONFLICT,
-      'Organization was modified by another request. Refresh and retry.',
-      {
-        code: 'organization_version_mismatch',
-        currentVersion: err.currentVersion,
-      },
-    );
-  }
-  if (err instanceof HttpError) return err;
-  return new HttpError(
-    500,
-    ERROR_CODES.INTERNAL,
-    err instanceof Error ? err.message : 'Internal error.',
-  );
-}
-
-/**
- * Issue #629 (#86) — the organization refuses a well-formed moderation request
- * because it is in another status: a code of its own. The machine values stay
- * in `details` for a client to branch on; the labels beside them fill the
- * sentence.
- */
-function statusGuardRefusal(
-  err: OrganizationStatusGuardError,
-  currentStatusLabel: string,
-  requiredStatusLabel: string,
-): HttpError {
-  return new HttpError(
-    422,
-    ERROR_CODES.ORGANIZATION_STATUS_INVALID,
-    `Organization is in status '${err.currentStatus}', cannot perform an action that requires '${err.requiredStatus}'.`,
-    {
-      currentStatus: err.currentStatus,
-      requiredStatus: err.requiredStatus,
-      currentStatusLabel,
-      requiredStatusLabel,
-    },
-  );
-}
-
-function mapModerationError(err: unknown): HttpError {
-  if (err instanceof OrganizationVersionMismatchError) {
-    return new HttpError(
-      409,
-      ERROR_CODES.VERSION_CONFLICT,
-      'Organization was modified by another request. Refresh and retry.',
-      {
-        code: 'organization_version_mismatch',
-        currentVersion: err.currentVersion,
-      },
-    );
-  }
-  if (err instanceof OrganizationStatusGuardError) {
-    return statusGuardRefusal(err, err.currentStatus, err.requiredStatus);
-  }
-  if (err instanceof OrganizationNotFoundError) {
-    return new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-  }
-  if (err instanceof HttpError) return err;
-  return new HttpError(
-    500,
-    ERROR_CODES.INTERNAL,
-    err instanceof Error ? err.message : 'Internal error.',
-  );
 }
 
 void (null as FastifyRequest | null);

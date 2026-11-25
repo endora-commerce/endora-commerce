@@ -280,7 +280,9 @@ describe('organizationCustomFieldWritePort forwards extension input (architect r
   it("hands a claimed key to its module's hook through the port", async () => {
     const recording = recordingCommandHooks();
     const h = harness([{ moduleId: 'acme_erp', entries: [recording.on(ORG.setCustomFieldValues)] }]);
-    const port = new OrganizationCustomFieldWriteService(h.bus as never);
+    const port = new OrganizationCustomFieldWriteService(
+      new OrganizationCommandService({ commandBus: h.bus as never, accounts: { listByOrganization: async () => [] } }),
+    );
 
     await asSystem(() =>
       port.setCustomFieldValues(ORG_ID, async (current) => ({ ...current, region: 'S176-CF-REGION' }), {
@@ -293,7 +295,9 @@ describe('organizationCustomFieldWritePort forwards extension input (architect r
 
   it('answers 422 COMMAND_EXTENSION_UNCLAIMED for a key no present hook module claims, before the merge runs', async () => {
     const h = harness([{ moduleId: 'acme_erp', entries: [recordingCommandHooks().on(ORG.setCustomFieldValues)] }]);
-    const port = new OrganizationCustomFieldWriteService(h.bus as never);
+    const port = new OrganizationCustomFieldWriteService(
+      new OrganizationCommandService({ commandBus: h.bus as never, accounts: { listByOrganization: async () => [] } }),
+    );
     let merged = false;
 
     const err = await asSystem(() =>

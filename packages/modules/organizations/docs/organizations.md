@@ -78,8 +78,12 @@ tax-ID scope and enforced by the database (see *Tax IDs* below).
 
 `organization.registered.v1`, `organization.verified.v1`,
 `organization.status_changed.v1` (`{ organizationId, newStatus, previousStatus,
-reason }`, after an approval, rejection, block or unblock; `reason` is the
-operator's reason for a rejection or a block, `null` otherwise),
+reason, notifyCustomer }`, after an approval, rejection, block or unblock;
+`reason` is the operator's reason for a rejection or a block, `null` otherwise;
+`notifyCustomer` says whether the customer is told — `true` for an approval and
+for a rejection unless the caller turned the notice off, `false` for a block
+and an unblock. This module's own subscriber sends the approval and rejection
+e-mails from it, after the change commits),
 `organization_role.permissions_changed.v1` (`{ organizationId, roleId, added,
 removed }`, after a role's permissions change), `organization.converted_to_company.v1`
 (`OrganizationConvertedToCompanyEvent`: `{ eventId, occurredAt, organizationId,
@@ -108,9 +112,9 @@ correction to the value already stored).
   `customer-account-remove-member.command.ts`, and in this module's
   `organization-invitation-revoke.command.ts`; add new "must keep at least one
   admin" call sites there.
-- **Custom-field values from server-side code** — the published
-  `organizationCustomFieldWritePort` (see *Setting custom-field values from
-  server-side code* below).
+- **Server-side writes** — the published `organizationCommandPort`, the
+  Organization's write port, for every operation an administrator performs on
+  it (see *Server-side writes* below).
 - **Declared extension columns** — `organizations` is an extensible table: an
   installed module package that depends on this module may declare its own
   `x_<moduleId>_*` columns on it, and the admin detail and list reads
@@ -121,9 +125,6 @@ correction to the value already stored).
 - **Command hooks** — six Organization writes are declared hookable, so another
   module can take part in them inside their transaction (see *Hookable actions*
   below).
-- **Finding, creating and updating Organizations from another module** — the
-  published `organizationWritePort` (see *Writing Organizations from another
-  module* below).
 
 ### Hookable actions
 
@@ -138,10 +139,10 @@ page.
 
 | Action | Ref | Written by | Hook data |
 | --- | --- | --- | --- |
-| `organization.create` | `ORGANIZATION_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/organizations`, `organizationWritePort.create` | `organization`, `salesChannelIds` |
+| `organization.create` | `ORGANIZATION_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/organizations`, `organizationCommandPort.create` | `organization`, `salesChannelIds` |
 | `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
 | `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
-| `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCustomFieldWritePort` | `organization`, `changedFields`, `changedCustomFields` |
+| `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCommandPort.setCustomFieldValues` | `organization`, `changedFields`, `changedCustomFields` |
 | `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
 | `organization.tax_id.change` | `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId` | `POST /api/v1/admin/organizations/:id/change-tax-id`, `organizationCommandPort.changeTaxId` | `organizationId`, `changedFields`, `vatValidationReset` |
 
@@ -158,39 +159,130 @@ codes and field names only — never the tax ID, the name or the address. A
 tax-ID correction to the same value changes nothing, and its hooks still run
 with an empty `changedFields`: no audit entry is recorded unless a hook noted a
 write, and then the one entry names only the hook's fields. Extension input
-(`extensions`) can be passed by server-side callers only —
-`organizationCustomFieldWritePort.setCustomFieldValues` takes it as
-`{ extensions }`, and `organizationCommandPort.convertToCompany` and
-`changeTaxId` as a third argument `{ extensions }` — and no HTTP body carries it
-yet. Moving an Organization in the hierarchy is not declared hookable.
+(`extensions`) can be passed by server-side callers only, in the last argument
+of every `organizationCommandPort` method — and no HTTP body carries it yet.
+Moving an Organization in the hierarchy, moderation, restrictions and
+sales-representative assignment are not declared hookable.
 
-## Writing Organizations from another module
+**A hook that has to see every change of the custom-field values registers on
+both `organization.admin_patch` and `organization.set_custom_field_values`.**
+The admin edit writes the values together with the other fields in one
+`organization.admin_patch`; server-side code writes them alone through
+`organizationCommandPort.setCustomFieldValues`.
 
-A module that synchronises customers from an external system — an ERP or a CRM
-connector — finds, creates and updates Organizations through the port this
-module publishes, `organizationWritePort` (contract `OrganizationWritePort` in
-`@endora-commerce/contracts`, container name `ORGANIZATION_WRITE_PORT`). Resolve
-it per use with `lazyPort<OrganizationWritePort>(ctx, 'organizationWritePort')`,
-with `organizations` in the calling module's manifest `dependencies`. It needs
-no admin session, permission or HTTP call, and it checks none: the calling
-module is the gate.
+## Server-side writes
 
-```ts
-findByTaxId(taxId: string): Promise<OrganizationRecord[]>;
-create(input: OrganizationWriteCreateInput): Promise<OrganizationRecord>;
-update(
-  id: string,
-  patch: OrganizationWriteUpdatePatch,
-  options?: { expectedVersion?: number },
-): Promise<OrganizationRecord>;
-```
+Another module, an overlay module or an integration worker (an ERP or CRM
+connector) writes an Organization through **`organizationCommandPort`**, the
+Organization aggregate's write port, declared as `OrganizationCommandPort` in
+`@endora-commerce/contracts`. It never writes this module's tables itself.
+Resolve it per use with `lazyPort<OrganizationCommandPort>(ctx, 'organizationCommandPort')`,
+with `organizations` in the calling module's manifest `dependencies`.
 
-- **`findByTaxId`** answers exactly what `organizationDetailsPort.findByTaxId`
-  answers (see *Looking up an organization by tax ID* below): the input is
-  normalised, and the result is every live organization holding the tax ID, the
-  tree's root first, or `[]`. It is a list because in the `per-tree-root`
-  scope a head office and its branches share one tax ID. When you need the one
-  organization to link to, use `organizationDetailsPort.resolveByTaxId`.
+| Method | Audit action | What the admin does the same way |
+| --- | --- | --- |
+| `create(input, options?)` | `organization.create` | `POST /api/v1/admin/organizations` |
+| `update(id, patch, options?)` | `organization.update` | — (identity and contact fields) |
+| `setParent(id, { parentId }, options?)` | `organization.set_parent`, `organization.move` | `POST /api/v1/admin/organizations/:id/parent` |
+| `approve(id, options?)` | `organization.approved` | `POST /api/v1/admin/organizations/:id/approve` |
+| `reject(id, { reason, notifyCustomerEmail? }, options?)` | `organization.rejected` | `POST /api/v1/admin/organizations/:id/reject` |
+| `block(id, { reason? }, options?)` | `organization.blocked` | `POST /api/v1/admin/organizations/:id/block` |
+| `unblock(id, options?)` | `organization.unblocked` | `POST /api/v1/admin/organizations/:id/unblock` |
+| `delete(id, options?)` | `organization.delete` | `DELETE /api/v1/admin/organizations/:id` |
+| `setCustomFieldValues(id, merge, options?)` | `organization.set_custom_field_values` | — (the admin sends values with `PATCH`) |
+| `convertToCompany(id, input, options?)` | `organization.convert_to_company` | `POST /api/v1/admin/organizations/:id/convert-to-company` |
+| `changeTaxId(id, { taxId }, options?)` | `organization.tax_id.change` | `POST /api/v1/admin/organizations/:id/change-tax-id` |
+| `setRestrictions(id, lists, options?)` | `organization.allow_lists_replace` | `PUT /api/v1/admin/organizations/:id/restrictions` |
+| `patchRestriction(id, kind, { add?, remove? }, options?)` | `organization.allow_list_patch` | `PATCH /api/v1/admin/organizations/:id/restrictions/*` |
+| `setCreditInheritanceMode(id, { mode }, options?)` | `organization.set_credit_mode` | `PUT /api/v1/admin/organizations/:id/credit-inheritance-mode` |
+| `assignSalesRep(id, { adminUserId }, options?)` | `organization.sales_rep_assign` | `POST /api/v1/admin/organizations/:id/sales-reps` |
+| `unassignSalesRep(id, { adminUserId }, options?)` | `organization.sales_rep_unassign` | `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` |
+
+The sales channels of an existing Organization are not on the port yet.
+
+**One write path.** Each method runs the same Command the admin endpoint runs,
+built by the same factory, so the two cannot write differently: one audit entry
+with the same state, and the same event. Approving and rejecting send the
+customer's notice after the change commits, exactly as from the admin — the
+notice is sent by this module's subscriber of `organization.status_changed.v1`,
+so it also goes out when the approval runs inside another Command. Inputs are
+the endpoints' request bodies without their `version`, validated with the same
+limits, and refusals are the endpoints' errors with their codes
+(`422 VALIDATION_FAILED` for an input outside them, `404 NOT_FOUND`,
+`422 ORGANIZATION_STATUS_INVALID`, `409 VERSION_CONFLICT`, and each operation's
+own). The one difference: `create` answers a sales channel that does not exist
+with `422 UNKNOWN_SALES_CHANNEL`, where the admin endpoint answers
+`422 VALIDATION_FAILED`.
+
+**Who wrote it.** The actor is the ambient one, never a parameter: an
+administrator inside an admin request, or under `withSystemScopeActingFor`; the
+**system** actor under `withSystemScope` in a worker, which records no
+administrator — an approval by the system stamps no approving administrator.
+With no tenant context at all the write is refused before anything is stored.
+The port checks no permission — the caller is the gate — so never resolve it
+for a customer-facing route. The admin's own gates are not on the port either:
+only a platform administrator may change the parent, the credit mode or the
+sales representatives in the admin, and a sales representative reaches only
+some Organizations; server code that acts for somebody applies those rules
+itself.
+
+**Options** (the last parameter of every method):
+
+- `source` — a lower-case code naming the integration (`erp`, `erp.customer-master`,
+  at most 64 characters), recorded as `source` in the audit entry beside the
+  actor. It is what tells two integrations apart when both write as the system.
+  Any other value is refused with `422 VALIDATION_FAILED` before anything is
+  read or written.
+- `expectedVersion` — the Organization's `version` you read; when it has moved
+  on, the write is refused with `409 VERSION_CONFLICT` and the
+  `currentVersion`. `update`, the four moderation methods and the two
+  restriction methods honour it, as their admin endpoints check the version;
+  without it they write over the version they read, and the status rules still
+  apply (approving an Organization that is already active is refused). The other
+  methods ignore it.
+- `extensions` — input for the command hooks on the action (see *Hookable
+  actions* above). A key no installed hook module claims is refused with
+  `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+
+**Moderation.** `reject` needs a reason of 1 to 2000 characters; it is stored on
+the Organization and sent in the notice, never written into the audit entry.
+Pass `notifyCustomerEmail: false` when you tell the customer yourself. `block`
+takes an optional reason and sends no notice; neither does `unblock`.
+
+**Placing an Organization in the tree.** `setParent` with a parent id assigns
+the first parent (`organization.set_parent`) or moves a branch to another
+parent (`organization.move`); `parentId: null` detaches it to a root.
+
+**Custom-field values alone.** `setCustomFieldValues` takes a `merge` — a
+function from the current values to the new ones — and runs it inside its
+Command. The module does not validate: call `CustomFieldValuePort.validateAndMerge`
+inside the merge (see *Setting custom-field values from server-side code*
+below). The admin edit, `organization.admin_patch`, which writes the fields and
+the values together, is deliberately not on the port: `update` covers the
+fields and `setCustomFieldValues` the values.
+
+**Deliberately not offered:** members, invitations and roles (moving an account
+is `membershipPort`'s); the tax-ID scope, a platform setting; VAT validation
+runs, which are not a write of the Organization.
+
+`organizations` cannot be switched off, so the port is always available.
+
+### Deprecated: `organizationWritePort` and `organizationCustomFieldWritePort`
+
+Both narrow ports are deprecated since 0.113.0 and will be removed in a later
+release. Until then each method delegates to its replacement, so it writes the
+same entries and answers the same refusals as before:
+
+| Deprecated call | Use instead |
+| --- | --- |
+| `organizationWritePort.findByTaxId(taxId)` | `organizationDetailsPort.findByTaxId(taxId)` |
+| `organizationWritePort.create(input)` | `organizationCommandPort.create(input)` |
+| `organizationWritePort.update(id, patch, { expectedVersion })` | `organizationCommandPort.update(id, patch, { expectedVersion })` |
+| `organizationCustomFieldWritePort.setCustomFieldValues(id, merge, { extensions })` | `organizationCommandPort.setCustomFieldValues(id, merge, { extensions })` |
+
+`create` and `update` take the same input types as before
+(`OrganizationWriteCreateInput`, `OrganizationWriteUpdatePatch`):
+
 - **`create`** runs the `organization.create` command, the same one as
   *New organization* in the admin, with the same checks: the name, tax ID and
   registered address within the form's limits, a country an operator has made
@@ -201,26 +293,15 @@ update(
   organization as a branch of that tree — in `per-tree-root` the branch may
   carry its head office's tax ID. The status is `active` or
   `pending_verification`.
-- **`update`** runs a new `organization.update` command over the name, legal
+- **`update`** runs the `organization.update` command over the name, legal
   name (`null` clears it), VAT status, registered address and
   order-confirmation e-mails. A key you leave out stays as it is, and any other
   key is refused — the tax ID in particular: a correction is
-  `organizationCommandPort.changeTaxId` (see *Correcting a tax ID* below). An
-  update that changes nothing writes nothing and records nothing, so sending the
-  same record again is safe. Pass the `version` you read as `expectedVersion` to
-  be refused when someone else changed the Organization in the meantime.
-- **Out of scope:** moderation (approve, reject, block), re-parenting, roles,
-  members, credit, custom-field values after creation
-  (`organizationCustomFieldWritePort` covers them), delivery and billing
-  addresses (`addressServicePort`) and sales channels after creation.
-- **Each write is one audit entry with the caller's actor**, recording names,
-  not values (see *Audit entries* below). The command records whoever the
-  caller's tenant context says: a worker in `withSystemScope` records no
-  administrator, and one in `withSystemScopeActingFor(adminUserId, …)` records
-  the administrator who asked for the work. With no tenant context the write is
-  refused before anything is stored.
-- **Refusals** are the platform's HTTP errors, so a caller can record an issue
-  for one record and go on with the next:
+  `changeTaxId` (see *Correcting a tax ID* below). An update that changes
+  nothing writes nothing and records nothing, so sending the same record again
+  is safe.
+
+Their refusals:
 
 | Code | When |
 | --- | --- |
@@ -233,8 +314,6 @@ update(
 | `404 NOT_FOUND` | `create` under a parent that does not exist or was deleted; `update` of an Organization that does not exist or was deleted |
 | `409 VERSION_CONFLICT` | `update` with an `expectedVersion` the Organization has moved past |
 | `409 ORGANIZATION_WRITE_CONTENDED` | A concurrent change to organizations held a lock; retry |
-
-`organizations` cannot be switched off, so the port is always available.
 
 ## Sales channels
 
@@ -250,7 +329,7 @@ An Organization's members may sign in to and shop in exactly the stores whose sa
 | Business registration on a storefront (`POST /api/v1/organizations/register`) | exactly the channel of the store it registered on — also on a store closed to anonymous visitors, where moderation decides whether the business gets in |
 | Individual (B2C) self-registration (personal organization) | exactly the channel of the store it registered on; refused on a store closed to anonymous visitors |
 | *New organization* in the admin | the channels chosen on the form |
-| Another module, through `organizationWritePort.create` | the channels it names |
+| Another module, through `organizationCommandPort.create` | the channels it names |
 | Anything else — sign-in with an external identity provider that provisions a new account, imports, demo data | the system-default channel |
 
 Accepting an invitation adds a member to an existing Organization and changes none of its channels.
@@ -773,17 +852,18 @@ identifier a worker brings back from an external system. Such a field is
 usually *internal*, so registration cannot accept it from the buyer, and the
 code that knows the value has no administrator's request to send it with.
 
-That code writes through the port this module publishes,
-`organizationCustomFieldWritePort` (contract `OrganizationCustomFieldWritePort`
-in `@endora-commerce/contracts`), resolved with
-`lazyPort<OrganizationCustomFieldWritePort>(ctx, 'organizationCustomFieldWritePort')`
-and with `organizations` in the calling module's manifest `dependencies`. It
-has one method:
+That code writes through `organizationCommandPort.setCustomFieldValues` (see
+*Server-side writes* above), resolved with
+`lazyPort<OrganizationCommandPort>(ctx, 'organizationCommandPort')` and with
+`organizations` in the calling module's manifest `dependencies`. The
+deprecated `organizationCustomFieldWritePort.setCustomFieldValues` does the
+same until it is removed.
 
 ```ts
 setCustomFieldValues(
   organizationId: string,
   merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
+  options?: AggregateCommandOptions,
 ): Promise<OrganizationRecord>;
 ```
 
@@ -1528,7 +1608,7 @@ never a custom role's name or description.
 - **`organization.admin_patch`**, **`organization.set_custom_field_values`**,
   **`organization.convert_to_company`** — the codes before and after and the
   names of what changed.
-- **`organization.update`** (`organizationWritePort.update`) — the VAT status
+- **`organization.update`** (`organizationCommandPort.update`) — the VAT status
   before and after and the names of the fields that changed.
 - **`organization.delete`** — the status, VAT status, whether it is personal,
   its parent by id and its version.
@@ -1536,6 +1616,12 @@ never a custom role's name or description.
   — the status, the moderation dates, the approving operator by id, the version,
   and whether a block or rejection reason is set (`hasBlockedReason`,
   `hasRejectedReason`); the reason itself is on the organization's page.
+- **`organization.allow_lists_replace`**, **`organization.allow_list_patch`** —
+  the allowed payment-method, delivery-method and warehouse ids (for a patch,
+  its kind and the ids added and removed), written in the change's transaction.
+- **`organization.sales_rep_assign`**, **`.sales_rep_unassign`** — the
+  representative by id. Assigning a representative already assigned, or
+  removing one who is not, changes nothing and records nothing.
 - **`customer_account.admin_create`**, **`.admin_profile_update`**,
   **`.admin_remove`** — the member's role by id, its roll-up, e-mail-confirmed
   and two-factor flags and, after a change, the names of what changed (`email`,

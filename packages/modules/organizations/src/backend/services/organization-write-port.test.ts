@@ -9,6 +9,7 @@ import {
   type OrganizationWriteCreateInput,
 } from '@endora-commerce/contracts';
 import type { Command, CommandOutcome } from '@endora-commerce/platform/commands';
+import { OrganizationCommandService } from './organization-command-port.js';
 import { OrganizationWriteService } from './organization-write-port.js';
 
 /**
@@ -139,27 +140,43 @@ function harness(options: { refuseCountry?: string } = {}) {
       }
     },
   };
-  const port = new OrganizationWriteService({
+  // Since `specs/186-aggregate-ports/` T031 the narrow port delegates to the
+  // aggregate port: built here as the composition builds it, so every case
+  // below holds the delegation to the narrow port's published behaviour.
+  const commands = new OrganizationCommandService({
     commandBus,
-    emFactory: () => em as unknown as EntityManager,
-    membership: {
-      replaceChannelsForEntity: async (_type, entityId, channelIds) => {
-        bound.push({ entityId, channelIds });
-        return { changed: true };
+    accounts: { listByOrganization: async () => [] },
+    aggregate: {
+      emFactory: () => em as unknown as EntityManager,
+      membership: {
+        replaceChannelsForEntity: async (_type: string, entityId: string, channelIds: readonly string[]) => {
+          bound.push({ entityId, channelIds });
+          return { changed: true };
+        },
+      } as never,
+      dictionaryValidator,
+      tree: { assertMaxDepth: async () => {} } as never,
+      customFieldValues: {
+        validateAndMerge: async (_entityType: string, current: Record<string, unknown>, values?: Record<string, unknown>) => {
+          validatedValues.push(values ?? {});
+          return { ...current, ...values };
+        },
+      } as never,
+      moderation: () => {
+        throw new Error('not used');
       },
+      restrictions: () => {
+        throw new Error('not used');
+      },
+      adminUsers: { findById: async () => null },
     },
-    dictionaryValidator,
+  });
+  const port = new OrganizationWriteService({
+    commands,
     lookup: {
       findByTaxId: async (taxId) => {
         lookups.push(taxId);
         return [];
-      },
-    },
-    tree: { assertMaxDepth: async () => {} },
-    customFieldValues: {
-      validateAndMerge: async (_entityType, current, values) => {
-        validatedValues.push(values ?? {});
-        return { ...current, ...values };
       },
     },
   });

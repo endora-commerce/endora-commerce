@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
+import type { AggregateCommandOptions } from './aggregate-ports.js';
 import { ERROR_CODES } from './errors.js';
 import {
   adminOrganizationChangeTaxIdBodySchema,
@@ -47,9 +48,8 @@ describe('the port, the event and the refusal', () => {
   });
 
   it('forwards extension input to the hook modules on both of its Commands (issue #1057)', () => {
-    expectTypeOf<OrganizationCommandPortOptions>().toEqualTypeOf<{
-      readonly extensions?: Readonly<Record<string, unknown>>;
-    }>();
+    // An alias of the aggregate ports' options since `specs/186-aggregate-ports/` T012.
+    expectTypeOf<OrganizationCommandPortOptions>().toEqualTypeOf<AggregateCommandOptions>();
     expectTypeOf<Parameters<OrganizationCommandPort['convertToCompany']>[2]>().toEqualTypeOf<
       OrganizationCommandPortOptions | undefined
     >();
