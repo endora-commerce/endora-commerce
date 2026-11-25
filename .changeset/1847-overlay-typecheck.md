@@ -19,8 +19,8 @@ A new instance gets:
 - `setup` runs `typecheck` after `generate` and `build` and before `migrate`:
   `pnpm run generate && pnpm run build && pnpm run typecheck && pnpm run migrate && pnpm run module:install --all`.
 
-An existing instance is not rewritten (`endora upgrade` moves versions only). To get the check, add
-the file and the two scripts above by hand, and put `pnpm run typecheck` into the root `setup`
-before `pnpm run migrate`. The first run can report an `enum`, a `namespace` or a constructor
+An existing instance gets the file and the scripts from `endora upgrade` (the second run from
+0.112.0, see the #1848 entry of this release); a script you edited is reported, and then you add
+it by hand. The first run can report an `enum`, a `namespace` or a constructor
 parameter property your overlay code already has; replace an `enum` with a union of string
 literals and a parameter property with a declared field assigned in the constructor.

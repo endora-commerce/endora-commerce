@@ -110,6 +110,7 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -146,10 +147,13 @@ import {
   evaluateA9,
   evaluateA16,
   evaluateA17,
+  evaluateA18,
   type ActorScopeObservation,
   type AdminStylesheetObservation,
   type DivergenceReportEntry,
   type OverlayModuleObservation,
+  type OverlayBuildCase,
+  type OverlayBuildObservation,
   type TenancyGuardObservation,
   type DocsSiteObservation,
   evaluateA14,
@@ -1727,6 +1731,71 @@ function renderedDivergence(
  * never has, so the fixture is written after A4 has answered and the arithmetic
  * it breaks is reported as a note.
  */
+/**
+ * A18's probe (`specs/190-overlay-full-modules/` T021, #1848): over the tree A8 left — its
+ * overlay module written and built — break the compiled tree one way at a time, ask the
+ * instance's own processes, and put the tree back exactly, modification times included,
+ * before the next. Then the restored tree has to compose. `migrate` resolves no overlay
+ * module until schema discovery (#1850), so it is not asked yet.
+ */
+function measureOverlayBuild(
+  target: string,
+  deployment: string,
+  environment: NodeJS.ProcessEnv,
+): OverlayBuildObservation {
+  const moduleDir = join(target, 'apps', deployment, 'modules', OVERLAY_MODULE_ID);
+  const compiledDir = join(target, 'backend', 'dist', 'apps', deployment, 'modules', OVERLAY_MODULE_ID);
+  const backendSource = join(moduleDir, 'backend.ts');
+  if (!existsSync(backendSource) || !existsSync(join(compiledDir, 'backend.js'))) {
+    return {
+      cases: [],
+      clean: null,
+      failure: `A8 left no built overlay module to break (${backendSource} and its compiled twin)`,
+    };
+  }
+  const status = (): { code: number; output: string } =>
+    run('pnpm', ['run', 'module:status'], { cwd: target, env: environment, timeout: 180_000 });
+  const api = (): { code: number; output: string } =>
+    // A refusal exits at once; a composition that went through would listen until the timeout.
+    run('pnpm', ['-C', 'backend', 'run', 'start'], { cwd: target, env: environment, timeout: 90_000 });
+  const cases: OverlayBuildCase[] = [];
+  const record = (kind: OverlayBuildCase['kind'], probe: OverlayBuildCase['probe'], answer: { code: number; output: string }): void => {
+    cases.push({ kind, probe, code: answer.code, output: answer.output });
+  };
+
+  // stale: an edit after the build, the compiled unit left as it was.
+  const before = readFileSync(backendSource, 'utf8');
+  const times = statSync(backendSource);
+  writeFileSync(backendSource, `${before}\n// A18: edited after the build\n`, 'utf8');
+  const later = new Date(statSync(join(compiledDir, 'backend.js')).mtimeMs + 60_000);
+  utimesSync(backendSource, later, later);
+  record('stale', 'module:status', status());
+  record('stale', 'api', api());
+  writeFileSync(backendSource, before, 'utf8');
+  utimesSync(backendSource, times.atime, times.mtime);
+
+  // unbuilt: a module in the sources that no build has seen.
+  const unbuilt = join(target, 'apps', deployment, 'modules', 'a18_unbuilt');
+  mkdirSync(unbuilt, { recursive: true });
+  writeFileSync(join(unbuilt, 'manifest.ts'), "export const manifest = { id: 'a18_unbuilt' };\n", 'utf8');
+  record('unbuilt', 'module:status', status());
+  rmSync(unbuilt, { recursive: true, force: true });
+
+  // orphan: a compiled unit whose source is gone.
+  const orphan = join(compiledDir, 'a18-orphan.js');
+  writeFileSync(orphan, 'export {};\n', 'utf8');
+  record('orphan', 'module:status', status());
+  rmSync(orphan, { force: true });
+
+  // package-in-disguise: a module that declares itself a package.
+  const disguise = join(moduleDir, 'package.json');
+  writeFileSync(disguise, '{ "name": "a18-disguise" }\n', 'utf8');
+  record('package-in-disguise', 'module:status', status());
+  rmSync(disguise, { force: true });
+
+  return { cases, clean: status() };
+}
+
 async function measureOverlay(
   target: string,
   deployment: string,
@@ -1749,6 +1818,18 @@ async function measureOverlay(
     `wrote ${fixture.written.join(' and ')} — A8's own fixture, and the one decoration a ` +
       `booting instance accepts: the two it refuses are recorded beside \`OVERLAY_MODULE_ID\``,
   );
+
+  // Overlay code is compiled (#1848): a module added to `apps/` is composed only once
+  // the backend member's build has run `endora build overlays` over it — what an
+  // operator does after adding one. Without it the compiled entry points refuse the
+  // boot as `unbuilt` (FR-015), which is the guard and not this assertion's subject.
+  const rebuilt = run('pnpm', ['-C', 'backend', 'run', 'build'], { cwd: target, env: environment });
+  if (rebuilt.code !== 0) {
+    return unreachable(
+      `the backend member's own \`build\` exited ${String(rebuilt.code)} over the tree carrying ` +
+        `A8's overlay module: ${failureExcerpt(rebuilt.output, 5)}`,
+    );
+  }
 
   const rendered = renderedDivergence(target, deployment, environment);
 
@@ -2422,6 +2503,7 @@ async function main(): Promise<void> {
               'the created tree holds no directory under `apps/`, so this instance has no ' +
               'deployment to write an overlay module into (`contracts/instance-tree.md` §2.2)',
           });
+          results.push({ id: 'A18', state: 'unmeasured', detail: 'there is no deployment to build an overlay in' });
         } else {
           overlayEnvironment = { ...environment, DEPLOYMENT: deployment };
           notes.push(
@@ -2430,6 +2512,7 @@ async function main(): Promise<void> {
               'this is the value the instance already runs as and not one this harness chose',
           );
           results.push(evaluateA8(await measureOverlay(target, deployment, overlayEnvironment)));
+          results.push(evaluateA18(measureOverlayBuild(target, deployment, overlayEnvironment)));
         }
       } else {
         results.push(
@@ -2446,6 +2529,7 @@ async function main(): Promise<void> {
           state: 'unmeasured',
           detail: 'the instance did not migrate, so there is nothing to compose an overlay in',
         });
+        results.push({ id: 'A18', state: 'unmeasured', detail: 'the instance did not migrate, so there is no overlay build to break' });
         results.push({
           id: 'A9',
           state: 'unmeasured',
@@ -2475,6 +2559,7 @@ async function main(): Promise<void> {
         state: 'unmeasured',
         detail: 'there is no install to compose an overlay module in',
       });
+      results.push({ id: 'A18', state: 'unmeasured', detail: 'there is no install to build an overlay in' });
       results.push({
         id: 'A9',
         state: 'unmeasured',

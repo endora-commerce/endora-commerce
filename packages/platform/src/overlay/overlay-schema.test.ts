@@ -149,6 +149,24 @@ describe('an entry point prints the refusal as a sentence, and a defect with its
     expect(err).toEqual(['[overlay] an overlay module contributes no schema\n']);
   });
 
+  it('`exitOnRefusal` treats the layout and freshness refusals the same way (#1848)', async () => {
+    const { OverlayLayoutError } = await import('./overlay-layout.js');
+    const { OverlayBuildError } = await import('./overlay-freshness.js');
+    for (const refusal of [
+      new OverlayLayoutError('/r', [{ kind: 'package-in-disguise', file: '/r/a/package.json' }]),
+      new OverlayBuildError([{ verdict: 'unbuilt', source: '/s/a/manifest.ts', emitted: null }], 'pnpm run build'),
+    ]) {
+      const { restore } = exiting();
+      const err: string[] = [];
+      try {
+        expect(() => exitOnRefusal(refusal, (text) => err.push(text))).toThrow('exit 1');
+      } finally {
+        restore();
+      }
+      expect(err).toEqual([`${refusal.message}\n`]);
+    }
+  });
+
   it('`exitOnRefusal` throws anything else again, untouched', () => {
     const defect = new TypeError('cannot read properties of undefined');
     const err: string[] = [];

@@ -54,7 +54,9 @@ Usage:
                          [--topology single-host|three-host] [--non-interactive] [--dry-run]
   endora generate [--dry-run]
   endora dev [--storefront-dir <path>] [--no-storefront]
+  endora build overlays [--watch]
   endora upgrade [<version>] [--storefront-dir <path>] [--no-storefront] [--dry-run]
+  endora upgrade --finish [--dry-run]
   endora --help
 
 \`endora new module\` writes a module package that is composed by the platform,
@@ -248,6 +250,14 @@ Options for \`dev\`:
                                 beside the instance, when it exists)
   --no-storefront               start the API and the admin preview only
 
+\`endora build overlays\` compiles the instance's overlay modules (\`apps/<deployment>/
+modules/*\`) with its own \`tsc -p backend/tsconfig.apps.json\` into \`backend/dist/apps\`,
+after refusing a nested module or one that is a package in disguise, and mirrors their
+runtime assets (\`i18n/*.json\`) beside the code. The instance's \`build\` script runs it.
+
+Options for \`build overlays\`:
+  --watch                       recompile and re-mirror on every change (\`dev\`)
+
 \`endora upgrade\` is what an instance's \`pnpm run upgrade\` runs: it moves every package
 of the release this CLI belongs to — the platform, every module, the admin shell,
 the contracts — to one version, in every member of the instance and in the
@@ -268,6 +278,11 @@ Options for \`upgrade\`:
   --dry-run                     report every range it would move, every lockfile
                                 entry it would drop and every command; write nothing
                                 and run nothing
+  --finish                      the second half, which \`upgrade\` hands to the CLI its
+                                install put in place: bring the wiring files (entry
+                                points, \`backend/tsconfig.apps.json\`, the build scripts)
+                                to this release's rendering — a file you edited is
+                                reported, not overwritten — then run \`setup\`
 
 \`endora generate\` renders the two files an instance's admin project is built
 from and commits neither: the contribution registry of the module packages this
@@ -432,6 +447,8 @@ function parse(argv: readonly string[], declaredInputFlags: readonly string[] = 
       topology: { type: 'string' },
       'non-interactive': { type: 'boolean' },
       'dry-run': { type: 'boolean' },
+      watch: { type: 'boolean' },
+      finish: { type: 'boolean' },
       // `endora install` (feature 125). `--no-*` is a flag of its own rather
       // than a negation `parseArgs` understands: the library has no negation,
       // and a default that is `true` needs a name to be turned off by.
@@ -1015,7 +1032,30 @@ async function runUpgradeCommand(
   rest: readonly string[],
   cwd: string,
 ): Promise<number> {
-  const { runUpgrade, UpgradeHostError, UpgradeInputError } = await import('../upgrade/index.js');
+  const { runUpgrade, runUpgradeFinish, UpgradeHostError, UpgradeInputError } = await import(
+    '../upgrade/index.js'
+  );
+  // The second half of an upgrade, run by the CLI the first half installed (#1848).
+  if (asFlag(parsed.values['finish'])) {
+    if (rest.length > 0) {
+      process.stderr.write('endora: `upgrade --finish` takes no version: it finishes the one installed.\n');
+      return 1;
+    }
+    try {
+      const finished = await runUpgradeFinish({
+        cwd,
+        dryRun: asFlag(parsed.values['dry-run']),
+        echo: (line: string) => void process.stdout.write(`${line}\n`),
+      });
+      return finished.exitCode;
+    } catch (error: unknown) {
+      if (error instanceof UpgradeHostError) {
+        process.stderr.write(`endora: ${error.message}\n`);
+        return 2;
+      }
+      throw error;
+    }
+  }
   if (rest.length > 1) {
     process.stderr.write(
       `endora: \`upgrade\` takes one version at most; got ${rest.join(', ')}.\n`,
@@ -1118,6 +1158,18 @@ export async function main(
     return runDevCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
 
+  if (command === 'build') {
+    if (subject !== 'overlays' || rest.length > 0) {
+      process.stderr.write(
+        `endora: \`build\` builds one thing, \`overlays\`; got ` +
+          `${[subject, ...rest].filter((v) => v !== undefined).join(' ') || '<none>'}.\n`,
+      );
+      return 1;
+    }
+    const { runBuildOverlays } = await import('../build-overlays/index.js');
+    return runBuildOverlays({ cwd, watch: asFlag(parsed.values['watch']) });
+  }
+
   if (command === 'upgrade') {
     return runUpgradeCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
@@ -1125,8 +1177,8 @@ export async function main(
   if (command !== 'new') {
     process.stderr.write(
       `endora: unknown command "${command}". This build provides \`new module\`, ` +
-        `\`new instance\`, \`new storefront\`, \`install\`, \`generate\`, \`dev\`, \`upgrade\` and ` +
-        `\`check\`.\n`,
+        `\`new instance\`, \`new storefront\`, \`install\`, \`generate\`, \`dev\`, ` +
+        `\`build overlays\`, \`upgrade\` and \`check\`.\n`,
     );
     return 1;
   }

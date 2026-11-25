@@ -862,7 +862,9 @@ describe('the tree (§1, §2)', () => {
     const plan = planInstance(planInput());
     const content = (path: string): string => plan.files.find((file) => file.path === path)!.content;
     for (const path of ['backend/src/index.ts', 'backend/src/worker.ts']) {
-      expect(content(path), path).toContain('await composeApp({ deploymentRoot }).catch(exitOnRefusal);');
+      expect(content(path), path).toContain(
+        'await composeApp({ deploymentRoot, deploymentSourceRoot }).catch(exitOnRefusal);',
+      );
       expect(content(path), path).toMatch(/import \{[^}]*\bexitOnRefusal\b[^}]*\} from '@endora-commerce\/platform\/composition';/);
     }
     const migrate = content('backend/src/migrate.ts');

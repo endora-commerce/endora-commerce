@@ -69,7 +69,8 @@ export type AssertionId =
   | 'A14'
   | 'A15'
   | 'A16'
-  | 'A17';
+  | 'A17'
+  | 'A18';
 
 /**
  * What each assertion is, independently of any run.
@@ -98,6 +99,7 @@ export const ASSERTION_CATALOGUE: Readonly<Record<AssertionId, string>> = {
   A15: "the instance's own CLI creates an administrator, and the instance answers that administrator's login with a session",
   A16: 'the module packages the instance installs are exactly the ones its own manifests declare, whichever supply route it took',
   A17: 'a request is confined to what its authenticated actor may reach: a customer to its organization, an admin to the scope its role resolves to, a bound API key to its binding',
+  A18: 'a compiled overlay that no longer matches its sources, or one that breaks the module layout, is refused before it runs, and a clean build composes',
 };
 
 export const ASSERTION_IDS = Object.keys(ASSERTION_CATALOGUE) as readonly AssertionId[];
@@ -2423,3 +2425,69 @@ export function evaluateA17(observed: ActorScopeObservation): AssertionResult {
       'naming that administrator',
   };
 }
+
+/** One A18 case: the tree changed one way, and what the probe answered. */
+export interface OverlayBuildCase {
+  readonly kind: 'stale' | 'unbuilt' | 'orphan' | 'package-in-disguise';
+  /** Which of the instance's own processes was asked. */
+  readonly probe: 'module:status' | 'api';
+  readonly code: number;
+  readonly output: string;
+}
+
+/** What A18's probe measured (`specs/190-overlay-full-modules/` T021). */
+export interface OverlayBuildObservation {
+  readonly cases: readonly OverlayBuildCase[];
+  /** `module:status` over the restored, rebuilt tree; `null` when it was not run. */
+  readonly clean: { readonly code: number; readonly output: string } | null;
+  /** Why nothing could be probed, when nothing could. */
+  readonly failure?: string;
+}
+
+/**
+ * A18 — a stale or malformed overlay build is refused, a clean one composes (#1848, FR-015,
+ * FR-003).
+ *
+ * Each case has to be refused **by name**: a non-zero exit that does not say `[<kind>]` is some
+ * other refusal and proves nothing about this one — a missing `DATABASE_URL` would pass every
+ * case otherwise. The clean run is the other half, because a guard that refused everything would
+ * pass the four cases too.
+ */
+export function evaluateA18(observed: OverlayBuildObservation): AssertionResult {
+  if (observed.failure !== undefined) return { id: 'A18', state: 'unmeasured', detail: observed.failure };
+  if (observed.cases.length === 0) {
+    return { id: 'A18', state: 'unmeasured', detail: 'no case was probed' };
+  }
+  const missed = observed.cases.filter(
+    (entry) => entry.code === 0 || !entry.output.includes(`[${entry.kind}]`),
+  );
+  if (missed.length > 0) {
+    return {
+      id: 'A18',
+      state: 'fail',
+      detail:
+        `${missed.map((entry) => `${entry.kind} (${entry.probe}, exit ${String(entry.code)})`).join(', ')} ` +
+        'ran or was refused for another reason: a process imported overlay code that does not match ' +
+        `\`apps/\` — ${failureExcerpt(missed[0]!.output, 3)}`,
+    };
+  }
+  if (observed.clean === null || observed.clean.code !== 0) {
+    return {
+      id: 'A18',
+      state: 'fail',
+      detail:
+        'every broken tree was refused, and so was the clean rebuild: a guard that refuses ' +
+        `everything — ${observed.clean === null ? 'the clean run was not made' : failureExcerpt(observed.clean.output, 3)}`,
+    };
+  }
+  const kinds = [...new Set(observed.cases.map((entry) => entry.kind))];
+  const probes = [...new Set(observed.cases.map((entry) => entry.probe))];
+  return {
+    id: 'A18',
+    state: 'pass',
+    detail:
+      `${kinds.join(', ')} were each refused by name before any overlay code ran (asked of ` +
+      `${probes.join(' and ')}), and the restored tree, rebuilt, composed`,
+  };
+}
+

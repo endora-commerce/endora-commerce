@@ -144,6 +144,8 @@ export interface RunCliOptions {
    * package can derive for itself, for `composeApp`'s own reason.
    */
   readonly deploymentRoot: string;
+  /** `apps/` as written, when {@link deploymentRoot} holds it compiled (#1848, FR-016). */
+  readonly deploymentSourceRoot?: string;
   /** Defaults to `process.argv.slice(2)`. */
   readonly argv?: readonly string[];
   /**
@@ -336,10 +338,16 @@ async function runDemoCommand(
  * recorded: it starts no BullMQ worker and arms no timer (D-157.2, measured
  * three ways).
  */
-async function defaultCompose(deploymentRoot: string): Promise<CliComposition> {
+async function defaultCompose(
+  deploymentRoot: string,
+  deploymentSourceRoot?: string,
+): Promise<CliComposition> {
   process.env['BACKEND_ROLE'] = 'api';
   const { composeApp } = await import('../composition/compose-app.js');
-  return (await composeApp({ deploymentRoot })) as unknown as CliComposition;
+  return (await composeApp({
+    deploymentRoot,
+    ...(deploymentSourceRoot === undefined ? {} : { deploymentSourceRoot }),
+  })) as unknown as CliComposition;
 }
 
 /**
@@ -351,7 +359,8 @@ export async function dispatchCli(options: RunCliOptions): Promise<number> {
   const env = options.env ?? process.env;
   const out = options.out ?? ((chunk: string) => void process.stdout.write(chunk));
   const err = options.err ?? ((chunk: string) => void process.stderr.write(chunk));
-  const compose = options.compose ?? (() => defaultCompose(options.deploymentRoot));
+  const compose =
+    options.compose ?? (() => defaultCompose(options.deploymentRoot, options.deploymentSourceRoot));
 
   const program = options.program ?? DEFAULT_CLI_PROGRAM;
 
@@ -368,7 +377,7 @@ export async function dispatchCli(options: RunCliOptions): Promise<number> {
   // D-157.8 rejected path-convention dispatch for, since nothing can list a
   // convention.
   const resolved = await (options.resolveEntries ??
-    (() => instanceManifestEntries(options.deploymentRoot, env)))();
+    (() => instanceManifestEntries(options.deploymentRoot, env, options.deploymentSourceRoot)))();
   const declared = collectModuleCommands(resolved);
   if (argv[0] === '--list') {
     out(formatHostCommandList(DEMO_HOST_COMMANDS));

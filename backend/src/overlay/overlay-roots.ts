@@ -19,7 +19,8 @@
 // wraps and is reported as a duplication that is not there — measured on
 // `overlay-runtime.ts`, three false entries from one line.
 
-import { dirname, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   activeOverlayModulesRoot as activeOverlayModulesRootUnder,
@@ -62,6 +63,23 @@ export function repoRoot(): string {
  */
 export function deploymentRoot(): string {
   return DEPLOYMENT_ROOT;
+}
+
+/**
+ * The directory holding `apps/` **as written**, for a deployment root that holds it compiled
+ * (`specs/190-overlay-full-modules/` FR-016, #1848): `backend/src` beside a compiled
+ * `backend/dist`, when it exists; the root itself when run from sources. `undefined` for a
+ * compiled tree with no sources beside it (the image), which composes without comparing.
+ */
+export function sourceRootFor(root: string): string | undefined {
+  if (basename(root) !== 'dist') return root;
+  const sources = join(dirname(root), 'src');
+  return existsSync(sources) ? sources : undefined;
+}
+
+/** {@link sourceRootFor} of this application's own {@link deploymentRoot}. */
+export function deploymentSourceRoot(): string | undefined {
+  return sourceRootFor(DEPLOYMENT_ROOT);
 }
 
 /**

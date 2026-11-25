@@ -15,7 +15,13 @@
 
 import { buildServer } from '@endora-commerce/platform/composition';
 import { composeApp, resolveSessionCookieSecret } from './composition.js';
-import { deploymentRoot } from './overlay/overlay-roots.js';
+import { deploymentRoot, deploymentSourceRoot } from './overlay/overlay-roots.js';
+
+/** The sources the compiled overlays are judged against (#1848, FR-016); none under `tsx`'s. */
+const sourceRoot = (): { deploymentSourceRoot?: string } => {
+  const root = deploymentSourceRoot();
+  return root === undefined ? {} : { deploymentSourceRoot: root };
+};
 
 async function main(): Promise<void> {
   // Force the worker role so composition starts the queue consumers even if
@@ -32,7 +38,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const composition = await composeApp({ deploymentRoot: deploymentRoot() });
+  const composition = await composeApp({ deploymentRoot: deploymentRoot(), ...sourceRoot() });
 
   // Build the server purely to register module plugins (this is what wires the
   // queue consumers). We never listen — this process serves no HTTP.

@@ -1,0 +1,33 @@
+/**
+ * The wiring files earlier releases' `endora new instance` rendered, exactly — what
+ * `endora upgrade` recognises as "not edited by hand" (`specs/190-overlay-full-modules/`
+ * FR-017, contract `overlay-build.md` §5, #1848).
+ *
+ * A wiring file is the client's file, so the upgrade rewrites one only when it is still what
+ * a release wrote; anything else is reported for the operator to re-apply. That needs the
+ * earlier renderings themselves, which no running CLI has: so each is recorded here, with the
+ * instance's own values replaced by tokens — `{{name}}` the root manifest's `name`,
+ * `{{scope}}` the platform package's scope (`@endora-commerce/`).
+ *
+ * **0.112.0** was rendered from `packages/cli/src/new-instance/template.ts` at tag `v0.112.0`
+ * with those tokens as the name and scope. A release that changes a wiring file appends the
+ * rendering it replaces, so an instance two releases behind is still recognised;
+ * `wiring.test.ts` holds that the newest entry is not the current template's own rendering.
+ */
+export interface PreviousWiring {
+  readonly release: string;
+  /** Path relative to the instance root → content, tokens in place of the instance's values. */
+  readonly files: Readonly<Record<string, string>>;
+}
+
+export const PREVIOUS_WIRING: readonly PreviousWiring[] = [
+  {
+    release: '0.112.0',
+    files: {
+      "backend/src/index.ts": "// The API process. It reads the environment, composes, and listens.\nimport { fileURLToPath } from 'node:url';\n\nimport { buildServer, composeApp, exitOnRefusal } from '{{scope}}platform/composition';\n\nconst port = Number(process.env['PORT'] ?? 3001);\nconst sessionCookieSecret = process.env['SESSION_COOKIE_SECRET'] ?? '';\nif (sessionCookieSecret === '') {\n  console.error('SESSION_COOKIE_SECRET must be set.');\n  process.exit(1);\n}\n\n// The directory that holds `apps/` — this workspace's root, one level up from\n// the backend member. It is the one thing the platform cannot derive for\n// itself, and it is deliberately a required argument rather than a default that\n// would silently name a directory holding no `apps/` at all.\nconst deploymentRoot = fileURLToPath(new URL('../..', import.meta.url));\n\nconst composition = await composeApp({ deploymentRoot }).catch(exitOnRefusal);\nconst app = await buildServer({\n  sessionCookieSecret,\n  openApi: { title: '{{name}}', version: '0.0.0', serverUrl: `http://localhost:${port}` },\n  modules: composition.modules,\n  errorEnvelope: composition.errorEnvelope,\n  apiInterceptors: composition.apiInterceptors,\n});\n\nconst shutdown = async (signal: string): Promise<void> => {\n  app.log.info({ signal }, 'shutting down');\n  await app.close();\n  await composition.dispose();\n  process.exit(0);\n};\nprocess.once('SIGINT', () => void shutdown('SIGINT'));\nprocess.once('SIGTERM', () => void shutdown('SIGTERM'));\n\nawait app.listen({ port, host: '0.0.0.0' });\n",
+      "backend/src/worker.ts": "// The queue-consumer process (Principle X). Same composition, no listen.\nimport { fileURLToPath } from 'node:url';\n\nimport { buildServer, composeApp, exitOnRefusal } from '{{scope}}platform/composition';\n\nprocess.env['BACKEND_ROLE'] = 'worker';\nconst sessionCookieSecret = process.env['SESSION_COOKIE_SECRET'] ?? '';\nif (sessionCookieSecret === '') {\n  console.error('SESSION_COOKIE_SECRET must be set.');\n  process.exit(1);\n}\n\nconst deploymentRoot = fileURLToPath(new URL('../..', import.meta.url));\n\nconst composition = await composeApp({ deploymentRoot }).catch(exitOnRefusal);\nconst app = await buildServer({\n  sessionCookieSecret,\n  openApi: { title: '{{name}} worker', version: '0.0.0', serverUrl: 'http://localhost' },\n  modules: composition.modules,\n  errorEnvelope: composition.errorEnvelope,\n});\n\nconst shutdown = async (signal: string): Promise<void> => {\n  app.log.info({ signal }, 'worker shutting down');\n  await app.close();\n  await composition.dispose();\n  process.exit(0);\n};\nprocess.once('SIGINT', () => void shutdown('SIGINT'));\nprocess.once('SIGTERM', () => void shutdown('SIGTERM'));\napp.log.info('worker started');\n",
+      "backend/src/cli.ts": "// Your modules' operator commands. `pnpm run cli --list` shows every one.\nimport { fileURLToPath } from 'node:url';\nimport { runCli } from '{{scope}}platform/cli';\n\nawait runCli({ deploymentRoot: fileURLToPath(new URL('../..', import.meta.url)) });\n",
+      "backend/src/module-commands/runtime.ts": "// The one OperatorRuntime the five commands beside this file share.\nimport { fileURLToPath } from 'node:url';\n\nimport { runInstanceOperatorCommand } from '{{scope}}platform/lifecycle';\nimport type { OperatorRuntime } from '{{scope}}platform/lifecycle';\nimport config from '../mikro-orm.config.js';\n\n// The directory that holds `apps/` — the same value `index.ts` hands\n// `composeApp`, two levels up from the compiled command rather than one.\nconst deploymentRoot = fileURLToPath(new URL('../../..', import.meta.url));\n\n/** Build the runtime, run one command inside a system scope, close, exit. */\nexport function runOperatorCommand(\n  run: (argv: readonly string[], rt: OperatorRuntime) => Promise<number>,\n): Promise<never> {\n  return runInstanceOperatorCommand({ deploymentRoot, ormConfig: config, run });\n}\n"
+    },
+  },
+];
