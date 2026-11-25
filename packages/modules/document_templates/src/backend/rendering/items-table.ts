@@ -1,6 +1,7 @@
 import {
   DOCUMENT_POSITION_FIELD,
   ITEMS_TABLE_LIMITS,
+  documentCellLink,
   documentFieldPathRe,
   documentSectionTexts,
   documentValueHasValue,
@@ -76,7 +77,12 @@ interface Column {
   readonly format: DocumentValueFormat;
   readonly emptyText: string;
   readonly visibleWhen: unknown;
+  /** Issue #1904 — the raw option; `documentCellLink` reads it. */
+  readonly link: unknown;
 }
+
+/** A linked cell's colour — the comparison share link's (`comparisons.ComparisonShareLink`). */
+const LINK_COLOR = '#1d4ed8';
 
 interface Cell {
   text: string;
@@ -153,6 +159,7 @@ function readColumns(raw: unknown): Column[] {
       format: formatOf(c['format']),
       emptyText: typeof c['emptyText'] === 'string' ? c['emptyText'] : '',
       visibleWhen: c['visibleWhen'],
+      link: c['link'],
     });
   }
   return out;
@@ -336,11 +343,14 @@ function buildTable(t: TableInput): Record<string, unknown> {
     const fill = t.stripedRows && stripe % 2 === 1 && t.stripeColor ? { fillColor: t.stripeColor } : {};
     stripe += 1;
     const rows: Cell[][] = [
-      t.columns.map((column) => ({
-        text: cellText(column, item),
-        alignment: alignOf(column, item.values[column.field]),
-        ...fill,
-      })),
+      t.columns.map((column) => {
+        const cell: Cell = { text: cellText(column, item), alignment: alignOf(column, item.values[column.field]), ...fill };
+        // Issue #1904 — only a cell that prints its value links; the empty text never does.
+        const url = documentValueHasValue(item.values[column.field])
+          ? documentCellLink(column.link, t.byPath.get(column.field), item)
+          : null;
+        return url ? { ...cell, link: url, color: LINK_COLOR } : cell;
+      }),
     ];
     const extra = detailRow(item);
     if (extra) rows.push(extra);

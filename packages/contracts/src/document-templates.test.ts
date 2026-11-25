@@ -24,6 +24,7 @@ import {
   documentFieldPathRe,
   documentTemplateChoicesSchema,
   isReservedFieldPath,
+  documentFieldDefinitionSchema,
   itemsTablePropsSchema,
   itemsTableGroupingSchema,
   itemsTableGroupingMode,
@@ -341,6 +342,13 @@ describe('itemsTablePropsSchema (153 FR-032, FR-040–FR-043)', () => {
     expect(itemsTablePropsSchema.safeParse({ ...valid, grouping: null }).success).toBe(true);
   });
 
+  it('issue #1904 — a column prints as a link only when asked: off by default, a boolean as Puck stores it', () => {
+    const parsed = itemsTablePropsSchema.parse({ columns: [{ id: 'a', field: 'productName' }] });
+    expect(parsed.columns[0]!.link).toBe(false);
+    expect(itemsTablePropsSchema.parse({ columns: [column({ link: 'true' })] }).columns[0]!.link).toBe(true);
+    expect(itemsTablePropsSchema.safeParse({ columns: [column({ link: 'yes' })] }).success).toBe(false);
+  });
+
   it('accepts numbers and booleans as Puck stores them (strings)', () => {
     expect(itemsTablePropsSchema.safeParse({ ...valid, fontSize: '10', stripedRows: 'true' }).success).toBe(true);
   });
@@ -406,6 +414,13 @@ describe('collections on the type detail and the selection list (153 §4, §5)',
       ],
     });
     expect(withCollection.collections[0]!.fields).toHaveLength(2);
+  });
+
+  it('issue #1904 — a field names the URL field it may link to; the path keeps the field grammar', () => {
+    const field = { path: 'productName', label: 'Product', valueKind: 'text', group: 'line', audience: 'customer' } as const;
+    expect(documentFieldDefinitionSchema.parse({ ...field, linkPath: 'productUrl' }).linkPath).toBe('productUrl');
+    expect(documentFieldDefinitionSchema.parse(field).linkPath).toBeUndefined();
+    expect(documentFieldDefinitionSchema.safeParse({ ...field, linkPath: 'a.b.c' }).success).toBe(false);
   });
 
   it('the selection list', () => {

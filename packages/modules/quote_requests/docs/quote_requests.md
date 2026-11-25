@@ -895,9 +895,9 @@ The line items table offers these fields per line: position, product name,
 variant, SKU, quantity, packaging unit, quantity in packaging units, **list
 price**, the customer's proposed price, price after discount, gross unit price,
 **discount %**, **unit discount**, **line discount**, **value at list price**,
-net value, VAT rate, VAT, gross value, the line note, and one field per product
-attribute shown on the product page (a shop's *lead time* attribute, for
-example). Totals: total at list prices, discounts, total net, VAT rate, VAT,
+net value, VAT rate, VAT, gross value, the line note, the **product page URL**,
+and one field per product attribute shown on the product page (a shop's *lead
+time* attribute, for example). Totals: total at list prices, discounts, total net, VAT rate, VAT,
 total gross.
 
 - **List price** is the price recorded when the line was requested (see
@@ -911,8 +911,22 @@ total gross.
 - **VAT** is computed from the net total at the quote's one VAT rate and
   `gross = net + VAT`, as on the quote screens; a line's own VAT column is
   rounded per line and may differ from the VAT total by a cent.
-- SKU and attributes are read from the catalogue when the PDF is produced; a
-  product deleted since prints its stored name and no SKU or attributes.
+- The product name, SKU and attributes are read from the catalogue when the
+  PDF is produced. The name is the product's name in the layout's language on
+  the quote's sales channel (the system default channel's for a quote without
+  one) — so an English layout of a quote made in Polish prints the English
+  names. The name stored on the line is printed instead when the channel does
+  not offer the layout's language, when the catalogue has no name, or when the
+  product was deleted since; a deleted product also prints no SKU or
+  attributes. The variant label is printed as stored.
+- The **product page URL** is the product's page on the storefront of the
+  quote's sales channel, in the layout's language: the channel's *Storefront
+  URL* setting, else the `STOREFRONT_BASE_URL` environment variable, followed
+  by the product's storefront path (`/en/p/drill`). It is empty for a product
+  deleted since the quote was made or one the channel does not carry, and when
+  neither address is configured.
+  Print it as a column, or tick *Print as a link* on the product name column
+  to make each name a link to its page (off by default).
 
 The built-in layout prints position, product, SKU, quantity, packaging unit,
 list price and discount % (both only when a line is discounted), price after

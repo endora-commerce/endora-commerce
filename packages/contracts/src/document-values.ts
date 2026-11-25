@@ -160,6 +160,38 @@ export function documentValueHasValue(value: DocumentValue | undefined): boolean
   }
 }
 
+/**
+ * An absolute `http(s)` address — `forms-logic.ts`' pattern, for the same
+ * reason: this file runs in the browser and in Node alike and the package's
+ * program declares neither runtime's `URL`.
+ */
+const ABSOLUTE_HTTP_URL = /^https?:\/\/[^\s/?#@]+(?:[/?#][^\s]*)?$/i;
+
+/**
+ * Issue #1904 — the address a table cell links to, or `null` for plain text.
+ *
+ * A column links only when its `link` option is on (`true`, or `'true'` as
+ * Puck stores it) **and** its field declares the URL field it may link to
+ * (`DocumentFieldDefinition.linkPath`); the item's value there must be text
+ * holding an absolute `http(s)` address. Anything else — no option, a field
+ * with no URL field, a line with no address, a relative or `javascript:`
+ * one — prints the cell as it always did. The PDF renderer and the editor
+ * canvas both ask here, so the canvas shows what the PDF links.
+ */
+export function documentCellLink(
+  link: unknown,
+  field: { readonly linkPath?: string | undefined } | undefined,
+  item: DocumentItem,
+): string | null {
+  if (link !== true && link !== 'true') return null;
+  const path = field?.linkPath;
+  if (typeof path !== 'string' || path === '') return null;
+  const value = item.values[path];
+  if (!value || value.kind !== 'text' || typeof value.value !== 'string') return null;
+  const url = value.value.trim();
+  return ABSOLUTE_HTTP_URL.test(url) ? url : null;
+}
+
 function decimalsFor(value: number, format: DocumentValueFormat, fallback: number): number {
   const wanted = format.decimals;
   if (typeof wanted === 'number' && Number.isInteger(wanted) && wanted >= 0 && wanted <= 4) return wanted;

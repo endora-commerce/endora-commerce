@@ -17,6 +17,7 @@ import type {
   CatalogAttributeReadPort,
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
+  CatalogProductUrlKeyReadPort,
   CustomerAccountReadPort,
   CustomerNotificationRecordPort,
   CustomerPushPort,
@@ -779,6 +780,19 @@ export function registerModule(ctx: ModuleContext): void {
               adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
               // A kernel registration: no module edge.
               salesChannels: lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort'),
+              // Issue #1904 — the product name in the document's language and
+              // the product page: `catalog`'s effective texts and URL keys, on
+              // the channel's storefront address as the customer e-mails read it.
+              catalogTexts: lazyPort<CatalogProductAvailabilityPort>(ctx, 'catalogProductAvailabilityPort'),
+              catalogUrlKeys: lazyPort<CatalogProductUrlKeyReadPort>(ctx, 'catalogProductUrlKeyReadPort'),
+              storefrontUrl: (salesChannelId) =>
+                resolveCustomerStorefrontUrl(
+                  (id) =>
+                    ctx
+                      .cradle<QuoteRequestsCradle>()
+                      .settingsReadPort.get('sales_channels.storefront_url', id, z.string()),
+                  salesChannelId,
+                ),
               taxRate: (organizationId) => ctx.cradle<QuoteRequestsCradle>().rfqTaxRateResolver(organizationId),
             }),
             customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),

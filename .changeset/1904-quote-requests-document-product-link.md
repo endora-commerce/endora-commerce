@@ -1,0 +1,5 @@
+---
+'@endora-commerce/mod-quote-requests': minor
+---
+
+The quote request PDF prints product names in the layout's language and can link them to the product page (issue #1904). The product name is now read from the catalogue when the PDF is produced — `catalogProductAvailabilityPort.effectiveTexts` at the quote's sales channel (the system default channel's for a quote without one) in the layout's language — as SKU and attributes already were; the name stored on the line is printed where the channel does not offer that language, the catalogue answers none, or the product was deleted. A new line field, **Product page URL** (`productUrl`), holds the product's page on the channel's storefront (`sales_channels.storefront_url`, else `STOREFRONT_BASE_URL`, plus `productPath` over the effective URL key from `catalogProductUrlKeyReadPort`), empty for a deleted product or one the channel does not carry; the product name field declares it as its link, so the Line items table's *Print as a link* applies.

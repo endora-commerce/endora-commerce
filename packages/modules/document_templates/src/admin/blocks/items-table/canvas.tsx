@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import {
   DOCUMENT_POSITION_FIELD,
+  documentCellLink,
   documentSectionTexts,
   documentValueHasValue,
   evaluateDocumentCondition,
@@ -31,8 +32,15 @@ import { asList, asRecord, opOf, text, type Entry } from './shared.js';
  * groups, the sample's sections are drawn as the PDF prints them — a heading
  * row, the rows, the table's totals rows over the section's totals.
  *
+ * Issue #1904 — a column printed as a link draws its linked values in the
+ * PDF's link colour, the address on hover; not an anchor, so a click on the
+ * canvas still selects the block rather than leaving the editor.
+ *
  * Inline styles, as every document canvas renderer: the canvas is an iframe.
  */
+
+/** The renderer's link colour (`items-table.ts`). */
+const LINK_COLOR = '#1d4ed8';
 
 type Props = Record<string, unknown>;
 
@@ -79,10 +87,19 @@ export function ItemsTableCanvas(props: Props): ReactNode {
   if (columns.length === 0 || items.length === 0) {
     return <p style={wrapper}>{text(props['emptyText'])}</p>;
   }
-  const cell = (entry: (typeof columns)[number], item: DocumentItem): string => {
+  const cell = (entry: (typeof columns)[number], item: DocumentItem): ReactNode => {
     if (!entry.field) return text(entry.column['emptyText']);
     const value = item.values[entry.path];
-    return documentValueHasValue(value) ? formatDocumentValue(value, formatOf(entry.column, entry.field), language) : text(entry.column['emptyText']);
+    if (!documentValueHasValue(value)) return text(entry.column['emptyText']);
+    const formatted = formatDocumentValue(value, formatOf(entry.column, entry.field), language);
+    const url = documentCellLink(entry.column['link'], entry.field, item);
+    return url ? (
+      <span data-link="true" title={url} style={{ color: LINK_COLOR }}>
+        {formatted}
+      </span>
+    ) : (
+      formatted
+    );
   };
   const alignOf = (entry: (typeof columns)[number]) =>
     resolveDocumentAlign(
