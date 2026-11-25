@@ -73,8 +73,66 @@ export function parseValidityDays(raw: string): ValidityDaysInput {
  */
 export function deadlineForDays(raw: string, now: Date): Date | null {
   const input = parseValidityDays(raw);
-  if (input.kind !== 'days' || input.days === 0) return null;
-  return new Date(now.getTime() + input.days * MS_PER_DAY);
+  if (input.kind !== 'days') return null;
+  const days = validityDeadlineDays(input.days);
+  return days === null ? null : new Date(now.getTime() + days * MS_PER_DAY);
+}
+
+/**
+ * The one reading of "0 = no deadline" (`specs/192-quote-request-draft-share/`
+ * FR-032, owner decision): the days a validity actually runs for, or `null` when
+ * it has no deadline — `0` and `null` alike. Every screen that words a validity
+ * asks this, so none of them says "valid for 0 days".
+ */
+export function validityDeadlineDays(days: number | null | undefined): number | null {
+  return typeof days === 'number' && days > 0 ? days : null;
+}
+
+/** The store's default validity as the create screen read it (`GET …/create-defaults`). */
+export interface CreateValidityDefaults {
+  status: 'loading' | 'ready' | 'failed';
+  /** The default days; `null` = the store's default is no deadline (it answered 0 or none). */
+  days: number | null;
+}
+
+/**
+ * The create screen's validity field in every state it can be in, derived in one
+ * place so the field, its hint, the create's payload and the share question
+ * cannot disagree (review checkpoint B, fix 1):
+ *
+ * | state                               | field     | wording        | sends   | question says   |
+ * | ----------------------------------- | --------- | -------------- | ------- | --------------- |
+ * | untouched, default loading / failed | empty     | `storeDefault` | nothing | store's default |
+ * | untouched, default N days           | N         | `counted`      | N       | N days          |
+ * | untouched, default none (0 / null)  | empty     | `counted`      | 0       | no deadline     |
+ * | touched, N days                     | typed     | `counted`      | N       | N days          |
+ * | touched, empty or 0                 | typed     | `counted`      | 0       | no deadline     |
+ *
+ * `storeDefault` is the only state where an empty field does not mean "no
+ * deadline": the screen does not know the default, so the server applies it.
+ * Everywhere else what the screen says is sent explicitly, so a default changed
+ * between the read and the create cannot contradict it.
+ */
+export interface CreateValidity {
+  /** What the field shows. */
+  value: string;
+  input: ValidityDaysInput;
+  wording: 'storeDefault' | 'counted';
+  /** `expiresInDays` for the create; `undefined` = leave it to the store's default (or the input is invalid). */
+  payload: number | undefined;
+  /** The days the share question names: a number, `null` = no deadline, `undefined` = the store's default. */
+  confirmDays: number | null | undefined;
+}
+
+export function createValidity(defaults: CreateValidityDefaults, touched: boolean, typed: string): CreateValidity {
+  if (!touched && defaults.status !== 'ready') {
+    return { value: '', input: { kind: 'blank' }, wording: 'storeDefault', payload: undefined, confirmDays: undefined };
+  }
+  const value = touched ? typed : defaults.days === null ? '' : String(defaults.days);
+  const input = parseValidityDays(value);
+  if (input.kind === 'invalid') return { value, input, wording: 'counted', payload: undefined, confirmDays: undefined };
+  const days = input.kind === 'days' ? input.days : 0;
+  return { value, input, wording: 'counted', payload: days, confirmDays: validityDeadlineDays(days) };
 }
 
 /**

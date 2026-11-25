@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   MS_PER_DAY,
+  createValidity,
   deadlineForDays,
   isValidityDaysInvalid,
   parseValidityDays,
   rfqValidity,
   unsharedValidityDaysPayload,
+  validityDeadlineDays,
 } from '../../../../packages/modules/quote_requests/src/admin/validity';
 
 /**
@@ -102,5 +104,37 @@ describe('unsharedValidityDaysPayload (specs/192-quote-request-draft-share/)', (
     expect(unsharedValidityDaysPayload('14', '30')).toBe(14);
     expect(unsharedValidityDaysPayload('14', '')).toBe(14);
     expect(unsharedValidityDaysPayload('0', '30')).toBe(0);
+  });
+});
+
+describe('validityDeadlineDays — 0 and null are no deadline', () => {
+  it.each([
+    [0, null],
+    [null, null],
+    [undefined, null],
+    [1, 1],
+    [3650, 3650],
+  ])('%s → %s', (days, expected) => {
+    expect(validityDeadlineDays(days)).toBe(expected);
+  });
+});
+
+describe('createValidity — the create screen field, hint, payload and question agree', () => {
+  const loading = { status: 'loading' as const, days: null };
+  const failed = { status: 'failed' as const, days: null };
+  const ready = (days: number | null) => ({ status: 'ready' as const, days });
+
+  it.each([
+    ['untouched, loading', loading, false, '', { value: '', wording: 'storeDefault', payload: undefined, confirmDays: undefined }],
+    ['untouched, failed', failed, false, '', { value: '', wording: 'storeDefault', payload: undefined, confirmDays: undefined }],
+    ['untouched, default 30', ready(30), false, '', { value: '30', wording: 'counted', payload: 30, confirmDays: 30 }],
+    ['untouched, default none', ready(null), false, '', { value: '', wording: 'counted', payload: 0, confirmDays: null }],
+    ['touched, 14', ready(30), true, '14', { value: '14', wording: 'counted', payload: 14, confirmDays: 14 }],
+    ['touched, empty', ready(30), true, '', { value: '', wording: 'counted', payload: 0, confirmDays: null }],
+    ['touched, 0', loading, true, '0', { value: '0', wording: 'counted', payload: 0, confirmDays: null }],
+    ['touched while failed, empty', failed, true, '', { value: '', wording: 'counted', payload: 0, confirmDays: null }],
+    ['touched, invalid', ready(30), true, '3651', { value: '3651', wording: 'counted', payload: undefined, confirmDays: undefined }],
+  ] as const)('%s', (_label, defaults, touched, typed, expected) => {
+    expect(createValidity(defaults, touched, typed)).toMatchObject(expected);
   });
 });

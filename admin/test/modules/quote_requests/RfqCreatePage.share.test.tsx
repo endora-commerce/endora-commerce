@@ -58,11 +58,13 @@ const core = (key: string): string => {
   if (value === undefined) throw new Error(`no core key ${key}`);
   return value;
 };
-const quote = (key: string): string => {
+const quote = (key: string, params: Record<string, string | number> = {}): string => {
   const value = QUOTE_EN[key];
   if (value === undefined) throw new Error(`no quote_requests key ${key}`);
-  return value;
+  return value.replace(/\{(\w+)\}/g, (_m, name: string) => String(params[name] ?? `{${name}}`));
 };
+const COUNTED_HINT = quote('create.validity.hint', { max: 3650 });
+const STORE_DEFAULT_HINT = quote('create.validity.storeDefault.hint', { max: 3650 });
 
 const ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000a1';
 const NEW_ID = '00000000-0000-4000-8000-0000000000n1';
@@ -79,8 +81,8 @@ const CUSTOMER = {
 };
 const PRODUCT = { id: 'prod-1', sku: 'SKU-1', slug: 'p1', status: 'active', type: 'simple', name: 'Widget' };
 
-/** What the next defaults read answers: days, `null`, or a failure. */
-let defaults: { validityDays: number | null } | 'fail' = { validityDays: 30 };
+/** What the next defaults read answers: days, `null`, a failure, or a promise the test settles. */
+let defaults: { validityDays: number | null } | 'fail' | Promise<unknown> = { validityDays: 30 };
 /** The price the customer's price book answers for a new line; `null` = none. */
 let resolvedPrice: string | null = '10.00';
 /** What the create answers. */
@@ -98,6 +100,7 @@ beforeEach(() => {
   shareAnswer = { data: { id: NEW_ID, sharedWithCustomer: true, version: 2 } };
   getSpy.mockImplementation((path: string) => {
     if (path === DEFAULTS) {
+      if (defaults instanceof Promise) return defaults;
       return defaults === 'fail' ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve({ data: defaults });
     }
     const channels = organizationSalesChannelsAnswer(path);
@@ -159,32 +162,83 @@ describe('RfqCreatePage — validity from the store default (T041, FR-031)', () 
   it('prefills the default days and says they count from sharing; untouched sends them', async () => {
     await ready();
     await waitFor(() => expect(daysField()).toHaveValue(30));
-    expect(daysField()).toHaveAccessibleDescription(quote('create.validity.hint'));
+    expect(daysField()).toHaveAccessibleDescription(COUNTED_HINT);
 
     await userEvent.click(saveButton());
     await waitFor(() => expect(creates()).toHaveLength(1));
     expect(creates()[0]).toMatchObject({ expiresInDays: 30 });
   });
 
-  it('leaves the field empty for a default of no deadline, and sends nothing', async () => {
-    defaults = { validityDays: null };
+  it.each([[null], [0]])(
+    'a store default of no deadline (%s): empty field, "no deadline" said, asked and sent as 0',
+    async (validityDays) => {
+      defaults = { validityDays };
+      await ready();
+      await waitFor(() => expect(getSpy).toHaveBeenCalledWith(DEFAULTS));
+      await waitFor(() => expect(daysField()).toHaveAccessibleDescription(COUNTED_HINT));
+      expect(daysField()).toHaveValue(null);
+      expect(daysField()).toHaveAttribute('placeholder', core('rfqCreate.placeholder.expiresInDays'));
+
+      await userEvent.click(shareButton());
+      const dialog = await answerConfirm(true);
+      expect(dialog).toHaveTextContent(quote('share.confirm.validityNone'));
+      await waitFor(() => expect(creates()).toHaveLength(1));
+      expect(creates()[0]).toMatchObject({ expiresInDays: 0 });
+    },
+  );
+
+  it('sends 0 (no deadline) once the operator clears the prefilled days, and asks so', async () => {
     await ready();
-    await waitFor(() => expect(getSpy).toHaveBeenCalledWith(DEFAULTS));
+    await waitFor(() => expect(daysField()).toHaveValue(30));
+    await userEvent.clear(daysField());
+    expect(daysField()).toHaveAccessibleDescription(COUNTED_HINT);
+
+    await userEvent.click(shareButton());
+    const dialog = await answerConfirm(true);
+    expect(dialog).toHaveTextContent(quote('share.confirm.validityNone'));
+    await waitFor(() => expect(creates()).toHaveLength(1));
+    expect(creates()[0]).toMatchObject({ expiresInDays: 0 });
+  });
+
+  it('while the default loads: the store default is said, Create and share waits and says why, Save as draft sends nothing', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    defaults = new Promise((done) => (answer = done));
+    await ready();
+
     expect(daysField()).toHaveValue(null);
+    expect(daysField()).toHaveAttribute('aria-busy', 'true');
+    expect(daysField()).toHaveAttribute('placeholder', quote('create.validity.storeDefault.placeholder'));
+    expect(daysField()).toHaveAccessibleDescription(STORE_DEFAULT_HINT);
+    expect(shareButton()).toBeDisabled();
+    expect(shareButton()).toHaveAccessibleDescription(quote('create.gate.defaults'));
+
+    answer({ data: { validityDays: 30 } });
+    await waitFor(() => expect(daysField()).toHaveValue(30));
+    expect(daysField()).toHaveAccessibleDescription(COUNTED_HINT);
+    expect(shareButton()).toBeEnabled();
+  });
+
+  it('while the default loads, Save as draft leaves the default to the server', async () => {
+    defaults = new Promise(() => undefined);
+    await ready();
 
     await userEvent.click(saveButton());
     await waitFor(() => expect(creates()).toHaveLength(1));
     expect(creates()[0]).not.toHaveProperty('expiresInDays');
   });
 
-  it('sends null once the operator clears the prefilled days', async () => {
+  it('days typed while the default loads are kept when it arrives, and Create and share is offered', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    defaults = new Promise((done) => (answer = done));
     await ready();
-    await waitFor(() => expect(daysField()).toHaveValue(30));
-    await userEvent.clear(daysField());
+    await userEvent.type(daysField(), '7');
+    expect(daysField()).toHaveAccessibleDescription(COUNTED_HINT);
+    expect(shareButton()).toBeEnabled();
 
-    await userEvent.click(saveButton());
-    await waitFor(() => expect(creates()).toHaveLength(1));
-    expect(creates()[0]).toMatchObject({ expiresInDays: null });
+    answer({ data: { validityDays: 30 } });
+    await waitFor(() => expect(getSpy).toHaveBeenCalledWith(DEFAULTS));
+    await new Promise((done) => setTimeout(done, 0));
+    expect(daysField()).toHaveValue(7);
   });
 
   it('sends the days the operator typed', async () => {
@@ -198,14 +252,32 @@ describe('RfqCreatePage — validity from the store default (T041, FR-031)', () 
     expect(creates()[0]).toMatchObject({ expiresInDays: 45 });
   });
 
-  it('a failed defaults read leaves the field empty, the screen usable, and the default to the server', async () => {
+  it('a failed defaults read leaves the field empty, worded and asked as the store default the server applies', async () => {
     defaults = 'fail';
     await ready();
+    await waitFor(() => expect(shareButton()).toBeEnabled());
     expect(daysField()).toHaveValue(null);
+    expect(daysField()).toHaveAttribute('placeholder', quote('create.validity.storeDefault.placeholder'));
+    expect(daysField()).toHaveAccessibleDescription(STORE_DEFAULT_HINT);
+
+    await userEvent.click(shareButton());
+    const dialog = await answerConfirm(true);
+    expect(dialog).toHaveTextContent(quote('share.confirm.validityDefault'));
+    await waitFor(() => expect(creates()).toHaveLength(1));
+    expect(creates()[0]).not.toHaveProperty('expiresInDays');
+  });
+
+  it('after a failed defaults read, a typed 0 or emptied field is no deadline, said and sent', async () => {
+    defaults = 'fail';
+    await ready();
+    await userEvent.type(daysField(), '0');
+    expect(daysField()).toHaveAccessibleDescription(COUNTED_HINT);
+    await userEvent.clear(daysField());
+    expect(daysField()).toHaveAccessibleDescription(COUNTED_HINT);
 
     await userEvent.click(saveButton());
     await waitFor(() => expect(creates()).toHaveLength(1));
-    expect(creates()[0]).not.toHaveProperty('expiresInDays');
+    expect(creates()[0]).toMatchObject({ expiresInDays: 0 });
   });
 
   it('refuses more days than 3650, said at the field, and sends nothing', async () => {

@@ -1,5 +1,5 @@
 import { formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { MS_PER_DAY } from './validity.js';
+import { MS_PER_DAY, validityDeadlineDays } from './validity.js';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
@@ -26,11 +26,12 @@ export function shareConfirmMessage(
   t: Translate,
   input: { customer: string; days: number | null; now: Date; language: string },
 ): string {
+  const days = validityDeadlineDays(input.days);
   const validity =
-    input.days !== null && input.days > 0
+    days !== null
       ? t('share.confirm.validityDays', {
-          days: input.days,
-          date: formatDateTime(new Date(input.now.getTime() + input.days * MS_PER_DAY).toISOString(), input.language),
+          days,
+          date: formatDateTime(new Date(input.now.getTime() + days * MS_PER_DAY).toISOString(), input.language),
         })
       : t('share.confirm.validityNone');
   return t('share.confirm.message', { customer: input.customer, validity });

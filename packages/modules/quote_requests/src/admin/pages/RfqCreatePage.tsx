@@ -42,7 +42,7 @@ import { useTranslation, useTranslationContext } from '@endora-commerce/admin-ki
 import { createPricePrefillQueue, type PricePrefillQueue } from '../lib/price-prefill-queue';
 import { SectionSummary, sectionTotals, useQuoteLineGroupLabels, useSectionSummaryText } from '../line-groups.js';
 import { quoteNet } from '../quote-totals.js';
-import { parseValidityDays } from '../validity.js';
+import { createValidity } from '../validity.js';
 import { shareRefusalOf, type ShareRefusal } from '../share-refusal.js';
 import { shareConfirmMessage, shareCustomerName } from '../share-confirm.js';
 import type { RfqDetailArrival } from './rfq-page-notice.js';
@@ -415,8 +415,8 @@ export function RfqCreatePage(): ReactNode {
   /**
    * `specs/192-quote-request-draft-share/` (FR-031) — the store's default days
    * prefill the field until the operator touches it. A failed read leaves the
-   * field empty and the screen usable; an untouched empty field sends nothing,
-   * so the server applies the default itself.
+   * field empty and the screen usable, worded as the store's default the server
+   * applies; every state is {@link createValidity}'s.
    */
   const [validityTouched, setValidityTouched] = useState(false);
   const [defaultDays, setDefaultDays] = useState<{ status: 'loading' | 'ready' | 'failed'; days: number | null }>({
@@ -439,11 +439,9 @@ export function RfqCreatePage(): ReactNode {
       alive = false;
     };
   }, []);
-  useEffect(() => {
-    // A late answer never overwrites what the operator typed.
-    if (defaultDays.status === 'ready' && !validityTouched) setExpiresInDays(defaultDays.days === null ? '' : String(defaultDays.days));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultDays]);
+  // Derived, not copied into the field: a late answer never overwrites what the
+  // operator typed, because once touched the typed value is the one shown.
+  const validity = createValidity(defaultDays, validityTouched, expiresInDays);
   const [busy, setBusy] = useState<'save' | 'share' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -634,23 +632,14 @@ export function RfqCreatePage(): ReactNode {
   // Feature 159 — every group needs a name before the request can be created.
   const groupsNamed = groups.every((group) => group.name.trim() !== '');
   const channelChosen = !channelsLoading && !channelsFailed && channelOptions !== null && chosenChannelId !== '';
-  const daysInput = parseValidityDays(expiresInDays);
-  const daysInvalid = daysInput.kind === 'invalid';
+  const daysInvalid = validity.input.kind === 'invalid';
+  // Until the default is known the question could not name the validity the share writes.
+  const defaultPending = defaultDays.status === 'loading' && !validityTouched;
   const canSave =
     hasOrg && lines.length > 0 && linesSavable && groupsNamed && channelChosen && !daysInvalid && busy === null && !created;
-  const canShare = canSave && allPriced;
-  /**
-   * What the create sends as `expiresInDays`: the prefilled default while the
-   * field is untouched, absent when there is none to send (the server applies
-   * its default), `null` once the operator emptied it, else the typed days.
-   */
-  const daysPayload: number | null | undefined = !validityTouched
-    ? defaultDays.status === 'ready' && defaultDays.days !== null
-      ? defaultDays.days
-      : undefined
-    : daysInput.kind === 'days'
-      ? daysInput.days
-      : null;
+  const canShare = canSave && allPriced && !defaultPending;
+  /** What the create sends as `expiresInDays`; absent = the store's default, applied by the server. */
+  const daysPayload = validity.payload;
   // In display order: each group's lines, then the ungrouped ones.
   const knownGroups = new Set(groups.map((group) => group.key));
   const orderedLines = [
@@ -713,7 +702,7 @@ export function RfqCreatePage(): ReactNode {
 
   const submit = async (mode: 'save' | 'share'): Promise<void> => {
     if (!customer?.organizationId || !(mode === 'share' ? canShare : canSave)) return;
-    if (mode === 'share' && !(await confirmShare(daysPayload))) return;
+    if (mode === 'share' && !(await confirmShare(validity.confirmDays))) return;
     setBusy(mode);
     setError(null);
     setCustomFieldErrors({});
@@ -761,7 +750,7 @@ export function RfqCreatePage(): ReactNode {
   /** *Share with customer* after a create that warned (US2 #8). */
   const shareAfterWarnings = async (): Promise<void> => {
     if (!created || busy !== null) return;
-    if (!(await confirmShare(daysPayload, { reference: created.businessId ?? created.id.slice(0, 8) }))) return;
+    if (!(await confirmShare(validity.confirmDays, { reference: created.businessId ?? created.id.slice(0, 8) }))) return;
     setBusy('share');
     try {
       await shareCreated(created.id, created.version);
@@ -1054,11 +1043,15 @@ export function RfqCreatePage(): ReactNode {
               max={QUOTE_VALIDITY_DAYS_MAX}
               step={1}
               inputMode="numeric"
-              value={expiresInDays}
-              placeholder={t('rfqCreate.placeholder.expiresInDays')}
+              value={validity.value}
+              placeholder={
+                validity.wording === 'storeDefault'
+                  ? tGroups('create.validity.storeDefault.placeholder')
+                  : t('rfqCreate.placeholder.expiresInDays')
+              }
               aria-invalid={daysInvalid || undefined}
               aria-describedby="expiresInDays-help"
-              aria-busy={(defaultDays.status === 'loading' && !validityTouched) || undefined}
+              aria-busy={defaultPending || undefined}
               onChange={(e): void => {
                 setValidityTouched(true);
                 setExpiresInDays(e.target.value);
@@ -1068,7 +1061,11 @@ export function RfqCreatePage(): ReactNode {
               id="expiresInDays-help"
               className={daysInvalid ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}
             >
-              {daysInvalid ? t('rfq.detail.validity.error.days') : tGroups('create.validity.hint')}
+              {daysInvalid
+                ? t('rfq.detail.validity.error.days')
+                : validity.wording === 'storeDefault'
+                  ? tGroups('create.validity.storeDefault.hint', { max: QUOTE_VALIDITY_DAYS_MAX })
+                  : tGroups('create.validity.hint', { max: QUOTE_VALIDITY_DAYS_MAX })}
             </p>
           </div>
         </CardContent>
@@ -1122,7 +1119,9 @@ export function RfqCreatePage(): ReactNode {
               ? t('rfqCreate.gate.missingChannel')
               : canSave && !allPriced
                 ? tGroups('create.gate.prices')
-                : null
+                : canSave && defaultPending
+                  ? tGroups('create.gate.defaults')
+                  : null
         }
         secondary={
           created ? (
