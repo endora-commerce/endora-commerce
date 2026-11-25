@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
@@ -230,6 +230,25 @@ describe('RfqDetail — a quote not shared yet (specs/192-quote-request-draft-sh
     expect(document.querySelector('header p')?.textContent ?? '').toContain('valid 1 day from sharing');
     const dialog = await answerConfirm(false);
     expect(dialog).toHaveTextContent('valid for 1 day, until');
+  });
+
+  it('two rapid clicks ask once and share once; after No the action works again', async () => {
+    const user = userEvent.setup();
+    serve(rfqPayload({ shareValidityDays: 30 }));
+    postSpy.mockResolvedValue({ data: {} });
+    renderDetail();
+
+    const button = await shareButton();
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(await screen.findAllByRole('dialog')).toHaveLength(1);
+    await answerConfirm(false);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await user.click(await shareButton());
+    expect(await screen.findAllByRole('dialog')).toHaveLength(1);
+    await answerConfirm(true);
+    await waitFor(() => expect(postSpy.mock.calls.filter(([url]) => url === SHARE_URL)).toHaveLength(1));
   });
 
   it('says no deadline in the question when the quote carries no days', async () => {

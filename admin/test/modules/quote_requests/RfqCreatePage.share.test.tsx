@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
@@ -508,6 +508,32 @@ describe('RfqCreatePage — Save as draft and Create and share (T042, FR-020)', 
     expect(dialog).not.toHaveTextContent('immediately');
     await waitFor(() => expect(creates()).toHaveLength(1));
     expect(creates()[0]).toMatchObject({ expiresInDays: 0 });
+  });
+
+  it('two rapid clicks on Create and share ask once, create once and share once', async () => {
+    await ready();
+    await waitFor(() => expect(shareButton()).toBeEnabled());
+    const button = shareButton();
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(await screen.findAllByRole('dialog')).toHaveLength(1);
+    await answerConfirm(true);
+
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith(`/quote-requests/${NEW_ID}`));
+    expect(creates()).toHaveLength(1);
+    expect(shares()).toHaveLength(1);
+  });
+
+  it('after No to Create and share, the action asks again', async () => {
+    await ready();
+    await waitFor(() => expect(shareButton()).toBeEnabled());
+    await userEvent.click(shareButton());
+    await answerConfirm(false);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await userEvent.click(shareButton());
+    await answerConfirm(true);
+    await waitFor(() => expect(creates()).toHaveLength(1));
   });
 
   it('sends the channel it was given', async () => {

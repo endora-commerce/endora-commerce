@@ -282,6 +282,12 @@ export function RfqDetail(): ReactNode {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelOpen, setCancelOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  /**
+   * Fix round B — a share is asked before `busy` is set (the question is not the
+   * work, so no spinner while it is open); this guard holds from the first click,
+   * so a second click before the dialog renders asks nothing twice.
+   */
+  const shareStarted = useRef(false);
   const [tab, setTabState] = useState<RfqTab>('overview');
   /**
    * Issue #1469 — the Modify card mounts the first time its tab is opened (not
@@ -454,7 +460,15 @@ export function RfqDetail(): ReactNode {
   // quote to its customer and tells them. Asked first, because it cannot be
   // undone (FR-025): the question names who is told and the validity written.
   const share = async (): Promise<void> => {
-    if (!rfq) return;
+    if (!rfq || shareStarted.current) return;
+    shareStarted.current = true;
+    try {
+      await shareAsked(rfq);
+    } finally {
+      shareStarted.current = false;
+    }
+  };
+  const shareAsked = async (rfq: AdminRfqDetail): Promise<void> => {
     const ok = await confirm({
       title: tPdf('share.confirm.title', { id: rfq.businessId ?? rfq.id.slice(0, 8) }),
       message: shareConfirmMessage(tPdf, {

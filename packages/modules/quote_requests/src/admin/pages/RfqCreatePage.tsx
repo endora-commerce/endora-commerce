@@ -448,6 +448,12 @@ export function RfqCreatePage(): ReactNode {
   // operator typed, because once touched the typed value is the one shown.
   const validity = createValidity(defaultDays, validityTouched, expiresInDays);
   const [busy, setBusy] = useState<'save' | 'share' | null>(null);
+  /**
+   * Fix round B — set on the first click, before the share question is awaited
+   * (`busy` waits for the answer, so no spinner shows while it is open): a second
+   * click that lands before the dialog renders starts nothing.
+   */
+  const started = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const { confirm, confirmDialog } = useConfirmDialog();
 
@@ -705,7 +711,19 @@ export function RfqCreatePage(): ReactNode {
     }
   };
 
-  const submit = async (mode: 'save' | 'share'): Promise<void> => {
+  /** Runs `work` once at a time: a click while it runs is dropped. */
+  const once = async (work: () => Promise<void>): Promise<void> => {
+    if (started.current) return;
+    started.current = true;
+    try {
+      await work();
+    } finally {
+      started.current = false;
+    }
+  };
+
+  const submit = (mode: 'save' | 'share'): Promise<void> => once(() => submitNow(mode));
+  const submitNow = async (mode: 'save' | 'share'): Promise<void> => {
     if (!customer?.organizationId || !(mode === 'share' ? canShare : canSave)) return;
     if (mode === 'share' && !(await confirmShare(validity.confirmDays))) return;
     setBusy(mode);
@@ -753,7 +771,8 @@ export function RfqCreatePage(): ReactNode {
   };
 
   /** *Share with customer* after a create that warned (US2 #8). */
-  const shareAfterWarnings = async (): Promise<void> => {
+  const shareAfterWarnings = (): Promise<void> => once(shareAfterWarningsNow);
+  const shareAfterWarningsNow = async (): Promise<void> => {
     if (!created || busy !== null) return;
     if (!(await confirmShare(validity.confirmDays, { reference: created.businessId ?? created.id.slice(0, 8) }))) return;
     setBusy('share');
