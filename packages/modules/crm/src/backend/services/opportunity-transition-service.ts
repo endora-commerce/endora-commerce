@@ -21,6 +21,7 @@ import {
   type OpportunityEventSink,
 } from '../events/opportunity-status-events.js';
 import { effectiveOpportunityValue } from '../domain/effective-value.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { loadOpportunity } from './opportunity-access.js';
 import { recordValueChange } from './opportunity-audit-state.js';
 import type { OpportunityTransitionGuardRegistry } from './opportunity-transition-guard-registry.js';
@@ -49,6 +50,8 @@ export interface OpportunityTransitionRequest {
   causeOrderId?: string | undefined;
   /** Defaults to the ambient actor: the acting administrator, or the system. */
   actor?: OpportunityStatusActor | undefined;
+  /** `opportunityCommandPort`'s `source` and `extensions` for the Command; absent on the route. */
+  caller?: CallerOptions | undefined;
 }
 
 export interface AppliedOpportunityTransition {
@@ -68,7 +71,7 @@ export interface AppliedOpportunityTransition {
  */
 const MAX_REEVALUATIONS = 1;
 
-function ambientActor(): OpportunityStatusActor {
+export function ambientActor(): OpportunityStatusActor {
   const actor = getTenantContext()?.actor;
   return actor?.kind === 'admin' && actor.id ? { kind: 'admin', adminUserId: actor.id } : { kind: 'system' };
 }
@@ -195,7 +198,7 @@ export class OpportunityTransitionService {
       emitOpportunityStatusBefore(this.deps.events, event);
 
       // --- 4. the write --------------------------------------------------------
-      const applied = await this.deps.commandBus.run({
+      const applied = await this.deps.commandBus.run(withCallerOptions({
         action: 'crm.opportunity.transition',
         objectType: 'crm_opportunity',
         objectId: opportunity.id,
@@ -278,7 +281,7 @@ export class OpportunityTransitionService {
             },
           };
         },
-      });
+      }, request.caller ?? {}));
 
       if (applied === null) {
         if (evaluation < MAX_REEVALUATIONS) continue;

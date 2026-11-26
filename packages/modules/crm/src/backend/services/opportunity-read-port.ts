@@ -143,6 +143,8 @@ export class OpportunityReadPortService implements OpportunityReadPort {
       closedAt: row.closedAt ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+      // `specs/186-aggregate-ports/` R-8 — on the row already, so no query.
+      customFieldValues: { ...(row.customFieldValues ?? {}) },
     }));
   }
 }

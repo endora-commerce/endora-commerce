@@ -17,6 +17,7 @@ import type {
   CustomFieldListFilterPort,
   CustomFieldValuePort,
   EmailDefaultsRegistryPort,
+  OpportunityCommandPort,
   OpportunityReadPort,
   OpportunityTransitionPort,
   OrderListPort,
@@ -94,6 +95,7 @@ import { OpportunityAttachmentService } from './services/opportunity-attachment-
 import { OpportunityAttachmentUploadService } from './services/opportunity-attachment-upload-service.js';
 import { OpportunityAutoCreateService } from './services/opportunity-auto-create-service.js';
 import { MentionService } from './services/mention-service.js';
+import { OpportunityCommandService } from './services/opportunity-command-port.js';
 import { OpportunityCommentService } from './services/opportunity-comment-service.js';
 import { OpportunityEventService } from './services/opportunity-event-service.js';
 import { OpportunityHistoryService } from './services/opportunity-history-service.js';
@@ -1093,12 +1095,39 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
   );
+  /**
+   * `specs/186-aggregate-ports/` US9 (issue #1827) — the Opportunity
+   * aggregate's write port: each method calls the service method its admin
+   * route calls, so the two run one Command. The services are read per call
+   * from the cradle, as the read port reads the comment service.
+   */
+  ctx.di.providePort<OpportunityCommandPort>(
+    'opportunityCommandPort',
+    ctx
+      .asFunction(
+        ({ emFactory, crmWorkflowReadService }: CrmCradle) =>
+          new OpportunityCommandService({
+            emFactory,
+            workflowRead: crmWorkflowReadService,
+            opportunities: () => ctx.cradle<CrmCradle>().crmOpportunityService,
+            assignment: () => ctx.cradle<CrmCradle>().crmOpportunityAssignmentService,
+            transitions: () => ctx.cradle<CrmCradle>().crmOpportunityTransitionService,
+            links: () => ctx.cradle<CrmCradle>().crmOpportunityLinkService,
+            comments: () => ctx.cradle<CrmCradle>().crmOpportunityCommentService,
+            records: lazyPort<OpportunityReadPort>(ctx, 'opportunityReadPort'),
+          }),
+      )
+      .singleton(),
+  );
+  // Deprecated since 0.113.0: delegates to the aggregate port (186 T090).
   ctx.di.providePort<OpportunityTransitionPort>(
     'opportunityTransitionPort',
     ctx
       .asFunction(
-        ({ emFactory, crmWorkflowReadService, crmOpportunityTransitionService }: CrmCradle) =>
-          new OpportunityTransitionPortService(emFactory, crmWorkflowReadService, crmOpportunityTransitionService),
+        () => {
+          const commands = lazyPort<OpportunityCommandPort>(ctx, 'opportunityCommandPort');
+          return new OpportunityTransitionPortService(() => commands);
+        },
       )
       .singleton(),
   );

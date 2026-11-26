@@ -94,6 +94,11 @@ value). Today the hosts that publish one are:
 - `projects` — `projectCommandPort.setCustomFieldValues(projectId, merge, options?)`, the aggregate
   port (`specs/186-aggregate-ports/` US7). It runs `projects.project.custom_fields_update`, the
   Command the admin `PATCH` runs for the values, so one hook registration sees every change.
+  must see every change of the bag registers on both actions;
+- `crm` — `opportunityCommandPort.setCustomFieldValues(opportunityId, merge, options?)`, the aggregate
+  port (`specs/186-aggregate-ports/` US9), which runs `crm.opportunity.update` — the entry the admin
+  `PATCH /api/v1/admin/crm/opportunities/:id` records for a body of `customFieldValues` alone — with the
+  merge run under the Opportunity's row lock.
 - `tasks` — `taskCommandPort.setCustomFieldValues(taskId, merge, options?)`, the aggregate port
   (`specs/186-aggregate-ports/` US10). It runs `tasks.task.custom_fields_change`, the Command the
   admin `PATCH` runs for the values, so one hook registration sees every change.

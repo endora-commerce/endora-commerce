@@ -928,6 +928,54 @@ export type ModuleOrganizationPermissionDeclaration = z.infer<
   typeof moduleOrganizationPermissionDeclarationSchema
 >;
 
+// ---------------------------------------------------------------------------
+// Entity extensions — side tables on extensible hosts
+// (`specs/187-side-table-extensions/`, D-294; data ladder D1)
+// ---------------------------------------------------------------------------
+
+/**
+ * One side table this module owns on an extensible host
+ * (`specs/187-side-table-extensions/contracts/entity-extension-declaration.md`
+ * §1, FR-001).
+ *
+ * It carries no columns: the table, its entity and its migration are the
+ * declaring module's own. What the declaration adds is the claim the platform
+ * verifies — at `migrate` and at boot — that the table's single-column primary
+ * key is a cascading foreign key to the host's primary key, and that its
+ * tenancy follows its host's.
+ */
+export const EntityExtensionDeclarationSchema = z
+  .object({
+    /** `<ownerModuleId>.<EntityClassName>` of an extensible host, e.g. `organizations.Organization`. */
+    entity: z.string().regex(/^_?[a-z][a-z0-9_]*\.[A-Z][A-Za-z0-9]*$/),
+    /** The declaring module's own table: lower-case identifier, ≤ 63 bytes. */
+    table: z.string().regex(/^[a-z][a-z0-9_]*$/).max(63),
+  })
+  .strict();
+export type EntityExtensionDeclaration = z.infer<typeof EntityExtensionDeclarationSchema>;
+
+/** At most this many side tables per module (FR-001). */
+export const MAX_ENTITY_EXTENSIONS_PER_MODULE = 16;
+
+/**
+ * E5 (`duplicate-table`) — the one entity-extension rule one manifest can
+ * decide alone. E2 – E4 need every composed manifest (which hosts exist, who
+ * owns them, the dependency closure), so they are the platform's
+ * (`@endora-commerce/platform`, `resolveEntityExtensions`).
+ */
+function assertEntityExtensionRules(m: ModuleManifest): void {
+  const seen = new Set<string>();
+  for (const declaration of m.extends ?? []) {
+    if (seen.has(declaration.table)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares side table "${declaration.table}" twice ` +
+          '(duplicate-table). A table extends one host; list it once.',
+      );
+    }
+    seen.add(declaration.table);
+  }
+}
+
 /**
  * Where the platform found a composed module — its **trust tier**
  * (`specs/189-command-middleware/contracts/module-origin.md` §1, ruling D-296.10;
@@ -1169,6 +1217,17 @@ export const ModuleManifestSchema = z.object({
    * modules and is not a finding.
    */
   hookableActions: z.array(HookableActionDeclarationSchema).optional(),
+  // `specs/187-side-table-extensions/` — kept last, in its own block.
+  /**
+   * Side tables this module owns on extensible hosts (data ladder D1,
+   * `specs/187-side-table-extensions/` FR-001). Declaring creates no lifecycle
+   * edge of its own: the host's owner must already be in `dependencies`
+   * (FR-004), which is what orders the migrations.
+   *
+   * Absent means "this module extends no host", which is true of most modules
+   * and is not a finding.
+   */
+  extends: z.array(EntityExtensionDeclarationSchema).max(MAX_ENTITY_EXTENSIONS_PER_MODULE).optional(),
   /**
    * The command middleware this module contributes to the Command Bus
    * (`specs/189-command-middleware/` FR-001, `contracts/command-middleware-api.md`
@@ -1761,6 +1820,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
   assertDemoRules(m);
   assertEnvironmentInputRules(m);
   assertHookableActionRules(m);
+  assertEntityExtensionRules(m);
   assertCommandMiddlewareRules(m);
   return ModuleManifestSchema.parse(m);
 }
