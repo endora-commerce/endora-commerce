@@ -27,8 +27,9 @@
 // item 5), and a registry that filtered would make it a restart.
 //
 // **Bare core under every value of `DEPLOYMENT`** (D-104), like the manifest
-// index: a deployment's overlay modules are discovered at runtime and
-// contribute to no committed artefact.
+// index. A deployment's overlay admin layers are in that deployment's own
+// registry, `deployments/<deployment>.generated.ts`, which the admin build
+// selects beside this one (`specs/190-overlay-full-modules/` FR-080).
 
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 

@@ -100,11 +100,14 @@ import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import { BASELINE_MIGRATION_INVENTORY } from '@endora-commerce/platform/migrations';
 import {
   adminRegistryOutputPathIn,
+  adminSourceRootIn,
   collectAdminContributions,
   collectBlockStylesheets,
+  collectOverlayAdminSources,
   collectTailwindSources,
   emitAdminRegistry,
   emitTailwindRegistry,
+  renderDeploymentAdminRegistriesInto,
   tailwindRegistryOutputPathIn,
 } from './lib/admin-artefacts.js';
 // The entity index's renderer, shared with `endora generate` for the same reason
@@ -214,6 +217,11 @@ export function generatedArtifactPaths(): readonly string[] {
     foreignWriteExemptionsOutputPath(),
     adminRegistryOutputPathIn(repoRoot),
     tailwindRegistryOutputPathIn(repoRoot),
+    // One per deployment on disk, plus bare core's (`specs/190-overlay-full-modules/`
+    // FR-080). A function of the tree, not of `DEPLOYMENT`, like every path here.
+    ...renderDeploymentAdminRegistriesInto(adminSourceRootIn(repoRoot), join(srcRoot, 'apps')).map(
+      (rendered) => rendered.outputPath,
+    ),
     // The entity index (`specs/109-backend-test-kit/` T065). It belongs here for
     // the same reason the two registries above do and for **no** reason peculiar
     // to itself: `endora generate` writes all three into a client's tree as
@@ -452,6 +460,13 @@ export interface ArtefactPopulation {
   readonly packages: readonly ModulePackage[];
   /** `null` in an instance — see {@link ApplicationModules}. */
   readonly application: ApplicationModules | null;
+  /**
+   * The directory holding every deployment — `backend/src/apps` here, `apps` in an
+   * instance. The deployment admin registries and the overlay `@source` lines are
+   * rendered over **every** deployment under it (`specs/190-overlay-full-modules/`
+   * FR-080, FR-082), so they are `DEPLOYMENT`-independent (#120).
+   */
+  readonly appsRoot: string;
 }
 
 /** This repository: workspace members, plus the modules the host itself owns. */
@@ -462,6 +477,7 @@ export function workspacePopulation(
     root: repoRoot,
     packages,
     application: { modulesRoot, resident: residentModules() },
+    appsRoot: join(srcRoot, 'apps'),
   };
 }
 
@@ -477,6 +493,7 @@ export function instancePopulation(instanceRoot: string): ArtefactPopulation {
     root: instanceRoot,
     packages: installedModulePackages(instanceRoot),
     application: null,
+    appsRoot: join(instanceRoot, 'apps'),
   };
 }
 
@@ -2382,8 +2399,33 @@ export function renderTailwindRegistry(
       collectTailwindSources(population.root, population.packages),
       undefined,
       collectBlockStylesheets(population.root),
+      collectOverlayAdminSources(adminSourceRootIn(population.root), population.appsRoot),
     ),
   };
+}
+
+// ── the deployment admin registries ─────────────────────────────────────────
+//
+// `specs/190-overlay-full-modules/` FR-080, `contracts/overlay-admin-layer.md` §2.
+// One registry per deployment on disk, and bare core's empty `none`, beside the
+// admin contribution registry. The renderer is `@endora-commerce/cli`'s, as the
+// two above are, because an instance renders the same files with
+// `endora generate`. Every deployment is rendered whatever `DEPLOYMENT` says, so
+// each is committed and `overlay:check` compares each (#120); the admin build
+// selects one.
+
+/** Pure render — bare core's registry, then one per deployment on disk. */
+export function renderDeploymentAdminRegistries(
+  population: ArtefactPopulation = workspacePopulation(),
+): ReadonlyArray<RenderedArtefact & { label: string }> {
+  return renderDeploymentAdminRegistriesInto(
+    adminSourceRootIn(population.root),
+    population.appsRoot,
+  ).map((rendered) => ({
+    label: `deployment-admin-registry (${rendered.deployment ?? 'none'})`,
+    outputPath: rendered.outputPath,
+    content: rendered.content,
+  }));
 }
 
 // ── the test entity index ───────────────────────────────────────────────────
@@ -2557,6 +2599,7 @@ export async function renderAll(): Promise<
     },
     { label: 'admin-registry', ...renderAdminRegistry(population) },
     { label: 'admin-tailwind', ...renderTailwindRegistry(population), entryKind: 'css-specifier' as const },
+    ...renderDeploymentAdminRegistries(population),
     { label: 'entity-index', ...renderEntityIndex(population) },
     { label: 'docs-sidebar', ...renderDocsSidebar(population) },
     { label: 'module-map', ...renderModuleMap(population) },
