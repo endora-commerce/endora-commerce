@@ -35,7 +35,7 @@
 import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import ts from 'typescript';
 import {
   nodeWorkspaceFs,
@@ -1338,11 +1338,26 @@ const OUTSIDE_EVERY_BACKEND_PROGRAM: Readonly<Record<string, string>> = {
     'own `tsconfig.json`, and the acceptance scripts compile it with that configuration ' +
     '(`scripts/acceptance/package-schema.ts`, `block-renderers.ts`); in a backend program ' +
     'they would be read with `paths` pointing at sources no installed consumer has.',
+  'src/apps/*/modules/*/admin/':
+    "An overlay module's admin layer is browser code, and a root of the admin's program: " +
+    '`admin/tsconfig.json` includes `../backend/src/apps/*/modules/*/admin/**/*` with the DOM, ' +
+    'JSX and the kit, and `tsconfig.apps.json` excludes it (`specs/190-overlay-full-modules/` ' +
+    'FR-083, #1855).',
 };
 
-/** Whether a {@link OUTSIDE_EVERY_BACKEND_PROGRAM} key describes `relative`. */
+/**
+ * Whether a {@link OUTSIDE_EVERY_BACKEND_PROGRAM} key describes `relative`. A `*`
+ * segment matches exactly one path segment, so a key can name a fixed location
+ * in every deployment's every module without naming either.
+ */
 function ledgerKeyMatches(key: string, relative: string): boolean {
-  return key.endsWith('/') ? relative.startsWith(key) : relative === key;
+  const keySegments = key.replace(/\/$/, '').split('/');
+  const segments = relative.split('/');
+  const prefix = key.endsWith('/');
+  if (prefix ? segments.length <= keySegments.length : segments.length !== keySegments.length) {
+    return false;
+  }
+  return keySegments.every((segment, index) => segment === '*' || segment === segments[index]);
 }
 
 /**
@@ -1539,6 +1554,21 @@ describe('which program owns each backend source file', () => {
     expect(findings).toEqual(['stale-ledger-entry vitest.gone.ts']);
   });
 
+  it('matches a `*` ledger segment to exactly one path segment', () => {
+    const findings = typeCheckProgramOwnership(
+      backend,
+      () => [
+        '/repo/backend/src/apps/acme/modules/a/admin/index.tsx',
+        '/repo/backend/src/apps/acme/modules/a/admin/pages/Page.tsx',
+        '/repo/backend/src/apps/acme/admin/index.tsx',
+      ],
+      programs({ 'tsconfig.json': [], 'test/tsconfig.json': [] }),
+      { 'src/apps/*/modules/*/admin/': 'why' },
+    );
+
+    expect(findings).toEqual(['in-no-program src/apps/acme/admin/index.tsx']);
+  });
+
   it('lists declaration files and every TypeScript extension, and nothing under `node_modules`', () => {
     const memberDir = mkdtempSync(join(tmpdir(), 'source-lister-'));
     try {
@@ -1593,8 +1623,18 @@ describe('which program owns each backend source file', () => {
     )!;
     expect(typeCheckConfigsOf(member)).toContain('tsconfig.apps.json');
 
+    // An overlay module's `admin/` is the admin's program and none of these
+    // (`specs/190-overlay-full-modules/` FR-083, #1855): browser code, with JSX.
+    const isAdminLayer = (file: string): boolean =>
+      /\/apps\/[^/]+\/modules\/[^/]+\/admin\//.test(file.split(sep).join('/'));
     const owned = new Set(nodeTypeCheckProgramReader()(backendDir, 'tsconfig.apps.json') ?? []);
-    expect(overlaySources.filter((file) => !owned.has(file))).toEqual([]);
+    expect(overlaySources.filter((file) => !isAdminLayer(file) && !owned.has(file))).toEqual([]);
+    expect(overlaySources.filter((file) => isAdminLayer(file) && owned.has(file))).toEqual([]);
+
+    const adminLayers = overlaySources.filter(isAdminLayer);
+    expect(adminLayers.length, 'no overlay admin layer to judge').toBeGreaterThan(0);
+    const adminOwned = new Set(nodeTypeCheckProgramReader()(join(root, 'admin'), 'tsconfig.json') ?? []);
+    expect(adminLayers.filter((file) => !adminOwned.has(file))).toEqual([]);
 
     const parsed = ts.getParsedCommandLineOfConfigFile(
       join(backendDir, 'tsconfig.apps.json'),
