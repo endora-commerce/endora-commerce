@@ -327,6 +327,13 @@ export {
   ExtensionWriteOutsideCommandError,
   SchemaExtensionInvalidError,
 } from './schema-extensions/errors.js';
+/**
+ * Side-table extensions on host read ports (`specs/187-side-table-extensions/`
+ * B1). A module that declares a side table in its manifest `extends` registers
+ * one bulk loader per host with `ctx.entityExtensionLoaders`; the entry is the
+ * shape it writes.
+ */
+export type { EntityExtensionLoaderEntry } from './entity-extensions/loaders.js';
 export type {
   ColumnExtension,
   ColumnExtensionInput,

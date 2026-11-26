@@ -312,6 +312,13 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'schema-extensions/zod.js': ['columnExtensionPatchSchema', 'columnExtensionSchema'],
   'schema-extensions/accessor.js': ['ExtensionColumnsAccessor', 'extensionColumns'],
   'schema-extensions/reads.js': ['ExtensionAttributeMap', 'ExtensionJsonValue', 'SchemaExtensionReads'],
+  /**
+   * `specs/187-side-table-extensions/` B1 (T034) — the entry a module hands
+   * `ctx.entityExtensionLoaders` for a side table its manifest `extends`. A
+   * module writes it; nothing else about the registry is a module's, so the
+   * registry class is on `./composition`, not here.
+   */
+  'entity-extensions/loaders.js': ['EntityExtensionLoaderEntry'],
   'schema-extensions/errors.js': [
     'ExtensionHostRowNotFoundError',
     'ExtensionProjectionWriteError',
