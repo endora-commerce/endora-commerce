@@ -77,3 +77,10 @@
 @import "@endora-commerce/mod-webhooks/tailwind.css";
 @import "@endora-commerce/page-builder-admin/tailwind.css";
 @import "@endora-commerce/page-builder-core/tailwind.css";
+
+/*
+ * Overlay admin layers — one `@source` per overlay module, of every deployment
+ * on disk, that ships `admin/index.tsx` (`specs/190-overlay-full-modules/` FR-082).
+ * They are no package, so no `./tailwind.css` of theirs declares them.
+ */
+@source "../../backend/src/apps/example/modules/overlay_notes_fixture/admin";

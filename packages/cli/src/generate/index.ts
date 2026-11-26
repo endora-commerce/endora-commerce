@@ -98,6 +98,14 @@ import {
   type ReleaseIndexEntry,
 } from '../lib/release-index.js';
 import { InstanceHostError } from '../new-instance/host.js';
+import {
+  instancePaletteCoverage,
+  OverlayAdminInputError,
+  paletteRefusal,
+  paletteReport,
+  renderInstanceOverlayAdmin,
+  type DeploymentPaletteCoverage,
+} from './overlay-admin.js';
 import { resolveDeployment } from '../new-module/overlay.js';
 import { ScaffoldInputError } from '../new-module/spec.js';
 import {
@@ -237,6 +245,11 @@ export interface GenerateResult {
    * writing.
    */
   readonly packageAdmit: readonly PackageAdmitFinding[];
+  /**
+   * Palette coverage of every deployment's overlay admin layers
+   * (`specs/190-overlay-full-modules/` FR-085). Empty with no admin member.
+   */
+  readonly palette: readonly DeploymentPaletteCoverage[];
   readonly dryRun: boolean;
 }
 
@@ -322,9 +335,20 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
   // not a refusal: `endora new instance` writes one only when the shell and the
   // design system resolve, so a headless instance is a tree this command must
   // still be able to serve.
+  let palette: readonly DeploymentPaletteCoverage[] = [];
   try {
     const contributions = collectAdminContributions(scan.packages);
     const sources = collectTailwindSources(root, scan.packages);
+    // One registry per deployment under `apps/`, and bare core's — the admin
+    // build selects one (`specs/190-overlay-full-modules/` FR-080, FR-082).
+    let overlayAdmin: ReturnType<typeof renderInstanceOverlayAdmin>;
+    try {
+      overlayAdmin = renderInstanceOverlayAdmin(root, GENERATED_REGISTRY_HEADER);
+    } catch (error: unknown) {
+      if (error instanceof OverlayAdminInputError) throw new GenerateInputError(error.message);
+      throw error;
+    }
+    palette = await instancePaletteCoverage(root, scan.packages);
     artefacts.push(
       {
         path: adminRegistryOutputPathIn(root),
@@ -337,9 +361,11 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
           sources,
           GENERATED_STYLESHEET_HEADER,
           collectBlockStylesheets(root),
+          overlayAdmin.sources,
         ),
         label: `the admin stylesheet enumeration (${String(sources.length)} package(s))`,
       },
+      ...overlayAdmin.registries,
     );
   } catch (error: unknown) {
     if (!(error instanceof AdminLayoutUnresolvableError)) throw error;
@@ -531,6 +557,7 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
     unlisted: release.unlisted,
     releaseIndexError: release.releaseIndexError,
     packageAdmit: packageAdmitFindings(scan, options),
+    palette,
     dryRun: options.dryRun === true,
   };
 }
@@ -556,18 +583,25 @@ function packageAdmitFindings(
   } catch {
     index = null;
   }
-  const firstParty = new Set((index?.packages ?? []).map((entry) => `${entry.name}\0${entry.moduleId ?? ''}`));
+  const firstParty = new Set(
+    (index?.packages ?? []).map((entry) => `${entry.name}\0${entry.moduleId ?? ''}`),
+  );
   const findings: PackageAdmitFinding[] = [];
   for (const pkg of scan.packages) {
     const target = pkg.exports.get('.');
     if (target === undefined) continue;
     const file = join(pkg.dir, target);
     if (!existsSync(file)) continue;
-    const admits = commandMiddlewareDeclarationsIn(readFileSync(file, 'utf8'), file).declarations.filter(
-      (declaration) => declaration.phase === 'admit',
-    );
+    const admits = commandMiddlewareDeclarationsIn(
+      readFileSync(file, 'utf8'),
+      file,
+    ).declarations.filter((declaration) => declaration.phase === 'admit');
     if (admits.length === 0 || firstParty.has(`${pkg.name}\0${pkg.moduleId}`)) continue;
-    findings.push({ moduleId: pkg.moduleId, packageName: pkg.name, middleware: admits.map((declaration) => declaration.id) });
+    findings.push({
+      moduleId: pkg.moduleId,
+      packageName: pkg.name,
+      middleware: admits.map((declaration) => declaration.id),
+    });
   }
   return findings.sort((a, b) => a.moduleId.localeCompare(b.moduleId));
 }
@@ -644,7 +678,11 @@ async function declareReleaseModules(
     for (const entry of index?.packages ?? []) {
       if (entry.moduleId !== undefined) byModule.set(entry.moduleId, entry);
     }
-    const planned: { entry: ReleaseIndexEntry; moduleId: string; neededBy: readonly ReleaseModuleNeed[] }[] = [];
+    const planned: {
+      entry: ReleaseIndexEntry;
+      moduleId: string;
+      neededBy: readonly ReleaseModuleNeed[];
+    }[] = [];
     for (const [moduleId, neededBy] of needs) {
       const entry = byModule.get(moduleId);
       if (entry === undefined) unlisted.push({ moduleId, neededBy });
@@ -667,7 +705,11 @@ async function declareReleaseModules(
     // a tag) gives no range to copy, so the release's own version is written,
     // exact.
     let text: string;
-    let manifest: { dependencies?: Record<string, unknown>; devDependencies?: Record<string, unknown>; optionalDependencies?: Record<string, unknown> };
+    let manifest: {
+      dependencies?: Record<string, unknown>;
+      devDependencies?: Record<string, unknown>;
+      optionalDependencies?: Record<string, unknown>;
+    };
     try {
       text = readFileSync(manifestPath, 'utf8');
       manifest = JSON.parse(text) as typeof manifest;
@@ -679,17 +721,24 @@ async function declareReleaseModules(
       );
     }
     const platformName = index?.packages.find((entry) => entry.name.endsWith('/platform'))?.name;
-    const platformSpec = platformName === undefined ? undefined : manifest.dependencies?.[platformName];
+    const platformSpec =
+      platformName === undefined ? undefined : manifest.dependencies?.[platformName];
     const platformVersion = typeof platformSpec === 'string' ? movableVersion(platformSpec) : null;
     const before = text;
     for (const plan of planned) {
       const name = plan.entry.name;
-      const existing = [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies]
+      const existing = [
+        manifest.dependencies,
+        manifest.devDependencies,
+        manifest.optionalDependencies,
+      ]
         .map((field) => field?.[name])
         .find((spec): spec is string => typeof spec === 'string');
       const spec =
         existing ??
-        (platformVersion === null ? plan.entry.version : rewriteRange(platformSpec as string, platformVersion)!);
+        (platformVersion === null
+          ? plan.entry.version
+          : rewriteRange(platformSpec as string, platformVersion)!);
       if (existing === undefined) {
         try {
           text = insertDependency(text, name, spec);
@@ -715,7 +764,12 @@ async function declareReleaseModules(
     if (options.dryRun === true) break;
 
     if (text !== before) writeFileSync(manifestPath, text, 'utf8');
-    const step: GenerateStep = { command: 'pnpm install', bin: 'pnpm', argv: ['install'], cwd: root };
+    const step: GenerateStep = {
+      command: 'pnpm install',
+      bin: 'pnpm',
+      argv: ['install'],
+      cwd: root,
+    };
     options.echo?.(
       `${step.command} — ${listed(planned.map((plan) => plan.entry.name))}, which ` +
         `${listed(planned.map((plan) => needLine(plan.moduleId, plan.neededBy)))}`,
@@ -762,11 +816,13 @@ export function generateReport(result: GenerateResult): readonly string[] {
         `\`omittedModules\``,
     );
   }
-  lines.push(...result.artefacts.map(
-    (artefact) =>
-      `${result.dryRun ? 'would write' : 'wrote'} ${relative(result.root, artefact.path)} — ` +
-      `${artefact.label}`,
-  ));
+  lines.push(
+    ...result.artefacts.map(
+      (artefact) =>
+        `${result.dryRun ? 'would write' : 'wrote'} ${relative(result.root, artefact.path)} — ` +
+        `${artefact.label}`,
+    ),
+  );
   if (result.swept.length > 0) {
     lines.push(
       `removed ${String(result.swept.length)} module reference page(s) no installed module ` +
@@ -810,6 +866,7 @@ export function generateReport(result: GenerateResult): readonly string[] {
         } — fails ${finding.failed.map((clause) => `[${clause}]`).join(' ')}`,
     );
   }
+  lines.push(...paletteReport(result.palette));
   if (result.collected !== null) {
     lines.push(
       `copied ${String(result.collected.copied.length)} module-owned page(s) into ` +
@@ -828,10 +885,10 @@ export function generateReport(result: GenerateResult): readonly string[] {
     lines.push(
       skipped.kind === 'links-out-of-node-modules'
         ? `excluded ${skipped.name} — links-out-of-node-modules, real path ${skipped.realPath}. ` +
-          `A linked package is invisible to this instance's runtime discovery too, so an ` +
-          `artefact naming it would register a screen the backend never composes. Develop it ` +
-          `as an overlay module under \`apps/<deployment>/modules/\`, or \`pnpm pack\` it and ` +
-          `install the tarball.`
+            `A linked package is invisible to this instance's runtime discovery too, so an ` +
+            `artefact naming it would register a screen the backend never composes. Develop it ` +
+            `as an overlay module under \`apps/<deployment>/modules/\`, or \`pnpm pack\` it and ` +
+            `install the tarball.`
         : `excluded ${skipped.at} — unreadable: ${skipped.reason}`,
     );
   }
@@ -855,9 +912,11 @@ export function generateReport(result: GenerateResult): readonly string[] {
  * is their instrument here and has no other in an instance.
  */
 export function generateFindingsRefusal(result: GenerateResult): string | null {
-  const sections = [divergenceFindingsSection(result), overlayBoundarySection(result), packageAdmitSection(result)].filter(
-    (section): section is string[] => section !== null,
-  );
+  const sections = [
+    divergenceFindingsSection(result),
+    overlayBoundarySection(result),
+    packageAdmitSection(result),
+  ].filter((section): section is string[] => section !== null);
   if (sections.length === 0) return null;
   return [...sections.flat(), 'Fix them and run `pnpm run generate` again.'].join('\n');
 }
@@ -931,12 +990,21 @@ function packageAdmitSection(result: GenerateResult): string[] | null {
       `an installed package may not contribute (ruling D-296.3) — the platform refuses to boot with ` +
       `CommandMiddlewareOriginError:`,
     ...result.packageAdmit.map(
-      (finding) => `  ${finding.packageName} (${finding.moduleId}): ${finding.middleware.map((id) => `'${id}'`).join(', ')}`,
+      (finding) =>
+        `  ${finding.packageName} (${finding.moduleId}): ${finding.middleware.map((id) => `'${id}'`).join(', ')}`,
     ),
     `  [package-admit-middleware]`,
     `    Ask the package's author for a release that declares it as observe, or move the admission`,
     `    rule into one of this deployment's own overlay modules under apps/<deployment>/modules/.`,
   ];
+}
+
+/**
+ * Why the palette half of this run is not a success, or `null` — exit 1 after
+ * writing, as {@link generateFindingsRefusal} (FR-085).
+ */
+export function generatePaletteRefusal(result: GenerateResult): string | null {
+  return paletteRefusal(result.palette);
 }
 
 /** Is this instance's admin registry the same as the one on disk? */

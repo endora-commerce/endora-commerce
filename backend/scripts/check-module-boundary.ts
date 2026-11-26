@@ -405,6 +405,7 @@ import { dirname as posixDirname, join as posixJoin, normalize as posixNormalize
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ADMIN_HOST_OWNER, adminApplicationPresent } from './lib/admin-surfaces.js';
+import { DEPLOYMENT_REGISTRY_DIRECTORY } from './lib/admin-artefacts.js';
 import { moduleOf } from './check-container-imports.js';
 import { requireModuleLayout, type ModuleTreeLayout } from './lib/module-roots.js';
 import {
@@ -1167,7 +1168,12 @@ function adminHostOwnerOf(
  */
 function isAdminRegistryFile(file: string, admin: AdminBoundarySurfaces | null): boolean {
   if (admin === null) return false;
-  return admin.registryFiles.has(file) || file === admin.generatedRegistryFile;
+  if (admin.registryFiles.has(file) || file === admin.generatedRegistryFile) return true;
+  // The deployment admin registries beside it (`specs/190-overlay-full-modules/`
+  // FR-080): generated composition roots naming each overlay module's fixed
+  // `admin/index.tsx`, so the artefact doing its job, as the core one is.
+  const deployments = `${posixDirname(admin.generatedRegistryFile)}/${DEPLOYMENT_REGISTRY_DIRECTORY}/`;
+  return file.startsWith(deployments) && file.endsWith('.generated.ts');
 }
 
 /**

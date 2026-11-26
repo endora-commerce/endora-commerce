@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
+import { MODULE_ADMIN_CONTRIBUTIONS, type AdminRegistryEntry } from '../../src/modules.generated.js';
 import {
   describeFinding,
   paletteCoverageFindings,
@@ -10,7 +10,7 @@ import {
   type CoverageSurface,
   type PaletteCoverageFinding,
   type PaletteLedger,
-} from '../helpers/palette-coverage.js';
+} from '@endora-commerce/cli/lib/palette-coverage.js';
 
 /**
  * Every admin destination a module contributes is reachable from ⌘K / CTRL+K,
@@ -18,7 +18,12 @@ import {
  * issue #510), and every module with an admin page declares at least one
  * palette action of its own (issue #82). The rules are stated in
  * `specs/conventions/module-admin-surfaces.md` § *Command palette*, item 7;
- * the derivation is `admin/test/helpers/palette-coverage.ts`.
+ * the derivation is `@endora-commerce/cli/lib/palette-coverage.js`, which
+ * `endora generate` runs in an instance (`specs/190-overlay-full-modules/`
+ * FR-085).
+ *
+ * The population is per deployment: bare core, and then every deployment on
+ * disk with its own admin registry and its own overlay manifests beside core's.
  */
 
 /**
@@ -262,42 +267,116 @@ describe('palette coverage rule (red proofs)', () => {
   });
 });
 
+/** `backend/src/apps` — every deployment this checkout ships. */
+const APPS_ROOT = resolve(__dirname, '../../../backend/src/apps');
+
+/** Every deployment on disk, sorted: one directory under {@link APPS_ROOT}. */
+function deploymentsOnDisk(): readonly string[] {
+  return readdirSync(APPS_ROOT, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+/**
+ * One deployment's half of the population: its admin registry, read through the
+ * committed artefact the admin build selects, and the manifest of every overlay
+ * module it ships — with or without an admin layer, since any module's action
+ * covers a route.
+ */
+async function deploymentPopulation(deployment: string): Promise<{
+  registry: readonly AdminRegistryEntry[];
+  manifests: Map<string, ManifestShape>;
+}> {
+  const registryPath = resolve(__dirname, `../../src/deployments/${deployment}.generated.ts`);
+  // A deployment with no registry is one this test would otherwise not judge.
+  expect(existsSync(registryPath), `${deployment} has no admin registry`).toBe(true);
+  const { DEPLOYMENT_ADMIN_CONTRIBUTIONS } = (await import(/* @vite-ignore */ pathToFileURL(registryPath).href)) as {
+    DEPLOYMENT_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[];
+  };
+  const manifests = new Map<string, ManifestShape>();
+  const modulesRoot = join(APPS_ROOT, deployment, 'modules');
+  for (const entry of existsSync(modulesRoot) ? readdirSync(modulesRoot, { withFileTypes: true }) : []) {
+    const manifestPath = join(modulesRoot, entry.name, 'manifest.ts');
+    if (!entry.isDirectory() || !existsSync(manifestPath)) continue;
+    const loaded = (await import(/* @vite-ignore */ pathToFileURL(manifestPath).href)) as { manifest?: ManifestShape };
+    if (loaded.manifest === undefined) throw new Error(`${manifestPath} exports no \`manifest\``);
+    manifests.set(loaded.manifest.id, loaded.manifest);
+  }
+  return { registry: DEPLOYMENT_ADMIN_CONTRIBUTIONS, manifests };
+}
+
+function judge(
+  label: string,
+  registry: readonly AdminRegistryEntry[],
+  manifests: ReadonlyMap<string, ManifestShape>,
+): { findings: readonly string[]; modules: number; routes: number } {
+  // The registry and the manifests are two authors of one population; a
+  // registry entry with no manifest behind it would be a module judged against
+  // no actions at all.
+  const unmatched = registry.map((e) => e.moduleId).filter((id) => !manifests.has(id));
+  expect(unmatched, `${label}: registry modules with no manifest`).toEqual([]);
+
+  const surfaces: CoverageSurface[] = registry.map((entry) => ({
+    moduleId: entry.moduleId,
+    routes: entry.contributions.routes ?? [],
+    nav: entry.contributions.nav ?? [],
+  }));
+  const actions: CoverageAction[] = [...manifests.values()].flatMap((manifest) =>
+    (manifest.actions ?? []).map((a) => ({ moduleId: manifest.id, id: a.id, targetRoute: a.targetRoute })),
+  );
+
+  // What it read, so a green run cannot mean "read nothing" (issue #113).
+  const routeCount = surfaces.reduce((n, s) => n + s.routes.length, 0);
+  console.info(
+    `[palette-coverage] ${label} read: modules=${surfaces.length} routes=${routeCount} ` +
+      `actions=${actions.length} sources=manifests:${manifests.size}`,
+  );
+  expect(surfaces.length).toBeGreaterThan(0);
+  expect(routeCount).toBeGreaterThan(0);
+  expect(actions.length).toBeGreaterThan(0);
+
+  const findings = paletteCoverageFindings({ surfaces, actions, exemptions: PALETTE_EXEMPTIONS });
+  return { findings: findings.map(describeFinding), modules: surfaces.length, routes: routeCount };
+}
+
 describe('palette coverage of the real admin registry (Principle XVI)', () => {
   it('reaches every contributed destination from the palette, or records why not', async () => {
     const manifests = await loadManifests();
+    expect(judge('core', MODULE_ADMIN_CONTRIBUTIONS, manifests).findings).toEqual([]);
+  });
 
-    // The registry and the dependency list are two authors of one population;
-    // a registry entry with no manifest behind it would be a module judged
-    // against no actions at all.
-    const unmatched = MODULE_ADMIN_CONTRIBUTIONS.map((e) => e.moduleId).filter(
-      (id) => !manifests.has(id),
+  it('holds per deployment, over core plus each deployment on disk (FR-085)', async () => {
+    const core = await loadManifests();
+    const deployments = deploymentsOnDisk();
+    expect(deployments.length).toBeGreaterThan(0);
+
+    let overlaySurfaces = 0;
+    for (const deployment of deployments) {
+      const { registry, manifests } = await deploymentPopulation(deployment);
+      overlaySurfaces += registry.length;
+      const result = judge(deployment, [...MODULE_ADMIN_CONTRIBUTIONS, ...registry], new Map([...core, ...manifests]));
+      expect(result.findings, deployment).toEqual([]);
+    }
+    // At least one deployment ships an overlay admin layer, or this case
+    // judged core again under another name.
+    expect(overlaySurfaces).toBeGreaterThan(0);
+  });
+
+  it('is red on an overlay landing route with no action — the population a deployment adds', async () => {
+    const core = await loadManifests();
+    const overlay: AdminRegistryEntry = {
+      moduleId: 'acme_board',
+      contributions: { routes: [{ path: '/acme-board', index: true, component: () => import('react') }] },
+    };
+    const result = judge(
+      'fixture',
+      [...MODULE_ADMIN_CONTRIBUTIONS, overlay],
+      new Map([...core, ['acme_board', { id: 'acme_board' }]]),
     );
-    expect(unmatched, 'registry modules with no manifest among the admin dependencies').toEqual([]);
-
-    const surfaces: CoverageSurface[] = MODULE_ADMIN_CONTRIBUTIONS.map((entry) => ({
-      moduleId: entry.moduleId,
-      routes: entry.contributions.routes ?? [],
-      nav: entry.contributions.nav ?? [],
-    }));
-    const actions: CoverageAction[] = [...manifests.values()].flatMap((manifest) =>
-      (manifest.actions ?? []).map((a) => ({ moduleId: manifest.id, id: a.id, targetRoute: a.targetRoute })),
-    );
-
-    // What it read, so a green run cannot mean "read nothing" (issue #113).
-    const routeCount = surfaces.reduce((n, s) => n + s.routes.length, 0);
-    console.info(
-      `[palette-coverage] read: modules=${surfaces.length} routes=${routeCount} ` +
-        `actions=${actions.length} sources=manifests:${manifests.size}`,
-    );
-    expect(surfaces.length).toBeGreaterThan(0);
-    expect(routeCount).toBeGreaterThan(0);
-    expect(actions.length).toBeGreaterThan(0);
-
-    const findings = paletteCoverageFindings({
-      surfaces,
-      actions,
-      exemptions: PALETTE_EXEMPTIONS,
-    });
-    expect(findings.map(describeFinding)).toEqual([]);
+    expect(result.findings).toEqual([
+      'acme_board: landing route /acme-board has no palette action (no exemption possible)',
+      'acme_board: contributes admin pages (/acme-board first) but declares no palette action of its own (no exemption possible)',
+    ]);
   });
 });

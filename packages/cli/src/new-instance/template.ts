@@ -482,6 +482,10 @@ export const GENERATED_ARTEFACTS = [
  * write themselves visible with no exception list to maintain.
  */
 export const GENERATED_TREES = [
+  // One admin registry per deployment under `apps/`, and bare core's
+  // (`specs/190-overlay-full-modules/` FR-080): which ones exist follows the
+  // deployments on disk, so the pattern names the family, not each file.
+  'admin/src/deployments/*.generated.ts',
   'docs/docs/modules/**',
   'docs/docs/module-reference/**',
   'docs/.module-docs-copies.json',
@@ -1153,7 +1157,8 @@ export function planInstance(input: PlanInput): InstancePlan {
       '# is the point: it is where an upgrade that changes behaviour you depended on shows up.',
       ...GENERATED_ARTEFACTS,
       '',
-      '# The documentation site\'s are a population rather than a file: one copied page per',
+      '# The admin\'s deployment registries are one file per deployment under apps/. The',
+      '# documentation site\'s are a population rather than a file: one copied page per',
       '# page a module ships, one reference page per module, and the stamp that lets a run',
       '# undo the previous one\'s copies. A **tracked** file is never ignored whatever the',
       '# pattern says, so a page you write yourself stays visible and no exception list is',
@@ -2347,9 +2352,24 @@ function adminFiles(
           // declares it, which is the derivation `check:admin-surface` and
           // `check:admin-zones` already share. Renaming it moves the artefacts;
           // deleting it leaves the generator with no project to write to.
-          paths: { '@/*': ['./src/*'] },
+          //
+          // The rest serve your overlay modules' admin layers, which `include`
+          // reaches under `../apps` (`specs/190-overlay-full-modules/` FR-083,
+          // FR-084). `@endora-commerce-deployment/admin` is the registry
+          // `src/main.tsx` imports; Vite resolves it to the deployment you build
+          // for, and the type-check reads bare core's. A file under `apps/` is
+          // outside this member, so its bare imports are pointed at this
+          // member's own packages: the kit's subpaths by their emitted layout, and
+          // anything else through this member's `node_modules`.
+          paths: {
+            '@/*': ['./src/*'],
+            '@endora-commerce-deployment/admin': ['./src/deployments/none.generated.ts'],
+            [`${input.scope}admin-kit/*`]: [`./node_modules/${input.scope}admin-kit/dist/*/index.d.ts`],
+            [`${input.scope}admin-shell`]: [`./node_modules/${input.scope}admin-shell/dist/index.d.ts`],
+            '*': ['./node_modules/*', './node_modules/@types/*'],
+          },
         },
-        include: ['src'],
+        include: ['src', '../apps/*/modules/*/admin/**/*'],
       }),
     },
     {
@@ -2362,7 +2382,7 @@ function adminFiles(
       path: 'admin/vite.config.ts',
       kind: 'client',
       member: 'admin',
-      content: adminViteConfig(),
+      content: adminViteConfig(input),
     },
     {
       path: 'admin/src/main.tsx',
@@ -2370,13 +2390,18 @@ function adminFiles(
       member: 'admin',
       content: `import { createRoot } from 'react-dom/client';
 import { AdminRoot } from '${input.scope}admin-shell';
+import { DEPLOYMENT_ADMIN_CONTRIBUTIONS } from '@endora-commerce-deployment/admin';
 import { MODULE_ADMIN_CONTRIBUTIONS } from './modules.generated.js';
 import './index.css';
 
 const root = document.getElementById('root');
 if (root === null) throw new Error('index.html has no #root to mount into.');
 
-createRoot(root).render(<AdminRoot contributions={MODULE_ADMIN_CONTRIBUTIONS} />);
+// The installed packages' screens, then the overlay modules' of the deployment
+// this bundle is built for (\`vite.config.ts\` selects it from \`DEPLOYMENT\`).
+createRoot(root).render(
+  <AdminRoot contributions={[...MODULE_ADMIN_CONTRIBUTIONS, ...DEPLOYMENT_ADMIN_CONTRIBUTIONS]} />,
+);
 `,
     },
     {
@@ -2420,10 +2445,16 @@ function adminIndexHtml(input: PlanInput): string {
  * without it every class in this admin is an unrecognised token — silently,
  * which is the failure `admin-stylesheet-composition.md` is about.
  */
-function adminViteConfig(): string {
-  return `import { defineConfig, loadEnv } from 'vite';
+function adminViteConfig(input: PlanInput): string {
+  return `import { fileURLToPath } from 'node:url';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import {
+  adminSingletons,
+  DEPLOYMENT_ADMIN_ALIAS,
+  selectDeploymentAdminRegistry,
+} from '${input.scope}cli/lib/admin-deployment.js';
 
 export default defineConfig(({ mode }) => {
   // \`loadEnv(mode, cwd, '')\` — the empty prefix lets this file read an
@@ -2434,9 +2465,25 @@ export default defineConfig(({ mode }) => {
   // when it shares a host with the storefront, and the root otherwise. It moves
   // every asset URL, and the admin shell's router takes its basename from it.
   const base = env['ADMIN_BASE_PATH'] || '/';
+  // The overlay modules' screens of ONE deployment: \`DEPLOYMENT\` from the
+  // environment, then from the root \`.env\` the backend reads. Unset builds bare
+  // core; a deployment \`pnpm run generate\` rendered no registry for stops the
+  // build, rather than leaving its screens out.
+  const deployment = selectDeploymentAdminRegistry({
+    adminSourceRoot: fileURLToPath(new URL('./src', import.meta.url)),
+    env: process.env,
+    envFile: fileURLToPath(new URL('../.env', import.meta.url)),
+    regenerate: 'pnpm run generate',
+  });
   return {
     base,
     plugins: [react(), tailwindcss()],
+    resolve: {
+      alias: { [DEPLOYMENT_ADMIN_ALIAS]: deployment.path },
+      // An overlay admin layer lives under \`apps/\`, outside this member: its
+      // imports of these resolve to this member's one copy of each.
+      dedupe: [...adminSingletons('${input.scope}')],
+    },
     server: { port, strictPort: true },
     preview: { port, strictPort: true },
     // No source maps in a built admin: \`dist\` is served as static files, and a

@@ -840,8 +840,13 @@ export interface ColumnExtensionSite {
   readonly text: string;
   /** The host table, or `null` when it is not written as a literal. */
   readonly host: string | null;
-  /** The physical `x_<module>_*` columns the call declares, sorted. */
-  readonly columns: readonly string[];
+  /**
+   * The physical `x_<module>_*` columns the call declares, sorted — or `null`
+   * when they are not written as literal keys of an object literal (a spread,
+   * a computed key, a `columns` value held in a variable). A partial list would
+   * be a guess, so it is `computed-subject` like an unreadable host (#1941).
+   */
+  readonly columns: readonly string[] | null;
 }
 
 /** `erpCode` → `erp_code` — the platform's `snakeCase` (`kernel/schema-extensions/naming.ts`). */
@@ -879,30 +884,39 @@ export function deriveColumnExtensionSites(sources: readonly OverlaySource[]): C
   for (const source of sources) {
     if (!source.text.includes('defineColumnExtension')) continue;
     const sf = ts.createSourceFile(source.file, source.text, ts.ScriptTarget.Latest, true);
+    // The local names the function goes by in this file: its own name, and every
+    // alias an import binds it to (`import { defineColumnExtension as col }`), so
+    // a rename is still a declaration rather than a call the walk does not see.
+    const callees = new Set(['defineColumnExtension']);
+    for (const statement of sf.statements) {
+      const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings : undefined;
+      if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
+      for (const element of bindings.elements) {
+        if ((element.propertyName ?? element.name).text === 'defineColumnExtension') {
+          callees.add(element.name.text);
+        }
+      }
+    }
     const visit = (node: ts.Node): void => {
       if (
         ts.isCallExpression(node) &&
         (ts.isIdentifier(node.expression)
-          ? node.expression.text
-          : ts.isPropertyAccessExpression(node.expression)
-            ? node.expression.name.text
-            : '') === 'defineColumnExtension'
+          ? callees.has(node.expression.text)
+          : ts.isPropertyAccessExpression(node.expression) &&
+            node.expression.name.text === 'defineColumnExtension')
       ) {
         const argument = node.arguments[0];
         let host: string | null = null;
-        const columns: string[] = [];
+        let columns: string[] | null = null;
         if (argument !== undefined && ts.isObjectLiteralExpression(argument)) {
+          // A spread beside the named properties may carry `columns` (or more of
+          // them), so nothing read off the literal is the whole declaration.
+          const spread = argument.properties.some((property) => ts.isSpreadAssignment(property));
           for (const property of argument.properties) {
             if (!ts.isPropertyAssignment(property)) continue;
             const name = propertyNameText(property.name);
             if (name === 'host') host = stringLiteralOf(property.initializer);
-            if (name === 'columns' && ts.isObjectLiteralExpression(property.initializer)) {
-              for (const column of property.initializer.properties) {
-                if (column.name === undefined) continue;
-                const key = propertyNameText(column.name);
-                if (key !== null) columns.push(`x_${source.moduleId}_${snakeCase(key)}`);
-              }
-            }
+            if (name === 'columns' && !spread) columns = literalColumnKeys(property.initializer);
           }
         }
         sites.push({
@@ -911,7 +925,7 @@ export function deriveColumnExtensionSites(sources: readonly OverlaySource[]): C
           line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
           text: node.getText(sf).replace(/\s+/g, ' ').slice(0, 160),
           host,
-          columns: columns.sort(),
+          columns: columns?.map((key) => `x_${source.moduleId}_${snakeCase(key)}`).sort() ?? null,
         });
       }
       ts.forEachChild(node, visit);
@@ -921,6 +935,22 @@ export function deriveColumnExtensionSites(sources: readonly OverlaySource[]): C
   return sites;
 }
 
+/** The literal keys of a `columns` object literal, or `null` when any is not one. */
+function literalColumnKeys(initializer: ts.Expression): string[] | null {
+  let current = initializer;
+  while (ts.isAsExpression(current) || ts.isSatisfiesExpression(current) || ts.isParenthesizedExpression(current)) {
+    current = current.expression;
+  }
+  if (!ts.isObjectLiteralExpression(current)) return null;
+  const keys: string[] = [];
+  for (const column of current.properties) {
+    const key = column.name === undefined ? null : propertyNameText(column.name);
+    if (key === null) return null;
+    keys.push(key);
+  }
+  return keys;
+}
+
 /**
  * Extensible host table → the module that owns it, from the one registry the
  * platform derives its own list from (`CUSTOM_FIELD_HOST_BINDINGS`). The CLI
@@ -928,10 +958,26 @@ export function deriveColumnExtensionSites(sources: readonly OverlaySource[]): C
  * what both share.
  */
 export function extensibleHostOwners(): ReadonlyMap<string, string> {
-  const bindings = (publishedContracts as unknown as {
-    CUSTOM_FIELD_HOST_BINDINGS?: Readonly<Record<string, { table: string; ownerModuleId: string }>>;
-  }).CUSTOM_FIELD_HOST_BINDINGS;
-  return new Map(Object.values(bindings ?? {}).map((binding) => [binding.table, binding.ownerModuleId]));
+  // Read through the namespace rather than as a named import so a contracts
+  // build without the registry reaches this refusal instead of a link error
+  // that names no remedy. An empty map here would turn every declaration into
+  // `unowned-subject` — blaming the deployment for the toolchain (#1941).
+  const bindings = (publishedContracts as { CUSTOM_FIELD_HOST_BINDINGS?: unknown }).CUSTOM_FIELD_HOST_BINDINGS;
+  const entries =
+    typeof bindings === 'object' && bindings !== null
+      ? (Object.values(bindings) as { table?: unknown; ownerModuleId?: unknown }[])
+      : [];
+  if (
+    entries.length === 0 ||
+    entries.some((binding) => typeof binding.table !== 'string' || typeof binding.ownerModuleId !== 'string')
+  ) {
+    throw new Error(
+      '[divergence] @endora-commerce/contracts exports no usable CUSTOM_FIELD_HOST_BINDINGS, so no ' +
+        'extensible host table has an owner and every column extension would read as unowned. ' +
+        'The CLI and the contracts package it resolved disagree: reinstall so both come from one release.',
+    );
+  }
+  return new Map(entries.map((binding) => [binding.table as string, binding.ownerModuleId as string]));
 }
 
 // ---------------------------------------------------------------------------
@@ -1339,6 +1385,15 @@ export function deriveDivergence(input: DivergenceInput): DivergenceResult {
         'computed-subject',
         `${site.file}:${site.line}`,
         `\`defineColumnExtension\` names a host table the analysis cannot resolve to a literal: ${site.text}`,
+      );
+      continue;
+    }
+    if (site.columns === null) {
+      note(
+        'computed-subject',
+        `${site.file}:${site.line}`,
+        `\`defineColumnExtension\` declares columns the analysis cannot resolve to literal keys ` +
+          `(a spread, a computed key or a value held elsewhere): ${site.text}`,
       );
       continue;
     }

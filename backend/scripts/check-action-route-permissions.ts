@@ -14,7 +14,7 @@
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { activeOverlayModulesRoot } from '../src/overlay/overlay-roots.js';
@@ -48,13 +48,13 @@ export * from '@endora-commerce/cli/rules/action-route-permissions.js';
  * package's build output, so an action edited in `src/manifest.ts` and not
  * rebuilt is invisible here. See `scripts/lib/emitted-freshness.ts`.
  */
-async function loadActions(): Promise<{
+export async function loadActions(env: NodeJS.ProcessEnv = process.env): Promise<{
   readonly actions: readonly ActionRecord[];
   /** One per registered module: the location its manifest was imported from. */
   readonly manifestLocations: readonly string[];
 }> {
   const { resolvedManifestEntries } = await import('../src/lifecycle/registered-manifests.js');
-  const entries = await resolvedManifestEntries();
+  const entries = await resolvedManifestEntries(env);
   const actions: ActionRecord[] = [];
   for (const entry of entries) {
     for (const action of entry.manifest.actions ?? []) {
@@ -222,6 +222,24 @@ export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> =
     'parameterised path prefix, or when those routes are registered under a literal path.',
 };
 
+/**
+ * The route sources of one deployment's overlay modules: every file the walk
+ * reads under its modules root, **less each module's `admin/` layer**
+ * (`specs/190-overlay-full-modules/` FR-086, #1855).
+ *
+ * The reason is the one given below for a package's UI layers: an admin layer
+ * is browser code, and its `apiClient.get('/api/v1/admin/…')` has a method, a
+ * path and no `preHandler` — a second, ungated candidate for a route the
+ * module's `backend.ts` registers for real. The overlay's palette actions are
+ * in the population all the same: {@link loadActions} reads every manifest the
+ * deployment composes.
+ */
+export function overlayRouteSources(overlayRoot: string): string[] {
+  return walk(overlayRoot).filter(
+    (file) => !/^[^/]+\/admin\//.test(relative(overlayRoot, file).split(sep).join('/')),
+  );
+}
+
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
 
@@ -267,7 +285,7 @@ async function main(): Promise<void> {
     moduleIdOf: layout.moduleIdOfPath,
   });
 
-  const files = overlayRoot === null ? coreFiles : [...coreFiles, ...walk(overlayRoot)];
+  const files = overlayRoot === null ? coreFiles : [...coreFiles, ...overlayRouteSources(overlayRoot)];
   const sources = new Map<string, string>();
   for (const file of files) {
     sources.set(layout.keyOf(file), readFileSync(file, 'utf8'));
