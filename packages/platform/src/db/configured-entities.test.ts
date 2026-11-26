@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { Entity, PrimaryKey } from '@mikro-orm/decorators/legacy';
 import { afterAll, describe, expect, it } from 'vitest';
 
+import { defineColumnExtension } from '../kernel/schema-extensions/define.js';
 import { UnclassifiedEntityError } from '../tenancy/entity-classification.js';
 import { GlobalEntity } from '../tenancy/org-scoped.decorator.js';
 import { configuredEntitiesFrom } from './configured-entities.js';
@@ -125,5 +126,36 @@ describe('configuredEntitiesFrom — an overlay module\'s entities', () => {
         kind: 'unclassified',
       },
     ]);
+  });
+
+  it('leaves the overlay’s schemaExtensions to the migration merge, which knows the composed graph (FR-065)', async () => {
+    // `organizations` is reached only through `customers`, a module outside the
+    // overlay root: V10 holds only over the composed graph, which the entity set
+    // is not built from. The merge judges the declaration; this reader must not
+    // refuse what that one accepts.
+    const slotted = '__configuredEntitiesOverlayDeclaration';
+    (globalThis as Record<string, unknown>)[slotted] = [
+      defineColumnExtension({
+        host: 'organizations',
+        module: 'notice',
+        columns: { erpCode: { type: 'text', nullable: true } },
+      }),
+    ];
+    const root = mkdtempSync(join(tmpdir(), 'configured-entities-'));
+    roots.push(root);
+    const moduleDir = join(root, 'apps', 'shop', 'modules', 'notice');
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(
+      join(moduleDir, 'manifest.js'),
+      "export const manifest = { id: 'notice', version: '1.0.0', dependencies: ['customers'] };\n",
+    );
+    writeFileSync(
+      join(moduleDir, 'backend.js'),
+      `export const schemaExtensions = globalThis[${JSON.stringify(slotted)}];\n` +
+        'export function registerModule() {}\n',
+    );
+    await expect(
+      configuredEntitiesFrom({ coreEntities: [], env: { DEPLOYMENT: 'shop' }, deploymentRoot: root }),
+    ).resolves.toBeDefined();
   });
 });

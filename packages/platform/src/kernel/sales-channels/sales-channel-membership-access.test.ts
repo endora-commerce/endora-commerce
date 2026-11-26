@@ -189,6 +189,29 @@ describe('SalesChannelMembershipService drops the access cache before it emits',
   });
 });
 
+describe('SalesChannelMembershipService.replaceChannelsForEntity answers the set it replaced', () => {
+  it('names the previous channel ids, sorted, from its own read — on a change and on a no-op', async () => {
+    const h = harness({ [ORG]: [B, DEFAULT] });
+    expect(await h.service.replaceChannelsForEntity('organization', ORG, [A])).toEqual({
+      changed: true,
+      previousChannelIds: [B, DEFAULT].sort(),
+    });
+    expect(await h.service.replaceChannelsForEntity('organization', ORG, [A])).toEqual({
+      changed: false,
+      previousChannelIds: [A],
+    });
+  });
+
+  it('reads it on the caller’s em when one is passed', async () => {
+    const h = harness();
+    const callerRows = new Map([[ORG, new Set([B])]]);
+    const callerEm = fakeEm(callerRows, [], 'caller');
+    const result = await h.service.replaceChannelsForEntity('organization', ORG, [A], { em: callerEm });
+    expect(result.previousChannelIds).toEqual([B]);
+    expect(h.statements).toEqual([]);
+  });
+});
+
 describe('SalesChannelMembershipService runs on a caller-supplied EntityManager', () => {
   it('issues the bridge statements on options.em instead of a fresh fork', async () => {
     const h = harness();

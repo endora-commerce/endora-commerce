@@ -11,6 +11,7 @@ import type {
   OrganizationRecord,
   OrganizationRejectInput,
   OrganizationRestrictions,
+  OrganizationSalesChannelsUpdateBody,
   OrganizationWriteCreateInput,
   OrganizationWriteUpdatePatch,
 } from './organizations.js';
@@ -21,7 +22,7 @@ import type {
  * `contracts/organization-command-port.md`, each taking the admin body without
  * its version and ending in the aggregate ports' options.
  */
-describe('OrganizationCommandPort (186 US1a)', () => {
+describe('OrganizationCommandPort (186 US1)', () => {
   it('ends every method in the aggregate ports’ options', () => {
     expectTypeOf<OrganizationCommandPortOptions>().toEqualTypeOf<AggregateCommandOptions>();
   });
@@ -39,6 +40,7 @@ describe('OrganizationCommandPort (186 US1a)', () => {
       | 'setCustomFieldValues'
       | 'convertToCompany'
       | 'changeTaxId'
+      | 'setSalesChannels'
       | 'setRestrictions'
       | 'patchRestriction'
       | 'setCreditInheritanceMode'
@@ -76,6 +78,16 @@ describe('OrganizationCommandPort (186 US1a)', () => {
   it('takes the custom-field merge the narrow port takes', () => {
     expectTypeOf<OrganizationCommandPort['setCustomFieldValues']>().toEqualTypeOf<
       (id: string, merge: CustomFieldMerge, options?: AggregateCommandOptions) => Promise<OrganizationRecord>
+    >();
+  });
+
+  it('takes the sales-channel route’s body for setSalesChannels (US1b)', () => {
+    expectTypeOf<OrganizationCommandPort['setSalesChannels']>().toEqualTypeOf<
+      (
+        id: string,
+        input: OrganizationSalesChannelsUpdateBody,
+        options?: AggregateCommandOptions,
+      ) => Promise<OrganizationRecord>
     >();
   });
 

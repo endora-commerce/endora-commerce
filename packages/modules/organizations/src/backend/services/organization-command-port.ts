@@ -4,6 +4,7 @@ import {
   assignOrganizationParentRequestSchema,
   assignSalesRepRequestSchema,
   ERROR_CODES,
+  OrganizationSalesChannelsUpdateBodySchema,
   setCreditInheritanceModeRequestSchema,
   type AdminUserReadPort,
   type AggregateCommandOptions,
@@ -22,6 +23,7 @@ import {
   type OrganizationRecord,
   type OrganizationRejectInput,
   type OrganizationRestrictions,
+  type OrganizationSalesChannelsUpdateBody,
   type OrganizationWriteCreateInput,
   type OrganizationWriteUpdatePatch,
 } from '@endora-commerce/contracts';
@@ -36,6 +38,7 @@ import { makeDeleteOrganizationCommand } from '../commands/delete-organization.c
 import { makeAssignSalesRepCommand, makeUnassignSalesRepCommand } from '../commands/sales-rep-assignment.commands.js';
 import { makeSetCreditModeCommand } from '../commands/set-credit-mode.command.js';
 import { makeSetCustomFieldValuesCommand } from '../commands/set-custom-field-values.command.js';
+import { makeSetSalesChannelsCommand } from '../commands/set-sales-channels.command.js';
 import { makePlaceInTreeCommand } from '../commands/set-parent.command.js';
 import { makeUpdateOrganizationCommand } from '../commands/update-organization.command.js';
 import type { Organization } from '../entities/organization.entity.js';
@@ -92,7 +95,10 @@ export interface OrganizationCommandServiceDeps {
 /** The aggregate's other operations' dependencies, each resolved per call by the composition. */
 export interface OrganizationAggregateDeps {
   readonly emFactory: () => EntityManager;
-  /** Kernel-provided; binds a created Organization's channels in the creating transaction. */
+  /**
+   * Kernel-provided; binds a created Organization's channels in the creating
+   * transaction, and replaces them inside `organization.sales_channels.set`.
+   */
   readonly membership: Pick<SalesChannelMembershipPort, 'replaceChannelsForEntity'>;
   readonly dictionaryValidator: Pick<DictionaryValidator, 'validateCountryCode'>;
   readonly tree: OrganizationTreeService;
@@ -277,6 +283,27 @@ export class OrganizationCommandService implements OrganizationCommandPort {
       this.deps.commandBus,
       withCallerOptions(makeChangeTaxIdCommand({ organizationId, input }), caller),
       () => taxIdExistsRefusal(),
+    );
+    return toOrganizationRecord(organization);
+  }
+
+  async setSalesChannels(
+    id: string,
+    input: OrganizationSalesChannelsUpdateBody,
+    options: AggregateCommandOptions = {},
+  ): Promise<OrganizationRecord> {
+    const caller = callerOf(options);
+    const { salesChannelIds } = parseOrRefuse(OrganizationSalesChannelsUpdateBodySchema, input);
+    const { membership } = this.#aggregate();
+    const organization = await this.deps.commandBus.run(
+      withCallerOptions(
+        makeSetSalesChannelsCommand(
+          { membership },
+          // R-16.5 — the code the deprecated `organizationWritePort.create` answers.
+          { organizationId: id, salesChannelIds, unknownChannelCode: ERROR_CODES.UNKNOWN_SALES_CHANNEL },
+        ),
+        caller,
+      ),
     );
     return toOrganizationRecord(organization);
   }

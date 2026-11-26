@@ -151,7 +151,19 @@ export interface FixtureOptions {
    * (`specs/178-extensible-columns/` FR-070).
    */
   readonly packageMigrations?: readonly (new (...args: never[]) => Migration)[];
+  /**
+   * Who declares the columns: an installed package (the default, 178's subject)
+   * or a deployment's overlay module (`specs/190-overlay-full-modules/` FR-065,
+   * T110), contributed to the merge as overlay discovery contributes one — its
+   * own migrations tagged `overlay`. Everything downstream is meant to be the
+   * same, which is what re-running a 178 file over {@link DECLARERS} measures.
+   */
+  readonly declarer?: Declarer;
 }
+
+/** The two producers that may declare extension columns. */
+export type Declarer = 'package' | 'overlay';
+export const DECLARERS: readonly Declarer[] = ['package', 'overlay'];
 
 export function fixtureConfig(
   url: string,
@@ -159,8 +171,12 @@ export function fixtureConfig(
   options: FixtureOptions = {},
 ): Options {
   const packageMigrations = options.packageMigrations ?? [];
+  const declares = declarations.length > 0 || packageMigrations.length > 0;
+  const declarer = options.declarer ?? 'package';
+  const ownMigrations = (origin: 'external' | 'overlay') =>
+    packageMigrations.map((cls) => ({ moduleId: DECLARING_MODULE, cls: cls as never, origin }));
   const packages =
-    declarations.length === 0 && packageMigrations.length === 0
+    !declares || declarer !== 'package'
       ? []
       : [
           {
@@ -168,13 +184,25 @@ export function fixtureConfig(
             packageName: '@acme/mod-acme-erp',
             version: '1.0.0',
             migrationsDirectory: null,
-            migrations: packageMigrations.map((cls) => ({
-              moduleId: DECLARING_MODULE,
-              cls: cls as never,
-              origin: 'external' as const,
-            })),
+            migrations: ownMigrations('external'),
             entities: [],
             dependencies: [FIXTURE_HOST_MODULE],
+            schemaExtensions: declarations,
+          },
+        ];
+  const overlays =
+    !declares || declarer !== 'overlay'
+      ? []
+      : [
+          {
+            id: DECLARING_MODULE,
+            source: `overlay apps/fixture/modules/${DECLARING_MODULE}`,
+            version: '1.0.0',
+            migrationsDirectory: null,
+            migrations: ownMigrations('overlay'),
+            entities: [],
+            dependencies: [FIXTURE_HOST_MODULE],
+            nonDeactivatable: false,
             schemaExtensions: declarations,
           },
         ];
@@ -192,6 +220,7 @@ export function fixtureConfig(
       [DECLARING_MODULE, [FIXTURE_HOST_MODULE]],
     ]),
     packages,
+    overlays,
     baseline: [],
     extensibleHosts: FIXTURE_HOSTS,
   });

@@ -103,6 +103,23 @@ export class OverlaySchemaError extends Error {
 export interface OverlaySchemaOptions {
   /** The host set V10 looks a declaration's owner up in; the full derived list by default. */
   readonly extensibleHosts?: ExtensibleHostSet;
+  /**
+   * The edges of every module composed beside this root's overlays — core and
+   * the installed packages — so V10's dependency closure is walked over the
+   * composed graph (`specs/190-overlay-full-modules/` FR-065, contract
+   * `overlay-schema-discovery.md` §5): an overlay that depends on `customers`
+   * reaches `organizations` through it. An overlay id here is ignored; the
+   * overlay's own manifest answers for it. Absent, a dependency outside the root
+   * is a direct edge only, which is the package reader's answer.
+   */
+  readonly composedDependencies?: ReadonlyMap<string, readonly string[]>;
+  /**
+   * `false` reads the declarations without holding them to V9 – V11 and
+   * contributes none: for a reader that consumes only the entities and cannot
+   * see the composed graph, which must not refuse what the migration merge —
+   * the one consumer of the declarations — accepts. `true` by default.
+   */
+  readonly schemaExtensions?: boolean;
 }
 
 /** `naming-convention.md` §1, for either spelling a unit has: the source and the compiled twin. */
@@ -353,9 +370,11 @@ export async function overlaySchemaContributionsUnder(
   }
 
   // V9 – V11 with the overlay as the declaring module, once every manifest is known
-  // (contract §5): the closure crosses overlays, and a dependency outside this root —
-  // a core module, a package — is still a direct edge.
-  const graph = new Map(out.map((contribution) => [contribution.id, contribution.dependencies] as const));
+  // (contract §5): the closure is walked over the composed graph — the overlays of
+  // this root over whatever edges the caller knows for the modules beside them.
+  if (options.schemaExtensions === false) return out;
+  const graph = new Map<string, readonly string[]>(options.composedDependencies ?? []);
+  for (const contribution of out) graph.set(contribution.id, contribution.dependencies);
   const hosts = options.extensibleHosts ?? EXTENSIBLE_HOSTS;
   return out.map((contribution, index) => {
     const declarations = declaredBy[index]!;

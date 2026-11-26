@@ -87,6 +87,14 @@ rung 4 — change what the container hands out. Costs a contract-version couplin
 | `ledgerFixtureDeliveryProcessor` | `ledger_vendor_fixture` | `ledger_vendor_fixture` | The vendor half of a delivery: the sequence of calls a ledger vendor makes between picking a queued row up and marking it delivered. It owns no queue and no worker, deliberately — a queue is a vendor’s own scaling decision and nothing in the ledger’s contract is expressed through one, so a fixture with a queue would add Redis to this deployment’s boot and prove nothing the free module owns. |
 | `ledgerFixtureHttp` | `ledger_vendor_fixture` | `ledger_vendor_fixture` | This vendor’s one outward port, declared in the module’s own directory rather than in `@endora-commerce/contracts` because nobody outside the module speaks it. It composes to a client that **refuses** every call, for the same reason `product_feeds`’ delivery adapters do: there is no remote here, so a code path that starts reaching for one has to fail loudly rather than quietly succeed. |
 
+### Columns this deployment adds to another module's table
+
+data ladder D2 — declared extension columns on a table another module owns. Costs a dependency on the host’s module; the platform generates the DDL, records it in a ledger and verifies it, and the host keeps its table and every column it did not let you declare.
+
+| What | Changed by | Owned by | Why |
+| --- | --- | --- | --- |
+| `organizations` (`x_overlay_notes_fixture_last_note_at`) | `overlay_notes_fixture` | `organizations` | Core keeps an Organization’s columns its own. This fixture adds one nullable column to `organizations`, for when the organization’s last note was written, through the generated schema-extension step an installed package would use: ledgered under the fixture’s id, never exposed on an admin read, and kept as orphaned with its values when the fixture is hard-uninstalled. No core column is changed, and nothing core runs reads it. |
+
 ## What this report does not cover
 
 A report that lists what it records and says nothing about the rest is indistinguishable
