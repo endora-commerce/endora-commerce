@@ -30,6 +30,10 @@ import {
  * Usage:
  *   pnpm --filter backend run migration:new -- --module orders --name placement_intents
  *
+ * `--module` also takes an overlay module's id, and then the file lands in
+ * `src/apps/<deployment>/modules/<id>/migrations/` (`specs/190-overlay-full-modules/`
+ * FR-057); `DEPLOYMENT`, when set, is the only deployment looked in.
+ *
  * The naming and registration rules are specified in
  * specs/065-manifest-aware-migrations/contracts/naming-convention.md §1, §2
  * and §6, as amended by
@@ -123,8 +127,9 @@ export function validateModuleId(moduleId: string, knownIds: ReadonlySet<string>
   if (moduleId === CORE_MODULE_ID || knownIds.has(moduleId)) return;
   const valid = [CORE_MODULE_ID, ...knownIds].sort().join(', ');
   throw new Error(
-    `Unknown module id "${moduleId}". Valid ids are: ${valid}. ` +
-      `If the module is new, add its manifest.ts and run ` +
+    `Unknown module id "${moduleId}". Valid ids are: ${valid}, and the id of an overlay ` +
+      `module under src/apps/<deployment>/modules/ (DEPLOYMENT, when set, names the only ` +
+      `deployment looked in). If the module is new, add its manifest.ts and run ` +
       `\`pnpm --filter backend run manifest-index:generate\`.`,
   );
 }
@@ -206,6 +211,78 @@ export interface MigrationTarget {
   readonly directory: string;
   /** The package that owns it, or `null` for core and the application's own tree. */
   readonly owner: ModulePackage | null;
+  /**
+   * The deployment whose overlay module this is, when it is one
+   * (`specs/190-overlay-full-modules/` FR-057). Absent for core, a package and
+   * an application-tree module.
+   */
+  readonly deployment?: string;
+}
+
+/** Hidden directories are not modules (`listOverlayModuleDirs`). */
+function visibleDirectoriesUnder(path: string): string[] {
+  if (!existsSync(path) || !statSync(path).isDirectory()) return [];
+  return readdirSync(path, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+/** Is `<overlayRoot>/<deployment>/modules/<id>/` a module — does it hold a manifest? */
+function isOverlayModule(overlayRoot: string, deployment: string, id: string): boolean {
+  const dir = join(overlayRoot, deployment, 'modules', id);
+  return existsSync(join(dir, 'manifest.ts')) || existsSync(join(dir, 'manifest.js'));
+}
+
+/**
+ * Where an **overlay** module's migrations live, or `null` when no deployment
+ * holds a module with this id (`specs/190-overlay-full-modules/` T102, FR-057).
+ *
+ * Since D-297 an overlay module owns its migrations, read at runtime from
+ * `apps/<deployment>/modules/<id>/migrations/` and never emitted into the
+ * bare-core registry (D-104) — which is why the manifest index does not list the
+ * id and {@link validateModuleId} would refuse it. `DEPLOYMENT`, when set, is
+ * the only deployment looked in, because it is the only one the process
+ * composes. Unset, the one deployment holding the id is the answer, and two that
+ * both hold it are a refusal rather than a choice.
+ */
+export function overlayMigrationTargetFor(
+  moduleId: string,
+  overlayRoot: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): MigrationTarget | null {
+  const selected = env['DEPLOYMENT'];
+  const deployments =
+    selected === undefined || selected === ''
+      ? visibleDirectoriesUnder(overlayRoot)
+      : [selected];
+  const holders = deployments.filter((deployment) =>
+    isOverlayModule(overlayRoot, deployment, moduleId),
+  );
+  if (holders.length === 0) return null;
+  if (holders.length > 1) {
+    throw new Error(
+      `Overlay module "${moduleId}" exists in ${String(holders.length)} deployments ` +
+        `(${holders.join(', ')}), and DEPLOYMENT is not set, so there is no telling which one ` +
+        `this migration belongs to. Run it again with DEPLOYMENT=<one of them>.`,
+    );
+  }
+  const deployment = holders[0]!;
+  return {
+    moduleId,
+    directory: join(overlayRoot, deployment, 'modules', moduleId, MIGRATIONS_DIRECTORY),
+    owner: null,
+    deployment,
+  };
+}
+
+/** Every overlay module's migrations directory, across every deployment. */
+function overlayMigrationDirs(overlayRoot: string): string[] {
+  return visibleDirectoriesUnder(overlayRoot).flatMap((deployment) =>
+    visibleDirectoriesUnder(join(overlayRoot, deployment, 'modules')).map((id) =>
+      join(overlayRoot, deployment, 'modules', id, MIGRATIONS_DIRECTORY),
+    ),
+  );
 }
 
 /**
@@ -270,6 +347,21 @@ export function refuseUnregisterableTarget(
   scaffold: Scaffold,
   walkRoots: readonly string[],
 ): void {
+  // An overlay migration is validated by the generator and emitted nowhere
+  // (`specs/190-overlay-full-modules/` FR-038): `collectMigrations` throws on a
+  // misnamed file or class and returns nothing for a valid one, so its verdict
+  // is "did not throw", asked of the key its walk gives the file.
+  if (target.deployment !== undefined) {
+    const root = walkRoots.find((candidate) => {
+      const within = relative(candidate, absolutePath);
+      return within !== '' && !within.startsWith('..') && !within.startsWith(sep);
+    });
+    if (root !== undefined) {
+      const key = relative(root, absolutePath).split(sep).join('/');
+      collectMigrations(coreSources({ [key]: scaffold.contents }));
+      return;
+    }
+  }
   const collected = ((): ReturnType<typeof collectMigrations> => {
     if (target.owner !== null) {
       const key = packageRelativePathOf(target.owner, absolutePath);
@@ -321,10 +413,13 @@ export function listMigrationDirs(
   return dirs;
 }
 
-/** Every `<STAMP>` already used anywhere in the tree. */
+/** Every `<STAMP>` already used anywhere in the tree, overlay modules included. */
 export function takenStamps(layout: ModuleTreeLayout, packages: readonly ModulePackage[]): Set<string> {
   const taken = new Set<string>();
-  for (const dir of listMigrationDirs(layout, packages)) {
+  for (const dir of [
+    ...listMigrationDirs(layout, packages),
+    ...overlayMigrationDirs(layout.overlayRoot),
+  ]) {
     if (!existsSync(dir) || !statSync(dir).isDirectory()) continue;
     for (const filename of readdirSync(dir)) {
       const match = MIGRATION_FILE_RE.exec(filename);
@@ -357,6 +452,16 @@ function parseArgs(argv: readonly string[]): { module?: string; name?: string } 
  */
 function followUp(target: MigrationTarget, scaffold: Scaffold, repoRoot: string): string {
   const steps = [`  pnpm --filter backend run composer:generate`];
+  if (target.deployment !== undefined) {
+    return [
+      `It is an overlay migration: the platform reads it from this directory at`,
+      `runtime under DEPLOYMENT=${target.deployment}, and nothing is emitted into the`,
+      `bare-core registry for it (D-104). The generator still validates its file and`,
+      `class names, so run it:`,
+      ``,
+      ...steps,
+    ].join('\n');
+  }
   if (target.owner === null) return steps.join('\n');
 
   const barrel = relative(repoRoot, join(target.directory, 'index.ts')).split(sep).join('/');
@@ -392,9 +497,14 @@ async function main(): Promise<void> {
 
   const layout = await resolveModuleLayout();
   const packages = modulePackages();
-  validateModuleId(args.module, new Set(layout.registeredIds));
+  const registered = new Set(layout.registeredIds);
+  const overlay =
+    args.module === CORE_MODULE_ID || registered.has(args.module)
+      ? null
+      : overlayMigrationTargetFor(args.module, layout.overlayRoot);
+  if (overlay === null) validateModuleId(args.module, registered);
 
-  const target = migrationTargetFor(args.module, layout, packages);
+  const target = overlay ?? migrationTargetFor(args.module, layout, packages);
   const stamp = nextFreeStamp(new Date(), takenStamps(layout, packages), BASELINE_THROUGH);
   const scaffold = buildScaffold({ moduleId: args.module, slug: args.name, stamp });
   const absolutePath = join(target.directory, scaffold.filename);
