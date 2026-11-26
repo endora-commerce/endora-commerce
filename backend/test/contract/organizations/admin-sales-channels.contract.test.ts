@@ -15,9 +15,11 @@ import { assignOrganizationChannels } from '../../helpers/sales-channel-access.j
  * page (`specs/154-sales-channel-access/contracts/admin-api-and-ui.md` §2, US5).
  *
  * `GET` answers the assignment and every channel it may hold, so the panel needs
- * no `sales_channels:read`; `PUT` replaces the whole set through the kernel's
- * membership writer — one transaction, one audit row per membership added or
- * removed with the acting administrator, and the access cache dropped so the
+ * no `sales_channels:read`; `PUT` replaces the whole set as the Command
+ * `organization.sales_channels.set` (`specs/186-aggregate-ports/` R-16.1): one
+ * transaction holding the kernel membership writer's audit row per membership
+ * added or removed with the acting administrator, beside the Command's own
+ * `organization` entry, and the access cache dropped after the commit so the
  * Organization's very next request is decided on the new set.
  */
 describe('admin Organization sales channels', () => {
@@ -56,6 +58,17 @@ describe('admin Organization sales channels', () => {
       { orderBy: { actedAt: 'asc' } },
     );
     return rows.filter((row) => row.objectId.endsWith(`:organization:${orgId}`));
+  }
+
+  /** The Command's own entries for the Organization (R-16.1). */
+  async function organizationEntries(): Promise<AuditLogEntry[]> {
+    const em = h.em();
+    em.clear();
+    return em.find(
+      AuditLogEntry,
+      { action: 'organization.sales_channels.set', objectType: 'organization', objectId: orgId },
+      { orderBy: { actedAt: 'asc' } },
+    );
   }
 
   beforeAll(async () => {
@@ -200,6 +213,7 @@ describe('admin Organization sales channels', () => {
         channelA,
       ]);
       const auditBefore = (await membershipAuditRows()).length;
+      const commandBefore = (await organizationEntries()).length;
 
       const res = await put(orgId, [channelB, inactiveId], MANAGER);
       expect(res.statusCode).toBe(200);
@@ -223,13 +237,24 @@ describe('admin Organization sales channels', () => {
       for (const row of rows) {
         expect(row.actorAdminUserId).toBe(ADMIN_COOKIES[MANAGER]!.adminUserId);
       }
+
+      // The Command's one entry, ids only, beside the membership trail.
+      const commandRows = (await organizationEntries()).slice(commandBefore);
+      expect(commandRows).toHaveLength(1);
+      expect(commandRows[0]).toMatchObject({
+        actorAdminUserId: ADMIN_COOKIES[MANAGER]!.adminUserId,
+        stateBefore: { salesChannelIds: [channelA] },
+        stateAfter: { salesChannelIds: [channelB, inactiveId].sort() },
+      });
     });
 
     it('is idempotent: the same set again changes and audits nothing', async () => {
       const auditBefore = (await membershipAuditRows()).length;
+      const commandBefore = (await organizationEntries()).length;
       const res = await put(orgId, [inactiveId, channelB]);
       expect(res.statusCode).toBe(200);
       expect((await membershipAuditRows()).length).toBe(auditBefore);
+      expect((await organizationEntries()).length).toBe(commandBefore);
     });
 
     it('records the platform administrator as the actor too', async () => {
