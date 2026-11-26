@@ -23,9 +23,9 @@ import {
 /**
  * `specs/187-side-table-extensions/contracts/verification-rules.md` §2 – §3
  * (FR-003, FR-010 – FR-013; tasks.md T013, T023, T024) — the metadata rules,
- * over what MikroORM 7 **discovered** (an ORM initialised with `connect: false`,
- * the rule installed as `afterDiscovered`, exactly where `mikroOrmConfigFrom`
- * chains it), never over decorators.
+ * over what MikroORM 7 **discovered** (an ORM initialised and never connected,
+ * since v7 connects lazily, with the rule installed as `afterDiscovered` exactly
+ * where `mikroOrmConfigFrom` chains it), never over decorators.
  */
 
 // --- the hosts, named as the bindings name them ---------------------------
@@ -243,7 +243,6 @@ async function discover(scenario: Scenario): Promise<EntityExtensionTableFacts> 
   const orm = await MikroORM.init(
     defineConfig({
       entities: [...(scenario.hosts ?? HOST_CLASSES), ...side, ...other],
-      connect: false,
       clientUrl: 'postgresql://unused:unused@localhost:5432/unused',
       discovery: {
         afterDiscovered: (storage: MetadataStorage) => {
@@ -453,7 +452,7 @@ describe('mikroOrmConfigFrom — the side-table rules run in every ORM initialis
   });
 
   async function init(config: ReturnType<typeof mikroOrmConfigFrom>): Promise<void> {
-    const orm = await MikroORM.init({ ...config, connect: false });
+    const orm = await MikroORM.init(config);
     await orm.close(true);
   }
 

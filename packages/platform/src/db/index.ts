@@ -171,3 +171,47 @@ export {
   reverseEdgeClause,
   type ReverseEdgeClause,
 } from './reverse-edge.js';
+
+// `specs/187-side-table-extensions/` — side-table entity extensions (D1).
+export {
+  ENTITY_EXTENSION_HOSTS,
+  type EntityExtensionHost,
+} from '../kernel/schema-extensions/extensible-hosts.js';
+export {
+  EntityExtensionDriftError,
+  EntityExtensionInvalidError,
+  EntityExtensionLoaderOutputError,
+  type EntityExtensionFinding,
+  type EntityExtensionInvalidDetails,
+  type EntityExtensionOrigin,
+  type EntityExtensionRule,
+} from '../kernel/entity-extensions/errors.js';
+export {
+  judgeEntityExtensions,
+  resolveEntityExtensions,
+  type EntityExtensionJudgementOptions,
+  type EntityExtensionManifest,
+  type EntityExtensionVerdict,
+  type ResolvedEntityExtension,
+} from '../kernel/entity-extensions/declarations.js';
+export {
+  activeEntityExtensionContext,
+  entityExtensionContextRecorded,
+  type EntityExtensionContext,
+  type EntityExtensionTableFacts,
+  type EntityExtensionTableOwner,
+} from '../kernel/entity-extensions/context.js';
+export {
+  assertEntityExtensionMetadata,
+  type EntityExtensionMetadataInputs,
+} from './entity-extension-metadata.js';
+export {
+  ENTITY_EXTENSION_UNDECLARED_POLICY,
+  inspectEntityExtensions,
+  verifyEntityExtensions,
+  type EntityExtensionListRow,
+  type EntityExtensionReport,
+  type EntityExtensionUndeclaredPolicy,
+  type EntityExtensionVerifyOptions,
+} from './entity-extension-verifier.js';
+export type { EntityExtensionMigrateOptions } from './migrate.js';

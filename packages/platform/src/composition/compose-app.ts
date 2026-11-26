@@ -114,6 +114,8 @@ import {
 } from '../kernel/schema-extensions/registry.js';
 import { createSchemaExtensionReads } from '../kernel/schema-extensions/reads.js';
 import { verifySchemaExtensions } from '../db/schema-extension-verifier.js';
+import { verifyEntityExtensions } from '../db/entity-extension-verifier.js';
+import { activeEntityExtensionContext } from '../kernel/entity-extensions/context.js';
 import { createRegistrationOwnership } from '../kernel/module-context.js';
 import {
   assertPublicApiBaseUrlConfigured,
@@ -573,6 +575,16 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     (sql, params = []) =>
       orm.em.getConnection().execute(sql, params, 'all') as Promise<Record<string, unknown>[]>,
     activeSchemaExtensionContext(),
+    (message) => platformLogger().warn({}, message),
+  );
+  // `specs/187-side-table-extensions/` FR-022, FR-023 — and the declared side
+  // tables, read-only, in one catalog query: a cascade dropped by hand, or a
+  // side table lost to an upgrade, fails the boot naming the module and the
+  // table; an undeclared or unowned one is a `warn` (OR-8).
+  await verifyEntityExtensions(
+    (sql, params = []) =>
+      orm.em.getConnection().execute(sql, params, 'all') as Promise<Record<string, unknown>[]>,
+    activeEntityExtensionContext(),
     (message) => platformLogger().warn({}, message),
   );
   // Feature 050 — the single EM-injection seam. `forkScopedEm` is a bare
