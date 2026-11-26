@@ -110,9 +110,9 @@ once it is committed.
 
 `customer_account.create` has one implementation, published two ways:
 
-- `customerAccountMemberWritePort.create(input)` creates the account in a
-  transaction of its own — the member direct-create and the invitation accept
-  use it;
+- `customerAccountCommandPort.create(input, options?)` creates the account in a
+  transaction of its own — the operator's member direct-create uses it (see
+  *Server-side writes* below);
 - `customerAccountMemberCommandPort.prepareCreate(input)` hashes the password
   and returns a builder; `.command({ organizationId, organizationRoleId })`
   is the Command, which a caller runs as a **child** of its own Command through
@@ -149,12 +149,104 @@ never its values:
 - a role change records the role by id and kind, never a custom role's name;
 - a preferred-language change (`customer_account.set_preferred_language`)
   records `changedFields: ['preferredLanguage']` and where it came from as
-  `source` (`self_service` or `sign_in`), never the language;
+  `source` (`self_service`, `sign_in`, the code a server-side caller passed, or
+  `null` when it passed none), never the language;
 - a roll-up change (`customer_account.set_subtree_rollup`) records the
   `subtreeRollupEnabled` flag before and after. It is a Command, so the entry
   is written in the change's transaction.
 
 The account itself holds the values.
+
+## Server-side writes
+
+Another module, an overlay module or an integration worker (an ERP or CRM
+connector) writes a customer account through **`customerAccountCommandPort`**,
+the account's write port, declared as `CustomerAccountCommandPort` in
+`@endora-commerce/contracts`. It never writes this module's table itself.
+Resolve it per use with
+`lazyPort<CustomerAccountCommandPort>(ctx, 'customerAccountCommandPort')`, with
+`customer_accounts` in the calling module's manifest `dependencies`.
+
+| Method | Audit action | What the admin does the same way |
+| --- | --- | --- |
+| `create(input, options?)` | `customer_account.create` | `POST /api/v1/admin/organizations/:id/members` |
+| `createStandalone(input, options?)` | `customer_account.register_standalone` | — (the buyer's `POST /api/v1/customers/register`) |
+| `updateProfile(id, patch, options?)` | `customer_account.update_profile` | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId` |
+| `block(id, { reason? }, options?)` | `customer_account.blocked` | `POST /api/v1/admin/customers/:id/block` |
+| `unblock(id, options?)` | `customer_account.unblocked` | `POST /api/v1/admin/customers/:id/unblock` |
+| `softDelete(id, options?)` | `customer_account.deleted` | `DELETE /api/v1/admin/customers/:id` |
+| `restore(id, options?)` | `customer_account.restored` | `POST /api/v1/admin/customers/:id/restore` |
+| `setCustomerGroup(id, { customerGroupId }, options?)` | `customer_account.group_assigned` | `PUT /api/v1/admin/customers/:id/customer-group` |
+| `setCustomFieldValues(id, merge, options?)` | `customer.custom_fields.update` | `PATCH /api/v1/admin/customers/:id/custom-fields` |
+| `setSubtreeRollup(id, { enabled }, options?)` | `customer_account.set_subtree_rollup` | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/rollup` |
+| `promoteToOrganizationAdmin(id, options?)` | `customer_account.promote_organization_admin` | — |
+| `markEmailVerified(id, { verifiedAt }, options?)` | `customer_account.email_verified` | — (the buyer's verification link) |
+| `changeRole(id, { organizationRoleId }, options?)` | `customer_account.change_role` | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` |
+| `setPreferredLanguage(id, { language }, options?)` | `customer_account.set_preferred_language` | — (the buyer's own account page) |
+| `removeMember(id, options?)` | `customer_account.remove_member` | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` |
+| `anonymize(id, options?)` | `customer_account.anonymized` | — (the retention sweep) |
+
+**One write path.** The admin endpoints of `customers` and `organizations` call
+this port, so an operator's click and a server-side call run the same Command:
+one audit entry with the same state, in the write's own transaction. The
+member-panel endpoints also record their own `customer_account.admin_*` entry
+(that an operator edited the panel); the port does not. Inputs are validated
+with the endpoints' limits, and refusals are the endpoints' errors with their
+codes — `422 VALIDATION_FAILED` for an input outside them, `404
+CUSTOMER_NOT_FOUND` on the block, deletion, restore and group methods and `404
+NOT_FOUND` on the others, as their endpoints answer, and each operation's own
+(`409 EMAIL_ALREADY_REGISTERED`, `409 CUSTOMER_ALREADY_DELETED`, `409
+CUSTOMER_NOT_DELETED`, `409 CUSTOMER_RESTORE_WINDOW_ELAPSED`, `409
+CANNOT_DEMOTE_LAST_ADMIN`, `409 CANNOT_REMOVE_LAST_ADMIN`).
+
+**Blocking and deleting.** Both refuse, with `409 ORG_OWNER_DEPLETION`, to leave
+a company Organization without an active, unblocked *Administrator*; the
+holders are locked before they are counted, so two such writes cannot both
+pass. A personal Organization's only member may be blocked and deleted. Once
+the write has committed, the account's sessions end, so a blocked or deleted
+buyer is signed out at once; if the session store cannot be reached the write
+stands and the failure is logged. Blocking an account that is already blocked,
+or unblocking one that is not, changes and records nothing.
+
+**Who wrote it.** The actor is the ambient one, never a parameter: an
+administrator inside an admin request, or under `withSystemScopeActingFor`; the
+**system** actor under `withSystemScope` in a worker, which records no
+administrator — a block by the system leaves `blockedByAdminUserId` empty. With
+no tenant context at all the write is refused before anything is stored. The
+port checks no permission — the caller is the gate — so never resolve it for a
+customer-facing route. The admin's own gates are not on the port either: the
+`customers:manage` permission, a sales representative's reach, the member
+panel's `expectedUpdatedAt` check, and the restore window of
+`customers.deletion_retention_days`, which the admin endpoint applies before
+the retention sweep has reached a deleted account.
+
+**Options** (the last parameter of every method):
+
+- `source` — a lower-case code naming the integration (`erp`,
+  `erp.customer-master`, at most 64 characters), recorded as `source` in the
+  audit entry beside the actor. Any other value is refused with `422
+  VALIDATION_FAILED` before anything is read or written.
+- `expectedVersion` — ignored: an account has no version.
+- `extensions` — input for command hooks on the action. No account action is
+  declared hookable yet, so any key is refused with `422
+  COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+
+**Not on the port.** Moving an account to another Organization (the
+`setOrganization`, `detachToPersonalOrganization` and `attachToOrganization`
+methods of the older ports) belongs to the Organization membership, which has
+its own port. Passwords, sign-in and its limits are authentication, not writes
+an integration performs. A sign-in's capture of an unknown preferred language
+stays `customerAccountPreferencePort.captureIfUnset`, and the buyer's own choice
+on the account page stays `customerAccountPreferencePort.setPreferredLanguage`,
+which runs the same Command with the code `self_service`.
+
+**Deprecated since 0.113.0.** `customerAccountLifecycleWritePort` and
+`customerAccountMemberWritePort` run these same Commands and will be removed in
+the next release, except for their Organization moves. Call the method of the
+same name here instead; `block`, `unblock`, `softDelete`, `restore` and
+`setCustomerGroup` no longer take an `actorAdminUserId`. The sweep's work list,
+`listDueForAnonymization` and `hasDueForAnonymization`, moved to
+`customerAccountReadPort`.
 
 ## Preferred language
 

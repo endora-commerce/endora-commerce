@@ -14,7 +14,6 @@ import { CustomerAdminQueryService } from './services/customer-admin-query-servi
 import { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
 import { CustomerDeletionService } from './services/customer-deletion-service.js';
 import { CustomerPresenceService } from './services/customer-presence-service.js';
-import { OrganizationDepletionGuard } from './services/organization-depletion-guard.js';
 import { AnonymizationSweepWorker } from './workers/anonymization-sweep-worker.js';
 import type {
   AddressReadPort,
@@ -27,6 +26,7 @@ import type {
   CustomFieldValuePort,
   CustomerAccountAdminSearchPort,
   CustomFieldListFilterPort,
+  CustomerAccountCommandPort,
   CustomerAccountLifecycleWritePort,
   CustomerAccountPreferencePort,
   CustomerAccountReadPort,
@@ -121,8 +121,15 @@ export interface CustomersModuleOptions {
    * this module's own screens run on: the lifecycle writes it used to perform
    * by mutating that module's entity, the admin list's query, and the group
    * names beside it.
+   *
+   * Since `specs/186-aggregate-ports/` (issue #1822) the writes are
+   * `customerAccountCommandPort`'s — block, unblock, delete, restore, the
+   * group, the custom-field patch, the standalone registration and the
+   * retention scrub — and the lifecycle port is left with the two
+   * Organization moves `specs/191-membership-join-requests/` replaces.
    */
-  customerAccountLifecycleWritePort: CustomerAccountLifecycleWritePort;
+  customerAccountCommandPort: CustomerAccountCommandPort;
+  customerAccountLifecycleWritePort: Pick<CustomerAccountLifecycleWritePort, 'setOrganization' | 'detachToPersonalOrganization'>;
   customerAccountAdminSearchPort: CustomerAccountAdminSearchPort;
   customerGroupReadPort: CustomerGroupReadPort;
   /**
@@ -272,7 +279,7 @@ export function customersModule(options: CustomersModuleOptions): {
 } {
   const customerAuthService = options.customerAuthService;
   const registrationService = new CustomerRegistrationService({
-    accounts: options.customerAccountLifecycleWritePort,
+    accounts: options.customerAccountCommandPort,
     sessionService: options.sessionService,
     resolveAllowRegistrationWithoutOrganization:
       options.resolveAllowRegistrationWithoutOrganization,
@@ -289,22 +296,12 @@ export function customersModule(options: CustomersModuleOptions): {
     options.addressReadPort,
   );
   const authorityService = new CustomerAuthorityService(options.salesRepVisibility);
-  // `specs/170-organization-roles/` WP-03 — the last-administrator question the
-  // blocking and deletion guards ask, by role and for company Organizations only.
-  const depletionGuard = new OrganizationDepletionGuard({
-    accounts: options.customerAccountReadPort,
-    organizations: options.organizationDetailsPort,
-    organizationRoles: options.organizationRoleReadPort,
-  });
+  // `specs/186-aggregate-ports/` (#1822) — the block's depletion guard and its
+  // session revocation are inside `customer_accounts`' Command now.
   const moderationService = new CustomerModerationService(
     options.customerAccountReadPort,
-    options.customerAccountLifecycleWritePort,
+    options.customerAccountCommandPort,
     authorityService,
-    {
-      destroyAllForCustomer: (customerAccountId) =>
-        options.sessionService.destroyAllForCustomer(customerAccountId),
-    },
-    depletionGuard,
   );
   const queryService = new CustomerAdminQueryService(customerDefaultsService, {
     accounts: options.customerAccountReadPort,
@@ -321,17 +318,13 @@ export function customersModule(options: CustomersModuleOptions): {
     authorityService,
     options.personalOrganizationPort,
     options.organizationRoleReadPort,
+    options.customerAccountCommandPort,
   );
   const deletionService = new CustomerDeletionService(
     options.customerAccountReadPort,
-    options.customerAccountLifecycleWritePort,
+    options.customerAccountCommandPort,
     options.personalOrganizationPort,
     authorityService,
-    {
-      destroyAllForCustomer: (customerAccountId) =>
-        options.sessionService.destroyAllForCustomer(customerAccountId),
-    },
-    depletionGuard,
     options.addressServicePort,
     options.resolveDeletionRetentionDays,
     addressBookRetirement,
@@ -375,7 +368,7 @@ export function customersModule(options: CustomersModuleOptions): {
     await registerCustomersAdminRoutes(app, {
       accounts: options.customerAccountReadPort,
       organizationRoles: options.organizationRoleReadPort,
-      accountWrites: options.customerAccountLifecycleWritePort,
+      accountWrites: options.customerAccountCommandPort,
       requireAdmin: options.requireAdmin,
       resolveModerationActor: options.resolveModerationActor,
       moderationService,

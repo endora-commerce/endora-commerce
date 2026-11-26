@@ -1,5 +1,6 @@
 import {
   ERROR_CODES,
+  type CustomerAccountCommandPort,
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
@@ -39,7 +40,7 @@ export class CustomerOrgAssignmentService {
 
   constructor(
     private readonly accounts: CustomerAccountReadPort,
-    private readonly accountWrites: CustomerAccountLifecycleWritePort,
+    private readonly accountWrites: Pick<CustomerAccountLifecycleWritePort, 'setOrganization' | 'detachToPersonalOrganization'>,
     private readonly organizations: OrganizationDetailsPort,
     private readonly authority: CustomerAuthorityService,
     /** D-178 — where a detached member goes. */
@@ -49,6 +50,13 @@ export class CustomerOrgAssignmentService {
      * holds in the company it is assigned to.
      */
     private readonly organizationRoles: Pick<OrganizationRoleReadPort, 'predefinedRoleId'>,
+    /**
+     * `specs/186-aggregate-ports/` (issue #1822) — the group assignment is the
+     * aggregate port's `customer_account.group_assigned` Command. The two
+     * Organization moves above stay on the lifecycle port until
+     * `specs/191-membership-join-requests/` replaces them.
+     */
+    private readonly commands: Pick<CustomerAccountCommandPort, 'setCustomerGroup'>,
   ) {
     this.depletion = new OrganizationDepletionGuard({ accounts, organizations, organizationRoles });
   }
@@ -144,9 +152,7 @@ export class CustomerOrgAssignmentService {
     const customer = await this.loadActive(customerAccountId);
     await this.assertAuthorized(actor, customer.organizationId);
 
-    return this.accountWrites.setCustomerGroup(customer.id, customerGroupId, {
-      actorAdminUserId: actor.adminUserId,
-    });
+    return this.commands.setCustomerGroup(customer.id, { customerGroupId });
   }
 
   private async loadActive(id: string): Promise<CustomerAccountRecord> {

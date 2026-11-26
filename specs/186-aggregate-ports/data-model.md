@@ -71,7 +71,7 @@ What happens to each existing write-shaped port of the nine owners. "Deprecated"
 | | `setOrganization`, `detachToPersonalOrganization` | **deprecated by spec 191** | `membershipPort.changeOrganization` / `.detachToPersonal` |
 | `customerAccountMemberWritePort` | `create`, `updateProfile`, `setSubtreeRollup`, `promoteToOrganizationAdmin`, `markEmailVerified` | deprecated | `customerAccountCommandPort.*` |
 | | `attachToOrganization` | **deprecated by spec 191** | `membershipPort` |
-| `customerAccountPreferencePort` | `setPreferredLanguage` | deprecated | `customerAccountCommandPort.setPreferredLanguage` |
+| `customerAccountPreferencePort` | `setPreferredLanguage` | kept (the buyer's own write, research R-17.4); runs `customerAccountCommandPort.setPreferredLanguage` | — |
 | | `captureIfUnset` | kept (sign-in capture, not a lifecycle operation) | — |
 | `customerAccountRoleCommandPort` | `changeRole`, `holdersOf` | kept (child-Command factory for `organizations`' own Commands) | — |
 | `customerAccountMemberCommandPort` | `prepareCreate` | kept (same reason) | — |

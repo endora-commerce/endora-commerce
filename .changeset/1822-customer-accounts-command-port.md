@@ -1,0 +1,11 @@
+---
+'@endora-commerce/mod-customer-accounts': minor
+---
+
+**`customerAccountCommandPort` — every server-side write on a customer account** (issue #1822, `specs/186-aggregate-ports/` US3). Another module, an overlay or an integration worker creates, registers, edits, blocks, unblocks, deletes, restores and anonymises an account, sets its customer group, custom-field values, roll-up capability, role and preferred language, promotes it and marks its address verified through the published port, with the ambient actor (the system actor under `withSystemScope`) and an optional `source` code recorded in the audit entry. `customers`' and `organizations`' admin endpoints run their writes through it, so both see one write path. See *Server-side writes* on the module's page.
+
+Block, unblock, soft delete, restore, the customer-group assignment, the standalone registration, the anonymisation, the profile update and the e-mail verification are now Commands: the change and its audit entry commit together (the first five recorded their entry after the write, on another connection), command hooks can see them, and the action strings and audit state are unchanged. A block and a soft delete now refuse the last active, unblocked administrator of a company Organization themselves (`409 ORG_OWNER_DEPLETION`, counted under a lock) and end the account's sessions once they have committed; a session-store failure is logged and no longer fails the request. Their entries now carry the request's IP address, user agent and id, as every Command's entry does. The preferred-language entry of a server-side write records the caller's `source`, or `null`.
+
+`customerAccountLifecycleWritePort` (except its two Organization moves) and `customerAccountMemberWritePort` (except `attachToOrganization`) are deprecated and delegate to the new port; `actorAdminUserId` and `audit` passed to them are ignored — the actor and the request metadata are the ambient ones.
+
+For code that builds the services by hand: `CustomerAccountLifecycleWriteService` takes `(emFactory, auditLog, twoFactorEnrolments, { commands, reads })`; `CustomerAccountMemberWriteService`'s fourth argument may carry the aggregate `port`; `CustomerAccountPreferenceService` takes the port as an optional third argument.
