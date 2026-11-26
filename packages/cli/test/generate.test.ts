@@ -362,9 +362,11 @@ describe('endora generate (instance-tree.md §2.6)', () => {
     const result = await runGenerate({ cwd: root });
     expect(result.omitted.join('\n')).toContain('Docusaurus');
     expect(result.collected).toBeNull();
-    // The admin project's two, plus the entity index, which belongs to no member
-    // and is therefore rendered whatever this instance's members are (T065).
-    expect(result.artefacts).toHaveLength(3);
+    // The admin project's two and bare core's deployment admin registry (this
+    // instance has no `apps/`; `specs/190-overlay-full-modules/` FR-080), plus
+    // the entity index, which belongs to no member and is therefore rendered
+    // whatever this instance's members are (T065).
+    expect(result.artefacts).toHaveLength(4);
   });
 
   /**

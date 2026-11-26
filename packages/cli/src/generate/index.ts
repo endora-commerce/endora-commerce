@@ -90,6 +90,14 @@ import {
   type ReleaseIndexEntry,
 } from '../lib/release-index.js';
 import { InstanceHostError } from '../new-instance/host.js';
+import {
+  instancePaletteCoverage,
+  OverlayAdminInputError,
+  paletteRefusal,
+  paletteReport,
+  renderInstanceOverlayAdmin,
+  type DeploymentPaletteCoverage,
+} from './overlay-admin.js';
 import { resolveDeployment } from '../new-module/overlay.js';
 import { ScaffoldInputError } from '../new-module/spec.js';
 import {
@@ -213,6 +221,11 @@ export interface GenerateResult {
   readonly unlisted: readonly UnlistedReleaseModule[];
   /** Why this CLI's release index could not be read, when a needed module sent this run to it. */
   readonly releaseIndexError: string | null;
+  /**
+   * Palette coverage of every deployment's overlay admin layers
+   * (`specs/190-overlay-full-modules/` FR-085). Empty with no admin member.
+   */
+  readonly palette: readonly DeploymentPaletteCoverage[];
   readonly dryRun: boolean;
 }
 
@@ -290,9 +303,20 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
   // not a refusal: `endora new instance` writes one only when the shell and the
   // design system resolve, so a headless instance is a tree this command must
   // still be able to serve.
+  let palette: readonly DeploymentPaletteCoverage[] = [];
   try {
     const contributions = collectAdminContributions(scan.packages);
     const sources = collectTailwindSources(root, scan.packages);
+    // One registry per deployment under `apps/`, and bare core's — the admin
+    // build selects one (`specs/190-overlay-full-modules/` FR-080, FR-082).
+    let overlayAdmin: ReturnType<typeof renderInstanceOverlayAdmin>;
+    try {
+      overlayAdmin = renderInstanceOverlayAdmin(root, GENERATED_REGISTRY_HEADER);
+    } catch (error: unknown) {
+      if (error instanceof OverlayAdminInputError) throw new GenerateInputError(error.message);
+      throw error;
+    }
+    palette = await instancePaletteCoverage(root, scan.packages);
     artefacts.push(
       {
         path: adminRegistryOutputPathIn(root),
@@ -305,9 +329,11 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
           sources,
           GENERATED_STYLESHEET_HEADER,
           collectBlockStylesheets(root),
+          overlayAdmin.sources,
         ),
         label: `the admin stylesheet enumeration (${String(sources.length)} package(s))`,
       },
+      ...overlayAdmin.registries,
     );
   } catch (error: unknown) {
     if (!(error instanceof AdminLayoutUnresolvableError)) throw error;
@@ -489,6 +515,7 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
     declared: release.declared,
     unlisted: release.unlisted,
     releaseIndexError: release.releaseIndexError,
+    palette,
     dryRun: options.dryRun === true,
   };
 }
@@ -718,6 +745,7 @@ export function generateReport(result: GenerateResult): readonly string[] {
       );
     }
   }
+  lines.push(...paletteReport(result.palette));
   if (result.collected !== null) {
     lines.push(
       `copied ${String(result.collected.copied.length)} module-owned page(s) into ` +
@@ -793,6 +821,14 @@ export function generateFindingsRefusal(result: GenerateResult): string | null {
   }
   lines.push('Fix them and run `pnpm run generate` again.');
   return lines.join('\n');
+}
+
+/**
+ * Why the palette half of this run is not a success, or `null` — exit 1 after
+ * writing, as {@link generateFindingsRefusal} (FR-085).
+ */
+export function generatePaletteRefusal(result: GenerateResult): string | null {
+  return paletteRefusal(result.palette);
 }
 
 /** Is this instance's admin registry the same as the one on disk? */
