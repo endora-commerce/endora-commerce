@@ -167,6 +167,10 @@
         "A19": {
           "status": "pass",
           "reason": "MEASURED, AS THE RUN PRINTED IT: \"'instance_acceptance_notes' owns a table: the instance's own `setup` passed over it and applied 'Migration20270101T000000InstanceAcceptanceNotesInit' out of the compiled overlay, and its route answered 200 with the row that migration seeded, read through the entity its backend exports\". The fixture is written after A18 has put A8's tree back: one global entity exported as `entities` from `backend.ts`, one migration file in `migrations/` that creates the table and seeds one row, and a route reading it through `emFactory` (specs/190-overlay-full-modules/ T080, US1, SC-001; #1850). Global, because the subject is the table and its mapping; the cross-tenant half of an overlay table is `backend/test/integration/overlay/overlay-table.test.ts` (T079)."
+        },
+        "A20": {
+          "status": "pass",
+          "reason": "MEASURED, AS THE RUN PRINTED IT: \"the admin built with DEPLOYMENT=instance ships 'instance_acceptance_screens's screen, rendered through the kit it resolves from outside the admin member; the admin built for bare core ships none of it; `generate` passed over it; the admin `typecheck` exited 2 (reported, not judged: the admin member installs no React types)\". The fixture is written after A19: an overlay module with `admin/index.tsx` (one landing route), its palette action in `manifest.ts`, and a screen rendering a marker through `@endora-commerce/admin-kit/ui`. `generate` renders `admin/src/deployments/instance.generated.ts`; the admin member's own `build` runs twice, into directories of its own, so `admin/dist` stays what A5, A7 and A13 read (specs/190-overlay-full-modules/ T049, FR-080 - FR-084, SC-004; #1855). The `typecheck` exit is reported rather than judged because the created admin member installs no `@types/react`, so its own `src/main.tsx` fails the same check with TS7016 (measured on the kept tree, 2026-11-26)."
         }
       }
     },
@@ -521,6 +525,14 @@
     "before any of it runs, and that the restored tree, rebuilt, composes (#1848). Its first run found the",
     "layout checked only on the compiled tree, where `tsc` emits no `package.json`; fixed on the same branch.",
     "Measured in `tarball` mode: 17 pass, 0 fail, 1 unmeasured (A12) of 18. `registry` is left without a",
-    "state for A18, so its first run after the next publish drifts and records it."
+    "state for A18, so its first run after the next publish drifts and records it.",
+    "",
+    "2026-11-26 — A20. The criterion gains the assertion that an overlay module's admin layer is in the",
+    "admin built for its deployment and in no admin built without it (#1855): `generate` renders one",
+    "registry per deployment, and the admin member's own `build` runs with DEPLOYMENT set and blank.",
+    "Measured in `tarball` mode: 19 pass, 0 fail, 1 unmeasured (A12) of 20. The admin `typecheck` is",
+    "reported beside it: a created admin member installs no React types, so it fails over",
+    "`src/main.tsx` as well. `registry` is left without a state for A20, so its first run after the",
+    "next publish drifts and records it."
   ]
 }

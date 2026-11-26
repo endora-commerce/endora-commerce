@@ -71,7 +71,8 @@ export type AssertionId =
   | 'A16'
   | 'A17'
   | 'A18'
-  | 'A19';
+  | 'A19'
+  | 'A20';
 
 /**
  * What each assertion is, independently of any run.
@@ -102,6 +103,7 @@ export const ASSERTION_CATALOGUE: Readonly<Record<AssertionId, string>> = {
   A17: 'a request is confined to what its authenticated actor may reach: a customer to its organization, an admin to the scope its role resolves to, a bound API key to its binding',
   A18: 'a compiled overlay that no longer matches its sources, or one that breaks the module layout, is refused before it runs, and a clean build composes',
   A19: 'an overlay module that owns a table: `setup` passes over it, applies its migration, and its route serves the row it seeded',
+  A20: "an overlay module's admin layer is in the admin built for its deployment, and in no admin built without it",
 };
 
 export const ASSERTION_IDS = Object.keys(ASSERTION_CATALOGUE) as readonly AssertionId[];
@@ -2572,3 +2574,86 @@ export function evaluateA19(observed: OverlaySchemaObservation): AssertionResult
       `that migration seeded, read through the entity its backend exports`,
   };
 }
+
+/** What A20's probe read (`specs/190-overlay-full-modules/` T049, #1855). */
+export interface OverlayAdminObservation {
+  readonly moduleId: string;
+  readonly deployment: string;
+  /** The string the fixture's screen renders, searched for in each bundle. */
+  readonly marker: string;
+  /** The instance's own `generate`, over the tree carrying the fixture. */
+  readonly generated: { readonly code: number; readonly output: string } | null;
+  /** The admin member's own `build`, with `DEPLOYMENT` set to the deployment. */
+  readonly deploymentBuild: { readonly code: number; readonly output: string } | null;
+  readonly deploymentHolds: boolean | null;
+  /** The same build with `DEPLOYMENT` blank: bare core. */
+  readonly bareBuild: { readonly code: number; readonly output: string } | null;
+  readonly bareHolds: boolean | null;
+  /**
+   * The admin member's own `typecheck`, whose program includes `../apps/*\/modules/*\/admin`.
+   * Reported, not judged: in a created instance it does not pass over the admin's own
+   * `src/main.tsx` either, because the admin member installs no React types — measured on
+   * 2026-11-26 (#1855), and a defect of the template's admin dependencies rather than of FR-083.
+   */
+  readonly typecheck: { readonly code: number; readonly output: string } | null;
+  readonly failure?: string;
+}
+
+/**
+ * A20 — an overlay admin layer in a created instance (US3, FR-080 – FR-084, SC-004).
+ *
+ * Three facts: `generate` renders the deployment registries without refusing the
+ * tree (palette coverage included), the admin built with `DEPLOYMENT` set ships
+ * the fixture's screen, and the admin built without it does not. The screen
+ * imports the kit, so a bundle that holds it resolved the kit from outside the
+ * admin member (`resolve.dedupe`, FR-084). The admin `typecheck` is run and its
+ * exit is reported beside the verdict — see {@link OverlayAdminObservation.typecheck}.
+ */
+export function evaluateA20(observed: OverlayAdminObservation): AssertionResult {
+  if (observed.failure !== undefined) return { id: 'A20', state: 'unmeasured', detail: observed.failure };
+  const fail = (detail: string): AssertionResult => ({ id: 'A20', state: 'fail', detail });
+  if (observed.generated === null || observed.generated.code !== 0) {
+    return fail(
+      `\`generate\` ${observed.generated === null ? 'was not run' : `exited ${String(observed.generated.code)}`} ` +
+        `over the overlay admin layer of '${observed.moduleId}'` +
+        (observed.generated === null ? '' : `: ${failureExcerpt(observed.generated.output, 3)}`),
+    );
+  }
+  if (observed.deploymentBuild === null || observed.deploymentBuild.code !== 0) {
+    return fail(
+      `the admin member's \`build\` with DEPLOYMENT=${observed.deployment} ` +
+        `${observed.deploymentBuild === null ? 'was not run' : `exited ${String(observed.deploymentBuild.code)}: ${failureExcerpt(observed.deploymentBuild.output, 3)}`}`,
+    );
+  }
+  if (observed.deploymentHolds !== true) {
+    return fail(
+      `the admin built with DEPLOYMENT=${observed.deployment} holds no '${observed.marker}': the overlay ` +
+        `admin layer of '${observed.moduleId}' did not reach the bundle`,
+    );
+  }
+  if (observed.bareBuild === null || observed.bareBuild.code !== 0 || observed.bareHolds !== false) {
+    return fail(
+      observed.bareBuild === null || observed.bareBuild.code !== 0
+        ? `the admin built for bare core (DEPLOYMENT blank) did not build` +
+            (observed.bareBuild === null ? '' : `: ${failureExcerpt(observed.bareBuild.output, 3)}`)
+        : `the admin built for bare core (DEPLOYMENT blank) holds '${observed.marker}' too: a ` +
+            `deployment's overlay screen reached a bundle that was not built for it (SC-004)`,
+    );
+  }
+  const typecheck =
+    observed.typecheck === null
+      ? 'the admin `typecheck` was not run'
+      : observed.typecheck.code === 0
+        ? 'the admin `typecheck` passed over it'
+        : `the admin \`typecheck\` exited ${String(observed.typecheck.code)} (reported, not judged: ` +
+          `the admin member installs no React types)`;
+  return {
+    id: 'A20',
+    state: 'pass',
+    detail:
+      `the admin built with DEPLOYMENT=${observed.deployment} ships '${observed.moduleId}'s screen, ` +
+      `rendered through the kit it resolves from outside the admin member; the admin built for bare ` +
+      `core ships none of it; \`generate\` passed over it; ${typecheck}`,
+  };
+}
+

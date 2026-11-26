@@ -2825,6 +2825,7 @@ build:admin:
   # is short".
   script:
     - docker build -f admin/Dockerfile
+      --build-arg DEPLOYMENT="${DEPLOYMENT}"
       --build-arg VITE_API_BASE_URL="https://${API_DOMAIN}"
       -t "$CI_REGISTRY_IMAGE/admin:$IMAGE_TAG"
       -t "$CI_REGISTRY_IMAGE/admin:latest" .

@@ -96,7 +96,8 @@ export const INSTANCE_BUILD_INPUTS: readonly InstanceBuildInput[] = [
   {
     name: 'DEPLOYMENT',
     meaning:
-      "The deployment whose overlay modules and divergence declaration this build composes. " +
+      "The deployment whose overlay modules and divergence declaration this build composes — " +
+      "in the admin, whose overlay admin layers it bundles. " +
       'Unset, or blank, is bare core: no overlay module is composed and the build behaves ' +
       'byte-for-byte like one with no deployment directory at all.',
     example: 'acme',
@@ -104,7 +105,13 @@ export const INSTANCE_BUILD_INPUTS: readonly InstanceBuildInput[] = [
     // `test:backend`'s bare-core shards run — so "none" is a default rather
     // than a missing value.
     default: null,
-    consumers: [{ target: 'backend', buildArg: 'DEPLOYMENT', value: '${DEPLOYMENT}' }],
+    // The admin since #1855 (`specs/190-overlay-full-modules/` FR-081): its build
+    // selects `admin/src/deployments/<DEPLOYMENT>.generated.ts`, so an image built
+    // without it holds none of the deployment's overlay screens.
+    consumers: [
+      { target: 'backend', buildArg: 'DEPLOYMENT', value: '${DEPLOYMENT}' },
+      { target: 'admin', buildArg: 'DEPLOYMENT', value: '${DEPLOYMENT}' },
+    ],
   },
   {
     name: 'API_DOMAIN',
