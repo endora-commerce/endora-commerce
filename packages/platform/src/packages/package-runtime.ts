@@ -51,6 +51,8 @@ import { pathToFileURL } from 'node:url';
 import type { MigrationObject } from '@mikro-orm/core';
 import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
 import type { ModuleEntry } from '../kernel/compose.js';
+import { moduleOriginOf } from '../lifecycle/services/module-origin.js';
+import { FIRST_PARTY_MODULE_PACKAGES } from './first-party-modules.generated.js';
 import {
   nodeModulesRootsFor,
   scanNodeModulesRoots,
@@ -345,7 +347,12 @@ export async function discoverPackageModuleManifests(
  */
 export async function packageModuleEntriesUnder(
   roots: readonly string[],
+  firstParty: readonly { readonly moduleId: string; readonly packageName: string }[] = FIRST_PARTY_MODULE_PACKAGES,
 ): Promise<ModuleEntry[]> {
+  // `specs/189-command-middleware/contracts/module-origin.md` §2 — a package is
+  // first-party when its own name **and** its id are one pair of the list, so
+  // an npm alias (whose own `name` is the aliased package's) cannot borrow it.
+  const firstPartyPairs = new Set(firstParty.map((pkg) => `${pkg.packageName}\0${pkg.moduleId}`));
   const found = scan(roots);
   assertNoModuleIdCollisions(claimsFor(found.packages));
 
@@ -387,6 +394,14 @@ export async function packageModuleEntriesUnder(
       // yet — and the drain would otherwise have granted a capability the owner
       // declined.
       installedPackage: true,
+      // The trust tier, from the same discovery and the release's first-party
+      // list — never from the package (`contracts/module-origin.md` §2, §6). A
+      // first-party package keeps `installedPackage: true`: the tier does not
+      // touch decoration (§3).
+      origin: moduleOriginOf('package', firstPartyPairs.has(`${installed.name}\0${installed.id}`)),
+      // The installed package's own `package.json` name, which is what a
+      // per-point grant is matched against (§5 item 3).
+      installedPackageName: installed.name,
     });
   }
   return entries;

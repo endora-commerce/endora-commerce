@@ -57,6 +57,8 @@ import {
   ApiInterceptorRegistry,
   AuditLogService,
   CommandHookRegistry,
+  CommandMiddlewareRegistry,
+  commandMiddlewareFrom,
   createCommandOutboxWake,
   AuditRedactionService,
   activationDeclarationsFrom,
@@ -274,6 +276,12 @@ export interface ComposeTestServerOptions {
    */
   readonly commandHookOrder?: Readonly<Record<string, readonly string[]>> | undefined;
   /**
+   * The `admit` command-middleware tie-break the deployment declares
+   * (`specs/189-command-middleware/` FR-031), forwarded to `composeModules` as
+   * `composeApp` forwards it, for `commandHookOrder`'s reason.
+   */
+  readonly commandMiddlewareOrder?: readonly string[] | undefined;
+  /**
    * Which module ids presence reports as enabled.
    *
    * Defaults to every module the composition's manifests declare, which is what
@@ -405,9 +413,18 @@ export async function composeTestServer(
     // drain itself.
     const commandOutboxWake = createCommandOutboxWake(redis);
     closeOutboxWake = () => commandOutboxWake.close();
+    // `specs/189-command-middleware/` FR-041 — as `composeApp` builds it: one
+    // registry, shared by the bus and every module context, sealed by
+    // `composeModules`, presence asked per call from the effective state, its
+    // failures on the platform logger.
+    const commandMiddlewareRegistry = new CommandMiddlewareRegistry({
+      isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+      log: platformLogger(),
+    });
     const commandBus = new CommandBus(orm, auditLogService, eventBus, {
       hooks: commandHookRegistry,
       outboxWake: commandOutboxWake,
+      middleware: commandMiddlewareRegistry,
     });
 
     const salesChannels = composeSalesChannelsKernel({
@@ -510,6 +527,13 @@ export async function composeTestServer(
         hookableActions: hookableActionsFrom(manifests),
         moduleDependencies: moduleDependencyClosureFrom(manifests),
         commandHookOrder: options.commandHookOrder,
+      },
+      // 189 P1 — sealed after the hook registry, against the same manifest set.
+      commandMiddlewareRegistry,
+      commandMiddleware: {
+        declarations: commandMiddlewareFrom(manifests),
+        moduleDependencies: moduleDependencyClosureFrom(manifests),
+        commandMiddlewareOrder: options.commandMiddlewareOrder,
       },
     });
 
