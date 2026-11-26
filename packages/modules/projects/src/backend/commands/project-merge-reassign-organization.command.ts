@@ -66,8 +66,8 @@ export function makeProjectMergeReassignOrganizationCommand(
           [projectId, input.survivorId],
         );
         const links = await em.execute<Array<{ id: string }>>(
-          `update "project_links" set "organization_id" = ? where "id" in (` +
-            `select "id" from "project_links" where "project_id" = ? and "organization_id" = ? order by "id" limit ? for update) ` +
+          `update "project_links" set "organization_id" = ? where "id" = any(array(` +
+            `select "id" from "project_links" where "project_id" = ? and "organization_id" = ? order by "id" limit ? for update)) ` +
             `returning "id"`,
           [input.survivorId, projectId, input.loserId, budget],
         );

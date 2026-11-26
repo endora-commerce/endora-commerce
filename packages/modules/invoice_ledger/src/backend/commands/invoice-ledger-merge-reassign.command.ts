@@ -50,15 +50,15 @@ export function makeInvoiceLedgerMergeReassignCommand(
         part === 'client-maps'
           ? await em.execute<Array<{ id: string }>>(
               `update "invoice_ledger_client_maps" set "organization_id" = ?, "updated_at" = now()
-                where "id" in (select "m"."id" from "invoice_ledger_client_maps" as "m"
+                where "id" = any(array(select "m"."id" from "invoice_ledger_client_maps" as "m"
                                 where "m"."organization_id" = ? and ${CLIENT_MAP_FILLS_GAP}
-                                order by "m"."id" limit ? for update)
+                                order by "m"."id" limit ? for update))
                 returning "id"`,
               [input.survivorId, input.loserId, input.survivorId, limit],
             )
           : await em.execute<Array<{ id: string }>>(
               `update "invoice_ledger_document_maps" set "organization_id" = ?
-                where "id" in (select "id" from "invoice_ledger_document_maps" where "organization_id" = ? order by "id" limit ? for update)
+                where "id" = any(array(select "id" from "invoice_ledger_document_maps" where "organization_id" = ? order by "id" limit ? for update))
                 returning "id"`,
               [input.survivorId, input.loserId, limit],
             );

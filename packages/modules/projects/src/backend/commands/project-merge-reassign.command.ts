@@ -77,8 +77,8 @@ export function makeProjectMergeReassignCommand(input: MergeStepInput): Command<
       // 1. Links.
       take(
         await em.execute<Array<{ id: string }>>(
-          `update "project_links" set "project_id" = ? where "id" in (
-             select "id" from "project_links" where "project_id" = ? order by "id" limit ? for update) returning "id"`,
+          `update "project_links" set "project_id" = ? where "id" = any(array(
+             select "id" from "project_links" where "project_id" = ? order by "id" limit ? for update)) returning "id"`,
           [survivorId, loserId, budget],
         ),
       );
@@ -87,8 +87,8 @@ export function makeProjectMergeReassignCommand(input: MergeStepInput): Command<
       if (budget > 0) {
         take(
           await em.execute<Array<{ id: string }>>(
-            `update "project_comments" set "project_id" = ? where "id" in (
-               select "id" from "project_comments" where "project_id" = ? order by "created_at", "id" limit ? for update) returning "id"`,
+            `update "project_comments" set "project_id" = ? where "id" = any(array(
+               select "id" from "project_comments" where "project_id" = ? order by "created_at", "id" limit ? for update)) returning "id"`,
             [survivorId, loserId, budget],
           ),
         );
@@ -96,9 +96,9 @@ export function makeProjectMergeReassignCommand(input: MergeStepInput): Command<
       if (budget > 0) {
         take(
           await em.execute<Array<{ id: string }>>(
-            `update "project_references" set "project_id" = ? where "id" in (
+            `update "project_references" set "project_id" = ? where "id" = any(array(
                select "id" from "project_references" where "project_id" = ? and "source_kind" = 'comment'
-                order by "id" limit ? for update) returning "id"`,
+                order by "id" limit ? for update)) returning "id"`,
             [survivorId, loserId, budget],
           ),
         );
@@ -108,11 +108,11 @@ export function makeProjectMergeReassignCommand(input: MergeStepInput): Command<
       if (budget > 0) {
         take(
           await em.execute<Array<{ id: string }>>(
-            `delete from "project_attachments" where "id" in (
+            `delete from "project_attachments" where "id" = any(array(
                select l."id" from "project_attachments" l
                 where l."project_id" = ? and exists (
                   select 1 from "project_attachments" s where s."project_id" = ? and s."asset_id" = l."asset_id")
-                order by l."id" limit ? for update) returning "id"`,
+                order by l."id" limit ? for update)) returning "id"`,
             [loserId, survivorId, budget],
           ),
         );
@@ -120,8 +120,8 @@ export function makeProjectMergeReassignCommand(input: MergeStepInput): Command<
       if (budget > 0) {
         take(
           await em.execute<Array<{ id: string }>>(
-            `update "project_attachments" set "project_id" = ? where "id" in (
-               select "id" from "project_attachments" where "project_id" = ? order by "id" limit ? for update) returning "id"`,
+            `update "project_attachments" set "project_id" = ? where "id" = any(array(
+               select "id" from "project_attachments" where "project_id" = ? order by "id" limit ? for update)) returning "id"`,
             [survivorId, loserId, budget],
           ),
         );
@@ -131,9 +131,9 @@ export function makeProjectMergeReassignCommand(input: MergeStepInput): Command<
       if (budget > 0) {
         take(
           await em.execute<Array<{ id: string }>>(
-            `update "project_references" set "target_id" = ? where "id" in (
+            `update "project_references" set "target_id" = ? where "id" = any(array(
                select "id" from "project_references" where "target_type" = 'project' and "target_id" = ?
-                order by "id" limit ? for update) returning "id"`,
+                order by "id" limit ? for update)) returning "id"`,
             [survivorId, loserId, budget],
           ),
         );

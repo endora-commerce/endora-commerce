@@ -65,8 +65,8 @@ export function makeTaskMergeMoveContextCommand(input: MergeStepInput): Command<
         `update "tasks" set "context_id" = ?,
                 "context_group_id" = coalesce((?::jsonb ->> "context_group_id"::text)::uuid, ?::uuid),
                 "updated_at" = now()
-          where "id" in (
-           select "id" from "tasks" where "context_type" = ? and "context_id" = ? order by "id" limit ? for update)
+          where "id" = any(array(
+           select "id" from "tasks" where "context_type" = ? and "context_id" = ? order by "id" limit ? for update))
          returning "id"`,
         [input.survivorId, JSON.stringify(stageMap), fallbackStageId, PROJECT_CONTEXT_TYPE, input.loserId, budget],
       );
@@ -74,8 +74,8 @@ export function makeTaskMergeMoveContextCommand(input: MergeStepInput): Command<
       budget -= tasks.length;
       if (budget > 0) {
         const references = await em.execute<Array<{ id: string }>>(
-          `update "task_references" set "target_id" = ? where "id" in (
-             select "id" from "task_references" where "target_type" = ? and "target_id" = ? order by "id" limit ? for update)
+          `update "task_references" set "target_id" = ? where "id" = any(array(
+             select "id" from "task_references" where "target_type" = ? and "target_id" = ? order by "id" limit ? for update))
            returning "id"`,
           [input.survivorId, PROJECT_CONTEXT_TYPE, input.loserId, budget],
         );

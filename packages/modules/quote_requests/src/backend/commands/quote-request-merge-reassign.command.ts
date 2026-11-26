@@ -80,8 +80,8 @@ export function makeQuoteRequestMergeReassignCommand(
         for (const target of RECORD_TARGETS) {
           if (budget <= 0) break;
           const rows = await em.execute<Array<{ id: string }>>(
-            `update "${target.table}" set "organization_id" = ? where "id" in (` +
-              `select "id" from "${target.table}" where "organization_id" = ? order by "id" limit ? for update) returning "id"`,
+            `update "${target.table}" set "organization_id" = ? where "id" = any(array(` +
+              `select "id" from "${target.table}" where "organization_id" = ? order by "id" limit ? for update)) returning "id"`,
             [input.survivorId, input.loserId, budget],
           );
           for (const row of rows) ids.push(row.id);

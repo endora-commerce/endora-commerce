@@ -27,7 +27,7 @@ export function makeInvoiceMergeReassignCommand(input: MergeStepInput): Command<
     run: async ({ em }) => {
       const rows = await em.execute<Array<{ id: string }>>(
         `update "invoices" set "organization_id" = ?
-          where "id" in (select "id" from "invoices" where "organization_id" = ? order by "id" limit ? for update)
+          where "id" = any(array(select "id" from "invoices" where "organization_id" = ? order by "id" limit ? for update))
           returning "id"`,
         [input.survivorId, input.loserId, Math.max(1, input.batchSize)],
       );

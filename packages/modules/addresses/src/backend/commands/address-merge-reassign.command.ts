@@ -33,7 +33,7 @@ export function makeAddressMergeReassignCommand(input: MergeStepInput): Command<
                   select 1 from "addresses" as "s"
                    where "s"."organization_id" = ? and "s"."kind" = "a"."kind" and "s"."is_default" and "s"."deleted_at" is null),
                 "updated_at" = now()
-          where "a"."id" in (select "id" from "addresses" where "organization_id" = ? order by "id" limit ? for update)
+          where "a"."id" = any(array(select "id" from "addresses" where "organization_id" = ? order by "id" limit ? for update))
           returning "a"."id"`,
         [input.survivorId, input.survivorId, input.loserId, Math.max(1, input.batchSize)],
       );

@@ -86,9 +86,9 @@ export function makeOrderMergeReassignCommand(input: MergeStepInput): Command<Or
       for (const target of ORDER_MERGE_TARGETS) {
         if (budget <= 0) break;
         const rows = await em.execute<Array<{ id: string }>>(
-          `update "${target.table}" set "${target.column}" = ? where "id" in (` +
+          `update "${target.table}" set "${target.column}" = ? where "id" = any(array(` +
             `select "id" from "${target.table}" where "${target.column}" = ?` +
-            `${target.movable ? ` and ${target.movable}` : ''} order by "id" limit ? for update) returning "id"`,
+            `${target.movable ? ` and ${target.movable}` : ''} order by "id" limit ? for update)) returning "id"`,
           [input.survivorId, input.loserId, budget],
         );
         for (const row of rows) ids.push(row.id);

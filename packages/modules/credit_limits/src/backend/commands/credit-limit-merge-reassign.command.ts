@@ -43,10 +43,10 @@ async function moveExposure(em: EntityManager, input: MergeStepInput, limit: num
         set "reserving_organization_id" = case when "r"."reserving_organization_id" = ? then ?::uuid else "r"."reserving_organization_id" end,
             "credit_limit_id" = case when "r"."credit_limit_id" = ?::uuid then ?::uuid else "r"."credit_limit_id" end,
             "updated_at" = now()
-      where "r"."id" in (
+      where "r"."id" = any(array(
         select "id" from "credit_limit_reservations"
          where "reserving_organization_id" = ? or "credit_limit_id" = ?::uuid
-         order by "id" limit ? for update)
+         order by "id" limit ? for update))
       returning "r"."id"`,
     [input.loserId, input.survivorId, loserLimit, survivorLimit, input.loserId, loserLimit, limit],
   );
@@ -54,7 +54,7 @@ async function moveExposure(em: EntityManager, input: MergeStepInput, limit: num
   if (ids.length < limit) {
     const topups = await em.execute<Array<{ id: string }>>(
       `update "credit_limit_return_topups" set "organization_id" = ?
-        where "id" in (select "id" from "credit_limit_return_topups" where "organization_id" = ? order by "id" limit ? for update)
+        where "id" = any(array(select "id" from "credit_limit_return_topups" where "organization_id" = ? order by "id" limit ? for update))
         returning "id"`,
       [input.survivorId, input.loserId, limit - ids.length],
     );

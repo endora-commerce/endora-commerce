@@ -18,7 +18,7 @@ export interface PromotionMergeReassignResult {
 async function repoint(em: EntityManager, table: string, input: MergeStepInput, limit: number): Promise<string[]> {
   const rows = await em.execute<Array<{ id: string }>>(
     `update "${table}" set "organization_id" = ?
-      where "id" in (select "id" from "${table}" where "organization_id" = ? order by "id" limit ? for update)
+      where "id" = any(array(select "id" from "${table}" where "organization_id" = ? order by "id" limit ? for update))
       returning "id"`,
     [input.survivorId, input.loserId, limit],
   );

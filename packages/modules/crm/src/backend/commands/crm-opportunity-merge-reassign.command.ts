@@ -32,8 +32,8 @@ export function makeCrmOpportunityMergeReassignCommand(input: MergeStepInput): C
     objectId: input.survivorId,
     run: async ({ em }) => {
       const rows = await em.execute<Array<{ id: string }>>(
-        `update "crm_opportunities" set "organization_id" = ?, "updated_at" = now() where "id" in (` +
-          `select "id" from "crm_opportunities" where "organization_id" = ? order by "id" limit ? for update) returning "id"`,
+        `update "crm_opportunities" set "organization_id" = ?, "updated_at" = now() where "id" = any(array(` +
+          `select "id" from "crm_opportunities" where "organization_id" = ? order by "id" limit ? for update)) returning "id"`,
         [input.survivorId, input.loserId, Math.max(1, input.batchSize)],
       );
       const ids = rows.map((row) => row.id);
