@@ -141,12 +141,18 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 8 — CLI (#1852, US1) — after Phase 6
 
-- [ ] T100 Move migration naming from `backend/scripts/new-migration.ts` into `packages/cli/src/lib/migration-naming.ts`; parity test over stamps and slugs [FR-056, FR-057]
-- [ ] T101 Test + implement `endora new migration <moduleId> --name <slug>` [FR-056]
-- [ ] T102 Test + implement `migration:new --module <overlay-id>` here [FR-057]
-- [ ] T103 Test + implement `--entities [--tenant-scope]` for overlays (legacy decorators, one tenancy decorator, `entities` export, first migration) [FR-055]
-- [ ] T104 Test-kit entity index includes overlay entities — `entity-index-artefact.test.ts` [FR-058]
-- [ ] T105 `module-migrations.md` §1 overlay form; changeset cli `minor`
+- [x] T100 Move migration naming from `backend/scripts/new-migration.ts` into `packages/cli/src/lib/migration-naming.ts`; parity test over stamps and slugs [FR-056, FR-057]
+  - `packages/cli/src/lib/migration-naming.test.ts` holds a table recorded from the old script; the script re-exports the CLI's helpers and `backend/test/unit/packages/cli-migration-identity.test.ts` asserts identity (`toBe`), not agreement. `spec.ts`/`emit.ts` name `--entities`' migration with it too. The CLI keeps its `BASELINE_THROUGH` copy (it depends on no platform), held to the platform's by that test
+- [x] T101 Test + implement `endora new migration <moduleId> --name <slug>` [FR-056]
+  - `packages/cli/src/new-migration/index.ts`, `test/new-migration.test.ts`; `--dry-run` too. Exit 1 on a refusal, 2 outside an instance (naming `migration:new`). Stamps are walked over every overlay module of the deployment. The instance fixture moved to `test/support/overlay-instance.ts`
+- [x] T102 Test + implement `migration:new --module <overlay-id>` here [FR-057]
+  - An id the manifest index does not list is looked up under `src/apps/*/modules/`; `DEPLOYMENT`, when set, is the only deployment read, and an id two deployments hold is refused without it. The composer's `collectMigrations` is the registrability verdict. Spawned over the split tree in `migration-scaffold-roots.test.ts`
+- [x] T103 Test + implement `--entities [--tenant-scope]` for overlays (legacy decorators, one tenancy decorator, `entities` export, first migration) [FR-055]
+  - Reuses the package scaffold's entity and init migration (`entitySource`, `initMigrationSource`); no `migrations/index.ts`. `--tenant-scope` without `--entities` stays refused. `backend/test/unit/packages/cli-overlay-entities-scaffold.test.ts` drives each scope through the composer's overlay validation, a `tsconfig.apps.json` program and `configuredEntitiesFrom` / `discoverConfiguredMigrations`; it found an unused `Index` import on a `global` entity (TS6133), fixed for packages too. The emitted `backend.ts` comment no longer says nothing compiles it (#1848 does). No `acceptance:instance` criterion was added; contract §5's scaffold → build → setup → route stays unmeasured in an instance
+- [x] T104 Test-kit entity index includes overlay entities — `entity-index-artefact.test.ts` [FR-058]
+  - `packages/cli/src/lib/entity-index-artefact.test.ts`. `endora generate` adds the selected deployment's overlay modules whose sources carry an `@Entity` decorator node, importing `backend.ts` relative to the index; a package/overlay id collision is refused. This repository's committed index stays bare core (D-104: `composer:generate` is `DEPLOYMENT`-independent); its tests import an overlay entity directly
+- [x] T105 `module-migrations.md` §1 overlay form; changeset cli `minor`
+  - Item 1 gains the overlay form; `.changeset/1852-overlay-cli.md` (cli `minor`). The published pages stay with the WP11 docs pass
 
 ## Phase 9 — `x_*` columns from overlays (#1853, US6) — after Phase 6
 
