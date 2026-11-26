@@ -99,7 +99,10 @@ Port dostarcza kernel; nie wymaga zależności w manifeście.
 
 Przypisaniem jest przypisanie `organization` kanału — tabela pośrednia
 `sales_channel_organizations` — zapisywane wyłącznie przez `salesChannelMembershipPort`, który
-przed zgłoszeniem zmiany usuwa też z pamięci podręcznej dostępu wpis organizacji. Przypisanie do
+przed zgłoszeniem zmiany usuwa też z pamięci podręcznej dostępu wpis organizacji. Gdy wywołujący
+przekazuje `em` swojej transakcji, usunięcie czeka, aż zakres EventBus tej transakcji zakończy się
+powodzeniem — w przypadku polecenia: aż transakcja zostanie zatwierdzona — i nadal następuje przed
+wysłaniem zdarzenia (`EventBus.afterScope`, zgłoszenie #1926). Przypisanie do
 pojedynczego klienta (`sales_channel_customer_accounts`) nie bierze udziału w dostępie: pozostaje
 zarejestrowane jako tabela pośrednia, a reguła go nie odczytuje ani nie zapisuje. Dostęp nadawaj,
 przypisując organizację klienta, nigdy przez zapis wiersza dla pojedynczego klienta.
@@ -180,8 +183,10 @@ Dodawanie i usuwanie przypisań jest z definicji idempotentne i nie zwiększa `v
 
 ## Audyt
 
-Każda zmiana danych kanału, zmiana w cyklu życia i zmiana przypisań zapisuje synchronicznie, w tej
-samej transakcji, jeden wiersz w `audit_log_entries`. Kody akcji są w `@endora-commerce/contracts`:
+Każda zmiana danych kanału, zmiana w cyklu życia i zmiana przypisań zapisuje synchronicznie jeden
+wiersz w `audit_log_entries`. Zmiana przypisania wykonana na transakcyjnym `em` wywołującego zapisuje
+swój wiersz na tym `em` (`AuditPort.recordWithin`), więc wycofanie transakcji wywołującego nie
+zostawia po sobie wpisu (zgłoszenie #1926). Kody akcji są w `@endora-commerce/contracts`:
 
 ```ts
 import { SALES_CHANNEL_AUDIT_ACTIONS } from '@endora-commerce/contracts';

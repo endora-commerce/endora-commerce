@@ -24,6 +24,30 @@ So a committed command records one audit row and emits its event once; a rolled-
 command records no audit row and emits no event. The write, the audit entry, and the
 event can never disagree.
 
+### Work that has to wait for the commit: `EventBus.afterScope`
+
+The event is held back because `CommandBus.run` wraps its transaction in an `EventBus.run`
+scope, and a scope buffers every `emit()` until its function has resolved. A write that
+must do something **else** only once it has committed — drop a cache that the commit makes
+stale — defers it into the same scope with `eventBus.afterScope(fn)`:
+
+- inside a scope, `fn` is queued on the innermost one. When the scope succeeds, the queued
+  functions run in order, each awaited, and only **then** do the buffered events dispatch,
+  so a subscriber never sees what `fn` was there to replace;
+- if the scope throws, the queue is discarded together with the events;
+- outside any scope, `fn` runs and is awaited at once.
+
+A deferred function is isolated the way an event handler is: if it throws, the error is
+logged, the remaining deferred functions still run and the buffered events are still
+dispatched. The scope does not reject, because the write has already committed. The sales-channel membership writer uses it for the
+access-cache drop when a caller passes its transaction's `em` (issue #1926). A plain
+`em.transactional(...)` outside a Command has no scope of its own; wrap it in
+`eventBus.run(...)` to get the same ordering.
+
+This is not an `afterCommit` handler: those are declared per hookable action, run later
+from the outbox, at least once and in no order, which is the right contract for an external
+side effect and the wrong one for a drop the very next request depends on.
+
 ## Anatomy of a Command
 
 ```ts

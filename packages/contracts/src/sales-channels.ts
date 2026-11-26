@@ -413,8 +413,11 @@ export type SalesChannelAccessResponse = z.infer<typeof SalesChannelAccessRespon
  *    after it in `stateAfter`;
  *  - `LIFECYCLE_CHANGED` — `SalesChannelsService` for deactivate, activate and
  *    delete, through `AuditLogService.record`;
- *  - `MEMBERSHIP_CHANGED` — the platform's `SalesChannelMembershipService`,
- *    through `AuditLogService.record`.
+ *  - `MEMBERSHIP_CHANGED` — the platform's `SalesChannelMembershipService`:
+ *    co-transactional (`AuditPort.recordWithin`) when the caller passes its
+ *    transaction's `em`, so the entry rolls back with the caller's write
+ *    (issue #1926); otherwise through `AuditLogService.record`, after the
+ *    writer's own statements have committed.
  *
  * Moving the system default is audited by its own Command under
  * `sales_channel.set_default`, which is not one of these constants.
