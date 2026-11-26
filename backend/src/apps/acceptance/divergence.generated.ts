@@ -43,6 +43,14 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     ],
     "notRecorded": [
       {
+        "seam": "ctx.merge.host",
+        "why": "the module's own record type made mergeable; the runner calls it for that record type only"
+      },
+      {
+        "seam": "ctx.merge.participate",
+        "why": "the module's own records following a merge, declared in its own manifest; a participation naming another module's entity is refused at composition"
+      },
+      {
         "seam": "ctx.onBoot",
         "why": "the module's own boot hook, run inside its own system scope; it contributes nothing another module resolves"
       },
