@@ -35,7 +35,9 @@ function sources(dir: string): string[] {
 }
 
 const WRITES = /em\.create\(Organization\b|applyReparentPaths\(|\borg\.taxId = /;
-const FACTORIES = /\bmake(CreateOrganization|SetParent|Move|ConvertToCompany|ChangeTaxId|RegisterOrganization)Command\b/;
+// `PlaceInTree` chooses between `set_parent` and `move` for the parent route and
+// `organizationCommandPort.setParent` (`specs/186-aggregate-ports/` R-16.3).
+const FACTORIES = /\bmake(CreateOrganization|SetParent|Move|PlaceInTree|ConvertToCompany|ChangeTaxId|RegisterOrganization)Command\b/;
 
 describe('the writes of organizations.tax_id and path', () => {
   it('are the create and re-parent Commands', () => {
@@ -59,14 +61,15 @@ describe('the writes of organizations.tax_id and path', () => {
     });
     expect(callers.map((path) => relative(BACKEND, path)).sort()).toEqual([
       'routes.admin.ts',
+      // `organization-write-port.ts` delegates to the command port since
+      // `specs/186-aggregate-ports/` T031 and names no factory.
       'services/organization-command-port.ts',
-      'services/organization-write-port.ts',
       'services/registration-service.ts',
     ]);
     for (const path of callers) {
       const text = readFileSync(path, 'utf8');
       expect(text, relative(BACKEND, path)).toContain('runOrganizationWrite(');
-      expect(text).not.toMatch(/\.run\(\s*make(CreateOrganization|SetParent|Move|ConvertToCompany|ChangeTaxId|RegisterOrganization)Command\(/);
+      expect(text).not.toMatch(/\.run\(\s*make(CreateOrganization|SetParent|Move|PlaceInTree|ConvertToCompany|ChangeTaxId|RegisterOrganization)Command\(/);
       expect(text).not.toMatch(/commandBus\.run\(\s*command\s*\)/);
     }
   });

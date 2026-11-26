@@ -1,11 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { OrganizationSalesRepAssignment } from '../entities/organization-sales-rep-assignment.entity.js';
 import { Organization } from '../entities/organization.entity.js';
-import { HttpError } from '@endora-commerce/platform/http';
-import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
+import { isUuidShape } from '@endora-commerce/contracts';
 import type { SalesRepAssignmentPort, SalesRepAssignmentRow } from '@endora-commerce/contracts';
-import { recordAuditFromContext } from '@endora-commerce/platform/commands';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import {
+  deleteSalesRepAssignment,
+  makeAssignSalesRepCommand,
+  makeUnassignSalesRepCommand,
+  writeSalesRepAssignment,
+} from '../commands/sales-rep-assignment.commands.js';
 import type { OrganizationTreeService } from './organization-tree-service.js';
 import { reachFromAggregate, type ReachAggregateRow, type SalesRepReach } from './sales-rep-reach.js';
 
@@ -77,7 +81,15 @@ export type { SalesRepAssignmentPort, SalesRepAssignmentRow };
 export class SalesRepAssignmentService implements SalesRepAssignmentPort {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditPort,
+    /**
+     * Runs `organization.sales_rep_assign` / `_unassign` (`specs/186-aggregate-ports/`
+     * R-16.7), so {@link assign} and {@link unassign} record their entry and
+     * reach the command hooks as the admin routes and `organizationCommandPort`
+     * do. The composition always passes it; without it (a test building the
+     * service over a bare unit of work) the row is written on that unit of
+     * work and nothing is recorded, as before without an audit port.
+     */
+    private readonly commandBus?: Pick<CommandBus, 'run'>,
     private readonly subtree?: SalesRepSubtreeDeps,
   ) {}
 
@@ -230,69 +242,36 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
     return map;
   }
 
-  /** Inserts an assignment if not already present. Returns the row. */
+  /**
+   * Inserts an assignment if not already present (`organization.sales_rep_assign`).
+   * Returns the row; an existing one is answered as it is and records nothing.
+   */
   async assign(input: {
     organizationId: string;
     adminUserId: string;
     assignedByAdminUserId?: string | null;
   }): Promise<OrganizationSalesRepAssignment> {
-    const em = this.emFactory();
-    // Feature 051 — sales reps manage company organizations, not individuals'
-    // personal (B2C) orgs.
-    const org = await em.findOne(Organization, { id: input.organizationId });
-    if (org?.isPersonal) {
-      // Issue #629 (#86) — the organization refuses a well-formed request: a
-      // code of its own, the token naming the action.
-      throw new HttpError(
-        422,
-        ERROR_CODES.ORGANIZATION_PERSONAL,
-        'A sales representative cannot be assigned to a personal (individual) organization.',
-        { code: 'sales_rep', organizationId: org.id, organizationName: org.name },
-      );
+    if (this.commandBus) {
+      // Without an explicit assigner the Command stamps the ambient administrator.
+      const { assignment } = await this.commandBus.run(makeAssignSalesRepCommand({}, input));
+      return assignment;
     }
-    const existing = await em.findOne(OrganizationSalesRepAssignment, {
-      organizationId: input.organizationId,
-      adminUserId: input.adminUserId,
-    });
-    if (existing) return existing;
-    const row = em.create(OrganizationSalesRepAssignment, {
-      organizationId: input.organizationId,
+    const em = this.emFactory();
+    const organization = isUuidShape(input.organizationId)
+      ? await em.findOne(Organization, { id: input.organizationId })
+      : null;
+    const { assignment } = await writeSalesRepAssignment(em, {
+      organization,
       adminUserId: input.adminUserId,
       assignedByAdminUserId: input.assignedByAdminUserId ?? null,
     });
-    em.persist(row);
-    if (this.auditLog) {
-      recordAuditFromContext(this.auditLog, em, {
-        action: 'organization.sales_rep_assign',
-        objectType: 'organization',
-        objectId: input.organizationId,
-        stateBefore: null,
-        stateAfter: { adminUserId: input.adminUserId },
-      });
-    }
-    await em.flush();
-    return row;
+    return assignment;
   }
 
+  /** Removes the assignment (`organization.sales_rep_unassign`); `false` when there is none. */
   async unassign(input: { organizationId: string; adminUserId: string }): Promise<boolean> {
-    const em = this.emFactory();
-    if (!isUuidShape(input.organizationId) || !isUuidShape(input.adminUserId)) return false;
-    const existing = await em.findOne(OrganizationSalesRepAssignment, {
-      organizationId: input.organizationId,
-      adminUserId: input.adminUserId,
-    });
-    if (!existing) return false;
-    if (this.auditLog) {
-      recordAuditFromContext(this.auditLog, em, {
-        action: 'organization.sales_rep_unassign',
-        objectType: 'organization',
-        objectId: input.organizationId,
-        stateBefore: { adminUserId: input.adminUserId },
-        stateAfter: null,
-      });
-    }
-    await em.remove(existing).flush();
-    return true;
+    if (this.commandBus) return this.commandBus.run(makeUnassignSalesRepCommand(input));
+    return deleteSalesRepAssignment(this.emFactory(), input);
   }
 
   async listForOrganization(organizationId: string): Promise<OrganizationSalesRepAssignment[]> {

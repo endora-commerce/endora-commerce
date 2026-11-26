@@ -81,7 +81,12 @@ host's `custom_field_values`** (Principle I; the column is the host's, whatever 
 value). Today the two hosts that publish one are:
 
 - `customer_accounts` — `customerAccountLifecycleWritePort.setCustomFieldValues(customerAccountId, merge)`;
-- `organizations` — `organizationCustomFieldWritePort.setCustomFieldValues(organizationId, merge)`.
+- `organizations` — `organizationCommandPort.setCustomFieldValues(organizationId, merge, options?)`, the
+  aggregate port (`specs/186-aggregate-ports/` US1); the narrow
+  `organizationCustomFieldWritePort.setCustomFieldValues` is deprecated since 0.113.0 and delegates
+  to it. Both run `organization.set_custom_field_values`, which is not what the admin edit runs
+  (`organization.admin_patch` writes the columns and the bag in one Command), so a command hook that
+  must see every change of the bag registers on both actions.
 
 Both have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
 callback over the current bag that the owner runs between its own load and its own write, as one
@@ -91,9 +96,9 @@ field is accepted), and a refusal propagates unchanged and writes nothing; the a
 ambient one, never a parameter. The full statement is each contract's JSDoc.
 
 **A host that adds one adds it to its aggregate's write port, not as a new port**
-(`module-composition.md` item 2a, D-293). The two above are request-shaped ports that
-`specs/186-aggregate-ports/` folds into `customerAccountCommandPort` and `organizationCommandPort`,
-deprecated for one release first (`contract-surface.md`); this list names them until that lands.
+(`module-composition.md` item 2a, D-293). `customerAccountLifecycleWritePort` is a request-shaped
+port that `specs/186-aggregate-ports/` folds into `customerAccountCommandPort`, deprecated for one
+release first (`contract-surface.md`); this list names it until that lands.
 
 **The ports are not `customFieldWrites` declarations, and `check:custom-field-writes` does not
 know them.** Its subject is an HTTP write: a route it can hold to the module's registration and to

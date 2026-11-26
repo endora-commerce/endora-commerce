@@ -83,8 +83,19 @@ describe('organization.rejected (186 T026)', () => {
     });
     expect(JSON.stringify(h.audits)).not.toContain(REASON);
     expect(h.emitted).toEqual([
-      expect.objectContaining({ newStatus: 'rejected', previousStatus: 'pending_verification', reason: REASON }),
+      expect.objectContaining({
+        newStatus: 'rejected',
+        previousStatus: 'pending_verification',
+        reason: REASON,
+        notifyCustomer: true,
+      }),
     ]);
+  });
+
+  it('carries the caller’s choice not to notify the customer on the event (R-16.4)', async () => {
+    const h = harness('pending_verification');
+    await h.run({ organizationId: ORG, expectedVersion: 3, reason: REASON, notifyCustomer: false });
+    expect(h.emitted).toEqual([expect.objectContaining({ newStatus: 'rejected', notifyCustomer: false })]);
   });
 
   it('refuses every other status with the status guard, and writes nothing', async () => {

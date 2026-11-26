@@ -14,6 +14,7 @@ export function makeApproveOrganizationCommand(input: ModerationCommandInput): C
     {
       action: 'organization.approved',
       requireStatus: 'pending_verification',
+      notifyCustomer: true,
       newStatus: 'active',
       mutate: (org, actor) => {
         org.status = 'active';

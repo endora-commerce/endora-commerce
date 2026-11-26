@@ -10,6 +10,7 @@ import { makeApproveOrganizationCommand } from '../commands/approve-organization
 import { makeRejectOrganizationCommand } from '../commands/reject-organization.command.js';
 import { makeBlockOrganizationCommand } from '../commands/block-organization.command.js';
 import { makeUnblockOrganizationCommand } from '../commands/unblock-organization.command.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 
 export {
   OrganizationNotFoundError,
@@ -35,8 +36,9 @@ export {
  * and downstream consumers (pricing cache, sales-rep dashboards) can react.
  * Each write is gated by the Organization's `version` column — mismatch raises
  * `OrganizationVersionMismatchError` which routes map to HTTP 409 with
- * `currentVersion` in the body. The customer notice is sent here, after the
- * Command has committed, best effort.
+ * `currentVersion` in the body. The customer notice is sent by
+ * {@link OrganizationModerationService.notifyStatusChanged}, this module's
+ * subscriber of the event, after the commit, best effort.
  *
  * The service also exposes `handleNewlyRegistered(orgId)` — invoked by
  * the registration-event subscriber so the moderation-mode setting
@@ -55,24 +57,37 @@ export {
 /**
  * The actor is not an option: it is the ambient one the Command Bus resolves —
  * the administrator of the request, or `system` under `withSystemScope`.
+ * `expectedVersion` is optional (`specs/186-aggregate-ports/` research R-16.6):
+ * the admin routes always send it; absent, the transition applies to the
+ * version it reads and the status guard still applies. `source` and
+ * `extensions` are `organizationCommandPort`'s ({@link CallerOptions}).
  */
-export interface ApproveOptions {
-  expectedVersion: number;
+export interface ApproveOptions extends CallerOptions {
+  expectedVersion?: number | undefined;
 }
 
-export interface RejectOptions {
-  expectedVersion: number;
+export interface RejectOptions extends CallerOptions {
+  expectedVersion?: number | undefined;
   reason: string;
-  notifyCustomerEmail?: boolean;
+  notifyCustomerEmail?: boolean | undefined;
 }
 
-export interface BlockOptions {
-  expectedVersion: number;
-  reason?: string | null;
+export interface BlockOptions extends CallerOptions {
+  expectedVersion?: number | undefined;
+  reason?: string | null | undefined;
 }
 
-export interface UnblockOptions {
-  expectedVersion: number;
+export interface UnblockOptions extends CallerOptions {
+  expectedVersion?: number | undefined;
+}
+
+/** What the notice subscriber reads off `organization.status_changed.v1`. */
+export interface ModerationStatusChange {
+  readonly organizationId: string;
+  readonly newStatus: string;
+  readonly previousStatus: string;
+  readonly reason: string | null;
+  readonly notifyCustomer: boolean;
 }
 
 export class OrganizationModerationService {
@@ -127,61 +142,90 @@ export class OrganizationModerationService {
     );
   }
 
-  async approve(organizationId: string, options: ApproveOptions): Promise<Organization> {
-    const org = await this.commandBus.run(
-      makeApproveOrganizationCommand({ organizationId, expectedVersion: options.expectedVersion }),
+  async approve(organizationId: string, options: ApproveOptions = {}): Promise<Organization> {
+    return this.commandBus.run(
+      withCallerOptions(
+        makeApproveOrganizationCommand({ organizationId, ...versionOf(options) }),
+        options,
+      ),
     );
-    await this.afterCommit(() =>
-      this.notifyCustomer(org, {
-        code: 'organization_approved',
-        variables: { organizationName: org.name },
-        fallbackSubject: 'Your organization has been verified',
-        fallbackText: `Hi,\n\nOrganization "${org.name}" has been verified successfully and can now place Orders and Requests for Quotation.\n\nThank you.`,
-        messageIdSuffix: 'approved',
-      }),
-    );
-    return org;
   }
 
   async reject(organizationId: string, options: RejectOptions): Promise<Organization> {
     if (!options.reason || options.reason.trim().length === 0) {
       throw new Error('OrganizationModerationService.reject: reason is required.');
     }
-    const org = await this.commandBus.run(
-      makeRejectOrganizationCommand({
-        organizationId,
-        expectedVersion: options.expectedVersion,
-        reason: options.reason,
-      }),
-    );
-    if (options.notifyCustomerEmail !== false) {
-      await this.afterCommit(() =>
-        this.notifyCustomer(org, {
-          code: 'organization_rejected',
-          variables: { organizationName: org.name, reason: options.reason },
-          fallbackSubject: 'Organization registration rejected',
-          fallbackText: `Hi,\n\nUnfortunately, the registration of organization "${org.name}" was rejected for the following reason:\n\n${options.reason}\n\nIf you have any questions, please contact the platform administrators.`,
-          messageIdSuffix: 'rejected',
+    return this.commandBus.run(
+      withCallerOptions(
+        makeRejectOrganizationCommand({
+          organizationId,
+          ...versionOf(options),
+          reason: options.reason,
+          notifyCustomer: options.notifyCustomerEmail !== false,
         }),
-      );
-    }
-    return org;
-  }
-
-  async block(organizationId: string, options: BlockOptions): Promise<Organization> {
-    return this.commandBus.run(
-      makeBlockOrganizationCommand({
-        organizationId,
-        expectedVersion: options.expectedVersion,
-        reason: options.reason ?? null,
-      }),
+        options,
+      ),
     );
   }
 
-  async unblock(organizationId: string, options: UnblockOptions): Promise<Organization> {
+  async block(organizationId: string, options: BlockOptions = {}): Promise<Organization> {
     return this.commandBus.run(
-      makeUnblockOrganizationCommand({ organizationId, expectedVersion: options.expectedVersion }),
+      withCallerOptions(
+        makeBlockOrganizationCommand({ organizationId, ...versionOf(options), reason: options.reason ?? null }),
+        options,
+      ),
     );
+  }
+
+  async unblock(organizationId: string, options: UnblockOptions = {}): Promise<Organization> {
+    return this.commandBus.run(
+      withCallerOptions(makeUnblockOrganizationCommand({ organizationId, ...versionOf(options) }), options),
+    );
+  }
+
+  /**
+   * The customer notice of a moderation transition — this module's subscriber
+   * of `organization.status_changed.v1` (`specs/186-aggregate-ports/` research
+   * R-16.4). It was sent by {@link approve} and {@link reject} after their
+   * `commandBus.run` returned, which a transition run as a **child** Command
+   * (`specs/188-policy-points/`) never reaches; the event dispatches once, on
+   * the commit of whichever Command ran it. An approval (from
+   * `pending_verification`) and a rejection the caller did not silence are
+   * told; nothing else is.
+   *
+   * Best effort: the transition has committed, and nothing raised here reaches
+   * it — a failure is logged and swallowed.
+   */
+  async notifyStatusChanged(change: ModerationStatusChange): Promise<void> {
+    if (!change.notifyCustomer) return;
+    const approved = change.newStatus === 'active' && change.previousStatus === 'pending_verification';
+    const rejected = change.newStatus === 'rejected';
+    if (!approved && !rejected) return;
+    await this.afterCommit(async () => {
+      if (!isUuidShape(change.organizationId)) return;
+      // `refresh`: the request's unit of work may hold the row as it was read
+      // before the transition, and the message id names the version it left.
+      const org = await this.emFactory().findOne(Organization, { id: change.organizationId }, { refresh: true });
+      if (!org) return;
+      if (approved) {
+        await this.notifyCustomer(org, {
+          code: 'organization_approved',
+          variables: { organizationName: org.name },
+          fallbackSubject: 'Your organization has been verified',
+          fallbackText: `Hi,\n\nOrganization "${org.name}" has been verified successfully and can now place Orders and Requests for Quotation.\n\nThank you.`,
+          messageIdSuffix: 'approved',
+        });
+        return;
+      }
+      const reason = change.reason ?? '';
+      await this.notifyCustomer(org, {
+        code: 'organization_rejected',
+        variables: { organizationName: org.name, reason },
+        fallbackSubject: 'Organization registration rejected',
+        fallbackText: `Hi,\n\nUnfortunately, the registration of organization "${org.name}" was rejected for the following reason:\n\n${reason}\n\nIf you have any questions, please contact the platform administrators.`,
+        messageIdSuffix: 'rejected',
+      });
+    });
   }
 
   // ── internals ──────────────────────────────────────────────────────────
@@ -194,8 +238,9 @@ export class OrganizationModerationService {
   private async afterCommit(work: () => Promise<void>): Promise<void> {
     try {
       await work();
-    } catch {
+    } catch (err) {
       // Customer email is best-effort. The transition has already happened.
+      console.warn('[organizations] the moderation e-mail could not be sent', err);
     }
   }
 
@@ -298,4 +343,9 @@ export class OrganizationModerationService {
       });
     }
   }
+}
+
+/** The version a transition compares against, when the caller read one. */
+function versionOf(options: { expectedVersion?: number | undefined }): { expectedVersion?: number } {
+  return options.expectedVersion !== undefined ? { expectedVersion: options.expectedVersion } : {};
 }
