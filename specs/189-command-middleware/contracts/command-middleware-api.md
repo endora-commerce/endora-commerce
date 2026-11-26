@@ -122,9 +122,14 @@ export interface CommandRunOutcome {
   readonly commands: readonly CommandRunEntry[];
 }
 
+/**
+ * `signal` aborts when the budget expires. Until the handler's own promise settles
+ * it holds one of the middleware's in-flight slots (FR-023): a handler that ignores
+ * the signal and never settles keeps its slot, so the cap bounds what is pending.
+ */
 export type CommandObserveHandler = (
   outcome: CommandRunOutcome,
-  ctx: CommandMiddlewareCallContext,
+  ctx: CommandMiddlewareCallContext & { readonly signal: AbortSignal },
 ) => void | Promise<void>;
 
 export class CommandRefusedError extends HttpError {

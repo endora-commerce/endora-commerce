@@ -92,9 +92,14 @@ export interface CommandRunOutcome {
  * Reads a run's outcome after the caller's promise settled. Never awaited by a
  * writer; a throw or an overrun is logged and swallowed. At most once.
  */
+/**
+ * `signal` aborts when the budget expires. A handler that does I/O should pass it
+ * on: until its own promise settles it keeps one of the middleware's
+ * `COMMAND_OBSERVE_MAX_IN_FLIGHT` slots (FR-023).
+ */
 export type CommandObserveHandler = (
   outcome: CommandRunOutcome,
-  ctx: CommandMiddlewareCallContext,
+  ctx: CommandMiddlewareCallContext & { readonly signal: AbortSignal },
 ) => void | Promise<void>;
 
 /** What `ctx.commandMiddleware` takes: the code behind a manifest declaration of the same id and phase. */

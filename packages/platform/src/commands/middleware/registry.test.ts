@@ -287,11 +287,66 @@ describe('CommandMiddlewareRegistry — observe in-flight cap (189 T022, FR-023)
     expect(lines.filter((line) => line.msg === 'command.observe.dropped').map((line) => line.obj['dropped'])).toEqual([1, 3]);
     expect(started).toBe(COMMAND_OBSERVE_MAX_IN_FLIGHT);
 
-    // Once the stuck calls time out, the middleware is observed again.
+    // A timed-out call that never settles keeps its slot: the cap counts the
+    // handler's own promise, not the budget race (FR-023), so a handler stuck on
+    // a dead sink cannot pile up one pending promise per Command.
     await vi.advanceTimersByTimeAsync(5000);
+    expect(lines.filter((line) => line.msg === 'command.observe.timeout')).toHaveLength(COMMAND_OBSERVE_MAX_IN_FLIGHT);
+    registry.scheduleObserve(outcome);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(started).toBe(COMMAND_OBSERVE_MAX_IN_FLIGHT);
+  });
+
+  it('never runs more than the cap of a handler that ignores its budget (FR-023)', async () => {
+    vi.useFakeTimers();
+    const log = { info: () => {}, warn: () => {}, error: () => {} };
+    let started = 0;
+    const registry = new CommandMiddlewareRegistry({ log });
+    registry.register('acme_metrics', [
+      {
+        id: 'dead-sink',
+        phase: 'observe',
+        observe: () => {
+          started += 1;
+          return new Promise<void>(() => undefined);
+        },
+      },
+    ]);
+    registry.seal(input([{ moduleId: 'acme_metrics', id: 'dead-sink', phase: 'observe', actions: '*', timeoutMs: 1 }]));
+    for (let round = 0; round < 3; round += 1) {
+      for (let i = 0; i < COMMAND_OBSERVE_MAX_IN_FLIGHT; i += 1) registry.scheduleObserve(outcome);
+      await vi.advanceTimersByTimeAsync(10);
+    }
+    expect(started).toBe(COMMAND_OBSERVE_MAX_IN_FLIGHT);
+  });
+
+  it('aborts the signal on timeout, and a handler that honours it frees its slot', async () => {
+    vi.useFakeTimers();
+    const log = { info: () => {}, warn: () => {}, error: () => {} };
+    let started = 0;
+    let aborted = 0;
+    const registry = new CommandMiddlewareRegistry({ log });
+    registry.register('acme_metrics', [
+      {
+        id: 'polite',
+        phase: 'observe',
+        observe: (_outcome, ctx) => {
+          started += 1;
+          return new Promise<void>((resolve) => {
+            ctx.signal.addEventListener('abort', () => {
+              aborted += 1;
+              resolve();
+            });
+          });
+        },
+      },
+    ]);
+    registry.seal(input([{ moduleId: 'acme_metrics', id: 'polite', phase: 'observe', actions: '*', timeoutMs: 1 }]));
+    for (let i = 0; i < COMMAND_OBSERVE_MAX_IN_FLIGHT; i += 1) registry.scheduleObserve(outcome);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(aborted).toBe(COMMAND_OBSERVE_MAX_IN_FLIGHT);
     registry.scheduleObserve(outcome);
     await vi.advanceTimersByTimeAsync(0);
     expect(started).toBe(COMMAND_OBSERVE_MAX_IN_FLIGHT + 1);
-    expect(lines.filter((line) => line.msg === 'command.observe.timeout')).toHaveLength(COMMAND_OBSERVE_MAX_IN_FLIGHT);
   });
 });

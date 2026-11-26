@@ -398,16 +398,41 @@ export class CommandMiddlewareRegistry {
       // client's IP address or user agent.
       const subject = entry.origin === 'package' ? (redacted ??= redactForPackage(outcome)) : outcome;
       entry.inFlight += 1;
-      calls.push(this.#runObserve(entry, subject).finally(() => {
-        entry.inFlight -= 1;
-      }));
+      calls.push(this.#runObserve(entry, subject));
     }
     await Promise.allSettled(calls);
   }
 
+  /**
+   * One observe call within its budget. The in-flight slot is released when the
+   * **handler's own** promise settles, not when the budget race does: a timed-out
+   * handler that never settles keeps its slot, so the cap bounds what is really
+   * pending (FR-023). The handler's `signal` aborts on timeout, so a handler
+   * that honours it settles and frees the slot.
+   */
   async #runObserve(entry: ResolvedObserve, outcome: CommandRunOutcome): Promise<void> {
+    let released = false;
+    const release = (): void => {
+      if (released) return;
+      released = true;
+      entry.inFlight -= 1;
+    };
     const result = await runWithCommandMiddlewareOrigin({ moduleId: entry.moduleId, id: entry.id, phase: 'observe' }, () =>
-      withinBudget(() => entry.handler(outcome, { module: { id: entry.moduleId }, log: entry.log }), entry.timeoutMs),
+      withinBudget((signal) => {
+        let returned: unknown;
+        try {
+          returned = entry.handler(outcome, { module: { id: entry.moduleId }, log: entry.log, signal });
+        } catch (error) {
+          release();
+          throw error;
+        }
+        if (returned !== null && typeof returned === 'object' && typeof (returned as PromiseLike<unknown>).then === 'function') {
+          (returned as PromiseLike<unknown>).then(release, release);
+        } else {
+          release();
+        }
+        return returned;
+      }, entry.timeoutMs),
     );
     if (result.status === 'timeout') {
       this.#log.warn({ middleware: entry.label, timeoutMs: entry.timeoutMs }, 'command.observe.timeout');
