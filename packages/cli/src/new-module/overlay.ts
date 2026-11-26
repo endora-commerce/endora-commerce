@@ -129,7 +129,9 @@ function declaredDeployment(root: string): string | null {
  * and none set, a refusal, because choosing would write a module the instance
  * may never compose.
  */
-export function resolveDeployment(host: OverlayHost): { deployment: string; selected: boolean } {
+export function resolveDeployment(
+  host: Pick<OverlayHost, 'root'>,
+): { deployment: string; selected: boolean } {
   const onDisk = directoriesUnder(join(host.root, 'apps'));
   const declared = declaredDeployment(host.root);
   if (declared !== null) {
