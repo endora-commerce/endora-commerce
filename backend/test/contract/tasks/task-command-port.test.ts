@@ -50,6 +50,7 @@ describe('taskCommandPort — the admin routes’ Commands (#1829)', () => {
   let colleague: { cookies: { b2b_session: string }; adminUserId: string; undo: () => void };
   let definitionId = '';
   let orderId = '';
+  let tagId = '';
   const created: string[] = [];
   const probeContexts = new Set<string>();
 
@@ -173,6 +174,7 @@ describe('taskCommandPort — the admin routes’ Commands (#1829)', () => {
     if (definitionId) {
       await h.app.inject({ method: 'DELETE', url: `${CUSTOM_FIELDS_API}/definitions/${definitionId}`, cookies: ADMIN });
     }
+    if (tagId) await h.app.inject({ method: 'DELETE', url: `${API}/tags/${tagId}`, cookies: ADMIN });
     colleague.undo();
     await teardownBackendServer(h);
   });
@@ -205,17 +207,119 @@ describe('taskCommandPort — the admin routes’ Commands (#1829)', () => {
     expect(viaPort.sideEffects).toBe(1);
   });
 
-  it('update — the PATCH’s Commands in the PATCH’s order, the new assignee told', async () => {
+  it('update — tasks.task.update alone, the fields the PATCH writes in it', async () => {
     const [a, b] = await pair();
-    const patch = { title: 'Renamed', dueOn: '2027-01-05', assigneeIds: [colleague.adminUserId] };
+    const patch = { title: 'Renamed', description: 'Both floors, @nobody', dueOn: '2027-01-05', startOn: '2027-01-02' };
     const { port: viaPort } = await expectPortParity({
-      viaRoute: () => observe(a.id, () => route('PATCH', `/${a.id}`, patch), () => bells(a.id)),
-      viaPort: () => observe(b.id, () => asAdmin(() => port.update(b.id, patch)), () => bells(b.id)),
+      viaRoute: () => observe(a.id, () => route('PATCH', `/${a.id}`, patch)),
+      viaPort: () => observe(b.id, () => asAdmin(() => port.update(b.id, patch))),
     });
-    expect(viaPort.audit.map((e) => e.action)).toEqual(['tasks.task.update', 'tasks.task.assignees_change']);
-    expect(viaPort.sideEffects).toBe(1);
+    expect(viaPort.audit.map((e) => e.action)).toEqual(['tasks.task.update']);
     const record = await asAdmin(() => port.update(b.id, { title: 'Renamed' }));
-    expect(record).toMatchObject({ id: b.id, title: 'Renamed', dueOn: '2027-01-05', assigneeIds: [colleague.adminUserId] });
+    expect(record).toMatchObject({ id: b.id, title: 'Renamed', dueOn: '2027-01-05' });
+
+    // What another Command of the PATCH writes is not `update`'s (R-23.1, changed).
+    const count = (await entries(b.id)).length;
+    for (const extra of [{ assigneeIds: [colleague.adminUserId] }, { priorityCode: 'high' }, { private: true }]) {
+      expect(
+        await refusal(asAdmin(() => port.update(b.id, { title: 'Nope', ...extra } as unknown as Parameters<TaskCommandPort['update']>[1]))),
+      ).toMatchObject({ statusCode: 422, code: ERROR_CODES.VALIDATION_FAILED });
+    }
+    expect(await entries(b.id)).toHaveLength(count);
+  });
+
+  it('setAssignees — tasks.task.assignees_change alone, the new assignee told', async () => {
+    const [a, b] = await pair();
+    const { port: viaPort } = await expectPortParity({
+      viaRoute: () => observe(a.id, () => route('PATCH', `/${a.id}`, { assigneeIds: [colleague.adminUserId] }), () => bells(a.id)),
+      viaPort: () =>
+        observe(b.id, () => asAdmin(() => port.setAssignees(b.id, { set: [colleague.adminUserId] })), () => bells(b.id)),
+    });
+    expect(viaPort.audit.map((e) => e.action)).toEqual(['tasks.task.assignees_change']);
+    expect(viaPort.sideEffects).toBe(1);
+    const changed = await expectPortParity({
+      viaRoute: () =>
+        observe(a.id, () => route('PATCH', `/${a.id}`, { addAssigneeIds: [TEST_ADMIN_ID], removeAssigneeIds: [colleague.adminUserId] })),
+      viaPort: () =>
+        observe(b.id, () =>
+          asAdmin(() => port.setAssignees(b.id, { add: [TEST_ADMIN_ID], remove: [colleague.adminUserId] })),
+        ),
+    });
+    expect(changed.port.audit.map((e) => e.action)).toEqual(['tasks.task.assignees_change']);
+    expect((await asAdmin(() => port.setAssignees(b.id, { add: [], remove: [] }))).assigneeIds).toEqual([TEST_ADMIN_ID]);
+  });
+
+  it('setPriority — tasks.task.priority_change alone', async () => {
+    const [a, b] = await pair();
+    const { port: viaPort } = await expectPortParity({
+      viaRoute: () => observe(a.id, () => route('PATCH', `/${a.id}`, { priorityCode: 'high' })),
+      viaPort: () => observe(b.id, () => asAdmin(() => port.setPriority(b.id, { priorityCode: 'high' }))),
+    });
+    expect(viaPort.audit.map((e) => e.action)).toEqual(['tasks.task.priority_change']);
+    expect(await refusal(asAdmin(() => port.setPriority(b.id, { priorityCode: 'no_such_priority' })))).toMatchObject({
+      statusCode: 422,
+      code: ERROR_CODES.TASK_PRIORITY_UNKNOWN,
+    });
+  });
+
+  it('setTags — tasks.task.tags_change alone', async () => {
+    const response = await h.app.inject({
+      method: 'POST',
+      url: `${API}/tags`,
+      cookies: ADMIN,
+      payload: { name: `Port tag ${randomUUID().slice(0, 8)}` },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    tagId = (response.json() as { data: { id: string } }).data.id;
+    const [a, b] = await pair();
+    const { port: viaPort } = await expectPortParity({
+      viaRoute: () => observe(a.id, () => route('PATCH', `/${a.id}`, { tagIds: [tagId] })),
+      viaPort: () => observe(b.id, () => asAdmin(() => port.setTags(b.id, { tagIds: [tagId] }))),
+    });
+    expect(viaPort.audit.map((e) => e.action)).toEqual(['tasks.task.tags_change']);
+  });
+
+  it('setParent — tasks.task.parent_change alone', async () => {
+    const [a, b] = await pair();
+    const parent = await createTask({ title: 'Port parent' });
+    const { port: viaPort } = await expectPortParity({
+      viaRoute: () => observe(a.id, () => route('PATCH', `/${a.id}`, { parentTaskId: parent.id })),
+      viaPort: () => observe(b.id, () => asAdmin(() => port.setParent(b.id, { parentTaskId: parent.id }))),
+    });
+    expect(viaPort.audit.map((e) => e.action)).toEqual(['tasks.task.parent_change']);
+    expect(await refusal(asAdmin(() => port.setParent(parent.id, { parentTaskId: b.id })))).toMatchObject({
+      statusCode: 422,
+      code: ERROR_CODES.TASK_PARENT_CYCLE,
+    });
+    const detached = await expectPortParity({
+      viaRoute: () => observe(a.id, () => route('PATCH', `/${a.id}`, { parentTaskId: null })),
+      viaPort: () => observe(b.id, () => asAdmin(() => port.setParent(b.id, { parentTaskId: null }))),
+    });
+    expect(detached.port.audit.map((e) => e.action)).toEqual(['tasks.task.parent_change']);
+  });
+
+  it('setPrivate — tasks.task.privacy_change alone, against the Task as it stands', async () => {
+    const [a, b] = await pair();
+    const { port: viaPort } = await expectPortParity({
+      viaRoute: () => observe(a.id, () => route('PATCH', `/${a.id}`, { private: true })),
+      viaPort: () => observe(b.id, () => asAdmin(() => port.setPrivate(b.id, { private: true }))),
+    });
+    expect(viaPort.audit.map((e) => e.action)).toEqual(['tasks.task.privacy_change']);
+    expect((await asAdmin(() => port.setPrivate(b.id, { private: false }))).private).toBe(false);
+
+    // Someone else assigned: clear the assignees first, as the ruling says.
+    const [assigned] = await pair({ assigneeIds: [colleague.adminUserId] });
+    const count = (await entries(assigned.id)).length;
+    expect(await refusal(asAdmin(() => port.setPrivate(assigned.id, { private: true })))).toMatchObject({
+      statusCode: 422,
+      code: ERROR_CODES.TASK_PRIVATE_ASSIGNEE,
+    });
+    // Only the Creator says so: nobody behind the call is not the Creator.
+    expect(await refusal(asSystem(() => port.setPrivate(assigned.id, { private: true })))).toMatchObject({
+      statusCode: 403,
+      code: ERROR_CODES.FORBIDDEN,
+    });
+    expect(await entries(assigned.id)).toHaveLength(count);
   });
 
   it('setStatus — tasks.task.status_change through the workflow, from the status the port read', async () => {
