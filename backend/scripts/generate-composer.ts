@@ -1645,12 +1645,17 @@ function assertOverlayEntityFile(source: string, file: string): void {
  * **overlay module** is the exception since D-297 (OR-3): it declares them as an
  * installed package does, read and validated at runtime from the deployment root.
  */
+/** A file under one overlay module's directory: `apps/<deployment>/modules/<id>/…`. */
+const OVERLAY_MODULE_FILE = /^apps\/[^/]+\/modules\/[^/]+\//;
+
 export function assertNoSchemaExtensionDeclarations(sources: SourceTree): void {
   for (const [file, { text, owner }] of [...sources].sort(([a], [b]) => a.localeCompare(b))) {
     // An overlay module declares extension columns as an installed package does
     // (`specs/190-overlay-full-modules/` OR-3, contract §5): the platform reads and
-    // validates them at runtime, and nothing here emits them.
-    if (owner === null && file.startsWith('apps/')) continue;
+    // validates them at runtime, and nothing here emits them. Only under a module's
+    // own directory: the platform reads a module's `backend` export, so a declaration
+    // elsewhere under a deployment would pass here and declare nothing (FR-065).
+    if (owner === null && OVERLAY_MODULE_FILE.test(file)) continue;
     const sites = schemaExtensionDeclarationSites(text, file);
     if (sites.length === 0) continue;
     const site = sites[0]!;
