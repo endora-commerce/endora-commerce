@@ -25,7 +25,7 @@ events). No code change.
 - [ ] T003 [P] Inventory Order operations (status, payment status, comments, external reference; placement for US11) in `specs/186-aggregate-ports/contracts/order-command-port.md`
 - [x] T004 [P] Inventory QuoteRequest operations, the send-document route path and whether admin custom-field values ride on `modify`, in `specs/186-aggregate-ports/contracts/quote-request-command-port.md` — done with #1824: `update` is `modify` only (`patch_draft` is the buyer's), values ride on `modify`, the path is `/pdf/send`
 - [ ] T005 [P] Inventory Product and Attribute operations, the scoped-values route and the validator a caller uses for attribute values, in `specs/186-aggregate-ports/contracts/catalog-product-command-port.md`
-- [ ] T006 [P] Inventory Project operations and the stage-move route in `specs/186-aggregate-ports/contracts/project-command-port.md`
+- [x] T006 [P] Inventory Project operations and the stage-move route in `specs/186-aggregate-ports/contracts/project-command-port.md` — #1828: every operation is C (nothing converts), the move is `POST …/:id/move` in `routes/routes.stages.ts`; eight findings, decided as R-22.1–R-22.8 (proposed)
 - [ ] T007 [P] Inventory Category operations (move, values-only update, the threshold audit split with `inventory`) in `specs/186-aggregate-ports/contracts/catalog-category-command-port.md`
 - [ ] T008 [P] Inventory Opportunity operations in `specs/186-aggregate-ports/contracts/opportunity-command-port.md`
 - [ ] T009 [P] Inventory Task operations (`createMany`, child Commands on `update`, the 8 hand audits) in `specs/186-aggregate-ports/contracts/task-command-port.md`
@@ -165,12 +165,12 @@ the exit-2 rules, the `--since` / `release-changeset` placement) and `backend/te
 
 ## Phase 9: User Story 7 — Project (Priority: P2)
 
-- [ ] T076 [US7] Declare `ProjectCommandPort` (with its `Container name:` marker in the registering change, per the file's rule) and add `customFieldValues` to `ProjectRecord` in `packages/contracts/src/projects.ts`
-- [ ] T077 [P] [US7] (after #1866) Failing parity test (stage guard veto on `moveToStage`) and off-state test in `backend/test/contract/projects/project-command-port.test.ts`
-- [ ] T078 [P] [US7] (after #1866) Failing record test (`projectReadPort` carries `customFieldValues`) in `backend/test/contract/projects/project-read-port.custom-fields.test.ts`
-- [ ] T079 [P] [US7] (after #1866) Failing worker test in `backend/test/integration/projects/project-command-port.worker.test.ts`
-- [ ] T080 [US7] (after #1866) Implement and register `packages/modules/projects/src/backend/services/project-command-port.ts`; fill `customFieldValues` in the read port's mapper
-- [ ] T081 [US7] Drain the `project` ledger entry; docs (with the investor example of the contract); changesets
+- [x] T076 [US7] Declare `ProjectCommandPort` (with its `Container name:` marker in the registering change, per the file's rule) and add `customFieldValues` to `ProjectRecord` in `packages/contracts/src/projects.ts` — #1828: also `version` and `configurationVersion` on the record (R-22.3), `ProjectUpdatePatch`, `ProjectCloseInput`; type test `packages/contracts/src/projects.command-port.test.ts`; `.changeset/1828-contracts-project-command-port.md`
+- [x] T077 [P] [US7] (after #1866) Failing parity test (stage guard veto on `moveToStage`) and off-state test in `backend/test/contract/projects/project-command-port.test.ts` — #1828: parity for all twelve methods, the guard veto on `moveToStage` and `close`, `source`, extensions, both `expectedVersion` tokens, the 403 without an administrator, off-state
+- [x] T078 [P] [US7] (after #1866) Failing record test (`projectReadPort` carries `customFieldValues`) in `backend/test/contract/projects/project-read-port.custom-fields.test.ts` — #1828, with an `adminAccess: 'hidden'` field; `project-read-port.contract.test.ts` updated for the three new members
+- [x] T079 [P] [US7] (after #1866) Failing worker test in `backend/test/integration/projects/project-command-port.worker.test.ts` — #1828
+- [x] T080 [US7] (after #1866) Implement and register `packages/modules/projects/src/backend/services/project-command-port.ts`; fill `customFieldValues` in the read port's mapper — #1828: over the routes' own service methods, split into the write and the route's rendering (R-22.1); `commands/caller-options.ts` copied (R-18.6, refs #1961); `source` joins `PROJECTS_AUDIT_KEYS`; the shared `projects.project.custom_fields_update` builder (R-22.7). No narrow port to deprecate, no in-repo consumer to move
+- [ ] T081 [US7] Drain the `project` ledger entry; docs (with the investor example of the contract); changesets — #1828: docs (*Writing projects from another module*, EN and PL, re-pinned), `specs/conventions/custom-field-writes.md` list, `.changeset/1828-projects-command-port.md`; the ledger does not exist yet (T042), so there is no entry to drain
 
 ---
 

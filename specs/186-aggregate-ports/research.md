@@ -45,7 +45,7 @@ N = no audit; ? = to confirm in T001–T009):
 | Product | create, update, archive, restore, delete, variant create/update/delete, scoped_values.save, scopes.update | — | — | — |
 | Category | create, update, delete | — | — | move (?: likely `update` with a parent), inventory thresholds (N here; audited by `inventory`'s caller as `low_stock_threshold.update`) |
 | Opportunity | all listed (`crm`: 33 `commandBus.run` sites, 0 hand audits) | — | — | — |
-| Project | all listed (`projects`: 38 sites, 0 hand audits) | — | — | archive/restore: no such operation |
+| Project | all listed (`projects`: 38 sites, 0 hand audits; confirmed by T006) | — | — | archive/restore: no such operation |
 | Task | all listed except below | — | — | create many (?) |
 
 **Inventory (T001, Organization, 2026-11-25).** Measured against the table above:
@@ -62,6 +62,13 @@ being changes to `packages/platform` rather than to `organizations`
 (`contracts/organization-command-port.md` § *Inventory findings* 1). No operation moves in or out of
 FR-020. The other findings (detach, the reject reason, `expectedVersion`, a refusal code) are
 interface decisions for T019, listed there.
+
+**Inventory (T006, Project, 2026-11-26).** Measured against the table above: every operation of
+FR-027 is **C** — 38 top-level `commandBus.run` sites and the per-Organization children, no hand
+audit anywhere in the module — so nothing converts. No operation moves in or out of FR-027. The
+questions the inventory raised (an administrator on two rows, `expectedVersion` over two tokens, the
+multi-Command `PATCH` and Organization set, the answer shape) are R-22, and the findings are in
+`contracts/project-command-port.md` § *Inventory findings*.
 
 **Rationale.** The issues' definition of done — "each operation is one audited Command … the admin
 routes and the port run the same Commands, so command hooks and the audit trail see one write path" —
@@ -612,3 +619,133 @@ consumes, and every one of them would then be a frozen or stable entry.
 - *One pull request*: it puts 188's dependency behind the platform fix.
 - *Folding P0 into US1b*: it leaves the create and registration defect open until the port work is
   done.
+
+## R-22 US7 (Project, #1828): decisions on the T006 inventory findings (2026-11-26)
+
+The T006 inventory (`contracts/project-command-port.md` § *Inventory findings*) raised the questions
+below, which R-16, R-17, R-18 and the precedents do not answer in terms. The implementing session had
+no channel to the architect, so each is recorded **(proposed, pending architect)** with the alternative
+rejected. None is irreversible, and none touches tenant isolation: every write still starts from
+`ProjectAccess.loadVisible` under the ambient context and locks the Project in its Command. Code
+references are to `origin/master` `d936722d5`.
+
+### R-22.1 The port runs the route's service methods, which build the Commands (proposed, pending architect)
+
+**Proposed.** `projects` has no `commands/` directory: each Command is built inline in the service
+method its route calls (`ProjectService`, `MoveService`, `LinkService`, `ProjectCommentService`), and
+that method also does what the route does around the Command — the workflow check, the completion gate
+and the stage guards before it; Stage Tasks, mentions, a message's Members and a deleted Project's
+Tasks after it. Each such method is split into the write (`createProject`, `updateProject`,
+`applyOrganizations`, `applyMembers`, `moveProject`, `closeProject`, `reopenProject`, `link`, `write`,
+plus `delete` / `remove` as they were) and the route's wrapper, which only renders the reader-language
+answer. The port calls the write; the caller's `source` and `extensions` reach the Command through the
+copied `withCallerOptions` (R-18.6), applied inside the service. This is convention item 2a.2's "the
+one your admin route runs", reached the way `organizationCommandPort` reaches moderation and
+restrictions — through the route's own runner.
+
+**Rejected.** *Moving each Command into a `commands/*.command.ts` factory first* — some 1,500 lines
+moved with no behavioural difference, and a conflict with #1950 (open), which edits the same
+services and adds its own merge refusal to `lockProject`; through the services, a port call inherits
+that refusal without either change knowing of the other. *A port over its own copies of the
+Commands* — two write paths, the defect FR-002 removes.
+
+### R-22.2 `create` and `addComment` need an administrator behind the call (proposed, pending architect)
+
+**Finding.** `projects.created_by_admin_user_id` and `project_comments.author_admin_user_id` are
+`not null`: a Project is somebody's, and a comment has an author. The create Command refused a call
+with no administrator with a plain `Error` inside its transaction (a 500); the comment service already
+refused it `403 FORBIDDEN` before anything was read.
+
+**Proposed.** Both are refused `403 FORBIDDEN` before anything is read when no administrator is behind
+the call — the comment route's refusal, now also `createProject`'s first statement. A worker runs them
+under `withSystemScopeActingFor(adminUserId, reason)` (the administrator who queued the work), which
+the platform already offers; every other method runs under `withSystemScope` with the `system` actor.
+The JSDoc says so on both methods and on the port. The investor case of #1828 needs neither.
+
+**Rejected.** *Making the two columns nullable* — a migration and a widening every reader of
+`ProjectComment.author` and of the creator would have to handle (`ProjectCommentSchema.author` is not
+nullable), to let a write record nobody. *An `actorAdminUserId` input* — R-4: the actor is never input.
+*Keeping the 500* — a refusal of the caller's context is not a server fault.
+
+### R-22.3 `expectedVersion` is the token the route checks; the record carries both (proposed, pending architect)
+
+**Finding.** A Project has two optimistic-concurrency tokens (issue #449): `version` (its fields, state
+and Stage — `PATCH`, `move`, `close`, `reopen` require it) and `configurationVersion` (its sets —
+`PUT …/organizations` and `…/members` accept it, optionally). `ProjectRecord` carried neither, so a
+caller could not pass back what it read.
+
+**Proposed.** `options.expectedVersion` names the token the operation's route checks: `version` on
+`update`, `setCustomFieldValues`, `moveToStage`, `close` and `reopen`; `configurationVersion` on
+`setOrganizations` and `setMembers`; ignored by `link`, `unlink`, `addComment` and `delete`, whose
+routes check none (R-5). A stale token is the route's **`409 PROJECT_CHANGED`**, not `VERSION_CONFLICT`
+(convention item 5: refusals are the route's; R-16.5's precedent for a published code). Absent, it is
+the version the method's own `loadVisible` read — the Command writes over that, under the Project's row
+lock, and a change that landed in between is still refused rather than overwritten. `ProjectRecord`
+gains `version` and `configurationVersion`, required, filled by the owner from the row.
+
+**Rejected.** *Ignoring `expectedVersion` on the two sets and keeping `configurationVersion` as an
+input member* — two spellings of "the version I read" on one port. *Requiring it* — R-16.6.
+*Answering `VERSION_CONFLICT`* — the admin client already handles `PROJECT_CHANGED`; one refusal, one
+code.
+
+### R-22.4 `update` is `projects.project.update` only (proposed, pending architect)
+
+**Proposed.** The admin `PATCH` runs up to four Commands. The port's `update` takes the four fields of
+the first (title, description, value, start date) and runs it alone; the values are
+`setCustomFieldValues` (the second); visibility and listed people (`.visibility_set`,
+`.viewers_set`) are not offered, as the contract's first draft already listed them as configuration.
+
+**Rejected.** *The whole `PATCH` body* — one method of up to four Commands, of which only two are
+hookable: `extensions` would reach some of them and be silently dropped by the others, and a caller
+could not tell which write a refusal stopped (the second commits after the first, finding 3).
+
+### R-22.5 `extensions` and `source` on `setOrganizations` go to the children (proposed, pending architect)
+
+**Proposed.** `projects.project.organizations_set` is the parent of one `organization_add` /
+`organization_remove` per change, records nothing and is not hookable; the children are (#1845). The
+caller's options are applied to each child, so the hooks on them get the extension input, and each
+child's entry records `source`. A set that changes nothing runs no Command and so checks no key. On
+every other method the options reach the one Command it runs, and the bus refuses a key no present hook
+module claims — every key on `setMembers`, `link`, `unlink`, `addComment` and `delete`, none of whose
+actions is hookable (the R-18.8 rule).
+
+**Rejected.** *The parent* — the bus would refuse every key, since nothing can claim one on an action
+that is not hookable. *Declaring `organizations_set` hookable* — R-16.8: a declaration is a public
+contract, added when something needs it; the children already name each Organization.
+
+### R-22.6 The answer is the record read after the write under the Organization rule (proposed, pending architect)
+
+**Proposed.** The routes answer `ProjectDetail` (reader-language, with the caller's permissions). The
+port answers `ProjectRecord`, read after the write through `ProjectAccess.rowAfterWrite` — the
+Organization rule alone, the routes' own after-write read — so a write that took the Project out of the
+acting administrator's visibility still answers it. `setOrganizations` answers `null` when the
+caller's own change took the Project out of their reach (the route's `{ outOfReach: true }`); under
+`withSystemScope` it never does. `link` answers `{ linkId }` and `addComment` `{ commentId }` — the ids
+a caller needs for `unlink` and to find its comment; `unlink` and `delete` answer nothing.
+
+**Rejected.** *`ProjectDetail`* — a language parameter and an admin-panel shape on a server-side port.
+*`findVisible` after the write* — a Member who removed themselves would be told a committed change
+did not happen.
+
+### R-22.7 `setCustomFieldValues` runs the `PATCH`'s Command, with the merge under the lock (proposed, pending architect)
+
+**Proposed.** One factory, `ProjectService.#customFieldsCommand`, builds
+`projects.project.custom_fields_update` for the route and the port. The route's merge answers the bag it
+validated before the Command, held to the `version` that read carried (unchanged); the port's is the
+caller's merge, run on the bag the Command read under the row lock, as `organizationCommandPort`'s is.
+A merge that changes nothing writes, bumps and records nothing (spec edge case "same value"), the hooks
+still running with an empty `changedCustomFields`. Unlike Organizations (R-16.2), the admin edit and the
+port run **one** action, so a hook that must see every change of the values registers once.
+
+**Rejected.** *Recording an entry for a no-op merge*, as `organization.set_custom_field_values` does —
+the spec's edge case asks for nothing recorded, and the route never runs the Command for an unchanged
+bag.
+
+### R-22.8 `addComment` takes the route's body, notes and messages alike (proposed, pending architect)
+
+**Proposed.** `CreateProjectCommentBody` (`kind: 'note' | 'message'`), running
+`projects.project.note_add` or `.message_add` as the route does; a message tells the Project's other
+Members who may see it, after the commit, for both paths.
+
+**Rejected.** *Notes only*, as the contract's first draft's table had it — the route is one operation
+for both kinds, and an integration posting into the internal thread would otherwise have no way to.

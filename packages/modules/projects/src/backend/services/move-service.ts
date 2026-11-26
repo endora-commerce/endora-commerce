@@ -23,6 +23,7 @@ import { StageGraph } from '../domain/stage-graph.js';
 import { ProjectStage } from '../entities/project-stage.entity.js';
 import { ProjectStageEntry } from '../entities/project-stage-entry.entity.js';
 import { ProjectStageMove } from '../entities/project-stage-move.entity.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import type { ProjectAccess, VisibleProjectRow } from './project-access.js';
 import type { ProjectReadService } from './project-read-service.js';
 import { lockProject, projectChanged } from './project-service.js';
@@ -77,6 +78,20 @@ function assertVersion(row: VisibleProjectRow, version: number): void {
   if (row.version !== version) throw projectChanged();
 }
 
+/**
+ * A body of the three walks with its `version` optional: absent — a
+ * `projectCommandPort` call without `expectedVersion` — it is the version
+ * `loadVisible` read (`specs/186-aggregate-ports/` R-22.3).
+ */
+type Versioned<T extends { version: number }> = Omit<T, 'version'> & { version?: number | undefined };
+
+/** What a move wrote, for the route's answer. */
+export interface MoveWritten {
+  readonly projectId: string;
+  readonly entryId: string;
+  readonly createdTaskIds: string[];
+}
+
 /** The Project's workflow as it is under the lock. */
 async function lockedGraph(em: EntityManager, projectId: string): Promise<{ graph: StageGraph; stages: ProjectStage[] }> {
   const stages = await em.find(ProjectStage, { projectId }, { orderBy: { position: 'asc', id: 'asc' } });
@@ -89,8 +104,23 @@ export class MoveService {
 
   /** `POST /projects/:id/move`. */
   async move(projectId: string, body: MoveProjectBody, language: string): Promise<ProjectMoveResult> {
+    const written = await this.moveProject(projectId, body);
+    const [project, entry] = await Promise.all([
+      this.deps.read.afterWrite(written.projectId, language),
+      this.deps.read.entryAfterWrite(written.projectId, written.entryId),
+    ]);
+    return { project, entry, createdTaskIds: written.createdTaskIds, notes: entry.notes };
+  }
+
+  /**
+   * The move itself, its checks before and its Stage Tasks after — what the
+   * route and `projectCommandPort.moveToStage` share
+   * (`specs/186-aggregate-ports/` R-22.1).
+   */
+  async moveProject(projectId: string, input: Versioned<MoveProjectBody>, caller: CallerOptions = {}): Promise<MoveWritten> {
     const visible = await this.deps.access.loadVisible(projectId);
     if (visible.state !== 'open') throw notPermitted('A closed project does not move between stages. Reopen it first.');
+    const body = { toStageId: input.toStageId, version: input.version ?? visible.version };
     assertVersion(visible, body.version);
     const from = visible.current_stage_id!;
     const { graph, stages: workflowStages } = await this.deps.read.graphOf(visible.id);
@@ -113,7 +143,7 @@ export class MoveService {
       fromStageId: moved!.fromStageId!,
       toStageId: moved!.toStageId,
     });
-    const entryId = await this.deps.commandBus.run({
+    const entryId = await this.deps.commandBus.run(withCallerOptions<string>({
       action: 'projects.project.stage_move',
       objectType: 'project',
       objectId: visible.id,
@@ -187,22 +217,29 @@ export class MoveService {
         };
         return { eventName: PROJECTS_EVENTS.STAGE_MOVED, payload };
       },
-    });
+    }, caller));
 
     const created = plan.materialize
       ? await this.deps.stageTasks.materializeAfterCommit(visible.id, body.toStageId, entryId)
       : { createdTaskIds: [], failed: false };
-    const [project, entry] = await Promise.all([
-      this.deps.read.afterWrite(visible.id, language),
-      this.deps.read.entryAfterWrite(visible.id, entryId),
-    ]);
-    return { project, entry, createdTaskIds: created.createdTaskIds, notes: entry.notes };
+    return { projectId: visible.id, entryId, createdTaskIds: created.createdTaskIds };
   }
 
   /** `POST /projects/:id/close` — completed from a Stage that permits it, or lost from any. */
   async close(projectId: string, body: CloseProjectBody, language: string): Promise<ProjectDetail> {
+    const visible = await this.closeProject(projectId, body);
+    return this.deps.read.afterWrite(visible.id, language);
+  }
+
+  /** The close itself — what the route and `projectCommandPort.close` share (R-22.1). */
+  async closeProject(
+    projectId: string,
+    input: Versioned<Extract<CloseProjectBody, { outcome: 'completed' }>> | Versioned<Extract<CloseProjectBody, { outcome: 'lost' }>>,
+    caller: CallerOptions = {},
+  ): Promise<VisibleProjectRow> {
     const visible = await this.deps.access.loadVisible(projectId);
     if (visible.state !== 'open') throw notPermitted('The project is already closed.');
+    const body = { ...input, version: input.version ?? visible.version } as CloseProjectBody;
     assertVersion(visible, body.version);
     const stageId = visible.current_stage_id!;
     const { stages } = await this.deps.read.graphOf(visible.id);
@@ -233,7 +270,7 @@ export class MoveService {
       stageId: closedIn,
       lossReasonCode,
     });
-    await this.deps.commandBus.run({
+    await this.deps.commandBus.run(withCallerOptions<null>({
       action: 'projects.project.close',
       objectType: 'project',
       objectId: visible.id,
@@ -288,14 +325,25 @@ export class MoveService {
         };
         return { eventName: PROJECTS_EVENTS.PROJECT_CLOSED, payload };
       },
-    });
-    return this.deps.read.afterWrite(visible.id, language);
+    }, caller));
+    return visible;
   }
 
   /** `POST /projects/:id/reopen` — back into the Stage it was closed in (FR-006). */
   async reopen(projectId: string, body: ReopenProjectBody, language: string): Promise<ProjectDetail> {
+    const visible = await this.reopenProject(projectId, body);
+    return this.deps.read.afterWrite(visible.id, language);
+  }
+
+  /** The reopen itself — what the route and `projectCommandPort.reopen` share (R-22.1). */
+  async reopenProject(
+    projectId: string,
+    input: Versioned<ReopenProjectBody>,
+    caller: CallerOptions = {},
+  ): Promise<VisibleProjectRow> {
     const visible = await this.deps.access.loadVisible(projectId);
     if (visible.state === 'open') throw notPermitted('Only a closed project can be reopened.');
+    const body = { version: input.version ?? visible.version };
     assertVersion(visible, body.version);
     const stageId = visible.lost_stage_id ?? visible.current_stage_id!;
     await this.deps.guards.run({ projectId: visible.id, fromStageId: null, toStageId: stageId, kind: 'reopen' });
@@ -303,7 +351,7 @@ export class MoveService {
     // Hookable (#1845, `PROJECT_HOOKABLE_ACTIONS.reopen`): how it had ended, read under the lock.
     let previousState: ProjectReopenHookData['previousState'] = visible.state as ProjectReopenHookData['previousState'];
     const hooked = (): ProjectReopenHookData => ({ projectId: visible.id, stageId, previousState });
-    await this.deps.commandBus.run({
+    await this.deps.commandBus.run(withCallerOptions<null>({
       action: 'projects.project.reopen',
       objectType: 'project',
       objectId: visible.id,
@@ -347,8 +395,8 @@ export class MoveService {
         };
         return { eventName: PROJECTS_EVENTS.PROJECT_REOPENED, payload };
       },
-    });
-    return this.deps.read.afterWrite(visible.id, language);
+    }, caller));
+    return visible;
   }
 
   /** The code of a loss reason that exists and is not archived (FR-005), or 422. */
