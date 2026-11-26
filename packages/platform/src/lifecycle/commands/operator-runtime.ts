@@ -5,6 +5,21 @@ import type { RegisteredManifestEntry } from '../manifest-registry.js';
 import type { LoadedManifestRegistry } from '../services/manifest-loader.js';
 import type { MigrationOwnership } from '../services/migration-ownership.js';
 import { ModuleLifecycleOrchestrator } from '../services/orchestrator.js';
+import type { MigrationOrigin } from '../../db/migration-order.js';
+
+/**
+ * What `module:status` lists a module's migrations from
+ * (`specs/190-overlay-full-modules/` FR-045): the merged order's entries with
+ * their origins, and the ownership answer `uninstall --hard` reverts by.
+ *
+ * Structurally a slice of the platform's `ConfiguredMigrations`, so a host hands
+ * over the value its ORM configuration was built from and the listing is the
+ * same population a hard uninstall would revert — not a second derivation of it.
+ */
+export interface MigrationCatalogue {
+  readonly registered: readonly { readonly name: string; readonly origin: MigrationOrigin }[];
+  readonly ownership: MigrationOwnership;
+}
 
 /**
  * The three things only the tree that installs the platform can build
@@ -99,6 +114,14 @@ export interface OperatorRuntime {
    * and `instanceOperatorRuntime` reads it from the installed packages.
    */
   readonly migrationOwnership?: () => Promise<MigrationOwnership>;
+  /**
+   * `status` only — this platform's migration order, with origins, so a module's
+   * row can list its applied and pending migrations (190, FR-045). Absent means
+   * the host cannot say, and `status` lists none rather than guessing; it is a
+   * thunk for {@link OperatorRuntime.resources}' reason — reading it discovers
+   * every installed package and the deployment's overlay schema.
+   */
+  readonly migrations?: () => Promise<MigrationCatalogue>;
   /**
    * Ask the operator to confirm a destructive step. **Absent means this run
    * cannot ask** (R2.7), and the body refuses rather than proceeding; present

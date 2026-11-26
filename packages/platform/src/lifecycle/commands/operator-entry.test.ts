@@ -119,14 +119,30 @@ describe('instanceOperatorRuntime', () => {
     // A command that cannot reach a composition cannot run one, which is what
     // makes D-157.2/.4's failure structurally unreachable rather than
     // remembered. Asserted over the built object rather than over the type, so
-    // a field added later fails here and not only in review.
+    // a field added later fails here and not only in review. `migrations`
+    // (190, FR-045) is a value read by discovery — the order `migrate` applies —
+    // and composes nothing.
     expect(Object.keys(runtime).sort()).toEqual([
       'entries',
       'err',
       'migrationOwnership',
+      'migrations',
       'out',
       'resources',
     ]);
+  });
+
+  it('supplies the migration order `status` lists a module’s migrations from, and opens nothing to do it', async () => {
+    const { runtime, dispose } = await instanceOperatorRuntime({
+      deploymentRoot: emptyDeploymentRoot(),
+      ormConfig: refusingConfig,
+      env: {},
+    });
+    const catalogue = await runtime.migrations!();
+    // The platform's own migrations are merged into every instance's order.
+    expect(catalogue.registered.length).toBeGreaterThan(0);
+    expect(catalogue.registered.every((entry) => entry.origin !== 'overlay')).toBe(true);
+    await dispose();
   });
 
   it('supplies the migration ownership `uninstall --hard` reverts by, and opens nothing to do it', async () => {
