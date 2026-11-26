@@ -429,6 +429,12 @@ import {
 } from './lib/migration-registry.js';
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
 import { withSharedParses } from '@endora-commerce/cli/lib/parsed-source.js';
+import {
+  OVERLAY_BOUNDARY_CLAUSES,
+  overlayDependenciesOf,
+  overlayEdgeOf,
+  type OverlayBoundaryClause,
+} from '@endora-commerce/cli/lib/overlay-boundary.js';
 import { resolutionCandidates } from './lib/platform-surface.js';
 import {
   declaredIndexes,
@@ -529,6 +535,13 @@ export interface CrossModuleImport {
   readonly surface: CrossModuleSurface;
   /** True when either side lives under `src/apps/<deployment>/modules/`. */
   readonly overlay: boolean;
+  /**
+   * Present on an edge between **two overlay modules**: the clauses of
+   * `specs/190-overlay-full-modules/contracts/overlay-ports.md` §2 it failed, as the
+   * shared overlay analysis decided them. Such a finding is never ledgered — see
+   * {@link overlayEdgesUnledgerable}.
+   */
+  readonly overlayClauses?: readonly OverlayBoundaryClause[];
 }
 
 /**
@@ -952,6 +965,9 @@ export interface ModuleBoundaryInput {
 
 /** The tree with no module package installed — every fixture, and CI before !910. */
 const NO_MODULE_PACKAGES: ReadonlyMap<string, string> = new Map();
+
+/** No overlay manifest read: every overlay module declares nothing (fail closed). */
+const NO_OVERLAY_DEPENDENCIES: ReadonlyMap<string, readonly string[] | null> = new Map();
 
 export interface CheckResult extends LedgerVerdict<ModuleBoundaryFinding> {
   readonly total: number;
@@ -1380,6 +1396,7 @@ export function analyzeSource(
   hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
   admin: AdminBoundarySurfaces | null = NO_ADMIN_SURFACES,
   tally?: SiteTally,
+  overlayDependencies: ReadonlyMap<string, readonly string[] | null> = NO_OVERLAY_DEPENDENCIES,
 ): CrossModuleImport[] {
   if (GENERATED_MODULE_FILES[file] !== undefined) return [];
   if (isAdminRegistryFile(file, admin)) return [];
@@ -1389,6 +1406,29 @@ export function analyzeSource(
   const found: CrossModuleImport[] = [];
   for (const specifier of namedSpecifiers(source, file)) {
     if (tally !== undefined) tally.count += 1;
+    // `specs/190-overlay-full-modules/` FR-071 — an edge between two overlay
+    // modules is decided by the overlay analysis `endora generate` runs in an
+    // instance, so the two readers cannot answer differently for one import. The
+    // sanctioned type-only `ports.ts` import is no reach; anything else is a finding
+    // carrying the clauses it failed.
+    const overlayEdge = overlayEdgeOf(source, file, specifier, overlayDependencies);
+    if (overlayEdge !== null) {
+      if (overlayEdge.failed.length === 0) continue;
+      found.push({
+        predicate: 'import',
+        file,
+        line: specifier.line,
+        moduleId: owner.id,
+        target: overlayEdge.target,
+        specifier: specifier.text,
+        targetPath: overlayEdge.targetPath,
+        kind: specifier.kind,
+        surface: surfaceOf(overlayEdge.targetPath),
+        overlay: true,
+        overlayClauses: overlayEdge.failed,
+      });
+      continue;
+    }
     const packaged = resolveModulePackage(specifier.text, modulePackages);
     if (packaged !== null) {
       // The importer's own package, named by its own npm name — the self-import
@@ -1470,8 +1510,11 @@ export function findCrossModuleImports(input: ModuleBoundaryInput): {
   const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
   const admin = input.adminSurfaces ?? NO_ADMIN_SURFACES;
   const tally: SiteTally = { count: 0 };
+  // Read off the overlay manifests among the sources, by the reader the instance's
+  // `endora generate` uses — one answer to "what does this overlay declare".
+  const overlayDependencies = overlayDependenciesOf(input.sources);
   const found = [...input.sources].flatMap(([file, text]) =>
-    analyzeSource(text, file, packages, surfaces, hostResident, admin, tally),
+    analyzeSource(text, file, packages, surfaces, hostResident, admin, tally, overlayDependencies),
   );
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return { found, sites: tally.count };
@@ -2125,7 +2168,9 @@ export function checkModuleBoundary(
     return file === null ? null : (ownerLocationOf(file, hostResident, admin)?.id ?? null);
   };
 
-  const hostVerdict = compareLedger(all, shards, keyOf, shardOfKey, modules);
+  const hostVerdict = overlayEdgesUnledgerable(all, (findings) =>
+    compareLedger(findings, shards, keyOf, shardOfKey, modules),
+  );
   const byRule = (rule: MigrationSqlRule): readonly MigrationSqlFinding[] =>
     migration.found.filter((finding) => finding.rule === rule);
 
@@ -2151,6 +2196,34 @@ export function checkModuleBoundary(
       byRule('migration-writes-a-foreign-table'),
       (findings) =>
         compareLedger(findings, migrationLedgers.foreignWrites, migrationKeyOf, shardOfKey, modules),
+    ),
+  };
+}
+
+/**
+ * The import ledger with every edge between two overlay modules taken out of its
+ * reach (`specs/190-overlay-full-modules/` FR-071, T032).
+ *
+ * The overlay analysis is the verdict on such an edge, and it is the verdict an
+ * instance gets from `endora generate`, where there is no ledger: an entry here would
+ * excuse in this repository exactly what a client's own run refuses. So a finding
+ * carrying {@link CrossModuleImport.overlayClauses} is always a violation, and an
+ * entry naming it is reported stale — it describes an exemption that does not exist.
+ * The ledger held no such entry when this landed.
+ */
+function overlayEdgesUnledgerable(
+  findings: readonly ModuleBoundaryFinding[],
+  compare: (findings: readonly ModuleBoundaryFinding[]) => LedgerVerdict<ModuleBoundaryFinding>,
+): LedgerVerdict<ModuleBoundaryFinding> {
+  const betweenOverlays = (finding: ModuleBoundaryFinding): boolean =>
+    finding.predicate === 'import' && finding.overlayClauses !== undefined;
+  const verdict = compare(findings.filter((finding) => !betweenOverlays(finding)));
+  const overlay = findings.filter(betweenOverlays);
+  if (overlay.length === 0) return verdict;
+  return {
+    ...verdict,
+    violations: [...verdict.violations, ...overlay].sort((a, b) =>
+      a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file),
     ),
   };
 }
@@ -3016,6 +3089,7 @@ export function generatedExemptionIssues(
 /** What the module author should do instead, chosen by the surface reached. */
 function remedyFor(finding: ModuleBoundaryFinding): string {
   if (finding.predicate === 'sql') return sqlRemedyFor(finding);
+  if (finding.overlayClauses !== undefined) return overlayRemedyFor(finding);
   if (finding.moduleId === ADMIN_HOST_OWNER) return hostRemedyFor(finding);
   const consumer = finding.moduleId;
   const owner = finding.target;
@@ -3134,6 +3208,24 @@ function sqlRemedyFor(finding: CrossModuleSqlAccess): string {
     "      2. resolve it here with lazyPort<ContractType>(ctx, '<literalPortName>');",
     `      3. add '${finding.target}' to \`dependencies\` in`,
     `         src/modules/${finding.moduleId}/manifest.ts.`,
+  ].join('\n');
+}
+
+/**
+ * An edge between two overlay modules: the clauses it failed, and no ledger
+ * sentence — it cannot be ledgered (see {@link overlayEdgesUnledgerable}).
+ */
+function overlayRemedyFor(finding: CrossModuleImport): string {
+  return [
+    '    Both sides are overlay modules. The one import between them is `import type` of',
+    "    the sibling's ports.ts, in the same deployment, by a module that declares it in",
+    '    `dependencies` (specs/190-overlay-full-modules/contracts/overlay-ports.md §2).',
+    '    This one fails:',
+    ...(finding.overlayClauses ?? []).map(
+      (clause) => `      [${clause}] ${OVERLAY_BOUNDARY_CLAUSES[clause]}`,
+    ),
+    '    A ledger entry cannot excuse it: an instance\'s `endora generate` refuses the same',
+    '    edge, and has no ledger.',
   ].join('\n');
 }
 
@@ -3635,6 +3727,7 @@ async function main(): Promise<void> {
     for (const finding of result.violations) {
       console.error(describeFinding(finding));
       console.error(remedyFor(finding));
+      if (finding.predicate === 'import' && finding.overlayClauses !== undefined) continue;
       console.error(
         '\n    Do not wrap the port call in a catch: it turns fail-closed into fail-open.\n' +
           '\n    If the edge must stand for now, add it to\n' +

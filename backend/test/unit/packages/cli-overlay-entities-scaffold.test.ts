@@ -42,6 +42,10 @@ const probes = SCOPES.map((tenantScope) => {
     description: 'An overlay module with a table, as the CLI writes it.',
     dependencies: ['settings'],
     entities: true,
+    // `--ports` too (T035, FR-059): the type-check below is what says the emitted
+    // `ctx.di.providePort` call and the type-only `./ports.js` import compile
+    // against the real `ModuleContext`, which the CLI's own fixture does not carry.
+    ports: true,
     tenantScope,
     now: new Date(Date.UTC(2026, 10, 26, 10, 15, 0)),
   });

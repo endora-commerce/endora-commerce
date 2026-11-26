@@ -127,8 +127,23 @@ below is unchanged. What D-297 holds every overlay module to:
   admin's type-check owns the layer and the backend's overlay program excludes it. Palette
   coverage, the permission inventory, `check:action-route-permissions` and the bundle-shape test
   judge it per deployment — the checklists of `module-admin-surfaces.md` apply unchanged.
+- **It may publish port types to its siblings, through `ports.ts` alone** (FR-070 – FR-072,
+  `specs/190-overlay-full-modules/contracts/overlay-ports.md`, #1854). The owner registers the
+  port with `ctx.di.providePort` and declares its types in `modules/<owner>/ports.ts`
+  (`endora new module --ports` writes both). Another overlay module may import that file, and
+  nothing else of the owner, iff the import is `import type` (or every specifier `type`), it
+  resolves to exactly `<sibling>/ports.ts`, both modules are in the **same** deployment, and the
+  importer's manifest `dependencies` name the owner, transitively; it resolves the port with
+  `lazyPort`. Every other import between two overlay modules is a finding naming each failed
+  clause, from **one** analysis (`packages/cli/src/lib/overlay-boundary.ts`) with two readers:
+  `check:module-boundary` here, where no ledger entry can excuse one, and `endora generate` in an
+  instance, which exits 1 after writing. The dependency behaves as between any two modules:
+  install refuses a missing one, both activation axes refuse to switch the owner off under a
+  present dependent, and `uninstall --hard` is `dependents-block`. A port consumed from a
+  sibling is not a divergence (it is named under `notRecorded`); the owner's `port-provided` is.
 - **Promotion keeps the id.** A module promoted from an overlay to a package keeps its module
-  id, so the migration class names a database has already recorded still match.
+  id, so the migration class names a database has already recorded still match. Its `ports.ts`
+  becomes the package's `./ports` subpath, and consumers switch the specifier to it.
 - **The trust tier is derived, never claimed.** An overlay module's tier is `deployment`, read
   from the `origin` the loader stamps on its module entry from where it discovered the module
   (`specs/189-command-middleware/contracts/module-origin.md`). No manifest field feeds it.

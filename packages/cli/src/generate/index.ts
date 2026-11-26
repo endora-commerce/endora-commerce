@@ -82,6 +82,13 @@ import {
 } from '../lib/module-packages.js';
 import { DIVERGENCE_REMEDIES, type DivergenceFindingKind } from '../lib/divergence.js';
 import {
+  analyzeOverlayBoundary,
+  OVERLAY_BOUNDARY_CLAUSES,
+  overlayBoundaryInputUnder,
+  type OverlayBoundaryClause,
+  type OverlayBoundaryFinding,
+} from '../lib/overlay-boundary.js';
+import {
   movableVersion,
   ownReleaseIndexPath,
   parseReleaseIndex,
@@ -209,6 +216,14 @@ export interface GenerateResult {
    * request that creates it.
    */
   readonly divergence: readonly InstanceDivergence[];
+  /**
+   * Every import between two overlay modules that is not the sanctioned one
+   * (`specs/190-overlay-full-modules/contracts/overlay-ports.md` §2), over every
+   * deployment on disk — the analysis `check:module-boundary` runs in the platform
+   * repository. Reported, and the run exits 1 after writing, as for a divergence
+   * finding.
+   */
+  readonly overlayBoundary: readonly OverlayBoundaryFinding[];
   /**
    * The release modules this run declared (or, on a dry run, would declare)
    * because an installed module needs them — see the file header.
@@ -460,6 +475,14 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
     throw new GenerateHostError(error.message);
   }
 
+  // --- the overlay boundary (`specs/190-overlay-full-modules/` FR-071) --------
+  //
+  // Over the same overlay sources the divergence half reads, and over every
+  // deployment on disk for the same reason: a client's tree holds them all, and an
+  // edge into another deployment is one of the findings. Nothing is written for it;
+  // its findings are printed and refuse the run after the artefacts are on disk.
+  const overlayBoundary = analyzeOverlayBoundary(overlayBoundaryInputUnder(root)).findings;
+
   // No member and no deployment is a workspace this command has anything to do
   // with, and a run that wrote nothing and said it succeeded is the silent green
   // the whole estate refuses. It is a refusal the operator can act on — exit 1 —
@@ -512,6 +535,7 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
     collected,
     swept,
     divergence,
+    overlayBoundary,
     declared: release.declared,
     unlisted: release.unlisted,
     releaseIndexError: release.releaseIndexError,
@@ -745,6 +769,19 @@ export function generateReport(result: GenerateResult): readonly string[] {
       );
     }
   }
+  // After the divergence lines and before the summary of copies, so a finding sits
+  // beside the other findings this run printed.
+  for (const finding of result.overlayBoundary) {
+    lines.push(
+      `[overlay-boundary] ${finding.file}:${String(finding.line)}: overlay module ` +
+        `${finding.importer} imports '${finding.specifier}' from overlay module ` +
+        `${finding.target}${
+          finding.targetDeployment === finding.importerDeployment
+            ? ''
+            : ` of deployment ${finding.targetDeployment}`
+        } — fails ${finding.failed.map((clause) => `[${clause}]`).join(' ')}`,
+    );
+  }
   lines.push(...paletteReport(result.palette));
   if (result.collected !== null) {
     lines.push(
@@ -786,9 +823,19 @@ export function generateReport(result: GenerateResult): readonly string[] {
  * 0 made `pnpm run setup` a green run over a deployment nobody had explained.
  *
  * No ledger and no flag to waive it, for the reason the check has none: every
- * finding is a file the deployment owns and one edit from compliance.
+ * finding is a file the deployment owns and one edit from compliance. The overlay
+ * boundary's findings (FR-071) refuse the run on the same terms — `check:module-boundary`
+ * is their instrument here and has no other in an instance.
  */
 export function generateFindingsRefusal(result: GenerateResult): string | null {
+  const sections = [divergenceFindingsSection(result), overlayBoundarySection(result)].filter(
+    (section): section is string[] => section !== null,
+  );
+  if (sections.length === 0) return null;
+  return [...sections.flat(), 'Fix them and run `pnpm run generate` again.'].join('\n');
+}
+
+function divergenceFindingsSection(result: GenerateResult): string[] | null {
   const findings = result.divergence.flatMap((report) => report.findings);
   const unreadable = result.divergence.flatMap((report) =>
     report.unresolvedDeclaration.map((field) => `${report.deployment}: ${field}`),
@@ -819,8 +866,31 @@ export function generateFindingsRefusal(result: GenerateResult): string | null {
       `    \`decorationOrder\` and \`reasons\` as literals in that file.`,
     );
   }
-  lines.push('Fix them and run `pnpm run generate` again.');
-  return lines.join('\n');
+  return lines;
+}
+
+/**
+ * The overlay boundary's half (FR-071). No waiver, for the reason the divergence half
+ * has none: each finding is one import in the client's own tree, one edit from the
+ * sanctioned shape.
+ */
+function overlayBoundarySection(result: GenerateResult): string[] | null {
+  if (result.overlayBoundary.length === 0) return null;
+  const clauses = [
+    ...new Set(result.overlayBoundary.flatMap((finding) => finding.failed)),
+  ] as OverlayBoundaryClause[];
+  const order = Object.keys(OVERLAY_BOUNDARY_CLAUSES) as OverlayBoundaryClause[];
+  return [
+    `the artefacts ${result.dryRun ? 'would be' : 'were'} written, and the overlay boundary is ` +
+      `not clean: ${String(result.overlayBoundary.length)} import(s) ` +
+      `between overlay modules, each listed above. The one import an overlay module may make ` +
+      `of another is \`import type\` of the sibling's \`ports.ts\`, in the same deployment, ` +
+      `by a module that declares the sibling in its manifest \`dependencies\`. What each ` +
+      `failed clause asks for:`,
+    ...order
+      .filter((clause) => clauses.includes(clause))
+      .flatMap((clause) => [`  [${clause}]`, `    ${OVERLAY_BOUNDARY_CLAUSES[clause]}`]),
+  ];
 }
 
 /**

@@ -15,7 +15,7 @@
  * through the contracts package's own validator, and the whole tree through
  * `endora generate`.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -292,6 +292,88 @@ describe('--entities: the module owns a table (FR-055, T103)', () => {
   });
 });
 
+describe('--ports: the module publishes port types (FR-059, T035)', () => {
+  it('writes ports.ts beside the backend', async () => {
+    const root = instance();
+    const result = await runNewModule({ ...NOTICE, ports: true, cwd: root });
+    expect(filesUnder(result.packageDir)).toEqual([
+      'backend.ts',
+      'i18n/en.json',
+      'i18n/pl.json',
+      'manifest.ts',
+      'ports.ts',
+    ]);
+  });
+
+  it('ports.ts declares the port interface and exports no runtime binding', async () => {
+    const root = instance();
+    const result = await runNewModule({ ...NOTICE, ports: true, cwd: root });
+    const code = codeOf(readFileSync(join(result.packageDir, 'ports.ts'), 'utf8'));
+    expect(code).toContain('export interface StoreNoticeReadPort {');
+    expect(code).toContain('status(): StoreNoticeStatus;');
+    expect(code).not.toMatch(/export\s+(const|let|var|function|class|enum|default)\b/);
+  });
+
+  it('backend.ts provides it through `ctx.di.providePort`, typed by a type-only import', async () => {
+    const root = instance();
+    const result = await runNewModule({ ...NOTICE, ports: true, cwd: root });
+    const code = codeOf(readFileSync(join(result.packageDir, 'backend.ts'), 'utf8'));
+    expect(code).toContain("import type { StoreNoticeReadPort } from './ports.js';");
+    expect(code).toContain('ctx.di.providePort<StoreNoticeReadPort>(');
+    expect(code).toContain("'storeNoticeReadPort',");
+  });
+
+  it('a sibling overlay module may `import type` it, and `generate` has nothing to ask', async () => {
+    const root = instance();
+    await runNewModule({ ...NOTICE, ports: true, cwd: root });
+    await runNewModule({
+      id: 'notice_digest',
+      name: 'Notice digest',
+      description: 'Reads the store notice.',
+      dependencies: ['store_notice'],
+      cwd: root,
+    });
+    const digest = join(root, 'apps', 'acme', 'modules', 'notice_digest', 'backend.ts');
+    writeFileSync(
+      digest,
+      `import type { StoreNoticeReadPort } from '../store_notice/ports.js';\n` +
+        `export type Reader = StoreNoticeReadPort;\n${readFileSync(digest, 'utf8')}`,
+    );
+    // Publishing a port is a divergence from core, and the report asks for its one
+    // sentence — the next step below names the key. Given it, the run is clean.
+    const unexplained = await runGenerate({ cwd: root });
+    expect(unexplained.overlayBoundary).toEqual([]);
+    expect(unexplained.divergence[0]?.findings.map((finding) => finding.detail)).toEqual([
+      expect.stringContaining('port-provided:store_notice:storeNoticeReadPort'),
+    ]);
+    writeFileSync(
+      join(root, 'apps', 'acme', 'divergence.ts'),
+      'export const divergence = { omittedModules: [], decorationOrder: {}, reasons: ' +
+        "{ 'port-provided:store_notice:storeNoticeReadPort': 'The digest reads the notice.' } };\n",
+    );
+    const generated = await runGenerate({ cwd: root });
+    expect(generated.overlayBoundary).toEqual([]);
+    expect(generateFindingsRefusal(generated)).toBeNull();
+  });
+
+  it('the next steps say how a sibling consumes it', async () => {
+    const root = instance();
+    const steps = (await runNewModule({ ...NOTICE, ports: true, cwd: root })).nextSteps.join('\n');
+    expect(steps).toContain("import type { StoreNoticeReadPort } from '../store_notice/ports.js'");
+    expect(steps).toContain("lazyPort<StoreNoticeReadPort>(ctx, 'storeNoticeReadPort')");
+    expect(steps).toContain('dependencies');
+    expect(steps).toContain("reasons['port-provided:store_notice:storeNoticeReadPort']");
+    expect(steps).not.toContain('so the run is clean');
+  });
+
+  it('a dry run reports ports.ts and writes nothing', async () => {
+    const root = instance();
+    const result = await runNewModule({ ...NOTICE, ports: true, cwd: root, dryRun: true });
+    expect(result.files.map((file) => file.path)).toContain('ports.ts');
+    expect(existsSync(result.packageDir)).toBe(false);
+  });
+});
+
 describe('which deployment', () => {
   it('is the one directory under `apps/` when `.env` names none', async () => {
     const root = instance({ env: null });
@@ -327,7 +409,6 @@ describe('which deployment', () => {
 
 describe('what an overlay module cannot be is refused before anything is written', () => {
   const refused: ReadonlyArray<readonly [string, Partial<NewModuleOptions>, string]> = [
-    ['--ports', { ports: true }, 'module package'],
     ['--worker', { worker: true }, 'ctx.worker'],
     ['--subscriber', { subscriber: true }, 'ctx.subscribe'],
     ['--dir', { dir: 'somewhere' }, 'apps/acme/modules'],
