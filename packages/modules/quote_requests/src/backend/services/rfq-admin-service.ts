@@ -881,9 +881,12 @@ export class RfqAdminService {
     ctx: AdminContext,
     body: AdminCreateQuoteRequest,
   ): Promise<RfqDto> {
+    // `specs/192-quote-request-draft-share/` (FR-005) — the new quote is
+    // unshared and records nothing for its customer, so nothing is kicked;
+    // `share` kicks the `prepared` delivery.
     const rfq = await this.runWrite(
       makeCreateOnBehalfCommand(this.deps, { operator: RfqAdminService.operatorOf(ctx), body }),
-      { notifies: true },
+      { notifies: false },
     );
     return this.deps.rfqService.serializeFull(this.deps.emFactory(), rfq, true);
   }
