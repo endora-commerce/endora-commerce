@@ -5,6 +5,7 @@ import type {
   ModuleRecentActivity,
   ModuleUninstallHook,
 } from '@endora-commerce/contracts';
+import { resolveEntityExtensions } from '../../kernel/entity-extensions/declarations.js';
 import { ModuleDepGraph } from './dep-graph.js';
 import { collectLifecycleParticipants } from './manifest-loader.js';
 import type { LoadedManifestRegistry, LoadedModuleEntry } from './manifest-loader.js';
@@ -51,6 +52,8 @@ export interface StaticRegistryEntry {
   recentActivity?: ModuleRecentActivity | undefined;
   /** Optional source-file path for diagnostics; defaults to `'<static>'`. */
   filePath?: string | undefined;
+  /** Where the entry came from, when the caller knows — carried into side-table diagnostics only. */
+  origin?: 'core' | 'package' | 'overlay' | undefined;
 }
 
 export function buildStaticRegistry(
@@ -73,6 +76,18 @@ export function buildStaticRegistry(
       ...(e.recentActivity ? { recentActivity: e.recentActivity } : {}),
     });
   }
+  // `specs/187-side-table-extensions/` FR-004 (T028) — the static side-table
+  // rules over the registry every `module:*` command builds, so an arriving
+  // package whose host owner is not in its closure is refused here — exit 65,
+  // before any resource opens and so before any migration runs.
+  resolveEntityExtensions(
+    entries.map((e) => ({
+      moduleId: e.manifest.id,
+      origin: e.origin ?? 'package',
+      dependencies: e.manifest.dependencies ?? [],
+      extends: e.manifest.extends,
+    })),
+  );
   // Orphan deps: per research §R7, BOOT IS TOLERANT — modules whose
   // dependencies haven't been retrofitted yet (Pass B is a separate
   // feature) are accepted with a warning. The orchestrator's install/

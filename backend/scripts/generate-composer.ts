@@ -1779,6 +1779,9 @@ export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): str
     { readonly specifier: string; readonly className: string; readonly file: string }
   >();
   const emitted = new Set<string>();
+  // `specs/187-side-table-extensions/` R-4 — which module contributes each
+  // package's entities, for the side-table rules' ownership question (M2, U1).
+  const owners: string[] = [];
   let needsEntityClassLike = false;
 
   for (const entity of entities) {
@@ -1823,6 +1826,7 @@ export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): str
     // `package-runtime.ts` then agree on one type for a package's entities, and
     // the application's own classes keep their precise ones.
     listed.push(`  ...(${binding} as readonly EntityClassLike[]),`);
+    owners.push(`  ['${entity.owner.moduleId}', ${binding} as readonly EntityClassLike[]],`);
   }
 
   const typeImport = needsEntityClassLike
@@ -1835,6 +1839,15 @@ ${typeImport}${importLines.join('\n')}
 export const ALL_ENTITIES = [
 ${listed.join('\n')}
 ] as const;
+
+/**
+ * Which module contributes each module package's entities — the owner of the
+ * tables they map (\`specs/187-side-table-extensions/\` M2, U1). The classes the
+ * application tree names one by one are the platform's and belong to no module.
+ */
+export const ENTITY_OWNERS: ReadonlyArray<readonly [moduleId: string, entities: readonly (new (...args: never[]) => object)[]]> = [
+${owners.join('\n')}
+];
 `;
 }
 

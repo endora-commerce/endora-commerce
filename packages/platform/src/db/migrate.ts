@@ -9,6 +9,23 @@ import { schemaExtensionMigrationName } from './schema-extension-migration.js';
 import { GENERATED_STAMP } from './migration-order.js';
 import { verifySchemaExtensions, type SchemaExtensionExec } from './schema-extension-verifier.js';
 import { platformLogger } from '../kernel/logging.js';
+import {
+  activeEntityExtensionContext,
+  type EntityExtensionContext,
+} from '../kernel/entity-extensions/context.js';
+import {
+  ENTITY_EXTENSION_UNDECLARED_POLICY,
+  verifyEntityExtensions,
+  type EntityExtensionUndeclaredPolicy,
+} from './entity-extension-verifier.js';
+
+/** The side-table half of a verified run (`specs/187-side-table-extensions/` FR-021). */
+export interface EntityExtensionMigrateOptions {
+  /** Defaults to what the ORM configuration of this process recorded. */
+  readonly context?: EntityExtensionContext;
+  /** Defaults to `ENTITY_EXTENSION_UNDECLARED_POLICY`; a test injects `refuse`. */
+  readonly policy?: EntityExtensionUndeclaredPolicy;
+}
 
 /**
  * `migrate up`, verified (`specs/178-extensible-columns/` FR-025, research R-6).
@@ -46,13 +63,25 @@ import { platformLogger } from '../kernel/logging.js';
  * With no declaration and nothing of the kind to clean up it is a bare
  * `migrator.up()`: a deployment that declares nothing migrates exactly as it did
  * before the feature.
+ *
+ * **Side tables** (`specs/187-side-table-extensions/` FR-021, FR-023): the
+ * side-table verifier runs after D2's, on the same transaction, so a migration
+ * that drops a declared side table's cascade rolls the whole run back. With no
+ * side table declared and the undeclared policy at `warn`, nothing it finds can
+ * refuse the run, so the bare path stays bare and the one catalog query runs
+ * after it, for its warnings alone.
  */
 export async function migrateUpVerified(
   orm: MikroORM,
   context: SchemaExtensionContext = activeSchemaExtensionContext(),
   log?: (message: string) => void,
   info: (message: string) => void = (message) => platformLogger().info({ scope: 'schema-extensions' }, message),
+  sideTables: EntityExtensionMigrateOptions = {},
 ): Promise<MigrationInfo[]> {
+  const entityContext = sideTables.context ?? activeEntityExtensionContext();
+  const policy = sideTables.policy ?? ENTITY_EXTENSION_UNDECLARED_POLICY;
+  const sideTablesCanRefuse = entityContext.extensions.length > 0 || policy === 'refuse';
+  const warn = log ?? ((message: string) => console.warn(message));
   const migrator = orm.migrator;
   const connection = orm.em.getConnection();
   const migrationsTable = (orm.config.get('migrations').tableName ?? 'mikro_orm_migrations').replace(/"/g, '');
@@ -109,7 +138,11 @@ export async function migrateUpVerified(
       state?.ledger && describesThisOrm
         ? await exec()(`select 1 from schema_extensions where ${vanishedWhere} limit 1`, declaringModules)
         : [];
-    if (stale.length === 0 && vanished.length === 0) return migrator.up();
+    if (stale.length === 0 && vanished.length === 0 && !sideTablesCanRefuse) {
+      const applied = await migrator.up();
+      await verifyEntityExtensions(exec(), entityContext, warn, { policy });
+      return applied;
+    }
   }
 
   return connection.transactional(async (trx) => {
@@ -142,6 +175,7 @@ export async function migrateUpVerified(
       }
     }
     await verifySchemaExtensions(run, context, log);
+    await verifyEntityExtensions(run, entityContext, warn, { policy });
     return applied;
   });
 }

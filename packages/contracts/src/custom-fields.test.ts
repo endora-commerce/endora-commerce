@@ -388,7 +388,31 @@ describe('CUSTOM_FIELD_HOST_BINDINGS', () => {
       table: 'products',
       valueColumn: 'attribute_values',
       ownerModuleId: 'catalog',
+      entityClassName: 'Product',
       aggregatePort: 'catalogProductCommandPort',
+    });
+  });
+
+  /**
+   * `specs/187-side-table-extensions/contracts/entity-extension-declaration.md`
+   * §2 (FR-003) — the class name of the entity mapping each host table, so a
+   * side-table declaration names its host as `<ownerModuleId>.<EntityClassName>`.
+   * Metadata rule M0 holds these to the discovered entities at every ORM
+   * initialisation.
+   */
+  it('names the entity class that maps each host table (187 T006)', () => {
+    expect(
+      Object.fromEntries(Object.entries(cf.CUSTOM_FIELD_HOST_BINDINGS).map(([type, b]) => [type, b.entityClassName])),
+    ).toEqual({
+      organization: 'Organization',
+      customer: 'CustomerAccount',
+      order: 'Order',
+      quote_request: 'QuoteRequest',
+      product: 'Product',
+      category: 'Category',
+      opportunity: 'CrmOpportunity',
+      project: 'Project',
+      task: 'Task',
     });
   });
 

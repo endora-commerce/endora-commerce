@@ -20,6 +20,7 @@ import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.e
 import type { AdminReach } from './admin-reach.js';
 import { crmNotificationText, tellAfterCommit, type CrmNotifier } from './crm-notifier.js';
 import { newlyMentioned, type MentionService, type SavedMentions } from './mention-service.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
 import { storedReferencesOf, type ReferenceService, type ReferenceSource } from './reference-service.js';
@@ -290,12 +291,22 @@ export class OpportunityCommentService {
     return { unreadMessageCount: await this.unreadMessageCount(opportunity.id) };
   }
 
-  async add(opportunityId: string, input: CreateOpportunityCommentRequest): Promise<OpportunityComment> {
+  /**
+   * `crm.opportunity.note_add` / `.message_add` — `POST …/comments` and
+   * `opportunityCommandPort.addComment`; `caller` is the port's `source` and
+   * `extensions`, absent on the route. The author is the ambient
+   * administrator, so with none it is refused 403 (research R-21.3).
+   */
+  async add(
+    opportunityId: string,
+    input: CreateOpportunityCommentRequest,
+    caller: CallerOptions = {},
+  ): Promise<OpportunityComment> {
     const author = this.#author();
     // The parent first: an Opportunity the caller cannot see is a 404.
     await loadOpportunity(this.deps.emFactory(), opportunityId);
 
-    const written = await this.deps.commandBus.run({
+    const written = await this.deps.commandBus.run(withCallerOptions({
       action: input.kind === 'note' ? 'crm.opportunity.note_add' : 'crm.opportunity.message_add',
       objectType: 'crm_opportunity',
       objectId: opportunityId,
@@ -331,7 +342,7 @@ export class OpportunityCommentService {
           },
         };
       },
-    });
+    }, caller));
 
     // After the commit: the message exists whatever becomes of the bell. The
     // entry says that there is a message and on which Opportunity, by number —

@@ -49,6 +49,7 @@ import {
   type ModuleIdClaimOrigin,
 } from './services/module-id-claims.js';
 import { platformResidentManifestEntries } from './resident.js';
+import { resolveEntityExtensions } from '../kernel/entity-extensions/declarations.js';
 
 /**
  * One entry of the host's generated manifest index, as this derivation reads it.
@@ -381,5 +382,25 @@ export async function resolveManifestEntries(
       ...optionalExports(found),
     });
   }
-  return [...byId.values()];
+  const resolved = [...byId.values()];
+  // `specs/187-side-table-extensions/` FR-002 – FR-005 — the static side-table
+  // rules (E2 – E4) need the whole composition: which hosts exist, who owns
+  // them, and each declaring module's dependency closure. Asked here, over the
+  // resolved set, so the lifecycle, boot and every `module:*` command refuse a
+  // bad declaration before acting on it, whichever source it came from. A
+  // composition that declares nothing reads only the absent fields.
+  assertEntityExtensionsOf(resolved);
+  return resolved;
+}
+
+/** E1 – E5 over a resolved manifest set; throws `EntityExtensionInvalidError`. */
+export function assertEntityExtensionsOf(entries: readonly RegisteredManifestEntry[]): void {
+  resolveEntityExtensions(
+    entries.map((entry) => ({
+      moduleId: entry.manifest.id,
+      origin: entry.origin,
+      dependencies: entry.manifest.dependencies ?? [],
+      extends: entry.manifest.extends,
+    })),
+  );
 }
