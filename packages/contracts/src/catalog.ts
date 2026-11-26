@@ -3586,13 +3586,19 @@ export interface CategoryMoveInput {
 export interface CatalogCategoryCommandPort {
   /**
    * `category.create` — the admin create. Custom-field values in the input are
-   * validated with the administrator's rules inside the Command.
+   * validated with the administrator's rules inside the Command. The input is
+   * parsed with the admin schema, so a connector moving here from the
+   * deprecated port must send a slug that already passes the kebab-case
+   * pattern (a slug cut to length can end in a hyphen and is refused).
+   * Not atomic with the default sales-channel bind: as on the admin route, the
+   * bind runs after the create commits (issue #1970).
    */
   create(input: CreateCategoryRequest, options?: AggregateCommandOptions): Promise<CatalogCategoryRecord>;
   /**
    * `category.update` — the admin `PATCH`; an absent key is left as it is.
    * `customFieldValues` is a patch merged over the stored bag and validated
-   * with the administrator's rules, as in the admin editor.
+   * with the administrator's rules, as in the admin editor. A slug in the
+   * input must pass the admin schema's kebab-case pattern.
    */
   update(id: string, input: UpdateCategoryInput, options?: AggregateCommandOptions): Promise<CatalogCategoryRecord>;
   /**
