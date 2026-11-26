@@ -6,7 +6,8 @@
  * The platform judges an installed package's migrations at `migrate` time, in
  * an instance, where there is no `typescript` to parse a source with — so this
  * reads the **statement text** the migration hands to `addSql` / `execute`
- * (a knex builder is rendered with `toQuery()` first). It is the second
+ * (a `raw()` fragment or a native query builder is rendered first, its
+ * parameters substituted — `queryText` in `foreign-schema-guard.ts`). It is the second
  * classifier of write targets in the repository: `@endora-commerce/cli`'s
  * `sqlTableAccesses` reads TypeScript sources for `check:module-boundary`.
  * `backend/test/unit/db/sql-write-targets-parity.test.ts` holds the two equal

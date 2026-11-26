@@ -11,6 +11,7 @@ import {
 import { customFieldCarrySkipSchema, customFieldValuesSchema } from './custom-fields.js';
 import { fourDecimalUnitPrice } from './money-input.js';
 import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
+import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
 
 /**
  * Quote Requests (RFQ) module contracts — feature 008 workflow rewrite.
@@ -865,11 +866,15 @@ export const RFQ_CREATED_BY_ADMIN_EVENT = 'rfq.created_by_admin.v1';
  * create path, after its rows are written; a customer's own submission is
  * `rfq.created.v1` and never this. `origin` is what the create request
  * carried, or `null`.
+ *
+ * `adminUserId` is the administrator who created it — `null` since issue #1824
+ * when `quoteRequestCommandPort.create` ran with no administrator present (a
+ * worker under `withSystemScope`).
  */
 export interface RfqCreatedByAdminEventPayload {
   rfqId: string;
   organizationId: string;
-  adminUserId: string;
+  adminUserId: string | null;
   origin: OriginReference | null;
 }
 
@@ -1206,6 +1211,127 @@ export interface QuoteRequestReadPort {
    * Added for issue #457, beside {@link findByIds}.
    */
   amountsOf(quoteRequestIds: readonly string[]): Promise<Map<string, QuoteRequestAmount>>;
+}
+
+/**
+ * Container name: `quoteRequestCommandPort`. Owner: `quote_requests`
+ * (`specs/186-aggregate-ports/`, D-293, issue #1824).
+ *
+ * The QuoteRequest aggregate's write port: each method runs one audited
+ * Command, the one the admin route for the same operation runs, with the
+ * ambient actor — an administrator inside an admin request (or under
+ * `withSystemScopeActingFor`), the `system` actor under `withSystemScope` in a
+ * worker. **No permission is checked** — the caller is the gate; never resolve
+ * it for a customer-facing route. Call it after your own commit: each call is a
+ * transaction of its own.
+ *
+ * What the route does beside its write happens here too, exactly once: the
+ * history entry, the revision, the buyer's and the team's notification records
+ * and their delivery, and the domain event (`rfq.created_by_admin.v1`,
+ * `rfq.modified.v1`, `rfq.approved.v1`, `rfq.canceled.v1`) dispatched on
+ * commit.
+ *
+ * **Inputs and refusals are the admin route's.** Each input is the body the
+ * route validates, parsed here with the same schema — an invalid one throws
+ * the validation error the route answers `400 VALIDATION_FAILED` with — and
+ * each refusal is the route's `HttpError` with its `code`: `404 NOT_FOUND` for
+ * an unknown, malformed or out-of-reach id, `409 RFQ_NOT_QUOTED` for a status
+ * the operation does not apply to, `409 VERSION_CONFLICT`, and the create's and
+ * update's own (`422 CUSTOM_FIELD_VALUE_INVALID`, `409 PRODUCT_ARCHIVED`,
+ * `422 RFQ_SALES_CHANNEL_NOT_ALLOWED`, …).
+ *
+ * **Options** ({@link AggregateCommandOptions}): `expectedVersion` is honoured
+ * by every method that changes the request — `update`, `approve` and `cancel`,
+ * whose routes read `If-Match`, and `assign` and `setCustomFieldValues`;
+ * `create` has no version to compare and `sendDocument` never touches the
+ * offer, so both ignore it. `source` is recorded on the audit entry beside the
+ * actor. `extensions` reaches the command hooks of the action; none of these
+ * actions is declared hookable (the module's one hookable action is the
+ * buyer's `quote_request.create`, issue #1906, which this port does not run),
+ * so any key is refused `422 COMMAND_EXTENSION_UNCLAIMED` before anything is
+ * written.
+ *
+ * **Not offered, deliberately**: `resubmit`, `acceptRevision`,
+ * `rejectRevision` and `convertToOrder`. They are the buyer's own decisions on
+ * their quote, taken in the storefront, and no server-side caller acts for the
+ * buyer in them (research R-9); a future case adds them additively. Customer
+ * negotiation policy (`quote_request_policy.*`) and the PDF template choice are
+ * configuration, not the aggregate.
+ *
+ * **Owner off:** fails closed — resolving the port throws `ModuleDisabledError`
+ * and the call answers 503 `MODULE_DISABLED`, so nothing half-executes.
+ * `quote_requests` is deactivatable: a consumer declares it in `dependencies`,
+ * or as a `nonBindingDependencies` edge `refuses-without`, and resolves the
+ * port per use with `lazyPort`.
+ */
+export interface QuoteRequestCommandPort {
+  /**
+   * `quote_request.create_on_behalf` — a request prepared for a customer of an
+   * Organization, status `Created from admin`, awaiting the customer's answer.
+   * Raised on `input.salesChannelId`, else on the channel of the ambient
+   * request; with neither (a worker) it is refused
+   * `422 RFQ_SALES_CHANNEL_NOT_ALLOWED` (`no_channel`), so a server-side caller
+   * names the channel. Emits `rfq.created_by_admin.v1`, whose `adminUserId` is
+   * `null` when no administrator was present.
+   */
+  create(input: AdminCreateQuoteRequest, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
+  /**
+   * `quote_request.modify` — the operator's revision of a `Pending` or
+   * `Created from admin` request: lines, prices, groups, note, validity and
+   * custom-field values, as one new revision the customer is asked to accept.
+   * (`quote_request.patch_draft` is the buyer's draft edit; the admin route
+   * never runs it, so neither does this.)
+   */
+  update(id: string, patch: AdminPatchQuoteRequest, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
+  /**
+   * `quote_request.custom_fields.update` — the request's custom-field values
+   * alone, in any status, as the caller's `merge` over the current bag (the
+   * owner does not validate: call `CustomFieldValuePort.validateAndMerge` inside
+   * it). Records no revision and notifies nobody; the entry names the keys that
+   * changed, never their values. A merge that changes nothing writes nothing.
+   */
+  setCustomFieldValues(
+    id: string,
+    merge: CustomFieldMerge,
+    options?: AggregateCommandOptions,
+  ): Promise<QuoteRequestRecord>;
+  /**
+   * `quote_request.assign` — the request's handling administrator; `null`
+   * clears it. Notifies nobody. A named administrator must be active, hold
+   * `rfqs:handle` and reach the request's Organization, else
+   * `422 RFQ_ASSIGNEE_NOT_ELIGIBLE` before anything is written (issue #1906,
+   * the rule `POST /api/v1/admin/quote-requests/:id/assign` applies too).
+   */
+  assign(
+    id: string,
+    input: { adminUserId: string | null },
+    options?: AggregateCommandOptions,
+  ): Promise<QuoteRequestRecord>;
+  /**
+   * `quote_request.approve` — a `Pending` request whose every line is priced
+   * (`409 QUOTE_INCOMPLETE` otherwise). The optional note becomes a history
+   * entry; the buyer is notified.
+   */
+  approve(id: string, input: AdminApproveQuoteRequest, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
+  /**
+   * `quote_request.cancel` — a `Pending` or `Created from admin` request. The
+   * reason is kept on the request and its history entry, never in the audit
+   * entry; the buyer is notified.
+   */
+  cancel(id: string, input: { reason: string | null }, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
+  /**
+   * `quote_request.send_document` — renders the quote PDF and e-mails it to
+   * each recipient, as `POST …/:id/pdf/send` does, and answers what was sent.
+   * Refusals are that route's (`409 QUOTE_REQUEST_PDF_EMAIL_UNAVAILABLE`,
+   * `422 QUOTE_REQUEST_PDF_TOO_LARGE`, `502 QUOTE_REQUEST_PDF_SEND_FAILED`), and
+   * with `document_templates` off it answers 503 `MODULE_DISABLED`. The
+   * per-administrator rate limit belongs to the route and does not apply here.
+   */
+  sendDocument(
+    id: string,
+    input: QuoteRequestPdfSendRequest,
+    options?: AggregateCommandOptions,
+  ): Promise<QuoteRequestPdfSendResult>;
 }
 
 /** Who is asking, on a customer-facing quote path. */

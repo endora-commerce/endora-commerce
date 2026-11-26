@@ -104,7 +104,7 @@ class FakeMigrator {
   applied: string[] = [];
   reverted: string[] = [];
   shouldFailOnDown = false;
-  async getPendingMigrations(): Promise<Array<{ name: string }>> {
+  async getPending(): Promise<Array<{ name: string }>> {
     return this.pending;
   }
   async up(): Promise<Array<{ name: string }>> {
@@ -309,7 +309,7 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
    *
    * The marker is what makes the two cases distinguishable, and every step of
    * the normal body is already safe on a converged database:
-   * `getPendingMigrations()` returns none so the rollback set is empty, the
+   * `getPending()` returns none so the rollback set is empty, the
    * settings reconcile is idempotent, the participants upsert-and-prune, and the
    * hook is idempotent by contract (`module-composition.md` item 9). That is
    * what makes `module:install --all` the command that **repairs** a boot-first

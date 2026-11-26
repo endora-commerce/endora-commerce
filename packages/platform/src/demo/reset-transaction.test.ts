@@ -49,13 +49,15 @@ describe('the reset transaction (issue #143)', () => {
     const statements: string[] = [];
     const acquired: string[] = [];
     let isolation: unknown;
+    // The MikroORM 7 shape (#1866): `getConnection().getNativeClient()` is the
+    // `pg.Pool` kysely draws every connection from.
     const client = {
-      acquireConnection: async () => {
+      connect: async () => {
         acquired.push('connection');
         return {};
       },
     };
-    const original = client.acquireConnection;
+    const original = client.connect;
     const tx = {
       execute: async (statement: string) => {
         statements.push(statement);
@@ -63,7 +65,7 @@ describe('the reset transaction (issue #143)', () => {
       },
     } as unknown as EntityManager;
     const em = {
-      getConnection: () => ({ getKnex: () => ({ client }) }),
+      getConnection: () => ({ getNativeClient: async () => client }),
       transactional: async (
         work: (inner: EntityManager) => Promise<unknown>,
         opts: { isolationLevel?: unknown },
@@ -97,9 +99,9 @@ describe('the reset transaction (issue #143)', () => {
   it('refuses a second connection asked for inside the run, without sending anything', async () => {
     const db = database();
     const refused = await runDemoResetTransaction(db.em, async () => {
-      // What `em.getConnection().execute(…)`, `em.getKnex()` and a fork all
+      // What `em.getConnection().execute(…)`, `em.getKysely()` and a fork all
       // come down to: asking the pool.
-      await db.client.acquireConnection();
+      await db.client.connect();
     }).catch((error: unknown) => error);
     expect(refused).toBeInstanceOf(DemoResetRefusedError);
     expect((refused as Error).message).toMatch(/wrote outside the reset transaction/);
@@ -111,7 +113,7 @@ describe('the reset transaction (issue #143)', () => {
     const db = database();
     await expect(
       runDemoResetTransaction(db.em, async () => {
-        await db.client.acquireConnection().catch(() => undefined);
+        await db.client.connect().catch(() => undefined);
         return 'looks fine';
       }),
     ).rejects.toBeInstanceOf(DemoResetRefusedError);
@@ -123,12 +125,29 @@ describe('the reset transaction (issue #143)', () => {
     const held = new Promise<void>((resolve) => (release = resolve));
     const run = runDemoResetTransaction(db.em, () => held);
     // Another request of the same process, while the reset is running.
-    await db.client.acquireConnection();
+    await db.client.connect();
     release();
     await run;
-    await db.client.acquireConnection();
+    await db.client.connect();
     expect(db.acquired).toHaveLength(2);
-    expect(db.client.acquireConnection).toBe(db.original);
+    expect(db.client.connect).toBe(db.original);
+  });
+
+  it('refuses to start when the connection offers no pool, rather than running unguarded', async () => {
+    // MikroORM 6's path (`getKnex().client`) finds nothing on 7; a guard that
+    // skipped a missing pool would be inert without a word.
+    const db = database();
+    const ran: string[] = [];
+    const v6Shaped = {
+      ...(db.em as unknown as Record<string, unknown>),
+      getConnection: () => ({ getKnex: () => ({ client: db.client }) }),
+    } as unknown as EntityManager;
+    const refused = await runDemoResetTransaction(v6Shaped, async () => void ran.push('body')).catch(
+      (error: unknown) => error,
+    );
+    expect(refused).toBeInstanceOf(Error);
+    expect((refused as Error).message).toMatch(/no connection pool to guard/);
+    expect(ran).toEqual([]);
   });
 
   it('presents a foreign-key refusal as a refusal: what refused, and that nothing changed', async () => {

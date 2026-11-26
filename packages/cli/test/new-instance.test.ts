@@ -862,7 +862,9 @@ describe('the tree (§1, §2)', () => {
     const plan = planInstance(planInput());
     const content = (path: string): string => plan.files.find((file) => file.path === path)!.content;
     for (const path of ['backend/src/index.ts', 'backend/src/worker.ts']) {
-      expect(content(path), path).toContain('await composeApp({ deploymentRoot }).catch(exitOnRefusal);');
+      expect(content(path), path).toContain(
+        'await composeApp({ deploymentRoot, deploymentSourceRoot }).catch(exitOnRefusal);',
+      );
       expect(content(path), path).toMatch(/import \{[^}]*\bexitOnRefusal\b[^}]*\} from '@endora-commerce\/platform\/composition';/);
     }
     const migrate = content('backend/src/migrate.ts');
@@ -1141,6 +1143,30 @@ describe('the tree (§1, §2)', () => {
         expect(command, `${file.path} script \`${name}\``).not.toMatch(/(^|[\s;&|])mikro-orm\s/);
       }
     }
+  });
+
+  /**
+   * Issue #1866 — `@mikro-orm/decorators/legacy` imports `reflect-metadata` at
+   * module load, through its `ReflectMetadataProvider` re-export, while its own
+   * manifest marks that peer optional. An instance that declares the decorators
+   * and not `reflect-metadata` fails the first import of the platform's kernel
+   * (`Cannot find package 'reflect-metadata'`), so the instance root declares it,
+   * at the range the platform's peer names.
+   */
+  it('#1866 — the instance root declares reflect-metadata at the platform\'s range', () => {
+    const written = new Map(
+      devDependenciesFor(
+        planInput({
+          declaredRanges: new Map([
+            ['@mikro-orm/core', '^7.2.11'],
+            ['@mikro-orm/decorators', '^7.2.11'],
+            ['reflect-metadata', '^0.2.2'],
+          ]),
+        }),
+      ),
+    );
+    expect(written.get('@mikro-orm/decorators')).toBe('^7.2.11');
+    expect(written.get('reflect-metadata')).toBe('^0.2.2');
   });
 
   it('R2.5a — the four peer ranges are the platform\'s own, not this command\'s', () => {

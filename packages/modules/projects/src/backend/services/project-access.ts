@@ -94,7 +94,9 @@ export const PROJECT_ACCESS_READERS: Readonly<Record<string, string>> = {
     'same `null` to `projectReadPort.findByRecord`.',
   'services/comment-service.ts':
     'Every read and write starts from `loadVisible`; comments, Members and read markers are read by ' +
-    'that Project’s id only, and every person told is asked `canSeeAs` first.',
+    'that Project’s id only, and every person told is asked `canSeeAs` first. The notes listing of ' +
+    '`projectReadPort` (issue #1905) is one statement over `projects p` carrying `visibleProjectSql`, ' +
+    'reading comments and Organizations only joined to, or keyed by, the Projects it selects.',
   'services/attachment-service.ts':
     'Every read and write starts from `loadVisible`; attachments are read by that Project’s id. Which ' +
     'Projects hold a file is read by asset only to ask `visibleIds` of them, and answers nothing but ' +

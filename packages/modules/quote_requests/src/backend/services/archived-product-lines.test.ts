@@ -44,6 +44,14 @@ const CUSTOMER_ID = '00000000-0000-4000-8000-0000000000c1';
 const CHANNEL_ID = '00000000-0000-4000-8000-0000000000d1';
 const channelMembership = { listChannelsForEntity: async () => [{ id: CHANNEL_ID, active: true }] };
 
+/** A bus that runs a Command's `run` on `em` and answers its result (the create is a Command, issue #1824). */
+function inlineCommandBus(em: unknown) {
+  return {
+    run: async <T>(command: { run: (ctx: never) => Promise<{ result: T }> }) =>
+      (await command.run({ em, actor: { actorAdminUserId: null, impersonatedCustomerAccountId: null, kind: 'system' } } as never)).result,
+  };
+}
+
 function record(id: string, archivedAt: Date | null) {
   return {
     id,
@@ -79,6 +87,7 @@ describe('163 P-3 — a quote request refuses an archived product', () => {
     const service = new RfqAdminService({
       channelMembership,
       emFactory: () => ({ create, persist: vi.fn(() => ({ flush: async () => undefined })) }),
+      commandBus: inlineCommandBus({ create, persist: vi.fn(() => ({ flush: async () => undefined })) }),
       customerAccounts: { findById: async () => ({ id: CUSTOMER_ID, organizationId: ORG_ID }) },
       catalogProducts: { findByIds },
       rfqService: { generateBusinessId },
@@ -108,6 +117,7 @@ describe('163 P-3 — a quote request refuses an archived product', () => {
     const service = new RfqAdminService({
       channelMembership,
       emFactory: () => ({}),
+      commandBus: inlineCommandBus({}),
       customerAccounts: { findById: async () => ({ id: CUSTOMER_ID, organizationId: ORG_ID }) },
       catalogProducts: { findByIds: async () => [] },
       rfqService: { generateBusinessId },
@@ -131,6 +141,7 @@ describe('163 P-3 — a quote request refuses an archived product', () => {
     const service = new RfqAdminService({
       channelMembership,
       emFactory: () => ({}),
+      commandBus: inlineCommandBus({}),
       customerAccounts: { findById: async () => ({ id: CUSTOMER_ID, organizationId: ORG_ID }) },
       catalogProducts: { findByIds },
       rfqService: { generateBusinessId },

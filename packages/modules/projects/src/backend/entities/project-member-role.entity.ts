@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey } from '@mikro-orm/core';
+import { Entity, PrimaryKey } from '@mikro-orm/decorators/legacy';
 import { RuleScoped } from '@endora-commerce/platform/tenancy';
 
 /** A Project Role a Member holds on their Project — zero or more per Member (FR-008). */

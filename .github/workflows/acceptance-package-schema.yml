@@ -1,0 +1,133 @@
+# `acceptance:package-schema` on GitHub Actions — the acceptance criterion for
+# "a package can ship schema" (feature 080, D-110).
+#
+# The port of `.gitlab-ci.yml`'s `acceptance:package-schema`. The paragraph above
+# that job carries the reasoning — why the run has to leave the monorepo, why the
+# trigger list is the set of inputs that can change the answer, and why it is a
+# ratchet over `backend/acceptance/expected-state.json` — and it is not copied
+# here. `backend/test/unit/ci/actions-tranche-one-parity.test.ts` holds this file
+# equal to that job in what it runs and in when it runs.
+#
+# ## Why it is here
+#
+# Nothing ran it since GitLab stopped creating pipelines. Measured before the
+# port, on `master` (c3e8a875) and on the MikroORM 7 branch (#1910): 11 of 11,
+# no drift against the record — so the first run here starts from a record a
+# clean tree reproduces. `acceptance-instance.yml` is its sibling and the
+# arrangement below is that file's.
+#
+# ## Services, and the addresses the criterion reads
+#
+# Postgres, Redis and Meilisearch are service containers on the runner's
+# loopback, as `backend-suite.yml` arranges them; GitLab's job named the same
+# three. `PUBLIC_API_BASE_URL` is GitLab's value: the criterion boots the
+# composed platform there. The database name must satisfy the disposable-name
+# convention `(^|_)test(_|$)`: the criterion drops and re-creates it.
+#
+# ## When it runs
+#
+# GitLab's two rules: every push to `master`, unfiltered, and a pull request that
+# touches GitLab's `changes:` list with `.gitlab-ci.yml` replaced by this file.
+# Not a required check: a skipped workflow reports no status, so a required one
+# would block every pull request outside the filter.
+
+name: acceptance-package-schema
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'backend/scripts/generate-composer.ts'
+      - 'backend/src/db/migrations-registry.generated.ts'
+      - 'backend/src/db/entities-registry.generated.ts'
+      - 'backend/src/db/configured-migrations.ts'
+      - 'packages/platform/src/db/**/*'
+      - 'packages/platform/src/migrations/**/*'
+      - '**/package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'backend/src/composition.ts'
+      - 'backend/src/overlay/**/*'
+      - 'backend/src/lifecycle/**/*'
+      - 'backend/src/manifest-index.generated.ts'
+      - 'backend/src/manifest-locations.ts'
+      - 'backend/src/apps/**/*'
+      - 'backend/acceptance/**/*'
+      - 'backend/scripts/acceptance/**/*'
+      - '.github/workflows/acceptance-package-schema.yml'
+  push:
+    branches: [master]
+
+concurrency:
+  group: acceptance-package-schema-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance-package-schema:
+    name: acceptance:package-schema
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: b2b
+          POSTGRES_PASSWORD: b2b
+          POSTGRES_DB: b2b
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U b2b -d b2b"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      meilisearch:
+        image: getmeili/meilisearch:v1.11
+        env:
+          MEILI_MASTER_KEY: devMasterKeyChangeMe
+          MEILI_ENV: development
+          MEILI_NO_ANALYTICS: 'true'
+        ports:
+          - 7700:7700
+        # 127.0.0.1, not localhost: see the same check in `docker-compose.yml`.
+        options: >-
+          --health-cmd "wget --quiet --spider http://127.0.0.1:7700/health"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      ACCEPTANCE_DATABASE_URL: postgresql://b2b:b2b@localhost:5432/b2b_acceptance_test
+      REDIS_URL: redis://localhost:6379
+      MEILISEARCH_URL: http://localhost:7700
+      MEILISEARCH_API_KEY: devMasterKeyChangeMe
+      PUBLIC_API_BASE_URL: http://localhost:3001
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      # actions/cache v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      # The criterion packs its fixture package and composes the built platform.
+      - run: pnpm run build:packages
+      - run: pnpm --filter backend run acceptance:package-schema:ci

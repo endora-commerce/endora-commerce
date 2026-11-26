@@ -56,3 +56,28 @@ describe('overlay-roots — the deployments shipped in this checkout (#120)', ()
     }
   });
 });
+
+/**
+ * `specs/190-overlay-full-modules/` T019 (FR-016): the compiled backend (`backend/dist`) hands
+ * `backend/src` as the source root the freshness guard judges it against, when that directory
+ * exists; run from sources (`tsx`, `backend/src`) the source root is the deployment root.
+ */
+describe('overlay-roots — the source root (T019)', () => {
+  it('is the deployment root itself when run from sources', async () => {
+    const { deploymentRoot, deploymentSourceRoot } = await import('../../src/overlay/overlay-roots.js');
+    expect(deploymentSourceRoot()).toBe(deploymentRoot());
+  });
+
+  it('is backend/src beside a compiled backend/dist, when it exists', async () => {
+    const { sourceRootFor } = await import('../../src/overlay/overlay-roots.js');
+    const { mkdtempSync, mkdirSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const backend = mkdtempSync(join(tmpdir(), 'backend-'));
+    mkdirSync(join(backend, 'dist'));
+    expect(sourceRootFor(join(backend, 'dist'))).toBeUndefined();
+    mkdirSync(join(backend, 'src'));
+    expect(sourceRootFor(join(backend, 'dist'))).toBe(join(backend, 'src'));
+    expect(sourceRootFor(join(backend, 'src'))).toBe(join(backend, 'src'));
+  });
+});

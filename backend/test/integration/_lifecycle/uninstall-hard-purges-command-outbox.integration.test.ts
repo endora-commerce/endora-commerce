@@ -36,8 +36,8 @@ function stubMigrator(): IMigrator {
   return {
     down: async () => [],
     up: async () => [],
-    getPendingMigrations: async () => [],
-    getExecutedMigrations: async () => [],
+    getPending: async () => [],
+    getExecuted: async () => [],
   } as unknown as IMigrator;
 }
 

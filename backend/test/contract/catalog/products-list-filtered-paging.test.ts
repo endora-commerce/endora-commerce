@@ -1,4 +1,4 @@
-import { RawQueryFragment, raw } from '@mikro-orm/core';
+import { rawFragmentReferences } from '../../helpers/raw-fragments.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { isProductVisibleTo, type ProductAudience } from '@endora-commerce/contracts';
 import {
@@ -621,18 +621,15 @@ describe('GET /api/v1/catalog/products — a page is cut from the rows that matc
   });
 
   it('holds no query fragment after a request, whichever way the request ended', async () => {
-    // MikroORM registers a `raw()` fragment process-wide when it is used as a
-    // key and releases it when a statement consumes it. One created on a path
-    // that returns without querying is therefore held for the life of the
-    // process — and the unknown-category answer above is such a path, open to
-    // any anonymous caller. `checkCacheSize` is the ORM's own instrument for
-    // exactly this.
-    const probe = String(raw('select 151'));
-    const withProbe = RawQueryFragment.checkCacheSize();
-    RawQueryFragment.remove(probe);
-    expect(RawQueryFragment.checkCacheSize(), 'the instrument counts a held fragment').toBe(
-      withProbe - 1,
-    );
+    // MikroORM 6 registered a `raw()` fragment process-wide when it was used as
+    // a key and released it only when a statement consumed it, so one created
+    // on a path that returns without querying — the unknown-category answer
+    // above, open to any anonymous caller — was held for the life of the
+    // process, and `checkCacheSize` counted it. MikroORM 7 (#1866) keeps the
+    // back-reference in a `WeakMap` keyed by the fragment's symbol, so an
+    // unconsumed fragment is collected with its key: there is no cache left to
+    // grow. What is held is that the registry stays weak, over every path.
+    expect(rawFragmentReferences(), 'the fragment registry is weak').toBeInstanceOf(WeakMap);
 
     const requests = [
       'filter%5Bcategory%5D=i151-no-such-category',
@@ -641,7 +638,6 @@ describe('GET /api/v1/catalog/products — a page is cut from the rows that matc
       'filter%5Battr.material%5D=steel',
       '',
     ];
-    const before = RawQueryFragment.checkCacheSize();
     for (let round = 0; round < 10; round++) {
       for (const query of requests) {
         for (const viewer of AUDIENCES) {
@@ -655,6 +651,6 @@ describe('GET /api/v1/catalog/products — a page is cut from the rows that matc
         }
       }
     }
-    expect(RawQueryFragment.checkCacheSize()).toBe(before);
+    expect(rawFragmentReferences()).toBeInstanceOf(WeakMap);
   });
 });

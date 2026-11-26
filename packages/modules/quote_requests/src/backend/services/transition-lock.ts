@@ -50,24 +50,34 @@ export async function underRowLock<T>(
   change: () => Promise<T>,
 ): Promise<T> {
   return inTransaction(em, async () => {
-    const rows = await em.execute<Array<{ version: number | string }>>(
-      `select "version" from "quote_requests" where "id" = ? for update`,
-      [rfq.id],
-    );
-    if (rows.length !== 1 || Number(rows[0]!.version) !== rfq.version) {
-      throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'Quote Request was updated concurrently.');
-    }
+    await lockUnchangedRow(em, rfq);
     return change();
   });
+}
+
+/**
+ * Steps 1 and 2 of {@link underRowLock} on a transaction the caller already
+ * holds — a Command's, whose `em` the Command Bus opened (issue #1824): take
+ * the row `for update` and refuse with `VERSION_CONFLICT` when its `version`
+ * is no longer the one `rfq` was read at.
+ */
+export async function lockUnchangedRow(em: EntityManager, rfq: QuoteRequest): Promise<void> {
+  const rows = await em.execute<Array<{ version: number | string }>>(
+    `select "version" from "quote_requests" where "id" = ? for update`,
+    [rfq.id],
+  );
+  if (rows.length !== 1 || Number(rows[0]!.version) !== rfq.version) {
+    throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'Quote Request was updated concurrently.');
+  }
 }
 
 /**
  * Run `change` in one transaction on `em` itself — no fork, so the entities the
  * caller holds are the ones written — and commit, or roll back and re-throw.
  *
- * For a write with no row to lock yet: a new request (`createForCustomer`,
- * `resubmit`, `createOnBehalf`), whose row, lines, revision, history entries
- * and notification records commit together.
+ * {@link underRowLock}'s transaction. The writes that create a request — the
+ * buyer's create and resubmit (issue #1906) and the operator's on-behalf create
+ * (issue #1824) — are Commands now, whose transaction the Command Bus opens.
  */
 export async function inTransaction<T>(em: EntityManager, change: () => Promise<T>): Promise<T> {
   await em.begin();

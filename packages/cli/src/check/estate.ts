@@ -586,6 +586,18 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'C',
   },
   {
+    id: 'check:entity-decorators',
+    script: 'backend/scripts/check-entity-decorators.ts',
+    scope: 'package',
+    host: 'built',
+    subjectDeclaration: {
+      kind: 'exports-subpath',
+      declaration: '`exports` subpath publishing backend sources',
+    },
+    readsArtefact: false,
+    tier: 'A',
+  },
+  {
     id: 'check:entry-presence',
     script: 'backend/scripts/check-entry-presence.ts',
     scope: 'package',

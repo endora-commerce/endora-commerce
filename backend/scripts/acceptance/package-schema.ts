@@ -350,7 +350,9 @@ export function installInto(instance: string, spec: string): void {
 function provisionHostPeers(instance: string): void {
   const scoped = join(instance, 'node_modules', '@mikro-orm');
   mkdirSync(scoped, { recursive: true });
-  for (const peer of ['core', 'migrations']) {
+  // `decorators` since MikroORM 7 (#1866): the fixture's entities import
+  // `@mikro-orm/decorators/legacy`, which shares the host's `@mikro-orm/core`.
+  for (const peer of ['core', 'decorators', 'migrations']) {
     const hostCopy = join(BACKEND_ROOT, 'node_modules', '@mikro-orm', peer);
     if (!existsSync(hostCopy)) refuse(`the host has no @mikro-orm/${peer} to supply as a peer`);
     const link = join(scoped, peer);
@@ -383,7 +385,7 @@ function provisionHostPeers(instance: string): void {
   const hostLink = join(hostScope, 'platform');
   if (!existsSync(hostLink)) symlinkSync(hostPackage, hostLink, 'dir');
   notes.push(
-    'host-provided peers: @mikro-orm/core, @mikro-orm/migrations and ' +
+    'host-provided peers: @mikro-orm/core, @mikro-orm/decorators, @mikro-orm/migrations and ' +
       '@endora-commerce/platform are linked from the platform, so package and host share ' +
       'one copy (see installInto for what a second one does)',
   );

@@ -128,7 +128,6 @@ import {
   gusBirConfigurationType,
 } from './registry-lookup/gus-credential.type.js';
 import { GUS_REQUEST_TIMEOUT_MS, GUS_TOTAL_TIMEOUT_MS } from './registry-lookup/limits.js';
-import type { OrganizationEventBus } from './services/registration-service.js';
 import { organizationsModule, type OrganizationsModuleOptions } from './plugin.js';
 import { registerOrganizationsSalesRepRoutes } from './routes.sales-reps.js';
 import { registerRegistryLookupRoutes } from './routes.registry-lookup.js';
@@ -739,11 +738,14 @@ export function registerModule(ctx: ModuleContext): void {
 
     organizationModerationService: ctx
       .asFunction(
-        ({ emFactory, auditLogService, eventBus }: OrganizationsCradle) =>
+        ({ emFactory, commandBus }: OrganizationsCradle) =>
           new OrganizationModerationService(
             emFactory,
-            auditLogService,
-            eventBus as unknown as OrganizationEventBus,
+            // The four transitions are Commands (`specs/186-aggregate-ports/`
+            // T026): the bus records the audit entry in the write's
+            // transaction and dispatches `organization.status_changed.v1` on
+            // the platform event bus once, on commit.
+            commandBus,
             // Every one of these three is another module's gated service and is
             // *stored* by the constructor, so a plain cradle read would freeze
             // a transient gate inside a singleton — it would keep answering

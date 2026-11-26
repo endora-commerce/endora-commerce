@@ -49,6 +49,8 @@ export const QUOTE_REQUEST_AUDIT_KEYS: ReadonlySet<string> = new Set([
   // Price negotiation policy: a boolean and a code.
   'priceProposalsAllowed',
   'override',
+  // Issue #1824 — the integration a `quoteRequestCommandPort` caller named: a code.
+  'source',
 ]);
 
 /**

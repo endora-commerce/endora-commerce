@@ -159,7 +159,7 @@ function buildOrchestrator(
   em = new FakeEm(),
   alsoCovered: readonly string[] = [],
 ) {
-  const migrator = { getPendingMigrations: async () => [], up: async () => [], down: async () => [] };
+  const migrator = { getPending: async () => [], up: async () => [], down: async () => [] };
   return {
     em,
     orchestrator: new ModuleLifecycleOrchestrator({

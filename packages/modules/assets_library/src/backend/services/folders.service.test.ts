@@ -114,7 +114,8 @@ describe('FoldersService.countPermalinkedAssets — the reader’s files only (R
     const [own, exclusion] = where.$and;
     expect(own).toMatchObject({ deletedAt: null, permalink: { $ne: null } });
     // The exclusion travels as one uuid-array parameter (T049).
-    const fragment = RawQueryFragment.getKnownFragment(Object.keys(exclusion ?? {})[0] ?? '', false);
+    // MikroORM 7 (#1866) keys a raw fragment by a symbol, which `Object.keys` skips.
+    const fragment = RawQueryFragment.getKnownFragment(Object.getOwnPropertySymbols(exclusion ?? {})[0]);
     expect(fragment?.sql).toContain('<> all(?::uuid[])');
     expect(fragment?.params).toEqual([`{${HIDDEN_1}}`]);
   });

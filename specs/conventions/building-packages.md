@@ -114,3 +114,14 @@ neither is a `check-*` script, deliberately: a `no-restricted-imports` entry in
 `test/unit/packages/package-dist-build.test.ts` compiles every package's **emitted `dist`** in
 a NodeNext consumer with `skipLibCheck: false` — the only thing that can see the error once it
 is inside a published `.d.ts`, where the author who hits it cannot fix it.
+
+## An instance's overlay code is built, too
+
+Since #1848 the overlay modules under an instance's `apps/` are compiled like a package's sources,
+not loaded by type stripping: `endora build overlays` runs the instance's own
+`tsc -p backend/tsconfig.apps.json` into `backend/dist/apps`, and the compiled entry points refuse
+a tree that no longer matches `apps/`. The rules and the refusals are
+`specs/conventions/overlay-modules.md`'s (*One build, no package in disguise*). The CLI carries the
+one runtime-asset classification (`scripts/lib/runtime-assets.mjs`) into its own `dist` for that
+build, the way it carries the backend supervisor, so the owner and the package build order stay
+where they were.

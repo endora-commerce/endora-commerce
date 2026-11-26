@@ -20,26 +20,26 @@ contract, and rewrites the contract's table with: Command action, readiness (C /
 and every side effect the route performs outside its write (notices, cache invalidation, reindex,
 events). No code change.
 
-- [ ] T001 [P] Inventory Organization operations, including the sales-channel write path through `sales_channels`, in `specs/186-aggregate-ports/contracts/organization-command-port.md`
+- [x] T001 [P] Inventory Organization operations, including the sales-channel write path through `sales_channels`, in `specs/186-aggregate-ports/contracts/organization-command-port.md` — #1821: the sales-channel write is the kernel membership writer (H-post), the sales-rep writes are H-in, seven findings for T019/T028 in § *Inventory findings*
 - [ ] T002 [P] Inventory CustomerAccount operations (`createStandalone`, `updateProfile`, `markEmailVerified` actions and the session revocation on block) in `specs/186-aggregate-ports/contracts/customer-account-command-port.md`
 - [ ] T003 [P] Inventory Order operations (status, payment status, comments, external reference; placement for US11) in `specs/186-aggregate-ports/contracts/order-command-port.md`
-- [ ] T004 [P] Inventory QuoteRequest operations, the send-document route path and whether admin custom-field values ride on `modify`, in `specs/186-aggregate-ports/contracts/quote-request-command-port.md`
+- [x] T004 [P] Inventory QuoteRequest operations, the send-document route path and whether admin custom-field values ride on `modify`, in `specs/186-aggregate-ports/contracts/quote-request-command-port.md` — done with #1824: `update` is `modify` only (`patch_draft` is the buyer's), values ride on `modify`, the path is `/pdf/send`
 - [ ] T005 [P] Inventory Product and Attribute operations, the scoped-values route and the validator a caller uses for attribute values, in `specs/186-aggregate-ports/contracts/catalog-product-command-port.md`
 - [ ] T006 [P] Inventory Project operations and the stage-move route in `specs/186-aggregate-ports/contracts/project-command-port.md`
 - [ ] T007 [P] Inventory Category operations (move, values-only update, the threshold audit split with `inventory`) in `specs/186-aggregate-ports/contracts/catalog-category-command-port.md`
 - [ ] T008 [P] Inventory Opportunity operations in `specs/186-aggregate-ports/contracts/opportunity-command-port.md`
 - [ ] T009 [P] Inventory Task operations (`createMany`, child Commands on `update`, the 8 hand audits) in `specs/186-aggregate-ports/contracts/task-command-port.md`
-- [ ] T010 Record in `specs/186-aggregate-ports/research.md` R-2 any readiness the inventory changed, and any operation it moves in or out of scope (an owner question if it changes FR-020–FR-028)
+- [ ] T010 Record in `specs/186-aggregate-ports/research.md` R-2 any readiness the inventory changed, and any operation it moves in or out of scope (an owner question if it changes FR-020–FR-028) — Organization recorded with #1821 (sales reps H-in, sales channels H-post through the kernel; one owner question for T028); the other eight inventories are open
 
 ---
 
 ## Phase 2: Foundational (blocks every story)
 
-- [ ] T011 [P] Write a failing type test for `AggregateCommandOptions` and `CustomFieldMerge` (`expectTypeOf`) in `packages/contracts/src/aggregate-ports.test.ts`
-- [ ] T012 Add `packages/contracts/src/aggregate-ports.ts` (types per `data-model.md`) and export it from `packages/contracts/src/index.ts`; make `OrganizationCommandPortOptions` an alias in `packages/contracts/src/organizations.ts`
-- [ ] T013 [P] Write a failing test that every `CUSTOM_FIELD_HOST_BINDINGS` entry carries a non-empty `aggregatePort` in `packages/contracts/src/custom-fields.test.ts`
-- [ ] T014 Add `aggregatePort` to each entry of `CUSTOM_FIELD_HOST_BINDINGS` in `packages/contracts/src/custom-fields.ts` (values per `data-model.md`)
-- [ ] T015 [P] Write `backend/test/helpers/aggregate-port-parity.ts`: `expectPortParity({ viaRoute, viaPort })` asserting the same audit action, object type, `stateBefore`/`stateAfter` shape (modulo actor and `source`), the same hooks fired and outbox rows written, and a caller-supplied side-effect probe; with its own test `backend/test/unit/helpers/aggregate-port-parity.test.ts`
+- [x] T011 [P] Write a failing type test for `AggregateCommandOptions` and `CustomFieldMerge` (`expectTypeOf`) in `packages/contracts/src/aggregate-ports.test.ts` — landed with #1824
+- [ ] T012 Add `packages/contracts/src/aggregate-ports.ts` (types per `data-model.md`) and export it from `packages/contracts/src/index.ts`; make `OrganizationCommandPortOptions` an alias in `packages/contracts/src/organizations.ts` — the file and the export landed with #1824 (plus `aggregateCommandSourceSchema`); the `OrganizationCommandPortOptions` alias is left to US1, whose port would otherwise advertise `expectedVersion` and `source` it does not honour
+- [x] T013 [P] Write a failing test that every `CUSTOM_FIELD_HOST_BINDINGS` entry carries a non-empty `aggregatePort` in `packages/contracts/src/custom-fields.test.ts`
+- [x] T014 Add `aggregatePort` to each entry of `CUSTOM_FIELD_HOST_BINDINGS` in `packages/contracts/src/custom-fields.ts` (values per `data-model.md`)
+- [x] T015 [P] Write `backend/test/helpers/aggregate-port-parity.ts`: `expectPortParity({ viaRoute, viaPort })` asserting the same audit action, object type, `stateBefore`/`stateAfter` shape (modulo actor and `source`), the same hooks fired and outbox rows written, and a caller-supplied side-effect probe; with its own test `backend/test/unit/helpers/aggregate-port-parity.test.ts` — #1821: `expectPortParity` plus `observeWrite`, the measurement of one path against PostgreSQL; the test sits in `backend/test/unit/harness/`, beside the other helpers' tests (`bounded-pool.test.ts`)
 - [x] T016 Write the port-per-aggregate rule into `specs/conventions/module-composition.md` as item 2a from `specs/186-aggregate-ports/contracts/aggregate-port-convention.md`, and the server-side-writes paragraph of `specs/conventions/custom-field-writes.md` naming the aggregate ports instead of the two narrow ones — done as a pointer to item 2a (#1820); the list itself is rewritten by T033 and T053, when the two ports exist
 - [x] T017 Create `specs/conventions/contract-surface.md` from `specs/186-aggregate-ports/contracts/contract-surface.md` (sanctioned-break section included), add its one router row to `AGENTS.md` § *Where the rest of it lives*, and run `pnpm --filter backend exec vitest run test/unit/docs/agents-router.test.ts`
 - [x] T018 Add a paragraph on surface stability (OD-4, the deprecation grammar, the comparison inside `check:release-intent --since`, the D-293.7 ledger) to `specs/conventions/release-intent.md`, pointing at `contract-surface.md` rather than restating it
@@ -60,7 +60,7 @@ events). No code change.
 
 ### Tests first (after #1866)
 
-- [ ] T021 [P] [US1] Failing co-located tests for the four moderation Commands (status guard, version conflict, audit inside the transaction, event on commit only, notice after commit) in `packages/modules/organizations/src/backend/commands/approve-organization.command.test.ts`, `reject-…`, `block-…`, `unblock-organization.command.test.ts`
+- [x] T021 [P] [US1] Failing co-located tests for the four moderation Commands (status guard, version conflict, audit inside the transaction, event on commit only, notice after commit) in `packages/modules/organizations/src/backend/commands/approve-organization.command.test.ts`, `reject-…`, `block-…`, `unblock-organization.command.test.ts` — #1821: `approve-organization.command.test.ts` carries the transaction properties (commit failure, optimistic lock, notice order, auto mode); the other three the guard, version and reason handling
 - [ ] T022 [P] [US1] Failing co-located tests for the restriction Commands (`organization.allow_lists_replace`, `organization.allow_list_patch`) and `organization.sales_channels.set` in `packages/modules/organizations/src/backend/commands/`
 - [ ] T023 [P] [US1] Failing parity contract test per method in `backend/test/contract/organizations/organization-command-port.test.ts`
 - [ ] T024 [P] [US1] Failing worker integration test (create under a parent, `setParent` of an existing branch, approve, block/unblock under `withSystemScope` with no administrator; hook veto rolls back; unclaimed extension refused; `source` recorded beside a `system` actor, a malformed `source` refused `VALIDATION_FAILED` with nothing written — D-293.6) in `backend/test/integration/organizations/organization-command-port.worker.test.ts`
@@ -68,7 +68,7 @@ events). No code change.
 
 ### Implementation (after #1866)
 
-- [ ] T026 [US1] Convert approve/reject/block/unblock to Commands in `packages/modules/organizations/src/backend/commands/{approve,reject,block,unblock}-organization.command.ts`; `OrganizationModerationService.transition` runs them and loses its post-commit `auditLogService.record` (`packages/modules/organizations/src/backend/services/organization-moderation-service.ts`); `handleNewlyRegistered` approves through the same Command — **land this first** (unblocks `specs/188-policy-points/`)
+- [x] T026 [US1] Convert approve/reject/block/unblock to Commands in `packages/modules/organizations/src/backend/commands/{approve,reject,block,unblock}-organization.command.ts`; `OrganizationModerationService.transition` runs them and loses its post-commit `auditLogService.record` (`packages/modules/organizations/src/backend/services/organization-moderation-service.ts`); `handleNewlyRegistered` approves through the same Command — **land this first** (unblocks `specs/188-policy-points/`) — #1821: one shared `commands/moderation-transition.ts`; the service now takes the Command Bus instead of the audit port and event bus, and the auto-approval runs under `withSystemScope`; contract test `backend/test/contract/organizations/moderation-commands.contract.test.ts`
 - [ ] T027 [US1] Convert restriction writes to Commands and remove their `recordAuditFromContext` calls in `packages/modules/organizations/src/backend/services/organization-restriction-service.ts`
 - [ ] T028 [US1] Make the sales-channel assignment a Command `organization.sales_channels.set` in `packages/modules/organizations/src/backend/commands/set-sales-channels.command.ts`, writing through `sales_channels`' seam on the Command's transaction (per T001)
 - [ ] T029 [US1] Point every admin route of `contracts/organization-command-port.md` at the shared factories in `packages/modules/organizations/src/backend/routes.admin.ts` and `routes.sales-reps.ts`
@@ -142,13 +142,13 @@ the exit-2 rules, the `--since` / `release-changeset` placement) and `backend/te
 
 ## Phase 7: User Story 5 — QuoteRequest (Priority: P2)
 
-- [ ] T063 [US5] Declare `QuoteRequestCommandPort` in `packages/contracts/src/quote-requests.ts`, with the "not offered" paragraph
-- [ ] T064 [P] [US5] (after #1866) Failing co-located Command tests (create on behalf, patch draft, modify, approve, assign, cancel, custom-field values) in `packages/modules/quote_requests/src/backend/commands/`
-- [ ] T065 [P] [US5] (after #1866) Failing parity test and off-state test (owner off → 503, nothing written) in `backend/test/contract/quote_requests/quote-request-command-port.test.ts`
-- [ ] T066 [P] [US5] (after #1866) Failing worker test (create for a customer and approve) in `backend/test/integration/quote_requests/quote-request-command-port.worker.test.ts`
-- [ ] T067 [US5] (after #1866) Convert the `#audit` writes in `packages/modules/quote_requests/src/backend/services/rfq-admin-service.ts` and `rfq-service.ts` to Commands, removing `#audit` from each converted path (buyer-side paths keep theirs — out of scope)
-- [ ] T068 [US5] (after #1866) Implement and register `packages/modules/quote_requests/src/backend/services/quote-request-command-port.ts`; routes use the factories
-- [ ] T069 [US5] Drain the `quote_request` ledger entry; docs; changesets
+- [x] T063 [US5] Declare `QuoteRequestCommandPort` in `packages/contracts/src/quote-requests.ts`, with the "not offered" paragraph
+- [x] T064 [P] [US5] (after #1866) Failing co-located Command tests (create on behalf, patch draft, modify, approve, assign, cancel, custom-field values) in `packages/modules/quote_requests/src/backend/commands/` — #1824: approve, cancel, assign and custom-field values in `quote-request-admin-commands.test.ts`; create on behalf and modify are measured against Postgres in the T065 parity test; patch draft is the buyer's and not on the port
+- [x] T065 [P] [US5] (after #1866) Failing parity test and off-state test (owner off → 503, nothing written) in `backend/test/contract/quote_requests/quote-request-command-port.test.ts`
+- [x] T066 [P] [US5] (after #1866) Failing worker test (create for a customer and approve) in `backend/test/integration/quote_requests/quote-request-command-port.worker.test.ts`
+- [x] T067 [US5] (after #1866) Convert the `#audit` writes in `packages/modules/quote_requests/src/backend/services/rfq-admin-service.ts` and `rfq-service.ts` to Commands, removing `#audit` from each converted path (buyer-side paths keep theirs — out of scope) — #1824: the five operator writes on the port; every `#audit` of `rfq-service.ts` is buyer-side, and `quote_request.prepare_customer_basket` (an operator write the port does not offer) keeps its hand audit
+- [x] T068 [US5] (after #1866) Implement and register `packages/modules/quote_requests/src/backend/services/quote-request-command-port.ts`; routes use the factories
+- [ ] T069 [US5] Drain the `quote_request` ledger entry; docs; changesets — docs and changesets landed with #1824; the ledger does not exist yet (T042), so there is no entry to drain
 
 ---
 

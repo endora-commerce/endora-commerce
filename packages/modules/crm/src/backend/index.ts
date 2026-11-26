@@ -841,7 +841,11 @@ export function registerModule(ctx: ModuleContext): void {
     crmOpportunityRecords: ctx
       .asFunction(
         ({ emFactory, crmWorkflowReadService }: CrmCradle) =>
-          new OpportunityReadPortService(emFactory, crmWorkflowReadService),
+          new OpportunityReadPortService(
+            emFactory,
+            crmWorkflowReadService,
+            () => ctx.cradle<CrmCradle>().crmOpportunityCommentService,
+          ),
       )
       .singleton(),
     crmReferenceService: ctx
@@ -1081,7 +1085,11 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ emFactory, crmWorkflowReadService }: CrmCradle) =>
-          new OpportunityReadPortService(emFactory, crmWorkflowReadService),
+          new OpportunityReadPortService(
+            emFactory,
+            crmWorkflowReadService,
+            () => ctx.cradle<CrmCradle>().crmOpportunityCommentService,
+          ),
       )
       .singleton(),
   );

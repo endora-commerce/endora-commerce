@@ -201,6 +201,15 @@ export default [
       parserOptions: { projectService: false, project: ['backend/test/tsconfig.json'], tsconfigRootDir: ROOT },
     },
   },
+  // The third backend program (issue #1847): the overlay modules under
+  // `src/apps/**`, which `backend/tsconfig.json` excludes and
+  // `backend/tsconfig.apps.json` type-checks with `erasableSyntaxOnly`.
+  {
+    files: ['backend/src/apps/**/*.ts'],
+    languageOptions: {
+      parserOptions: { projectService: false, project: ['backend/tsconfig.apps.json'], tsconfigRootDir: ROOT },
+    },
+  },
   // React rules, in the shared root and scoped to `.tsx` (feature 091, Phase 4).
   //
   // The header above calls this config framework-agnostic, and it still is for

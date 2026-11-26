@@ -38,10 +38,12 @@ import {
   evaluateA15,
   ADMIN_LOGIN_PATH,
   evaluateA5,
+  registryModuleIds,
   evaluateA6,
   evaluateA7,
   evaluateA8,
   evaluateA9,
+  evaluateA18,
   evaluateA16,
   evaluateA17,
   type ActorScopeObservation,
@@ -423,6 +425,45 @@ describe('A5 — the built admin bundle holds exactly the installed modules', ()
     const noLayers = evaluateA5(bundle({ expected: [], named: [] }));
     expect(noLayers.state).toBe('unmeasured');
     expect(noLayers.detail).toContain('publishes an admin layer');
+  });
+});
+
+/**
+ * A5's reading of the bundle. The registry is `{ moduleId: '<id>', … }` in the
+ * generated source; what reaches `dist` is whatever the minifier prints, and
+ * Vite 8 prints string literals as template literals — measured on a created
+ * instance: `{moduleId:`admin_roles`,contributions:Bf}`. A reading bound to
+ * `"` and `'` found 0 of 20 there, and A7's bundle half read the same empty set.
+ */
+describe('registryModuleIds — the module ids the built admin registry names', () => {
+  it('reads them in every quoting a minifier prints', () => {
+    const text =
+      'im=[{moduleId:`admin_roles`,contributions:Bf},{moduleId:"catalog",contributions:Kf},' +
+      "{ moduleId: 'orders', contributions: x }]";
+    expect(registryModuleIds(text)).toEqual(['admin_roles', 'catalog', 'orders']);
+  });
+
+  it('names nothing that is not a registry entry, and no id twice', () => {
+    expect(
+      registryModuleIds(
+        'const moduleIdLabel = `catalog`; moduleId:`a`,contributions:x,moduleId:`a`,contributions:y',
+      ),
+    ).toEqual(['a']);
+    expect(registryModuleIds('moduleId:`not-an-id`,contributions:x')).toEqual([]);
+    expect(registryModuleIds('moduleId:`a",contributions:x')).toEqual([]);
+  });
+
+  /**
+   * Measured on a created instance: with the quote fixed, the bundle named a
+   * 21st module, `core` — audit_logs' filter keeps an unrecorded action as
+   * `{ action: current, moduleId: 'core' }`. Only the registry entry, whose next
+   * key is `contributions`, is a module the bundle names.
+   */
+  it('reads only the registry entry, not every object that carries a moduleId', () => {
+    const text =
+      "[...e,{action:t,moduleId:`core`}];im=[{moduleId:`catalog`,contributions:Bf}," +
+      "{ moduleId: 'orders',\n  contributions: x }]";
+    expect(registryModuleIds(text)).toEqual(['catalog', 'orders']);
   });
 });
 
@@ -1352,6 +1393,50 @@ describe('A8 — an overlay module is composed and its decoration is in the repo
     const result = evaluateA8(overlay({ entries: null, renderFailure: 'endora generate exited 1' }));
     expect(result.state).toBe('fail');
     expect(result.detail).toContain('endora generate exited 1');
+  });
+});
+
+/**
+ * `specs/190-overlay-full-modules/` T021 (FR-015, FR-003): a compiled overlay that no longer
+ * matches `apps/`, or one that breaks the layout, is refused before it runs, and a clean build
+ * composes. The probe is the instance's own `module:status` (and its API, for one case).
+ */
+describe('A18 — a stale or malformed overlay build is refused, a clean one composes', () => {
+  type Case = Parameters<typeof evaluateA18>[0]['cases'][number];
+  const refused = (kind: Case['kind']): Case => ({
+    kind,
+    probe: 'module:status',
+    code: 1,
+    output: `[overlay] … [${kind}] apps/x`,
+  });
+  const observation = (overrides: Partial<Parameters<typeof evaluateA18>[0]> = {}): Parameters<typeof evaluateA18>[0] => ({
+    cases: [refused('stale'), refused('unbuilt'), refused('orphan'), refused('package-in-disguise')],
+    clean: { code: 0, output: 'installed=29' },
+    ...overrides,
+  });
+
+  it('passes when every case is refused by name and the clean build composes', () => {
+    const result = evaluateA18(observation());
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('stale, unbuilt, orphan, package-in-disguise');
+  });
+
+  it('fails on a case that ran instead of being refused', () => {
+    const result = evaluateA18(observation({ cases: [{ kind: 'stale', probe: 'api', code: 0, output: 'listening' }] }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('stale');
+  });
+
+  it('fails on a refusal that does not name the case — another refusal is not this one', () => {
+    const result = evaluateA18(
+      observation({ cases: [{ kind: 'orphan', probe: 'module:status', code: 1, output: 'DATABASE_URL must be set' }] }),
+    );
+    expect(result.state).toBe('fail');
+  });
+
+  it('fails when the clean build does not compose, and is unmeasured when nothing was probed', () => {
+    expect(evaluateA18(observation({ clean: { code: 1, output: 'x' } })).state).toBe('fail');
+    expect(evaluateA18(observation({ failure: 'no overlay module to edit' })).state).toBe('unmeasured');
   });
 });
 

@@ -53,6 +53,11 @@ import {
   collectModuleFiles,
 } from '../rules/container-imports.js';
 import {
+  analyzeSource as entityDecoratorsAnalyse,
+  collectSourceFiles as collectEntityDecoratorFiles,
+  findingMessage as entityDecoratorsMessage,
+} from '../rules/entity-decorators.js';
+import {
   checkNulBytes,
   isScannablePath,
   SKIPPED_DIRECTORIES,
@@ -454,6 +459,39 @@ const bundlePairing: PackageRuleHost = (layout) => {
       key: `${finding.kind}|${finding.language ?? '-'}|${layout.keyOf(finding.path)}`,
       location: layout.keyOf(finding.path),
       message: `${finding.kind}: ${finding.detail}`,
+    })),
+  );
+};
+
+/* -------------------------------------------------------- entity-decorators */
+
+const entityDecorators: PackageRuleHost = (layout) => {
+  const id = 'check:entity-decorators';
+  const entry = entryOf(id);
+  const files = collectEntityDecoratorFiles([layout.sourceRoot]);
+  const coverage = coverageOf(layout, files, opensTypeScript);
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entry));
+
+  const readSize: ReadSizeInput = {
+    prefix: '[entity-decorators]',
+    files: files.length,
+    coverage: [coverage],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  const findings = files.flatMap((file) =>
+    entityDecoratorsAnalyse(readFileSync(file, 'utf8'), layout.keyOf(file)),
+  );
+  return ran(
+    id,
+    readSize,
+    findings.map((finding) => ({
+      rule: id,
+      key: `${finding.file}|${finding.name}|${finding.specifier}`,
+      location: `${finding.file}:${finding.line}`,
+      message: entityDecoratorsMessage(finding),
     })),
   );
 };
@@ -1837,6 +1875,7 @@ export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   ['check:command-coverage', commandCoverage],
   ['check:container-imports', containerImports],
   ['check:default-language-prose', defaultLanguageProse],
+  ['check:entity-decorators', entityDecorators],
   ['check:entry-presence', entryPresence],
   ['check:diacritic-folds', diacriticFolds],
   ['check:entry-scope', entryScope],

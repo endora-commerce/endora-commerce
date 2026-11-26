@@ -48,8 +48,7 @@ import { Redis } from 'ioredis';
 import { discoverConfiguredMigrations } from '../../db/configured-migrations.js';
 import { attachEscapeHatchAuditWriter } from '../../kernel/audit/escape-hatch-audit-writer.js';
 import { enterSystemScope } from '../../kernel/scope.js';
-import { activeOverlayModulesRoot } from '../../overlay/deployment-roots.js';
-import { overlayModulesUnder } from '../../overlay/overlay-runtime.js';
+import { overlayModulesFor } from '../../overlay/overlay-runtime.js';
 import {
   discoverPackageModuleManifests,
   installedPackageModuleIdClaims,
@@ -73,8 +72,10 @@ import type { OperatorResources, OperatorRuntime } from './operator-runtime.js';
 export async function instanceManifestEntries(
   deploymentRoot: string,
   env: NodeJS.ProcessEnv = process.env,
+  deploymentSourceRoot?: string,
 ): Promise<readonly RegisteredManifestEntry[]> {
-  const overlayModules = overlayModulesUnder(activeOverlayModulesRoot(deploymentRoot, env), () =>
+  // Judged against its sources first, as the API's composition is (#1848, FR-015).
+  const overlayModules = overlayModulesFor({ deploymentRoot, deploymentSourceRoot }, env, () =>
     installedPackageModuleIdClaims(nodeModulesRootsFor(env)),
   );
   return await resolveManifestEntries({
@@ -144,6 +145,8 @@ export interface InstanceOperatorRuntimeOptions {
    * package can derive for itself, for `composeApp`'s own reason.
    */
   readonly deploymentRoot: string;
+  /** `apps/` as written, when {@link deploymentRoot} holds it compiled (#1848, FR-016). */
+  readonly deploymentSourceRoot?: string;
   /**
    * The instance's own `mikro-orm.config.js` default export.
    *
@@ -181,7 +184,7 @@ export async function instanceOperatorRuntime(
   const detachDiagnostics = attachOperatorDiagnostics(err);
   let entries: readonly RegisteredManifestEntry[];
   try {
-    entries = await instanceManifestEntries(options.deploymentRoot, env);
+    entries = await instanceManifestEntries(options.deploymentRoot, env, options.deploymentSourceRoot);
   } catch (error: unknown) {
     detachDiagnostics();
     throw error;

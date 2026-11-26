@@ -42,6 +42,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 import { activeOverlayModulesRoot } from './deployment-roots.js';
+import { OverlayBuildError } from './overlay-freshness.js';
+import { OverlayLayoutError } from './overlay-layout.js';
 import { listOverlayModuleDirs } from './resolve-overlay.js';
 
 /** A directory an overlay module may not have, because what it holds is schema. */
@@ -137,7 +139,15 @@ export function exitOnRefusal(
   error: unknown,
   err: (text: string) => void = (text) => void process.stderr.write(text),
 ): never {
-  if (!(error instanceof OverlaySchemaError)) throw error;
+  // The overlay refusal family: the schema refusal, the layout (FR-002 – FR-003) and the
+  // build's freshness (FR-015) — each a sentence the operator acts on, never a stack.
+  if (
+    !(error instanceof OverlaySchemaError) &&
+    !(error instanceof OverlayLayoutError) &&
+    !(error instanceof OverlayBuildError)
+  ) {
+    throw error;
+  }
   err(`${error.message}\n`);
   process.exit(1);
 }

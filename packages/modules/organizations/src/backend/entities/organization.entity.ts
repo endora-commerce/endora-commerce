@@ -1,13 +1,12 @@
+import { OptionalProps, type EventArgs } from '@mikro-orm/core';
 import {
   BeforeCreate,
   BeforeUpdate,
   Entity,
   Index,
-  OptionalProps,
   PrimaryKey,
   Property,
-  type EventArgs,
-} from '@mikro-orm/core';
+} from '@mikro-orm/decorators/legacy';
 import { normalizeTaxId } from '@endora-commerce/contracts';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';

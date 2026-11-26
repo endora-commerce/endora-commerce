@@ -30,29 +30,37 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 1 — Type-check of overlay code (#1847, US2)
 
-- [ ] T001 Test: instance template renders `backend/tsconfig.apps.json` per `contracts/overlay-build.md` §1, `typecheck` script, `setup` runs it before `migrate` — `packages/cli/src/new-instance/template.test.ts` [FR-010, FR-011]
-- [ ] T002 Implement in `packages/cli/src/new-instance/template.ts` (`backendScripts`, file entries, setup steps) [FR-010, FR-011]
+- [x] T001 Test: instance template renders `backend/tsconfig.apps.json` per `contracts/overlay-build.md` §1, `typecheck` script, `setup` runs it before `migrate` — `packages/cli/src/new-instance/template.test.ts` [FR-010, FR-011]
+- [x] T002 Implement in `packages/cli/src/new-instance/template.ts` (`backendScripts`, file entries, setup steps) [FR-010, FR-011]
 - [ ] T003 Test: an overlay source with `enum` fails `tsc -p backend/tsconfig.apps.json`; a clean one passes — acceptance step in `backend/scripts/acceptance/instance.ts` [FR-010]
-- [ ] T004 This repository: `backend/tsconfig.apps.json` (`erasableSyntaxOnly`, `src/apps/**`), exclude `src/apps/**` from `backend/tsconfig.json`, `typecheck` names three programs; widen `backend/test/unit/harness/workspace-resolution.test.ts` to three programs (test first) [FR-010]
-- [ ] T005 Fix whatever `erasableSyntaxOnly` reports under `backend/src/apps/` (expected: none or a handful of parameter properties)
+  - Partial (#1847): measured by the compiler over the **rendered** configuration in a temporary tree — `packages/cli/src/new-instance/template.test.ts` (`enum`, `namespace`, parameter property, a type error, admin/test exclusion). The acceptance step is not written: it needs a new R6.3 assertion id and a recorded state from a real run
+- [x] T004 This repository: `backend/tsconfig.apps.json` (`erasableSyntaxOnly`, `src/apps/**`), exclude `src/apps/**` from `backend/tsconfig.json`, `typecheck` names three programs; widen `backend/test/unit/harness/workspace-resolution.test.ts` to three programs (test first) [FR-010]
+- [x] T005 Fix whatever `erasableSyntaxOnly` reports under `backend/src/apps/` (expected: none or a handful of parameter properties) — measured: none. The program resolves the packages through `paths: {}` (their `dist` declarations): with the source `paths` the flag also judged `packages/contracts/src`, which has parameter properties and is not overlay code
 - [ ] T006 Instance README text (`template.ts` overlay section): the type-check exists — convention sentence in `overlay-modules.md` updated in the same MR [FR-104]
+  - Partial (#1847): the README text, the scaffolded overlay comment and `create-your-first-module.md` (EN + PL) are done; the `overlay-modules.md` sentence waits for PR #1899, which changes that file
 
 ## Phase 2 — Overlay build and freshness (#1848, US2) — after Phase 1
 
-- [ ] T010 Test: layout refusals `nested-module`, `package-in-disguise` over a temp tree — `packages/platform/src/overlay/overlay-layout.test.ts` [FR-002, FR-003]
-- [ ] T011 Implement `overlay-layout.ts`; call `assertOverlayLayout` in `overlayModuleIdsUnder` **beside** (not yet instead of) the schema refusal [FR-002, FR-003]
-- [ ] T012 [P] Test: CLI mirror of the layout walk agrees with the platform's on the same fixture (the two walks must agree) — `packages/cli/src/build/layout.test.ts` [FR-003]
-- [ ] T013 Move the runtime-asset classification `backend/scripts/lib/runtime-assets.ts` → `packages/cli/src/lib/runtime-assets.ts`; `copy-runtime-assets.ts` imports it; grep `backend/test/**` for the old path [FR-013]
-- [ ] T014 Test: `endora build overlays` compiles to `backend/dist/apps/**`, mirrors `i18n/*.json`, refuses an unclassified extension, exit codes 0/1/2 — `packages/cli/src/build/build.test.ts` [FR-012, FR-013]
-- [ ] T015 Implement `packages/cli/src/build/` (spawn the instance's own `tsc`; `--watch` + recursive `fs.watch` for assets) [FR-012 – FR-014]
-- [ ] T016 Test: freshness pairing — `fresh`, `stale`, `unbuilt` (file and whole module), `orphan`; admin, test, `.d.ts` excluded; no source root → one `info` line — `packages/platform/src/overlay/overlay-freshness.test.ts` [FR-015]
-- [ ] T017 Implement `overlay-freshness.ts`, `OverlayBuildError`; `exitOnRefusal` prints the refusal family; `ComposeAppOptions.deploymentSourceRoot` [FR-015]
-- [ ] T018 Test + implement: instance wiring passes `deploymentRoot = backend/dist` and `deploymentSourceRoot = root` in `index`, `worker`, `migrate`, `cli`, `module-commands/*`, `mikro-orm.config`; `build`/`dev` scripts per `overlay-build.md` §2 — `template.test.ts` [FR-012, FR-014, FR-016]
-- [ ] T019 This repository: `backend/src/overlay/overlay-roots.ts` passes the source root when compiled and `backend/src` exists [FR-016]
-- [ ] T020 Test + implement: `endora upgrade` rewrites the wiring files and writes `tsconfig.apps.json`; a hand-edited wiring file is reported, not overwritten — `packages/cli/src/upgrade/*.test.ts` [FR-017]
-- [ ] T021 Acceptance: stale edit, unbuilt module, orphan unit, `package.json` under `apps/` — each refused by API start, `migrate` and `module:status`; a clean build boots — `backend/scripts/acceptance/instance.ts` [FR-015, FR-003]
-- [ ] T022 Convention + README sentences ("nothing in this tree compiles") updated; `building-packages.md` pointer [FR-104]
-- [ ] T023 Changesets for #1848: cli `minor` + platform `minor` (`major` is refused in `0.x`, `release-intent.md`), marked **`breaking change`**, **0.113.0** (OR-11). The body carries the upgrade note of FR-018: the wiring files `endora upgrade` rewrites (`index`, `worker`, `migrate`, `cli`, `module-commands/*`, `mikro-orm.config`); `backend/tsconfig.apps.json`; the new `build` / `dev` / `typecheck` / `setup` scripts; the deployment root moving to `backend/dist`. It also says that a wiring file the instance hand-edited is reported, not overwritten, and the edit must be re-applied to the new rendering. It is written so the 0.113.0 release pull request can copy it unchanged into *After upgrading to 0.113.0* in `docs/docs/upgrading-an-instance.md` (EN + PL). Verified against the T020 test output, which lists the files the upgrade actually rewrites [FR-018]
+- [x] T010 Test: layout refusals `nested-module`, `package-in-disguise` over a temp tree — `packages/platform/src/overlay/overlay-layout.test.ts` [FR-002, FR-003]
+- [x] T011 Implement `overlay-layout.ts`; call `assertOverlayLayout` in `overlayModuleIdsUnder` **beside** (not yet instead of) the schema refusal [FR-002, FR-003]
+- [x] T012 [P] Test: CLI mirror of the layout walk agrees with the platform's on the same fixture (the two walks must agree) — `packages/cli/src/build/layout.test.ts` [FR-003]
+- [x] T013 Move the runtime-asset classification `backend/scripts/lib/runtime-assets.ts` → `packages/cli/src/lib/runtime-assets.ts`; `copy-runtime-assets.ts` imports it; grep `backend/test/**` for the old path [FR-013]
+  - Done differently (owner ruling 2026-11-25): the owner stays `scripts/lib/runtime-assets.mjs` (D-218), which module packages run under bare `node` and which would otherwise make every package build wait for the CLI's. The CLI **carries** it — `packages/cli/scripts/write-runtime-assets.mjs` copies it into `dist/runtime-assets.mjs`, `prepack` refuses a tarball without it, and `packages/cli/src/lib/runtime-assets.ts` (`loadRuntimeAssets`) loads the carried copy, else a checkout's owner (the backend supervisor's arrangement). `copy-runtime-assets.ts` is unchanged; no `backend/test/**` path moved
+- [x] T014 Test: `endora build overlays` compiles to `backend/dist/apps/**`, mirrors `i18n/*.json`, refuses an unclassified extension, exit codes 0/1/2 — `packages/cli/src/build/build.test.ts` [FR-012, FR-013]
+- [x] T015 Implement `packages/cli/src/build-overlays/` (not `src/build/`: the repository's `.gitignore` ignores every `build/`) (spawn the instance's own `tsc`; `--watch` + recursive `fs.watch` for assets) [FR-012 – FR-014]
+- [x] T016 Test: freshness pairing — `fresh`, `stale`, `unbuilt` (file and whole module), `orphan`; admin, test, `.d.ts` excluded; no source root → one `info` line — `packages/platform/src/overlay/overlay-freshness.test.ts` [FR-015]
+- [x] T017 Implement `overlay-freshness.ts`, `OverlayBuildError`; `exitOnRefusal` prints the refusal family; `ComposeAppOptions.deploymentSourceRoot` [FR-015]
+  - Done: `overlayModulesFor` (overlay-runtime) runs `assertOverlayBuildFresh` inside `ids()` before any import; `defaultComposition` (API, worker) and `instanceManifestEntries` (operator CLI, `module:*`) resolve through it; `ComposeAppOptions`, `RunCliOptions` and `InstanceOperatorRuntimeOptions` take `deploymentSourceRoot`; `exitOnRefusal` prints the layout and freshness refusals as it prints the schema one
+- [x] T018 Test + implement: instance wiring passes `deploymentRoot = backend/dist` and `deploymentSourceRoot = root` in `index`, `worker`, `migrate`, `cli`, `module-commands/*`, `mikro-orm.config`; `build`/`dev` scripts per `overlay-build.md` §2 — `template.test.ts` [FR-012, FR-014, FR-016]
+  - `mikro-orm.config` and `migrate` keep their roots: neither resolves an overlay module today (`migrate` refuses overlay schema over the sources); they take both when schema discovery (#1850) reads overlay entities and migrations
+- [x] T019 This repository: `backend/src/overlay/overlay-roots.ts` passes the source root when compiled and `backend/src` exists [FR-016]
+- [x] T020 Test + implement: `endora upgrade` rewrites the wiring files and writes `tsconfig.apps.json`; a hand-edited wiring file is reported, not overwritten — `packages/cli/src/upgrade/*.test.ts` [FR-017]
+  - Owner ruling 2026-11-25 on how: `packages/cli/src/upgrade/wiring.ts` brings the four wiring files, `backend/tsconfig.apps.json` and the `build` / `dev` / `typecheck` / `setup` scripts to the current rendering, rewriting a file only while it equals a recorded earlier rendering (`wiring-renderings.ts`, 0.112.0 rendered from `v0.112.0`'s template; each release that changes wiring appends the one it replaces) and reporting any other. `upgrade`'s `setup` step is now `pnpm exec endora upgrade --finish`, so the CLI the install put there re-renders with its own template; an instance already at the target with stale wiring is re-rendered too — the second run 0.112.0 → 0.113.0 needs, as 0.112.0's CLI hands nothing over. The CLI is now declared in every instance (`build` runs it)
+- [x] T021 Acceptance: stale edit, unbuilt module, orphan unit, `package.json` under `apps/` — each refused by API start, `migrate` and `module:status`; a clean build boots — `backend/scripts/acceptance/instance.ts` [FR-015, FR-003]
+  - A18 in `backend/scripts/acceptance/instance.ts` (`measureOverlayBuild`, `evaluateA18`): stale (asked of `module:status` and the API), unbuilt, orphan and package-in-disguise each refused by name, then the restored tree composes. `migrate` is not asked: it resolves no overlay module until #1850. Its first run found the layout checked only on the compiled tree (fixed: `overlayModulesFor` also checks the source modules root)
+- [x] T022 Convention + README sentences ("nothing in this tree compiles") updated; `building-packages.md` pointer [FR-104]
+- [x] T023 Changesets for #1848: cli `minor` + platform `minor` (`major` is refused in `0.x`, `release-intent.md`), marked **`breaking change`**, **0.113.0** (OR-11). The body carries the upgrade note of FR-018: the wiring files `endora upgrade` rewrites (`index`, `worker`, `migrate`, `cli`, `module-commands/*`, `mikro-orm.config`); `backend/tsconfig.apps.json`; the new `build` / `dev` / `typecheck` / `setup` scripts; the deployment root moving to `backend/dist`. It also says that a wiring file the instance hand-edited is reported, not overwritten, and the edit must be re-applied to the new rendering. It is written so the 0.113.0 release pull request can copy it unchanged into *After upgrading to 0.113.0* in `docs/docs/upgrading-an-instance.md` (EN + PL). Verified against the T020 test output, which lists the files the upgrade actually rewrites [FR-018]
+  - `.changeset/1848-overlay-build.md` (cli + platform `minor`, **breaking change**), written against T020's behaviour (two runs from 0.112.0, one from 0.113.0 on); the 0.113.0 release pull request copies its upgrade paragraph into `upgrading-an-instance.md` (EN + PL). `1847-overlay-typecheck.md` now points existing instances at the upgrade rather than at a hand edit
 
 ## Phase 3 — Overlay ports and dependencies (#1854, US4) — stands alone
 
@@ -85,11 +93,12 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 5 — Classification refusal (#1849, US7)
 
-- [ ] T060 Test: undecorated class per origin (core list, package fixture, overlay fixture) refused naming class + contributor; doubly classified refused; embeddable ignored — `packages/platform/src/tenancy/entity-classification.test.ts` [FR-020, FR-021]
-- [ ] T061 Implement `UnclassifiedEntityError` and the call in `configuredEntitiesFrom` (v7 metadata storage API) [FR-020, FR-021]
-- [ ] T062 Integration: this repository's full composition boots (no false positive) — existing boot integration test, run it
+- [x] T060 Test: undecorated class per origin (core list, package fixture, overlay fixture) refused naming class + contributor; doubly classified refused; embeddable ignored — `packages/platform/src/tenancy/entity-classification.test.ts` [FR-020, FR-021]
+- [x] T061 Implement `UnclassifiedEntityError` and the call in `configuredEntitiesFrom` (v7 metadata storage API) [FR-020, FR-021]
+- [x] T062 Integration: this repository's full composition boots (no false positive) — existing boot integration test, run it
 - [ ] T063 C-6: the `/legacy`-only decorator check from #1866 includes `backend/src/apps/**` and instance overlay sources [FR-022]
-- [ ] T064 Changeset platform `minor` (a third-party package with an unclassified entity now refuses boot — upgrade note)
+  - Partial (#1849): this repository's walk reaches `backend/src/apps/**` through the application's `src` root, now pinned by `check-entity-decorators.test.ts` (*reads the overlay modules under backend/src/apps*). An instance's overlay sources are not walked: `endora check` judges one package, and no instance-level host exists yet — the boot refusal of T061 is what reaches an instance today
+- [x] T064 Changeset platform `minor` (a third-party package with an unclassified entity now refuses boot — upgrade note)
 
 ## Phase 6 — Overlay schema discovery (#1850, US1) — after Phases 2 and 5 — **one merge request**
 

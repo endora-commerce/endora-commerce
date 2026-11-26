@@ -896,12 +896,9 @@ export async function registerOrganizationsAdminRoutes(
       },
       async (request) => {
         const body = approveOrganizationSchema.parse(request.body);
-        const rid = request.headers['x-request-id'];
         try {
           const org = await moderationService.approve(request.params.id, {
             expectedVersion: body.expectedVersion,
-            actorAdminUserId: resolveAdminUserId(request),
-            requestId: typeof rid === 'string' ? rid : null,
           });
           return { data: serializeOrg(org) };
         } catch (err) {
@@ -918,14 +915,11 @@ export async function registerOrganizationsAdminRoutes(
       },
       async (request) => {
         const body = rejectOrganizationSchema.parse(request.body);
-        const rid = request.headers['x-request-id'];
         try {
           const org = await moderationService.reject(request.params.id, {
             expectedVersion: body.expectedVersion,
             reason: body.reason,
             notifyCustomerEmail: body.notifyCustomerEmail,
-            actorAdminUserId: resolveAdminUserId(request),
-            requestId: typeof rid === 'string' ? rid : null,
           });
           return { data: serializeOrg(org) };
         } catch (err) {
@@ -942,13 +936,10 @@ export async function registerOrganizationsAdminRoutes(
       },
       async (request) => {
         const body = blockOrganizationSchema.parse(request.body);
-        const rid = request.headers['x-request-id'];
         try {
           const org = await moderationService.block(request.params.id, {
             expectedVersion: body.expectedVersion,
             reason: body.reason ?? null,
-            actorAdminUserId: resolveAdminUserId(request),
-            requestId: typeof rid === 'string' ? rid : null,
           });
           return { data: serializeOrg(org) };
         } catch (err) {
@@ -965,12 +956,9 @@ export async function registerOrganizationsAdminRoutes(
       },
       async (request) => {
         const body = unblockOrganizationSchema.parse(request.body);
-        const rid = request.headers['x-request-id'];
         try {
           const org = await moderationService.unblock(request.params.id, {
             expectedVersion: body.expectedVersion,
-            actorAdminUserId: resolveAdminUserId(request),
-            requestId: typeof rid === 'string' ? rid : null,
           });
           return { data: serializeOrg(org) };
         } catch (err) {

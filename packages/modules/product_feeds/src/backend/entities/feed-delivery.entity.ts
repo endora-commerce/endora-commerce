@@ -1,4 +1,5 @@
-import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { OptionalProps } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, Unique } from '@mikro-orm/decorators/legacy';
 import { randomUUID } from 'node:crypto';
 import type { FeedDeliveryHttpLabel, FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';

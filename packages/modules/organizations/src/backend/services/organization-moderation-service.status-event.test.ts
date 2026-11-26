@@ -1,6 +1,9 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
+import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { CustomerAccountReadPort, EmailMailerPort } from '@endora-commerce/contracts';
+import { CommandBus } from '@endora-commerce/platform/commands';
+import { EventBus, type EventBase } from '@endora-commerce/platform/events';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { describe, expect, it } from 'vitest';
 
 import type { Organization, OrganizationStatus } from '../entities/organization.entity.js';
@@ -41,14 +44,19 @@ function harness(status: OrganizationStatus): {
     async flush(): Promise<void> {},
   };
   const emitted: StatusChanged[] = [];
+  // The event is the moderation Command's (186 T026), dispatched by the bus on commit.
+  const events = new EventBus<Record<string, EventBase>>();
+  events.on('organization.status_changed.v1', (payload) => {
+    emitted.push(payload as unknown as StatusChanged);
+  });
+  const bus = new CommandBus(
+    { em: { fork: () => em } } as unknown as MikroORM,
+    { recordWithin: () => ({}) } as unknown as AuditPort,
+    events,
+  );
   const service = new OrganizationModerationService(
     () => em as unknown as EntityManager,
-    { async record(): Promise<void> {} } as unknown as AuditPort,
-    {
-      emit: (name: string, payload: StatusChanged): void => {
-        if (name === 'organization.status_changed.v1') emitted.push(payload);
-      },
-    } as never,
+    { run: (command) => withSystemScope('organizations unit test: status event', () => bus.run(command)) },
     { async send() { return { status: 'sent' }; } } as unknown as EmailMailerPort,
     { async listByOrganization() { return []; } } as unknown as CustomerAccountReadPort,
     async () => 'manual',

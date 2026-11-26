@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { operatorLineProducts } from './rfq-admin-service.js';
+import { operatorLineProducts } from './operator-line-products.js';
 
 /**
  * Feature 163, checkpoint F (B-3) — an operator's create or edit naming an archived

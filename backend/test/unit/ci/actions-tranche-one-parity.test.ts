@@ -57,6 +57,23 @@ const TRANCHE = [
   { name: 'pack-gate', workflow: '.github/workflows/pack-gate.yml' },
   { name: 'boot-gate', workflow: '.github/workflows/boot-gate.yml' },
   { name: 'build:docs', workflow: '.github/workflows/build-docs.yml' },
+  // Not one of gate-window §4.2's three, and held here for the same reason: a
+  // GitLab job with `stage: test` that nothing on Actions ran. Ported once its
+  // recorded drifts (A5, A9) had been measured and closed, so the first run on
+  // Actions starts from a record a clean tree reproduces.
+  { name: 'acceptance:instance', workflow: '.github/workflows/acceptance-instance.yml' },
+  // The same, one criterion over: "a package can ship schema" (feature 080, D-110),
+  // ported once a run on `master` answered exactly its record (11 of 11).
+  {
+    name: 'acceptance:package-schema',
+    workflow: '.github/workflows/acceptance-package-schema.yml',
+  },
+  // The third: `endora new storefront` (roadmap 071 F7), ported once its one
+  // drift (A8, a snapshot of React internals) had been measured and closed.
+  {
+    name: 'acceptance:storefront-scaffold',
+    workflow: '.github/workflows/acceptance-storefront-scaffold.yml',
+  },
 ] as const;
 
 function workflowSource(path: string): string {
@@ -101,7 +118,10 @@ function gitlabChanges(name: string): readonly string[] {
     .slice(1)
     .filter((line) => !line.trim().startsWith('#') && line.trim() !== '')
     .map((line) => /^\s{8}- (.+)$/.exec(line)?.[1]?.trim())
-    .filter((entry): entry is string => entry !== undefined);
+    .filter((entry): entry is string => entry !== undefined)
+    // YAML quoting, as `pullRequestPaths` drops it on the other host: a glob
+    // that opens with `*` has to be quoted (`'**/package.json'`) on both.
+    .map((entry) => /^'(.*)'$/.exec(entry)?.[1] ?? entry);
 }
 
 /** The `on:` block of a workflow, up to the next column-0 key. */
@@ -192,8 +212,8 @@ describe('the tranche workflows hold the canonical host\'s supply-chain rules', 
         .filter((line) => !line.trim().startsWith('#'))
         .join('\n');
       expect(configuration).toMatch(/^permissions:\s*\n {2}contents: read\s*$/m);
-      expect(configuration, 'none of the three gates writes anything').not.toMatch(/:\s*write\b/);
-      expect(configuration, 'none of the three gates needs a credential').
+      expect(configuration, 'no tranche gate writes anything').not.toMatch(/:\s*write\b/);
+      expect(configuration, 'no tranche gate needs a credential').
         not.toMatch(/\$\{\{\s*secrets\./);
       for (const job of jobs) expect(job.body).toMatch(/persist-credentials:\s*false/);
     });
