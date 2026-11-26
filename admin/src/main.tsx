@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { AdminRoot, registerAdminServiceWorker } from '@endora-commerce/admin-shell';
+import { DEPLOYMENT_ADMIN_CONTRIBUTIONS } from '@endora-commerce-deployment/admin';
 import { MODULE_ADMIN_CONTRIBUTIONS } from './modules.generated.js';
 import './index.css';
 
@@ -23,6 +24,12 @@ import './index.css';
  * bound — so this repository mounts the shell exactly as a scaffolded instance
  * does, which is `plan.md` R7.6: a shape we cannot adopt ourselves is one we
  * may not ask a client for.
+ *
+ * `DEPLOYMENT_ADMIN_CONTRIBUTIONS` is the overlay admin layers of the one
+ * deployment this bundle is built for — `src/deployments/<deployment>.generated.ts`,
+ * which `vite.config.ts` selects from `DEPLOYMENT`, or bare core's empty
+ * `none.generated.ts` (`specs/190-overlay-full-modules/` FR-080, FR-081). They come
+ * after the packages'; the backend's module id claims are what keep the ids unique.
  */
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -35,4 +42,6 @@ if (!rootElement) {
 // does not ship.
 registerAdminServiceWorker();
 
-createRoot(rootElement).render(<AdminRoot contributions={MODULE_ADMIN_CONTRIBUTIONS} />);
+createRoot(rootElement).render(
+  <AdminRoot contributions={[...MODULE_ADMIN_CONTRIBUTIONS, ...DEPLOYMENT_ADMIN_CONTRIBUTIONS]} />,
+);

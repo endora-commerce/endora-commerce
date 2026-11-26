@@ -16,5 +16,7 @@
     "paths": {}
   },
   "include": ["src/**/*"],
-  "exclude": ["test/**/*", "**/*.test.ts", "**/*.spec.ts"]
+  // An overlay module's `admin/` is the admin build's, never the backend image's
+  // (`specs/190-overlay-full-modules/` FR-083): it is JSX against the DOM and the kit.
+  "exclude": ["test/**/*", "**/*.test.ts", "**/*.spec.ts", "src/apps/*/modules/*/admin/**/*"]
 }

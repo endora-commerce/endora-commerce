@@ -506,15 +506,23 @@ describe('§2 R2.3 and §3 R3.8 — an example Dockerfile per image, with no fou
     }
   });
 
-  it('the backend image defaults `DEPLOYMENT` to the instance\'s own, so a build with no argument is not bare core', () => {
+  it('both images default `DEPLOYMENT` to the instance\'s own, so a build with no argument is not bare core', () => {
     // A blank `DEPLOYMENT` composes no overlay module and says nothing, so an
     // image built without the `--build-arg` looked exactly like an instance
-    // with no overlay. The tree knows which deployment it is.
-    const text = fileAt(withAdmin(), 'deploy/Dockerfile.backend');
-    expect(text).toMatch(/^ARG DEPLOYMENT=acme-shop$/m);
-    expect(text).toMatch(/^ENV DEPLOYMENT=\$DEPLOYMENT$/m);
-    // The admin image reads no deployment, and gains no default for anything.
-    expect(fileAt(withAdmin(), 'deploy/Dockerfile.admin')).not.toMatch(/^ARG [A-Z0-9_]+=/m);
+    // with no overlay. The tree knows which deployment it is. The admin image
+    // reads it since #1855: it selects the deployment's admin registry
+    // (`specs/190-overlay-full-modules/` FR-081).
+    for (const path of ['deploy/Dockerfile.backend', 'deploy/Dockerfile.admin']) {
+      const text = fileAt(withAdmin(), path);
+      expect(text, path).toMatch(/^ARG DEPLOYMENT=acme-shop$/m);
+      expect(text, path).toMatch(/^ENV DEPLOYMENT=\$DEPLOYMENT$/m);
+    }
+    // And the admin image gains no default for anything else.
+    expect(
+      [...fileAt(withAdmin(), 'deploy/Dockerfile.admin').matchAll(/^ARG ([A-Z0-9_]+)=/gm)].map((m) => m[1]),
+    ).toEqual(['DEPLOYMENT']);
+    const admin = fileAt(withAdmin(), 'deploy/Dockerfile.admin');
+    expect(admin.indexOf('ARG DEPLOYMENT=')).toBeLessThan(admin.indexOf('RUN pnpm run build:admin'));
   });
 
   it('every `ARG` the example declares is a consumer the declaration names', () => {

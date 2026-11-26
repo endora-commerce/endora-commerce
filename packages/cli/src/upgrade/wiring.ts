@@ -7,7 +7,10 @@
  * - the compiled entry points that name where `apps/` is — `backend/src/{index,worker,cli}.ts`
  *   and `backend/src/module-commands/runtime.ts` — and the two that read an overlay module's
  *   schema from there, `backend/src/mikro-orm.config.ts` and `backend/src/migrate.ts` (#1850);
- * - `backend/tsconfig.apps.json`, written when absent;
+ * - the admin member's `admin/src/main.tsx`, `admin/vite.config.ts` and `admin/tsconfig.json`
+ *   (#1855), when the instance has one;
+ * - `backend/tsconfig.apps.json`, written when absent, and the deployment registries' line
+ *   appended to `.gitignore`;
  * - the backend member's `build`, `dev` and `typecheck` scripts, and the root's `typecheck`
  *   and the `typecheck` term of `setup`.
  *
@@ -36,7 +39,16 @@ export const WIRING_FILES = [
   // platform no longer exports.
   'backend/src/mikro-orm.config.ts',
   'backend/src/migrate.ts',
+  // `specs/190-overlay-full-modules/` FR-080 – FR-084 (#1855): the admin build selects
+  // the deployment's admin registry, renders it after the packages', and type-checks
+  // the overlay admin layers. Absent in an instance scaffolded without an admin member.
+  'admin/src/main.tsx',
+  'admin/vite.config.ts',
+  'admin/tsconfig.json',
 ] as const;
+
+/** The deployment registries `endora generate` writes and the instance never commits. */
+const DEPLOYMENT_REGISTRIES_IGNORE = 'admin/src/deployments/*.generated.ts';
 
 const APPS_CONFIG = 'backend/tsconfig.apps.json';
 const NODE = 'node --env-file-if-exists=../.env';
@@ -72,13 +84,19 @@ export function currentWiring(identity: InstanceIdentity): CurrentWiring {
     enginesNode: '>=22.17.0',
     packageManager: 'pnpm@9.15.0',
     modules: [],
-    adminShellVersion: null,
-    adminKitVersion: null,
-    adminRanges: new Map(),
+    // Values for the admin member to be rendered at all. None of them reaches a
+    // wiring file: those are the member's `package.json`'s, which is not one.
+    adminShellVersion: '0.0.0',
+    adminKitVersion: '0.0.0',
+    adminRanges: new Map(
+      ['react', 'react-dom', '@tailwindcss/vite', '@vitejs/plugin-react', 'tailwindcss', 'vite'].map(
+        (name) => [name, '*'] as const,
+      ),
+    ),
     adminPeers: new Map(),
     cliVersion: '0.0.0',
     docsRanges: new Map(),
-    declaredRanges: new Map(),
+    declaredRanges: new Map([['typescript', '*']]),
     registry: null,
     npmrc: null,
     topology: 'single-host',
@@ -184,6 +202,23 @@ export function planWiring(instanceDir: string): WiringPlan {
         what: `backend/package.json scripts.${moved.join(', scripts.')}`,
         file: backendManifest,
         after: `${JSON.stringify({ ...manifest, scripts }, null, 2)}\n`,
+      });
+    }
+  }
+
+  // Appended, never rewritten: `.gitignore` is the client's, and a line it lacks is
+  // the deployment registries showing up as untracked after the first generate.
+  const ignore = join(instanceDir, '.gitignore');
+  if (existsSync(join(instanceDir, 'admin')) && existsSync(ignore)) {
+    const text = readFileSync(ignore, 'utf8');
+    if (!text.split('\n').some((line) => line.trim() === DEPLOYMENT_REGISTRIES_IGNORE)) {
+      changes.push({
+        what: `.gitignore (${DEPLOYMENT_REGISTRIES_IGNORE})`,
+        file: ignore,
+        after:
+          `${text}${text === '' || text.endsWith('\n') ? '' : '\n'}` +
+          `# One admin registry per deployment, written by \`pnpm run generate\`.\n` +
+          `${DEPLOYMENT_REGISTRIES_IGNORE}\n`,
       });
     }
   }

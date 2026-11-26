@@ -11,13 +11,18 @@
   // files are checked against the branch's own package sources exactly as the
   // rest of `src` is. `./tsconfig.json` excludes `src/apps/**`, so no file is a
   // root of both; `exclude` is reset here because the inherited one would
-  // exclude these very files. `tsconfig.build.json` (the image build) still emits
-  // `src/apps` -> `dist/apps` as it did.
+  // exclude these very files, and narrowed to the one directory that is not
+  // server code. `tsconfig.build.json` (the image build) still emits
+  // `src/apps` -> `dist/apps` as it did, overlay admin layers left out.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "erasableSyntaxOnly": true,
     "paths": {}
   },
   "include": ["src/apps/**/*"],
-  "exclude": []
+  // An overlay module's `admin/` is browser code and the **admin's** program
+  // (`specs/190-overlay-full-modules/` FR-083, #1855): `admin/tsconfig.json`
+  // includes it, with the DOM, JSX and the kit, and this one keeps it out — as an
+  // instance's `backend/tsconfig.apps.json` does.
+  "exclude": ["src/apps/*/modules/*/admin/**/*"]
 }

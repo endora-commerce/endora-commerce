@@ -269,3 +269,45 @@ describe('T018 — compiled entry points and the overlay build', () => {
     expect(config.compilerOptions['rootDir']).toBe('../apps');
   });
 });
+
+describe('#1855 — the admin member builds one deployment’s overlay admin layers', () => {
+  const withAdmin = planInput({
+    adminShellVersion: '1.2.3',
+    adminKitVersion: '1.2.3',
+    adminRanges: new Map(
+      ['react', 'react-dom', '@tailwindcss/vite', '@vitejs/plugin-react', 'tailwindcss', 'vite'].map(
+        (name) => [name, '^1'] as const,
+      ),
+    ),
+  });
+
+  it('selects the deployment registry in vite.config.ts and dedupes the singletons (FR-081, FR-084)', () => {
+    const config = fileOf('admin/vite.config.ts', withAdmin).content;
+    expect(config).toContain(`from '${SCOPE}cli/lib/admin-deployment.js'`);
+    expect(config).toContain('alias: { [DEPLOYMENT_ADMIN_ALIAS]: deployment.path }');
+    expect(config).toContain(`dedupe: [...adminSingletons('${SCOPE}')]`);
+    expect(config).toContain("envFile: fileURLToPath(new URL('../.env', import.meta.url))");
+  });
+
+  it('renders the packages’ contributions and then the deployment’s (FR-080)', () => {
+    expect(fileOf('admin/src/main.tsx', withAdmin).content).toContain(
+      '<AdminRoot contributions={[...MODULE_ADMIN_CONTRIBUTIONS, ...DEPLOYMENT_ADMIN_CONTRIBUTIONS]} />',
+    );
+  });
+
+  it('type-checks the overlay admin layers in the admin member, and not in the backend’s (FR-083)', () => {
+    const admin = JSON.parse(fileOf('admin/tsconfig.json', withAdmin).content) as {
+      include: string[];
+      compilerOptions: { paths: Record<string, string[]> };
+    };
+    expect(admin.include).toContain('../apps/*/modules/*/admin/**/*');
+    expect(admin.compilerOptions.paths['@endora-commerce-deployment/admin']).toEqual([
+      './src/deployments/none.generated.ts',
+    ]);
+    expect((JSON.parse(fileOf(APPS_CONFIG).content) as AppsConfig).exclude).toContain('../apps/*/modules/*/admin/**');
+  });
+
+  it('git-ignores the deployment registries', () => {
+    expect(fileOf('.gitignore', withAdmin).content).toContain('admin/src/deployments/*.generated.ts');
+  });
+});

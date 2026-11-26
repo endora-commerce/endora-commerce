@@ -8,10 +8,10 @@
  * deletes its entry in the same merge request. Delete this file when the last entry goes;
  * an empty shard is refused, because a done signal that says nothing is not one.
  *
- * Every entry here is **scheduled**, not retained: the file is `admin_roles`'s and the
- * only thing between it and its package is the batch that moves it. A retained entry — a
- * plain string — is the other claim, that the file is right to stay under
- * `backend/test`, and there is none in this shard.
+ * Every entry but one is **scheduled**: the file is `admin_roles`'s and the only thing
+ * between it and its package is the batch that moves it. A retained entry — a plain
+ * string — is the other claim, that the file is right to stay under `backend/test`, and
+ * the one below says why.
  */
 import type { TestOwnershipLedgerEntry } from '../../check-test-ownership.js';
 
@@ -40,4 +40,9 @@ export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
   'backend/test/unit/admin_roles/foreign-gates.test.ts': SCHEDULED,
   'backend/test/unit/admin_roles/permission-dependencies.test.ts': SCHEDULED,
   'backend/test/unit/admin_roles/role-in-use-sentence.test.ts': SCHEDULED,
+  'backend/test/unit/overlay/overlay-admin-populations.test.ts':
+    "Retained: its subject is the example deployment's overlay populations, not this module's " +
+    'analysis — it reads `backend/src/apps/example` through `test/helpers/permission-scan-roots.ts` ' +
+    'and the `check:action-route-permissions` host (`specs/190-overlay-full-modules/` T047, #1855). ' +
+    "`admin_roles`'s package has no deployment to read, so in it the proof would have no subject.",
 };
