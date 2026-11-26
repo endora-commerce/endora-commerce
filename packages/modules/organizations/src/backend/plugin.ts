@@ -4,6 +4,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   AddressServicePort,
   CartMergeOutcome,
+  CustomFieldListFilterPort,
   CustomFieldValuePort,
   CustomerAccountMemberCommandPort,
   CustomerAccountMemberWritePort,
@@ -207,6 +208,11 @@ export interface OrganizationsModuleOptions {
    */
   customFieldValues?: CustomFieldValuePort;
   /**
+   * Issue #1903 — `custom_fields`' list-filter port, for the admin
+   * Organizations list's custom-field filters.
+   */
+  customFieldListFilter?: CustomFieldListFilterPort;
+  /**
    * `specs/178-extensible-columns/` FR-051 — the platform's reader of declared
    * extension columns, for `?extensions=` on the admin detail and list reads.
    */
@@ -389,6 +395,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
           ? { taxIdValidationService: options.taxIdValidationService }
           : {}),
         ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
+        ...(options.customFieldListFilter ? { customFieldListFilter: options.customFieldListFilter } : {}),
         ...(options.schemaExtensionReads ? { schemaExtensionReads: options.schemaExtensionReads } : {}),
         // Feature 154 — the Organization's *Sales channels* endpoints and the
         // admin create.

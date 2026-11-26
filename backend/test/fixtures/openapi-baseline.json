@@ -2979,6 +2979,15 @@
         }
       }
     },
+    "/api/v1/admin/customers/custom-field-filters": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/customers/online": {
       "get": {
         "responses": {
@@ -5197,6 +5206,15 @@
         }
       },
       "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/organizations/custom-field-filters": {
+      "get": {
         "responses": {
           "200": {
             "description": "OK"

@@ -12,6 +12,7 @@ import type {
   ConfigurationTypeRegistryPort,
   CredentialsPort,
   CreditLimitReadPort,
+  CustomFieldListFilterPort,
   CustomFieldValuePort,
   CustomerAccountMemberCommandPort,
   CustomerAccountMemberWritePort,
@@ -846,6 +847,9 @@ export function registerModule(ctx: ModuleContext): void {
               'customerAccountMemberCommandPort',
             ),
             customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
+            // Issue #1903 — the admin list's custom-field filters
+            // (`specs/157-custom-fields-list-filters/`).
+            customFieldListFilter: lazyPort<CustomFieldListFilterPort>(ctx, 'customFieldListFilterPort'),
             // `specs/178-extensible-columns/` FR-051 — `?extensions=` on the
             // admin reads; resolved per call from the kernel registration.
             schemaExtensionReads: {

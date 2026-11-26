@@ -1,12 +1,17 @@
-import type {
-  AdminCustomerDetail,
-  AdminCustomerListItem,
-  CustomerAccountAdminSearchPort,
-  CustomerAccountReadPort,
-  CustomerAccountRecord,
-  CustomerGroupReadPort,
-  OrderReadPort,
-  OrganizationDetailsPort,
+import {
+  customFieldFilterUnavailable,
+  type AdminCustomerDetail,
+  type AdminCustomerListItem,
+  type CustomerAccountAdminSearchPort,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
+  type CustomerGroupReadPort,
+  type CustomFieldFilters,
+  type CustomFieldListFilterCondition,
+  type CustomFieldListFilterField,
+  type CustomFieldListFilterPort,
+  type OrderReadPort,
+  type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import type { CustomerDefaultsService } from './customer-defaults-service.js';
 
@@ -46,6 +51,8 @@ export interface AdminCustomerListQuery {
   status?: 'active' | 'blocked' | 'deleted' | undefined;
   organizationId?: string | undefined;
   customerGroupId?: string | undefined;
+  /** Issue #1903 — the custom fields marked as list filters (`customFieldFilters`). */
+  customFieldFilters?: CustomFieldFilters | undefined;
   page: number;
   pageSize: number;
 }
@@ -61,6 +68,12 @@ export interface CustomerAdminQueryPorts {
   organizations: OrganizationDetailsPort;
   customerGroups: CustomerGroupReadPort;
   orders: OrderReadPort;
+  /**
+   * Issue #1903 — `custom_fields`' list-filter port: the Customer
+   * custom fields the list offers as filters, and a request's filters as one
+   * condition. Absent, the list offers none and refuses any it is sent.
+   */
+  customFieldListFilter?: Pick<CustomFieldListFilterPort, 'condition' | 'listFilterable'> | undefined;
 }
 
 export class CustomerAdminQueryService {
@@ -74,6 +87,8 @@ export class CustomerAdminQueryService {
     // Kept for the route's call shape: the reach itself is the tenant filter's.
     _scope: AdminCustomerListScope,
   ): Promise<AdminCustomerListResult> {
+    // A field the list does not offer throws, and the route answers 400 naming it.
+    const customFieldCondition = await this.customFieldCondition(query.customFieldFilters);
     const { rows, total } = await this.ports.accountSearch.search({
       q: query.q,
       status: query.status,
@@ -83,6 +98,9 @@ export class CustomerAdminQueryService {
       // `@OrgScoped`, so a salesperson's read is confined by the tenant filter,
       // which is the one reach rule (issue #305).
       allowedOrganizationIds: null,
+      // Issue #1903 — an id sub-select `customer_accounts` intersects with
+      // the same tenant-scoped statement: it narrows the reach, never widens it.
+      customFieldCondition,
       page: query.page,
       pageSize: query.pageSize,
     });
@@ -92,6 +110,20 @@ export class CustomerAdminQueryService {
       rows: rows.map((c) => this.toListItem(c, orgNames, groupNames)),
       total,
     };
+  }
+
+  /** `GET /customers/custom-field-filters` — the Customer custom fields the list offers as filters. */
+  async customFieldFilterFields(): Promise<CustomFieldListFilterField[]> {
+    return (await this.ports.customFieldListFilter?.listFilterable('customer')) ?? [];
+  }
+
+  private async customFieldCondition(
+    filters: CustomFieldFilters | undefined,
+  ): Promise<CustomFieldListFilterCondition | null> {
+    if (filters === undefined || Object.keys(filters).length === 0) return null;
+    const port = this.ports.customFieldListFilter;
+    if (port === undefined) throw customFieldFilterUnavailable(Object.keys(filters));
+    return port.condition('customer', filters);
   }
 
   async getDetail(id: string): Promise<AdminCustomerDetail | null> {

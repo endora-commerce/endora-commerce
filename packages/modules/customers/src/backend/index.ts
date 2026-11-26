@@ -17,6 +17,7 @@ import type {
   AuthSessionReadPort,
   CartAnonymizationPort,
   CartQueryPort,
+  CustomFieldListFilterPort,
   CustomFieldValuePort,
   CustomerAccountAdminSearchPort,
   CustomerAccountLifecycleWritePort,
@@ -331,6 +332,9 @@ export function registerModule(ctx: ModuleContext): void {
             // through it, and the retention sweep anonymizes with it (OD-7).
             addressServicePort: lazyPort<AddressServicePort>(ctx, 'addressServicePort'),
             customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
+            // Issue #1903 — the admin list's custom-field filters
+            // (`specs/157-custom-fields-list-filters/`).
+            customFieldListFilter: lazyPort<CustomFieldListFilterPort>(ctx, 'customFieldListFilterPort'),
             rfqService: lazyPort<RfqCustomerPort>(ctx, 'rfqService'),
             // Issue #108 — `organizations`' scope, not a private copy of its
             // wiring. The copy this replaces omitted the optional subtree deps,

@@ -37,6 +37,9 @@ const ALLOWED: Record<string, readonly string[]> = {
   projects: ['src/backend/index.ts'],
   // `specs/165-task-management/` R-8 — the admin Tasks list.
   tasks: ['src/backend/index.ts'],
+  // Issue #1903 — the admin Organizations and Customers lists.
+  organizations: ['src/backend/index.ts', 'src/backend/routes.admin.ts'],
+  customers: ['src/backend/index.ts', 'src/backend/routes.admin.ts'],
 };
 
 /** A file serving a buyer or an integration, by its path. */

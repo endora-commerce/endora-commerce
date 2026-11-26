@@ -19,6 +19,7 @@
 
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
+import type { CustomFieldListFilterCondition } from './custom-fields.js';
 
 // --- the anonymisation event ---------------------------------------------------
 //
@@ -1007,6 +1008,15 @@ export interface CustomerAccountAdminSearchCriteria {
   organizationId?: string | undefined;
   customerGroupId?: string | undefined;
   allowedOrganizationIds: readonly string[] | null;
+  /**
+   * Issue #1903 — the admin list's custom-field filters, as the one id
+   * sub-select `custom_fields`' {@link CustomFieldListFilterCondition} port
+   * built over this module's table. The caller resolves it (`customers`
+   * declares the edge to `custom_fields`; this module does not), and this
+   * search intersects it with its own tenant-scoped statement, so it narrows
+   * the reachable set and never widens it. Absent or `null` ⇒ no narrowing.
+   */
+  customFieldCondition?: CustomFieldListFilterCondition | null | undefined;
   page: number;
   pageSize: number;
 }
