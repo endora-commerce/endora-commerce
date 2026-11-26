@@ -260,6 +260,20 @@ describe('quote_request.cancel', () => {
     expect(h.emitted.map((e) => [e.name, e.payload['reason']])).toEqual([['rfq.canceled.v1', 'S1824-REASON']]);
   });
 
+  it('cancels a quote its customer cannot see without telling the customer, and still announces it (192, FR-005)', async () => {
+    const h = harness();
+    const quote = seedQuote(h.em, { status: 'Created from admin', sharedWithCustomer: false } as Partial<QuoteRequest>);
+
+    await asAdmin(() =>
+      h.commandBus.run(makeCancelQuoteRequestCommand(h.deps, { quoteRequestId: quote.id, operator: OPERATOR, expectedVersion: null })),
+    );
+
+    expect(quote).toMatchObject({ status: 'Canceled', sharedWithCustomer: false });
+    expect(h.appended.map((e) => e['eventType'])).toEqual(['canceled']);
+    expect(h.recorded).toEqual([]);
+    expect(h.emitted.map((e) => e.name)).toEqual(['rfq.canceled.v1']);
+  });
+
   it('refuses an approved request with 409 RFQ_NOT_QUOTED', async () => {
     const h = harness();
     const quote = seedQuote(h.em, { status: 'Approved' } as Partial<QuoteRequest>);
