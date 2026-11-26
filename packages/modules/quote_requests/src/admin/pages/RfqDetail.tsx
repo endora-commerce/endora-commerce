@@ -581,6 +581,9 @@ export function RfqDetail(): ReactNode {
   // `specs/192-quote-request-draft-share/` — strictly `false`: a reply without the
   // key (one that predates the feature) is a quote the customer already sees.
   const unshared = rfq.sharedWithCustomer === false;
+  // A closed quote has nothing left to share: it stays *Not shared* (a fact,
+  // as in the list), but nothing on it speaks of a share still to come.
+  const shareAhead = unshared && !isTerminal;
   const shareDays = validityDeadlineDays(rfq.shareValidityDays);
 
   const openValidityEditor = (): void => {
@@ -753,7 +756,7 @@ export function RfqDetail(): ReactNode {
             {t('rfq.detail.meta.created', { date: formatDateTime(rfq.createdAt, language) })}
             {/* `specs/192-quote-request-draft-share/` — whether the customer sees it,
                 and, until they do, the days its validity will count from sharing. */}
-            {unshared
+            {shareAhead
               ? ` · ${tPdf('share.meta.unshared')}${
                   shareDays !== null
                     ? ` · ${translatePlural(tPdf, language, 'share.meta.validityDays', shareDays, { days: shareDays })}`
@@ -780,13 +783,13 @@ export function RfqDetail(): ReactNode {
         }
         actions={headerActions}
         // The unshared line below sits close under the header; the header owns the gap.
-        {...(unshared ? { className: 'mb-2' } : {})}
+        {...(shareAhead ? { className: 'mb-2' } : {})}
       />
       {/* `specs/192-quote-request-draft-share/` — who sees a quote not shared yet,
-          in plain text under the header while it is unshared. Not in the meta
+          in plain text under the header while it is unshared and open. Not in the meta
           line (clamped to one row), not a page notice (one at a time, so an error
           would hide it), and not an alert: a standing fact, not news. */}
-      {unshared ? (
+      {shareAhead ? (
         <p className="mb-6 text-sm text-muted-foreground">{tPdf('share.unshared.notice')}</p>
       ) : null}
 

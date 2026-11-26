@@ -69,6 +69,7 @@ const RFQ_ID = '00000000-0000-4000-8000-0000000000r1';
 const SHARE_URL = `/api/v1/admin/quote-requests/${RFQ_ID}/share`;
 
 interface Overrides {
+  status?: string;
   sharedWithCustomer?: boolean;
   shareValidityDays?: number | null;
   sharedAt?: string | null;
@@ -87,7 +88,7 @@ function rfqPayload(overrides: Overrides = {}): Record<string, unknown> {
     customer: { id: '00000000-0000-4000-8000-0000000000c1', firstName: 'Anna', lastName: 'Nowak', email: 'anna@example.test' },
     createdByAdminUserId: '00000000-0000-4000-8000-0000000000u1',
     assignedAdminUserId: null,
-    status: 'Created from admin',
+    status: overrides.status ?? 'Created from admin',
     awaitingCustomerRevisionAcceptance: true,
     currentRevisionNumber: 1,
     headerNote: null,
@@ -546,4 +547,23 @@ describe('RfqDetail — a shared quote (specs/192-quote-request-draft-share/)', 
     const menu = await screen.findByRole('menu');
     expect(within(menu).getByRole('menuitem', { name: quote('pdf.send') })).toBeInTheDocument();
   });
+});
+
+describe('RfqDetail — a closed quote that was never shared (specs/192-quote-request-draft-share/ FR-009)', () => {
+  // Nothing is left to share on a closed quote: the fact stays (the badge, as
+  // in the list), but nothing on the screen speaks of a share still to come.
+  it.each(['Canceled', 'Expired', 'Approved', 'Completed'])(
+    '%s: keeps the badge, drops the notice and the validity counted from sharing',
+    async (status) => {
+      serve(rfqPayload({ status, shareValidityDays: 30 }));
+      renderDetail();
+
+      expect(await screen.findByText(quote('share.badge.unshared'))).toBeInTheDocument();
+      expect(screen.queryByText(quote('share.unshared.notice'))).not.toBeInTheDocument();
+      const meta = document.querySelector('header p')?.textContent ?? '';
+      expect(meta).not.toContain(quote('share.meta.unshared'));
+      expect(meta).not.toContain(quote('share.meta.validityDays.other', { days: 30 }));
+      expect(screen.queryByRole('button', { name: quote('share.action') })).not.toBeInTheDocument();
+    },
+  );
 });
