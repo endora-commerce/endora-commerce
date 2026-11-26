@@ -28,8 +28,8 @@ events). No code change.
 - [ ] T006 [P] Inventory Project operations and the stage-move route in `specs/186-aggregate-ports/contracts/project-command-port.md`
 - [ ] T007 [P] Inventory Category operations (move, values-only update, the threshold audit split with `inventory`) in `specs/186-aggregate-ports/contracts/catalog-category-command-port.md`
 - [ ] T008 [P] Inventory Opportunity operations in `specs/186-aggregate-ports/contracts/opportunity-command-port.md`
-- [ ] T009 [P] Inventory Task operations (`createMany`, child Commands on `update`, the 8 hand audits) in `specs/186-aggregate-ports/contracts/task-command-port.md`
-- [ ] T010 Record in `specs/186-aggregate-ports/research.md` R-2 any readiness the inventory changed, and any operation it moves in or out of scope (an owner question if it changes FR-020–FR-028) — Organization recorded with #1821 (sales reps H-in, sales channels H-post through the kernel; one owner question for T028); the other eight inventories are open; CustomerAccount recorded with #1822 (R-2 paragraph, R-17), no operation in or out of FR-021
+- [x] T009 [P] Inventory Task operations (`createMany`, child Commands on `update`, the 8 hand audits) in `specs/186-aggregate-ports/contracts/task-command-port.md` — #1829: every operation is C, nothing converts (the four hand-recorded entries are a second object's, inside Commands); the `PATCH` is up to seven Commands, each its own transaction, not children of one; eight findings, proposed as R-23.1–R-23.8 (pending architect)
+- [ ] T010 Record in `specs/186-aggregate-ports/research.md` R-2 any readiness the inventory changed, and any operation it moves in or out of scope (an owner question if it changes FR-020–FR-028) — Organization recorded with #1821 (sales reps H-in, sales channels H-post through the kernel; one owner question for T028); the other eight inventories are open; CustomerAccount recorded with #1822 (R-2 paragraph, R-17), no operation in or out of FR-021; Task recorded with #1829 (R-2 paragraph, R-23), no operation in or out of FR-028
 
 ---
 
@@ -196,11 +196,11 @@ the exit-2 rules, the `--since` / `release-changeset` placement) and `backend/te
 
 ## Phase 12: User Story 10 — Task (Priority: P3)
 
-- [ ] T092 [US10] Declare `TaskCommandPort` and add `customFieldValues` to `TaskRecord` in `packages/contracts/src/tasks.ts`; `@deprecated` on `TaskWritePort`
-- [ ] T093 [P] [US10] (after #1866) Failing parity and off-state tests in `backend/test/contract/tasks/task-command-port.test.ts`
-- [ ] T094 [P] [US10] (after #1866) Failing worker test (publish notifies assignees) in `backend/test/integration/tasks/task-command-port.worker.test.ts`
-- [ ] T095 [US10] (after #1866) Implement and register `packages/modules/tasks/src/backend/services/task-command-port.ts`; `taskWritePort` delegates (`task-write-port.ts`); move `projects`' stage-task calls to the new port with an unchanged `nonBindingDependencies` declaration
-- [ ] T096 [US10] Drain the `task` ledger entry (the ledger is now empty — delete it, as its header says); docs; changesets
+- [x] T092 [US10] Declare `TaskCommandPort` and add `customFieldValues` to `TaskRecord` in `packages/contracts/src/tasks.ts`; `@deprecated` on `TaskWritePort` — #1829: also `TaskUpdatePatch` and `TaskStatusMove` (R-23.1, R-23.4); type test `packages/contracts/src/tasks.command-port.test.ts`; `.changeset/1829-contracts-task-command-port.md`
+- [x] T093 [P] [US10] (after #1866) Failing parity and off-state tests in `backend/test/contract/tasks/task-command-port.test.ts` — #1829: parity for all fourteen methods (`createMany` and `deleteInContext` against the deprecated port), the status move's refusals, `source`, extensions, the seven methods refused with no administrator, a private Task read-only to the system, off-state
+- [x] T094 [P] [US10] (after #1866) Failing worker test (publish notifies assignees) in `backend/test/integration/tasks/task-command-port.worker.test.ts` — #1829
+- [x] T095 [US10] (after #1866) Implement and register `packages/modules/tasks/src/backend/services/task-command-port.ts`; `taskWritePort` delegates (`task-write-port.ts`); move `projects`' stage-task calls to the new port with an unchanged `nonBindingDependencies` declaration — #1829: over the routes' own service methods, split into the write and the route's rendering (R-22.1); `commands/caller-options.ts` copied (R-18.6, refs #1961); `source` joins `TASKS_AUDIT_KEYS`; one `tasks.task.custom_fields_change` factory over a merge (R-23.8); `taskWritePort` is a two-method object over the same service; `projects` resolves `taskCommandPort` under the same `degrades-without` edge, renamed
+- [ ] T096 [US10] Drain the `task` ledger entry (the ledger is now empty — delete it, as its header says); docs; changesets — #1829: docs (*Writing tasks from another module*, EN and PL, re-pinned; Projects' page and its module reference), `specs/conventions/custom-field-writes.md` list, `.changeset/1829-*.md` (contracts, tasks, projects); the ledger does not exist yet (T042), so there is no entry to drain
 
 ---
 

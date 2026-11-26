@@ -78,7 +78,7 @@ remind you of.
 **Code with no admin request to ride on — a subscriber, an overlay module, an integration worker —
 writes a host's values through the owner's published write port, never a native `UPDATE` of the
 host's `custom_field_values`** (Principle I; the column is the host's, whatever module knows the
-value). Today the two hosts that publish one are:
+value). Today the hosts that publish one are:
 
 - `customer_accounts` — `customerAccountCommandPort.setCustomFieldValues(customerAccountId, merge, options?)`,
   the aggregate port (`specs/186-aggregate-ports/` US3); the narrow
@@ -91,8 +91,11 @@ value). Today the two hosts that publish one are:
   to it. Both run `organization.set_custom_field_values`, which is not what the admin edit runs
   (`organization.admin_patch` writes the columns and the bag in one Command), so a command hook that
   must see every change of the bag registers on both actions.
+- `tasks` — `taskCommandPort.setCustomFieldValues(taskId, merge, options?)`, the aggregate port
+  (`specs/186-aggregate-ports/` US10). It runs `tasks.task.custom_fields_change`, the Command the
+  admin `PATCH` runs for the values, so one hook registration sees every change.
 
-Both have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
+All have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
 callback over the current bag that the owner runs between its own load and its own write, as one
 Command with one audit row; **the owner does not validate**, so the caller calls
 `CustomFieldValuePort.validateAndMerge` inside `merge` (the administrator's rules: an `internal`

@@ -901,7 +901,7 @@ jego zadań wymagają tego uprawnienia obok `tasks:write`; przeniesienie zadania
 między etapami projektu — nie.
 
 Moduł odczytuje i zapisuje zadania wyłącznie przez `taskReadPort` i
-`taskWritePort`, po ustaleniu, że moduł Zadania jest obecny (krawędzie
+`taskCommandPort`, po ustaleniu, że moduł Zadania jest obecny (krawędzie
 `degrades-without`). Zadania etapu są tworzone po zatwierdzeniu własnej
 transakcji przejścia, każde przez osobne audytowane polecenie
 `tasks.task.create`, każde z identyfikatorem definicji zadania etapu jako
