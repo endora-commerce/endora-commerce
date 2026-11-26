@@ -2286,26 +2286,27 @@ opportunity — with `opportunityId`, `organizationId`, `documentKind`,
 ## Reading and moving an opportunity from another module
 
 For developers. Another module, or a deployment's overlay, works with
-opportunities through two published ports and never through CRM's tables or
-classes. Both types are exported by `@endora-commerce/contracts`.
+opportunities through published ports and never through CRM's tables or
+classes: `opportunityReadPort` to read, and `opportunityCommandPort` to write
+(see *Server-side writes* below). Their types are exported by
+`@endora-commerce/contracts`.
 
 | Container name | Type | What it does |
 | --- | --- | --- |
 | `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByIds(ids)`, `findByDocument(kind, documentId)`, `listOpenForOrganization(organizationId)` and `search({ q, limit })` (number or title, at most 20). Each answers plain `OpportunityRecord` values — id, number, title, organization, status code and kind, assignee, value, currency, dates — or `null` / an empty list. `statusName(code, language)` names a status as CRM's screens do: its name in that language, else its default name, else the code. `listNotes({ organizationId?, authorAdminUserId?, createdFrom?, createdBefore?, cursor?, limit })` lists the notes written on opportunities, oldest first, a page of at most 100 at a time — see *Reading notes* below. |
-| `opportunityTransitionPort` | `OpportunityTransitionPort` | `applyStatus({ opportunityId, to, actor, reason? })` moves an opportunity through the configured workflow, guards and events included, and answers what happened as a value. |
+| `opportunityTransitionPort` | `OpportunityTransitionPort` | **Deprecated since 0.113.0, removed in 0.114.0.** `applyStatus({ opportunityId, to, actor, reason? })` now runs `opportunityCommandPort.transition(opportunityId, { to, reason })` and answers the same outcome; the `actor` you pass is no longer read. |
 
 ```ts
-import type { OpportunityTransitionPort } from '@endora-commerce/contracts';
+import type { OpportunityCommandPort } from '@endora-commerce/contracts';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 
-const opportunities = lazyPort<OpportunityTransitionPort>(ctx, 'opportunityTransitionPort');
+const opportunities = lazyPort<OpportunityCommandPort>(ctx, 'opportunityCommandPort');
 
-const outcome = await opportunities.applyStatus({
+const outcome = await opportunities.transition(
   opportunityId,
-  to: 'won',
-  actor: { kind: 'system' },
-  reason: 'Contract signed in the ERP',
-});
+  { to: 'won', reason: 'Contract signed in the ERP' },
+  { source: 'erp' },
+);
 if (!outcome.applied && outcome.reason !== 'already_there') {
   // 'not_found' | 'unknown_status' | 'not_permitted' | 'vetoed', with `detail`
 }
@@ -2338,13 +2339,86 @@ if (!outcome.applied && outcome.reason !== 'already_there') {
   lists `crm` in `dependencies`. One that can lists it in
   `nonBindingDependencies` with `kind: 'degrades-without'`, the port's name and
   a `whenAbsent` sentence an operator will read before switching CRM off.
-- **With CRM switched off both ports fail closed**: resolving either throws
+- **With CRM switched off every port fails closed**: resolving one throws
   `ModuleDisabledError` (HTTP `503 MODULE_DISABLED`). Do not wrap the call in a
   bare `catch` — a consumer that degrades asks
   `effectiveState.isPresent('crm')` first.
 
 To react to a status change rather than cause one, subscribe to the events or
 register a guard, as *Adding your own logic to a status change* describes.
+
+## Server-side writes
+
+For developers. Another module, an overlay module or an integration worker (a
+CRM or ERP connector) writes an opportunity through **`opportunityCommandPort`**,
+the opportunity's write port, declared as `OpportunityCommandPort` in
+`@endora-commerce/contracts`. Resolve it per use with
+`lazyPort<OpportunityCommandPort>(ctx, 'opportunityCommandPort')`, with `crm`
+in the calling module's manifest `dependencies` (or in
+`nonBindingDependencies` with `kind: 'refuses-without'`).
+
+| Method | Audit action | What the admin does the same way |
+| --- | --- | --- |
+| `create(input, options?)` | `crm.opportunity.create` | `POST /api/v1/admin/crm/opportunities` |
+| `update(id, patch, options?)` | `crm.opportunity.update` | `PATCH /api/v1/admin/crm/opportunities/:id` |
+| `setCustomFieldValues(id, merge, options?)` | `crm.opportunity.update` | `PATCH /api/v1/admin/crm/opportunities/:id` with only `customFieldValues` |
+| `assign(id, { adminUserId }, options?)` | `crm.opportunity.assign` | `POST /api/v1/admin/crm/opportunities/:id/assign` |
+| `transition(id, { to, reason? }, options?)` | `crm.opportunity.transition` | `POST /api/v1/admin/crm/opportunities/:id/transition` |
+| `setTags(id, { tagIds }, options?)` | `crm.opportunity.tag_set` | `PUT /api/v1/admin/crm/opportunities/:id/tags` |
+| `link(id, { documentKind, documentId, syncStatus? }, options?)` | `crm.opportunity.link_add` | `POST /api/v1/admin/crm/opportunities/:id/links` |
+| `unlink(id, linkId, options?)` | `crm.opportunity.link_remove` | `DELETE /api/v1/admin/crm/opportunities/:id/links/:linkId` |
+| `addComment(id, { kind, body }, options?)` | `crm.opportunity.note_add`, `crm.opportunity.message_add` | `POST /api/v1/admin/crm/opportunities/:id/comments` |
+| `delete(id, options?)` | `crm.opportunity.delete` | `DELETE /api/v1/admin/crm/opportunities/:id` |
+
+**One write path.** Each method runs the same Command as the admin endpoint,
+through the same code, so the two cannot write differently: one audit entry
+with the same state, the same events, and the same follow-ups — the assignee
+told, the people mentioned told, the value recalculated after a link changes
+or the mode becomes computed. A transition runs the guards, asks the linked
+orders to follow, and announces the change, exactly as from the admin. Inputs
+are the endpoints' request bodies, validated with the same limits; an input
+outside them is refused with `422 VALIDATION_FAILED`. Refusals are the
+endpoints' errors with their codes (`404 CRM_OPPORTUNITY_NOT_FOUND`,
+`422 CRM_ASSIGNEE_INVALID`, `422 CUSTOM_FIELD_VALUE_INVALID`,
+`409 CRM_DOCUMENT_ALREADY_LINKED`, and each operation's own), with one
+exception: **`transition` answers a refusal as a value**, the outcome shown
+above, so a guard's veto is `vetoed` with the guard's sentence rather than an
+error. The methods that change the opportunity answer its `OpportunityRecord`,
+custom-field values included; `link` answers the link, `addComment` the note
+or message.
+
+**Custom-field values.** `setCustomFieldValues` hands your `merge` function a
+copy of the current values while the opportunity is locked, and stores what it
+returns. Validate inside it with `CustomFieldValuePort.validateAndMerge`; CRM
+does not validate for you, and a refusal you throw writes nothing.
+
+**Who wrote it.** The actor is the ambient one, never a parameter: an
+administrator inside an admin request, or under `withSystemScopeActingFor`; the
+**system** actor under `withSystemScope` in a worker. A status change made with
+no administrator is recorded with the cause *system*. **A note or a message
+needs an author**, so `addComment` with no administrator is refused with
+`403 FORBIDDEN`; a worker writes one under `withSystemScopeActingFor`. The port
+checks no permission — the caller is the gate — so never resolve it for a
+customer-facing route. Call it after your own commit: each call is a
+transaction of its own.
+
+**Options** (the last parameter of every method):
+
+- `source` — a lower-case code naming the integration (`erp`, `crm.connector`,
+  at most 64 characters), recorded as `source` in the audit entry beside the
+  actor. Any other value is refused with `422 VALIDATION_FAILED` before
+  anything is read or written. The opportunity's change history does not show
+  it; the audit log does.
+- `expectedVersion` — the opportunity's `version` you read. `update` honours
+  it, as the admin's `If-Match` does, and refuses a moved-on opportunity with
+  `409 VERSION_CONFLICT`. The other methods ignore it.
+- `extensions` — no CRM write is declared hookable, so any key is refused with
+  `422 COMMAND_EXTENSION_UNCLAIMED` before anything is read or written.
+
+**Not offered**: attachments, events and their reminders, retrying or
+dismissing an order change that was refused, recalculating a value, and
+whether a linked order follows the opportunity. The workflow, the tags and the
+order-status mappings are configuration, not part of an opportunity.
 
 ## Switching it on and off
 
