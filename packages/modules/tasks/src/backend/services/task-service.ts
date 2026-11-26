@@ -47,10 +47,12 @@ import {
 } from '../domain/list-cursor.js';
 import type { TaskStatusGraph } from '../domain/task-status-graph.js';
 import type { TaskPriority } from '../entities/task-priority.entity.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import {
   actingAdminUserId,
   isSomeoneElsesPrivate,
   isUuid,
+  requireActingAdmin,
   TASK_COLUMNS,
   type TaskAccess,
   type TaskRow,
@@ -615,6 +617,18 @@ export class TaskService {
    * custom-field values fit their definitions.
    */
   async create(body: CreateTaskBody, language: SupportedLanguage): Promise<TaskDetail> {
+    return this.#detail(await this.createTask(body), language);
+  }
+
+  /**
+   * The write of `POST /tasks`, shared with `taskCommandPort.create`
+   * (`specs/186-aggregate-ports/` R-22.1): the checks, the Command, and — after
+   * its commit — the assignees and the people the description mentions told.
+   * Answers the Task as written. Needs an administrator behind the call, its
+   * Creator (R-23.2).
+   */
+  async createTask(body: CreateTaskBody, caller: CallerOptions = {}): Promise<TaskRow> {
+    requireActingAdmin('A Task is created by an administrator.');
     const context = body.context ?? null;
     const isDraft = body.draft ?? false;
     const isPrivate = body.private ?? false;
@@ -640,6 +654,7 @@ export class TaskService {
     const description = body.description ?? '';
     const graph = await this.deps.workflow.graph();
     const id = await this.#run(
+      caller,
       createTaskCommand(context, {
         title: body.title,
         description,
@@ -659,13 +674,12 @@ export class TaskService {
       }),
     );
     const row = await this.deps.access.rowAfterWrite(id);
-    const task = await this.#detail(row, language);
     // A draft tells nobody: it is told about when it is published (FR-037).
     if (!row.is_draft) {
       await this.#tellAssignees(assigneeIds, row);
       await this.deps.mentions.tell(row, mentionedAdminUserIds(description));
     }
-    return task;
+    return row;
   }
 
   /**
@@ -676,22 +690,35 @@ export class TaskService {
    * `loadVisible`); a Task that is not a draft is 409 `TASK_ALREADY_PUBLISHED`.
    */
   async publish(id: string, language: SupportedLanguage): Promise<TaskDetail> {
+    return this.#detail(await this.publishTask(id), language);
+  }
+
+  /**
+   * The write of `POST /tasks/:id/publish`, shared with `taskCommandPort.publish`:
+   * the draft's Creator behind the call (403 with nobody behind it, R-23.2;
+   * 404 for anybody else), the Command, then its assignees and the people it
+   * mentions told. Answers the Task as written.
+   */
+  async publishTask(id: string, caller: CallerOptions = {}): Promise<TaskRow> {
+    requireActingAdmin('A draft is published by the administrator who created it.');
     const row = await this.deps.access.loadVisible(id);
     this.deps.access.assertMayChange(row);
     if (!row.is_draft) throw taskAlreadyPublished();
     // Unreachable through visibility — a draft is its Creator's alone — and kept so.
     if (row.created_by_admin_user_id !== actingAdminUserId()) throw taskNotFound();
-    const { assigneeIds } = await this.deps.commandBus.run(publishTaskCommand(row.id));
+    const { assigneeIds } = await this.deps.commandBus.run(withCallerOptions(publishTaskCommand(row.id), caller));
     const written = await this.deps.access.rowAfterWrite(row.id);
-    const task = await this.#detail(written, language);
     await this.#tellAssignees(assigneeIds, written);
     await this.deps.mentions.tell(written, mentionedAdminUserIds(written.description));
-    return task;
+    return written;
   }
 
-  /** One Command, a draft/private check the database refused answered as the service would (R-3). */
-  async #run<T>(command: Command<T>): Promise<T> {
-    return this.deps.commandBus.run(command).catch(mapDraftPrivateViolation);
+  /**
+   * One Command with the caller's options (`withCallerOptions`), a
+   * draft/private check the database refused answered as the service would (R-3).
+   */
+  async #run<T>(caller: CallerOptions, command: Command<T>): Promise<T> {
+    return this.deps.commandBus.run(withCallerOptions(command, caller)).catch(mapDraftPrivateViolation);
   }
 
   /**
@@ -703,6 +730,16 @@ export class TaskService {
    * so a refusal leaves the rest of the request unwritten.
    */
   async update(id: string, body: UpdateTaskBody, language: SupportedLanguage): Promise<TaskDetail> {
+    return this.#detail(await this.updateTask(id, body), language);
+  }
+
+  /**
+   * The write of `PATCH /tasks/:id`, shared with `taskCommandPort.update`
+   * (`specs/186-aggregate-ports/` R-23.1): the checks, the Commands in the
+   * order above with the caller's options on each, and — after the last — the
+   * people newly assigned or mentioned told. Answers the Task as written.
+   */
+  async updateTask(id: string, body: UpdateTaskBody, caller: CallerOptions = {}): Promise<TaskRow> {
     const row = await this.deps.access.loadVisible(id);
     this.deps.access.assertMayChange(row);
     if (body.context !== undefined && !sameContext(body.context, row)) {
@@ -769,8 +806,8 @@ export class TaskService {
         : null;
 
     // Made public first, so a context given in the same write lands on a public Task.
-    if (privacyChange && body.private === false) await this.#run(changeTaskPrivacyCommand(row.id, false));
-    if (body.parentTaskId !== undefined) await this.deps.hierarchy.setParent(row, body.parentTaskId);
+    if (privacyChange && body.private === false) await this.#run(caller, changeTaskPrivacyCommand(row.id, false));
+    if (body.parentTaskId !== undefined) await this.deps.hierarchy.setParent(row, body.parentTaskId, caller);
 
     const fields: TaskFieldChanges = {};
     if (body.title !== undefined && body.title !== row.title) fields.title = body.title;
@@ -783,28 +820,45 @@ export class TaskService {
     let mentioned: string[] = [];
     if (Object.keys(fields).length > 0) {
       const reminders = { timeZone: await this.deps.timeZone(), auditLog: this.deps.auditLog };
-      mentioned = (await this.#run(updateTaskCommand(row.id, fields, reminders))).mentioned;
+      mentioned = (await this.#run(caller, updateTaskCommand(row.id, fields, reminders))).mentioned;
     }
-    if (priorityChange) await this.deps.commandBus.run(changeTaskPriorityCommand(row.id, body.priorityCode ?? null));
-    if (body.tagIds !== undefined) await this.deps.commandBus.run(changeTaskTagsCommand(row.id, body.tagIds));
-    if (customFieldValues) await this.deps.commandBus.run(changeTaskCustomFieldsCommand(row.id, customFieldValues));
+    const run = <T>(command: Command<T>): Promise<T> => this.deps.commandBus.run(withCallerOptions(command, caller));
+    if (priorityChange) await run(changeTaskPriorityCommand(row.id, body.priorityCode ?? null));
+    if (body.tagIds !== undefined) await run(changeTaskTagsCommand(row.id, body.tagIds));
+    if (customFieldValues) await run(changeTaskCustomFieldsCommand(row.id, async () => customFieldValues));
 
     let added: string[] = [];
     if (assignees) {
-      const changed = await this.deps.commandBus.run(changeTaskAssigneesCommand(row.id, assignees));
+      const changed = await run(changeTaskAssigneesCommand(row.id, assignees));
       added = changed?.added ?? [];
     }
     // Made private last, once the context and the other assignees are gone.
-    if (privacyChange && body.private === true) await this.#run(changeTaskPrivacyCommand(row.id, true));
+    if (privacyChange && body.private === true) await this.#run(caller, changeTaskPrivacyCommand(row.id, true));
 
     const written = await this.deps.access.rowAfterWrite(row.id);
-    const task = await this.#detail(written, language);
     // A draft tells nobody until it is published (FR-037).
     if (!written.is_draft) {
       await this.#tellAssignees(added, written);
       await this.deps.mentions.tell(written, mentioned);
     }
-    return task;
+    return written;
+  }
+
+  /**
+   * `taskCommandPort.setCustomFieldValues` (`specs/186-aggregate-ports/`
+   * R-23.8): the Task as the caller may see and change it, then
+   * `tasks.task.custom_fields_change` — the `PATCH`'s Command — with the
+   * caller's merge run under the Task's lock. Answers the Task as written.
+   */
+  async setCustomFieldValues(
+    id: string,
+    merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
+    caller: CallerOptions = {},
+  ): Promise<TaskRow> {
+    const row = await this.deps.access.loadVisible(id);
+    this.deps.access.assertMayChange(row);
+    await this.deps.commandBus.run(withCallerOptions(changeTaskCustomFieldsCommand(row.id, merge), caller));
+    return this.deps.access.rowAfterWrite(row.id);
   }
 
   /**
@@ -848,7 +902,7 @@ export class TaskService {
    * answer says how many of them the caller may see: a sub-task hidden from
    * them is counted in no number of theirs (User Story 5 scenario 7).
    */
-  async delete(id: string): Promise<TaskDeleteResult> {
+  async delete(id: string, caller: CallerOptions = {}): Promise<TaskDeleteResult> {
     // `tasks:write`, or `tasks:see_private` on a private Task (FR-041, Q1 = B).
     const me = actingAdminUserId();
     const held = me === null ? [ADMIN_PERMISSION_WILDCARD] : await this.deps.permissions.listPermissions(me);
@@ -857,7 +911,9 @@ export class TaskService {
     const row = await this.deps.access.loadVisible(id);
     if (!mayWrite && !row.is_private) throw forbidden();
     await this.deps.access.assertMayDelete(row);
-    const { deleted, detachedIds } = await this.deps.commandBus.run(deleteTaskCommand(row.id, this.deps.auditLog));
+    const { deleted, detachedIds } = await this.deps.commandBus.run(
+      withCallerOptions(deleteTaskCommand(row.id, this.deps.auditLog), caller),
+    );
     if (!deleted) throw taskNotFound();
     return { subtasksDetached: (await this.deps.access.visibleIds(detachedIds)).size };
   }
@@ -1038,6 +1094,7 @@ export class TaskService {
         completedAt: asDate(row.completed_at),
         createdAt: new Date(row.created_at),
         updatedAt: new Date(row.updated_at),
+        customFieldValues: { ...(row.custom_field_values ?? {}) },
       };
     });
   }
