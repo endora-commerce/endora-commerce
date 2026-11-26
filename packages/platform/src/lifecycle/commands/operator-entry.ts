@@ -57,7 +57,7 @@ import { nodeModulesRootsFor } from '../../packages/installed-packages.js';
 import { resolveManifestEntries, type RegisteredManifestEntry } from '../manifest-registry.js';
 import type { MigrationOwnership } from '../services/migration-ownership.js';
 import { attachOperatorDiagnostics } from './operator-diagnostics.js';
-import type { OperatorResources, OperatorRuntime } from './operator-runtime.js';
+import type { MigrationCatalogue, OperatorResources, OperatorRuntime } from './operator-runtime.js';
 
 /**
  * The declaration-level manifest set of a tree that ships no generated index:
@@ -123,9 +123,35 @@ export async function instanceMigrationOwnership(
   env: NodeJS.ProcessEnv = process.env,
   deploymentRoot?: string,
 ): Promise<MigrationOwnership> {
-  const discovered = (
-    await discoverConfiguredMigrations({ coreEntries: [], manifests: [] }, env, deploymentRoot)
-  ).ownership;
+  return (await instanceMigrationCatalogue(entries, env, deploymentRoot)).ownership;
+}
+
+/**
+ * The instance's migration order with origins, and the ownership answer above
+ * — what `module:status` lists a module's migrations from
+ * (`specs/190-overlay-full-modules/` FR-045). One discovery for both halves, so
+ * the listing is the chain a hard uninstall would revert.
+ */
+export async function instanceMigrationCatalogue(
+  entries: readonly RegisteredManifestEntry[],
+  env: NodeJS.ProcessEnv = process.env,
+  deploymentRoot?: string,
+): Promise<MigrationCatalogue> {
+  const configured = await discoverConfiguredMigrations(
+    { coreEntries: [], manifests: [] },
+    env,
+    deploymentRoot,
+  );
+  return {
+    registered: configured.registered,
+    ownership: withOverlayCoverage(configured.ownership, entries),
+  };
+}
+
+function withOverlayCoverage(
+  discovered: MigrationOwnership,
+  entries: readonly RegisteredManifestEntry[],
+): MigrationOwnership {
   const overlayIds = new Set(
     entries.filter((entry) => entry.origin === 'overlay').map((entry) => entry.manifest.id),
   );
@@ -211,6 +237,7 @@ export async function instanceOperatorRuntime(
       },
       entries,
       migrationOwnership: () => instanceMigrationOwnership(entries, env, options.deploymentRoot),
+      migrations: () => instanceMigrationCatalogue(entries, env, options.deploymentRoot),
       out,
       err,
     },

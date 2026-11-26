@@ -133,11 +133,16 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 7 — Lifecycle (#1851, US5) — after Phase 6
 
-- [ ] T090 Test: lifecycle sequence of `contracts/overlay-lifecycle.md` §5 — `backend/test/integration/_lifecycle/overlay-tables.integration.test.ts` [FR-045]
-- [ ] T091 `module:status` lists overlay migrations per module with origin [FR-045]
-- [ ] T092 [P] Off-state test template for overlays; `check:off-state-coverage` counts overlay modules of every deployment [FR-046]
-- [ ] T093 Test + implement `DivergenceKind` `column-extension` (contracts first), own tables under `notRecorded`; C-2 side-table kind with 187 [FR-047]
-- [ ] T094 Changeset contracts `minor`
+- [x] T090 Test: lifecycle sequence of `contracts/overlay-lifecycle.md` §5 — `backend/test/integration/_lifecycle/overlay-tables.integration.test.ts` [FR-045]
+  - Over `overlay_notes_fixture` on `deploymentDatabase('example')`, driving the orchestrator, `loadModulePresence` (boot) and `migrateUpVerified` (migrate) in-process; the file first reverts the overlay migration, so `install` has a pending one to apply. Deactivation writes the activation Setting and refreshes the registry cache, as `module.activation.set` + `propagateActivationChange` do. Not measured: the `x_*` column orphaned by the hard uninstall — overlay `schemaExtensions` are #1853 (Phase 9), so no overlay can declare one yet. Red before T091 on the four status assertions
+- [x] T091 `module:status` lists overlay migrations per module with origin [FR-045]
+  - `OperatorRuntime.migrations` (optional): `module:status <id>` prints the module's migrations (name, origin, applied / pending) under its row, and `--json` carries `migrations` on every row; the whole table without an id does not (core owns hundreds). This repository's script passes `configuredMigrations()`; `instanceOperatorRuntime` passes `instanceMigrationCatalogue`. Unchanged: this repository's `module:uninstall` script still passes `coreMigrationOwnership()`, so a hard uninstall of an overlay module from that terminal is refused (stated in `overlay-modules.md`); an instance's is not
+- [x] T092 [P] Off-state test template for overlays; `check:off-state-coverage` counts overlay modules of every deployment [FR-046]
+  - The population gains the overlay modules of every deployment on disk that **own tables** (`migrations/` or `entities/` with a file) and declare an activation control — FR-046's scope; counting every switchable overlay module would land eleven schema-less, route-less fixtures as findings. The template is `backend/test/integration/overlay/overlay-notes-fixture-off-state.test.ts`: the server runs on the deployment's template, selected in-process. `overlay_notes_fixture` gained one gated admin read (`overlay_notes_fixture:read`) so its off state has an API surface
+- [x] T093 Test + implement `DivergenceKind` `column-extension` (contracts first), own tables under `notRecorded`; C-2 side-table kind with 187 [FR-047]
+  - `DivergenceEntry.rung` stays the escalation ladder's (`null` here); the data ladder's D2 is `detail.dataRung`, beside the physical `columns`. Owner from `CUSTOM_FIELD_HOST_BINDINGS`. C-2 not done: `specs/187-side-table-extensions/` defines no divergence kind and none of its code is on `master`, so per plan C-2 it is raised on 187 rather than invented here
+- [x] T094 Changeset contracts `minor`
+  - `.changeset/1851-overlay-lifecycle.md`: contracts, cli and platform `minor`
 
 ## Phase 8 — CLI (#1852, US1) — after Phase 6
 

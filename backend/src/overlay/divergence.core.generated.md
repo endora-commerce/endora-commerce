@@ -21,7 +21,8 @@ No overlay modules. This deployment ships the platform’s own module set.
 ## What this deployment changes
 
 Nothing. This deployment changes no registration, intercepts no endpoint, subscribes to no
-event, publishes and consumes no port, mounts no root plugin and omits no module.
+event, publishes and consumes no port, mounts no root plugin, declares no column on another
+module’s table and omits no module.
 
 That is a statement rather than an absence: the derivation ran over this deployment’s own
 tree and found no divergence of any recorded kind.
@@ -40,6 +41,7 @@ and the facts only a running instance can answer.
 | `ctx.routes` | a route an overlay module registers is its own route, gated on its own module — not a change to what core serves |
 | `ctx.ungatedRoutes` | the module's own route, outside the module's own gate; the reason string is required at the call and is read there, and it removes no other module's gate |
 | `manifest.ts declarations (permissions, palette actions, i18n bundles, CLI commands)` | each is a module declaring its own surface, and each is already swept by the instrument that owns it — the permission inventory, the bundle-shape test, the action-route check |
+| `an overlay module's own entities and migrations` | a table an overlay module creates is its own surface, migrated under the foreign-schema guard with no exemption, so it cannot touch a table it does not own; what it declares on another module's table is recorded, as a column extension |
 
 ### Facts only a running instance knows
 

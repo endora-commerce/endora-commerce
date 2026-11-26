@@ -65,7 +65,7 @@ The port is provided by the kernel; it needs no manifest dependency.
 
 ### Where assignments live
 
-The assignment is the channel's `organization` membership — the `sales_channel_organizations` bridge — written only through `salesChannelMembershipPort`, which also drops the access cache for the Organization before it reports the change. The per-customer record (`sales_channel_customer_accounts`) takes no part in access: it stays registered as a bridge and is neither read nor written by the rule. Grant access by assigning the customer's Organization, never by writing a per-customer row.
+The assignment is the channel's `organization` membership — the `sales_channel_organizations` bridge — written only through `salesChannelMembershipPort`, which also drops the access cache for the Organization before it reports the change. When the caller passes its transaction's `em`, the drop waits until that transaction's EventBus scope has succeeded — for a Command, its commit — and still runs before the event is dispatched (`EventBus.afterScope`, issue #1926). The per-customer record (`sales_channel_customer_accounts`) takes no part in access: it stays registered as a bridge and is neither read nor written by the rule. Grant access by assigning the customer's Organization, never by writing a per-customer row.
 
 ## Adding a channel-scoped entity to your module
 
@@ -117,7 +117,7 @@ Membership add / remove operations are idempotent by construction and do not bum
 
 ## Audit hooks
 
-Every identity change, lifecycle change, and membership change writes one `audit_log_entries` row synchronously inside the same transaction. Action codes live in `@endora-commerce/contracts`:
+Every identity change, lifecycle change, and membership change writes one `audit_log_entries` row synchronously. A membership change made on a caller's transactional `em` records its row on that `em` (`AuditPort.recordWithin`), so a rolled-back caller leaves no entry behind (issue #1926). Action codes live in `@endora-commerce/contracts`:
 
 ```ts
 import { SALES_CHANNEL_AUDIT_ACTIONS } from '@endora-commerce/contracts';

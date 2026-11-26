@@ -244,17 +244,35 @@ export interface OffStateCoverageInput {
   /** Defaults to {@link OFF_STATE_COVERAGE_EXEMPT}. */
   readonly ledger?: Readonly<Record<string, string>>;
   /**
-   * Per-deployment overlay module ids this checkout ships.
+   * Per-deployment overlay module ids this checkout ships, over every
+   * deployment on disk.
    *
    * They exist and they are switchable, so naming one is not
-   * `unknown-subject` — but they are **not** in the population, because the
-   * population is what the *generated manifest index* registers and that index
-   * is bare core under every value of `DEPLOYMENT` (D-104). An overlay module's
-   * off-state proof is a per-deployment concern, exactly as its permission
-   * inventory is, and holding one here would mean every deployment's overlay
-   * modules owing a proof to a run that composes none of them.
+   * `unknown-subject`. Existing is not owing, though: the generated manifest
+   * index is bare core under every value of `DEPLOYMENT` (D-104), and which
+   * overlay modules owe a proof is {@link deploymentPopulation}'s answer.
    */
   readonly deploymentModules?: readonly string[];
+  /**
+   * The overlay modules, of every deployment on disk, that **own tables** — a
+   * `migrations/` or an `entities/` directory — with their activation
+   * control (`specs/190-overlay-full-modules/` FR-046,
+   * `contracts/overlay-lifecycle.md` §4).
+   *
+   * They join the population on the same predicate a core module does — an
+   * activation control — because D-297 made an overlay module with tables a
+   * full module, and FR-046 asks it for the proof any switchable module owes:
+   * the rows it keeps while off are exactly what an off-state test exists to
+   * hold. A proof selects its deployment in-process (FR-040), so a run that
+   * composes no deployment still reads it.
+   *
+   * An overlay module that owns no table stays outside, and that is FR-046's
+   * scope rather than a ledger: eleven of `example`'s twelve are fixtures with
+   * no route and no table, whose off state is a contribution filter their
+   * owners test, and pulling them in would land this check with a ledger that
+   * starts full — the shape the population's own derivation above refuses.
+   */
+  readonly deploymentPopulation?: readonly ModuleUnderCheck[];
 }
 
 export interface OffStateCoverageResult {
@@ -645,11 +663,17 @@ export function checkOffStateCoverage(input: OffStateCoverageInput): OffStateCov
   const ledger = input.ledger ?? OFF_STATE_COVERAGE_EXEMPT;
   const indexRegistered = new Set(input.modules.map((module) => module.moduleId));
   // "Does this module exist?" — the index's answer plus the deployments'.
-  const registered = new Set([...indexRegistered, ...(input.deploymentModules ?? [])]);
-  const population = input.modules
-    .filter((module) => typeof module.activationSettingCode === 'string')
-    .map((module) => module.moduleId)
-    .sort();
+  const owing = input.deploymentPopulation ?? [];
+  const registered = new Set([
+    ...indexRegistered,
+    ...(input.deploymentModules ?? []),
+    ...owing.map((module) => module.moduleId),
+  ]);
+  const population = [...new Set(
+    [...input.modules, ...owing]
+      .filter((module) => typeof module.activationSettingCode === 'string')
+      .map((module) => module.moduleId),
+  )].sort();
 
   const findings: OffStateCoverageFinding[] = [];
   const sites: HarnessSite[] = [];
@@ -919,7 +943,8 @@ async function loadModules(indexPath: string): Promise<LoadedModules> {
 
 /**
  * Every per-deployment overlay module this checkout ships, over every
- * deployment rather than the one `DEPLOYMENT` selects.
+ * deployment rather than the one `DEPLOYMENT` selects — and of them, the ones
+ * that own tables, which owe a proof (190, FR-046).
  *
  * `deploymentsOnDisk` and `overlayModulesRootFor` are the overlay path's own
  * root derivation, reused rather than re-spelled; what is added here is the
@@ -927,11 +952,33 @@ async function loadModules(indexPath: string): Promise<LoadedModules> {
  * discovered by its directory and identified by its manifest*. The whole set
  * and not the active one, for the reason `overlay:check` gives: an artefact
  * only a run nobody makes would check is an artefact nothing checks.
+ *
+ * "Owns tables" is the overlay schema reader's own two directories
+ * (`overlay-schema-discovery.md` §1): a `migrations/` or an `entities/`
+ * directory with a file in it. The activation control is read off the
+ * manifest itself, imported, because it is the one fact the population is
+ * keyed on and a text match would be a second reading of it.
  */
-function deploymentModuleIds(): string[] {
+export async function deploymentModulesUnder(
+  modulesRoots: readonly string[],
+): Promise<{ readonly ids: string[]; readonly population: ModuleUnderCheck[] }> {
   const ids = new Set<string>();
-  for (const deployment of deploymentsOnDisk()) {
-    const root = overlayModulesRootFor(deployment);
+  const population = new Map<string, ModuleUnderCheck>();
+  const isFile = (path: string): boolean => {
+    try {
+      return statSync(path).isFile();
+    } catch {
+      return false;
+    }
+  };
+  const hasFiles = (path: string): boolean => {
+    try {
+      return readdirSync(path, { withFileTypes: true }).some((entry) => entry.isFile());
+    } catch {
+      return false;
+    }
+  };
+  for (const root of modulesRoots) {
     let entries;
     try {
       entries = readdirSync(root, { withFileTypes: true });
@@ -940,17 +987,26 @@ function deploymentModuleIds(): string[] {
     }
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-      const carriesManifest = ['manifest.ts', 'manifest.js'].some((name) => {
-        try {
-          return statSync(join(root, entry.name, name)).isFile();
-        } catch {
-          return false;
-        }
+      const manifestPath = ['manifest.ts', 'manifest.js']
+        .map((name) => join(root, entry.name, name))
+        .find(isFile);
+      if (manifestPath === undefined) continue;
+      ids.add(entry.name);
+      if (!['migrations', 'entities'].some((dir) => hasFiles(join(root, entry.name, dir)))) continue;
+      const loaded = (await import(pathToFileURL(manifestPath).href)) as {
+        manifest?: { activation?: { settingCode?: unknown } };
+      };
+      const settingCode = loaded.manifest?.activation?.settingCode;
+      population.set(entry.name, {
+        moduleId: entry.name,
+        activationSettingCode: typeof settingCode === 'string' ? settingCode : null,
       });
-      if (carriesManifest) ids.add(entry.name);
     }
   }
-  return [...ids].sort();
+  return {
+    ids: [...ids].sort(),
+    population: [...population.values()].sort((a, b) => a.moduleId.localeCompare(b.moduleId)),
+  };
 }
 
 /** Every `.ts`/`.tsx` file under `root`, in a stable order. */
@@ -1018,8 +1074,13 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const deploymentModules = deploymentModuleIds();
-  const result = checkOffStateCoverage({ modules: loaded.modules, files, deploymentModules });
+  const deployments = await deploymentModulesUnder(deploymentsOnDisk().map(overlayModulesRootFor));
+  const result = checkOffStateCoverage({
+    modules: loaded.modules,
+    files,
+    deploymentModules: deployments.ids,
+    deploymentPopulation: deployments.population,
+  });
 
   if (listMode) {
     for (const moduleId of result.population) {

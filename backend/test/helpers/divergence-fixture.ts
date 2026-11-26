@@ -67,9 +67,11 @@ export interface ModuleContext {
 /**
  * The fixture deployment's overlay module — every recorded seam, once.
  *
- * Ten kinds; eight of them appear here (`omission` comes from the declaration
- * and `port-consumed` from the `lazyPort` call below, which is in this same
- * file). The three `own-surface` seams are here too, deliberately: they must
+ * Eleven kinds; eight of them appear here as seam calls (`omission` comes from
+ * the declaration, `port-consumed` from the `lazyPort` call below, which is in
+ * this same file, and `column-extension` from the exported
+ * `defineColumnExtension(…)` declaration — `specs/190-overlay-full-modules/`
+ * FR-047). The three `own-surface` seams are here too, deliberately: they must
  * produce **no** entry, and a fixture without them cannot prove that.
  */
 export const FIXTURE_OVERLAY = `
@@ -77,8 +79,17 @@ import type { ModuleContext } from '../../../../kernel/index.js';
 import { lazyPort } from '../../../../kernel/lazy-port.js';
 import { ORGANIZATION_HOOKABLE_ACTIONS } from '@endora-commerce/contracts';
 import { Worker } from 'bullmq';
+import { defineColumnExtension } from '@endora-commerce/platform/kernel';
 
 const REBATE_EVENT = 'orders.placed';
+
+export const schemaExtensions = [
+  defineColumnExtension({
+    host: 'organizations',
+    module: 'acme_overlay',
+    columns: { erpCode: { type: 'varchar', length: 32, nullable: true } },
+  }),
+];
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
@@ -141,7 +152,7 @@ export function registerModule(ctx: ModuleContext): void {
 }
 `;
 
-/** The ten keys the fixture's own tree derives, with a sentence each. */
+/** The eleven keys the fixture's own tree derives, with a sentence each. */
 export const FIXTURE_REASONS: Readonly<Record<string, string>> = {
   'registration:acme_overlay:acmeRebateService':
     'Core registers no rebate service; this one is Acme’s own and exists to hold the ' +
@@ -170,6 +181,9 @@ export const FIXTURE_REASONS: Readonly<Record<string, string>> = {
   'port-consumed:acme_overlay:orderReadPort':
     'Core owns the orders read model and publishes it as a port; Acme reads it rather than ' +
     'querying the tables, so a schema change behind the port does not reach this deployment.',
+  'column-extension:acme_overlay:organizations':
+    'Core keys an Organization by its own id; Acme’s ERP keys it by a code, kept in one declared ' +
+    'column on the host so every Organization read can carry it.',
   'omission:core:blog':
     'Acme publishes its editorial content from its own CMS and ships no blog, so nothing in ' +
     'this deployment would ever create a post.',

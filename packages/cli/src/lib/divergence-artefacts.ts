@@ -100,6 +100,15 @@ export const RUNG_COSTS: Readonly<Record<number, string>> = {
   5: 'rung 5 — fork. Costs everything, permanently.',
 };
 
+/**
+ * The data ladder's cost sentence for the one rung a report records
+ * (`specs/190-overlay-full-modules/` FR-047) — the same page's *The data
+ * ladder* table, D2's row, in one line.
+ */
+export const DATA_RUNG_COSTS: Readonly<Record<'D2', string>> = {
+  D2: 'data ladder D2 — declared extension columns on a table another module owns. Costs a dependency on the host’s module; the platform generates the DDL, records it in a ledger and verifies it, and the host keeps its table and every column it did not let you declare.',
+};
+
 /** The heading each kind gets in the human rendering. */
 const KIND_HEADINGS: Readonly<Record<DivergenceKind, string>> = {
   omission: 'Modules this deployment does not ship',
@@ -112,6 +121,7 @@ const KIND_HEADINGS: Readonly<Record<DivergenceKind, string>> = {
   decoration: 'Registrations this deployment wraps',
   'root-plugin': 'Plugins this deployment mounts at the server root',
   worker: 'Queues this deployment consumes',
+  'column-extension': "Columns this deployment adds to another module's table",
 };
 
 /** Stable order for the human rendering — most invasive last is not the point;
@@ -127,6 +137,8 @@ const KIND_ORDER: readonly DivergenceKind[] = [
   'root-plugin',
   'registration',
   'worker',
+  // The data ladder after the behaviour ladder: new data, not changed behaviour.
+  'column-extension',
 ];
 
 /**
@@ -193,6 +205,9 @@ function subjectCell(entry: DivergenceEntry): string {
   if (entry.kind === 'command-hook' && entry.detail.kind === 'command-hook') {
     return `\`${entry.subject}\` (${entry.detail.phase}, \`${entry.detail.id}\`)`;
   }
+  if (entry.kind === 'column-extension' && entry.detail.kind === 'column-extension') {
+    return `\`${entry.subject}\` (${entry.detail.columns.map((column) => `\`${column}\``).join(', ')})`;
+  }
   return `\`${entry.subject}\``;
 }
 
@@ -253,7 +268,8 @@ export function renderDivergenceMarkdown(
   if (report.entries.length === 0) {
     lines.push(
       'Nothing. This deployment changes no registration, intercepts no endpoint, subscribes to no',
-      'event, publishes and consumes no port, mounts no root plugin and omits no module.',
+      'event, publishes and consumes no port, mounts no root plugin, declares no column on another',
+      'module’s table and omits no module.',
       '',
       'That is a statement rather than an absence: the derivation ran over this deployment’s own',
       'tree and found no divergence of any recorded kind.',
@@ -272,6 +288,7 @@ export function renderDivergenceMarkdown(
         const cost = RUNG_COSTS[rung];
         if (cost !== undefined) lines.push(`${cost}`, '');
       }
+      if (kind === 'column-extension') lines.push(DATA_RUNG_COSTS.D2, '');
       lines.push('| What | Changed by | Owned by | Why |');
       lines.push('| --- | --- | --- | --- |');
       for (const entry of entries) {
