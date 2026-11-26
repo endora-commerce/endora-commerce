@@ -28,7 +28,9 @@
  * ## The rule
  *
  * A file in this list takes a database of its own: `setupMigratorTestDb()`
- * clones the same migrated template the invocation was cloned from — a file
+ * clones the same migrated template the invocation was cloned from (and
+ * `deploymentDatabase()`, for a test of a deployment's overlay schema, clones
+ * that deployment's own template, FR-039) — a file
  * copy, a fraction of a second — and drops it in teardown. However badly the
  * migration sequence in that file goes, it goes there. It also means such a
  * file no longer has to leave the schema migrated for its neighbours, which is
@@ -75,5 +77,13 @@ export const MIGRATOR_DRIVING_TESTS: readonly MigratorDrivingTest[] = [
       'Feature 170 T013: runs the forms init migration down — asserting the four tables are ' +
       'gone — and up again in place. Nothing references the forms tables, so the class is ' +
       'replayed directly rather than through migrator.down().',
+  },
+  {
+    path: 'test/integration/_lifecycle/overlay-tables.integration.test.ts',
+    reason:
+      'Feature 190 T090: reverts example\'s overlay_notes_fixture migration on the deployment\'s ' +
+      'own clone (deploymentDatabase), so module:install has a pending overlay migration to ' +
+      'apply, then walks install, status, both off-switches, both uninstalls, boot and migrate. ' +
+      'The overlay module\'s lifecycle over its table is the thing under test.',
   },
 ];

@@ -44,8 +44,14 @@ const TEST_ROOT = join(BACKEND_ROOT, 'test');
  */
 const DRIVES_THE_MIGRATOR = /\borm\.migrator\b/;
 
-/** The seam a ledgered file must be using. */
-const OWN_DATABASE_SEAM = /setupMigratorTestDb\(/;
+/**
+ * The seams a ledgered file must be using — each hands the file a database of
+ * its own. `setupMigratorTestDb()` clones the invocation's template;
+ * `deploymentDatabase(<deployment>)` clones a deployment's own template
+ * (`specs/190-overlay-full-modules/` FR-039) and has no shared fallback at all:
+ * it refuses to run where there is no base to clone from.
+ */
+const OWN_DATABASE_SEAM = /\b(?:setupMigratorTestDb|deploymentDatabase)\(/;
 
 /**
  * This file, by its exact path — its job is to spell the shape it refuses, so
