@@ -155,9 +155,12 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 9 — `x_*` columns from overlays (#1853, US6) — after Phase 6
 
-- [ ] T110 Test: overlay `schemaExtensions` held to V9 – V11 with the overlay context; generated step at the head of the overlay block; ledger rows under the overlay id; orphaned on hard uninstall — re-run the 178 fixtures with an overlay declarer [FR-065, FR-066]
-- [ ] T111 Implement in `overlaySchemaContributionsUnder` + merge; composer keeps refusing workspace module packages, accepts overlays
-- [ ] T112 `schema-extensions` convention sentence; changeset platform `minor`
+- [x] T110 Test: overlay `schemaExtensions` held to V9 – V11 with the overlay context; generated step at the head of the overlay block; ledger rows under the overlay id; orphaned on hard uninstall — re-run the 178 fixtures with an overlay declarer [FR-065, FR-066]
+  - Platform `overlay/overlay-schema-extensions.test.ts` (V9 – V11, closure across overlays and over the composed graph, step at the head of the block, ownership, physical-name collision with a package). The 178 fixture helper takes `declarer: 'package' | 'overlay'`; `schema-extension-reconcile` and `_lifecycle/schema-extension-uninstall` run over both, `foreign-schema-guard` gains the overlay back-fill pair. `overlay_notes_fixture` now declares one `x_*` column on `organizations`, so T090's lifecycle test measures the orphan it could not, and `column-extension` is derived from a real declaration (reason in `example/divergence.ts`). Most of the merge was already Phase 6's, so those cases were green on arrival; red first were the composed-graph closure, the entity reader refusing what the merge accepts, the composer path, the harness and the lifecycle orphan
+- [x] T111 Implement in `overlaySchemaContributionsUnder` + merge; composer keeps refusing workspace module packages, accepts overlays
+  - `OverlaySchemaOptions.composedDependencies` (core + packages' edges, built by `discoverConfiguredMigrations`) and `schemaExtensions: false` for `configuredEntitiesFrom`, which cannot see that graph. The composer accepts a declaration only under `apps/<d>/modules/<id>/`. The test harness floors the `generated` origin at zero (no file; its name carries the declarations' hash) and digests the platform's step and DDL sources instead
+- [x] T112 `schema-extensions` convention sentence; changeset platform `minor`
+  - `module-migrations.md` R2; `.changeset/1853-overlay-schema-extensions.md`. Published `architecture/schema-extensions.md` (+ pl) still says an overlay ships no schema: `docs-pass.md` gives it to WP11. `module:schema-extensions` `list` / `drop` already read overlay declarations through the ORM configuration in both trees; `audit-packages` stays package-only: its pre-upgrade audit is for migrations written before the guard refused, and an overlay migration has run guarded from its first `migrate`
 
 ## Phase 10 — Reference overlay (#1856, US8) — after Phases 4, 6, 187 (#1834) and #1835
 

@@ -91,7 +91,12 @@ number", never pick a number, never edit an execution list.
    step at the head of the declaring module's block, and records it in the `schema_extensions`
    ledger. A module of this repository does not declare extensions at all (the composer refuses a
    `schemaExtensions` export from a workspace module package); it owns its tables or uses a side
-   table. And the owner of an extensible table owes the other side: a migration that rebuilds one
+   table. A **deployment overlay module** declares them as an installed package does, from its
+   `backend` export and nowhere else under `apps/<deployment>/` (`specs/190-overlay-full-modules/`
+   FR-065 – FR-066): V9 – V11 hold with the overlay id as the declaring module and the dependency
+   closure walked over core, the installed packages and the deployment's overlays, and the
+   generated step, the ledger rows, the verifier, `module:schema-extensions` and the `orphaned`
+   columns a hard uninstall leaves are a package's, under the overlay's id. And the owner of an extensible table owes the other side: a migration that rebuilds one
    (`drop table`, `rename to`, a `create table … as select` copy) loses every extension's columns,
    which `check:extensible-tables` refuses on the merge request and the preservation test in
    `test:backend` catches after the merge. In an **instance** every module arrives as an installed
