@@ -96,6 +96,23 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       "reason": "The same hook on storefront self-registration, which is one Command since spec 176 P1. On a marked name it writes its own audit entry inside the registration transaction and may refuse the registration with its own code, so the whole registration — Organization, first account, token — rolls back; any other name passes through untouched."
     },
     {
+      "key": "command-middleware:example_overlay:organization-timing",
+      "kind": "command-middleware",
+      "module": "example_overlay",
+      "subject": "organization-timing",
+      "owner": null,
+      "rung": 2,
+      "detail": {
+        "kind": "command-middleware",
+        "phase": "observe",
+        "id": "organization-timing",
+        "actions": [
+          "organization."
+        ]
+      },
+      "reason": "Core runs no middleware on the Command Bus. After any write that touched an Organization has committed or rolled back, this deployment logs how long it took and how it ended — the action, the outcome, the error code and a count, never a value. It is the reference `observe` middleware: it cannot slow, fail or change the write, and it replaces what a deployment used to do by wrapping `commandBus`."
+    },
+    {
       "key": "decoration:example_overlay:pricingService",
       "kind": "decoration",
       "module": "example_overlay",
@@ -377,6 +394,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     "recorded": [
       "column-extension",
       "command-hook",
+      "command-middleware",
       "decoration",
       "interceptor",
       "omission",

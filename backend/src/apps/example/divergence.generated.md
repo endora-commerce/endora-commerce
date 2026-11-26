@@ -49,6 +49,14 @@ rung 2 — run before or after what the owner already serves, or inside a write 
 | `organization.register` (afterCommit, `deliver-register`) | `command_hook_fixture` | `organizations` | The same handler on storefront self-registration: its row is written in the registration transaction, so a registration that rolls back leaves none, and delivery restores the new Organization's context and the registration's request id. It acts only on a marked name. |
 | `organization.register` (beforeCommit, `observe-register`) | `command_hook_fixture` | `organizations` | The same hook on storefront self-registration, which is one Command since spec 176 P1. On a marked name it writes its own audit entry inside the registration transaction and may refuse the registration with its own code, so the whole registration — Organization, first account, token — rolls back; any other name passes through untouched. |
 
+### Command middleware this deployment runs on the Command Bus
+
+rung 2 — run before or after what the owner already serves, or inside a write it declared hookable. Costs a coupling to an endpoint identity or a hookable action, both versioned public API.
+
+| What | Changed by | Owned by | Why |
+| --- | --- | --- | --- |
+| `organization-timing` (observe, `organization.`) | `example_overlay` | the Command Bus (no module owns it) | Core runs no middleware on the Command Bus. After any write that touched an Organization has committed or rolled back, this deployment logs how long it took and how it ended — the action, the outcome, the error code and a count, never a value. It is the reference `observe` middleware: it cannot slow, fail or change the write, and it replaces what a deployment used to do by wrapping `commandBus`. |
+
 ### Ports this deployment consumes
 
 rung 3 — a strategy port the owner published. Costs a dependency edge in your manifest; the owner keeps the seam and keeps fixing it behind you.
