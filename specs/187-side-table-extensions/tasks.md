@@ -180,33 +180,40 @@ tables in this repository's suite.
 
 ## Phase 6: User Story 4 — read ports, mechanism + `organizations` (P1) — Phase B1, #1835
 
-- [ ] T032 [P] [US4] Failing tests then implementation of `contracts/entity-extensions.ts`
+- [x] T032 [P] [US4] Failing tests then implementation of `contracts/entity-extensions.ts`
   (`EntityExtensionIncludeSchema`, `EntityExtensionReadOptions`, `WithEntityExtensions`) and
   `ERROR_CODES.ENTITY_EXTENSION_UNCLAIMED` in `contracts/errors.ts`; the code declared by `_lifecycle`
   and translated in `packages/modules/_i18n/i18n/en.json` and `pl.json` with the strings of
   `contracts/extension-attributes-read-ports.md` §1 (`check:language`, the i18n key checks).
-- [ ] T033 [P] [US4] Failing tests `platform/kernel/entity-extensions/loaders.test.ts`: L1
+  *Note:* `packages/contracts/src/entity-extensions.ts` also exports `ENTITY_EXTENSION_INCLUDE_MAX` (8) and `entityExtensionModuleOf`. The code is declared by `_i18n` (T3, beside `COMMAND_EXTENSION_UNCLAIMED`), not `_lifecycle`: every platform-owned code is `_i18n`'s and there is no `_lifecycle` manifest declaring codes; both reference ledgers record it. The `{path}` placeholder is not filled by the error envelope from an array `details` (only scalar members of an object are), so a translated response falls back to the thrower's English prose — kept as the contract states it.
+- [x] T033 [P] [US4] Failing tests `platform/kernel/entity-extensions/loaders.test.ts`: L1
   `loader-without-extension`, L2 `duplicate-loader`, L3 after seal; attribution to the registering
   module (an entry cannot carry another module id).
-- [ ] T034 [US4] Implement `ctx.entityExtensionLoaders` in `platform/kernel/module-context.ts` and the
+  *Note:* `packages/platform/src/kernel/entity-extensions/loaders.test.ts` (8 tests).
+- [x] T034 [US4] Implement `ctx.entityExtensionLoaders` in `platform/kernel/module-context.ts` and the
   registry in `platform/kernel/entity-extensions/registry.ts`, sealed with the composition; publish the
   entry type on `./kernel` (`published-surface.test.ts` ratchet updated with the reason).
-- [ ] T035 [US4] Failing tests `platform/kernel/entity-extensions/reads.test.ts` for semantics 1 – 7 of
+  *Note:* Entry types in `loaders.ts`, the registry in `registry.ts` with `entityExtensionDeclarationsFrom(manifests)`; L1 is judged at registration against the composed manifests' `extends`, given to the registry's constructor. `composeModules` takes `entityExtensionLoaderRegistry` and seals it after the middleware registry. `./kernel` publishes `EntityExtensionLoaderEntry`; `./composition` the registry and the derivation. The new `ModuleContext` member is marked breaking in its changeset (#1983 ruling).
+- [x] T035 [US4] Failing tests `platform/kernel/entity-extensions/reads.test.ts` for semantics 1 – 7 of
   `contracts/extension-attributes-read-ports.md` §3: no include → unchanged and no call; dedupe; > 8 →
   422; unclaimed → 422 with `details` before any loader; empty records → no call; absent module → key
   absent; `null` fill; extra ids dropped; schema refusal → 500; one call per module, sequential, with
   the records' ids in order and the given `em`.
-- [ ] T036 [US4] Implement `platform/kernel/entity-extensions/reads.ts`; register `entityExtensionReads`
+  *Note:* `reads.test.ts` (15 tests). Semantics 2 answers `422 VALIDATION_FAILED` (the contract's `VALIDATION_ERROR` is not an `ERROR_CODES` member), also for an include outside the `extensions.*` family.
+- [x] T036 [US4] Implement `platform/kernel/entity-extensions/reads.ts`; register `entityExtensionReads`
   in `platform/composition/compose-app.ts` beside `schemaExtensionReads`.
-- [ ] T037 [US4] Failing contract test
+  *Note:* `reads.ts` also exports `lazyEntityExtensionReads(resolve)` (on `./kernel`): a host module holds the service through it so a read without `include` resolves nothing, and a hand-built service with none answers every include as unclaimed. Registered in `composeApp` and in the test kit's `composeTestServer`.
+- [x] T037 [US4] Failing contract test
   `backend/test/contract/organizations/organization-details-port-extensions.test.ts` over
   `mod-acme-links` with a loader on `organizations.Organization`: `findById`, `findByIds`,
   `searchByName`, `findByTaxId` byte-identical without `include`; with it, `extensions.acme_links`
   present (`T` / `null`); 50 records → one statement for the loader (query logger); unclaimed key → 422.
-- [ ] T038 [US4] Add `options?: EntityExtensionReadOptions` to those four methods in
+  *Note:* Over a clone with the fixture migrated (`openAcmeLinksInstance`), the fixture's `registerModule` composed through `composeModules`, the port being `OrganizationDetailsService` over `createEntityExtensionReads` — not a full `composeApp` boot, for T016's module-instance reason. 5 tests; 50 records → 1 side-table statement (query logger) for `findByIds` and for `searchByName`.
+- [x] T038 [US4] Add `options?: EntityExtensionReadOptions` to those four methods in
   `contracts/organizations.ts` and implement in the `organizations` module's port (resolving
   `entityExtensionReads` as `schemaExtensionReads` is resolved in
   `packages/modules/organizations/src/backend/index.ts`); add the loader to `mod-acme-links`.
+  *Note:* `findByTaxId` intersects `{ includeDeleted }` with the read options and now reads on one manager (the lookup already took `em`). The fixture gains `AcmeLinksOrganizationRefSchema` and one loader on `organizations.Organization`.
 
 **Checkpoint**: B1 complete — with Phase A, the 0.113.0 scope; #1856 (spec 190) can build on it.
 
@@ -220,16 +227,24 @@ records; unclaimed 422), then the `options` parameter on the methods listed in
 by `specs/186-aggregate-ports/`' task for the same aggregate**; if 186 reshapes the port, the row moves
 to the port 186 publishes.
 
-- [ ] T039 [P] [US4] `customer_accounts.CustomerAccount` — `CustomerAccountReadPort`.
+- [x] T039 [P] [US4] `customer_accounts.CustomerAccount` — `CustomerAccountReadPort`.
+  *Note:* Methods: `findById`, `findByIds`, `searchByEmail`, `listAll` — the by-id pair added to the §4 row, which predated them (row updated). `findByEmail`, `findInOrganization`, `listByOrganization` and `listDueForAnonymization` unchanged. Test `backend/test/contract/customer_accounts/customer-account-read-port-extensions.test.ts` (6) over the composition's real port; the include is served by `helpers/entity-extension-probe.ts` (a test-local `acme_probe` module composed through `composeModules`, swapped in as the container's `entityExtensionReads` for the call), whose loader reads the host table rather than a side table so the shared run database gains none.
 - [ ] T040 [P] [US4] `orders.Order` — `OrderReadPort`, plus US4 scenario 5: an actor scoped to
   organization A reading `[orderOfA, orderOfB]` → the loader of `mod-acme-links`' `acme_links_order_notes`
   receives only `orderOfA`.
-- [ ] T041 [P] [US4] `quote_requests.QuoteRequest` — `QuoteRequestReadPort`.
+  *Note:* Not started: blocked by spec 186 PR #1963 (orders read port still changing).
+- [x] T041 [P] [US4] `quote_requests.QuoteRequest` — `QuoteRequestReadPort`.
+  *Note:* Methods per §4: `findById`, `findByBusinessId`, `findByIds` (`listOpenForOrganizations` unchanged, as the row says). Test `backend/test/contract/quote_requests/quote-request-read-port-extensions.test.ts` (6): under an administrator confined to Organization A the loader is handed only A's 50 quotes, never B's.
 - [ ] T042 [P] [US4] `catalog.Product` — `CatalogProductReadPort`.
+  *Note:* Not started: blocked by spec 186 PRs #1975 / #1826 (catalog read ports still changing).
 - [ ] T043 [P] [US4] `catalog.Category` — `CatalogCategoryReadPort`.
+  *Note:* Not started: blocked by spec 186 PRs #1975 / #1826 (catalog read ports still changing).
 - [ ] T044 [P] [US4] `crm.CrmOpportunity` — `OpportunityReadPort`.
-- [ ] T045 [P] [US4] `projects.Project` — `ProjectReadPort`.
+  *Note:* Not started: blocked by spec 186 PR #1976 (crm read port still changing).
+- [x] T045 [P] [US4] `projects.Project` — `ProjectReadPort`.
+  *Note:* Methods per §4. `ProjectReadPortDeps` gains an optional `extensions: { reads, em }` (the provider passes `emFactory`, the factory `ProjectAccess` reads with); `projectRecordOf` and the command port are untouched. Test `backend/test/contract/projects/project-read-port-extensions.test.ts` (6): a Project hidden from the caller never reaches the loader; a member who sees it hands 51 ids.
 - [ ] T046 [P] [US4] `tasks.Task` — `TaskReadPort`.
+  *Note:* Not started: blocked by spec 186 PR #1985 (tasks read port still changing).
 
 ---
 
