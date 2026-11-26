@@ -132,15 +132,15 @@ describe('projectCommandPort — the admin routes’ Commands (#1828)', () => {
     ).map((row) => ({ adminUserId: row.admin_user_id, roleIds: row.role_ids }));
 
   /** The Project rows carrying a title — a create writes under an id nobody holds yet. */
-  const projectRowsTitled = async (title: string): Promise<number> =>
-    Number(
-      (
-        (await h
-          .em()
-          .getConnection()
-          .execute(`select count(*)::int as "n" from "projects" where "title" = ?`, [title])) as Array<{ n: number }>
-      )[0]?.n ?? 0,
-    );
+  const projectRowsTitled = async (title: string): Promise<number> => {
+    // `count(*)` always answers exactly one row; read it, never default it (check:fixture-substitution).
+    const [row] = (await h
+      .em()
+      .getConnection()
+      .execute(`select count(*)::int as "n" from "projects" where "title" = ?`, [title])) as Array<{ n: number }>;
+    if (row === undefined) throw new Error('count(*) answered no row');
+    return Number(row.n);
+  };
 
   /**
    * The module's access service, whose methods a set calls between its read
