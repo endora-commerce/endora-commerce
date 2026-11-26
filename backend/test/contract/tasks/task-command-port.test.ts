@@ -126,7 +126,7 @@ describe('taskCommandPort — the admin routes’ Commands (#1829)', () => {
       .em()
       .getConnection()
       .execute(`select count(*)::int as "n" from "tasks" where "title" = ?`, [title])) as Array<{ n: number }>;
-    return Number(rows[0]?.n ?? 0);
+    return Number(rows[0]!.n);
   };
 
   beforeAll(async () => {
