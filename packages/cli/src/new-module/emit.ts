@@ -68,8 +68,8 @@ export function emitModuleFiles(spec: ModuleScaffoldSpec, depth: number): readon
     files.push({ path: 'src/backend/routes.admin.ts', content: adminRoutes(spec) });
   }
   if (spec.layers.entities) {
-    files.push({ path: `src/backend/entities/${entityFileOf(spec)}`, content: entity(spec) });
-    files.push({ path: `src/migrations/${migrationFileOf(spec)}`, content: migration(spec) });
+    files.push({ path: `src/backend/entities/${entityFileOf(spec)}`, content: entitySource(spec) });
+    files.push({ path: `src/migrations/${migrationFileOf(spec)}`, content: initMigrationSource(spec) });
     files.push({ path: 'src/migrations/index.ts', content: migrationsIndex(spec) });
   }
   if (spec.layers.worker) {
@@ -774,7 +774,12 @@ function tenantColumn(spec: ModuleScaffoldSpec): { property: string; column: str
   return null;
 }
 
-function entity(spec: ModuleScaffoldSpec): string {
+/**
+ * The module's own entity. `scope` is the npm scope the platform is installed
+ * under — this repository's for a package, an instance's own for an overlay
+ * module (`overlay.ts`), which writes the same entity.
+ */
+export function entitySource(spec: ModuleScaffoldSpec, scope = '@endora-commerce/'): string {
   const decorator = TENANT_SCOPE_DECORATORS[spec.tenantScope];
   const tenant = tenantColumn(spec);
   const lines: string[] = [];
@@ -782,8 +787,12 @@ function entity(spec: ModuleScaffoldSpec): string {
   // MikroORM 7 (#1866): the entity decorators are `@mikro-orm/decorators`'s,
   // in their legacy (`experimentalDecorators`) form — and only from there,
   // which `check:entity-decorators` holds.
-  lines.push(`import { Entity, Index, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';`);
-  lines.push(`import { ${decorator} } from '@endora-commerce/platform/tenancy';`);
+  // `Index` only where there is a tenant column to index: a `global` entity has
+  // none, and an unused import is TS6133 under the instance's `noUnusedLocals`.
+  lines.push(
+    `import { Entity, ${tenant === null ? '' : 'Index, '}PrimaryKey, Property } from '@mikro-orm/decorators/legacy';`,
+  );
+  lines.push(`import { ${decorator} } from '${scope}platform/tenancy';`);
   lines.push(`import { randomUUID } from 'node:crypto';`);
   lines.push('');
   lines.push('/**');
@@ -827,7 +836,8 @@ function entity(spec: ModuleScaffoldSpec): string {
 
 // --- src/migrations/ -------------------------------------------------------
 
-function migration(spec: ModuleScaffoldSpec): string {
+/** The first migration: creates {@link entitySource}'s table. Shared with `overlay.ts`. */
+export function initMigrationSource(spec: ModuleScaffoldSpec): string {
   const table = tableNameOf(spec);
   const tenant = tenantColumn(spec);
   const columns = [

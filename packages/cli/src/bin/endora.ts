@@ -67,10 +67,10 @@ rendered by the platform's own manifest generator, so the two cannot disagree.
 
 Inside an instance — the tree \`endora new instance\` wrote — it writes an
 overlay module instead: apps/<deployment>/modules/<id>/, which the instance
-composes with no build. It takes --name, --description, --depends, --permission,
---activation-setting, --non-deactivatable and --dry-run there, and refuses the
-flags that ask for what an overlay module cannot be (a table, an admin screen, a
-published port), naming why.
+composes from its deployment tree. It takes --name, --description, --depends,
+--permission, --entities, --tenant-scope, --activation-setting,
+--non-deactivatable and --dry-run there, and refuses the flags that ask for what
+an overlay module cannot be (an admin screen, a published port), naming why.
 
 Options for \`new module\`:
   --name <text>                 the module's human-readable name (required)
