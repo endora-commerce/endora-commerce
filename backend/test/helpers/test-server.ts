@@ -1438,6 +1438,9 @@ export async function setupBackendServer(
     // `specs/176-command-hooks-outbox/` FR-014 — and the command-hook tie-break
     // from the same declaration, which the composer seals the hook registry against.
     commandHookOrder: divergenceDeclaration.commandHookOrder,
+    // `specs/189-command-middleware/` FR-031 — and the `admit` middleware
+    // tie-break, from the same declaration, as `composition.ts` passes it.
+    commandMiddlewareOrder: divergenceDeclaration.commandMiddlewareOrder,
     // Feature 072 (T073) — the real subscriber client only where a test asks for
     // it. One armed subscription per composition, across ~225 files, is how this
     // harness accumulated ~1 GB of retention (task #32); the kit registers an

@@ -18,10 +18,32 @@
  * which is known at construction and nowhere else.
  */
 
-import type { ModuleManifest } from '@endora-commerce/contracts';
+import type { ModuleManifest, ModuleOrigin } from '@endora-commerce/contracts';
 
-/** Where a claim on a module id came from. */
+/**
+ * Where a claim on a module id came from.
+ *
+ * This is discovery provenance, not a trust tier; for the tier see
+ * `ModuleOrigin` (D-296.10).
+ */
 export type ModuleIdClaimOrigin = 'core' | 'overlay' | 'package';
+
+/**
+ * The trust tier of a module found by `discovery`
+ * (specs/189-command-middleware/contracts/module-origin.md §6).
+ *
+ * One way, and the one spelling of it: both loaders stamp `ModuleEntry.origin`
+ * through it, and the composer's fallback reads the same table off the
+ * `overlay` / `installedPackage` flags. A first-party module package installed
+ * in an instance stays `'package'` to the discovery — `module:install` runs its
+ * migrations, so {@link deploymentShippedEntries} must exclude it — and is
+ * `'core'` to the tier. Nothing maps a tier back to a discovery answer.
+ */
+export function moduleOriginOf(discovery: ModuleIdClaimOrigin, firstPartyPackage: boolean): ModuleOrigin {
+  if (discovery === 'overlay') return 'deployment';
+  if (discovery === 'package') return firstPartyPackage ? 'core' : 'package';
+  return 'core';
+}
 
 /**
  * The entries **this build ships**: core plus the deployment's overlay modules,

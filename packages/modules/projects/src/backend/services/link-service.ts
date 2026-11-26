@@ -15,6 +15,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { randomUUID } from 'crypto';
 import { ProjectLink as ProjectLinkEntity } from '../entities/project-link.entity.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import type { LinkedRecordStatusNames } from './linked-record-status.js';
 import { RECORD_OWNER, type LinkedRecordOwners, type LinkedRecordView } from './linked-records.js';
 import type { OwnerReadCheck, OwnerReadChecks } from './owner-read-permissions.js';
@@ -113,6 +114,23 @@ export class LinkService {
 
   /** `POST /projects/:id/links`. */
   async add(projectId: string, body: CreateProjectLinkBody, language: SupportedLanguage): Promise<ProjectLink> {
+    const linkId = await this.link(projectId, body);
+    const [rendered] = await this.#render(
+      (await this.deps.emFactory().execute(`select ${LINK_COLUMNS} from "project_links" l where l."id" = ?`, [
+        linkId,
+      ])) as LinkRow[],
+      language,
+    );
+    if (!rendered) throw linkNotFound();
+    return rendered;
+  }
+
+  /**
+   * The link itself and its checks — what the route and
+   * `projectCommandPort.link` share (`specs/186-aggregate-ports/` R-22.1).
+   * Answers the new link's id.
+   */
+  async link(projectId: string, body: CreateProjectLinkBody, caller: CallerOptions = {}): Promise<string> {
     const project = await this.deps.access.loadVisible(projectId);
     const record = await this.#readable(body.kind, body.recordId);
     if (!(await this.#projectHasOrganization(this.deps.emFactory(), project.id, record.organizationId))) {
@@ -123,7 +141,7 @@ export class LinkService {
 
     let linkId: string;
     try {
-      linkId = await this.deps.commandBus.run({
+      linkId = await this.deps.commandBus.run(withCallerOptions<string>({
         action: 'projects.project.link_add',
         objectType: 'project',
         objectId: project.id,
@@ -156,7 +174,7 @@ export class LinkService {
           };
           return { eventName: PROJECTS_EVENTS.RECORD_LINKED, payload };
         },
-      });
+      }, caller));
     } catch (error) {
       // Two requests linking one record at once: both passed the look-up and
       // the unique key refused the second at its insert. The Command reads no
@@ -171,14 +189,7 @@ export class LinkService {
       if (error instanceof ForeignKeyConstraintViolationException) throw organizationMismatch();
       throw error;
     }
-    const [rendered] = await this.#render(
-      (await this.deps.emFactory().execute(`select ${LINK_COLUMNS} from "project_links" l where l."id" = ?`, [
-        linkId,
-      ])) as LinkRow[],
-      language,
-    );
-    if (!rendered) throw linkNotFound();
-    return rendered;
+    return linkId;
   }
 
   /**
@@ -186,11 +197,11 @@ export class LinkService {
    * so a link to a record that is gone, or whose owner is off, is removed as
    * any other (US6 sc.6).
    */
-  async remove(projectId: string, linkId: string): Promise<void> {
+  async remove(projectId: string, linkId: string, caller: CallerOptions = {}): Promise<void> {
     const project = await this.deps.access.loadVisible(projectId);
     if (!isUuid(linkId)) throw linkNotFound();
     let removed: { recordKind: ProjectRecordKind; recordId: string } | null = null;
-    await this.deps.commandBus.run({
+    await this.deps.commandBus.run(withCallerOptions<null>({
       action: 'projects.project.link_remove',
       objectType: 'project',
       objectId: project.id,
@@ -218,7 +229,7 @@ export class LinkService {
         };
         return { eventName: PROJECTS_EVENTS.RECORD_UNLINKED, payload };
       },
-    });
+    }, caller));
   }
 
   /** The check a kind's owner reads its records with. */

@@ -16,6 +16,7 @@ sentence this deployment wrote when it made the change.
 | --- |
 | `carrier_fixture` |
 | `command_hook_fixture` |
+| `command_middleware_fixture` |
 | `erp_challenger_fixture` |
 | `erp_incumbent_fixture` |
 | `example_overlay` |
@@ -48,6 +49,16 @@ rung 2 — run before or after what the owner already serves, or inside a write 
 | `organization.create` (beforeCommit, `observe-create`) | `command_hook_fixture` | `organizations` | Core creates an Organization in one audited Command. This fixture takes part in that write only for an Organization whose name carries its marker: inside the same transaction it records an audit entry of its own, names what it wrote in the core entry, and refuses with its own translated code when the name also carries its veto word. It is the reference hook module the command-hook contract tests compose, and it changes nothing for any other name. |
 | `organization.register` (afterCommit, `deliver-register`) | `command_hook_fixture` | `organizations` | The same handler on storefront self-registration: its row is written in the registration transaction, so a registration that rolls back leaves none, and delivery restores the new Organization's context and the registration's request id. It acts only on a marked name. |
 | `organization.register` (beforeCommit, `observe-register`) | `command_hook_fixture` | `organizations` | The same hook on storefront self-registration, which is one Command since spec 176 P1. On a marked name it writes its own audit entry inside the registration transaction and may refuse the registration with its own code, so the whole registration — Organization, first account, token — rolls back; any other name passes through untouched. |
+
+### Command middleware this deployment runs on the Command Bus
+
+rung 2 — run before or after what the owner already serves, or inside a write it declared hookable. Costs a coupling to an endpoint identity or a hookable action, both versioned public API.
+
+| What | Changed by | Owned by | Why |
+| --- | --- | --- | --- |
+| `hold-marked` (admit, `organization.`) | `command_middleware_fixture` | the Command Bus (no module owns it) | Core admits every Command. This fixture refuses an Organization write — a child write inside a bigger one included — only for a request whose id carries its hold marker, with its own translated code and before anything is written. It is the reference admission rule the command-middleware contract tests compose, and it changes nothing for any other request. |
+| `record-marked` (observe, `organization.`) | `command_middleware_fixture` | the Command Bus (no module owns it) | After a marked request’s Organization write has committed or rolled back, this fixture keeps the run’s names-only summary and the tenant context it was observed in, which the command-middleware tests read. It cannot slow, fail or change the write, and it ignores every request that does not carry its marker. |
+| `organization-timing` (observe, `organization.`) | `example_overlay` | the Command Bus (no module owns it) | Core runs no middleware on the Command Bus. After any write that touched an Organization has committed or rolled back, this deployment logs how long it took and how it ended — the action, the outcome, the error code and a count, never a value. It is the reference `observe` middleware: it cannot slow, fail or change the write, and it replaces what a deployment used to do by wrapping `commandBus`. |
 
 ### Ports this deployment consumes
 

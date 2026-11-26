@@ -90,6 +90,10 @@ value). Today the hosts that publish one are:
   `organizationCustomFieldWritePort.setCustomFieldValues` is deprecated since 0.113.0 and delegates
   to it. Both run `organization.set_custom_field_values`, which is not what the admin edit runs
   (`organization.admin_patch` writes the columns and the bag in one Command), so a command hook that
+  must see every change of the bag registers on both actions.
+- `projects` — `projectCommandPort.setCustomFieldValues(projectId, merge, options?)`, the aggregate
+  port (`specs/186-aggregate-ports/` US7). It runs `projects.project.custom_fields_update`, the
+  Command the admin `PATCH` runs for the values, so one hook registration sees every change.
   must see every change of the bag registers on both actions;
 - `crm` — `opportunityCommandPort.setCustomFieldValues(opportunityId, merge, options?)`, the aggregate
   port (`specs/186-aggregate-ports/` US9), which runs `crm.opportunity.update` — the entry the admin

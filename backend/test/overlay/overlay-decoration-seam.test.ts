@@ -1,3 +1,5 @@
+import { CommandMiddlewareRegistry, commandMiddlewareFrom } from '@endora-commerce/platform/composition';
+import { manifest as exampleOverlayManifest } from '../../src/apps/example/modules/example_overlay/manifest.js';
 import { describe, expect, it } from 'vitest';
 import { EventBus } from '@endora-commerce/platform/events';
 import { createRootContainer } from '@endora-commerce/platform/composition';
@@ -83,6 +85,14 @@ function compose(entries: readonly ModuleEntry[]): {
     // The overlay module registers one; a root that mounts no registry refuses
     // the registration, which would make every case here fail for that reason.
     interceptorRegistry: new ApiInterceptorRegistry(),
+    // `specs/189-command-middleware/` — and it contributes an `observe`
+    // command middleware, which a root with no middleware registry refuses for
+    // the same reason. Sealed against its own manifest's declaration.
+    commandMiddlewareRegistry: new CommandMiddlewareRegistry({ log: log() }),
+    commandMiddleware: {
+      declarations: commandMiddlewareFrom([exampleOverlayManifest]),
+      moduleDependencies: {},
+    },
   });
   return { cradle: container.cradle as unknown as Record<string, unknown> };
 }

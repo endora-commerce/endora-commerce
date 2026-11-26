@@ -118,6 +118,10 @@ import {
   entityIndexOutputPathIn,
 } from './lib/entity-index-artefact.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
+// `specs/189-command-middleware/contracts/module-origin.md` §2 — the release's
+// first-party module packages are the release index's rule, imported rather
+// than restated.
+import { publishablePackages } from '@endora-commerce/cli/lib/release-index.js';
 import {
   DOCS_SIDEBAR_ARTEFACT,
   docsDeclarationIn,
@@ -215,6 +219,7 @@ export function generatedArtifactPaths(): readonly string[] {
     migrationsRegistryOutputPath,
     baselineListOutputPath(),
     foreignWriteExemptionsOutputPath(),
+    firstPartyModulesOutputPath(),
     adminRegistryOutputPathIn(repoRoot),
     tailwindRegistryOutputPathIn(repoRoot),
     // One per deployment on disk, plus bare core's (`specs/190-overlay-full-modules/`
@@ -1774,6 +1779,9 @@ export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): str
     { readonly specifier: string; readonly className: string; readonly file: string }
   >();
   const emitted = new Set<string>();
+  // `specs/187-side-table-extensions/` R-4 — which module contributes each
+  // package's entities, for the side-table rules' ownership question (M2, U1).
+  const owners: string[] = [];
   let needsEntityClassLike = false;
 
   for (const entity of entities) {
@@ -1818,6 +1826,7 @@ export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): str
     // `package-runtime.ts` then agree on one type for a package's entities, and
     // the application's own classes keep their precise ones.
     listed.push(`  ...(${binding} as readonly EntityClassLike[]),`);
+    owners.push(`  ['${entity.owner.moduleId}', ${binding} as readonly EntityClassLike[]],`);
   }
 
   const typeImport = needsEntityClassLike
@@ -1830,6 +1839,15 @@ ${typeImport}${importLines.join('\n')}
 export const ALL_ENTITIES = [
 ${listed.join('\n')}
 ] as const;
+
+/**
+ * Which module contributes each module package's entities — the owner of the
+ * tables they map (\`specs/187-side-table-extensions/\` M2, U1). The classes the
+ * application tree names one by one are the platform's and belong to no module.
+ */
+export const ENTITY_OWNERS: ReadonlyArray<readonly [moduleId: string, entities: readonly (new (...args: never[]) => object)[]]> = [
+${owners.join('\n')}
+];
 `;
 }
 
@@ -2353,6 +2371,57 @@ export async function renderForeignWriteExemptions(): Promise<{ outputPath: stri
   };
 }
 
+// ── the first-party module packages ─────────────────────────────────────────
+//
+// `specs/189-command-middleware/contracts/module-origin.md` §2. In an instance
+// core arrives as installed packages, and the package loader gives an installed
+// module the trust tier `core` only when its own `package.json` name **and** its
+// `endora.id` are one pair of this list — so an npm alias cannot borrow a
+// first-party name, and a package outside the release (a paid module, D-296.8)
+// is `package` whatever its scope. The population is the CLI release index's
+// rule (`publishablePackages`: every non-private, named workspace package),
+// narrowed to packages declaring `endora.type: "module"`. Lockstep releases make
+// "this release's first-party set" one fact (`release-intent.md`).
+
+function firstPartyModulesOutputPath(): string {
+  const platformRoot = platformSourceRootAt(repoRoot);
+  if (platformRoot === null) {
+    throw new PlatformRootUnresolvableError(
+      '[composer] no workspace member declares `endora.type: "platform"`, so the first-party ' +
+        'module list has no home. It is the host package\'s: the package loader reads it.',
+    );
+  }
+  return join(platformRoot, 'packages', 'first-party-modules.generated.ts');
+}
+
+export interface FirstPartyModulePackage {
+  readonly moduleId: string;
+  readonly packageName: string;
+}
+
+/** Pure emit, sorted by module id so the artefact is byte-stable. */
+export function emitFirstPartyModules(rows: readonly FirstPartyModulePackage[]): string {
+  const sorted = [...rows].sort((a, b) => a.moduleId.localeCompare(b.moduleId) || a.packageName.localeCompare(b.packageName));
+  return `${HEADER('generate-composer.ts')}//
+// This release's first-party module packages
+// (specs/189-command-middleware/contracts/module-origin.md §2): every non-private,
+// named workspace package declaring \`endora.type: "module"\`, by the CLI release
+// index's own rule. The package loader stamps an installed module \`origin: 'core'\`
+// only when both its package.json \`name\` and its \`endora.id\` are one pair here.
+
+export const FIRST_PARTY_MODULE_PACKAGES: readonly { readonly moduleId: string; readonly packageName: string }[] = [
+${sorted.map((row) => `  { moduleId: '${row.moduleId}', packageName: '${row.packageName}' },`).join('\n')}
+];
+`;
+}
+
+export function renderFirstPartyModules(): { outputPath: string; content: string } {
+  const rows = publishablePackages(join(repoRoot, 'packages')).flatMap((pkg) =>
+    pkg.moduleId === undefined ? [] : [{ moduleId: pkg.moduleId, packageName: pkg.name }],
+  );
+  return { outputPath: firstPartyModulesOutputPath(), content: emitFirstPartyModules(rows) };
+}
+
 // ── the admin contribution registry ─────────────────────────────────────────
 //
 // The fifth artefact (feature 091, Phase 2). Its three siblings under
@@ -2602,6 +2671,10 @@ export async function renderAll(): Promise<
       ...(await renderForeignWriteExemptions()),
       entryKind: 'none' as const,
     },
+    // `specs/189-command-middleware/` — the release's first-party module
+    // packages, which the package loader stamps `core`. Package and module
+    // names, not files, so no containment population either.
+    { label: 'first-party-modules', ...renderFirstPartyModules(), entryKind: 'none' as const },
     { label: 'admin-registry', ...renderAdminRegistry(population) },
     { label: 'admin-tailwind', ...renderTailwindRegistry(population), entryKind: 'css-specifier' as const },
     ...renderDeploymentAdminRegistries(population),

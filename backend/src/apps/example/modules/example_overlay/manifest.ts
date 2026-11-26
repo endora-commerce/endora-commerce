@@ -55,4 +55,9 @@ export const manifest = defineModuleManifest({
       label: 'Manage the example overlay module',
     },
   ],
+  // `specs/189-command-middleware/` — the declaration half of the one command
+  // middleware this module contributes; `backend.ts` registers the code under
+  // the same id and phase. `observe` only: it reads what happened after the run
+  // settled and cannot slow, fail or change the write.
+  commandMiddleware: [{ id: 'organization-timing', phase: 'observe', actions: ['organization.'] }],
 });

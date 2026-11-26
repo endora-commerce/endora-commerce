@@ -317,6 +317,28 @@ describe('guardExternalMigration — what it allows', () => {
     await expect(run(later, context({ moduleMigrations: () => [init, later] }))).resolves.toBeDefined();
   });
 
+  /**
+   * `specs/187-side-table-extensions/` research R-15 (T012) — a side table is the
+   * module's own table, and a foreign key pointing at a host is not a write on
+   * the host. A future guard change that started treating `references` as a
+   * foreign write fails this case, named for side tables.
+   */
+  it('allows a side table whose primary key references a host, with on delete cascade (187 R-15)', async () => {
+    const cls = migration('Migration20261201T100030AcmeErpSideTable', (self) => {
+      self.addSql(
+        'create table "acme_links_x" ("organization_id" uuid not null, "erp_key" text not null, ' +
+          'constraint "acme_links_x_pkey" primary key ("organization_id"), ' +
+          'constraint "acme_links_x_organization_fk" foreign key ("organization_id") ' +
+          'references "organizations" ("id") on delete cascade)',
+      );
+      self.addSql(
+        'alter table "acme_links_x" add constraint "acme_links_x_erp_key_unique" unique ("erp_key")',
+      );
+    });
+    const { instance } = await run(cls);
+    expect(instance.getQueries()).toHaveLength(2);
+  });
+
   it('keeps the package’s class name', () => {
     const cls = migration('Migration20261201T100030AcmeErpNamed', () => {});
     expect(guardExternalMigration(cls, context()).name).toBe('Migration20261201T100030AcmeErpNamed');

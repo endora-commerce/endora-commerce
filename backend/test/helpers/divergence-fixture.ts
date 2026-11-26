@@ -59,6 +59,7 @@ export interface ModuleContext {
   subscribe(event: string, handler: (payload: unknown) => void): void;
   interceptors(entries: readonly InterceptorRegistration[]): void;
   commandHooks(entries: readonly CommandHookEntry[]): void;
+  commandMiddleware(entries: readonly CommandMiddlewareEntry[]): void;
   onBoot(hook: ModuleBootHook): void;
   readonly log: PlatformLogger;
 }
@@ -67,11 +68,13 @@ export interface ModuleContext {
 /**
  * The fixture deployment's overlay module — every recorded seam, once.
  *
- * Eleven kinds; eight of them appear here as seam calls (`omission` comes from
+ * Twelve kinds; eight of them appear here as seam calls (`omission` comes from
  * the declaration, `port-consumed` from the `lazyPort` call below, which is in
- * this same file, and `column-extension` from the exported
+ * this same file, `column-extension` from the exported
  * `defineColumnExtension(…)` declaration — `specs/190-overlay-full-modules/`
- * FR-047). The three `own-surface` seams are here too, deliberately: they must
+ * FR-047 — and `command-middleware` from the manifest declaration in
+ * {@link FIXTURE_MANIFEST}, `specs/189-command-middleware/` FR-034; the
+ * `ctx.commandMiddleware` call below registers its code and adds no entry). The three `own-surface` seams are here too, deliberately: they must
  * produce **no** entry, and a fixture without them cannot prove that.
  */
 export const FIXTURE_OVERLAY = `
@@ -123,6 +126,8 @@ export function registerModule(ctx: ModuleContext): void {
     },
   ]);
 
+  ctx.commandMiddleware([{ id: 'legal-hold', phase: 'admit', admit: (meta) => refuseHeld(meta) }]);
+
   ctx.rootPlugin('Acme stamps every response with its contract id.', acmePlugin);
 
   ctx.worker(new Worker('acme-rebate-sweep', async (job) => handleJob(job)));
@@ -143,6 +148,19 @@ export function registerModule(ctx: ModuleContext): void {
 }
 `;
 
+/** The fixture overlay module's manifest — where its command middleware is declared (189). */
+export const FIXTURE_MANIFEST = `
+import { defineModuleManifest } from '@endora-commerce/contracts';
+
+export const manifest = defineModuleManifest({
+  id: 'acme_overlay',
+  name: 'Acme overlay',
+  version: '1.0.0',
+  dependencies: ['organizations'],
+  commandMiddleware: [{ id: 'legal-hold', phase: 'admit', actions: ['organization.'] }],
+});
+`;
+
 /** Every route registration the fixture composition serves. */
 export const FIXTURE_ROUTES = `
 export function registerModule(ctx: ModuleContext): void {
@@ -152,7 +170,7 @@ export function registerModule(ctx: ModuleContext): void {
 }
 `;
 
-/** The eleven keys the fixture's own tree derives, with a sentence each. */
+/** The twelve keys the fixture's own tree derives, with a sentence each. */
 export const FIXTURE_REASONS: Readonly<Record<string, string>> = {
   'registration:acme_overlay:acmeRebateService':
     'Core registers no rebate service; this one is Acme’s own and exists to hold the ' +
@@ -172,6 +190,9 @@ export const FIXTURE_REASONS: Readonly<Record<string, string>> = {
   'command-hook:acme_overlay:organization.create#stamp-erp-code':
     'Core creates an Organization with no ERP code; Acme writes its own code into its own table ' +
     'inside the same transaction, so an Organization never exists without one.',
+  'command-middleware:acme_overlay:legal-hold':
+    'Core admits every Command; Acme refuses an Organization write while that Organization is ' +
+    'under a legal hold, children of a bigger write included, before anything is written.',
   'root-plugin:acme_overlay:Acme stamps every response with its contract id.':
     'Core stamps no contract id; Acme’s gateway requires one on every response, and a root ' +
     'plugin is the only seam that reaches every module’s routes at once.',
@@ -218,6 +239,11 @@ export function fixtureDivergence(options: FixtureOptions = {}): DivergenceResul
       moduleId: 'acme_overlay',
       file: 'backend/src/apps/acme/modules/acme_overlay/backend.ts',
       text: FIXTURE_OVERLAY,
+    },
+    {
+      moduleId: 'acme_overlay',
+      file: 'backend/src/apps/acme/modules/acme_overlay/manifest.ts',
+      text: FIXTURE_MANIFEST,
     },
   ];
   const routeSources = options.routeSources ?? [
