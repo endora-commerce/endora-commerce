@@ -7,6 +7,7 @@ import {
 } from '@endora-commerce/test-kit/database';
 
 import { configuredEntities } from '../../src/db/configured-entities.js';
+import { ENTITY_OWNERS } from '../../src/db/entities-registry.generated.js';
 import { configuredMigrations } from '../../src/db/configured-migrations.js';
 import { templateIdentity } from '../template-identity.js';
 import { establishPlatformInvariants, establishTaxIdScope } from '../template-seed.js';
@@ -48,7 +49,9 @@ export interface DeploymentDatabase {
 /** The deployment's configuration — entities and order read under `env` — over `url`. */
 async function configFor(env: NodeJS.ProcessEnv, url: string): Promise<Options> {
   const [entities, migrations] = await Promise.all([configuredEntities(env), configuredMigrations(env)]);
-  return { ...mikroOrmConfigFrom({ entities, migrations }), clientUrl: url };
+  // `ENTITY_OWNERS` as the binding passes it: the side-table rules ask who owns
+  // each committed table (`specs/187-side-table-extensions/` M2).
+  return { ...mikroOrmConfigFrom({ entities, migrations, coreEntityOwners: ENTITY_OWNERS }), clientUrl: url };
 }
 
 /** `migration:up` plus the template seed, exactly as `test/global-setup.ts` builds bare core's. */

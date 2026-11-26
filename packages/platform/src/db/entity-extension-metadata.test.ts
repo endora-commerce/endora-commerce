@@ -331,6 +331,15 @@ describe('M1 – M4 — ownership and the key', () => {
     expect(error.rule).toBe('table-not-owned');
   });
 
+  it('M2 names the missing coreEntityOwners input when a committed module’s table has no owner', async () => {
+    const error = await refusal({
+      hosts: [...HOST_CLASSES, AcmeLinksOrganizationRef],
+      extensions: [{ ...extension('organizations.Organization', 'acme_links_organization_refs'), origin: 'core' }],
+    });
+    expect(error.rule).toBe('table-not-owned');
+    expect(error.message).toContain('coreEntityOwners');
+  });
+
   it('M3 refuses a two-property primary key', async () => {
     const error = await refusal({
       side: [AcmeLinksComposite],

@@ -232,7 +232,11 @@ export function assertEntityExtensionMetadata(
         'table-not-owned',
         owner === undefined
           ? `it is mapped by "${side.className}", which no composed module contributes; a side table is mapped ` +
-              `by an entity of the declaring module`
+              `by an entity of the declaring module` +
+              (origin === 'core'
+                ? ' — for a committed module, the ORM configuration was built without coreEntityOwners ' +
+                  "(this repository's ENTITY_OWNERS), so no committed table has an owner"
+                : '')
           : `it is mapped by "${side.className}" of module "${owner}"; a module declares only its own tables`,
       );
     }
