@@ -1777,6 +1777,7 @@ export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): str
   // `specs/187-side-table-extensions/` R-4 — which module contributes each
   // package's entities, for the side-table rules' ownership question (M2, U1).
   const owners: string[] = [];
+  let needsEntityClassLike = false;
 
   for (const entity of entities) {
     if (entity.owner === null) {
@@ -1807,6 +1808,7 @@ export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): str
     }
     if (emitted.has(entity.owner.moduleId)) continue;
     emitted.add(entity.owner.moduleId);
+    needsEntityClassLike = true;
     const binding = `${bindingBaseFor(entity.owner.moduleId)}Entities`;
     importLines.push(`import { entities as ${binding} } from '${specifier}';`);
     // The cast is D-168 arriving in the type system, and it is load-bearing
@@ -1822,8 +1824,9 @@ export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): str
     owners.push(`  ['${entity.owner.moduleId}', ${binding} as readonly EntityClassLike[]],`);
   }
 
-  // Always imported: ENTITY_OWNERS is typed with it even when no package contributes.
-  const typeImport = `import type { EntityClassLike } from '../packages/package-runtime.js';\n`;
+  const typeImport = needsEntityClassLike
+    ? `import type { EntityClassLike } from '../packages/package-runtime.js';\n`
+    : '';
 
   return `${emitEntitiesHeader()}
 ${typeImport}${importLines.join('\n')}
@@ -1837,7 +1840,7 @@ ${listed.join('\n')}
  * tables they map (\`specs/187-side-table-extensions/\` M2, U1). The classes the
  * application tree names one by one are the platform's and belong to no module.
  */
-export const ENTITY_OWNERS: ReadonlyArray<readonly [moduleId: string, entities: readonly EntityClassLike[]]> = [
+export const ENTITY_OWNERS: ReadonlyArray<readonly [moduleId: string, entities: readonly (new (...args: never[]) => object)[]]> = [
 ${owners.join('\n')}
 ];
 `;

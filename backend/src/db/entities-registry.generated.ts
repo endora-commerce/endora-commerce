@@ -189,7 +189,7 @@ export const ALL_ENTITIES = [
  * tables they map (`specs/187-side-table-extensions/` M2, U1). The classes the
  * application tree names one by one are the platform's and belong to no module.
  */
-export const ENTITY_OWNERS: ReadonlyArray<readonly [moduleId: string, entities: readonly EntityClassLike[]]> = [
+export const ENTITY_OWNERS: ReadonlyArray<readonly [moduleId: string, entities: readonly (new (...args: never[]) => object)[]]> = [
   ['addresses', addressesEntities as readonly EntityClassLike[]],
   ['admin_notifications', adminNotificationsEntities as readonly EntityClassLike[]],
   ['admin_roles', adminRolesEntities as readonly EntityClassLike[]],

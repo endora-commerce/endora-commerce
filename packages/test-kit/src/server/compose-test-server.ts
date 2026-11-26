@@ -86,8 +86,10 @@ import {
 } from '@endora-commerce/platform/composition';
 import { CommandBus } from '@endora-commerce/platform/commands';
 import {
+  activeEntityExtensionContext,
   activeSchemaExtensionContext,
   createSchemaExtensionReads,
+  verifyEntityExtensions,
   verifySchemaExtensions,
 } from '@endora-commerce/platform/db';
 import { EventBus } from '@endora-commerce/platform/events';
@@ -329,6 +331,13 @@ export async function composeTestServer(
     (sql, params = []) =>
       orm.em.getConnection().execute(sql, params, 'all') as Promise<Record<string, unknown>[]>,
     activeSchemaExtensionContext(),
+  );
+  // And the declared side tables, read-only, as `composeApp` holds them
+  // (`specs/187-side-table-extensions/` FR-022): one catalog query.
+  await verifyEntityExtensions(
+    (sql, params = []) =>
+      orm.em.getConnection().execute(sql, params, 'all') as Promise<Record<string, unknown>[]>,
+    activeEntityExtensionContext(),
   );
   // Mirror the production seam: forks stamp the tenant filter from the ambient
   // `TenantContext`, which the request-scope hook below establishes.
