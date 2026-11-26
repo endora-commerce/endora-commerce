@@ -81,6 +81,7 @@ import {
   type SkippedInstalledPackage,
 } from '../lib/module-packages.js';
 import { DIVERGENCE_REMEDIES, type DivergenceFindingKind } from '../lib/divergence.js';
+import { commandMiddlewareDeclarationsIn } from '../lib/command-middleware-declarations.js';
 import {
   analyzeOverlayBoundary,
   OVERLAY_BOUNDARY_CLAUSES,
@@ -228,7 +229,23 @@ export interface GenerateResult {
   readonly unlisted: readonly UnlistedReleaseModule[];
   /** Why this CLI's release index could not be read, when a needed module sent this run to it. */
   readonly releaseIndexError: string | null;
+  /**
+   * Installed packages that are not this release's first-party module packages
+   * and declare `admit` command middleware (`specs/189-command-middleware/`
+   * D-296.3, FR-004). The boot refuses each with `CommandMiddlewareOriginError`;
+   * this is the same refusal before boot. Reported, and the run exits 1 after
+   * writing.
+   */
+  readonly packageAdmit: readonly PackageAdmitFinding[];
   readonly dryRun: boolean;
+}
+
+/** One installed package declaring `admit` middleware it may not contribute. */
+export interface PackageAdmitFinding {
+  readonly moduleId: string;
+  readonly packageName: string;
+  /** The ids of its `admit` declarations. */
+  readonly middleware: readonly string[];
 }
 
 /**
@@ -513,8 +530,46 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
     declared: release.declared,
     unlisted: release.unlisted,
     releaseIndexError: release.releaseIndexError,
+    packageAdmit: packageAdmitFindings(scan, options),
     dryRun: options.dryRun === true,
   };
+}
+
+/**
+ * The installed packages whose manifest declares `admit` command middleware
+ * and that are not a first-party module package of this release
+ * (`specs/189-command-middleware/contracts/module-origin.md` §2): the package's
+ * own name **and** its module id must be one entry of this CLI's release index,
+ * the same pair the platform's generated first-party list holds. An index this
+ * run cannot read makes no package first-party — the boot answers the same
+ * question from the platform's own list, and a refusal here is never weaker
+ * than that one.
+ */
+function packageAdmitFindings(
+  scan: ReturnType<typeof scanInstalledModulePackages>,
+  options: GenerateOptions,
+): PackageAdmitFinding[] {
+  let index: ReleaseIndex | null = null;
+  try {
+    const file = options.releaseIndexFile ?? ownReleaseIndexPath();
+    index = parseReleaseIndex(readFileSync(file, 'utf8'), file);
+  } catch {
+    index = null;
+  }
+  const firstParty = new Set((index?.packages ?? []).map((entry) => `${entry.name}\0${entry.moduleId ?? ''}`));
+  const findings: PackageAdmitFinding[] = [];
+  for (const pkg of scan.packages) {
+    const target = pkg.exports.get('.');
+    if (target === undefined) continue;
+    const file = join(pkg.dir, target);
+    if (!existsSync(file)) continue;
+    const admits = commandMiddlewareDeclarationsIn(readFileSync(file, 'utf8'), file).declarations.filter(
+      (declaration) => declaration.phase === 'admit',
+    );
+    if (admits.length === 0 || firstParty.has(`${pkg.name}\0${pkg.moduleId}`)) continue;
+    findings.push({ moduleId: pkg.moduleId, packageName: pkg.name, middleware: admits.map((declaration) => declaration.id) });
+  }
+  return findings.sort((a, b) => a.moduleId.localeCompare(b.moduleId));
 }
 
 function spawnStep(step: GenerateStep): Promise<number> {
@@ -800,7 +855,7 @@ export function generateReport(result: GenerateResult): readonly string[] {
  * is their instrument here and has no other in an instance.
  */
 export function generateFindingsRefusal(result: GenerateResult): string | null {
-  const sections = [divergenceFindingsSection(result), overlayBoundarySection(result)].filter(
+  const sections = [divergenceFindingsSection(result), overlayBoundarySection(result), packageAdmitSection(result)].filter(
     (section): section is string[] => section !== null,
   );
   if (sections.length === 0) return null;
@@ -862,6 +917,25 @@ function overlayBoundarySection(result: GenerateResult): string[] | null {
     ...order
       .filter((clause) => clauses.includes(clause))
       .flatMap((clause) => [`  [${clause}]`, `    ${OVERLAY_BOUNDARY_CLAUSES[clause]}`]),
+  ];
+}
+
+/**
+ * The command-middleware half (189, D-296.3): an installed package may
+ * contribute `observe` middleware only, and no grant changes that.
+ */
+function packageAdmitSection(result: GenerateResult): string[] | null {
+  if (result.packageAdmit.length === 0) return null;
+  return [
+    `${String(result.packageAdmit.length)} installed package(s) declare admit command middleware, which ` +
+      `an installed package may not contribute (ruling D-296.3) — the platform refuses to boot with ` +
+      `CommandMiddlewareOriginError:`,
+    ...result.packageAdmit.map(
+      (finding) => `  ${finding.packageName} (${finding.moduleId}): ${finding.middleware.map((id) => `'${id}'`).join(', ')}`,
+    ),
+    `  [package-admit-middleware]`,
+    `    Ask the package's author for a release that declares it as observe, or move the admission`,
+    `    rule into one of this deployment's own overlay modules under apps/<deployment>/modules/.`,
   ];
 }
 
