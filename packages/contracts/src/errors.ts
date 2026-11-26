@@ -206,6 +206,10 @@ export const ERROR_CODES = {
   // request resolved when none is named (owner decision 2026-10-29 "A") — is not
   // one of the Organization's active channels.
   RFQ_SALES_CHANNEL_NOT_ALLOWED: 'RFQ_SALES_CHANNEL_NOT_ALLOWED',
+  // Issue #1906 — 422: a command hook on the buyer's `quote_request.create`
+  // named an assignee who is not an active administrator holding `rfqs:handle`
+  // and reaching the request's Organization.
+  RFQ_ASSIGNEE_NOT_ELIGIBLE: 'RFQ_ASSIGNEE_NOT_ELIGIBLE',
 
   // Quick order — one-click buy (issue #641, #86). `422 VALIDATION_FAILED` with
   // `details.code: 'one_click_unavailable'` until then.

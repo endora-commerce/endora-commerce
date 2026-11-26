@@ -1,6 +1,8 @@
 import {
+  QUOTE_REQUEST_HOOKABLE_ACTIONS,
   defineModuleManifest,
   defineModuleSettingsManifest,
+  toHookableActionDeclaration,
   type CustomFieldWriteDeclaration,
 } from '@endora-commerce/contracts';
 
@@ -521,6 +523,11 @@ export const manifest = defineModuleManifest({
     { code: 'QUOTE_REQUEST_PDF_TOO_LARGE' },
     { code: 'QUOTE_REQUEST_PDF_EMAIL_UNAVAILABLE', tokens: ['deactivated', 'no_transport', 'no_definition'] },
     { code: 'QUOTE_REQUEST_PDF_SEND_FAILED' },
+    // Issue #1906 — an assignee who may not handle the request: named on the
+    // admin assign route or the port (the plain sentence), or by a command hook
+    // inside a buyer's submission (`submission`, worded for the buyer). Minted
+    // by this issue; owner and reason in `MINTED_ERROR_CODES`.
+    { code: 'RFQ_ASSIGNEE_NOT_ELIGIBLE', tokens: ['submission'] },
   ],
   /**
    * `rfqs:handle` is declared in the core `PERMISSION_CATALOGUE`, which carries
@@ -728,6 +735,15 @@ export const manifest = defineModuleManifest({
     // `backend/email-templates/quote-notification-defaults.ts`.
     ...QUOTE_NOTIFICATION_EMAILS,
   ],
+  /**
+   * Command hooks (issue #1906, `specs/176-command-hooks-outbox/`): the buyer's
+   * create-and-submit, `quote_request.create`, and submit-again,
+   * `quote_request.resubmit`, for both phases — so a deployment's module may
+   * veto either, or set the new request's assignee inside the write through
+   * the hook data's `assign`, before the operators' notifications are fixed.
+   * `quote-request-create-hooks.test.ts` holds each Command to its ref.
+   */
+  hookableActions: Object.values(QUOTE_REQUEST_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   actions: [

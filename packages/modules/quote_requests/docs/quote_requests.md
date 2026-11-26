@@ -1527,8 +1527,9 @@ never resolve it for a customer-facing route.
 - `expectedVersion` — the `version` you read; a request that has moved on is
   refused with `409 VERSION_CONFLICT`, as an `If-Match` is. `create` and
   `sendDocument` ignore it.
-- `extensions` — input for command hooks on the action. No quote request
-  action is hookable yet, so any key is refused with
+- `extensions` — input for command hooks on the action. None of the port's
+  actions is hookable (the module's one hookable action is the buyer's
+  submission, below), so any key is refused with
   `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
 
 **From a worker, name the channel.** `create` raises the request on
@@ -1551,6 +1552,109 @@ storefront.
 `503 MODULE_DISABLED` and nothing is written. A module that uses it declares
 `quote_requests` in its manifest's `dependencies`, or as a
 `nonBindingDependencies` edge `refuses-without`, and resolves the port per use.
+
+## Hookable actions
+
+The buyer's two submissions are declared hookable, so another module — a
+deployment's overlay module or an installed package — can take part in them. A
+buyer's create **is** the submission: one write raises the request as *Pending*,
+with its lines, revision 1, the *Created* and *Submitted* history entries and
+the notifications of a new quote request. There is no draft submitted later.
+*Submit again* is the same write over an earlier request's lines: a **new**
+request, with a *Re-submitted* entry, that leaves the earlier one as it was.
+
+Register a command hook against the ref in `QUOTE_REQUEST_HOOKABLE_ACTIONS`
+(`@endora-commerce/contracts`) and list `quote_requests` in your manifest
+`dependencies`. A `beforeCommit` hook runs inside the write's transaction: it
+may write its own tables or run a command through `ctx.run`, and it may refuse
+the write with a code of its own, which rolls the write back. An `afterCommit`
+handler is delivered through the platform's outbox after the commit, at least
+once. How hooks run, are ordered and are refused is on the *Command Bus*
+architecture page. The admin's *Command hooks* screen lists every action, the
+hooks registered on it and the outbox rows waiting or failed.
+
+| Action | Ref | Written by | Hook data |
+| --- | --- | --- | --- |
+| `quote_request.create` | `QUOTE_REQUEST_HOOKABLE_ACTIONS.create` | `POST /api/v1/quote-requests`, and every in-process `RfqCustomerPort.createForCustomer` (a basket, a shopping list or a quick order turned into a quote, an order cloned into one) | `quoteRequestId`, `organizationId`, `customerAccountId`, `salesChannelId`, `assignedAdminUserId`, `itemCount`, and `assign(adminUserId)` in `beforeCommit` |
+| `quote_request.resubmit` | `QUOTE_REQUEST_HOOKABLE_ACTIONS.resubmit` | `POST /api/v1/quote-requests/:id/resubmit` | the same, `quoteRequestId` being the new request, plus `sourceQuoteRequestId` |
+
+Both offer both phases. `quote_request.create` announces `rfq.created.v1` on
+its commit; `quote_request.resubmit` announces no domain event, as before. The outbox row carries the same ids as the hook data,
+with `assignedAdminUserId` as it was when the write committed, and is routed to
+the request's Organization: its handler runs in a context pinned to it. Both
+carry **ids, codes and counts only**: never the header note, the lines, the
+products or the prices. A buyer's create stores no custom-field values, so
+neither names any. A hook that needs more reads the request through
+`quoteRequestReadPort` — after the commit, since that port does not see the open
+transaction. No route or port passes `extensions` to these actions yet.
+
+### Routing a submitted request to a representative
+
+A `beforeCommit` hook sets the request's assignee **inside the submission** by
+calling `assign(adminUserId)` on its data — not through the admin endpoint, and
+not by a second write after the commit, when the new-request notification would
+already have been fixed for whoever was assigned then, which is nobody.
+
+```ts
+import { ERROR_CODES, QUOTE_REQUEST_HOOKABLE_ACTIONS as QR } from '@endora-commerce/contracts';
+
+ctx.commandHooks([
+  {
+    id: 'route-to-representative',
+    on: QR.create,
+    phase: 'beforeCommit',
+    handler: async ({ data }) => {
+      for (const candidate of await myRoutingRule(data.customerAccountId, data.organizationId)) {
+        try {
+          await data.assign(candidate);
+          return;
+        } catch (error) {
+          if ((error as { code?: string }).code !== ERROR_CODES.RFQ_ASSIGNEE_NOT_ELIGIBLE) throw error;
+        }
+      }
+    },
+  },
+]);
+```
+
+- **Who may be assigned.** The same rule as everywhere else (see *Who may be
+  assigned to a quote request* below). Anyone else is refused with
+  `422 RFQ_ASSIGNEE_NOT_ELIGIBLE` and nothing is written, so a hook may catch it
+  and try its next candidate. Uncaught, it refuses the buyer's submission, and
+  the buyer reads a sentence worded for them (token `submission`).
+- **It is audited in the same write.** `assign` runs this module's own
+  `quote_request.assign` command as a child of the submission: its own audit
+  entry, with the hook's module id as `source`, beside the unchanged
+  `quote_request.create` or `quote_request.resubmit` entry. Assigning the
+  current assignee again writes nothing.
+- **The notifications go to the assignee.** The operators told about a new
+  request are the assignee and the Organization's representatives (see
+  *Notifications*). After `assign` they are recorded again, so the assignee is
+  told, in the same transaction.
+- **Only while the hook runs.** `assign` throws when called from anywhere but a
+  running `beforeCommit` hook on the action whose data carries it. A hook
+  ordered after another sees the other's choice in `assignedAdminUserId`.
+
+The buyer's draft edit, their answer to an offer, the conversion to an order
+and every operator write are not hookable.
+
+### Who may be assigned to a quote request
+
+One rule, wherever an administrator is named as a request's assignee — the
+admin endpoint `POST /api/v1/admin/quote-requests/:id/assign`,
+`quoteRequestCommandPort.assign` and a hook's `assign`. The administrator must:
+
+- be **active** (not deactivated or deleted);
+- hold **`rfqs:handle`** (or the wildcard role);
+- **reach the request's Organization** — their own admin scope includes it,
+  which for a sales representative is the representative rule (assigned, roll-up
+  or an Organization nobody is assigned to).
+
+Anyone else is refused with `422 RFQ_ASSIGNEE_NOT_ELIGIBLE` before anything is
+written. Clearing the assignee (`null`, on the port) is always allowed. Saving
+an offer, approving and cancelling still make the administrator who does it the
+assignee, without asking the rule: on the admin endpoints that administrator
+already meets it.
 
 ## Events offered to outbound webhooks
 

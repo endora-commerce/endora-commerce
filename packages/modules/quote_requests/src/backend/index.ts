@@ -11,6 +11,7 @@ import type {
   AdminNotificationRecordPort,
   AdminSearchProviderRegistryPort,
   AdminRolePort,
+  AdminTenantScopePort,
   AdminUserReadPort,
   BuyerLinePricePort,
   CartWritePort,
@@ -526,6 +527,9 @@ export function registerModule(ctx: ModuleContext): void {
           // dependencies; both are resolved per call.
           organizationRoles: () => lazyPort<OrganizationRoleReadPort>(ctx, 'organizationRoleReadPort'),
           permissions: lazyPort<PermissionReadPort>(ctx, 'permissionService'),
+          // Issue #1906 — the reach of the assignee a command hook names on the
+          // buyer's create. `organizations` is a binding dependency; resolved per call.
+          adminTenantScope: lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort'),
           // The completion reactor's second look at an order whose commit was
           // still in flight (`specs/143-crm-sales-opportunities/`, FR-104). Off
           // the bus's chain, so in a system scope of its own — the handler's
