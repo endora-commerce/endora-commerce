@@ -43,3 +43,34 @@ export function rolledOutExtensibleHosts(): ExtensibleHostSet {
   const rolledOut = new Set<string>(SCHEMA_EXTENSION_ROLLOUT);
   return new Map([...EXTENSIBLE_HOSTS].filter(([table]) => rolledOut.has(table)));
 }
+
+/**
+ * A host a **side table** may extend (`specs/187-side-table-extensions/`
+ * FR-002, FR-003): the D2 host plus the class name of the entity that maps
+ * its table — the second half of the declaration's
+ * `<ownerModuleId>.<EntityClassName>` reference, and the parent name a
+ * `@TransitivelyScoped` side entity must give.
+ *
+ * A separate interface rather than a new required field on
+ * {@link ExtensibleHost}: that type is published on `./db` and constructed by
+ * instance code (a throwaway host set in a test), so widening it would be a
+ * breaking change to D2 for a fact only D1 reads.
+ */
+export interface EntityExtensionHost extends ExtensibleHost {
+  readonly entityClassName: string;
+}
+
+/**
+ * `organizations.Organization` → host. **Every** binding, with no rollout
+ * constant (research R-3): a side table writes nothing on its host, only a
+ * foreign key pointing at it, so there is nothing to roll out host by host.
+ */
+export const ENTITY_EXTENSION_HOSTS: ReadonlyMap<string, EntityExtensionHost> = new Map(
+  Object.values(CUSTOM_FIELD_HOST_BINDINGS).map(
+    (binding) =>
+      [
+        `${binding.ownerModuleId}.${binding.entityClassName}`,
+        { table: binding.table, ownerModuleId: binding.ownerModuleId, entityClassName: binding.entityClassName },
+      ] as const,
+  ),
+);

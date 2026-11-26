@@ -10,7 +10,7 @@ import {
 } from '@endora-commerce/platform/lifecycle';
 import type { MikroORM } from '@mikro-orm/postgresql';
 import { closeOrm, initOrm } from '../../db/index.js';
-import { configuredMigrations } from '../../db/configured-migrations.js';
+import { configuredMigrations, coreModuleDependencies } from '../../db/configured-migrations.js';
 import { enterSystemScope } from '../../kernel/scope.js';
 
 /**
@@ -45,6 +45,9 @@ async function main(): Promise<number> {
       // FR-073 — the installed packages this instance's configuration discovered,
       // as they arrived (the guard wraps them only inside the merged order).
       packages: async () => (await configuredMigrations()).packages,
+      // `specs/187-side-table-extensions/` FR-041 — a package's host owner may be
+      // reached through a committed module.
+      moduleDependencies: () => coreModuleDependencies(),
       commandBus: async () => {
         const opened = await open();
         return new CommandBus(opened, new AuditLogService(() => opened.em.fork()), new EventBus());

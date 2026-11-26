@@ -22,37 +22,43 @@ must fail first.
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm in the #1862 spike (throwaway, nothing kept in the tree) that MikroORM 7.2.11 keeps
+- [x] T001 Confirm in the #1862 spike (throwaway, nothing kept in the tree) that MikroORM 7.2.11 keeps
   `discovery.afterDiscovered(storage, platform)`, that `storage.getAll()` is a `Map` holding every
   registered entity and `EntitySchema`, and that `em.getConnection().execute(sql, params)` returns
   rows; record the answer on #1834. If `afterDiscovered` changed, apply `plan.md` Risk 1 before T013.
-- [ ] T002 Rebase onto `master` after #1866; `pnpm run build:packages`; confirm `pnpm -r run typecheck`
+  *Note:* confirmed statically against the installed 7.2.11 rather than in a spike: `discovery.afterDiscovered(storage, platform) => MaybePromise<void>` (`Configuration.d.ts`), awaited after `mapDiscoveredEntities()` in `discover()` (`MetadataDiscovery.js`; `discoverSync` does not await it, so the rule stays synchronous); `MetadataStorage.getAll(): Map<EntityName, EntityMetadata>`; `Connection.execute(sql, params, 'all', trx)` returns rows. Risk 1 does not apply. The answer is recorded here and in the Phase A report, not on #1834 (no GitHub comment was posted from this session).
+- [x] T002 Rebase onto `master` after #1866; `pnpm run build:packages`; confirm `pnpm -r run typecheck`
   is green before any edit.
-- [ ] T003 Measure: on a database built by `pnpm run setup`, run the query of
+  *Note:* worktree off `origin/master` at `41b54e8b9` (after #1866/#1910); contracts and platform type-checked green before the first edit.
+- [x] T003 Measure: on a database built by `pnpm run setup`, run the query of
   `contracts/verification-rules.md` §4 and record every table it returns in the merge request of
   Phase A. Expected from the entity scan: `quote_request_org_policies`,
   `quote_request_account_policies`. Any other table is either declared by its owner in T021 or raised
   with the architect before T030.
+  *Note:* measured on four fully migrated test template databases (`b2b_test_tpl_*`, `b2b_acceptance_v7_test`; 328 – 330 migrations) rather than on a `pnpm run setup` database, which was not built: exactly `quote_request_account_policies` (→ `customer_accounts`, cascade, references the PK) and `quote_request_org_policies` (→ `organizations`, cascade, references the PK). No other table.
 
 ---
 
 ## Phase 2: Foundational (blocks every story)
 
-- [ ] T004 [P] Failing tests in `contracts/modules.test.ts`: `extends` accepts
+- [x] T004 [P] Failing tests in `contracts/modules.test.ts`: `extends` accepts
   `{ entity: 'organizations.Organization', table: 'acme_erp_organization_links' }`; refuses a bad
   `entity` shape, an upper-case or 64-byte `table`, a 17th entry, an extra key; `defineModuleManifest`
   refuses a duplicate `table` (`contracts/entity-extension-declaration.md` §1, E1, E5).
-- [ ] T005 Implement `EntityExtensionDeclarationSchema` and `ModuleManifestSchema.extends` in
+- [x] T005 Implement `EntityExtensionDeclarationSchema` and `ModuleManifestSchema.extends` in
   `contracts/modules.ts`; duplicate-table refusal in `defineModuleManifest`.
-- [ ] T006 [P] Failing test in `contracts/custom-fields.test.ts`: every binding carries
+  *Note:* `defineModuleManifest`'s E5 message carries `duplicate-table`; the contracts package cannot throw the platform's `EntityExtensionInvalidError`, so `resolveEntityExtensions` re-asks E1 and E5 (and refuses one table claimed by two modules) with the error class.
+- [x] T006 [P] Failing test in `contracts/custom-fields.test.ts`: every binding carries
   `entityClassName` with the values of `contracts/entity-extension-declaration.md` §2.
-- [ ] T007 Add `entityClassName` to `CustomFieldHostBinding` and `CUSTOM_FIELD_HOST_BINDINGS`;
+- [x] T007 Add `entityClassName` to `CustomFieldHostBinding` and `CUSTOM_FIELD_HOST_BINDINGS`;
   add `ENTITY_EXTENSION_HOSTS` to `platform/kernel/schema-extensions/extensible-hosts.ts` with a test
   in `extensible-hosts.test.ts` (nine keys, no rollout filter — research R-3).
-- [ ] T008 [P] `platform/kernel/entity-extensions/errors.ts`: `EntityExtensionInvalidError`,
+  *Note:* `ENTITY_EXTENSION_HOSTS` maps to a new `EntityExtensionHost` (`ExtensibleHost` + `entityClassName`) instead of widening `ExtensibleHost` itself: that type is published on `./db` and built by instance code, so a new required field would break D2 consumers.
+- [x] T008 [P] `platform/kernel/entity-extensions/errors.ts`: `EntityExtensionInvalidError`,
   `EntityExtensionDriftError`, `EntityExtensionLoaderOutputError`, each with `{ rule, moduleId,
   origin, table, host, detail }`; unit test of their messages (module, origin, table, remedy).
-- [ ] T009 `pnpm run build:packages`; `pnpm -r run typecheck`.
+  *Note:* the static/metadata error carries `entity` (the contract's field name, `entity-extension-declaration.md` §3) where this task wrote `host`; the physical finding carries `host` (`verification-rules.md` §4).
+- [x] T009 `pnpm run build:packages`; `pnpm -r run typecheck`.
 
 **Checkpoint**: contracts carry the declaration and the class names; nothing reads them yet.
 
@@ -64,52 +70,64 @@ must fail first.
 **Independent test**: `mod-acme-links` fixture migrated on a fresh database; `quote_requests`' own
 tables in this repository's suite.
 
-- [ ] T010 [P] [US1] Failing tests `platform/kernel/entity-extensions/declarations.test.ts`: E2
+- [x] T010 [P] [US1] Failing tests `platform/kernel/entity-extensions/declarations.test.ts`: E2
   (`invoices.Invoice` refused, message lists nine hosts), E3 (owner outside the dependency closure,
   direct and transitive), E4 (`organizations` declaring on itself); the same declaration under origins
   `core`, `package`, `overlay` gives identical verdicts (FR-005).
-- [ ] T011 [US1] Implement `declarations.ts` (`resolveEntityExtensions(manifests) →
+- [x] T011 [US1] Implement `declarations.ts` (`resolveEntityExtensions(manifests) →
   ResolvedEntityExtension[]`, using `dependencyClosureOf` from `kernel/schema-extensions/validate.ts`);
   call it from the manifest-registry derivation in `platform/lifecycle/manifest-registry.ts` so the
   lifecycle orchestrator, boot and `migrate` all refuse.
-- [ ] T012 [P] [US1] Guard case in `platform/db/foreign-schema-guard.test.ts`: a package migration's
+  *Note:* also asked by `buildStaticRegistry` (every `module:*` command) and by the migration merge (`configuredMigrationsFrom`, over the composed graph).
+- [x] T012 [P] [US1] Guard case in `platform/db/foreign-schema-guard.test.ts`: a package migration's
   `create table "acme_links_x" (… references "organizations" ("id") on delete cascade)` is allowed and
   reports no foreign write (research R-15).
-- [ ] T013 [P] [US1] Failing tests `platform/db/entity-extension-metadata.test.ts` (ORM init with
+  *Note:* green on its first run, as R-15 predicts: the guard needed no change, the case pins it.
+- [x] T013 [P] [US1] Failing tests `platform/db/entity-extension-metadata.test.ts` (ORM init with
   `connect: false`): a correct `@GlobalEntity` side entity on `organizations` passes; M0 refuses a
   binding whose table is mapped by a differently named class.
-- [ ] T014 [US1] Implement `platform/db/entity-extension-metadata.ts` over discovered v7 metadata
+  *Note:* MikroORM 7 connects lazily, so the ORM is initialised without `connect: false` (the option no longer exists).
+- [x] T014 [US1] Implement `platform/db/entity-extension-metadata.ts` over discovered v7 metadata
   (`getAll().values()`, never decorators — research R-4); add the `entityExtensions` input to
   `mikroOrmConfigFrom` and chain the rule after D2's `assertTableMappings` in `afterDiscovered`;
   `recordActiveEntityExtensions` beside `recordActiveSchemaExtensions`.
-- [ ] T015 [US1] Supply the resolved declarations from the application binding under `backend/src/db/`
+  *Note:* ownership of core tables comes from a new `ENTITY_OWNERS` export the composer emits beside `ALL_ENTITIES` (`backend/scripts/generate-composer.ts`), passed as `coreEntityOwners`; packages' and overlays' owners come from the merge.
+- [x] T015 [US1] Supply the resolved declarations from the application binding under `backend/src/db/`
   and from the new-instance template the CLI emits (`packages/cli`, the file the template writes for
   `configured-entities`); test that a generated instance type-checks.
-- [ ] T016 [P] [US1] Fixture `backend/test/fixtures/installed-packages/mod-acme-links/`: manifest
+  *Note:* the declarations reach `mikroOrmConfigFrom` by default from the migration merge (`ConfiguredMigrations.entityExtensions`, resolved over core manifests, packages and overlays), so an instance's scaffolded `mikro-orm.config.ts` needs no edit and the CLI template was not changed. The backend binding passes `coreEntityOwners: ENTITY_OWNERS`. Proved by `packages/platform/src/db/configured-migrations.test.ts` and `backend/test/unit/db/entity-extension-package-discovery.test.ts`; the new-instance type-check test was not added because the template did not change.
+- [x] T016 [P] [US1] Fixture `backend/test/fixtures/installed-packages/mod-acme-links/`: manifest
   (`dependencies: ['organizations', 'orders']`, `extends` on `organizations.Organization` →
   `acme_links_organization_refs` and `orders.Order` → `acme_links_order_notes`), two entities
   (`@GlobalEntity()`; `@TransitivelyScoped('Order', 'orderId')`), one scaffold-shaped migration
   creating both tables with cascading foreign keys, `README.md` line in the fixtures README.
-- [ ] T017 [US1] Failing integration test `backend/test/integration/db/entity-extension-verifier.test.ts`
+  *Note:* ships `lib/` (+ `.d.ts`) only. The integration tests assemble its package contribution from `lib/` by path (`backend/test/helpers/acme-links-instance.ts`): a copy under `node_modules` is imported natively under vitest and its `@endora-commerce/platform/tenancy` becomes a second classification registry, so its entities arrive unclassified. The `node_modules` scan of its `extends` is held separately by `test/unit/db/entity-extension-package-discovery.test.ts`.
+- [x] T017 [US1] Failing integration test `backend/test/integration/db/entity-extension-verifier.test.ts`
   (happy path): `migrate up` with the fixture commits, the verifier ran inside the transaction after the
   last migration, boot passes, and each verification issued exactly one statement (FR-023).
-- [ ] T018 [US1] Implement `platform/db/entity-extension-verifier.ts` (the §4 query through
+  *Note:* boot is proved through the verifier call `composeApp` makes (`verifyEntityExtensions` on a plain connection), not through a full `composeApp` boot.
+- [x] T018 [US1] Implement `platform/db/entity-extension-verifier.ts` (the §4 query through
   `SchemaExtensionExec`); call it in `platform/db/migrate.ts` `migrateUpVerified` after D2's verifier and
   in `platform/composition/compose-app.ts` after D2's boot verifier.
-- [ ] T019 [US1] Failing tests in `platform/lifecycle/commands/schema-extensions.test.ts`: `list` prints
+  *Note:* with nothing declared and the policy at `warn` the bare `migrator.up()` path stays bare and the catalog query runs after it for warnings only; otherwise the run is the transactional one.
+- [x] T019 [US1] Failing tests in `platform/lifecycle/commands/schema-extensions.test.ts`: `list` prints
   the `entity-extension` section and `--json` the `entityExtensions` key
   (`contracts/schema-extensions-cli.md` §1); `--module` filters; the ledger is not written;
   `audit-packages` prints one verdict per `extends` entry without a database (§2); `drop` on a
   side-table-only module prints the §3 line.
-- [ ] T020 [US1] Implement T019 in `platform/lifecycle/commands/schema-extensions.ts`.
-- [ ] T021 [US1] Declare `quote_requests`' two side tables in
+  *Note:* the tasks' file did not exist; created `packages/platform/src/lifecycle/commands/schema-extensions.test.ts` with a fake connection.
+- [x] T020 [US1] Implement T019 in `platform/lifecycle/commands/schema-extensions.ts`.
+  *Note:* `drop` on a side-table-only module prints the §3 line and keeps the old exit code (65), since the contract leaves exit codes unchanged.
+- [x] T021 [US1] Declare `quote_requests`' two side tables in
   `packages/modules/quote_requests/src/manifest.ts`; new test
   `backend/test/integration/db/entity-extension-core-composition.test.ts` asserts zero U1/U2 findings and
   zero violations for this repository's composition (FR-032) and M0 over the real bindings; run
   `manifests:generate` and `pnpm install --lockfile-only` and commit what they change.
-- [ ] T022 [US1] **Blocked by #1850 (`specs/190-overlay-full-modules/`)**: overlay-origin leg of
+  *Note:* `manifests:generate` and `pnpm install --lockfile-only` changed nothing.
+- [x] T022 [US1] **Blocked by #1850 (`specs/190-overlay-full-modules/`)**: overlay-origin leg of
   T017 — an overlay module under `backend/src/apps/` with a declared side table migrates, boots and lists
   with `origin: overlay`; no code path differs from T017's.
+  *Note:* #1850 merged before this work, so the leg was done: `backend/test/integration/db/entity-extension-overlay-origin.test.ts`. The overlay contribution is assembled as overlay discovery assembles one (origin `overlay`, guarded, no exemption) rather than read from a module under `backend/src/apps/`, for T016's module-instance reason.
 
 **Checkpoint**: US1 passes for core and package origins; overlay leg waits for #1850.
 
@@ -119,26 +137,27 @@ tables in this repository's suite.
 
 **Independent test**: one red case per rule, each naming its rule; each physical case rolls back.
 
-- [ ] T023 [P] [US2] Failing cases in `entity-extension-metadata.test.ts`: M1 (no entity maps the
+- [x] T023 [P] [US2] Failing cases in `entity-extension-metadata.test.ts`: M1 (no entity maps the
   table), M2 (another module's entity maps it), M3 (two-property key), M4 (`varchar` key).
-- [ ] T024 [P] [US2] Failing cases in `entity-extension-metadata.test.ts`, one per row of
+- [x] T024 [P] [US2] Failing cases in `entity-extension-metadata.test.ts`, one per row of
   `contracts/verification-rules.md` §3: `organizations` accepts `@GlobalEntity` and `@OrgScoped` keyed
   by the PK (the `QuoteRequestOrgPolicy` shape) and refuses `@OrgScoped` keyed by another column;
   `customer_accounts` accepts `@TransitivelyScoped('CustomerAccount', '<pk>')` (the
   `QuoteRequestAccountPolicy` shape) and refuses `@OrgScoped` with a copied `organization_id` and a
   transitive parent naming another class; `products` accepts only `@GlobalEntity`; `projects` accepts
   only `@RuleScoped`; the message names the admitted form.
-- [ ] T025 [US2] Implement M1 – M5 in `entity-extension-metadata.ts` with the messages of
+- [x] T025 [US2] Implement M1 – M5 in `entity-extension-metadata.ts` with the messages of
   `contracts/verification-rules.md` §2 – §3.
-- [ ] T026 [P] [US2] Failing cases in `entity-extension-verifier.test.ts`, each at `migrate up` (run
+- [x] T026 [P] [US2] Failing cases in `entity-extension-verifier.test.ts`, each at `migrate up` (run
   rolled back, no migration recorded) and at boot on a database altered by hand: P1 table missing, P2 no
   foreign key, P3 foreign key to a non-PK column and to the wrong host, P4 `on delete restrict`; all
   findings of one run reported together.
-- [ ] T027 [US2] Implement P1 – P4 reactions and the failure-path `to_regclass` disambiguation in
+- [x] T027 [US2] Implement P1 – P4 reactions and the failure-path `to_regclass` disambiguation in
   `entity-extension-verifier.ts`.
-- [ ] T028 [P] [US2] Lifecycle case in `backend/test/unit/_lifecycle/orchestrator.test.ts` (or its
+- [x] T028 [P] [US2] Lifecycle case in `backend/test/unit/_lifecycle/orchestrator.test.ts` (or its
   platform co-located twin): `install` of an arriving package whose `extends` host owner is not in its
   closure is refused with `host-not-a-dependency` and exit 65, before any migration runs.
+  *Note:* the refusal sits in `buildStaticRegistry`, whose errors `module:install` already maps to exit 65 before any resource opens; test `packages/platform/src/lifecycle/commands/install-entity-extension.test.ts` (the platform co-located twin).
 
 **Checkpoint**: every rule of `data-model.md` §6 that US1/US2 own has a red test.
 
@@ -146,12 +165,13 @@ tables in this repository's suite.
 
 ## Phase 5: User Story 3 — undeclared side tables (P2) — Phase A, #1834
 
-- [ ] T029 [US3] Failing cases in `entity-extension-verifier.test.ts`: a fixture table with a PK = FK
+- [x] T029 [US3] Failing cases in `entity-extension-verifier.test.ts`: a fixture table with a PK = FK
   to `orders` mapped by a composed module's entity and undeclared → one `warn` line under policy `warn`,
   refusal and rollback under `refuse` (policy injected by the test); a table no entity maps → `warn`
   under both; a test asserting `ENTITY_EXTENSION_UNDECLARED_POLICY === 'warn'`.
-- [ ] T030 [US3] Implement U1/U2 and the policy constant in `entity-extension-verifier.ts`.
-- [ ] T031 [US3] Extend T019/T020: `undeclared` and `unowned` statuses in `list`, with `moduleId: null`
+  *Note:* the U1 case drops the fixture's own `acme_links_order_notes` from the injected context, so an entity of a composed module maps an undeclared table; `refuse` rolls the run back.
+- [x] T030 [US3] Implement U1/U2 and the policy constant in `entity-extension-verifier.ts`.
+- [x] T031 [US3] Extend T019/T020: `undeclared` and `unowned` statuses in `list`, with `moduleId: null`
   for `unowned`.
 
 **Checkpoint**: Phase A complete — mergeable alone, inert for a composition that declares nothing.
