@@ -93,9 +93,11 @@ describe('customerListOrder', () => {
     const { RawQueryFragment } = await import('@mikro-orm/core');
     const { customerListOrder } = await import('./rfq-service.js');
     const [byReceipt, byId] = customerListOrder();
-    const keys = Object.keys(byReceipt!);
+    // The key is a `raw()` fragment, which MikroORM 7 keys by a symbol:
+    // `Object.keys` / `Object.values` skip it, `Reflect.ownKeys` does not.
+    const keys = Reflect.ownKeys(byReceipt!);
     expect(keys).toHaveLength(1);
-    expect(Object.values(byReceipt!)).toEqual(['DESC']);
+    expect(keys.map((key) => (byReceipt as Record<PropertyKey, unknown>)[key])).toEqual(['DESC']);
     expect(RawQueryFragment.getKnownFragment(keys[0]!)?.sql).toBe(
       'coalesce([::alias::]."shared_at", [::alias::]."created_at")',
     );
@@ -107,7 +109,8 @@ describe('customerListOrder', () => {
     await service.listForCustomer({ customerAccountId: REQUESTER, organizationId: ORG });
     const options = (find.mock.lastCall as unknown as [unknown, unknown, { orderBy: Array<Record<string, string>> }])[2];
     expect(options.orderBy).toHaveLength(2);
-    expect(Object.values(options.orderBy[0]!)).toEqual(['DESC']);
+    const first = options.orderBy[0]!;
+    expect(Reflect.ownKeys(first).map((key) => (first as Record<PropertyKey, unknown>)[key])).toEqual(['DESC']);
     expect(options.orderBy[1]).toEqual({ id: 'DESC' });
   });
 });
