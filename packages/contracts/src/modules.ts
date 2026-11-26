@@ -605,10 +605,15 @@ export type DeploymentDivergenceDeclaration = z.infer<
  * One kind of divergence a deployment's tree can hold
  * (`specs/107-override-report-and-ladder/data-model.md` §2.3).
  *
- * Ten, and every one of them is one seam of `ModuleContext` — eight read off
- * the members themselves, plus `port-consumed` (which is `lazyPort` over the
+ * Eleven. Ten are one seam of `ModuleContext` each — eight read off the
+ * members themselves, plus `port-consumed` (which is `lazyPort` over the
  * cradle rather than a member) and `omission` (which comes from the declaration
- * and from no seam at all). `routes`, `ungatedRoutes`, `onBoot` and the manifest
+ * and from no seam at all). The eleventh, `column-extension`, is a module's
+ * `defineColumnExtension(…)` declaration on a table another module owns
+ * (`specs/190-overlay-full-modules/` FR-047) — exported schema rather than a
+ * seam call, and a divergence because the table is not the overlay's. An
+ * overlay's **own** entities and migrations are not one, for the reason below.
+ * `routes`, `ungatedRoutes`, `onBoot` and the manifest
  * declarations are deliberately absent for one uniform reason: each is a module
  * acting on its **own** surface, which is not a divergence from core. They are
  * named in {@link DivergenceBoundary.notRecorded} so a reader can tell "not a
@@ -624,7 +629,8 @@ export type DivergenceKind =
   | 'decoration'
   | 'root-plugin'
   | 'worker'
-  | 'command-hook';
+  | 'command-hook'
+  | 'column-extension';
 
 /**
  * `<kind>:<module>:<subject>` — the three facts that identify a divergence
@@ -678,6 +684,20 @@ export type DivergenceDetail =
       /** The hook's id, unique within its module. */
       readonly id: string;
     }
+  | {
+      readonly kind: 'column-extension';
+      /**
+       * The data ladder's rung (`docs/docs/architecture/customisation-ladder.md`
+       * *The data ladder*). {@link DivergenceEntry.rung} is the escalation
+       * ladder's, which ranks ways of changing what core *does*; a declared
+       * column is new data on a table another module owns, so its cost is on the
+       * other ladder and is carried here rather than as a number that would read
+       * as rung 2 (`specs/190-overlay-full-modules/` FR-047).
+       */
+      readonly dataRung: 'D2';
+      /** The physical `x_<module>_*` columns the declaration adds, sorted. */
+      readonly columns: readonly string[];
+    }
   | { readonly kind: 'omission' };
 
 /** One divergence: what, who wrote it, who owns it, at what cost, and why. */
@@ -699,11 +719,13 @@ export interface DivergenceEntry {
    * (`specs/107-override-report-and-ladder/contracts/escalation-ladder.md` §2),
    * or `null` for a kind that sits on no rung.
    *
-   * `null` is three kinds and they are the three the ladder's own table marks
+   * `null` is four kinds. Three are the ones the ladder's own table marks
    * `—`: `registration` and `worker` are a module contributing its **own**
    * surface, and `omission` comes from the declaration rather than from a seam.
    * The ladder ranks ways of changing what *core* does, so a rung number on
-   * those would be a cost this repository does not claim they have. A
+   * those would be a cost this repository does not claim they have. The fourth,
+   * `column-extension`, is new data rather than changed behaviour: its rung is
+   * the data ladder's D2, carried in its detail as `dataRung`. A
    * `ModuleContext` member that the rung table classifies **not at all** is a
    * different state and is the `unclassified-seam` finding.
    */

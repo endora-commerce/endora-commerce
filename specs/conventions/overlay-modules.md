@@ -51,9 +51,12 @@ A deployment's modules are **discovered at runtime**, so `composition.generated.
 `manifest-index.generated.ts` are bare core under every value of `DEPLOYMENT` (D-104).
 **A deployment's divergence from core is a committed artefact** (feature 107, D-30). Every build
 emits `divergence.generated.ts` and `divergence.generated.md` per deployment plus bare core, from
-**one** derivation over the deployment's own overlay tree: nine kinds, each with the module that
-wrote it, the module that owns what it names, the rung of the customisation ladder it sits on and
-the deployment's own sentence. Beside them is the hand-written
+**one** derivation over the deployment's own overlay tree: the kinds `DivergenceKind` lists, each
+with the module that wrote it, the module that owns what it names, the rung of the customisation
+ladder it sits on and the deployment's own sentence. An overlay's own tables are not among them —
+they are its own surface, named under `notRecorded` — while a `defineColumnExtension(…)` it
+declares on another module's table is (`column-extension`, owned by the host's module, data ladder
+D2; FR-047). Beside them is the hand-written
 `backend/src/apps/<deployment>/divergence.ts`, which carries the three things no walk can produce —
 the modules the deployment omits, the wrapping order where two of its overlay modules decorate one
 name (`decorationOrder`, **checked and never applied**), and one reason per derived divergence. The
@@ -104,6 +107,19 @@ below is unchanged. What D-297 holds every overlay module to:
   `overlay/overlay-layout.ts`, the CLI's twin `build-overlays/layout.ts`, held to agree) and the
   freshness of the compiled tree against its sources (`stale`, `unbuilt`, `orphan` — platform
   `overlay/overlay-freshness.ts`, given `deploymentSourceRoot`).
+- **The lifecycle of a module this build ships** (FR-045 – FR-046,
+  `specs/190-overlay-full-modules/contracts/overlay-lifecycle.md`), not an installed package's:
+  boot converges its registry row, `module:install` applies its pending migrations,
+  `module:status <id>` lists them with origin `overlay`, switching it off or a soft uninstall
+  keeps its tables and rows, and `uninstall --hard` reverts its chain. A tree that still ships
+  the directory converges it back at the next boot and recreates its tables empty at the next
+  `migrate`, so remove it by hard-uninstalling first. An overlay module with tables owes the
+  off-state proof any switchable module does, and `check:off-state-coverage` counts those of
+  every deployment on disk; its proof runs the server on the deployment's own database
+  (`test/integration/overlay/overlay-notes-fixture-off-state.test.ts` is the template). This
+  repository's `module:uninstall` script still answers for core alone
+  (`coreMigrationOwnership()`), so a hard uninstall of an overlay module from that terminal is
+  refused; an instance's answers for its overlays.
 - **Promotion keeps the id.** A module promoted from an overlay to a package keeps its module
   id, so the migration class names a database has already recorded still match.
 - **The trust tier is derived, never claimed.** An overlay module's tier is `deployment`, read

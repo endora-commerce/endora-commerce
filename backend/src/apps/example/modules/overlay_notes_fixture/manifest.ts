@@ -14,10 +14,13 @@ import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-comm
  * `backend/test/integration/overlay/overlay-table.test.ts` reads its rows across
  * two organizations.
  *
- * **It is not a capability.** It serves no route and contributes no admin or
- * storefront surface; a shop would never compose it, and `example` is the
- * reference deployment, composed nowhere a real shop runs (OR-12). The reference
- * overlay a client reads is `example_erp_keys` (US8, #1856).
+ * **It is not a capability.** It serves one gated admin read over its own
+ * table — the API surface its off-state test proves absent while it is off
+ * (FR-046, `test/integration/overlay/overlay-notes-fixture-off-state.test.ts`)
+ * — and contributes no admin screen or storefront surface; a shop would never
+ * compose it, and `example` is the reference deployment, composed nowhere a
+ * real shop runs (OR-12). The reference overlay a client reads is
+ * `example_erp_keys` (US8, #1856).
  */
 export const OVERLAY_NOTES_FIXTURE_SETTING_CODES = {
   ACTIVATION: 'overlay_notes_fixture.enabled',
@@ -31,7 +34,7 @@ const settings = defineModuleSettingsManifest({
       code: OVERLAY_NOTES_FIXTURE_SETTING_CODES.ACTIVATION,
       name: 'Overlay notes fixture enabled',
       description:
-        'Switches this example-deployment fixture on or off. It owns one table so that an overlay module with schema is composed, migrated and tested in this repository; switching it off drops nothing, and switching it back on restores it as it was.',
+        'Switches this example-deployment fixture on or off. It owns one table so that an overlay module with schema is composed, migrated and tested in this repository; switching it off takes its route and its permission away and drops nothing, and switching it back on restores it as it was.',
       groupCode: 'overlay_notes_fixture',
       valueType: 'boolean',
       defaultValue: true,
@@ -47,8 +50,16 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // The table's foreign key is to `organizations`, so the edge is declared, as a
   // package's would be: it orders this module's migration after the one that
-  // creates the table it references. `settings` carries the activation control.
-  dependencies: ['organizations', 'settings'],
+  // creates the table it references. `settings` carries the activation control,
+  // and `auth` owns the `requireAdmin` its route resolves.
+  dependencies: ['auth', 'organizations', 'settings'],
   activation: { settingCode: OVERLAY_NOTES_FIXTURE_SETTING_CODES.ACTIVATION, default: true },
   settings,
+  permissions: [
+    {
+      code: 'overlay_notes_fixture:read',
+      module: 'overlay_notes_fixture',
+      label: 'Read the overlay notes fixture',
+    },
+  ],
 });

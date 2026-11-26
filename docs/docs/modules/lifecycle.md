@@ -52,13 +52,19 @@ pnpm --filter backend run module:status [<id>] [--filter=<state>] [--json]
 The repository form does nothing in an instance: the backend member there has another name, so
 pnpm prints `No projects matched the filters` and exits `0` without running the command.
 
+`module:status <id>` lists the module's migrations under its row: each by class name, with its
+origin (`core`, `external` for an installed package, `overlay` for a deployment's overlay module,
+`generated`) and whether this database has applied it or it is still pending. With `--json` every
+row carries the same list as `migrations`.
+
 ### In an instance
 
 They cover the module packages the instance installed and its own overlay modules under
 `apps/<deployment>/modules/` alike. A running API or worker hears a change made by one of these
-commands without a restart. An overlay module that ships a `migrations/` or `entities/` directory
-stops every one of them before a database is opened — see
-[Overlay pattern](../architecture/overlay-pattern.md#fail-closed-guards).
+commands without a restart. An overlay module that owns tables has the lifecycle a core module
+has: `migrate` and `module:install` apply its migrations, `module:status <id>` lists them with
+origin `overlay`, switching it off or a soft uninstall leaves its tables and rows alone, and
+`module:uninstall <id> --hard --force` reverts its migrations, newest first.
 
 On releases up to and including `0.100.2`, `module:enable`, `module:disable` and a soft
 `module:uninstall` printed success in an instance and changed nothing, and a hard uninstall was

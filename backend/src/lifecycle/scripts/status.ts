@@ -8,6 +8,12 @@ import {
   type OperatorRuntime,
 } from '@endora-commerce/platform/lifecycle';
 import { initOrm, closeOrm } from '../../db/index.js';
+// The order `migrate` runs — core, installed packages and the selected
+// deployment's overlay modules, with origins — so a module's row lists the
+// migrations it owns and whether this database has applied them
+// (`specs/190-overlay-full-modules/` FR-045). Discovery, not composition: it is
+// the same value `mikro-orm.config.ts` builds the ORM from (D-157.2).
+import { configuredMigrations } from '../../db/configured-migrations.js';
 import { resolvedManifestEntries } from '../registered-manifests.js';
 import { enterSystemScope } from '../../kernel/scope.js';
 
@@ -71,6 +77,7 @@ async function main(): Promise<number> {
       return opened;
     },
     entries,
+    migrations: () => configuredMigrations(),
     out: (line) => void process.stdout.write(line),
     err: (line) => void process.stderr.write(line),
   };
