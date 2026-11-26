@@ -43,7 +43,7 @@ import { join } from 'node:path';
 import ts from 'typescript';
 
 import { parseSource } from './parsed-source.js';
-import { namedSpecifiers, type SpecifierKind } from './specifiers.js';
+import { namedSpecifiers, type NamedSpecifier, type SpecifierKind } from './specifiers.js';
 
 /** The four clauses of `overlay-ports.md` §2, in its order. */
 export type OverlayBoundaryClause =
@@ -182,6 +182,52 @@ function closureOf(
 }
 
 /**
+ * The verdict on one specifier of an overlay source, or `null` when it is not an
+ * edge between two overlay modules — a bare specifier, an import inside the module,
+ * an import out to core. An empty `failed` is the sanctioned import.
+ *
+ * Per specifier as well as per file ({@link analyzeOverlaySource}), because
+ * `check:module-boundary` walks every specifier once for all of its edges and asks
+ * this for the overlay ones; a second walk there would be a second reading of which
+ * specifiers a file names.
+ */
+export function overlayEdgeOf(
+  source: string,
+  file: string,
+  specifier: NamedSpecifier,
+  dependencies: ReadonlyMap<string, readonly string[] | null>,
+): OverlayBoundaryFinding | null {
+  const importer = overlayModuleOf(file);
+  if (importer === null || !specifier.text.startsWith('.')) return null;
+  const resolved = posixNormalize(`${posixDirname(file)}/${specifier.text}`);
+  const target = overlayModuleOf(resolved);
+  if (target === null || target.dir === importer.dir) return null;
+  const targetPath = resolved
+    .slice(target.dir.length + 1)
+    .replace(/\.d\.ts$/, '')
+    .replace(/\.(jsx?|tsx?|mjs|cjs|mts|cts)$/, '');
+  const failed: OverlayBoundaryClause[] = [];
+  if (!isTypeOnly(specifier.kind, () => everyBindingTyped(source, file, specifier.line, specifier.text))) {
+    failed.push('type-only');
+  }
+  if (targetPath !== 'ports') failed.push('ports-file');
+  if (target.deployment !== importer.deployment) failed.push('same-deployment');
+  if (!closureOf(importer, dependencies).has(target.id)) failed.push('declared-dependency');
+  return {
+    file,
+    line: specifier.line,
+    specifier: specifier.text,
+    kind: specifier.kind,
+    importer: importer.id,
+    importerDeployment: importer.deployment,
+    target: target.id,
+    targetDeployment: target.deployment,
+    targetPath,
+    failed,
+  };
+}
+
+/**
  * The verdict on every import one overlay source names. `file` is its path under the
  * tree root; a path outside `apps/<deployment>/modules/<id>/` has no overlay edge.
  */
@@ -190,42 +236,17 @@ export function analyzeOverlaySource(
   file: string,
   dependencies: ReadonlyMap<string, readonly string[] | null>,
 ): OverlayBoundaryResult {
-  const importer = overlayModuleOf(file);
-  if (importer === null) return { findings: [], sanctioned: [], examined: 0 };
+  if (overlayModuleOf(file) === null) return { findings: [], sanctioned: [], examined: 0 };
   const findings: OverlayBoundaryFinding[] = [];
   const sanctioned: OverlayBoundaryEdge[] = [];
   const specifiers = namedSpecifiers(source, file);
-  let closure: ReadonlySet<string> | null = null;
   for (const specifier of specifiers) {
-    if (!specifier.text.startsWith('.')) continue;
-    const resolved = posixNormalize(`${posixDirname(file)}/${specifier.text}`);
-    const target = overlayModuleOf(resolved);
-    if (target === null || target.dir === importer.dir) continue;
-    const targetPath = resolved
-      .slice(target.dir.length + 1)
-      .replace(/\.d\.ts$/, '')
-      .replace(/\.(jsx?|tsx?|mjs|cjs|mts|cts)$/, '');
-    closure ??= closureOf(importer, dependencies);
-    const failed: OverlayBoundaryClause[] = [];
-    if (!isTypeOnly(specifier.kind, () => everyBindingTyped(source, file, specifier.line, specifier.text))) {
-      failed.push('type-only');
-    }
-    if (targetPath !== 'ports') failed.push('ports-file');
-    if (target.deployment !== importer.deployment) failed.push('same-deployment');
-    if (!closure.has(target.id)) failed.push('declared-dependency');
-    const edge: OverlayBoundaryEdge = {
-      file,
-      line: specifier.line,
-      specifier: specifier.text,
-      kind: specifier.kind,
-      importer: importer.id,
-      importerDeployment: importer.deployment,
-      target: target.id,
-      targetDeployment: target.deployment,
-      targetPath,
-    };
-    if (failed.length === 0) sanctioned.push(edge);
-    else findings.push({ ...edge, failed });
+    const edge = overlayEdgeOf(source, file, specifier, dependencies);
+    if (edge === null) continue;
+    if (edge.failed.length === 0) {
+      const { failed: _none, ...sanctionedEdge } = edge;
+      sanctioned.push(sanctionedEdge);
+    } else findings.push(edge);
   }
   return { findings, sanctioned, examined: specifiers.length };
 }
@@ -328,18 +349,33 @@ function walkSources(absolute: string, key: string, out: Map<string, string>): v
  */
 export function overlayBoundaryInputUnder(treeRoot: string): OverlayBoundaryInput {
   const sources = new Map<string, string>();
-  const dependencies = new Map<string, readonly string[] | null>();
   for (const deployment of directoriesUnder(join(treeRoot, 'apps'))) {
     const modulesRoot = join(treeRoot, 'apps', deployment, 'modules');
     for (const id of directoriesUnder(modulesRoot)) {
-      const dir = `apps/${deployment}/modules/${id}`;
-      walkSources(join(modulesRoot, id), dir, sources);
-      const manifest = sources.get(`${dir}/manifest.ts`);
-      dependencies.set(
-        dir,
-        manifest === undefined ? null : readManifestDependencies(manifest, `${dir}/manifest.ts`),
-      );
+      walkSources(join(modulesRoot, id), `apps/${deployment}/modules/${id}`, sources);
     }
   }
-  return { sources, dependencies };
+  return { sources, dependencies: overlayDependenciesOf(sources) };
+}
+
+/**
+ * Each overlay module's declared `dependencies`, read off the `manifest.ts` among
+ * `sources` (keyed as {@link OverlayBoundaryInput.sources} is). A module whose
+ * sources hold no manifest is `null`, which declares nothing.
+ */
+export function overlayDependenciesOf(
+  sources: ReadonlyMap<string, string>,
+): ReadonlyMap<string, readonly string[] | null> {
+  const dependencies = new Map<string, readonly string[] | null>();
+  for (const file of [...sources.keys()].sort()) {
+    const module = overlayModuleOf(file);
+    if (module === null || dependencies.has(module.dir)) continue;
+    const manifestKey = `${module.dir}/manifest.ts`;
+    const manifest = sources.get(manifestKey);
+    dependencies.set(
+      module.dir,
+      manifest === undefined ? null : readManifestDependencies(manifest, manifestKey),
+    );
+  }
+  return dependencies;
 }
