@@ -227,6 +227,12 @@ export class OpportunityCommandService implements OpportunityCommandPort {
     await this.deps.links().remove(id, linkId, caller);
   }
 
+  /**
+   * Needs an ambient administrator, who is the author: the comment service
+   * refuses `403 FORBIDDEN` under a bare `withSystemScope`, as the route does,
+   * so a worker calls this under `withSystemScopeActingFor` (research R-21.3 —
+   * the one method that narrows FR-005).
+   */
   async addComment(
     id: string,
     input: CreateOpportunityCommentRequest,
@@ -262,6 +268,10 @@ export class OpportunityCommandService implements OpportunityCommandPort {
  *   here it is refused before anything is read (research R-21.5).
  *
  * `expectedVersion` is read by `update` alone, the one route with a version rule.
+ *
+ * `opportunity-command-port.test.ts` holds the manifest to declaring no
+ * hookable action: the first one fails it, and this pre-check goes for that
+ * action in the same change.
  */
 function callerOf(options: AggregateCommandOptions): CallerOptions {
   assertCallerSource(options);

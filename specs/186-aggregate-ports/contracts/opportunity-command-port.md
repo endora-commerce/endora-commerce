@@ -32,14 +32,18 @@ therefore calls **the same service method** the route calls, with the caller's `
 2. **The transition actor and cause** (R-21.2): the deprecated port's input `actor` is no longer read;
    the cause is `manual` under an administrator and `system` under none, as that port derived it.
 3. **A note has an author** (R-21.3): `crm_opportunity_comments.author_admin_user_id` is required, so
-   `addComment` under a bare system scope is refused `403 FORBIDDEN`, as the route refuses a request
-   with no administrator; a worker writes one acting for an administrator.
+   `addComment` needs an ambient administrator. Under a bare `withSystemScope` it is refused
+   `403 FORBIDDEN`, as the route refuses a request with no administrator; a worker calls it under
+   `withSystemScopeActingFor(adminUserId, reason)`, which records that administrator as author and
+   actor. **This narrows FR-005 for this one method**; every other method runs with no administrator.
 4. **`OpportunityRecord.customFieldValues` is optional on the type** (R-21.4), always filled.
 5. **Extension keys are refused before anything is read** (R-21.5): no `crm` action is hookable, and a
    transition's guards and `.before` events run before its Command.
 6. **`source` meets the create entry's own `source`** (R-21.7): the create's `stateAfter.source` is the
    Opportunity's origin; the caller's code replaces it there, and the Change history tab drops the
-   caller's code from every other entry.
+   caller's code from every other entry. **An integration must not use the origin codes `manual`,
+   `order` or `quote_request` as its `source`**: on the create entry the tab would read such a code
+   as the Opportunity's origin.
 7. **`expectedVersion`**: honoured by `update` (the route's `If-Match`, `409 VERSION_CONFLICT`); every
    other route has no version rule, so the option is ignored there (R-5, R-16.6).
 8. **`transition`'s input** follows the published transition port, not the route's body schema: `to`

@@ -1806,16 +1806,21 @@ export interface OpportunityTransitionInput {
  * `opportunityTransitionPort` did, so a caller answering a third party never
  * reads an HTTP error to learn that a guard vetoed the move.
  *
- * **`addComment` needs an administrator.** A note or message has an author, so
- * under a bare `withSystemScope` it is refused `403 FORBIDDEN`, as the route
- * refuses a request with no administrator; a worker writes one under
- * `withSystemScopeActingFor(adminUserId, reason)` (research R-21.3).
+ * **`addComment` needs an ambient administrator.** A note or message has an
+ * author, so under a bare `withSystemScope` it is refused `403 FORBIDDEN`, as
+ * the route refuses a request with no administrator; a worker writes one under
+ * `withSystemScopeActingFor(adminUserId, reason)`, which records that
+ * administrator as author and actor. This is the one method that narrows
+ * FR-005 ("callable from a worker with no administrator", research R-21.3).
  *
  * **Options** ({@link AggregateCommandOptions}): `expectedVersion` is honoured
  * by `update` — the route's `If-Match` — and refused `409 VERSION_CONFLICT`
  * when the Opportunity has moved on; every other method ignores it, as its
  * route has no version rule. `source` is recorded as `source` in the audit
- * entry's `stateAfter` beside the actor. `extensions`: no `crm` action is
+ * entry's `stateAfter` beside the actor — **do not use `manual`, `order` or
+ * `quote_request`**: they are the Opportunity's origin codes, which the create
+ * entry records under the same key, and the Change history tab would read
+ * such a code as the origin (research R-21.7). `extensions`: no `crm` action is
  * declared hookable, so any key is refused `422 COMMAND_EXTENSION_UNCLAIMED`
  * before anything is read or written.
  *
@@ -1862,7 +1867,12 @@ export interface OpportunityCommandPort {
   link(id: string, input: CreateOpportunityLinkRequest, options?: AggregateCommandOptions): Promise<OpportunityLink>;
   /** `crm.opportunity.link_remove` — `DELETE /opportunities/:id/links/:linkId`. */
   unlink(id: string, linkId: string, options?: AggregateCommandOptions): Promise<void>;
-  /** `crm.opportunity.note_add` or `.message_add`, by `kind` — `POST /opportunities/:id/comments`. */
+  /**
+   * `crm.opportunity.note_add` or `.message_add`, by `kind` — `POST /opportunities/:id/comments`.
+   * Needs an ambient administrator, the author: `403 FORBIDDEN` under a bare
+   * `withSystemScope`; a worker calls it under `withSystemScopeActingFor`
+   * (R-21.3 — narrows FR-005 for this method only).
+   */
   addComment(
     id: string,
     input: CreateOpportunityCommentRequest,
