@@ -27,7 +27,7 @@ it.
 
 | Record | File | Added |
 | --- | --- | --- |
-| `OpportunityRecord` | `packages/contracts/src/crm.ts` | `customFieldValues: Record<string, unknown>` |
+| `OpportunityRecord` | `packages/contracts/src/crm.ts` | `customFieldValues?: Record<string, unknown>` — optional on the type, always filled (research R-21.4) |
 | `ProjectRecord` | `packages/contracts/src/projects.ts` | `customFieldValues: Record<string, unknown>` |
 | `TaskRecord` | `packages/contracts/src/tasks.ts` | `customFieldValues: Record<string, unknown>` |
 | `OrderRecord` | `packages/contracts/src/orders.ts` | `payer: OrderPayer \| null` (`orderPayerSchema`, `specs/182-related-payers/`) |
