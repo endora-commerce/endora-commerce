@@ -190,12 +190,7 @@ export {
 // builds once and hands its `CommandBus` and `composeModules`, beside the hook
 // registry for the hook registry's reason; `commandMiddlewareFrom` (above) is
 // the declarations it is sealed against.
-export {
-  CommandMiddlewareRegistry,
-  type CommandMiddlewareCompositionInput,
-  type CommandMiddlewareRegistryOptions,
-  type CommandMiddlewarePlanEntry,
-} from '../commands/middleware/registry.js';
+export { CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
 // `specs/176-command-hooks-outbox/` P3 — the outbox's host half. The wake-up
 // is what both roots hand their `CommandBus`; the entity class is here for
 // `ModuleRegistration`'s reason (the generated entity registry names it, and no
