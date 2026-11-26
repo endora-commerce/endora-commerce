@@ -19,10 +19,11 @@ import {
  * | null | set | the customer acted themselves |
  * | **null** | **null** | **a `{ kind: 'system' }` actor acted** |
  *
- * The settlement ingress is the last row. `source` is not recorded at all, so
- * the payment ingress and the shipment ingress are one answer here and the
- * caller separates them by the configured failure status — see
- * `customer-cancellation.ts`.
+ * The settlement ingress is the last row — and, since 0.113.0, any entry whose
+ * `source` is `payment`, whoever the actor was. Since 0.113.0 a customer acting
+ * for themselves is also on `actorCustomerAccountId`. Every other `source`
+ * leaves the actor columns to decide, and the caller separates a shipment-held
+ * order by the configured failure status — see `customer-cancellation.ts`.
  */
 
 const AT = (ms: number): Date => new Date(1_700_000_000_000 + ms);

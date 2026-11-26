@@ -719,7 +719,7 @@ retry reads terminality from `orderReadPort.isTerminal`, a read port, which a cu
 needs it; `orders` is that module (with `organizations` and the unmerged `customer_accounts` copy).
 `packages/platform/src/commands/` is held by another session (spec 189, middleware) and may not be
 edited from here, so `orders` copies the twenty lines; the move is owed as a follow-up once that
-surface is free, and takes all three copies with it.
+surface is free, and takes all three copies with it. Follow-up: refs #1961.
 
 **Rejected.** *Import `organizations`' copy* — another module's internals (Principle I).
 

@@ -12,25 +12,30 @@
  * status change leaves an `order.status_transition` audit entry recorded
  * co-transactionally with the write.
  *
- * ## What the recorded entry can and cannot say
+ * ## The rule
  *
- * The entry carries `actorAdminUserId`, `impersonatedCustomerAccountId` and —
- * since the transition became a Command (0.113.0) — `actorCustomerAccountId`,
- * and **not** the actor's `kind`. It may carry `stateAfter.source`, the code a
- * port caller names itself with (`specs/186-aggregate-ports/`), which is not
- * read here. So the three shapes research R14
- * tabulated are readable — an administrator acted, an administrator acted for a
- * customer, the customer acted themselves — plus the fourth it did not list:
- * both columns null, which is a `{ kind: 'system', … }` actor.
+ * Read on the latest entry (or entries) for the status the order is at:
  *
- * That is one step short of the ruling's words. *"Written by the payment
- * ingress"* would need `source`, and the payment ingress
- * (`{ kind: 'system', source: 'payment' }`) and the shipment ingress
- * (`{ kind: 'system', source: 'shipment' }`) record identically. So this module
- * answers the question it can answer — **was the current status written by a
- * system actor or by a named one** — and the caller keeps the configured
- * `statusOnFailure` comparison beside it, which is what keeps a
- * *shipment*-driven status out. See `shopHasNotStarted`.
+ * 1. **`stateAfter.source === 'payment'` is the payment settlement ingress,
+ *    whoever the actor was** — `system` from a gateway callback, or the
+ *    administrator who recorded a decline through `POST /api/v1/payments/receive`.
+ *    The code is set only by server-side callers of `orderCommandPort`
+ *    (`specs/186-aggregate-ports/` R-4, R-18.2): no HTTP body reaches it, which
+ *    is what makes trusting it safe (`backend/test/contract/orders/order-command-port.source-boundary.test.ts`).
+ * 2. Otherwise **any named actor column means `named_actor`**:
+ *    `actorAdminUserId` (an administrator), `impersonatedCustomerAccountId`
+ *    (an administrator acting for a customer, or — before 0.113.0 — the buyer
+ *    themselves), or `actorCustomerAccountId` (a customer acting for
+ *    themselves, as the Command Bus records it since 0.113.0).
+ * 3. All three null is a `system` actor — on an order at a payment method's
+ *    failure status, the settlement ingress of an entry written before the
+ *    ingress named itself.
+ *
+ * Any other `source` (`shipment`, an integration's code) does not make an
+ * entry the ingress's; a shipment-driven status written by the system actor is
+ * still `system` here, and the caller keeps the configured `statusOnFailure`
+ * comparison beside this answer, which is what keeps it out. See
+ * `shopHasNotStarted`.
  *
  * ## Why authorship is decided on the whole set at one instant
  *
