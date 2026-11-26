@@ -4,6 +4,13 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import {
+  buildMigrationScaffold,
+  MIGRATION_FILE_RE,
+  nextFreeStamp,
+  type MigrationScaffold,
+  type MigrationScaffoldInput,
+} from '@endora-commerce/cli/lib/migration-naming.js';
+import {
   ModuleLayoutUnresolvableError,
   resolveModuleLayout,
   type ModuleTreeLayout,
@@ -90,29 +97,27 @@ function resolveCoreMigrationsDir(): string {
   return join(platformRoot, MIGRATIONS_DIRECTORY);
 }
 
-/** contracts/naming-convention.md §1 — the only recognizer any tool may use. */
-export const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_([a-z0-9_]+)\.ts$/;
+/**
+ * The naming rules themselves — the recognizer, the segment, the slug, the
+ * stamp and the class name — are `@endora-commerce/cli`'s
+ * (`specs/190-overlay-full-modules/` T100, FR-057): `endora new migration` names
+ * an instance's overlay migration with the same code, and an application may
+ * depend on a tool where a tool may not depend on an application. They are
+ * re-exported so every consumer here keeps its specifier.
+ */
+export {
+  classNameFromFile,
+  formatStamp,
+  MIGRATION_FILE_RE,
+  migrationFileName,
+  nextFreeStamp,
+  normalizeSlug,
+  parseStamp,
+  segmentFor,
+} from '@endora-commerce/cli/lib/migration-naming.js';
 
 /** The cross-cutting pseudo-module owning the platform's own `migrations/`. */
 const CORE_MODULE_ID = 'core';
-
-/** contracts/naming-convention.md §1 — segment normalization. */
-export function segmentFor(moduleId: string): string {
-  return moduleId === CORE_MODULE_ID ? CORE_MODULE_ID : moduleId.replace(/^_/, '');
-}
-
-/** contracts/naming-convention.md §2. */
-export function classNameFromFile(filename: string): string {
-  const match = MIGRATION_FILE_RE.exec(filename);
-  if (!match) throw new Error(`Unexpected migration filename: ${filename}`);
-  const [, stamp, tail] = match;
-  const pascal = tail!
-    .split('_')
-    .filter((segment) => segment.length > 0)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join('');
-  return `Migration${stamp}${pascal}`;
-}
 
 export function validateModuleId(moduleId: string, knownIds: ReadonlySet<string>): void {
   if (moduleId === CORE_MODULE_ID || knownIds.has(moduleId)) return;
@@ -124,129 +129,26 @@ export function validateModuleId(moduleId: string, knownIds: ReadonlySet<string>
   );
 }
 
-export function normalizeSlug(name: string): string {
-  const slug = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .replace(/_{2,}/g, '_');
-  if (slug.length === 0) {
-    throw new Error(`--name "${name}" produces an empty slug; use snake_case letters and digits.`);
-  }
-  return slug;
-}
+export type ScaffoldInput = MigrationScaffoldInput;
+export type Scaffold = MigrationScaffold;
 
-/** `YYYYMMDDTHHmmss`, UTC, fixed width, literal `T` at index 8. */
-export function formatStamp(date: Date): string {
-  const pad = (value: number, width = 2): string => String(value).padStart(width, '0');
-  return (
-    `${pad(date.getUTCFullYear(), 4)}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}` +
-    `T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}`
-  );
-}
-
-/** Inverse of {@link formatStamp}. */
-export function parseStamp(stamp: string): Date {
-  return new Date(
-    Date.UTC(
-      Number(stamp.slice(0, 4)),
-      Number(stamp.slice(4, 6)) - 1,
-      Number(stamp.slice(6, 8)),
-      Number(stamp.slice(9, 11)),
-      Number(stamp.slice(11, 13)),
-      Number(stamp.slice(13, 15)),
-    ),
-  );
-}
-
-/**
- * Advances by whole seconds until the stamp is free anywhere in the core tree.
- *
- * Tree-wide freedom is a tidiness rule, not an ordering one: a timestamp
- * orders migrations only within their own module, so two modules may legally
- * share one. Keeping core stamps distinct just keeps the committed registry
- * readable.
- *
- * `after` is a floor the result must strictly exceed. The CLI passes
- * `BASELINE_THROUGH`: everything the core registry contributed at or before it
- * is the frozen historical prefix, whose order is history and is never
- * recomputed. A new migration landing inside that block would be ordered by
- * that history instead of by its module's `dependencies`, so the clamp keeps
- * every new core migration in the open block.
- */
-export function nextFreeStamp(from: Date, taken: ReadonlySet<string>, after?: string): string {
-  const cursor = new Date(from.getTime());
-  cursor.setUTCMilliseconds(0);
-  if (after !== undefined) {
-    const floor = parseStamp(after).getTime();
-    if (cursor.getTime() <= floor) cursor.setTime(floor + 1_000);
-  }
-  let stamp = formatStamp(cursor);
-  while (taken.has(stamp)) {
-    cursor.setUTCSeconds(cursor.getUTCSeconds() + 1);
-    stamp = formatStamp(cursor);
-  }
-  return stamp;
-}
-
-/**
- * `<STAMP>_<SEGMENT>_<SLUG>.ts`. The segment is not repeated when the slug
- * already opens with it — that is what keeps `quote_requests_init` from
- * becoming `quote_requests_quote_requests_init`.
- */
-export function migrationFileName(stamp: string, moduleId: string, slug: string): string {
-  const segment = segmentFor(moduleId);
-  const tail = slug === segment || slug.startsWith(`${segment}_`) ? slug : `${segment}_${slug}`;
-  return `${stamp}_${tail}.ts`;
-}
-
-export interface ScaffoldInput {
-  moduleId: string;
-  slug: string;
-  stamp: string;
-}
-
-export interface Scaffold {
-  moduleId: string;
-  stamp: string;
-  filename: string;
-  className: string;
-  contents: string;
-}
+/** The class comment this repository's scaffold carries: registration is a regeneration. */
+const SCAFFOLD_DOC: readonly string[] = [
+  'TODO describe the change this migration makes.',
+  '',
+  'Registration is a regeneration: run',
+  '`pnpm --filter backend run composer:generate` and commit the result. An',
+  'unregistered migration does not run, and the round-trip guard fails the',
+  'build for it.',
+  '',
+  'This stamp orders this migration against its own module\'s migrations and',
+  'against nothing else. What puts it after another module\'s table is that',
+  'module appearing in this one\'s manifest `dependencies` — declare it if',
+  'this migration references a table it owns.',
+];
 
 export function buildScaffold(input: ScaffoldInput): Scaffold {
-  const slug = normalizeSlug(input.slug);
-  const filename = migrationFileName(input.stamp, input.moduleId, slug);
-  const className = classNameFromFile(filename);
-
-  const contents =
-    `import { Migration } from '@mikro-orm/migrations';\n` +
-    `\n` +
-    `/**\n` +
-    ` * TODO describe the change this migration makes.\n` +
-    ` *\n` +
-    ` * Registration is a regeneration: run\n` +
-    ` * \`pnpm --filter backend run composer:generate\` and commit the result. An\n` +
-    ` * unregistered migration does not run, and the round-trip guard fails the\n` +
-    ` * build for it.\n` +
-    ` *\n` +
-    ` * This stamp orders this migration against its own module's migrations and\n` +
-    ` * against nothing else. What puts it after another module's table is that\n` +
-    ` * module appearing in this one's manifest \`dependencies\` — declare it if\n` +
-    ` * this migration references a table it owns.\n` +
-    ` */\n` +
-    `export class ${className} extends Migration {\n` +
-    `  override async up(): Promise<void> {\n` +
-    `    // this.addSql(\`…\`);\n` +
-    `  }\n` +
-    `\n` +
-    `  override async down(): Promise<void> {\n` +
-    `    // this.addSql(\`…\`);\n` +
-    `  }\n` +
-    `}\n`;
-
-  return { moduleId: input.moduleId, stamp: input.stamp, filename, className, contents };
+  return buildMigrationScaffold(input, SCAFFOLD_DOC);
 }
 
 // ---------------------------------------------------------------------------

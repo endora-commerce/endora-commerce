@@ -12,6 +12,7 @@
  * already — the platform's manifest generator — and a second one is D-100's
  * subject. See `manifest-render.ts`.
  */
+import { classNameFromFile, migrationFileName } from '../lib/migration-naming.js';
 import {
   adminApiPathFor,
   adminRoutesOf,
@@ -105,20 +106,16 @@ export function entityFileOf(spec: ModuleScaffoldSpec): string {
  * `<stamp>_<segment>_init.ts` — the filename
  * `specs/065-manifest-aware-migrations/contracts/naming-convention.md` §1
  * recognises, with the tail beginning at the owning module's segment so the
- * class name derived from it is scoped (feature 081, `unscoped-name`).
+ * class name derived from it is scoped (feature 081, `unscoped-name`). Named by
+ * `../lib/migration-naming.ts`, as every scaffolded migration is.
  */
 export function migrationFileOf(spec: ModuleScaffoldSpec): string {
-  return `${spec.migrationStamp}_${segmentOf(spec.id)}_init.ts`;
+  return migrationFileName(spec.migrationStamp, spec.id, 'init');
 }
 
 /** `Migration<STAMP><PascalCaseTail>` — §2's mechanical derivation from the filename. */
 export function migrationClassOf(spec: ModuleScaffoldSpec): string {
-  const tail = `${segmentOf(spec.id)}_init`
-    .split('_')
-    .filter((part) => part.length > 0)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join('');
-  return `Migration${spec.migrationStamp}${tail}`;
+  return classNameFromFile(migrationFileOf(spec));
 }
 
 /** `<Pascal>ReadPort` — the interface `./ports` publishes when the module owns one. */
