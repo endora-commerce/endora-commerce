@@ -7,7 +7,7 @@ import {
   type AddressReadPort,
   type AddressServicePort,
   type CartAnonymizationPort,
-  type CustomerAccountLifecycleWritePort,
+  type CustomerAccountCommandPort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type EmailDeliveryAnonymizationPort,
@@ -21,11 +21,7 @@ import {
 } from '@endora-commerce/platform/kernel';
 import type { AddressBookRetirementService } from './address-book-retirement-service.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
-import type { OrganizationDepletionGuard } from './organization-depletion-guard.js';
-import type {
-  ModerationActor,
-  SessionRevoker,
-} from './customer-moderation-service.js';
+import type { ModerationActor } from './customer-moderation-service.js';
 
 /**
  * CustomerDeletionService — soft-delete, restore, and permanent anonymization
@@ -37,8 +33,11 @@ import type {
  * irreversibly scrubs PII after the window, after which restore is impossible.
  *
  * **Feature 075, Phase C — this service holds no other module's entity.** The
- * account writes and the scrub are `customer_accounts`', through
- * `customerAccountLifecycleWritePort`; the cascade onto a member-less personal
+ * account writes and the scrub are `customer_accounts`' Commands, through
+ * `customerAccountCommandPort` since `specs/186-aggregate-ports/` (issue
+ * #1822) — the soft delete's depletion guard and the end of the account's
+ * sessions moved into its Command with it — and the work list is
+ * `customerAccountReadPort`'s; the cascade onto a member-less personal
  * organisation is `organizations`', through `personalOrganizationPort`. Each
  * owner records the one audit row that describes its own write, with the same
  * action strings as before. What is left here is the *order* of the sweep and
@@ -66,15 +65,9 @@ import type {
 export class CustomerDeletionService {
   constructor(
     private readonly accounts: CustomerAccountReadPort,
-    private readonly accountWrites: CustomerAccountLifecycleWritePort,
+    private readonly accountWrites: Pick<CustomerAccountCommandPort, 'softDelete' | 'restore' | 'anonymize'>,
     private readonly personalOrganizations: PersonalOrganizationPort,
     private readonly authority: CustomerAuthorityService,
-    private readonly sessions: SessionRevoker,
-    /**
-     * `specs/170-organization-roles/` WP-03 — the last-administrator question,
-     * by role and for company Organizations only (owner ruling PR-3).
-     */
-    private readonly depletion: OrganizationDepletionGuard,
     /**
      * `addresses`' write port (`specs/173-b2c-address-book-merge/` OD-7): the
      * scrubbed personal Organization's saved addresses go with it.
@@ -112,26 +105,11 @@ export class CustomerDeletionService {
   ): Promise<CustomerAccountRecord> {
     const customer = await this.load(customerAccountId);
     await this.assertAuthorized(actor, customer.organizationId);
-    if (customer.deletedAt) {
-      throw new HttpError(409, ERROR_CODES.CUSTOMER_ALREADY_DELETED, 'Customer is already deleted.');
-    }
-
-    // Refuse to strand a company Organization without an administrator. A
-    // personal Organization's sole member is its administrator; deleting them
-    // is how that Organization ends (PR-3).
-    if (await this.depletion.wouldLeaveWithoutAdministrator(customer)) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.ORG_OWNER_DEPLETION,
-        'Cannot delete the last organization administrator.',
-      );
-    }
-
-    const deleted = await this.accountWrites.softDelete(customer.id, {
-      actorAdminUserId: actor.adminUserId,
-    });
-    await this.sessions.destroyAllForCustomer(customer.id);
-    return deleted;
+    // The Command refuses a second deletion (`409 CUSTOMER_ALREADY_DELETED`)
+    // and the last administrator of a company Organization (`409
+    // ORG_OWNER_DEPLETION`; a personal Organization's sole member may go, PR-3),
+    // and ends the account's sessions once the deletion has committed.
+    return this.accountWrites.softDelete(customer.id);
   }
 
   async restore(
@@ -155,7 +133,7 @@ export class CustomerDeletionService {
         );
       }
     }
-    return this.accountWrites.restore(customer.id, { actorAdminUserId: actor.adminUserId });
+    return this.accountWrites.restore(customer.id);
   }
 
   /**
@@ -171,7 +149,7 @@ export class CustomerDeletionService {
    * it too.
    */
   async hasDue(retentionDays: number, now: Date): Promise<boolean> {
-    if (await this.accountWrites.hasDueForAnonymization(retentionCutoff(retentionDays, now))) return true;
+    if (await this.accounts.hasDueForAnonymization(retentionCutoff(retentionDays, now))) return true;
     try {
       return await this.personalOrganizations.hasIncompletelyScrubbed();
     } catch (error) {
@@ -238,7 +216,7 @@ export class CustomerDeletionService {
    */
   private async workList(cutoff: Date): Promise<Map<string, CustomerAccountRecord>> {
     const work = new Map<string, CustomerAccountRecord>();
-    for (const account of await this.accountWrites.listDueForAnonymization(cutoff)) work.set(account.id, account);
+    for (const account of await this.accounts.listDueForAnonymization(cutoff)) work.set(account.id, account);
     for (const organizationId of await this.personalOrganizations.listIncompletelyScrubbed()) {
       // Every member, not only the live ones: the subject is the soft-deleted one.
       for (const member of await this.accounts.listByOrganization(organizationId)) {

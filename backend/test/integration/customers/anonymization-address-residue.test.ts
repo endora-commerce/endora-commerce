@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   AddressServicePort,
-  CustomerAccountLifecycleWritePort,
+  CustomerAccountCommandPort,
   PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
 import { AuditLogService } from '@endora-commerce/platform/composition';
@@ -12,6 +12,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Address, CustomerAccount, CustomerAddress, Organization } from '../../helpers/package-entities.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 import {
+  customerAccountCommandsFor,
   customerAccountPortsFor,
   personalOrganizationProvisionFor,
 } from '../../helpers/customer-account-ports.js';
@@ -19,7 +20,6 @@ import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 // `dist`, not `src` (feature 146): see `test/helpers/customer-account-ports.ts`.
 import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/dist/backend/services/customer-account-ports.js';
-import { CustomerAccountLifecycleWriteService } from '../../../../packages/modules/customer_accounts/dist/backend/services/customer-account-lifecycle-ports.js';
 import { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
 import {
   AddressReadService,
@@ -30,7 +30,6 @@ import { toOrganizationRecord } from '../../../../packages/modules/organizations
 import { AddressBookRetirementService } from '../../../../packages/modules/customers/src/backend/services/address-book-retirement-service.js';
 import { CustomerAuthorityService } from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
 import { CustomerDeletionService } from '../../../../packages/modules/customers/src/backend/services/customer-deletion-service.js';
-import type { OrganizationDepletionGuard } from '../../../../packages/modules/customers/src/backend/services/organization-depletion-guard.js';
 
 /**
  * Issue #927 — the retention sweep blanks **every** address row of the
@@ -54,7 +53,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
   let audit: AuditLogService;
   let personalOrgs: PersonalOrganizationService;
   let addresses: AddressServicePort;
-  let accountWrites: CustomerAccountLifecycleWritePort;
+  let accountWrites: CustomerAccountCommandPort;
   let svc: CustomerDeletionService;
   /** `customer_account.anonymized.v1`, as `customer_accounts` announces it. */
   let anonymizedEvents: string[];
@@ -71,7 +70,6 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
   const SEEDED = [PERSONAL.recipientName, PERSONAL.street, PERSONAL.city, PERSONAL.postalCode, PERSONAL.phone];
 
   /** The operator who soft-deleted the subject; the scrub itself has no actor. */
-  const DELETED_BY = { actorAdminUserId: '00000000-0000-4000-8000-00000000b927' };
   const after = (ms: number) => new Date(Date.now() + ms);
   const unique = (): string => `${Date.now()}-${Math.floor(performance.now() * 1000)}-${Math.random()}`;
 
@@ -121,16 +119,13 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     };
     const accounts = new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer'), organizationRoles);
     anonymizedEvents = [];
-    accountWrites = new CustomerAccountLifecycleWriteService(
-      () => em,
-      audit,
-      twoFactorEnrolmentsFor(() => em, 'customer'),
-      personalOrganizationProvisionFor(() => em),
-      undefined,
-      async (event) => {
+    // `specs/186-aggregate-ports/` — the writes are the aggregate port's Commands.
+    accountWrites = customerAccountCommandsFor(() => em, audit, {
+      personalOrganizations: personalOrganizationProvisionFor(() => em),
+      announceAnonymized: async (event) => {
         anonymizedEvents.push(event.customerAccountId);
       },
-    );
+    });
     const retiredBook = new AddressBookRetirementService({
       emFactory: () => em,
       accounts: customerAccountPortsFor(() => em).read,
@@ -146,9 +141,6 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
       accountWrites,
       personalOrganizationPortOver(personalOrgs),
       new CustomerAuthorityService({ canSeeOrganization: async () => true }),
-      { destroyAllForCustomer: async () => undefined },
-      // The sweep never asks the last-administrator question.
-      {} as OrganizationDepletionGuard,
       addresses,
       async () => 365,
       retiredBook,
@@ -269,7 +261,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     const removedAt = (await em.findOneOrFail(Address, { id: removed.id })).deletedAt!;
     expect(removedAt).toBeInstanceOf(Date);
 
-    await accountWrites.softDelete(c.id, DELETED_BY);
+    await accountWrites.softDelete(c.id);
     expect(await sweepFor([c.id], after(60_000))).toEqual([c.id]);
 
     em.clear();
@@ -302,7 +294,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     const refused = await retiredRow(c.id, { kind: 'delivery', isDefault: true, mergeRefusal: 'DICTIONARY_ENTRY_INACTIVE' });
     const ids = [moved, deletedEarlier, refused];
 
-    await accountWrites.softDelete(c.id, DELETED_BY);
+    await accountWrites.softDelete(c.id);
     expect(await sweepFor([c.id], after(60_000))).toEqual([c.id]);
 
     em.clear();
@@ -338,7 +330,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     ];
     const objectIds = [c.id, c.organizationId, live.id, removed.id, ...retired];
 
-    await accountWrites.softDelete(c.id, DELETED_BY);
+    await accountWrites.softDelete(c.id);
     expect(await sweepFor([c.id], after(60_000))).toEqual([c.id]);
     em.clear();
     const snapshot = async () => ({
@@ -371,7 +363,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     await addresses.deleteAddress(organization.id, companyRemoved.id);
     const retired = await retiredRow(account.id, { deletedAt: new Date('2025-01-02T03:04:05.000Z') });
 
-    await accountWrites.softDelete(account.id, DELETED_BY);
+    await accountWrites.softDelete(account.id);
     expect(await sweepFor([account.id], after(60_000))).toEqual([account.id]);
 
     em.clear();

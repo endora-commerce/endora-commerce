@@ -80,7 +80,11 @@ writes a host's values through the owner's published write port, never a native 
 host's `custom_field_values`** (Principle I; the column is the host's, whatever module knows the
 value). Today the hosts that publish one are:
 
-- `customer_accounts` — `customerAccountLifecycleWritePort.setCustomFieldValues(customerAccountId, merge)`;
+- `customer_accounts` — `customerAccountCommandPort.setCustomFieldValues(customerAccountId, merge, options?)`,
+  the aggregate port (`specs/186-aggregate-ports/` US3); the narrow
+  `customerAccountLifecycleWritePort.setCustomFieldValues` is deprecated since 0.113.0 and delegates
+  to it. Both run `customer.custom_fields.update`, the Command the admin
+  `PATCH /api/v1/admin/customers/:id/custom-fields` runs;
 - `organizations` — `organizationCommandPort.setCustomFieldValues(organizationId, merge, options?)`, the
   aggregate port (`specs/186-aggregate-ports/` US1); the narrow
   `organizationCustomFieldWritePort.setCustomFieldValues` is deprecated since 0.113.0 and delegates
@@ -99,9 +103,7 @@ field is accepted), and a refusal propagates unchanged and writes nothing; the a
 ambient one, never a parameter. The full statement is each contract's JSDoc.
 
 **A host that adds one adds it to its aggregate's write port, not as a new port**
-(`module-composition.md` item 2a, D-293). `customerAccountLifecycleWritePort` is a request-shaped
-port that `specs/186-aggregate-ports/` folds into `customerAccountCommandPort`, deprecated for one
-release first (`contract-surface.md`); this list names it until that lands.
+(`module-composition.md` item 2a, D-293), as both entries above now do.
 
 **The ports are not `customFieldWrites` declarations, and `check:custom-field-writes` does not
 know them.** Its subject is an HTTP write: a route it can hold to the module's registration and to
