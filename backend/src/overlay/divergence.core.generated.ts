@@ -45,6 +45,10 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       {
         "seam": "an overlay module's own entities and migrations",
         "why": "a table an overlay module creates is its own surface, migrated under the foreign-schema guard with no exemption, so it cannot touch a table it does not own; what it declares on another module's table is recorded, as a column extension"
+      },
+      {
+        "seam": "a port an overlay module consumes from a sibling overlay module",
+        "why": "the port is the deployment's own surface and diverges from nothing in core — its provider's `port-provided` is recorded; the consumer's import is held by the overlay boundary analysis (`check:module-boundary`, `endora generate`) and its edge by the manifest `dependencies`"
       }
     ],
     "runtimeOnly": [
