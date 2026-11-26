@@ -435,6 +435,38 @@ export interface TemplateIdentity extends TemplateInputs {
 }
 
 /**
+ * The origins whose migrations no file holds: `generated` is the schema-extension
+ * step the platform synthesises per declaring module (`specs/178-extensible-columns/`
+ * FR-020), which this repository first registers through an overlay declarer
+ * (`specs/190-overlay-full-modules/` FR-065). Its name carries the hash of the
+ * normalised declarations, so a changed declaration is a changed name; what turns
+ * them into DDL is {@link GENERATED_STEP_SOURCES}, read into the digest whenever one
+ * is registered. There is nothing on disk to floor it against.
+ */
+const SYNTHESISED_ORIGINS: ReadonlySet<MigrationOrigin> = new Set(['generated']);
+
+/**
+ * The platform sources a generated step's `up()` and `down()` are, relative to the
+ * platform's source root: the step itself and the DDL it emits. A change to either
+ * under an unchanged declaration hash is a different template.
+ */
+const GENERATED_STEP_SOURCES: readonly string[] = ['db/schema-extension-migration.ts', 'db/schema-extension-sql.ts'];
+
+function generatedStepSources(): readonly { recorded: string; absolute: string }[] {
+  const platformRoot = platformSourceRootAt(join(BACKEND_ROOT, '..'));
+  if (platformRoot === null) {
+    throw new Error(
+      '[template-identity] a generated schema-extension step is registered, and no workspace ' +
+        'member declares `endora.type: "platform"`, so the code that writes it has no root.',
+    );
+  }
+  return GENERATED_STEP_SOURCES.map((file) => {
+    const absolute = join(platformRoot, file);
+    return { recorded: relative(BACKEND_ROOT, absolute), absolute };
+  });
+}
+
+/**
  * Reconciles the walk against the registry — **per origin, never as one total.**
  *
  * They are independent derivations of the same population, so a walk that came
@@ -454,6 +486,7 @@ function floorEachOrigin(
   roots: readonly MigrationSourceRoot[],
 ): void {
   for (const population of populations) {
+    if (SYNTHESISED_ORIGINS.has(population.origin)) continue;
     if (population.migrationFiles >= population.registered) continue;
     const paths = roots
       .filter((root) => root.origin === population.origin)
@@ -520,6 +553,9 @@ export async function templateIdentity(
   floorEachOrigin(populations, roots);
 
   const sources = await Promise.all(walked.map((source) => sha256Of(source.recordedPath, source.absolute)));
+  if (registered.some((entry) => SYNTHESISED_ORIGINS.has(entry.origin))) {
+    for (const source of generatedStepSources()) sources.push(await sha256Of(source.recorded, source.absolute));
+  }
   for (const declared of TEMPLATE_SEED_SOURCES) {
     const absolute = join(root, declared);
     try {

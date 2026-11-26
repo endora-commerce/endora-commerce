@@ -24,6 +24,22 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
   ],
   "entries": [
     {
+      "key": "column-extension:overlay_notes_fixture:organizations",
+      "kind": "column-extension",
+      "module": "overlay_notes_fixture",
+      "subject": "organizations",
+      "owner": "organizations",
+      "rung": null,
+      "detail": {
+        "kind": "column-extension",
+        "dataRung": "D2",
+        "columns": [
+          "x_overlay_notes_fixture_last_note_at"
+        ]
+      },
+      "reason": "Core keeps an Organization’s columns its own. This fixture adds one nullable column to `organizations`, for when the organization’s last note was written, through the generated schema-extension step an installed package would use: ledgered under the fixture’s id, never exposed on an admin read, and kept as orphaned with its values when the fixture is hard-uninstalled. No core column is changed, and nothing core runs reads it."
+    },
+    {
       "key": "command-hook:command_hook_fixture:organization.create#deliver-create",
       "kind": "command-hook",
       "module": "command_hook_fixture",
