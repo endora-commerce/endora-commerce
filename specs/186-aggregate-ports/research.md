@@ -628,11 +628,11 @@ consumes, and every one of them would then be a frozen or stable entry.
 
 The T003 inventory (`contracts/order-command-port.md` § *Inventory findings*) raised the questions
 below, which R-16, R-17 and the precedents do not answer in terms. The implementing session had no
-channel to the architect, so **each is recorded as proposed, pending the architect's ruling**, with the
-alternative rejected. None is a business call, irreversible, or touches tenant isolation. Code
+channel to the architect, so each was recorded as proposed with the alternative rejected; the
+architect's ruling (2026-11-26) closes each item. None is a business call, irreversible, or touches tenant isolation. Code
 references are to `origin/master` `934991c5b`.
 
-### R-18.1 `orderPaymentStatusApplyPort` is kept, not deprecated (proposed, pending architect)
+### R-18.1 `orderPaymentStatusApplyPort` is kept, not deprecated
 
 **Finding.** `data-model.md` § *Port disposition* deprecates `orderPaymentStatusApplyPort` in favour of
 `orderCommandPort.applyPaymentStatus`. The two are not the same operation: the apply port writes on the
@@ -650,7 +650,9 @@ own transaction, the operator's edges, one `order.payment_status_transition` ent
 settlement would commit the payment row and the order's money axis separately, the failure
 `payments_order_fk` exists to prevent. *An `em` parameter on `applyPaymentStatus`* — R-6 rejects it.
 
-### R-18.2 The status Command records the ambient actor; the deprecated port's `actor.source` becomes `source` (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. R-6 refuses an `em` parameter and `payments_order_fk` (D-169) needs the payment row and the money axis in one transaction, so this is semantics the aggregate port does not have — `module-composition.md` item 2a.9 admits exactly that capability port. Not deprecated; the `data-model.md` amendment stands.
+
+### R-18.2 The status Command records the ambient actor; the deprecated port's `actor.source` becomes `source`
 
 **Proposed.** `order.status_transition` runs on the Command Bus, so its entry names the ambient actor,
 for every caller. The deprecated `orderTransitionPort.applyStatus` delegates to
@@ -670,7 +672,9 @@ are therefore unchanged, and entries written before 0.113.0 read as before.
 action, the defect FR-002 removes. *Map a customer actor into `impersonatedCustomerAccountId`* — records
 an impersonation that did not happen.
 
-### R-18.3 `place` stays out of this change; #1887 owns placement as a Command (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. An actor is never input (R-4, R-17.7, Principle XIII), and recording the buyer in `impersonatedCustomerAccountId` was a misattribution the bus now corrects; `audit_logs`' viewer and recent-activity feed already render `actorCustomerAccountId` (spec 170), and no other reader of `order.status_transition` entries reads the actor columns. The predicate keeps its answers: an operator's decline through `POST /api/v1/payments/receive` carries `source: 'payment'` and reads as the ingress, so it does not block the buyer's cancel; a shipment move under an ambient administrator now reads `named_actor`, which fails closed and is excluded by the `statusOnFailure` comparison anyway. Owed in this pull request: the header of `domain/status-authorship.ts` still says `source` "is not read here" and that the two ingresses "record identically" — rewrite it to the new rule. `source` is trusted because only in-process port callers set it and no route reads it from a request body (R-7); keep it that way.
+
+### R-18.3 `place` stays out of this change; #1887 owns placement as a Command
 
 **Proposed.** #1823 lists `place` and the payer; #1887 states that placement is not a Command and makes
 it one (`order.place`, with hook data), and that #1823's `place` then runs it. A port method may only sit
@@ -681,7 +685,9 @@ over a Command (R-2), so `place` is added with #1887 (US11, T097–T101), additi
 **Rejected.** *Publish `place` over the current placement* — the port would promise hooks and an audit
 entry the buyer's placement does not write.
 
-### R-18.4 Comments are the `order.comment.add` Command for the operator and the buyer (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. R-2: a port method sits over a Command, and placement is not one until #1887; `place` is added additively there (R-1).
+
+### R-18.4 Comments are the `order.comment.add` Command for the operator and the buyer
 
 **Proposed.** One factory, `makeOrderCommentAddCommand`, for `POST /api/v1/admin/orders/:id/comments`,
 `orderCommandPort.addComment` and the buyer's `POST /api/v1/orders/:id/comments` (through the module's
@@ -693,7 +699,9 @@ service, for route and port alike. Both `command-coverage-ignore` markers go.
 whose reason ("not audited domain state") the other path would contradict. *Recording the body* — free
 text in a global audit table (`audit-state.md` list 1).
 
-### R-18.5 The buyer's cancellation runs the module-internal outcome helper, not the port (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. One entity, one write path (R-3); the body is free text and stays out of audit state (`audit-state.md` list 1). The buyer's path keeps its existing ownership check before the Command runs (Principle XI); the ambient customer is the entry's `actorCustomerAccountId`.
+
+### R-18.5 The buyer's cancellation runs the module-internal outcome helper, not the port
 
 **Proposed.** `CustomerOrderCancellationService` resolved `orderTransitionPort` and so would have moved
 to `orderCommandPort`; R-17.5 forbids a customer-session route the aggregate port. It runs
@@ -703,7 +711,9 @@ retry reads terminality from `orderReadPort.isTerminal`, a read port, which a cu
 
 **Rejected.** *Resolve the port from the buyer's route* — R-7, R-17.5.
 
-### R-18.6 `withCallerOptions` is copied a second time, into `orders` (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. R-7 and R-17.5 decide it: a customer session never resolves the aggregate port; running the same module-internal helper keeps one Command and one outcome.
+
+### R-18.6 `withCallerOptions` is copied a second time, into `orders`
 
 **Proposed.** R-17.6 says the helper moves to `@endora-commerce/platform/commands` when a third module
 needs it; `orders` is that module (with `organizations` and the unmerged `customer_accounts` copy).
@@ -713,7 +723,9 @@ surface is free, and takes all three copies with it.
 
 **Rejected.** *Import `organizations`' copy* — another module's internals (Principle I).
 
-### R-18.7 `OrderRecord.payer` is optional on the type (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed as a bounded exception to R-17.6's trigger. `packages/platform/src/commands/` is held for spec 189, so the third copy is accepted; a follow-up issue is filed before merge, labelled for spec 189's surface, and moves all three copies (`organizations`, `customer_accounts`, `orders`) in one change once that surface is free. The copy must stay byte-identical in behaviour to `organizations`' (no local drift).
+
+### R-18.7 `OrderRecord.payer` is optional on the type
 
 **Proposed.** `payer?: OrderPayer | null`, always filled by `orders` from the stored payer (the admin
 serialiser's shape), as `payerOrganizationId?` already is on the same record, so a record built by a
@@ -722,7 +734,9 @@ consumer's test double before 0.113.0 still compiles. `data-model.md` wrote it r
 **Rejected.** *Required* — every hand-built `OrderRecord` outside this repository stops compiling in the
 release that only adds the field; the read direction gains nothing from the `?`'s absence.
 
-### R-18.8 Published refusal codes are kept on the port; `expectedVersion` and `extensions` (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. `OrderRecord` is a read-direction type: either form is compatible for a reader (`contract-surface.md` § Directions), and the optional form also keeps hand-built doubles compiling; `orders` always fills it. `data-model.md` is amended to the optional form.
+
+### R-18.8 Published refusal codes are kept on the port; `expectedVersion` and `extensions`
 
 **Proposed.** `setExternalReference` answers a malformed value `400 VALIDATION_FAILED`, as the published
 `orderExternalReferencePort.set` does (R-16.5's precedent), not the convention's 422;
@@ -735,7 +749,9 @@ until an Order action is declared hookable; declaring them is #1887's (placement
 **Rejected.** *Unifying on 422* — changes a published refusal in the release that only deprecates its
 port.
 
-### R-18.9 `isTerminal` is a required method of `OrderReadPort` (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. R-16.5 keeps a published refusal code over the convention's; R-5 and R-16.6 ignore `expectedVersion` where the row has no version; R-16.8 leaves hookability to the first need, so the bus's `COMMAND_EXTENSION_UNCLAIMED` is the right answer meanwhile. The port's JSDoc says `expectedVersion` is ignored, so a caller is not misled.
+
+### R-18.9 `isTerminal` is a required method of `OrderReadPort`
 
 **Proposed.** The read moves to `orderReadPort` as the disposition table says, as a required method
 (D-97.3 refuses optional ones). The only implementer is the owner (R-1); four in-repository test doubles
@@ -743,3 +759,4 @@ gained the method; `../paid-modules` holds no full double of the read port.
 
 **Rejected.** *Keep it on the deprecated port only* — a read on a write port is what R-10 removes.
 
+**Ruling (architect, 2026-11-26):** Confirmed; not a contract-surface break. A port method's direction is `call` (`contract-surface.md` § Kinds): adding a method is compatible for every caller, and the only implementer is the owner (R-1). `../paid-modules` was read (2026-11-26): paypal, stripe, autopay, tpay, payu, inpost, dhl_parcel only call the port; their doubles (`inpost` `adapter-renderers.test.ts`, `generate-and-poll.test.ts`; `tpay` `notification-payload-projection.test.ts`) are partial objects cast `as unknown as OrderReadPort` or untyped, so none stops compiling. `check:port-shape` refuses the optional form (D-97.3).
