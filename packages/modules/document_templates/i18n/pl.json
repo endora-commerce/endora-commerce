@@ -135,6 +135,7 @@
   "itemsTable.columns.format.dateStyle.medium": "Średni",
   "itemsTable.columns.format.dateStyle.long": "Długi",
   "itemsTable.columns.emptyText": "Tekst, gdy pozycja nie ma wartości",
+  "itemsTable.columns.link": "Drukuj jako link do pola {field}",
   "itemsTable.visibility": "Pokazuj",
   "itemsTable.visibility.always": "Zawsze",
   "itemsTable.visibility.anyHasValue": "Tylko gdy któraś pozycja ma wartość",

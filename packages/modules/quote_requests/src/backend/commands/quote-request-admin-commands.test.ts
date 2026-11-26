@@ -32,6 +32,7 @@ import {
 
 const ADMIN = '00000000-0000-4000-8000-0000000004a1';
 const OTHER_ADMIN = '00000000-0000-4000-8000-0000000004a2';
+const INELIGIBLE = '00000000-0000-4000-8000-0000000004a3';
 const ORG = randomUUID();
 const OPERATOR: QuoteRequestOperator = { adminUserId: ADMIN, roleLabel: 'Platform administrator' };
 const SYSTEM: QuoteRequestOperator = { adminUserId: null, roleLabel: 'System' };
@@ -104,6 +105,8 @@ function harness() {
   const recorded: Array<Record<string, unknown>> = [];
   const deps = {
     salesRepAssignment: { canSeeOrganization: async () => false },
+    // Issue #1906 — every administrator but INELIGIBLE may be the assignee here.
+    assigneeEligibility: vi.fn(async (adminUserId: string) => adminUserId !== INELIGIBLE),
     eventService: {
       append: vi.fn(async (input: Record<string, unknown>) => {
         appended.push(input);
@@ -300,6 +303,47 @@ describe('quote_request.assign', () => {
     );
     expect(quote.assignedAdminUserId).toBeNull();
     expect(h.entries[0]).toMatchObject({ actorAdminUserId: null, stateAfter: { assignedAdminUserId: null } });
+    expect(h.deps.assigneeEligibility).not.toHaveBeenCalled();
+  });
+
+  it('asks the one assignee rule about the target, for the request’s Organization (issue #1906)', async () => {
+    const h = harness();
+    const quote = seedQuote(h.em);
+    await asAdmin(() =>
+      h.commandBus.run(
+        makeAssignQuoteRequestCommand(h.deps, { quoteRequestId: quote.id, operator: OPERATOR, adminUserId: ADMIN, expectedVersion: null }),
+      ),
+    );
+    expect(h.deps.assigneeEligibility).toHaveBeenCalledWith(ADMIN, ORG);
+  });
+
+  it('refuses a target who may not handle the request with 422 RFQ_ASSIGNEE_NOT_ELIGIBLE, writing nothing (issue #1906)', async () => {
+    const h = harness();
+    const quote = seedQuote(h.em);
+    const refused = await asAdmin(() =>
+      h.commandBus.run(
+        makeAssignQuoteRequestCommand(h.deps, { quoteRequestId: quote.id, operator: OPERATOR, adminUserId: INELIGIBLE, expectedVersion: null }),
+      ),
+    ).then(
+      () => null,
+      (error: unknown) => error as { statusCode?: number; code?: string },
+    );
+    expect(refused).toMatchObject({ statusCode: 422, code: ERROR_CODES.RFQ_ASSIGNEE_NOT_ELIGIBLE });
+    expect(quote).toMatchObject({ assignedAdminUserId: OTHER_ADMIN, version: 3 });
+    expect(h.entries).toEqual([]);
+  });
+
+  it('refuses a malformed target the same way, before asking who it is', async () => {
+    const h = harness();
+    const quote = seedQuote(h.em);
+    await expect(
+      asAdmin(() =>
+        h.commandBus.run(
+          makeAssignQuoteRequestCommand(h.deps, { quoteRequestId: quote.id, operator: OPERATOR, adminUserId: 'nope', expectedVersion: null }),
+        ),
+      ),
+    ).rejects.toMatchObject({ statusCode: 422, code: ERROR_CODES.RFQ_ASSIGNEE_NOT_ELIGIBLE });
+    expect(h.deps.assigneeEligibility).not.toHaveBeenCalled();
   });
 });
 

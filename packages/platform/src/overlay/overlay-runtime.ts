@@ -41,7 +41,6 @@ import {
   assertNoModuleIdCollisions,
   type ModuleIdClaim,
 } from '../lifecycle/services/module-id-claims.js';
-import { assertOverlayModulesShipNoSchema } from './overlay-schema.js';
 import { assertOverlayLayout } from './overlay-layout.js';
 import { assertOverlayBuildFresh, type OverlayRoots } from './overlay-freshness.js';
 import { listOverlayModuleDirs } from './resolve-overlay.js';
@@ -143,12 +142,11 @@ export function overlayModuleIdsUnder(
   claimsOutsideTheOverlay: readonly ModuleIdClaim[],
 ): string[] {
   const ids = listOverlayModuleDirs(root);
-  // Before the claims are checked and long before anything is imported: a tree
-  // that ships schema is refused whole, whichever seam asked (`overlay-schema.ts`).
-  assertOverlayModulesShipNoSchema(root, ids);
-  // Beside it, and in the same position: flat, and not a package
-  // (`specs/190-overlay-full-modules/` FR-002 – FR-003). Not yet instead of it —
-  // the schema refusal goes when overlay schema discovery lands (T075, #1850).
+  // Before the claims are checked and long before anything is imported: flat, and
+  // not a package (`specs/190-overlay-full-modules/` FR-002 – FR-003). It stands
+  // where the schema refusal stood until overlay schema discovery replaced that
+  // refusal (FR-037, #1850): an overlay module's schema is read, not refused
+  // (`overlay-schema.ts`).
   assertOverlayLayout(root, ids);
   assertNoModuleIdCollisions([
     ...claimsOutsideTheOverlay,

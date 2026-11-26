@@ -81,10 +81,15 @@ interface StaticField {
   readonly group: 'line' | 'pricing';
   readonly internal?: boolean;
   readonly decimals?: number;
+  /** Issue #1904 — the field holding the page this one may link to. */
+  readonly linkPath?: string;
 }
 
+/** Issue #1904 — the line field holding the product's storefront page. */
+export const QUOTE_PRODUCT_URL_FIELD = 'productUrl';
+
 const LINE_FIELDS: readonly StaticField[] = [
-  { path: 'productName', kind: 'text', group: 'line' },
+  { path: 'productName', kind: 'text', group: 'line', linkPath: QUOTE_PRODUCT_URL_FIELD },
   { path: 'variant', kind: 'text', group: 'line' },
   { path: 'sku', kind: 'text', group: 'line' },
   { path: 'quantity', kind: 'number', group: 'line', decimals: 0 },
@@ -103,6 +108,7 @@ const LINE_FIELDS: readonly StaticField[] = [
   { path: 'lineVat', kind: 'money', group: 'pricing', decimals: 2 },
   { path: 'lineGross', kind: 'money', group: 'pricing', decimals: 2 },
   { path: 'lineNote', kind: 'text', group: 'line' },
+  { path: QUOTE_PRODUCT_URL_FIELD, kind: 'text', group: 'line', linkPath: QUOTE_PRODUCT_URL_FIELD },
 ];
 
 const SUMMARY_FIELDS: readonly StaticField[] = [
@@ -122,6 +128,7 @@ function definitionOf(field: StaticField, label: string): DocumentFieldDefinitio
     group: field.group,
     audience: field.internal ? 'internal' : 'customer',
     ...(field.decimals !== undefined ? { defaultFormat: { decimals: field.decimals } } : {}),
+    ...(field.linkPath !== undefined ? { linkPath: field.linkPath } : {}),
   };
 }
 
@@ -186,6 +193,7 @@ export function quoteLineItems(data: QuoteRequestDocumentData): DocumentItem[] {
       lineVat: vat !== null ? money(vat, currency) : null,
       lineGross: net !== null && vat !== null ? money(moneySum([net, vat]), currency) : null,
       lineNote: text(line.lineNote),
+      [QUOTE_PRODUCT_URL_FIELD]: text(line.productUrl),
     };
     for (const [code, value] of Object.entries(line.attributes ?? {})) {
       values[`attributes.${code}`] = text(value);

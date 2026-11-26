@@ -710,6 +710,39 @@ export const AdminZoneNameSchema = z.enum([
    */
   'task.detail.after',
   /**
+   * The stack of panels a Project's detail screen ends with (issue #1905).
+   *
+   * Mounted **once** per Project, after the card that holds its tabs, on
+   * `order.detail.after`'s terms and for its reasons: every contribution
+   * renders its own card, the host puts no chrome around the zone, and an
+   * empty zone renders nothing at all, so the screen is identical to one
+   * without the member. Props: {@link ProjectDetailZoneProps}, the Project's
+   * id and nothing else (Z3).
+   *
+   * Content about the record that needs the page's width; a short fact list
+   * belongs in `project.detail.sidebar`. No contributor yet; `projects` names
+   * none and gains no edge.
+   *
+   * There is **no** `project.detail.tabs`: the Project's tab strip adopts no
+   * contributed tab (`specs/183-record-tab-contributions/research.md`), and a
+   * record-tab zone for it is an open owner question, not this member.
+   */
+  'project.detail.after',
+  /**
+   * The Project detail's sidebar card (issue #1905).
+   *
+   * Mounted **once** per Project, on `order.detail.sidebar`'s terms and for its
+   * reasons: every contribution is a **section** of one card — an
+   * `EditorSection` takes the zone's `chrome="section"` — never a card in a
+   * card, at a sidebar's width (20rem), and the host draws the sidebar column
+   * only while `useAdminZone(name, props).length > 0`, so with nothing
+   * contributed the screen is the single column it was. Props:
+   * {@link ProjectDetailZoneProps}, the Project's id and nothing else (Z3).
+   *
+   * No contributor yet; `projects` names none and gains no edge.
+   */
+  'project.detail.sidebar',
+  /**
    * The **body** of the signed-in admin's Profile *Security* tab
    * (`/profile/security`) — issue #1519 (UX audit SHELL-11, DEC-02): personal
    * two-step verification is about the admin's own account, so it lives under
@@ -1005,6 +1038,19 @@ export interface TaskDetailZoneProps {
 }
 
 /**
+ * A zone mounted once per Project — after its tabs, or in its sidebar (issue
+ * #1905).
+ *
+ * The Project's own id and nothing else: a contribution reads what it shows
+ * through routes or ports of its own, and the host hands over none of its
+ * data — not the Project's Organizations either, which a contribution reads
+ * through `projectReadPort` or a route of its own, under the reader's access.
+ */
+export interface ProjectDetailZoneProps {
+  readonly projectId: string;
+}
+
+/**
  * A zone mounted once per shipment attempt on the order detail's Delivery tab.
  *
  * Five props, and the last two are here **because a contribution matches on
@@ -1181,6 +1227,8 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'product.content.editor': ProductContentEditorZoneProps;
   'settings.setting.after': SettingsSettingAfterZoneProps;
   'task.detail.after': TaskDetailZoneProps;
+  'project.detail.after': ProjectDetailZoneProps;
+  'project.detail.sidebar': ProjectDetailZoneProps;
   'profile.security': ProfileSecurityZoneProps;
 }
 

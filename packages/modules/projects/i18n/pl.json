@@ -121,6 +121,7 @@
   "detail.back": "Projekty",
   "detail.internal": "Projekt wewnętrzny",
   "detail.noValue": "Bez wartości",
+  "detail.sidebar.label": "Powiązane działania",
   "stageBar.heading": "Etapy",
   "stageBar.current": "bieżący",
   "stageBar.deadline": "Termin {date}",

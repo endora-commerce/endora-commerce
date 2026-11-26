@@ -239,7 +239,8 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 | `PUT /api/v1/me/customer/defaults` | klient | Ustawienie domyślnej metody płatności i dostawy. Treść podająca `billingAddressId` lub `shippingAddressId` dostaje odpowiedź `410 CUSTOMER_ADDRESS_BOOK_RETIRED` |
 | `GET /api/v1/me/customer/orders` | klient | Własna historia zamówień |
 | `GET /api/v1/me/customer/quote-requests` | klient | Własna historia zapytań ofertowych |
-| `GET /api/v1/admin/customers` | administrator | Lista (ograniczona uprawnieniami) |
+| `GET /api/v1/admin/customers` | administrator | Lista (ograniczona uprawnieniami). `customFieldFilters` — pola niestandardowe klienta oznaczone jako filtry listy, jako JSON, w kształcie przyjmowanym przez listy zamówień i projektów; pole, którego lista nie oferuje, daje `400 CUSTOM_FIELD_FILTER_UNAVAILABLE` z jego nazwą. Filtr zawęża to, do czego wywołujący ma dostęp, nigdy tego nie poszerza |
+| `GET /api/v1/admin/customers/custom-field-filters` | administrator (`customers:read`) | `{ data: CustomFieldListFilterField[] }` — pola niestandardowe klienta oznaczone jako filtry listy |
 | `GET /api/v1/admin/customers/:id` | administrator | Szczegóły |
 | `POST /api/v1/admin/customers/:id/block` · `/unblock` | administrator | Blokowanie / odblokowanie |
 | `DELETE /api/v1/admin/customers/:id` · `POST .../restore` | administrator | Usunięcie miękkie / przywrócenie |

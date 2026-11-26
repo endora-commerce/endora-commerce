@@ -26,6 +26,7 @@ import type {
   EmailDeliveryAnonymizationPort,
   CustomFieldValuePort,
   CustomerAccountAdminSearchPort,
+  CustomFieldListFilterPort,
   CustomerAccountLifecycleWritePort,
   CustomerAccountPreferencePort,
   CustomerAccountReadPort,
@@ -244,6 +245,12 @@ export interface CustomersModuleOptions {
    * Command and takes this validator as the merge (feature 075).
    */
   customFieldValues?: CustomFieldValuePort;
+  /**
+   * Issue #1903 — `custom_fields`' list-filter port: the Customer
+   * custom fields the admin list offers as filters, and their condition.
+   * Absent, the list offers none and refuses any it is sent.
+   */
+  customFieldListFilter?: CustomFieldListFilterPort;
 }
 
 export interface CustomersModuleHandle {
@@ -305,6 +312,7 @@ export function customersModule(options: CustomersModuleOptions): {
     organizations: options.organizationDetailsPort,
     customerGroups: options.customerGroupReadPort,
     orders: options.orderReadPort,
+    ...(options.customFieldListFilter ? { customFieldListFilter: options.customFieldListFilter } : {}),
   });
   const orgAssignmentService = new CustomerOrgAssignmentService(
     options.customerAccountReadPort,

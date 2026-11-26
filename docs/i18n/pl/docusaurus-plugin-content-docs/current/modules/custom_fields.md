@@ -19,15 +19,17 @@ rodzaju.
 | Zamówienia | zawsze | tak — lista zamówień |
 | Zapytania ofertowe | gdy moduł `quote_requests` jest włączony | tak — lista zapytań ofertowych |
 | Szanse sprzedażowe | gdy moduł `crm` jest włączony | tak — lista szans sprzedażowych |
-| Organizacje | zawsze | nie |
-| Klienci | zawsze | nie |
+| Projekty | gdy moduł `projects` jest włączony | tak — lista projektów |
+| Zadania | gdy moduł `tasks` jest włączony | tak — lista zadań |
+| Organizacje | zawsze | tak — lista organizacji |
+| Klienci | zawsze | tak — lista klientów |
 | Kategorie | zawsze | nie |
 | Produkty | zarządzane w **Katalog → Atrybuty**, tutaj tylko do odczytu | nie |
 
 **Typ, który podąża za modułem, znika razem z nim.** Gdy moduł `quote_requests` jest wyłączony,
 pola zapytań ofertowych nie są wyświetlane, nie można ich tworzyć ani edytować i nie zwraca ich API
-definicji — dokładnie tak, jak pola szans sprzedażowych przy wyłączonym `crm`. Nic nie jest
-usuwane: pola, ich opcje i wszystkie zapisane wartości wracają bez zmian po ponownym włączeniu
+definicji — dokładnie tak, jak pola szans sprzedażowych przy wyłączonym `crm`, pola projektów przy
+wyłączonym `projects` i pola zadań przy wyłączonym `tasks`. Nic nie jest usuwane: pola, ich opcje i wszystkie zapisane wartości wracają bez zmian po ponownym włączeniu
 modułu.
 
 ## Tworzenie pola
@@ -65,8 +67,8 @@ otworzyć z palety poleceń (⌘K / CTRL+K, **Nowe pole niestandardowe**):
    - **Zbieraj od kupującego podczas rejestracji** — dostępne tylko dla pól organizacji i klientów.
      Zob. sekcję *Zbieranie pola od kupującego* poniżej.
 5. **Zachowanie**
-   - **Używaj jako filtra listy** — dostępne tylko dla zamówień, zapytań ofertowych i szans
-     sprzedażowych. Zob. [Filtry list](#filtry-list).
+   - **Używaj jako filtra listy** — dostępne dla typów rekordów, które tabela powyżej oznacza jako
+     *tak*. Zob. [Filtry list](#filtry-list).
    - **Przenoś wartość do: …** — jedno pole wyboru na każdy typ rekordu, do którego wartość może
      trafić, każde z własną linią pomocy, dostępne tylko dla zapytań ofertowych, zamówień i szans
      sprzedażowych. Zob. sekcję *Przenoszenie wartości między zapytaniami ofertowymi, zamówieniami
@@ -208,9 +210,11 @@ dokumentacja modułu `organizations`.
 
 **Używaj jako filtra listy** udostępnia pole jako filtr na liście jego rekordów w panelu: na liście
 zamówień dla pola zamówienia, na liście zapytań ofertowych dla pola zapytania ofertowego, na liście
-szans sprzedażowych dla pola szansy. Kolumna *Filtr listy* w tabeli na ekranie **Pola
-niestandardowe** pokazuje, które pola są filtrami list. Włączenie lub wyłączenie tej opcji nie
-zmienia żadnej zapisanej wartości.
+szans sprzedażowych dla pola szansy, i analogicznie na listach projektów, zadań, organizacji
+i klientów. Kolumna *Filtr listy* w tabeli na ekranie **Pola niestandardowe** pokazuje, które pola
+są filtrami list. Włączenie lub wyłączenie tej opcji nie zmienia żadnej zapisanej wartości. Na
+każdej liście filtry są ukryte pod **Więcej filtrów**; na listach projektów, zadań, organizacji
+i klientów widzi je tylko administrator, który może przeglądać pola niestandardowe.
 
 Filtr jest opisany etykietą pola w języku administratora (w razie braku — etykietą domyślną) i
 działa zależnie od typu:
@@ -229,12 +233,14 @@ tak/nie. Kilka wartości jednego pola pasuje do którejkolwiek z nich; filtry r�
 własne filtry listy muszą pasować wszystkie. Filtr zawęża całą listę — jej sumę i każdą stronę —
 a nie tylko wiersze na ekranie, i nie wychodzi poza to, co administrator może zobaczyć.
 
-Na każdej liście filtry są w adresie strony, więc przefiltrowaną listę można dodać do zakładek albo
-wysłać współpracownikowi, a zmiana filtra wraca do pierwszej strony listy. Na listach zamówień i
-zapytań ofertowych filtry są też pokazane jako usuwalne etykiety obok pozostałych aktywnych filtrów
+Zmiana filtra wraca do pierwszej strony listy. Na listach zamówień, zapytań ofertowych, szans
+sprzedażowych, projektów i zadań filtry są w adresie strony, więc przefiltrowaną listę można dodać
+do zakładek albo wysłać współpracownikowi; na listach organizacji i klientów — tak jak pozostałe
+filtry tych list — nie są. Na listach zamówień i zapytań ofertowych filtry są też pokazane jako usuwalne etykiety obok pozostałych aktywnych filtrów
 i są zapamiętywane w zapisanych widokach.
 
-**Filtr, który nie jest już dostępny.** Jeśli od zapisania adresu wyłączono opcję pola albo
+**Filtr, który nie jest już dostępny.** Jeśli od ustawienia filtra lub zapisania adresu, który go
+zawiera, wyłączono opcję pola albo
 usunięto pole, lista odrzuca żądanie, mówi o tym, podając nazwę pola, i oferuje **Usuń ten filtr**.
 Zapisany widok jest za to sprawdzany przy wczytaniu: niedostępny już filtr zostaje z niego usunięty,
 z komunikatem, który go nazywa, zanim lista zostanie pobrana, a reszta widoku się wczytuje. Opcja
@@ -407,16 +413,19 @@ audytuje wartości inaczej z jego powodu.
 | `422` | `CUSTOM_FIELD_DEFINITION_INVALID` | niepoprawna definicja, w tym `listFilter` dla typu rekordu, który go nie obsługuje (`list_filter_unsupported`), oraz cztery odmowy dotyczące danych od kupującego i dostępu w panelu: `customer_input_unsupported` (powierzchnia, której typ rekordu nie oferuje), `customer_input_audience` (pole otwarte na powierzchni, a *Wewnętrzne*), `customer_input_value_type` (pole Page Builder otwarte na powierzchni) i `admin_access_required` (pole wymagane, a tylko do odczytu albo ukryte) | `code` i `reason` dla tych czterech oraz `key` |
 | `422` | `CUSTOM_FIELD_CARRY_INCOMPATIBLE` | włączenie elementu `carryTo`, którego typ docelowy nie może przyjąć | `code` — `target_missing`, `value_type_mismatch`, `options_missing`, `audience_mismatch`, `pair_unsupported` (para, która nie jest oferowana, w tym własny typ pola) lub `target_unavailable` (moduł typu docelowego jest wyłączony); `targetEntityType`, `key`; `sourceValueType` i `targetValueType` przy niezgodności typów; `missingOptionValues` (tekst rozdzielony przecinkami) i `missingOptionValueList` (tablica) przy brakujących opcjach |
 
-Trzy listy przyjmują filtry jako parametr żądania:
+Listy przyjmują filtry jako parametr żądania:
 
-- `GET /api/v1/admin/orders`, `GET /api/v1/admin/orders/export` i
-  `GET /api/v1/admin/quote-requests` przyjmują `customFieldFilters` — zakodowany w URL obiekt JSON
-  z kluczami pól: `{"region":{"in":["north"]},"weight":{"min":"1.5"}}`.
+- `GET /api/v1/admin/orders`, `GET /api/v1/admin/orders/export`,
+  `GET /api/v1/admin/quote-requests`, `GET /api/v1/admin/projects`, `GET /api/v1/admin/tasks`,
+  `GET /api/v1/admin/organizations` i `GET /api/v1/admin/customers` przyjmują `customFieldFilters`
+  — zakodowany w URL obiekt JSON z kluczami pól: `{"region":{"in":["north"]},"weight":{"min":"1.5"}}`.
 - `GET /api/v1/admin/crm/opportunities` przyjmuje te same filtry jako odwołania `custom:<key>` w
   `fieldFilters`.
 - Każda lista zwraca swoje dostępne pola pod `…/custom-field-filters` — `GET
-  /api/v1/admin/orders/custom-field-filters`, `…/quote-requests/custom-field-filters` i
-  `…/crm/opportunities/custom-field-filters`.
+  /api/v1/admin/orders/custom-field-filters`, `…/quote-requests/custom-field-filters`,
+  `…/crm/opportunities/custom-field-filters`, `…/projects/custom-field-filters`,
+  `…/tasks/custom-field-filters`, `…/organizations/custom-field-filters` i
+  `…/customers/custom-field-filters`.
 
 Operatory to `contains`, `in`, `is`, `min` / `max` (liczby dziesiętne jako tekst) oraz `from` / `to`
 (`YYYY-MM-DD`). Najwyżej 10 pól i łącznie 100 wartości `in` na żądanie. Pole, które nie jest filtrem

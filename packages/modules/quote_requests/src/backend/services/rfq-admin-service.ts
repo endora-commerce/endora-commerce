@@ -48,6 +48,7 @@ import {
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import { QuoteRequestNotification } from '../entities/quote-request-notification.entity.js';
+import type { AssigneeEligibility } from './assignee-eligibility.js';
 import type { NotificationKick } from './notifications/kick.js';
 import type { RfqService} from './rfq-service.js';
 import { rfqAudience, type RfqEventBus, type RfqEvents } from './rfq-service.js';
@@ -206,6 +207,12 @@ export interface RfqAdminServiceDeps {
   customerAccounts: CustomerAccountReadPort;
   organizations: OrganizationDetailsPort;
   adminUsers: AdminUserReadPort;
+  /**
+   * Issue #1906 — the one assignee rule (`assignee-eligibility.ts`): asked of
+   * the target of `quote_request.assign` and of every representative the
+   * assignee picker offers.
+   */
+  assigneeEligibility: AssigneeEligibility;
 }
 
 export class RfqAdminService {

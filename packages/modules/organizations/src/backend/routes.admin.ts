@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { NotFoundError } from '@mikro-orm/core';
+import { NotFoundError, raw } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
@@ -13,8 +13,14 @@ import {
   assignOrganizationParentRequestSchema,
   setCreditInheritanceModeRequestSchema,
   inviteMemberToRoleRequestSchema,
+  customFieldFilterUnavailable,
+  customFieldFiltersQueryParamSchema,
+  isCustomFieldFilterUnavailableFailure,
   isCustomFieldValidationFailure,
   type AddressServicePort,
+  type CustomFieldFilters,
+  type CustomFieldListFilterCondition,
+  type CustomFieldListFilterPort,
   type CustomFieldValuePort,
   type CustomerAccountMemberWritePort,
   type CustomerAccountReadPort,
@@ -125,6 +131,9 @@ const listQuerySchema = z.object({
   ...ExtensionsQuerySchema.shape,
   // Issue #1473 — the admin list screen's offset paging.
   ...adminOrganizationListPageQuerySchema.shape,
+  // Issue #1903 — the custom fields marked as list filters, as JSON
+  // (`specs/157-custom-fields-list-filters/contracts/list-filter-api.md` §1.2).
+  customFieldFilters: customFieldFiltersQueryParamSchema,
 });
 
 /** The module ids `?extensions=` names, in order, or none. */
@@ -181,6 +190,13 @@ export interface AdminOrgsDeps {
    * validates (Principle XIV).
    */
   customFieldValues?: CustomFieldValuePort;
+  /**
+   * Issue #1903 — `custom_fields`' `customFieldListFilterPort`: the
+   * Organization custom fields the admin list offers as filters, and a
+   * request's filters as one condition. Absent, the list offers none and
+   * refuses any it is sent.
+   */
+  customFieldListFilter?: Pick<CustomFieldListFilterPort, 'condition' | 'listFilterable'>;
   /**
    * Feature 056 — when provided, mounts the org-hierarchy endpoints
    * (assign/move parent, subtree/ancestors read, delete-with-children guard).
@@ -247,8 +263,33 @@ export async function registerOrganizationsAdminRoutes(
   const effectivePriceListsService = deps.effectivePriceListsService;
   const taxIdValidationService = deps.taxIdValidationService;
   const customFieldValues = deps.customFieldValues;
+  const customFieldListFilter = deps.customFieldListFilter;
 
   const customersRead = requireAdminAny(['customers:read', 'customers:manage']);
+
+  /**
+   * Issue #1903 — the list's custom-field filters as one condition, or `null`
+   * when none is asked for. A field the list does not offer — or any field,
+   * without the port — is refused as 400 `CUSTOM_FIELD_FILTER_UNAVAILABLE`
+   * naming it; an operator that does not apply is the port's ZodError, 400.
+   */
+  const customFieldCondition = async (
+    filters: CustomFieldFilters | undefined,
+  ): Promise<CustomFieldListFilterCondition | null> => {
+    if (filters === undefined || Object.keys(filters).length === 0) return null;
+    try {
+      if (!customFieldListFilter) throw customFieldFilterUnavailable(Object.keys(filters));
+      return await customFieldListFilter.condition('organization', filters);
+    } catch (error) {
+      if (isCustomFieldFilterUnavailableFailure(error)) {
+        throw new HttpError(400, ERROR_CODES.CUSTOM_FIELD_FILTER_UNAVAILABLE, error.message, {
+          key: error.keys[0] ?? '',
+          keys: [...error.keys],
+        });
+      }
+      throw error;
+    }
+  };
 
   /**
    * Issue #629 (#86) — a moderation failure as its HTTP refusal. The status
@@ -410,6 +451,13 @@ export async function registerOrganizationsAdminRoutes(
     },
   );
 
+  // Issue #1903 — the Organization custom fields the list offers as filters
+  // (`specs/157-custom-fields-list-filters/`). A static path, so it is never
+  // read as an Organization id.
+  app.get('/api/v1/admin/organizations/custom-field-filters', { preHandler: customersRead }, async () => ({
+    data: (await customFieldListFilter?.listFilterable('organization')) ?? [],
+  }));
+
   app.get(
     '/api/v1/admin/organizations',
     { preHandler: customersRead },
@@ -441,6 +489,13 @@ export async function registerOrganizationsAdminRoutes(
           ...(taxIdText ? [{ taxId: { $ilike: `%${taxIdText}%` } }] : []),
         ];
       }
+      // Issue #1903 — the custom-field filters: an id sub-select over
+      // `organizations`, ANDed with the reach fragment above (never assigned
+      // to `where.id`, which that fragment may hold), so it narrows the
+      // reachable set and never widens it. `findAndCount` applies it to the
+      // page and the total alike.
+      const custom = await customFieldCondition(query.customFieldFilters);
+      if (custom) where['$and'] = [{ id: { $in: raw(`(${custom.sql})`, [...custom.params]) } }];
       // Issue #1473 — an offset page and the total across all of them, for the
       // list screen's pager. `pageSize` falls back to `limit`, so a caller that
       // names neither (the pickers) keeps its one first page. `id` breaks a

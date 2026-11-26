@@ -92,15 +92,18 @@ export const SUPPORTED_ENTITIES: Record<SupportedEntityType, SupportedEntityMeta
     carryTargets: ['opportunity'],
   },
   // Feature 175 — both are written by B2B registration, whose two value
-  // groups a buyer may fill in.
+  // groups a buyer may fill in. Issue #1903 — and both admin lists, the
+  // Organizations and the Customers list, take their list filters.
   organization: {
     labelKey: 'customFields.entity.organization',
     orgOwned: false,
+    listFilter: true,
     customerInputSurfaces: ['organization.register'],
   },
   customer: {
     labelKey: 'customFields.entity.customer',
     orgOwned: true,
+    listFilter: true,
     customerInputSurfaces: ['organization.register'],
   },
   // Feature 157 — a Quote Request belongs to `quote_requests`, and its

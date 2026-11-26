@@ -22,6 +22,7 @@ import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import { QuoteRequestItemGroup } from '../entities/quote-request-item-group.entity.js';
 import { adminCanSeeOrganization, isPlatformWideScope } from '../services/admin-org-visibility.js';
+import { assertAssigneeEligible, type AssigneeEligibility } from '../services/assignee-eligibility.js';
 import { operatorLineProducts } from '../services/operator-line-products.js';
 import { hasUnpricedLine, quoteIncompleteError, unitPriceText } from '../services/agreed-price.js';
 import { AUTOMATIC_ADMIN_CREATION_NOTE } from '../services/history/constants.js';
@@ -61,9 +62,11 @@ import { lockUnchangedRow } from '../services/transition-lock.js';
  * status, the caller's expected version, and the row taken `for update` with
  * its version compared (`lockUnchangedRow`).
  *
- * The buyer's writes (`quote_request.create`, `.patch_draft`, `.resubmit`,
- * `.respond_to_revision`, `.convert_to_order`) are not here: they keep their
- * hand audit in `rfq-service.ts` (T067, out of this issue's scope).
+ * The buyer's writes are not here. Their create-and-submit and submit-again,
+ * `quote_request.create` and `.resubmit`, are Commands of their own since
+ * issue #1906 (`quote-request-buyer-commands.ts`, declared hookable);
+ * `.patch_draft`, `.respond_to_revision` and `.convert_to_order` keep their
+ * hand audit in `rfq-service.ts` (T067).
  */
 
 /**
@@ -98,6 +101,11 @@ export interface QuoteRequestAdminCommandDeps {
   readonly catalogProducts: Pick<CatalogProductReadPort, 'findByIds'>;
   readonly channelMembership: Pick<SalesChannelMembershipPort, 'listChannelsForEntity'>;
   readonly customerAccounts: Pick<CustomerAccountReadPort, 'findById'>;
+  /**
+   * Issue #1906 — who may be named the request's assignee
+   * (`services/assignee-eligibility.ts`); `quote_request.assign` asks it of its target.
+   */
+  readonly assigneeEligibility: AssigneeEligibility;
   /** Feature 055 — validates and merges custom-field values; absent = values are not written. */
   readonly customFieldValues?: CustomFieldValuePort | undefined;
   /** Whether the ambient scope reaches every organization. Injectable for the unit test only. */
@@ -290,6 +298,11 @@ export function makeCancelQuoteRequestCommand(
  * clears it (a port caller only: the route's body requires an id). An
  * internal-side claim, informational: who sees a request is decided per
  * Organization, never by this. Notifies nobody.
+ *
+ * Issue #1906 — a named target must pass the one assignee rule (active, holds
+ * `rfqs:handle`, reaches the request's Organization), else
+ * `422 RFQ_ASSIGNEE_NOT_ELIGIBLE` before the row is taken or anything written.
+ * Clearing is always allowed.
  */
 export function makeAssignQuoteRequestCommand(
   deps: QuoteRequestAdminCommandDeps,
@@ -303,6 +316,9 @@ export function makeAssignQuoteRequestCommand(
     run: async ({ em }) => {
       const rfq = await findVisible(em, deps, input.operator, input.quoteRequestId);
       assertVersion(rfq, input.expectedVersion);
+      if (input.adminUserId !== null) {
+        await assertAssigneeEligible(deps.assigneeEligibility, input.adminUserId, rfq.organizationId);
+      }
       await lockUnchangedRow(em, rfq);
       const previousAssignee = rfq.assignedAdminUserId ?? null;
       rfq.assignedAdminUserId = input.adminUserId;

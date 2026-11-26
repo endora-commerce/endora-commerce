@@ -35,6 +35,7 @@ function migrationsWith(packages: readonly PackageSchemaContribution[]): Configu
     diagnostics: [],
     ownership: migrationOwnershipOf([], []),
     packages,
+    overlays: [],
   };
 }
 

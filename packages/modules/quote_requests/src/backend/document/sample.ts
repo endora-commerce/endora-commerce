@@ -95,6 +95,8 @@ function line(
     attributes: {},
     groupId: null,
     position: n - 1,
+    // Issue #1904 — an invented page, so a column printed as a link shows one.
+    productUrl: `https://shop.example.com/p/${sku.toLowerCase()}`,
     ...over,
   };
 }

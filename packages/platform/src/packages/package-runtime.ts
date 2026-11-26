@@ -97,10 +97,11 @@ export interface MigrationRegistryEntry {
   cls: MigrationObject['class'];
   /**
    * Absent means `'core'`; a producer outside the committed registry sets
-   * `'external'`, and the platform's generated schema-extension step
-   * `'generated'` (`specs/178-extensible-columns/` FR-020).
+   * `'external'`, the platform's generated schema-extension step
+   * `'generated'` (`specs/178-extensible-columns/` FR-020), and a deployment's
+   * overlay module `'overlay'` (`specs/190-overlay-full-modules/` R-7).
    */
-  origin?: 'core' | 'external' | 'generated';
+  origin?: 'core' | 'external' | 'generated' | 'overlay';
 }
 
 /** An installed package's manifest plus where on disk it came from. */

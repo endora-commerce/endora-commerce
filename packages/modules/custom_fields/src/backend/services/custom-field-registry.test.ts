@@ -11,9 +11,18 @@ import {
  * owner module.
  */
 describe('custom-field registry', () => {
-  it('offers the list-filter option on exactly order, quote_request, opportunity, project and task', () => {
+  // Issue #1903 — the Organizations and Customers lists take them too.
+  it('offers the list-filter option on exactly order, organization, customer, quote_request, opportunity, project and task', () => {
     const offering = SUPPORTED_ENTITY_TYPES.filter((type) => SUPPORTED_ENTITIES[type].listFilter === true);
-    expect([...offering].sort()).toEqual(['opportunity', 'order', 'project', 'quote_request', 'task']);
+    expect([...offering].sort()).toEqual([
+      'customer',
+      'opportunity',
+      'order',
+      'organization',
+      'project',
+      'quote_request',
+      'task',
+    ]);
   });
 
   it('names the owner of quote_request, opportunity, project and task, and of no other type', () => {

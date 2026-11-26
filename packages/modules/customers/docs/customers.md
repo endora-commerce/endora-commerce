@@ -258,7 +258,8 @@ Admin routes are gated by `customers:read` (reads), `customers:manage`
 | `PUT /api/v1/me/customer/defaults` | customer | Set the default payment/delivery method. A body naming `billingAddressId` or `shippingAddressId` answers `410 CUSTOMER_ADDRESS_BOOK_RETIRED` |
 | `GET /api/v1/me/customer/orders` | customer | Own order history |
 | `GET /api/v1/me/customer/quote-requests` | customer | Own RFQ history |
-| `GET /api/v1/admin/customers` | admin | List (authority-scoped) |
+| `GET /api/v1/admin/customers` | admin | List (authority-scoped). `customFieldFilters` — the Customer custom fields marked as list filters, as JSON, the shape the Orders and Projects lists take; a field the list does not offer answers `400 CUSTOM_FIELD_FILTER_UNAVAILABLE`, naming it. A filter narrows what the caller reaches, never widens it |
+| `GET /api/v1/admin/customers/custom-field-filters` | admin (`customers:read`) | `{ data: CustomFieldListFilterField[] }` — the Customer custom fields marked as list filters |
 | `GET /api/v1/admin/customers/:id` | admin | Detail |
 | `POST /api/v1/admin/customers/:id/block` · `/unblock` | admin | Block / unblock |
 | `DELETE /api/v1/admin/customers/:id` · `POST .../restore` | admin | Soft-delete / restore |

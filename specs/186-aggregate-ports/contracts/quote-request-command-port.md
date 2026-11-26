@@ -12,6 +12,16 @@ routes and the port through the same runner (`RfqAdminService.runWrite`). The `#
 `convert_to_order`) and keep their hand audit (T067). `quote_request.prepare_customer_basket` — an
 operator write not on the port — keeps its hand audit too.
 
+**Amended (issue #1906, 2026-11-25).** The buyer's `create` is a Command since #1906,
+`quote_request.create` in `commands/quote-request-buyer-commands.ts`, with its audit state unchanged
+and declared hookable (`QUOTE_REQUEST_HOOKABLE_ACTIONS.create`), so a `beforeCommit` hook can set the
+assignee inside the buyer's submission. It is still **not** on this port: the buyer's own write is
+reached through `RfqCustomerPort.createForCustomer`, as before. The buyer's `resubmit` is a Command
+too (`quote_request.resubmit`, hookable the same way); `patch_draft`, `respond_to_revision` and
+`convert_to_order` keep their hand audit. `assign(id, { adminUserId })` now refuses a target who is
+not active, lacks `rfqs:handle` or does not reach the request's Organization with
+`422 RFQ_ASSIGNEE_NOT_ELIGIBLE`, as the admin route does; `null` still clears.
+
 | Method | Command action (kept) | Admin route | Readiness (was) | Side effects outside the write (all on both paths now) |
 | --- | --- | --- | --- | --- |
 | `create(input, options?)` | `quote_request.create_on_behalf` | `POST /api/v1/admin/quote-requests` | H-in | revision 1, `created` + automatic `note-added` history entries, `prepared` notification records, delivery kick after commit, `rfq.created_by_admin.v1` on commit (`adminUserId` `null` with no administrator); the route alone adds the availability `warnings` to its response |

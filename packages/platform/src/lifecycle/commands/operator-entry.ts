@@ -111,20 +111,21 @@ export async function instanceManifestEntries(
  *
  * ## Overlay modules
  *
- * An overlay module is in the resolved set and in no package, so the
- * discovered ownership answers `null` for it — *"I cannot say"*, which the
- * orchestrator refuses on. Here the answer is known: an overlay module
- * contributes no schema, and a tree in which one does never reaches this
- * point (`overlay/overlay-schema.ts` refuses it while the entries are
- * resolved). So each is covered and owns nothing, and its hard uninstall runs
- * its hook and drops its registration.
+ * Given the deployment root, the discovery reads the active deployment's
+ * overlay modules as well (`specs/190-overlay-full-modules/` FR-036), so an
+ * overlay module's chain is enumerated from the same order `migrate` applied it
+ * by and its hard uninstall reverts it. An overlay module in the resolved set
+ * that the discovery did not see — no root was supplied — is still covered and
+ * owns nothing, which is true of every one that ships no migration.
  */
 export async function instanceMigrationOwnership(
   entries: readonly RegisteredManifestEntry[],
   env: NodeJS.ProcessEnv = process.env,
+  deploymentRoot?: string,
 ): Promise<MigrationOwnership> {
-  const discovered = (await discoverConfiguredMigrations({ coreEntries: [], manifests: [] }, env))
-    .ownership;
+  const discovered = (
+    await discoverConfiguredMigrations({ coreEntries: [], manifests: [] }, env, deploymentRoot)
+  ).ownership;
   const overlayIds = new Set(
     entries.filter((entry) => entry.origin === 'overlay').map((entry) => entry.manifest.id),
   );
@@ -209,7 +210,7 @@ export async function instanceOperatorRuntime(
         return opened;
       },
       entries,
-      migrationOwnership: () => instanceMigrationOwnership(entries, env),
+      migrationOwnership: () => instanceMigrationOwnership(entries, env, options.deploymentRoot),
       out,
       err,
     },

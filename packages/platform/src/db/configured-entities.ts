@@ -1,3 +1,4 @@
+import { discoverOverlaySchema } from '../overlay/overlay-schema.js';
 import { discoverPackageSchema, type EntityClassLike } from '../packages/package-runtime.js';
 import { assertEntitiesClassified } from '../tenancy/entity-classification.js';
 import { assertTransitiveParentsResolve } from '../tenancy/org-scoped.decorator.js';
@@ -67,6 +68,14 @@ import { PLATFORM_ENTITIES, mergeByIdentity } from './platform-schema.js';
  * checks ask it of this repository's source text; this asks it of the classes
  * the ORM is about to be handed, whichever tree they came from, and throws
  * `UnclassifiedEntityError` naming each class and its contributor.
+ *
+ * ## And the deployment's overlay modules (#1850, D-297)
+ *
+ * Given `deploymentRoot`, the active deployment's overlay entities are the third
+ * half, discovered at runtime for the reason a package's are — which deployment a
+ * process runs as is a fact about the process, so the committed registry stays bare
+ * core (D-104). They are held to the classification refusal like every other, with
+ * `overlay apps/<deployment>/modules/<id>` as the contributor.
  */
 export type ConfiguredEntity = EntityClassLike;
 
@@ -81,14 +90,25 @@ export interface EntityConfigurationInputs {
    * the host's own type-check.
    */
   readonly coreEntities: readonly EntityClassLike[];
-  /** Selects the `node_modules` roots the package scan reads. */
+  /** Selects the `node_modules` roots the package scan reads, and the deployment (`DEPLOYMENT`). */
   readonly env?: NodeJS.ProcessEnv;
+  /**
+   * The directory holding `apps/` — what the active deployment's overlay modules are
+   * read from (`specs/190-overlay-full-modules/` FR-035). Absent, or `DEPLOYMENT`
+   * unset, and the set is exactly what it was before an overlay could own a table.
+   */
+  readonly deploymentRoot?: string;
 }
 
 export async function configuredEntitiesFrom(
   inputs: EntityConfigurationInputs,
 ): Promise<readonly ConfiguredEntity[]> {
-  const packages = await discoverPackageSchema(inputs.env ?? process.env);
+  const env = inputs.env ?? process.env;
+  const packages = await discoverPackageSchema(env);
+  // The deployment's own modules, read the way a package's are (#1850, contract
+  // `overlay-schema-discovery.md` §2) — after the packages, so a list with no
+  // overlay is the list it always was.
+  const overlays = await discoverOverlaySchema(inputs.deploymentRoot, env);
   // The platform's own six first (`specs/110-instance-repository/` T141).
   // They are this package's, and an instance supplies `coreEntities: []` —
   // which used to mean it registered none of them, so nothing mapped the
@@ -96,7 +116,11 @@ export async function configuredEntitiesFrom(
   // repository's generated registry does by bare specifier, the merge is an
   // identity de-duplication over the same class objects.
   const core = mergeByIdentity(PLATFORM_ENTITIES, inputs.coreEntities);
-  const entities = [...core, ...packages.flatMap((contribution) => contribution.entities)];
+  const entities = [
+    ...core,
+    ...packages.flatMap((contribution) => contribution.entities),
+    ...overlays.flatMap((contribution) => contribution.entities),
+  ];
   // Principle XI's backstop for what the static checks cannot read — a
   // compiled package, an instance (`specs/190-overlay-full-modules/` FR-020,
   // #1849). Before the chains, so a class with no classification is named as
@@ -105,6 +129,9 @@ export async function configuredEntitiesFrom(
     ...core.map((cls) => ({ cls, contributor: 'core' })),
     ...packages.flatMap((contribution) =>
       contribution.entities.map((cls) => ({ cls, contributor: contribution.packageName })),
+    ),
+    ...overlays.flatMap((contribution) =>
+      contribution.entities.map((cls) => ({ cls, contributor: contribution.source })),
     ),
   ]);
   assertTransitiveParentsResolve(platformLogger());

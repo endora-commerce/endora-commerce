@@ -33,6 +33,7 @@ const line = (over: Partial<Line> = {}): Line => ({
   attributes: {},
   groupId: null,
   position: 0,
+  productUrl: null,
   ...over,
 });
 
@@ -98,6 +99,22 @@ describe('quoteLineItems — derivations (R-11)', () => {
     expect(item!.values['discountPercent']).toBeNull();
     expect(item!.values['unitDiscount']).toBeNull();
     expect(item!.values['lineDiscount']).toBeNull();
+  });
+
+  it('issue #1904 — the product page address, or no value for a line without one', () => {
+    const [linked, gone] = quoteLineItems(
+      data([line({ productUrl: 'https://shop.example.com/en/p/bolt' }), line({ id: 'l2', productUrl: null })]),
+    );
+    expect(linked!.values['productUrl']).toEqual({ kind: 'text', value: 'https://shop.example.com/en/p/bolt' });
+    expect(gone!.values['productUrl']).toBeNull();
+  });
+
+  it('the sample quote links every line to an invented product page (the editor shows the link)', () => {
+    for (const language of ['en-US', 'pl-PL']) {
+      for (const item of quoteLineItems(sampleQuoteRequestData(language))) {
+        expect(item.values['productUrl']).toMatchObject({ kind: 'text', value: expect.stringMatching(/^https:\/\/shop\.example\.com\//) });
+      }
+    }
   });
 
   it('a line without an agreed price has no price, net, VAT or gross', () => {
@@ -231,7 +248,7 @@ describe('the lines collection — catalogue', () => {
     expect(pl.map((f) => f.path)).toEqual([
       'productName', 'variant', 'sku', 'quantity', 'packagingUnit', 'packagingQuantity',
       'listUnitPrice', 'proposedUnitPrice', 'unitPrice', 'unitGrossPrice', 'discountPercent', 'unitDiscount',
-      'lineDiscount', 'lineListValue', 'lineNet', 'vatRate', 'lineVat', 'lineGross', 'lineNote',
+      'lineDiscount', 'lineListValue', 'lineNet', 'vatRate', 'lineVat', 'lineGross', 'lineNote', 'productUrl',
     ]);
     expect(pl.find((f) => f.path === 'unitPrice')?.label).toBe(QUOTE_DOCUMENT_TEXTS['pl-PL'].fields['unitPrice']);
     expect((await collection.fields('en-US')).find((f) => f.path === 'unitPrice')?.label).toBe('Price after discount');
@@ -239,6 +256,16 @@ describe('the lines collection — catalogue', () => {
       'listUnitPrice', 'discountPercent', 'unitDiscount', 'lineDiscount', 'lineListValue',
     ]);
     expect(pl.find((f) => f.path === 'lineNet')).toMatchObject({ valueKind: 'money', group: 'pricing', defaultFormat: { decimals: 2 } });
+  });
+
+  it('issue #1904 — the product page address is a customer text field, and the product name may link to it', async () => {
+    const collection = createQuoteLinesCollection({ attributes: async () => [] });
+    const en = await collection.fields('en-US');
+    expect(en.find((f) => f.path === 'productUrl')).toMatchObject({ label: 'Product page URL', valueKind: 'text', group: 'line', audience: 'customer' });
+    expect((await collection.fields('pl-PL')).find((f) => f.path === 'productUrl')?.label).toBe('Adres strony produktu');
+    expect(en.find((f) => f.path === 'productName')?.linkPath).toBe('productUrl');
+    expect(en.find((f) => f.path === 'productUrl')?.linkPath).toBe('productUrl');
+    expect(en.filter((f) => f.linkPath !== undefined).map((f) => f.path)).toEqual(['productName', 'productUrl']);
   });
 
   it('adds one field per attribute shown on the product page, labelled in the language, with a sample value', async () => {

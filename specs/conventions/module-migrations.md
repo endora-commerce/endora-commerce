@@ -95,11 +95,14 @@ number", never pick a number, never edit an execution list.
    (`drop table`, `rename to`, a `create table … as select` copy) loses every extension's columns,
    which `check:extensible-tables` refuses on the merge request and the preservation test in
    `test:backend` catches after the merge. In an **instance** every module arrives as an installed
-   package, and there R2 is not a review finding but a refusal: the platform's foreign-schema guard
-   wraps every package migration and refuses a write to a table the module does not own at
-   `migrate`, letting through only R2's ledger entries (`composer:generate` renders them into
-   `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS`). So a new R2 write in this tree is also a broken
-   `migrate` for every client until it is ledgered or repaired.
+   package or as a deployment overlay module, and there R2 is not a review finding but a refusal:
+   the platform's foreign-schema guard wraps every package migration and refuses a write to a
+   table the module does not own at `migrate`, letting through only R2's ledger entries
+   (`composer:generate` renders them into `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS`). An overlay
+   module's migrations take the same guard with **no** exemption (`overlay-modules.md`, OR-4), in
+   an instance and in this repository's `backend/src/apps/` alike — so R2 reads them, and no R2
+   entry excuses one. So a new R2 write in this tree is also a broken `migrate` for every client
+   until it is ledgered or repaired.
 5. **Renaming an applied migration class costs a database rebuild.** Since feature 072 there
    is no frozen name map and nothing in the repository forbids the rename — but
    `mikro_orm_migrations` stores the **class name**, so every database that already ran the
@@ -133,12 +136,13 @@ number", never pick a number, never edit an execution list.
 **Entities are registered the same way.** `backend/src/db/entities-registry.generated.ts`
 comes out of the same command and the same walk: add the `@Entity()` class under the
 module's `entities/`, run `composer:generate`, commit the artefact. An **overlay** module
-contributes to neither, and that part stays true after D-297. Today it can ship no migration
-(D-106), so the generator refuses an entity or a migration under `backend/src/apps/` rather
-than emitting schema nothing creates. D-297 retires D-106 for overlays
-(`overlay-modules.md`): once overlay schema discovery lands (#1850), an overlay module's
-entities and migrations are discovered at runtime, take the foreign-schema guard with no
-deployment exemption, and are never baked into the committed registries.
+contributes to neither. Since D-297 (`overlay-modules.md`, #1850) it may own entities and
+migrations, and they are **discovered at runtime** from the deployment root — `backend.ts`'
+`entities` export, and the module's `migrations/` read file by file, with origin `overlay` —
+take the foreign-schema guard with no deployment exemption, and are never baked into the
+committed registries: the generator validates an entity or a migration under
+`backend/src/apps/` (classification, `/legacy` imports, filename and class agreement, the
+module-scoped name) and emits none of it.
 
 **A module that has become a workspace package contributes to all four artefacts, with a
 bare specifier** (feature 080, T041a; D-149). Until then the generator had no notion of one:

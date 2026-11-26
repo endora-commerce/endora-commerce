@@ -109,6 +109,10 @@ ofertowemu.
   dat krótki, średni albo długi), tekst drukowany, gdy pozycja **nie ma wartości**, oraz kiedy
   kolumna jest **pokazywana**: *Zawsze*, *Tylko gdy któraś pozycja ma wartość* albo *Nigdy* (kolumna
   zostaje w szablonie, ale się nie drukuje). Szerokość ukrytej kolumny przypada pozostałym.
+- **Drukuj jako link** — opcja kolumny, której pole ma stronę, do której może prowadzić (w ofercie:
+  nazwa produktu i adres strony produktu). Po jej zaznaczeniu wartość każdej pozycji jest drukowana
+  jako link do strony tej pozycji; pozycja bez strony drukuje zwykły tekst. Domyślnie wyłączona,
+  więc istniejące szablony drukują się bez zmian.
 - Pola oznaczone jako **Wewnętrzne** — w ofercie: cena katalogowa i rabaty — to wartości, których
   klienci nie widzą w innych miejscach. Można je drukować; oznaczenie jest ostrzeżeniem.
 - Pole, które już nie istnieje (usunięty atrybut produktu), jest oznaczone jako *Nieznane pole*; jego
@@ -203,7 +207,8 @@ strony, informacją, czy dla pojedynczego dokumentu można wybrać szablon, oraz
 w `documentTypeRegistry`, a dokumenty generuje przez `documentRenderPort`, przekazując własne dane.
 Typ, który deklaruje kolekcję pozycji (jej pola, wartości pozycji i sumy), otrzymuje Tabelę pozycji
 bez pisania renderera ani edytora; kolekcja, która deklaruje też swoje **sekcje** — nazwę każdej
-grupy, jej pozycje i sumy oraz pozycje bez grupy — otrzymuje *Grupy z dokumentu* (lista sekcji,
+grupy, jej pozycje i sumy oraz pozycje bez grupy — otrzymuje *Grupy z dokumentu*, a pole, które
+wskazuje pole kolekcji przechowujące jego stronę (`linkPath`), otrzymuje *Drukuj jako link* (lista sekcji,
 której tabela nie może użyć, jest jednorazowo logowana, a tabela drukuje się bez podziału i nigdy
 nie przerywa generowania dokumentu); typ z wyborem szablonu dla pojedynczego dokumentu pyta port
 `listChoices` o szablony, które można wybrać dla jednego dokumentu.

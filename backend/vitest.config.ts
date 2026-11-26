@@ -19,7 +19,7 @@
 
 import { configDefaults, defineConfig, type ViteUserConfig as UserConfig } from 'vitest/config';
 import baseConfig from '../vitest.config.base.js';
-import { backendTestOptions, mergeBackendConfig } from './vitest.shared.js';
+import { BACKEND_TRANSFORM, backendTestOptions, mergeBackendConfig } from './vitest.shared.js';
 import { SERIAL_TEST_PATTERNS } from './test/serial-test-files.js';
 import { backendTestWorkers } from './test/test-workers.js';
 
@@ -45,6 +45,7 @@ const include = ['test/**/*.test.ts', 'test/**/*.bench.ts', 'test/**/*.perf.ts',
 const exclude = [...configDefaults.exclude, 'test/release/**'];
 
 export default defineConfig({
+  ...BACKEND_TRANSFORM,
   test: {
     ...(globalSetup !== undefined ? { globalSetup } : {}),
     ...(reporters !== undefined ? { reporters } : {}),
@@ -53,6 +54,7 @@ export default defineConfig({
     ...(teardownTimeout !== undefined ? { teardownTimeout } : {}),
     projects: [
       {
+        ...BACKEND_TRANSFORM,
         test: {
           ...projectOptions,
           name: 'backend',
@@ -64,6 +66,7 @@ export default defineConfig({
         },
       },
       {
+        ...BACKEND_TRANSFORM,
         test: {
           ...projectOptions,
           name: 'backend-serial',

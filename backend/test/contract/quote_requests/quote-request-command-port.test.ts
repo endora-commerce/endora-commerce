@@ -263,6 +263,32 @@ describe('quoteRequestCommandPort — the admin routes’ Commands (#1824)', () 
     expect(cleared.assignedAdminUserId).toBeNull();
   });
 
+  it('assign refuses a target who may not handle quote requests with 422 RFQ_ASSIGNEE_NOT_ELIGIBLE, on the route and the port alike (#1906)', async () => {
+    // `stub-restricted-admin-session`'s administrator: active, `orders:read` only.
+    const restricted = '00000000-0000-4000-8000-0000000000b2';
+    const unknown = '00000000-0000-4000-8000-00000019060f';
+    const [a, b] = [await pending(), await pending()];
+    const [beforeA, beforeB] = [await written(a.id), await written(b.id)];
+
+    for (const target of [restricted, unknown]) {
+      const res = await h.app.inject({ method: 'POST', url: `${QR}/${a.id}/assign`, cookies: ADMIN, payload: { adminUserId: target } });
+      expect(res.statusCode, res.body).toBe(422);
+      const error = (res.json() as { error: { code: string; message: string } }).error;
+      expect(error.code).toBe(ERROR_CODES.RFQ_ASSIGNEE_NOT_ELIGIBLE);
+      // The operator's sentence, not the buyer's (`submission`).
+      expect(error.message).toContain('Choose another administrator');
+      await expect(asAdmin(() => port.assign(b.id, { adminUserId: target }))).rejects.toMatchObject({
+        statusCode: 422,
+        code: ERROR_CODES.RFQ_ASSIGNEE_NOT_ELIGIBLE,
+      });
+    }
+    // Nothing written: no entry, no version moved.
+    expect(added(beforeA, await written(a.id))).toEqual({ audit: [], history: [], notifications: 0 });
+    expect(added(beforeB, await written(b.id))).toEqual({ audit: [], history: [], notifications: 0 });
+    const versions = await sql<{ version: number }>(`select version from quote_requests where id in (?, ?) order by id`, [a.id, b.id]);
+    expect(versions.map((row) => Number(row.version)).sort()).toEqual([a.version, b.version].sort());
+  });
+
   it('sendDocument runs quote_request.send_document exactly as POST …/:id/pdf/send does', async () => {
     const [a, b] = [await priced(), await priced()];
     const [beforeA, beforeB] = [await written(a.id), await written(b.id)];

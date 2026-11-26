@@ -155,11 +155,17 @@ export async function eventsDispatchedBy<T>(
  * Run `act` and answer what a reader with a connection of its own saw **at the
  * moment** each `eventName` was emitted.
  *
- * `read` is started synchronously inside `emit`, before any subscriber runs, so
- * its answer does not depend on how long the subscribers registered ahead of a
- * test's own take — the search indexer alone can outlast a commit. That is what
- * makes "the event is emitted after the write is saved" a measurement: emitted
- * too early, the read is on its way before the write is.
+ * `read` is started synchronously when the bus dispatches the event, before any
+ * subscriber runs, so its answer does not depend on how long the subscribers
+ * registered ahead of a test's own take — the search indexer alone can outlast a
+ * commit. That is what makes "the event is emitted after the write is saved" a
+ * measurement: emitted too early, the read is on its way before the write is.
+ *
+ * **At dispatch, not at `emit`** (issue #1906). A write run as a Command emits
+ * its event inside the Command Bus's transaction, where the bus only buffers it
+ * and dispatches it once the transaction committed (`EventBus.run`); a direct
+ * `emit` outside such a scope dispatches at once, so the two moments coincide.
+ * Reading at the `emit` call would measure the buffer, not the announcement.
  */
 export async function readAtEmit<T, R>(
   h: BackendServerHandle,
@@ -167,18 +173,18 @@ export async function readAtEmit<T, R>(
   read: (payload: Record<string, unknown>) => Promise<R>,
   act: () => Promise<T>,
 ): Promise<{ result: T; reads: R[] }> {
-  const bus = h.eventBus as unknown as { emit: (name: string, payload: unknown) => void };
-  const original = bus.emit;
+  const bus = h.eventBus as unknown as { dispatch: (name: string, payload: unknown) => Promise<void> };
+  const original = bus.dispatch;
   const pending: Array<Promise<R>> = [];
-  bus.emit = function emit(this: unknown, name: string, payload: unknown): void {
+  bus.dispatch = function dispatch(this: unknown, name: string, payload: unknown): Promise<void> {
     if (name === eventName) pending.push(read((payload ?? {}) as Record<string, unknown>));
-    original.call(this, name, payload);
+    return original.call(this, name, payload);
   };
   try {
     const result = await act();
     return { result, reads: await Promise.all(pending) };
   } finally {
-    bus.emit = original;
+    bus.dispatch = original;
   }
 }
 

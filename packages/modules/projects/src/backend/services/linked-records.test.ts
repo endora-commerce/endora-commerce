@@ -70,6 +70,9 @@ function owners(
     listOpenForOrganization: vi.fn(async () => []),
     search: vi.fn(async () => []),
     statusName: vi.fn(async (code: string) => code),
+    listNotes: vi.fn(async () => {
+      throw new Error('opportunityReadPort.listNotes: linked records read no note');
+    }),
   } satisfies OpportunityReadPort;
   const subject = createLinkedRecordOwners({
     quoteRequests,

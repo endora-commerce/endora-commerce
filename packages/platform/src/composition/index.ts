@@ -91,9 +91,9 @@ export { createCursorSeal } from './cursor-seal.js';
 
 // --- http ---------------------------------------------------------------
 // What an entry point does with a refusal: print the sentence, exit 1
-// (`overlay/overlay-schema.ts`). Here because the three wiring files that call
-// them already import this barrel.
-export { exitOnRefusal, refuseOverlaySchema } from '../overlay/overlay-schema.js';
+// (`overlay/overlay-schema.ts`). Here because the wiring files that call it
+// already import this barrel.
+export { exitOnRefusal } from '../overlay/overlay-schema.js';
 
 export { buildServer, type ModulePlugin } from '../http/server.js';
 export { ApiInterceptorRegistry } from '../http/interceptors/index.js';

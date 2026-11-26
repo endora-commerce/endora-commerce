@@ -11,12 +11,14 @@ import type {
   AdminNotificationRecordPort,
   AdminSearchProviderRegistryPort,
   AdminRolePort,
+  AdminTenantScopePort,
   AdminUserReadPort,
   BuyerLinePricePort,
   CartWritePort,
   CatalogAttributeReadPort,
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
+  CatalogProductUrlKeyReadPort,
   CustomerAccountReadPort,
   CustomerNotificationRecordPort,
   CustomerPushPort,
@@ -526,6 +528,9 @@ export function registerModule(ctx: ModuleContext): void {
           // dependencies; both are resolved per call.
           organizationRoles: () => lazyPort<OrganizationRoleReadPort>(ctx, 'organizationRoleReadPort'),
           permissions: lazyPort<PermissionReadPort>(ctx, 'permissionService'),
+          // Issue #1906 — the reach of the assignee a command hook names on the
+          // buyer's create. `organizations` is a binding dependency; resolved per call.
+          adminTenantScope: lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort'),
           // The completion reactor's second look at an order whose commit was
           // still in flight (`specs/143-crm-sales-opportunities/`, FR-104). Off
           // the bus's chain, so in a system scope of its own — the handler's
@@ -809,6 +814,19 @@ export function registerModule(ctx: ModuleContext): void {
               adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
               // A kernel registration: no module edge.
               salesChannels: lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort'),
+              // Issue #1904 — the product name in the document's language and
+              // the product page: `catalog`'s effective texts and URL keys, on
+              // the channel's storefront address as the customer e-mails read it.
+              catalogTexts: lazyPort<CatalogProductAvailabilityPort>(ctx, 'catalogProductAvailabilityPort'),
+              catalogUrlKeys: lazyPort<CatalogProductUrlKeyReadPort>(ctx, 'catalogProductUrlKeyReadPort'),
+              storefrontUrl: (salesChannelId) =>
+                resolveCustomerStorefrontUrl(
+                  (id) =>
+                    ctx
+                      .cradle<QuoteRequestsCradle>()
+                      .settingsReadPort.get('sales_channels.storefront_url', id, z.string()),
+                  salesChannelId,
+                ),
               taxRate: (organizationId) => ctx.cradle<QuoteRequestsCradle>().rfqTaxRateResolver(organizationId),
             }),
             customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),

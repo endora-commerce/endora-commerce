@@ -490,12 +490,13 @@ describe('quote PDF — the remembered template and the choices (T020)', () => {
         },
       ],
     };
-    // Feature 159 added `groups` and each line's `groupId`/`position`, defaulted
-    // so data built before it still parses.
+    // Feature 159 added `groups` and each line's `groupId`/`position`, and
+    // issue #1904 each line's `productUrl`, defaulted so data built before
+    // them still parses.
     expect(quoteRequestDocumentDataSchema.parse(JSON.parse(JSON.stringify(data)))).toEqual({
       ...data,
       groups: [],
-      lines: data.lines.map((l) => ({ ...l, groupId: null, position: 0 })),
+      lines: data.lines.map((l) => ({ ...l, groupId: null, position: 0, productUrl: null })),
     });
   });
 });
@@ -743,6 +744,12 @@ describe('line groups — replies (T005)', () => {
     const lineShape = shape.lines.element;
     expect(lineShape.shape.groupId.parse(ID(50))).toBe(ID(50));
     expect(lineShape.shape.position.parse(undefined)).toBe(0);
+  });
+
+  it("issue #1904 — each line carries its product page's address, null where there is none", () => {
+    const lineShape = quoteRequestDocumentDataSchema.shape.lines.element;
+    expect(lineShape.shape.productUrl.parse(undefined)).toBeNull();
+    expect(lineShape.shape.productUrl.parse('https://shop.example.com/p/bolt')).toBe('https://shop.example.com/p/bolt');
   });
 
   it('a read-port line record without group or position still satisfies the port (additive)', () => {
