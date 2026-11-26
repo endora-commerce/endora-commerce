@@ -95,9 +95,12 @@ Admin UI shows. Owner decisions:
 - What does the Admin UI call a quote that is not shared yet? → **Not shared** (Polish
   **Nieudostępniona**), not "Draft" / "Szkic": the badge on the quote's screen and in the list, the
   list filter and the line under the quote's title (FR-009). No history label says "Draft" /
-  "Szkic" or "Not shared": the generic creation entry reads "Request created" (Polish "Zapytanie
-  utworzone") for every quote, customer-created ones included, and an operator-created quote adds
-  "Request created by sales on the customer's behalf". "Draft" / "szkic" stays only for unsaved
+  "Szkic" or "Not shared". The history keeps its existing creation entries, merged per spec 146
+  R8: an operator-created quote shows ONE entry, "Request created by sales on the customer's
+  behalf" (Polish "Zapytanie utworzone przez dział sprzedaży w imieniu klienta"); a
+  customer-submitted quote shows "Request submitted" (Polish "Zapytanie wysłane"); the plain
+  "Request created" (Polish "Zapytanie utworzone") appears only for a creation event with no such
+  partner. "Draft" / "szkic" stays only for unsaved
   edits on the *Modify* tab, so each word has one meaning on a screen.
 - What is the create screen's secondary button (save without sharing)? → **Save without sharing**
   (Polish **Zapisz bez udostępniania**) (FR-020).
@@ -230,7 +233,7 @@ validity, wait, share it, and read its date; override the days on another quote.
    quote uses its own number and no other quote changes.
 5. **Given** the default is changed, **When** later quotes are created, **Then** they get the new
    value and earlier quotes keep theirs.
-6. **Given** the create screen or a draft, **When** the operator reads the validity, **Then** it
+6. **Given** the create screen or an open draft, **When** the operator reads the validity, **Then** it
    shows the number of days and that they count from sharing; after sharing, both sides see the
    date.
 7. **Given** a shared quote with a validity date, **When** the operator revises it with 0 days (or
@@ -282,12 +285,16 @@ validity, wait, share it, and read its date; override the days on another quote.
   (Polish **Nieudostępniona**) in the badge on the quote's screen and in the list, in the list
   filter and in the line under the quote's title; it MUST NOT call it "Draft" / "Szkic", which
   stays only for unsaved edits on the *Modify* tab. No history label uses "Draft" / "Szkic" or
-  "Not shared": the creation entry reads "Request created" (Polish "Zapytanie utworzone") for
-  every quote, and an operator-created quote's paired entry reads "Request created by sales on the
-  customer's behalf". While the quote is a draft, its screen MUST show, under the title, the line
-  "Only your team sees this quote. The customer is not notified until shared." (Polish "Ofertę
-  widzi tylko Twój zespół. Klient dostanie powiadomienie po udostępnieniu."), each at most 80
-  characters.
+  "Not shared": the history keeps its existing creation entries, merged per spec 146 R8 (an
+  operator-created quote shows one entry, "Request created by sales on the customer's behalf"; a
+  customer-submitted quote shows "Request submitted"; "Request created" appears only for a
+  creation event with no such partner). While the quote is a draft and still open (not Approved,
+  Completed, Canceled or Expired), its screen MUST show, under the title, the line "Only your team
+  sees this quote. The customer is not notified until shared." (Polish "Ofertę widzi tylko Twój
+  zespół. Klient dostanie powiadomienie po udostępnieniu."), each at most 80 characters. A closed
+  quote that was never shared keeps the *Not shared* badge on its screen and in the list, and the
+  list filter still finds it, but its screen MUST NOT show that line, the "not shared yet · valid N
+  days from sharing" meta text or the Share action: nothing is left to share.
 - **FR-010**: Quote requests a customer submits MUST stay visible to the customer at once.
 - **FR-011**: The same product and variant MAY appear on several lines of a quote, each with its
   own quantity and price; saving a draft, sharing it, the customer's acceptance and a later
@@ -329,8 +336,8 @@ validity, wait, share it, and read its date; override the days on another quote.
 - **FR-030**: An administrator MUST be able to set one global default validity for new operator
   quotes, in days; out of the box it is 0, meaning no deadline.
 - **FR-031**: A new operator quote MUST carry the default number of days unless the operator
-  changes it for that quote; the create screen and a draft MUST show the days and that they count
-  from sharing.
+  changes it for that quote; the create screen and an open draft MUST show the days and that they
+  count from sharing (a closed, never-shared quote does not: FR-009).
 - **FR-032**: The validity date MUST be set at the moment of sharing: that moment plus the quote's
   number of days; no days, or 0 days typed on the draft, means no date. 0 days, or no days, MUST
   mean no deadline on every write of the validity, including a revision of a quote already shared:
