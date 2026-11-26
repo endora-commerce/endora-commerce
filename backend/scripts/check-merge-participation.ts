@@ -38,6 +38,7 @@ import { MERGE_PARTICIPATION_PENDING } from './ledgers/merge-participation-pendi
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
 import { reportReadSize } from './lib/read-size.js';
 import { requireModuleLayout } from './lib/module-roots.js';
+import { overlayManifestEntries } from './check-port-dependencies.js';
 
 export * from '@endora-commerce/cli/rules/merge-participation.js';
 
@@ -93,7 +94,12 @@ async function main(): Promise<void> {
   const index = (await import(pathToFileURL(layout.manifestIndexPath).href)) as {
     DISCOVERED_MANIFESTS: ReadonlyArray<{ manifest: ModuleManifest }>;
   };
-  const declarations = declarationsFrom(index.DISCOVERED_MANIFESTS.map((entry) => entry.manifest));
+  // Every deployment's overlay manifests too (issue #210's rule for port edges):
+  // the walk reads `src/apps/` as well, so an overlay module's entities are in the
+  // population, and the manifest index — bare core by construction — never
+  // carries the declaration that covers them.
+  const overlays = await overlayManifestEntries();
+  const declarations = declarationsFrom([...index.DISCOVERED_MANIFESTS, ...overlays].map((entry) => entry.manifest));
 
   if (process.argv.includes('--undeclared')) {
     const bare = checkMergeParticipation({ population, declarations });
