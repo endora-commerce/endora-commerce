@@ -260,6 +260,25 @@ describe('the deprecated ports delegate (0.113.0)', () => {
     expect(attributes.updateOption).toHaveBeenCalledWith('o', { sortOrder: 2 });
   });
 
+  it('catalogProductWritePort.updateProduct: a malformed version token is refused 422, nothing written', async () => {
+    const { admin, calls } = productAdmin();
+    const products = productPort(admin);
+    const port = createCatalogProductWritePort({
+      products: () => products,
+      attributes: () => ({}) as never,
+      attributeReads: () => ({ listAttributes: async () => [], listAttributesByFlag: async () => [] }),
+    });
+    for (const version of ['', '0x1F', ' 7 ', '1e3', '-1']) {
+      await expect(port.updateProduct(P1, { name: 'N', version } as never), version).rejects.toMatchObject({
+        statusCode: 422,
+        code: 'VALIDATION_FAILED',
+      });
+    }
+    expect(calls).toEqual({});
+    await port.updateProduct(P1, { name: 'N', version: '42' });
+    expect(calls['updateProductAudited']).toEqual([[P1, { name: 'N', version: '42' }, undefined, { source: undefined, extensions: undefined }]]);
+  });
+
   it('catalogProductScopeWritePort: the registered-module rule, then applyScopedValues with the source', async () => {
     const { products } = fakePorts();
     const port = createCatalogProductScopeWritePort({

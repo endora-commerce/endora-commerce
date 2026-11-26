@@ -3538,7 +3538,10 @@ export interface CatalogProductCommandPort {
   /** `product.create`; the product is bound to the default sales channel unless it already has one. */
   create(req: CreateProductRequest, options?: AggregateCommandOptions): Promise<CatalogProductRecord>;
   /**
-   * `product.update` — the admin `PATCH` without its completeness gate. A patch that changes
+   * `product.update` — the admin `PATCH`, **without its completeness gate** (feature 163, A-6:
+   * integrations are never gated; research R-19.5): a status change is never refused
+   * `SCOPE_INCOMPLETE` and answers no warnings. This narrows FR-008 ("the admin route's
+   * refusals") for that one gate; every other refusal is the route's. A patch that changes
    * nothing writes and records nothing (the editor version still moves, as on the route).
    */
   update(id: string, req: CatalogProductUpdateInput, options?: AggregateCommandOptions): Promise<CatalogProductRecord>;

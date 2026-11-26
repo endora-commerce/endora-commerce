@@ -42,6 +42,7 @@ describe('catalogProductCommandPort — the admin routes’ Commands (#1825)', (
   let port: CatalogProductCommandPort;
   let note: string;
   let colour: string;
+  let mandatory: string;
   let channel: string;
   const announced: Array<{ name: string; productId: string; changedFields?: string[] }> = [];
   const offs: Array<() => void> = [];
@@ -86,7 +87,8 @@ describe('catalogProductCommandPort — the admin routes’ Commands (#1825)', (
   }
 
   /** A product through the admin create, in the fixture's attribute set. */
-  const fresh = (input: Parameters<ScopedValuesFixture['product']>[0] = {}) => fx.product(input);
+  const fresh = (input: Parameters<ScopedValuesFixture['product']>[0] = {}) =>
+    fx.product({ ...input, attributeValues: { [mandatory]: 'set', ...(input.attributeValues ?? {}) } });
 
   async function refusal(promise: Promise<unknown>): Promise<{ statusCode: number; code: string }> {
     try {
@@ -113,6 +115,7 @@ describe('catalogProductCommandPort — the admin routes’ Commands (#1825)', (
     port = h.container.resolve<CatalogProductCommandPort>('catalogProductCommandPort');
     note = await fx.attribute({ key: 'note', valueType: 'string' });
     colour = await fx.attribute({ key: 'colour', valueType: 'select', options: ['red', 'blue'] });
+    mandatory = await fx.attribute({ key: 'mandatory', valueType: 'string', isRequired: true });
     channel = await fx.channel(['pl-PL']);
     for (const name of EVENTS) {
       offs.push(
@@ -267,7 +270,7 @@ describe('catalogProductCommandPort — the admin routes’ Commands (#1825)', (
         return rest;
       }),
     );
-    expect(record.attributeValues).toEqual({ [colour]: 'red' });
+    expect(record.attributeValues).toEqual({ [colour]: 'red', [mandatory]: 'set' });
 
     const before = (await entries(id)).length;
     expect(
@@ -279,6 +282,27 @@ describe('catalogProductCommandPort — the admin routes’ Commands (#1825)', (
     // A merge that changes nothing records nothing.
     await asAdmin(() => port.setCustomFieldValues(id, async (current) => current));
     expect(await entries(id)).toHaveLength(before);
+  });
+
+  it('setCustomFieldValues — a merge dropping a required attribute of the set is refused, nothing written', async () => {
+    const id = await fresh({ attributeValues: { [note]: 'kept' } });
+    const before = (await entries(id)).length;
+    const bag = async () =>
+      (await fx.sql<{ attribute_values: Record<string, unknown> }>(`select attribute_values from products where id = ?`, [id]))[0]!
+        .attribute_values;
+    const stored = await bag();
+    expect(
+      await refusal(
+        asAdmin(() =>
+          port.setCustomFieldValues(id, async (current) => {
+            const { [mandatory]: _dropped, ...rest } = current;
+            return rest;
+          }),
+        ),
+      ),
+    ).toMatchObject({ statusCode: 400, code: ERROR_CODES.ATTRIBUTE_VALUES_REQUIRED });
+    expect(await entries(id)).toHaveLength(before);
+    expect(await bag()).toEqual(stored);
   });
 
   it('applyScopedValues — product.scoped_values.import, as the deprecated applyScopes', async () => {

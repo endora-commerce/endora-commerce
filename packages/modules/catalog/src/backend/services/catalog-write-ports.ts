@@ -44,7 +44,10 @@ export function createCatalogProductWritePort(deps: {
     createProduct: (req) => deps.products().create(req),
     updateProduct(id, req) {
       const { version, ...patch } = req;
-      return deps.products().update(id, patch, version === undefined ? {} : { expectedVersion: Number(version) });
+      // R-19.7 — only a decimal token converts; anything else becomes NaN, which the port refuses
+      // `422 VALIDATION_FAILED` before anything is read (`Number('')` would be 0, `Number('0x1F')` 31).
+      const expectedVersion = version === undefined ? undefined : /^\d+$/.test(version) ? Number(version) : Number.NaN;
+      return deps.products().update(id, patch, expectedVersion === undefined ? {} : { expectedVersion });
     },
     listAttributes: () => deps.attributeReads().listAttributes(),
     listAttributesByFlag: (flag) => deps.attributeReads().listAttributesByFlag(flag),
