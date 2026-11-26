@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import type { CommandMiddlewareDeclaration, ModuleOrigin } from '@endora-commerce/contracts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { COMMAND_OBSERVE_MAX_IN_FLIGHT, type CommandMiddlewareDeclaration, type ModuleOrigin } from '@endora-commerce/contracts';
 import {
   CommandMiddlewareOrderContradictionError,
   CommandMiddlewareOriginError,
@@ -11,7 +11,7 @@ import {
   UnregisteredCommandMiddlewareError,
 } from './errors.js';
 import { CommandMiddlewareRegistry, type CommandMiddlewareCompositionInput } from './registry.js';
-import type { CommandMiddlewareEntry } from './types.js';
+import type { CommandMiddlewareEntry, CommandRunOutcome } from './types.js';
 
 /**
  * `specs/189-command-middleware/` T010 (FR-002, FR-004, FR-031): registering
@@ -222,5 +222,76 @@ describe('CommandMiddlewareRegistry — admit order (189 T010, FR-030, FR-031)',
       ]),
     );
     expect(registry.plan().map((entry) => `${entry.moduleId}#${entry.id}`)).toEqual(['acme_y#two', 'acme_y#one', 'acme_z#one']);
+  });
+});
+
+describe('CommandMiddlewareRegistry — observe in-flight cap (189 T022, FR-023)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const outcome: CommandRunOutcome = Object.freeze({
+    root: Object.freeze({
+      action: 'widget.create',
+      objectType: 'widget',
+      objectId: 'w-1',
+      actor: { kind: 'system', actorAdminUserId: null, impersonatedCustomerAccountId: null } as const,
+      organizationId: null,
+      requestMeta: { requestId: null, ipAddress: null, userAgent: null },
+      lineage: { ancestors: [], depth: 0, viaHook: false },
+    }),
+    committed: true,
+    refusal: null,
+    errorCode: null,
+    durationMs: 1,
+    commands: [
+      { action: 'widget.create', objectType: 'widget', objectId: 'w-1', depth: 0, viaHook: false, refused: false, audited: true, notedFields: {} },
+    ],
+  });
+
+  it('drops a call beyond the cap, counts it, and logs the count at most once a minute', async () => {
+    vi.useFakeTimers();
+    const lines: Array<{ msg: string; obj: Record<string, unknown> }> = [];
+    const log = {
+      info: () => {},
+      warn: (obj: object, msg: string) => void lines.push({ msg, obj: obj as Record<string, unknown> }),
+      error: () => {},
+    };
+    let started = 0;
+    const registry = new CommandMiddlewareRegistry({ log });
+    registry.register('acme_metrics', [
+      {
+        id: 'slow',
+        phase: 'observe',
+        observe: () => {
+          started += 1;
+          return new Promise<void>(() => undefined);
+        },
+      },
+    ]);
+    registry.seal(input([{ moduleId: 'acme_metrics', id: 'slow', phase: 'observe', actions: '*', timeoutMs: 5000 }]));
+
+    for (let i = 0; i < COMMAND_OBSERVE_MAX_IN_FLIGHT + 2; i += 1) registry.scheduleObserve(outcome);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(started).toBe(COMMAND_OBSERVE_MAX_IN_FLIGHT);
+    expect(lines.filter((line) => line.msg === 'command.observe.dropped').map((line) => line.obj['dropped'])).toEqual([1]);
+
+    registry.scheduleObserve(outcome);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lines.filter((line) => line.msg === 'command.observe.dropped')).toHaveLength(1);
+
+    // A minute later the counted drops are reported, with the one that triggers it.
+    vi.setSystemTime(Date.now() + 61_000);
+    registry.scheduleObserve(outcome);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lines.filter((line) => line.msg === 'command.observe.dropped').map((line) => line.obj['dropped'])).toEqual([1, 3]);
+    expect(started).toBe(COMMAND_OBSERVE_MAX_IN_FLIGHT);
+
+    // Once the stuck calls time out, the middleware is observed again.
+    await vi.advanceTimersByTimeAsync(5000);
+    registry.scheduleObserve(outcome);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(started).toBe(COMMAND_OBSERVE_MAX_IN_FLIGHT + 1);
+    expect(lines.filter((line) => line.msg === 'command.observe.timeout')).toHaveLength(COMMAND_OBSERVE_MAX_IN_FLIGHT);
   });
 });

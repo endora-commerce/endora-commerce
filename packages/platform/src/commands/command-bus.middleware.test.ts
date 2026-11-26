@@ -12,12 +12,12 @@ import type { Command } from './command.js';
 import { CommandHookRegistry } from './hooks/registry.js';
 import { CommandRefusedError } from './middleware/errors.js';
 import { CommandMiddlewareRegistry } from './middleware/registry.js';
-import type { CommandAdmissionMeta, CommandMiddlewareEntry } from './middleware/types.js';
+import type { CommandAdmissionMeta, CommandMiddlewareEntry, CommandRunOutcome } from './middleware/types.js';
 import { EventBus, type EventBase } from '../events/bus.js';
 import { HttpError } from '../http/error-envelope.js';
 import type { PlatformLogger } from '../kernel/logging.js';
 import type { AuditPort, RecordAuditInput } from '../kernel/ports/audit.js';
-import { runWithTenantContext, type TenantContext } from '../tenancy/tenant-context.js';
+import { getTenantContext, runWithTenantContext, type TenantContext } from '../tenancy/tenant-context.js';
 
 /**
  * `specs/189-command-middleware/` T012, T020, T030 (FR-010 – FR-015,
@@ -368,3 +368,219 @@ describe('CommandBus — admit (189 T012)', () => {
   });
 });
 
+
+describe('CommandBus — observe (189 T020)', () => {
+  function recorder(seen: CommandRunOutcome[]) {
+    return (outcome: CommandRunOutcome): void => {
+      seen.push(outcome);
+    };
+  }
+
+  it('observes a committed run after the commit, one entry per Command, names only', async () => {
+    const seen: CommandRunOutcome[] = [];
+    const hooks = new CommandHookRegistry();
+    hooks.register('acme_erp', [
+      {
+        id: 'mirror',
+        on: hookableAction('organization.admin_patch', 'organization', ['beforeCommit']),
+        phase: 'beforeCommit',
+        handler: ({ noteAuditChanges }) => noteAuditChanges(['x_acme_erp_code', 'x_acme_erp_class']),
+      },
+    ]);
+    hooks.seal({
+      hookableActions: [{ moduleId: 'organizations', action: 'organization.admin_patch', objectType: 'organization', phases: ['beforeCommit'] }],
+      moduleDependencies: { acme_erp: ['organizations'] },
+    });
+    const h = makeHarness([{ moduleId: 'acme_metrics', entries: [{ id: 'timing', phase: 'observe', observe: recorder(seen) }] }], { hooks });
+    const child: Command<string> = { ...write('organization.admin_patch', 'org-1', []), hookData: () => ({}) };
+    await asAdmin(() => h.bus.run(write('quote.convert', 'q-1', [], [child])));
+    await h.middleware.settled();
+    expect(seen).toHaveLength(1);
+    const [outcome] = seen;
+    expect(outcome).toMatchObject({ committed: true, refusal: null, errorCode: null });
+    expect(outcome!.root).toMatchObject({ action: 'quote.convert', lineage: { depth: 0 } });
+    expect(outcome!.durationMs).toBeGreaterThanOrEqual(0);
+    expect(outcome!.commands).toEqual([
+      { action: 'quote.convert', objectType: 'quote', objectId: 'q-1', depth: 0, viaHook: false, refused: false, audited: true, notedFields: {} },
+      {
+        action: 'organization.admin_patch',
+        objectType: 'organization',
+        objectId: 'org-1',
+        depth: 1,
+        viaHook: false,
+        refused: false,
+        audited: true,
+        notedFields: { acme_erp: ['x_acme_erp_class', 'x_acme_erp_code'] },
+      },
+    ]);
+    expect(Object.isFrozen(outcome)).toBe(true);
+    expect(Object.isFrozen(outcome!.commands[1])).toBe(true);
+  });
+
+  it('observes a rollback by a hook veto, with the veto’s code', async () => {
+    const seen: CommandRunOutcome[] = [];
+    const hooks = new CommandHookRegistry();
+    hooks.register('acme_erp', [
+      {
+        id: 'veto',
+        on: hookableAction('widget.create', 'widget', ['beforeCommit']),
+        phase: 'beforeCommit',
+        handler: () => {
+          throw new HttpError(409, REFUSED, 'no');
+        },
+      },
+    ]);
+    hooks.seal({
+      hookableActions: [{ moduleId: 'widgets', action: 'widget.create', objectType: 'widget', phases: ['beforeCommit'] }],
+      moduleDependencies: { acme_erp: ['widgets'] },
+    });
+    const h = makeHarness([{ moduleId: 'acme_metrics', entries: [{ id: 'timing', phase: 'observe', observe: recorder(seen) }] }], { hooks });
+    await expect(asAdmin(() => h.bus.run({ ...write('widget.create', 'w-1', []), hookData: () => ({}) }))).rejects.toThrow();
+    await h.middleware.settled();
+    expect(seen[0]).toMatchObject({ committed: false, refusal: null, errorCode: REFUSED });
+    expect(seen[0]!.commands[0]).toMatchObject({ audited: false, refused: false });
+  });
+
+  it('gives INTERNAL_ERROR for a failure that is not an HttpError', async () => {
+    const seen: CommandRunOutcome[] = [];
+    const h = makeHarness([{ moduleId: 'acme_metrics', entries: [{ id: 'timing', phase: 'observe', observe: recorder(seen) }] }]);
+    const broken: Command<string> = { ...write('widget.create', 'w-1', []), run: async () => { throw new TypeError('boom'); } };
+    await expect(asAdmin(() => h.bus.run(broken))).rejects.toThrow(TypeError);
+    await h.middleware.settled();
+    expect(seen[0]).toMatchObject({ committed: false, errorCode: 'INTERNAL_ERROR' });
+  });
+
+  it('observes a refused root with the refusal naming the middleware and its code', async () => {
+    const seen: CommandRunOutcome[] = [];
+    const h = makeHarness([
+      { moduleId: 'acme_hold', entries: [{ id: 'hold', phase: 'admit', admit: admitWhen(() => true) }] },
+      { moduleId: 'acme_metrics', entries: [{ id: 'timing', phase: 'observe', observe: recorder(seen) }] },
+    ]);
+    await expect(asAdmin(() => h.bus.run(write('widget.create', 'w-1', [])))).rejects.toThrow(CommandRefusedError);
+    await h.middleware.settled();
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      committed: false,
+      refusal: { middleware: 'acme_hold#hold', code: REFUSED },
+      errorCode: REFUSED,
+      commands: [{ action: 'widget.create', refused: true, audited: false }],
+    });
+  });
+
+  it('observes a refused child the parent caught: the run commits, the child is refused and not audited', async () => {
+    const seen: CommandRunOutcome[] = [];
+    const h = makeHarness([
+      { moduleId: 'acme_hold', entries: [{ id: 'hold', phase: 'admit', admit: admitWhen((m) => m.action === 'organization.admin_patch') }] },
+      { moduleId: 'acme_metrics', entries: [{ id: 'timing', phase: 'observe', observe: recorder(seen) }] },
+    ]);
+    await asAdmin(() => h.bus.run(write('quote.convert', 'q-1', [], [write('organization.admin_patch', 'org-1', [])], true)));
+    await h.middleware.settled();
+    expect(seen[0]).toMatchObject({ committed: true, refusal: null, errorCode: null });
+    expect(seen[0]!.commands.map((entry) => [entry.action, entry.refused, entry.audited])).toEqual([
+      ['quote.convert', false, true],
+      ['organization.admin_patch', true, false],
+    ]);
+  });
+
+  it('calls the observer only after the caller’s promise settled and its continuation ran', async () => {
+    let callerContinued = false;
+    let continuedWhenObserved: boolean | undefined;
+    const h = makeHarness([
+      { moduleId: 'acme_metrics', entries: [{ id: 'timing', phase: 'observe', observe: () => void (continuedWhenObserved = callerContinued) }] },
+    ]);
+    await asAdmin(async () => {
+      await h.bus.run(write('widget.create', 'w-1', []));
+      callerContinued = true;
+    });
+    await h.middleware.settled();
+    expect(continuedWhenObserved).toBe(true);
+  });
+
+  it('swallows and logs a throw or a timeout, leaves the result unchanged, and observes later runs', async () => {
+    let calls = 0;
+    const h = makeHarness([
+      {
+        moduleId: 'acme_metrics',
+        timeoutMs: 20,
+        entries: [
+          {
+            id: 'flaky',
+            phase: 'observe',
+            observe: () => {
+              calls += 1;
+              if (calls === 1) throw new RangeError('secret value 42');
+              if (calls === 2) return new Promise<void>(() => undefined);
+              return undefined;
+            },
+          },
+        ],
+      },
+    ]);
+    for (const id of ['w-1', 'w-2', 'w-3']) {
+      await expect(asAdmin(() => h.bus.run(write('widget.create', id, [])))).resolves.toBe(id);
+    }
+    await h.middleware.settled();
+    expect(calls).toBe(3);
+    expect(h.log.lines.map((line) => [line.msg, line.obj['middleware'], line.obj['errorClass']])).toEqual([
+      ['command.observe.failed', 'acme_metrics#flaky', 'RangeError'],
+      ['command.observe.timeout', 'acme_metrics#flaky', undefined],
+    ]);
+    expect(JSON.stringify(h.log.lines)).not.toContain('secret');
+  });
+
+  it('gives an observer of origin package the request id only', async () => {
+    const pkg: CommandRunOutcome[] = [];
+    const overlay: CommandRunOutcome[] = [];
+    const h = makeHarness([
+      { moduleId: 'acme_pkg', origin: 'package', entries: [{ id: 'timing', phase: 'observe', observe: recorder(pkg) }] },
+      { moduleId: 'acme_overlay', origin: 'deployment', entries: [{ id: 'timing', phase: 'observe', observe: recorder(overlay) }] },
+    ]);
+    await asAdmin(() => h.bus.run(write('widget.create', 'w-1', [])));
+    await h.middleware.settled();
+    expect(pkg[0]!.root.requestMeta).toEqual({ requestId: 'req-1' });
+    expect(Object.isFrozen(pkg[0]!.root.requestMeta)).toBe(true);
+    expect(overlay[0]!.root.requestMeta).toEqual({ requestId: 'req-1', ipAddress: '203.0.113.7', userAgent: 'agent/1' });
+  });
+
+  it('refuses and logs a Command run from inside an observer', async () => {
+    const holder: { bus?: CommandBus } = {};
+    const h = makeHarness([
+      {
+        moduleId: 'acme_metrics',
+        actions: ['widget.'],
+        entries: [{ id: 'writer', phase: 'observe', observe: async () => { await holder.bus!.run(write('note.create', 'n-1', [])); } }],
+      },
+    ]);
+    holder.bus = h.bus;
+    await asAdmin(() => h.bus.run(write('widget.create', 'w-1', [])));
+    await h.middleware.settled();
+    expect(h.committedAudit.map((entry) => entry.action)).toEqual(['widget.create']);
+    expect(h.log.lines).toContainEqual(
+      expect.objectContaining({ msg: 'command.observe.failed', obj: expect.objectContaining({ middleware: 'acme_metrics#writer', errorClass: 'HttpError' }) }),
+    );
+  });
+
+  it('runs an observer in the run’s ambient tenant context, never a wider one (FR-024)', async () => {
+    const contexts: Array<TenantContext | undefined> = [];
+    const h = makeHarness([
+      { moduleId: 'acme_metrics', entries: [{ id: 'timing', phase: 'observe', observe: () => void contexts.push(getTenantContext()) }] },
+    ]);
+    await runWithTenantContext(orgCtx, () => h.bus.run(write('widget.create', 'w-1', [])));
+    await h.middleware.settled();
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]).toMatchObject({ mode: 'single-org', organizationId: 'org-1' });
+  });
+
+  it('runs an observer whose filter matches any Command in the run, and sees the whole run', async () => {
+    const seen: CommandRunOutcome[] = [];
+    const h = makeHarness([
+      { moduleId: 'acme_metrics', actions: ['organization.'], entries: [{ id: 'timing', phase: 'observe', observe: recorder(seen) }] },
+    ]);
+    await asAdmin(() => h.bus.run(write('widget.create', 'w-1', [])));
+    await asAdmin(() => h.bus.run(write('quote.convert', 'q-1', [], [write('organization.admin_patch', 'org-1', [])])));
+    await h.middleware.settled();
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.root.action).toBe('quote.convert');
+    expect(seen[0]!.commands.map((entry) => entry.action)).toEqual(['quote.convert', 'organization.admin_patch']);
+  });
+});
