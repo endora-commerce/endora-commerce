@@ -15,6 +15,7 @@ export function makeBlockOrganizationCommand(
     {
       action: 'organization.blocked',
       requireStatus: 'active',
+      notifyCustomer: false,
       newStatus: 'blocked',
       reason,
       mutate: (org) => {

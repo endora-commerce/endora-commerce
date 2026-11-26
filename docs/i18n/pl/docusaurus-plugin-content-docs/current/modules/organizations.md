@@ -78,9 +78,13 @@ podatkowe* niżej).
 ## Emitowane zdarzenia
 
 `organization.registered.v1`, `organization.verified.v1`,
-`organization.status_changed.v1` (`{ organizationId, newStatus, previousStatus, reason }`, po
-zatwierdzeniu, odrzuceniu, zablokowaniu lub odblokowaniu; `reason` to powód podany przez operatora
-przy odrzuceniu lub zablokowaniu, w pozostałych przypadkach `null`), `organization_role.permissions_changed.v1` (`{ organizationId,
+`organization.status_changed.v1` (`{ organizationId, newStatus, previousStatus, reason,
+notifyCustomer }`, po zatwierdzeniu, odrzuceniu, zablokowaniu lub odblokowaniu; `reason` to powód
+podany przez operatora przy odrzuceniu lub zablokowaniu, w pozostałych przypadkach `null`;
+`notifyCustomer` mówi, czy klient zostaje powiadomiony — `true` przy zatwierdzeniu i przy
+odrzuceniu, chyba że wywołujący wyłączył powiadomienie, `false` przy zablokowaniu i odblokowaniu.
+Na jego podstawie własny subskrybent tego modułu wysyła e-maile o zatwierdzeniu i odrzuceniu, po
+zatwierdzeniu zmiany), `organization_role.permissions_changed.v1` (`{ organizationId,
 roleId, added, removed }`, po zmianie uprawnień roli),
 `organization.converted_to_company.v1` (`OrganizationConvertedToCompanyEvent`: `{ eventId,
 occurredAt, organizationId, convertedAt }` — bez nazwy i bez NIP; wysyłane raz, po zatwierdzeniu
@@ -104,9 +108,9 @@ zatwierdzeniu korekty NIP, i nie dla korekty na wartość, która jest już zapi
   `customer-account-change-role.command.ts` i `customer-account-remove-member.command.ts` oraz
   w `organization-invitation-revoke.command.ts` tego modułu; nowe miejsca, w których „musi zostać
   co najmniej jeden administrator”, dodawaj właśnie tam.
-- **Wartości pól niestandardowych z kodu po stronie serwera** — publikowany port
-  `organizationCustomFieldWritePort` (zob. *Ustawianie wartości pól
-  niestandardowych z kodu po stronie serwera* poniżej).
+- **Zapisy po stronie serwera** — publikowany port `organizationCommandPort`, port zapisu
+  organizacji, dla każdej operacji, którą wykonuje na niej administrator (zob. *Zapisy po stronie
+  serwera* niżej).
 - **Zadeklarowane kolumny rozszerzeń** — `organizations` to rozszerzalna tabela: zainstalowany
   pakiet modułu zależny od tego modułu może zadeklarować w niej własne kolumny `x_<moduleId>_*`, a
   odczyty szczegółów i listy w panelu administracyjnym (`GET /api/v1/admin/organizations/:id`,
@@ -115,8 +119,6 @@ zatwierdzeniu korekty NIP, i nie dla korekty na wartość, która jest już zapi
   kolumny rozszerzeń* w przewodniku po architekturze.
 - **Hooki poleceń** — sześć zapisów organizacji są zadeklarowane jako dostępne dla hooków, więc inny
   moduł może brać w nich udział wewnątrz ich transakcji (zob. *Akcje dostępne dla hooków* poniżej).
-- **Wyszukiwanie, zakładanie i aktualizowanie organizacji z innego modułu** — opublikowany port
-  `organizationWritePort` (zob. *Zapis organizacji z innego modułu* niżej).
 
 ### Akcje dostępne dla hooków
 
@@ -130,10 +132,10 @@ architektury *Command Bus*.
 
 | Akcja | Referencja | Zapisywana przez | Dane hooka |
 | --- | --- | --- | --- |
-| `organization.create` | `ORGANIZATION_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/organizations`, `organizationWritePort.create` | `organization`, `salesChannelIds` |
+| `organization.create` | `ORGANIZATION_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/organizations`, `organizationCommandPort.create` | `organization`, `salesChannelIds` |
 | `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
 | `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
-| `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCustomFieldWritePort` | `organization`, `changedFields`, `changedCustomFields` |
+| `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCommandPort.setCustomFieldValues` | `organization`, `changedFields`, `changedCustomFields` |
 | `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
 | `organization.tax_id.change` | `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId` | `POST /api/v1/admin/organizations/:id/change-tax-id`, `organizationCommandPort.changeTaxId` | `organizationId`, `changedFields`, `vatValidationReset` |
 
@@ -149,36 +151,122 @@ Hooki zamiany na firmę i korekty NIP dostają wyłącznie identyfikatory, kody 
 NIP-u, nazwy ani adresu. Korekta NIP-u na tę samą wartość niczego nie zmienia, a jej hooki i tak
 są uruchamiane z pustym `changedFields`: wpis audytu powstaje tylko wtedy, gdy hook zgłosił zapis, i
 wtedy ten jeden wpis wymienia wyłącznie pola hooka. Dane rozszerzeń (`extensions`) może przekazać
-tylko kod po stronie serwera — `organizationCustomFieldWritePort.setCustomFieldValues` przyjmuje je
-jako `{ extensions }`, a `organizationCommandPort.convertToCompany` i `changeTaxId` jako trzeci
-argument `{ extensions }` — a żadne ciało żądania HTTP ich jeszcze nie przenosi. Przenoszenie
-organizacji w hierarchii nie jest zadeklarowane jako dostępne dla hooków.
+tylko kod po stronie serwera, w ostatnim argumencie każdej metody `organizationCommandPort` — a
+żadne ciało żądania HTTP ich jeszcze nie przenosi. Przenoszenie organizacji w hierarchii,
+moderacja, ograniczenia i przypisywanie przedstawicieli handlowych nie są zadeklarowane jako
+dostępne dla hooków.
 
-## Zapis organizacji z innego modułu
+**Hook, który ma widzieć każdą zmianę wartości pól niestandardowych, rejestruje się zarówno na
+`organization.admin_patch`, jak i na `organization.set_custom_field_values`.** Edycja w panelu
+zapisuje wartości razem z pozostałymi polami w jednym `organization.admin_patch`; kod po stronie
+serwera zapisuje je osobno przez `organizationCommandPort.setCustomFieldValues`.
 
-Moduł, który synchronizuje klientów z systemu zewnętrznego — konektor ERP lub CRM — wyszukuje,
-zakłada i aktualizuje organizacje przez port publikowany przez ten moduł, `organizationWritePort`
-(kontrakt `OrganizationWritePort` w `@endora-commerce/contracts`, nazwa w kontenerze
-`ORGANIZATION_WRITE_PORT`). Pobieraj go przy każdym użyciu przez
-`lazyPort<OrganizationWritePort>(ctx, 'organizationWritePort')`, z `organizations` w
-`dependencies` manifestu modułu wywołującego. Nie potrzebuje sesji administratora, uprawnienia ani
-wywołania HTTP i niczego z nich nie sprawdza: o dostępie decyduje moduł wywołujący.
+## Zapisy po stronie serwera
 
-```ts
-findByTaxId(taxId: string): Promise<OrganizationRecord[]>;
-create(input: OrganizationWriteCreateInput): Promise<OrganizationRecord>;
-update(
-  id: string,
-  patch: OrganizationWriteUpdatePatch,
-  options?: { expectedVersion?: number },
-): Promise<OrganizationRecord>;
-```
+Inny moduł, moduł nakładki albo proces integracyjny (konektor ERP lub CRM) zapisuje organizację
+przez **`organizationCommandPort`**, port zapisu agregatu organizacji, zadeklarowany jako
+`OrganizationCommandPort` w `@endora-commerce/contracts`. Nigdy nie zapisuje sam tabel tego
+modułu. Pobieraj go przy każdym użyciu przez
+`lazyPort<OrganizationCommandPort>(ctx, 'organizationCommandPort')`, z `organizations` w
+`dependencies` manifestu modułu wywołującego.
 
-- **`findByTaxId`** zwraca dokładnie to samo co `organizationDetailsPort.findByTaxId` (zob.
-  *Wyszukiwanie organizacji po NIP (kod serwerowy)* niżej): NIP jest najpierw normalizowany, a wynik
-  to wszystkie nieusunięte organizacje z tym NIP, zaczynając od korzenia drzewa, albo `[]`. To
-  lista, bo w zakresie `per-tree-root` centrala i jej oddziały mają jeden NIP. Gdy potrzebujesz
-  jednej organizacji do powiązania, użyj `organizationDetailsPort.resolveByTaxId`.
+| Metoda | Akcja audytu | Co w panelu robi to samo |
+| --- | --- | --- |
+| `create(input, options?)` | `organization.create` | `POST /api/v1/admin/organizations` |
+| `update(id, patch, options?)` | `organization.update` | — (pola identyfikacyjne i kontaktowe) |
+| `setParent(id, { parentId }, options?)` | `organization.set_parent`, `organization.move` | `POST /api/v1/admin/organizations/:id/parent` |
+| `approve(id, options?)` | `organization.approved` | `POST /api/v1/admin/organizations/:id/approve` |
+| `reject(id, { reason, notifyCustomerEmail? }, options?)` | `organization.rejected` | `POST /api/v1/admin/organizations/:id/reject` |
+| `block(id, { reason? }, options?)` | `organization.blocked` | `POST /api/v1/admin/organizations/:id/block` |
+| `unblock(id, options?)` | `organization.unblocked` | `POST /api/v1/admin/organizations/:id/unblock` |
+| `delete(id, options?)` | `organization.delete` | `DELETE /api/v1/admin/organizations/:id` |
+| `setCustomFieldValues(id, merge, options?)` | `organization.set_custom_field_values` | — (panel wysyła wartości w `PATCH`) |
+| `convertToCompany(id, input, options?)` | `organization.convert_to_company` | `POST /api/v1/admin/organizations/:id/convert-to-company` |
+| `changeTaxId(id, { taxId }, options?)` | `organization.tax_id.change` | `POST /api/v1/admin/organizations/:id/change-tax-id` |
+| `setRestrictions(id, lists, options?)` | `organization.allow_lists_replace` | `PUT /api/v1/admin/organizations/:id/restrictions` |
+| `patchRestriction(id, kind, { add?, remove? }, options?)` | `organization.allow_list_patch` | `PATCH /api/v1/admin/organizations/:id/restrictions/*` |
+| `setCreditInheritanceMode(id, { mode }, options?)` | `organization.set_credit_mode` | `PUT /api/v1/admin/organizations/:id/credit-inheritance-mode` |
+| `assignSalesRep(id, { adminUserId }, options?)` | `organization.sales_rep_assign` | `POST /api/v1/admin/organizations/:id/sales-reps` |
+| `unassignSalesRep(id, { adminUserId }, options?)` | `organization.sales_rep_unassign` | `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` |
+
+Kanałów sprzedaży istniejącej organizacji port jeszcze nie zmienia.
+
+**Jedna ścieżka zapisu.** Każda metoda uruchamia to samo polecenie (Command), które uruchamia
+endpoint panelu, zbudowane przez tę samą fabrykę, więc oba zapisy nie mogą się różnić: jeden wpis
+audytu z tym samym stanem i to samo zdarzenie. Zatwierdzenie i odrzucenie wysyłają klientowi
+powiadomienie po zatwierdzeniu zmiany, dokładnie tak jak z panelu — powiadomienie wysyła
+subskrybent `organization.status_changed.v1` tego modułu, więc wychodzi także wtedy, gdy
+zatwierdzenie odbywa się wewnątrz innego polecenia. Dane wejściowe to ciała żądań endpointów bez
+ich `version`, walidowane w tych samych granicach, a odmowy to błędy endpointów z ich kodami
+(`422 VALIDATION_FAILED` dla danych poza granicami, `404 NOT_FOUND`,
+`422 ORGANIZATION_STATUS_INVALID`, `409 VERSION_CONFLICT` i własne kody każdej operacji). Jedyna
+różnica: `create` odpowiada na kanał sprzedaży, który nie istnieje, kodem
+`422 UNKNOWN_SALES_CHANNEL`, a endpoint panelu kodem `422 VALIDATION_FAILED`.
+
+**Kto zapisał.** Aktor jest aktorem z bieżącego kontekstu, nigdy parametrem: administrator w
+żądaniu panelu albo w `withSystemScopeActingFor`; aktor **system** w `withSystemScope` w procesie
+w tle, który nie zapisuje administratora — zatwierdzenie przez system nie zapisuje
+zatwierdzającego administratora. Bez żadnego kontekstu tenanta zapis jest odrzucany, zanim
+cokolwiek zostanie zapisane. Port nie sprawdza uprawnień — o dostępie decyduje wywołujący — więc
+nigdy nie pobieraj go dla trasy dostępnej dla klienta. Nie ma w nim też własnych reguł panelu:
+w panelu tylko administrator platformy może zmienić organizację nadrzędną, tryb kredytu i
+przedstawicieli handlowych, a przedstawiciel handlowy sięga tylko do części organizacji; kod
+serwera działający w czyimś imieniu sam stosuje te reguły.
+
+**Opcje** (ostatni parametr każdej metody):
+
+- `source` — kod z małych liter nazywający integrację (`erp`, `erp.customer-master`, co najwyżej
+  64 znaki), zapisywany jako `source` we wpisie audytu obok aktora. To on odróżnia dwie
+  integracje, gdy obie zapisują jako system. Każda inna wartość jest odrzucana z
+  `422 VALIDATION_FAILED`, zanim cokolwiek zostanie odczytane lub zapisane.
+- `expectedVersion` — odczytana wartość `version` organizacji; gdy organizacja zmieniła się w
+  międzyczasie, zapis jest odrzucany z `409 VERSION_CONFLICT` i `currentVersion`. Uwzględniają ją
+  `update`, cztery metody moderacji i dwie metody ograniczeń, bo ich endpointy panelu sprawdzają
+  wersję; bez niej zapisują na odczytanej wersji, a reguły statusu nadal obowiązują
+  (zatwierdzenie organizacji, która jest już aktywna, jest odrzucane). Pozostałe metody ją
+  pomijają.
+- `extensions` — dane dla hooków poleceń akcji (zob. *Akcje dostępne dla hooków* wyżej). Klucz,
+  którego nie przejmuje żaden zainstalowany moduł hooka, jest odrzucany z
+  `422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek zostanie zapisane.
+
+**Moderacja.** `reject` wymaga powodu długości od 1 do 2000 znaków; jest on zapisywany w
+organizacji i wysyłany w powiadomieniu, nigdy nie trafia do wpisu audytu. Przekaż
+`notifyCustomerEmail: false`, gdy klienta powiadamiasz sam. `block` przyjmuje opcjonalny powód i
+nie wysyła powiadomienia; `unblock` też nie.
+
+**Umieszczanie organizacji w drzewie.** `setParent` z identyfikatorem organizacji nadrzędnej
+przypisuje pierwszą organizację nadrzędną (`organization.set_parent`) albo przenosi oddział pod
+inną (`organization.move`); `parentId: null` odłącza organizację, która staje się korzeniem.
+
+**Same wartości pól niestandardowych.** `setCustomFieldValues` przyjmuje `merge` — funkcję z
+bieżących wartości w nowe — i uruchamia ją wewnątrz swojego polecenia. Moduł nie waliduje:
+wywołaj `CustomFieldValuePort.validateAndMerge` wewnątrz `merge` (zob. *Ustawianie wartości pól
+niestandardowych z kodu po stronie serwera* niżej). Edycja w panelu, `organization.admin_patch`,
+która zapisuje pola i wartości razem, celowo nie jest w porcie: pola obsługuje `update`, a
+wartości `setCustomFieldValues`.
+
+**Celowo nieoferowane:** członkowie, zaproszenia i role (przeniesienie konta to `membershipPort`);
+zakres unikalności NIP, który jest ustawieniem platformy; walidacje numeru VAT, które nie są
+zapisem organizacji.
+
+Modułu `organizations` nie można wyłączyć, więc port jest zawsze dostępny.
+
+### Wycofywane: `organizationWritePort` i `organizationCustomFieldWritePort`
+
+Oba wąskie porty są wycofywane od wersji 0.113.0 i zostaną usunięte w jednym z kolejnych wydań. Do
+tego czasu każda metoda przekazuje wywołanie swojemu następcy, więc zapisuje te same wpisy i
+zwraca te same odmowy co dotąd:
+
+| Wycofywane wywołanie | Użyj zamiast niego |
+| --- | --- |
+| `organizationWritePort.findByTaxId(taxId)` | `organizationDetailsPort.findByTaxId(taxId)` |
+| `organizationWritePort.create(input)` | `organizationCommandPort.create(input)` |
+| `organizationWritePort.update(id, patch, { expectedVersion })` | `organizationCommandPort.update(id, patch, { expectedVersion })` |
+| `organizationCustomFieldWritePort.setCustomFieldValues(id, merge, { extensions })` | `organizationCommandPort.setCustomFieldValues(id, merge, { extensions })` |
+
+`create` i `update` przyjmują te same typy danych co dotąd (`OrganizationWriteCreateInput`,
+`OrganizationWriteUpdatePatch`):
+
 - **`create`** uruchamia polecenie `organization.create`, to samo co *Nowa organizacja* w panelu
   administracyjnym, z tymi samymi kontrolami: nazwa, NIP i adres rejestrowy w granicach formularza,
   kraj udostępniony przez operatora, co najmniej jeden kanał sprzedaży przypisany w tej samej
@@ -187,24 +275,14 @@ update(
   administratora) i `parentId`, który zakłada organizację jako oddział tego drzewa — w zakresie
   `per-tree-root` oddział może mieć NIP swojej centrali. Status to `active` albo
   `pending_verification`.
-- **`update`** uruchamia nowe polecenie `organization.update` dla nazwy, nazwy prawnej (`null` ją
+- **`update`** uruchamia polecenie `organization.update` dla nazwy, nazwy prawnej (`null` ją
   usuwa), statusu VAT, adresu rejestrowego i adresów e-mail do potwierdzeń zamówień. Pominięty klucz
   pozostaje bez zmian, a każdy inny klucz jest odrzucany — zwłaszcza NIP: jego korekta to
-  `organizationCommandPort.changeTaxId` (zob. *Korekta NIP* niżej). Aktualizacja, która niczego nie
-  zmienia, niczego nie zapisuje i nie tworzy wpisu w dzienniku audytu, więc ponowne wysłanie tego
-  samego rekordu jest bezpieczne. Przekaż odczytaną wartość `version` jako `expectedVersion`, aby
-  zapis został odrzucony, gdy ktoś inny zmienił organizację w międzyczasie.
-- **Poza zakresem:** moderacja (zatwierdzenie, odrzucenie, blokada), zmiana organizacji nadrzędnej,
-  role, członkowie, kredyt, wartości pól niestandardowych po utworzeniu (obsługuje je
-  `organizationCustomFieldWritePort`), adresy dostawy i rozliczeniowe (`addressServicePort`) oraz
-  kanały sprzedaży po utworzeniu.
-- **Każdy zapis to jeden wpis w dzienniku audytu z aktorem wywołującego**, zawierający nazwy, a nie
-  wartości (zob. *Wpisy audytu* niżej). Polecenie zapisuje tego, kogo wskazuje kontekst tenanta
-  wywołującego: proces w tle w `withSystemScope` nie zapisuje administratora, a w
-  `withSystemScopeActingFor(adminUserId, …)` zapisuje administratora, który zlecił pracę. Bez
-  kontekstu tenanta zapis jest odrzucany, zanim cokolwiek zostanie zapisane.
-- **Odmowy** to błędy HTTP platformy, więc wywołujący może odnotować problem z jednym rekordem i
-  przejść do następnego:
+  `changeTaxId` (zob. *Korekta NIP* niżej). Aktualizacja, która niczego nie zmienia, niczego nie
+  zapisuje i nie tworzy wpisu w dzienniku audytu, więc ponowne wysłanie tego samego rekordu jest
+  bezpieczne.
+
+Ich odmowy:
 
 | Kod | Kiedy |
 | --- | --- |
@@ -217,8 +295,6 @@ update(
 | `404 NOT_FOUND` | `create` pod organizacją nadrzędną, która nie istnieje lub została usunięta; `update` organizacji, która nie istnieje lub została usunięta |
 | `409 VERSION_CONFLICT` | `update` z `expectedVersion`, którą organizacja już przekroczyła |
 | `409 ORGANIZATION_WRITE_CONTENDED` | Równoległa zmiana organizacji trzymała blokadę; ponów próbę |
-
-Modułu `organizations` nie można wyłączyć, więc port jest zawsze dostępny.
 
 ## Kanały sprzedaży
 
@@ -243,7 +319,7 @@ zachowuje co najmniej jeden kanał.
 | Rejestracja firmy w storefroncie (`POST /api/v1/organizations/register`) | dokładnie kanał sklepu, w którym się zarejestrowała — także w sklepie zamkniętym dla niezalogowanych odwiedzających, gdzie o wejściu firmy decyduje moderacja |
 | Samodzielna rejestracja klienta indywidualnego (organizacja osobista) | dokładnie kanał sklepu, w którym się zarejestrował; w sklepie zamkniętym dla niezalogowanych odwiedzających odrzucana |
 | *Nowa organizacja* w panelu administracyjnym | kanały wybrane w formularzu |
-| Inny moduł, przez `organizationWritePort.create` | kanały, które wskaże |
+| Inny moduł, przez `organizationCommandPort.create` | kanały, które wskaże |
 | Każda inna ścieżka — logowanie przez zewnętrznego dostawcę tożsamości, które zakłada nowe konto, importy, dane demonstracyjne | domyślny kanał systemowy |
 
 Przyjęcie zaproszenia dodaje członka do istniejącej organizacji i nie zmienia żadnego z jej kanałów.
@@ -748,17 +824,17 @@ identyfikator, który worker przynosi z zewnętrznego systemu. Takie pole jest
 zwykle *wewnętrzne*, więc rejestracja nie przyjmie go od kupującego, a kod,
 który zna wartość, nie ma żądania administratora, z którym mógłby ją wysłać.
 
-Taki kod zapisuje przez port publikowany przez ten moduł,
-`organizationCustomFieldWritePort` (kontrakt `OrganizationCustomFieldWritePort`
-w `@endora-commerce/contracts`), pobierany przez
-`lazyPort<OrganizationCustomFieldWritePort>(ctx, 'organizationCustomFieldWritePort')`,
-z `organizations` w `dependencies` manifestu modułu wywołującego. Ma jedną
-metodę:
+Taki kod zapisuje przez `organizationCommandPort.setCustomFieldValues` (zob. *Zapisy po stronie
+serwera* wyżej), pobierany przez
+`lazyPort<OrganizationCommandPort>(ctx, 'organizationCommandPort')`, z `organizations` w
+`dependencies` manifestu modułu wywołującego. Wycofywane
+`organizationCustomFieldWritePort.setCustomFieldValues` robi to samo, dopóki nie zostanie usunięte.
 
 ```ts
 setCustomFieldValues(
   organizationId: string,
   merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
+  options?: AggregateCommandOptions,
 ): Promise<OrganizationRecord>;
 ```
 
@@ -1467,7 +1543,7 @@ zaproszonej osoby; nigdy nazwy ani opisu roli niestandardowej.
 - **`organization.admin_patch`**, **`organization.set_custom_field_values`**,
   **`organization.convert_to_company`** — kody przed zmianą i po niej oraz
   nazwy tego, co się zmieniło.
-- **`organization.update`** (`organizationWritePort.update`) — status VAT przed
+- **`organization.update`** (`organizationCommandPort.update`) — status VAT przed
   zmianą i po niej oraz nazwy pól, które się zmieniły.
 - **`organization.delete`** — status, status VAT, informacja, czy to
   organizacja osobista, organizacja nadrzędna jako identyfikator i wersja.
@@ -1476,6 +1552,12 @@ zaproszonej osoby; nigdy nazwy ani opisu roli niestandardowej.
   operatora, wersja oraz informacja, czy podano powód zablokowania lub
   odrzucenia (`hasBlockedReason`, `hasRejectedReason`); sam powód widać na
   stronie organizacji.
+- **`organization.allow_lists_replace`**, **`organization.allow_list_patch`** — identyfikatory
+  dozwolonych metod płatności, metod dostawy i magazynów (przy zmianie częściowej: jej rodzaj oraz
+  dodane i usunięte identyfikatory), zapisywane w transakcji zmiany.
+- **`organization.sales_rep_assign`**, **`.sales_rep_unassign`** — identyfikator przedstawiciela.
+  Przypisanie przedstawiciela, który jest już przypisany, albo usunięcie takiego, który nie jest,
+  niczego nie zmienia i niczego nie zapisuje.
 - **`customer_account.admin_create`**, **`.admin_profile_update`**,
   **`.admin_remove`** — identyfikator roli członka, jego flagi zbiorczego
   widoku, potwierdzenia adresu e-mail i weryfikacji dwuetapowej, a po zmianie —

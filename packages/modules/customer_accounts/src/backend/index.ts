@@ -314,6 +314,10 @@ export function registerModule(ctx: ModuleContext): void {
                 bus.emit(CUSTOMER_ACCOUNT_ANONYMIZED_EVENT, payload);
               });
             },
+            // Issue #1926 — standalone registration's transaction in a bus
+            // scope, so the personal organisation's access-cache drop follows
+            // its commit. Read per call, like the bus above.
+            (work) => ctx.cradle<CustomerAccountsCradle>().eventBus.run(work),
           ),
       )
       .singleton(),
@@ -683,8 +687,13 @@ export function registerModule(ctx: ModuleContext): void {
             ctx,
             'personalOrganizationProvisionApi',
           );
+          // Issue #1926 — the transaction runs inside a bus scope, so the
+          // personal organisation's access-cache drop, which the channel
+          // binding defers to the scope, follows the commit; the binding's
+          // events are dropped with a rollback.
+          const bus = cradle.eventBus;
           return withSystemScope('mfa: auto-create customer from social login', async () =>
-            emFactory().transactional(async (em) => {
+            bus.run(() => emFactory().transactional(async (em) => {
               /**
                * D-178 — the personal organisation, in the same transaction as
                * the account.
@@ -745,7 +754,7 @@ export function registerModule(ctx: ModuleContext): void {
               });
               await em.flush();
               return { id: account.id, organizationId: organization.id };
-            }),
+            })),
           );
         },
       }))

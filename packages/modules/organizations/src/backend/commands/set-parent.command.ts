@@ -1,4 +1,5 @@
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from '../entities/organization.entity.js';
@@ -89,4 +90,28 @@ export function makeSetParentCommand(
   input: ReparentCommandInput,
 ): Command<Organization> {
   return makeReparentCommand('organization.set_parent', deps, input);
+}
+
+/**
+ * The Command that places an Organization in the tree, as `POST …/:id/parent`
+ * and `organizationCommandPort.setParent` both choose it
+ * (`specs/186-aggregate-ports/` research R-9, R-16.3): `organization.move` for a
+ * new parent of a branch, `organization.set_parent` for a first parent or a
+ * detach (`parentId: null`). The choice needs the current row, so this reads
+ * it on `em` first and refuses an unknown, malformed or soft-deleted id with
+ * `404 NOT_FOUND`; the Command re-reads it inside its own transaction.
+ */
+export async function makePlaceInTreeCommand(
+  em: EntityManager,
+  deps: ReparentCommandDeps,
+  input: ReparentCommandInput,
+): Promise<Command<Organization>> {
+  const org = isUuidShape(input.organizationId)
+    ? await em.findOne(Organization, { id: input.organizationId, deletedAt: null })
+    : null;
+  if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+  const wasChild = (org.parentId ?? null) !== null;
+  return wasChild && input.parentId !== null
+    ? makeReparentCommand('organization.move', deps, input)
+    : makeReparentCommand('organization.set_parent', deps, input);
 }

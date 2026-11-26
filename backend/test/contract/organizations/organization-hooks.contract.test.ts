@@ -150,6 +150,22 @@ describe('command hooks on organizations’ hookable actions (176 T029)', () => 
         )) as Array<{ n: number }>;
       // Only the entry of the kept Organization above, never one of a vetoed write.
       expect(observed[0]!.n).toBe(1);
+      // Issue #1926 — nor a sales-channel membership entry for the vetoed
+      // Organization: the kernel writer records it in the create's transaction.
+      // The channel is this file's own, so every Organization bound to it here
+      // exists unless its create was rolled back.
+      const orphanMemberships = (await h
+        .em()
+        .fork()
+        .execute(
+          `select count(*)::int as n from "audit_log_entries" a
+            where a."action" = 'sales_channel.membership.changed'
+              and a."object_id" like ?
+              and not exists (
+                select 1 from "organizations" o where o."id"::text = split_part(a."object_id", ':', 3))`,
+          [`${channel}:organization:%`],
+        )) as Array<{ n: number }>;
+      expect(orphanMemberships[0]!.n).toBe(0);
     });
 
     it('switched off, behaves as if the hook module were not installed (XVII, SC-005)', async () => {

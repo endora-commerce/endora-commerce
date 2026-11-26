@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -15,6 +15,7 @@ import {
   classNameFromFile,
   listMigrationDirs,
   migrationTargetFor,
+  overlayMigrationTargetFor,
   refuseUnregisterableTarget,
   takenStamps,
 } from '../../../scripts/new-migration.js';
@@ -118,6 +119,31 @@ describe('migration:new resolves a module wherever it lives (spawned over a spli
     // file into a directory the generator no longer walks, and an unregistered
     // migration does not run.
     expect(existsSync(join(fixture.root, 'backend', 'src', 'db', 'migrations'))).toBe(false);
+  });
+
+  // `specs/190-overlay-full-modules/` T102, FR-057: an overlay module of a
+  // deployment owns migrations since D-297, and the generator reads them from
+  // `src/apps/<deployment>/modules/<id>/migrations/` — never from the registry.
+  it('writes an overlay module’s migration into its deployment’s module directory', () => {
+    const result = scaffold('overlay_notes_fixture');
+    expect(result.output).not.toContain('Unknown module id');
+    expect(result.status).toBe(0);
+    const directory = join(
+      fixture.root, 'backend', 'src', 'apps', 'example', 'modules', 'overlay_notes_fixture', 'migrations',
+    );
+    const written = readdirSync(directory).filter((name) => name.includes(PROBE_SLUG));
+    expect(written).toEqual([
+      expect.stringMatching(/^\d{8}T\d{6}_overlay_notes_fixture_scaffold_roots_probe\.ts$/),
+    ]);
+    expect(readFileSync(join(directory, written[0]!), 'utf8')).toContain(
+      `export class ${classNameFromFile(written[0]!)} extends Migration {`,
+    );
+    expect(result.output).toContain(
+      `backend/src/apps/example/modules/overlay_notes_fixture/migrations/${written[0]!}`,
+    );
+    // Read at runtime under `DEPLOYMENT=example`, so nothing is regenerated
+    // into the bare-core registry for it (D-104).
+    expect(result.output).toContain('DEPLOYMENT=example');
   });
 
   it('refuses an unknown id and names the real modules, not core alone', () => {
@@ -269,6 +295,60 @@ describe('migrationTargetFor — one derivation, three layouts', () => {
   it('refuses a registered module whose sources no root holds', () => {
     const layout = layoutOver({});
     expect(() => migrationTargetFor('ghost', layout, [])).toThrow(/no directory holds its sources/);
+  });
+});
+
+describe('overlayMigrationTargetFor — an overlay module of one deployment', () => {
+  const root = join(process.cwd(), 'test-fixture-overlay-migration-target');
+  const overlayRoot = join(root, 'src', 'apps');
+  const module = (deployment: string, id: string): void => {
+    mkdirSync(join(overlayRoot, deployment, 'modules', id), { recursive: true });
+    writeFileSync(join(overlayRoot, deployment, 'modules', id, 'manifest.ts'), 'export {};\n');
+  };
+
+  beforeAll(() => {
+    module('alpha', 'notes');
+    module('alpha', 'shared');
+    module('beta', 'shared');
+    mkdirSync(join(overlayRoot, 'alpha', 'modules', 'loose'), { recursive: true });
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  it('finds the one deployment that holds the id', () => {
+    expect(overlayMigrationTargetFor('notes', overlayRoot, {})).toEqual({
+      moduleId: 'notes',
+      directory: join(overlayRoot, 'alpha', 'modules', 'notes', 'migrations'),
+      owner: null,
+      deployment: 'alpha',
+    });
+  });
+
+  it('is null for an id no deployment holds, and for a directory with no manifest', () => {
+    expect(overlayMigrationTargetFor('ghost', overlayRoot, {})).toBeNull();
+    expect(overlayMigrationTargetFor('loose', overlayRoot, {})).toBeNull();
+  });
+
+  it('takes DEPLOYMENT when it is set, and looks nowhere else', () => {
+    expect(overlayMigrationTargetFor('shared', overlayRoot, { DEPLOYMENT: 'beta' })?.directory).toBe(
+      join(overlayRoot, 'beta', 'modules', 'shared', 'migrations'),
+    );
+    expect(overlayMigrationTargetFor('notes', overlayRoot, { DEPLOYMENT: 'beta' })).toBeNull();
+  });
+
+  it('refuses to choose between two deployments that both hold the id', () => {
+    expect(() => overlayMigrationTargetFor('shared', overlayRoot, {})).toThrow(
+      /alpha, beta[\s\S]*DEPLOYMENT=/,
+    );
+  });
+
+  it('an overlay target is accepted by the generator’s own validation', () => {
+    const target = overlayMigrationTargetFor('notes', overlayRoot, {})!;
+    const scaffold = buildScaffold({ moduleId: 'notes', slug: 'probe', stamp: '20261126T090000' });
+    expect(() =>
+      refuseUnregisterableTarget(target, join(target.directory, scaffold.filename), scaffold, [
+        join(root, 'src'),
+      ]),
+    ).not.toThrow();
   });
 });
 

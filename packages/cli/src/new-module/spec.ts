@@ -27,6 +27,7 @@ import {
   type KnownIconName,
 } from '@endora-commerce/contracts';
 
+import { BASELINE_THROUGH, formatStamp, nextFreeStamp } from '../lib/migration-naming.js';
 import { judgeSentenceCase, toSentenceCase } from '../lib/sentence-case.js';
 
 /** A refusal the author can act on: exit 1, and nothing is written. */
@@ -104,31 +105,16 @@ export interface ModuleScaffoldSpec {
 }
 
 /**
- * The frozen historical prefix's watermark
- * (`backend/src/db/migration-order.ts`'s `BASELINE_THROUGH`).
- *
- * A migration stamped at or below it is ordered by history rather than by its
- * module's manifest `dependencies`, so `migration:new` clamps above it and so
- * does this. The constant is this package's copy of a fact that repository owns,
- * and it is a copy because the owner is an application this package may not
- * import — `backend/test/unit/packages/cli-migration-identity.test.ts` holds the
- * two to each other in both directions, so the copy cannot go stale in silence.
+ * The frozen watermark and the UTC stamp format are migration naming's
+ * (`../lib/migration-naming.ts`), the one implementation every scaffolder of a
+ * migration uses (`specs/190-overlay-full-modules/` T100). Re-exported because
+ * this module's callers have always named them here.
  */
-export const BASELINE_THROUGH = '20260801T000000';
-
-/** `YYYYMMDDTHHmmss`, UTC, fixed width, literal `T` at index 8. */
-export function formatStamp(date: Date): string {
-  const pad = (value: number, width = 2): string => String(value).padStart(width, '0');
-  return (
-    `${pad(date.getUTCFullYear(), 4)}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}` +
-    `T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}`
-  );
-}
+export { BASELINE_THROUGH, formatStamp };
 
 /** The stamp a migration scaffolded now takes: never at or below the watermark. */
 export function migrationStampFor(now: Date): string {
-  const stamp = formatStamp(now);
-  return stamp > BASELINE_THROUGH ? stamp : `${BASELINE_THROUGH.slice(0, 8)}T000001`;
+  return nextFreeStamp(now, new Set(), BASELINE_THROUGH);
 }
 
 /** `_lifecycle` → `lifecycle`; the segment every derived name is built from. */

@@ -81,7 +81,7 @@ describe('organization.blocked (186 T026)', () => {
     });
     expect(JSON.stringify(h.audits)).not.toContain(REASON);
     expect(h.emitted).toEqual([
-      expect.objectContaining({ newStatus: 'blocked', previousStatus: 'active', reason: REASON }),
+      expect.objectContaining({ newStatus: 'blocked', previousStatus: 'active', reason: REASON, notifyCustomer: false }),
     ]);
   });
 

@@ -3,12 +3,12 @@ import {
   ERROR_CODES,
   assignSalesRepRequestSchema,
   type AdminUserReadPort,
-  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
-import { Organization } from './entities/organization.entity.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import { makeAssignSalesRepCommand, makeUnassignSalesRepCommand } from './commands/sales-rep-assignment.commands.js';
 import { organizationInReach } from './organization-reach.js';
 import type { SalesRepAssignmentPort } from './services/sales-rep-assignment-service.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -52,6 +52,11 @@ export interface SalesRepRoutesDeps {
   requireAdmin: RequireAdminFactory;
   salesRepAssignment: SalesRepAssignmentPort;
   adminUsers: AdminUserReadPort;
+  /**
+   * Runs `organization.sales_rep_assign` / `_unassign` (`specs/186-aggregate-ports/`
+   * R-16.7) — the factories `organizationCommandPort` runs too.
+   */
+  commandBus: Pick<CommandBus, 'run'>;
 }
 
 /**
@@ -94,7 +99,7 @@ export async function registerOrganizationsSalesRepRoutes(
   app: FastifyInstance,
   deps: SalesRepRoutesDeps,
 ): Promise<void> {
-  const { emFactory, requireAdmin, salesRepAssignment, adminUsers } = deps;
+  const { emFactory, requireAdmin, salesRepAssignment, adminUsers, commandBus } = deps;
   const guard = requireAdmin('organizations:assign-sales-rep');
   /**
    * Issue #856 — the reach every `/admin/organizations/:id` route answers by
@@ -146,26 +151,19 @@ export async function registerOrganizationsSalesRepRoutes(
     async (request, reply) => {
       requireUnscopedActor(); // D-260 — the graph is the boundary.
       const body = assignSalesRepRequestSchema.parse(request.body);
-      const em = emFactory();
-      if (!isUuidShape(request.params.organizationId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-      const org = await em.findOne(Organization, { id: request.params.organizationId });
-      if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-      const adminUser = await adminUsers.findById(body.adminUserId);
+      // The Command refuses an unknown Organization or administrator (404) and
+      // a personal Organization (422), and stamps the acting administrator as
+      // the assigner; an existing assignment is answered as it is.
+      const { assignment: created } = await commandBus.run(
+        makeAssignSalesRepCommand(
+          { adminUsers },
+          { organizationId: request.params.organizationId, adminUserId: body.adminUserId },
+        ),
+      );
+      const adminUser = await adminUsers.findById(created.adminUserId);
       if (!adminUser) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin user not found.');
       }
-      const actor = (request as { actor?: { kind?: string; adminUserId?: string }; testActor?: { kind?: string; adminUserId?: string } });
-      const assignedBy =
-        actor.actor?.kind === 'admin'
-          ? actor.actor.adminUserId ?? null
-          : actor.testActor?.kind === 'admin'
-            ? actor.testActor.adminUserId ?? null
-            : null;
-      const created = await salesRepAssignment.assign({
-        organizationId: org.id,
-        adminUserId: adminUser.id,
-        assignedByAdminUserId: assignedBy,
-      });
       reply.code(201);
       return {
         data: {
@@ -187,10 +185,12 @@ export async function registerOrganizationsSalesRepRoutes(
     { preHandler: guard },
     async (request, reply) => {
       requireUnscopedActor(); // D-260 — the graph is the boundary.
-      const removed = await salesRepAssignment.unassign({
-        organizationId: request.params.organizationId,
-        adminUserId: request.params.adminUserId,
-      });
+      const removed = await commandBus.run(
+        makeUnassignSalesRepCommand({
+          organizationId: request.params.organizationId,
+          adminUserId: request.params.adminUserId,
+        }),
+      );
       if (!removed) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Assignment not found.');
       }

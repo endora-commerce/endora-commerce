@@ -12,7 +12,10 @@ import {
   OrganizationStatusGuardError,
   OrganizationVersionMismatchError,
 } from '../services/organization-moderation-errors.js';
-import { OrganizationModerationService } from '../services/organization-moderation-service.js';
+import {
+  OrganizationModerationService,
+  type ModerationStatusChange,
+} from '../services/organization-moderation-service.js';
 import { makeApproveOrganizationCommand } from './approve-organization.command.js';
 
 /**
@@ -118,6 +121,10 @@ function harness(options: HarnessOptions = {}) {
     mailer,
     accounts,
     async () => 'auto',
+  );
+  // The module's notice subscriber (`specs/186-aggregate-ports/` research R-16.4).
+  events.on('organization.status_changed.v1', (payload) =>
+    service.notifyStatusChanged(payload as unknown as ModerationStatusChange),
   );
   return { org, committed, outOfTransaction, emitted, bus, service, sent, order };
 }
@@ -227,6 +234,25 @@ describe('organization.approved (186 T026)', () => {
     const failed = harness({ failCommit: true });
     await expect(asSystem(() => failed.service.approve(ORG, { expectedVersion: 3 }))).rejects.toThrow('commit failed');
     expect(failed.sent).toEqual([]);
+  });
+
+  it('sends the notice when the approval runs as a child Command, once the parent commits (R-16.4)', async () => {
+    const h = harness();
+    await asSystem(() =>
+      h.bus.run({
+        action: 'test.parent',
+        objectType: 'test',
+        objectId: ORG,
+        run: async (ctx) => {
+          await ctx.run!(makeApproveOrganizationCommand({ organizationId: ORG }));
+          // Nothing is sent before the parent's commit.
+          expect(h.sent).toEqual([]);
+          return { result: undefined, skipAudit: true };
+        },
+      }),
+    );
+    expect(h.sent).toEqual(['buyer@example.test']);
+    expect(h.emitted).toEqual([expect.objectContaining({ newStatus: 'active', notifyCustomer: true })]);
   });
 
   it('approves a newly registered Organization in auto mode as the system, with no ambient scope', async () => {

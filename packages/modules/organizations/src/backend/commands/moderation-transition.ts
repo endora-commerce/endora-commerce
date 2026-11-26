@@ -21,8 +21,10 @@ import {
  * Command the status write and its one audit entry commit together, the event is
  * the Command's own (dispatched once, on commit, dropped on rollback), and the
  * actor is the ambient one: an administrator, or `system` for the auto-approval
- * of a newly registered Organization. The customer notice stays the service's,
- * sent after the commit as before.
+ * of a newly registered Organization. The customer notice is sent by this
+ * module's subscriber of the event, after the commit, so it goes out when the
+ * transition runs as a child Command too (research R-16.4); the event's
+ * `notifyCustomer` says whether it is wanted.
  *
  * The audit action strings are unchanged, so record histories and saved audit
  * filters keep reading them. The state is names and structure only — whether a
@@ -44,6 +46,12 @@ interface TransitionSpec {
   readonly newStatus: OrganizationStatus;
   /** The operator's reason the event carries (#1620); never the audit entry. */
   readonly reason?: string | null;
+  /**
+   * Whether the customer is told of this transition — the event's
+   * `notifyCustomer`, read by this module's notice subscriber
+   * (`specs/186-aggregate-ports/` research R-16.4).
+   */
+  readonly notifyCustomer: boolean;
   readonly mutate: (org: Organization, actor: CommandActor) => void;
 }
 
@@ -90,6 +98,7 @@ export function makeModerationTransitionCommand(
         // The guard refused every other status, so this is the one it left.
         previousStatus: spec.requireStatus,
         reason: spec.reason ?? null,
+        notifyCustomer: spec.notifyCustomer,
       },
     }),
   };

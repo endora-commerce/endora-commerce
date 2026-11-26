@@ -6,6 +6,10 @@
  * Emissions are buffered inside a per-request scope (if an ambient scope exists) so
  * an aborted transaction does not leak half-domain events. Outside of a scope the
  * handlers fire synchronously.
+ *
+ * A scope also holds work deferred through {@link EventBus.afterScope} (issue
+ * #1926): it runs once the scope's function has resolved — on the Command path,
+ * once the transaction has committed — and before the buffered events dispatch.
  */
 
 import { AsyncLocalStorage } from 'async_hooks';
@@ -19,6 +23,7 @@ type Handler<P> = (payload: P) => void | Promise<void>;
 
 interface Scope {
   pending: Array<{ eventName: string; payload: unknown }>;
+  deferred: Array<() => void | Promise<void>>;
 }
 
 const scopeStorage = new AsyncLocalStorage<Scope>();
@@ -48,13 +53,61 @@ export class EventBus<Events extends Record<string, EventBase> = Record<string, 
   }
 
   /**
-   * Run fn inside a scope that buffers emitted events. If fn succeeds, buffered events
-   * are dispatched. If fn throws, they are dropped.
+   * Defer `fn` until the enclosing {@link run} scope has succeeded (issue #1926,
+   * `specs/186-aggregate-ports/` research R-16.1).
+   *
+   * Inside a scope, `fn` is queued on the innermost one and the returned promise
+   * resolves at once. When the scope's function resolves, the queued functions
+   * run in the order they were deferred, each awaited, and only then do the
+   * scope's buffered events dispatch — so a subscriber never observes what the
+   * deferred work exists to replace (D-93: an access-cache drop precedes the
+   * event). When the scope's function throws, the queue is discarded with the
+   * events. The Command Bus wraps its transaction in a scope, so for a Command —
+   * its child Commands included — "the scope succeeded" means "committed".
+   *
+   * Outside any scope there is nothing to wait for, and `fn` runs and is awaited
+   * immediately.
+   *
+   * Like an event handler, a deferred function is isolated: if it throws, the
+   * error is logged the way a failing handler is, the remaining deferred
+   * functions still run and the buffered events are still dispatched — the
+   * write has already committed, and one failed follow-up must not hide it
+   * from the caller or from subscribers. Outside a scope the same holds: the
+   * returned promise resolves. A function deferred here should still not fail
+   * for a reason the write could answer for — the access-cache drop degrades
+   * to `null` rather than throwing.
+   */
+  afterScope(fn: () => void | Promise<void>): Promise<void> {
+    const scope = scopeStorage.getStore();
+    if (scope) {
+      scope.deferred.push(fn);
+      return Promise.resolve();
+    }
+    return this.runDeferred(fn);
+  }
+
+  /** One deferred function, isolated as a handler is (issue #1926). */
+  private async runDeferred(fn: () => void | Promise<void>): Promise<void> {
+    try {
+      await fn();
+    } catch (err) {
+      console.warn(JSON.stringify({ level: 'warn', msg: 'deferred scope work threw', error: String(err) }));
+    }
+  }
+
+  /**
+   * Run fn inside a scope that buffers emitted events. If fn succeeds, the work
+   * deferred through {@link afterScope} runs, then the buffered events are
+   * dispatched; a deferred function that throws is logged and skipped. If fn
+   * throws, both are dropped.
    */
   async run<T>(fn: () => Promise<T>): Promise<T> {
-    const scope: Scope = { pending: [] };
+    const scope: Scope = { pending: [], deferred: [] };
     return scopeStorage.run(scope, async () => {
       const result = await fn();
+      for (const deferred of scope.deferred) {
+        await this.runDeferred(deferred);
+      }
       for (const entry of scope.pending) {
         await this.dispatch(entry.eventName, entry.payload);
       }
