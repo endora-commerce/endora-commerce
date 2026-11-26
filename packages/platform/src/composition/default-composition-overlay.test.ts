@@ -107,6 +107,9 @@ describe('defaultComposition — an overlay module is a whole lifecycle particip
 
     expect(entry).toBeDefined();
     expect(entry?.overlay).toBe(true);
+    // `specs/189-command-middleware/contracts/module-origin.md` §6 — the trust
+    // tier comes from the same discovery, and is `deployment`.
+    expect(entry?.origin).toBe('deployment');
     expect(entry?.version).toBe('1.0.0');
   });
 
