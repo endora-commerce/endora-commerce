@@ -32,8 +32,10 @@ import type {
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import {
   effectiveState,
+  lazyEntityExtensionReads,
   lazyPort,
   type AuditPort,
+  type EntityExtensionReads,
   type ModuleContext,
   type RequireAdminFactory,
   type SettingsReadPort,
@@ -440,6 +442,7 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({
+          emFactory,
           projectsAccess,
           projectsReadService,
           projectsRecordProjectService,
@@ -450,6 +453,15 @@ export function registerModule(ctx: ModuleContext): void {
             read: projectsReadService,
             records: projectsRecordProjectService,
             notes: projectsCommentService,
+            // `specs/187-side-table-extensions/` FR-058 — `include` on the
+            // record reads; the kernel's `entityExtensionReads` is resolved
+            // only for a read that names one.
+            extensions: {
+              reads: lazyEntityExtensionReads(
+                () => ctx.cradle<{ entityExtensionReads: EntityExtensionReads }>().entityExtensionReads,
+              ),
+              em: emFactory,
+            },
           }),
       )
       .singleton(),
