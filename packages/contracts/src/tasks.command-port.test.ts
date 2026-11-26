@@ -5,6 +5,7 @@ import type {
   CreateTaskCommentBody,
   CreateTaskReminderBody,
   NewContextTask,
+  TaskAssigneesChange,
   TaskCommandPort,
   TaskContext,
   TaskLinkTarget,
@@ -28,6 +29,11 @@ describe('TaskCommandPort (186 US10)', () => {
       | 'create'
       | 'createMany'
       | 'update'
+      | 'setParent'
+      | 'setPriority'
+      | 'setTags'
+      | 'setAssignees'
+      | 'setPrivate'
       | 'setStatus'
       | 'setCustomFieldValues'
       | 'publish'
@@ -69,9 +75,26 @@ describe('TaskCommandPort (186 US10)', () => {
     >();
   });
 
-  it('updates what the PATCH changes, never the custom fields', () => {
-    expectTypeOf<keyof TaskUpdatePatch>().toEqualTypeOf<Exclude<keyof UpdateTaskBody, 'customFieldValues'>>();
-    expectTypeOf<TaskUpdatePatch['assigneeIds']>().toEqualTypeOf<UpdateTaskBody['assigneeIds']>();
+  it('updates the fields of tasks.task.update only; every other PATCH Command is its own method', () => {
+    expectTypeOf<keyof TaskUpdatePatch>().toEqualTypeOf<
+      'title' | 'description' | 'dueOn' | 'dueAt' | 'startOn' | 'context'
+    >();
+    expectTypeOf<TaskUpdatePatch['context']>().toEqualTypeOf<UpdateTaskBody['context']>();
+    expectTypeOf<TaskCommandPort['setParent']>().toEqualTypeOf<
+      (id: string, input: { readonly parentTaskId: string | null }, options?: AggregateCommandOptions) => Promise<TaskRecord>
+    >();
+    expectTypeOf<TaskCommandPort['setPriority']>().toEqualTypeOf<
+      (id: string, input: { readonly priorityCode: string | null }, options?: AggregateCommandOptions) => Promise<TaskRecord>
+    >();
+    expectTypeOf<TaskCommandPort['setTags']>().toEqualTypeOf<
+      (id: string, input: { readonly tagIds: readonly string[] }, options?: AggregateCommandOptions) => Promise<TaskRecord>
+    >();
+    expectTypeOf<TaskCommandPort['setAssignees']>().toEqualTypeOf<
+      (id: string, change: TaskAssigneesChange, options?: AggregateCommandOptions) => Promise<TaskRecord>
+    >();
+    expectTypeOf<TaskCommandPort['setPrivate']>().toEqualTypeOf<
+      (id: string, input: { readonly private: boolean }, options?: AggregateCommandOptions) => Promise<TaskRecord>
+    >();
   });
 
   it('takes the target status and, optionally, the one the caller read', () => {

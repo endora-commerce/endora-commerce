@@ -17,6 +17,7 @@ import {
   type TaskBoardCardField,
   type TaskBoardQuery,
   type TaskDeleteResult,
+  type TaskContext,
   type TaskContextDescription,
   type TaskContextQuery,
   type TaskContextSummary,
@@ -180,6 +181,25 @@ function forbidden(message = 'You do not have permission to perform this action.
 /** A private Task is assigned to its Creator or to nobody (FR-038, R-3). */
 function assertPrivateAssignees(assigneeIds: readonly string[], creatorId: string | null): void {
   if (assigneeIds.some((id) => id !== creatorId)) throw taskPrivateAssignee();
+}
+
+/** The fields `tasks.task.update` writes, as the `PATCH` names them. */
+export type TaskFieldsPatch = Pick<UpdateTaskBody, 'title' | 'description' | 'dueOn' | 'dueAt' | 'startOn' | 'context'>;
+
+/** How a `PATCH` body changes the assignee set, or `null` when it does not. */
+function assigneeChangeOf(body: UpdateTaskBody): AssigneeChange | null {
+  if (body.assigneeIds !== undefined) return { set: [...new Set(body.assigneeIds)] };
+  if (body.addAssigneeIds !== undefined || body.removeAssigneeIds !== undefined) {
+    return { add: body.addAssigneeIds ?? [], remove: body.removeAssigneeIds ?? [] };
+  }
+  return null;
+}
+
+/** The assignees after a change of `current`; `current` itself without one. */
+function assigneesAfter(current: readonly string[], change: AssigneeChange | null): string[] {
+  if (!change) return [...current];
+  if ('set' in change) return [...change.set];
+  return [...current.filter((who) => !change.remove.includes(who)), ...change.add];
 }
 
 function personName(person: Pick<AdminUserRecord, 'firstName' | 'lastName' | 'email'>): string {
@@ -742,63 +762,11 @@ export class TaskService {
   async updateTask(id: string, body: UpdateTaskBody, caller: CallerOptions = {}): Promise<TaskRow> {
     const row = await this.deps.access.loadVisible(id);
     this.deps.access.assertMayChange(row);
-    if (body.context !== undefined && !sameContext(body.context, row)) {
-      await assertMayTakeOut(
-        this.deps.contexts,
-        { contextType: row.context_type, contextId: row.context_id },
-        body.context,
-      );
-    }
-    if (body.context) {
-      await assertContextForCaller(this.deps.contexts, body.context);
-      await assertMayPutIn(this.deps.contexts, { contextType: row.context_type, contextId: row.context_id }, body.context);
-    }
-    let assignees: AssigneeChange | null = null;
-    if (body.assigneeIds !== undefined) assignees = { set: [...new Set(body.assigneeIds)] };
-    else if (body.addAssigneeIds !== undefined || body.removeAssigneeIds !== undefined) {
-      assignees = { add: body.addAssigneeIds ?? [], remove: body.removeAssigneeIds ?? [] };
-    }
-    if (assignees) {
-      await assertMayBeAssigned(this.deps.adminUsers, this.deps.permissions, 'set' in assignees ? assignees.set : assignees.add);
-    }
-    // Everybody assigned after this write may see the record it is in (#506):
-    // those named now, and — when the Task moves to another record — those it
-    // keeps. Within one record an assignee kept from before is not asked again.
-    const contextAfter =
-      body.context !== undefined ? body.context : { contextType: row.context_type, contextId: row.context_id };
-    const movesRecord =
-      body.context != null && (body.context.contextType !== row.context_type || body.context.contextId !== row.context_id);
-    if (contextAfter && (assignees || movesRecord)) {
-      const current = movesRecord ? ((await this.#assigneeIds([row.id])).get(row.id) ?? []) : [];
-      const asked = !assignees
-        ? current
-        : 'set' in assignees
-          ? assignees.set
-          : [...current.filter((who) => !assignees.remove.includes(who)), ...assignees.add];
-      await assertAssigneesSeeContext(this.deps.contexts, this.deps.adminUsers, contextAfter, asked);
-    }
-
-    // Private (FR-038): only its Creator says so, and a private Task is in no
-    // context and assigned to nobody but its Creator — as it will be after this write.
-    const privacyChange = body.private !== undefined && body.private !== row.is_private;
-    if (privacyChange && row.created_by_admin_user_id !== actingAdminUserId()) {
-      throw forbidden('Only the administrator who created this Task can change whether it is private.');
-    }
-    if (body.private ?? row.is_private) {
-      const contextAfter = body.context !== undefined ? body.context : row.context_type;
-      if (contextAfter) throw taskPrivateInContext();
-      if (privacyChange || assignees) {
-        const current = (await this.#assigneeIds([row.id])).get(row.id) ?? [];
-        const after = !assignees
-          ? current
-          : 'set' in assignees
-            ? assignees.set
-            : [...current.filter((who) => !assignees.remove.includes(who)), ...assignees.add];
-        assertPrivateAssignees(after, row.created_by_admin_user_id);
-      }
-    }
-    const priorityChange = body.priorityCode !== undefined && body.priorityCode !== row.priority_code;
-    if (priorityChange) await this.deps.priorities.assertKnown(body.priorityCode ?? null);
+    await this.#checkContextChange(row, body.context);
+    const assignees = assigneeChangeOf(body);
+    await this.#checkAssignees(row, assignees, body.context);
+    const privacyChange = await this.#checkPrivacy(row, { private: body.private, context: body.context }, assignees);
+    const priorityChange = await this.#checkPriority(row, body.priorityCode);
     if (body.tagIds !== undefined) await this.deps.tags.assertKnown(body.tagIds);
     const customFieldValues =
       body.customFieldValues !== undefined
@@ -809,19 +777,7 @@ export class TaskService {
     if (privacyChange && body.private === false) await this.#run(caller, changeTaskPrivacyCommand(row.id, false));
     if (body.parentTaskId !== undefined) await this.deps.hierarchy.setParent(row, body.parentTaskId, caller);
 
-    const fields: TaskFieldChanges = {};
-    if (body.title !== undefined && body.title !== row.title) fields.title = body.title;
-    if (body.description !== undefined && body.description !== row.description) fields.description = body.description;
-    const due = await this.#due({ dueOn: row.due_on, dueAt: asDate(row.due_at) }, body);
-    if (due.dueOn !== undefined && due.dueOn !== row.due_on) fields.dueOn = due.dueOn;
-    if (due.dueAt !== undefined && iso(due.dueAt) !== iso(row.due_at)) fields.dueAt = due.dueAt;
-    if (body.startOn !== undefined && body.startOn !== row.start_on) fields.startOn = body.startOn;
-    if (body.context !== undefined && !sameContext(body.context, row)) fields.context = body.context;
-    let mentioned: string[] = [];
-    if (Object.keys(fields).length > 0) {
-      const reminders = { timeZone: await this.deps.timeZone(), auditLog: this.deps.auditLog };
-      mentioned = (await this.#run(caller, updateTaskCommand(row.id, fields, reminders))).mentioned;
-    }
+    const mentioned = await this.#writeFields(row, body, caller);
     const run = <T>(command: Command<T>): Promise<T> => this.deps.commandBus.run(withCallerOptions(command, caller));
     if (priorityChange) await run(changeTaskPriorityCommand(row.id, body.priorityCode ?? null));
     if (body.tagIds !== undefined) await run(changeTaskTagsCommand(row.id, body.tagIds));
@@ -835,11 +791,167 @@ export class TaskService {
     // Made private last, once the context and the other assignees are gone.
     if (privacyChange && body.private === true) await this.#run(caller, changeTaskPrivacyCommand(row.id, true));
 
-    const written = await this.deps.access.rowAfterWrite(row.id);
-    // A draft tells nobody until it is published (FR-037).
+    return this.#afterWrite(row.id, added, mentioned);
+  }
+
+  // --- One Command each (`taskCommandPort`, `specs/186-aggregate-ports/` R-23.1) ----
+  //
+  // Each runs exactly one of the `PATCH`'s Commands, with the checks the
+  // `PATCH` makes for it — the same helpers, over the same factories — so a
+  // refusal is the route's and means nothing was written.
+
+  /** `tasks.task.update` alone: the title, description, due date and time, start date and context. */
+  async updateFields(id: string, patch: TaskFieldsPatch, caller: CallerOptions = {}): Promise<TaskRow> {
+    const row = await this.#changeable(id);
+    await this.#checkContextChange(row, patch.context);
+    await this.#checkAssignees(row, null, patch.context);
+    await this.#checkPrivacy(row, { context: patch.context }, null);
+    const mentioned = await this.#writeFields(row, patch, caller);
+    return this.#afterWrite(row.id, [], mentioned);
+  }
+
+  /** `tasks.task.parent_change` alone; `null` makes the Task top-level. */
+  async setParentOf(id: string, parentTaskId: string | null, caller: CallerOptions = {}): Promise<TaskRow> {
+    const row = await this.#changeable(id);
+    await this.deps.hierarchy.setParent(row, parentTaskId, caller);
+    return this.deps.access.rowAfterWrite(row.id);
+  }
+
+  /** `tasks.task.priority_change` alone. */
+  async setPriorityOf(id: string, priorityCode: string | null, caller: CallerOptions = {}): Promise<TaskRow> {
+    const row = await this.#changeable(id);
+    if (await this.#checkPriority(row, priorityCode)) {
+      await this.deps.commandBus.run(withCallerOptions(changeTaskPriorityCommand(row.id, priorityCode), caller));
+    }
+    return this.deps.access.rowAfterWrite(row.id);
+  }
+
+  /** `tasks.task.tags_change` alone — the whole set. */
+  async setTagsOf(id: string, tagIds: readonly string[], caller: CallerOptions = {}): Promise<TaskRow> {
+    const row = await this.#changeable(id);
+    await this.deps.tags.assertKnown([...tagIds]);
+    await this.deps.commandBus.run(withCallerOptions(changeTaskTagsCommand(row.id, tagIds), caller));
+    return this.deps.access.rowAfterWrite(row.id);
+  }
+
+  /** `tasks.task.assignees_change` alone; the people added are told. */
+  async setAssigneesOf(id: string, change: AssigneeChange, caller: CallerOptions = {}): Promise<TaskRow> {
+    const row = await this.#changeable(id);
+    const assignees: AssigneeChange = 'set' in change ? { set: [...new Set(change.set)] } : change;
+    await this.#checkAssignees(row, assignees, undefined);
+    await this.#checkPrivacy(row, {}, assignees);
+    const changed = await this.deps.commandBus.run(withCallerOptions(changeTaskAssigneesCommand(row.id, assignees), caller));
+    return this.#afterWrite(row.id, changed?.added ?? [], []);
+  }
+
+  /**
+   * `tasks.task.privacy_change` alone, checked against the Task as it stands:
+   * the Creator only, no context, no assignee but the Creator.
+   */
+  async setPrivacyOf(id: string, isPrivate: boolean, caller: CallerOptions = {}): Promise<TaskRow> {
+    const row = await this.#changeable(id);
+    if (await this.#checkPrivacy(row, { private: isPrivate }, null)) {
+      await this.#run(caller, changeTaskPrivacyCommand(row.id, isPrivate));
+    }
+    return this.deps.access.rowAfterWrite(row.id);
+  }
+
+  // --- The PATCH's checks, shared by `updateTask` and the methods above --------
+
+  /** A Task the caller may see and change (`loadVisible`, `assertMayChange`). */
+  async #changeable(id: string): Promise<TaskRow> {
+    const row = await this.deps.access.loadVisible(id);
+    this.deps.access.assertMayChange(row);
+    return row;
+  }
+
+  /** Taking the Task out of its record, and putting it into another, are the records' owners' to allow. */
+  async #checkContextChange(row: TaskRow, context: TaskContext | null | undefined): Promise<void> {
+    if (context !== undefined && !sameContext(context, row)) {
+      await assertMayTakeOut(this.deps.contexts, { contextType: row.context_type, contextId: row.context_id }, context);
+    }
+    if (context) {
+      await assertContextForCaller(this.deps.contexts, context);
+      await assertMayPutIn(this.deps.contexts, { contextType: row.context_type, contextId: row.context_id }, context);
+    }
+  }
+
+  /**
+   * The people named may be assigned, and everybody assigned after the write
+   * may see the record it is in (#506): those named now, and — when the Task
+   * moves to another record — those it keeps. Within one record an assignee
+   * kept from before is not asked again.
+   */
+  async #checkAssignees(
+    row: TaskRow,
+    assignees: AssigneeChange | null,
+    context: TaskContext | null | undefined,
+  ): Promise<void> {
+    if (assignees) {
+      await assertMayBeAssigned(this.deps.adminUsers, this.deps.permissions, 'set' in assignees ? assignees.set : assignees.add);
+    }
+    const contextAfter = context !== undefined ? context : { contextType: row.context_type, contextId: row.context_id };
+    const movesRecord =
+      context != null && (context.contextType !== row.context_type || context.contextId !== row.context_id);
+    if (contextAfter && (assignees || movesRecord)) {
+      const current = movesRecord ? ((await this.#assigneeIds([row.id])).get(row.id) ?? []) : [];
+      await assertAssigneesSeeContext(this.deps.contexts, this.deps.adminUsers, contextAfter, assigneesAfter(current, assignees));
+    }
+  }
+
+  /**
+   * Private (FR-038): only its Creator says so, and a private Task is in no
+   * context and assigned to nobody but its Creator — as it will be after this
+   * write. Answers whether the write changes the privacy.
+   */
+  async #checkPrivacy(
+    row: TaskRow,
+    change: { private?: boolean | undefined; context?: TaskContext | null | undefined },
+    assignees: AssigneeChange | null,
+  ): Promise<boolean> {
+    const privacyChange = change.private !== undefined && change.private !== row.is_private;
+    if (privacyChange && row.created_by_admin_user_id !== actingAdminUserId()) {
+      throw forbidden('Only the administrator who created this Task can change whether it is private.');
+    }
+    if (change.private ?? row.is_private) {
+      const contextAfter = change.context !== undefined ? change.context : row.context_type;
+      if (contextAfter) throw taskPrivateInContext();
+      if (privacyChange || assignees) {
+        const current = (await this.#assigneeIds([row.id])).get(row.id) ?? [];
+        assertPrivateAssignees(assigneesAfter(current, assignees), row.created_by_admin_user_id);
+      }
+    }
+    return privacyChange;
+  }
+
+  /** Whether the write changes the priority; a new one must be on the list. */
+  async #checkPriority(row: TaskRow, priorityCode: string | null | undefined): Promise<boolean> {
+    const priorityChange = priorityCode !== undefined && priorityCode !== row.priority_code;
+    if (priorityChange) await this.deps.priorities.assertKnown(priorityCode ?? null);
+    return priorityChange;
+  }
+
+  /** `tasks.task.update` for what the body changes among its fields, when anything; who it newly mentions. */
+  async #writeFields(row: TaskRow, body: TaskFieldsPatch, caller: CallerOptions): Promise<string[]> {
+    const fields: TaskFieldChanges = {};
+    if (body.title !== undefined && body.title !== row.title) fields.title = body.title;
+    if (body.description !== undefined && body.description !== row.description) fields.description = body.description;
+    const due = await this.#due({ dueOn: row.due_on, dueAt: asDate(row.due_at) }, body);
+    if (due.dueOn !== undefined && due.dueOn !== row.due_on) fields.dueOn = due.dueOn;
+    if (due.dueAt !== undefined && iso(due.dueAt) !== iso(row.due_at)) fields.dueAt = due.dueAt;
+    if (body.startOn !== undefined && body.startOn !== row.start_on) fields.startOn = body.startOn;
+    if (body.context !== undefined && !sameContext(body.context, row)) fields.context = body.context;
+    if (Object.keys(fields).length === 0) return [];
+    const reminders = { timeZone: await this.deps.timeZone(), auditLog: this.deps.auditLog };
+    return (await this.#run(caller, updateTaskCommand(row.id, fields, reminders))).mentioned;
+  }
+
+  /** The Task as written; the people added and mentioned told — not for a draft (FR-037). */
+  async #afterWrite(id: string, added: readonly string[], mentioned: readonly string[]): Promise<TaskRow> {
+    const written = await this.deps.access.rowAfterWrite(id);
     if (!written.is_draft) {
       await this.#tellAssignees(added, written);
-      await this.deps.mentions.tell(written, mentioned);
+      await this.deps.mentions.tell(written, [...mentioned]);
     }
     return written;
   }

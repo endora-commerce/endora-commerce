@@ -11,12 +11,14 @@ import {
   type CreateTaskReminderBody,
   type CustomFieldMerge,
   type NewContextTask,
+  type TaskAssigneesChange,
   type TaskCommandPort,
   type TaskContext,
   type TaskLinkTarget,
   type TaskRecord,
   type TaskStatusMove,
   type TaskUpdatePatch,
+  type UpdateTaskBody,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { assertCallerSource, type CallerOptions } from '../commands/caller-options.js';
@@ -52,7 +54,17 @@ import type { TaskWritePortService } from './task-write-port.js';
 export interface TaskCommandServiceDeps {
   readonly tasks: Pick<
     TaskService,
-    'createTask' | 'updateTask' | 'setCustomFieldValues' | 'publishTask' | 'delete' | 'records'
+    | 'createTask'
+    | 'updateFields'
+    | 'setParentOf'
+    | 'setPriorityOf'
+    | 'setTagsOf'
+    | 'setAssigneesOf'
+    | 'setPrivacyOf'
+    | 'setCustomFieldValues'
+    | 'publishTask'
+    | 'delete'
+    | 'records'
   >;
   readonly transitions: Pick<TaskTransitionService, 'apply'>;
   readonly relations: Pick<TaskRelationService, 'relate' | 'unrelate'>;
@@ -91,6 +103,23 @@ function invalid(details: Array<{ path: string; issue: string }>): HttpError {
   return new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'The Task write is invalid.', details);
 }
 
+/** The keys `update` takes — the fields `tasks.task.update` writes (R-23.1). */
+const UPDATE_KEYS: readonly (keyof UpdateTaskBody)[] = ['title', 'description', 'dueOn', 'dueAt', 'startOn', 'context'];
+
+/**
+ * A port input as the admin `PATCH` body it is a part of: only `keys` may be
+ * named, and the values are parsed with the route's own schema, so every limit
+ * and refusal is the route's (`422 VALIDATION_FAILED`).
+ */
+function patchOf(input: unknown, keys: readonly (keyof UpdateTaskBody)[]): UpdateTaskBody {
+  if (!input || typeof input !== 'object') throw invalid([{ path: '', issue: 'Expected an object.' }]);
+  const extra = Object.keys(input).filter((key) => !keys.includes(key as keyof UpdateTaskBody));
+  if (extra.length > 0) {
+    throw invalid(extra.map((key) => ({ path: key, issue: 'Not changed by this method.' })));
+  }
+  return parseOrRefuse(UpdateTaskBodySchema, input);
+}
+
 /** A status code as the move takes it — any string, never checked for its form here (R-23.4). */
 function code(value: unknown): string {
   return typeof value === 'string' ? value : String(value);
@@ -114,11 +143,66 @@ export class TaskCommandService implements TaskCommandPort {
 
   async update(id: string, patch: TaskUpdatePatch, options: AggregateCommandOptions = {}): Promise<TaskRecord> {
     const caller = callerOf(options);
-    if (patch && typeof patch === 'object' && 'customFieldValues' in patch) {
-      throw invalid([{ path: 'customFieldValues', issue: 'Set custom-field values with setCustomFieldValues.' }]);
+    const body = patchOf(patch, UPDATE_KEYS);
+    return this.#record(await this.deps.tasks.updateFields(id, body, caller));
+  }
+
+  async setParent(
+    id: string,
+    input: { readonly parentTaskId: string | null },
+    options: AggregateCommandOptions = {},
+  ): Promise<TaskRecord> {
+    const caller = callerOf(options);
+    const { parentTaskId } = patchOf({ parentTaskId: input?.parentTaskId }, ['parentTaskId']);
+    return this.#record(await this.deps.tasks.setParentOf(id, parentTaskId ?? null, caller));
+  }
+
+  async setPriority(
+    id: string,
+    input: { readonly priorityCode: string | null },
+    options: AggregateCommandOptions = {},
+  ): Promise<TaskRecord> {
+    const caller = callerOf(options);
+    const { priorityCode } = patchOf({ priorityCode: input?.priorityCode }, ['priorityCode']);
+    return this.#record(await this.deps.tasks.setPriorityOf(id, priorityCode ?? null, caller));
+  }
+
+  async setTags(
+    id: string,
+    input: { readonly tagIds: readonly string[] },
+    options: AggregateCommandOptions = {},
+  ): Promise<TaskRecord> {
+    const caller = callerOf(options);
+    const { tagIds } = patchOf({ tagIds: input?.tagIds }, ['tagIds']);
+    return this.#record(await this.deps.tasks.setTagsOf(id, tagIds ?? [], caller));
+  }
+
+  async setAssignees(id: string, change: TaskAssigneesChange, options: AggregateCommandOptions = {}): Promise<TaskRecord> {
+    const caller = callerOf(options);
+    if (change && typeof change === 'object' && 'set' in change) {
+      const { assigneeIds } = patchOf({ assigneeIds: change.set }, ['assigneeIds']);
+      return this.#record(await this.deps.tasks.setAssigneesOf(id, { set: assigneeIds ?? [] }, caller));
     }
-    const body = parseOrRefuse(UpdateTaskBodySchema, patch);
-    return this.#record(await this.deps.tasks.updateTask(id, body, caller));
+    if (!change || typeof change !== 'object' || !('add' in change) || !('remove' in change)) {
+      throw invalid([{ path: 'change', issue: 'Either { set } or { add, remove }.' }]);
+    }
+    const body = patchOf({ addAssigneeIds: change.add, removeAssigneeIds: change.remove }, [
+      'addAssigneeIds',
+      'removeAssigneeIds',
+    ]);
+    return this.#record(
+      await this.deps.tasks.setAssigneesOf(
+        id,
+        { add: body.addAssigneeIds ?? [], remove: body.removeAssigneeIds ?? [] },
+        caller,
+      ),
+    );
+  }
+
+  async setPrivate(id: string, input: { readonly private: boolean }, options: AggregateCommandOptions = {}): Promise<TaskRecord> {
+    const caller = callerOf(options);
+    const body = patchOf({ private: input?.private }, ['private']);
+    return this.#record(await this.deps.tasks.setPrivacyOf(id, body.private === true, caller));
   }
 
   async setStatus(id: string, move: TaskStatusMove, options: AggregateCommandOptions = {}): Promise<TaskRecord> {
