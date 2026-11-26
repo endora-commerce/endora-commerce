@@ -59,7 +59,7 @@ beforeAll(async () => {
       {
         id: acmeLinksManifest.id,
         version: acmeLinksManifest.version,
-        registerModule: acmeLinksBackend.registerModule as never,
+        registerModule: acmeLinksBackend.registerModule,
       },
     ],
     { container: createRootContainer(), eventBus: new EventBus(), log, entityExtensionLoaderRegistry: registry },
