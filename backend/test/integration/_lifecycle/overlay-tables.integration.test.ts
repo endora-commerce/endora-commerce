@@ -42,14 +42,17 @@ import { deploymentDatabase, type DeploymentDatabase } from '../../helpers/deplo
  * tree gained the module after its last `migrate`, which is the state
  * `module:install` exists to repair.
  *
- * **Not measured here: the `x_*` column orphaned by the hard uninstall** (§5).
- * An overlay's `schemaExtensions` are #1853's (FR-065, Phase 9); until it lands
- * no overlay can declare a column, so there is no column to orphan.
+ * The module also declares one `x_*` column on `organizations` (#1853, FR-065 –
+ * FR-066): the generated step lands at the head of its block, its ledger rows
+ * sit under its id, the hard uninstall reverts the step with its migration and
+ * leaves the column and its value in place, `orphaned`, and the next `migrate`
+ * re-attaches it.
  */
 const DEPLOYMENT = 'example';
 const MODULE_ID = 'overlay_notes_fixture';
 const ACTIVATION = 'overlay_notes_fixture.enabled';
 const OWN = 'Migration20261125T120000OverlayNotesFixtureCreateNotes';
+const COLUMN = 'x_overlay_notes_fixture_last_note_at';
 
 let database: DeploymentDatabase;
 let orm: MikroORM;
@@ -58,6 +61,7 @@ let orchestrator: ModuleLifecycleOrchestrator;
 let bootAgain: () => Promise<void>;
 let status: (argv: readonly string[]) => Promise<StatusRow>;
 let noteId: string;
+let columnOrganizationId: string;
 
 interface StatusRow {
   readonly id: string;
@@ -79,6 +83,36 @@ async function noteCount(): Promise<number> {
     .getConnection()
     .execute('select count(*)::int as "n" from "overlay_fixture_notes"')) as { n: number }[];
   return rows[0]?.n ?? -1;
+}
+
+/** The module's `schema_extensions` ledger rows, `physical_name → status`. */
+async function ledger(): Promise<Record<string, string>> {
+  const rows = (await em()
+    .getConnection()
+    .execute(
+      `select "physical_name", "status" from "schema_extensions" where "module_id" = ? order by 1`,
+      [MODULE_ID],
+    )) as { physical_name: string; status: string }[];
+  return Object.fromEntries(rows.map((row) => [row.physical_name, row.status]));
+}
+
+async function columnExists(): Promise<boolean> {
+  const rows = (await em()
+    .getConnection()
+    .execute(
+      `select 1 from information_schema.columns where table_name = 'organizations' and column_name = ?`,
+      [COLUMN],
+    )) as unknown[];
+  return rows.length === 1;
+}
+
+/** The generated step's name, off the module's own migration list. */
+async function generatedStep(): Promise<string> {
+  const { registered } = await configuredMigrations(database.env);
+  const own = (await configuredMigrations(database.env)).ownership.migrationNamesFor(MODULE_ID) ?? [];
+  const step = registered.find((m) => m.origin === 'generated' && own.includes(m.name));
+  expect(step).toBeDefined();
+  return step!.name;
 }
 
 async function registration(): Promise<ModuleRegistration | null> {
@@ -150,6 +184,15 @@ afterAll(async () => {
 });
 
 describe('an overlay module that owns a table, through its lifecycle [integration]', () => {
+  it('its declared column comes from a generated step at the head of its block, ledgered under its id', async () => {
+    const { names } = await configuredMigrations(database.env);
+    const step = await generatedStep();
+    expect(names.indexOf(step)).toBe(names.indexOf(OWN) - 1);
+    // The template arrived fully migrated: the column is there, applied.
+    expect(await columnExists()).toBe(true);
+    expect(await ledger()).toEqual({ [COLUMN]: 'applied' });
+  });
+
   it('first boot converges its registry row, marked as boot-converged; its migration is pending', async () => {
     expect(await tableExists()).toBe(false);
     await bootAgain();
@@ -159,6 +202,7 @@ describe('an overlay module that owns a table, through its lifecycle [integratio
     expect(row?.bootConvergedAt).toBeInstanceOf(Date);
 
     expect((await status([MODULE_ID])).migrations).toEqual([
+      { name: await generatedStep(), origin: 'generated', state: 'applied' },
       { name: OWN, origin: 'overlay', state: 'pending' },
     ]);
   });
@@ -180,7 +224,10 @@ describe('an overlay module that owns a table, through its lifecycle [integratio
   it('status lists the migration by name, with origin overlay, applied', async () => {
     const row = await status([MODULE_ID]);
     expect(row.state).toBe('installed');
-    expect(row.migrations).toEqual([{ name: OWN, origin: 'overlay', state: 'applied' }]);
+    expect(row.migrations).toEqual([
+      { name: await generatedStep(), origin: 'generated', state: 'applied' },
+      { name: OWN, origin: 'overlay', state: 'applied' },
+    ]);
   });
 
   it('deactivating it (operator axis) makes it absent and leaves its table and rows untouched', async () => {
@@ -193,6 +240,10 @@ describe('an overlay module that owns a table, through its lifecycle [integratio
          values (?, 'Overlay lifecycle', ?, 'active', 'vat_payer', '{}'::jsonb, ?, now(), now())`,
         [organizationId, `OVL${organizationId.slice(0, 13).replace(/-/g, '').toUpperCase()}`, `/${organizationId}/`],
       );
+    columnOrganizationId = organizationId;
+    await em()
+      .getConnection()
+      .execute(`update "organizations" set "${COLUMN}" = '2026-11-25T12:00:00Z' where "id" = ?`, [organizationId]);
     noteId = randomUUID();
     await em()
       .getConnection()
@@ -231,13 +282,27 @@ describe('an overlay module that owns a table, through its lifecycle [integratio
   });
 
   it('a hard uninstall reverts its migration, drops its table and deletes its registry row', async () => {
+    const step = await generatedStep();
     const result = await orchestrator.uninstall(MODULE_ID, { hard: true });
-    expect(result.revertedMigrations).toEqual([OWN]);
+    expect(result.revertedMigrations).toEqual([OWN, step]);
     expect(await tableExists()).toBe(false);
     expect(await registration()).toBeNull();
     expect((await status([MODULE_ID])).migrations).toEqual([
+      { name: step, origin: 'generated', state: 'pending' },
       { name: OWN, origin: 'overlay', state: 'pending' },
     ]);
+  });
+
+  it('and keeps its x_* column and the value in it, orphaned (FR-066)', async () => {
+    expect(await columnExists()).toBe(true);
+    expect(await ledger()).toEqual({ [COLUMN]: 'orphaned' });
+    const rows = (await em()
+      .getConnection()
+      .execute(`select "${COLUMN}" as "value" from "organizations" where "id" = ?`, [
+        columnOrganizationId,
+      ])) as { value: string | Date | null }[];
+    expect(rows[0]?.value).not.toBeNull();
+    expect(new Date(rows[0]!.value!).toISOString()).toBe('2026-11-25T12:00:00.000Z');
   });
 
   it('a tree that still ships it converges it back at the next boot (§2)', async () => {
@@ -252,7 +317,10 @@ describe('an overlay module that owns a table, through its lifecycle [integratio
     expect(await tableExists()).toBe(true);
     expect(await noteCount()).toBe(0);
     expect((await status([MODULE_ID])).migrations).toEqual([
+      { name: await generatedStep(), origin: 'generated', state: 'applied' },
       { name: OWN, origin: 'overlay', state: 'applied' },
     ]);
+    // The orphaned column is re-attached, not recreated: the value survives.
+    expect(await ledger()).toEqual({ [COLUMN]: 'applied' });
   });
 });

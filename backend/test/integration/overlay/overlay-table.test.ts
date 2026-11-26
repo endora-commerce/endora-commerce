@@ -61,7 +61,12 @@ describe('an overlay module that owns a table [integration]', () => {
   it('its migration is applied, after the module it depends on, and recorded under its class name', async () => {
     const order = (await configuredMigrations(database.env)).names;
     const own = order.filter((name) => name.startsWith('Migration') && name.includes('OverlayNotesFixture'));
-    expect(own).toEqual(['Migration20261125T120000OverlayNotesFixtureCreateNotes']);
+    // Its own migration, preceded by the step generated from its one `x_*`
+    // declaration on `organizations` (#1853, FR-065) at the head of its block.
+    expect(own).toEqual([
+      expect.stringMatching(/^Migration10000101T000000OverlayNotesFixtureSchemaExtensions[0-9a-f]{12}$/),
+      'Migration20261125T120000OverlayNotesFixtureCreateNotes',
+    ]);
     const firstOrganizations = order.findIndex((name) => /^Migration\d{8}T\d{6}Organizations/.test(name));
     expect(firstOrganizations).toBeGreaterThanOrEqual(0);
     expect(order.indexOf(own[0]!)).toBeGreaterThan(firstOrganizations);
@@ -69,12 +74,13 @@ describe('an overlay module that owns a table [integration]', () => {
     const applied = (await orm.em
       .getConnection()
       .execute('select "name" from "mikro_orm_migrations"')) as { name: string }[];
-    expect(applied.map((row) => row.name)).toContain(own[0]);
+    expect(applied.map((row) => row.name)).toEqual(expect.arrayContaining(own));
   });
 
   it('is owned by the module, so a hard uninstall can enumerate its chain (FR-036)', async () => {
     const { ownership } = await configuredMigrations(database.env);
     expect(ownership.migrationNamesFor(MODULE_ID)).toEqual([
+      expect.stringMatching(/^Migration10000101T000000OverlayNotesFixtureSchemaExtensions[0-9a-f]{12}$/),
       'Migration20261125T120000OverlayNotesFixtureCreateNotes',
     ]);
   });

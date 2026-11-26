@@ -87,6 +87,46 @@ describe('Admin create order with inline addresses (US3)', () => {
     expect(recipients).not.toContain('Transient Tina');
   });
 
+  it('leaves no address in the book when the order is refused, saved or not', async () => {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/orders',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {
+        customerAccountId: TEST_CUSTOMER_ID,
+        salesChannelId: orderChannelId,
+        // An unknown product is refused by the basket, after the inline addresses are written.
+        items: [{ productId: '00000000-0000-4000-8000-00000000f00d', quantity: 1 }],
+        deliveryMethodId: SEED_DELIVERY_METHOD_ID,
+        paymentMethodId: SEED_PAYMENT_METHOD_ID,
+        deliveryAddress: {
+          recipientName: 'Refused Rita',
+          street: 'Nowhere St 4',
+          city: 'Poznan',
+          postalCode: '60-004',
+          country: 'PL',
+          saveToAddressBook: true,
+        },
+        billingAddress: {
+          recipientName: 'Refused Rob',
+          street: 'Nowhere St 5',
+          city: 'Poznan',
+          postalCode: '60-005',
+          country: 'PL',
+          saveToAddressBook: false,
+        },
+      },
+    });
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+
+    const live = await h
+      .em()
+      .find(Address, { organizationId: TEST_ORGANIZATION_ID, deletedAt: null });
+    const recipients = live.map((a) => a.recipientName);
+    expect(recipients).not.toContain('Refused Rita');
+    expect(recipients).not.toContain('Refused Rob');
+  });
+
   it('rejects supplying both an id and an inline address for the same side', async () => {
     const res = await h.app.inject({
       method: 'POST',

@@ -185,6 +185,14 @@ export const divergence: DeploymentDivergenceDeclaration = {
       'repository registers a refund handler, and `GatewayRefundRegistryPort` would be compiled ' +
       'against by no consumer at all (FR-021, FR-063). Same rung, same shape: the owner published ' +
       'the seam, the consumer declares it, and nothing of `payments` is wrapped or replaced.',
+    // `overlay_notes_fixture` — 190 #1853 (FR-065, FR-066): the one overlay
+    // declarer of an `x_*` column in this repository.
+    'column-extension:overlay_notes_fixture:organizations':
+      'Core keeps an Organization’s columns its own. This fixture adds one nullable column to ' +
+      '`organizations`, for when the organization’s last note was written, through the generated ' +
+      'schema-extension step an installed package would use: ledgered under the fixture’s id, ' +
+      'never exposed on an admin read, and kept as orphaned with its values when the fixture is ' +
+      'hard-uninstalled. No core column is changed, and nothing core runs reads it.',
     'decoration:example_overlay:pricingService':
       'Core resolves a line price from the price lists a customer is entitled to. This ' +
       'deployment prefixes the resolved list id so that a reference reader can see, on a live ' +

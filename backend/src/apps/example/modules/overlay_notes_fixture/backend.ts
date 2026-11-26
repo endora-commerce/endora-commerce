@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleContext, RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
+import { overlayNotesFixtureOrganizationColumns } from './columns.js';
 import { OverlayFixtureNote } from './entities/overlay-fixture-note.entity.js';
 
 /**
@@ -9,6 +10,12 @@ import { OverlayFixtureNote } from './entities/overlay-fixture-note.entity.js';
  * `entities/` that is not here is refused at discovery.
  */
 export const entities = [OverlayFixtureNote];
+
+/**
+ * The columns this module declares on another module's table, read and held to
+ * V9 – V11 by the platform as an installed package's are (FR-065).
+ */
+export const schemaExtensions = [overlayNotesFixtureOrganizationColumns];
 
 /** The one route — the API surface its off-state test proves absent (FR-046). */
 export const OVERLAY_NOTES_FIXTURE_NOTES_ROUTE = '/api/v1/admin/overlay-notes-fixture/notes';
