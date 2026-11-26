@@ -441,6 +441,33 @@ describe('a subject the manifest index does not register', () => {
     ]);
   });
 
+  // #1941 case 2: the population was keyed on the directory and on two directories holding
+  // files, so a module whose tables are declared only through its backend's `entities` export —
+  // the list the platform's ORM actually registers — owed no proof, and an id that differs from
+  // its directory name was reported under a name no `expectModuleAbsent` call can match.
+  it('keys the owing population on the manifest id and the backend entities export', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'off-state-overlays-'));
+    const write = (path: string, text: string): void => {
+      mkdirSync(dirname(join(root, path)), { recursive: true });
+      writeFileSync(join(root, path), text);
+    };
+    const manifest = (id: string): string =>
+      `export const manifest = { id: '${id}', activation: { settingCode: '${id}.enabled', default: true } };\n`;
+    write('a/modules/exported_only/manifest.js', manifest('exported_only'));
+    write('a/modules/exported_only/backend.js', 'class Thing {}\nexport const entities = [Thing];\n');
+    write('a/modules/empty_export/manifest.js', manifest('empty_export'));
+    write('a/modules/empty_export/backend.js', 'export const entities = [];\n');
+    write('a/modules/renamed_dir/manifest.js', manifest('renamed_module'));
+    write('a/modules/renamed_dir/migrations/20261126T000000_renamed_module_init.js', 'export class Z {}\n');
+
+    const found = await deploymentModulesUnder([join(root, 'a', 'modules')]);
+    expect(found.ids).toEqual(['empty_export', 'exported_only', 'renamed_module']);
+    expect(found.population).toEqual([
+      { moduleId: 'exported_only', activationSettingCode: 'exported_only.enabled' },
+      { moduleId: 'renamed_module', activationSettingCode: 'renamed_module.enabled' },
+    ]);
+  });
+
   it('reads an id seeded beside a spread of the real baseline', () => {
     expect([
       ...locallyDeclaredModuleIds({
