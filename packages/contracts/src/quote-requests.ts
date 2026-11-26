@@ -1317,6 +1317,15 @@ export interface QuoteRequestReadPort {
  * `rfq.modified.v1`, `rfq.approved.v1`, `rfq.canceled.v1`) dispatched on
  * commit.
  *
+ * **A quote this port creates starts unshared**
+ * (`specs/192-quote-request-draft-share/`), as the admin route's does: its
+ * customer cannot see it and is told nothing — no notification is recorded or
+ * delivered for its create, edits or cancellation. The events are still
+ * emitted; a customer-facing subscriber checks
+ * {@link QuoteRequestRecord.sharedWithCustomer}. The port has **no `share`**:
+ * an operator shares the quote in the Admin UI, and only then is the customer
+ * notified.
+ *
  * **Inputs and refusals are the admin route's.** Each input is the body the
  * route validates, parsed here with the same schema — an invalid one throws
  * the validation error the route answers `400 VALIDATION_FAILED` with — and
@@ -1359,14 +1368,23 @@ export interface QuoteRequestCommandPort {
    * `422 RFQ_SALES_CHANNEL_NOT_ALLOWED` (`no_channel`), so a server-side caller
    * names the channel. Emits `rfq.created_by_admin.v1`, whose `adminUserId` is
    * `null` when no administrator was present.
+   *
+   * The quote starts **unshared** (`sharedWithCustomer: false`, `expiresAt`
+   * `null`): `expiresInDays`, else the `quote_requests.default_validity_days`
+   * setting, is kept as days and becomes a date only when an operator shares
+   * it in the Admin UI. A line may have no agreed price yet. Nothing is
+   * recorded for the customer and no notification goes out.
    */
   create(input: AdminCreateQuoteRequest, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
   /**
    * `quote_request.modify` — the operator's revision of a `Pending` or
    * `Created from admin` request: lines, prices, groups, note, validity and
-   * custom-field values, as one new revision the customer is asked to accept.
-   * (`quote_request.patch_draft` is the buyer's draft edit; the admin route
-   * never runs it, so neither does this.)
+   * custom-field values, as one new revision. On a shared quote the customer
+   * is asked to accept it and is notified; on an unshared one the revision is
+   * the operators' alone — the customer is told nothing, and `expiresInDays`
+   * is kept as days until the share (no date is written). On a shared quote
+   * `0` or `null` clears the deadline. (`quote_request.patch_draft` is the
+   * buyer's draft edit; the admin route never runs it, so neither does this.)
    */
   update(id: string, patch: AdminPatchQuoteRequest, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
   /**
@@ -1402,7 +1420,9 @@ export interface QuoteRequestCommandPort {
   /**
    * `quote_request.cancel` — a `Pending` or `Created from admin` request. The
    * reason is kept on the request and its history entry, never in the audit
-   * entry; the buyer is notified.
+   * entry. The buyer is notified when the quote is shared; cancelling an
+   * unshared quote tells the customer nothing (`rfq.canceled.v1` is still
+   * emitted).
    */
   cancel(id: string, input: { reason: string | null }, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
   /**
