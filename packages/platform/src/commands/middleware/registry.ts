@@ -6,7 +6,7 @@ import {
   type CommandMiddlewarePhase,
   type ModuleOrigin,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../http/error-envelope.js';
+import type { HttpError } from '../../http/error-envelope.js';
 import { moduleLogger, platformLogger, type PlatformLogger } from '../../kernel/logging.js';
 import { orderByModuleGraph } from '../ordering.js';
 import { withinBudget, type BudgetResult } from './budget.js';
