@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import type { RecordMergeHostType } from '@endora-commerce/contracts';
 import { RuleScoped } from '../../tenancy/org-scoped.decorator.js';
 

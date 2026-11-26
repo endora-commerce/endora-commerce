@@ -24,7 +24,7 @@ function only(options: PackageFixtureOptions): RuleResult {
 const ENTITY = {
   path: 'src/backend/entities/widget.entity.ts',
   content: [
-    "import { Entity, PrimaryKey, Property } from '@mikro-orm/core';",
+    "import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';",
     '@Entity()',
     'export class Widget {',
     '  @PrimaryKey() id!: string;',

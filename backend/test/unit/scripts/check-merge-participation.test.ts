@@ -20,7 +20,7 @@ import { MERGE_PARTICIPATION_PENDING } from '../../../scripts/ledgers/merge-part
  */
 
 const ORDER_SOURCE = `
-import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { OrgScoped } from '@endora-commerce/platform/tenancy';
 
 @OrgScoped()

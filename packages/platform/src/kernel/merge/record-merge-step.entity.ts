@@ -1,4 +1,5 @@
-import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { OptionalProps } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import type { RecordMergeDeferredReason, RecordMergeStepState } from '@endora-commerce/contracts';
 import { RuleScoped } from '../../tenancy/org-scoped.decorator.js';
 
