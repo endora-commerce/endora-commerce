@@ -87,6 +87,9 @@ export const PROJECTS_AUDIT_KEYS: ReadonlySet<string> = new Set([
   // An attachment: the row and the library file, by id.
   'attachmentId',
   'assetId',
+  // The integration that wrote through `projectCommandPort`, a code
+  // (`specs/186-aggregate-ports/` R-4, D-293.6).
+  'source',
 ]);
 
 /**

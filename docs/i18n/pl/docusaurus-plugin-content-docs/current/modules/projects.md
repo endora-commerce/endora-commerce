@@ -827,14 +827,14 @@ oczekujące i nieudane dostarczenia.
 
 | Akcja | Referencja | Zapisywana przez | Dane hooka |
 | --- | --- | --- | --- |
-| `projects.project.create` | `PROJECT_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/projects` | `projectId`, `stageId`, `templateId`, `organizationIds`, `changedCustomFields` |
-| `projects.project.update` | `PROJECT_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/projects/:id` (tytuł, opis, wartość, data rozpoczęcia) | `projectId`, `changedFields` |
-| `projects.project.custom_fields_update` | `PROJECT_HOOKABLE_ACTIONS.customFieldsUpdate` | `PATCH /api/v1/admin/projects/:id` (pola własne) | `projectId`, `changedCustomFields` |
-| `projects.project.organization_add` | `PROJECT_HOOKABLE_ACTIONS.organizationAdd` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `targetOrganizationId`, `changed` |
-| `projects.project.organization_remove` | `PROJECT_HOOKABLE_ACTIONS.organizationRemove` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `targetOrganizationId`, `changed` |
-| `projects.project.stage_move` | `PROJECT_HOOKABLE_ACTIONS.stageMove` | `POST /api/v1/admin/projects/:id/move` | `projectId`, `fromStageId`, `toStageId` |
-| `projects.project.close` | `PROJECT_HOOKABLE_ACTIONS.close` | `POST /api/v1/admin/projects/:id/close` | `projectId`, `state` (`completed` albo `lost`), `stageId`, `lossReasonCode` |
-| `projects.project.reopen` | `PROJECT_HOOKABLE_ACTIONS.reopen` | `POST /api/v1/admin/projects/:id/reopen` | `projectId`, `stageId`, `previousState` |
+| `projects.project.create` | `PROJECT_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/projects`, `projectCommandPort.create` | `projectId`, `stageId`, `templateId`, `organizationIds`, `changedCustomFields` |
+| `projects.project.update` | `PROJECT_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/projects/:id` (tytuł, opis, wartość, data rozpoczęcia), `projectCommandPort.update` | `projectId`, `changedFields` |
+| `projects.project.custom_fields_update` | `PROJECT_HOOKABLE_ACTIONS.customFieldsUpdate` | `PATCH /api/v1/admin/projects/:id` (pola własne), `projectCommandPort.setCustomFieldValues` | `projectId`, `changedCustomFields` |
+| `projects.project.organization_add` | `PROJECT_HOOKABLE_ACTIONS.organizationAdd` | `PUT /api/v1/admin/projects/:id/organizations`, `projectCommandPort.setOrganizations` | `projectId`, `targetOrganizationId`, `changed` |
+| `projects.project.organization_remove` | `PROJECT_HOOKABLE_ACTIONS.organizationRemove` | `PUT /api/v1/admin/projects/:id/organizations`, `projectCommandPort.setOrganizations` | `projectId`, `targetOrganizationId`, `changed` |
+| `projects.project.stage_move` | `PROJECT_HOOKABLE_ACTIONS.stageMove` | `POST /api/v1/admin/projects/:id/move`, `projectCommandPort.moveToStage` | `projectId`, `fromStageId`, `toStageId` |
+| `projects.project.close` | `PROJECT_HOOKABLE_ACTIONS.close` | `POST /api/v1/admin/projects/:id/close`, `projectCommandPort.close` | `projectId`, `state` (`completed` albo `lost`), `stageId`, `lossReasonCode` |
+| `projects.project.reopen` | `PROJECT_HOOKABLE_ACTIONS.reopen` | `POST /api/v1/admin/projects/:id/reopen`, `projectCommandPort.reopen` | `projectId`, `stageId`, `previousState` |
 
 Wszystkie osiem oferuje obie fazy, a wiersz kolejki dostarczeń zawiera te same
 dane co hook. Jedno i drugie to **wyłącznie identyfikatory, kody i nazwy pól**:
@@ -862,9 +862,11 @@ Trzy rzeczy, o których warto wiedzieć, podpinając się pod te zapisy:
   wszystkich jego organizacji, więc odbiorca przypięty do jednej z nich nie
   mógłby odczytać projektu. Każdy odbiorca `afterCommit` projektu działa w
   zakresie systemowym.
-- **Dane rozszerzeń nie są jeszcze podłączone.** Żadne body ścieżki ani żaden
-  port nie przekazuje `extensions` do tych poleceń, więc hook nie może dostać
-  własnych danych wejściowych.
+- **Dane rozszerzeń przekazuje tylko kod po stronie serwera.** Żadne body
+  ścieżki nie zawiera `extensions`; zawiera je ostatni argument każdej metody
+  `projectCommandPort` (zob. *Zapis projektów z innego modułu*). W
+  `setOrganizations` trafiają one do każdego `organization_add` i
+  `organization_remove`.
 
 Każdy inny zapis modułu też jest poleceniem i **nie** jest zadeklarowany jako
 dostępny dla hooków — hook zarejestrowany na jednej z tych akcji jest odrzucany
@@ -1063,7 +1065,7 @@ przez `lazyPort` i deklaruj krawędź jako `degrades-without` ze zdaniem
 
 | Metoda | Co zwraca |
 | --- | --- |
-| `findById(id)` | Projekt jako `ProjectRecord` — `id`, `number`, `title`, `state`, `currentStageId`, `currentStageName`, `organizationIds`, `valueAmount`, `valueCurrency`, `templateId`, `closedAt`, `createdAt` — albo `null`. |
+| `findById(id)` | Projekt jako `ProjectRecord` — `id`, `number`, `title`, `state`, `currentStageId`, `currentStageName`, `organizationIds`, `valueAmount`, `valueCurrency`, `templateId`, `closedAt`, `createdAt`, `customFieldValues`, `version`, `configurationVersion` — albo `null`. |
 | `findByRecord(kind, id)` | Projekt, do którego podpięto `order`, `quote_request` lub `opportunity`, jako `ProjectRecord`, albo `null`. |
 | `findByIds(ids)` | Projekty o podanych `ids`, w dowolnej kolejności; identyfikator projektu, którego wywołujący nie może zobaczyć albo który nie istnieje, jest pomijany. |
 | `search({ q, limit })` | Projekty, których numer lub tytuł zawiera `q`, od najnowszych, najwyżej `limit` (nie więcej niż 20). |
@@ -1073,6 +1075,12 @@ Wszystkie pięć metod odpowiada w imieniu wywołującego, przez `ProjectAccess`
 własnym kontekście dzierżawy: projekt, który nie istnieje, projekt poza
 zasięgiem wywołującego i projekt, którego nie może on zobaczyć, to ten sam
 `null` — albo zostają pominięte. Odpowiedź jest zwykłym obiektem, nigdy encją.
+
+`customFieldValues` to wartości pól własnych projektu w postaci zapisanej,
+wszystkie pola — także te, które panel administracyjny ukrywa albo pokazuje
+tylko do odczytu, bo odbiorcą jest kod. `version` i `configurationVersion` to
+dwa tokeny, które zapis przez `projectCommandPort` może odesłać jako
+`expectedVersion`.
 
 `listNotes` wypisuje wyłącznie notatki — nigdy wewnętrznych wiadomości ani
 usuniętych notatek — i tylko przy projektach, które wywołujący może zobaczyć.
@@ -1089,6 +1097,107 @@ albo niepoprawna data kończą się odmową `422 VALIDATION_FAILED`.
 sekwencji numerów: kolejny numer `PRJ-…` dla kodu, który zapisuje projekty bez
 polecenia (Command), na przykład dla kompozycji demo; jeden format i jedna
 sekwencja, niezależnie od tego, kto tworzy projekt.
+
+### Zapis projektów z innego modułu
+
+Inny moduł, moduł nakładkowy albo proces integracji zapisuje projekt przez
+**`projectCommandPort`** — port zapisu agregatu projektu, zadeklarowany jako
+`ProjectCommandPort` w `@endora-commerce/contracts`. Nigdy nie zapisuje
+samodzielnie tabel tego modułu. Rozwiązuj go przy każdym użyciu przez
+`lazyPort<ProjectCommandPort>(ctx, 'projectCommandPort')` i zadeklaruj krawędź w
+swoim manifeście: moduł `projects` można wyłączyć, więc albo wymień go w
+`dependencies`, albo zadeklaruj wpis `nonBindingDependencies` rodzaju
+`refuses-without`. Jest bramkowany jak port odczytu: przy wyłączonym module
+Projekty rozwiązanie go zgłasza błąd, wywołanie odpowiada `503`
+`MODULE_DISABLED` i nic nie zostaje zapisane. Nie przechwytuj tej odmowy, żeby
+działać dalej.
+
+Każda metoda uruchamia to samo polecenie, które uruchamia ścieżka panelu
+administracyjnego dla tej samej operacji, przez tę samą usługę, więc ślad
+audytu, hooki poleceń i wszystko, co następuje po zapisie, jest takie samo:
+
+| Metoda | Akcja audytu | Co administrator robi tak samo |
+| --- | --- | --- |
+| `create(input, options?)` | `projects.project.create` | `POST /api/v1/admin/projects` |
+| `update(id, { title?, description?, value?, startOn? }, options?)` | `projects.project.update` | `PATCH /api/v1/admin/projects/:id` (te cztery pola) |
+| `setCustomFieldValues(id, merge, options?)` | `projects.project.custom_fields_update` | `PATCH /api/v1/admin/projects/:id` (`customFieldValues`) |
+| `setOrganizations(id, { organizationIds }, options?)` | `projects.project.organization_add`, `.organization_remove` | `PUT /api/v1/admin/projects/:id/organizations` |
+| `setMembers(id, { members }, options?)` | `projects.project.member_set` | `PUT /api/v1/admin/projects/:id/members` |
+| `moveToStage(id, { toStageId }, options?)` | `projects.project.stage_move` | `POST /api/v1/admin/projects/:id/move` |
+| `close(id, { outcome, lossReasonId?, comment? }, options?)` | `projects.project.close` | `POST /api/v1/admin/projects/:id/close` |
+| `reopen(id, options?)` | `projects.project.reopen` | `POST /api/v1/admin/projects/:id/reopen` |
+| `link(id, { kind, recordId }, options?)` | `projects.project.link_add` | `POST /api/v1/admin/projects/:id/links` |
+| `unlink(id, linkId, options?)` | `projects.project.link_remove` | `DELETE /api/v1/admin/projects/:id/links/:linkId` |
+| `addComment(id, { kind, body }, options?)` | `projects.project.note_add`, `.message_add` | `POST /api/v1/admin/projects/:id/comments` |
+| `delete(id, options?)` | `projects.project.delete` | `DELETE /api/v1/admin/projects/:id` |
+
+Większość metod zwraca projekt jako `ProjectRecord`, odczytany po zapisie.
+`setOrganizations` zwraca `null`, gdy zmiana wyprowadziła projekt poza zasięg
+samego wywołującego; `link` zwraca `{ linkId }`, a `addComment`
+`{ commentId }`. Archiwizacja i przywracanie projektu nie są dostępne, bo moduł
+nie ma takiej operacji. Widoczność projektu i wskazane osoby, jego etapy,
+przebieg i zadania etapów, szablony, role, powody utraty i załączniki to
+konfiguracja i też nie są dostępne.
+
+**Żadne uprawnienie nie jest sprawdzane**: to wywołujący decyduje o dostępie, a
+portu nigdy nie rozwiązuje się dla ścieżki dostępnej dla klienta. **Aktorem jest
+aktor z bieżącego kontekstu**, nigdy argument. Proces wywołuje port w
+`withSystemScope(reason)`: widzi wtedy każdy projekt, a każdy wpis zapisuje
+aktora `system`. W `withSystemScopeActingFor(adminUserId, reason)` działa jako
+ten administrator i widzi tylko to, co on może zobaczyć. `create` i
+`addComment` zapisują w wierszu administratora (kto utworzył projekt, kto
+napisał komentarz), więc gdy za wywołaniem nie stoi żaden administrator, kończą
+się odmową `403` `FORBIDDEN`, zanim cokolwiek zostanie odczytane. Uruchamiaj je
+w `withSystemScopeActingFor`.
+
+**To, co następuje po zapisie, następuje też po wywołaniu portu**: zadania
+etapu, do którego projekt wchodzi przez `create` albo `moveToStage` (gdy moduł
+Zadania jest włączony), osoby nowo wspomniane w opisie albo komentarzu,
+członkowie powiadamiani o wiadomości, zadania usuniętego projektu i zdarzenia
+modułu. Zarejestrowani strażnicy etapów działają przy `moveToStage`, `close` i
+`reopen`, a ich odmowa to `409` `PROJECT_GUARD_REFUSED`. Pozostałe odmowy mają
+kody ścieżki panelu administracyjnego, a dane spoza jej ograniczeń kończą się
+odmową `422` `VALIDATION_FAILED`.
+
+**`setCustomFieldValues`** przyjmuje funkcję zwrotną operującą na zapisanych
+wartościach. Moduł uruchamia ją pod blokadą projektu, między własnym odczytem a
+własnym zapisem, i niczego nie waliduje: wywołaj w niej
+`CustomFieldValuePort.validateAndMerge('project', current, patch)`. Funkcja,
+która niczego nie zmienia, niczego nie zapisuje ani nie rejestruje. Edycja w
+panelu administracyjnym uruchamia tę samą akcję audytu, więc hook polecenia,
+który musi widzieć każdą zmianę wartości, rejestruje się raz.
+
+**Opcje**, ostatni argument każdej metody:
+
+- `source` — kod nazywający twoją integrację (`^[a-z][a-z0-9_.-]{0,63}$`),
+  zapisywany w każdym wpisie audytu obok aktora. Każda inna wartość kończy się
+  odmową `422` `VALIDATION_FAILED`, zanim cokolwiek zostanie odczytane.
+- `expectedVersion` — odczytany token: `version` rekordu w `update`,
+  `setCustomFieldValues`, `moveToStage`, `close` i `reopen`, a
+  `configurationVersion` w `setOrganizations` i `setMembers`. Nieaktualny kończy
+  się odmową `409` `PROJECT_CHANGED`, tym samym kodem, który zwracają ścieżki
+  panelu administracyjnego. Bez niego zapis jest trzymany wersji, którą metoda
+  sama odczytuje. `link`, `unlink`, `addComment` i `delete` go ignorują.
+- `extensions` — dane wejściowe dla hooków poleceń na danej akcji, według
+  identyfikatora modułu hooka. Klucz, do którego nie zgłasza się żaden obecny
+  moduł hooka, kończy się odmową `422` `COMMAND_EXTENSION_UNCLAIMED`, zanim
+  cokolwiek zostanie zapisane, więc każdy klucz jest odrzucany w `setMembers`,
+  `link`, `unlink`, `addComment` i `delete`, których akcje nie są dostępne dla
+  hooków.
+
+Wywołanie to osobna transakcja. Wywołuj port po zatwierdzeniu własnej
+transakcji, nigdy wewnątrz niej; żeby zapisać coś atomowo z zapisem projektu,
+użyj zamiast tego hooka polecenia `beforeCommit`.
+
+**Przykład: inwestor projektu.** Wdrożenie przechowuje inwestora każdego
+projektu we własnej tabeli, z kluczem projektu, i musi uczynić inwestora
+powiązanym płatnikiem organizacji projektu. Nie potrzebuje do tego żadnej
+zmiany w tym module. O zmianach dowiaduje się z akcji dostępnych dla hooków
+opisanych wyżej: `organization_add` i `organization_remove` wskazują każdą
+organizację. Odczytuje `organizationIds` projektu przez `projectReadPort` i
+dla każdej wywołuje `relatedPayerWritePort.addPayer`. Jeśli inwestor jest
+zamiast tego polem własnym, wdrożenie odczytuje go z `customFieldValues`
+rekordu i zapisuje przez `projectCommandPort.setCustomFieldValues`.
 
 ### Jedna ścieżka odczytu
 

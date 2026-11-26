@@ -91,6 +91,9 @@ value). Today the hosts that publish one are:
   to it. Both run `organization.set_custom_field_values`, which is not what the admin edit runs
   (`organization.admin_patch` writes the columns and the bag in one Command), so a command hook that
   must see every change of the bag registers on both actions.
+- `projects` — `projectCommandPort.setCustomFieldValues(projectId, merge, options?)`, the aggregate
+  port (`specs/186-aggregate-ports/` US7). It runs `projects.project.custom_fields_update`, the
+  Command the admin `PATCH` runs for the values, so one hook registration sees every change.
 - `tasks` — `taskCommandPort.setCustomFieldValues(taskId, merge, options?)`, the aggregate port
   (`specs/186-aggregate-ports/` US10). It runs `tasks.task.custom_fields_change`, the Command the
   admin `PATCH` runs for the values, so one hook registration sees every change.
