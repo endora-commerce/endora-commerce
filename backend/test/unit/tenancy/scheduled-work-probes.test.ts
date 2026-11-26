@@ -64,10 +64,11 @@ const PROBES = [
   { module: 'assets_library', file: 'jobs/retention-due-probe.ts', method: 'hasDue' },
   // Issue #894 — the publication-window sweep.
   { module: 'catalog', file: 'services/publication-window-sweep.ts', method: 'hasDueTransitions' },
-  // Issue #857 — the owner of the table answers for `customers`' anonymisation sweep tick.
+  // Issue #857 — the owner of the table answers for `customers`' anonymisation sweep tick;
+  // on its read port since `specs/186-aggregate-ports/` (#1822).
   {
     module: 'customer_accounts',
-    file: 'services/customer-account-lifecycle-ports.ts',
+    file: 'services/customer-account-ports.ts',
     method: 'hasDueForAnonymization',
   },
   // Issue #923 — and `organizations` for the personal organisations an earlier rule left incompletely scrubbed.

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -118,6 +118,49 @@ describe('planWiring / applyWiringPlan', () => {
     expect(scripts(root, 'backend/package.json')['build']).toBe('tsc -p tsconfig.json && echo mine');
     // Everything else still moves.
     expect(read(root, 'backend/src/worker.ts')).toContain('deploymentSourceRoot');
+  });
+
+  it("rewrites the admin member's wiring to select the deployment registry (#1855)", () => {
+    const root = instance0112();
+    applyWiringPlan(planWiring(root));
+
+    expect(read(root, 'admin/src/main.tsx')).toContain(
+      "import { DEPLOYMENT_ADMIN_CONTRIBUTIONS } from '@endora-commerce-deployment/admin';",
+    );
+    expect(read(root, 'admin/vite.config.ts')).toContain('selectDeploymentAdminRegistry');
+    expect(read(root, 'admin/tsconfig.json')).toContain('../apps/*/modules/*/admin/**/*');
+  });
+
+  it("reports an edited admin/vite.config.ts and leaves it, while main.tsx still moves", () => {
+    const root = instance0112();
+    const edited = `${read(root, 'admin/vite.config.ts')}// mine\n`;
+    writeFileSync(join(root, 'admin/vite.config.ts'), edited, 'utf8');
+
+    const plan = planWiring(root);
+    expect(plan.edited.map((entry) => entry.what)).toEqual(['admin/vite.config.ts']);
+    applyWiringPlan(plan);
+    expect(read(root, 'admin/vite.config.ts')).toBe(edited);
+    expect(read(root, 'admin/src/main.tsx')).toContain('DEPLOYMENT_ADMIN_CONTRIBUTIONS');
+  });
+
+  it('writes no admin file into an instance scaffolded without an admin member', () => {
+    const root = instance0112();
+    rmSync(join(root, 'admin'), { recursive: true, force: true });
+    applyWiringPlan(planWiring(root));
+    expect(existsSync(join(root, 'admin'))).toBe(false);
+  });
+
+  it('git-ignores the deployment registries once, appending and deleting nothing', () => {
+    const root = instance0112();
+    writeFileSync(join(root, '.gitignore'), 'admin/src/modules.generated.ts\nnode_modules\n', 'utf8');
+
+    applyWiringPlan(planWiring(root));
+    const ignore = read(root, '.gitignore');
+    expect(ignore.startsWith('admin/src/modules.generated.ts\nnode_modules\n')).toBe(true);
+    expect(ignore).toContain('admin/src/deployments/*.generated.ts');
+
+    applyWiringPlan(planWiring(root));
+    expect(read(root, '.gitignore')).toBe(ignore);
   });
 
   it('records a previous rendering that is not the current one', () => {

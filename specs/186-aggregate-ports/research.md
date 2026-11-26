@@ -39,7 +39,7 @@ N = no audit; ? = to confirm in T001–T009):
 | Aggregate | C | H-in | H-post | N / ? |
 | --- | --- | --- | --- | --- |
 | Organization | create, update, set_parent, move, delete, set_custom_field_values, convert_to_company, tax_id.change, set_credit_mode | allow_lists_replace, allow_list_patch (`organization-restriction-service.ts`); sales_rep_assign/unassign (`sales-rep-assignment-service.ts`, measured by T001) | approved, rejected, blocked, unblocked (`organization-moderation-service.ts` `transition`, audit after commit); sales channels (T001: the kernel membership writer, see below) | — |
-| CustomerAccount | create, change_role, set_preferred_language, remove_member, promote_organization_admin, set_subtree_rollup, custom_fields.update | block, unblock, soft-delete, restore, group assign, create standalone, anonymise (`customer-account-lifecycle-ports.ts`) | — | update_profile, email_verified (?) |
+| CustomerAccount | create, change_role, set_preferred_language, remove_member, promote_organization_admin, set_subtree_rollup, custom_fields.update | create standalone, anonymise (`customer-account-lifecycle-ports.ts`); update_profile, email_verified (`customer-account-ports.ts`, measured by T002) | block, unblock, soft-delete, restore, group assign (`customer-account-lifecycle-ports.ts`, `AuditPort.record` after the flush — measured by T002) | — |
 | Order | custom_fields.update, external_reference.set | status_transition (`order-transition-service.ts`), payment_status_transition (`order-service.ts`) | place_on_behalf (impersonation only) | comments (`order-comment-service.ts`, N); buyer placement (N) |
 | QuoteRequest | send_document | create, create_on_behalf, patch_draft, modify, approve, assign, cancel (`rfq-service.ts`, `rfq-admin-service.ts` `#audit`) | — | admin custom-field values (?) |
 | Product | create, update, archive, restore, delete, variant create/update/delete, scoped_values.save, scopes.update | — | — | — |
@@ -62,6 +62,17 @@ being changes to `packages/platform` rather than to `organizations`
 (`contracts/organization-command-port.md` § *Inventory findings* 1). No operation moves in or out of
 FR-020. The other findings (detach, the reject reason, `expectedVersion`, a refusal code) are
 interface decisions for T019, listed there.
+
+**Inventory (T002, CustomerAccount, 2026-11-26).** Measured against the table above
+(`contracts/customer-account-command-port.md` § *Inventory findings*): block, unblock, soft-delete,
+restore and the group assignment are **H-post**, not H-in — the lifecycle service flushes and then
+records through `AuditPort.record`, on its own fork; the create-standalone and anonymisation writes
+are H-in. The two `?` resolve to **H-in**: `update_profile` and `email_verified` are recorded by hand
+on the write's unit of work in `CustomerAccountMemberWriteService`. All seven convert. Two side
+effects of the admin routes are not the port's but `customers'`, around the port call — the session
+revocation after a block or deletion, and the last-administrator guard before it — so a port call
+would skip them; both move into the Commands (R-17.1, R-17.2). No operation moves in or out of
+FR-021. The questions the inventory raised are R-17.
 
 **Inventory (T003, Order, 2026-11-26).** Measured against the table above
 (`contracts/order-command-port.md` § *Inventory findings*): `status_transition` and
@@ -623,6 +634,152 @@ consumes, and every one of them would then be a frozen or stable entry.
 - *One pull request*: it puts 188's dependency behind the platform fix.
 - *Folding P0 into US1b*: it leaves the create and registration defect open until the port work is
   done.
+
+## R-17 US3 (CustomerAccount, #1822): decisions on the T002 inventory findings (2026-11-26)
+
+The T002 inventory (`contracts/customer-account-command-port.md` § *Inventory findings*) raised six
+questions R-16 and the Organization precedent do not answer in terms. The implementing session
+proposed each; **all six are ruled below (architect, 2026-11-26), each as proposed.** None is a business
+call or reverses a recorded decision, so none was escalated to the owner. Code references are to `origin/master` `71035e51d`.
+
+### R-17.1 The session revocation of a block and a deletion moves into the Command, after its commit
+
+**Finding.** `customerAccountLifecycleWritePort.block` and `.softDelete` only write and audit;
+`customers`' `CustomerModerationService.block` and `CustomerDeletionService.softDelete` call
+`authSessionPort.destroyAllForCustomer` after the port returns.
+
+**Decision.** `customer_account.blocked` and `customer_account.deleted` defer
+`authSessionPort.destroyAllForCustomer(id)` to their commit through `EventBus.afterScope` (issue
+#1926, R-16.1), handed to the factories as `afterCommit`. `customers` no longer calls it. A
+session-store failure after the commit is logged and does not fail the call — `afterScope` isolates a
+deferred function as it isolates an event handler — where it used to answer `500` after a committed
+block. An idempotent block (already blocked) ends no session, as before.
+
+**Rationale.** FR-013: the route's side effects follow the port call, and US3 scenario "a worker
+blocks an account; its sessions end" is the reason the issue names the revocation. An after-commit
+path keeps "a block that rolls back ends nobody's session", which a call inside `run` would break, and
+works for a child run, which a port-wrapper call after `commandBus.run` would not (R-16.4's argument).
+
+**Rejected.** *The port calls the revocation after `commandBus.run` returns* — a child run has no
+"after"; and the route and the port would then each have to remember it. *A subscriber of a new
+`customer_account.blocked.v1` event* — a new published event for one in-module consumer, and handler
+failures are swallowed with no ordering guarantee against the response.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-16.1's `afterScope` is the sanctioned after-commit
+path, and the "block stays, failure logged" outcome is no weaker than today's, where a `500` also
+followed a committed block. It is not a session-security regression: a session whose account is not
+active binds no customer actor (`packages/modules/auth/src/backend/plugin.ts`, the `account?.active`
+check), so a surviving session row is answered `401` by `requireCustomer`. That check is the guarantee;
+the revocation is hygiene, and must stay so — do not relax the bind check on the strength of this one.
+
+### R-17.2 The last-administrator guard of a block and a deletion moves into the Command, under the holders' lock
+
+**Finding.** `customers`' `OrganizationDepletionGuard` refuses `409 ORG_OWNER_DEPLETION` before the
+port call, over an unlocked count; a port call skips it, and two concurrent blocks of a company's two
+administrators can both pass.
+
+**Decision.** `customer_account.blocked` and `customer_account.deleted` run
+`refuseDepletingCompanyOrganization` (`commands/customer-account-role-rules.ts`): when the account
+holds its Organization's *Administrator* and the Organization is not personal
+(`organizationDetailsPort.findById(…).isPersonal`, resolved per call), lock the active holders
+(`lockActiveHolders`, the R-29 lock of `change_role` / `remove_member`) and refuse when no other would
+remain. Same code and messages as `customers` answered. `customers` drops the guard for block and
+delete; it keeps it for `unassign`, the Membership move (191). The order of the route's refusals is
+unchanged: the authority check (`403`), then the idempotent shortcut, then the guard.
+
+**Rationale.** FR-008 — the port answers the route's refusals — and the invariant "a company
+Organization keeps an administrator" is the aggregate's, as `CANNOT_DEMOTE_LAST_ADMIN` already is in
+`change_role`. Moving it under the lock also closes the race.
+
+**Rejected.** *Leave it in `customers`* — the port would block the last administrator, which no admin
+path can. *Both places* — two statements of one rule.
+
+**Ruling (architect, 2026-11-26): confirmed.** The invariant is the aggregate's (FR-008, the
+`CANNOT_DEMOTE_LAST_ADMIN` precedent), and locking the holders closes a race the route-side guard had.
+The Organization is the account's own, read by id, so no cross-tenant read is introduced (Principle XI).
+
+### R-17.3 The restore window stays the caller's
+
+**Decision.** `customers.deletion_retention_days` is `customers`' setting, and `customers` depends on
+`customer_accounts`, not the reverse. `restore` refuses only an anonymised account (the owner's own
+`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`); the admin route keeps refusing a restore past the window before
+the sweep has reached the account. The contract names it among the route's gates.
+
+**Rejected.** *Reading the setting in `customer_accounts`* — a dependency edge the wrong way round.
+
+**Ruling (architect, 2026-11-26): confirmed.** The dependency direction decides it (Principle I), and
+R-7 already makes the caller the gate. A server-side caller restoring through the port owns the window
+check, as the contract states.
+
+### R-17.4 `setPreferredLanguage`: the caller's `source` is the state's `source`; the buyer's own port is kept
+
+**Findings.** `customer_account.set_preferred_language` already records `source: 'self_service' |
+'sign_in'` — the key R-4 records a caller's code under. Its only route is the buyer's own page, which is
+customer-facing.
+
+**Decision.**
+
+- The port's `setPreferredLanguage` overwrites, as `self_service` does, and records the caller's
+  `source` code, or `null` when it passes none (R-4's "null when absent"). The Command's input source
+  widens to `CustomerPreferredLanguageSource | null` internally; the published type is unchanged.
+- `customerAccountPreferencePort.setPreferredLanguage` is **not deprecated**, against `data-model.md`'s
+  row: it is the buyer's own write (the customer-facing route R-7 keeps the aggregate port away from),
+  in the same position as `captureIfUnset`. It now runs `customerAccountCommandPort.setPreferredLanguage`
+  with the code `self_service`, so there is one write and its entry is unchanged. `data-model.md`
+  § *Port disposition* is amended.
+
+**Rejected.** *Deprecating it and moving the self route onto the aggregate port* — contradicts R-7,
+and leaves the buyer's route on a port whose contract says "never for a customer-facing route".
+*A new published `CustomerPreferredLanguageSource` member* — a widening for no reader.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-7 decides it: the buyer's own route may not resolve
+the aggregate port, so the port it does resolve cannot be deprecated without leaving it nowhere. The
+`data-model.md` § *Port disposition* amendment stands.
+
+### R-17.5 The storefront member routes stay on the kept ports; the operator's member panel moves
+
+**Finding.** T052 names `organizations/routes.members.ts`, which is the storefront member area
+(`requireCustomer` and the Organization-administrator gate). The operator's member panel is in
+`organizations/routes.admin.ts`.
+
+**Decision.** The operator's routes — create, role, roll-up, profile, removal and the
+recover-admin-access promotion — call `customerAccountCommandPort`. `routes.members.ts` keeps
+`customerAccountRoleCommandPort.changeRole` and `customerRolePort.removeMember`, both kept by the
+disposition table, which build the same Commands. The rule applied, for this and R-17.4: a route under
+a customer session does not resolve the aggregate port; a server-side flow that has verified its own
+gate (a token: e-mail verification, invitation accept) may.
+
+**Rejected.** *Moving the storefront routes too* — R-7.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-7 again; T052's file reference was a slip, and the
+rule stated above (customer session → never the aggregate port; a token-verified server-side flow → may)
+is adopted as the reading of R-7 for the remaining US stories.
+
+### R-17.6 `withCallerOptions` is copied into `customer_accounts`, not shared
+
+**Decision.** `commands/caller-options.ts` is a copy of `organizations`' twenty lines. A module's
+`commands/` is its own (Principle I), and a shared helper is a new name on
+`@endora-commerce/platform/commands`, a hotspot this change does not touch; with a third owner the
+helper should move there.
+
+**Ruling (architect, 2026-11-26): confirmed.** Principle I and YAGNI; the move to
+`@endora-commerce/platform/commands` is owed when a third module needs the helper, not before.
+
+### R-17.7 The smaller choices
+
+**Ruling (architect, 2026-11-26): confirmed, all three.**
+
+- *The deprecated methods ignore `actorAdminUserId` and `audit`.* R-4 and Principle XIII decide it: an
+  actor is never taken from input, and the bus stamps the request metadata. The one caller this changes
+  is the paid `comarch_xl` module, which passes the nil UUID as `actorAdminUserId` to
+  `setCustomerGroup`; its entries used to record a fabricated administrator and now record `system`,
+  which is the truth. When it moves onto `customerAccountCommandPort` (inventory finding 10) it passes
+  `source: 'comarch_xl'` (R-4) so the entries name the integration again.
+- *`expectedVersion` is ignored.* R-5 and R-16.6 decide it: no `version` column, and `expectedUpdatedAt`
+  stays the member routes' own gate.
+- *Parity without an admin route is measured against the deprecated or buyer ports.* R-16.2's
+  precedent (`setCustomFieldValues` against `organizationCustomFieldWritePort`).
+
 
 ## R-18 US4 (Order, #1823): decisions on the T003 inventory findings (2026-11-26)
 

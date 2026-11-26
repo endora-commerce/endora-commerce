@@ -2,6 +2,11 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'node:path';
+import {
+  adminSingletons,
+  DEPLOYMENT_ADMIN_ALIAS,
+  selectDeploymentAdminRegistry,
+} from '@endora-commerce/cli/lib/admin-deployment.js';
 
 export default defineConfig(({ mode }) => {
   // Vite auto-loads `.env` files but only exposes `VITE_*` to the bundle.
@@ -9,13 +14,28 @@ export default defineConfig(({ mode }) => {
   // unprefixed vars like `PORT` without leaking them to the browser.
   const env = loadEnv(mode, process.cwd(), '');
   const port = Number(env.PORT) || 3002;
+  // The overlay admin layers of the deployment this bundle is built for
+  // (`specs/190-overlay-full-modules/` FR-081): `DEPLOYMENT` from the environment,
+  // then from `backend/.env`, the file the backend reads it from here. Unset is
+  // bare core; a deployment with no registry refuses the build.
+  const deployment = selectDeploymentAdminRegistry({
+    adminSourceRoot: path.resolve(__dirname, './src'),
+    env: process.env,
+    envFile: path.resolve(__dirname, '../backend/.env'),
+    regenerate: 'pnpm --filter backend run composer:generate',
+  });
 
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        [DEPLOYMENT_ADMIN_ALIAS]: deployment.path,
       },
+      // An overlay admin layer lives under `backend/src/apps`, outside this
+      // project, so its imports resolve from this project's root instead — one
+      // React, one React DOM, one kit and one shell for every screen (FR-084).
+      dedupe: [...adminSingletons()],
     },
     server: {
       port,

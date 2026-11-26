@@ -120,6 +120,13 @@ below is unchanged. What D-297 holds every overlay module to:
   repository's `module:uninstall` script still answers for core alone
   (`coreMigrationOwnership()`), so a hard uninstall of an overlay module from that terminal is
   refused; an instance's answers for its overlays.
+- **Its admin layer is `admin/index.tsx`** (FR-080 – FR-086, #1855), exporting the
+  `contributions` a package's `./admin` layer exports. It lands in its deployment's own registry,
+  `admin/src/deployments/<deployment>.generated.ts`, never in the bare-core one; the admin build
+  selects one registry from `DEPLOYMENT` (unset is `none`, a missing one refuses the build). The
+  admin's type-check owns the layer and the backend's overlay program excludes it. Palette
+  coverage, the permission inventory, `check:action-route-permissions` and the bundle-shape test
+  judge it per deployment — the checklists of `module-admin-surfaces.md` apply unchanged.
 - **It may publish port types to its siblings, through `ports.ts` alone** (FR-070 – FR-072,
   `specs/190-overlay-full-modules/contracts/overlay-ports.md`, #1854). The owner registers the
   port with `ctx.di.providePort` and declares its types in `modules/<owner>/ports.ts`

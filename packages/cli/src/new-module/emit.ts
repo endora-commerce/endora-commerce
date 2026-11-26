@@ -1149,7 +1149,7 @@ function adminIndex(spec: ModuleScaffoldSpec): string {
  * differently when it is wrong, and none of which is asserted by the module
  * type-checking.
  */
-function adminPage(spec: ModuleScaffoldSpec): string {
+export function adminPage(spec: ModuleScaffoldSpec): string {
   const pascal = pascalOf(spec.id);
   const route = adminScreenRouteOf(spec);
   if (route === null) throw new Error('adminPage emitted without a route to read');

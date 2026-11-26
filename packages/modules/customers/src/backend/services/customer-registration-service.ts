@@ -1,7 +1,7 @@
 import {
   ERROR_CODES,
   type AuthSessionPort,
-  type CustomerAccountLifecycleWritePort,
+  type CustomerAccountCommandPort,
   type CustomerAccountRecord,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -23,15 +23,16 @@ import { HttpError } from '@endora-commerce/platform/http';
  * `customer_accounts`' entity itself, hash the password with `auth`'s hasher,
  * and hand its own `EntityManager` to `organizations`' provisioner. All three
  * are owner-side now: the account and its audit row come from
- * `customerAccountLifecycleWritePort`, the hashing goes with them (a caller
+ * `customerAccountCommandPort` (its `customer_account.register_standalone`
+ * Command since `specs/186-aggregate-ports/`), the hashing goes with them (a caller
  * that hashes is a caller that has to be told which algorithm the owner uses),
  * and the organisation is provisioned inside that same write (D-178). What is left
  * here is the policy — whether a registration outside a company organization is
  * allowed at all — which is this module's setting.
  */
 export interface CustomerRegistrationDeps {
-  /** `customer_accounts`' account lifecycle. Creates the row and audits it. */
-  accounts: CustomerAccountLifecycleWritePort;
+  /** `customer_accounts`' aggregate port. Creates the row and records it. */
+  accounts: Pick<CustomerAccountCommandPort, 'createStandalone'>;
   /**
    * `auth`'s published session port (D-98.2), not the `SessionService` class
    * this used to import: the only method reached here is `createSession`, the

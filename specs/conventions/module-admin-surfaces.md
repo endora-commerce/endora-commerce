@@ -175,7 +175,12 @@ is not enough.
    item 2's question and `check:action-route-permissions`'; this test does not ask it again.
    Its population is `admin/src/modules.generated.ts`, reconciled against the manifests of the
    admin's module dependencies, and it prints what it read (`[palette-coverage] read: …`).
-   Overlay modules discovered at runtime are outside it.
+   It is judged once for bare core and once **per deployment on disk**: core's registry and
+   manifests plus that deployment's `admin/src/deployments/<deployment>.generated.ts` and the
+   manifests of its overlay modules (`specs/190-overlay-full-modules/` FR-085). The analysis is
+   `@endora-commerce/cli/lib/palette-coverage.js`, which `endora generate` also runs over an
+   instance's overlay modules, exiting 1 after writing; the exemption ledger is this
+   repository's, and an instance has none.
 
 
 ## Zone-panel editors save once (FR-083)
