@@ -26,6 +26,11 @@ import { transactionalEmailManifestEntrySchema } from './transactional-emails.js
 import { BlockCategorySchema, BlockDefinitionSchema, blockNameRe } from './cms.js';
 import { EnvironmentInputSchema } from './environment-inputs.js';
 import { HookableActionDeclarationSchema, hookableActionRe } from './command-hooks.js';
+import {
+  CommandMiddlewareDeclarationSchema,
+  assertCommandMiddlewareRules,
+  type CommandMiddlewarePhase,
+} from './command-middleware.js';
 
 // ---------------------------------------------------------------------------
 // Identifier / version regexes
@@ -591,11 +596,30 @@ export const DeploymentDivergenceDeclarationSchema = z.object({
   commandHookOrder: z
     .record(z.string().regex(hookableActionRe), z.array(z.string().regex(moduleIdRe)).min(2))
     .optional(),
+  /**
+   * Execution order for `admit` command middleware from modules that no
+   * manifest dependency orders (`specs/189-command-middleware/` FR-031,
+   * `contracts/command-middleware-api.md` §6): module ids, first runs first.
+   *
+   * Two such modules whose action filters can match a common action refuse
+   * composition (`UnorderedCommandMiddlewareError`) unless both are named here.
+   * An entry that contradicts a dependency path is refused
+   * (`CommandMiddlewareOrderContradictionError`), and so is one naming a module
+   * that contributes no `admit` (`StaleCommandMiddlewareOrderError`). One list
+   * rather than one per action: middleware is not attached to an action.
+   * `observe` middleware is never ordered.
+   *
+   * Optional rather than defaulted, for the reason `commandHookOrder` gives.
+   * Absent means `[]`.
+   */
+  commandMiddlewareOrder: z.array(z.string().regex(moduleIdRe)).min(2).optional(),
 })
-  // Four fields are the whole vocabulary, so a fifth is a typo — and a
+  // Five fields are the whole vocabulary, so a sixth is a typo — and a
   // mistyped field name under a lenient object is silently stripped, which
   // reads as "this deployment declares nothing" for a file whose author wrote
-  // a declaration. Refusing it names the key.
+  // a declaration. Refusing it names the key. A deployment that writes a field
+  // an older platform does not know is refused by that platform, which is
+  // correct: it would otherwise run without the order it declared.
   .strict();
 export type DeploymentDivergenceDeclaration = z.infer<
   typeof DeploymentDivergenceDeclarationSchema
@@ -605,10 +629,11 @@ export type DeploymentDivergenceDeclaration = z.infer<
  * One kind of divergence a deployment's tree can hold
  * (`specs/107-override-report-and-ladder/data-model.md` §2.3).
  *
- * Eleven. Ten are one seam of `ModuleContext` each — eight read off the
- * members themselves, plus `port-consumed` (which is `lazyPort` over the
- * cradle rather than a member) and `omission` (which comes from the declaration
- * and from no seam at all). The eleventh, `column-extension`, is a module's
+ * Twelve. Eleven are one seam of `ModuleContext` each — nine read off the
+ * members themselves (`command-middleware`, `ctx.commandMiddleware`, is the
+ * ninth: `specs/189-command-middleware/` FR-034), plus `port-consumed` (which is
+ * `lazyPort` over the cradle rather than a member) and `omission` (which comes
+ * from the declaration and from no seam at all). The twelfth, `column-extension`, is a module's
  * `defineColumnExtension(…)` declaration on a table another module owns
  * (`specs/190-overlay-full-modules/` FR-047) — exported schema rather than a
  * seam call, and a divergence because the table is not the overlay's. An
@@ -630,6 +655,7 @@ export type DivergenceKind =
   | 'root-plugin'
   | 'worker'
   | 'command-hook'
+  | 'command-middleware'
   | 'column-extension';
 
 /**
@@ -683,6 +709,15 @@ export type DivergenceDetail =
       readonly phase: 'beforeCommit' | 'afterCommit';
       /** The hook's id, unique within its module. */
       readonly id: string;
+    }
+  | {
+      readonly kind: 'command-middleware';
+      /** `admit` or `observe` (`specs/189-command-middleware/` FR-034). */
+      readonly phase: CommandMiddlewarePhase;
+      /** The middleware's id, unique within its module. */
+      readonly id: string;
+      /** The action filter as the manifest wrote it. */
+      readonly actions: '*' | readonly string[];
     }
   | {
       readonly kind: 'column-extension';
@@ -892,6 +927,27 @@ export const moduleOrganizationPermissionDeclarationSchema = z
 export type ModuleOrganizationPermissionDeclaration = z.infer<
   typeof moduleOrganizationPermissionDeclarationSchema
 >;
+
+/**
+ * Where the platform found a composed module — its **trust tier**
+ * (`specs/189-command-middleware/contracts/module-origin.md` §1, ruling D-296.10;
+ * that contract is the single statement of this type).
+ *
+ * - `core`: a workspace module of this repository, composed through the
+ *   generated composer; or, in an instance, an installed package that is one of
+ *   this release's first-party module packages.
+ * - `deployment`: a per-deployment overlay module.
+ * - `package`: every other installed package.
+ *
+ * **Derived, never declared.** The loader that found the module stamps it on the
+ * composed entry; a manifest cannot carry it ({@link defineModuleManifest}
+ * refuses an `origin` key), and a per-point grant in a deployment's divergence
+ * declaration never changes it (§5). It is not the platform's discovery type
+ * `ModuleIdClaimOrigin` (`core` / `overlay` / `package`), which answers a
+ * different question (§6). A consumer that shows a tier uses these three words.
+ */
+export const MODULE_ORIGINS = ['core', 'deployment', 'package'] as const;
+export type ModuleOrigin = (typeof MODULE_ORIGINS)[number];
 
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),
@@ -1113,6 +1169,25 @@ export const ModuleManifestSchema = z.object({
    * modules and is not a finding.
    */
   hookableActions: z.array(HookableActionDeclarationSchema).optional(),
+  /**
+   * The command middleware this module contributes to the Command Bus
+   * (`specs/189-command-middleware/` FR-001, `contracts/command-middleware-api.md`
+   * §1): code that runs for **every** Command whose action matches the filter,
+   * children included — `admit` before the Command does anything, `observe`
+   * after its run committed or rolled back.
+   *
+   * The code is registered through `ctx.commandMiddleware` with the same id and
+   * phase; composition refuses a declaration without a registration and the
+   * reverse. Which phases a module may contribute is decided at composition
+   * from its **derived** origin, never from here: an installed third-party
+   * package may contribute `observe` only (D-296.3).
+   *
+   * {@link defineModuleManifest} refuses one id declared twice, a `timeoutMs`
+   * above its phase's maximum, and a filter list with a duplicate or a covered
+   * entry. Absent means "this module contributes no middleware", which is true
+   * of most modules and is not a finding.
+   */
+  commandMiddleware: z.array(CommandMiddlewareDeclarationSchema).optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
@@ -1631,6 +1706,17 @@ function assertHookableActionRules(m: ModuleManifest): void {
  * preserved and the loader can ingest the validated payload directly.
  */
 export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
+  // `specs/189-command-middleware/contracts/module-origin.md` §3 — origin is
+  // where the loader found the module, never something it says about itself.
+  // The schema is not strict, so the key would be stripped silently and its
+  // author would believe it did something.
+  if (Object.prototype.hasOwnProperty.call(m, 'origin')) {
+    throw new Error(
+      `[contracts/modules] manifest "${m.id}" declares an \`origin\`. A module's origin is derived ` +
+        'from where the platform found it and cannot be declared ' +
+        '(specs/189-command-middleware/contracts/module-origin.md). Remove the key.',
+    );
+  }
   // Reject self-dependencies up front — Zod's array regex doesn't catch
   // this because the id field's regex applies independently per element.
   if (m.dependencies.includes(m.id)) {
@@ -1675,6 +1761,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
   assertDemoRules(m);
   assertEnvironmentInputRules(m);
   assertHookableActionRules(m);
+  assertCommandMiddlewareRules(m);
   return ModuleManifestSchema.parse(m);
 }
 

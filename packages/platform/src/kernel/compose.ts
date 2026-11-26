@@ -1,6 +1,9 @@
 import type { EventBus } from '../events/bus.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
+import type { ModuleOrigin } from '@endora-commerce/contracts';
 import type { CommandHookCompositionInput, CommandHookRegistry } from '../commands/hooks/registry.js';
+import type { CommandMiddlewareCompositionInput, CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
+import { moduleOriginOf } from '../lifecycle/services/module-origin.js';
 import { registerValues, type KernelContainer } from './container.js';
 import { effectiveState } from './lifecycle/effective-state.js';
 import {
@@ -160,6 +163,26 @@ export interface ModuleEntry {
    * granting a stranger the audit path.
    */
   readonly installedPackage?: boolean;
+  /**
+   * The module's trust tier (`specs/189-command-middleware/contracts/module-origin.md`
+   * §2): **set by the loader from where it found the module, never by the
+   * module**, through `moduleOriginOf`. Absent from the generated composer's
+   * entries, which are `core`; {@link composeModules} reads an absent value off
+   * `overlay` and `installedPackage` by the same table.
+   *
+   * It does not touch decoration: `overlay` and `installedPackage` keep their
+   * meaning and are not derived from it (§3). Read only by the contribution
+   * registries that ask for a tier — command middleware today.
+   */
+  readonly origin?: ModuleOrigin;
+  /**
+   * The `name` in the installed package's own `package.json` — not the
+   * dependency key it was installed under, so an npm alias shows its real
+   * name (`contracts/module-origin.md` §2). Set by the package loader only;
+   * absent for core and overlay entries. What a per-point grant is matched
+   * against (§5 item 3).
+   */
+  readonly installedPackageName?: string;
 }
 
 export interface ComposeModulesOptions {
@@ -188,6 +211,23 @@ export interface ComposeModulesOptions {
    * no action is hookable, so any registered hook refuses the composition.
    */
   readonly commandHooks?: CommandHookCompositionInput | undefined;
+  /**
+   * The command-middleware registry the root also handed its `CommandBus`
+   * (`specs/189-command-middleware/` P1). Every module's `ctx.commandMiddleware`
+   * registers into it, and this call seals it after the command-hook registry
+   * and before the boot phase, with the origin of each entry — which the
+   * composer derives and nothing else may supply (`contracts/module-origin.md`
+   * §2). Absent in a root that wires no middleware; `ctx.commandMiddleware`
+   * then refuses.
+   */
+  readonly commandMiddlewareRegistry?: CommandMiddlewareRegistry | undefined;
+  /**
+   * What the middleware registry is sealed against, as data the root derives:
+   * `commandMiddlewareFrom(manifests)`, `moduleDependencyClosureFrom(manifests)`
+   * and the deployment's `commandMiddlewareOrder`. Omitted with a registry
+   * present, nothing is declared, so any registered middleware refuses.
+   */
+  readonly commandMiddleware?: Omit<CommandMiddlewareCompositionInput, 'origins'> | undefined;
   /**
    * Share one ledger across several `composeModules` calls — which is what a
    * root does while modules are converted one batch at a time, so a converted
@@ -393,6 +433,9 @@ export function composeModules(
         ...(options.commandHookRegistry
           ? { commandHookRegistry: options.commandHookRegistry }
           : {}),
+        ...(options.commandMiddlewareRegistry
+          ? { commandMiddlewareRegistry: options.commandMiddlewareRegistry }
+          : {}),
       });
 
       try {
@@ -454,6 +497,46 @@ export function composeModules(
     options.commandHookRegistry.seal(
       options.commandHooks ?? { hookableActions: [], moduleDependencies: {}, commandHookOrder: {} },
     );
+  }
+
+  // ---- Sealing the command-middleware registry (189 P1) -------------------
+  //
+  // After the hook seal, before the boot phase, for the hook seal's reasons.
+  // The origin map is the composer's to build: from each entry's loader-stamped
+  // `origin`, or — for an entry no loader stamped — from the two flags by the
+  // same table (`contracts/module-origin.md` §2). One map, handed to every
+  // registry that reads a tier, and to nothing else.
+  if (options.commandMiddlewareRegistry) {
+    const origins: Record<string, ModuleOrigin> = {};
+    for (const entry of entries) {
+      origins[entry.id] =
+        entry.origin ??
+        moduleOriginOf(entry.overlay === true ? 'overlay' : entry.installedPackage === true ? 'package' : 'core', false);
+    }
+    options.commandMiddlewareRegistry.seal({
+      declarations: options.commandMiddleware?.declarations ?? [],
+      moduleDependencies: options.commandMiddleware?.moduleDependencies ?? {},
+      commandMiddlewareOrder: options.commandMiddleware?.commandMiddlewareOrder,
+      origins,
+    });
+    // FR-034 — once at boot, beside `kernel.decorations`: what runs on every
+    // Command should be readable from the build.
+    const plan = options.commandMiddlewareRegistry.plan();
+    if (plan.length > 0) {
+      options.log.info(
+        {
+          middleware: plan.map((entry) => ({
+            module: entry.moduleId,
+            id: entry.id,
+            phase: entry.phase,
+            origin: entry.origin,
+            position: entry.position,
+            actions: entry.actions,
+          })),
+        },
+        'kernel.command-middleware',
+      );
+    }
   }
 
   // The report is emitted, not merely available: a deployment running a client
@@ -518,6 +601,9 @@ export function composeModules(
         // with the registry's own message rather than "no registry mounted".
         ...(options.commandHookRegistry
           ? { commandHookRegistry: options.commandHookRegistry }
+          : {}),
+        ...(options.commandMiddlewareRegistry
+          ? { commandMiddlewareRegistry: options.commandMiddlewareRegistry }
           : {}),
       });
     },

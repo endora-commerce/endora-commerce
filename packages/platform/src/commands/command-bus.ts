@@ -2,6 +2,8 @@ import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { AuditPort } from '../kernel/ports/audit.js';
 import { currentRequestMeta } from '../kernel/scope.js';
 import { forkScopedEm } from '../tenancy/scoped-em.js';
+import { getTenantContext } from '../tenancy/tenant-context.js';
+import { HttpError } from '../http/error-envelope.js';
 import type { EventBus } from '../events/bus.js';
 import { COMMAND_HOOK_MAX_DEPTH, outboxDataViolations } from '@endora-commerce/contracts';
 import { resolveCommandActor } from './actor.js';
@@ -9,6 +11,10 @@ import type { AuditState, Command, CommandActor, CommandContext } from './comman
 import { extensionUnclaimed, hookCycle, hookDataMissing } from './hooks/errors.js';
 import { runWithCommandHookOrigin } from './hooks/origin.js';
 import type { CommandHookRegistry } from './hooks/registry.js';
+import { middlewareLabel, middlewareReentry } from './middleware/errors.js';
+import { currentCommandMiddlewareOrigin } from './middleware/origin.js';
+import type { CommandMiddlewareRegistry } from './middleware/registry.js';
+import type { CommandAdmissionMeta, CommandRunEntry, CommandRunOutcome } from './middleware/types.js';
 import { CommandOutboxEntry } from './outbox/command-outbox-entry.entity.js';
 import type { OutboxWakePort } from './outbox/wake.js';
 
@@ -47,6 +53,20 @@ import type { OutboxWakePort } from './outbox/wake.js';
  * injected wake-up to enqueue the drain, without waiting and without failing
  * the write if Redis does not answer. The drain delivers each row at least
  * once, in a scope pinned to the row's Organization.
+ *
+ * **Command middleware** (`specs/189-command-middleware/` P1,
+ * `contracts/command-middleware-api.md` §4) runs inside the bus, so it sees
+ * every Command, children included — which a wrap of the public object never
+ * could. Each present `admit` whose filter matches is asked before the Command
+ * does anything: the root after the actor is resolved and before the
+ * transaction opens, a child at `execute` entry after the hook-cycle check and
+ * before the `extensions` check. A refusal is thrown like any child failure,
+ * so the refused Command wrote nothing and recorded nothing. After the run
+ * settles — committed, rolled back or refused — every present `observe` whose
+ * filter matches any attempted Command receives a names-only summary,
+ * detached from the caller. A middleware that runs a Command is refused
+ * (`COMMAND_MIDDLEWARE_REENTRY`). With no middleware composed, none of this
+ * allocates or awaits anything (FR-035).
  */
 
 /** Optional per-request metadata (correlation id + client info) stamped onto audit rows. */
@@ -82,11 +102,50 @@ export interface CommandBusOptions {
    * delivers them.
    */
   outboxWake?: OutboxWakePort;
+  /**
+   * The composed command-middleware registry (189 P1). Both composition roots
+   * pass the one they hand `composeModules`; a bus without one, or with a
+   * sealed one holding no entries, runs exactly as it did before middleware
+   * existed.
+   */
+  middleware?: CommandMiddlewareRegistry;
+}
+
+/**
+ * The platform's recovery path is never subject to `admit` (FR-014, research
+ * R-14): an admission rule that refuses everything must not be able to refuse
+ * the Command that switches its own module off. Still observed.
+ * `lifecycle/commands/activation.commands.ts` owns the action.
+ */
+export const ADMISSION_EXEMPT_ACTIONS: readonly string[] = Object.freeze(['module.activation.set']);
+const EXEMPT = new Set(ADMISSION_EXEMPT_ACTIONS);
+
+/** One attempted Command, as the run record accumulates it (FR-020). */
+interface RunEntryDraft {
+  readonly action: string;
+  readonly objectType: string;
+  readonly objectId: string;
+  readonly depth: number;
+  readonly viaHook: boolean;
+  refused: boolean;
+  recorded: boolean;
+  notedFields: Readonly<Record<string, readonly string[]>>;
+}
+
+/** What `observe` will be told about one run; kept only when an observer is composed. */
+interface RunRecord {
+  readonly entries: RunEntryDraft[];
+  /** The last refusal thrown, so the outcome can tell a refusal that ended the run from a caught one. */
+  refusal: { readonly error: unknown; readonly middleware: string; readonly code: string } | null;
 }
 
 /** What one `CommandBus.run` accumulates across its parent and children. */
 interface RunState {
   outboxRows: number;
+  /** Present only on a run with middleware composed. */
+  readonly middleware?: CommandMiddlewareRegistry;
+  readonly record?: RunRecord;
+  rootEntry?: RunEntryDraft | undefined;
 }
 
 /**
@@ -117,6 +176,12 @@ export class CommandBus {
   async run<TResult>(command: Command<TResult>): Promise<TResult> {
     // Fail-closed: no ambient TenantContext ⇒ throws before any write (Principle XI).
     const actor = resolveCommandActor();
+    // 189 FR-035 — with no middleware composed this is the whole difference
+    // from the bus before middleware existed: one check, no allocation.
+    const middleware = this.options.middleware;
+    if (middleware !== undefined && (middleware.hasAdmit || middleware.hasObserve)) {
+      return this.runWithMiddleware(middleware, command, actor);
+    }
     const meta = (this.options.getRequestMeta ?? currentRequestMeta)() ?? {};
 
     const state: RunState = { outboxRows: 0 };
@@ -124,17 +189,97 @@ export class CommandBus {
       const scoped: EntityManager = forkScopedEm(this.orm);
       return scoped.transactional(async (em) => this.execute(command, em, actor, meta, state));
     });
-    // Committed. A wake-up for rows that might still have rolled back would
-    // send the drain looking for nothing, so it is asked for only here — and
-    // neither awaited nor allowed to fail the write: the rows are in Postgres,
-    // and the scheduled tick delivers them if this never reaches Redis.
+    this.wakeOutbox(state);
+    return result;
+  }
+
+  /**
+   * Committed. A wake-up for rows that might still have rolled back would send
+   * the drain looking for nothing, so it is asked for only after the commit —
+   * and neither awaited nor allowed to fail the write: the rows are in
+   * Postgres, and the scheduled tick delivers them if this never reaches Redis.
+   */
+  private wakeOutbox(state: RunState): void {
     if (state.outboxRows > 0 && this.options.outboxWake) {
       const wake = this.options.outboxWake;
       void Promise.resolve()
         .then(() => wake.wake())
         .catch(() => undefined);
     }
-    return result;
+  }
+
+  /**
+   * `run` with middleware composed: the root is admitted before the
+   * transaction opens (research R-3), and the run is observed once it settled,
+   * whichever way (FR-020, FR-021).
+   */
+  private async runWithMiddleware<TResult>(
+    middleware: CommandMiddlewareRegistry,
+    command: Command<TResult>,
+    actor: CommandActor,
+  ): Promise<TResult> {
+    // FR-015 — an admission rule running a matching Command would be admitted
+    // again without end, and an observer running one is a writer.
+    const origin = currentCommandMiddlewareOrigin();
+    if (origin !== undefined) throw middlewareReentry(middlewareLabel(origin.moduleId, origin.id), command.action);
+    const meta = (this.options.getRequestMeta ?? currentRequestMeta)() ?? {};
+    const record: RunRecord | undefined = middleware.hasObserve ? { entries: [], refusal: null } : undefined;
+    const state: RunState = { outboxRows: 0, middleware, ...(record ? { record } : {}) };
+    const started = record ? performance.now() : 0;
+    const rootMeta = admissionMeta(command, actor, meta, ROOT_LINEAGE);
+    let committed = false;
+    let thrown: unknown;
+    try {
+      state.rootEntry = await this.admit(command, rootMeta, ROOT_LINEAGE, state);
+      const result = await this.events.run(async () => {
+        const scoped: EntityManager = forkScopedEm(this.orm);
+        return scoped.transactional(async (em) => this.execute(command, em, actor, meta, state, ROOT_LINEAGE, true));
+      });
+      committed = true;
+      this.wakeOutbox(state);
+      return result;
+    } catch (err) {
+      thrown = err;
+      throw err;
+    } finally {
+      if (record) middleware.scheduleObserve(runOutcome(rootMeta, record, committed, thrown, performance.now() - started));
+    }
+  }
+
+  /**
+   * Ask the present, matching `admit` middlewares about one Command and record
+   * the attempt. Throws the first refusal, so a refused child fails its parent
+   * as any child failure does. Returns the Command's run-record entry.
+   */
+  private async admit<TResult>(
+    command: Command<TResult>,
+    meta: CommandAdmissionMeta | (() => CommandAdmissionMeta),
+    lineage: Lineage,
+    state: RunState,
+  ): Promise<RunEntryDraft | undefined> {
+    const middleware = state.middleware!;
+    const entry: RunEntryDraft | undefined = state.record
+      ? {
+          action: command.action,
+          objectType: command.objectType,
+          objectId: command.objectId,
+          depth: lineage.ancestors.length,
+          viaHook: lineage.viaHook,
+          refused: false,
+          recorded: false,
+          notedFields: NO_NOTES,
+        }
+      : undefined;
+    if (entry) state.record!.entries.push(entry);
+    if (!middleware.hasAdmit || EXEMPT.has(command.action)) return entry;
+    const answer = middleware.admit(typeof meta === 'function' ? meta() : meta);
+    const refusal = answer instanceof Promise ? await answer : answer;
+    if (refusal === null) return entry;
+    if (entry) entry.refused = true;
+    if (state.record) {
+      state.record.refusal = { error: refusal.error, middleware: refusal.middleware, code: refusal.error.code };
+    }
+    throw refusal.error;
   }
 
   /**
@@ -149,11 +294,19 @@ export class CommandBus {
     meta: CommandRequestMeta,
     state: RunState,
     lineage: Lineage = ROOT_LINEAGE,
+    isRoot = false,
   ): Promise<TResult> {
     const hooks = this.options.hooks;
     if (lineage.viaHook && (lineage.ancestors.includes(command.action) || lineage.ancestors.length >= COMMAND_HOOK_MAX_DEPTH)) {
       throw hookCycle(command.action, lineage.ancestors);
     }
+    // 189 FR-010 — a child is admitted after the hook-cycle check and before
+    // anything else; the root was admitted before its transaction opened.
+    const entry = isRoot
+      ? state.rootEntry
+      : state.middleware
+        ? await this.admit(command, () => admissionMeta(command, actor, meta, lineage), lineage, state)
+        : undefined;
     // FR-019 — before capture, so a refused extension costs no write.
     this.assertExtensionsClaimed(command);
 
@@ -188,7 +341,9 @@ export class CommandBus {
         userAgent: meta.userAgent ?? null,
         requestId: meta.requestId ?? null,
       });
+      if (entry) entry.recorded = true;
     }
+    if (entry && anyNotes) entry.notedFields = notedFieldNames(noted!);
 
     const evt = command.event?.(result);
     if (evt) this.events.emit(evt.eventName, evt.payload);
@@ -309,6 +464,75 @@ export class CommandBus {
     }
     return noted;
   }
+}
+
+const NO_NOTES: Readonly<Record<string, readonly string[]>> = Object.freeze({});
+
+/** What `admit` sees of one Command (FR-011): metadata only, frozen, no data and no `em`. */
+function admissionMeta<TResult>(
+  command: Command<TResult>,
+  actor: CommandActor,
+  meta: CommandRequestMeta,
+  lineage: Lineage,
+): CommandAdmissionMeta {
+  const tenant = getTenantContext();
+  return Object.freeze({
+    action: command.action,
+    objectType: command.objectType,
+    objectId: command.objectId,
+    actor: Object.freeze({ ...actor }),
+    organizationId: tenant?.mode === 'single-org' ? (tenant.organizationId ?? null) : null,
+    requestMeta: Object.freeze({
+      requestId: meta.requestId ?? null,
+      ipAddress: meta.ipAddress ?? null,
+      userAgent: meta.userAgent ?? null,
+    }),
+    lineage: Object.freeze({
+      ancestors: Object.freeze([...lineage.ancestors]),
+      depth: lineage.ancestors.length,
+      viaHook: lineage.viaHook,
+    }),
+  });
+}
+
+/** Per hook module, the sorted names it noted — `audit-state.md` list 1, never a value. */
+function notedFieldNames(noted: ReadonlyMap<string, ReadonlySet<string>>): Readonly<Record<string, readonly string[]>> {
+  const names: Record<string, readonly string[]> = {};
+  for (const [moduleId, fields] of [...noted].sort(([a], [b]) => a.localeCompare(b))) {
+    if (fields.size > 0) names[moduleId] = Object.freeze([...fields].sort());
+  }
+  return Object.freeze(names);
+}
+
+/** The frozen summary `observe` receives (FR-020). */
+function runOutcome(
+  root: CommandAdmissionMeta,
+  record: RunRecord,
+  committed: boolean,
+  thrown: unknown,
+  durationMs: number,
+): CommandRunOutcome {
+  const refusal = !committed && record.refusal !== null && record.refusal.error === thrown ? record.refusal : null;
+  const commands: CommandRunEntry[] = record.entries.map((entry) =>
+    Object.freeze({
+      action: entry.action,
+      objectType: entry.objectType,
+      objectId: entry.objectId,
+      depth: entry.depth,
+      viaHook: entry.viaHook,
+      refused: entry.refused,
+      audited: committed && entry.recorded,
+      notedFields: entry.notedFields,
+    }),
+  );
+  return Object.freeze({
+    root,
+    committed,
+    refusal: refusal === null ? null : Object.freeze({ middleware: refusal.middleware, code: refusal.code }),
+    errorCode: committed ? null : thrown instanceof HttpError ? thrown.code : 'INTERNAL_ERROR',
+    durationMs,
+    commands: Object.freeze(commands),
+  });
 }
 
 /**

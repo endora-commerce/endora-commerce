@@ -29,6 +29,7 @@
   // none today (the two that stood in these directories moved to `backend/test/unit`
   // with the relocation, where the harness's ambient declarations already are); the
   // patterns stay so that adding one is a test that does not run rather than a package
-  // that does not install.
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+  // that does not install. A co-located `*.bench.ts` imports `vitest` for the same
+  // reason and is excluded with them (`specs/189-command-middleware/` T002).
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts", "src/**/*.bench.ts"]
 }
