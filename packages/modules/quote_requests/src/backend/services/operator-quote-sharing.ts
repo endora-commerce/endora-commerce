@@ -21,7 +21,7 @@ const DAY_MS = 86_400_000;
 
 /**
  * Whether a new operator quote starts unshared (research R-2, FR-001) — **the
- * one decision point**, and `RfqAdminService.createOnBehalf` its one caller.
+ * one decision point**, and `makeCreateOnBehalfCommand` (`quote_request.create_on_behalf`) its one caller.
  * Always, by owner decision; a setting that makes unshared quotes optional reads here,
  * and its `false` branch then shares at create through {@link applyShare} —
  * deciding whether that runs the share's hooks, and refusing unpriced lines

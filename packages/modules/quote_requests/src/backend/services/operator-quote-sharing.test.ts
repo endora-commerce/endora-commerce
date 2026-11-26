@@ -190,7 +190,7 @@ describe('the only writer of sharedWithCustomer = false', () => {
       return entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [path] : [];
     });
 
-  it('is createOnBehalf (the share Command’s audit `before` is a record, not a write)', () => {
+  it('is the create-on-behalf Command (the share Command’s audit `before` is a record, not a write)', () => {
     const found: string[] = [];
     for (const file of sources(backend)) {
       const lines = readFileSync(file, 'utf8').split('\n');
@@ -207,8 +207,8 @@ describe('the only writer of sharedWithCustomer = false', () => {
       });
     }
     expect(found).toEqual([
+      'commands/quote-request-admin-commands.ts makeCreateOnBehalfCommand: sharedWithCustomer: !startsUnshared,',
       'commands/share-command.ts makeShareQuoteRequestCommand: sharedWithCustomer: false,',
-      'services/rfq-admin-service.ts createOnBehalf: sharedWithCustomer: !startsUnshared,',
     ]);
   });
 });
