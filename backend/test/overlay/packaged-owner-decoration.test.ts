@@ -1,3 +1,5 @@
+import { CommandMiddlewareRegistry, commandMiddlewareFrom } from '@endora-commerce/platform/composition';
+import { manifest as exampleOverlayManifest } from '../../src/apps/example/modules/example_overlay/manifest.js';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -208,6 +210,14 @@ function compose(entries: readonly ModuleEntry[]): { cradle: Record<string, unkn
     // A module of the generated list registers command hooks (`related_payers`).
     commandHookRegistry: hooks.registry,
     commandHooks: hooks.data,
+    // `specs/189-command-middleware/` — the overlay module contributes an
+    // `observe` command middleware, which a root with no middleware registry
+    // refuses. Sealed against its own manifest's declaration.
+    commandMiddlewareRegistry: new CommandMiddlewareRegistry({ log: log() }),
+    commandMiddleware: {
+      declarations: commandMiddlewareFrom([exampleOverlayManifest]),
+      moduleDependencies: {},
+    },
   });
   return { cradle: container.cradle as unknown as Record<string, unknown> };
 }

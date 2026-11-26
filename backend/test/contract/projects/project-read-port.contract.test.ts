@@ -101,6 +101,10 @@ describe('projects (contract) — projectReadPort', () => {
       templateId: null,
       closedAt: null,
       createdAt: expect.any(Date),
+      // `specs/186-aggregate-ports/` FR-015 and R-22.3.
+      customFieldValues: {},
+      version: open.version,
+      configurationVersion: open.configurationVersion,
     });
     expect(Object.getPrototypeOf(record)).toBe(Object.prototype);
   });

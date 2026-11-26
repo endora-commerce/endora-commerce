@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defineModuleManifest, type ModuleManifest } from '@endora-commerce/contracts';
-import { hookableActionsFrom, moduleDependencyClosureFrom } from './command-hook-inputs.js';
+import { commandMiddlewareFrom, hookableActionsFrom, moduleDependencyClosureFrom } from './command-hook-inputs.js';
 
 /**
  * `specs/176-command-hooks-outbox/` T034 (FR-012, FR-013): the two facts the
@@ -55,5 +55,21 @@ describe('moduleDependencyClosureFrom (176 T034)', () => {
       a_mod: ['b_mod', 'missing'],
       b_mod: ['a_mod', 'missing'],
     });
+  });
+});
+
+describe('commandMiddlewareFrom (189 T042)', () => {
+  it('lists every declaration with its module, and nothing for a module that declares none', () => {
+    const manifests = [
+      { id: 'acme_hold', name: 'Hold', version: '1.0.0', dependencies: [], commandMiddleware: [
+        { id: 'hold', phase: 'admit', actions: ['organization.'] },
+        { id: 'timing', phase: 'observe', actions: '*', timeoutMs: 2000 },
+      ] },
+      { id: 'organizations', name: 'Organizations', version: '1.0.0', dependencies: [] },
+    ] as unknown as ModuleManifest[];
+    expect(commandMiddlewareFrom(manifests)).toEqual([
+      { moduleId: 'acme_hold', id: 'hold', phase: 'admit', actions: ['organization.'] },
+      { moduleId: 'acme_hold', id: 'timing', phase: 'observe', actions: '*', timeoutMs: 2000 },
+    ]);
   });
 });
