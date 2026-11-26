@@ -68,5 +68,5 @@ From a worker under `withSystemScope('erp-sync')`, call
 ## 6. US6: projects (after MR-G)
 
 Merge project Q into P. P gains Q's comments (in order and read), attachments, links, Organizations,
-members, viewers and tasks (with no stage). Q shows *Merged into P*. A comment that mentions Q links
+members, viewers and tasks (each in P's stage of the same name, else P's current stage). Q shows *Merged into P*. A comment that mentions Q links
 to P. With `projects` switched off there is no merge action anywhere.

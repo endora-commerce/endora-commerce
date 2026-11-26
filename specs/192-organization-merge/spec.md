@@ -272,7 +272,8 @@ viewers, tasks and mentions, merge them, and assert each disposition of the Proj
    Q's comments and attachments appear in P in chronological order, Q's links move to P, and P's
    Organizations and members become the union of both (P's role kept on a conflict).
 2. **Given** tasks in Q's context, **When** the merge completes, **Then** they are in P's context.
-   Those that belonged to one of Q's stages are attached to P with no stage (FR-092).
+   Each is in P's stage of the same name as its stage in Q, or in P's current stage when P has no
+   stage of that name (FR-092).
 3. **Given** a comment elsewhere that mentions Q, **When** it is displayed after the merge, **Then**
    the mention leads to P.
 4. **Given** the Projects module is off, **When** anyone looks for project merge, **Then** it does
@@ -522,7 +523,9 @@ viewers, tasks and mentions, merge them, and assert each disposition of the Proj
   and opportunities, Organizations (union), members (union, survivor's role on conflict) and viewers
   (union). Organizations a linked record needs MUST be added before the link moves.
 - **FR-092**: Tasks in the loser's context MUST move to the survivor's context through the task
-  module's own Command. A task tied to one of the loser's stages MUST lose its stage tie.
+  module's own Command. A task tied to one of the loser's stages MUST be tied to the survivor's stage
+  of the same name, or to the survivor's current stage when it has none (owner decision 2026-11-26: a
+  project task with no stage is not shown on the project's screens).
 - **FR-093**: The loser's stage history, stage moves, value changes, stage tasks configuration and
   alerts MUST stay with the archived loser. Reference rows naming the loser as a target (in tasks,
   opportunities and projects) MUST be re-pointed by their owners. Mention tokens inside free text
@@ -604,7 +607,7 @@ follow their record. Tasks carry no Organization (`tasks/src/backend/entities/ta
 | `projects` | `project-reference` (as source and as target) | R |
 | `projects` | `project-message-read` / `-baseline` | carried so moved comments are read (FR-094) |
 | `projects` | `project-stage`, `project-stage-entry`, `project-stage-move`, `project-stage-task`, `project-stage-alert-delivery`, `project-value-change` | K |
-| `tasks` | tasks with context `project` (`PROJECT_TASK_CONTEXT_TYPE`, `projects/src/backend/services/project-tasks.ts`); `task-reference.entity.ts` targets | R (stage tie dropped) |
+| `tasks` | tasks with context `project` (`PROJECT_TASK_CONTEXT_TYPE`, `projects/src/backend/services/project-tasks.ts`); `task-reference.entity.ts` targets | R (stage mapped by name, else the survivor's current stage) |
 | `crm` | `crm-opportunity-reference.entity.ts` targets of type `project` | R |
 | text tokens `[[project:<id>]]` (`packages/contracts/src/record-references.ts`) | — | not rewritten; resolved (FR-093) |
 

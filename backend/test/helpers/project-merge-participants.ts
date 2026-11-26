@@ -63,6 +63,8 @@ export interface ComposedProjectParticipantCase {
   readonly failOn: { readonly table: string; readonly on: 'UPDATE' | 'DELETE'; readonly when: (loserId: string) => string };
   readonly batchSize?: number;
   readonly sentinels?: readonly AuditSentinel[];
+  /** The host context the batches get, read once both Projects exist (e.g. a Stage map naming their Stages). */
+  readonly hostContext?: (ids: { readonly survivorId: string; readonly loserId: string }) => Promise<Readonly<Record<string, unknown>>>;
 }
 
 export async function expectComposedProjectParticipant(
@@ -128,6 +130,7 @@ export async function expectComposedProjectParticipant(
       participant,
       ids: { survivorId, loserId, mergeId },
       ...(c.batchSize !== undefined ? { batchSize: c.batchSize } : {}),
+      ...(c.hostContext ? { hostContext: await c.hostContext({ survivorId, loserId }) } : {}),
       seed: async (ids) => {
         await c.seed(ids);
         await refreshAudit();

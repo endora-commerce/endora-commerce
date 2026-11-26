@@ -59,7 +59,7 @@ Organization-id property). They are excluded by the check's population rule and 
 | `projects` (host) | structure | `ProjectOrganization` → U; `ProjectMember` → U (survivor's role on conflict); `ProjectViewer` → U | host structure batch | `projectCommandPort.startMerge / resumeMerge / cancelMerge` | **#1828** |
 | `projects` | records | `ProjectComment`, `ProjectAttachment`, `ProjectLink` → R; `ProjectReference` (source and target) → R; `ProjectMessageRead*` → carried (FR-094) | `projects.project.merge_reassign` | — (host-internal) | #1828 |
 | `projects` | — | `ProjectStage*`, `ProjectStageMove`, `ProjectStageEntry`, `ProjectValueChange`, `ProjectStageAlertDelivery` → K | — | — | — |
-| `tasks` | records | `Task` (`contextType = project`).`contextId` → R, `contextGroupId` cleared; `TaskReference` (`targetType = project`).`targetId` → R | `task.merge_move_context` | `taskCommandPort.moveContext` | **#1829** |
+| `tasks` | records | `Task` (`contextType = project`).`contextId` → R, `contextGroupId` → the survivor's Stage the host's Stage map names (same name, else its current Stage); `TaskReference` (`targetType = project`).`targetId` → R | `task.merge_move_context` | `taskCommandPort.moveContext` | **#1829** |
 | `crm` | records | `CrmOpportunityReference` (`targetType = project`).`targetId` → R | `crm.opportunity_reference.merge_reassign` | — (derived rows; no aggregate operation) | — |
 
 ## C. Ports not needed
@@ -97,5 +97,5 @@ Project merge ships in the #1907 PR without waiting for #1828 and #1829; the por
 | --- | --- | --- | --- |
 | `projects` (host) | `host-structure` (structure) | `projects.project.merge.structure` | **U, the loser keeping its own rows**: the survivor gains the Organizations, Members (with the loser's Roles) and viewers it lacks; the archived loser keeps its rows, so whoever could open it still can and is led to the survivor. The count is "loser rows with no survivor twin", so a re-run moves 0 by construction. Bumps the survivor's `configurationVersion` |
 | `projects` | `project-records` (records) | `projects.project.merge_reassign` | a participant of its own host. Comment-sourced references move with their comments; the loser's **description** references stay with it (its description stays). An attachment of a file the survivor holds is dropped. `ProjectMessageRead` is declared `union`: the survivor's marker becomes the later of the two (FR-094) |
-| `tasks` | `project-tasks` (records) | `task.merge_move_context` | `contextGroupId` cleared; `sourceKey` kept (it names the loser's Stage Task definition, unique per context). Both references declared polymorphic (`contextType` / `targetType` = `project`) |
+| `tasks` | `project-tasks` (records) | `task.merge_move_context` | `contextGroupId` mapped through `projectMergeStageMap(hostContext)`, which the host's `structure` phase writes; `sourceKey` kept (it names the loser's Stage Task definition, unique per context). Both references declared polymorphic (`contextType` / `targetType` = `project`) |
 | `crm` | `project-references` (records) | `crm.opportunity_reference.merge_reassign` | polymorphic declaration (`targetType` = `project`) |

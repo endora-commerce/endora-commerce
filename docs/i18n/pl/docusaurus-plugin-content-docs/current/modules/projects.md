@@ -726,7 +726,7 @@ Co dzieje się z rekordami duplikatu:
 | Załączniki | Przechodzą; plik, który projekt, który zostaje, już ma, nie jest dołączany drugi raz. |
 | Podpięte zamówienia, zapytania ofertowe i szanse sprzedaży | Przechodzą — dokument należy do jednego projektu. |
 | Organizacje, członkowie i osoby z dostępem | Dodawane do projektu, który zostaje, tam gdzie ich brakuje; osoba będąca członkiem obu zachowuje rolę z projektu, który zostaje. |
-| Zadania | Przechodzą do projektu, który zostaje, bez etapu: zadanie z etapu duplikatu nie ma potem etapu. |
+| Zadania | Przechodzą do projektu, który zostaje, do jego etapu o tej samej nazwie; zadanie z etapu, którego tam nie ma, trafia do bieżącego etapu. |
 | Odwołania do duplikatu w tekstach innych projektów, zadań i szans sprzedaży | Prowadzą do projektu, który zostaje. Same teksty nie są zmieniane: wzmianka o duplikacie jest wyświetlana jako projekt, który zostaje. |
 | Etapy, historia etapów, przejścia, zmiany wartości i alerty o terminach | Zostają przy duplikacie. |
 

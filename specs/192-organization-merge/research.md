@@ -416,7 +416,9 @@ documents carry Organization facets.
 - **Survivor's workflow.** The survivor's stages stay. The loser's stages, stage entries, moves,
   value changes, stage tasks and alert deliveries stay on the archived loser.
 - **Tasks.** Tasks in the loser's context move through `taskCommandPort.moveContext` (new, #1829),
-  with `contextGroupId` cleared.
+  with `contextGroupId` cleared. *Amended 2026-11-26 (owner):* a project task with no stage is not
+  shown on the project's screens, so `contextGroupId` is mapped instead — to the survivor's stage of
+  the same name, else its current stage — through the host context the `structure` phase writes.
 - **Comments.** Comments move in order. Read state is carried by writing a read marker for each
   member who had read the loser up to its baseline.
 - **Links.** A record stays in one project.

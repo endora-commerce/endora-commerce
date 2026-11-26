@@ -25,6 +25,8 @@ Record merge vocabulary and the Organization merge shapes (issue #1907, `specs/1
   `mergedAt` and `mergeId`.
 - `ORGANIZATION_HOOKABLE_ACTIONS.mergeStart` (`organization.merge.start`, both phases) with
   `OrganizationMergeStartHookData` / `OrganizationMergeStartOutbox`.
+- `MergeParticipantPreview` and `recordMergePreviewSchema`'s participants carry an optional
+  `deletedCounts`: of `counts`, the soft-deleted rows, which move too but are shown apart.
 - `MERGE_CONFLICT_UNRESOLVABLE` — the conflict `resolution` that refuses a start (FR-026).
 - `ERROR_CODES` gains the ten `RECORD_MERGE_*` codes and `ORGANIZATION_MERGE_PERSONAL`,
   `ORGANIZATION_MERGE_TREE_INVALID` and `ORGANIZATION_MERGED`.

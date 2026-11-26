@@ -5,6 +5,7 @@ import {
   PROJECT_WEBHOOK_EVENT_TYPES,
   projectMergeListQuerySchema,
   projectMergePreviewBodySchema,
+  projectMergeStageMap,
   projectMergeStartBodySchema,
   projectMergeVersionBodySchema,
   projectMergeViewSchema,
@@ -81,5 +82,19 @@ describe('project merge contract', () => {
     expect(shape.mergedIntoProjectId.safeParse(uuid).success).toBe(true);
     expect(shape.mergedAt.safeParse('2026-11-25T10:00:00.000Z').success).toBe(true);
     expect(shape.mergeId.safeParse(null).success).toBe(true);
+  });
+});
+
+describe('projectMergeStageMap', () => {
+  it('reads the Stage map and the fallback Stage the structure phase wrote', () => {
+    expect(projectMergeStageMap({ stageMap: { a: 'b', bad: 1 }, fallbackStageId: 'c' })).toEqual({
+      stageMap: { a: 'b' },
+      fallbackStageId: 'c',
+    });
+  });
+
+  it('reads an absent or malformed context as no map and no fallback', () => {
+    expect(projectMergeStageMap({})).toEqual({ stageMap: {}, fallbackStageId: null });
+    expect(projectMergeStageMap({ stageMap: 'x', fallbackStageId: 3 })).toEqual({ stageMap: {}, fallbackStageId: null });
   });
 });

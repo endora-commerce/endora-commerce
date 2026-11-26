@@ -17,6 +17,7 @@ import {
   getProject,
   stageNamed,
   taskRowsOf,
+  THREE_STAGES,
 } from './helpers.js';
 
 /**
@@ -92,6 +93,7 @@ describe('Project merge (US6)', () => {
     let survivorRole: string;
     let loserRole: string;
     let taskInStage: string;
+    let taskInUnmatchedStage: string;
     let commentIds: string[];
     let linkId: string;
     const events: unknown[] = [];
@@ -100,7 +102,11 @@ describe('Project merge (US6)', () => {
       organizationA = await insertCompanyOrganization(h, 'Project merge A');
       organizationB = await insertCompanyOrganization(h, 'Project merge B');
       p = await project('Tender P', [organizationA]);
-      q = await project(`${SENTINEL}Tender Q`, [organizationB], { description: `${SENTINEL}details` });
+      q = await project(`${SENTINEL}Tender Q`, [organizationB], {
+        description: `${SENTINEL}details`,
+        // A Stage P has no namesake of: its Task falls back to P's current Stage (FR-092).
+        stages: [...THREE_STAGES, { name: 'Q only', color: '#a855f7', plannedDurationDays: 1 }],
+      });
       r = await project('Elsewhere R', []);
       otherAdmin = randomUUID();
       const roles = await dictionaryIds(h, 'project_roles');
@@ -160,7 +166,8 @@ describe('Project merge (US6)', () => {
       expect(mention.statusCode, mention.body).toBe(201);
 
       // Tasks in Q's context: one in a Stage, one without.
-      taskInStage = (await createStageTask(h, q.id, stageNamed(q, 'Design'), { title: 'Stage task of Q' })).id;
+      taskInStage = (await createStageTask(h, q.id, stageNamed(q, 'Build'), { title: 'Stage task of Q' })).id;
+      taskInUnmatchedStage = (await createStageTask(h, q.id, stageNamed(q, 'Q only'), { title: 'Q-only stage task' })).id;
 
       h.eventBus.on('project.merged.v1' as never, (payload: unknown) => {
         events.push(payload);
@@ -178,7 +185,7 @@ describe('Project merge (US6)', () => {
       const records = data.participants.find((x: { key: string }) => x.key === 'project-records');
       expect(records.counts).toMatchObject({ 'ProjectLink.projectId': 1, 'ProjectComment.projectId': 2 });
       const tasks = data.participants.find((x: { moduleId: string }) => x.moduleId === 'tasks');
-      expect(tasks.counts['Task.contextId']).toBe(1);
+      expect(tasks.counts['Task.contextId']).toBe(2);
       const after = await sql<Array<{ n: number }>>(`select count(*)::int as "n" from "record_merges"`);
       expect(after[0]!.n).toBe(before[0]!.n);
     });
@@ -231,10 +238,11 @@ describe('Project merge (US6)', () => {
       expect(detail.unreadMessageCount).toBe(0);
     });
 
-    it('scenario 2: Q’s Tasks are in P’s context, the one of Q’s Stage with no Stage (FR-092)', async () => {
+    it('scenario 2: Q’s Tasks are in P’s context, in P’s Stage of the same name, else in P’s current Stage (FR-092)', async () => {
       expect(await taskRowsOf(h, q.id)).toEqual([]);
       const tasks = await taskRowsOf(h, p.id);
-      expect(tasks.find((task) => task.id === taskInStage)).toMatchObject({ context_group_id: null });
+      expect(tasks.find((task) => task.id === taskInStage)).toMatchObject({ context_group_id: stageNamed(p, 'Build') });
+      expect(tasks.find((task) => task.id === taskInUnmatchedStage)).toMatchObject({ context_group_id: stageNamed(p, 'Design') }); // P starts in its first Stage
     });
 
     it('scenario 3: a comment elsewhere mentioning Q renders as P and leads to it; the text is not rewritten (FR-093)', async () => {

@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { MergeStepInput } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
+import type { RecordMergeService } from '@endora-commerce/platform/kernel';
 
 /**
  * `projects.project.merge.structure` (`specs/192-organization-merge/` US6,
@@ -16,6 +17,12 @@ import type { Command } from '@endora-commerce/platform/commands';
  *     (the survivor's role on conflict); one who is not gets a Member row on the
  *     survivor with the loser's Roles.
  *  3. **Viewers**: the people listed on the loser are listed on the survivor.
+ *
+ * Before those, once per merge, the **Stage map** goes into the merge's host
+ * context for `tasks` (FR-092): each of the loser's Stages → the survivor's
+ * Stage of the same name (trimmed, case-insensitive), otherwise the survivor's
+ * current Stage, which is also the fallback for a Task the map does not name.
+ * The loser's Stages themselves stay on it with its history.
  *
  * The archived loser keeps its own rows — so whoever could open it can still
  * open it and follow its pointer — which also makes the step idempotent by
@@ -53,7 +60,43 @@ export interface ProjectMergeStructureResult {
   readonly moved: number;
 }
 
-export function makeProjectMergeStructureCommand(input: MergeStepInput): Command<ProjectMergeStructureResult> {
+export interface ProjectMergeStructureDeps {
+  readonly recordMerge: () => RecordMergeService;
+}
+
+async function buildStageMap(
+  em: EntityManager,
+  survivorId: string,
+  loserId: string,
+): Promise<{ stageMap: Record<string, string>; fallbackStageId: string | null }> {
+  const [survivor] = await em.execute<Array<{ current_stage_id: string | null }>>(
+    'select "current_stage_id" from "projects" where "id" = ?',
+    [survivorId],
+  );
+  const survivorStages = await em.execute<Array<{ id: string; name: string }>>(
+    'select "id", "name" from "project_stages" where "project_id" = ? order by "position"',
+    [survivorId],
+  );
+  const loserStages = await em.execute<Array<{ id: string; name: string }>>(
+    'select "id", "name" from "project_stages" where "project_id" = ?',
+    [loserId],
+  );
+  const key = (name: string): string => name.trim().toLocaleLowerCase();
+  const byName = new Map<string, string>();
+  for (const stage of survivorStages) if (!byName.has(key(stage.name))) byName.set(key(stage.name), stage.id);
+  const fallbackStageId = survivor?.current_stage_id ?? survivorStages[0]?.id ?? null;
+  const stageMap: Record<string, string> = {};
+  for (const stage of loserStages) {
+    const to = byName.get(key(stage.name)) ?? fallbackStageId;
+    if (to !== null) stageMap[stage.id] = to;
+  }
+  return { stageMap, fallbackStageId };
+}
+
+export function makeProjectMergeStructureCommand(
+  deps: ProjectMergeStructureDeps,
+  input: MergeStepInput,
+): Command<ProjectMergeStructureResult> {
   return {
     action: 'projects.project.merge.structure',
     objectType: 'project',
@@ -64,6 +107,16 @@ export function makeProjectMergeStructureCommand(input: MergeStepInput): Command
       const ids: string[] = [];
       // The survivor's row, held for the batch: its sets change below.
       await em.execute('select "id" from "projects" where "id" = ? for update', [survivorId]);
+
+      // 0. The Stage map, once (the merge row is the authority; the context the
+      //    runner handed in may be a batch old).
+      const context = await deps.recordMerge().hostContextWithin(em, input.mergeId);
+      let stageMapWritten = false;
+      if (context['stageMap'] === undefined) {
+        const map = await buildStageMap(em, survivorId, loserId);
+        await deps.recordMerge().setHostContext(em, input.mergeId, { ...context, ...map });
+        stageMapWritten = true;
+      }
 
       // 1. Organizations (union).
       const organizations = await em.execute<Array<{ organization_id: string }>>(
@@ -119,7 +172,8 @@ export function makeProjectMergeStructureCommand(input: MergeStepInput): Command
         budget -= viewers.length;
       }
 
-      if (ids.length === 0) return { result: { moved: 0 }, skipAudit: true };
+      // The map counts as a batch's work, so the runner calls again for the sets.
+      if (ids.length === 0) return { result: { moved: stageMapWritten ? 1 : 0 }, skipAudit: true };
       await em.execute('update "projects" set "configuration_version" = "configuration_version" + 1 where "id" = ?', [survivorId]);
       return {
         result: { moved: ids.length },

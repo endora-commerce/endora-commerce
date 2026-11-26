@@ -7,7 +7,8 @@ import { createStageTask } from '../projects/helpers.js';
 /**
  * `specs/192-organization-merge/` US6, T084 — the `tasks` participant of a
  * Project merge over a real database: the Tasks in the loser's context move to
- * the survivor's, the one of a loser's Stage with no Stage (FR-092), and the
+ * the survivor's, each into the survivor's Stage the host context maps its
+ * Stage to, or the fallback Stage for one the map does not name (FR-092), and the
  * references naming the loser in Tasks' texts name the survivor (FR-093),
  * through `task.merge_move_context`, held to `expectMergeParticipant` with
  * batches smaller than the rows.
@@ -23,12 +24,16 @@ describe('Project merge — the tasks participant', () => {
     await teardownBackendServer(h);
   });
 
-  it('moves the loser’s Tasks without their Stage and re-points references to it (conformance)', async () => {
+  const stageOf = async (projectId: string): Promise<string> =>
+    (await mergeSql<Array<{ id: string }>>(h, `select "id" from "project_stages" where "project_id" = ?`, [projectId]))[0]!.id;
+
+  it('moves the loser’s Tasks into the mapped Stage and re-points references to it (conformance)', async () => {
     const outcome = await expectComposedProjectParticipant(h, {
       moduleId: 'tasks',
       key: 'project-tasks',
       action: 'task.merge_move_context',
       batchSize: 2,
+      hostContext: async ({ survivorId, loserId }) => ({ stageMap: { [await stageOf(loserId)]: await stageOf(survivorId) }, fallbackStageId: null }),
       seed: async ({ survivorId, loserId }) => {
         const [stage] = await mergeSql<Array<{ id: string }>>(h, `select "id" from "project_stages" where "project_id" = ?`, [loserId]);
         // Three in a Stage of the loser (a Task of a Project with Stages always
@@ -65,7 +70,37 @@ describe('Project merge — the tasks participant', () => {
       [outcome.survivorId],
     );
     expect(moved).toHaveLength(3);
-    expect(moved.every((task) => task.context_group_id === null)).toBe(true);
+    const survivorStage = await stageOf(outcome.survivorId);
+    expect(moved.every((task) => task.context_group_id === survivorStage)).toBe(true);
+    await mergeSql(h, `delete from "tasks" where "context_type" = 'project' and "context_id" in (?, ?)`, [
+      outcome.survivorId,
+      outcome.loserId,
+    ]);
+    await mergeSql(h, `delete from "projects" where "id" in (?, ?)`, [outcome.survivorId, outcome.loserId]);
+  });
+
+  it('moves a Task of a Stage the map does not name into the fallback Stage', async () => {
+    const outcome = await expectComposedProjectParticipant(h, {
+      moduleId: 'tasks',
+      key: 'project-tasks',
+      action: 'task.merge_move_context',
+      hostContext: async ({ survivorId }) => ({ stageMap: {}, fallbackStageId: await stageOf(survivorId) }),
+      seed: async ({ loserId }) => {
+        await createStageTask(h, loserId, await stageOf(loserId), { title: 'Unmapped' });
+      },
+      snapshot: async ({ survivorId, loserId }) =>
+        mergeSql(h, `select "id","context_id","context_group_id" from "tasks" where "context_type" = 'project' and "context_id" in (?, ?) order by "id"`, [
+          survivorId,
+          loserId,
+        ]),
+      failOn: { table: 'tasks', on: 'UPDATE', when: (loserId) => `OLD."context_id" = '${loserId}'` },
+    });
+    const [task] = await mergeSql<Array<{ context_group_id: string | null }>>(
+      h,
+      `select "context_group_id" from "tasks" where "context_type" = 'project' and "context_id" = ? and "title" = 'Unmapped'`,
+      [outcome.survivorId],
+    );
+    expect(task?.context_group_id).toBe(await stageOf(outcome.survivorId));
     await mergeSql(h, `delete from "tasks" where "context_type" = 'project' and "context_id" in (?, ?)`, [
       outcome.survivorId,
       outcome.loserId,

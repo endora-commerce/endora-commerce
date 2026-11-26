@@ -303,6 +303,12 @@ export interface RecordMergeNotice {
 export interface MergeParticipantPreview {
   /** Remaining rows per declared reference, keyed `Entity.property`. Reaches 0 after the step. */
   readonly counts: Readonly<Record<string, number>>;
+  /**
+   * Of `counts`, the rows already soft-deleted, under the same keys. They move
+   * too, and stay in `counts` until they do, but the operator no longer sees
+   * them, so the preview shows them apart. Absent means none.
+   */
+  readonly deletedCounts?: Readonly<Record<string, number>>;
   readonly conflicts: readonly (RecordMergeNotice & { readonly resolution: string })[];
   readonly warnings: readonly RecordMergeNotice[];
   /** A refusal stops the start (FR-026, R-20). */
@@ -399,6 +405,7 @@ export const recordMergePreviewSchema = z.object({
       key: z.string(),
       phase: z.string(),
       counts: z.record(z.string(), z.number().int().nonnegative()),
+      deletedCounts: z.record(z.string(), z.number().int().nonnegative()).optional(),
       conflicts: z.array(noticeSchema.extend({ resolution: z.string() })),
       warnings: z.array(noticeSchema),
     }),

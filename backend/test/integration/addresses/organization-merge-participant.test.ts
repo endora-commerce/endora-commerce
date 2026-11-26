@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
-import { expectComposedOrganizationParticipant, mergeSql, seedRows } from '../../helpers/organization-merge-conformance.js';
+import {
+  composedOrganizationParticipant,
+  expectComposedOrganizationParticipant,
+  insertOrganizationPair,
+  mergeSql,
+  seedRows,
+} from '../../helpers/organization-merge-conformance.js';
 
 /**
  * `specs/192-organization-merge/` T042 — the `addresses` participant: the
@@ -61,5 +67,18 @@ describe('addresses — Organization merge participant', () => {
     expect(byId.get(ids.survivorDeliveryDefault)?.is_default).toBe(true);
     expect(byId.get(ids.loserDeliveryDefault)?.is_default).toBe(false);
     expect(byId.get(ids.loserBillingDefault)?.is_default).toBe(true);
+  });
+
+  it('previews the deleted addresses apart, and still counts them until they move', async () => {
+    const { survivorId, loserId } = await insertOrganizationPair(h);
+    const deleted = [randomUUID(), randomUUID()];
+    await seedRows(h, [address(loserId, 'delivery', false), address(loserId, 'delivery', false, deleted[0]), address(loserId, 'billing', false, deleted[1])]);
+    await mergeSql(h, `update "addresses" set "deleted_at" = now() where "id" in (?, ?)`, deleted);
+
+    const participant = composedOrganizationParticipant(h, 'addresses', 'addresses');
+    const preview = await participant.preview({ hostType: 'organization', survivorId, loserId, hostContext: {} });
+    // The residue check sums `counts`, so a deleted row still counts until it moves.
+    expect(preview.counts).toEqual({ 'Address.organizationId': 3 });
+    expect(preview.deletedCounts).toEqual({ 'Address.organizationId': 2 });
   });
 });

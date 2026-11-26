@@ -16,3 +16,5 @@ The Project merge's shapes (issue #1907, `specs/192-organization-merge/` US6):
 - `ProjectDetailSchema` gains the optional `mergedIntoProjectId`, `mergedAt` and `mergeId`.
 - `PROJECT_HOOKABLE_ACTIONS.mergeStart` (`projects.project.merge.start`, both phases) with
   `ProjectMergeStartHookData` / `ProjectMergeStartOutbox`.
+- `ProjectMergeHostContext` and `projectMergeStageMap`: the loser's Stage → survivor's Stage map the
+  Project host writes in its `structure` phase, read by the `tasks` participant.

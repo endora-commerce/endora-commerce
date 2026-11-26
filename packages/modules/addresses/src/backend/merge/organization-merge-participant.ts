@@ -31,8 +31,9 @@ export class AddressOrganizationMergeParticipant implements MergeParticipant<'or
   constructor(private readonly deps: AddressMergeParticipantDeps) {}
 
   async preview(input: MergePreviewInput): Promise<MergeParticipantPreview> {
-    const [row] = await this.deps.emFactory().execute<Array<{ moved: number; defaults: number }>>(
+    const [row] = await this.deps.emFactory().execute<Array<{ moved: number; deleted: number; defaults: number }>>(
       `select count(*)::int as "moved",
+              (count(*) filter (where "a"."deleted_at" is not null))::int as "deleted",
               (count(*) filter (where "a"."is_default" and "a"."deleted_at" is null and exists (
                  select 1 from "addresses" as "s"
                   where "s"."organization_id" = ? and "s"."kind" = "a"."kind" and "s"."is_default" and "s"."deleted_at" is null)))::int as "defaults"
@@ -40,8 +41,11 @@ export class AddressOrganizationMergeParticipant implements MergeParticipant<'or
       [input.survivorId, input.loserId],
     );
     const defaults = row?.defaults ?? 0;
+    const deleted = row?.deleted ?? 0;
     return {
+      // Deleted addresses move too, so they stay in `counts` (the residue check sums it).
       counts: { 'Address.organizationId': row?.moved ?? 0 },
+      ...(deleted > 0 ? { deletedCounts: { 'Address.organizationId': deleted } } : {}),
       conflicts: defaults > 0 ? [{ code: ADDRESS_MERGE_DEFAULT_KEPT, resolution: 'survivor', details: { count: defaults } }] : [],
       warnings: [],
       refusals: [],

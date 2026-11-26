@@ -100,6 +100,31 @@ export type ProjectMergeRecordResponse = z.infer<typeof projectMergeRecordRespon
 export const projectMergeListResponseSchema = z.object({ data: z.array(projectMergeViewSchema) });
 export type ProjectMergeListResponse = z.infer<typeof projectMergeListResponseSchema>;
 
+/**
+ * What `projects` writes into a Project merge's `host_context` during the
+ * `structure` phase, for `tasks` after it (FR-092): the loser's Stage id → the
+ * survivor's Stage a Task tied to it moves to — the survivor's Stage of the
+ * same name, otherwise its current Stage — and `fallbackStageId`, the
+ * survivor's current Stage, for a Task the map does not name.
+ */
+export interface ProjectMergeHostContext {
+  readonly stageMap: Readonly<Record<string, string>>;
+  readonly fallbackStageId: string | null;
+}
+
+/** Read a Project merge's host context; an absent or malformed one reads as no map and no fallback. */
+export function projectMergeStageMap(hostContext: Readonly<Record<string, unknown>>): ProjectMergeHostContext {
+  const raw = hostContext['stageMap'];
+  const stageMap: Record<string, string> = {};
+  if (raw !== null && typeof raw === 'object') {
+    for (const [from, to] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof to === 'string') stageMap[from] = to;
+    }
+  }
+  const fallback = hostContext['fallbackStageId'];
+  return { stageMap, fallbackStageId: typeof fallback === 'string' ? fallback : null };
+}
+
 export type ProjectMergePreview = RecordMergePreview;
 export type ProjectMergeRecord = RecordMergeRecord;
 

@@ -252,6 +252,7 @@ export class PlatformRecordMergeService implements RecordMergeService {
           key: participant.key,
           phase: participant.phase,
           counts: { ...answer.counts },
+          ...(answer.deletedCounts ? { deletedCounts: { ...answer.deletedCounts } } : {}),
           conflicts: answer.conflicts.map((c) => ({ code: c.code, resolution: c.resolution, ...(c.details ? { details: { ...c.details } } : {}) })),
           warnings: answer.warnings.map((w) => ({ code: w.code, ...(w.details ? { details: { ...w.details } } : {}) })),
         });

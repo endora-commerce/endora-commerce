@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { MergeStepInput } from '@endora-commerce/contracts';
+import { projectMergeStageMap, type MergeStepInput } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 
 /**
@@ -16,10 +16,12 @@ export const PROJECT_CONTEXT_TYPE = 'project';
  * FR-093; `contracts/participant-dispositions.md` §B) — one batch of the
  * `tasks` participant of a Project merge, as one Command of this module:
  *
- *  1. the Tasks in the loser's context move to the survivor's context, and a
- *     Task tied to one of the loser's Stages (its context group) loses that
- *     tie: the survivor's workflow is its own, and a loser's Stage never
- *     becomes one of the survivor's (FR-092);
+ *  1. the Tasks in the loser's context move to the survivor's context, each
+ *     into the survivor's Stage (its context group) the host context maps its
+ *     Stage to — the survivor's Stage of the same name, else its current
+ *     Stage, which `projects` worked out in the `structure` phase. A loser's
+ *     Stage never becomes one of the survivor's, and a Task of a Project with
+ *     Stages always has one, so the Project's screens show it (FR-092);
  *  2. the references naming the loser in a Task's description or comments now
  *     name the survivor. The texts are never rewritten: a `[[project:<loser>]]`
  *     token resolves to the survivor when rendered (FR-093).
@@ -58,11 +60,15 @@ export function makeTaskMergeMoveContextCommand(input: MergeStepInput): Command<
     run: async ({ em }) => {
       let budget = Math.max(1, input.batchSize);
       const ids: string[] = [];
+      const { stageMap, fallbackStageId } = projectMergeStageMap(input.hostContext);
       const tasks = await em.execute<Array<{ id: string }>>(
-        `update "tasks" set "context_id" = ?, "context_group_id" = null, "updated_at" = now() where "id" in (
+        `update "tasks" set "context_id" = ?,
+                "context_group_id" = coalesce((?::jsonb ->> "context_group_id"::text)::uuid, ?::uuid),
+                "updated_at" = now()
+          where "id" in (
            select "id" from "tasks" where "context_type" = ? and "context_id" = ? order by "id" limit ? for update)
          returning "id"`,
-        [input.survivorId, PROJECT_CONTEXT_TYPE, input.loserId, budget],
+        [input.survivorId, JSON.stringify(stageMap), fallbackStageId, PROJECT_CONTEXT_TYPE, input.loserId, budget],
       );
       for (const row of tasks) ids.push(row.id);
       budget -= tasks.length;

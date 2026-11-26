@@ -28,3 +28,6 @@ Projects can be merged (issue #1907, `specs/192-organization-merge/` US6): this 
   preview, choose values, confirm), the merge's progress at `/projects/merges/:mergeId` with Resume
   and Cancel, the merges list at `/projects/merges` (`open-project-merges`), the archived Project's
   banner leading to its survivor, EN and PL.
+
+Its `structure` phase writes the Stage map into the merge's host context first: each of the loser's
+Stages → the survivor's Stage of the same name, else the survivor's current Stage.

@@ -61,7 +61,7 @@ export class ProjectMergeHost implements MergeHostImplementation<'project'> {
   }
 
   async applyStructureBatch(input: MergeStepInput): Promise<{ moved: number }> {
-    const { moved } = await this.deps.commandBus.run(makeProjectMergeStructureCommand(input));
+    const { moved } = await this.deps.commandBus.run(makeProjectMergeStructureCommand({ recordMerge: this.deps.recordMerge }, input));
     return { moved };
   }
 

@@ -701,7 +701,7 @@ What happens to the duplicate's records:
 | Attachments | Move; a file the project that stays already holds is not attached twice. |
 | Linked Orders, Quote requests and Opportunities | Move — a record stays in one project. |
 | Organizations, members and listed people | Added to the project that stays where missing; a person who is a member of both keeps their role on the project that stays. |
-| Tasks | Move to the project that stays, without their stage: a task of one of the duplicate's stages has no stage afterwards. |
+| Tasks | Move to the project that stays, into its stage of the same name; a task whose stage has no namesake there goes to its current stage. |
 | References to the duplicate in other projects', tasks' and opportunities' texts | Lead to the project that stays. The texts themselves are not rewritten: a mention of the duplicate is shown as the project that stays. |
 | Stages, stage history, moves, value changes and deadline alerts | Stay with the duplicate. |
 
