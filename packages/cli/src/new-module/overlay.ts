@@ -34,10 +34,11 @@
  *     legacy decorators, exactly one tenancy decorator — under `entities/`, the
  *     `entities` export the platform registers it by, and a first migration
  *     named by `../lib/migration-naming.ts`.
- *   * **an admin screen** (`--admin`, `--action`). A screen is a module
- *     package's `./admin` layer, which the admin registry is generated from. An
- *     overlay module is in no registry, so a palette action would open a route
- *     nothing mounts.
+ *   * **an admin screen** (`--admin`, `--action`) is honoured since #1855
+ *     (FR-059): an overlay module's `admin/index.tsx` is in its deployment's
+ *     admin registry, so it gets the package scaffold's screen at that fixed
+ *     path, and `--action` the manifest's palette entry, gated by the module's
+ *     first permission on the route the emitted `backend.ts` registers.
  *   * **a published port** (`--ports`). A type-only `./ports` subpath is a
  *     package's `exports` entry.
  *   * **a worker or a subscriber** (`--worker`, `--subscriber`). Both are one
@@ -51,6 +52,8 @@ import { join, relative, sep } from 'node:path';
 import { parseEnvFile } from '../inputs/env-file.js';
 import { installedModulePackages } from '../lib/module-packages.js';
 import {
+  adminPage,
+  bundleEntries,
   entityClassOf,
   entityFileOf,
   entitySource,
@@ -60,8 +63,14 @@ import {
 } from './emit.js';
 import { MANIFEST_GENERATOR, findRepoRoot } from './host.js';
 import {
+  adminApiPathFor,
+  adminRoutesOf,
+  adminScreenRouteOf,
   buildScaffoldSpec,
+  camelOfActionId,
   gatingPermissionOf,
+  navLabelKeyOf,
+  pageComponentOf,
   pascalOf,
   ScaffoldInputError,
   slugOf,
@@ -173,16 +182,6 @@ function refuseWhatAnOverlayCannotBe(
       input.tenantScope !== undefined && input.entities !== true,
       '--tenant-scope: it chooses the tenancy decorator on the entity `--entities` emits, and ' +
         'without `--entities` there is no entity to decorate. Pass both, or neither.',
-    ],
-    [
-      input.admin !== undefined,
-      '--admin: an admin screen is the `./admin` layer of a module package, which the ' +
-        "instance's admin registry is generated from. An overlay module is in no registry.",
-    ],
-    [
-      (input.actions ?? []).length > 0,
-      '--action: a command-palette action opens an admin screen, and an overlay module has ' +
-        'none to open.',
     ],
     [
       input.ports === true,
@@ -336,6 +335,18 @@ export function planOverlayModule(
           `translate ${where}/i18n/pl.json — both shipped languages carry the same keys, and ` +
             `its values are your English text because a translation is a human judgement.`,
         ]),
+    ...(spec.layers.admin === null
+      ? []
+      : [
+          `the admin screen is ${adminScreenRouteOf(spec) ?? ''}, in ${where}/admin/. \`pnpm run ` +
+            `generate\` puts it in admin/src/deployments/${deployment}.generated.ts, and the admin ` +
+            `built with DEPLOYMENT=${deployment} shows it.` +
+            (spec.actions.length > 0
+              ? ''
+              : ` It has no command-palette action yet, so \`pnpm run generate\` exits 1 until ` +
+                `manifest.ts declares one — scaffold with \`--action <id>=${adminScreenRouteOf(spec) ?? '/'}\` ` +
+                `or add an \`actions\` entry by hand.`),
+        ]),
     `pnpm run generate — records what this deployment now does differently from the platform ` +
       `in apps/${deployment}/divergence.generated.md. Commit it. As written the module reaches ` +
       `into nothing, so the run is clean; once it resolves a port or decorates a service the ` +
@@ -371,9 +382,74 @@ export function emitOverlayModuleFiles(
           { path: `migrations/${migrationFileOf(spec)}`, content: initMigrationSource(spec) },
         ]
       : []),
+    ...(spec.layers.admin === null
+      ? []
+      : [
+          { path: 'admin/index.tsx', content: overlayAdminIndex(spec, scope) },
+          {
+            path: `admin/pages/${pageComponentOf(spec)}.tsx`,
+            content: adminPage(spec).replaceAll("'@endora-commerce/", `'${scope}`),
+          },
+        ]),
     { path: 'i18n/en.json', content: overlayBundle(spec) },
     { path: 'i18n/pl.json', content: overlayBundle(spec) },
   ];
+}
+
+/**
+ * `admin/index.tsx` — the overlay module's admin contributions, at the fixed
+ * path its deployment's admin registry imports (`overlay-module-layout.md` §2).
+ * The same object a package's `./admin` layer exports: one landing route, one
+ * sidebar entry in the chosen section, both gated by the module's first
+ * permission, the screen a dynamic-import factory.
+ */
+function overlayAdminIndex(spec: ModuleScaffoldSpec, scope: string): string {
+  const gate = gatingPermissionOf(spec);
+  const route = adminScreenRouteOf(spec);
+  const section = spec.layers.admin;
+  if (gate === null || route === null || section === null) {
+    throw new Error('overlayAdminIndex emitted without a gated route to mount the screen on');
+  }
+  return [
+    `import type { AdminContributions } from '${scope}admin-kit/contributions';`,
+    '',
+    '/**',
+    ` * ${spec.name} — the module's admin surface.`,
+    ' *',
+    ' * `pnpm run generate` imports this object into the admin registry of this',
+    ' * deployment, `admin/src/deployments/<deployment>.generated.ts`, and an admin built',
+    ' * with that `DEPLOYMENT` renders it. Export the object and nothing else, and keep',
+    ' * every screen a `() => import(…)` factory: the registry then costs the',
+    ' * declarations and none of the screens.',
+    ' */',
+    '',
+    "/** The one route this module mounts, and the palette action's target. */",
+    `const ROUTE_PATH = ${quote(route)};`,
+    '',
+    'export const contributions: AdminContributions = {',
+    '  routes: [',
+    '    {',
+    '      path: ROUTE_PATH,',
+    `      component: () => import('./pages/${pageComponentOf(spec)}.js'),`,
+    `      // The code backend.ts gates \`${adminApiPathFor(route)}\` on.`,
+    `      requiredPermission: ${quote(gate.code)},`,
+    '      index: true,',
+    '    },',
+    '  ],',
+    '  nav: [',
+    '    {',
+    '      to: ROUTE_PATH,',
+    "      // Resolved in this module's own i18n namespace, out of i18n/en.json and pl.json.",
+    `      labelKey: ${quote(navLabelKeyOf(spec))},`,
+    `      icon: ${quote(spec.icon)},`,
+    `      section: ${quote(section)},`,
+    '      weight: 100,',
+    `      requiredPermission: ${quote(gate.code)},`,
+    '    },',
+    '  ],',
+    '};',
+    '',
+  ].join('\n');
 }
 
 function quote(value: string): string {
@@ -429,6 +505,26 @@ function overlayManifest(spec: ModuleScaffoldSpec, scope: string): string {
   lines.push(`  dependencies: [${spec.dependencies.map(quote).join(', ')}],`);
   if (withSettings) lines.push('  settings,');
   lines.push(`  i18n: { bundlesDir: 'i18n' },`);
+  if (spec.actions.length > 0) {
+    lines.push('  // Principle XVI: every admin screen is reachable from the command palette');
+    lines.push('  // (⌘K / CTRL+K). The label and description are keys in i18n/en.json and');
+    lines.push("  // pl.json; the code is the one backend.ts gates the target's API on.");
+    lines.push('  actions: [');
+    spec.actions.forEach((action, index) => {
+      const key = camelOfActionId(action.id);
+      lines.push('    {');
+      lines.push(`      id: ${quote(action.id)},`);
+      lines.push(`      labelKey: ${quote(`actions.${key}.label`)},`);
+      lines.push(`      descriptionKey: ${quote(`actions.${key}.description`)},`);
+      lines.push(`      icon: ${quote(spec.icon)},`);
+      lines.push(`      targetRoute: ${quote(action.route)},`);
+      lines.push(`      requiredPermission: ${quote(gatingPermissionOf(spec)?.code ?? '')},`);
+      lines.push(`      keywords: [${quote(spec.name.toLowerCase())}],`);
+      lines.push(`      weight: ${String(100 + index)},`);
+      lines.push('    },');
+    });
+    lines.push('  ],');
+  }
   if (spec.permissions.length > 0) {
     lines.push('  // Every code a `requireAdmin(...)` in backend.ts enforces, so a role can be');
     lines.push('  // granted it. The label an operator reads is the');
@@ -501,15 +597,22 @@ function overlayBackend(spec: ModuleScaffoldSpec, scope: string): string {
   lines.push(`      data: { module: ${quote(spec.id)} },`);
   lines.push('    }));');
   if (gate !== null) {
-    lines.push('');
-    lines.push('    // Gated by a permission the manifest declares. The code must match exactly.');
-    lines.push('    app.get(');
-    lines.push(`      ${quote(`/api/v1/admin/${slug}`)},`);
-    lines.push(
-      `      { preHandler: ctx.cradle<${cradle}>().requireAdmin(${quote(gate.code)}) },`,
-    );
-    lines.push(`      async () => ({ data: { module: ${quote(spec.id)} } }),`);
-    lines.push('    );');
+    // One gated read per admin route: the module's own `/<slug>` with no
+    // `--action`, else each action's target — `/api/v1/admin` + the route is the
+    // entry `check:action-route-permissions` compares an action's code against.
+    for (const route of adminRoutesOf(spec)) {
+      lines.push('');
+      lines.push('    // Gated by a permission the manifest declares. The code must match exactly.');
+      lines.push('    app.get(');
+      lines.push(`      ${quote(adminApiPathFor(route))},`);
+      lines.push(
+        `      { preHandler: ctx.cradle<${cradle}>().requireAdmin(${quote(gate.code)}) },`,
+      );
+      lines.push(
+        `      async () => ({ data: { module: ${quote(spec.id)}, name: ${quote(spec.name)} } }),`,
+      );
+      lines.push('    );');
+    }
   }
   lines.push('  });');
   lines.push('}');
@@ -517,13 +620,15 @@ function overlayBackend(spec: ModuleScaffoldSpec, scope: string): string {
   return lines.join('\n');
 }
 
-/** A flat `key: text` map; the Polish file starts as the English text. */
+/**
+ * A flat `key: text` map; the Polish file starts as the English text. The
+ * package scaffold's keys — permission labels, palette actions, the sidebar
+ * entry and the screen — less `module.*`, which an overlay module's manifest
+ * carries as its `name` and `description`.
+ */
 function overlayBundle(spec: ModuleScaffoldSpec): string {
   const entries = Object.fromEntries(
-    spec.permissions.map((permission) => [
-      `adminRoles.permission.${permission.code}`,
-      permission.label,
-    ]),
+    bundleEntries(spec).filter(([key]) => !key.startsWith('module.')),
   );
   return `${JSON.stringify(entries, null, 2)}\n`;
 }

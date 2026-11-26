@@ -327,12 +327,6 @@ describe('which deployment', () => {
 
 describe('what an overlay module cannot be is refused before anything is written', () => {
   const refused: ReadonlyArray<readonly [string, Partial<NewModuleOptions>, string]> = [
-    ['--admin', { admin: 'catalog', permissions: ['store_notice:read=View'] }, 'module package'],
-    [
-      '--action',
-      { actions: ['open-notice=/store-notice'], permissions: ['store_notice:read=View'] },
-      'admin screen',
-    ],
     ['--ports', { ports: true }, 'module package'],
     ['--worker', { worker: true }, 'ctx.worker'],
     ['--subscriber', { subscriber: true }, 'ctx.subscribe'],
