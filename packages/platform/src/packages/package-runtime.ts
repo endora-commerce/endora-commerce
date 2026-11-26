@@ -468,6 +468,13 @@ export interface PackageSchemaContribution {
    * none — every package that predates the feature.
    */
   readonly schemaExtensions: readonly ColumnExtension[];
+  /**
+   * Its manifest's `extends` — the side tables it declares on extensible hosts
+   * (`specs/187-side-table-extensions/` FR-001), unvalidated: the migration merge
+   * judges them over the composed graph (E1 – E5). Absent on a hand-built
+   * contribution, which declares none.
+   */
+  readonly entityExtensions?: readonly unknown[];
 }
 
 function isConstructor(value: unknown): value is EntityClassLike {
@@ -637,6 +644,7 @@ export async function packageSchemaContributionsUnder(
       nonDeactivatable:
         (manifestEntry?.manifest.activation as { nonDeactivatable?: unknown } | undefined)?.nonDeactivatable === true,
       schemaExtensions: [],
+      entityExtensions: Array.isArray(manifestEntry?.manifest.extends) ? manifestEntry.manifest.extends : [],
     });
   }
 

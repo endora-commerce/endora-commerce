@@ -38,6 +38,11 @@ import {
   type ExtensibleHostSet,
 } from '../kernel/schema-extensions/extensible-hosts.js';
 import { SchemaExtensionInvalidError } from '../kernel/schema-extensions/errors.js';
+import {
+  resolveEntityExtensions,
+  type EntityExtensionManifest,
+  type ResolvedEntityExtension,
+} from '../kernel/entity-extensions/declarations.js';
 
 /**
  * The migration order this platform runs, as a value — with no database in it.
@@ -120,6 +125,13 @@ export interface ConfiguredMigrations {
    * `DEPLOYMENT` unset.
    */
   readonly overlays: readonly OverlaySchemaContribution[];
+  /**
+   * The side tables every composed module declares, resolved over the composed
+   * dependency graph (`specs/187-side-table-extensions/` E1 – E5) — what the ORM
+   * configuration verifies by default. Absent on an order built by hand, which
+   * declares none.
+   */
+  readonly entityExtensions?: readonly ResolvedEntityExtension[];
 }
 
 /**
@@ -139,6 +151,9 @@ interface SchemaProducer {
   readonly schemaExtensions: readonly ColumnExtension[];
   /** Whether R2's first-party ledger may exempt a write of this producer's — never an overlay's (OR-4). */
   readonly exemptible: boolean;
+  /** The manifest's `extends`, unvalidated (`specs/187-side-table-extensions/`). */
+  readonly entityExtensions: readonly unknown[];
+  readonly origin: 'package' | 'overlay';
 }
 
 function producersOf(
@@ -158,6 +173,8 @@ function producersOf(
       nonDeactivatable: contribution.nonDeactivatable === true,
       schemaExtensions: contribution.schemaExtensions ?? [],
       exemptible: true,
+      entityExtensions: contribution.entityExtensions ?? [],
+      origin: 'package' as const,
     })),
     ...overlays.map((contribution) => ({
       id: contribution.id,
@@ -169,6 +186,8 @@ function producersOf(
       nonDeactivatable: contribution.nonDeactivatable,
       schemaExtensions: contribution.schemaExtensions,
       exemptible: false,
+      entityExtensions: contribution.entityExtensions ?? [],
+      origin: 'overlay' as const,
     })),
   ];
 }
@@ -310,6 +329,12 @@ export function configuredMigrationsFrom(inputs: {
    * for D-291 R-A7's clause (c); the packages' own flags are added to it.
    */
   readonly requiredModules?: ReadonlySet<string>;
+  /**
+   * The committed modules' side-table declarations
+   * (`specs/187-side-table-extensions/` FR-005: a core module declares on the
+   * terms a package does). The packages' and overlays' come with them.
+   */
+  readonly coreEntityExtensions?: readonly EntityExtensionManifest[];
 }): ConfiguredMigrations {
   // `specs/178-extensible-columns/` FR-020 — one generated step per installed
   // module that declares extension columns, at the head of that module's block.
@@ -433,6 +458,22 @@ export function configuredMigrationsFrom(inputs: {
     baseline: inputs.baseline ?? BASELINE_MIGRATIONS,
   });
 
+  // `specs/187-side-table-extensions/` E1 – E5 over the composed graph — the one
+  // every origin is ordered by, so a host owner reached through a module of
+  // another origin is in the closure. Refused here, before any migration runs.
+  const entityExtensions = resolveEntityExtensions(
+    [
+      ...(inputs.coreEntityExtensions ?? []),
+      ...producers.map((contribution) => ({
+        moduleId: contribution.id,
+        origin: contribution.origin,
+        dependencies: contribution.dependencies,
+        extends: contribution.entityExtensions,
+      })),
+    ],
+    { dependencies: moduleDependencies },
+  );
+
   const registryByName = new Map(entries.map((entry) => [entry.cls.name, entry] as const));
   const registered: RegisteredMigration[] = ordered.migrations.map((migration) => {
     const entry = registryByName.get(migration.name);
@@ -458,6 +499,7 @@ export function configuredMigrationsFrom(inputs: {
     ]),
     packages: inputs.packages,
     overlays,
+    entityExtensions,
   };
 }
 
@@ -548,5 +590,11 @@ export async function discoverConfiguredMigrations(
     packages,
     overlays: await discoverOverlaySchema(deploymentRoot, env, { composedDependencies }),
     requiredModules: requiredModulesOf(sources.manifests),
+    coreEntityExtensions: sources.manifests.map((entry) => ({
+      moduleId: entry.id,
+      origin: 'core' as const,
+      dependencies: entry.manifest.dependencies ?? [],
+      extends: entry.manifest.extends,
+    })),
   });
 }
