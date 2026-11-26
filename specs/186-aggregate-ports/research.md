@@ -782,8 +782,9 @@ helper should move there.
 ## R-23 US10 (Task, #1829): decisions on the T009 inventory findings (2026-11-26)
 
 The T009 inventory (`contracts/task-command-port.md` § *Inventory findings*) raised the questions
-below, which R-16 to R-22 and the precedents do not answer in terms. **Every item is proposed,
-pending the architect.** None is irreversible: each is a port's behaviour in an unreleased change.
+below, which R-16 to R-22 and the precedents do not answer in terms. Each was recorded as proposed;
+**all eight are ruled below (architect, 2026-11-26)**: R-23.1 changed, the other seven confirmed, three
+with a JSDoc sentence owed. None needed the owner. None is irreversible: each is a port's behaviour in an unreleased change.
 None touches tenant isolation either, because a Task's reach is its context rule and every write
 still starts from `TaskAccess.loadVisible` under the ambient context. The precedents applied without
 a new decision are these. The port runs the routes' own service methods, split into the write and the
@@ -811,6 +812,28 @@ commits, which is the route's behaviour and out of this feature's scope. *One me
 list, each a copy of one branch of the `PATCH`, with the same partial-write property between them as
 the route has between its Commands.
 
+**Ruling (architect, 2026-11-26): changed.** `module-composition.md` item 2a.2 ("each method runs
+exactly one of your Commands") and 2a.7 / R-6 ("a call is its own Command transaction") decide it, and
+the proposal breaks both. The stated reason answers only half of R-22.4's: no hookable action removes
+the dropped-`extensions` problem, not the other half — when the third of seven Commands refuses, two
+have committed, the caller receives the third's refusal and cannot tell from it which writes landed. A
+port is a published contract; the route's partial-write property must not become one. Binding change:
+- `update` takes `title`, `description`, the due date and time, `startOn` and `context`, and runs
+  `tasks.task.update` alone, with the route's checks for those fields (take-out / put-in, assignees
+  seeing a new record, `TASK_PRIVATE_IN_CONTEXT`).
+- Five one-Command methods: `setParent(id, { parentTaskId: string | null })`,
+  `setPriority(id, { priorityCode: string | null })`, `setTags(id, { tagIds })`,
+  `setAssignees(id, { set } | { add, remove })` and `setPrivate(id, { private: boolean })`; each takes
+  the shared options last and answers the `TaskRecord` after the write (R-23.5).
+- `setPrivate` checks against the row as it stands: only the Creator, no context, assignees within
+  `{ Creator }`. A caller making a Task private clears its context and assignees first, in that order.
+- Each method runs the same factory as the route, and the pre-checks move into helpers the route's
+  `updateTask` and the method both call, so the refusals are the route's (2a.5). The route's sequence
+  and per-Command transactions are not changed.
+- Owed: `contracts/task-command-port.md`, the `TaskCommandPort` JSDoc, the EN/PL module docs, and one
+  parity test per method, each asserting that exactly one audit row is written.
+Five methods #1829 did not list are additive (R-16.8's rule) and are what item 2a requires.
+
 ### R-23.2 Seven methods need an administrator behind the call, refused `403 FORBIDDEN` before anything is read
 
 **Proposed.** Five author columns are `not null` (finding 3), and a draft is its Creator's (FR-037).
@@ -827,6 +850,13 @@ write can record nobody (R-22.2). *Keeping the 500* — refusing the caller's co
 fault. *Letting the system publish anybody's draft* — the draft is the Creator's until they publish
 it (FR-037). Until then the system would announce, as theirs, something they had not finished.
 
+**Ruling (architect, 2026-11-26): confirmed.** R-22.2 and R-4 / Principle XIII decide it. A
+`not null` author cannot be filled by the `system` actor without making up an administrator. The
+deprecated `createMany` moving from 500 to 403 is not a contract break: the 500 was an unhandled fault,
+not a published refusal. Its one caller, `projects`' Stage Tasks, always runs with an administrator
+(`projects/src` opens no system scope), so nothing that worked stops working.
+`withSystemScopeActingFor` brings that administrator's reach with it, so XI is not widened.
+
 ### R-23.3 A private Task is read-only to the bare system scope
 
 **Proposed.** `assertMayChange` is unchanged: under `withSystemScope` every write but a delete of
@@ -837,6 +867,15 @@ open to it, as to a `tasks:see_private` holder.
 
 **Rejected.** *Exempting the system actor* — any integration could then rewrite a Task its Creator
 marked private, which FR-038 promises nobody but the Creator may change.
+
+**Ruling (architect, 2026-11-26): confirmed; no XI or XIII risk.** "Private" is FR-038's Creator
+rule, not a tenant boundary (XI's boundary is the Organization, and every write still starts from
+`loadVisible`). The asymmetry is the route's, ruled by the owner (Q1 = B): change is the Creator's
+alone, and deletion is open to anyone who may see the Task. The bare system scope sees private Tasks
+(R-7: the caller is the gate), so it is in the `tasks:see_private` holder's position, delete
+included. A delete runs `tasks.task.delete` through the bus and records the `system` actor and the
+caller's `source` (XIII). `deleteInContext` never reaches a private Task, which has no context.
+Owed: one sentence in the port's JSDoc naming the asymmetry.
 
 ### R-23.4 `setStatus` takes `{ to, from? }`; `to` is not validated on the port
 
@@ -854,6 +893,15 @@ workflow forbids is `409 TASK_TRANSITION_FORBIDDEN`, naming the permitted status
 finding on #1963's status codes. *Requiring `from`* — R-16.6: an integration that just read the
 record would have to send back what the port already reads.
 
+**Ruling (architect, 2026-11-26): confirmed.** Item 2a.5 decides it. Refusals are the admin route's
+`HttpError`s. An outcome type is the exception, allowed only for a status change whose callers answer a
+third party, and only when the method's JSDoc says so. `TaskCommandPort.setStatus` promises no outcome,
+and it has no server-side caller: `projects` uses only `createMany` and `deleteInContext`. #1963 does
+not carry over. The order port's refusals are values because the payment ingress answers a gateway.
+The lesson that does carry over is one answer for "not a status of this workflow", which not parsing
+`to` gives. If a caller that answers a third party appears, it is an additive outcome method, not a
+change to this one.
+
 ### R-23.5 Answers: the record after the write, an id where the caller needs one, nothing otherwise
 
 **Proposed.** `create`, `update`, `setStatus`, `setCustomFieldValues` and `publish` answer the
@@ -870,6 +918,11 @@ write that moved the Task out of the caller's sight still answers it.
 (R-22.6). *Answering the sub-task count from `delete`* — a count of what the caller may see, a
 reader's number, which `withSystemScope` would answer for nobody.
 
+**Ruling (architect, 2026-11-26): confirmed.** R-22.6 decides it. The answer is the record read after
+the write, not a reader-language shape, and `rowAfterWrite` never serves a first read. Every method
+passes `loadVisible` first, so the answer reveals nothing the caller could not already see (no XI
+risk). The five methods R-23.1 adds answer the `TaskRecord` too.
+
 ### R-23.6 The hand-recorded entries stay inside their Commands, without `source`
 
 **Proposed.** Four entries are recorded by hand on the Command's own transaction: a deleted Task's
@@ -884,6 +937,15 @@ no Task action is hookable, and the entries already commit and roll back with th
 hand-recorded entries would mean threading the caller's options through `recordAuditFromContext`
 call sites shared with configuration writes that have no caller.
 
+**Ruling (architect, 2026-11-26): confirmed; not an XIII gap.** XIII asks that the write run through
+`CommandBus.run` so auditing and undo stay uniform. Each entry is written on the Command's own
+transaction under the Command's actor and commits or rolls back with it, so that holds. `source` is
+R-4's attribution of the Command, and `withCallerOptions` puts it into that Command's `stateAfter`. A
+side-effect entry without it is still attributed through its actor and its transaction. Owed: one
+sentence in the port's JSDoc saying that `source` is recorded on the entry of the method's Command
+only. Carrying it to the second-object entries is platform work (an ambient source that
+`recordAuditFromContext` reads) and belongs with #1961, not in this change.
+
 ### R-23.7 `createMany` and `deleteInContext` keep the write port's semantics
 
 **Proposed.** Both move onto `taskCommandPort` as they are. `createMany` keeps the context owner's
@@ -896,6 +958,14 @@ names are one implementation.
 checks that refuse a Stage's holders and fail the whole batch (issue #506's ruling). It would also
 lose the source keys a retried Stage entry depends on.
 
+**Ruling (architect, 2026-11-26): confirmed.** `data-model.md` § *Port disposition* already moves
+both onto `taskCommandPort` with `taskWritePort` deprecated and delegating (R-10, item 2a.9). The
+#506 ruling and R-19's source-key idempotence decide their semantics. They are the one bounded
+exception to item 2a.2 and 2a.7: one Command per Task, each its own transaction. They are kept because
+a retry after a partial batch creates or deletes only what is missing, which `update` (R-23.1) could
+not promise. No XI risk: the context type must belong to a present module, and the only caller is the
+context's owner acting on its own record.
+
 ### R-23.8 `setCustomFieldValues` runs the `PATCH`'s Command with the merge under the row lock
 
 **Proposed.** One factory, `changeTaskCustomFieldsCommand(id, merge)`, now takes a merge over the bag
@@ -907,3 +977,13 @@ registration sees every change. A merge that answers anything but a plain object
 `422 VALIDATION_FAILED` with nothing written.
 
 **Rejected.** *A second Command for the port* — two write paths, the defect FR-002 removes.
+
+
+**Ruling (architect, 2026-11-26): confirmed.** Item 2a.2 (one factory, one action on both paths) and
+R-22.7 (a no-op records nothing) decide it. The merge running under the row lock is R-16.2's and
+R-22.7's form.
+
+**Bisectability (architect, 2026-11-26).** That commit `c829c9dfd` does not typecheck on its own does
+not block. No repository rule asks every commit to build: CI judges the pull request's head, `dco` is
+the only per-commit check, and master takes merge commits, so `git bisect --first-parent` steps over
+it. Squashing it into `dd7395ddf` is welcome and not required.
