@@ -963,10 +963,11 @@ export type OrganizationConvertToCompanyInput = Omit<
  * **Inputs and refusals are the admin route's**, as the platform's `HttpError`
  * with its `code`: `422 VALIDATION_FAILED` for an input outside the route's
  * limits, `404 NOT_FOUND` for an unknown, soft-deleted or malformed id, and
- * each method's own below. The one difference is on `create`, which answers an
- * unknown sales channel `422 UNKNOWN_SALES_CHANNEL` where the admin route
- * answers `VALIDATION_FAILED` (research R-16.5): the code the deprecated
- * `organizationWritePort.create` has always answered.
+ * each method's own below. The one difference is an unknown sales channel, on
+ * `create` and `setSalesChannels`: `422 UNKNOWN_SALES_CHANNEL` where the admin
+ * routes answer `VALIDATION_FAILED` (research R-16.5), the code the deprecated
+ * `organizationWritePort.create` has always answered, with the same message
+ * and `details` paths.
  *
  * **Options** ({@link AggregateCommandOptions}): `expectedVersion` is honoured
  * by `update`, the four moderation methods, `setRestrictions` and
@@ -1107,6 +1108,25 @@ export interface OrganizationCommandPort {
   changeTaxId(
     organizationId: string,
     input: OrganizationChangeTaxIdInput,
+    options?: OrganizationCommandPortOptions,
+  ): Promise<OrganizationRecord>;
+  /**
+   * `organization.sales_channels.set` — replaces the sales channels the
+   * Organization's members may sign in and shop on, as
+   * `PUT …/:id/sales-channels` does, and answers the Organization. At least
+   * one distinct channel id (`422 VALIDATION_FAILED` otherwise); an inactive
+   * channel may be assigned. The kernel's membership writer records one
+   * `sales_channel.membership.changed` entry per membership added or removed,
+   * in the same transaction as this method's own entry (the ids before and
+   * after); the Organization's access cache is dropped after the commit and
+   * `sales_channels.membership_changed` emitted per membership. The set the
+   * Organization already has changes, records and emits nothing. Refusals:
+   * `404 NOT_FOUND`, `422 UNKNOWN_SALES_CHANNEL` (with `details` naming
+   * `salesChannelIds.<index>`). Ignores `expectedVersion`.
+   */
+  setSalesChannels(
+    id: string,
+    input: OrganizationSalesChannelsUpdateBody,
     options?: OrganizationCommandPortOptions,
   ): Promise<OrganizationRecord>;
   /**

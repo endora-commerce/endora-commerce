@@ -55,6 +55,7 @@ import { makePlaceInTreeCommand } from './commands/set-parent.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
 import { makeDeleteOrganizationCommand } from './commands/delete-organization.command.js';
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
+import { makeSetSalesChannelsCommand } from './commands/set-sales-channels.command.js';
 import { assertCountryAvailable, assertSalesChannelsExist } from './services/organization-write-guards.js';
 import { makeSetTaxIdScopeCommand } from './commands/set-tax-id-scope.command.js';
 import { makeConvertToCompanyCommand } from './commands/convert-to-company.command.js';
@@ -704,12 +705,15 @@ export async function registerOrganizationsAdminRoutes(
     );
 
     /**
-     * Replace the whole set. No Command around it: the kernel's membership
-     * writer is the audited path for a bridge row — one entry per membership
-     * added or removed, with the acting admin — and wrapping it would record the
-     * same change twice under two object types (research R-10). The writer also
-     * drops the access cache, so the Organization's next request is decided on
-     * the new set; the same set again is a no-op that audits nothing.
+     * Replace the whole set: `organization.sales_channels.set`, the Command
+     * `organizationCommandPort.setSalesChannels` runs too
+     * (`specs/186-aggregate-ports/` T029, research R-16.1). The kernel's
+     * membership writer enlists in the Command's transaction — one
+     * `sales_channel.membership.changed` entry per membership added or
+     * removed, with the acting admin, beside the Command's own `organization`
+     * entry — and drops the access cache after the commit, so the
+     * Organization's next request is decided on the new set. The same set
+     * again is a no-op that records nothing.
      */
     app.put<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/sales-channels',
@@ -719,14 +723,13 @@ export async function registerOrganizationsAdminRoutes(
       },
       async (request) => {
         const body = OrganizationSalesChannelsUpdateBodySchema.parse(request.body);
-        const em = emFactory();
-        await requireOrganization(em, request.params.id);
-        await assertSalesChannelsExist(em, body.salesChannelIds);
-        const [first, ...rest] = body.salesChannelIds as [string, ...string[]];
-        await membership.replaceChannelsForEntity('organization', request.params.id, [first, ...rest], {
-          actorAdminUserId: adminActorOf(request)?.adminUserId ?? null,
-        });
-        return { data: await channelAssignmentOf(em, request.params.id) };
+        await deps.commandBus.run(
+          makeSetSalesChannelsCommand(
+            { membership },
+            { organizationId: request.params.id, salesChannelIds: body.salesChannelIds },
+          ),
+        );
+        return { data: await channelAssignmentOf(emFactory(), request.params.id) };
       },
     );
 

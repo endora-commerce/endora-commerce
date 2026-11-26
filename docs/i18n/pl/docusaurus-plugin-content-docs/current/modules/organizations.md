@@ -183,13 +183,12 @@ modułu. Pobieraj go przy każdym użyciu przez
 | `setCustomFieldValues(id, merge, options?)` | `organization.set_custom_field_values` | — (panel wysyła wartości w `PATCH`) |
 | `convertToCompany(id, input, options?)` | `organization.convert_to_company` | `POST /api/v1/admin/organizations/:id/convert-to-company` |
 | `changeTaxId(id, { taxId }, options?)` | `organization.tax_id.change` | `POST /api/v1/admin/organizations/:id/change-tax-id` |
+| `setSalesChannels(id, { salesChannelIds }, options?)` | `organization.sales_channels.set` | `PUT /api/v1/admin/organizations/:id/sales-channels` |
 | `setRestrictions(id, lists, options?)` | `organization.allow_lists_replace` | `PUT /api/v1/admin/organizations/:id/restrictions` |
 | `patchRestriction(id, kind, { add?, remove? }, options?)` | `organization.allow_list_patch` | `PATCH /api/v1/admin/organizations/:id/restrictions/*` |
 | `setCreditInheritanceMode(id, { mode }, options?)` | `organization.set_credit_mode` | `PUT /api/v1/admin/organizations/:id/credit-inheritance-mode` |
 | `assignSalesRep(id, { adminUserId }, options?)` | `organization.sales_rep_assign` | `POST /api/v1/admin/organizations/:id/sales-reps` |
 | `unassignSalesRep(id, { adminUserId }, options?)` | `organization.sales_rep_unassign` | `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` |
-
-Kanałów sprzedaży istniejącej organizacji port jeszcze nie zmienia.
 
 **Jedna ścieżka zapisu.** Każda metoda uruchamia to samo polecenie (Command), które uruchamia
 endpoint panelu, zbudowane przez tę samą fabrykę, więc oba zapisy nie mogą się różnić: jeden wpis
@@ -200,8 +199,8 @@ zatwierdzenie odbywa się wewnątrz innego polecenia. Dane wejściowe to ciała 
 ich `version`, walidowane w tych samych granicach, a odmowy to błędy endpointów z ich kodami
 (`422 VALIDATION_FAILED` dla danych poza granicami, `404 NOT_FOUND`,
 `422 ORGANIZATION_STATUS_INVALID`, `409 VERSION_CONFLICT` i własne kody każdej operacji). Jedyna
-różnica: `create` odpowiada na kanał sprzedaży, który nie istnieje, kodem
-`422 UNKNOWN_SALES_CHANNEL`, a endpoint panelu kodem `422 VALIDATION_FAILED`.
+różnica: `create` i `setSalesChannels` odpowiadają na kanał sprzedaży, który nie istnieje, kodem
+`422 UNKNOWN_SALES_CHANNEL`, a endpointy panelu kodem `422 VALIDATION_FAILED`.
 
 **Kto zapisał.** Aktor jest aktorem z bieżącego kontekstu, nigdy parametrem: administrator w
 żądaniu panelu albo w `withSystemScopeActingFor`; aktor **system** w `withSystemScope` w procesie
@@ -237,6 +236,13 @@ nie wysyła powiadomienia; `unblock` też nie.
 **Umieszczanie organizacji w drzewie.** `setParent` z identyfikatorem organizacji nadrzędnej
 przypisuje pierwszą organizację nadrzędną (`organization.set_parent`) albo przenosi oddział pod
 inną (`organization.move`); `parentId: null` odłącza organizację, która staje się korzeniem.
+
+**Kanały sprzedaży.** `setSalesChannels` zastępuje cały zestaw przekazanymi identyfikatorami —
+co najmniej jednym, każdym raz; można przypisać kanał nieaktywny. Oprócz własnego wpisu
+`organization.sales_channels.set` w tej samej transakcji zapisywany jest jeden wpis audytu na
+każdy dodany lub usunięty kanał, a członkowie organizacji od następnego żądania są oceniani według
+nowego zestawu. Przekazanie zestawu, który organizacja już ma, niczego nie zmienia i niczego nie
+zapisuje.
 
 **Same wartości pól niestandardowych.** `setCustomFieldValues` przyjmuje `merge` — funkcję z
 bieżących wartości w nowe — i uruchamia ją wewnątrz swojego polecenia. Moduł nie waliduje:
@@ -338,7 +344,8 @@ każdy kanał, w którym miała już zamówienia.
   a domyślny kanał systemowy ma etykietę. Odznaczenie ostatniego kanału jest odrzucane: *„Organizacja
   musi mieć przypisany co najmniej jeden kanał sprzedaży.”* Usunięcie kanału nie wymaga potwierdzenia:
   ponowne zaznaczenie go przywraca.
-  Każdy dodany lub usunięty kanał zapisuje jeden wpis w dzienniku audytu. Zmiana obowiązuje od razu na
+  Każda zmiana zapisuje jeden wpis audytu organizacji (`organization.sales_channels.set`) i jeden
+  wpis na każdy dodany lub usunięty kanał. Zmiana obowiązuje od razu na
   serwerze, który ją zapisał, a na każdym innym serwerze w ciągu 30 sekund.
 - **Nowa organizacja** — przycisk na liście organizacji i akcja w palecie poleceń (⌘K / Ctrl+K),
   widoczne z uprawnieniem `customers:manage`. Formularz pyta o nazwę, NIP, adres siedziby, status
@@ -1555,6 +1562,9 @@ zaproszonej osoby; nigdy nazwy ani opisu roli niestandardowej.
 - **`organization.allow_lists_replace`**, **`organization.allow_list_patch`** — identyfikatory
   dozwolonych metod płatności, metod dostawy i magazynów (przy zmianie częściowej: jej rodzaj oraz
   dodane i usunięte identyfikatory), zapisywane w transakcji zmiany.
+- **`organization.sales_channels.set`** — identyfikatory kanałów sprzedaży przed zmianą i po niej,
+  zapisywane w transakcji zmiany obok jednego wpisu `sales_channel.membership.changed` na każdy
+  dodany lub usunięty kanał. Zapisanie zestawu, który organizacja już ma, niczego nie zapisuje.
 - **`organization.sales_rep_assign`**, **`.sales_rep_unassign`** — identyfikator przedstawiciela.
   Przypisanie przedstawiciela, który jest już przypisany, albo usunięcie takiego, który nie jest,
   niczego nie zmienia i niczego nie zapisuje.
