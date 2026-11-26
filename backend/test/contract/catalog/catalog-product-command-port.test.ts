@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   ERROR_CODES,
   type CatalogProductCommandPort,
@@ -53,20 +53,21 @@ describe('catalogProductCommandPort — the admin routes’ Commands (#1825)', (
     withSystemScopeActingFor(TEST_ADMIN_ID, 'test: catalog product command port', fn);
 
   /**
-   * The events announced for one product, in order: what the indexer and the webhooks saw. An
-   * unscoped `emit` dispatches without being awaited, and the handlers before this recorder may
-   * await the search index, so the probe waits until nothing new arrived for 150 ms (at most 3 s).
+   * The events announced for one product, in order: what the indexer and the webhooks saw.
+   * Command events are dispatched, awaited, before the write returns. The variant writes'
+   * `['variants']` announcement is an unscoped `emit` (not awaited, inventory finding 5), which
+   * reaches this recorder only after the handlers registered before it — the search indexer
+   * among them — have finished. So a probe that expects one names how many events the product
+   * must have (`atLeast`) and waits for them (no fixed quiet period, which a slow indexer
+   * outlasts); it then settles briefly, so an extra event still fails the parity.
    */
-  const eventsOf = async (productId: string) => {
-    const deadline = Date.now() + 3000;
-    let seen = -1;
-    while (seen !== announced.length && Date.now() < deadline) {
-      seen = announced.length;
-      await new Promise((resolve) => setTimeout(resolve, 150));
-    }
-    return announced
-      .filter((event) => event.productId === productId)
-      .map(({ name, changedFields }) => (changedFields ? { name, changedFields: [...changedFields].sort() } : { name }));
+  const eventsOf = async (productId: string, atLeast = 0) => {
+    const forProduct = () => announced.filter((event) => event.productId === productId);
+    await vi.waitFor(() => expect(forProduct().length).toBeGreaterThanOrEqual(atLeast), { timeout: 15_000, interval: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return forProduct().map(({ name, changedFields }) =>
+      changedFields ? { name, changedFields: [...changedFields].sort() } : { name },
+    );
   };
 
   async function route(method: 'POST' | 'PATCH' | 'DELETE', url: string, payload?: object, status = 200) {
@@ -217,14 +218,14 @@ describe('catalogProductCommandPort — the admin routes’ Commands (#1825)', (
           'product_variant',
           (res) => res!.data['id'] as string,
           () => route('POST', variants(a), { sku: sku(), variantAttributeValues: {} }, 201),
-          () => eventsOf(a),
+          () => eventsOf(a, 2),
         ),
       viaPort: () =>
         observe(
           'product_variant',
           (record) => record.id,
           () => asAdmin(() => port.createVariant(b, { sku: sku(), variantAttributeValues: {} })),
-          () => eventsOf(b),
+          () => eventsOf(b, 2),
         ),
     });
     const [va, vb] = [created.route.audit[0]!.objectId!, created.port.audit[0]!.objectId!];
@@ -232,14 +233,14 @@ describe('catalogProductCommandPort — the admin routes’ Commands (#1825)', (
 
     await expectPortParity({
       viaRoute: () =>
-        observe('product_variant', va, () => route('PATCH', `${variants(a)}/${va}`, { stockLevel: 5 }), () => eventsOf(a)),
+        observe('product_variant', va, () => route('PATCH', `${variants(a)}/${va}`, { stockLevel: 5 }), () => eventsOf(a, 3)),
       viaPort: () =>
-        observe('product_variant', vb, () => asAdmin(() => port.updateVariant(b, vb, { stockLevel: 5 })), () => eventsOf(b)),
+        observe('product_variant', vb, () => asAdmin(() => port.updateVariant(b, vb, { stockLevel: 5 })), () => eventsOf(b, 3)),
     });
     await expectPortParity({
       viaRoute: () =>
-        observe('product_variant', va, () => route('DELETE', `${variants(a)}/${va}`, undefined, 204), () => eventsOf(a)),
-      viaPort: () => observe('product_variant', vb, () => asAdmin(() => port.deleteVariant(b, vb)), () => eventsOf(b)),
+        observe('product_variant', va, () => route('DELETE', `${variants(a)}/${va}`, undefined, 204), () => eventsOf(a, 4)),
+      viaPort: () => observe('product_variant', vb, () => asAdmin(() => port.deleteVariant(b, vb)), () => eventsOf(b, 4)),
     });
   });
 

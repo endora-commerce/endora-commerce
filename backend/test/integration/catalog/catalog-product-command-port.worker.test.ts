@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   ERROR_CODES,
   type CatalogAttributeCommandPort,
@@ -73,16 +73,26 @@ describe('catalogProductCommandPort from a worker (186 T072)', () => {
     const options = { source: SOURCE };
     // The fixture's product (in its attribute set, a member of the channel), then the worker's own writes.
     const id = await fx.product({ channels: [channel], type: 'configurable' });
-    const variant = await asWorker(() =>
-      port.createVariant(id, { sku: `PIM-${fx.run}-V1`, variantAttributeValues: {} }, options),
-    );
-    await asWorker(() => port.setCustomFieldValues(id, async (current) => ({ ...current, [note]: 'Global note' }), options));
-
+    // Recorded from the start. The variant write announces `product.updated.v1` ['variants']
+    // unscoped (`emit` outside a Command scope, not awaited; inventory finding 5), and the bus walks
+    // its live handler list: a recorder registered while that dispatch is still awaiting an earlier
+    // handler (the search indexer) is handed the stale event too. That was the CI failure of
+    // run 45877605490. So the recorder is on before any write, the test waits for that event, and
+    // the scoped apply is judged by what arrived after it.
     const events: string[][] = [];
     const off = h.eventBus.on('product.updated.v1', (payload) => {
       const p = payload as unknown as { productId: string; changedFields: string[] };
       if (p.productId === id) events.push([...p.changedFields].sort());
     });
+    const variant = await asWorker(() =>
+      port.createVariant(id, { sku: `PIM-${fx.run}-V1`, variantAttributeValues: {} }, options),
+    );
+    await asWorker(() => port.setCustomFieldValues(id, async (current) => ({ ...current, [note]: 'Global note' }), options));
+    await vi.waitFor(() => expect(events).toContainEqual(['variants']), { timeout: 15_000, interval: 50 });
+    // Both earlier writes announced exactly once each, in either order.
+    expect([...events].sort()).toEqual([['attributeValues'], ['variants']]);
+    const seen = events.length;
+
     const before = await version(id);
     const cells: ProductScopedWriteCell[] = [
       { scope: { level: 'global' }, field: 'name', op: { op: 'set', value: 'Drill (PIM)' } },
@@ -96,7 +106,8 @@ describe('catalogProductCommandPort from a worker (186 T072)', () => {
     const result = await asWorker(() => port.applyScopedValues(id, { cells }, options));
     off();
     expect(result).toEqual({ applied: 3, refused: [], urlKeys: [] });
-    expect(events).toEqual([['attributeValues', 'name']]);
+    // The apply is a Command: its event is dispatched, awaited, before the call returns.
+    expect(events.slice(seen)).toEqual([['attributeValues', 'name']]);
     expect(await version(id)).toBe(before + 1n);
     expect((await fx.read(id, { channelId: channel, languageCode: 'pl-PL' })).fields.name).toMatchObject({
       value: 'Wiertarka (PIM)',
