@@ -24,7 +24,7 @@ therefore calls **the same service method** the route calls, with the caller's `
 | `addComment(id, input, options?)` → `OpportunityComment` | `crm.opportunity.note_add` / `crm.opportunity.message_add` (by `kind`) | `POST /:id/comments` (`crm:write`) | `OpportunityCommentService.add` | C | mention notices; a message's participants told |
 | `delete(id, options?)` | `crm.opportunity.delete` | `DELETE /:id` (`crm:configure`) | `OpportunityService.delete` | C | none (children cascade) |
 
-**Findings that shaped the interface** (each proposed in research R-21):
+**Findings that shaped the interface** (each ruled in research R-21, architect, 2026-11-26):
 
 1. **The Commands live in the services** (R-21.1): the port calls the route's service method rather
    than a factory under `commands/`; extracting ten factories would move code without changing what

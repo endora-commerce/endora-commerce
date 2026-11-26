@@ -624,12 +624,11 @@ consumes, and every one of them would then be a frozen or stable entry.
 ## R-21 US9 (Opportunity, #1827): decisions on the T008 inventory findings (2026-11-26)
 
 The T008 inventory (`contracts/opportunity-command-port.md` § *Inventory*) raised the questions
-below, which R-16, R-17, R-18 and the precedents do not answer in terms. Each is **proposed, pending
-architect**, with the alternative rejected. None is a business call, irreversible, or touches tenant
+below, which R-16, R-17, R-18 and the precedents do not answer in terms. Each was proposed by the implementing session with the alternative rejected. **All eight are ruled below (architect, 2026-11-26)**: six as proposed, and R-21.5 as proposed plus one test guard. None was escalated to the owner, because every one of them is decided by a rule or a precedent. None is a business call, irreversible, or touches tenant
 isolation: every read stays on the scoped EntityManager the route uses. Code references are to
 `origin/master` `d936722d5`.
 
-### R-21.1 The port calls the routes' service methods; no factories are extracted (proposed, pending architect)
+### R-21.1 The port calls the routes' service methods; no factories are extracted
 
 **Finding.** Convention item 2a.2 reads "from the same factory under `src/backend/commands/`". `crm`
 has no `commands/` directory: each of the ten operations' Commands is an object literal built by the
@@ -653,7 +652,9 @@ dependencies, a refactor of about 1,200 lines that changes neither what the rout
 runs. *Resolving the port from the routes*: the route would go through its own module's gate twice,
 and the transition route needs the propagation outcomes the port's outcome does not carry.
 
-### R-21.2 The deprecated transition port's `actor` is not read; the cause follows the ambient actor (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed, on the terms of R-19.4. Item 2a.2 requires one construction site per action, reached by route and port alike. `crm` already runs every one of them on the bus (R-2's row), and the `orders` precedent extracted factories only where it converted. The condition is that each service method builds its one Command and nothing else does, and that the parity tests compare the route's entry with the port's. Moving the routes' detail read after the call is a route-internal change, and the admin responses must stay byte-identical. The existing route contract tests are the guard for that.
+
+### R-21.2 The deprecated transition port's `actor` is not read; the cause follows the ambient actor
 
 **Finding.** `opportunityTransitionPort.applyStatus` takes an `actor` and derives the cause from it
 (`admin` → `manual`, else `system`); the bus already records the ambient actor in the audit entry, but
@@ -671,7 +672,9 @@ truth. `../paid-modules` has no caller.
 defect FR-002 removes, and an actor taken from input (Principle XIII). *`cause: 'manual'` for every
 port call*: a connector's move would read as an operator's.
 
-### R-21.3 `addComment` requires an ambient administrator (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. R-18.2 is the precedent in terms: an actor is never input (R-4, R-17.7, Principle XIII), and the deprecated port delegates and ignores `actor`. The cause is derived from the ambient actor. That means `withSystemScopeActingFor` reads `manual`, because an administrator is acting, and a bare system scope reads `system`. The one in-repository test changes its expectation to the administrator it runs under. `../paid-modules` has no caller (checked 2026-11-26).
+
+### R-21.3 `addComment` requires an ambient administrator
 
 **Finding.** A note or message has an author: `crm_opportunity_comments.author_admin_user_id` is not
 nullable, the comment is rendered by its author, and only its author edits or deletes a note. Under a
@@ -688,7 +691,9 @@ FR-008 for one refusal.
 plus a rendering, edit and delete rule for an authorless note — a feature, not a port. *A fabricated
 author id*: Principle XIII.
 
-### R-21.4 `OpportunityRecord.customFieldValues` is optional on the type (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed; this needs no owner. The comment's author is the aggregate's own invariant: a non-null `author_admin_user_id`, and only the author may edit or delete. Principle XIII forbids fabricating one. `withSystemScopeActingFor` is the sanctioned way for a worker to name the administrator it acts for (item 2a.3). R-16.5 is the precedent for narrowing an FR's wording for one method while keeping its intent. The JSDoc and `contracts/opportunity-command-port.md` must state the narrowing, and so must FR-005's note in `spec.md` if the spec carries per-method notes. The refusal stays the route's `403 FORBIDDEN` (item 2a.5).
+
+### R-21.4 `OpportunityRecord.customFieldValues` is optional on the type
 
 **Proposed.** `customFieldValues?: Record<string, unknown>`, always filled by `crm`'s mapper — R-18.7's
 reasoning for `OrderRecord.payer`: a read-direction type, compatible either way for a reader, and a
@@ -699,7 +704,9 @@ either way; `../paid-modules` builds none.)
 **Rejected.** *Required*, as `data-model.md` wrote it: breaks every hand-built record outside this
 repository in the release that only adds the field.
 
-### R-21.5 Any `extensions` key is refused before anything is read (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. R-18.7 is the precedent in terms. `OpportunityRecord` is read-direction (`contract-surface.md` § Directions), `crm`'s mapper always fills the field, and `data-model.md` is amended to the optional form.
+
+### R-21.5 Any `extensions` key is refused before anything is read
 
 **Finding.** No `crm` action is declared hookable, so the bus refuses every key
 (`422 COMMAND_EXTENSION_UNCLAIMED`) — but only when the Command runs. A transition runs its guards and
@@ -714,7 +721,9 @@ when something needs it), this pre-check is removed for that action in the same 
 subscribers. *Reading the hook registry from the port*: `claimants()` is the bus's own; exposing it is
 a change to `packages/platform/src/commands/`, which this work does not touch.
 
-### R-21.6 `withCallerOptions` is copied a fourth time, into `crm` (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed, with one guard added. R-18.8 left `extensions` to the bus because no Order method announces anything before its Command. Here `transition` emits its `.before` events first, so a call the bus will refuse must be refused before that, and refusing it for every method keeps one rule per port, as `source` is (issue #1922). The risk is a stale pre-check that keeps refusing after an action is declared hookable. **Code change (owed in this pull request):** add a unit test beside `opportunity-command-port.ts` that asserts `crm`'s manifest declares no `hookableActions`, and name the pre-check in the assertion's message. Declaring the first hookable action then fails that test and forces the pre-check to be removed in the same change. The message must keep the bus's code and `details` shape byte-identical; that is already tested.
+
+### R-21.6 `withCallerOptions` is copied a fourth time, into `crm`
 
 **Proposed.** R-18.6's bounded exception, once more: `packages/platform/src/commands/` is still held
 for spec 189, so `crm` carries a copy identical in behaviour (the body is byte-identical to
@@ -722,7 +731,9 @@ for spec 189, so `crm` carries a copy identical in behaviour (the body is byte-i
 
 **Rejected.** *Importing another module's copy*: Principle I.
 
-### R-21.7 The caller's `source` replaces the create entry's origin `source`; the Change history tab drops it elsewhere (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed under R-18.6's bounded exception. `packages/platform/src/commands/` is still held for spec 189. The copy stays byte-identical in behaviour to `organizations`'. #1961 moves all four copies (`organizations`, `customer_accounts`, `orders`, `crm`) in one change, and #1961's body must list `crm` (and `catalog`, R-19.4).
+
+### R-21.7 The caller's `source` replaces the create entry's origin `source`; the Change history tab drops it elsewhere
 
 **Finding.** `crm.opportunity.create` already records `source` in its `stateAfter` — the Opportunity's
 origin (`manual`, `order`, `quote_request`) — the key R-4 records a caller's code under, and the
@@ -742,7 +753,9 @@ nine ports share and that `aggregate-port-parity.ts` and audit filters read. *Ke
 dropping the caller's code on the create*: the one entry that says which integration created the
 Opportunity would not.
 
-### R-21.8 `transition`'s input is the published port's, not the route's body schema (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. R-17.4 is the precedent in terms: a Command whose state already uses `source` for where the write came from takes the caller's code there, because one spelling across the ports is what `aggregate-port-parity.ts` and saved audit filters read (R-4). The origin is not lost, because the row's `source` column still holds it. One residual is accepted and recorded here. A caller code can collide with an origin code (`order`, `quote_request`), and the create entry would then read as that origin in the Change history tab. Nothing else reads the create entry's `source` as an origin. The contract must tell integrations not to use the three origin codes as their `source`. The tab change affects display only, and the platform audit log keeps the code, so the audit trail (XIII) is intact.
+
+### R-21.8 `transition`'s input is the published port's, not the route's body schema
 
 **Proposed.** `to` is any string — an unknown or malformed code is the `unknown_status` outcome, as
 `opportunityTransitionPort` answers it — and `reason` is a string or `null` without the route's
@@ -752,3 +765,6 @@ changes no answer. FR-008 already makes this method's refusals outcomes rather t
 **Rejected.** *Parsing with `TransitionOpportunityRequestSchema`*: a malformed code would become a
 `422` where the published port answers `unknown_status`, and a long reason a refusal it never had, in
 the release that only deprecates that port.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-16.5 says a deprecated port's answers do not change. #1963's blocking finding is the same lesson: an unknown or malformed code is the `unknown_status` outcome that FR-008 and item 2a.5 allow for a status change, not a thrown `422`. The unbounded reason is safe to store, because it lands in `crm`'s own `text` column and the value-change table, never in audit state (`audit-state.md` list 1). It already travels on the guard and status events today, so their payloads do not change.
+
