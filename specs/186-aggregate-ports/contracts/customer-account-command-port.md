@@ -86,6 +86,8 @@ Password change and reset, sign-in throttling, social registration (`customer_ac
     `email-verification-service.ts` (`.markEmailVerified`) — token-gated public flows, both delegating
     to the new port's Commands — and the paid `comarch_xl` module
     (`customerAccountLifecycleWritePort.setCustomerGroup`). They move before the removal release (US12).
+    `comarch_xl` passes `source: 'comarch_xl'` when it moves (R-17.7). Findings 1–6 are ruled in R-17.1–R-17.6
+    (architect, 2026-11-26), each as proposed.
 
 ## Interface (shape)
 

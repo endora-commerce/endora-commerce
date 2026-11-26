@@ -627,10 +627,9 @@ consumes, and every one of them would then be a frozen or stable entry.
 ## R-17 US3 (CustomerAccount, #1822): decisions on the T002 inventory findings (2026-11-26)
 
 The T002 inventory (`contracts/customer-account-command-port.md` § *Inventory findings*) raised six
-questions R-16 and the Organization precedent do not answer in terms. **They were decided by the
-implementing session, which had no way to consult `endora-commerce-architect`; each is to be confirmed
-by the architect in review of the pull request.** None is a business call or reverses a recorded
-decision, so none was escalated to the owner. Code references are to `origin/master` `71035e51d`.
+questions R-16 and the Organization precedent do not answer in terms. The implementing session
+proposed each; **all six are ruled below (architect, 2026-11-26), each as proposed.** None is a business
+call or reverses a recorded decision, so none was escalated to the owner. Code references are to `origin/master` `71035e51d`.
 
 ### R-17.1 The session revocation of a block and a deletion moves into the Command, after its commit
 
@@ -655,6 +654,13 @@ works for a child run, which a port-wrapper call after `commandBus.run` would no
 `customer_account.blocked.v1` event* — a new published event for one in-module consumer, and handler
 failures are swallowed with no ordering guarantee against the response.
 
+**Ruling (architect, 2026-11-26): confirmed.** R-16.1's `afterScope` is the sanctioned after-commit
+path, and the "block stays, failure logged" outcome is no weaker than today's, where a `500` also
+followed a committed block. It is not a session-security regression: a session whose account is not
+active binds no customer actor (`packages/modules/auth/src/backend/plugin.ts`, the `account?.active`
+check), so a surviving session row is answered `401` by `requireCustomer`. That check is the guarantee;
+the revocation is hygiene, and must stay so — do not relax the bind check on the strength of this one.
+
 ### R-17.2 The last-administrator guard of a block and a deletion moves into the Command, under the holders' lock
 
 **Finding.** `customers`' `OrganizationDepletionGuard` refuses `409 ORG_OWNER_DEPLETION` before the
@@ -677,6 +683,10 @@ Organization keeps an administrator" is the aggregate's, as `CANNOT_DEMOTE_LAST_
 **Rejected.** *Leave it in `customers`* — the port would block the last administrator, which no admin
 path can. *Both places* — two statements of one rule.
 
+**Ruling (architect, 2026-11-26): confirmed.** The invariant is the aggregate's (FR-008, the
+`CANNOT_DEMOTE_LAST_ADMIN` precedent), and locking the holders closes a race the route-side guard had.
+The Organization is the account's own, read by id, so no cross-tenant read is introduced (Principle XI).
+
 ### R-17.3 The restore window stays the caller's
 
 **Decision.** `customers.deletion_retention_days` is `customers`' setting, and `customers` depends on
@@ -685,6 +695,10 @@ path can. *Both places* — two statements of one rule.
 the sweep has reached the account. The contract names it among the route's gates.
 
 **Rejected.** *Reading the setting in `customer_accounts`* — a dependency edge the wrong way round.
+
+**Ruling (architect, 2026-11-26): confirmed.** The dependency direction decides it (Principle I), and
+R-7 already makes the caller the gate. A server-side caller restoring through the port owns the window
+check, as the contract states.
 
 ### R-17.4 `setPreferredLanguage`: the caller's `source` is the state's `source`; the buyer's own port is kept
 
@@ -707,6 +721,10 @@ customer-facing.
 and leaves the buyer's route on a port whose contract says "never for a customer-facing route".
 *A new published `CustomerPreferredLanguageSource` member* — a widening for no reader.
 
+**Ruling (architect, 2026-11-26): confirmed.** R-7 decides it: the buyer's own route may not resolve
+the aggregate port, so the port it does resolve cannot be deprecated without leaving it nowhere. The
+`data-model.md` § *Port disposition* amendment stands.
+
 ### R-17.5 The storefront member routes stay on the kept ports; the operator's member panel moves
 
 **Finding.** T052 names `organizations/routes.members.ts`, which is the storefront member area
@@ -722,10 +740,33 @@ gate (a token: e-mail verification, invitation accept) may.
 
 **Rejected.** *Moving the storefront routes too* — R-7.
 
+**Ruling (architect, 2026-11-26): confirmed.** R-7 again; T052's file reference was a slip, and the
+rule stated above (customer session → never the aggregate port; a token-verified server-side flow → may)
+is adopted as the reading of R-7 for the remaining US stories.
+
 ### R-17.6 `withCallerOptions` is copied into `customer_accounts`, not shared
 
 **Decision.** `commands/caller-options.ts` is a copy of `organizations`' twenty lines. A module's
 `commands/` is its own (Principle I), and a shared helper is a new name on
 `@endora-commerce/platform/commands`, a hotspot this change does not touch; with a third owner the
 helper should move there.
+
+**Ruling (architect, 2026-11-26): confirmed.** Principle I and YAGNI; the move to
+`@endora-commerce/platform/commands` is owed when a third module needs the helper, not before.
+
+### R-17.7 The smaller choices
+
+**Ruling (architect, 2026-11-26): confirmed, all three.**
+
+- *The deprecated methods ignore `actorAdminUserId` and `audit`.* R-4 and Principle XIII decide it: an
+  actor is never taken from input, and the bus stamps the request metadata. The one caller this changes
+  is the paid `comarch_xl` module, which passes the nil UUID as `actorAdminUserId` to
+  `setCustomerGroup`; its entries used to record a fabricated administrator and now record `system`,
+  which is the truth. When it moves onto `customerAccountCommandPort` (inventory finding 10) it passes
+  `source: 'comarch_xl'` (R-4) so the entries name the integration again.
+- *`expectedVersion` is ignored.* R-5 and R-16.6 decide it: no `version` column, and `expectedUpdatedAt`
+  stays the member routes' own gate.
+- *Parity without an admin route is measured against the deprecated or buyer ports.* R-16.2's
+  precedent (`setCustomFieldValues` against `organizationCustomFieldWritePort`).
+
 
