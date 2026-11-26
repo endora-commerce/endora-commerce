@@ -64,15 +64,24 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 3 — Overlay ports and dependencies (#1854, US4) — stands alone
 
-- [ ] T030 Test: overlay-boundary analysis — sanctioned type import passes; value import, other file, other deployment, missing dependency each reported with the failed clause — `packages/cli/src/lib/overlay-boundary.test.ts` [FR-070, FR-071]
-- [ ] T031 Implement `overlay-boundary.ts`
-- [ ] T032 Reader 1: `backend/scripts/check-module-boundary.ts` uses the analysis for overlay↔overlay edges; red proof in its test; existing ledger entries for such edges (if any) re-derived [FR-071]
-- [ ] T033 Reader 2: `endora generate` reports findings, exit 1 after writing — `packages/cli/src/generate/index.test.ts` [FR-071]
-- [ ] T034 Test: dependency between two overlay modules — composition, install refusal of a missing dependency, deactivation refused naming the dependent, `dependents-block` on hard uninstall — platform lifecycle tests over a temp deployment root [FR-072]
-- [ ] T035 Lift `--ports`: emits `ports.ts` + `providePort` — `packages/cli/src/new-module/overlay.test.ts` [FR-059]
-- [ ] T036 Divergence: sibling-overlay port consumption under `notRecorded` — `packages/cli/src/lib/divergence.test.ts`
-- [ ] T037 C-1 (OR-10): no origin or tier code in this feature. Before Phase 6, confirm that 189's `ModuleOrigin` / `ModuleEntry.origin` (`specs/189-command-middleware/contracts/module-origin.md` §1 – §2) has merged. Grep the WP3 diff for `TrustTier`, `trustTierOf` or any new origin union: expected none [FR-090]
-- [ ] T038 Convention sentences (overlay ports) updated; changeset cli `minor`
+- [x] T030 Test: overlay-boundary analysis — sanctioned type import passes; value import, other file, other deployment, missing dependency each reported with the failed clause — `packages/cli/src/lib/overlay-boundary.test.ts` [FR-070, FR-071]
+  - A finding lists **every** failed clause (`type-only`, `ports-file`, `same-deployment`, `declared-dependency`). Type-only also admits an `import('…').T` type node; a type re-export (`export type … from`) is not an import and fails `type-only`. A manifest whose `dependencies` are not literals declares nothing (fail closed)
+- [x] T031 Implement `overlay-boundary.ts`
+  - Both readers read `dependencies` off each overlay `manifest.ts` as a literal (`readManifestDependencies`): an instance has no manifest index and must not execute a client's manifest to lint it
+- [x] T032 Reader 1: `backend/scripts/check-module-boundary.ts` uses the analysis for overlay↔overlay edges; red proof in its test; existing ledger entries for such edges (if any) re-derived [FR-071]
+  - Per specifier (`overlayEdgeOf`): the sanctioned import is no reach; any other is a violation carrying `overlayClauses` that no ledger entry can excuse (an entry for it is stale, as R2's overlay writes). The ledger held no overlay↔overlay entry. Red proofs in `backend/test/unit/scripts/check-module-boundary.test.ts`; on the real tree a value import between two `example` overlays exits 1
+- [x] T033 Reader 2: `endora generate` reports findings, exit 1 after writing — `packages/cli/src/generate/index.test.ts` [FR-071]
+  - In `packages/cli/test/generate-overlay-boundary.test.ts`, beside the instance fixture (`test/support/overlay-instance.ts`) it uses. Every deployment on disk is read. `GenerateResult.overlayBoundary`; `generateFindingsRefusal` gains the section
+- [x] T034 Test: dependency between two overlay modules — composition, install refusal of a missing dependency, deactivation refused naming the dependent, `dependents-block` on hard uninstall — platform lifecycle tests over a temp deployment root [FR-072]
+  - `packages/platform/src/overlay/overlay-dependencies.test.ts`, through `defaultComposition`, `composeModules`, the orchestrator (in-memory row store and lock) and `assertActivationWritable` (both axes, and activation of the dependent with the owner off). No production change was needed; seen red by dropping the fixture's dependency (6 of 7 fail). Migration order is not re-proved here (#1850's)
+- [x] T035 Lift `--ports`: emits `ports.ts` + `providePort` — `packages/cli/src/new-module/overlay.test.ts` [FR-059]
+  - In `packages/cli/test/new-module-overlay.test.ts` (the overlay scaffold's existing suite). The port is the `status()` shape whatever the layers (an overlay has no service layer). The published port is `port-provided`, so the next steps name its `reasons` key. `backend/test/unit/packages/cli-overlay-entities-scaffold.test.ts` now scaffolds with `--ports` too, so the type-check under `tsconfig.apps.json` covers `providePort` against the real `ModuleContext`
+- [x] T036 Divergence: sibling-overlay port consumption under `notRecorded` — `packages/cli/src/lib/divergence.test.ts`
+  - In `packages/cli/test/divergence.test.ts`. The three committed reports (`example`, `acceptance`, core) are regenerated: one `notRecorded` line each, no entry moved
+- [x] T037 C-1 (OR-10): no origin or tier code in this feature. Before Phase 6, confirm that 189's `ModuleOrigin` / `ModuleEntry.origin` (`specs/189-command-middleware/contracts/module-origin.md` §1 – §2) has merged. Grep the WP3 diff for `TrustTier`, `trustTierOf` or any new origin union: expected none [FR-090]
+  - 2026-11-26: 189's `ModuleOrigin` has **not** merged — `rg -n "moduleOriginOf|ModuleOrigin\b" packages` finds nothing (only the discovery union `ModuleIdClaimOrigin`). The WP3 diff holds no `TrustTier`, `trustTierOf` or origin union
+- [x] T038 Convention sentences (overlay ports) updated; changeset cli `minor`
+  - `overlay-modules.md` (D-297 list: ports, the boundary, the dependency, promotion of `ports.ts`); `.changeset/1854-overlay-ports.md` (cli `minor`; platform gained a test only). The published pages stay with WP11 (`contracts/docs-pass.md`)
 
 ## Phase 4 — Overlay admin layer (#1855, US3) — after Phase 0
 
