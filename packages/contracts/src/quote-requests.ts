@@ -1570,6 +1570,12 @@ export const quoteRequestDocumentDataSchema = z.object({
       groupId: z.string().nullable().default(null),
       /** Feature 159 — order within the line's section. */
       position: z.number().int().nonnegative().default(0),
+      /**
+       * Issue #1904 — the product's storefront page in the document's language,
+       * on the quote's channel's storefront; `null` for a product deleted since
+       * the quote was made, or where no storefront address is configured.
+       */
+      productUrl: z.string().nullable().default(null),
     }),
   ),
 });

@@ -135,6 +135,7 @@
   "itemsTable.columns.format.dateStyle.medium": "Medium",
   "itemsTable.columns.format.dateStyle.long": "Long",
   "itemsTable.columns.emptyText": "Text when a line has no value",
+  "itemsTable.columns.link": "Print as a link to {field}",
   "itemsTable.visibility": "Show",
   "itemsTable.visibility.always": "Always",
   "itemsTable.visibility.anyHasValue": "Only if any line has a value",

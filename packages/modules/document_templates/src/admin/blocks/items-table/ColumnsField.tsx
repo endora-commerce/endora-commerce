@@ -1,6 +1,6 @@
 import { useCallback, useId, useMemo, useState, type ReactNode } from 'react';
 import { ITEMS_TABLE_LIMITS, type DocumentFieldDefinition } from '@endora-commerce/contracts';
-import { Button, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Button, Checkbox, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { InternalBadge, FieldPicker } from './FieldPicker.js';
 import { newColumnId, NO_FIELDS, useCollection } from './collections-context.js';
@@ -13,6 +13,10 @@ import { asList, asRecord, FieldName, opOf, text, useListReorder, type Entry } f
  * header, an **Internal** badge where it prints a value customers do not
  * otherwise see (owner answer Q7), and Edit, Move up / Move down and Remove. A
  * column's settings open inline. At most 16; the last column cannot be removed.
+ *
+ * Issue #1904 — a column whose field declares the page it may link to
+ * (`DocumentFieldDefinition.linkPath`) offers *Print as a link*; off unless
+ * ticked, and a column that never had it stores nothing new.
  */
 export interface ColumnsFieldProps {
   readonly value: unknown;
@@ -121,7 +125,14 @@ export function ColumnsField({ value, onChange, readOnly = false }: ColumnsField
                   ×
                 </Button>
               </div>
-              {open ? <ColumnEditor column={column} field={field} onChange={(patch) => update(index, patch)} /> : null}
+              {open ? (
+                <ColumnEditor
+                  column={column}
+                  field={field}
+                  linkTarget={field?.linkPath ? byPath.get(field.linkPath) : undefined}
+                  onChange={(patch) => update(index, patch)}
+                />
+              ) : null}
             </li>
           );
         })}
@@ -143,10 +154,13 @@ export function ColumnsField({ value, onChange, readOnly = false }: ColumnsField
 function ColumnEditor({
   column,
   field,
+  linkTarget,
   onChange,
 }: {
   column: Entry;
   field: DocumentFieldDefinition | undefined;
+  /** The field holding the page this column's field may link to; absent = no link option. */
+  linkTarget: DocumentFieldDefinition | undefined;
   onChange: (patch: Entry) => void;
 }): ReactNode {
   const t = useTranslation('document_templates');
@@ -270,6 +284,15 @@ function ColumnEditor({
           onChange={(event) => onChange({ emptyText: event.target.value })}
         />
       </div>
+      {linkTarget ? (
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={column['link'] === true || column['link'] === 'true'}
+            onChange={(event) => onChange({ link: event.target.checked })}
+          />
+          {t('itemsTable.columns.link', { field: linkTarget.label })}
+        </label>
+      ) : null}
       <fieldset>
         <legend className="text-sm font-medium">{t('itemsTable.visibility')}</legend>
         {VISIBILITY.map((op) => (

@@ -811,8 +811,8 @@ zasady co ekrany oferty.
 Tabela pozycji oferuje dla każdej pozycji pola: liczba porządkowa, nazwa produktu, wariant, SKU,
 ilość, opakowanie, ilość w opakowaniach, **cena katalogowa**, cena proponowana przez klienta, cena
 po rabacie, cena jednostkowa brutto, **rabat %**, **rabat na sztuce**, **rabat pozycji**,
-**wartość wg cennika**, wartość netto, stawka VAT, VAT, wartość brutto, uwagi do pozycji oraz po
-jednym polu dla każdego atrybutu produktu widocznego na stronie produktu (np. atrybutu *czas
+**wartość wg cennika**, wartość netto, stawka VAT, VAT, wartość brutto, uwagi do pozycji, **adres
+strony produktu** oraz po jednym polu dla każdego atrybutu produktu widocznego na stronie produktu (np. atrybutu *czas
 realizacji* sklepu). Sumy: razem wg cennika, rabaty, razem netto, stawka VAT, VAT, razem brutto.
 
 - **Cena katalogowa** to cena zapisana przy składaniu pozycji (zob. *Cena referencyjna*). **Rabat**
@@ -824,8 +824,18 @@ realizacji* sklepu). Sumy: razem wg cennika, rabaty, razem netto, stawka VAT, VA
 - **VAT** jest liczony od sumy netto według jednej stawki VAT oferty, a `brutto = netto + VAT`, jak
   na ekranach oferty; kolumna VAT pozycji jest zaokrąglana dla każdej pozycji osobno i może różnić
   się od sumy VAT o grosz.
-- SKU i atrybuty są odczytywane z katalogu w chwili tworzenia PDF; produkt usunięty w międzyczasie
-  drukuje zapisaną nazwę bez SKU i atrybutów.
+- Nazwa produktu, SKU i atrybuty są odczytywane z katalogu w chwili tworzenia PDF. Nazwa to nazwa
+  produktu w języku układu w kanale sprzedaży oferty (w kanale domyślnym systemu, gdy oferta nie ma
+  kanału) — angielski układ oferty złożonej po polsku drukuje więc nazwy angielskie. Zapisana w
+  pozycji nazwa jest drukowana zamiast niej, gdy kanał nie oferuje języka układu, gdy katalog nie ma
+  nazwy albo gdy produkt został w międzyczasie usunięty; produkt usunięty drukuje się też bez SKU i
+  atrybutów. Etykieta wariantu jest drukowana tak, jak została zapisana.
+- **Adres strony produktu** to strona produktu w sklepie kanału sprzedaży oferty, w języku układu:
+  ustawienie kanału *Adres sklepu*, a gdy go brak — zmienna środowiskowa `STOREFRONT_BASE_URL`, po
+  której następuje ścieżka produktu w sklepie (`/en/p/drill`). Jest pusty dla produktu usuniętego po
+  złożeniu oferty albo nieobecnego w kanale oraz gdy żaden z tych adresów nie jest skonfigurowany. Można go drukować jako
+  kolumnę albo zaznaczyć *Drukuj jako link* w kolumnie nazwy produktu, by każda nazwa była linkiem do
+  swojej strony (domyślnie wyłączone).
 
 Układ wbudowany drukuje liczbę porządkową, produkt, SKU, ilość, opakowanie, cenę katalogową i rabat %
 (obie tylko wtedy, gdy któraś pozycja ma rabat), cenę po rabacie, stawkę VAT, wartość netto i

@@ -72,6 +72,7 @@ export const QUOTE_DOCUMENT_TEXTS: Readonly<Record<QuoteDocumentLanguage, QuoteD
       lineVat: 'VAT',
       lineGross: 'Gross value',
       lineNote: 'Line note',
+      productUrl: 'Product page URL',
     },
     groups: { line: 'Line', pricing: 'Pricing', product: 'Product attributes' },
     totals: {
@@ -136,6 +137,7 @@ export const QUOTE_DOCUMENT_TEXTS: Readonly<Record<QuoteDocumentLanguage, QuoteD
       lineVat: 'VAT',
       lineGross: 'Wartość brutto',
       lineNote: 'Uwagi do pozycji',
+      productUrl: 'Adres strony produktu',
     },
     groups: { line: 'Pozycja', pricing: 'Ceny', product: 'Atrybuty produktu' },
     totals: {

@@ -120,6 +120,10 @@ that declares lines — the quote request in this release.
   medium or long), the text printed when a line has **no value**, and when it
   is **shown**: *Always*, *Only if any line has a value*, or *Never* (the
   column is kept but not printed). A hidden column's width goes to the others.
+- **Print as a link** — offered on a column whose field has a page to link to
+  (for a quote: the product name and the product page URL). Ticked, each
+  line's value is printed as a link to that line's page; a line without one
+  prints plain text. Off by default, so existing templates print unchanged.
 - Fields marked **Internal** — for a quote: list price and the discounts —
   are values customers do not otherwise see. They may be printed; the badge is
   the warning.
@@ -229,7 +233,9 @@ documents through the `documentRenderPort` with its own data. A type that
 declares a line collection (its fields, its lines' values and its totals) gets
 the Line items table without writing a renderer or an editor; a collection
 that also declares its **sections** — each group's name, its lines and its
-totals, plus the lines without a group — gets *Document's groups* (a section
+totals, plus the lines without a group — gets *Document's groups*, and a field
+that names the collection's field holding its page (`linkPath`) gets *Print as
+a link* (a section
 list the table cannot use is logged once and the table prints flat, never
 failing the document); a type with
 per-document selection asks the port's `listChoices` for the templates a
