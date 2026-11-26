@@ -1347,7 +1347,7 @@ export interface OrganizationDetailsPort {
  *
  * A port of its own rather than a method on the read-only
  * {@link OrganizationDetailsPort}, mirroring
- * `CustomerAccountLifecycleWritePort.setCustomFieldValues` on the account side.
+ * `CustomerAccountCommandPort.setCustomFieldValues` on the account side.
  *
  * **The merge is the caller's.** The owner loads the Organization, calls
  * `merge` with its current bag and stores what `merge` returns — inside **one
@@ -1807,7 +1807,7 @@ export interface PersonalOrganizationPort {
    * may be listed, and is left alone because it still has a live member.
    *
    * Reads only the owner's rows; writes nothing. Unbounded, like
-   * `CustomerAccountLifecycleWritePort.listDueForAnonymization`: in steady
+   * `CustomerAccountReadPort.listDueForAnonymization`: in steady
    * state it answers an empty list.
    */
   listIncompletelyScrubbed(): Promise<string[]>;
@@ -1816,7 +1816,7 @@ export interface PersonalOrganizationPort {
    * Whether {@link listIncompletelyScrubbed} would list anything — **yes or
    * no, and nothing else**. The retention sweep's scheduled tick asks it with
    * no tenant context, before it enters the system scope, beside
-   * `CustomerAccountLifecycleWritePort.hasDueForAnonymization`, so that a tick
+   * `CustomerAccountReadPort.hasDueForAnonymization`, so that a tick
    * with organisation-side residue to finish is not taken for an idle one. It
    * is the list's own row source; no id, row or count leaves it.
    */

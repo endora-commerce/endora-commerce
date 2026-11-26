@@ -7,7 +7,13 @@ export interface SetCustomerAccountPreferredLanguageInput {
   readonly customerAccountId: string;
   /** A tag in the capturing channel's spelling; the caller resolved it. */
   readonly preferredLanguage: string;
-  readonly source: CustomerPreferredLanguageSource;
+  /**
+   * `null` is a server-side write through `customerAccountCommandPort`
+   * (`specs/186-aggregate-ports/` research R-17.4): it overwrites, as
+   * `self_service` does, and records `source: null` — the caller's own code
+   * replaces it when the caller names one (`self_service` is one such code).
+   */
+  readonly source: CustomerPreferredLanguageSource | null;
 }
 
 /**
@@ -21,6 +27,10 @@ export interface SetCustomerAccountPreferredLanguageInput {
  * - `sign_in` — a sign-in's capture, a **conditional no-op**: it writes only
  *   while the account has no language, and an account that has one (or an id
  *   nobody has) is left alone.
+ *
+ * - `null` — a server-side caller's write through
+ *   `customerAccountCommandPort.setPreferredLanguage`: it overwrites, and an
+ *   unknown id answers `404 NOT_FOUND`, as `self_service` does.
  *
  * Either way a write that changes nothing writes no audit entry (`skipAudit`).
  * The entry a change writes names the field and the source and never the tag,

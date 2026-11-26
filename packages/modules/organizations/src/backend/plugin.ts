@@ -7,6 +7,7 @@ import type {
   CustomFieldListFilterPort,
   CustomFieldValuePort,
   CustomerAccountMemberCommandPort,
+  CustomerAccountCommandPort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
   CustomerAuthPort,
@@ -81,6 +82,12 @@ export interface OrganizationsModuleOptions {
    * is a child of its `organization.register` Command.
    */
   customerAccountCommands: CustomerAccountMemberCommandPort;
+  /**
+   * `specs/186-aggregate-ports/` US3 (issue #1822) — the CustomerAccount
+   * aggregate port the operator's member panel runs its writes through: create,
+   * role, roll-up, profile, removal and the break-glass recovery.
+   */
+  customerAccountCommandPort: CustomerAccountCommandPort;
   /**
    * Feature 170 (`specs/170-organization-roles/` WP-02a) — role management and
    * this module's own permission port, behind the storefront and operator role
@@ -376,11 +383,9 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         requireAdmin: options.requireAdmin,
         requireAdminAny: options.requireAdminAny,
         invitationService,
-        roleService,
         customerAccountRead: options.customerAccountRead,
-        customerAccountWrite: options.customerAccountWrite,
+        customerAccountCommandPort: options.customerAccountCommandPort,
         organizationRoles: options.organizationRoles,
-        customerAccountRoles: options.customerAccountRoles,
         commandBus: options.commandBus,
         auditLogService: options.auditLogService,
         salesRepScope: options.salesRepScope,

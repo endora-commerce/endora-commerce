@@ -20,6 +20,7 @@ import type {
   CustomFieldListFilterPort,
   CustomFieldValuePort,
   CustomerAccountAdminSearchPort,
+  CustomerAccountCommandPort,
   CustomerAccountLifecycleWritePort,
   CustomerAccountPreferencePort,
   CustomerAccountReadPort,
@@ -298,6 +299,10 @@ export function registerModule(ctx: ModuleContext): void {
             // entity: the block/unblock/delete/restore/assign writes, the
             // retention scrub, the admin list's paginated query, and the
             // customer-group names beside it.
+            // `specs/186-aggregate-ports/` (issue #1822) — the account writes
+            // are the aggregate port's Commands; the lifecycle port is left
+            // with the two Organization moves (`specs/191-membership-join-requests/`).
+            customerAccountCommandPort: lazyPort<CustomerAccountCommandPort>(ctx, 'customerAccountCommandPort'),
             customerAccountLifecycleWritePort: lazyPort<CustomerAccountLifecycleWritePort>(
               ctx,
               'customerAccountLifecycleWritePort',

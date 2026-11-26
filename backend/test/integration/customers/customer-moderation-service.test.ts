@@ -20,13 +20,15 @@ import { hashPassword } from '@endora-commerce/platform/kernel';
 // transitive parent ambiguous and the ORM refuses to initialise.
 import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/dist/backend/services/customer-account-ports.js';
 import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
-import { customerAccountLifecycleWriteFor } from '../../helpers/customer-account-ports.js';
-import { OrganizationDepletionGuard } from '../../../../packages/modules/customers/src/backend/services/organization-depletion-guard.js';
+import { customerAccountCommandsFor } from '../../helpers/customer-account-ports.js';
 import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
  * Feature 040, US3 — block/unblock: authority, session revocation, login gate,
  * audit, idempotency, and the org-owner depletion guard.
+ *
+ * `specs/186-aggregate-ports/` (#1822): the service runs `customer_accounts`'
+ * block Command, which ends the sessions after its commit and holds the guard.
  *
  * `specs/170-organization-roles/` WP-03 (T058): the guard counts the holders
  * of the Organization's *Administrator* role (`countAdministrators`), judges
@@ -84,21 +86,16 @@ describe('CustomerModerationService', () => {
     const visibility: SalesRepVisibility = { canSeeOrganization: async () => canSee };
     const organizationRoles = { predefinedRoleId: (organizationId: string, kind: 'administrator' | 'member') => predefinedRoleIdOf(em, organizationId, kind) };
     const accounts = new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer'), organizationRoles);
+    // `specs/186-aggregate-ports/` (#1822) — the block's session revocation
+    // and depletion guard are inside `customer_accounts`' Command; the
+    // operator's request is the scope the route would give it.
     return new CustomerModerationService(
       accounts,
-      customerAccountLifecycleWriteFor(() => em, audit),
-      new CustomerAuthorityService(visibility),
-      sessions,
-      new OrganizationDepletionGuard({
-        accounts,
-        organizations: {
-          findById: async (id) => {
-            const org = await em.findOne(Organization, { id });
-            return org ? ({ id: org.id, isPersonal: org.isPersonal } as never) : null;
-          },
-        },
-        organizationRoles,
+      customerAccountCommandsFor(() => em, audit, {
+        actingFor: platformAdmin.adminUserId,
+        sessions: createAuthSessionPort(sessions),
       }),
+      new CustomerAuthorityService(visibility),
     );
   }
 
