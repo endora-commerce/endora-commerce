@@ -1740,6 +1740,16 @@ never resolve it for a customer-facing route.
 request, so without `salesChannelId` the create is refused with
 `422 RFQ_SALES_CHANNEL_NOT_ALLOWED` (`no_channel`).
 
+**A quote the port creates starts unshared**, exactly as one an operator
+creates in the Admin UI (see [Unshared quotes and sharing](#unshared-quotes-and-sharing)): the customer
+cannot see it and no notification goes out. Its validity is kept in days —
+`expiresInDays`, else the default validity setting — and becomes a date only
+when the quote is shared. An `update` of an unshared quote stores the days and
+tells the customer nothing, and a `cancel` of one is silent too; the events are
+still emitted, with `sharedWithCustomer` on the record for a subscriber to
+check. **The port cannot share a quote:** an operator shares it in the Admin
+UI, and only then is the customer notified.
+
 **Custom-field values alone.** `setCustomFieldValues` takes a `merge` — a
 function from the current values to the new ones — and runs it inside its
 Command. The module does not validate: call `CustomFieldValuePort.validateAndMerge`
@@ -1749,7 +1759,7 @@ changes nothing writes nothing.
 
 **Deliberately not offered:** resubmitting, accepting or rejecting a revision,
 and converting to an order. They are the buyer's own decisions, taken in the
-storefront.
+storefront. Nor is sharing, which is the operator's decision in the Admin UI.
 
 **When the module is off**, resolving the port fails closed with
 `503 MODULE_DISABLED` and nothing is written. A module that uses it declares

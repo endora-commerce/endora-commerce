@@ -14,6 +14,7 @@
 - The customer's quote list is ordered by the share moment, falling back to the creation moment.
 - The customer's history of a shared quote starts at the share.
 - The admin list takes `sharing=unshared|shared`.
+- `quoteRequestCommandPort` follows the same rules: a quote its `create` makes starts unshared and sends no notification, and `update` and `cancel` of an unshared quote tell the customer nothing. The port has no `share`; an operator shares the quote in the Admin UI.
 
 `@endora-commerce/contracts`:
 

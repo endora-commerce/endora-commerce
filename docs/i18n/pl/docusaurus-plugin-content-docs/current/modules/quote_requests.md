@@ -1613,6 +1613,16 @@ dla trasy dostępnej dla klienta.
 kanale bieżącego żądania; worker nie ma żądania, więc bez `salesChannelId` utworzenie jest
 odrzucane z `422 RFQ_SALES_CHANNEL_NOT_ALLOWED` (`no_channel`).
 
+**Oferta utworzona przez port jest na początku nieudostępniona**, dokładnie tak jak oferta
+utworzona przez operatora w panelu administracyjnym (zobacz [Oferty nieudostępnione i udostępnianie](#unshared-quotes-and-sharing)):
+klient jej nie widzi i nie wychodzi żadne powiadomienie. Jej ważność jest przechowywana w dniach —
+`expiresInDays`, a bez niego domyślna ważność z ustawień — i staje się datą dopiero przy
+udostępnieniu. `update` nieudostępnionej oferty zapisuje dni i niczego nie mówi klientowi, a
+`cancel` takiej oferty też przechodzi bez powiadomienia; zdarzenia są nadal emitowane, a
+`sharedWithCustomer` w rekordzie pozwala subskrybentowi to sprawdzić. **Port nie może udostępnić
+oferty:** robi to operator w panelu administracyjnym i dopiero wtedy klient dostaje
+powiadomienie.
+
 **Same wartości pól niestandardowych.** `setCustomFieldValues` przyjmuje `merge` — funkcję z
 bieżących wartości na nowe — i uruchamia ją wewnątrz swojego polecenia. Moduł nie waliduje:
 wywołaj `CustomFieldValuePort.validateAndMerge` wewnątrz `merge`. W odróżnieniu od `update` nie
@@ -1620,7 +1630,8 @@ zapisuje rewizji i nikogo nie powiadamia; wpis audytu wymienia zmienione klucze,
 wartości, a `merge`, który niczego nie zmienia, niczego nie zapisuje.
 
 **Celowo niedostępne:** ponowne przesłanie, przyjęcie lub odrzucenie rewizji oraz zamiana na
-zamówienie. To decyzje samego kupującego, podejmowane w sklepie.
+zamówienie. To decyzje samego kupującego, podejmowane w sklepie. Niedostępne jest też
+udostępnienie oferty — to decyzja operatora w panelu administracyjnym.
 
 **Gdy moduł jest wyłączony**, rozwiązanie portu kończy się bezpieczną odmową
 `503 MODULE_DISABLED` i nic nie jest zapisywane. Moduł, który z niego korzysta, deklaruje
