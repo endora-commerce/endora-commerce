@@ -108,6 +108,18 @@ Admin UI shows. Owner decisions:
 - The create screen's primary button? → Stays **Create and share**; the confirm dialog guards it
   (FR-020).
 
+### Session 2026-11-26 (round 6 — owner decision "port option 1": the cross-module command port)
+
+Master's `quoteRequestCommandPort` (spec 186, added by #1824) runs the same Commands as the admin
+routes. Owner decision:
+
+- Does a quote created through the command port start unshared? → Yes, as an operator's quote
+  does (FR-001, FR-036). Nothing is notified on creation, and edits and cancellation of an
+  unshared quote through the port are silent (FR-005).
+- Does the port get a `share` method? → No. Sharing stays an operator action in the Admin UI
+  (FR-020). A port `share` method and an `rfq.shared.v1` event are deferred until a caller (for
+  example CRM) needs them; they are not part of this feature.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — The operator builds a quote the customer cannot see (Priority: P1)
@@ -249,7 +261,7 @@ validity, wait, share it, and read its date; override the days on another quote.
 - **FR-001**: A quote an operator creates on a customer's behalf MUST start as a draft, whatever
   screen opens the create screen. The decision MUST be taken in one place so a setting can later
   make it optional. An order's *Clone to quote* and the operator's quick-order build, which create a quote through
-  the buyer's path, are not such quotes and are unchanged.
+  the buyer's path, are not such quotes and are unchanged. A quote created through the cross-module `quoteRequestCommandPort` is such a quote too (FR-036).
 - **FR-002**: Quotes an operator created before this feature is installed MUST stay visible to
   their customers as shared quotes.
 - **FR-003**: A draft MUST NOT be visible to any customer account through any read: the list, the
@@ -335,6 +347,15 @@ validity, wait, share it, and read its date; override the days on another quote.
   a quote with no share moment (one the customer submitted, or an operator quote from before this
   feature). A draft shared long after its creation sorts with the quotes received at the time of
   its share.
+
+**Cross-module command port**
+
+- **FR-036**: `quoteRequestCommandPort.create` runs the same Commands as the admin routes, so a
+  quote created through it MUST start as a draft (FR-001) and MUST NOT notify the customer or
+  deliver anything on creation; `update` and `cancel` of a draft through the port MUST be silent
+  to the customer (FR-005). The port has no `share` method: sharing is an operator action in the
+  Admin UI (FR-020). A port `share` method and an `rfq.shared.v1` event are out of this feature,
+  deferred until a caller needs them.
 
 ### Key Entities
 
