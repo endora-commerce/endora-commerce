@@ -115,7 +115,8 @@ What a connector, a PIM synchronisation or a spreadsheet writes, and at which sc
 writes only the scopes it names: writing a Global value never removes an operator's override at a
 sales channel or a channel and language (FR-091).
 
-Connectors write through `catalogProductScopeWritePort.applyScopes` (version 2): a list of cells,
+Connectors write through `catalogProductCommandPort.applyScopedValues` (since 0.113.0; the deprecated
+`catalogProductScopeWritePort.applyScopes` version 2 runs the same write): a list of cells,
 each a scope (`{}`, `{ channelId }` or `{ channelId, languageCode }`), a field path and a value in
 the write encoding — absent for no change, `null` for deliberately empty, `{ "inherit": true }` to
 remove the own value. A connector may write the name, the description, attribute values, gallery

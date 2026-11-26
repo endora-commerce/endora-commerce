@@ -14,6 +14,7 @@ import {
   type CreateAttributeRequest,
   type CreateProductRequest,
   type CreateVariantRequest,
+  type CustomFieldMerge,
   type UpdateAttributeRequest,
   type UpdateProductRequest,
   type ProductArchivedMode,
@@ -167,6 +168,7 @@ import {
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 // D-77 — the apply seam is named once in this module, by `attribute-commands.ts`
 // (see the re-export there for why it is a re-export and not a local
 // declaration). This file takes it as it is: since T053(b) the write path
@@ -416,9 +418,10 @@ export class CatalogAdminService {
    * fallback contract as {@link #auditedWrite}). The domain event declared on
    * the command is emitted either way (on commit only).
    */
-  async #runCommand<T>(command: Command<T>): Promise<T> {
+  async #runCommand<T>(command: Command<T>, caller?: CallerOptions): Promise<T> {
     if (this.commandBus) {
-      return this.commandBus.run(command);
+      // `specs/186-aggregate-ports/` (#1825) — an aggregate port's `source` and `extensions`.
+      return this.commandBus.run(caller ? withCallerOptions(command, caller) : command);
     }
     const em = this.emFactory();
     const result = await em.transactional(async (tem) => {
@@ -469,6 +472,7 @@ export class CatalogAdminService {
   async createProduct(
     req: CreateProductRequest,
     _auditCtx?: AdminAuditContext,
+    caller?: CallerOptions,
   ): Promise<Product> {
     refusePriceFields(req.attributeValues as Record<string, unknown> | undefined, 'attributeValues.');
     // Feature 172 (FR-014) — refused before the Command opens a transaction;
@@ -502,7 +506,7 @@ export class CatalogAdminService {
     const productId = randomUUID();
     let product: Product;
     try {
-      product = await this.#runCommand(this.#createProductCommand(productId, req));
+      product = await this.#runCommand(this.#createProductCommand(productId, req), caller);
     } catch (err) {
       if (err instanceof UniqueConstraintViolationException) {
         throw new HttpError(409, ERROR_CODES.SKU_ALREADY_EXISTS, `SKU "${req.sku}" already exists.`);
@@ -680,21 +684,53 @@ export class CatalogAdminService {
     return this.commandBus !== undefined;
   }
 
-  async updateProductAudited(id: string, req: UpdateProductRequest, gate?: ProductUpdateGate): Promise<Product> {
+  async updateProductAudited(
+    id: string,
+    req: UpdateProductRequest,
+    gate?: ProductUpdateGate,
+    caller?: CallerOptions,
+  ): Promise<Product> {
     // Feature 172 (FR-014) — before the transaction, as on create.
     await this.#refuseContentAttributeValues(req.attributeValues as Record<string, unknown> | undefined);
     if (!this.commandBus) return this.updateProduct(id, req, gate);
-    return this.commandBus.run(this.#updateProductCommand(id, req, gate));
+    const command = this.#updateProductCommand(id, req, gate);
+    return this.commandBus.run(caller ? withCallerOptions(command, caller) : command);
   }
 
-  #updateProductCommand(id: string, req: UpdateProductRequest, gate?: ProductUpdateGate): Command<Product> {
+  /**
+   * `specs/186-aggregate-ports/` (#1825, research R-19.2) — the product's custom-field values
+   * are its attribute values: `catalogProductCommandPort.setCustomFieldValues` runs the admin
+   * `PATCH`'s own Command, `product.update`, with the bag `merge` answers for the stored one.
+   * Keys `merge` drops are removed (the `PATCH` can only add or change keys); everything a
+   * changed key meets is the `PATCH`'s `attributeValues` rule — the attribute set, the set's
+   * required attributes, no price key, no content attribute — and `version` its editor version.
+   */
+  async setAttributeValues(
+    id: string,
+    merge: CustomFieldMerge,
+    version?: string,
+    caller?: CallerOptions,
+  ): Promise<Product> {
+    if (!this.commandBus) {
+      throw new Error('CatalogAdminService: setAttributeValues needs the Command Bus.');
+    }
+    const command = this.#updateProductCommand(id, version === undefined ? {} : { version }, undefined, merge);
+    return this.commandBus.run(caller ? withCallerOptions(command, caller) : command);
+  }
+
+  #updateProductCommand(
+    id: string,
+    req: UpdateProductRequest,
+    gate?: ProductUpdateGate,
+    merge?: CustomFieldMerge,
+  ): Command<Product> {
     let changedFields: string[] = [];
     return {
       action: 'product.update',
       objectType: 'product',
       objectId: id,
       run: async ({ em }) => {
-        const r = await this.#applyProductUpdate(em, id, req, gate);
+        const r = await this.#applyProductUpdate(em, id, req, gate, merge);
         changedFields = r.changedFields;
         // Issue #241 — a write that changed nothing records no entry and announces
         // nothing. The editor's version bump still commits, as on a no-op scope write.
@@ -729,6 +765,7 @@ export class CatalogAdminService {
     id: string,
     req: UpdateProductRequest,
     gate?: ProductUpdateGate,
+    merge?: CustomFieldMerge,
   ): Promise<{
     product: Product;
     stateBefore: Record<string, unknown>;
@@ -856,6 +893,31 @@ export class CatalogAdminService {
       product.attributeSetId = req.attributeSetId;
       changedFields.push('attributeSetId');
     }
+    if (merge) {
+      // `specs/186-aggregate-ports/` (R-19.2) — the caller's read-modify-write over the bag, on
+      // this transaction's row. The changed keys meet the PATCH's rules below; a refusal `merge`
+      // throws propagates and writes nothing.
+      const current = product.attributeValues ?? {};
+      const next = await merge({ ...current });
+      const changed = Object.fromEntries(
+        Object.entries(next).filter(([key, value]) => !sameValue(current[key], value)),
+      );
+      const removed = Object.keys(current).filter((key) => !Object.prototype.hasOwnProperty.call(next, key));
+      refusePriceFields(changed, 'attributeValues.');
+      if (Object.keys(changed).length > 0) {
+        assertNoContentAttributeValues(changed, await this.#requireAttributeRead().listAll());
+      }
+      await this.assertAttributeValueKeysAllowed(
+        em,
+        product.attributeSetId,
+        changed,
+        new Set(Object.keys(current)),
+      );
+      if (Object.keys(changed).length > 0 || removed.length > 0) {
+        product.attributeValues = { ...next };
+        changedFields.push('attributeValues');
+      }
+    }
     if (req.attributeValues) {
       // Feature 002 (T023) — validate the patched keys against the
       // Product's current AttributeSet. The merged object keys are all
@@ -882,7 +944,8 @@ export class CatalogAdminService {
     if (
       product.attributeSetId &&
       (req.attributeValues !== undefined ||
-        req.attributeSetId !== undefined)
+        req.attributeSetId !== undefined ||
+        merge !== undefined)
     ) {
       await this.assertRequiredAttributesPresent(
         em,
@@ -1042,9 +1105,11 @@ export class CatalogAdminService {
       before: Record<string, unknown> | null;
       after: Record<string, unknown> | null;
     }>,
+    caller?: CallerOptions,
   ): Promise<T> {
     if (this.commandBus) {
-      return this.commandBus.run({ action, objectType, objectId, run: ({ em }) => write(em) });
+      const command: Command<T> = { action, objectType, objectId, run: ({ em }) => write(em) };
+      return this.commandBus.run(caller ? withCallerOptions(command, caller) : command);
     }
     // Unaudited without a Command Bus, but still one transaction: the URL-key
     // advisory locks a write takes (`allocateUniqueSlug`) hold only inside one.
@@ -1490,8 +1555,8 @@ export class CatalogAdminService {
    *
    * 404 `PRODUCT_NOT_FOUND` for an unknown, soft-deleted or non-UUID id.
    */
-  async archiveProduct(id: string): Promise<{ product: Product; changed: boolean }> {
-    return this.#setArchived(id, true);
+  async archiveProduct(id: string, caller?: CallerOptions): Promise<{ product: Product; changed: boolean }> {
+    return this.#setArchived(id, true, caller);
   }
 
   /**
@@ -1500,11 +1565,15 @@ export class CatalogAdminService {
    * status where it is (an `inactive` product stays off). No-op on a product that is
    * not archived.
    */
-  async restoreProduct(id: string): Promise<{ product: Product; changed: boolean }> {
-    return this.#setArchived(id, false);
+  async restoreProduct(id: string, caller?: CallerOptions): Promise<{ product: Product; changed: boolean }> {
+    return this.#setArchived(id, false, caller);
   }
 
-  async #setArchived(id: string, archive: boolean): Promise<{ product: Product; changed: boolean }> {
+  async #setArchived(
+    id: string,
+    archive: boolean,
+    caller?: CallerOptions,
+  ): Promise<{ product: Product; changed: boolean }> {
     // A non-UUID id would reach PostgreSQL as an invalid `uuid` literal.
     if (!uuidSchema.safeParse(id).success) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -1514,7 +1583,7 @@ export class CatalogAdminService {
     // when its own scope ends, after commit. `product.archived.v1` is emitted
     // after that, into the scope opened here, so it is dispatched second.
     return this.events.run(async () => {
-      const product = await this.#runCommand(this.#archiveCommand(id, archive, outcome));
+      const product = await this.#runCommand(this.#archiveCommand(id, archive, outcome), caller);
       if (outcome.changed && archive) this.#emitArchived(product.id);
       return { product, changed: outcome.changed };
     });
@@ -1602,8 +1671,8 @@ export class CatalogAdminService {
    * the audit entry and `product.deleted.v1` share one transaction. `_auditCtx`
    * is retained for the existing admin call site; the actor is server-derived.
    */
-  async deleteProduct(id: string, _auditCtx?: AdminAuditContext): Promise<void> {
-    await this.#runCommand(this.#deleteProductCommand(id));
+  async deleteProduct(id: string, _auditCtx?: AdminAuditContext, caller?: CallerOptions): Promise<void> {
+    await this.#runCommand(this.#deleteProductCommand(id), caller);
   }
 
   #deleteProductCommand(id: string): Command<{ id: string; formerUrlKeys: string[] }> {
@@ -1663,7 +1732,7 @@ export class CatalogAdminService {
   // Attributes
   // ------------------------------------------------------------------
 
-  async createAttribute(req: CreateAttributeRequest): Promise<CatalogAttributeView> {
+  async createAttribute(req: CreateAttributeRequest, caller?: CallerOptions): Promise<CatalogAttributeView> {
     const read = this.#requireAttributeRead();
     // Definition sort order: append after the current tail (matches the CF
     // admin surface's manual ordering semantics).
@@ -1675,6 +1744,7 @@ export class CatalogAdminService {
         extensionId,
         sortOrder: nextSortOrder,
       }),
+      caller,
     );
     await this.#requireCustomFields().publishInvalidate('product');
     const view = await read.getByIdOrKey(extensionId);
@@ -1687,10 +1757,11 @@ export class CatalogAdminService {
   async updateAttributeByIdOrKey(
     idOrKey: string,
     req: UpdateAttributeRequest,
-    auditCtx?: AdminAuditContext,
+    auditCtx?: Pick<AdminAuditContext, 'actorAdminUserId'>,
+    caller?: CallerOptions,
   ): Promise<CatalogAttributeView> {
     const attr = await this.getAttributeByIdOrKey(idOrKey);
-    return this.applyAttributeUpdate(attr, req, auditCtx);
+    return this.applyAttributeUpdate(attr, req, auditCtx, caller);
   }
 
   async updateAttribute(
@@ -1705,7 +1776,8 @@ export class CatalogAdminService {
   private async applyAttributeUpdate(
     attr: CatalogAttributeView,
     req: UpdateAttributeRequest,
-    auditCtx?: AdminAuditContext,
+    auditCtx?: Pick<AdminAuditContext, 'actorAdminUserId'>,
+    caller?: CallerOptions,
   ): Promise<CatalogAttributeView> {
     // Capture the searchable flag before applying so we can tell a real
     // flip apart from a save that left it untouched (only a real change
@@ -1713,6 +1785,7 @@ export class CatalogAdminService {
     const previousIsSearchable = attr.isSearchable;
     await this.#runCommand(
       updateAttributeCommand(this.#attributeCommandDeps(), attr.id, req),
+      caller,
     );
     await this.#requireCustomFields().publishInvalidate('product');
     const updated = await this.#requireAttributeRead().getByIdOrKey(attr.id);
@@ -2149,6 +2222,7 @@ export class CatalogAdminService {
       isDefault?: boolean;
       sortOrder?: number;
     },
+    caller?: CallerOptions,
   ): Promise<AttributeOptionResult> {
     const attr = await this.getAttributeByIdOrKey(attributeIdOrKey);
     const result = await this.#runCommand(
@@ -2157,6 +2231,7 @@ export class CatalogAdminService {
         this.#optionCommandTarget(attr),
         input,
       ),
+      caller,
     );
     await this.#requireCustomFields().publishInvalidate('product');
     return result;
@@ -2171,6 +2246,7 @@ export class CatalogAdminService {
       isDefault?: boolean;
       sortOrder?: number;
     },
+    caller?: CallerOptions,
   ): Promise<AttributeOptionResult> {
     const attr = await this.#attributeByOptionId(optionId);
     const result = await this.#runCommand(
@@ -2180,13 +2256,14 @@ export class CatalogAdminService {
         optionId,
         input,
       ),
+      caller,
     );
     await this.#requireCustomFields().publishInvalidate('product');
     return result;
   }
 
   /** Feature 012 / US4 — remove one option. Refused while products carry it (FR-025). */
-  async removeAttributeOption(optionId: string): Promise<void> {
+  async removeAttributeOption(optionId: string, caller?: CallerOptions): Promise<void> {
     const attr = await this.#attributeByOptionId(optionId);
     await this.#runCommand(
       deleteAttributeOptionCommand(
@@ -2194,6 +2271,7 @@ export class CatalogAdminService {
         this.#optionCommandTarget(attr),
         optionId,
       ),
+      caller,
     );
     await this.#requireCustomFields().publishInvalidate('product');
   }
@@ -2261,7 +2339,7 @@ export class CatalogAdminService {
    * extension AND the backing definition (+ options cascade) in one
    * transaction (feature 061).
    */
-  async deleteAttribute(idOrKey: string): Promise<void> {
+  async deleteAttribute(idOrKey: string, caller?: CallerOptions): Promise<void> {
     const attr = await this.getAttributeByIdOrKey(idOrKey);
     await this.#runCommand(
       deleteAttributeCommand(this.#attributeCommandDeps(), {
@@ -2271,6 +2349,7 @@ export class CatalogAdminService {
         key: attr.key,
         legacyValueType: attr.valueType,
       }),
+      caller,
     );
     await this.#requireCustomFields().publishInvalidate('product');
   }
@@ -2292,6 +2371,7 @@ export class CatalogAdminService {
   async createVariant(
     parentProductId: string,
     req: CreateVariantRequest,
+    caller?: CallerOptions,
   ): Promise<ProductVariant> {
     const em = this.emFactory();
     if (!isUuidShape(parentProductId)) {
@@ -2352,7 +2432,7 @@ export class CatalogAdminService {
         throw err;
       }
       return { result: v, before: null, after: { parentProductId, sku: req.sku } };
-    });
+    }, caller);
     this.events.emit('product.updated.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),
@@ -2366,6 +2446,7 @@ export class CatalogAdminService {
     parentProductId: string,
     variantId: string,
     req: UpdateVariantRequest,
+    caller?: CallerOptions,
   ): Promise<ProductVariant> {
     const variant = await this.#auditedWrite('product_variant.update', 'product_variant', variantId, async (em) => {
       if (!isUuidShape(variantId) || !isUuidShape(parentProductId)) {
@@ -2399,7 +2480,7 @@ export class CatalogAdminService {
         before,
         after: { sku: v.sku, stockLevel: v.stockLevel },
       };
-    });
+    }, caller);
     this.events.emit('product.updated.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),
@@ -2409,7 +2490,7 @@ export class CatalogAdminService {
     return variant;
   }
 
-  async deleteVariant(parentProductId: string, variantId: string): Promise<void> {
+  async deleteVariant(parentProductId: string, variantId: string, caller?: CallerOptions): Promise<void> {
     await this.#auditedWrite('product_variant.delete', 'product_variant', variantId, async (em) => {
       if (!isUuidShape(variantId) || !isUuidShape(parentProductId)) {
         throw new HttpError(
@@ -2432,7 +2513,7 @@ export class CatalogAdminService {
       const before = { parentProductId, sku: variant.sku };
       em.remove(variant);
       return { result: undefined, before, after: null };
-    });
+    }, caller);
     this.events.emit('product.updated.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),

@@ -1,0 +1,7 @@
+---
+'@endora-commerce/mod-catalog': minor
+---
+
+`catalog` registers `catalogProductCommandPort` and `catalogAttributeCommandPort` (issue #1825, `specs/186-aggregate-ports/`). Each method calls the service method the admin route for the same operation calls, so a server-side write records the same audit entry and announces the same `product.*` event; the caller's `source` code is recorded in the entry beside the ambient actor (the `system` actor in a worker under `withSystemScope`), and `extensions` are refused `422 COMMAND_EXTENSION_UNCLAIMED` because no catalog action is hookable. `update` runs without the completeness check, as the integration ports always have. `setCustomFieldValues` writes the product's attribute values through the admin `PATCH`'s `product.update`, removes a key the merge drops, and checks the result against the product's attribute set.
+
+`catalogProductWritePort` and `catalogProductScopeWritePort` now delegate to the new ports and are deprecated since 0.113.0. A searchable flip through the published attribute port now queues the same search reindex the admin route queues (it queued none before).

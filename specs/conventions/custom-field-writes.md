@@ -78,7 +78,7 @@ remind you of.
 **Code with no admin request to ride on — a subscriber, an overlay module, an integration worker —
 writes a host's values through the owner's published write port, never a native `UPDATE` of the
 host's `custom_field_values`** (Principle I; the column is the host's, whatever module knows the
-value). Today the two hosts that publish one are:
+value). Today the hosts that publish one are:
 
 - `customer_accounts` — `customerAccountLifecycleWritePort.setCustomFieldValues(customerAccountId, merge)`;
 - `organizations` — `organizationCommandPort.setCustomFieldValues(organizationId, merge, options?)`, the
@@ -87,8 +87,13 @@ value). Today the two hosts that publish one are:
   to it. Both run `organization.set_custom_field_values`, which is not what the admin edit runs
   (`organization.admin_patch` writes the columns and the bag in one Command), so a command hook that
   must see every change of the bag registers on both actions.
+- `catalog` — `catalogProductCommandPort.setCustomFieldValues(productId, merge, options?)`, the
+  aggregate port (`specs/186-aggregate-ports/` US6). A product's bag is its attribute values; the
+  write runs the admin `PATCH`'s `product.update`, and **the owner validates** the merge's answer
+  with the attribute-set rules — the one host where the caller does not call `validateAndMerge`
+  (research R-19.2).
 
-Both have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
+They have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
 callback over the current bag that the owner runs between its own load and its own write, as one
 Command with one audit row; **the owner does not validate**, so the caller calls
 `CustomFieldValuePort.validateAndMerge` inside `merge` (the administrator's rules: an `internal`
