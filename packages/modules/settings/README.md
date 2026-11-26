@@ -33,7 +33,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 **Third-party**
 
 - `@fastify/rate-limit` ^10
-- `@mikro-orm/postgresql` ^6
+- `@mikro-orm/postgresql` ^7.2.11
 - `fastify` ^5.11.0
 - `ioredis` ^5
 - `lucide-react` ^1 — *optional*

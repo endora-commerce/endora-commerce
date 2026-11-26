@@ -52,13 +52,20 @@ pnpm --filter backend run module:status [<id>] [--filter=<state>] [--json]
 W instancji postać z repozytorium nie robi nic: członek backendu nazywa się tam inaczej, więc pnpm
 wypisuje `No projects matched the filters` i kończy się kodem `0`, nie uruchamiając polecenia.
 
+`module:status <id>` wypisuje pod wierszem modułu jego migracje: każdą z nazwą klasy, pochodzeniem
+(`core`, `external` dla zainstalowanego pakietu, `overlay` dla modułu nakładkowego wdrożenia,
+`generated`) oraz informacją, czy ta baza danych już ją zastosowała, czy migracja wciąż czeka. Z
+`--json` każdy wiersz zawiera tę samą listę jako `migrations`.
+
 ### W instancji
 
 Obejmują zarówno pakiety modułów zainstalowane w instancji, jak i jej własne moduły nakładkowe w
 `apps/<deployment>/modules/`. Działające API i worker dowiadują się o zmianie wprowadzonej
-którymkolwiek z tych poleceń bez restartu. Moduł nakładkowy zawierający katalog `migrations/` albo
-`entities/` zatrzymuje każde z nich, zanim zostanie otwarta baza danych — zobacz
-[Wzorzec nakładki](../architecture/overlay-pattern.md#zabezpieczenia-odmawiające-w-razie-wątpliwości).
+którymkolwiek z tych poleceń bez restartu. Moduł nakładkowy, który ma własne tabele, przechodzi ten
+sam cykl życia co moduł rdzenia: `migrate` i `module:install` stosują jego migracje,
+`module:status <id>` wypisuje je z pochodzeniem `overlay`, wyłączenie modułu ani miękkie
+odinstalowanie nie ruszają jego tabel ani wierszy, a `module:uninstall <id> --hard --force` cofa
+jego migracje od najnowszej.
 
 W wydaniach do `0.100.2` włącznie polecenia `module:enable`, `module:disable` i miękkie
 `module:uninstall` wypisywały w instancji komunikat o powodzeniu, niczego nie zmieniając, a twarde

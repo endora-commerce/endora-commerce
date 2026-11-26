@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { RuleScoped } from '@endora-commerce/platform/tenancy';
 
 /** How far one administrator has read one Project's messages — one row per pair. */

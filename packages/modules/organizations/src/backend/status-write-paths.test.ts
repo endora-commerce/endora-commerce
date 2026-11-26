@@ -5,8 +5,9 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * Issue #1468 (SALES-01, DEC-07) — an existing organization's status has exactly one writer:
- * `OrganizationModerationService` (`approve` / `reject` / `block` / `unblock`, and the
- * auto-approval on registration) — the only path that checks the state machine, stamps
+ * moderation — the four Commands `OrganizationModerationService` runs (`approve` / `reject` /
+ * `block` / `unblock`, and the auto-approval on registration; `specs/186-aggregate-ports/`
+ * T026) — the only path that checks the state machine, stamps
  * `approvedAt` / `blockedAt` / `blockedReason`, emits `organization.status_changed.v1` and
  * sends the customer e-mail.
  *
@@ -34,7 +35,12 @@ describe('the writes of organizations.status', () => {
       .filter((path) => ASSIGNS_STATUS.test(readFileSync(path, 'utf8')))
       .map((path) => relative(BACKEND, path))
       .sort();
-    expect(writers).toEqual(['services/organization-moderation-service.ts']);
+    expect(writers).toEqual([
+      'commands/approve-organization.command.ts',
+      'commands/block-organization.command.ts',
+      'commands/reject-organization.command.ts',
+      'commands/unblock-organization.command.ts',
+    ]);
   });
 
   it('do not include the admin PATCH command', () => {

@@ -49,6 +49,8 @@ const customer = (n: number) => ({
 
 function answer(total: number): void {
   getSpy.mockImplementation(async (url: string) => {
+    // Issue #1903 — the custom fields the list offers as filters: none here.
+    if (url === '/api/v1/admin/customers/custom-field-filters') return { data: [] };
     if (url.startsWith('/api/v1/admin/organizations')) {
       return {
         data: [{ id: ORG_ID, name: 'Acme', legalName: null, status: 'active' }],
@@ -78,7 +80,7 @@ function renderList(permissions: string[] = ['*']): void {
 }
 
 const listCalls = (): string[] =>
-  getSpy.mock.calls.map((c) => c[0] as string).filter((u) => u.startsWith('/api/v1/admin/customers'));
+  getSpy.mock.calls.map((c) => c[0] as string).filter((u) => u.startsWith('/api/v1/admin/customers?'));
 
 beforeEach(() => {
   setMobileViewport(false);
@@ -147,9 +149,12 @@ describe('Customers list — paging (#1473)', () => {
 
   it('shows the server message and a retry when the list cannot be loaded', async () => {
     const { ApiError } = await import('@endora-commerce/admin-kit/lib');
-    getSpy.mockRejectedValueOnce(
-      new ApiError(403, { error: { code: 'FORBIDDEN', message: 'Outside your reach.' } } as never),
-    );
+    getSpy.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/v1/admin/customers?')) {
+        throw new ApiError(403, { error: { code: 'FORBIDDEN', message: 'Outside your reach.' } } as never);
+      }
+      return { data: [] };
+    });
     renderList();
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Outside your reach.');

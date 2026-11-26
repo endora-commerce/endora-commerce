@@ -285,6 +285,12 @@ export interface DocumentFieldDefinition {
   readonly description?: string;
   /** What the editor's canvas and the preview show when the sample has no value. */
   readonly sampleValue?: DocumentValue;
+  /**
+   * Issue #1904 — the field of the same collection holding the page this
+   * field's value can link to (`productName` → `productUrl`). Declaring it
+   * offers the column option *Print as a link*; see `documentCellLink`.
+   */
+  readonly linkPath?: string;
 }
 
 export const documentFieldDefinitionSchema = z.object({
@@ -297,6 +303,7 @@ export const documentFieldDefinitionSchema = z.object({
   defaultAlign: z.enum(['left', 'center', 'right']).optional(),
   description: z.string().optional(),
   sampleValue: documentValueSchema.optional(),
+  linkPath: z.string().regex(documentFieldPathRe).optional(),
 });
 
 /**
@@ -445,6 +452,12 @@ export const itemsTableColumnSchema = z.object({
   format: documentValueFormatSchema.default({}),
   emptyText: z.string().max(ITEMS_TABLE_LIMITS.maxEmptyTextLength).default(''),
   visibleWhen: itemsTableColumnConditionSchema.default({ op: 'always' }),
+  /**
+   * Issue #1904 — print the value as a link to the page its field declares
+   * (`DocumentFieldDefinition.linkPath`). Off by default, so every layout
+   * saved before it prints exactly as it did.
+   */
+  link: booleanLike.default(false),
 });
 export type ItemsTableColumn = z.infer<typeof itemsTableColumnSchema>;
 

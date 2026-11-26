@@ -813,6 +813,118 @@ export function routeIdentities(sources: Iterable<RouteSource>): Map<string, str
   return identities;
 }
 
+/**
+ * One `defineColumnExtension(…)` call an overlay source spells
+ * (`specs/190-overlay-full-modules/` FR-047, `contracts/overlay-lifecycle.md` §3).
+ *
+ * Not a `ModuleContext` seam: a module **exports** its column declarations
+ * (`schemaExtensions`), and the platform reads them at discovery. So this is a
+ * walk of its own, over the same sources, keyed on the one function a
+ * declaration can be made with — the brand `defineColumnExtension` stamps is
+ * what the platform refuses a look-alike object without.
+ */
+export interface ColumnExtensionSite {
+  readonly moduleId: string;
+  readonly file: string;
+  readonly line: number;
+  /** The call's source text, for a finding a reader can act on. */
+  readonly text: string;
+  /** The host table, or `null` when it is not written as a literal. */
+  readonly host: string | null;
+  /** The physical `x_<module>_*` columns the call declares, sorted. */
+  readonly columns: readonly string[];
+}
+
+/** `erpCode` → `erp_code` — the platform's `snakeCase` (`kernel/schema-extensions/naming.ts`). */
+function snakeCase(key: string): string {
+  return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+function propertyNameText(name: ts.PropertyName): string | null {
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name)) {
+    return name.text;
+  }
+  return null;
+}
+
+function stringLiteralOf(node: ts.Expression): string | null {
+  let current = node;
+  while (ts.isAsExpression(current) || ts.isSatisfiesExpression(current) || ts.isParenthesizedExpression(current)) {
+    current = current.expression;
+  }
+  return ts.isStringLiteral(current) || ts.isNoSubstitutionTemplateLiteral(current) ? current.text : null;
+}
+
+/**
+ * Every `defineColumnExtension(…)` call in the deployment's overlay sources.
+ *
+ * The host is read only when it is written as a literal — a value the analysis
+ * cannot read is `computed-subject`, never a guess, as every other subject is.
+ * Column names are the physical ones (`x_<moduleId>_<snake_case(key)>`), with
+ * the module the **file** belongs to: the platform refuses a declaration whose
+ * `module` is not its declaring module (V10), so the two agree on any tree that
+ * boots.
+ */
+export function deriveColumnExtensionSites(sources: readonly OverlaySource[]): ColumnExtensionSite[] {
+  const sites: ColumnExtensionSite[] = [];
+  for (const source of sources) {
+    if (!source.text.includes('defineColumnExtension')) continue;
+    const sf = ts.createSourceFile(source.file, source.text, ts.ScriptTarget.Latest, true);
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        (ts.isIdentifier(node.expression)
+          ? node.expression.text
+          : ts.isPropertyAccessExpression(node.expression)
+            ? node.expression.name.text
+            : '') === 'defineColumnExtension'
+      ) {
+        const argument = node.arguments[0];
+        let host: string | null = null;
+        const columns: string[] = [];
+        if (argument !== undefined && ts.isObjectLiteralExpression(argument)) {
+          for (const property of argument.properties) {
+            if (!ts.isPropertyAssignment(property)) continue;
+            const name = propertyNameText(property.name);
+            if (name === 'host') host = stringLiteralOf(property.initializer);
+            if (name === 'columns' && ts.isObjectLiteralExpression(property.initializer)) {
+              for (const column of property.initializer.properties) {
+                if (column.name === undefined) continue;
+                const key = propertyNameText(column.name);
+                if (key !== null) columns.push(`x_${source.moduleId}_${snakeCase(key)}`);
+              }
+            }
+          }
+        }
+        sites.push({
+          moduleId: source.moduleId,
+          file: source.file,
+          line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+          text: node.getText(sf).replace(/\s+/g, ' ').slice(0, 160),
+          host,
+          columns: columns.sort(),
+        });
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+  }
+  return sites;
+}
+
+/**
+ * Extensible host table → the module that owns it, from the one registry the
+ * platform derives its own list from (`CUSTOM_FIELD_HOST_BINDINGS`). The CLI
+ * reads an instance without loading the platform, and the contracts package is
+ * what both share.
+ */
+export function extensibleHostOwners(): ReadonlyMap<string, string> {
+  const bindings = (publishedContracts as unknown as {
+    CUSTOM_FIELD_HOST_BINDINGS?: Readonly<Record<string, { table: string; ownerModuleId: string }>>;
+  }).CUSTOM_FIELD_HOST_BINDINGS;
+  return new Map(Object.values(bindings ?? {}).map((binding) => [binding.table, binding.ownerModuleId]));
+}
+
 // ---------------------------------------------------------------------------
 // 3. The findings
 // ---------------------------------------------------------------------------
@@ -922,7 +1034,10 @@ export function divergenceBoundary(
   // `port-consumed` is a kind with no `ModuleContext` member — it comes from
   // `lazyPort` over the cradle — and `omission` comes from the declaration and
   // from no seam at all. Both are recorded, so both are named here.
-  for (const kind of ['port-consumed', 'omission'] as const) {
+  //
+  // `column-extension` is the third with no member: a module exports its column
+  // declarations rather than calling a seam (190, FR-047).
+  for (const kind of ['port-consumed', 'omission', 'column-extension'] as const) {
     if (!recorded.includes(kind)) recorded.push(kind);
   }
   recorded.sort();
@@ -937,6 +1052,14 @@ export function divergenceBoundary(
   notRecorded.push({
     seam: 'manifest.ts declarations (permissions, palette actions, i18n bundles, CLI commands)',
     why: 'each is a module declaring its own surface, and each is already swept by the instrument that owns it — the permission inventory, the bundle-shape test, the action-route check',
+  });
+  // `specs/190-overlay-full-modules/` FR-047. An overlay module's own tables are
+  // the schema form of its own routes: recording each would be noise that trains
+  // a reader to skip the report (R-16). What it adds to **another** module's
+  // table is recorded, as `column-extension`.
+  notRecorded.push({
+    seam: "an overlay module's own entities and migrations",
+    why: 'a table an overlay module creates is its own surface, migrated under the foreign-schema guard with no exemption, so it cannot touch a table it does not own; what it declares on another module\'s table is recorded, as a column extension',
   });
 
   // Appended rather than merged into the sort above: the seam entries are the
@@ -989,6 +1112,12 @@ export interface DivergenceInput {
    * — a host that cannot attribute it says so in `hostNotRecorded`.
    */
   readonly actionOwners?: ReadonlyMap<string, string>;
+  /**
+   * Extensible host table → the module that owns it: the owner of a
+   * `column-extension` entry (190, FR-047). Defaults to
+   * {@link extensibleHostOwners}; a test passes its own.
+   */
+  readonly hostOwners?: ReadonlyMap<string, string>;
   /** The deployment's declaration. */
   readonly declaration: {
     readonly omittedModules: ReadonlyArray<{ readonly moduleId: string; readonly reason: string }>;
@@ -1156,6 +1285,42 @@ export function deriveDivergence(input: DivergenceInput): DivergenceResult {
     });
   }
 
+  // `column-extension` (190, FR-047): what an overlay declares on another
+  // module's table. Owned by the host's module; a host no binding names is
+  // `unowned-subject`, as a decorated name no module registers is.
+  const hostOwners = input.hostOwners ?? extensibleHostOwners();
+  for (const site of deriveColumnExtensionSites(input.sources)) {
+    if (site.host === null) {
+      note(
+        'computed-subject',
+        `${site.file}:${site.line}`,
+        `\`defineColumnExtension\` names a host table the analysis cannot resolve to a literal: ${site.text}`,
+      );
+      continue;
+    }
+    const owner = hostOwners.get(site.host);
+    if (owner === undefined) {
+      note(
+        'unowned-subject',
+        `${site.file}:${site.line}`,
+        `'${site.host}' is not an extensible host table, so no module owns the columns declared on it`,
+      );
+      continue;
+    }
+    const detail: DivergenceDetail = { kind: 'column-extension', dataRung: 'D2', columns: site.columns };
+    const key = divergenceKeyOf({ kind: 'column-extension', module: site.moduleId, subject: site.host, detail });
+    entries.push({
+      key,
+      kind: 'column-extension',
+      module: site.moduleId,
+      subject: site.host,
+      owner,
+      rung: null,
+      detail,
+      reason: input.declaration.reasons[key] ?? '',
+    });
+  }
+
   // The omissions, from the declaration and from no seam at all. They are the
   // one kind the declaration supplies the population for, and it is D-101's
   // ruling that it does: the boot refuses an omission that is not declared, so
@@ -1309,6 +1474,10 @@ function detailFor(
     }
     case 'omission':
       return { kind: 'omission' };
+    case 'column-extension':
+      // No `ModuleContext` member is classified to this kind, so no seam site
+      // reaches here; its entries are built from `deriveColumnExtensionSites`.
+      throw new Error(`a seam site was classified as 'column-extension': ${site.text}`);
   }
 }
 
@@ -1336,6 +1505,8 @@ export function describeEntry(entry: DivergenceEntry): string {
       return `'${entry.module}' runs ${entry.detail.kind === 'command-hook' ? `'${entry.detail.id}' ${entry.detail.phase}` : ''} inside '${entry.subject}'${entry.owner === null ? '' : `, which ${owner} declares hookable`}`;
     case 'omission':
       return `this deployment does not ship '${entry.subject}'`;
+    case 'column-extension':
+      return `'${entry.module}' declares columns on '${entry.subject}', which ${owner} owns`;
   }
 }
 

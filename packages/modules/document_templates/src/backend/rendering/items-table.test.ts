@@ -219,6 +219,54 @@ describe('renderItemsTable — columns (FR-032–FR-037)', () => {
   });
 });
 
+describe('renderItemsTable — a column printed as a link (issue #1904)', () => {
+  const LINKED_FIELDS: DocumentFieldDefinition[] = [
+    field('name', { linkPath: 'url' }),
+    field('url'),
+    field('sku'),
+  ];
+  const LINKED = items([
+    { name: text('Bolt'), url: text('https://shop.example.com/p/bolt'), sku: text('B-1') },
+    { name: text('Nut'), url: null, sku: text('N-1') },
+    { name: text('Washer'), url: text('javascript:alert(1)'), sku: text('W-1') },
+  ]);
+  const renderLinked = (columns: Record<string, unknown>[]) =>
+    tableOf(render({ columns }, { catalogue: { fields: LINKED_FIELDS, summaryFields: [] }, items: LINKED }));
+  type LinkCell = Cell & { link?: string; color?: string };
+
+  it('links the value to the page its field declares, line by line; a line without an address prints plain text', () => {
+    const body = renderLinked([column('c1', 'name', { link: true })]).table.body as LinkCell[][];
+    expect(body[1]![0]).toMatchObject({ text: 'Bolt', link: 'https://shop.example.com/p/bolt', color: '#1d4ed8' });
+    expect(body[2]![0]!.link).toBeUndefined();
+    expect(body[2]![0]!.color).toBeUndefined();
+    expect(body[3]![0]!.link).toBeUndefined();
+    // The header is never a link.
+    expect(body[0]![0]!.link).toBeUndefined();
+  });
+
+  it('is off by default, and reads the option as Puck stores it', () => {
+    const off = renderLinked([column('c1', 'name')]).table.body as LinkCell[][];
+    expect(off.flat().some((cell) => 'link' in cell)).toBe(false);
+    const stored = renderLinked([column('c1', 'name', { link: 'true' })]).table.body as LinkCell[][];
+    expect(stored[1]![0]!.link).toBe('https://shop.example.com/p/bolt');
+  });
+
+  it('a field that declares no URL field never links, whatever the option says', () => {
+    const body = renderLinked([column('c1', 'sku', { link: true })]).table.body as LinkCell[][];
+    expect(body.flat().some((cell) => 'link' in cell)).toBe(false);
+  });
+
+  it('a line whose value is empty prints the empty text, unlinked', () => {
+    const body = tableOf(
+      render(
+        { columns: [column('c1', 'name', { link: true, emptyText: '—' })] },
+        { catalogue: { fields: LINKED_FIELDS, summaryFields: [] }, items: items([{ name: null, url: text('https://shop.example.com/p/x') }]) },
+      ),
+    ).table.body as LinkCell[][];
+    expect(body[1]![0]).toEqual({ text: '—', alignment: 'left' });
+  });
+});
+
 describe('renderItemsTable — detail row (FR-040)', () => {
   const detailRow = {
     enabled: true,

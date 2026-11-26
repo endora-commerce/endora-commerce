@@ -29,6 +29,7 @@ import { ACKNOWLEDGED_FK_EDGES, type AcknowledgedFkEdge } from './acknowledged-f
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import { closureOf } from '../../../scripts/lib/manifest-dependencies.js';
+import { deploymentsOnDisk } from '../../../src/overlay/overlay-roots.js';
 
 /**
  * FK-vs-manifest drift validator — cases V1-V10 of
@@ -63,6 +64,31 @@ const platformKernel = resolve(here, '../../../../packages/platform/src');
  * is `core` because these sources are committed in this repository, unlike an
  * installed package's.
  */
+/**
+ * Every deployment's overlay modules root, and the manifests under it
+ * (`specs/190-overlay-full-modules/` FR-034). An overlay module owns tables since
+ * D-297, so its migrations are this walk's population like any module's; its
+ * manifest is not in the generated index (D-104), so its `dependencies` are read
+ * off the manifest itself.
+ */
+const OVERLAY_ROOTS: readonly ModuleRoot[] = deploymentsOnDisk()
+  .map((deployment) => join(backendSrc, 'apps', deployment, 'modules'))
+  .filter((directory) => existsSync(directory))
+  .map((directory) => ({ directory, origin: 'overlay' as const }));
+
+const OVERLAY_MANIFESTS: readonly { id: string; dependencies: readonly string[] }[] = await Promise.all(
+  OVERLAY_ROOTS.flatMap((root) =>
+    readdirSync(root.directory, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && existsSync(join(root.directory, entry.name, 'manifest.ts')))
+      .map(async (entry) => {
+        const { manifest } = (await import(join(root.directory, entry.name, 'manifest.ts'))) as {
+          manifest: { id: string; dependencies?: readonly string[] };
+        };
+        return { id: manifest.id, dependencies: manifest.dependencies ?? [] };
+      }),
+  ),
+);
+
 const graph = deriveFkGraph(backendSrc, {
   overrides: TABLE_OWNER_OVERRIDES,
   kernelRoot: platformKernel,
@@ -93,6 +119,7 @@ const graph = deriveFkGraph(backendSrc, {
       origin: 'core' as const,
       moduleId: root.moduleId!,
     })),
+    ...OVERLAY_ROOTS,
   ],
 });
 
@@ -103,9 +130,10 @@ const PACKAGE_MODULE_IDS: ReadonlyMap<string, string> = new Map(
   ),
 );
 
-const MANIFEST_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map(
-  DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
-);
+const MANIFEST_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map([
+  ...DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
+  ...OVERLAY_MANIFESTS.map((entry) => [entry.id, entry.dependencies] as const),
+]);
 
 /**
  * Transitive dependency closure — the same closure the ordering algorithm uses
@@ -264,6 +292,24 @@ function modulesWithMigrationsInRegistry(
 function modulesWithoutSources(graph: FkGraph, expected: readonly string[]): string[] {
   return expected.filter((id) => (graph.modules.get(id)?.files ?? 0) === 0);
 }
+
+/**
+ * `specs/190-overlay-full-modules/` FR-034 (T078) — an overlay module's
+ * migrations are this repository's too, under `src/apps/<deployment>/modules/`,
+ * and they order by their manifest's `dependencies` like every other module's.
+ * So the walk reads each deployment's overlay modules as their own origin, and
+ * holds their foreign keys to the same rule — `overlay_notes_fixture`'s to
+ * `organizations` is the edge that proves the root is read at all.
+ */
+describe('fk drift — overlay modules are read', () => {
+  it('scans every deployment\'s overlay modules as origin `overlay`, edges included', () => {
+    expect(graph.modules.get('overlay_notes_fixture')?.origin).toBe('overlay');
+    expect(graph.edges).toContainEqual(
+      expect.objectContaining({ from: 'overlay_notes_fixture', to: 'organizations' }),
+    );
+    expect(MANIFEST_DEPENDENCIES.get('overlay_notes_fixture')).toContain('organizations');
+  });
+});
 
 describe('fk drift — V1 zero violations against the real tree (SC-011)', () => {
   it('every cross-module foreign key is declared or acknowledged', () => {
@@ -1014,7 +1060,7 @@ describe('fk position — T021 proofs', () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, `${table}.entity.ts`),
-      `import { Entity } from '@mikro-orm/core';\n` +
+      `import { Entity } from '@mikro-orm/decorators/legacy';\n` +
         `@Entity({ tableName: '${table}' })\n` +
         `export class Some {}\n`,
       'utf8',

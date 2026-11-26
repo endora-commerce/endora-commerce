@@ -1,40 +1,34 @@
 import type {
+  OrganizationCommandPort,
   OrganizationCustomFieldWriteOptions,
   OrganizationCustomFieldWritePort,
   OrganizationRecord,
 } from '@endora-commerce/contracts';
-import type { CommandBus } from '@endora-commerce/platform/commands';
-import {
-  makeSetCustomFieldValuesCommand,
-  type OrganizationCustomFieldMerge,
-} from '../commands/set-custom-field-values.command.js';
-import { toOrganizationRecord } from './organization-details-port.js';
+import type { OrganizationCustomFieldMerge } from '../commands/set-custom-field-values.command.js';
 
 /**
- * `organizationCustomFieldWritePort` — the server-side write of an
- * Organization's custom-field values, for a subscriber, an overlay or an
- * integration worker. The semantics are on the contract
- * (`OrganizationCustomFieldWritePort` in `@endora-commerce/contracts`); this
- * runs them as one `organization.set_custom_field_values` Command and answers
- * the published record, so the entity never leaves the module.
+ * `organizationCustomFieldWritePort` — **deprecated since 0.113.0**
+ * (`specs/186-aggregate-ports/` T031): the server-side write of an
+ * Organization's custom-field values delegates to
+ * `organizationCommandPort.setCustomFieldValues`, which runs the same
+ * `organization.set_custom_field_values` Command, so the entry, the merge
+ * semantics and the refusals on the contract (`OrganizationCustomFieldWritePort`
+ * in `@endora-commerce/contracts`) are unchanged.
  */
 export class OrganizationCustomFieldWriteService implements OrganizationCustomFieldWritePort {
-  constructor(private readonly commandBus: CommandBus) {}
+  constructor(private readonly commands: Pick<OrganizationCommandPort, 'setCustomFieldValues'>) {}
 
-  async setCustomFieldValues(
+  setCustomFieldValues(
     organizationId: string,
     merge: OrganizationCustomFieldMerge,
     options: OrganizationCustomFieldWriteOptions = {},
   ): Promise<OrganizationRecord> {
     // Extension input for the hook modules on this action (176 FR-018), passed
-    // through to the Command, which refuses a key nobody claims.
-    const org = await this.commandBus.run(
-      makeSetCustomFieldValuesCommand({
-        organizationId,
-        merge,
-        ...(options.extensions ? { extensions: options.extensions } : {}),
-      }),
+    // through; the bus refuses a key nobody claims.
+    return this.commands.setCustomFieldValues(
+      organizationId,
+      merge,
+      options.extensions ? { extensions: options.extensions } : {},
     );
-    return toOrganizationRecord(org);
   }
 }

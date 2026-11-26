@@ -42,6 +42,13 @@ export interface OrganizationEvents extends Record<string, EventBase> {
     newStatus: string;
     previousStatus: string;
     reason: string | null;
+    /**
+     * `specs/186-aggregate-ports/` research R-16.4 — whether the customer is
+     * told: `true` for an approval and, unless the operator or the port caller
+     * chose otherwise, a rejection; `false` for block and unblock. This
+     * module's own subscriber sends the notice by it, after the commit.
+     */
+    notifyCustomer: boolean;
   };
   /**
    * `specs/177-tax-id-scope/` FR-039 — a personal organization became a company

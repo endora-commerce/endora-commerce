@@ -2037,6 +2037,16 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'request its customer cannot see yet. The noun is the quote request\'s sharing state, ' +
       '`quote_requests`\' own column, and the one raise site is its send Command.',
   },
+  RFQ_ASSIGNEE_NOT_ELIGIBLE: {
+    to: 'quote_requests',
+    reason:
+      'Minted by issue #1906 for an assignee who is not an active administrator holding ' +
+      '`rfqs:handle` and reaching the request\'s Organization. The noun is the quote request\'s ' +
+      'assignee, `quote_requests`\' own column. It is raised where an assignee is named: ' +
+      '`quote_request.assign` (the admin route `POST …/:id/assign` and `quoteRequestCommandPort.assign`), ' +
+      'and the hook data\'s `assign` inside the buyer\'s `quote_request.create` and `.resubmit`, with ' +
+      'the token `submission` — the sentence the buyer reads, since uncaught it refuses their submission.',
+  },
   ONE_CLICK_UNAVAILABLE: {
     to: 'quick_order',
     reason:

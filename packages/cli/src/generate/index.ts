@@ -62,6 +62,7 @@ import {
 import { AdminLayoutUnresolvableError } from '../lib/admin-surfaces.js';
 import {
   collectEntityIndexEntries,
+  collectOverlayEntityIndexEntries,
   emitEntityIndex,
   entityIndexOutputPathIn,
 } from '../lib/entity-index-artefact.js';
@@ -89,8 +90,9 @@ import {
   type ReleaseIndexEntry,
 } from '../lib/release-index.js';
 import { InstanceHostError } from '../new-instance/host.js';
+import { resolveDeployment } from '../new-module/overlay.js';
+import { ScaffoldInputError } from '../new-module/spec.js';
 import {
-  overlaySchemaFiles,
   renderInstanceDivergence,
   DivergenceHostError,
   type InstanceDivergence,
@@ -233,6 +235,16 @@ export function findInstanceRoot(from: string): string | null {
   }
 }
 
+/** The deployment this instance composes, or `null` when nothing selects one. */
+function selectedDeploymentOf(root: string): string | null {
+  try {
+    return resolveDeployment({ root }).deployment;
+  } catch (error: unknown) {
+    if (error instanceof ScaffoldInputError) return null;
+    throw error;
+  }
+}
+
 /**
  * Render the instance's build artefacts, and write them unless this is a dry
  * run.
@@ -259,27 +271,6 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
       `${join(root, 'node_modules')} is not there, so which modules this instance installed ` +
         `cannot be read and the artefacts would name none. Run \`pnpm install\` first — an ` +
         `empty registry is a bundle with no screens in it, rendered without an error.`,
-    );
-  }
-
-  // Before anything is rendered, and therefore before anything is written
-  // (R5.2): an overlay module that ships schema is refused rather than skipped.
-  // Exit 1 — the remedy is the author's, and it is a directory to move.
-  const schema = overlaySchemaFiles(root);
-  if (schema.length > 0) {
-    throw new GenerateInputError(
-      `an overlay module under \`apps/<deployment>/modules/\` contributes no schema, and ` +
-        `${String(schema.length)} file(s) here are schema:\n` +
-        `${schema.map((file) => `  - ${file}`).join('\n')}\n` +
-        `An overlay module contributes settings, routes, registrations, decorations, ` +
-        `interceptors, permissions and translations — and no \`@Entity()\` class and no ` +
-        `migration. Nothing in this instance would run them: the platform reads entities and ` +
-        `migrations from installed module packages alone, so \`pnpm run migrate\` would apply ` +
-        `none of these, no table would exist, and nothing would say so. Keep small state in ` +
-        `Settings (declare it in the module's manifest). A module that owns a table is a ` +
-        `module package: move the entity and its migration into one, install the packed ` +
-        `tarball, and read it from this overlay module through that package's port. Nothing ` +
-        `was written.`,
     );
   }
 
@@ -392,8 +383,19 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
   // one small file; the alternative is a flag nobody asked for, and a repository
   // built on published packages — `specs/134-paid-module-extraction/` T018's
   // host is the first — could write no server-bound test at all without it.
-  if (scan.packages.length > 0) {
-    const entries = collectEntityIndexEntries(scan.packages);
+  //
+  // The selected deployment's overlay modules join it (`specs/190-overlay-full-modules/`
+  // T104, FR-058): one of them may own a table since D-297. *Selected* is what
+  // `endora new module` means by it — `.env`'s `DEPLOYMENT`, else the one
+  // directory under `apps/` — and with no answer the index names no overlay,
+  // which is the instance composing none.
+  const deployment = selectedDeploymentOf(root);
+  const overlayEntries =
+    deployment === null
+      ? []
+      : collectOverlayEntityIndexEntries(root, deployment, entityIndexOutputPathIn(root));
+  if (scan.packages.length > 0 || overlayEntries.length > 0) {
+    const entries = collectEntityIndexEntries(scan.packages, overlayEntries);
     artefacts.push({
       path: entityIndexOutputPathIn(root),
       content: emitEntityIndex(entries, INSTANCE_ENTITY_INDEX_HEADER),

@@ -76,7 +76,13 @@ import { runCli } from '@endora-commerce/platform/cli';
 
 import { composeApp } from './composition.js';
 import { resolvedManifestEntries } from './lifecycle/registered-manifests.js';
-import { deploymentRoot } from './overlay/overlay-roots.js';
+import { deploymentRoot, deploymentSourceRoot } from './overlay/overlay-roots.js';
+
+/** The sources the compiled overlays are judged against (#1848, FR-016); none under `tsx`'s. */
+const sourceRoot = (): { deploymentSourceRoot?: string } => {
+  const root = deploymentSourceRoot();
+  return root === undefined ? {} : { deploymentSourceRoot: root };
+};
 
 await runCli({
   deploymentRoot: deploymentRoot(),
@@ -93,7 +99,7 @@ await runCli({
     // composition performs, kept off a one-shot command's critical path
     // (D-157.2).
     process.env['BACKEND_ROLE'] = 'api';
-    return await composeApp({ deploymentRoot: deploymentRoot() });
+    return await composeApp({ deploymentRoot: deploymentRoot(), ...sourceRoot() });
   },
   demoComposition: async (input) => ({ found: true, composition: createDemoComposition(input) }),
 });

@@ -152,6 +152,15 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
      * nothing is announced — the hand-built test services pass none.
      */
     private readonly emitAnonymized?: (payload: CustomerAccountAnonymizedEventV1) => Promise<void>,
+    /**
+     * Issue #1926 — runs {@link createStandalone}'s transaction inside an
+     * EventBus scope (`EventBus.run`), so what the personal organisation's
+     * channel binding defers until the scope has succeeded — the access-cache
+     * drop — runs after the commit, and its events are dropped on a rollback.
+     * `index.ts` binds it to the bus it reads per call. Absent, the
+     * transaction runs unscoped, as the hand-built test services have it.
+     */
+    private readonly inEventScope?: <T>(work: () => Promise<T>) => Promise<T>,
   ) {}
 
   /**
@@ -192,7 +201,8 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     }
     const customerAccountId = randomUUID();
     const passwordHash = await hashPassword(input.password);
-    return em.transactional(async (tem) => {
+    const inEventScope = this.inEventScope ?? (<T>(work: () => Promise<T>) => work());
+    return inEventScope(() => em.transactional(async (tem) => {
       const organization = await this.personalOrganizations.provisionFor(tem, {
         customerAccountId,
         email,
@@ -253,7 +263,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       // holds one, on the pre-auth registration path, to be told the same
       // thing.
       return toCustomerAccountRecord(account, false);
-    });
+    }));
   }
 
   async block(
@@ -705,6 +715,15 @@ export class CustomerAccountAdminSearchService implements CustomerAccountAdminSe
     }
 
     if (criteria.excludeDeleted) and.push({ deletedAt: null, anonymizedAt: null });
+
+    // Issue #1903 — the custom-field filters, one id sub-select built by
+    // `custom_fields`' list-filter port over this table. It is intersected with
+    // this statement, whose tenant filter is the reach rule, so it narrows and
+    // never widens; `findAndCount` applies it to both the page and the total,
+    // as the Quote Requests list's does. The raw fragment is created fresh per
+    // call, never kept (threat model F-2).
+    const custom = criteria.customFieldCondition;
+    if (custom) and.push({ id: { $in: raw(`(${custom.sql})`, [...custom.params]) } });
 
     const q = criteria.q?.trim();
     // `specs/150-admin-global-search/` — a field selection makes the match

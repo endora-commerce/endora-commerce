@@ -20,7 +20,7 @@
 // English, never the language the code happened to be written in.
 
 import { describe, expect, it } from 'vitest';
-import type { EntityManager } from '@mikro-orm/postgresql';
+import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type {
   CustomerAccountReadPort,
   EmailMailerPort,
@@ -28,7 +28,10 @@ import type {
   TransactionalEmailSendInput,
   TransactionalSendOutcome,
 } from '@endora-commerce/contracts';
+import { CommandBus } from '@endora-commerce/platform/commands';
+import { EventBus } from '@endora-commerce/platform/events';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { makeTemplateEmail } from '../../../../packages/modules/transactional_emails/src/backend/services/template-email.js';
 import { ContentResolver } from '../../../../packages/modules/transactional_emails/src/backend/services/content-resolver.js';
 import {
@@ -36,7 +39,10 @@ import {
   ORGANIZATION_REJECTED_DEFAULT,
 } from '../../../../packages/modules/organizations/src/backend/email-templates/transactional-defaults.js';
 import type { Organization } from '../../../../packages/modules/organizations/src/backend/entities/organization.entity.js';
-import { OrganizationModerationService } from '../../../../packages/modules/organizations/src/backend/services/organization-moderation-service.js';
+import {
+  OrganizationModerationService,
+  type ModerationStatusChange,
+} from '../../../../packages/modules/organizations/src/backend/services/organization-moderation-service.js';
 
 const CHANNEL = '00000000-0000-0000-0000-0000000000aa';
 const BUYER = 'org-admin@buyer.example';
@@ -136,6 +142,27 @@ function fakeOrganization(status: 'pending_verification'): Organization {
   } as unknown as Organization;
 }
 
+/**
+ * The moderation transitions are Commands (`specs/186-aggregate-ports/` T026):
+ * a real bus over the fake `em`, run under a system scope, as the auto-approval
+ * runs them.
+ */
+function systemBus(em: object, events: EventBus): { run: CommandBus['run'] } {
+  const bus = new CommandBus(
+    { em: { fork: () => em } } as unknown as MikroORM,
+    { recordWithin: () => ({}) } as unknown as AuditPort,
+    events,
+  );
+  return { run: (command) => withSystemScope('organizations unit test: moderation e-mail', () => bus.run(command)) };
+}
+
+/** The notice is the module's subscriber of the transition's event (`specs/186-aggregate-ports/` R-16.4). */
+function subscribeNotice(events: EventBus, service: OrganizationModerationService): void {
+  events.on('organization.status_changed.v1', (payload) =>
+    service.notifyStatusChanged(payload as unknown as ModerationStatusChange),
+  );
+}
+
 interface Harness {
   service: OrganizationModerationService;
   organization: Organization;
@@ -160,6 +187,7 @@ function harness(options: { channelLanguage: string | null; senderWired?: boolea
   };
 
   const sender = senderOverModuleDefaults();
+  const events = new EventBus();
   const raw: EmailMailerSendInput[] = [];
   const mailer: EmailMailerPort = {
     async send(input) {
@@ -179,8 +207,7 @@ function harness(options: { channelLanguage: string | null; senderWired?: boolea
 
   const service = new OrganizationModerationService(
     () => em as unknown as EntityManager,
-    { async record(): Promise<void> {} } as unknown as AuditPort,
-    { emit: (): void => {} } as never,
+    systemBus(em, events),
     mailer,
     {
       async listByOrganization() {
@@ -190,6 +217,7 @@ function harness(options: { channelLanguage: string | null; senderWired?: boolea
     async () => 'manual',
     templateEmail,
   );
+  subscribeNotice(events, service);
 
   return { service, organization, templated: sender.sent, raw };
 }
@@ -246,6 +274,7 @@ describe('organizations — the moderation e-mails are sent in the recipient\'s 
       findOne: findOneFor(organization),
       async flush(): Promise<void> {},
     };
+    const events = new EventBus();
     const templateEmail = makeTemplateEmail({
       getSender: () => ({
         async send(input: TransactionalEmailSendInput): Promise<TransactionalSendOutcome> {
@@ -258,8 +287,7 @@ describe('organizations — the moderation e-mails are sent in the recipient\'s 
     });
     const service = new OrganizationModerationService(
       () => em as unknown as EntityManager,
-      { async record(): Promise<void> {} } as unknown as AuditPort,
-      { emit: (): void => {} } as never,
+      systemBus(em, events),
       { async send() { return { status: 'sent' as const }; } },
       {
         async listByOrganization() {
@@ -269,6 +297,7 @@ describe('organizations — the moderation e-mails are sent in the recipient\'s 
       async () => 'manual',
       templateEmail,
     );
+    subscribeNotice(events, service);
 
     await service.reject(organization.id, { expectedVersion: 3, reason: 'Brak numeru NIP.' });
 

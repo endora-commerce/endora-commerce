@@ -183,6 +183,18 @@ describe('registration is one transaction (176 T007)', () => {
                   and not exists (select 1 from "customer_accounts" ca where ca."id"::text = a."object_id")))`,
         [probe.since],
       ),
+      // Issue #1926 — the sales-channel membership entry the bind wrote, for an
+      // Organization the rollback took away. Recorded on the writer's own fork,
+      // it used to survive every fault after the binding.
+      orphanMembershipAudit: await count(
+        `select count(*)::int as n from "audit_log_entries" a
+          where a."acted_at" >= ?
+            and a."action" = 'sales_channel.membership.changed'
+            and a."object_id" like '%:organization:%'
+            and not exists (
+              select 1 from "organizations" o where o."id"::text = split_part(a."object_id", ':', 3))`,
+        [probe.since],
+      ),
     };
   }
 
@@ -194,6 +206,7 @@ describe('registration is one transaction (176 T007)', () => {
     verificationTokens: 0,
     auditByRequest: 0,
     orphanAudit: 0,
+    orphanMembershipAudit: 0,
   };
 
   it.each([
@@ -225,6 +238,7 @@ describe('registration is one transaction (176 T007)', () => {
       verificationTokens: 1,
       auditByRequest: expect.any(Number),
       orphanAudit: 0,
+      orphanMembershipAudit: 0,
     });
     const entries = (await h.orm.em
       .getConnection()

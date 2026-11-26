@@ -39,6 +39,7 @@ const USAGE_TEMPLATE = `endora — scaffolding and conformance tooling for Endor
 
 Usage:
   endora new module <id> --name <text> --description <text> [options]
+  endora new migration <moduleId> --name <slug> [--dry-run]
   endora new instance <dir> [--module <id>...] [--without <member>...] [--deployment <name>]
                             [--registry <url>] [--topology single-host|three-host] [--demo]
                             [--dry-run]
@@ -54,7 +55,9 @@ Usage:
                          [--topology single-host|three-host] [--non-interactive] [--dry-run]
   endora generate [--dry-run]
   endora dev [--storefront-dir <path>] [--no-storefront]
+  endora build overlays [--watch]
   endora upgrade [<version>] [--storefront-dir <path>] [--no-storefront] [--dry-run]
+  endora upgrade --finish [--dry-run]
   endora --help
 
 \`endora new module\` writes a module package that is composed by the platform,
@@ -64,10 +67,10 @@ rendered by the platform's own manifest generator, so the two cannot disagree.
 
 Inside an instance — the tree \`endora new instance\` wrote — it writes an
 overlay module instead: apps/<deployment>/modules/<id>/, which the instance
-composes with no build. It takes --name, --description, --depends, --permission,
---activation-setting, --non-deactivatable and --dry-run there, and refuses the
-flags that ask for what an overlay module cannot be (a table, an admin screen, a
-published port), naming why.
+composes from its deployment tree. It takes --name, --description, --depends,
+--permission, --entities, --tenant-scope, --activation-setting,
+--non-deactivatable and --dry-run there, and refuses the flags that ask for what
+an overlay module cannot be (an admin screen, a published port), naming why.
 
 Options for \`new module\`:
   --name <text>                 the module's human-readable name (required)
@@ -88,6 +91,12 @@ Options for \`new module\`:
                                 (default: <id>.enabled)
   --non-deactivatable <reason>  declare that the platform cannot run without this module
   --dry-run                     report what would be written; write nothing
+
+\`endora new migration\` writes the next migration of an overlay module of the
+deployment this instance runs as: apps/<deployment>/modules/<id>/migrations/
+<YYYYMMDDTHHmmss>_<module>_<slug>.ts, with empty up() and down(). The platform reads
+that directory file by file, so the file is the whole of registering it. An
+installed package's migrations are its author's and are refused here.
 
 \`endora new instance\` writes the repository that composes this platform for one
 deployment: one workspace, one module list, and a copy of nothing. It is not a
@@ -248,6 +257,14 @@ Options for \`dev\`:
                                 beside the instance, when it exists)
   --no-storefront               start the API and the admin preview only
 
+\`endora build overlays\` compiles the instance's overlay modules (\`apps/<deployment>/
+modules/*\`) with its own \`tsc -p backend/tsconfig.apps.json\` into \`backend/dist/apps\`,
+after refusing a nested module or one that is a package in disguise, and mirrors their
+runtime assets (\`i18n/*.json\`) beside the code. The instance's \`build\` script runs it.
+
+Options for \`build overlays\`:
+  --watch                       recompile and re-mirror on every change (\`dev\`)
+
 \`endora upgrade\` is what an instance's \`pnpm run upgrade\` runs: it moves every package
 of the release this CLI belongs to — the platform, every module, the admin shell,
 the contracts — to one version, in every member of the instance and in the
@@ -268,6 +285,11 @@ Options for \`upgrade\`:
   --dry-run                     report every range it would move, every lockfile
                                 entry it would drop and every command; write nothing
                                 and run nothing
+  --finish                      the second half, which \`upgrade\` hands to the CLI its
+                                install put in place: bring the wiring files (entry
+                                points, \`backend/tsconfig.apps.json\`, the build scripts)
+                                to this release's rendering — a file you edited is
+                                reported, not overwritten — then run \`setup\`
 
 \`endora generate\` renders the two files an instance's admin project is built
 from and commits neither: the contribution registry of the module packages this
@@ -432,6 +454,8 @@ function parse(argv: readonly string[], declaredInputFlags: readonly string[] = 
       topology: { type: 'string' },
       'non-interactive': { type: 'boolean' },
       'dry-run': { type: 'boolean' },
+      watch: { type: 'boolean' },
+      finish: { type: 'boolean' },
       // `endora install` (feature 125). `--no-*` is a flag of its own rather
       // than a negation `parseArgs` understands: the library has no negation,
       // and a default that is `true` needs a name to be turned off by.
@@ -469,6 +493,55 @@ function asList(value: string | boolean | string[] | undefined): readonly string
 
 function asFlag(value: string | boolean | string[] | undefined): boolean {
   return value === true;
+}
+
+/**
+ * `endora new migration <moduleId> --name <slug>` — the argv half
+ * (`specs/190-overlay-full-modules/` T101). Exit 1 for a refusal the author can
+ * act on, 2 for a tree that is not an instance.
+ */
+async function runNewMigrationCommand(
+  parsed: Parsed,
+  positionals: readonly string[],
+  cwd: string,
+): Promise<number> {
+  const { runNewMigration } = await import('../new-migration/index.js');
+  const { ScaffoldHostError, ScaffoldInputError } = await import('../new-module/spec.js');
+  if (positionals.length > 1) {
+    process.stderr.write(
+      `endora: \`new migration\` takes one module id; got ${String(positionals.length)} ` +
+        `(${positionals.join(', ')}).\n`,
+    );
+    return 1;
+  }
+  try {
+    const result = await runNewMigration({
+      id: positionals[0],
+      name: asString(parsed.values['name']),
+      dryRun: asFlag(parsed.values['dry-run']),
+      cwd,
+    });
+    process.stdout.write(
+      `endora new migration ${result.moduleId} — ${result.shownPath}` +
+        `${result.dryRun ? ' — dry run, nothing written' : ''}\n`,
+    );
+    if (result.dryRun) process.stdout.write(`\n${result.contents}`);
+    process.stdout.write('\nNext steps, inside this instance:\n');
+    result.nextSteps.forEach((step, index) => {
+      process.stdout.write(`  ${String(index + 1)}. ${step}\n`);
+    });
+    return 0;
+  } catch (error: unknown) {
+    if (error instanceof ScaffoldInputError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 1;
+    }
+    if (error instanceof ScaffoldHostError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 2;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -1015,7 +1088,30 @@ async function runUpgradeCommand(
   rest: readonly string[],
   cwd: string,
 ): Promise<number> {
-  const { runUpgrade, UpgradeHostError, UpgradeInputError } = await import('../upgrade/index.js');
+  const { runUpgrade, runUpgradeFinish, UpgradeHostError, UpgradeInputError } = await import(
+    '../upgrade/index.js'
+  );
+  // The second half of an upgrade, run by the CLI the first half installed (#1848).
+  if (asFlag(parsed.values['finish'])) {
+    if (rest.length > 0) {
+      process.stderr.write('endora: `upgrade --finish` takes no version: it finishes the one installed.\n');
+      return 1;
+    }
+    try {
+      const finished = await runUpgradeFinish({
+        cwd,
+        dryRun: asFlag(parsed.values['dry-run']),
+        echo: (line: string) => void process.stdout.write(`${line}\n`),
+      });
+      return finished.exitCode;
+    } catch (error: unknown) {
+      if (error instanceof UpgradeHostError) {
+        process.stderr.write(`endora: ${error.message}\n`);
+        return 2;
+      }
+      throw error;
+    }
+  }
   if (rest.length > 1) {
     process.stderr.write(
       `endora: \`upgrade\` takes one version at most; got ${rest.join(', ')}.\n`,
@@ -1118,6 +1214,18 @@ export async function main(
     return runDevCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
 
+  if (command === 'build') {
+    if (subject !== 'overlays' || rest.length > 0) {
+      process.stderr.write(
+        `endora: \`build\` builds one thing, \`overlays\`; got ` +
+          `${[subject, ...rest].filter((v) => v !== undefined).join(' ') || '<none>'}.\n`,
+      );
+      return 1;
+    }
+    const { runBuildOverlays } = await import('../build-overlays/index.js');
+    return runBuildOverlays({ cwd, watch: asFlag(parsed.values['watch']) });
+  }
+
   if (command === 'upgrade') {
     return runUpgradeCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
@@ -1125,8 +1233,8 @@ export async function main(
   if (command !== 'new') {
     process.stderr.write(
       `endora: unknown command "${command}". This build provides \`new module\`, ` +
-        `\`new instance\`, \`new storefront\`, \`install\`, \`generate\`, \`dev\`, \`upgrade\` and ` +
-        `\`check\`.\n`,
+        `\`new instance\`, \`new storefront\`, \`install\`, \`generate\`, \`dev\`, ` +
+        `\`build overlays\`, \`upgrade\` and \`check\`.\n`,
     );
     return 1;
   }
@@ -1136,12 +1244,14 @@ export async function main(
   if (subject === 'instance') {
     return runNewInstanceCommand(parsed, rest, cwd);
   }
+  if (subject === 'migration') {
+    return runNewMigrationCommand(parsed, rest, cwd);
+  }
   if (subject !== 'module') {
     process.stderr.write(
       `endora: unknown subject "${subject ?? '<none>'}" for \`new\`. This build provides ` +
-        `\`new module\`, \`new instance\` and \`new storefront\`; the other generators named ` +
-        `in the ` +
-        `scaffolding contract are not delivered.\n`,
+        `\`new module\`, \`new migration\`, \`new instance\` and \`new storefront\`; the other ` +
+        `generators named in the scaffolding contract are not delivered.\n`,
     );
     return 1;
   }

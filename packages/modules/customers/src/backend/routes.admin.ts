@@ -14,8 +14,10 @@ import {
   assignOrganizationRequestSchema,
   assignCustomerGroupRequestSchema,
   customFieldValuesSchema,
+  customFieldFiltersQueryParamSchema,
   validateCustomerVatRequestSchema,
   ERROR_CODES,
+  isCustomFieldFilterUnavailableFailure,
   isCustomFieldValidationFailure,
   SESSION_COOKIE_NAME,
   ADMIN_SESSION_COOKIE_NAME,
@@ -234,6 +236,16 @@ export async function registerCustomersAdminRoutes(
     );
   }
 
+  // GET /api/v1/admin/customers/custom-field-filters — the Customer custom
+  // fields the list offers as filters (issue #1903,
+  // `specs/157-custom-fields-list-filters/`). A static path, so it is never
+  // read as a customer id.
+  app.get(
+    '/api/v1/admin/customers/custom-field-filters',
+    { preHandler: requireAdmin('customers:read') },
+    async () => ({ data: await queryService.customFieldFilterFields() }),
+  );
+
   // GET /api/v1/admin/customers — list (authority-scoped)
   app.get<{
     Querystring: {
@@ -241,6 +253,7 @@ export async function registerCustomersAdminRoutes(
       status?: 'active' | 'blocked' | 'deleted';
       organizationId?: string;
       customerGroupId?: string;
+      customFieldFilters?: string;
       page?: string;
       pageSize?: string;
     };
@@ -252,17 +265,34 @@ export async function registerCustomersAdminRoutes(
       const q = request.query;
       const page = Math.max(1, Number.parseInt(q.page ?? '1', 10) || 1);
       const pageSize = Math.min(100, Math.max(1, Number.parseInt(q.pageSize ?? '20', 10) || 20));
-      const result = await queryService.list(
-        {
-          ...(q.q !== undefined ? { q: q.q } : {}),
-          ...(q.status !== undefined ? { status: q.status } : {}),
-          ...(q.organizationId !== undefined ? { organizationId: q.organizationId } : {}),
-          ...(q.customerGroupId !== undefined ? { customerGroupId: q.customerGroupId } : {}),
-          page,
-          pageSize,
-        },
-        { isPlatformAdmin: actor.isPlatformAdmin },
-      );
+      // Issue #1903 — the custom-field filters, as JSON. A repeated parameter
+      // arrives as an array, which the schema refuses: a ZodError, answered
+      // 400 `VALIDATION_FAILED`.
+      const customFieldFilters = customFieldFiltersQueryParamSchema.parse(q.customFieldFilters);
+      const result = await queryService
+        .list(
+          {
+            ...(q.q !== undefined ? { q: q.q } : {}),
+            ...(q.status !== undefined ? { status: q.status } : {}),
+            ...(q.organizationId !== undefined ? { organizationId: q.organizationId } : {}),
+            ...(q.customerGroupId !== undefined ? { customerGroupId: q.customerGroupId } : {}),
+            ...(customFieldFilters !== undefined ? { customFieldFilters } : {}),
+            page,
+            pageSize,
+          },
+          { isPlatformAdmin: actor.isPlatformAdmin },
+        )
+        .catch((error: unknown) => {
+          // A custom field the list does not offer is the caller's mistake:
+          // 400, naming it. Everything else is rethrown untouched.
+          if (isCustomFieldFilterUnavailableFailure(error)) {
+            throw new HttpError(400, ERROR_CODES.CUSTOM_FIELD_FILTER_UNAVAILABLE, error.message, {
+              key: error.keys[0] ?? '',
+              keys: [...error.keys],
+            });
+          }
+          throw error;
+        });
       return { data: result.rows, meta: { page, pageSize, total: result.total } };
     },
   );

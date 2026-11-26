@@ -119,14 +119,30 @@ describe('instanceOperatorRuntime', () => {
     // A command that cannot reach a composition cannot run one, which is what
     // makes D-157.2/.4's failure structurally unreachable rather than
     // remembered. Asserted over the built object rather than over the type, so
-    // a field added later fails here and not only in review.
+    // a field added later fails here and not only in review. `migrations`
+    // (190, FR-045) is a value read by discovery — the order `migrate` applies —
+    // and composes nothing.
     expect(Object.keys(runtime).sort()).toEqual([
       'entries',
       'err',
       'migrationOwnership',
+      'migrations',
       'out',
       'resources',
     ]);
+  });
+
+  it('supplies the migration order `status` lists a module’s migrations from, and opens nothing to do it', async () => {
+    const { runtime, dispose } = await instanceOperatorRuntime({
+      deploymentRoot: emptyDeploymentRoot(),
+      ormConfig: refusingConfig,
+      env: {},
+    });
+    const catalogue = await runtime.migrations!();
+    // The platform's own migrations are merged into every instance's order.
+    expect(catalogue.registered.length).toBeGreaterThan(0);
+    expect(catalogue.registered.every((entry) => entry.origin !== 'overlay')).toBe(true);
+    await dispose();
   });
 
   it('supplies the migration ownership `uninstall --hard` reverts by, and opens nothing to do it', async () => {
@@ -163,9 +179,32 @@ describe('instanceOperatorRuntime', () => {
     });
     expect(runtime.entries.map((entry) => entry.manifest.id)).toContain('proof_notice');
     const ownership = await runtime.migrationOwnership!();
-    // An empty list, not `null`: an overlay module contributes no schema, so
+    // An empty list, not `null`: this overlay module ships no migration, so
     // there is nothing to revert and the hard uninstall may proceed to its hook.
     expect(ownership.migrationNamesFor('proof_notice')).toEqual([]);
+  });
+
+  it('enumerates an overlay module\'s own migrations, so `--hard` can revert its chain (FR-036)', async () => {
+    const deploymentRoot = emptyDeploymentRoot();
+    const moduleDir = join(deploymentRoot, 'apps', 'shop', 'modules', 'proof_notice');
+    mkdirSync(join(moduleDir, 'migrations'), { recursive: true });
+    writeFileSync(
+      join(moduleDir, 'manifest.js'),
+      "export const manifest = { id: 'proof_notice', version: '1.0.0', dependencies: [] };\n",
+      'utf8',
+    );
+    writeFileSync(
+      join(moduleDir, 'migrations', '20270101T000000_proof_notice_init.js'),
+      'export class Migration20270101T000000ProofNoticeInit { async up() {} }\n',
+      'utf8',
+    );
+    const { runtime } = await instanceOperatorRuntime({
+      deploymentRoot,
+      ormConfig: refusingConfig,
+      env: { DEPLOYMENT: 'shop' },
+    });
+    const ownership = await runtime.migrationOwnership!();
+    expect(ownership.migrationNamesFor('proof_notice')).toEqual(['Migration20270101T000000ProofNoticeInit']);
   });
 
   it('D-217 — nothing supplies `confirm`, so `--hard` cannot be taken past its refusal', async () => {
@@ -182,8 +221,9 @@ describe('runInstanceOperatorCommand', () => {
   it('prints a refusal raised while resolving the manifest set as one message, and exits 65', async () => {
     const deploymentRoot = emptyDeploymentRoot();
     const moduleDir = join(deploymentRoot, 'apps', 'shop', 'modules', 'proof_notice');
-    mkdirSync(join(moduleDir, 'migrations'), { recursive: true });
-    writeFileSync(join(moduleDir, 'migrations', 'Migration20270101T000000_proof.ts'), 'export {};\n');
+    mkdirSync(moduleDir, { recursive: true });
+    // A package in disguise (FR-003): refused before anything is composed.
+    writeFileSync(join(moduleDir, 'package.json'), '{}\n');
     const err: string[] = [];
     // `process.exit` returns `never`; the sentinel is what stops the function
     // where a real exit would, so nothing after the refusal can run unnoticed.
@@ -210,8 +250,8 @@ describe('runInstanceOperatorCommand', () => {
     }
     expect(ran).toBe(false);
     expect(err).toHaveLength(1);
-    expect(err[0]).toMatch(/^\[manifest\] \[overlay\] an overlay module contributes no schema/);
-    expect(err[0]).toContain(join(moduleDir, 'migrations', 'Migration20270101T000000_proof.ts'));
+    expect(err[0]).toMatch(/^\[manifest\] \[overlay\]/);
+    expect(err[0]).toContain(join(moduleDir, 'package.json'));
     // A message, not an exception dump.
     expect(err[0]).not.toMatch(/\n\s+at /);
   });

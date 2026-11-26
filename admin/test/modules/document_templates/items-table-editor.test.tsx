@@ -33,19 +33,20 @@ const LINES: DocumentCollectionDetail = {
   ownerModule: 'quote_requests',
   fields: [
     { path: 'row.number', label: 'No.', valueKind: 'number', group: 'line', audience: 'customer', defaultFormat: { decimals: 0 }, defaultAlign: 'right' },
-    { path: 'productName', label: 'Product', valueKind: 'text', group: 'line', audience: 'customer' },
+    { path: 'productName', label: 'Product', valueKind: 'text', group: 'line', audience: 'customer', linkPath: 'productUrl' },
     { path: 'listUnitPrice', label: 'List price', valueKind: 'money', group: 'pricing', audience: 'internal', defaultFormat: { decimals: 2 } },
     { path: 'discountPercent', label: 'Discount %', valueKind: 'percent', group: 'pricing', audience: 'internal', defaultFormat: { decimals: 1 } },
     { path: 'lineNet', label: 'Net value', valueKind: 'money', group: 'pricing', audience: 'customer', defaultFormat: { decimals: 2 } },
     { path: 'lineNote', label: 'Line note', valueKind: 'text', group: 'line', audience: 'customer' },
     { path: 'attributes.brand', label: 'Brand', valueKind: 'text', group: 'product', audience: 'customer', sampleValue: { kind: 'text', value: 'Example' } },
+    { path: 'productUrl', label: 'Product page URL', valueKind: 'text', group: 'line', audience: 'customer', linkPath: 'productUrl' },
   ],
   summaryFields: [
     { path: 'discountTotal', label: 'Discounts', valueKind: 'money', group: 'pricing', audience: 'internal' },
     { path: 'netTotal', label: 'Total net', valueKind: 'money', group: 'pricing', audience: 'customer' },
   ],
   sampleItems: [
-    { values: { 'row.number': { kind: 'number', value: 1 }, productName: { kind: 'text', value: 'Bolt' }, listUnitPrice: { kind: 'money', amount: 1234.5, currency: 'USD' }, discountPercent: null, lineNet: { kind: 'money', amount: 10, currency: 'USD' }, lineNote: { kind: 'text', value: 'Urgent' }, 'attributes.brand': { kind: 'text', value: 'Example' } } },
+    { values: { 'row.number': { kind: 'number', value: 1 }, productName: { kind: 'text', value: 'Bolt' }, listUnitPrice: { kind: 'money', amount: 1234.5, currency: 'USD' }, discountPercent: null, lineNet: { kind: 'money', amount: 10, currency: 'USD' }, lineNote: { kind: 'text', value: 'Urgent' }, 'attributes.brand': { kind: 'text', value: 'Example' }, productUrl: { kind: 'text', value: 'https://shop.example.com/p/bolt' } } },
     { values: { 'row.number': { kind: 'number', value: 2 }, productName: { kind: 'text', value: 'Nut' }, listUnitPrice: null, discountPercent: null, lineNet: { kind: 'money', amount: 2.5, currency: 'USD' }, lineNote: null, 'attributes.brand': { kind: 'text', value: 'Example' } } },
   ],
   sampleSummary: { netTotal: { kind: 'money', amount: 12.5, currency: 'USD' }, discountTotal: null },
@@ -142,6 +143,28 @@ describe('Columns field', () => {
     fireEvent.change(screen.getByLabelText('Currency'), { target: { value: 'code' } });
     fireEvent.click(screen.getByRole('radio', { name: 'Only if any line has a value' }));
     expect(written[0]).toMatchObject({ label: 'Cennik', format: { currencyDisplay: 'code' }, visibleWhen: { op: 'any_has_value' } });
+  });
+
+  it('issue #1904 — a column whose field declares a page offers Print as a link, off until ticked', () => {
+    let written: Record<string, unknown>[] = [];
+    renderIn(
+      <Harness
+        initial={[column('c1', 'productName'), column('c2', 'lineNote')] as Record<string, unknown>[]}
+        onValue={(v) => (written = v)}
+        render={(value, onChange) => <ColumnsField value={value} onChange={onChange} />}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Edit column Line note' }));
+    expect(screen.queryByRole('checkbox', { name: /Print as a link/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit column Line note' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit column Product' }));
+    const option = screen.getByRole('checkbox', { name: 'Print as a link to Product page URL' }) as HTMLInputElement;
+    expect(option.checked).toBe(false);
+    fireEvent.click(option);
+    expect(written[0]).toMatchObject({ field: 'productName', link: true });
+    expect(written[1]).not.toHaveProperty('link');
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Print as a link to Product page URL' }));
+    expect(written[0]).toMatchObject({ link: false });
   });
 
   it('refuses a 17th column with the reason as text, and keeps the last column', () => {
@@ -295,6 +318,21 @@ describe('the canvas — as the PDF prints it', () => {
     expect(screen.getByText('Note: Urgent')).toBeTruthy();
     expect(screen.getByText('Total net')).toBeTruthy();
     expect(screen.queryByText('Discounts')).toBeNull();
+  });
+});
+
+describe('the canvas — a column printed as a link (issue #1904)', () => {
+  it('draws a linked value as the PDF does — the link colour, the address on hover — and a line without one as text', () => {
+    const container = renderIn(<ItemsTableCanvas columns={[column('c1', 'productName', { link: true })]} />);
+    const bolt = within(container).getByText('Bolt');
+    expect(bolt.getAttribute('title')).toBe('https://shop.example.com/p/bolt');
+    expect(bolt.getAttribute('data-link')).toBe('true');
+    expect(within(container).getByText('Nut').getAttribute('data-link')).toBeNull();
+  });
+
+  it('draws plain text with the option off', () => {
+    const container = renderIn(<ItemsTableCanvas columns={[column('c1', 'productName')]} />);
+    expect(container.querySelector('[data-link]')).toBeNull();
   });
 });
 

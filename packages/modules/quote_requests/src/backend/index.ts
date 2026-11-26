@@ -17,12 +17,14 @@ import type {
   AdminNotificationRecordPort,
   AdminSearchProviderRegistryPort,
   AdminRolePort,
+  AdminTenantScopePort,
   AdminUserReadPort,
   BuyerLinePricePort,
   CartWritePort,
   CatalogAttributeReadPort,
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
+  CatalogProductUrlKeyReadPort,
   CustomerAccountReadPort,
   CustomerNotificationRecordPort,
   CustomerPushPort,
@@ -39,6 +41,7 @@ import type {
   OrganizationRoleReadPort,
   PermissionReadPort,
   OrganizationTaxProfilePort,
+  QuoteRequestCommandPort,
   QuoteRequestReadPort,
   RfqCustomerPort,
   SalesChannelAttributionRegistryPort,
@@ -52,6 +55,7 @@ import type { Redis } from 'ioredis';
 import { defaultValidityDaysFromSetting } from './services/operator-quote-sharing.js';
 import { QuoteRequestReadService } from './services/quote-request-read-port.js';
 import { QuoteRequestCustomFieldCarryReceiver } from './services/quote-request-custom-field-carry-receiver.js';
+import { QuoteRequestCommandService } from './services/quote-request-command-port.js';
 import {
   createQuoteRequestAdminSearchProvider,
   type QuoteRequestAdminSearchProviderDeps,
@@ -71,7 +75,7 @@ import {
   SettingOutOfScopeForChannel,
 } from '@endora-commerce/platform/kernel';
 import type { RequireAdminAnyFactory, RequireAdminFactory } from '@endora-commerce/platform/kernel';
-import type { CommandBus } from '@endora-commerce/platform/commands';
+import { resolveCommandActor, type CommandBus } from '@endora-commerce/platform/commands';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelResolutionPort, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { QUOTE_REQUESTS_SETTING_CODES } from '../manifest.js';
@@ -531,6 +535,9 @@ export function registerModule(ctx: ModuleContext): void {
           // dependencies; both are resolved per call.
           organizationRoles: () => lazyPort<OrganizationRoleReadPort>(ctx, 'organizationRoleReadPort'),
           permissions: lazyPort<PermissionReadPort>(ctx, 'permissionService'),
+          // Issue #1906 — the reach of the assignee a command hook names on the
+          // buyer's create. `organizations` is a binding dependency; resolved per call.
+          adminTenantScope: lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort'),
           // The completion reactor's second look at an order whose commit was
           // still in flight (`specs/143-crm-sales-opportunities/`, FR-104). Off
           // the bus's chain, so in a system scope of its own — the handler's
@@ -681,6 +688,34 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  /**
+   * Issue #1824 (`specs/186-aggregate-ports/` US5, D-293) — the QuoteRequest
+   * aggregate's write port: each method runs the Command the admin route for
+   * the same operation runs, through the same runner, with the ambient actor.
+   * The semantics, the refusals and the owner-off answer are on
+   * `QuoteRequestCommandPort` in the contracts. The history names the ambient
+   * administrator with the label the admin routes show, else the system.
+   */
+  ctx.di.providePort<QuoteRequestCommandPort>(
+    'quoteRequestCommandPort',
+    ctx
+      .asFunction(({ quoteRequests }: QuoteRequestsCradle) => {
+        const admins = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
+        const roles = lazyPort<AdminRolePort>(ctx, 'adminRolePort');
+        return new QuoteRequestCommandService({
+          admin: () => quoteRequests.handle().adminService,
+          documents: () => ctx.cradle<QuoteRequestsCradle>().quoteRequestDocumentService,
+          operator: async () => {
+            const adminUserId = resolveCommandActor().actorAdminUserId;
+            if (adminUserId === null) return { adminUserId: null, roleLabel: 'System' };
+            const { roleLabel } = await rfqAdminContextFor(admins, roles, adminUserId);
+            return { adminUserId, roleLabel };
+          },
+        });
+      })
+      .singleton(),
+  );
+
   ctx.di.providePort<RfqCustomerPort>(
     'rfqService',
     ctx
@@ -802,6 +837,19 @@ export function registerModule(ctx: ModuleContext): void {
               adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
               // A kernel registration: no module edge.
               salesChannels: lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort'),
+              // Issue #1904 — the product name in the document's language and
+              // the product page: `catalog`'s effective texts and URL keys, on
+              // the channel's storefront address as the customer e-mails read it.
+              catalogTexts: lazyPort<CatalogProductAvailabilityPort>(ctx, 'catalogProductAvailabilityPort'),
+              catalogUrlKeys: lazyPort<CatalogProductUrlKeyReadPort>(ctx, 'catalogProductUrlKeyReadPort'),
+              storefrontUrl: (salesChannelId) =>
+                resolveCustomerStorefrontUrl(
+                  (id) =>
+                    ctx
+                      .cradle<QuoteRequestsCradle>()
+                      .settingsReadPort.get('sales_channels.storefront_url', id, z.string()),
+                  salesChannelId,
+                ),
               taxRate: (organizationId) => ctx.cradle<QuoteRequestsCradle>().rfqTaxRateResolver(organizationId),
             }),
             customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),

@@ -32,6 +32,7 @@ import {
   UpgradeInputError,
   type RegistryProbe,
   type UpgradeStep,
+  runUpgradeFinish,
 } from '../src/upgrade/index.js';
 import { planInstance, type PlanInput } from '../src/new-instance/template.js';
 
@@ -364,13 +365,15 @@ describe('runUpgrade — moves the release, installs, runs `setup` (FR-001, FR-0
 
     expect(runner.ran.map((step) => [step.id, step.bin, step.argv.join(' '), step.cwd])).toEqual([
       ['install', 'pnpm', 'install', t.instance],
-      ['setup', 'pnpm', 'run setup', t.instance],
+      // Handed to the CLI the install just put there (#1848): it re-renders the wiring
+      // with its own template, then runs `setup`.
+      ['setup', 'pnpm', 'exec endora upgrade --finish', t.instance],
       ['storefront-install', 'pnpm', 'install', t.storefront],
     ]);
     // FR-006: each is printed before it runs, as a person types it.
     const printed = result.lines.join('\n');
     expect(printed).toContain('[1/3] pnpm install');
-    expect(printed).toContain('[2/3] pnpm run setup');
+    expect(printed).toContain('[2/3] pnpm exec endora upgrade --finish');
     expect(printed).toContain(`[3/3] pnpm install   # in ${t.storefront}`);
     expect(printed).toContain(`${SCOPE}mod-inpost ^0.10.0 — not part of this release`);
   });
@@ -402,8 +405,10 @@ describe('runUpgrade — moves the release, installs, runs `setup` (FR-001, FR-0
     expect(result.exitCode).toBe(70);
     expect(runner.ran.map((step) => step.id)).toEqual(['install', 'setup']);
     const printed = result.lines.join('\n');
-    expect(printed).toContain('pnpm run setup failed (exit 70). Remaining steps, in order:');
-    expect(printed).toContain(`cd ${t.instance} && pnpm run setup`);
+    expect(printed).toContain(
+      'pnpm exec endora upgrade --finish failed (exit 70). Remaining steps, in order:',
+    );
+    expect(printed).toContain(`cd ${t.instance} && pnpm exec endora upgrade --finish`);
     expect(printed).toContain(`cd ${t.storefront} && pnpm install`);
   });
 
@@ -667,7 +672,7 @@ describe('runUpgrade — `--dry-run` reports and does nothing (FR-008)', () => {
     expect(printed).toContain('dry run');
     expect(printed).toContain(`${SCOPE}contracts 0.1.0 → 0.2.0`);
     expect(printed).toContain(`${SCOPE}platform ^0.1.0 → ^0.2.0`);
-    expect(printed).toContain('pnpm run setup');
+    expect(printed).toContain('pnpm exec endora upgrade --finish');
     expect(existsSync(join(t.instance, 'package.json'))).toBe(true);
   });
 });
@@ -728,3 +733,57 @@ describe('FR-009 — a scaffolded instance declares `upgrade`, and its README na
     expect(manifest.scripts['dev:all']).toBeUndefined();
   });
 });
+
+/**
+ * `specs/190-overlay-full-modules/` T020 (FR-017): the wiring is brought to the installed
+ * release's rendering by the CLI that release installed — `upgrade --finish` after the
+ * install, and on a second run of an instance already at the target, which is how an
+ * instance upgraded by a 0.112.0 CLI (which hands nothing over) gets it.
+ */
+describe('T020 — the wiring of an instance', () => {
+  const WIRED = {
+    'backend/src/cli.ts':
+      "// Your modules' operator commands. `pnpm run cli --list` shows every one.\n" +
+      "import { fileURLToPath } from 'node:url';\n" +
+      `import { runCli } from '${SCOPE}platform/cli';\n\n` +
+      "await runCli({ deploymentRoot: fileURLToPath(new URL('../..', import.meta.url)) });\n",
+  };
+  const wire = (instance: string): void => {
+    for (const [path, content] of Object.entries(WIRED)) write(join(instance, path), content);
+  };
+
+  it('an instance already at the target with 0.112.0 wiring is re-rendered, then set up', async () => {
+    const t = tree({ installed: '0.2.0', ranges: '0.2.0' });
+    write(join(t.instance, 'pnpm-lock.yaml'), lockfile([`${SCOPE}platform@0.2.0`, `${SCOPE}contracts@0.2.0`]));
+    write(join(t.storefront, 'pnpm-lock.yaml'), lockfile([`${SCOPE}contracts@0.2.0`]));
+    wire(t.instance);
+    const runner = recorder();
+    const result = await runUpgrade({
+      cwd: t.instance,
+      version: '0.2.0',
+      registry: registry(['0.1.0', '0.2.0']),
+      releaseIndexFile: t.index,
+      run: runner.run,
+    });
+    expect(result.exitCode).toBe(0);
+    expect(read(join(t.instance, 'backend/src/cli.ts'))).toContain('deploymentSourceRoot');
+    expect(runner.ran.map((step) => [step.id, step.argv.join(' ')])).toEqual([['setup', 'run setup']]);
+    expect(result.lines.join('\n')).toContain('backend/src/cli.ts');
+  });
+
+  it('`upgrade --finish` re-renders and runs setup; an edited file is reported, not written', async () => {
+    const t = tree({ installed: '0.2.0', ranges: '0.2.0' });
+    wire(t.instance);
+    write(join(t.instance, 'backend/src/index.ts'), '// my own entry point\n');
+    const runner = recorder();
+    const result = await runUpgradeFinish({ cwd: t.instance, run: runner.run });
+    expect(result.exitCode).toBe(0);
+    expect(read(join(t.instance, 'backend/src/index.ts'))).toBe('// my own entry point\n');
+    expect(read(join(t.instance, 'backend/src/cli.ts'))).toContain('deploymentSourceRoot');
+    const printed = result.lines.join('\n');
+    expect(printed).toContain('backend/src/index.ts');
+    expect(printed).toContain('re-apply');
+    expect(runner.ran.map((step) => step.id)).toEqual(['setup']);
+  });
+});
+

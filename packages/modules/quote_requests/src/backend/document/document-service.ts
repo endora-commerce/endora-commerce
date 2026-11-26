@@ -29,6 +29,7 @@ import { QuoteRequest } from '../entities/quote-request.entity.js';
 import { QuoteRequestEvent } from '../entities/quote-request-event.entity.js';
 import { loadArrangedQuoteLines, toLineGroup } from '../services/line-order.js';
 import type { AdminContext } from '../services/rfq-admin-service.js';
+import type { QuoteRequestOperator } from '../commands/quote-request-admin-commands.js';
 import { submissionRecordProposals } from '../services/draft-guard.js';
 import { adminCanSeeOrganization } from '../services/admin-org-visibility.js';
 import { formatQuoteDate } from './blocks/types.js';
@@ -76,7 +77,7 @@ export function quotePdfFileName(businessId: string): string {
 export class QuoteRequestDocumentService {
   constructor(private readonly deps: QuoteRequestDocumentServiceDeps) {}
 
-  private async findVisible(em: EntityManager, ctx: AdminContext, id: string): Promise<QuoteRequest> {
+  private async findVisible(em: EntityManager, ctx: Pick<QuoteRequestOperator, 'adminUserId'>, id: string): Promise<QuoteRequest> {
     const notFound = () => new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
     if (!isUuidShape(id)) throw notFound();
     const quote = await em.findOne(QuoteRequest, { id });
@@ -140,7 +141,7 @@ export class QuoteRequestDocumentService {
    * explicit, else the remembered, else the default template.
    */
   async render(
-    ctx: AdminContext,
+    ctx: Pick<QuoteRequestOperator, 'adminUserId'>,
     id: string,
     input: { readonly templateId?: string | undefined; readonly language?: string | undefined },
   ): Promise<RenderedQuotePdf & { quote: QuoteRequest; language: string; data: QuoteRequestDocumentData }> {
@@ -198,8 +199,18 @@ export class QuoteRequestDocumentService {
     return { result, fileName: quotePdfFileName(quote.businessId), templateName, quote, language, data };
   }
 
-  /** Route Q4 — e-mail the PDF to 1–5 recipients through the *Quote request PDF* e-mail (owner answer Q4). */
-  async send(ctx: AdminContext, id: string, body: QuoteRequestPdfSendRequest): Promise<QuoteRequestPdfSendResult> {
+  /**
+   * Route Q4 — e-mail the PDF to 1–5 recipients through the *Quote request PDF*
+   * e-mail (owner answer Q4). Also `quoteRequestCommandPort.sendDocument`
+   * (issue #1824), whose caller may be the system (`adminUserId: null`) and may
+   * name its `source` and command-hook `extensions`.
+   */
+  async send(
+    ctx: QuoteRequestOperator,
+    id: string,
+    body: QuoteRequestPdfSendRequest,
+    options: { source?: string | undefined; extensions?: Readonly<Record<string, unknown>> | undefined } = {},
+  ): Promise<QuoteRequestPdfSendResult> {
     // `specs/192-quote-request-draft-share/` (FR-007) — refused before anything
     // is rendered; the Command checks again inside its transaction.
     assertSharedForSend(await this.findVisible(this.deps.emFactory(), ctx, id));
@@ -231,6 +242,8 @@ export class QuoteRequestDocumentService {
           recipients: body.recipients,
           message,
           roleLabel: ctx.roleLabel,
+          ...(options.source !== undefined ? { source: options.source } : {}),
+          ...(options.extensions ? { extensions: options.extensions } : {}),
           // Nested, as the e-mail's `{{var quote.number}}` directives read them.
           variables: {
             quote: {

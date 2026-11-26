@@ -208,3 +208,64 @@ describe('T003 — the rendered program refuses what type stripping cannot run',
     ).toEqual([]);
   });
 });
+
+/**
+ * `specs/190-overlay-full-modules/` T018 (FR-012, FR-014, FR-016, contract `overlay-build.md`
+ * §2–§3, #1848): the overlay code is compiled, so every compiled entry point composes from
+ * `backend/dist` and hands the instance root as the source root the freshness guard reads;
+ * `build` and `dev` run `endora build overlays`.
+ */
+describe('T018 — compiled entry points and the overlay build', () => {
+  const plan = planInstance(planInput());
+  const content = (path: string): string => plan.files.find((file) => file.path === path)!.content;
+  const backend = JSON.parse(content('backend/package.json')) as { scripts: Record<string, string> };
+
+  it('the API and the worker compose from backend/dist with the instance root as source', () => {
+    for (const path of ['backend/src/index.ts', 'backend/src/worker.ts']) {
+      const source = content(path);
+      expect(source, path).toContain("const deploymentRoot = fileURLToPath(new URL('.', import.meta.url));");
+      expect(source, path).toContain(
+        "const deploymentSourceRoot = fileURLToPath(new URL('../..', import.meta.url));",
+      );
+      expect(source, path).toContain(
+        'await composeApp({ deploymentRoot, deploymentSourceRoot }).catch(exitOnRefusal);',
+      );
+    }
+  });
+
+  it('the operator CLI and the module commands pass both roots', () => {
+    expect(content('backend/src/cli.ts')).toContain(
+      "deploymentRoot: fileURLToPath(new URL('.', import.meta.url)),",
+    );
+    expect(content('backend/src/cli.ts')).toContain(
+      "deploymentSourceRoot: fileURLToPath(new URL('../..', import.meta.url)),",
+    );
+    const runtime = content('backend/src/module-commands/runtime.ts');
+    expect(runtime).toContain("const deploymentRoot = fileURLToPath(new URL('..', import.meta.url));");
+    expect(runtime).toContain(
+      "const deploymentSourceRoot = fileURLToPath(new URL('../../..', import.meta.url));",
+    );
+    expect(runtime).toContain('runInstanceOperatorCommand({ deploymentRoot, deploymentSourceRoot,');
+  });
+
+  it('build compiles the backend, then the overlays; dev watches both', () => {
+    expect(backend.scripts['build']).toBe('tsc -p tsconfig.json && endora build overlays');
+    expect(backend.scripts['dev']).toMatch(
+      /^tsc -p tsconfig\.json --watch & endora build overlays --watch & node .* --watch dist\/index\.js$/,
+    );
+  });
+
+  it('declares the CLI even with nothing to generate, because build runs it', () => {
+    const bare = planInstance(planInput({ modules: [], docsRanges: new Map() }));
+    const root = JSON.parse(bare.files.find((file) => file.path === 'package.json')!.content) as {
+      devDependencies: Record<string, string>;
+    };
+    expect(root.devDependencies[`${SCOPE}cli`]).toBeDefined();
+  });
+
+  it('the overlay project emits now (noEmit is the build flag, not the file)', () => {
+    const config = JSON.parse(content(APPS_CONFIG)) as { compilerOptions: Record<string, unknown> };
+    expect(config.compilerOptions['outDir']).toBe('dist/apps');
+    expect(config.compilerOptions['rootDir']).toBe('../apps');
+  });
+});

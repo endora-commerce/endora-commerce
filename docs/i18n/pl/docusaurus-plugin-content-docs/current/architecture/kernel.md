@@ -163,8 +163,8 @@ wywołujący dostaje odpowiedź 503 `MODULE_DISABLED`, a nie operację wykonaną
 ```ts
 ctx.di.providePort(
   'organizationRestrictionPort',
-  ctx.asFunction(({ emFactory, auditLogService }: Cradle) =>
-    new OrganizationRestrictionService(emFactory, auditLogService)).singleton(),
+  ctx.asFunction(({ emFactory, commandBus }: Cradle) =>
+    new OrganizationRestrictionService(emFactory, commandBus)).singleton(),
 );
 ```
 

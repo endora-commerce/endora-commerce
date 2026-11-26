@@ -1,13 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  PROJECT_READ_PORT_NOTES_MAX,
   type AdminUserReadPort,
   type CreateProjectCommentBody,
   type ProjectComment as ProjectCommentView,
   type ProjectCommentKind,
+  type ProjectNotePage,
+  type ProjectNoteQuery,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
+import { NOTE_CURSOR_INSTANT_SQL, encodeNoteCursor, noteListBounds } from '../domain/note-page.js';
 import { ProjectComment } from '../entities/project-comment.entity.js';
 import { ProjectReference } from '../entities/project-reference.entity.js';
 import { newlyMentioned, type ProjectMentionService, type SavedProjectMentions } from './mention-service.js';
@@ -19,12 +23,28 @@ import { storedReferencesOf, type ProjectReferenceService, type ProjectReference
 export interface ProjectCommentServiceDeps {
   emFactory: () => EntityManager;
   commandBus: CommandBus;
-  access: Pick<ProjectAccess, 'loadVisible' | 'canSeeAs' | 'assertVisibleUnderLock'>;
+  access: Pick<
+    ProjectAccess,
+    'loadVisible' | 'canSeeAs' | 'assertVisibleUnderLock' | 'currentViewer' | 'visibleProjectSql'
+  >;
   /** `admin_users`' port — lazy, resolved per call, never captured. */
   adminUsers: AdminUserReadPort;
   notifier: ProjectNotifier;
   references: Pick<ProjectReferenceService, 'rowsFor' | 'resolveMany'>;
   mentions: Pick<ProjectMentionService, 'tell'>;
+}
+
+/** One row of the notes listing's statement. */
+interface NoteRow {
+  id: string;
+  project_id: string;
+  organization_ids: string[];
+  author_admin_user_id: string;
+  body: string;
+  created_at: Date | string;
+  edited_at: Date | string | null;
+  /** `created_at` at full precision, as a cursor carries it. */
+  cursor_at: string;
 }
 
 function commentNotFound(): HttpError {
@@ -73,6 +93,101 @@ export class ProjectCommentService {
         { orderBy: { createdAt: 'asc', id: 'asc' } },
       );
     return this.#render(rows);
+  }
+
+  /**
+   * The notes of many Projects, one keyset page at a time, oldest first —
+   * `projectReadPort.listNotes` (issue #1905). No message, no deleted note.
+   *
+   * One statement over `project_comments c` joined to its Project `p`, which
+   * carries `ProjectAccess.visibleProjectSql` for the caller — both rules, the
+   * Organization reach (every one of the Project's Organizations) and the
+   * visibility rule — so a note is listed only where its Project would be. A
+   * caller who may not read Projects runs no statement. The Organization
+   * filter selects the Projects linked to that Organization, whichever others
+   * they are linked to; the record names them all, read by the ids of the
+   * Projects the statement selected.
+   */
+  async listNotes(query: ProjectNoteQuery): Promise<ProjectNotePage> {
+    const bounds = noteListBounds(query, PROJECT_READ_PORT_NOTES_MAX);
+    if (bounds === null) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        'The notes query carries an invalid instant or a cursor this port did not issue.',
+      );
+    }
+    const empty: ProjectNotePage = { items: [], nextCursor: null };
+    if (bounds.limit === 0) return empty;
+    // A malformed id names nothing, as everywhere on this port.
+    if (query.organizationId !== undefined && !isUuid(query.organizationId)) return empty;
+    if (query.authorAdminUserId !== undefined && !isUuid(query.authorAdminUserId)) return empty;
+    const viewer = await this.deps.access.currentViewer();
+    if (!viewer.canRead) return empty;
+    const visible = await this.deps.access.visibleProjectSql(viewer);
+
+    const where = [`c."kind" = 'note'`, `c."deleted_at" is null`];
+    const params: unknown[] = [];
+    if (visible) {
+      where.push(visible.sql);
+      params.push(...visible.params);
+    }
+    if (query.organizationId !== undefined) {
+      where.push(
+        `exists (select 1 from "project_organizations" po_of
+                  where po_of."project_id" = p."id" and po_of."organization_id" = ?)`,
+      );
+      params.push(query.organizationId);
+    }
+    if (query.authorAdminUserId !== undefined) {
+      where.push(`c."author_admin_user_id" = ?`);
+      params.push(query.authorAdminUserId);
+    }
+    if (bounds.createdFrom !== null) {
+      where.push(`c."created_at" >= ?`);
+      params.push(bounds.createdFrom);
+    }
+    if (bounds.createdBefore !== null) {
+      where.push(`c."created_at" < ?`);
+      params.push(bounds.createdBefore);
+    }
+    if (bounds.after !== null) {
+      where.push(`(c."created_at", c."id") > (?::timestamptz, ?::uuid)`);
+      params.push(bounds.after.createdAt, bounds.after.id);
+    }
+    // One row past the page says whether there is a next one.
+    params.push(bounds.limit + 1);
+    const rows = (await this.deps.emFactory().execute(
+      `select c."id", c."project_id",
+              array(select po."organization_id"::text from "project_organizations" po
+                     where po."project_id" = p."id" order by po."organization_id") as "organization_ids",
+              c."author_admin_user_id", c."body", c."created_at", c."edited_at",
+              ${NOTE_CURSOR_INSTANT_SQL} as "cursor_at"
+         from "project_comments" c
+         join "projects" p on p."id" = c."project_id"
+        where ${where.join(' and ')}
+        order by c."created_at", c."id"
+        limit ?`,
+      params,
+    )) as NoteRow[];
+    const page = rows.slice(0, bounds.limit);
+    const last = page.at(-1);
+    const names = await this.#authorNames(page.map((row) => row.author_admin_user_id));
+    return {
+      items: page.map((row) => ({
+        id: row.id,
+        projectId: row.project_id,
+        organizationIds: [...row.organization_ids],
+        author: { id: row.author_admin_user_id, name: names.get(row.author_admin_user_id) ?? '' },
+        body: row.body,
+        createdAt: new Date(row.created_at),
+        editedAt: row.edited_at === null ? null : new Date(row.edited_at),
+      })),
+      nextCursor:
+        rows.length > bounds.limit && last !== undefined
+          ? encodeNoteCursor({ createdAt: last.cursor_at, id: last.id })
+          : null,
+    };
   }
 
   /**
@@ -301,16 +416,20 @@ export class ProjectCommentService {
     return rendered;
   }
 
+  /** Each author's name as the thread shows it, by administrator id — one port call. */
+  async #authorNames(adminUserIds: readonly string[]): Promise<Map<string, string>> {
+    if (adminUserIds.length === 0) return new Map();
+    const authors = await this.deps.adminUsers.findByIds([...new Set(adminUserIds)]);
+    return new Map(authors.map((admin) => [admin.id, `${admin.firstName} ${admin.lastName}`.trim() || admin.email]));
+  }
+
   async #render(rows: readonly ProjectComment[]): Promise<ProjectCommentView[]> {
     if (rows.length === 0) return [];
-    const [authors, references] = await Promise.all([
-      this.deps.adminUsers.findByIds([...new Set(rows.map((row) => row.authorAdminUserId))]),
+    const [names, references] = await Promise.all([
+      this.#authorNames(rows.map((row) => row.authorAdminUserId)),
       // One resolution for the whole page: one port call per kind, however many comments.
       this.deps.references.resolveMany(rows.map((row) => row.body)),
     ]);
-    const names = new Map(
-      authors.map((admin) => [admin.id, `${admin.firstName} ${admin.lastName}`.trim() || admin.email]),
-    );
     return rows.map((row, index) => ({
       id: row.id,
       kind: row.kind,

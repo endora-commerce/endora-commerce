@@ -48,6 +48,16 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
   interface ServiceWithEm {
     deps: { emFactory: () => EntityManager };
   }
+  /**
+   * The admin service's operator writes are Commands since issue #1824: they
+   * run on the Command Bus's transactional EntityManager, not on `emFactory`'s.
+   */
+  interface CommandRunner {
+    run<T>(command: { run: (ctx: { em: EntityManager }) => Promise<T> }): Promise<T>;
+  }
+  interface AdminServiceWithBus {
+    deps: { commandBus: CommandRunner };
+  }
   const handle = () =>
     (
       h.container.cradle as unknown as {
@@ -55,7 +65,7 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
           handle(): {
             expiryWorker: { sweep(now?: Date): Promise<Sweep>; hasExpirable(now?: Date): Promise<boolean>; deps: WorkerDeps };
             rfqService: ServiceWithEm;
-            adminService: ServiceWithEm;
+            adminService: AdminServiceWithBus;
           };
         };
       }
@@ -443,6 +453,37 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
       };
     };
 
+    /**
+     * {@link duringNext} for a write that runs as a Command (issue #1824): the
+     * injection happens inside the next Command's own `em.find` — between its
+     * reading the request and its taking the row.
+     */
+    const duringNextCommandFind = (service: AdminServiceWithBus, inject: () => Promise<void>): (() => void) => {
+      const original = service.deps.commandBus;
+      let done = false;
+      service.deps.commandBus = {
+        run: (command) =>
+          original.run({
+            ...command,
+            run: (ctx) => {
+              const target = ctx.em as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
+              const real = target['find']!.bind(ctx.em);
+              target['find'] = async (...args: unknown[]) => {
+                if (!done) {
+                  done = true;
+                  await inject();
+                }
+                return real(...args);
+              };
+              return command.run(ctx);
+            },
+          }),
+      };
+      return () => {
+        service.deps.commandBus = original;
+      };
+    };
+
     it('sweep first: the buyer’s accept is refused with a conflict, and the request is Expired and nothing else', async () => {
       const id = await createdFromAdmin();
       await quietFor(id, EXPIRY_DAYS + 1);
@@ -474,7 +515,7 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
       const id = await submitted();
       await quote(id);
       await quietFor(id, EXPIRY_DAYS + 1);
-      const restore = duringNext(handle().adminService, 'find', async () => {
+      const restore = duringNextCommandFind(handle().adminService, async () => {
         await worker().sweep();
       });
       try {

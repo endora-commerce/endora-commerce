@@ -2,14 +2,23 @@ import type {
   AdminUserReadPort,
   CatalogAttributeReadPort,
   CatalogAttributeView,
+  CatalogProductAvailabilityPort,
   CatalogProductReadPort,
+  CatalogProductRecord,
+  CatalogProductUrlKeyReadPort,
   CustomerAccountReadPort,
   CustomFieldDefinitionReadPort,
   LineGroup,
   OrganizationDetailsPort,
   QuoteRequestDocumentData,
 } from '@endora-commerce/contracts';
-import { arrangeLineGroups, flattenSections, organizationCompanyTaxId } from '@endora-commerce/contracts';
+import {
+  arrangeLineGroups,
+  flattenSections,
+  organizationCompanyTaxId,
+  productPath,
+  scopeLanguageOf,
+} from '@endora-commerce/contracts';
 import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import type { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
@@ -28,6 +37,15 @@ import { LEGACY_LINE_CURRENCY } from '../services/line-currency.js';
  * quote's custom-field definitions — of which only those customers may see
  * reach the document.
  *
+ * Issue #1904 — a line's product name is the catalogue's effective name at the
+ * quote's channel (the system default channel's for a quote with none) in the
+ * document's language, as SKU and attributes are read at render time; the
+ * stored name stays where the channel does not offer that language, the
+ * catalogue answers none, or the product was deleted. Each line also carries
+ * its product page on that channel's storefront (`productPath` over the
+ * effective URL key, on `sales_channels.storefront_url`, else
+ * `STOREFRONT_BASE_URL`), and none for a deleted product.
+ *
  * Every owner read here is a binding dependency of this module; `catalog`,
  * `custom_fields` and `sales_channels` are non-deactivatable.
  */
@@ -40,6 +58,15 @@ export interface QuoteDocumentDataBuilderDeps {
   readonly customerAccounts: Pick<CustomerAccountReadPort, 'findById'>;
   readonly adminUsers: Pick<AdminUserReadPort, 'findById'>;
   readonly salesChannels: Pick<SalesChannelResolutionPort, 'getById' | 'getSystemDefault'>;
+  /** Issue #1904 — the effective product names at (channel, language). */
+  readonly catalogTexts: Pick<CatalogProductAvailabilityPort, 'effectiveTexts'>;
+  /** Issue #1904 — the effective URL keys per channel language. */
+  readonly catalogUrlKeys: Pick<CatalogProductUrlKeyReadPort, 'effectiveKeys'>;
+  /**
+   * Issue #1904 — a channel's storefront address (`resolveCustomerStorefrontUrl`:
+   * the setting, then `STOREFRONT_BASE_URL`); `null` when neither is configured.
+   */
+  readonly storefrontUrl: (salesChannelId: string) => Promise<string | null>;
   readonly taxRate: (organizationId: string) => Promise<number>;
   readonly now?: () => Date;
 }
@@ -175,6 +202,11 @@ export class QuoteDocumentDataBuilder {
       ]);
     const productById = new Map(products.map((product) => [product.id, product]));
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
+    const { names, urls } = await this.catalogueLinks(
+      channel ?? (await this.deps.salesChannels.getSystemDefault()),
+      products.filter((product) => !product.deletedAt),
+      language,
+    );
 
     const attributeValues = (line: QuoteDocumentLine): Record<string, string> => {
       const product = productById.get(line.productId);
@@ -242,7 +274,7 @@ export class QuoteDocumentDataBuilder {
         return {
           id: line.id,
           productId: line.productId,
-          productName: line.productName,
+          productName: names.get(line.productId) || line.productName,
           variantLabel: line.variantLabel ?? null,
           sku: variant?.sku ?? product?.sku ?? null,
           quantity: line.quantity,
@@ -257,8 +289,57 @@ export class QuoteDocumentDataBuilder {
           attributes: attributeValues(line),
           groupId: groups.some((group) => group.id === line.groupId) ? (line.groupId ?? null) : null,
           position: line.position ?? 0,
+          productUrl: urls.get(line.productId) ?? null,
         };
       }),
     };
   }
+
+  /**
+   * Issue #1904 — the live products' names in `language` and their pages, at
+   * `channel`. Names only where the channel offers the language (else the
+   * catalogue's answer would be another language's); pages in the language the
+   * channel resolves it to, on its storefront — none without a storefront
+   * address, and none for a product the channel does not carry.
+   */
+  private async catalogueLinks(
+    channel: ScopeChannel,
+    products: readonly Pick<CatalogProductRecord, 'id' | 'slug'>[],
+    language: string,
+  ): Promise<{ names: Map<string, string>; urls: Map<string, string> }> {
+    const names = new Map<string, string>();
+    const urls = new Map<string, string>();
+    if (products.length === 0) return { names, urls };
+    const ids = products.map((product) => product.id);
+    const scopeLanguage = scopeLanguageOf(channel, language);
+    // `scopeLanguageOf` matches exactly, then by base language, else answers the
+    // channel's default — so a different base language means "not offered".
+    const served = baseLanguage(scopeLanguage) === baseLanguage(language);
+    const [texts, origin] = await Promise.all([
+      served ? this.deps.catalogTexts.effectiveTexts(ids, { channelId: channel.id, languageCode: scopeLanguage }) : null,
+      this.deps.storefrontUrl(channel.id),
+    ]);
+    for (const [id, text] of texts ?? []) if (text.name.trim() !== '') names.set(id, text.name);
+    const base = origin?.trim().replace(/\/+$/, '') ?? '';
+    if (base === '') return { names, urls };
+    const keys = await this.deps.catalogUrlKeys.effectiveKeys(ids, channel.id);
+    for (const product of products) {
+      // A product the channel does not carry has no keys there, and no page.
+      const channelKeys = keys.get(product.id);
+      const key = channelKeys ? (channelKeys.get(scopeLanguage) ?? product.slug) : null;
+      if (!key) continue;
+      urls.set(product.id, `${base}${productPath({ key, languageCode: scopeLanguage, channel })}`);
+    }
+    return { names, urls };
+  }
 }
+
+/** What a channel needs for a scope language and a product path. */
+type ScopeChannel = {
+  readonly id: string;
+  readonly languages: string[];
+  readonly defaultLanguage: string;
+  readonly prefixDefaultLanguage: boolean;
+};
+
+const baseLanguage = (tag: string): string => tag.split('-')[0]!.toLowerCase();

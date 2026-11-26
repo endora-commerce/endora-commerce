@@ -437,11 +437,17 @@ export function registerModule(ctx: ModuleContext): void {
     'projectReadPort',
     ctx
       .asFunction(
-        ({ projectsAccess, projectsReadService, projectsRecordProjectService }: ProjectsCradle) =>
+        ({
+          projectsAccess,
+          projectsReadService,
+          projectsRecordProjectService,
+          projectsCommentService,
+        }: ProjectsCradle) =>
           new ProjectReadPortService({
             access: projectsAccess,
             read: projectsReadService,
             records: projectsRecordProjectService,
+            notes: projectsCommentService,
           }),
       )
       .singleton(),

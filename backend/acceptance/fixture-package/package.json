@@ -22,12 +22,14 @@
   },
   "peerDependencies": {
     "@endora-commerce/platform": "^0",
-    "@mikro-orm/core": "^6",
-    "@mikro-orm/migrations": "^6",
+    "@mikro-orm/core": "^7.2.11",
+    "@mikro-orm/decorators": "^7.2.11",
+    "@mikro-orm/migrations": "^7.2.11",
     "fastify": "^5"
   },
   "peerDependenciesMeta": {
     "@mikro-orm/core": { "optional": true },
+    "@mikro-orm/decorators": { "optional": true },
     "@mikro-orm/migrations": { "optional": true },
     "fastify": { "optional": true }
   }

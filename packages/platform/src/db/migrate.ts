@@ -1,5 +1,5 @@
+import type { MigrationInfo } from '@mikro-orm/core';
 import type { MikroORM } from '@mikro-orm/postgresql';
-import type { UmzugMigration } from '@mikro-orm/migrations';
 import {
   activeSchemaExtensionContext,
   schemaExtensionContextRecorded,
@@ -23,7 +23,7 @@ import { platformLogger } from '../kernel/logging.js';
  * digest of the module's declarations, so a module that goes back to a
  * declaration set it had before (A → B → A) would otherwise find A recorded as
  * executed and never reconcile B's removal. The pruned rows name steps that are
- * no longer in the migration list — which umzug already ignores — so nothing
+ * no longer in the migration list — which the migrator already ignores — so nothing
  * that is still a migration of this platform is forgotten.
  *
  * Two bounded writes beyond the migrations themselves (D-291), both inside the
@@ -52,8 +52,8 @@ export async function migrateUpVerified(
   context: SchemaExtensionContext = activeSchemaExtensionContext(),
   log?: (message: string) => void,
   info: (message: string) => void = (message) => platformLogger().info({ scope: 'schema-extensions' }, message),
-): Promise<UmzugMigration[]> {
-  const migrator = orm.getMigrator();
+): Promise<MigrationInfo[]> {
+  const migrator = orm.migrator;
   const connection = orm.em.getConnection();
   const migrationsTable = (orm.config.get('migrations').tableName ?? 'mikro_orm_migrations').replace(/"/g, '');
   const current = (orm.config.get('migrations').migrationsList ?? [])
@@ -170,7 +170,7 @@ export async function runMigrationCommand(
   command: string,
   io: MigrationCommandIo,
 ): Promise<number> {
-  const migrator = orm.getMigrator();
+  const migrator = orm.migrator;
 
   switch (command) {
     case 'up': {
@@ -186,7 +186,7 @@ export async function runMigrationCommand(
       return 0;
     }
     case 'pending': {
-      const pending = await migrator.getPendingMigrations();
+      const pending = await migrator.getPending();
       if (pending.length === 0) {
         io.out('no pending migrations\n');
       } else {

@@ -149,8 +149,8 @@ function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, s
     [`${ROOT}/backend/package.json`]: JSON.stringify({
       name: 'backend',
       dependencies: {
-        '@mikro-orm/core': '^6.6.13',
-        '@mikro-orm/migrations': '^6.6.13',
+        '@mikro-orm/core': '^7.2.11',
+        '@mikro-orm/migrations': '^7.2.11',
         bullmq: '^5.76.1',
         fastify: '^5.8.5',
         ioredis: '^5.10.1',
@@ -395,6 +395,24 @@ describe('module package manifests are generated (feature 080, T041)', () => {
         }),
       );
       expect(manifest['peerDependencies']).toMatchObject({ fastify: '^5.11.0' });
+    });
+
+    it('raises every MikroORM peer to the 7.2.11 floor the switch was characterised on', () => {
+      // `@mikro-orm/postgresql` pins its `@mikro-orm/core` peer exactly, and the
+      // estate was type-checked and characterised against 7.2.11 (#1866) — a
+      // bare `^7` would admit an earlier 7.x pair nobody ran.
+      const manifest = manifestOf(
+        widgets({
+          ...BACKEND_ONLY,
+          'src/backend/orm.ts':
+            "import { Migration } from '@mikro-orm/migrations';\n" +
+            "import { ref } from '@mikro-orm/core';\nexport const x = [Migration, ref];\n",
+        }),
+      );
+      expect(manifest['peerDependencies']).toMatchObject({
+        '@mikro-orm/core': '^7.2.11',
+        '@mikro-orm/migrations': '^7.2.11',
+      });
     });
 
     it('refuses a floor whose major is not the one the application runs', () => {

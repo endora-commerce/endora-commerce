@@ -1,10 +1,13 @@
 import {
   PROJECT_READ_PORT_SEARCH_MAX,
+  type ProjectNotePage,
+  type ProjectNoteQuery,
   type ProjectRecord,
   type ProjectReadPort,
   type ProjectRecordKind,
   type ProjectSearchQuery,
 } from '@endora-commerce/contracts';
+import type { ProjectCommentService } from './comment-service.js';
 import type { ProjectAccess, VisibleProjectRow } from './project-access.js';
 import type { ProjectReadService } from './project-read-service.js';
 import type { RecordProjectService } from './record-project-service.js';
@@ -13,6 +16,8 @@ export interface ProjectReadPortDeps {
   access: Pick<ProjectAccess, 'findVisible' | 'findVisibleMany' | 'searchVisible'>;
   read: Pick<ProjectReadService, 'summary'>;
   records: Pick<RecordProjectService, 'findByRecord'>;
+  /** The notes listing — the comment service's, which owns the table (issue #1905). */
+  notes: Pick<ProjectCommentService, 'listNotes'>;
 }
 
 /**
@@ -24,7 +29,9 @@ export interface ProjectReadPortDeps {
  * (`record-project-service.ts`), which hands the id it finds to `findVisible`.
  * Out of reach, invisible and missing are one answer, `null`. The record is a
  * plain object, never an entity; its current Stage's name and its
- * Organizations come from the summary the record panel answers with.
+ * Organizations come from the summary the record panel answers with. Notes
+ * are listed by the comment service, whose statement carries `ProjectAccess`'s
+ * predicate over each note's Project.
  */
 export class ProjectReadPortService implements ProjectReadPort {
   constructor(private readonly deps: ProjectReadPortDeps) {}
@@ -45,6 +52,11 @@ export class ProjectReadPortService implements ProjectReadPort {
     const limit = Math.min(Math.max(0, Math.trunc(query.limit)), PROJECT_READ_PORT_SEARCH_MAX);
     const rows = await this.deps.access.searchVisible(query.q ?? '', limit);
     return Promise.all(rows.map((row) => this.#record(row)));
+  }
+
+  /** The notes of the Projects the caller may see, a keyset page at a time (issue #1905). */
+  listNotes(query: ProjectNoteQuery): Promise<ProjectNotePage> {
+    return this.deps.notes.listNotes(query);
   }
 
   async findByRecord(kind: ProjectRecordKind, id: string): Promise<ProjectRecord | null> {

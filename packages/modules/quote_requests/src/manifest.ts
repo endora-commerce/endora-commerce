@@ -546,6 +546,11 @@ export const manifest = defineModuleManifest({
     { code: 'RFQ_ALREADY_SHARED' },
     { code: 'RFQ_SHARE_CUSTOMER_UNAVAILABLE', tokens: ['not_member', 'inactive', 'blocked'] },
     { code: 'RFQ_NOT_SHARED' },
+    // Issue #1906 — an assignee who may not handle the request: named on the
+    // admin assign route or the port (the plain sentence), or by a command hook
+    // inside a buyer's submission (`submission`, worded for the buyer). Minted
+    // by this issue; owner and reason in `MINTED_ERROR_CODES`.
+    { code: 'RFQ_ASSIGNEE_NOT_ELIGIBLE', tokens: ['submission'] },
   ],
   /**
    * `rfqs:handle` is declared in the core `PERMISSION_CATALOGUE`, which carries
@@ -754,13 +759,18 @@ export const manifest = defineModuleManifest({
     ...QUOTE_NOTIFICATION_EMAILS,
   ],
   /**
-   * Command hooks (`specs/192-quote-request-draft-share/`, `contracts/share-hook.md`,
-   * the mechanism of `specs/176-command-hooks-outbox/`): sharing an operator's
-   * quote with its customer is the one write another module may refuse — say, an
-   * approval still pending — before it commits. `beforeCommit` only;
-   * `share-command.ts` supplies the hook data.
+   * Command hooks (`specs/176-command-hooks-outbox/`): the buyer's
+   * create-and-submit, `quote_request.create`, and submit-again,
+   * `quote_request.resubmit`, for both phases (issue #1906) — so a deployment's
+   * module may veto either, or set the new request's assignee inside the write
+   * through the hook data's `assign`, before the operators' notifications are
+   * fixed. `quote-request-create-hooks.test.ts` holds each Command to its ref.
+   * And the operator's share of an unshared quote with its customer,
+   * `quote_request.share`, `beforeCommit` only (`specs/192-quote-request-draft-share/`,
+   * `contracts/share-hook.md`) — another module may refuse it, say an approval
+   * still pending; `share-command.ts` supplies the hook data.
    */
-  hookableActions: [QUOTE_REQUEST_HOOKABLE_ACTIONS.share].map(toHookableActionDeclaration),
+  hookableActions: Object.values(QUOTE_REQUEST_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   actions: [

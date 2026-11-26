@@ -207,3 +207,44 @@ describe('RfqNotificationService.record', () => {
     expect(r.persisted).toEqual([]);
   });
 });
+
+describe('RfqNotificationService.rerecordOperatorSide (issue #1906)', () => {
+  it('replaces the operator records of the change’s entry with the operator side as it now stands, and leaves the customer side', async () => {
+    const { service, within, persisted, recipients, em } = rig({ operator: [OTHER_REP, REP] });
+    const stale = [Object.assign(new QuoteRequestNotification(), { recipientKind: 'admin', recipientId: REP })];
+    const find = vi.fn(async () => stale);
+    const remove = vi.fn();
+    Object.assign(within, { find, remove });
+
+    const written = await service.rerecordOperatorSide(em, {
+      change: 'submitted',
+      sourceEvent: event('submitted'),
+      rfq: { ...rfq, assignedAdminUserId: OTHER_REP },
+      actor: { customerAccountId: REQUESTER },
+    });
+
+    expect(find).toHaveBeenCalledWith(QuoteRequestNotification, { sourceEventId: EVENT, recipientKind: 'admin' });
+    expect(remove).toHaveBeenCalledWith(stale);
+    // Removed before the new rows go in: one administrator may be in both.
+    expect(remove.mock.invocationCallOrder[0]!).toBeLessThan(within.flush.mock.invocationCallOrder[0]!);
+    expect(within.flush.mock.invocationCallOrder[0]!).toBeLessThan(within.persist.mock.invocationCallOrder[0]!);
+    expect(recipients.customerSide).not.toHaveBeenCalled();
+    expect(written).toBe(4);
+    expect(persisted.map((row) => [row.recipientKind, row.recipientId, row.channel, row.status])).toEqual([
+      ['admin', OTHER_REP, 'admin_in_app', 'pending'],
+      ['admin', REP, 'admin_in_app', 'pending'],
+      ['admin', OTHER_REP, 'admin_email', 'pending'],
+      ['admin', REP, 'admin_email', 'pending'],
+    ]);
+  });
+
+  it('refuses a source history entry that is not the one the matrix names, before reading anything', async () => {
+    const { service, within, em } = rig();
+    const find = vi.fn(async () => []);
+    Object.assign(within, { find, remove: vi.fn() });
+    await expect(
+      service.rerecordOperatorSide(em, { change: 'submitted', sourceEvent: event('created'), rfq, actor: null }),
+    ).rejects.toThrow(/announces a 'submitted' history entry/);
+    expect(find).not.toHaveBeenCalled();
+  });
+});

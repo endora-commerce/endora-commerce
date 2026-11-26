@@ -60,7 +60,8 @@
  *
  * The ORM configuration below is the one place an instance restates its own
  * artefacts, and it has none, so the platform's `*From` factories answer over
- * the packages it installed: `configuredEntitiesFrom`,
+ * the packages it installed and, given the deployment root, its own overlay
+ * modules (`specs/190-overlay-full-modules/` FR-035): `configuredEntitiesFrom`,
  * `discoverConfiguredMigrations` and `mikroOrmConfigFrom` on `./db`, and
  * `resolveManifestEntries` on `./lifecycle` with its three suppliers.
  *
@@ -558,10 +559,13 @@ export function backendScripts(input: PlanInput): Record<string, string> {
     // `tsc` and `node --watch` rather than `tsx`: no manifest this run can
     // read declares a range for `tsx`, and a range this command chose would
     // be a value nobody reviewed (R2.5a).
-    dev: `tsc -p tsconfig.json --watch & ${node} --watch dist/index.js`,
-    build: 'tsc -p tsconfig.json',
+    // The overlay code under `apps/` is compiled too (#1848): `endora build overlays`
+    // runs this instance's own `tsc -p tsconfig.apps.json` into `dist/apps` and mirrors
+    // the modules' `i18n/`, and the compiled entry points refuse a stale build.
+    dev: `tsc -p tsconfig.json --watch & endora build overlays --watch & ${node} --watch dist/index.js`,
+    build: 'tsc -p tsconfig.json && endora build overlays',
     // Two programs (issue #1847): the backend's own `src`, and the overlay code
-    // under `apps/` that Node loads by type stripping and nothing else compiles.
+    // under `apps/`, which `build` compiles into `dist/apps` (#1848).
     // `tsconfig.apps.json` sets `erasableSyntaxOnly`, so an `enum`, a `namespace`
     // or a constructor parameter property is a type-check failure here rather
     // than `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` at boot.
@@ -1068,7 +1072,9 @@ export function planInstance(input: PlanInput): InstancePlan {
       scripts: rootScripts,
       dependencies: Object.fromEntries([...dependencies].sort(([a], [b]) => a.localeCompare(b))),
       devDependencies: Object.fromEntries(
-        devDependenciesFor(input, generatesArtefacts),
+        // The CLI is declared whatever there is to generate: the backend member's
+        // `build` runs `endora build overlays` (#1848).
+        devDependenciesFor(input, true),
       ),
     }),
   });
@@ -1226,7 +1232,6 @@ export function planInstance(input: PlanInput): InstancePlan {
         strict: true,
         skipLibCheck: true,
         experimentalDecorators: true,
-        emitDecoratorMetadata: true,
         esModuleInterop: true,
       },
       include: ['src'],
@@ -1238,7 +1243,8 @@ export function planInstance(input: PlanInput): InstancePlan {
   // outside the backend's `rootDir`, so without it nothing in this tree
   // type-checks an overlay module. Bare specifiers resolve through the root's
   // `node_modules` to the installed packages' `dist` declarations — the types
-  // the runtime loads. `noEmit` until the overlay build (#1848) emits it.
+  // the runtime loads. `noEmit` stays in the file: `typecheck` reads it as written,
+  // and `endora build overlays` (#1848) passes `--noEmit false` when it emits.
   files.push({
     path: 'backend/tsconfig.apps.json',
     kind: 'client',
@@ -1370,9 +1376,16 @@ export const deployment = '${deployment}';
  * the **ranges** come from, which is the question R2.5a answers: a value with
  * no source is one the command would have to invent. So each is derived:
  *
- *   * the four peers, from `@endora-commerce/platform`'s own
+ *   * the platform's peers, from `@endora-commerce/platform`'s own
  *     `peerDependencies`. A platform that widens `zod` to `^5` widens this in
- *     the same run, with nothing here to edit.
+ *     the same run, with nothing here to edit. Since MikroORM 7 (#1866) they
+ *     include `@mikro-orm/decorators`: the entity decorators left
+ *     `@mikro-orm/core` for its `./legacy` subpath, and the platform's own
+ *     entities, every module package's and an overlay's import them from there.
+ *     `reflect-metadata` came with them: `@mikro-orm/decorators/legacy`
+ *     imports it at load time while its manifest calls that peer optional, so
+ *     pnpm installs it only where something declares it, and an instance that
+ *     did not could not import the platform's kernel.
  *   * `@mikro-orm/migrations`, from the range the platform declares for
  *     `@mikro-orm/core`. The MikroORM packages version in lockstep and a
  *     migrator from another major does not load the driver from this one.
@@ -1405,9 +1418,11 @@ export function devDependenciesFor(
 ): readonly (readonly [string, string])[] {
   const wanted: readonly (readonly [string, string])[] = [
     ['@mikro-orm/core', input.declaredRanges.get('@mikro-orm/core') ?? ''],
+    ['@mikro-orm/decorators', input.declaredRanges.get('@mikro-orm/decorators') ?? ''],
     ['@mikro-orm/postgresql', input.declaredRanges.get('@mikro-orm/postgresql') ?? ''],
     ['@mikro-orm/migrations', input.declaredRanges.get('@mikro-orm/core') ?? ''],
     ['fastify', input.declaredRanges.get('fastify') ?? ''],
+    ['reflect-metadata', input.declaredRanges.get('reflect-metadata') ?? ''],
     ['zod', input.declaredRanges.get('zod') ?? ''],
     ['ioredis', input.declaredRanges.get('ioredis') ?? ''],
     ['typescript', input.declaredRanges.get('typescript') ?? ''],
@@ -1455,13 +1470,14 @@ if (sessionCookieSecret === '') {
   process.exit(1);
 }
 
-// The directory that holds \`apps/\` — this workspace's root, one level up from
-// the backend member. It is the one thing the platform cannot derive for
-// itself, and it is deliberately a required argument rather than a default that
-// would silently name a directory holding no \`apps/\` at all.
-const deploymentRoot = fileURLToPath(new URL('../..', import.meta.url));
+// Where \`apps/\` is: compiled, beside this file (\`backend/dist\`, which
+// \`endora build overlays\` fills), and as written, at this workspace's root. The
+// platform cannot derive either; the second is what it judges the first against,
+// so a stale build is refused before any of it runs.
+const deploymentRoot = fileURLToPath(new URL('.', import.meta.url));
+const deploymentSourceRoot = fileURLToPath(new URL('../..', import.meta.url));
 
-const composition = await composeApp({ deploymentRoot }).catch(exitOnRefusal);
+const composition = await composeApp({ deploymentRoot, deploymentSourceRoot }).catch(exitOnRefusal);
 const app = await buildServer({
   sessionCookieSecret,
   openApi: { title: '${input.name}', version: '0.0.0', serverUrl: \`http://localhost:\${port}\` },
@@ -1499,9 +1515,10 @@ if (sessionCookieSecret === '') {
   process.exit(1);
 }
 
-const deploymentRoot = fileURLToPath(new URL('../..', import.meta.url));
+const deploymentRoot = fileURLToPath(new URL('.', import.meta.url));
+const deploymentSourceRoot = fileURLToPath(new URL('../..', import.meta.url));
 
-const composition = await composeApp({ deploymentRoot }).catch(exitOnRefusal);
+const composition = await composeApp({ deploymentRoot, deploymentSourceRoot }).catch(exitOnRefusal);
 const app = await buildServer({
   sessionCookieSecret,
   openApi: { title: '${input.name} worker', version: '0.0.0', serverUrl: 'http://localhost' },
@@ -1532,21 +1549,26 @@ app.log.info('worker started');
 // migration options an \`allOrNothing\` run takes. A hand-written
 // \`defineConfig\` here would compile and then create tables the installed
 // migrations do not name.
+import { fileURLToPath } from 'node:url';
 import {
   configuredEntitiesFrom,
   discoverConfiguredMigrations,
   mikroOrmConfigFrom,
 } from '${scope}platform/db';
 
+// Where \`apps/\` is, compiled — the value \`index.ts\` hands \`composeApp\`. Your
+// overlay modules' entities and migrations are read from there.
+const deploymentRoot = fileURLToPath(new URL('.', import.meta.url));
+
 export default async function config() {
   const url = process.env['DATABASE_URL'];
   if (url === undefined || url === '') throw new Error('DATABASE_URL must be set.');
   // The committed half is empty, which is what an instance is: it ships no
   // generated manifest index and no committed registry, so its entities and
-  // its migrations are the packages it installed and nothing else.
+  // its migrations are the packages it installed and its own overlay modules.
   const [entities, migrations] = await Promise.all([
-    configuredEntitiesFrom({ coreEntities: [] }),
-    discoverConfiguredMigrations({ coreEntries: [], manifests: [] }),
+    configuredEntitiesFrom({ coreEntities: [], deploymentRoot }),
+    discoverConfiguredMigrations({ coreEntries: [], manifests: [] }, process.env, deploymentRoot),
   ]);
   return mikroOrmConfigFrom({ entities, migrations });
 }
@@ -1557,22 +1579,20 @@ export default async function config() {
     path: 'backend/src/migrate.ts',
     kind: 'wiring',
     member: 'backend',
-    // `refuseOverlaySchema` is the one thing here that is not the migrator: the
-    // configuration is built from the installed packages and never looks at
-    // `apps/`, so without it a `migrations/` directory under an overlay module
-    // is applied by nothing and reported by nothing (`overlay-schema.ts`).
+    // The configuration carries the deployment root, so an overlay module's
+    // migrations are in the order it applies (`specs/190-overlay-full-modules/`
+    // FR-035) — and a refusal of one (a migration file of the wrong shape, an
+    // unexported entity) is printed as the sentence it is, as `index.ts` prints
+    // a refusal met while composing.
     content: `// The schema, in the order the installed manifests compute — no second
 // ordering here. Verified: one transaction, the declared extension columns
 // checked before commit (specs/178-extensible-columns/ FR-025).
-import { fileURLToPath } from 'node:url';
 import { MikroORM } from '@mikro-orm/postgresql';
-import { refuseOverlaySchema } from '${scope}platform/composition';
+import { exitOnRefusal } from '${scope}platform/composition';
 import { migrateUpVerified } from '${scope}platform/db';
 import config from './mikro-orm.config.js';
 
-// An overlay module ships no schema: said here, before anything is migrated.
-refuseOverlaySchema(fileURLToPath(new URL('../..', import.meta.url)));
-const orm = await MikroORM.init(await config());
+const orm = await MikroORM.init(await config().catch(exitOnRefusal));
 try {
   await migrateUpVerified(orm);
 } finally {
@@ -1595,7 +1615,10 @@ try {
 import { fileURLToPath } from 'node:url';
 import { runCli } from '${scope}platform/cli';
 
-await runCli({ deploymentRoot: fileURLToPath(new URL('../..', import.meta.url)) });
+await runCli({
+  deploymentRoot: fileURLToPath(new URL('.', import.meta.url)),
+  deploymentSourceRoot: fileURLToPath(new URL('../..', import.meta.url)),
+});
 `,
   });
 
@@ -1620,15 +1643,16 @@ import { runInstanceOperatorCommand } from '${scope}platform/lifecycle';
 import type { OperatorRuntime } from '${scope}platform/lifecycle';
 import config from '../mikro-orm.config.js';
 
-// The directory that holds \`apps/\` — the same value \`index.ts\` hands
-// \`composeApp\`, two levels up from the compiled command rather than one.
-const deploymentRoot = fileURLToPath(new URL('../../..', import.meta.url));
+// Where \`apps/\` is, compiled and as written — the values \`index.ts\` hands
+// \`composeApp\`, one level further up from the compiled command.
+const deploymentRoot = fileURLToPath(new URL('..', import.meta.url));
+const deploymentSourceRoot = fileURLToPath(new URL('../../..', import.meta.url));
 
 /** Build the runtime, run one command inside a system scope, close, exit. */
 export function runOperatorCommand(
   run: (argv: readonly string[], rt: OperatorRuntime) => Promise<number>,
 ): Promise<never> {
-  return runInstanceOperatorCommand({ deploymentRoot, ormConfig: config, run });
+  return runInstanceOperatorCommand({ deploymentRoot, deploymentSourceRoot, ormConfig: config, run });
 }
 `,
   });
@@ -1807,16 +1831,24 @@ shadow, because there is no file.
 \`pnpm exec endora new module <id> --name … --description …\` writes one there: a manifest, an
 entry point with a route, and both translation files. \`.env\` sets \`DEPLOYMENT=${input.deployment}\`,
 which is what makes this instance compose that directory — unset, it starts as the bare platform
-and none of your modules is there. An overlay module owns no database table: a \`migrations/\`
-or \`entities/\` directory in one is refused by \`generate\`, by \`migrate\`, by every
-\`module:*\` command and by the API when it starts, each naming the file. A module that needs
-a table is a package.
+and none of your modules is there. An overlay module may own a database table: export its
+entity classes as \`entities\` from \`backend.ts\` (each with a tenancy decorator, from
+\`@mikro-orm/decorators/legacy\`), and put its migrations in its \`migrations/\` directory, one
+class per file named after the file (\`20270101T000000_<module>_<slug>.ts\` exports
+\`Migration20270101T000000<Module><Slug>\`). \`pnpm run migrate\` applies them in the module's
+dependency order, under the foreign-schema guard every installed package's migrations take: a
+migration may write only the tables its own entities map. \`endora new module\` does not write
+either for you yet.
 
-An overlay module is TypeScript that **nothing in this tree compiles** — Node loads it and
-strips the types as it goes. So it is written in the subset stripping accepts: an \`enum\`, a
-\`namespace\` or a constructor parameter property raises
-\`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX\` at boot. \`pnpm run typecheck\` reports all three before
-that, and every type error in \`apps/\` beside them: \`backend/tsconfig.apps.json\` checks your
+An overlay module is compiled like the rest of the backend. \`pnpm run build\` runs
+\`endora build overlays\`, which compiles \`apps/\` with this instance's own
+\`tsc -p backend/tsconfig.apps.json\` into \`backend/dist/apps\` and copies each module's
+\`i18n/\` beside the code; \`pnpm run dev\` does the same on every change. The API, the worker
+and every \`module:*\` command run the compiled code and compare it with \`apps/\` first: an edit
+that was not rebuilt, a module that was never built or a compiled file whose source is gone stops
+them, naming both files — run \`pnpm run build\`. A module is a direct child of \`modules/\` (a
+second \`manifest.ts\` deeper down is refused: make it a sibling module with a dependency) and
+has no \`package.json\` or build configuration of its own. \`pnpm run typecheck\` checks your
 overlay code against the installed packages' declarations with \`erasableSyntaxOnly\` set, and
 \`pnpm run setup\` runs it before \`migrate\`. A union of string literals is the \`enum\` you want.
 

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Collection, Entity, ManyToOne, OneToMany, PrimaryKey, Property } from '@mikro-orm/core';
+import { Collection } from '@mikro-orm/core';
+import { Entity, ManyToOne, OneToMany, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { MikroORM } from '@mikro-orm/postgresql';
 import { CustomerScoped, GlobalEntity, OrgScoped, type TenantContext } from '@endora-commerce/platform/tenancy';
 import { resolveTenantContext, systemTenantContext } from '@endora-commerce/platform/composition';
@@ -9,6 +10,7 @@ import {
   runWithTenantContext,
   runWithoutTenantContext,
 } from '../../../src/tenancy/tenant-context.js';
+import { statementsDuring } from '../../helpers/statement-tap.js';
 
 /**
  * Issue #1860 (part of #1073). This pins, on MikroORM 6, which rows each tenant
@@ -133,13 +135,6 @@ interface ModeCase {
   readonly customer: readonly Label[];
   /** Whether a `@CustomerScoped` table without an organization column was refused, and the context records it. */
   readonly refusedNotice?: boolean;
-  /**
-   * The holder's collections whose joined `populate` MikroORM 6 cannot render
-   * for this case: the filter answers `$in: []`, which lands in the join
-   * condition as `in ()`, a syntax error. Asserted as `it.fails` below, to be
-   * fixed with #1866.
-   */
-  readonly joinedPopulateOpen?: readonly Collected[];
 }
 
 type Collected = 'rows' | 'customers';
@@ -177,7 +172,6 @@ const CASES: readonly ModeCase[] = [
     customerOrg: ['A', 'B'],
     customer: [],
     refusedNotice: true,
-    joinedPopulateOpen: ['customers'],
   },
   {
     name: 'an administrator confined to no organization',
@@ -187,7 +181,6 @@ const CASES: readonly ModeCase[] = [
     customerOrg: [],
     customer: [],
     refusedNotice: true,
-    joinedPopulateOpen: ['rows', 'customers'],
   },
   {
     name: 'a representative whose reach excludes B',
@@ -197,7 +190,6 @@ const CASES: readonly ModeCase[] = [
     customerOrg: ['A', 'C'],
     customer: [],
     refusedNotice: true,
-    joinedPopulateOpen: ['customers'],
   },
   {
     // `null not in (<empty>)` is true: only the predicate's own `is not null`
@@ -209,7 +201,6 @@ const CASES: readonly ModeCase[] = [
     customerOrg: ['A', 'B', 'C'],
     customer: [],
     refusedNotice: true,
-    joinedPopulateOpen: ['customers'],
   },
 ];
 
@@ -284,14 +275,18 @@ describe('tenant filter modes on MikroORM (#1860)', () => {
 
   async function joinedPopulate(c: ModeCase, collection: Collected): Promise<void> {
     await runWithTenantContext(c.context(), async () => {
-      const joined = await orm.em.fork().findOneOrFail(X1860Holder, { id: holderId }, { populate: [collection] });
+      // Named, not defaulted: MikroORM 7's default is `balanced`, which loads a
+      // to-many collection select-in and would leave the join untested.
+      const joined = await orm.em
+        .fork()
+        .findOneOrFail(X1860Holder, { id: holderId }, { populate: [collection], strategy: 'joined' });
       expect(labels(joined[collection].getItems()), `joined populate of ${collection}`).toEqual(expectedIn(c, collection));
     });
   }
 
   it.each(CASES)('$mode — $name: joined and select-in populate, and Collection.init', async (c) => {
     for (const collection of ['rows', 'customers'] as const) {
-      if (!(c.joinedPopulateOpen ?? []).includes(collection)) await joinedPopulate(c, collection);
+      await joinedPopulate(c, collection);
       await runWithTenantContext(c.context(), async () => {
         const selectIn = await orm.em
           .fork()
@@ -307,16 +302,24 @@ describe('tenant filter modes on MikroORM (#1860)', () => {
   });
 
   /**
-   * Open (#1866): a joined `populate` whose filter answers `$in: []` renders
-   * `in ()` in the join condition on MikroORM 6 and fails as a syntax error.
-   * The shapes are an empty `allowed-set` on `@OrgScoped`, and `allowed-set` /
-   * `excluded-set` on `@CustomerScoped` without an organization column. Each
-   * case asserts the correct answer, so it fails today; when #1866 fixes it,
-   * `it.fails` turns red and the case moves into the matrix above.
+   * #1882's open rows, closed by #1866. A joined `populate` whose filter answers
+   * an empty set — an empty `allowed-set` on `@OrgScoped`, and `allowed-set` /
+   * `excluded-set` on `@CustomerScoped` without an organization column — put
+   * `in ()` into the join condition on MikroORM 6, a syntax error. They are in
+   * the matrix above now, as plain cases: the answer must be **no row**, never
+   * an error and never every row (a dropped condition would be the
+   * fail-open). The SQL half is pinned here too, so a renderer that dropped
+   * the condition and happened to find no rows could not pass.
    */
-  const OPEN_JOINED = CASES.flatMap((c) => (c.joinedPopulateOpen ?? []).map((collection) => ({ ...c, collection })));
-  it.fails.each(OPEN_JOINED)('open (#1866): $mode — $name: joined populate of $collection', async (c) => {
-    await joinedPopulate(c, c.collection);
+  it('renders an empty set in a joined populate as an always-false condition, never a dropped one', async () => {
+    const none = CASES.find((c) => c.name === 'an administrator confined to no organization')!;
+    const { statements: tapped } = await statementsDuring(orm.em, () => joinedPopulate(none, 'rows'));
+    const statements = tapped.map((statement) => statement.text);
+    const join = statements.find((statement) => /left join "x1860_org_rows"/.test(statement));
+    expect(join, statements.join('\n')).toBeDefined();
+    expect(join).not.toMatch(/\bin \(\s*\)/);
+    // The filter's condition is still in the join: an always-false comparison.
+    expect(join).toMatch(/1 = 0/);
   });
 
   it.each(CASES)('$mode — $name: nativeUpdate touches only the rows the mode lets through', async (c) => {

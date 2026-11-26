@@ -6,6 +6,7 @@ import { CommandBus } from '@endora-commerce/platform/commands';
 import { EventBus, type EventBase } from '@endora-commerce/platform/events';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { MissingTenantContextError, withSystemScope } from '@endora-commerce/platform/tenancy';
+import { OrganizationCommandService } from './organization-command-port.js';
 import { OrganizationCustomFieldWriteService } from './organization-custom-field-write-port.js';
 
 /**
@@ -138,7 +139,11 @@ function harness() {
     },
   } as unknown as AuditPort;
   const bus = new CommandBus(orm, audit, new EventBus<Record<string, EventBase>>());
-  const port = new OrganizationCustomFieldWriteService(bus);
+  // Delegating to the aggregate port since `specs/186-aggregate-ports/` T031,
+  // as the composition builds it.
+  const port = new OrganizationCustomFieldWriteService(
+    new OrganizationCommandService({ commandBus: bus, accounts: { listByOrganization: async () => [] } }),
+  );
   return { port, rows, state, flushes, audits };
 }
 

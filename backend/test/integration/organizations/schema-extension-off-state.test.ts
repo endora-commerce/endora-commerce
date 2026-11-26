@@ -128,7 +128,7 @@ describe('the core organization paths with acme_erp declared on organizations', 
   });
 
   it('keeps the extension columns out of the core entity metadata', () => {
-    const meta = h.orm.getMetadata().get(Organization.name);
+    const meta = h.orm.getMetadata().get(Organization);
     expect(meta.props.map((prop) => prop.fieldNames ?? []).flat().filter((field) => field.startsWith('x_'))).toEqual(
       [],
     );

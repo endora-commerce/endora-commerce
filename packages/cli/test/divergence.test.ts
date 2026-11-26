@@ -40,7 +40,6 @@ import { main } from '../src/bin/endora.js';
 import {
   generateReport,
   GenerateHostError,
-  GenerateInputError,
   runGenerate,
 } from '../src/generate/index.js';
 import {
@@ -747,62 +746,39 @@ describe('a finding fails the command, after the report is written', () => {
 });
 
 /**
- * An overlay module contributes no schema (D-106). This repository's generator
- * refuses one; an instance has no such generator, and the platform's discovery
- * reads migrations and entities from installed packages alone — so a
- * `migrations/` directory in an overlay module was ignored, no table was
- * created, and the first report was a query against a relation that is not
- * there.
+ * An overlay module may own a table (`specs/190-overlay-full-modules/` FR-037,
+ * D-297). `endora generate` used to refuse a `migrations/` or `entities/`
+ * directory under one, because nothing in an instance read them; the platform
+ * now reads them at runtime from the deployment root (`overlay-schema.ts`), so
+ * the refusal is gone and the artefacts this command renders name none of it —
+ * which deployment a process runs as is a fact about the process (D-104).
  */
-describe('overlay schema is refused, not ignored', () => {
+describe('overlay schema is accepted, and rendered into nothing', () => {
   const overlayDir = (root: string): string =>
     join(root, 'apps', 'acme', 'modules', 'acme_overlay');
 
-  it('refuses a migration under an overlay module, before anything is written', async () => {
+  it('an overlay module shipping an entity and a migration generates as one without', async () => {
     const root = instance();
     write(
-      join(overlayDir(root), 'migrations', 'Migration20260101T000000_acme.ts'),
-      'export class Migration20260101T000000_acme {}\n',
+      join(overlayDir(root), 'migrations', '20260101T000000_acme_overlay_init.ts'),
+      'export class Migration20260101T000000AcmeOverlayInit {}\n',
     );
-    const error = await runGenerate({ cwd: root }).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(GenerateInputError);
-    const message = (error as Error).message;
-    expect(message).toContain(
-      'apps/acme/modules/acme_overlay/migrations/Migration20260101T000000_acme.ts',
-    );
-    expect(message).toContain('no schema');
-    // The remedy, in terms an instance has: a module package.
-    expect(message).toContain('module package');
-    expect(() => readFileSync(join(root, 'apps', 'acme', 'divergence.generated.md'))).toThrow();
-  });
-
-  it('refuses a file under an `entities/` directory', async () => {
-    const root = instance();
-    write(join(overlayDir(root), 'entities', 'note.entity.ts'), 'export class Note {}\n');
-    const error = await runGenerate({ cwd: root }).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(GenerateInputError);
-    expect((error as Error).message).toContain(
-      'apps/acme/modules/acme_overlay/entities/note.entity.ts',
-    );
-  });
-
-  it('refuses an `@Entity()` class wherever the file sits', async () => {
-    const root = instance();
     write(
-      join(overlayDir(root), 'note.ts'),
-      `import { Entity } from '@mikro-orm/core';\n@Entity()\nexport class Note {}\n`,
+      join(overlayDir(root), 'entities', 'note.entity.ts'),
+      `import { Entity } from '@mikro-orm/decorators/legacy';\n@Entity()\nexport class Note {}\n`,
     );
-    const error = await runGenerate({ cwd: root }).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(GenerateInputError);
-    expect((error as Error).message).toContain('apps/acme/modules/acme_overlay/note.ts');
+    const result = await runGenerate({ cwd: root });
+    expect(result.divergence).toHaveLength(1);
+    expect(readFileSync(join(root, 'apps', 'acme', 'divergence.generated.md'), 'utf8')).not.toContain(
+      'Migration20260101T000000AcmeOverlayInit',
+    );
   });
 
-  it('is exit 1 through the program: the remedy is the operator’s', async () => {
+  it('is exit 0 through the program', async () => {
     const root = instance();
-    write(join(overlayDir(root), 'migrations', 'm.ts'), 'export {};\n');
+    write(join(overlayDir(root), 'migrations', '20260101T000000_acme_overlay_init.ts'), 'export {};\n');
     const result = await runProgram(['generate'], root);
-    expect(result.code).toBe(1);
-    expect(result.stderr).toContain('apps/acme/modules/acme_overlay/migrations/m.ts');
+    expect(result.code, result.stderr).toBe(0);
   });
 
   it('an overlay module with neither is not refused', async () => {

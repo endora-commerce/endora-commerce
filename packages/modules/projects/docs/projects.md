@@ -991,6 +991,24 @@ and a top project's card are read afterwards, for the few rows the statement
 answered. The service is `services/analytics-service.ts`, the range and ratios
 `domain/analytics-range.ts`.
 
+### Panels on the project screen
+
+The admin zone `project.detail.after` is mounted once at the end of a project's
+screen, below its tabs, and hands a contribution `{ projectId }`. A module adds
+a panel by declaring `zoneComponent('project.detail.after', …)` in its own admin
+contributions; each contribution is a card of its own.
+
+The admin zone `project.detail.sidebar` is mounted once, in a sidebar card
+beside the tabs, and hands a contribution the same `{ projectId }`. Each
+contribution is a section of that one card. The sidebar is drawn only while
+something fills it.
+
+This module names no contributor and imports none. With nothing contributed —
+no such module, the module switched off, or a person without the panel's
+permission — both zones render nothing and the screen is exactly the one
+without them. There is no zone for the project's tabs: another module cannot
+add a tab to a project.
+
 ### Reading projects from another module
 
 `projectReadPort` (`ProjectReadPort` of `@endora-commerce/contracts`) is the
@@ -1005,11 +1023,22 @@ It is gated: resolving it while Projects is off throws, and the call answers
 | `findByRecord(kind, id)` | The project an `order`, `quote_request` or `opportunity` is linked to, as a `ProjectRecord`, or `null`. |
 | `findByIds(ids)` | The projects of `ids`, in no particular order; an id the caller may not see, or that does not exist, is left out. |
 | `search({ q, limit })` | The projects whose number or title contains `q`, newest first, at most `limit` (20 at most). |
+| `listNotes({ organizationId?, authorAdminUserId?, createdFrom?, createdBefore?, cursor?, limit })` | The notes written on projects, oldest first, as `{ items, nextCursor }`, at most `limit` (100 at most) per page. Each item is a `ProjectNoteRecord` — `id`, `projectId`, `organizationIds`, `author` (`id`, `name`), `body`, `createdAt`, `editedAt`. |
 
-All four answer for the caller, through `ProjectAccess` under the caller's own
+All five answer for the caller, through `ProjectAccess` under the caller's own
 tenant context: a project that does not exist, one out of the caller's reach
 and one the caller may not see are the same `null` — or are left out. The answer is a plain
 object, never an entity.
+
+`listNotes` lists notes only — never the internal messages, and never a deleted
+note — and only those of projects the caller may see. Every filter is optional
+and they combine: an organization, an author, and a creation time from
+`createdFrom` (included) to `createdBefore` (not included). **The notes of an
+organization are the notes of every project linked to it**, whichever other
+organizations the project is linked to as well; an internal project, linked to
+none, is never selected by an organization. Pass a page's `nextCursor` back as
+`cursor` for the next page; it is `null` on the last one. A cursor the port did
+not issue, or an invalid date, is refused with `422 VALIDATION_FAILED`.
 
 `./backend` also exports **`nextProjectNumber(em)`**, the module's door to its
 number sequence — the next `PRJ-…` number, for code that writes projects

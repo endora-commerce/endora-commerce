@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EventBus } from '../../events/bus.js';
+import { EventBus } from '../../events/bus.js';
+import type { AuditPort } from '../ports/audit.js';
 import { ChannelBridgeRegistry } from './channel-bridge-registry.js';
 import { SalesChannelMembershipService } from './sales-channel-membership.service.js';
 import type { SalesChannelAccessCacheInvalidation } from './sales-channel-access-cache.js';
@@ -28,7 +29,12 @@ const ORG_SOURCE = 'org-2';
  * An `EntityManager` stand-in that understands exactly the statements the
  * membership service issues against a bridge, over an in-memory row set.
  */
-function fakeEm(rows: Map<string, Set<string>>, log: string[], label = 'em'): EntityManager {
+function fakeEm(
+  rows: Map<string, Set<string>>,
+  log: string[],
+  label = 'em',
+  inTransaction = false,
+): EntityManager {
   const setOf = (entityId: string): Set<string> => {
     let set = rows.get(entityId);
     if (!set) {
@@ -72,6 +78,7 @@ function fakeEm(rows: Map<string, Set<string>>, log: string[], label = 'em'): En
   const em = {
     getConnection: () => connection,
     getTransactionContext: () => undefined,
+    isInTransaction: () => inTransaction,
     transactional: async <T>(work: (tx: EntityManager) => Promise<T>): Promise<T> => work(em),
     find: async () => [],
   } as unknown as EntityManager;
@@ -196,5 +203,132 @@ describe('SalesChannelMembershipService runs on a caller-supplied EntityManager'
     expect(h.statements).toEqual([]);
     expect(callerLog.length).toBeGreaterThan(0);
     expect([...callerRows.get(ORG)!].sort()).toEqual([A, B]);
+  });
+});
+
+/**
+ * Issue #1926 (`specs/186-aggregate-ports/` research R-16.1) — given a caller's
+ * transactional `em`, the writer **enlists**: each membership entry is recorded
+ * on that `em` (so it rolls back with the caller), and the access-cache drop
+ * waits for the enclosing EventBus scope to succeed — after the commit, and
+ * still before the events. Without one, nothing changes.
+ */
+describe('SalesChannelMembershipService enlists in the caller’s transaction', () => {
+  function enlisting(initial: Record<string, string[]> = {}) {
+    const rows = new Map(Object.entries(initial).map(([k, v]) => [k, new Set(v)]));
+    const order: string[] = [];
+    const eventBus = new EventBus();
+    eventBus.on('sales_channels.membership_changed', (payload) => {
+      const { entityId, op } = payload as unknown as { entityId: string; op: string };
+      order.push(`${EMIT}:${entityId}:${op}`);
+    });
+    const audit = {
+      record: async (input: { objectId: string }) => {
+        order.push(`audit:own:${input.objectId}`);
+        return {} as never;
+      },
+      recordWithin: (em: EntityManager, input: { objectId: string }) => {
+        order.push(`audit:within:${em === callerEm ? 'caller' : 'other'}:${input.objectId}`);
+        return {} as never;
+      },
+    } as unknown as AuditPort;
+    const cache: SalesChannelAccessCacheInvalidation = {
+      invalidateAfterWrite: async (organizationId) => {
+        order.push(`drop:${organizationId}`);
+        return 1;
+      },
+      invalidateAllAfterWrite: async () => 1,
+    };
+    const bridges = new ChannelBridgeRegistry();
+    bridges.register({
+      entityType: 'organization',
+      table: 'sales_channel_organizations',
+      entityIdColumn: 'organization_id',
+    });
+    const statements: string[] = [];
+    const service = new SalesChannelMembershipService(
+      () => fakeEm(rows, statements),
+      eventBus,
+      audit,
+      bridges,
+      cache,
+    );
+    const callerEm = fakeEm(rows, [], 'caller', true);
+    return { service, eventBus, order, callerEm };
+  }
+
+  const within = (channel: string) => `audit:within:caller:${channel}:organization:${ORG}`;
+  const own = (channel: string) => `audit:own:${channel}:organization:${ORG}`;
+
+  it('records each entry on the caller’s em and drops the cache only once the scope has succeeded', async () => {
+    const h = enlisting({ [ORG]: [DEFAULT] });
+    await h.eventBus.run(async () => {
+      await h.service.replaceChannelsForEntity('organization', ORG, [A], { em: h.callerEm });
+      h.order.push('commit');
+    });
+    expect(h.order).toEqual([
+      within(DEFAULT),
+      within(A),
+      'commit',
+      `drop:${ORG}`,
+      `${EMIT}:${ORG}:remove`,
+      `${EMIT}:${ORG}:add`,
+    ]);
+  });
+
+  it('a rolled-back caller leaves no drop and no event, and its entries were never its own', async () => {
+    const h = enlisting({ [ORG]: [DEFAULT] });
+    await expect(
+      h.eventBus.run(async () => {
+        await h.service.replaceChannelsForEntity('organization', ORG, [A], { em: h.callerEm });
+        throw new Error('vetoed');
+      }),
+    ).rejects.toThrow('vetoed');
+    expect(h.order).toEqual([within(DEFAULT), within(A)]);
+  });
+
+  it('enlists on every mutation, not only on a replacement', async () => {
+    const h = enlisting({ [ORG]: [DEFAULT], [ORG_SOURCE]: [B] });
+    await h.eventBus.run(async () => {
+      await h.service.addToChannel(A, 'organization', ORG, { em: h.callerEm });
+      await h.service.removeFromChannel(A, 'organization', ORG, { em: h.callerEm });
+      await h.service.copyMemberships('organization', ORG_SOURCE, ORG, { em: h.callerEm });
+      h.order.push('commit');
+    });
+    expect(h.order.slice(0, 4)).toEqual([within(A), within(A), within(B), 'commit']);
+    expect(h.order.filter((e) => e.startsWith('audit:own'))).toEqual([]);
+    expect(h.order.indexOf(`drop:${ORG}`)).toBe(4);
+  });
+
+  it('bind-to-default enlists too', async () => {
+    const h = enlisting();
+    await h.eventBus.run(async () => {
+      await h.service.bindToDefaultIfEmpty('organization', ORG, { em: h.callerEm });
+      h.order.push('commit');
+    });
+    expect(h.order).toEqual([within(DEFAULT), 'commit', `drop:${ORG}`, `${EMIT}:${ORG}:add`]);
+  });
+
+  it('without an em, keeps its own audit fork and drops at once — its own transaction has committed', async () => {
+    const h = enlisting({ [ORG]: [DEFAULT] });
+    await h.eventBus.run(async () => {
+      await h.service.replaceChannelsForEntity('organization', ORG, [A]);
+      h.order.push('scope body done');
+    });
+    expect(h.order).toEqual([
+      `drop:${ORG}`,
+      own(DEFAULT),
+      own(A),
+      'scope body done',
+      `${EMIT}:${ORG}:remove`,
+      `${EMIT}:${ORG}:add`,
+    ]);
+  });
+
+  it('given an em with no transaction open, behaves as without one: its statements have already committed', async () => {
+    const h = enlisting({ [ORG]: [DEFAULT] });
+    const autocommitEm = fakeEm(new Map([[ORG, new Set([DEFAULT])]]), [], 'autocommit', false);
+    await h.service.addToChannel(A, 'organization', ORG, { em: autocommitEm });
+    expect(h.order).toEqual([own(A), `drop:${ORG}`, `${EMIT}:${ORG}:add`]);
   });
 });

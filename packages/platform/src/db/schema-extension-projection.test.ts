@@ -1,10 +1,13 @@
-import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { MikroORM } from '@mikro-orm/postgresql';
 import { describe, expect, it } from 'vitest';
 import { GlobalEntity, OrgScoped, RuleScoped, tenantClassifications } from '../tenancy/org-scoped.decorator.js';
 import { createColumnExtension } from '../kernel/schema-extensions/define.js';
 import { ExtensionProjectionWriteError } from '../kernel/schema-extensions/errors.js';
-import { projectionEntityNameOf } from '../kernel/schema-extensions/registry.js';
+import { projectionEntityNameOf, projectionEntityOf } from '../kernel/schema-extensions/registry.js';
+
+/** The projection's entity — MikroORM 7 (#1866) refuses an entity named by string. */
+const projectionOf = (declaration: Parameters<typeof projectionEntityOf>[0]) => projectionEntityOf(declaration) as never;
 import { schemaExtensionProjections } from './schema-extension-projection.js';
 import { schemaExtensionDiscovery } from './table-mapping-rule.js';
 
@@ -56,7 +59,6 @@ async function orm(): Promise<MikroORM> {
   return MikroORM.init({
     entities: [...entities, ...projections.schemas],
     dbName: 'x178_never_connected',
-    connect: false,
     allowGlobalContext: true,
     discovery: schemaExtensionDiscovery(projections.allowed),
   });
@@ -69,18 +71,18 @@ function scopeOf(entityName: string): string | undefined {
 describe('schema-extension projection', () => {
   it('maps the PK, the tenant key of an org-scoped host and the declared columns', async () => {
     const o = await orm();
-    const meta = o.getMetadata().get(projectionEntityNameOf(onOrg));
+    const meta = o.getMetadata().get(projectionOf(onOrg));
     expect(meta.tableName).toBe('x178_org_hosts');
     expect(Object.keys(meta.properties).sort()).toEqual(['erpCode', 'id', 'organizationId']);
     expect(meta.properties['erpCode' as never]!.fieldNames).toEqual(['x_acme_erp_erp_code']);
-    const global = o.getMetadata().get(projectionEntityNameOf(onGlobal));
+    const global = o.getMetadata().get(projectionOf(onGlobal));
     expect(Object.keys(global.properties).sort()).toEqual(['erpCode', 'id']);
     await o.close();
   });
 
   it('carries filters.org on the schema of an org-scoped host, and registers it as org', async () => {
     const o = await orm();
-    const meta = o.getMetadata().get(projectionEntityNameOf(onOrg));
+    const meta = o.getMetadata().get(projectionOf(onOrg));
     expect(meta.filters['org']).toMatchObject({ name: 'org', default: true });
     expect(scopeOf(projectionEntityNameOf(onOrg))).toBe('org');
     await o.close();
@@ -90,13 +92,13 @@ describe('schema-extension projection', () => {
     const o = await orm();
     expect(scopeOf(projectionEntityNameOf(onGlobal))).toBe('global');
     expect(scopeOf(projectionEntityNameOf(onRule))).toBe('rule');
-    expect(o.getMetadata().get(projectionEntityNameOf(onGlobal)).filters['org']).toBeUndefined();
+    expect(o.getMetadata().get(projectionOf(onGlobal)).filters['org']).toBeUndefined();
     await o.close();
   });
 
   it('refuses insert and delete through entity hooks', async () => {
     const o = await orm();
-    const meta = o.getMetadata().get(projectionEntityNameOf(onOrg));
+    const meta = o.getMetadata().get(projectionOf(onOrg));
     const [beforeCreate] = meta.hooks.beforeCreate ?? [];
     const [beforeDelete] = meta.hooks.beforeDelete ?? [];
     expect(() => (beforeCreate as () => void)()).toThrow(ExtensionProjectionWriteError);
@@ -106,7 +108,7 @@ describe('schema-extension projection', () => {
 
   it('leaves the core entity blind to the extension columns', async () => {
     const o = await orm();
-    const core = o.getMetadata().get('X178OrgHost');
+    const core = o.getMetadata().get(X178OrgHost);
     expect(Object.keys(core.properties).some((p) => p.startsWith('x_'))).toBe(false);
     expect(Object.values(core.properties).some((p) => p.fieldNames?.[0]?.startsWith('x_'))).toBe(false);
     await o.close();

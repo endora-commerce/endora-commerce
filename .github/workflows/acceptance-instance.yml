@@ -1,0 +1,132 @@
+# `acceptance:instance` on GitHub Actions — the acceptance criterion for
+# `endora new instance` (`specs/110-instance-repository/` FR-011, T140).
+#
+# The port of `.gitlab-ci.yml`'s `acceptance:instance`. The paragraph above that
+# job carries the reasoning — why it is a job and not a `check-*` script, why it
+# is a ratchet over `backend/acceptance/instance-expected-state.json` rather than
+# a failure on red, and why the tarball supply route is the one it takes — and it
+# is not copied here. `backend/test/unit/ci/actions-tranche-one-parity.test.ts`
+# holds this file equal to that job in what it runs and in when it runs.
+#
+# ## Why it is here
+#
+# Since GitLab stopped creating pipelines nothing ran it, and the record drifted
+# unseen: on `master` at c3e8a875 A5 measured fail and A9 unmeasured against a
+# recorded pass, and on the MikroORM 7 branch (#1910) the scaffold could not
+# start at all — a defect no other check in this repository can see, because the
+# workspace resolves what a client's install does not. `acceptance-public.yml`
+# is a different mode (an install from npmjs, dispatched by hand) and answers
+# neither.
+#
+# ## Services, and the addresses the criterion reads
+#
+# GitLab's job ran in `node:22.18-slim` with Postgres, Redis and Meilisearch as
+# service aliases. Here they are service containers published on the runner's
+# loopback, as `backend-suite.yml` arranges them, and the four addresses point
+# there. The database name must satisfy the disposable-name convention
+# `(^|_)test(_|$)`: the criterion drops and re-creates it on every run.
+#
+# ## When it runs
+#
+# GitLab's two rules: every push to `master`, unfiltered, and a pull request that
+# touches what an instance is made of — GitLab's `changes:` list with
+# `.gitlab-ci.yml` replaced by this file. A separate workflow because a `paths`
+# filter applies to a whole workflow; if this check is ever made required, the
+# filter must go in the same change, because a skipped workflow reports no status
+# and would block a pull request outside it forever.
+
+name: acceptance-instance
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'packages/cli/src/new-instance/**/*'
+      - 'packages/cli/src/bin/endora.ts'
+      - 'packages/platform/src/**/*'
+      - '**/package.json'
+      - 'backend/scripts/acceptance/instance*.ts'
+      - 'backend/acceptance/instance-expected-state.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/acceptance-instance.yml'
+  push:
+    branches: [master]
+
+concurrency:
+  # As in `pack-gate.yml`: a superseded pull-request run is cancelled, a
+  # `master` run never is.
+  group: acceptance-instance-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance-instance:
+    name: acceptance:instance
+    runs-on: ubuntu-24.04
+    # One run measured 8 minutes after the build on a 4 vCPU machine; the
+    # install and the build come first.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: b2b
+          POSTGRES_PASSWORD: b2b
+          POSTGRES_DB: b2b
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U b2b -d b2b"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      meilisearch:
+        image: getmeili/meilisearch:v1.11
+        env:
+          MEILI_MASTER_KEY: devMasterKeyChangeMe
+          MEILI_ENV: development
+          MEILI_NO_ANALYTICS: 'true'
+        ports:
+          - 7700:7700
+        # 127.0.0.1, not localhost: see the same check in `docker-compose.yml`.
+        options: >-
+          --health-cmd "wget --quiet --spider http://127.0.0.1:7700/health"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      ACCEPTANCE_DATABASE_URL: postgresql://b2b:b2b@localhost:5432/b2b_instance_acceptance_test
+      REDIS_URL: redis://localhost:6379
+      MEILISEARCH_URL: http://localhost:7700
+      MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      # actions/cache v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      # The criterion packs what is on disk, so an unbuilt workspace would pack
+      # tarballs with no code in them.
+      - run: pnpm run build:packages
+      - run: pnpm --filter backend run acceptance:instance:ci

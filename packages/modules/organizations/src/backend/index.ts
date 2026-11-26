@@ -12,6 +12,7 @@ import type {
   ConfigurationTypeRegistryPort,
   CredentialsPort,
   CreditLimitReadPort,
+  CustomFieldListFilterPort,
   CustomFieldValuePort,
   CustomerAccountMemberCommandPort,
   CustomerAccountMemberWritePort,
@@ -86,7 +87,10 @@ import { TaxIdScopeService } from './services/tax-id-scope-service.js';
 import { OrganizationCommandService } from './services/organization-command-port.js';
 import { probeTaxIdScope } from './services/tax-id-scope-probe.js';
 import { OrganizationInheritanceService } from './services/organization-inheritance-service.js';
-import { OrganizationModerationService } from './services/organization-moderation-service.js';
+import {
+  OrganizationModerationService,
+  type ModerationStatusChange,
+} from './services/organization-moderation-service.js';
 import { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
 import { OrganizationTaxIdValidationService } from './services/organization-tax-id-validation-service.js';
 import {
@@ -127,7 +131,6 @@ import {
   gusBirConfigurationType,
 } from './registry-lookup/gus-credential.type.js';
 import { GUS_REQUEST_TIMEOUT_MS, GUS_TOTAL_TIMEOUT_MS } from './registry-lookup/limits.js';
-import type { OrganizationEventBus } from './services/registration-service.js';
 import { organizationsModule, type OrganizationsModuleOptions } from './plugin.js';
 import { registerOrganizationsSalesRepRoutes } from './routes.sales-reps.js';
 import { registerRegistryLookupRoutes } from './routes.registry-lookup.js';
@@ -738,11 +741,14 @@ export function registerModule(ctx: ModuleContext): void {
 
     organizationModerationService: ctx
       .asFunction(
-        ({ emFactory, auditLogService, eventBus }: OrganizationsCradle) =>
+        ({ emFactory, commandBus }: OrganizationsCradle) =>
           new OrganizationModerationService(
             emFactory,
-            auditLogService,
-            eventBus as unknown as OrganizationEventBus,
+            // The four transitions are Commands (`specs/186-aggregate-ports/`
+            // T026): the bus records the audit entry in the write's
+            // transaction and dispatches `organization.status_changed.v1` on
+            // the platform event bus once, on commit.
+            commandBus,
             // Every one of these three is another module's gated service and is
             // *stored* by the constructor, so a plain cradle read would freeze
             // a transient gate inside a singleton — it would keep answering
@@ -844,6 +850,9 @@ export function registerModule(ctx: ModuleContext): void {
               'customerAccountMemberCommandPort',
             ),
             customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
+            // Issue #1903 — the admin list's custom-field filters
+            // (`specs/157-custom-fields-list-filters/`).
+            customFieldListFilter: lazyPort<CustomFieldListFilterPort>(ctx, 'customFieldListFilterPort'),
             // `specs/178-extensible-columns/` FR-051 — `?extensions=` on the
             // admin reads; resolved per call from the kernel registration.
             schemaExtensionReads: {
@@ -956,22 +965,16 @@ export function registerModule(ctx: ModuleContext): void {
    * nearly every column; that is this port.
    */
   /**
-   * `specs/177-tax-id-scope/` (`contracts/convert-to-company.md` §4) — writes
-   * on the Organization aggregate for admin routes and server code; today the
-   * personal → company conversion.
+   * `specs/186-aggregate-ports/` US1 (issue #1821, D-293) — the Organization
+   * aggregate's write port, for server code (an ERP, an overlay, a policy):
+   * each method runs the Command the admin route for the operation runs. The
+   * conversion and the tax-ID correction were its first two methods
+   * (`specs/177-tax-id-scope/`). The narrow `organizationWritePort` and
+   * `organizationCustomFieldWritePort` below delegate to it.
    */
   ctx.di.providePort<OrganizationCommandPort>(
     'organizationCommandPort',
-    ctx
-      .asFunction(
-        ({ commandBus, organizationRoleCache }: OrganizationsCradle) =>
-          new OrganizationCommandService({
-            commandBus,
-            accounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
-            roleCache: organizationRoleCache,
-          }),
-      )
-      .singleton(),
+    ctx.asFunction(({ commandBus, organizationRoleCache }: OrganizationsCradle) => organizationCommandServiceFor(ctx, commandBus, organizationRoleCache)).singleton(),
   );
 
   ctx.di.providePort<OrganizationDetailsPort>(
@@ -992,7 +995,8 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<OrganizationCustomFieldWritePort>(
     'organizationCustomFieldWritePort',
     ctx
-      .asFunction(({ commandBus }: OrganizationsCradle) => new OrganizationCustomFieldWriteService(commandBus))
+      // Deprecated since 0.113.0: delegates to the aggregate port (186 T031).
+      .asFunction(() => new OrganizationCustomFieldWriteService(lazyPort<OrganizationCommandPort>(ctx, 'organizationCommandPort')))
       .singleton(),
   );
 
@@ -1008,17 +1012,13 @@ export function registerModule(ctx: ModuleContext): void {
     'organizationWritePort',
     ctx
       .asFunction(
-        ({ commandBus, emFactory }: OrganizationsCradle) =>
+        ({ emFactory }: OrganizationsCradle) =>
           new OrganizationWriteService({
-            commandBus,
-            emFactory,
-            membership: lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
-            dictionaryValidator: lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
+            // Deprecated since 0.113.0: `create` and `update` delegate to the
+            // aggregate port (186 T031).
+            commands: lazyPort<OrganizationCommandPort>(ctx, 'organizationCommandPort'),
             // The read model's own tax-ID lookup: one answer for both ports.
             lookup: new OrganizationDetailsService(emFactory),
-            // As the admin create passes them (`routes.admin.ts`).
-            tree: lazyPort<OrganizationTreeService>(ctx, 'organizationTreeService'),
-            customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
           }),
       )
       .singleton(),
@@ -1127,8 +1127,8 @@ export function registerModule(ctx: ModuleContext): void {
     'organizationRestrictionPort',
     ctx
       .asFunction(
-        ({ emFactory, auditLogService }: OrganizationsCradle) =>
-          new OrganizationRestrictionService(emFactory, auditLogService),
+        // The two allow-list writes are Commands (`specs/186-aggregate-ports/` T027).
+        ({ emFactory, commandBus }: OrganizationsCradle) => new OrganizationRestrictionService(emFactory, commandBus),
       )
       .singleton(),
   );
@@ -1226,8 +1226,8 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort(
     'organizationSalesRepScopePort',
     ctx
-      .asFunction(({ emFactory, auditLogService }: OrganizationsCradle): SalesRepAssignmentPort => {
-        const assignments = salesRepAssignmentServiceFor(ctx, emFactory, auditLogService);
+      .asFunction(({ emFactory, commandBus }: OrganizationsCradle): SalesRepAssignmentPort => {
+        const assignments = salesRepAssignmentServiceFor(ctx, emFactory, commandBus);
         return {
           canSeeOrganization: (adminUserId, organizationId) =>
             assignments.canSeeOrganization(adminUserId, organizationId),
@@ -1267,13 +1267,13 @@ export function registerModule(ctx: ModuleContext): void {
     'adminTenantScopePort',
     ctx
       .asFunction(
-        ({ emFactory, auditLogService }: OrganizationsCradle): AdminTenantScopePort =>
+        ({ emFactory, commandBus }: OrganizationsCradle): AdminTenantScopePort =>
           createAdminTenantScopePort(
             lazyPort<PermissionReadPort>(ctx, 'permissionService'),
             // Issue #305 — the reach in one statement, from the same
             // service, built by the same function, as the visibility port:
             // the rule has one implementation, roll-up deps included (#108).
-            salesRepAssignmentServiceFor(ctx, emFactory, auditLogService),
+            salesRepAssignmentServiceFor(ctx, emFactory, commandBus),
           ),
       )
       .singleton(),
@@ -1346,6 +1346,7 @@ export function registerModule(ctx: ModuleContext): void {
         'organizationSalesRepScopePort',
       ),
       adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+      commandBus: cradle().commandBus,
     });
   });
 
@@ -1359,6 +1360,15 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.subscribe('organization.registered.v1', async (payload) => {
     const { organizationId } = payload as unknown as { organizationId: string };
     await cradle().organizationModerationService.handleNewlyRegistered(organizationId);
+  });
+  // `specs/186-aggregate-ports/` research R-16.4 — the customer's approval or
+  // rejection notice, after the transition committed, whichever path ran it: an
+  // admin route, `organizationCommandPort`, the auto-approval, or a child
+  // Command (`specs/188-policy-points/`). Best effort; it never throws.
+  ctx.subscribe('organization.status_changed.v1', async (payload) => {
+    await cradle().organizationModerationService.notifyStatusChanged(
+      payload as unknown as ModerationStatusChange,
+    );
   });
 
   /**
@@ -1429,6 +1439,36 @@ export function registerModule(ctx: ModuleContext): void {
 }
 
 /**
+ * `organizationCommandPort`'s construction (`specs/186-aggregate-ports/` US1).
+ * Every other module's port is resolved per call through `lazyPort`, so the
+ * gates stay live inside this singleton; this module's own services are read
+ * from the cradle per call, as they are built after the port's registration.
+ */
+function organizationCommandServiceFor(
+  ctx: ModuleContext,
+  commandBus: OrganizationsCradle['commandBus'],
+  roleCache: OrganizationsCradle['organizationRoleCache'],
+): OrganizationCommandService {
+  const cradle = () => ctx.cradle<OrganizationsCradle>();
+  return new OrganizationCommandService({
+    commandBus,
+    accounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+    roleCache,
+    aggregate: {
+      emFactory: () => cradle().emFactory(),
+      membership: lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
+      dictionaryValidator: lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
+      // As the admin create and the parent route pass it (`routes.admin.ts`).
+      tree: lazyPort<OrganizationTreeService>(ctx, 'organizationTreeService'),
+      customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
+      moderation: () => cradle().organizationModerationService,
+      restrictions: () => cradle().organizationRestrictionPort,
+      adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+    },
+  });
+}
+
+/**
  * The one construction of `SalesRepAssignmentService` (issue #108, #305): the
  * roll-up deps are not optional at this seam, so no port built over the
  * service can apply the flat rule by omission.
@@ -1436,9 +1476,10 @@ export function registerModule(ctx: ModuleContext): void {
 function salesRepAssignmentServiceFor(
   ctx: ModuleContext,
   emFactory: OrganizationsCradle['emFactory'],
-  auditLogService: OrganizationsCradle['auditLogService'],
+  // `organization.sales_rep_assign` / `_unassign` run on it (`specs/186-aggregate-ports/` R-16.7).
+  commandBus: OrganizationsCradle['commandBus'],
 ): SalesRepAssignmentService {
-  return new SalesRepAssignmentService(emFactory, auditLogService, {
+  return new SalesRepAssignmentService(emFactory, commandBus, {
     treeService: lazyPort<OrganizationTreeService>(ctx, 'organizationTreeService'),
     hasRollupCapability: (adminUserId: string) =>
       // `organizations:rollup` is a core `PERMISSION_CATALOGUE` code

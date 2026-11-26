@@ -308,16 +308,15 @@ function filesBeside(entry: string): string[] {
 
 /** The table MikroORM's decorator metadata names, or the strategy's default. */
 function tableOf(entity: unknown, className: string): string | null {
-  let declared: unknown;
-  try {
-    declared = (
-      MetadataStorage.getMetadataFromDecorator(entity as never) as { tableName?: unknown }
-    ).tableName;
-  } catch {
-    // Narrow by construction: the only thing inside is a metadata lookup, and a
-    // class that carries none is the case the caller turns into `unreadable`.
-    return null;
-  }
+  // MikroORM 7 (#1866): a legacy decorator keeps the class's metadata on the
+  // class, under the registered `META_SYMBOL` — read as an own property, so a
+  // package's class resolved against another copy of `@mikro-orm/core` is read
+  // the same, and reading it creates nothing (6's `getMetadataFromDecorator`
+  // registered an empty entry for a class that carried none).
+  if ((typeof entity !== 'function' && typeof entity !== 'object') || entity === null) return null;
+  if (!Object.hasOwn(entity, MetadataStorage.META_SYMBOL)) return null;
+  const declared = (entity as Record<symbol, { tableName?: unknown } | undefined>)[MetadataStorage.META_SYMBOL]
+    ?.tableName;
   if (typeof declared === 'string' && declared.length > 0) return declared;
   if (className.length === 0) return null;
   // The same derivation `declaredTableNames` applies to a core entity that sets

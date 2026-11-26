@@ -11,12 +11,12 @@ import type { ModulePackage } from '../../../scripts/lib/module-packages.js';
 /**
  * `specs/178-extensible-columns/` FR-008, FR-064 (tasks.md T011).
  *
- * Declared extension columns are an **installed** package's mechanism: a
- * first-party module owns its tables or ships a side table, and an overlay
- * module ships no schema at all (D-106). So the composer, which walks every
- * workspace source, refuses a declaration wherever it finds one — by the call
- * and by the export, read off the syntax tree so a comment quoting either does
- * not trip it.
+ * Declared extension columns are an **installed** package's mechanism, and an
+ * overlay module's since D-297 (OR-3): a first-party workspace module owns its
+ * tables or ships a side table. So the composer, which walks every workspace
+ * source, refuses a declaration anywhere but under `apps/` — by the call and by
+ * the export, read off the syntax tree so a comment quoting either does not
+ * trip it.
  */
 
 const workspaceModule: ModulePackage = {
@@ -57,12 +57,21 @@ describe('assertNoSchemaExtensionDeclarations', () => {
     ).toThrow(/schemaExtensions/);
   });
 
-  it('refuses a declaration in an overlay module', () => {
+  it('passes a declaration in an overlay module — read at runtime, validated there (OR-3)', () => {
+    // `specs/190-overlay-full-modules/` contract `overlay-schema-discovery.md` §5:
+    // an overlay module declares extension columns as an installed package does,
+    // and the platform holds them to V9 – V11 when it reads the overlay.
     expect(() =>
       assertNoSchemaExtensionDeclarations(
         coreSources({ 'apps/example/modules/example_overlay/backend.ts': DECLARATION }),
       ),
-    ).toThrow(/overlay/i);
+    ).not.toThrow();
+  });
+
+  it('still refuses one in the application tree outside `apps/`', () => {
+    expect(() =>
+      assertNoSchemaExtensionDeclarations(coreSources({ 'kernel/columns.ts': DECLARATION })),
+    ).toThrow(/application's own tree/);
   });
 
   it('passes a tree that only mentions the API in a comment or a string', () => {

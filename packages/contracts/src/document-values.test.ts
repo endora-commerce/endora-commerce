@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  documentCellLink,
   documentValueHasValue,
   evaluateDocumentCondition,
   formatDocumentValue,
@@ -172,5 +173,30 @@ describe('resolveDocumentAlign', () => {
     expect(resolveDocumentAlign('auto', undefined, 'text')).toBe('left');
     expect(resolveDocumentAlign('auto', undefined, 'date')).toBe('left');
     expect(resolveDocumentAlign('bogus' as never, undefined, undefined)).toBe('left');
+  });
+});
+
+describe('documentCellLink (issue #1904)', () => {
+  const linked = { linkPath: 'productUrl' };
+  const row = item({ productName: { kind: 'text', value: 'Bolt' }, productUrl: { kind: 'text', value: 'https://shop.example.com/p/bolt' } });
+
+  it('a column printed as a link answers its field’s URL field', () => {
+    expect(documentCellLink(true, linked, row)).toBe('https://shop.example.com/p/bolt');
+    expect(documentCellLink('true', linked, row)).toBe('https://shop.example.com/p/bolt');
+  });
+
+  it('off by default: no option, a false option, or a field that declares no URL field', () => {
+    expect(documentCellLink(undefined, linked, row)).toBeNull();
+    expect(documentCellLink(false, linked, row)).toBeNull();
+    expect(documentCellLink(true, {}, row)).toBeNull();
+    expect(documentCellLink(true, undefined, row)).toBeNull();
+  });
+
+  it('no link where the line has no URL, or one that is not an absolute http(s) address', () => {
+    expect(documentCellLink(true, linked, item({ productUrl: null }))).toBeNull();
+    expect(documentCellLink(true, linked, item({ productUrl: { kind: 'text', value: '  ' } }))).toBeNull();
+    expect(documentCellLink(true, linked, item({ productUrl: { kind: 'text', value: '/p/bolt' } }))).toBeNull();
+    expect(documentCellLink(true, linked, item({ productUrl: { kind: 'text', value: 'javascript:alert(1)' } }))).toBeNull();
+    expect(documentCellLink(true, linked, item({ productUrl: { kind: 'number', value: 3 } }))).toBeNull();
   });
 });

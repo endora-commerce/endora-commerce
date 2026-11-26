@@ -13,6 +13,7 @@ import {
   type SealHooks,
 } from './raw-handles.js';
 import type { ReverseEdgeClause } from './reverse-edge.js';
+import { allMetadata } from './all-metadata.js';
 import { resolvedColumnExtension } from '../kernel/schema-extensions/define.js';
 import type { ColumnExtension } from '../kernel/schema-extensions/types.js';
 
@@ -150,7 +151,7 @@ interface MetadataLike {
 }
 
 interface DriverLike {
-  getMetadata(): { getAll(): Record<string, MetadataLike> };
+  getMetadata(): { getAll(): Map<unknown, MetadataLike> | Record<string, MetadataLike> };
 }
 
 /** The driver a guarded migration holds behind its sealed `driver` field. */
@@ -163,7 +164,7 @@ function tablesOf(driver: DriverLike, classes: readonly unknown[]): Set<string> 
     classes.map((cls) => (typeof cls === 'function' ? (cls as { name: string }).name : undefined)),
   );
   const tables = new Set<string>();
-  for (const meta of Object.values(driver.getMetadata().getAll())) {
+  for (const meta of allMetadata(driver.getMetadata())) {
     if (!wanted.has(meta.class) && !names.has(meta.className)) continue;
     const table = meta.tableName ?? meta.collection;
     if (table !== undefined) tables.add(table.toLowerCase());
@@ -185,7 +186,7 @@ function ownerLookup(driver: DriverLike, edges: ReverseEdges | undefined): (tabl
 /** Every table some discovered entity maps — the tables a `create table` cannot make one's own. */
 function mappedTables(driver: DriverLike): Set<string> {
   const tables = new Set<string>();
-  for (const meta of Object.values(driver.getMetadata().getAll())) {
+  for (const meta of allMetadata(driver.getMetadata())) {
     const table = meta.tableName ?? meta.collection;
     if (table !== undefined) tables.add(table.toLowerCase());
   }
@@ -202,15 +203,43 @@ function adopts(table: string, mine: ReadonlySet<string>, mapped: ReadonlySet<st
   return mine.has(table) || !mapped.has(table);
 }
 
-/** A query as `addSql` / `execute` accept it, rendered to text. */
-export function queryText(query: unknown): string {
+/**
+ * A query as `addSql` / `execute` accept it, rendered to the text the ORM sends.
+ *
+ * MikroORM 7 (#1866) accepts three shapes: a string, a `raw()` fragment
+ * (`{ sql, params }`) and a native query builder (`compile()` → `{ sql, params }`).
+ * A fragment and a builder carry their own parameters, which the ORM
+ * substitutes client-side, so they are rendered through `platform` exactly as
+ * {@link renderedForVerdict} renders a string's. A shape this does not know is
+ * refused rather than judged on `Object.prototype.toString`'s
+ * `[object …]` text, which names no table and would pass (fail closed).
+ */
+export function queryText(query: unknown, platform?: FormattingPlatform): string {
   if (typeof query === 'string') return query;
   if (query !== null && typeof query === 'object') {
-    const candidate = query as { toQuery?: () => string; toString?: () => string };
-    if (typeof candidate.toQuery === 'function') return candidate.toQuery();
-    if (typeof candidate.toString === 'function') return candidate.toString();
+    const candidate = query as {
+      sql?: unknown;
+      params?: unknown;
+      compile?: () => { sql: string; params: unknown[] };
+      toString?: () => string;
+    };
+    if (typeof candidate.compile === 'function') {
+      const { sql, params } = candidate.compile();
+      return renderedForVerdict(sql, params, platform);
+    }
+    if (typeof candidate.sql === 'string' && Array.isArray(candidate.params)) {
+      return renderedForVerdict(candidate.sql, candidate.params, platform);
+    }
+    if (typeof candidate.toString === 'function' && candidate.toString !== Object.prototype.toString) {
+      return candidate.toString();
+    }
   }
-  return String(query);
+  throw new Error('[foreign-schema-guard] a statement of a shape the guard cannot render is refused');
+}
+
+/** `query` with `params`, as `execute(query, params)` sends it: only a string takes `params`. */
+function statementText(query: unknown, params: readonly unknown[] | undefined, platform: FormattingPlatform | undefined): string {
+  return typeof query === 'string' ? renderedForVerdict(query, params, platform) : queryText(query, platform);
 }
 
 /** The part of the ORM's platform the verdict uses: its own parameter substitution. */
@@ -219,7 +248,7 @@ interface FormattingPlatform {
 }
 
 /**
- * `sql` as the ORM renders it before sending it (issue #1864): MikroORM 6
+ * `sql` as the ORM renders it before sending it (issue #1864): MikroORM
  * substitutes `execute(sql, params)` client-side through
  * `Platform.formatQuery` — `??` becomes an identifier, `?` an escaped value,
  * and a `raw()` fragment its SQL — so the verdict reads that text, not the
@@ -257,9 +286,8 @@ export async function dryRunStatements(
   const Ctor = cls as unknown as new (driver: unknown, config: unknown) => Migration;
   // Review finding 6 — no route to the database: the driver the instance holds
   // answers metadata and platform questions and refuses everything else (#1889:
-  // sealed, so a member nobody listed is refused too), and `getKnex()` is a
-  // connectionless query builder, so building SQL for `addSql` works and
-  // running it fails (fail closed).
+  // sealed, so a member nobody listed is refused too), and the raw query
+  // builders are refused (fail closed).
   const refuse = (what: string) => new Error(`[foreign-schema-guard] ${what} is not available in a dry run`);
   const denied = (what: string) => (): never => {
     throw refuse(what);
@@ -278,7 +306,7 @@ export async function dryRunStatements(
   const executed: string[] = [];
   Object.assign(instance, {
     execute: async (sql: unknown, params?: unknown[]) => {
-      executed.push(renderedForVerdict(queryText(sql), params, platformOf(driver)));
+      executed.push(statementText(sql, params, platformOf(driver)));
       return [];
     },
     getEntityManager: denied('the entity manager'),
@@ -290,7 +318,10 @@ export async function dryRunStatements(
   } catch (caught) {
     error = caught;
   }
-  return { statements: [...executed, ...instance.getQueries().map(queryText)], error };
+  return {
+    statements: [...executed, ...instance.getQueries().map((query) => queryText(query, platformOf(driver)))],
+    error,
+  };
 }
 
 /** The per-module, per-process state the guard accumulates. */
@@ -467,7 +498,7 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
         refuse,
       };
       return {
-        judgeStatement: (query, params) => this.#judge(renderedForVerdict(queryText(query), params, platformOf(this.#driver))),
+        judgeStatement: (query, params) => this.#judge(statementText(query, params, platformOf(this.#driver))),
         judgeTable: (table, verb, statement) => this.#judgeTarget({ table, verb, setColumns: null, statement }),
         refuse,
         guardEntityManager: (em) => {
@@ -598,7 +629,7 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
     }
 
     async #judgeQueued(): Promise<void> {
-      const queued = this.getQueries().map(queryText);
+      const queued = this.getQueries().map((query) => queryText(query, platformOf(this.#driver)));
       // The whole migration's `create table`s first: R2 reads "the same source
       // creates" over the file, not up to the statement.
       await this.#own();
@@ -752,7 +783,7 @@ function guardEntityManager(em: EntityManager, judges: EntityManagerJudges): voi
   if (typeof execute === 'function') {
     Object.assign(em, {
       execute: async (sql: unknown, ...rest: unknown[]) => {
-        await judgeSql(renderedForVerdict(queryText(sql), rest[0] as unknown[] | undefined, platformOf(em)));
+        await judgeSql(statementText(sql, rest[0] as unknown[] | undefined, platformOf(em)));
         return execute.call(em, sql, ...rest);
       },
     });
@@ -787,7 +818,7 @@ function guardEntityManager(em: EntityManager, judges: EntityManagerJudges): voi
   // Issue #1889 — the driver and the connection are sealed: what runs SQL is
   // judged, a transaction is handed out sealed, and the raw client is refused.
   const hooks: SealHooks = {
-    judgeStatement: (query, params) => judgeSql(renderedForVerdict(queryText(query), params, platformOf(em))),
+    judgeStatement: (query, params) => judgeSql(statementText(query, params, platformOf(em))),
     judgeTable: (table, verb, statement) => judge({ table, verb, setColumns: null, statement }),
     refuse,
     guardEntityManager: (other) => {
@@ -822,13 +853,20 @@ function guardEntityManager(em: EntityManager, judges: EntityManagerJudges): voi
   if (typeof setTransactionContext === 'function') {
     Object.assign(em, { setTransactionContext: (ctx: unknown) => setTransactionContext.call(em, unsealed(ctx)) });
   }
+  // MikroORM 7 (#1866) keeps the context in a private `#transactionContext`, so
+  // it is read and written back through the entity manager's own accessors —
+  // the real `setTransactionContext`, not the unsealing override above, which
+  // would do the same thing one call later.
   const begin = raw['begin'];
+  const getTransactionContext = raw['getTransactionContext'];
   if (typeof begin === 'function') {
     Object.assign(em, {
       begin: async (...args: unknown[]) => {
         await begin.apply(em, args);
-        const current = (em as unknown as { getContext(useContext: false): { transactionContext?: unknown } }).getContext(false);
-        current.transactionContext = unsealed(current.transactionContext);
+        if (typeof getTransactionContext !== 'function' || typeof setTransactionContext !== 'function') return;
+        const current = getTransactionContext.call(em);
+        const real = unsealed(current);
+        if (real !== current) setTransactionContext.call(em, real);
       },
     });
   }

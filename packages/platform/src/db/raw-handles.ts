@@ -1,5 +1,3 @@
-import { knex } from '@mikro-orm/postgresql';
-
 /**
  * Issue #1889 — the raw database handles a guarded package migration can reach,
  * sealed, for `foreign-schema-guard.ts`.
@@ -12,55 +10,37 @@ import { knex } from '@mikro-orm/postgresql';
  * statement first; a transaction is handed out sealed and turned back into the
  * real one only where it re-enters the ORM as a transaction context.
  *
- * MikroORM 7 (#1866) adds `getKysely()`: on a driver or a connection it is
- * refused by the allowlist already; on an entity manager or a migration it is
- * one more entry in {@link RAW_BUILDER_HANDLES}.
+ * MikroORM 7 (#1866) offers kysely: `getClient()` on a connection is refused
+ * by the allowlist like every other member it does not list, and `getKysely()`
+ * on an entity manager is the entry in {@link RAW_BUILDER_HANDLES}.
  */
 
 /**
- * The query-builder handles an entity manager or a migration offers. On an
- * entity manager each is refused; on a migration each is refused unless
- * {@link MIGRATION_BUILDERS} offers a connectionless builder for it.
+ * The query-builder handles an entity manager offers: kysely, on MikroORM 7
+ * (#1866). Each is refused on a guarded entity manager, and the same names are
+ * refused on a guarded migration, whose MikroORM 7 base class offers no builder
+ * of its own — a migration builds SQL as text, a `raw()` fragment or a native
+ * query builder for `addSql`, which judges what it renders. MikroORM 6's
+ * `getKnex()` is gone with the major, and with it the connectionless knex
+ * builder a migration was offered in its place.
  */
-export const RAW_BUILDER_HANDLES = ['getKnex'] as const;
+export const RAW_BUILDER_HANDLES = ['getKysely'] as const;
 export type RawBuilderHandle = (typeof RAW_BUILDER_HANDLES)[number];
 
 /**
- * A builder that builds SQL and never connects: running a statement on it
- * rejects with `refusal()`. A migration may still build SQL for `addSql`,
- * which judges what it renders.
+ * A migration's {@link RAW_BUILDER_HANDLES}: each throws `refusal(handle)`, so a
+ * builder a later MikroORM puts on `Migration` under one of these names is
+ * shadowed by a refusal rather than offered (fail closed).
  */
-export function connectionlessKnex(refusal: () => Error): unknown {
-  const built = knex({ client: 'pg' });
-  // A client with no connection would still fall back to the libpq environment defaults.
-  (built as unknown as { client: { acquireConnection: () => Promise<never> } }).client.acquireConnection = () =>
-    Promise.reject(refusal());
-  return built;
-}
-
-/** The connectionless builder offered for each {@link RAW_BUILDER_HANDLES} entry; a missing entry is refused. */
-export const MIGRATION_BUILDERS: Partial<Record<RawBuilderHandle, (refusal: () => Error) => unknown>> = {
-  getKnex: connectionlessKnex,
-};
-
-/**
- * A migration's {@link RAW_BUILDER_HANDLES}: each answers one connectionless
- * builder, built on first use, or throws `refusal(handle)` when
- * {@link MIGRATION_BUILDERS} has none for it.
- */
-export function migrationBuilders(refusal: (handle: RawBuilderHandle) => Error): Record<RawBuilderHandle, () => unknown> {
-  const built = new Map<RawBuilderHandle, unknown>();
+export function migrationBuilders(refusal: (handle: RawBuilderHandle) => Error): Record<RawBuilderHandle, () => never> {
   return Object.fromEntries(
     RAW_BUILDER_HANDLES.map((handle) => [
       handle,
-      () => {
-        const make = MIGRATION_BUILDERS[handle];
-        if (make === undefined) throw refusal(handle);
-        if (!built.has(handle)) built.set(handle, make(() => refusal(handle)));
-        return built.get(handle);
+      (): never => {
+        throw refusal(handle);
       },
     ]),
-  ) as Record<RawBuilderHandle, () => unknown>;
+  ) as Record<RawBuilderHandle, () => never>;
 }
 
 /** What a sealed handle needs from the guard. */
@@ -180,8 +160,8 @@ function judgedExecute(real: unknown, hooks: SealHooks): Fn | undefined {
 
 /**
  * A connection offering its platform, judged `execute`, and transactions that
- * are handed out sealed. Its client, `getKnex()`, `loadFile()` and the rest are
- * refused.
+ * are handed out sealed. Its kysely client (`getClient()`), `loadFile()`,
+ * `executeDump()` and the rest are refused.
  */
 export function sealConnection(connection: unknown, label: string, hooks: SealHooks): object {
   const seal = transactionSealer(`a transaction of ${label}`, hooks.refuse);

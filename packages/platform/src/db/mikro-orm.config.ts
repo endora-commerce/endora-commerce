@@ -62,9 +62,9 @@ export interface OrmConfigurationInputs {
   readonly migrations: ConfiguredMigrations;
   /**
    * The declared extension columns to project (`specs/178-extensible-columns/`
-   * FR-030). Defaults to every declaration the installed packages the order was
-   * merged from contribute — the same packages, so the ORM and the migration
-   * order can never disagree about which declarations exist.
+   * FR-030). Defaults to every declaration the installed packages and overlay
+   * modules the order was merged from contribute — the same producers, so the ORM
+   * and the migration order can never disagree about which declarations exist.
    */
   readonly schemaExtensions?: readonly ColumnExtension[];
   /**
@@ -85,7 +85,10 @@ export interface OrmConfigurationInputs {
 function projectedDeclarations(inputs: OrmConfigurationInputs): readonly ColumnExtension[] {
   const declarations =
     inputs.schemaExtensions ??
-    inputs.migrations.packages.flatMap((contribution) => contribution.schemaExtensions ?? []);
+    [
+      ...inputs.migrations.packages.flatMap((contribution) => contribution.schemaExtensions ?? []),
+      ...inputs.migrations.overlays.flatMap((contribution) => contribution.schemaExtensions),
+    ];
   const hosts = inputs.extensibleHosts ?? rolledOutExtensibleHosts();
   for (const declaration of declarations) {
     if (!hosts.has(declaration.host)) {
@@ -166,6 +169,17 @@ export function mikroOrmConfigFrom(inputs: OrmConfigurationInputs): Options {
     debug: process.env['NODE_ENV'] === 'development' && process.env['DB_DEBUG'] === 'true',
     allowGlobalContext: false,
     forceUndefined: true,
+    // MikroORM 7 (#1866) changed three runtime defaults the estate was built and
+    // characterised on (#1860), and each is pinned to 6's value here rather than
+    // taken silently with the major: `balanced` loading turns a joined to-many
+    // populate into a second statement — what the bounded-statement-count tests
+    // and the tenant filters' join conditions were measured against —
+    // `forceUtcTimezone` changes how a `timestamp` without a zone is read, and
+    // early `onCreate` hooks change when a default is computed. Moving any of
+    // them is a change of its own, with its own measurement.
+    loadStrategy: 'joined',
+    forceUtcTimezone: false,
+    processOnCreateHooksEarly: false,
     extensions: [Migrator],
     migrations: {
       migrationsList: inputs.migrations.migrations,

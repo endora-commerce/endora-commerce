@@ -229,7 +229,7 @@ migration has: what it hands to `addSql` and `execute`, `do $$ … $$` blocks, t
 functions it creates, the strings a PL/pgSQL `execute` runs, and `getEntityManager()` — its
 flush, its `insert*`, `upsert*`, `native*` and `execute` shortcuts, its query builders, its
 connection and its forks. A PL/pgSQL `execute` of a computed string (`format(…)`, a variable) and
-the entity manager's raw `getKnex()` cannot be attributed to a table and are refused. A
+the entity manager's raw kysely handle (`getKysely()`) cannot be attributed to a table and are refused. A
 `create table if not exists` on a table another module's entity maps creates nothing you may
 then alter, and **no migration of yours may drop, truncate or `alter … drop` a table another
 module's entity maps — in `up()` or in `down()`, whatever it created** — so a hard uninstall of

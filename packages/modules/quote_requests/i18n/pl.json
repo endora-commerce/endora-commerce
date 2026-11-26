@@ -25,6 +25,8 @@
   "errors.RFQ_SHARE_CUSTOMER_UNAVAILABLE.inactive": "Tej oferty nie można udostępnić: konto klienta jest nieaktywne.",
   "errors.RFQ_SHARE_CUSTOMER_UNAVAILABLE.blocked": "Tej oferty nie można udostępnić: konto klienta jest zablokowane.",
   "errors.RFQ_NOT_SHARED": "Ta oferta nie jest jeszcze udostępniona klientowi. Udostępnij ją, zanim wyślesz klientowi jej PDF.",
+  "errors.RFQ_ASSIGNEE_NOT_ELIGIBLE": "Tego administratora nie można przypisać do zapytania ofertowego: musi być aktywny, mieć uprawnienie do obsługi zapytań ofertowych i dostęp do jego organizacji. Wybierz innego administratora.",
+  "errors.RFQ_ASSIGNEE_NOT_ELIGIBLE.submission": "Nie udało się przypisać zapytania ofertowego do opiekuna handlowego, dlatego nie zostało wysłane. Spróbuj ponownie później lub skontaktuj się z nami.",
   "nav.quoteRequests.label": "Zapytania ofertowe",
   "negotiation.title": "Negocjacja cen w zapytaniach ofertowych",
   "negotiation.organization.label": "Członkowie mogą proponować ceny",

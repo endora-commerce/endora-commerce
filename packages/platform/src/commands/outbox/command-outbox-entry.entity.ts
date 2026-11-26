@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { OptionalProps } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import type { OutboxData } from '@endora-commerce/contracts';
 import { GlobalEntity } from '../../tenancy/org-scoped.decorator.js';
 import type { CommandActor } from '../command.js';

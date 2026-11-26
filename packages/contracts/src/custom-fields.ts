@@ -43,6 +43,18 @@ export interface CustomFieldHostBinding {
   readonly valueColumn: string;
   /** The module whose entity maps {@link table}. */
   readonly ownerModuleId: string;
+  /**
+   * The container name of the host aggregate's one write port, which
+   * {@link ownerModuleId} publishes and registers, and through which a
+   * server-side caller writes the host's custom-field values
+   * (`setCustomFieldValues`) — `specs/186-aggregate-ports/` research R-14,
+   * `specs/conventions/module-composition.md` item 2a. Adding a host means
+   * naming its port here, in the same row.
+   *
+   * A name, not a promise that the port is registered yet: until each
+   * aggregate's port lands, its host sits in `check:port-shape`'s ledger.
+   */
+  readonly aggregatePort: string;
 }
 
 /**
@@ -58,27 +70,60 @@ export interface CustomFieldHostBinding {
  * the table nor the column ever comes from a caller.
  */
 export const CUSTOM_FIELD_HOST_BINDINGS = {
-  category: { table: 'categories', valueColumn: 'custom_field_values', ownerModuleId: 'catalog' },
-  order: { table: 'orders', valueColumn: 'custom_field_values', ownerModuleId: 'orders' },
+  category: {
+    table: 'categories',
+    valueColumn: 'custom_field_values',
+    ownerModuleId: 'catalog',
+    aggregatePort: 'catalogCategoryCommandPort',
+  },
+  order: {
+    table: 'orders',
+    valueColumn: 'custom_field_values',
+    ownerModuleId: 'orders',
+    aggregatePort: 'orderCommandPort',
+  },
   organization: {
     table: 'organizations',
     valueColumn: 'custom_field_values',
     ownerModuleId: 'organizations',
+    aggregatePort: 'organizationCommandPort',
   },
   customer: {
     table: 'customer_accounts',
     valueColumn: 'custom_field_values',
     ownerModuleId: 'customer_accounts',
+    aggregatePort: 'customerAccountCommandPort',
   },
   quote_request: {
     table: 'quote_requests',
     valueColumn: 'custom_field_values',
     ownerModuleId: 'quote_requests',
+    aggregatePort: 'quoteRequestCommandPort',
   },
-  product: { table: 'products', valueColumn: 'attribute_values', ownerModuleId: 'catalog' },
-  opportunity: { table: 'crm_opportunities', valueColumn: 'custom_field_values', ownerModuleId: 'crm' },
-  project: { table: 'projects', valueColumn: 'custom_field_values', ownerModuleId: 'projects' },
-  task: { table: 'tasks', valueColumn: 'custom_field_values', ownerModuleId: 'tasks' },
+  product: {
+    table: 'products',
+    valueColumn: 'attribute_values',
+    ownerModuleId: 'catalog',
+    aggregatePort: 'catalogProductCommandPort',
+  },
+  opportunity: {
+    table: 'crm_opportunities',
+    valueColumn: 'custom_field_values',
+    ownerModuleId: 'crm',
+    aggregatePort: 'opportunityCommandPort',
+  },
+  project: {
+    table: 'projects',
+    valueColumn: 'custom_field_values',
+    ownerModuleId: 'projects',
+    aggregatePort: 'projectCommandPort',
+  },
+  task: {
+    table: 'tasks',
+    valueColumn: 'custom_field_values',
+    ownerModuleId: 'tasks',
+    aggregatePort: 'taskCommandPort',
+  },
 } as const satisfies Record<SupportedEntityType, CustomFieldHostBinding>;
 
 /**

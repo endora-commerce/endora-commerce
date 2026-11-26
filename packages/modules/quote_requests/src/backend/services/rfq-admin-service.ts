@@ -1,9 +1,7 @@
-import { randomUUID } from 'crypto';
 import { raw, type EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   QUOTE_REQUEST_HISTORY_EVENT_WINDOW,
-  RFQ_CREATED_BY_ADMIN_EVENT,
   type AdminCreateQuoteRequest,
   type AdminQuoteRequestListSort,
   type AdminQuoteRequestWarning,
@@ -12,11 +10,9 @@ import {
   type QuoteRequestHistory,
   type QuoteRequestSummary,
   customFieldFilterUnavailable,
-  isCustomFieldValidationFailure,
   type AdminUserReadPort,
   type CatalogProductAvailabilityPort,
   type CatalogProductReadPort,
-  type CatalogProductRecord,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type CustomFieldFilters,
@@ -29,9 +25,9 @@ import {
   type SalesRepAssignmentPort,
   isUuidShape,
 } from '@endora-commerce/contracts';
-import type { EventBase, EventBus } from '@endora-commerce/platform/events';
+import type { EventBase } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
-import { recordAuditFromContext, type CommandBus } from '@endora-commerce/platform/commands';
+import { recordAuditFromContext, type Command, type CommandBus } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { orgConstraintFor, orgScopeSql, reachesNoOrganization } from '@endora-commerce/platform/tenancy';
@@ -39,29 +35,31 @@ import type {
   QuoteRequestAdminSearchQuery,
   QuoteRequestAdminSearchRow,
 } from '../admin-search-provider.js';
+import {
+  makeApproveQuoteRequestCommand,
+  makeAssignQuoteRequestCommand,
+  makeCancelQuoteRequestCommand,
+  makeCreateOnBehalfCommand,
+  makeModifyQuoteRequestCommand,
+  onBehalfChannelId,
+  type QuoteRequestAdminCommandDeps,
+  type QuoteRequestOperator,
+} from '../commands/quote-request-admin-commands.js';
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
-import { QuoteRequestItemGroup } from '../entities/quote-request-item-group.entity.js';
 import { QuoteRequestNotification } from '../entities/quote-request-notification.entity.js';
-import { inTransaction, underRowLock } from './transition-lock.js';
+import type { AssigneeEligibility } from './assignee-eligibility.js';
 import type { NotificationKick } from './notifications/kick.js';
 import type { RfqService} from './rfq-service.js';
-import { isNotArchived, rfqAudience, type RfqEventBus, type RfqEvents } from './rfq-service.js';
+import { rfqAudience, type RfqEventBus, type RfqEvents } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
-import { raisedOnChannelId } from './raised-on-channel.js';
 import { adminCanSeeOrganization } from './admin-org-visibility.js';
-import { hasUnpricedLine, quoteIncompleteError, unitPriceText } from './agreed-price.js';
 import { listTotal } from './summarize.js';
 import { quoteRequestAmount } from './quote-amount.js';
-import { channelCurrencies, channelCurrency, requestLineCurrency, summaryCurrency } from './line-currency.js';
-import { pairLines } from './line-carry-over.js';
-import { LINE_STORAGE_ORDER, loadArrangedQuoteLines } from './line-order.js';
-import { groupingShape, planLineGrouping, type GroupingShapeEntry, type LineGroupingPlan } from './line-grouping.js';
-import { storedReferenceColumns } from './reference-price.js';
-import { AUTOMATIC_ADMIN_CREATION_NOTE } from './history/constants.js';
-import { normaliseShareValidityDays, operatorQuoteStartsUnshared } from './operator-quote-sharing.js';
+import { channelCurrencies, summaryCurrency } from './line-currency.js';
+import { normaliseShareValidityDays } from './operator-quote-sharing.js';
 import { makeShareQuoteRequestCommand } from '../commands/share-command.js';
 import {
   adminActorDirectory,
@@ -73,7 +71,7 @@ import {
   type HistoryRevisionInput,
 } from './history/history-projection.js';
 import { deliveriesByEvent, type HistoryDeliveryInput } from './history/history-deliveries.js';
-import { cancelAuditState, prepareBasketAuditState } from './quote-request-audit-state.js';
+import { prepareBasketAuditState } from './quote-request-audit-state.js';
 
 /**
  * Admin-facing Quote Requests service — feature 008 workflow.
@@ -178,14 +176,18 @@ export interface RfqAdminServiceDeps {
   /** As `RfqServiceDeps.notificationKick`: after a commit that recorded deliveries. */
   notificationKick?: NotificationKick;
   salesRepAssignment: SalesRepAssignmentPort;
-  /** Feature 054 — audits RFQ admin writes co-transactionally when provided. */
-  auditLog?: AuditPort;
   /**
-   * `specs/192-quote-request-draft-share/` — the share is a Command on the bus
-   * (`quote_request.share`), audited there and refusable by another module's
-   * hook (research R-4).
+   * Issue #1824 — the bus the operator's writes run on, as Commands
+   * (`commands/quote-request-admin-commands.ts`, Principle XIII), and the
+   * share of `specs/192-quote-request-draft-share/` (`quote_request.share`,
+   * refusable by another module's hook, research R-4).
    */
   commandBus: Pick<CommandBus, 'run'>;
+  /**
+   * Feature 054 — audits the one write still hand-audited here,
+   * `quote_request.prepare_customer_basket`, co-transactionally when provided.
+   */
+  auditLog?: AuditPort;
   /**
    * `specs/192-quote-request-draft-share/` (R-12) — the
    * `quote_requests.default_validity_days` setting; absent = `0`, no deadline.
@@ -219,32 +221,16 @@ export interface RfqAdminServiceDeps {
   customerAccounts: CustomerAccountReadPort;
   organizations: OrganizationDetailsPort;
   adminUsers: AdminUserReadPort;
+  /**
+   * Issue #1906 — the one assignee rule (`assignee-eligibility.ts`): asked of
+   * the target of `quote_request.assign` and of every representative the
+   * assignee picker offers.
+   */
+  assigneeEligibility: AssigneeEligibility;
 }
 
 export class RfqAdminService {
   constructor(private readonly deps: RfqAdminServiceDeps) {}
-
-  /**
-   * Feature 175 — a new request's bag: the values sent, validated with the
-   * administrator's rules onto an empty record. `{}` without the value port,
-   * as before. The refusal is the 422 every admin custom-field write answers.
-   */
-  async #newCustomFieldValues(values: Record<string, unknown> | undefined): Promise<Record<string, unknown>> {
-    if (!this.deps.customFieldValues) return {};
-    try {
-      return await this.deps.customFieldValues.validateAndMerge('quote_request', {}, values ?? {});
-    } catch (err) {
-      if (isCustomFieldValidationFailure(err)) {
-        throw new HttpError(
-          422,
-          ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
-          'One or more custom fields are invalid.',
-          err.errors.map((e) => ({ path: e.field, issue: e.message })),
-        );
-      }
-      throw err;
-    }
-  }
 
   /** Feature 054 — co-transactional RFQ audit on `em` (actor from context). */
   #audit(
@@ -653,6 +639,38 @@ export class RfqAdminService {
   }
 
   // -------------------------------------------------------------------------
+  // The operator's writes — Commands (issue #1824)
+  // -------------------------------------------------------------------------
+
+  /**
+   * What the operator's Commands (`commands/quote-request-admin-commands.ts`)
+   * read and write through. `quoteRequestCommandPort` builds its Commands from
+   * the same factories over the same dependencies, so the route and the port
+   * cannot write differently.
+   */
+  get commandDeps(): QuoteRequestAdminCommandDeps {
+    return this.deps;
+  }
+
+  /**
+   * Run one of the operator's Commands on the Command Bus — its one audit
+   * entry, its history and notification records and its event commit
+   * together — and then, for a write that recorded notifications, wake their
+   * delivery: after the commit, never before it. The admin routes and
+   * `quoteRequestCommandPort` both write through here.
+   */
+  async runWrite<T>(command: Command<T>, { notifies }: { notifies: boolean }): Promise<T> {
+    const result = await this.deps.commandBus.run(command);
+    if (notifies) this.kickNotificationDelivery();
+    return result;
+  }
+
+  /** The admin request's administrator, as the history names the writer. */
+  static operatorOf(ctx: AdminContext): QuoteRequestOperator {
+    return { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel };
+  }
+
+  // -------------------------------------------------------------------------
   // Approve (US2)
   // -------------------------------------------------------------------------
 
@@ -662,69 +680,16 @@ export class RfqAdminService {
     expectedVersion: number | null,
     note: string | undefined,
   ): Promise<RfqDto> {
-    const em = this.deps.emFactory();
-    const rfq = await this.findVisibleForAdmin(em, ctx, rfqId);
-    if (rfq.status !== 'Pending') {
-      throw new HttpError(409, ERROR_CODES.RFQ_NOT_QUOTED, 'Quote Request is not pending approval.');
-    }
-    this.assertVersion(rfq, expectedVersion);
-
-    // Approving is what lets the buyer order, at the agreed prices — so every
-    // line needs one. There is deliberately no "approve at the list price"
-    // here: which price an unpriced line would be sold at is a commercial
-    // decision, and the operator makes it by pricing the line (`modify`).
-    const lines = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id }, { orderBy: LINE_STORAGE_ORDER });
-    if (hasUnpricedLine(lines)) throw quoteIncompleteError();
-
-    const now = new Date();
-    await underRowLock(em, rfq, async () => {
-      rfq.status = 'Approved';
-      rfq.approvedAt = now;
-      rfq.awaitingCustomerRevisionAcceptance = false;
-      rfq.assignedAdminUserId = ctx.adminUserId;
-      rfq.version += 1;
-      this.#audit(em, 'quote_request.approve', rfq.id, { status: 'Pending' }, { status: 'Approved' });
-      await em.flush();
-
-      // `specs/179-rfq-and-customer-notifications/` FR-001 — the note, the
-      // `approved` entry and the records naming it commit with the status.
-      if (note && note.trim().length > 0) {
-        await this.deps.eventService.append(
-          {
-            quoteRequestId: rfq.id,
-            eventType: 'note-added',
-            actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-            payload: { type: 'note-added', note },
-          },
-          em,
-        );
-      }
-      const evt = await this.deps.eventService.append(
-        {
-          quoteRequestId: rfq.id,
-          eventType: 'approved',
-          actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-          payload: { type: 'approved', approvedBy: 'admin' },
-        },
-        em,
-      );
-
-      await this.deps.notificationService.record(em, {
-        change: 'approved',
-        sourceEvent: evt,
-        rfq,
-        actor: null,
-      });
-    });
-    this.kickNotificationDelivery();
-
-    this.deps.events.emit('rfq.approved.v1', {
-      eventId: randomUUID(),
-      occurredAt: now.toISOString(),
-      rfqId: rfq.id,
-    });
-
-    return this.deps.rfqService.serializeFull(em, rfq, true);
+    const rfq = await this.runWrite(
+      makeApproveQuoteRequestCommand(this.deps, {
+        quoteRequestId: rfqId,
+        operator: RfqAdminService.operatorOf(ctx),
+        expectedVersion,
+        note,
+      }),
+      { notifies: true },
+    );
+    return this.deps.rfqService.serializeFull(this.deps.emFactory(), rfq, true);
   }
 
   // -------------------------------------------------------------------------
@@ -786,57 +751,16 @@ export class RfqAdminService {
     expectedVersion: number | null,
     reason: string | undefined,
   ): Promise<RfqDto> {
-    const em = this.deps.emFactory();
-    const rfq = await this.findVisibleForAdmin(em, ctx, rfqId);
-    if (rfq.status !== 'Pending' && rfq.status !== 'Created from admin') {
-      throw new HttpError(409, ERROR_CODES.RFQ_NOT_QUOTED, 'Quote Request cannot be canceled in its current state.');
-    }
-    this.assertVersion(rfq, expectedVersion);
-
-    const now = new Date();
-    await underRowLock(em, rfq, async () => {
-      rfq.status = 'Canceled';
-      rfq.canceledAt = now;
-      rfq.awaitingCustomerRevisionAcceptance = false;
-      if (reason) rfq.cancellationReason = reason;
-      rfq.assignedAdminUserId = ctx.adminUserId;
-      rfq.version += 1;
-      this.#audit(em, 'quote_request.cancel', rfq.id, null, cancelAuditState(reason));
-      await em.flush();
-
-      // FR-001 — the `canceled` entry and its records commit with the status.
-      const evt = await this.deps.eventService.append(
-        {
-          quoteRequestId: rfq.id,
-          eventType: 'canceled',
-          actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-          payload: { type: 'canceled', canceledBy: 'admin', reason: reason ?? null },
-        },
-        em,
-      );
-
-      // `specs/192-quote-request-draft-share/` (FR-005, amendment R-A1) — a
-      // quote the customer cannot see is cancelled without telling them.
-      if (rfq.sharedWithCustomer) {
-        await this.deps.notificationService.record(em, {
-          change: 'canceled',
-          sourceEvent: evt,
-          rfq,
-          actor: null,
-        });
-      }
-    });
-    this.kickNotificationDelivery();
-
-    // Emitted for unshared quotes too — a customer-facing subscriber must check `sharedWithCustomer`.
-    this.deps.events.emit('rfq.canceled.v1', {
-      eventId: randomUUID(),
-      occurredAt: now.toISOString(),
-      rfqId: rfq.id,
-      reason: reason ?? null,
-    });
-
-    return this.deps.rfqService.serializeFull(em, rfq, true);
+    const rfq = await this.runWrite(
+      makeCancelQuoteRequestCommand(this.deps, {
+        quoteRequestId: rfqId,
+        operator: RfqAdminService.operatorOf(ctx),
+        expectedVersion,
+        reason,
+      }),
+      { notifies: true },
+    );
+    return this.deps.rfqService.serializeFull(this.deps.emFactory(), rfq, true);
   }
 
   /** `quote_requests.default_validity_days`; `0` when no reader is composed. */
@@ -864,7 +788,7 @@ export class RfqAdminService {
    * records is kicked once the Command committed, never before.
    */
   async share(ctx: AdminContext, rfqId: string, expectedVersion: number | null): Promise<RfqDto> {
-    await this.deps.commandBus.run(
+    await this.runWrite(
       makeShareQuoteRequestCommand(
         { quoteRequestId: rfqId, expectedVersion, roleLabel: ctx.roleLabel },
         {
@@ -875,8 +799,8 @@ export class RfqAdminService {
           revisionService: this.deps.revisionService,
         },
       ),
+      { notifies: true },
     );
-    this.kickNotificationDelivery();
     const em = this.deps.emFactory();
     return this.deps.rfqService.serializeFull(em, await this.findVisibleForAdmin(em, ctx, rfqId), true);
   }
@@ -886,18 +810,17 @@ export class RfqAdminService {
   // -------------------------------------------------------------------------
 
   async assign(ctx: AdminContext, rfqId: string, targetAdminUserId: string): Promise<RfqDto> {
-    const em = this.deps.emFactory();
-    const rfq = await this.findVisibleForAdmin(em, ctx, rfqId);
-    await underRowLock(em, rfq, async () => {
-      const previousAssignee = rfq.assignedAdminUserId;
-      rfq.assignedAdminUserId = targetAdminUserId;
-      rfq.version += 1;
-      this.#audit(em, 'quote_request.assign', rfq.id, { assignedAdminUserId: previousAssignee }, {
-        assignedAdminUserId: targetAdminUserId,
-      });
-      await em.flush();
-    });
-    return this.deps.rfqService.serializeFull(em, rfq, true);
+    const rfq = await this.runWrite(
+      makeAssignQuoteRequestCommand(this.deps, {
+        quoteRequestId: rfqId,
+        operator: RfqAdminService.operatorOf(ctx),
+        // The route reads no `If-Match` here, as before.
+        expectedVersion: null,
+        adminUserId: targetAdminUserId,
+      }),
+      { notifies: false },
+    );
+    return this.deps.rfqService.serializeFull(this.deps.emFactory(), rfq, true);
   }
 
   // -------------------------------------------------------------------------
@@ -910,237 +833,16 @@ export class RfqAdminService {
     expectedVersion: number | null,
     body: AdminPatchQuoteRequest,
   ): Promise<RfqDto> {
-    const em = this.deps.emFactory();
-    const rfq = await this.findVisibleForAdmin(em, ctx, rfqId);
-    if (rfq.status !== 'Pending' && rfq.status !== 'Created from admin') {
-      throw new HttpError(409, ERROR_CODES.RFQ_NOT_QUOTED, 'Quote Request is not editable.');
-    }
-    this.assertVersion(rfq, expectedVersion);
-    // Research R7 — a validity change is recorded on the event, since no
-    // revision snapshot carries `expiresAt`.
-    const recorded: {
-      validity?: { before: string | null; after: string | null };
-      validityDays?: { before: number | null; after: number | null };
-    } = {};
-    // Feature 159 — the grouping's shape before and after, for the audit entry
-    // (FR-081); set only when the body rewrites the lines.
-    let groupingAudit: { before: GroupingShapeEntry[]; after: GroupingShapeEntry[] } | null = null;
-    await underRowLock(em, rfq, async () => {
-      if (body.headerNote !== undefined) rfq.headerNote = body.headerNote ?? null;
-
-      // Feature 055 — validate + merge custom-field values (host owns the write).
-      if (body.customFieldValues !== undefined && this.deps.customFieldValues) {
-        try {
-          rfq.customFieldValues = await this.deps.customFieldValues.validateAndMerge(
-            'quote_request',
-            rfq.customFieldValues ?? {},
-            body.customFieldValues,
-          );
-        } catch (err) {
-          if (isCustomFieldValidationFailure(err)) {
-            throw new HttpError(
-              422,
-              ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
-              'One or more custom fields are invalid.',
-              err.errors.map((e) => ({ path: e.field, issue: e.message })),
-            );
-          }
-          throw err;
-        }
-      }
-
-      if (body.items) {
-        // Feature 163, P-3 = A / P-3b = A — an archived product is refused,
-        // and the operator is told why (`409 PRODUCT_ARCHIVED`).
-        const productById = operatorLineProducts(
-          await this.deps.catalogProducts.findByIds(body.items.map((it) => it.productId)),
-          body.items.map((it) => it.productId),
-        );
-        // In display order — the order the operator saw, which the pairing's
-        // last rule (by order) relies on — with the stored groups.
-        const { lines: existing, groups: storedGroups } = await loadArrangedQuoteLines(em, rfq.id);
-        // Feature 146, FR-034 (research R5.1, R5.2) — a body line is the stored
-        // row its `id` names (same product only), else the row the R6 rule
-        // pairs it with. A paired line keeps what the rep did not change:
-        // packaging unit, product name snapshot, the customer's proposal and the
-        // stored reference; variant and note too, unless the body carries the
-        // key (`lineNote: null` clears). A new line has no packaging unit and no
-        // reference — `modify` never prices a line.
-        // Feature 159 (research N-32) — a line without an id pairs with a row
-        // of the group it names (an existing group, by its id) and of its
-        // quantity first: one product may sit on several lines.
-        const storedIdOfKey = new Map((body.groups ?? []).flatMap((group) => (group.id ? [[group.key, group.id]] : [])));
-        const { paired } = pairLines(
-          existing,
-          body.items.map((line) => ({
-            id: line.id,
-            productId: line.productId,
-            variantId: line.variantId,
-            quantity: line.quantity,
-            groupId:
-              body.groups === undefined
-                ? undefined
-                : line.groupKey == null
-                  ? null
-                  : storedIdOfKey.get(line.groupKey),
-          })),
-          'admin',
-        );
-        // Feature 159 (research R-8, R-14) — the grouping travels with the line
-        // rewrite: planned before anything is written (a foreign group id is
-        // refused here), then written under this lock and flush.
-        const plan = planLineGrouping({
-          storedGroups,
-          body: { groups: body.groups, items: body.items },
-          pairedRows: paired,
-        });
-        groupingAudit = { before: groupingShape(storedGroups, existing.map((row) => row.groupId)), after: plan.after };
-        await em.remove(existing).flush();
-        const groupIds = await writeLineGroups(em, rfq.id, storedGroups, plan);
-        const items: QuoteRequestItem[] = [];
-        // Issue #303 — every line, a new one too, keeps the request's currency.
-        const lineCurrency = await requestLineCurrency(em, rfq, existing);
-        // Feature 163 (FR-017 d, N2) — a line the operator adds is named at the
-        // request channel's default language; a stored line keeps its snapshot.
-        const lineNames = await this.deps.rfqService.lineNames(
-          [...productById.values()],
-          rfq.salesChannelId ?? null,
-          null,
-        );
-        for (const [index, lineInput] of body.items.entries()) {
-          const product = productById.get(lineInput.productId)!;
-          // Feature 159 (research N-33) — a new line split off a stored line of
-          // this quote takes what that line carries beyond the body (variant,
-          // packaging unit, proposal, note, currency, reference); the stored
-          // line itself stays paired with the line it still is.
-          const row =
-            paired[index] ??
-            (lineInput.splitFromId !== undefined
-              ? (existing.find((stored) => stored.id === lineInput.splitFromId && stored.productId === product.id) ?? null)
-              : null);
-          const variantId =
-            lineInput.variantId !== undefined ? lineInput.variantId : (row?.variantId ?? null);
-          items.push(
-            em.create(QuoteRequestItem, {
-              quoteRequestId: rfq.id,
-              productId: product.id,
-              productName: row?.productName ?? (lineNames.get(product.id) || product.name),
-              productSlug: product.slug,
-              variantId,
-              variantLabel:
-                row !== null && (row.variantId ?? null) === variantId ? (row.variantLabel ?? null) : null,
-              quantity: lineInput.quantity,
-              packagingUnitName: row?.packagingUnitName ?? null,
-              packagingUnitBaseQuantity: row?.packagingUnitBaseQuantity ?? null,
-              // Feature 155 (analyze F14) — the resolved unit travels with its
-              // snapshot; an operator never sends one, a new line has none.
-              packagingUnitId: row?.packagingUnitId ?? null,
-              desiredUnitPrice: row?.desiredUnitPrice ?? null,
-              agreedUnitPrice:
-                lineInput.agreedUnitPrice !== undefined && lineInput.agreedUnitPrice !== null
-                  ? unitPriceText(lineInput.agreedUnitPrice)
-                  : null,
-              lineNote:
-                lineInput.lineNote !== undefined ? lineInput.lineNote : (row?.lineNote ?? null),
-              lineCurrency,
-              ...(row !== null
-                ? storedReferenceColumns(row)
-                : { referenceUnitPrice: null, referenceCurrency: null, referenceCapturedAt: null }),
-              groupId: groupIds(plan.lines[index]!.group),
-              position: plan.lines[index]!.position,
-            }),
-          );
-        }
-        await em.persist(items).flush();
-      }
-
-      rfq.currentRevisionNumber += 1;
-      rfq.awaitingCustomerRevisionAcceptance = true;
-      rfq.assignedAdminUserId = ctx.adminUserId;
-      if (body.expiresInDays !== undefined && !rfq.sharedWithCustomer) {
-        // `specs/192-quote-request-draft-share/` (research R-10) — the days are
-        // applied when the quote is shared; no date is written before that.
-        const before = rfq.shareValidityDays ?? null;
-        rfq.shareValidityDays = normaliseShareValidityDays(body.expiresInDays);
-        if (before !== rfq.shareValidityDays) recorded.validityDays = { before, after: rfq.shareValidityDays };
-      } else if (body.expiresInDays !== undefined) {
-        // Owner decision of 2026-11-24 (`specs/192-quote-request-draft-share/`):
-        // `0` or empty means no deadline on a shared quote too — never
-        // "expires now". An operator closes an offer by cancelling it.
-        const days = normaliseShareValidityDays(body.expiresInDays);
-        const before = rfq.expiresAt?.toISOString() ?? null;
-        rfq.expiresAt = days === null ? null : new Date(Date.now() + days * 86_400_000);
-        const after = rfq.expiresAt?.toISOString() ?? null;
-        if (before !== after) recorded.validity = { before, after };
-      }
-      rfq.version += 1;
-      this.#audit(em, 'quote_request.modify', rfq.id, groupingAudit ? { groups: groupingAudit.before } : null, {
-        currentRevisionNumber: rfq.currentRevisionNumber,
-        status: rfq.status,
-        ...(groupingAudit ? { groups: groupingAudit.after } : {}),
-      });
-      await em.flush();
-
-      // FR-001 — the revision, the `modified` entry naming it and the records
-      // naming that entry commit with the lines they describe.
-      // Feature 159 — the revision records the lines in display order.
-      const items = (await loadArrangedQuoteLines(em, rfq.id)).lines;
-      const previousRevision = await this.deps.revisionService.byNumber(
-        rfq.id,
-        rfq.currentRevisionNumber - 1,
-      );
-      const revision = await this.deps.revisionService.record(
-        {
-          rfq,
-          items,
-          actor: { adminUserId: ctx.adminUserId },
-          previousRevisionId: previousRevision?.id ?? null,
-        },
-        em,
-      );
-
-      const diff = previousRevision
-        ? this.deps.revisionService.diffRevisions({
-            beforeHeaderNote: previousRevision.headerNoteSnapshot ?? null,
-            afterHeaderNote: rfq.headerNote ?? null,
-            beforeItems: previousRevision.itemsSnapshot,
-            afterItems: revision.itemsSnapshot,
-          })
-        : [];
-
-      const evt = await this.deps.eventService.append(
-        {
-          quoteRequestId: rfq.id,
-          eventType: 'modified',
-          actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-          payload: { type: 'modified', diff, ...recorded },
-          revisionId: revision.id,
-        },
-        em,
-      );
-
-      // `specs/192-quote-request-draft-share/` (FR-005, amendment R-A1) — an
-      // edit of a quote the customer cannot see is the operators' alone.
-      if (rfq.sharedWithCustomer) {
-        await this.deps.notificationService.record(em, {
-          change: 'revised',
-          sourceEvent: evt,
-          rfq,
-          actor: null,
-        });
-      }
-    });
-    this.kickNotificationDelivery();
-
-    // Emitted for unshared quotes too — a customer-facing subscriber must check `sharedWithCustomer`.
-    this.deps.events.emit('rfq.modified.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      rfqId: rfq.id,
-      revisionNumber: rfq.currentRevisionNumber,
-    });
-
-    return this.deps.rfqService.serializeFull(em, rfq, true);
+    const rfq = await this.runWrite(
+      makeModifyQuoteRequestCommand(this.deps, {
+        quoteRequestId: rfqId,
+        operator: RfqAdminService.operatorOf(ctx),
+        expectedVersion,
+        body,
+      }),
+      { notifies: true },
+    );
+    return this.deps.rfqService.serializeFull(this.deps.emFactory(), rfq, true);
   }
 
   // -------------------------------------------------------------------------
@@ -1152,14 +854,15 @@ export class RfqAdminService {
    * product is not available to the Organization at the request's channel, in
    * the channel's default language (N2), now. Accepted regardless: this is a
    * warning for the operator, never a refusal (the exemption of
-   * {@link createOnBehalf} stands). The channel is {@link onBehalfChannelId}'s,
-   * the one `createOnBehalf` checked and stored; a request with no channel was
-   * refused there, so the `[]` below only answers a direct caller (FR-007).
+   * `quote_request.create_on_behalf` stands). The channel is
+   * {@link onBehalfChannelId}'s, the one the create checked and stored; a
+   * request with no channel was refused there, so the `[]` below only answers
+   * a direct caller (FR-007).
    */
   async onBehalfWarnings(
     body: Pick<AdminCreateQuoteRequest, 'organizationId' | 'items' | 'salesChannelId'>,
   ): Promise<AdminQuoteRequestWarning[]> {
-    const channelId = this.onBehalfChannelId(body);
+    const channelId = onBehalfChannelId(body);
     if (channelId === null) return [];
     const productIds = Array.from(new Set(body.items.map((it) => it.productId)));
     if (productIds.length === 0) return [];
@@ -1174,258 +877,15 @@ export class RfqAdminService {
       .map((productId) => ({ productId, code: 'PRODUCT_UNAVAILABLE_IN_SCOPE' as const }));
   }
 
-  /**
-   * Feature 163 (T155 §1.5c, owner decision 2026-10-29 "A") — the channel an
-   * operator's on-behalf request is raised on: the one the body names, else the
-   * one the admin request resolved (the resolver's step-4 system default, or
-   * `X-Sales-Channel`); `null` outside a request scope. One answer for the check,
-   * the stored row and the warnings, so they cannot speak about two channels.
-   */
-  private onBehalfChannelId(body: Pick<AdminCreateQuoteRequest, 'salesChannelId'>): string | null {
-    return body.salesChannelId ?? raisedOnChannelId();
-  }
-
   async createOnBehalf(
     ctx: AdminContext,
     body: AdminCreateQuoteRequest,
   ): Promise<RfqDto> {
-    const em = this.deps.emFactory();
-
-    // Visibility on the target organization: only a sales representative is
-    // narrowed (issue #957).
-    if (!(await adminCanSeeOrganization(this.deps.salesRepAssignment, ctx.adminUserId, body.organizationId))) {
-      throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Not authorized for this organization.');
-    }
-
-    // The membership half of the old `findOne(CustomerAccount, { id,
-    // organizationId })` is asserted here rather than in the query: the record
-    // carries `organizationId`, so the port does not need a second lookup shape
-    // and the two failures still answer with one message, as they did.
-    const customer = await this.deps.customerAccounts.findById(body.customerAccountId);
-    if (!customer || customer.organizationId !== body.organizationId) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.NOT_FOUND,
-        'Customer does not belong to the organization.',
-      );
-    }
-
-    // Feature 163 (T155 §1.5c, security review M1, owner decision 2026-10-29 "A")
-    // — the request is raised on the channel the operator names, else on the one
-    // the admin's own request resolved (the resolver's step-4 system default, or
-    // `X-Sales-Channel`), and **either way** that channel must be one of the
-    // Organization's active channels: the ones its members may shop on, and the
-    // set the create screen offers. The server is the sole enforcer, so omitting
-    // the id is not a way around the check. Exactly that channel — a stale,
-    // foreign or inactive id is refused, never replaced by another. No channel at
-    // all (no request scope: a CLI or in-process caller) is refused as well:
-    // there is no "no-channel" quote request (Constitution XII), and on the HTTP
-    // route the resolver always answers one.
-    const channelId = this.onBehalfChannelId(body);
-    if (channelId === null) {
-      throw new HttpError(
-        422,
-        ERROR_CODES.RFQ_SALES_CHANNEL_NOT_ALLOWED,
-        'No sales channel to raise this quote request on: name salesChannelId.',
-        { code: 'no_channel' },
-      );
-    }
-    const channels = await this.deps.channelMembership.listChannelsForEntity('organization', body.organizationId);
-    if (!channels.some((c) => c.id === channelId && c.active)) {
-      throw new HttpError(
-        422,
-        ERROR_CODES.RFQ_SALES_CHANNEL_NOT_ALLOWED,
-        "This sales channel is not one of the organization's active sales channels.",
-      );
-    }
-
-    // **Neither scoping axis is applied to these lines, and that is the
-    // decision rather than the gap.** `RfqService.createForCustomer` filters by
-    // `isProductVisibleTo` (issue #227) and by the request's channel assortment
-    // (issue #259); this path filters by neither.
-    //
-    // It is an operator surface. The admin names the organisation, the customer
-    // and the lines, having chosen them from an admin catalogue that shows the
-    // whole assortment — so there is no buyer whose audience could answer, and
-    // the channel the admin's own request happens to have resolved (the
-    // resolver's step-4 default, unless the SPA sent `X-Sales-Channel`) is not
-    // a statement about where this quote should be sellable. The
-    // `quote_requests:write` permission is the enforcement, exactly as
-    // `quick_order`'s `'unrestricted'` import arm says of itself.
-    //
-    // The channel this quote *is* raised on is recorded below and is the
-    // honest answer to "where did this come from", not a filter of its lines
-    // (the channel itself is checked above; the lines on it are not).
-    //
-    // **One exception, by owner decisions P-3 = A and P-3b = A (feature 163,
-    // 2026-10-26)**: an archived product is refused here as it is on the
-    // buyer's paths, before anything is numbered or written — but with
-    // `409 PRODUCT_ARCHIVED`, so the operator is told why. The availability
-    // warnings below stay warnings for every other reason.
-    const productById = operatorLineProducts(
-      await this.deps.catalogProducts.findByIds(body.items.map((it) => it.productId)),
-      body.items.map((it) => it.productId),
+    const rfq = await this.runWrite(
+      makeCreateOnBehalfCommand(this.deps, { operator: RfqAdminService.operatorOf(ctx), body }),
+      { notifies: true },
     );
-
-    // Feature 175 (FR-015, FR-019) — the request's custom-field values,
-    // validated as a merge onto an empty bag before anything is numbered or
-    // written: a refusal creates nothing, a `required` definition is refused
-    // even when no value is sent, and the creation's audit row below names
-    // what was stored.
-    const customFieldValues = await this.#newCustomFieldValues(body.customFieldValues);
-
-    // `specs/192-quote-request-draft-share/` (FR-001, R-2) — the one place that
-    // decides whether the new quote starts unshared. It does, always, today;
-    // a line may then have no price yet (FR-013, R-19), since sharing is
-    // refused until every line has one.
-    const startsUnshared = operatorQuoteStartsUnshared();
-    // FR-031, FR-033 — the default is snapshotted into the new quote, so a later
-    // change of the setting moves no quote already created.
-    const defaultValidityDays = body.expiresInDays === undefined ? await this.defaultValidityDays() : 0;
-
-    const businessId = await this.deps.rfqService.generateBusinessId(em);
-    // FR-001 — the request, its groups and lines, revision 1 and its history
-    // entries commit together.
-    const rfq = await inTransaction(em, async () => {
-      const rfq = em.create(QuoteRequest, {
-        ...(businessId ? { businessId } : {}),
-        organizationId: body.organizationId,
-        customerAccountId: body.customerAccountId,
-        // The channel checked above: the one the operator named (feature 163,
-        // T155 §1.5c), else the one the admin's own request resolved to — the
-        // resolver's step-4 fallback, the system default — which is the honest
-        // answer for "where was this raised", not a channel this module picked.
-        salesChannelId: channelId,
-        createdByAdminUserId: ctx.adminUserId,
-        assignedAdminUserId: ctx.adminUserId,
-        status: 'Created from admin' satisfies QuoteRequestStatus,
-        headerNote: body.headerNote ?? null,
-        currentRevisionNumber: 1,
-        lastCustomerSeenRevisionNumber: 0,
-        // The customer must accept or reject the quote the admin prepared, so it
-        // surfaces the Accept/Reject controls on the storefront (the same flag the
-        // admin's later revisions set). Without this the customer had no way to
-        // act on an admin-created quote.
-        awaitingCustomerRevisionAcceptance: true,
-        // `specs/192-quote-request-draft-share/` (R-10) — invisible to the
-        // customer until shared; the validity is kept as days and becomes a
-        // date at the share, so no date is written here.
-        sharedWithCustomer: !startsUnshared,
-        shareValidityDays: normaliseShareValidityDays(
-          body.expiresInDays === undefined ? defaultValidityDays : body.expiresInDays,
-        ),
-        expiresAt: null,
-        customFieldValues,
-      });
-      await em.persist(rfq).flush();
-
-      // Feature 159 — the new quote's groups, written before its lines (FR-009).
-      const plan = planLineGrouping({
-        storedGroups: [],
-        body: { groups: body.groups, items: body.items },
-        pairedRows: body.items.map(() => null),
-      });
-      const groupIds = await writeLineGroups(em, rfq.id, [], plan);
-      const items: QuoteRequestItem[] = [];
-      // Issue #303 — decided here, once: the raised-on channel's currency.
-      const lineCurrency = await channelCurrency(em, rfq.salesChannelId);
-      // Feature 163 (FR-017 d, N2) — an operator's lines are named at the
-      // request channel's default language.
-      const lineNames = await this.deps.rfqService.lineNames(
-        [...productById.values()],
-        rfq.salesChannelId ?? null,
-        null,
-      );
-      for (const [index, lineInput] of body.items.entries()) {
-        const product = productById.get(lineInput.productId)!;
-        items.push(
-          em.create(QuoteRequestItem, {
-            quoteRequestId: rfq.id,
-            productId: product.id,
-            productName: lineNames.get(product.id) || product.name,
-            productSlug: product.slug,
-            variantId: lineInput.variantId ?? null,
-            quantity: lineInput.quantity,
-            // FR-013 — a line the operator has not priced yet stays unpriced.
-            agreedUnitPrice: lineInput.agreedUnitPrice == null ? null : unitPriceText(lineInput.agreedUnitPrice),
-            lineNote: lineInput.lineNote ?? null,
-            lineCurrency,
-            groupId: groupIds(plan.lines[index]!.group),
-            position: plan.lines[index]!.position,
-          }),
-        );
-      }
-      this.#audit(em, 'quote_request.create_on_behalf', rfq.id, null, {
-        status: rfq.status,
-        itemCount: items.length,
-        salesChannelId: rfq.salesChannelId ?? null,
-        groups: plan.after,
-        // `specs/192-quote-request-draft-share/` (data-model §5).
-        sharedWithCustomer: rfq.sharedWithCustomer,
-        shareValidityDays: rfq.shareValidityDays ?? null,
-        // Feature 175 (FR-021) — the keys stored, never their values
-        // (`specs/conventions/audit-state.md`, D-288).
-        ...(Object.keys(rfq.customFieldValues ?? {}).length > 0
-          ? { changedCustomFields: Object.keys(rfq.customFieldValues ?? {}).sort() }
-          : {}),
-      });
-      await em.persist(items).flush();
-
-      const revision = await this.deps.revisionService.record(
-        {
-          rfq,
-          // Feature 159 — revision 1 records the lines in display order.
-          items: (await loadArrangedQuoteLines(em, rfq.id)).lines,
-          actor: { adminUserId: ctx.adminUserId },
-        },
-        em,
-      );
-
-      await this.deps.eventService.append(
-        {
-          quoteRequestId: rfq.id,
-          eventType: 'created',
-          actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-          payload: { type: 'created' },
-          revisionId: revision.id,
-        },
-        em,
-      );
-
-      await this.deps.eventService.append(
-        {
-          quoteRequestId: rfq.id,
-          eventType: 'note-added',
-          actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-          payload: { type: 'note-added', note: AUTOMATIC_ADMIN_CREATION_NOTE },
-          revisionId: revision.id,
-        },
-        em,
-      );
-
-      // `specs/192-quote-request-draft-share/` (FR-005) — nothing is recorded for
-      // the customer here: the quote is unshared, and `prepared` announces the
-      // share (`contracts/notification-matrix-amendment.md`). The `created`
-      // entry and the automatic note are the operators' history.
-      return rfq;
-    });
-
-    // Announced last, once every row of the request is written: a subscriber
-    // may read it at once. This path does **not** emit `rfq.created.v1` — that
-    // is the customer's submission, and whatever listens to it must not start
-    // seeing requests an administrator prepared. `origin` is handed on as it
-    // came: this module validates its shape and reads nothing in it.
-    // The one bus, seen with the event only this path emits.
-    (this.deps.events as EventBus<RfqAdminEvents>).emit(RFQ_CREATED_BY_ADMIN_EVENT, {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      rfqId: rfq.id,
-      organizationId: rfq.organizationId,
-      adminUserId: ctx.adminUserId,
-      origin: body.origin ?? null,
-    });
-
-    return this.deps.rfqService.serializeFull(em, rfq, true);
+    return this.deps.rfqService.serializeFull(this.deps.emFactory(), rfq, true);
   }
 
   // -------------------------------------------------------------------------
@@ -1454,13 +914,6 @@ export class RfqAdminService {
     }
     return rfq;
   }
-
-  private assertVersion(rfq: QuoteRequest, expectedVersion: number | null): void {
-    if (expectedVersion !== null && rfq.version !== expectedVersion) {
-      throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'Quote Request was updated concurrently.');
-    }
-  }
-
 }
 
 function toHistoryRevision(revision: {
@@ -1496,71 +949,4 @@ function groupBy<T, K>(arr: T[], key: (t: T) => K): Map<K, T[]> {
     else out.set(k, [v]);
   }
   return out;
-}
-
-/**
- * Feature 159 — write a grouping plan's groups (deletes, renames, creates) and
- * flush, so a line inserted next can name a group created here; answers the id
- * each planned line group resolves to. The quote's old lines are already gone
- * when this runs, so a deleted group has no line left to set to null.
- */
-async function writeLineGroups(
-  em: EntityManager,
-  quoteRequestId: string,
-  storedGroups: readonly QuoteRequestItemGroup[],
-  plan: LineGroupingPlan,
-): Promise<(group: LineGroupingPlan['lines'][number]['group']) => string | null> {
-  const storedById = new Map(storedGroups.map((group) => [group.id, group]));
-  for (const id of plan.deleteGroupIds) {
-    const row = storedById.get(id);
-    if (row) em.remove(row);
-  }
-  const createdByKey = new Map<string, string>();
-  for (const group of plan.groups) {
-    if (group.kind === 'create') {
-      const row = em.create(QuoteRequestItemGroup, { quoteRequestId, name: group.name, position: group.position });
-      em.persist(row);
-      createdByKey.set(group.key, row.id);
-    } else {
-      const row = storedById.get(group.id);
-      if (row) {
-        row.name = group.name;
-        row.position = group.position;
-      }
-    }
-  }
-  await em.flush();
-  return (group) => (group === null ? null : group.kind === 'existing' ? group.id : (createdByKey.get(group.key) ?? null));
-}
-
-/**
- * The products an operator's quote lines name, by id — or the refusal
- * (feature 163, owner decisions P-3 = A and P-3b = A). An id that does not
- * exist answers `404 PRODUCT_NOT_FOUND`, as before. An archived product answers
- * `409 PRODUCT_ARCHIVED`, catalog's code and sentence: the operator is told why
- * the line is refused, where a buyer's path gives the absent id's byte-equal
- * 404 so nothing is disclosed. 409 because the product exists and the request
- * conflicts with its state — the status this module answers for a state
- * conflict, and the one convert gives a product archived since approval.
- * `details.productIds` names the archived products (checkpoint F, B-3).
- *
- * Exported for its unit test only.
- */
-export function operatorLineProducts<P extends Pick<CatalogProductRecord, 'id' | 'archivedAt'>>(
-  records: readonly P[],
-  productIds: readonly string[],
-): Map<string, P> {
-  const found = new Map(records.map((p) => [p.id, p]));
-  if (found.size !== new Set(productIds).size) {
-    throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
-  }
-  // Checkpoint F (B-3): an edit sends every line, so the refusal names which products
-  // are archived — in `details`, the sentence stays catalog's.
-  const archivedIds = records.filter((p) => !isNotArchived(p)).map((p) => p.id);
-  if (archivedIds.length > 0) {
-    throw new HttpError(409, ERROR_CODES.PRODUCT_ARCHIVED, 'Product is archived.', {
-      productIds: [...new Set(archivedIds)],
-    });
-  }
-  return found;
 }

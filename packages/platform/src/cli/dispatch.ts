@@ -43,6 +43,8 @@ import { effectiveState } from '../kernel/lifecycle/effective-state.js';
 import { ModuleDisabledError } from '../kernel/lifecycle/plugin-helpers.js';
 import { enterSystemScope } from '../kernel/scope.js';
 import { instanceManifestEntries } from '../lifecycle/commands/operator-entry.js';
+import { OverlayBuildError } from '../overlay/overlay-freshness.js';
+import { OverlayLayoutError } from '../overlay/overlay-layout.js';
 import { OverlaySchemaError } from '../overlay/overlay-schema.js';
 import type { RegisteredManifestEntry } from '../lifecycle/index.js';
 import {
@@ -144,6 +146,8 @@ export interface RunCliOptions {
    * package can derive for itself, for `composeApp`'s own reason.
    */
   readonly deploymentRoot: string;
+  /** `apps/` as written, when {@link deploymentRoot} holds it compiled (#1848, FR-016). */
+  readonly deploymentSourceRoot?: string;
   /** Defaults to `process.argv.slice(2)`. */
   readonly argv?: readonly string[];
   /**
@@ -336,10 +340,16 @@ async function runDemoCommand(
  * recorded: it starts no BullMQ worker and arms no timer (D-157.2, measured
  * three ways).
  */
-async function defaultCompose(deploymentRoot: string): Promise<CliComposition> {
+async function defaultCompose(
+  deploymentRoot: string,
+  deploymentSourceRoot?: string,
+): Promise<CliComposition> {
   process.env['BACKEND_ROLE'] = 'api';
   const { composeApp } = await import('../composition/compose-app.js');
-  return (await composeApp({ deploymentRoot })) as unknown as CliComposition;
+  return (await composeApp({
+    deploymentRoot,
+    ...(deploymentSourceRoot === undefined ? {} : { deploymentSourceRoot }),
+  })) as unknown as CliComposition;
 }
 
 /**
@@ -351,7 +361,8 @@ export async function dispatchCli(options: RunCliOptions): Promise<number> {
   const env = options.env ?? process.env;
   const out = options.out ?? ((chunk: string) => void process.stdout.write(chunk));
   const err = options.err ?? ((chunk: string) => void process.stderr.write(chunk));
-  const compose = options.compose ?? (() => defaultCompose(options.deploymentRoot));
+  const compose =
+    options.compose ?? (() => defaultCompose(options.deploymentRoot, options.deploymentSourceRoot));
 
   const program = options.program ?? DEFAULT_CLI_PROGRAM;
 
@@ -368,7 +379,7 @@ export async function dispatchCli(options: RunCliOptions): Promise<number> {
   // D-157.8 rejected path-convention dispatch for, since nothing can list a
   // convention.
   const resolved = await (options.resolveEntries ??
-    (() => instanceManifestEntries(options.deploymentRoot, env)))();
+    (() => instanceManifestEntries(options.deploymentRoot, env, options.deploymentSourceRoot)))();
   const declared = collectModuleCommands(resolved);
   if (argv[0] === '--list') {
     out(formatHostCommandList(DEMO_HOST_COMMANDS));
@@ -466,8 +477,14 @@ export function cliFailureExitCode(thrown: unknown, err: (chunk: string) => void
     return 3;
   }
   // A refusal written for the operator is printed as the sentence it is; a
-  // stack under it says "defect", which it is not.
-  if (error instanceof OverlaySchemaError) {
+  // stack under it says "defect", which it is not. The overlay family is the
+  // schema, layout and build refusals (`specs/190-overlay-full-modules/` data
+  // model §3) — the same three `exitOnRefusal` recognises.
+  if (
+    error instanceof OverlaySchemaError ||
+    error instanceof OverlayLayoutError ||
+    error instanceof OverlayBuildError
+  ) {
     err(`${error.message}\n`);
     return 1;
   }

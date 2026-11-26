@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { NotFoundError } from '@mikro-orm/core';
+import { NotFoundError, raw } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
@@ -13,8 +13,14 @@ import {
   assignOrganizationParentRequestSchema,
   setCreditInheritanceModeRequestSchema,
   inviteMemberToRoleRequestSchema,
+  customFieldFilterUnavailable,
+  customFieldFiltersQueryParamSchema,
+  isCustomFieldFilterUnavailableFailure,
   isCustomFieldValidationFailure,
   type AddressServicePort,
+  type CustomFieldFilters,
+  type CustomFieldListFilterCondition,
+  type CustomFieldListFilterPort,
   type CustomFieldValuePort,
   type CustomerAccountMemberWritePort,
   type CustomerAccountReadPort,
@@ -45,8 +51,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getTenantContext, orgScopeWhere } from '@endora-commerce/platform/tenancy';
 import type { OrganizationTreeService } from './services/organization-tree-service.js';
-import { makeSetParentCommand } from './commands/set-parent.command.js';
-import { makeMoveCommand } from './commands/move.command.js';
+import { makePlaceInTreeCommand } from './commands/set-parent.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
 import { makeDeleteOrganizationCommand } from './commands/delete-organization.command.js';
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
@@ -78,16 +83,14 @@ import {
 } from '@endora-commerce/platform/kernel';
 import type {
   OrganizationModerationService} from './services/organization-moderation-service.js';
-import {
-  OrganizationNotFoundError,
-  OrganizationStatusGuardError,
-  OrganizationVersionMismatchError,
-} from './services/organization-moderation-service.js';
+import { OrganizationStatusGuardError } from './services/organization-moderation-service.js';
 import type {
   OrganizationRestrictionService} from './services/organization-restriction-service.js';
 import {
-  OrganizationVersionMismatchError as RestrictionVersionMismatchError,
-} from './services/organization-restriction-service.js';
+  moderationHttpError as mapModerationError,
+  restrictionHttpError as mapRestrictionError,
+  statusGuardRefusal,
+} from './services/organization-refusals.js';
 import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
 import type { OrganizationTaxIdValidationService } from './services/organization-tax-id-validation-service.js';
 import { serializeTaxIdValidation } from './registry-lookup/validation-record.js';
@@ -128,6 +131,9 @@ const listQuerySchema = z.object({
   ...ExtensionsQuerySchema.shape,
   // Issue #1473 — the admin list screen's offset paging.
   ...adminOrganizationListPageQuerySchema.shape,
+  // Issue #1903 — the custom fields marked as list filters, as JSON
+  // (`specs/157-custom-fields-list-filters/contracts/list-filter-api.md` §1.2).
+  customFieldFilters: customFieldFiltersQueryParamSchema,
 });
 
 /** The module ids `?extensions=` names, in order, or none. */
@@ -184,6 +190,13 @@ export interface AdminOrgsDeps {
    * validates (Principle XIV).
    */
   customFieldValues?: CustomFieldValuePort;
+  /**
+   * Issue #1903 — `custom_fields`' `customFieldListFilterPort`: the
+   * Organization custom fields the admin list offers as filters, and a
+   * request's filters as one condition. Absent, the list offers none and
+   * refuses any it is sent.
+   */
+  customFieldListFilter?: Pick<CustomFieldListFilterPort, 'condition' | 'listFilterable'>;
   /**
    * Feature 056 — when provided, mounts the org-hierarchy endpoints
    * (assign/move parent, subtree/ancestors read, delete-with-children guard).
@@ -250,8 +263,33 @@ export async function registerOrganizationsAdminRoutes(
   const effectivePriceListsService = deps.effectivePriceListsService;
   const taxIdValidationService = deps.taxIdValidationService;
   const customFieldValues = deps.customFieldValues;
+  const customFieldListFilter = deps.customFieldListFilter;
 
   const customersRead = requireAdminAny(['customers:read', 'customers:manage']);
+
+  /**
+   * Issue #1903 — the list's custom-field filters as one condition, or `null`
+   * when none is asked for. A field the list does not offer — or any field,
+   * without the port — is refused as 400 `CUSTOM_FIELD_FILTER_UNAVAILABLE`
+   * naming it; an operator that does not apply is the port's ZodError, 400.
+   */
+  const customFieldCondition = async (
+    filters: CustomFieldFilters | undefined,
+  ): Promise<CustomFieldListFilterCondition | null> => {
+    if (filters === undefined || Object.keys(filters).length === 0) return null;
+    try {
+      if (!customFieldListFilter) throw customFieldFilterUnavailable(Object.keys(filters));
+      return await customFieldListFilter.condition('organization', filters);
+    } catch (error) {
+      if (isCustomFieldFilterUnavailableFailure(error)) {
+        throw new HttpError(400, ERROR_CODES.CUSTOM_FIELD_FILTER_UNAVAILABLE, error.message, {
+          key: error.keys[0] ?? '',
+          keys: [...error.keys],
+        });
+      }
+      throw error;
+    }
+  };
 
   /**
    * Issue #629 (#86) — a moderation failure as its HTTP refusal. The status
@@ -413,6 +451,13 @@ export async function registerOrganizationsAdminRoutes(
     },
   );
 
+  // Issue #1903 — the Organization custom fields the list offers as filters
+  // (`specs/157-custom-fields-list-filters/`). A static path, so it is never
+  // read as an Organization id.
+  app.get('/api/v1/admin/organizations/custom-field-filters', { preHandler: customersRead }, async () => ({
+    data: (await customFieldListFilter?.listFilterable('organization')) ?? [],
+  }));
+
   app.get(
     '/api/v1/admin/organizations',
     { preHandler: customersRead },
@@ -444,6 +489,13 @@ export async function registerOrganizationsAdminRoutes(
           ...(taxIdText ? [{ taxId: { $ilike: `%${taxIdText}%` } }] : []),
         ];
       }
+      // Issue #1903 — the custom-field filters: an id sub-select over
+      // `organizations`, ANDed with the reach fragment above (never assigned
+      // to `where.id`, which that fragment may hold), so it narrows the
+      // reachable set and never widens it. `findAndCount` applies it to the
+      // page and the total alike.
+      const custom = await customFieldCondition(query.customFieldFilters);
+      if (custom) where['$and'] = [{ id: { $in: raw(`(${custom.sql})`, [...custom.params]) } }];
       // Issue #1473 — an offset page and the total across all of them, for the
       // list screen's pager. `pageSize` falls back to `limit`, so a caller that
       // names neither (the pickers) keeps its one first page. `id` breaks a
@@ -841,12 +893,9 @@ export async function registerOrganizationsAdminRoutes(
       },
       async (request) => {
         const body = approveOrganizationSchema.parse(request.body);
-        const rid = request.headers['x-request-id'];
         try {
           const org = await moderationService.approve(request.params.id, {
             expectedVersion: body.expectedVersion,
-            actorAdminUserId: resolveAdminUserId(request),
-            requestId: typeof rid === 'string' ? rid : null,
           });
           return { data: serializeOrg(org) };
         } catch (err) {
@@ -863,14 +912,11 @@ export async function registerOrganizationsAdminRoutes(
       },
       async (request) => {
         const body = rejectOrganizationSchema.parse(request.body);
-        const rid = request.headers['x-request-id'];
         try {
           const org = await moderationService.reject(request.params.id, {
             expectedVersion: body.expectedVersion,
             reason: body.reason,
             notifyCustomerEmail: body.notifyCustomerEmail,
-            actorAdminUserId: resolveAdminUserId(request),
-            requestId: typeof rid === 'string' ? rid : null,
           });
           return { data: serializeOrg(org) };
         } catch (err) {
@@ -887,13 +933,10 @@ export async function registerOrganizationsAdminRoutes(
       },
       async (request) => {
         const body = blockOrganizationSchema.parse(request.body);
-        const rid = request.headers['x-request-id'];
         try {
           const org = await moderationService.block(request.params.id, {
             expectedVersion: body.expectedVersion,
             reason: body.reason ?? null,
-            actorAdminUserId: resolveAdminUserId(request),
-            requestId: typeof rid === 'string' ? rid : null,
           });
           return { data: serializeOrg(org) };
         } catch (err) {
@@ -910,12 +953,9 @@ export async function registerOrganizationsAdminRoutes(
       },
       async (request) => {
         const body = unblockOrganizationSchema.parse(request.body);
-        const rid = request.headers['x-request-id'];
         try {
           const org = await moderationService.unblock(request.params.id, {
             expectedVersion: body.expectedVersion,
-            actorAdminUserId: resolveAdminUserId(request),
-            requestId: typeof rid === 'string' ? rid : null,
           });
           return { data: serializeOrg(org) };
         } catch (err) {
@@ -1334,22 +1374,14 @@ export async function registerOrganizationsAdminRoutes(
           );
         }
         const body = assignOrganizationParentRequestSchema.parse(request.body);
-        const em = emFactory();
-        if (!isUuidShape(request.params.id)) {
-          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-        }
-        const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
-        if (!org) {
-          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-        }
         // A distinct command action for a clean audit label: first-assign /
-        // detach ⇒ set_parent; re-parent of an existing child ⇒ move.
-        const input = { organizationId: request.params.id, parentId: body.parentId };
-        const wasChild = (org.parentId ?? null) !== null;
-        const command =
-          wasChild && body.parentId !== null
-            ? makeMoveCommand({ tree: treeService }, input)
-            : makeSetParentCommand({ tree: treeService }, input);
+        // detach ⇒ set_parent; re-parent of an existing child ⇒ move. The
+        // choice is shared with `organizationCommandPort.setParent`.
+        const command = await makePlaceInTreeCommand(
+          emFactory(),
+          { tree: treeService },
+          { organizationId: request.params.id, parentId: body.parentId },
+        );
         // The deferred `per-tree-root` constraint answers at commit, as the
         // pre-check would have (`specs/177-tax-id-scope/` FR-021).
         const updated = await runOrganizationWrite(commandBus, command, () =>
@@ -1554,76 +1586,6 @@ function rethrowOrganizationNotFound(err: unknown): never {
     throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
   }
   throw err;
-}
-
-function mapRestrictionError(err: unknown): HttpError {
-  if (err instanceof RestrictionVersionMismatchError) {
-    return new HttpError(
-      409,
-      ERROR_CODES.VERSION_CONFLICT,
-      'Organization was modified by another request. Refresh and retry.',
-      {
-        code: 'organization_version_mismatch',
-        currentVersion: err.currentVersion,
-      },
-    );
-  }
-  if (err instanceof HttpError) return err;
-  return new HttpError(
-    500,
-    ERROR_CODES.INTERNAL,
-    err instanceof Error ? err.message : 'Internal error.',
-  );
-}
-
-/**
- * Issue #629 (#86) — the organization refuses a well-formed moderation request
- * because it is in another status: a code of its own. The machine values stay
- * in `details` for a client to branch on; the labels beside them fill the
- * sentence.
- */
-function statusGuardRefusal(
-  err: OrganizationStatusGuardError,
-  currentStatusLabel: string,
-  requiredStatusLabel: string,
-): HttpError {
-  return new HttpError(
-    422,
-    ERROR_CODES.ORGANIZATION_STATUS_INVALID,
-    `Organization is in status '${err.currentStatus}', cannot perform an action that requires '${err.requiredStatus}'.`,
-    {
-      currentStatus: err.currentStatus,
-      requiredStatus: err.requiredStatus,
-      currentStatusLabel,
-      requiredStatusLabel,
-    },
-  );
-}
-
-function mapModerationError(err: unknown): HttpError {
-  if (err instanceof OrganizationVersionMismatchError) {
-    return new HttpError(
-      409,
-      ERROR_CODES.VERSION_CONFLICT,
-      'Organization was modified by another request. Refresh and retry.',
-      {
-        code: 'organization_version_mismatch',
-        currentVersion: err.currentVersion,
-      },
-    );
-  }
-  if (err instanceof OrganizationStatusGuardError) {
-    return statusGuardRefusal(err, err.currentStatus, err.requiredStatus);
-  }
-  if (err instanceof OrganizationNotFoundError) {
-    return new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-  }
-  if (err instanceof HttpError) return err;
-  return new HttpError(
-    500,
-    ERROR_CODES.INTERNAL,
-    err instanceof Error ? err.message : 'Internal error.',
-  );
 }
 
 void (null as FastifyRequest | null);

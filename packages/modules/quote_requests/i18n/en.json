@@ -25,6 +25,8 @@
   "errors.RFQ_SHARE_CUSTOMER_UNAVAILABLE.inactive": "This quote cannot be shared: its customer's account is inactive.",
   "errors.RFQ_SHARE_CUSTOMER_UNAVAILABLE.blocked": "This quote cannot be shared: its customer's account is blocked.",
   "errors.RFQ_NOT_SHARED": "This quote is not shared with the customer yet. Share it before sending its PDF to the customer.",
+  "errors.RFQ_ASSIGNEE_NOT_ELIGIBLE": "This administrator cannot be assigned to the quote request: they must be active, hold the permission to handle quote requests and reach its organization. Choose another administrator.",
+  "errors.RFQ_ASSIGNEE_NOT_ELIGIBLE.submission": "Your quote request could not be routed to a sales representative, so it was not submitted. Try again later or contact us.",
   "nav.quoteRequests.label": "Quote requests",
   "negotiation.title": "Price negotiation on quote requests",
   "negotiation.organization.label": "Members may propose prices",

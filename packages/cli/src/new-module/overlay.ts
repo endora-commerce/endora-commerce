@@ -26,9 +26,14 @@
  * `--entities` and got a module with no table would find out at the first
  * query.
  *
- *   * **schema** (`--entities`, `--tenant-scope`). An overlay module contributes
- *     no `@Entity()` class and no migration (D-106); `endora generate` refuses
- *     one in an instance.
+ *   * **schema without an entity** (`--tenant-scope` alone). The scope picks
+ *     the decorator on the entity `--entities` emits; with no `--entities`
+ *     there is nothing for it to decorate. `--entities` itself is honoured
+ *     since #1852 (`specs/190-overlay-full-modules/` FR-055): an overlay module
+ *     may own a table since D-297, so it gets the package scaffold's entity —
+ *     legacy decorators, exactly one tenancy decorator — under `entities/`, the
+ *     `entities` export the platform registers it by, and a first migration
+ *     named by `../lib/migration-naming.ts`.
  *   * **an admin screen** (`--admin`, `--action`). A screen is a module
  *     package's `./admin` layer, which the admin registry is generated from. An
  *     overlay module is in no registry, so a palette action would open a route
@@ -45,7 +50,14 @@ import { join, relative, sep } from 'node:path';
 
 import { parseEnvFile } from '../inputs/env-file.js';
 import { installedModulePackages } from '../lib/module-packages.js';
-import type { EmittedFile } from './emit.js';
+import {
+  entityClassOf,
+  entityFileOf,
+  entitySource,
+  initMigrationSource,
+  migrationFileOf,
+  type EmittedFile,
+} from './emit.js';
 import { MANIFEST_GENERATOR, findRepoRoot } from './host.js';
 import {
   buildScaffoldSpec,
@@ -92,7 +104,7 @@ export function resolveOverlayHost(cwd: string): OverlayHost | null {
   return { root, scope, declaresContracts: dependencies.includes(`${scope}contracts`) };
 }
 
-function directoriesUnder(path: string): readonly string[] {
+export function directoriesUnder(path: string): readonly string[] {
   if (!existsSync(path)) return [];
   return readdirSync(path, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
@@ -117,7 +129,9 @@ function declaredDeployment(root: string): string | null {
  * and none set, a refusal, because choosing would write a module the instance
  * may never compose.
  */
-function resolveDeployment(host: OverlayHost): { deployment: string; selected: boolean } {
+export function resolveDeployment(
+  host: Pick<OverlayHost, 'root'>,
+): { deployment: string; selected: boolean } {
   const onDisk = directoriesUnder(join(host.root, 'apps'));
   const declared = declaredDeployment(host.root);
   if (declared !== null) {
@@ -156,16 +170,9 @@ function refuseWhatAnOverlayCannotBe(
 ): void {
   const refusals: (readonly [boolean, string])[] = [
     [
-      input.entities === true,
-      '--entities: an overlay module contributes no schema — no `@Entity()` class and no ' +
-        'migration — and `endora generate`, `migrate`, every `module:*` command and the API ' +
-        'at boot each refuse one. Keep small state in Settings; a module ' +
-        'that owns a table is a module package.',
-    ],
-    [
-      input.tenantScope !== undefined,
-      '--tenant-scope: it chooses the decorator on an emitted entity, and an overlay module ' +
-        'contributes no schema.',
+      input.tenantScope !== undefined && input.entities !== true,
+      '--tenant-scope: it chooses the tenancy decorator on the entity `--entities` emits, and ' +
+        'without `--entities` there is no entity to decorate. Pass both, or neither.',
     ],
     [
       input.admin !== undefined,
@@ -292,12 +299,7 @@ export function planOverlayModule(
     );
   }
 
-  const files: EmittedFile[] = [
-    { path: 'manifest.ts', content: overlayManifest(spec, host.scope) },
-    { path: 'backend.ts', content: overlayBackend(spec, host.scope) },
-    { path: 'i18n/en.json', content: overlayBundle(spec) },
-    { path: 'i18n/pl.json', content: overlayBundle(spec) },
-  ];
+  const files = emitOverlayModuleFiles(spec, host.scope);
 
   const where = `${shownRoot}/${spec.id}`;
   const publicRoute = `/api/v1/${slugOf(spec.id)}`;
@@ -317,6 +319,15 @@ export function planOverlayModule(
             `every command would stop on ERR_MODULE_NOT_FOUND. The part in $(…) prints the ` +
             `exact version the installed platform pins.`,
         ]),
+    ...(spec.layers.entities
+      ? [
+          `pnpm run build — compiles ${where}/ into backend/dist; the entity's decorators are ` +
+            `the one thing in it that needs a compiler, and the platform reads the module's ` +
+            `entities and migrations from there.`,
+          `pnpm run migrate — creates its table. The next migration is \`endora new migration ` +
+            `${spec.id} --name <slug>\`; the platform reads ${where}/migrations/ file by file.`,
+        ]
+      : []),
     `pnpm run module:install ${spec.id} — creates the module's settings and loads its ` +
       `translations. \`pnpm run module:status\` shows it as not-installed until then.`,
     ...(spec.permissions.length === 0
@@ -331,12 +342,38 @@ export function planOverlayModule(
       `command asks for one sentence in apps/${deployment}/divergence.ts, and exits 1 until ` +
       `it has one.`,
     `pnpm run start (or pnpm run dev:all), then GET ${publicRoute} — the route the emitted ` +
-      `backend.ts registers. Nothing compiles that file: Node strips its types as it loads ` +
-      `it, so keep to plain TypeScript — no \`enum\`, no \`namespace\`, no constructor ` +
-      `parameter property.`,
+      `backend.ts registers. The instance builds it under \`erasableSyntaxOnly\`, so keep to ` +
+      `plain TypeScript — no \`enum\`, no \`namespace\`, no constructor parameter property.`,
   ];
 
   return { spec, deployment, moduleDir, files, nextSteps };
+}
+
+/**
+ * Every file an overlay module is written as, in the order they are written —
+ * a pure function of the specification and the instance's npm scope.
+ *
+ * With `--entities`, the entity and its first migration are the package
+ * scaffold's own (`emit.ts`), at an overlay's paths: `entities/` and
+ * `migrations/` beside `manifest.ts`, and no `migrations/index.ts` — an overlay's
+ * migrations are read file by file (`overlay-schema-discovery.md` §1).
+ */
+export function emitOverlayModuleFiles(
+  spec: ModuleScaffoldSpec,
+  scope: string,
+): readonly EmittedFile[] {
+  return [
+    { path: 'manifest.ts', content: overlayManifest(spec, scope) },
+    { path: 'backend.ts', content: overlayBackend(spec, scope) },
+    ...(spec.layers.entities
+      ? [
+          { path: `entities/${entityFileOf(spec)}`, content: entitySource(spec, scope) },
+          { path: `migrations/${migrationFileOf(spec)}`, content: initMigrationSource(spec) },
+        ]
+      : []),
+    { path: 'i18n/en.json', content: overlayBundle(spec) },
+    { path: 'i18n/pl.json', content: overlayBundle(spec) },
+  ];
 }
 
 function quote(value: string): string {
@@ -429,13 +466,26 @@ function overlayBackend(spec: ModuleScaffoldSpec, scope: string): string {
       ? `import type { ModuleContext } from '${scope}platform/kernel';`
       : `import type { ModuleContext, RequireAdminFactory } from '${scope}platform/kernel';`,
   );
+  if (spec.layers.entities) {
+    lines.push(
+      `import { ${entityClassOf(spec)} } from './entities/${entityFileOf(spec).replace(/\.ts$/, '.js')}';`,
+    );
+  }
   lines.push('');
-  lines.push('// Nothing in an instance compiles this file: Node loads it and strips the types');
-  lines.push('// as it goes. So it is written in the subset stripping accepts — an `enum`, a');
-  lines.push('// `namespace` or a constructor parameter property stops the start with');
-  lines.push('// ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX. `pnpm run typecheck` reports all three');
-  lines.push('// first. A union of string literals is the `enum` you want.');
+  lines.push('// The instance compiles this module under `erasableSyntaxOnly`');
+  lines.push('// (backend/tsconfig.apps.json), so it is written in the subset that flag');
+  lines.push('// accepts: an `enum`, a `namespace` or a constructor parameter property is');
+  lines.push('// refused by `pnpm run typecheck` and `pnpm run build`. A union of string');
+  lines.push('// literals is the `enum` you want.');
   lines.push('');
+  if (spec.layers.entities) {
+    lines.push('/**');
+    lines.push(' * Every entity this module owns — what the platform registers with the ORM for it.');
+    lines.push(' * A class under `entities/` that is not listed here is refused at start.');
+    lines.push(' */');
+    lines.push(`export const entities = [${entityClassOf(spec)}];`);
+    lines.push('');
+  }
   if (gate !== null) {
     lines.push(`interface ${cradle} {`);
     lines.push('  readonly requireAdmin: RequireAdminFactory;');

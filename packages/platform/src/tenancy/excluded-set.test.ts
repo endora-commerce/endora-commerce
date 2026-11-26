@@ -48,16 +48,17 @@ const inRep = <T>(fn: () => T, ctx: TenantContext = repContext()): Promise<T> =>
  * Issue #955 (architect ruling, Q2) — the excluded organizations are not
  * shipped as a list: the owner's uncorrelated `SELECT` is rendered on the row's
  * own column as `col is not null and col not in (S)`, the ANY-sublink form
- * PostgreSQL hashes. Property-keyed (`$nin` with a query-builder subquery),
- * because a raw key is dropped by a joined `populate` (R-1). Read off the
- * builder rather than compared whole.
+ * PostgreSQL hashes. Property-keyed (`$nin` with a `raw()` subquery — a
+ * connection-less knex builder until MikroORM 7, #1866), because a raw key is
+ * dropped by a joined `populate` (R-1). Read off the fragment rather than
+ * compared whole.
  */
 function excludingSubquery(predicate: unknown): { keys: string[]; ne: unknown; sql: string; bindings: unknown[] } {
   const value = predicate as Record<string, unknown>;
-  const nin = value['$nin'] as { toSQL?: () => { sql: string; bindings: readonly unknown[] } } | undefined;
-  expect(typeof nin?.toSQL).toBe('function');
-  const compiled = nin!.toSQL!();
-  return { keys: Object.keys(value), ne: value['$ne'], sql: compiled.sql, bindings: [...compiled.bindings] };
+  const nin = value['$nin'] as { sql?: unknown; params?: unknown } | undefined;
+  expect(typeof nin?.sql).toBe('string');
+  expect(Array.isArray(nin?.params)).toBe(true);
+  return { keys: Object.keys(value), ne: value['$ne'], sql: nin!.sql as string, bindings: [...(nin!.params as unknown[])] };
 }
 
 const EXCLUDING_SUBQUERY = {
