@@ -44,6 +44,7 @@ import {
   evaluateA8,
   evaluateA9,
   evaluateA18,
+  evaluateA19,
   evaluateA16,
   evaluateA17,
   type ActorScopeObservation,
@@ -1835,5 +1836,47 @@ describe('A17 — a request is confined to what its authenticated actor may reac
 
   it('is unmeasured when a reading is missing', () => {
     expect(evaluateA17({ ...measured, apiKey: null }).state).toBe('unmeasured');
+  });
+});
+
+/**
+ * `specs/190-overlay-full-modules/` T080 (US1, SC-001): an overlay module that owns a table, in a
+ * created instance. `setup` passes over it and applies its migration — read file by file from the compiled tree the
+ * instance's own build produced — and its route answers with the row that migration seeded, read
+ * through the entity its `backend.ts` exports.
+ */
+describe('A19 — an overlay module that owns a table migrates and serves its rows', () => {
+  const MIGRATION = 'Migration20270101T000000InstanceAcceptanceNotesInit';
+  const observation = (overrides: Partial<Parameters<typeof evaluateA19>[0]> = {}): Parameters<typeof evaluateA19>[0] => ({
+    moduleId: 'instance_acceptance_notes',
+    migrationName: MIGRATION,
+    seeded: 'seeded by its own migration',
+    built: { code: 0, output: '' },
+    migrated: { code: 0, output: '' },
+    applied: [MIGRATION],
+    probe: { status: 200, body: { bodies: ['seeded by its own migration'] } },
+    ...overrides,
+  });
+
+  it('passes when the migration is applied and the route reads the seeded row', () => {
+    const result = evaluateA19(observation());
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain(MIGRATION);
+  });
+
+  it('fails when `setup` exits non-zero, or applied nothing of the overlay', () => {
+    expect(evaluateA19(observation({ migrated: { code: 1, output: '[overlay] refused' } })).state).toBe('fail');
+    expect(evaluateA19(observation({ applied: [] })).state).toBe('fail');
+  });
+
+  it('fails when the route does not answer with the row', () => {
+    expect(evaluateA19(observation({ probe: { status: 500, body: {} } })).state).toBe('fail');
+    expect(evaluateA19(observation({ probe: { status: 200, body: { bodies: [] } } })).state).toBe('fail');
+  });
+
+  it('is unmeasured when the build failed or nothing answered', () => {
+    expect(evaluateA19(observation({ built: { code: 2, output: 'tsc' } })).state).toBe('unmeasured');
+    expect(evaluateA19(observation({ probe: null })).state).toBe('unmeasured');
+    expect(evaluateA19(observation({ failure: 'no deployment' })).state).toBe('unmeasured');
   });
 });

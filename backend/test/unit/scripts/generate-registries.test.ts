@@ -98,13 +98,69 @@ describe('collectEntities', () => {
     ).toThrow(/Post/);
   });
 
-  it('refuses an entity under a deployment overlay', () => {
-    // Overlay modules cannot ship migrations — the walk below is core-only by
-    // construction — so an overlay entity would be ORM metadata for a table
-    // nothing creates. Refusing it says so where the author is standing.
+});
+
+/**
+ * `specs/190-overlay-full-modules/` FR-038 (T076, research R-4) — an overlay
+ * module's entity is read at runtime from the deployment root, so the committed
+ * registry stays bare core under every `DEPLOYMENT`. The generator no longer
+ * refuses one; it **validates** it — what it would have refused in a core
+ * module, plus the two rules an instance's boot would otherwise be the first to
+ * meet — and emits none of it.
+ */
+describe('collectEntities over an overlay module: validated, never emitted', () => {
+  const OVERLAY = 'apps/example/modules/overlay_notes_fixture/entities/note.entity.ts';
+  const legacy = (body: string): string =>
+    `import { Entity } from '@mikro-orm/decorators/legacy';\nimport { OrgScoped } from '@endora-commerce/platform/tenancy';\n${body}`;
+
+  it('emits no overlay entity, and the core ones as before', () => {
+    const found = collectEntities(
+      tree({
+        'modules/blog/entities/post.entity.ts': ENTITY_SOURCE,
+        [OVERLAY]: legacy('@OrgScoped()\n@Entity()\nexport class OverlayNote {}'),
+      }),
+    );
+    expect(found.map((entity) => entity.className)).toEqual(['Post']);
+  });
+
+  it('refuses one that carries no tenancy classification, or two', () => {
+    expect(() => collectEntities(tree({ [OVERLAY]: legacy('@Entity()\nexport class OverlayNote {}') }))).toThrow(
+      /OverlayNote.*no tenant-scope classification/s,
+    );
     expect(() =>
-      collectEntities(tree({ 'apps/example/modules/example_overlay/entities/x.entity.ts': ENTITY_SOURCE })),
-    ).toThrow(/overlay/i);
+      collectEntities(
+        tree({ [OVERLAY]: legacy('@OrgScoped()\n@GlobalEntity()\n@Entity()\nexport class OverlayNote {}') }),
+      ),
+    ).toThrow(/OverlayNote carries 2 tenant-scope classifications/);
+  });
+
+  it('refuses a decorator that is not from `@mikro-orm/decorators/legacy`', () => {
+    expect(() =>
+      collectEntities(
+        tree({
+          [OVERLAY]:
+            "import { Entity } from '@mikro-orm/decorators/es';\nimport { OrgScoped } from '@endora-commerce/platform/tenancy';\n" +
+            '@OrgScoped()\n@Entity()\nexport class OverlayNote {}',
+        }),
+      ),
+    ).toThrow(/@mikro-orm\/decorators\/legacy/);
+  });
+
+  it('refuses one named like a core entity — the ORM keys its metadata by class name', () => {
+    expect(() =>
+      collectEntities(
+        tree({
+          'modules/blog/entities/post.entity.ts': ENTITY_SOURCE,
+          [OVERLAY]: legacy('@OrgScoped()\n@Entity()\nexport class Post {}'),
+        }),
+      ),
+    ).toThrow(/two entities are called 'Post'/);
+  });
+
+  it('still refuses a decorated class it cannot name', () => {
+    expect(() => collectEntities(tree({ [OVERLAY]: legacy('@Entity()\nconst OverlayNote = class {};') }))).toThrow(
+      /could not be read/,
+    );
   });
 });
 
@@ -361,18 +417,66 @@ describe('collectMigrations', () => {
     ).toThrow(/Migration20260901T101112BlogWidenSlug/);
   });
 
-  it('refuses a migration under a deployment overlay', () => {
-    // An overlay migration is never executed today: the registry is core-only,
-    // and making it otherwise is a feature rather than a side effect of
-    // generating the list. Until then the silence is the defect, so it is loud.
+});
+
+/**
+ * `specs/190-overlay-full-modules/` FR-038 (T076) — an overlay module's
+ * migrations run from the deployment root at runtime, so the committed registry
+ * names none of them. What the generator still owes them is the check it gives a
+ * core module's, before a boot is the first to say: the filename is a
+ * migration's, the class the filename derives is exported, and its name is
+ * scoped by the overlay's module id and unique beside core's.
+ */
+describe('collectMigrations over an overlay module: validated, never emitted', () => {
+  const DIR = 'apps/example/modules/overlay_notes_fixture/migrations';
+
+  it('emits no overlay migration, and the core ones as before', () => {
+    const found = collectMigrations(
+      tree({
+        'modules/blog/migrations/20260901T101112_blog_widen_slug.ts': MIGRATION_SOURCE,
+        [`${DIR}/20261125T120000_overlay_notes_fixture_create_notes.ts`]:
+          'export class Migration20261125T120000OverlayNotesFixtureCreateNotes extends Migration {}',
+      }),
+    );
+    expect(found.map((migration) => migration.className)).toEqual(['Migration20260901T101112BlogWidenSlug']);
+  });
+
+  it('refuses a file not named like a migration — the runtime reader would refuse it too', () => {
+    expect(() =>
+      collectMigrations(tree({ [`${DIR}/create-notes.ts`]: 'export class CreateNotes extends Migration {}' })),
+    ).toThrow(/not named like a migration/);
+  });
+
+  it('refuses a file that does not export the class its filename derives', () => {
     expect(() =>
       collectMigrations(
         tree({
-          'apps/example/modules/example_overlay/migrations/20260901T101112_example_overlay_init.ts':
-            'export class Migration20260901T101112ExampleOverlayInit extends Migration {}',
+          [`${DIR}/20261125T120000_overlay_notes_fixture_create_notes.ts`]:
+            'export class Migration20261125T120000OverlayNotesFixtureStart extends Migration {}',
         }),
       ),
-    ).toThrow(/overlay/i);
+    ).toThrow(/must export 'class Migration20261125T120000OverlayNotesFixtureCreateNotes'/);
+  });
+
+  it('refuses a class name not scoped by the overlay module id', () => {
+    expect(() =>
+      collectMigrations(
+        tree({
+          [`${DIR}/20261125T120000_notes_create.ts`]: 'export class Migration20261125T120000NotesCreate extends Migration {}',
+        }),
+      ),
+    ).toThrow(/Migration20261125T120000OverlayNotesFixture…/);
+  });
+
+  it('refuses a class name a core migration already has', () => {
+    expect(() =>
+      collectMigrations(
+        tree({
+          'modules/blog/migrations/20260901T101112_blog_widen_slug.ts': MIGRATION_SOURCE,
+          'apps/example/modules/blog/migrations/20260901T101112_blog_widen_slug.ts': MIGRATION_SOURCE,
+        }),
+      ),
+    ).toThrow(/two migrations resolve to 'Migration20260901T101112BlogWidenSlug'/);
   });
 });
 

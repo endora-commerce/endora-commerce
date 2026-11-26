@@ -485,10 +485,13 @@ export async function defaultComposition(
     overlay: () => overlayModules.manifests(),
     packages: () => discoverPackageModuleManifests(env),
   });
+  // The deployment root reaches the schema readers too (`specs/190-overlay-full-modules/`
+  // FR-035), so the ORM this composition opens maps the overlay modules' entities and
+  // knows the order their migrations were applied in.
   const bootstrap = createOrmBootstrap(async () => {
     const [entities, migrations] = await Promise.all([
-      configuredEntitiesFrom({ coreEntities: [], env }),
-      discoverConfiguredMigrations({ coreEntries: [], manifests: [] }, env),
+      configuredEntitiesFrom({ coreEntities: [], env, deploymentRoot }),
+      discoverConfiguredMigrations({ coreEntries: [], manifests: [] }, env, deploymentRoot),
     ]);
     return mikroOrmConfigFrom({ entities, migrations });
   });

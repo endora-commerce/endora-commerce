@@ -2141,12 +2141,36 @@ export function checkModuleBoundary(
       shardOfKey,
       modules,
     ),
-    foreignWrites: compareLedger(
+    foreignWrites: overlayWritesUnledgerable(
       byRule('migration-writes-a-foreign-table'),
-      migrationLedgers.foreignWrites,
-      migrationKeyOf,
-      shardOfKey,
-      modules,
+      (findings) =>
+        compareLedger(findings, migrationLedgers.foreignWrites, migrationKeyOf, shardOfKey, modules),
+    ),
+  };
+}
+
+/**
+ * R2 with an overlay module's writes taken out of the ledger's reach
+ * (`specs/190-overlay-full-modules/` FR-034, OR-4).
+ *
+ * The ledger renders `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS`, and the platform's
+ * foreign-schema guard hands an overlay module none of them: its migrations run
+ * under the full guard, so a write the ledger excused here is still refused at
+ * `migrate`. Such a finding is therefore always a violation, and an entry naming
+ * it is reported stale — it describes an exemption that does not exist.
+ */
+function overlayWritesUnledgerable(
+  findings: readonly MigrationSqlFinding[],
+  compare: (findings: readonly MigrationSqlFinding[]) => LedgerVerdict<MigrationSqlFinding>,
+): LedgerVerdict<MigrationSqlFinding> {
+  const byOverlay = (finding: MigrationSqlFinding): boolean => finding.file.startsWith('apps/');
+  const verdict = compare(findings.filter((finding) => !byOverlay(finding)));
+  const overlay = findings.filter(byOverlay);
+  if (overlay.length === 0) return verdict;
+  return {
+    ...verdict,
+    violations: [...verdict.violations, ...overlay].sort((a, b) =>
+      a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file),
     ),
   };
 }

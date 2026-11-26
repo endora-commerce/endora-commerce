@@ -102,21 +102,34 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 6 — Overlay schema discovery (#1850, US1) — after Phases 2 and 5 — **one merge request**
 
-- [ ] T070 Test: `overlaySchemaContributionsUnder` — `entities` export read; `entities-not-array`, `entity-not-class`; migration directory read file by file; `migration-file-shape` (none / two / mismatched name); `overlay-entity-unexported`; bare root → `[]` — `packages/platform/src/overlay/overlay-schema.test.ts` (rewritten) [FR-030 – FR-032]
-- [ ] T071 Implement (rewrite `overlay-schema.ts`); `MigrationOrigin` + `'overlay'` [FR-030 – FR-033]
-- [ ] T072 Test: merge — overlay entities in the ORM set; overlay migrations ordered by dependencies; guard wraps them with **no** exemption (a first-party exemption naming the same table does not apply); ownership covers overlay ids; `DEPLOYMENT` unset → byte-identical result — `configured-migrations.test.ts`, `configured-entities.test.ts` [FR-033 – FR-036]
-- [ ] T073 Implement in `configured-entities.ts`, `configured-migrations.ts` (`deploymentRoot` inputs) [FR-033 – FR-036]
-- [ ] T074 Bindings: `backend/src/db/configured-{entities,migrations}.ts` pass the overlay root; instance wiring `mikro-orm.config.ts` passes it; `migrate.ts` loses `refuseOverlaySchema` [FR-035]
-- [ ] T075 **Delete** every refusal of `contracts/overlay-schema-discovery.md` §4 (platform, CLI generate, CLI new-module `--entities` stays refused until Phase 8, composer branches); rewrite the tests that asserted them; `rg -n "OverlaySchemaError|contributes no schema|overlaySchemaFiles|refuseOverlaySchema"` over the whole tree returns only this spec and history [FR-037, SC-003]
-- [ ] T076 Composer: overlay schema validated (scoped names, filename/class agreement, one classification, `/legacy` imports), nothing emitted; registries bare core — `backend/test/unit/scripts/generate-composer*.test.ts` [FR-038]
-- [ ] T077 Test (red first): a test that sets `DEPLOYMENT=example` in-process gets a template digest different from bare core, and a bare-core test in the same run keeps the bare-core template. Group the overlay-table integration tests (T079, T090, T120) so they share that one template. No `backend-suite.yml` leg is added (OR-13) — `backend/test/unit/harness/` [FR-039, FR-040]
-- [ ] T077a Implement: `backend/test/template-identity.ts` floors overlay migrations as their own origin [FR-039]
-- [ ] T078 `check:module-boundary` R1/R2 and `fk-dependency-drift.test.ts` read overlay migrations under `backend/src/apps/` [FR-034]
-- [ ] T079 Integration (`DEPLOYMENT` set in-process): fixture overlay entity + migration applied, cross-tenant read is "not found" [US1]
-- [ ] T080 Acceptance: fixture instance overlay with a table — `setup` green, route works [US1, SC-001]
-- [ ] T081 Convention sentences: `overlay-modules.md` D-106 paragraph → D-297, stale `services/` sentence deleted; `module-migrations.md` overlay paragraph and R2 instance paragraph [FR-101, FR-104]
+- [x] T070 Test: `overlaySchemaContributionsUnder` — `entities` export read; `entities-not-array`, `entity-not-class`; migration directory read file by file; `migration-file-shape` (none / two / mismatched name); `overlay-entity-unexported`; bare root → `[]` — `packages/platform/src/overlay/overlay-schema.test.ts` (rewritten) [FR-030 – FR-032]
+- [x] T071 Implement (rewrite `overlay-schema.ts`); `MigrationOrigin` + `'overlay'` [FR-030 – FR-033]
+  - `OverlaySchemaError` keeps its name with the new meaning (`data-model.md` §3: a `verdict` per refusal), so T075's `rg` still finds it — as the new refusal class, not as the D-106 one
+- [x] T072 Test: merge — overlay entities in the ORM set; overlay migrations ordered by dependencies; guard wraps them with **no** exemption (a first-party exemption naming the same table does not apply); ownership covers overlay ids; `DEPLOYMENT` unset → byte-identical result — `configured-migrations.test.ts`, `configured-entities.test.ts` [FR-033 – FR-036]
+- [x] T073 Implement in `configured-entities.ts`, `configured-migrations.ts` (`deploymentRoot` inputs) [FR-033 – FR-036]
+  - `ConfiguredMigrations` gains `overlays`; `composeApp`'s default ORM, `instanceMigrationOwnership` and the ORM projection of `schemaExtensions` take the overlay half too
+- [x] T074 Bindings: `backend/src/db/configured-{entities,migrations}.ts` pass the overlay root; instance wiring `mikro-orm.config.ts` passes it; `migrate.ts` loses `refuseOverlaySchema` [FR-035]
+  - Also: `endora upgrade` rewrites `mikro-orm.config.ts` and `migrate.ts` while they are 0.112.0's rendering (recorded in `wiring-renderings.ts`, unchanged since `v0.112.0`), since the old `migrate.ts` imports the removed `refuseOverlaySchema`; the new `migrate.ts` catches a refusal with `exitOnRefusal`. Not done: `migrate` compares nothing with the sources (§3 hands it `deploymentRoot` only), so over a stale build it applies what was compiled
+- [x] T075 **Delete** every refusal of `contracts/overlay-schema-discovery.md` §4 (platform, CLI generate, CLI new-module `--entities` stays refused until Phase 8, composer branches); rewrite the tests that asserted them; `rg -n "OverlaySchemaError|contributes no schema|overlaySchemaFiles|refuseOverlaySchema"` over the whole tree returns only this spec and history [FR-037, SC-003]
+  - The `rg` still matches, outside this spec: the CHANGELOGs; `specs/110-instance-repository/contracts/instance-tree.md` (provenance); `docs/docs/architecture/overlay-pattern.md` (+ pl), WP11 by `contracts/docs-pass.md`; the 0.112.0 rendering `wiring-renderings.ts` records; history comments in `published-surface.test.ts` / `fk-dependency-drift.test.ts`; the negative assertion in `new-instance.test.ts`; and `OverlaySchemaError`, kept per T071. The local-registry criterion's L9 / L20 were rewritten to measure acceptance by `generate` and the runtime refusal; not run here (needs a registry)
+- [x] T076 Composer: overlay schema validated (scoped names, filename/class agreement, one classification, `/legacy` imports), nothing emitted; registries bare core — `backend/test/unit/scripts/generate-composer*.test.ts` [FR-038]
+  - Also: an overlay entity named like a core entity, and an overlay migration class named like a core one, are refused
+- [x] T077 Test (red first): a test that sets `DEPLOYMENT=example` in-process gets a template digest different from bare core, and a bare-core test in the same run keeps the bare-core template. Group the overlay-table integration tests (T079, T090, T120) so they share that one template. No `backend-suite.yml` leg is added (OR-13) — `backend/test/unit/harness/` [FR-039, FR-040]
+  - `backend/test/unit/harness/template-identity.test.ts`. The grouping seam is `backend/test/helpers/deployment-database.ts` (`deploymentDatabase(deployment)`); the subject is `apps/example/modules/overlay_notes_fixture/` (one org-scoped table). `backend/src/db/configured-*.ts` memoise per deployment so a bare-core caller in the same process keeps its own order
+- [x] T077a Implement: `backend/test/template-identity.ts` floors overlay migrations as their own origin [FR-039]
+  - Backend vitest configs now transform legacy decorators everywhere (`BACKEND_TRANSFORM`): `src/apps/**` is outside `tsconfig.json`, so Oxc left an overlay entity's decorator untransformed (`SyntaxError`)
+- [x] T078 `check:module-boundary` R1/R2 and `fk-dependency-drift.test.ts` read overlay migrations under `backend/src/apps/` [FR-034]
+  - R1/R2 already read `src/apps` migrations; an R2 entry can no longer excuse an overlay's write (it stays a violation, the entry reports stale). `fk-dependency-drift.test.ts` reads every deployment's overlay root as origin `overlay`
+- [x] T079 Integration (`DEPLOYMENT` set in-process): fixture overlay entity + migration applied, cross-tenant read is "not found" [US1]
+  - `backend/test/integration/overlay/overlay-table.test.ts`
+- [x] T080 Acceptance: fixture instance overlay with a table — `setup` green, route works [US1, SC-001]
+  - `acceptance:instance` A19 (`backend/scripts/acceptance/instance.ts`): an overlay module with one global entity and one seeding migration; the instance's own `setup` passes over it and the route answers with the seeded row. Measured in `tarball` mode, `pass=18 fail=0 unmeasured=1 of 19`, agreeing with the recorded expectation; `registry` mode not run
+- [x] T081 Convention sentences: `overlay-modules.md` D-106 paragraph → D-297, stale `services/` sentence deleted; `module-migrations.md` overlay paragraph and R2 instance paragraph [FR-101, FR-104]
+  - The published pages (`overlay-pattern.md` and the rest of FR-102) stay with the WP11 docs pass, as `contracts/docs-pass.md` places them
 - [ ] T083 Test (OR-10, needs 189 P1; see plan C-1): a fixture overlay with one entity, one migration, a `ports.ts` and an admin layer composes with `ModuleEntry.origin === 'deployment'` (via `moduleOriginOf`) while its `ModuleIdClaimOrigin` stays `overlay` and it stays in `deploymentShippedEntries`, the same as a schema-less overlay. No manifest field changes it — `packages/platform/src/overlay/overlay-runtime.test.ts` [FR-090, FR-091]
+  - Not done (#1850): its precondition does not hold — `rg moduleOriginOf packages` finds nothing, 189 P1 has not merged. It moves to the first WP after it (plan C-1)
 - [ ] T082 Dispatch `backend-suite.yml` on the branch (D-198) before merge; changeset platform `minor`
+  - Changeset written (`.changeset/1850-overlay-schema.md`, platform and cli `minor`); the dispatch is the lead's
 
 ## Phase 7 — Lifecycle (#1851, US5) — after Phase 6
 

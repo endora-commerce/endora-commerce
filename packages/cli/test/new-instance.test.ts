@@ -840,12 +840,13 @@ describe('the tree (§1, §2)', () => {
     expect(readme).not.toContain('Adding a module later is `pnpm add`,');
   });
 
-  it('the README says what is true of an instance today: every refusal of overlay schema, and a storefront that may already be there', () => {
+  it('the README says what is true of an instance today: an overlay module may own a table, and a storefront may already be there', () => {
     const readme = planInstance(planInput()).files.find((file) => file.path === 'README.md')!.content;
-    // `generate` was named as the one refusal; `migrate`, `module:*` and the
-    // boot refuse too.
-    expect(readme).toContain('is refused by `generate`, by `migrate`, by every');
-    expect(readme).not.toContain('`pnpm run generate`\nrefuses a `migrations/`');
+    // `specs/190-overlay-full-modules/` FR-037 — the schema refusals are gone, so the
+    // paragraph that listed them would now be false (FR-101).
+    expect(readme).not.toContain('owns no database table');
+    expect(readme).toContain('An overlay module may own a database table');
+    expect(readme).toContain('the foreign-schema guard');
     // `endora install` writes the storefront beside the instance, so "next,
     // write a storefront" was false for everyone who came that way.
     expect(readme).not.toContain('## Next');
@@ -855,10 +856,11 @@ describe('the tree (§1, §2)', () => {
     expect(readme).not.toContain("the operator's switch");
   });
 
-  it('every entry point turns a refusal about the overlay into a sentence, `migrate` included', () => {
-    // An overlay module ships no schema. The API and the worker meet that
-    // refusal while composing, and print it instead of an uncaught exception;
-    // `migrate` composes nothing and never met it at all, so it asks directly.
+  it('every entry point turns a refusal about the overlay into a sentence, and the ORM reads the overlay', () => {
+    // The API and the worker meet an overlay refusal while composing, and print
+    // it instead of an uncaught exception. `migrate` no longer asks a refusal of
+    // its own (FR-037): its configuration carries the deployment root, so the
+    // overlay modules' migrations are what it applies (FR-035).
     const plan = planInstance(planInput());
     const content = (path: string): string => plan.files.find((file) => file.path === path)!.content;
     for (const path of ['backend/src/index.ts', 'backend/src/worker.ts']) {
@@ -868,10 +870,18 @@ describe('the tree (§1, §2)', () => {
       expect(content(path), path).toMatch(/import \{[^}]*\bexitOnRefusal\b[^}]*\} from '@endora-commerce\/platform\/composition';/);
     }
     const migrate = content('backend/src/migrate.ts');
-    expect(migrate).toContain("import { refuseOverlaySchema } from '@endora-commerce/platform/composition';");
-    // Before the ORM is opened: nothing is migrated over a tree that is refused.
-    expect(migrate.indexOf('refuseOverlaySchema(fileURLToPath(')).toBeGreaterThan(-1);
-    expect(migrate.indexOf('refuseOverlaySchema(fileURLToPath(')).toBeLessThan(migrate.indexOf('MikroORM.init'));
+    expect(migrate).not.toContain('refuseOverlaySchema');
+    // A refusal raised while the configuration reads the overlay is a sentence too.
+    expect(migrate).toContain("import { exitOnRefusal } from '@endora-commerce/platform/composition';");
+    expect(migrate).toContain('await MikroORM.init(await config().catch(exitOnRefusal))');
+    const config = content('backend/src/mikro-orm.config.ts');
+    // `backend/dist` compiled, `backend/src` under a source run — the same value
+    // `index.ts` hands `composeApp`, from the same directory.
+    expect(config).toContain("const deploymentRoot = fileURLToPath(new URL('.', import.meta.url));");
+    expect(config).toContain('configuredEntitiesFrom({ coreEntities: [], deploymentRoot })');
+    expect(config).toContain(
+      'discoverConfiguredMigrations({ coreEntries: [], manifests: [] }, process.env, deploymentRoot)',
+    );
   });
 
   // `specs/178-extensible-columns/` FR-025, D-291 R-A4/R-A5 — `pnpm run setup`

@@ -148,12 +148,14 @@ import {
   evaluateA16,
   evaluateA17,
   evaluateA18,
+  evaluateA19,
   type ActorScopeObservation,
   type AdminStylesheetObservation,
   type DivergenceReportEntry,
   type OverlayModuleObservation,
   type OverlayBuildCase,
   type OverlayBuildObservation,
+  type OverlaySchemaObservation,
   type TenancyGuardObservation,
   type DocsSiteObservation,
   evaluateA14,
@@ -224,6 +226,17 @@ const OVERLAY_MODULE_ID = 'instance_acceptance_overlay';
 const OVERLAY_REGISTRATION = 'instanceAcceptanceOverlayService';
 const OVERLAY_MARKER = 'decorated-by-the-instance-acceptance-overlay';
 const OVERLAY_PROBE_PATH = '/api/v1/storefront/instance-acceptance-overlay/ping';
+/**
+ * A19's fixture (`specs/190-overlay-full-modules/` T080, #1850): an overlay module that owns one
+ * table, written beside A8's after A18 has put that tree back. A global entity, because the
+ * route's subject is the table and the mapping, not the tenancy filter — the cross-tenant half of
+ * an overlay table is `backend/test/integration/overlay/overlay-table.test.ts`'.
+ */
+const SCHEMA_MODULE_ID = 'instance_acceptance_notes';
+const SCHEMA_MIGRATION_FILE = '20270101T000000_instance_acceptance_notes_init.ts';
+const SCHEMA_MIGRATION = 'Migration20270101T000000InstanceAcceptanceNotesInit';
+const SCHEMA_SEEDED = 'seeded by its own migration';
+const SCHEMA_PROBE_PATH = '/api/v1/storefront/instance-acceptance-notes/list';
 const OVERLAY_REASON =
   'The acceptance criterion writes this overlay module, so R6.3 A8 has an overlay module to ' +
   'compose and a decoration to look for in the rendered report.';
@@ -1735,8 +1748,10 @@ function renderedDivergence(
  * A18's probe (`specs/190-overlay-full-modules/` T021, #1848): over the tree A8 left — its
  * overlay module written and built — break the compiled tree one way at a time, ask the
  * instance's own processes, and put the tree back exactly, modification times included,
- * before the next. Then the restored tree has to compose. `migrate` resolves no overlay
- * module until schema discovery (#1850), so it is not asked yet.
+ * before the next. Then the restored tree has to compose. `migrate` is not asked: since
+ * schema discovery (#1850) it reads the compiled overlay schema, but its configuration is
+ * handed the compiled deployment root alone (`overlay-schema-discovery.md` §3), so it
+ * compares nothing with the sources — A19 asks it over a tree that was built.
  */
 function measureOverlayBuild(
   target: string,
@@ -1794,6 +1809,93 @@ function measureOverlayBuild(
   rmSync(disguise, { force: true });
 
   return { cases, clean: status() };
+}
+
+/** A19's fixture module, under the deployment's overlay modules root. */
+function writeSchemaOverlayModule(target: string, deployment: string): readonly string[] {
+  const moduleDir = join(target, 'apps', deployment, 'modules', SCHEMA_MODULE_ID);
+  const files: Record<string, string> = {
+    'manifest.ts':
+      `// Written by \`acceptance:instance\` — A19's fixture: an overlay module that owns a table.\n` +
+      `export const manifest = {\n` +
+      `  id: '${SCHEMA_MODULE_ID}',\n` +
+      `  name: 'Instance acceptance notes',\n` +
+      `  description: "The acceptance criterion's overlay module that owns a table.",\n` +
+      `  version: '1.0.0',\n` +
+      `  dependencies: [],\n` +
+      `};\n`,
+    'entities/acceptance-note.entity.ts':
+      `import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';\n` +
+      `import { GlobalEntity } from '${SCOPE}/platform/tenancy';\n` +
+      `\n` +
+      `@GlobalEntity()\n` +
+      `@Entity({ tableName: 'instance_acceptance_notes' })\n` +
+      `export class InstanceAcceptanceNote {\n` +
+      `  @PrimaryKey({ type: 'text' })\n` +
+      `  id!: string;\n` +
+      `\n` +
+      `  @Property({ type: 'text' })\n` +
+      `  body!: string;\n` +
+      `}\n`,
+    [`migrations/${SCHEMA_MIGRATION_FILE}`]:
+      `import { Migration } from '@mikro-orm/migrations';\n` +
+      `\n` +
+      `export class ${SCHEMA_MIGRATION} extends Migration {\n` +
+      `  override async up(): Promise<void> {\n` +
+      `    this.addSql('create table "instance_acceptance_notes" ("id" text not null, "body" text not null, ' +\n` +
+      `      'constraint "instance_acceptance_notes_pkey" primary key ("id"));');\n` +
+      `    this.addSql(\`insert into "instance_acceptance_notes" ("id", "body") values ('a19', '${SCHEMA_SEEDED}');\`);\n` +
+      `  }\n` +
+      `}\n`,
+    'backend.ts':
+      `import type { EntityManager } from '@mikro-orm/core';\n` +
+      `import type { ModuleContext } from '${SCOPE}/platform/kernel';\n` +
+      `import { InstanceAcceptanceNote } from './entities/acceptance-note.entity.js';\n` +
+      `\n` +
+      `export const entities = [InstanceAcceptanceNote];\n` +
+      `\n` +
+      `export function registerModule(ctx: ModuleContext): void {\n` +
+      `  ctx.routes(async (app) => {\n` +
+      `    app.get('${SCHEMA_PROBE_PATH}', async () => {\n` +
+      `      const { emFactory } = ctx.cradle() as { emFactory: () => EntityManager };\n` +
+      `      const notes = await emFactory().find(InstanceAcceptanceNote, {});\n` +
+      `      return { module: '${SCHEMA_MODULE_ID}', bodies: notes.map((note) => note.body) };\n` +
+      `    });\n` +
+      `  });\n` +
+      `}\n`,
+  };
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(moduleDir, path)), { recursive: true });
+    writeFileSync(join(moduleDir, path), content, 'utf8');
+  }
+  return Object.keys(files).map((path) => `apps/${deployment}/modules/${SCHEMA_MODULE_ID}/${path}`);
+}
+
+/**
+ * A19's probe (`specs/190-overlay-full-modules/` T080, #1850): write an overlay module that owns a
+ * table, run the instance's own `setup` over it — `generate`, `build`, `typecheck`, `migrate` and
+ * `module:install --all`, what a client runs after adding a module — boot, and ask its route for
+ * the row its migration seeded. The build is asked on its own first, so a fixture that does not
+ * compile is reported as that rather than as a failed `setup`.
+ */
+async function measureOverlaySchema(
+  target: string,
+  deployment: string,
+  environment: NodeJS.ProcessEnv,
+  databaseUrl: string,
+): Promise<OverlaySchemaObservation> {
+  const written = writeSchemaOverlayModule(target, deployment);
+  notes.push(`wrote ${written.join(', ')} — A19's fixture, an overlay module that owns a table`);
+  const base = { moduleId: SCHEMA_MODULE_ID, migrationName: SCHEMA_MIGRATION, seeded: SCHEMA_SEEDED };
+  const built = run('pnpm', ['-C', 'backend', 'run', 'build'], { cwd: target, env: environment });
+  if (built.code !== 0) return { ...base, built, migrated: null, applied: null, probe: null };
+  const migrated = run('pnpm', ['run', 'setup'], { cwd: target, env: environment });
+  const read = migrated.code === 0 ? await appliedMigrations(databaseUrl) : null;
+  const applied = read?.kind === 'read' ? read.names : null;
+  if (migrated.code !== 0 || applied === null) return { ...base, built, migrated, applied, probe: null };
+  const boot = await bootOnce(target, environment, false, [SCHEMA_PROBE_PATH]);
+  const probe = boot.healthStatus === null ? null : (boot.probes.get(SCHEMA_PROBE_PATH) ?? null);
+  return { ...base, built, migrated, applied, probe };
 }
 
 async function measureOverlay(
@@ -2504,6 +2606,7 @@ async function main(): Promise<void> {
               'deployment to write an overlay module into (`contracts/instance-tree.md` §2.2)',
           });
           results.push({ id: 'A18', state: 'unmeasured', detail: 'there is no deployment to build an overlay in' });
+          results.push({ id: 'A19', state: 'unmeasured', detail: 'there is no deployment to write an overlay module into' });
         } else {
           overlayEnvironment = { ...environment, DEPLOYMENT: deployment };
           notes.push(
@@ -2513,6 +2616,11 @@ async function main(): Promise<void> {
           );
           results.push(evaluateA8(await measureOverlay(target, deployment, overlayEnvironment)));
           results.push(evaluateA18(measureOverlayBuild(target, deployment, overlayEnvironment)));
+          results.push(
+            evaluateA19(
+              await measureOverlaySchema(target, deployment, overlayEnvironment, database.databaseUrl),
+            ),
+          );
         }
       } else {
         results.push(
@@ -2530,6 +2638,7 @@ async function main(): Promise<void> {
           detail: 'the instance did not migrate, so there is nothing to compose an overlay in',
         });
         results.push({ id: 'A18', state: 'unmeasured', detail: 'the instance did not migrate, so there is no overlay build to break' });
+        results.push({ id: 'A19', state: 'unmeasured', detail: 'the instance did not migrate, so there is no schema to add an overlay table to' });
         results.push({
           id: 'A9',
           state: 'unmeasured',
@@ -2560,6 +2669,7 @@ async function main(): Promise<void> {
         detail: 'there is no install to compose an overlay module in',
       });
       results.push({ id: 'A18', state: 'unmeasured', detail: 'there is no install to build an overlay in' });
+      results.push({ id: 'A19', state: 'unmeasured', detail: 'there is no install to migrate an overlay module in' });
       results.push({
         id: 'A9',
         state: 'unmeasured',

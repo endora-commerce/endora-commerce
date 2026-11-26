@@ -19,7 +19,7 @@
 
 import { defineConfig } from 'vitest/config';
 import baseConfig from '../vitest.config.base.js';
-import { backendTestOptions, mergeBackendConfig } from './vitest.shared.js';
+import { BACKEND_TRANSFORM, backendTestOptions, mergeBackendConfig } from './vitest.shared.js';
 
 // Choosing this config *is* the declaration that the run has no services, in
 // the idiom of `vitest.unit.config.ts`: it is made here rather than left to
@@ -31,6 +31,7 @@ process.env['BACKEND_TEST_SERVICES'] = 'none';
 export default mergeBackendConfig(
   baseConfig,
   defineConfig({
+    ...BACKEND_TRANSFORM,
     test: {
       name: 'backend-release',
       include: ['test/release/**/*.test.ts'],

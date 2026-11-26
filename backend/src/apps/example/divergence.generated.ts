@@ -17,6 +17,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     "example_overlay",
     "ledger_challenger_fixture",
     "ledger_vendor_fixture",
+    "overlay_notes_fixture",
     "payment_gateway_fixture",
     "pim_challenger_fixture",
     "pim_incumbent_fixture"

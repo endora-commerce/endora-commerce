@@ -62,9 +62,9 @@ export interface OrmConfigurationInputs {
   readonly migrations: ConfiguredMigrations;
   /**
    * The declared extension columns to project (`specs/178-extensible-columns/`
-   * FR-030). Defaults to every declaration the installed packages the order was
-   * merged from contribute — the same packages, so the ORM and the migration
-   * order can never disagree about which declarations exist.
+   * FR-030). Defaults to every declaration the installed packages and overlay
+   * modules the order was merged from contribute — the same producers, so the ORM
+   * and the migration order can never disagree about which declarations exist.
    */
   readonly schemaExtensions?: readonly ColumnExtension[];
   /**
@@ -85,7 +85,10 @@ export interface OrmConfigurationInputs {
 function projectedDeclarations(inputs: OrmConfigurationInputs): readonly ColumnExtension[] {
   const declarations =
     inputs.schemaExtensions ??
-    inputs.migrations.packages.flatMap((contribution) => contribution.schemaExtensions ?? []);
+    [
+      ...inputs.migrations.packages.flatMap((contribution) => contribution.schemaExtensions ?? []),
+      ...inputs.migrations.overlays.flatMap((contribution) => contribution.schemaExtensions),
+    ];
   const hosts = inputs.extensibleHosts ?? rolledOutExtensibleHosts();
   for (const declaration of declarations) {
     if (!hosts.has(declaration.host)) {

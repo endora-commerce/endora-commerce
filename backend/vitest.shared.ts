@@ -82,6 +82,26 @@ export function mergeBackendConfig(base: UserConfig, override: UserConfig): User
 }
 
 /**
+ * The transform every backend config applies: legacy decorators, everywhere
+ * (`specs/190-overlay-full-modules/` #1850).
+ *
+ * Vite 8 transpiles through Oxc, which takes `experimentalDecorators` from the
+ * tsconfig that *includes* a file (`packages/platform/vitest.config.ts` met the
+ * same thing). `src/apps/**` is excluded from `tsconfig.json` and included by
+ * `tsconfig.apps.json` (issue #1847), which no lookup finds — so an overlay
+ * module's entity, the first decorated file under `src/apps/` and the one an
+ * overlay module that owns a table is made of, reached Node with its decorator
+ * untransformed and failed as `SyntaxError: Invalid or unexpected token`. Every
+ * other file's tsconfig already says `experimentalDecorators: true`
+ * (`tsconfig.base.json`), so this changes nothing for them; `tsx`, which runs
+ * the same overlay in `pnpm run dev`, applies one tsconfig per process and
+ * never met it.
+ */
+export const BACKEND_TRANSFORM = {
+  oxc: { decorator: { legacy: true } },
+} as const satisfies UserConfig;
+
+/**
  * The contracts package's **built** output is loaded by node, once, and not by
  * vite-node once per test file (issue #199).
  *

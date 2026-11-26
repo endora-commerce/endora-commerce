@@ -1,3 +1,5 @@
+import { OverlayBuildError } from '../overlay/overlay-freshness.js';
+import { OverlayLayoutError } from '../overlay/overlay-layout.js';
 import { OverlaySchemaError } from '../overlay/overlay-schema.js';
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
@@ -233,10 +235,15 @@ describe('the failure path an entry point turns into an exit code', () => {
   });
 
   it('reports a refusal written for the operator as its sentence, with no stack under it', () => {
-    const lines: string[] = [];
-    const refusal = new OverlaySchemaError('[overlay] an overlay module contributes no schema');
-    expect(cliFailureExitCode(refusal, (chunk) => lines.push(chunk))).toBe(1);
-    expect(lines).toEqual(['[overlay] an overlay module contributes no schema\n']);
+    for (const refusal of [
+      new OverlaySchemaError('migration-file-shape', 'notice', '[overlay] a migration file is refused'),
+      new OverlayLayoutError('/r', [{ kind: 'package-in-disguise', file: '/r/a/package.json' }]),
+      new OverlayBuildError([{ verdict: 'unbuilt', source: '/s/a/manifest.ts', emitted: null }], 'pnpm run build'),
+    ]) {
+      const lines: string[] = [];
+      expect(cliFailureExitCode(refusal, (chunk) => lines.push(chunk))).toBe(1);
+      expect(lines).toEqual([`${refusal.message}\n`]);
+    }
   });
 
   it('a non-Error is still reported rather than swallowed', () => {
