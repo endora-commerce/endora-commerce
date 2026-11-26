@@ -210,6 +210,15 @@ export default [
       parserOptions: { projectService: false, project: ['backend/tsconfig.apps.json'], tsconfigRootDir: ROOT },
     },
   },
+  // An overlay module's admin layer (`specs/190-overlay-full-modules/` FR-083,
+  // #1855) is browser code: `backend/tsconfig.apps.json` excludes it and the
+  // admin's own program, `admin/tsconfig.json`, includes it with the DOM and JSX.
+  {
+    files: ['backend/src/apps/*/modules/*/admin/**/*.ts', 'backend/src/apps/*/modules/*/admin/**/*.tsx'],
+    languageOptions: {
+      parserOptions: { projectService: false, project: ['admin/tsconfig.json'], tsconfigRootDir: ROOT },
+    },
+  },
   // React rules, in the shared root and scoped to `.tsx` (feature 091, Phase 4).
   //
   // The header above calls this config framework-agnostic, and it still is for
@@ -248,6 +257,7 @@ export default [
       'packages/admin-kit/src/**/*.tsx',
       'packages/admin-shell/src/**/*.tsx',
       'packages/modules/*/src/admin/**/*.tsx',
+      'backend/src/apps/*/modules/*/admin/**/*.tsx',
     ],
     ignores: ['**/*.test.tsx'],
     rules: {
