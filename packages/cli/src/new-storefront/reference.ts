@@ -143,7 +143,7 @@ export function trackedFiles(repoRoot: string, storefrontDir: string): readonly 
   const files = result.stdout
     .split('\0')
     .filter((line) => line.length > 0)
-    .map((line) => relative(storefrontDir, join(repoRoot, line)));
+    .map((line) => relative(storefrontDir, join(repoRoot, line)).split(sep).join('/'));
   if (files.length === 0) {
     throw new StorefrontHostError(
       `git tracks no file under ${storefrontDir}. There is no reference storefront to copy.`,
