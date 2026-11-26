@@ -29,6 +29,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
   ],
   "boundary": {
     "recorded": [
+      "column-extension",
       "command-hook",
       "decoration",
       "interceptor",
@@ -56,6 +57,10 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       {
         "seam": "manifest.ts declarations (permissions, palette actions, i18n bundles, CLI commands)",
         "why": "each is a module declaring its own surface, and each is already swept by the instrument that owns it — the permission inventory, the bundle-shape test, the action-route check"
+      },
+      {
+        "seam": "an overlay module's own entities and migrations",
+        "why": "a table an overlay module creates is its own surface, migrated under the foreign-schema guard with no exemption, so it cannot touch a table it does not own; what it declares on another module's table is recorded, as a column extension"
       }
     ],
     "runtimeOnly": [
