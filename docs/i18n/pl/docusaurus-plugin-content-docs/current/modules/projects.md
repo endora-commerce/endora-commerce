@@ -1033,6 +1033,25 @@ projekcie: nazwisko kierownika projektu i karta najcenniejszego projektu są
 czytane potem, dla kilku wierszy, które zwróciło zapytanie. Usługa to
 `services/analytics-service.ts`, zakres i proporcje — `domain/analytics-range.ts`.
 
+### Panele na ekranie projektu
+
+Strefa panelu administracyjnego `project.detail.after` jest osadzona raz, na
+końcu ekranu projektu, pod jego zakładkami, i przekazuje wkładowi
+`{ projectId }`. Moduł dodaje panel, deklarując
+`zoneComponent('project.detail.after', …)` we własnych wkładach do panelu
+administracyjnego; każdy wkład jest osobną kartą.
+
+Strefa panelu administracyjnego `project.detail.sidebar` jest osadzona raz, w
+karcie panelu bocznego obok zakładek, i przekazuje wkładowi ten sam
+`{ projectId }`. Każdy wkład jest sekcją tej jednej karty. Panel boczny jest
+rysowany tylko wtedy, gdy coś go wypełnia.
+
+Ten moduł nie wymienia żadnego wkładu i żadnego nie importuje. Gdy nikt nic nie
+wnosi — nie ma takiego modułu, moduł jest wyłączony albo osoba nie ma
+uprawnienia wymaganego przez panel — obie strefy nie renderują niczego, a ekran
+jest dokładnie taki jak bez nich. Nie ma strefy dla zakładek projektu: inny
+moduł nie może dodać zakładki do projektu.
+
 ### Odczyt projektów z innego modułu
 
 `projectReadPort` (`ProjectReadPort` z `@endora-commerce/contracts`) to jedyne
@@ -1048,11 +1067,23 @@ przez `lazyPort` i deklaruj krawędź jako `degrades-without` ze zdaniem
 | `findByRecord(kind, id)` | Projekt, do którego podpięto `order`, `quote_request` lub `opportunity`, jako `ProjectRecord`, albo `null`. |
 | `findByIds(ids)` | Projekty o podanych `ids`, w dowolnej kolejności; identyfikator projektu, którego wywołujący nie może zobaczyć albo który nie istnieje, jest pomijany. |
 | `search({ q, limit })` | Projekty, których numer lub tytuł zawiera `q`, od najnowszych, najwyżej `limit` (nie więcej niż 20). |
+| `listNotes({ organizationId?, authorAdminUserId?, createdFrom?, createdBefore?, cursor?, limit })` | Notatki zapisane przy projektach, od najstarszej, jako `{ items, nextCursor }`, najwyżej `limit` (nie więcej niż 100) na stronę. Każdy element to `ProjectNoteRecord` — `id`, `projectId`, `organizationIds`, `author` (`id`, `name`), `body`, `createdAt`, `editedAt`. |
 
-Wszystkie cztery metody odpowiadają w imieniu wywołującego, przez `ProjectAccess` w jego
+Wszystkie pięć metod odpowiada w imieniu wywołującego, przez `ProjectAccess` w jego
 własnym kontekście dzierżawy: projekt, który nie istnieje, projekt poza
 zasięgiem wywołującego i projekt, którego nie może on zobaczyć, to ten sam
 `null` — albo zostają pominięte. Odpowiedź jest zwykłym obiektem, nigdy encją.
+
+`listNotes` wypisuje wyłącznie notatki — nigdy wewnętrznych wiadomości ani
+usuniętych notatek — i tylko przy projektach, które wywołujący może zobaczyć.
+Każdy filtr jest opcjonalny, a filtry się łączą: organizacja, autor i czas
+utworzenia od `createdFrom` (włącznie) do `createdBefore` (bez tej chwili).
+**Notatki organizacji to notatki każdego projektu do niej podpiętego**,
+niezależnie od tego, do jakich innych organizacji projekt jest podpięty;
+projekt wewnętrzny, niepodpięty do żadnej, nigdy nie zostanie wybrany przez
+organizację. Następną stronę pobierasz, przekazując `nextCursor` strony jako
+`cursor`; na ostatniej stronie jest `null`. Kursor, którego port nie wydał,
+albo niepoprawna data kończą się odmową `422 VALIDATION_FAILED`.
 
 `./backend` eksportuje też **`nextProjectNumber(em)`** — wejście modułu do jego
 sekwencji numerów: kolejny numer `PRJ-…` dla kodu, który zapisuje projekty bez

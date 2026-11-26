@@ -2291,7 +2291,7 @@ classes. Both types are exported by `@endora-commerce/contracts`.
 
 | Container name | Type | What it does |
 | --- | --- | --- |
-| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByIds(ids)`, `findByDocument(kind, documentId)`, `listOpenForOrganization(organizationId)` and `search({ q, limit })` (number or title, at most 20). Each answers plain `OpportunityRecord` values — id, number, title, organization, status code and kind, assignee, value, currency, dates — or `null` / an empty list. `statusName(code, language)` names a status as CRM's screens do: its name in that language, else its default name, else the code. |
+| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByIds(ids)`, `findByDocument(kind, documentId)`, `listOpenForOrganization(organizationId)` and `search({ q, limit })` (number or title, at most 20). Each answers plain `OpportunityRecord` values — id, number, title, organization, status code and kind, assignee, value, currency, dates — or `null` / an empty list. `statusName(code, language)` names a status as CRM's screens do: its name in that language, else its default name, else the code. `listNotes({ organizationId?, authorAdminUserId?, createdFrom?, createdBefore?, cursor?, limit })` lists the notes written on opportunities, oldest first, a page of at most 100 at a time — see *Reading notes* below. |
 | `opportunityTransitionPort` | `OpportunityTransitionPort` | `applyStatus({ opportunityId, to, actor, reason? })` moves an opportunity through the configured workflow, guards and events included, and answers what happened as a value. |
 
 ```ts
@@ -2321,6 +2321,19 @@ if (!outcome.applied && outcome.reason !== 'already_there') {
   opens its own.
 - **Reads and moves run under the caller's tenant scope.** A caller confined to
   some organizations cannot read or move an opportunity of another.
+- **Reading notes.** `listNotes` answers `{ items, nextCursor }`. Each item is
+  an `OpportunityNoteRecord`: the note's `id`, its `opportunityId`, the
+  opportunity's `organizationId`, the `author` (`id` and `name`), the `body` as
+  written, `createdAt` and `editedAt`. Every filter is optional and they
+  combine: an organization, an author, and a creation time from `createdFrom`
+  (included) to `createdBefore` (not included). Pass the page's `nextCursor`
+  back as `cursor` for the next page; it is `null` on the last one. Only notes
+  are listed — never the internal messages, and never a deleted note — and
+  only those of opportunities the caller's tenant scope reaches, so a sales
+  representative reads the notes of the organizations their scope reaches. A
+  cursor the port did not issue, or an invalid date, is refused with
+  `422 VALIDATION_FAILED`. The port checks no permission: ask `crm:read`
+  yourself before calling it.
 - **Declare the edge in your manifest.** A module that cannot work without CRM
   lists `crm` in `dependencies`. One that can lists it in
   `nonBindingDependencies` with `kind: 'degrades-without'`, the port's name and

@@ -121,6 +121,7 @@
   "detail.back": "Projects",
   "detail.internal": "Internal project",
   "detail.noValue": "No value",
+  "detail.sidebar.label": "Related work",
   "stageBar.heading": "Stages",
   "stageBar.current": "current",
   "stageBar.deadline": "Deadline {date}",

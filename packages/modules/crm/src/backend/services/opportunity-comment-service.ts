@@ -1,14 +1,19 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  OPPORTUNITY_READ_PORT_NOTES_MAX,
   type AdminUserReadPort,
   type CreateOpportunityCommentRequest,
   type OpportunityComment,
   type OpportunityCommentKind,
+  type OpportunityNotePage,
+  type OpportunityNoteQuery,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
+import { orgConstraintFor, orgScopeSql, reachesNoOrganization } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
+import { NOTE_CURSOR_INSTANT_SQL, encodeNoteCursor, noteListBounds } from '../domain/note-page.js';
 import type { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityComment } from '../entities/crm-opportunity-comment.entity.js';
 import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.entity.js';
@@ -31,6 +36,19 @@ export interface OpportunityCommentServiceDeps {
   canReach: AdminReach;
   /** Who a text mentions, and telling them (User Story 18). */
   mentions: MentionService;
+}
+
+/** One row of the notes listing's statement. */
+interface NoteRow {
+  id: string;
+  opportunity_id: string;
+  organization_id: string;
+  author_admin_user_id: string;
+  body: string;
+  created_at: Date | string;
+  edited_at: Date | string | null;
+  /** `created_at` at full precision, as a cursor carries it. */
+  cursor_at: string;
 }
 
 function commentNotFound(): HttpError {
@@ -56,7 +74,9 @@ function commentNotFound(): HttpError {
  * a message that entry stands instead of the participant's, not beside it.
  *
  * **Both are internal.** There is no customer-visible flag, and nothing outside
- * this module's admin routes reads this table.
+ * this module's admin routes reads this table — except the notes listing of
+ * `opportunityReadPort` ({@link listNotes}, issue #1905), which another module
+ * reaches only under its caller's tenant scope and which never lists a message.
  *
  * A comment is a child of an Opportunity and carries no tenant column, so
  * every method loads the Opportunity through the scoped EntityManager first
@@ -80,6 +100,96 @@ export class OpportunityCommentService {
       { orderBy: { createdAt: 'asc', id: 'asc' } },
     );
     return this.#render(rows);
+  }
+
+  /**
+   * The notes of many Opportunities, one keyset page at a time, oldest first —
+   * `opportunityReadPort.listNotes` (issue #1905). No message, no deleted note.
+   *
+   * One statement over `crm_opportunity_comments c` joined to its Opportunity,
+   * which is the row that carries the tenant column: SQL the entity filter
+   * never sees, so the reach is written here from the constraint the ambient
+   * context implies (`orgConstraintFor`, which throws without a context), with
+   * the platform's predicate for it (`orgScopeSql`) — the rule
+   * `analytics-service.ts` and `tag-service.ts` read Opportunities by. A
+   * reader who reaches no Organization runs no statement. Checks no
+   * permission: the port's caller is the gate.
+   */
+  async listNotes(query: OpportunityNoteQuery): Promise<OpportunityNotePage> {
+    const bounds = noteListBounds(query, OPPORTUNITY_READ_PORT_NOTES_MAX);
+    if (bounds === null) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        'The notes query carries an invalid instant or a cursor this port did not issue.',
+      );
+    }
+    const empty: OpportunityNotePage = { items: [], nextCursor: null };
+    const constraint = orgConstraintFor();
+    if (bounds.limit === 0 || reachesNoOrganization(constraint)) return empty;
+    // A malformed id names nothing, as everywhere on this port.
+    if (query.organizationId !== undefined && !isUuid(query.organizationId)) return empty;
+    if (query.authorAdminUserId !== undefined && !isUuid(query.authorAdminUserId)) return empty;
+
+    const where = [`c."kind" = 'note'`, `c."deleted_at" is null`];
+    const params: unknown[] = [];
+    const reach = orgScopeSql('o."organization_id"', constraint);
+    where.push(reach.sql);
+    params.push(...reach.params);
+    if (query.organizationId !== undefined) {
+      where.push(`o."organization_id" = ?`);
+      params.push(query.organizationId);
+    }
+    if (query.authorAdminUserId !== undefined) {
+      where.push(`c."author_admin_user_id" = ?`);
+      params.push(query.authorAdminUserId);
+    }
+    if (bounds.createdFrom !== null) {
+      where.push(`c."created_at" >= ?`);
+      params.push(bounds.createdFrom);
+    }
+    if (bounds.createdBefore !== null) {
+      where.push(`c."created_at" < ?`);
+      params.push(bounds.createdBefore);
+    }
+    if (bounds.after !== null) {
+      where.push(`(c."created_at", c."id") > (?::timestamptz, ?::uuid)`);
+      params.push(bounds.after.createdAt, bounds.after.id);
+    }
+    // One row past the page says whether there is a next one.
+    params.push(bounds.limit + 1);
+    const rows = await this.deps
+      .emFactory()
+      .getConnection()
+      .execute<NoteRow[]>(
+        `select c."id", c."opportunity_id", o."organization_id", c."author_admin_user_id", c."body",
+                c."created_at", c."edited_at", ${NOTE_CURSOR_INSTANT_SQL} as "cursor_at"
+           from "crm_opportunity_comments" c
+           join "crm_opportunities" o on o."id" = c."opportunity_id"
+          where ${where.join(' and ')}
+          order by c."created_at", c."id"
+          limit ?`,
+        params,
+        'all',
+      );
+    const page = rows.slice(0, bounds.limit);
+    const last = page.at(-1);
+    const names = await this.#authorNames(page.map((row) => row.author_admin_user_id));
+    return {
+      items: page.map((row) => ({
+        id: row.id,
+        opportunityId: row.opportunity_id,
+        organizationId: row.organization_id,
+        author: { id: row.author_admin_user_id, name: names.get(row.author_admin_user_id) ?? '' },
+        body: row.body,
+        createdAt: new Date(row.created_at),
+        editedAt: row.edited_at === null ? null : new Date(row.edited_at),
+      })),
+      nextCursor:
+        rows.length > bounds.limit && last !== undefined
+          ? encodeNoteCursor({ createdAt: last.cursor_at, id: last.id })
+          : null,
+    };
   }
 
   /**
@@ -395,16 +505,20 @@ export class OpportunityCommentService {
     return [...recipients];
   }
 
+  /** Each author's name as the thread shows it, by administrator id — one port call. */
+  async #authorNames(adminUserIds: readonly string[]): Promise<Map<string, string>> {
+    if (adminUserIds.length === 0) return new Map();
+    const authors = await this.deps.adminUsers.findByIds([...new Set(adminUserIds)]);
+    return new Map(authors.map((admin) => [admin.id, `${admin.firstName} ${admin.lastName}`.trim() || admin.email]));
+  }
+
   async #render(rows: readonly CrmOpportunityComment[]): Promise<OpportunityComment[]> {
     if (rows.length === 0) return [];
-    const [authors, references] = await Promise.all([
-      this.deps.adminUsers.findByIds([...new Set(rows.map((row) => row.authorAdminUserId))]),
+    const [names, references] = await Promise.all([
+      this.#authorNames(rows.map((row) => row.authorAdminUserId)),
       // One resolution for the whole page: two port calls, however many comments.
       this.deps.references.resolveMany(rows.map((row) => row.body)),
     ]);
-    const names = new Map(
-      authors.map((admin) => [admin.id, `${admin.firstName} ${admin.lastName}`.trim() || admin.email]),
-    );
     return rows.map((row, index) => ({
       id: row.id,
       kind: row.kind,

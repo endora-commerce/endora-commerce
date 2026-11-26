@@ -1644,6 +1644,23 @@ export interface OpportunityReadPort {
    * permission.
    */
   statusName(code: string, language: SupportedLanguage): Promise<string>;
+  /**
+   * The notes written on the Opportunities in the caller's tenant scope, one
+   * page at a time, oldest first — for a cross-record notes list or an export
+   * (issue #1905). Narrowed by Organization, author and creation time, all
+   * optional and combined with *and*. A note is a `note` comment that has not
+   * been deleted; the internal **messages** of an Opportunity are not notes
+   * and are never listed.
+   *
+   * The reach is the one every other method has: the caller's ambient tenant
+   * scope, so a note of an Opportunity whose Organization the caller may not
+   * reach is absent, as one that does not exist is — a sales representative
+   * sees the notes of the Organizations their scope reaches. A malformed
+   * `organizationId` or `authorAdminUserId` selects nothing. A `cursor` this
+   * port did not issue, or an invalid `Date`, is refused with 422
+   * `VALIDATION_FAILED`. Checks no permission: the caller checks `crm:read`.
+   */
+  listNotes(query: OpportunityNoteQuery): Promise<OpportunityNotePage>;
 }
 
 /** What `OpportunityReadPort.search` is asked. */
@@ -1655,6 +1672,46 @@ export interface OpportunitySearchQuery {
 
 /** The most Opportunities one `OpportunityReadPort.search` answers. */
 export const OPPORTUNITY_READ_PORT_SEARCH_MAX = 20;
+
+/** A note on an Opportunity as it crosses a module boundary — a plain shape, never the entity. */
+export interface OpportunityNoteRecord {
+  id: string;
+  opportunityId: string;
+  /** The Opportunity's Organization — a note has none of its own. */
+  organizationId: string;
+  /** Who wrote it; `name` is `''` for an administrator `admin_users` no longer knows. */
+  author: { id: string; name: string };
+  /** The text as stored, reference tokens included. */
+  body: string;
+  createdAt: Date;
+  /** When its author last edited it; `null` for a note never edited. */
+  editedAt: Date | null;
+}
+
+/** What `OpportunityReadPort.listNotes` is asked. */
+export interface OpportunityNoteQuery {
+  /** Only the notes of this Organization's Opportunities. */
+  organizationId?: string | undefined;
+  /** Only the notes this administrator wrote. */
+  authorAdminUserId?: string | undefined;
+  /** Only notes created at or after this instant. */
+  createdFrom?: Date | undefined;
+  /** Only notes created strictly before this instant. */
+  createdBefore?: Date | undefined;
+  /** The previous page's `nextCursor`; absent or `null` for the first page. */
+  cursor?: string | null | undefined;
+  /** At most {@link OPPORTUNITY_READ_PORT_NOTES_MAX}; `0` answers an empty page. */
+  limit: number;
+}
+
+/** One page of `OpportunityReadPort.listNotes`; `nextCursor` is `null` on the last. */
+export interface OpportunityNotePage {
+  items: OpportunityNoteRecord[];
+  nextCursor: string | null;
+}
+
+/** The most notes one `OpportunityReadPort.listNotes` page answers. */
+export const OPPORTUNITY_READ_PORT_NOTES_MAX = 100;
 
 /** Why a requested transition did not happen. */
 export const OPPORTUNITY_TRANSITION_REFUSALS = [

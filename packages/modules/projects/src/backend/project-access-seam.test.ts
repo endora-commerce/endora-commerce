@@ -79,7 +79,10 @@ const SQL_WITHOUT_RULE_SCOPED_TABLES: Readonly<Record<string, string>> = {
 const RULE_SCOPED_READ_LEDGER: Readonly<Record<string, number>> = {
   'services/analytics-service.ts': 16,
   'services/attachment-service.ts': 5,
-  'services/comment-service.ts': 8,
+  // 12 since issue #1905: `listNotes`, the notes listing of `projectReadPort`, is one statement
+  // over `project_comments` joined to `projects p` carrying `visibleProjectSql`, and reads
+  // `project_organizations` (the Organization filter and the record's ids) only for that `p`.
+  'services/comment-service.ts': 12,
   'services/history-service.ts': 1,
   'services/link-service.ts': 4,
   'services/loss-reason-service.ts': 1,
