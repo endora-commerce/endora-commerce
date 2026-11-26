@@ -30,6 +30,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   findInstanceRoot,
+  generateFindingsRefusal,
   generateReport,
   GenerateHostError,
   GenerateInputError,
@@ -62,6 +63,8 @@ function installModule(
     dependencies?: readonly string[];
     /** The module ids of the manifest's `acknowledgedDependencies`. */
     acknowledged?: readonly string[];
+    /** The manifest's `commandMiddleware`, as `tsc` would emit it (189). */
+    commandMiddleware?: ReadonlyArray<{ id: string; phase: 'admit' | 'observe'; actions: '*' | readonly string[] }>;
   } = { admin: true },
 ): void {
   const name = options.name ?? `${SCOPE}/mod-${id}`;
@@ -111,6 +114,9 @@ function installModule(
         : `    acknowledgedDependencies: ${JSON.stringify(
             options.acknowledged.map((moduleId) => ({ moduleId, port: `${moduleId}Port`, reason: 'a cycle' })),
           )},\n`) +
+      (options.commandMiddleware === undefined
+        ? ''
+        : `    commandMiddleware: ${JSON.stringify(options.commandMiddleware)},\n`) +
       `};\n`,
   );
   write(
@@ -903,3 +909,54 @@ function installPlatform(root: string): void {
   );
   write(join(dir, 'dist', 'lifecycle', 'index.js'), "export const manifest = { id: '_lifecycle' };\n");
 }
+
+describe('endora generate refuses an installed package declaring admit middleware (189 T044, FR-004)', () => {
+  function indexFile(entries: ReadonlyArray<{ name: string; version: string; moduleId?: string }>): string {
+    const dir = mkdtempSync(join(tmpdir(), 'index-'));
+    scratch.push(dir);
+    const file = join(dir, 'release-index.json');
+    writeFileSync(file, JSON.stringify({ packages: entries }), 'utf8');
+    return file;
+  }
+
+  it('reports a non-first-party package declaring admit, before boot, naming the package and the ruling', async () => {
+    const root = instance(['invoices']);
+    installModule(root, 'acme_paid', {
+      admin: false,
+      commandMiddleware: [
+        { id: 'legal-hold', phase: 'admit', actions: '*' },
+        { id: 'timing', phase: 'observe', actions: '*' },
+      ],
+    });
+    const result = await runGenerate({
+      cwd: root,
+      dryRun: true,
+      releaseIndexFile: indexFile([{ name: `${SCOPE}/mod-invoices`, version: '0.113.0', moduleId: 'invoices' }]),
+    });
+    expect(result.packageAdmit).toEqual([
+      { moduleId: 'acme_paid', packageName: `${SCOPE}/mod-acme_paid`, middleware: ['legal-hold'] },
+    ]);
+    const refusal = generateFindingsRefusal(result);
+    expect(refusal).toMatch(/acme_paid/);
+    expect(refusal).toMatch(/legal-hold/);
+    expect(refusal).toMatch(/D-296\.3/);
+  });
+
+  it('accepts admit from a first-party package of this release, and observe from any package', async () => {
+    const root = instance(['invoices']);
+    installModule(root, 'invoices', {
+      admin: true,
+      commandMiddleware: [{ id: 'legal-hold', phase: 'admit', actions: ['invoice.'] }],
+    });
+    installModule(root, 'acme_metrics', {
+      admin: false,
+      commandMiddleware: [{ id: 'timing', phase: 'observe', actions: '*' }],
+    });
+    const result = await runGenerate({
+      cwd: root,
+      dryRun: true,
+      releaseIndexFile: indexFile([{ name: `${SCOPE}/mod-invoices`, version: '0.113.0', moduleId: 'invoices' }]),
+    });
+    expect(result.packageAdmit).toEqual([]);
+  });
+});

@@ -69,6 +69,7 @@ import { realpathSync } from 'node:fs';
 import ts from 'typescript';
 
 import * as publishedContracts from '@endora-commerce/contracts';
+import { commandActionFiltersOverlap } from '@endora-commerce/contracts';
 import type {
   DivergenceBoundary,
   DivergenceDetail,
@@ -76,6 +77,8 @@ import type {
   DivergenceKind,
   DivergenceReport,
 } from '@endora-commerce/contracts';
+
+import { commandMiddlewareDeclarationsIn, isManifestFile } from './command-middleware-declarations.js';
 
 // ---------------------------------------------------------------------------
 // 1. The seam classification — every `ModuleContext` member has exactly one home
@@ -122,6 +125,12 @@ export const SEAM_CLASSIFICATION: Readonly<Record<string, SeamClassification>> =
   // inside a write the owner declared hookable. Both are a published identity
   // the owner versions, and both may veto.
   commandHooks: { verdict: 'divergence', kind: 'command-hook', rung: 2 },
+  // `specs/189-command-middleware/` FR-034 — rung 2 beside hooks: code on the
+  // Command Bus for every matching Command, `admit` before it runs and
+  // `observe` after it settled. The entries are derived from the overlay's
+  // manifest declaration, which carries the filter; the `ctx.commandMiddleware`
+  // call that registers the code is not a second site.
+  commandMiddleware: { verdict: 'divergence', kind: 'command-middleware', rung: 2 },
   rootPlugin: { verdict: 'divergence', kind: 'root-plugin', rung: 4 },
   worker: { verdict: 'divergence', kind: 'worker', rung: null },
 
@@ -993,7 +1002,11 @@ export type DivergenceFindingKind =
   /** An order entry naming a module that is not one of this deployment's. */
   | 'foreign-order-member'
   /** An order entry naming fewer modules than decorate that name. */
-  | 'incomplete-order';
+  | 'incomplete-order'
+  /** A `commandMiddlewareOrder` entry naming no `admit` contributor of this deployment (189). */
+  | 'stale-middleware-order'
+  /** A `commandMiddlewareOrder` naming one module of a tie and not the other (189). */
+  | 'incomplete-middleware-order';
 
 export interface DivergenceFinding {
   readonly kind: DivergenceFindingKind;
@@ -1046,6 +1059,16 @@ export const DIVERGENCE_REMEDIES: Readonly<Record<DivergenceFindingKind, string>
     'A `decorationOrder` entry names fewer modules than decorate that registration. A partial order\n' +
     'refuses the composition at boot (`AmbiguousDecorationError`) rather than ordering it, so the\n' +
     'entry reads as a decision and behaves as a comment.',
+  'stale-middleware-order':
+    'A `commandMiddlewareOrder` entry names a module that contributes no `admit` command middleware\n' +
+    'to this deployment. The composer refuses it at boot (`StaleCommandMiddlewareOrderError`): an\n' +
+    'order for a module that is not there orders nothing, and will order the wrong thing later.\n' +
+    'Remove the entry from `divergence.ts`.',
+  'incomplete-middleware-order':
+    'A `commandMiddlewareOrder` names one module of a tie and not the other: two `admit` command\n' +
+    'middlewares whose filters can match one Command, from modules neither of which depends on the\n' +
+    'other. The composer refuses the pair at boot (`UnorderedCommandMiddlewareError`) unless both\n' +
+    'are named — add the missing module where it should run (first runs first).',
 };
 
 /**
@@ -1175,6 +1198,8 @@ export interface DivergenceInput {
     readonly omittedModules: ReadonlyArray<{ readonly moduleId: string; readonly reason: string }>;
     readonly decorationOrder: Readonly<Record<string, readonly string[]>>;
     readonly reasons: Readonly<Record<string, string>>;
+    /** `specs/189-command-middleware/` FR-031 — the `admit` tie-break; absent means none. */
+    readonly commandMiddlewareOrder?: readonly string[] | undefined;
   };
   /** `ModuleContext`'s own members, from the platform's source. */
   readonly seams: readonly string[];
@@ -1395,6 +1420,49 @@ export function deriveDivergence(input: DivergenceInput): DivergenceResult {
     });
   }
 
+  // `command-middleware` (189, FR-034): what an overlay module declares in its
+  // manifest — the declaration carries the filter, and is what the composer
+  // matches the registration against. The subject is the middleware's id; the
+  // owner is `null`, because the subject is the bus, which no module owns.
+  const admitContributors = new Map<string, Array<'*' | readonly string[]>>();
+  const manifestDependencies = new Map<string, readonly string[]>();
+  for (const source of input.sources) {
+    if (!isManifestFile(source.file)) continue;
+    const reading = commandMiddlewareDeclarationsIn(source.text, source.file);
+    if (reading.dependencies !== null) manifestDependencies.set(source.moduleId, reading.dependencies);
+    for (const site of reading.unresolved) {
+      note(
+        'computed-subject',
+        `${source.file}:${site.line}`,
+        `\`commandMiddleware\` declares a middleware the analysis cannot read as literals: ${site.text}`,
+      );
+    }
+    for (const declaration of reading.declarations) {
+      const detail: DivergenceDetail = {
+        kind: 'command-middleware',
+        phase: declaration.phase,
+        id: declaration.id,
+        actions: declaration.actions,
+      };
+      const key = divergenceKeyOf({ kind: 'command-middleware', module: source.moduleId, subject: declaration.id, detail });
+      entries.push({
+        key,
+        kind: 'command-middleware',
+        module: source.moduleId,
+        subject: declaration.id,
+        owner: null,
+        rung: RUNG_OF(classification, 'commandMiddleware'),
+        detail,
+        reason: input.declaration.reasons[key] ?? '',
+      });
+      if (declaration.phase === 'admit') {
+        const filters = admitContributors.get(source.moduleId) ?? [];
+        filters.push(declaration.actions);
+        admitContributors.set(source.moduleId, filters);
+      }
+    }
+  }
+
   // The omissions, from the declaration and from no seam at all. They are the
   // one kind the declaration supplies the population for, and it is D-101's
   // ruling that it does: the boot refuses an omission that is not declared, so
@@ -1495,6 +1563,52 @@ export function deriveDivergence(input: DivergenceInput): DivergenceResult {
     }
   }
 
+  // `commandMiddlewareOrder` (189, FR-031), at build time: the two shapes a
+  // reviewer can act on before the composer refuses them at boot.
+  const middlewareOrder = input.declaration.commandMiddlewareOrder ?? [];
+  for (const member of middlewareOrder) {
+    if (!admitContributors.has(member)) {
+      note(
+        'stale-middleware-order',
+        declarationPath,
+        `\`commandMiddlewareOrder\` names '${member}', which contributes no admit command middleware to this deployment`,
+      );
+    }
+  }
+  if (middlewareOrder.length > 0) {
+    const reaches = (from: string, to: string): boolean => {
+      const seen = new Set<string>();
+      const stack = [...(manifestDependencies.get(from) ?? [])];
+      while (stack.length > 0) {
+        const next = stack.pop()!;
+        if (next === to) return true;
+        if (seen.has(next)) continue;
+        seen.add(next);
+        stack.push(...(manifestDependencies.get(next) ?? []));
+      }
+      return false;
+    };
+    const ties = (a: string, b: string): boolean =>
+      !reaches(a, b) &&
+      !reaches(b, a) &&
+      admitContributors.get(a)!.some((left) => admitContributors.get(b)!.some((right) => commandActionFiltersOverlap(left, right)));
+    const contributors = [...admitContributors.keys()].sort();
+    const missing = new Set<string>();
+    for (const member of middlewareOrder) {
+      if (!admitContributors.has(member)) continue;
+      for (const other of contributors) {
+        if (other !== member && !middlewareOrder.includes(other) && ties(member, other)) missing.add(other);
+      }
+    }
+    for (const other of [...missing].sort()) {
+      note(
+        'incomplete-middleware-order',
+        declarationPath,
+        `\`commandMiddlewareOrder\` omits '${other}', whose admit command middleware ties with a module it names`,
+      );
+    }
+  }
+
   findings.sort((a, b) =>
     a.kind === b.kind ? a.where.localeCompare(b.where) : a.kind.localeCompare(b.kind),
   );
@@ -1552,6 +1666,10 @@ function detailFor(
       // No `ModuleContext` member is classified to this kind, so no seam site
       // reaches here; its entries are built from `deriveColumnExtensionSites`.
       throw new Error(`a seam site was classified as 'column-extension': ${site.text}`);
+    case 'command-middleware':
+      // `deriveSeamSites` pushes no site for `ctx.commandMiddleware`; the
+      // entries are built from the manifest declaration.
+      throw new Error(`a seam site was classified as 'command-middleware': ${site.text}`);
   }
 }
 
@@ -1581,6 +1699,8 @@ export function describeEntry(entry: DivergenceEntry): string {
       return `this deployment does not ship '${entry.subject}'`;
     case 'column-extension':
       return `'${entry.module}' declares columns on '${entry.subject}', which ${owner} owns`;
+    case 'command-middleware':
+      return `'${entry.module}' runs ${entry.detail.kind === 'command-middleware' ? entry.detail.phase : ''} command middleware '${entry.subject}' on ${entry.detail.kind === 'command-middleware' && entry.detail.actions === '*' ? 'every Command' : 'matching Commands'}`;
   }
 }
 

@@ -33,6 +33,7 @@
 import { spawnSync } from 'node:child_process';
 import { builtinModules } from 'node:module';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import * as nodePath from 'node:path';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
 import {
@@ -118,6 +119,25 @@ export function findRepoRoot(start: string): string | null {
 }
 
 /**
+ * `git ls-files` lines (repository-relative) → paths relative to the storefront
+ * directory, always written with `/`. Every consumer (`testRoots`, the rule-4
+ * prefix test, `snapshotBaselines`) splits on `/`, so the platform separator
+ * must not leak through: on Windows `relative()` answers with backslashes (#1951).
+ * The path module is a parameter so the Windows behaviour is provable on any
+ * host with `path.win32`.
+ */
+export function storefrontRelativePaths(
+  lines: readonly string[],
+  repoRoot: string,
+  storefrontDir: string,
+  path: Pick<typeof nodePath, 'join' | 'relative' | 'sep'> = nodePath,
+): string[] {
+  return lines.map((line) =>
+    path.relative(storefrontDir, path.join(repoRoot, line)).split(path.sep).join('/'),
+  );
+}
+
+/**
  * The reference storefront's files, from git.
  *
  * Git is the independent author here: the alternative is a walk plus an
@@ -140,10 +160,11 @@ export function trackedFiles(repoRoot: string, storefrontDir: string): readonly 
         `walking the directory and guessing which artefacts are build output.`,
     );
   }
-  const files = result.stdout
-    .split('\0')
-    .filter((line) => line.length > 0)
-    .map((line) => relative(storefrontDir, join(repoRoot, line)).split(sep).join('/'));
+  const files = storefrontRelativePaths(
+    result.stdout.split('\0').filter((line) => line.length > 0),
+    repoRoot,
+    storefrontDir,
+  );
   if (files.length === 0) {
     throw new StorefrontHostError(
       `git tracks no file under ${storefrontDir}. There is no reference storefront to copy.`,

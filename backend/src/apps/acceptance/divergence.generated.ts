@@ -31,6 +31,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     "recorded": [
       "column-extension",
       "command-hook",
+      "command-middleware",
       "decoration",
       "interceptor",
       "omission",

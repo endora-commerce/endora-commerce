@@ -650,11 +650,17 @@ export function dependencyFindings(input: DependencyAnalysisInput): DependencyFi
 describe('published sources declare every dependency they import', () => {
   const isTest = (file: string): boolean => /\.(test|spec)\.tsx?$/.test(file);
 
-  function walkSources(dir: string, out: string[] = []): string[] {
+  function walkSources(dir: string, out: string[] = [], excludedSuffixes: readonly string[] = []): string[] {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = join(dir, entry.name);
-      if (entry.isDirectory()) walkSources(path, out);
-      else if (/\.(ts|tsx|mts|cts)$/.test(entry.name) && !isTest(entry.name)) out.push(path);
+      if (entry.isDirectory()) walkSources(path, out, excludedSuffixes);
+      else if (
+        /\.(ts|tsx|mts|cts)$/.test(entry.name) &&
+        !isTest(entry.name) &&
+        !excludedSuffixes.some((suffix) => entry.name.endsWith(suffix))
+      ) {
+        out.push(path);
+      }
     }
     return out;
   }
@@ -667,15 +673,22 @@ describe('published sources declare every dependency they import', () => {
    * dependency check over a package that imports twenty things.
    */
   function publishedSources(dir: string): string[] {
-    const config = readJsonc<{ include?: readonly string[] }>(join(dir, 'tsconfig.json'));
+    const config = readJsonc<{ include?: readonly string[]; exclude?: readonly string[] }>(join(dir, 'tsconfig.json'));
     const roots = new Set<string>();
     for (const pattern of config.include ?? []) {
       const head = pattern.split('*')[0]!;
       const resolved = join(dir, head.endsWith('/') ? head.slice(0, -1) : dirname(head));
       if (existsSync(resolved) && statSync(resolved).isDirectory()) roots.add(resolved);
     }
+    // A file the package's own configuration excludes by suffix (`src/**/*.bench.ts`,
+    // `specs/189-command-middleware/` T002) is not emitted, so it publishes nothing and
+    // imports nothing a consumer installs. Read from the package's declaration rather
+    // than widened here, so a package that does not exclude a suffix is still scanned.
+    const excludedSuffixes = (config.exclude ?? [])
+      .filter((pattern) => pattern.includes('**/*.'))
+      .map((pattern) => pattern.slice(pattern.lastIndexOf('*') + 1));
     const found: string[] = [];
-    for (const root of roots) walkSources(root, found);
+    for (const root of roots) walkSources(root, found, excludedSuffixes);
     return [...new Set(found)];
   }
 
