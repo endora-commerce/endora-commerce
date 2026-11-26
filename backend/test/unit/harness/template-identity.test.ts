@@ -571,4 +571,25 @@ describe('a deployment selected in-process is identified as its own platform', (
       expect.arrayContaining([expect.stringMatching(/^Migration\d{8}T\d{6}OverlayNotesFixture/)]),
     );
   });
+
+  it('identifies a generated schema-extension step by its name and the generator, not by a file (FR-065)', async () => {
+    // `overlay_notes_fixture` declares an `x_*` column, so `example` registers a
+    // step no file holds: its class is synthesised from the declarations, whose
+    // hash its name carries. It is floored at zero, and what turns those
+    // declarations into DDL is read into the digest instead.
+    const example = await templateIdentity({ env: EXAMPLE });
+    const generated = example.origins.find((population) => population.origin === 'generated');
+    expect(generated).toEqual({ origin: 'generated', registered: 1, migrationFiles: 0, sourceFiles: 0 });
+    expect(example.migrations).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^Migration10000101T000000OverlayNotesFixtureSchemaExtensions[0-9a-f]{12}$/)]),
+    );
+    expect(example.sources.map((source) => source.path)).toEqual(
+      expect.arrayContaining([expect.stringMatching(/schema-extension-migration\.ts$/)]),
+    );
+    const bare = await templateIdentity({ env: BARE });
+    expect(bare.origins.map((population) => population.origin)).not.toContain('generated');
+    expect(bare.sources.map((source) => source.path)).not.toEqual(
+      expect.arrayContaining([expect.stringMatching(/schema-extension-migration\.ts$/)]),
+    );
+  });
 });
