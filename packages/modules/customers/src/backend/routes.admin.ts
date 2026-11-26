@@ -24,7 +24,7 @@ import {
   type AddressReadPort,
   type AdminCustomerListResponse,
   type CartQueryPort,
-  type CustomerAccountLifecycleWritePort,
+  type CustomerAccountCommandPort,
   type CustomerAccountReadPort,
   type CustomFieldValuePort,
   type EmailMailerPort,
@@ -94,7 +94,12 @@ export interface CustomersAdminDeps {
    * `EntityManager` it no longer needs at all.
    */
   accounts: CustomerAccountReadPort;
-  accountWrites: CustomerAccountLifecycleWritePort;
+  /**
+   * `specs/186-aggregate-ports/` (issue #1822) — `customer_accounts`' aggregate
+   * port, so the custom-field patch here runs the Command a server-side caller
+   * of the port runs.
+   */
+  accountWrites: Pick<CustomerAccountCommandPort, 'setCustomFieldValues'>;
   /**
    * `specs/170-organization-roles/` WP-03 — the impersonated member's role on
    * the impersonation answer (FR-062, spec *Impersonation*).
@@ -323,12 +328,6 @@ export async function registerCustomersAdminRoutes(
         targetCustomerAccountId: request.params.id,
         actor,
         reason: body.reason ?? null,
-        audit: {
-          ipAddress: request.ip,
-          ...(typeof request.headers['user-agent'] === 'string'
-            ? { userAgent: request.headers['user-agent'] }
-            : {}),
-        },
       });
       return { data: { id: customer.id, blocked: customer.blockedAt != null } };
     },
@@ -343,12 +342,6 @@ export async function registerCustomersAdminRoutes(
       const customer = await moderationService.unblock({
         targetCustomerAccountId: request.params.id,
         actor,
-        audit: {
-          ipAddress: request.ip,
-          ...(typeof request.headers['user-agent'] === 'string'
-            ? { userAgent: request.headers['user-agent'] }
-            : {}),
-        },
       });
       return { data: { id: customer.id, blocked: customer.blockedAt != null } };
     },
