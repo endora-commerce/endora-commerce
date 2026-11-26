@@ -34,12 +34,16 @@
  *     legacy decorators, exactly one tenancy decorator — under `entities/`, the
  *     `entities` export the platform registers it by, and a first migration
  *     named by `../lib/migration-naming.ts`.
+ *
+ * `--ports` is honoured since #1854 (FR-059): the module gets a `ports.ts` holding
+ * its port interface and a `ctx.di.providePort` call in `backend.ts`. `ports.ts` is
+ * the one file a sibling overlay module may `import type`
+ * (`specs/190-overlay-full-modules/contracts/overlay-ports.md` §2) — the overlay
+ * spelling of a package's type-only `./ports` subpath.
  *   * **an admin screen** (`--admin`, `--action`). A screen is a module
  *     package's `./admin` layer, which the admin registry is generated from. An
  *     overlay module is in no registry, so a palette action would open a route
  *     nothing mounts.
- *   * **a published port** (`--ports`). A type-only `./ports` subpath is a
- *     package's `exports` entry.
  *   * **a worker or a subscriber** (`--worker`, `--subscriber`). Both are one
  *     call on the context the emitted `registerModule` already receives, and the
  *     refusal says which — the package scaffold's emitted worker is three files
@@ -56,6 +60,8 @@ import {
   entitySource,
   initMigrationSource,
   migrationFileOf,
+  portInterfaceOf,
+  portNameOf,
   type EmittedFile,
 } from './emit.js';
 import { MANIFEST_GENERATOR, findRepoRoot } from './host.js';
@@ -183,10 +189,6 @@ function refuseWhatAnOverlayCannotBe(
       (input.actions ?? []).length > 0,
       '--action: a command-palette action opens an admin screen, and an overlay module has ' +
         'none to open.',
-    ],
-    [
-      input.ports === true,
-      '--ports: a published `./ports` subpath is a module package\'s `exports` entry.',
     ],
     [
       input.worker === true,
@@ -330,17 +332,32 @@ export function planOverlayModule(
       : []),
     `pnpm run module:install ${spec.id} — creates the module's settings and loads its ` +
       `translations. \`pnpm run module:status\` shows it as not-installed until then.`,
+    ...(spec.layers.ports
+      ? [
+          `a sibling overlay module of this deployment consumes the port with ` +
+            `\`import type { ${portInterfaceOf(spec)} } from '../${spec.id}/ports.js'\` and ` +
+            `\`lazyPort<${portInterfaceOf(spec)}>(ctx, '${portNameOf(spec)}')\`, and lists ` +
+            `\`${spec.id}\` in its manifest \`dependencies\`. \`pnpm run generate\` reports any ` +
+            `other import between overlay modules.`,
+        ]
+      : []),
     ...(spec.permissions.length === 0
       ? []
       : [
           `translate ${where}/i18n/pl.json — both shipped languages carry the same keys, and ` +
             `its values are your English text because a translation is a human judgement.`,
         ]),
-    `pnpm run generate — records what this deployment now does differently from the platform ` +
-      `in apps/${deployment}/divergence.generated.md. Commit it. As written the module reaches ` +
-      `into nothing, so the run is clean; once it resolves a port or decorates a service the ` +
-      `command asks for one sentence in apps/${deployment}/divergence.ts, and exits 1 until ` +
-      `it has one.`,
+    spec.layers.ports
+      ? `pnpm run generate — records what this deployment now does differently from the ` +
+        `platform in apps/${deployment}/divergence.generated.md. Commit it. The module ` +
+        `publishes a port, so the command asks for one sentence saying why, under ` +
+        `reasons['port-provided:${spec.id}:${portNameOf(spec)}'] in ` +
+        `apps/${deployment}/divergence.ts, and exits 1 until it has one.`
+      : `pnpm run generate — records what this deployment now does differently from the ` +
+        `platform in apps/${deployment}/divergence.generated.md. Commit it. As written the ` +
+        `module reaches into nothing, so the run is clean; once it resolves a port or ` +
+        `decorates a service the command asks for one sentence in ` +
+        `apps/${deployment}/divergence.ts, and exits 1 until it has one.`,
     `pnpm run start (or pnpm run dev:all), then GET ${publicRoute} — the route the emitted ` +
       `backend.ts registers. The instance builds it under \`erasableSyntaxOnly\`, so keep to ` +
       `plain TypeScript — no \`enum\`, no \`namespace\`, no constructor parameter property.`,
@@ -365,6 +382,7 @@ export function emitOverlayModuleFiles(
   return [
     { path: 'manifest.ts', content: overlayManifest(spec, scope) },
     { path: 'backend.ts', content: overlayBackend(spec, scope) },
+    ...(spec.layers.ports ? [{ path: 'ports.ts', content: overlayPorts(spec) }] : []),
     ...(spec.layers.entities
       ? [
           { path: `entities/${entityFileOf(spec)}`, content: entitySource(spec, scope) },
@@ -466,6 +484,9 @@ function overlayBackend(spec: ModuleScaffoldSpec, scope: string): string {
       ? `import type { ModuleContext } from '${scope}platform/kernel';`
       : `import type { ModuleContext, RequireAdminFactory } from '${scope}platform/kernel';`,
   );
+  if (spec.layers.ports) {
+    lines.push(`import type { ${portInterfaceOf(spec)} } from './ports.js';`);
+  }
   if (spec.layers.entities) {
     lines.push(
       `import { ${entityClassOf(spec)} } from './entities/${entityFileOf(spec).replace(/\.ts$/, '.js')}';`,
@@ -494,6 +515,25 @@ function overlayBackend(spec: ModuleScaffoldSpec, scope: string): string {
   }
   lines.push('/** The module\'s one entry point. The platform calls it once, at start. */');
   lines.push('export function registerModule(ctx: ModuleContext): void {');
+  if (spec.layers.ports) {
+    lines.push('  // The one name another module may resolve. `providePort` registers it behind');
+    lines.push('  // this module\'s own on/off state: a consumer calling it while this module is');
+    lines.push('  // off gets the 503 MODULE_DISABLED answer at the call site.');
+    lines.push('  //');
+    lines.push('  // A sibling overlay module reaches it with');
+    lines.push(`  // \`lazyPort<${portInterfaceOf(spec)}>(ctx, ${quote(portNameOf(spec))})\`, imports the type`);
+    lines.push('  // with `import type` from this module\'s ports.ts and declares this module in');
+    lines.push('  // its manifest `dependencies`.');
+    lines.push(`  ctx.di.providePort<${portInterfaceOf(spec)}>(`);
+    lines.push(`    ${quote(portNameOf(spec))},`);
+    lines.push('    ctx');
+    lines.push('      .asFunction(() => ({');
+    lines.push(`        status: () => ({ module: ${quote(spec.id)}, name: ${quote(spec.name)} }),`);
+    lines.push('      }))');
+    lines.push('      .singleton(),');
+    lines.push('  );');
+    lines.push('');
+  }
   lines.push('  // Routes registered through `ctx.routes` answer 503 while the module is off,');
   lines.push('  // which is what makes the operator\'s switch real. `app` is a Fastify instance.');
   lines.push('  ctx.routes(async (app) => {');
@@ -515,6 +555,43 @@ function overlayBackend(spec: ModuleScaffoldSpec, scope: string): string {
   lines.push('}');
   lines.push('');
   return lines.join('\n');
+}
+
+/**
+ * `ports.ts` — the port's types, and the one file a sibling overlay module may import.
+ *
+ * The package scaffold's `./ports` with the `status()` shape whatever the layers: an
+ * overlay module has no service layer for a `list()` port to delegate to.
+ */
+function overlayPorts(spec: ModuleScaffoldSpec): string {
+  const pascal = pascalOf(spec.id);
+  return `/**
+ * ${spec.name} — the port other overlay modules of this deployment resolve.
+ *
+ * **This is the only file of the module another overlay module may import, and only
+ * with \`import type\`.** \`pnpm run generate\` reports any other import between two
+ * overlay modules — a value import, another file, another deployment, or a module
+ * that does not declare this one in its manifest \`dependencies\`. A value written
+ * here for this module's own use is therefore never evaluated by a consumer.
+ *
+ * The container name is part of the contract: this interface is registered under
+ * \`${portNameOf(spec)}\`, and a consumer writes
+ * \`lazyPort<${portInterfaceOf(spec)}>(ctx, '${portNameOf(spec)}')\`.
+ *
+ * No method here is optional: the resolution proxy answers every property with a
+ * function, so \`if (port.maybe)\` is always true.
+ */
+
+/** What this module reports about itself. */
+export interface ${pascal}Status {
+  readonly module: string;
+  readonly name: string;
+}
+
+export interface ${portInterfaceOf(spec)} {
+  status(): ${pascal}Status;
+}
+`;
 }
 
 /** A flat `key: text` map; the Polish file starts as the English text. */

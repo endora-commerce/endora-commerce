@@ -1062,6 +1062,12 @@ export function divergenceBoundary(
     why: 'a table an overlay module creates is its own surface, migrated under the foreign-schema guard with no exemption, so it cannot touch a table it does not own; what it declares on another module\'s table is recorded, as a column extension',
   });
 
+  // `specs/190-overlay-full-modules/contracts/overlay-ports.md` §5.
+  notRecorded.push({
+    seam: 'a port an overlay module consumes from a sibling overlay module',
+    why: "the port is the deployment's own surface and diverges from nothing in core — its provider's `port-provided` is recorded; the consumer's import is held by the overlay boundary analysis (`check:module-boundary`, `endora generate`) and its edge by the manifest `dependencies`",
+  });
+
   // Appended rather than merged into the sort above: the seam entries are the
   // classification's and are ordered by it, and a host's own narrowing is a
   // different claim — it is about this *run*, not about `ModuleContext`.
@@ -1262,6 +1268,19 @@ export function deriveDivergence(input: DivergenceInput): DivergenceResult {
         continue;
       }
       owner = registered ?? null;
+      // `specs/190-overlay-full-modules/contracts/overlay-ports.md` §5 — a port a
+      // **sibling overlay module** of this deployment provides is the deployment's
+      // own surface: it diverges from nothing in core, so it asks for no reason.
+      // What polices it is the overlay boundary analysis and the manifest
+      // dependency; `notRecorded` says so. The provider's `port-provided` stays.
+      if (
+        kind === 'port-consumed' &&
+        owner !== null &&
+        owner !== site.moduleId &&
+        overlaySet.has(owner)
+      ) {
+        continue;
+      }
     } else if (kind === 'interceptor') {
       owner = input.routes.get(site.subject) ?? null;
     } else if (kind === 'subscription') {

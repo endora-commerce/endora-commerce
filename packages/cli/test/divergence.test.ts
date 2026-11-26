@@ -306,6 +306,86 @@ export function registerModule(ctx: ModuleContext): void {
   });
 });
 
+describe('a port consumed from a sibling overlay module (190, overlay-ports.md §5, T036)', () => {
+  const OWNER_BACKEND = `import type { ModuleContext } from '@endora-commerce/platform/kernel';
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.providePort<LoyaltyReadPort>('acmeLoyaltyReadPort', ctx.asFunction(() => port).singleton());
+}
+`;
+  const CONSUMER_BACKEND = `import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { LoyaltyReadPort } from '../acme_loyalty/ports.js';
+export function registerModule(ctx: ModuleContext): void {
+  const loyalty = lazyPort<LoyaltyReadPort>(ctx, 'acmeLoyaltyReadPort');
+  const posts = lazyPort<BlogReadPort>(ctx, 'blogReadPort');
+  void loyalty;
+  void posts;
+}
+`;
+  const SIBLING_DECLARATION = `export const divergence = {
+  omittedModules: [],
+  decorationOrder: {},
+  reasons: {
+    'port-provided:acme_loyalty:acmeLoyaltyReadPort': 'The reports module reads loyalty points.',
+    'port-consumed:acme_overlay:blogReadPort': 'We read the published port rather than the table.',
+  },
+};
+`;
+
+  function siblingInstance(declaration = SIBLING_DECLARATION): string {
+    const root = instance({ declaration });
+    write(join(root, 'apps', 'acme', 'modules', 'acme_overlay', 'backend.ts'), CONSUMER_BACKEND);
+    write(join(root, 'apps', 'acme', 'modules', 'acme_loyalty', 'backend.ts'), OWNER_BACKEND);
+    write(
+      join(root, 'apps', 'acme', 'modules', 'acme_loyalty', 'ports.ts'),
+      'export interface LoyaltyReadPort { points(id: string): number }\n',
+    );
+    return root;
+  }
+
+  function reportOf(root: string) {
+    const [report] = renderInstanceDivergence({ root, packages: installedOf(root) });
+    const json = JSON.parse(
+      report!.renderings.find((rendering) => rendering.outputPath.endsWith('.json'))!.content,
+    ) as {
+      entries: ReadonlyArray<{ key: string; kind: string; subject: string; owner: string | null }>;
+      boundary: { notRecorded: ReadonlyArray<{ seam: string; why: string }> };
+    };
+    return { report: report!, json };
+  }
+
+  it('is not a divergence: no `port-consumed` entry, and no reason asked for', () => {
+    const { report, json } = reportOf(siblingInstance());
+    expect(json.entries.map((entry) => entry.key).sort()).toEqual([
+      'port-consumed:acme_overlay:blogReadPort',
+      'port-provided:acme_loyalty:acmeLoyaltyReadPort',
+    ]);
+    expect(report.findings).toEqual([]);
+  });
+
+  it('a reason written for it describes no divergence', () => {
+    const { report } = reportOf(
+      siblingInstance(
+        SIBLING_DECLARATION.replace(
+          'reasons: {',
+          "reasons: {\n    'port-consumed:acme_overlay:acmeLoyaltyReadPort': 'Reads points.',",
+        ),
+      ),
+    );
+    expect(report.findings.map((finding) => finding.detail)).toEqual([
+      expect.stringContaining('port-consumed:acme_overlay:acmeLoyaltyReadPort'),
+    ]);
+  });
+
+  it('is named under `notRecorded`, as the deployment’s own surface', () => {
+    const { json } = reportOf(siblingInstance());
+    const entry = json.boundary.notRecorded.find((note) =>
+      note.seam.includes('a sibling overlay module'),
+    );
+    expect(entry?.why).toContain('diverges from nothing in core');
+  });
+});
+
 describe('what the instance cannot derive, the artefact says', () => {
   it('states the attribution narrowing in the report’s own boundary', () => {
     const root = instance();
