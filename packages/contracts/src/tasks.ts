@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
 import { calendarDateSchema, isoDateTimeSchema } from './common.js';
 import { customFieldFiltersQueryParamSchema, customFieldValuesSchema } from './custom-fields.js';
 import { dataEnvelope } from './envelopes.js';
@@ -91,7 +92,7 @@ export const taskColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Colour mus
 export const TASK_TITLE_MAX = 200;
 export const TASK_DESCRIPTION_MAX = 20_000;
 export const TASK_CONTEXT_NOTE_MAX = 200;
-/** The most Tasks one `taskWritePort.createMany` call creates (163 research R-22). */
+/** The most Tasks one `taskCommandPort.createMany` call creates (163 research R-22). */
 export const TASK_WRITE_PORT_BATCH_MAX = 100;
 export const TASK_LIST_LIMIT_MAX = 100;
 /** The most Tasks `GET /tasks/mine` answers. */
@@ -1190,6 +1191,12 @@ export interface TaskRecord {
   completedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * The custom-field values as stored on the Task (`specs/186-aggregate-ports/`
+   * FR-015) — every key the bag holds, `internal` fields included: the reader is
+   * code, and what an administrator's screen hides is the screen's affair.
+   */
+  customFieldValues: Record<string, unknown>;
 }
 
 /** What `TaskReadPort.search` is asked: the letters typed, and how many to answer. */
@@ -1279,9 +1286,189 @@ export type NewContextTask = z.input<typeof NewContextTaskSchema>;
  * `ModuleDisabledError`. A consumer must not wrap the call in a bare `catch`.
  */
 export interface TaskWritePort {
+  /**
+   * @deprecated since 0.113.0; use {@link TaskCommandPort.createMany} instead.
+   */
   createMany(input: { context: TaskContext; tasks: NewContextTask[] }): Promise<{ ids: string[] }>;
-  /** Every Task of one context — used when the context's record is deleted. */
+  /**
+   * Every Task of one context — used when the context's record is deleted.
+   *
+   * @deprecated since 0.113.0; use {@link TaskCommandPort.deleteInContext} instead.
+   */
   deleteInContext(q: { contextType: string; contextId: string }): Promise<{ deleted: number }>;
+}
+
+/**
+ * What `TaskCommandPort.update` may change — the admin `PATCH`'s body without
+ * its custom-field values, which are `setCustomFieldValues`'
+ * (`specs/186-aggregate-ports/` R-23.1).
+ */
+export type TaskUpdatePatch = Omit<UpdateTaskBody, 'customFieldValues'>;
+
+/**
+ * A status move through `TaskCommandPort.setStatus`: the target code, and the
+ * status the caller read the Task in. Without `from`, the status the port reads
+ * stands in for it (R-23.4).
+ */
+export interface TaskStatusMove {
+  readonly to: string;
+  readonly from?: string;
+}
+
+/**
+ * Container name: `taskCommandPort`. Owner: `tasks` (`specs/186-aggregate-ports/`
+ * US10, issue #1829, D-293).
+ *
+ * The Task aggregate's write port: each method runs the audited Command — or,
+ * for `update`, the Commands, in the order and the transactions — the admin
+ * route for the same operation runs, through the route's own service, with the
+ * ambient actor. **No permission is checked** — the caller is the gate; never
+ * resolve it for a customer-facing route. Call it after your own commit: a call
+ * opens its own transactions.
+ *
+ * **Whose Tasks.** Every method but `createMany` and `deleteInContext` starts,
+ * as the route does, from the Tasks the ambient caller may see: under
+ * `withSystemScope` every one; under `withSystemScopeActingFor(adminUserId,
+ * reason)` that administrator's (the context's owner, drafts and private Tasks
+ * as the screens apply them). A Task the caller may not see is `404
+ * TASK_NOT_FOUND`, as a missing one. Another administrator's private Task
+ * answers every write but `delete` with `403 TASK_PRIVATE_READ_ONLY` — under the
+ * bare system scope too. `create`, `createMany`, `publish`, `relate`, `link`,
+ * `addReminder` and `addComment` record an administrator on the row (the
+ * Creator, the author) and so are refused `403 FORBIDDEN` before anything is
+ * read when no administrator is behind the call — run them under
+ * `withSystemScopeActingFor`; `publish` acting for the draft's Creator.
+ *
+ * **What follows the write follows a port call too**: the people newly
+ * assigned or mentioned by `create`, `update` and `publish` are told (not for a
+ * draft), the assignees and the Creator are told of a comment, relative
+ * reminders follow a changed due date, and the module's events are emitted.
+ *
+ * **Inputs and refusals are the admin route's**, as the platform's `HttpError`
+ * with its `code`: an input outside the route's schema is `422
+ * VALIDATION_FAILED`; the rest are the `TASK_*` codes the route answers. A
+ * status code is not checked for its form: one the workflow does not hold is
+ * `422 TASK_STATUS_UNKNOWN`.
+ *
+ * **Options** ({@link AggregateCommandOptions}). `expectedVersion` is ignored by
+ * every method: a Task has no version (`setStatus`' `from` is its check).
+ * `source` is recorded on the audit entry of each Command a method runs, beside
+ * the actor; a code outside `aggregateCommandSourceSchema` is refused `422
+ * VALIDATION_FAILED` before anything is read or written. No Task action is
+ * hookable, so every `extensions` key is refused `422
+ * COMMAND_EXTENSION_UNCLAIMED` by the first Command a method runs, before
+ * anything is written; an `update` that changes nothing runs no Command, so a
+ * key is not refused there.
+ *
+ * **Answers.** A {@link TaskRecord} read after the write by its id, so a write
+ * that took the Task out of the caller's sight still answers it — never use it
+ * as a first read.
+ *
+ * **Not offered**: attachments, editing or deleting a comment, removing a
+ * reminder, the digest, saved views, and the workflow, priority, tag and board
+ * configuration.
+ *
+ * **Owner off:** fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`; nothing is
+ * written.
+ */
+export interface TaskCommandPort {
+  /** `POST /tasks` — `tasks.task.create`. Needs an administrator behind the call, its Creator. */
+  create(input: CreateTaskBody, options?: AggregateCommandOptions): Promise<TaskRecord>;
+  /**
+   * Tasks of a context the caller owns — one `tasks.task.create` per entry, at
+   * most {@link TASK_WRITE_PORT_BATCH_MAX}, published, in the workflow's
+   * initial status, told to nobody. The context's type must be registered by a
+   * present module; the caller's sight of the record is not asked, and an
+   * assignee need only be an active administrator. A `sourceKey` the context
+   * already holds is skipped and its existing id answered, in input order.
+   * Needs an administrator behind the call.
+   */
+  createMany(
+    input: { context: TaskContext; tasks: NewContextTask[] },
+    options?: AggregateCommandOptions,
+  ): Promise<{ ids: string[] }>;
+  /**
+   * `PATCH /tasks/:id` without the values: in the route's order, each only when
+   * it changes something and each its own transaction —
+   * `tasks.task.privacy_change` (to public), `.parent_change`, `.update`,
+   * `.priority_change`, `.tags_change`, `.assignees_change`, `.privacy_change`
+   * (to private). A refusal inside a later one leaves the earlier ones written,
+   * as on the route; the parent goes first, the one refused inside its Command.
+   */
+  update(id: string, patch: TaskUpdatePatch, options?: AggregateCommandOptions): Promise<TaskRecord>;
+  /**
+   * `POST /tasks/:id/status` — `tasks.task.status_change` through the workflow:
+   * `409 TASK_TRANSITION_FORBIDDEN` for a move it does not permit, `409
+   * TASK_TRANSITION_CONFLICT` when the Task is no longer in `from`. A move to
+   * the status the Task is in changes nothing.
+   */
+  setStatus(id: string, move: TaskStatusMove, options?: AggregateCommandOptions): Promise<TaskRecord>;
+  /**
+   * `tasks.task.custom_fields_change`, the Command the admin `PATCH` runs for
+   * the values. `merge` runs between the Command's load, under the Task's row
+   * lock, and its write; the owner does not validate — call
+   * `CustomFieldValuePort.validateAndMerge` inside it. A merge that changes
+   * nothing writes and records nothing.
+   */
+  setCustomFieldValues(id: string, merge: CustomFieldMerge, options?: AggregateCommandOptions): Promise<TaskRecord>;
+  /**
+   * `POST /tasks/:id/publish` — `tasks.task.publish`; the assignees and the
+   * people the description mentions are told. Needs the draft's Creator behind
+   * the call; `409 TASK_ALREADY_PUBLISHED` for a Task that is not a draft.
+   */
+  publish(id: string, options?: AggregateCommandOptions): Promise<TaskRecord>;
+  /**
+   * `PUT /tasks/:id/relations/:otherId` — `tasks.task.relate`, recorded on both
+   * Tasks; both must be visible and changeable. Idempotent. Needs an
+   * administrator behind the call.
+   */
+  relate(id: string, otherId: string, options?: AggregateCommandOptions): Promise<void>;
+  /** `DELETE /tasks/:id/relations/:otherId` — `tasks.task.unrelate`. Idempotent. */
+  unrelate(id: string, otherId: string, options?: AggregateCommandOptions): Promise<void>;
+  /**
+   * `POST /tasks/:id/links` — `tasks.task.link`; answers the link's id, the
+   * existing one's for a record already linked (nothing recorded). `422
+   * TASK_LINK_INVALID` for a record the caller may not read. Needs an
+   * administrator behind the call.
+   */
+  link(id: string, target: TaskLinkTarget, options?: AggregateCommandOptions): Promise<{ linkId: string }>;
+  /** `DELETE /tasks/:id/links/:linkId` — `tasks.task.unlink`; `404 NOT_FOUND` for a link the Task has not. */
+  unlink(id: string, linkId: string, options?: AggregateCommandOptions): Promise<void>;
+  /**
+   * `POST /tasks/:id/reminders` — `tasks.reminder.add`; answers the reminder's
+   * id. Its recipients are the administrator behind the call or the Task's
+   * assignees, who must be behind it.
+   */
+  addReminder(
+    id: string,
+    input: CreateTaskReminderBody,
+    options?: AggregateCommandOptions,
+  ): Promise<{ reminderId: string }>;
+  /**
+   * `POST /tasks/:id/comments` — `tasks.comment.add`; answers the comment's
+   * id. Needs an administrator behind the call, who is its author.
+   */
+  addComment(
+    id: string,
+    input: CreateTaskCommentBody,
+    options?: AggregateCommandOptions,
+  ): Promise<{ commentId: string }>;
+  /**
+   * `DELETE /tasks/:id` — `tasks.task.delete`; its sub-tasks become top-level.
+   * Under an administrator, that administrator's `tasks:write` (or
+   * `tasks:see_private` for a private Task) and the record owner's say are
+   * asked, as on the route.
+   */
+  delete(id: string, options?: AggregateCommandOptions): Promise<void>;
+  /**
+   * Every Task of one context, whoever may see it — one `tasks.task.delete`
+   * each; for the context's owner deleting its own record.
+   */
+  deleteInContext(
+    q: { contextType: string; contextId: string },
+    options?: AggregateCommandOptions,
+  ): Promise<{ deleted: number }>;
 }
 
 /** How a context is shown on a Task: its label, its address, and its groups' labels. */
