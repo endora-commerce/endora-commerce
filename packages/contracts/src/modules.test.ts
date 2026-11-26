@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CAPABILITY_KEYS } from './capabilities.js';
 import {
   DeploymentDivergenceDeclarationSchema,
+  EntityExtensionDeclarationSchema,
   ORGANIZATION_PERMISSION_CODE,
   defineModuleManifest,
   moduleOrganizationPermissionDeclarationSchema,
@@ -310,5 +311,70 @@ describe('DeploymentDivergenceDeclarationSchema — commandHookOrder (176 T020, 
     expect(() =>
       DeploymentDivergenceDeclarationSchema.parse({ commandHookOrder: { 'organization.create': ['acme_erp'] } }),
     ).toThrow();
+  });
+});
+
+/**
+ * `specs/187-side-table-extensions/contracts/entity-extension-declaration.md`
+ * §1 — the `extends` manifest field (FR-001): E1 is the schema, E5 the
+ * duplicate-table refusal `defineModuleManifest` can decide from one manifest.
+ * E2 – E4 need the whole composition and are the platform's.
+ */
+describe('defineModuleManifest — entity extensions (187 T004, FR-001, E1, E5)', () => {
+  const entry = { entity: 'organizations.Organization', table: 'acme_erp_organization_links' };
+
+  it('accepts a declaration on a host and keeps it', () => {
+    const m = manifest({ id: 'acme_erp', dependencies: ['organizations'], extends: [entry] });
+    expect(m.extends).toEqual([entry]);
+  });
+
+  it('leaves the field absent when nothing is declared — most modules extend nothing', () => {
+    expect(manifest({ id: 'acme_erp' }).extends).toBeUndefined();
+  });
+
+  it('accepts an underscore-prefixed owner module id', () => {
+    expect(EntityExtensionDeclarationSchema.safeParse({ entity: '_lifecycle.Thing', table: 'acme_x' }).success).toBe(
+      true,
+    );
+  });
+
+  it.each([
+    ['no class name', 'organizations'],
+    ['a lower-case class name', 'organizations.organization'],
+    ['an upper-case module id', 'Organizations.Organization'],
+    ['two dots', 'organizations.Organization.Extra'],
+    ['a table name instead of a class', 'organizations.organizations'],
+  ])('refuses an entity reference with %s', (_label, entity) => {
+    expect(EntityExtensionDeclarationSchema.safeParse({ entity, table: 'acme_links' }).success).toBe(false);
+    expect(() => manifest({ id: 'acme_erp', extends: [{ entity, table: 'acme_links' }] })).toThrow();
+  });
+
+  it('refuses an upper-case table, a leading digit and a 64-byte table', () => {
+    for (const table of ['Acme_links', '1acme', `a${'b'.repeat(63)}`]) {
+      expect(EntityExtensionDeclarationSchema.safeParse({ entity: entry.entity, table }).success, table).toBe(false);
+    }
+    expect(EntityExtensionDeclarationSchema.safeParse({ entity: entry.entity, table: `a${'b'.repeat(62)}` }).success).toBe(
+      true,
+    );
+  });
+
+  it('refuses an extra key on an entry', () => {
+    expect(EntityExtensionDeclarationSchema.safeParse({ ...entry, columns: [] }).success).toBe(false);
+    expect(() => manifest({ id: 'acme_erp', extends: [{ ...entry, columns: [] } as never] })).toThrow();
+  });
+
+  it('accepts 16 entries and refuses a 17th', () => {
+    const entries = (n: number) => Array.from({ length: n }, (_, i) => ({ entity: entry.entity, table: `acme_t${i}` }));
+    expect(manifest({ id: 'acme_erp', extends: entries(16) }).extends).toHaveLength(16);
+    expect(() => manifest({ id: 'acme_erp', extends: entries(17) })).toThrow();
+  });
+
+  it('refuses one table declared twice in one manifest, naming the module, the table and the rule (E5)', () => {
+    expect(() =>
+      manifest({
+        id: 'acme_erp',
+        extends: [entry, { entity: 'orders.Order', table: entry.table }],
+      }),
+    ).toThrow(/acme_erp.*duplicate-table.*acme_erp_organization_links|acme_erp.*acme_erp_organization_links.*duplicate-table/);
   });
 });
