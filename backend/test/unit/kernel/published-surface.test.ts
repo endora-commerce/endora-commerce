@@ -319,6 +319,12 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
    * registry class is on `./composition`, not here.
    */
   'entity-extensions/loaders.js': ['EntityExtensionLoaderEntry'],
+  /**
+   * T036 — the reads service a host read port hands its records to, and the
+   * lazy holder that resolves it only for a read that names an `include`. The
+   * factory is the root's, on `./composition`.
+   */
+  'entity-extensions/reads.js': ['EntityExtensionReads', 'lazyEntityExtensionReads'],
   'schema-extensions/errors.js': [
     'ExtensionHostRowNotFoundError',
     'ExtensionProjectionWriteError',
@@ -817,6 +823,11 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   // the hook registry for its reason; the test kit's `composeTestServer` and
   // its `command-middleware` helpers are the consumers.
   'commands/middleware/registry.ts': ['CommandMiddlewareRegistry'],
+  // `specs/187-side-table-extensions/` B1 — the side-table loader registry and
+  // the reads service a root registers over it, beside the middleware registry
+  // for its reason; the test kit's `composeTestServer` is the consumer.
+  'kernel/entity-extensions/registry.ts': ['EntityExtensionLoaderRegistry', 'entityExtensionDeclarationsFrom'],
+  'kernel/entity-extensions/reads.ts': ['createEntityExtensionReads'],
   // `specs/176-command-hooks-outbox/` P3 — the outbox's host half. Both roots
   // build the wake-up they hand their `CommandBus`; the generated entity
   // registry names the entity class (`ModuleRegistration`'s reason, below);

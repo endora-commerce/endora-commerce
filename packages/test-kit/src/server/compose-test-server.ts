@@ -58,6 +58,9 @@ import {
   AuditLogService,
   CommandHookRegistry,
   CommandMiddlewareRegistry,
+  createEntityExtensionReads,
+  EntityExtensionLoaderRegistry,
+  entityExtensionDeclarationsFrom,
   commandMiddlewareFrom,
   createCommandOutboxWake,
   AuditRedactionService,
@@ -430,6 +433,11 @@ export async function composeTestServer(
       isPresent: (moduleId) => effectiveState.isPresent(moduleId),
       log: platformLogger(),
     });
+    // `specs/187-side-table-extensions/` B1 — as `composeApp` builds it: judged
+    // against the composed manifests' `extends`, sealed by `composeModules`.
+    const entityExtensionLoaderRegistry = new EntityExtensionLoaderRegistry({
+      declarations: entityExtensionDeclarationsFrom(manifests),
+    });
     const commandBus = new CommandBus(orm, auditLogService, eventBus, {
       hooks: commandHookRegistry,
       outboxWake: commandOutboxWake,
@@ -504,6 +512,11 @@ export async function composeTestServer(
         declarations: () => activeSchemaExtensionContext().declarations,
         state: effectiveState,
       }),
+      // `specs/187-side-table-extensions/` FR-054 — as `composeApp` registers it.
+      entityExtensionReads: createEntityExtensionReads({
+        registry: entityExtensionLoaderRegistry,
+        state: effectiveState,
+      }),
       apiInterceptors,
       resolvedModuleRegistry: composition.manifests,
       // Whether this process runs queue consumers — the platform's one
@@ -544,6 +557,8 @@ export async function composeTestServer(
         moduleDependencies: moduleDependencyClosureFrom(manifests),
         commandMiddlewareOrder: options.commandMiddlewareOrder,
       },
+      // 187 B1 — sealed after the middleware registry.
+      entityExtensionLoaderRegistry,
     });
 
     const composedContext: ComposedPlatformContext = { ...platform, composed };

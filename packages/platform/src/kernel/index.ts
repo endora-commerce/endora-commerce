@@ -334,6 +334,12 @@ export {
  * shape it writes.
  */
 export type { EntityExtensionLoaderEntry } from './entity-extensions/loaders.js';
+/**
+ * …and the reads service a host module's read port hands its records to
+ * (`entityExtensionReads`), through `lazyEntityExtensionReads` so a read
+ * without `include` resolves nothing.
+ */
+export { lazyEntityExtensionReads, type EntityExtensionReads } from './entity-extensions/reads.js';
 export type {
   ColumnExtension,
   ColumnExtensionInput,
