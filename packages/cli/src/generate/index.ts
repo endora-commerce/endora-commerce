@@ -62,6 +62,7 @@ import {
 import { AdminLayoutUnresolvableError } from '../lib/admin-surfaces.js';
 import {
   collectEntityIndexEntries,
+  collectOverlayEntityIndexEntries,
   emitEntityIndex,
   entityIndexOutputPathIn,
 } from '../lib/entity-index-artefact.js';
@@ -89,6 +90,8 @@ import {
   type ReleaseIndexEntry,
 } from '../lib/release-index.js';
 import { InstanceHostError } from '../new-instance/host.js';
+import { resolveDeployment } from '../new-module/overlay.js';
+import { ScaffoldInputError } from '../new-module/spec.js';
 import {
   renderInstanceDivergence,
   DivergenceHostError,
@@ -232,6 +235,16 @@ export function findInstanceRoot(from: string): string | null {
   }
 }
 
+/** The deployment this instance composes, or `null` when nothing selects one. */
+function selectedDeploymentOf(root: string): string | null {
+  try {
+    return resolveDeployment({ root }).deployment;
+  } catch (error: unknown) {
+    if (error instanceof ScaffoldInputError) return null;
+    throw error;
+  }
+}
+
 /**
  * Render the instance's build artefacts, and write them unless this is a dry
  * run.
@@ -370,8 +383,19 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
   // one small file; the alternative is a flag nobody asked for, and a repository
   // built on published packages — `specs/134-paid-module-extraction/` T018's
   // host is the first — could write no server-bound test at all without it.
-  if (scan.packages.length > 0) {
-    const entries = collectEntityIndexEntries(scan.packages);
+  //
+  // The selected deployment's overlay modules join it (`specs/190-overlay-full-modules/`
+  // T104, FR-058): one of them may own a table since D-297. *Selected* is what
+  // `endora new module` means by it — `.env`'s `DEPLOYMENT`, else the one
+  // directory under `apps/` — and with no answer the index names no overlay,
+  // which is the instance composing none.
+  const deployment = selectedDeploymentOf(root);
+  const overlayEntries =
+    deployment === null
+      ? []
+      : collectOverlayEntityIndexEntries(root, deployment, entityIndexOutputPathIn(root));
+  if (scan.packages.length > 0 || overlayEntries.length > 0) {
+    const entries = collectEntityIndexEntries(scan.packages, overlayEntries);
     artefacts.push({
       path: entityIndexOutputPathIn(root),
       content: emitEntityIndex(entries, INSTANCE_ENTITY_INDEX_HEADER),
