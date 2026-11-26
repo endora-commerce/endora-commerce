@@ -1,11 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { CAPABILITY_KEYS } from './capabilities.js';
 import {
   DeploymentDivergenceDeclarationSchema,
+  MODULE_ORIGINS,
   ORGANIZATION_PERMISSION_CODE,
   defineModuleManifest,
   moduleOrganizationPermissionDeclarationSchema,
+  type DivergenceDetail,
+  type DivergenceKind,
   type ModuleManifest,
+  type ModuleOrigin,
 } from './modules.js';
 
 /**
@@ -310,5 +314,80 @@ describe('DeploymentDivergenceDeclarationSchema — commandHookOrder (176 T020, 
     expect(() =>
       DeploymentDivergenceDeclarationSchema.parse({ commandHookOrder: { 'organization.create': ['acme_erp'] } }),
     ).toThrow();
+  });
+});
+
+describe('ModuleOrigin (189 T001, contracts/module-origin.md §1)', () => {
+  it('is exactly core, deployment and package', () => {
+    expect(MODULE_ORIGINS).toEqual(['core', 'deployment', 'package']);
+    expectTypeOf<ModuleOrigin>().toEqualTypeOf<'core' | 'deployment' | 'package'>();
+  });
+});
+
+describe('defineModuleManifest — command middleware (189 T004, FR-001, FR-003, FR-004)', () => {
+  it('accepts a list of declarations and keeps it', () => {
+    const declarations = [
+      { id: 'legal-hold', phase: 'admit' as const, actions: ['organization.'] },
+      { id: 'timing', phase: 'observe' as const, actions: '*' as const },
+    ];
+    expect(manifest({ id: 'acme_hold', commandMiddleware: declarations }).commandMiddleware).toEqual(declarations);
+  });
+
+  it('applies assertCommandMiddlewareRules, naming the module', () => {
+    expect(() =>
+      manifest({
+        id: 'acme_hold',
+        commandMiddleware: [
+          { id: 'hold', phase: 'admit', actions: '*' },
+          { id: 'hold', phase: 'admit', actions: '*' },
+        ],
+      }),
+    ).toThrow(/acme_hold/);
+    expect(() =>
+      manifest({ id: 'acme_hold', commandMiddleware: [{ id: 'hold', phase: 'admit', actions: '*', timeoutMs: 501 }] }),
+    ).toThrow(/acme_hold/);
+  });
+
+  it('refuses a malformed declaration through the schema', () => {
+    expect(() =>
+      manifest({
+        id: 'acme_hold',
+        commandMiddleware: [{ id: 'hold', phase: 'transform', actions: '*' } as never],
+      }),
+    ).toThrow();
+  });
+
+  it('refuses an authored `origin` key, pointing to the module-origin contract', () => {
+    expect(() => manifest({ id: 'acme_hold', origin: 'core' } as never)).toThrow(
+      /acme_hold.*origin.*module-origin\.md/,
+    );
+  });
+});
+
+describe('DeploymentDivergenceDeclarationSchema — commandMiddlewareOrder (189 T005, FR-031)', () => {
+  it('is optional, so an existing declaration still parses and types', () => {
+    expect(DeploymentDivergenceDeclarationSchema.parse({}).commandMiddlewareOrder).toBeUndefined();
+  });
+
+  it('accepts two or more module ids, first runs first', () => {
+    expect(
+      DeploymentDivergenceDeclarationSchema.parse({ commandMiddlewareOrder: ['acme_hold', 'acme_rate'] })
+        .commandMiddlewareOrder,
+    ).toEqual(['acme_hold', 'acme_rate']);
+  });
+
+  it('refuses a list of one module and a malformed id', () => {
+    expect(() => DeploymentDivergenceDeclarationSchema.parse({ commandMiddlewareOrder: ['acme_hold'] })).toThrow();
+    expect(() =>
+      DeploymentDivergenceDeclarationSchema.parse({ commandMiddlewareOrder: ['acme_hold', 'Acme-Rate'] }),
+    ).toThrow();
+  });
+});
+
+describe('DivergenceDetail — command-middleware (189 T005, FR-034)', () => {
+  it('carries the phase, id and filter', () => {
+    const detail: DivergenceDetail = { kind: 'command-middleware', phase: 'observe', id: 'timing', actions: '*' };
+    const kind: DivergenceKind = detail.kind;
+    expect(kind).toBe('command-middleware');
   });
 });

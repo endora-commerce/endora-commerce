@@ -590,11 +590,36 @@ describe('T075 — a converted module costs no test-helper edit', () => {
       expect(source, `${root} does not pass commandHookOrder`).toContain(
         'commandHookOrder: divergenceDeclaration.commandHookOrder',
       );
+      // `specs/189-command-middleware/` FR-031 — the `admit` middleware
+      // tie-break, for the same reason: a deployment that orders two admission
+      // rules in production and not in its tests meets
+      // `UnorderedCommandMiddlewareError` in every test.
+      expect(source, `${root} does not pass commandMiddlewareOrder`).toContain(
+        'commandMiddlewareOrder: divergenceDeclaration.commandMiddlewareOrder',
+      );
       // Read once and used twice, never loaded twice: two `import()`s of one
       // file answering one question is how the omissions and the order come to
       // disagree about which declaration this deployment wrote.
       const loads = [...source.matchAll(/loadDivergenceDeclaration\(/g)].length;
       expect(loads, `${root} loads the declaration ${loads} time(s)`).toBe(1);
+    }
+  });
+
+  it('both compositions wire the command-middleware registry identically (189 FR-041)', () => {
+    // A test double that skipped child Commands would reproduce, in every
+    // contributor's suite, the defect the middleware point exists to fix (R-17).
+    // So there is no double: both compositions build the one registry with the
+    // live effective state, hand that one object to the bus and to
+    // `composeModules`, and seal it against the same derivation.
+    for (const [root, source] of COMPOSITION_SOURCES) {
+      const code = codeOnly(source);
+      expect([...code.matchAll(/\bnew CommandMiddlewareRegistry\s*\(/g)].length, `${root} builds the registry once`).toBe(1);
+      expect(code, `${root} asks presence of the effective state`).toMatch(
+        /new CommandMiddlewareRegistry\(\{\s*isPresent: \(moduleId\) => effectiveState\.isPresent\(moduleId\),\s*log: platformLogger\(\),\s*\}\)/,
+      );
+      expect(code, `${root} hands the registry to the bus`).toMatch(/middleware: commandMiddlewareRegistry,/);
+      expect(code, `${root} hands the registry to composeModules`).toMatch(/\bcommandMiddlewareRegistry,\s*commandMiddleware: \{/);
+      expect(code, `${root} seals it against the manifests' declarations`).toMatch(/declarations: commandMiddlewareFrom\(/);
     }
   });
 

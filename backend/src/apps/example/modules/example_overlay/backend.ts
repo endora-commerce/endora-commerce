@@ -146,4 +146,30 @@ export function registerModule(ctx: ModuleContext): void {
       }),
     },
   ]);
+
+  // 5. Command middleware (`specs/189-command-middleware/`): code the Command
+  //    Bus runs for every Command its manifest declaration matches, children
+  //    included — the replacement for wrapping `commandBus`, which misses
+  //    children and ignores activation. This `observe` runs after any run that
+  //    attempted an `organization.` Command has committed or rolled back, and
+  //    logs its duration and outcome — ids, codes and booleans only. It is
+  //    never awaited by the writer, and a throw here is logged and swallowed.
+  ctx.commandMiddleware([
+    {
+      id: 'organization-timing',
+      phase: 'observe',
+      observe: (outcome, { log }) => {
+        log.info(
+          {
+            root: outcome.root.action,
+            committed: outcome.committed,
+            errorCode: outcome.errorCode,
+            commands: outcome.commands.length,
+            durationMs: Math.round(outcome.durationMs * 10) / 10,
+          },
+          'example_overlay.organization-timing',
+        );
+      },
+    },
+  ]);
 }

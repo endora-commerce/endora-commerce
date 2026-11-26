@@ -96,8 +96,11 @@ value). Today the hosts that publish one are:
   write runs the admin `PATCH`'s `product.update`, and **the owner validates** the merge's answer
   with the attribute-set rules — the one host where the caller does not call `validateAndMerge`
   (research R-19.2).
+- `projects` — `projectCommandPort.setCustomFieldValues(projectId, merge, options?)`, the aggregate
+  port (`specs/186-aggregate-ports/` US7). It runs `projects.project.custom_fields_update`, the
+  Command the admin `PATCH` runs for the values, so one hook registration sees every change.
 
-They have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
+All have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
 callback over the current bag that the owner runs between its own load and its own write, as one
 Command with one audit row; **the owner does not validate**, so the caller calls
 `CustomFieldValuePort.validateAndMerge` inside `merge` (the administrator's rules: an `internal`

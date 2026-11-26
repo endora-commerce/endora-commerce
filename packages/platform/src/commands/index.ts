@@ -107,3 +107,34 @@ export { currentCommandHookOrigin, type CommandHookOrigin } from './hooks/origin
  * row at once instead of being retried.
  */
 export { PermanentOutboxFailure } from './outbox/errors.js';
+/**
+ * Command middleware (`specs/189-command-middleware/` P1,
+ * `contracts/command-middleware-api.md` §2, §3, §5): the shapes a middleware
+ * author writes against — the entry `ctx.commandMiddleware` takes, what `admit`
+ * and `observe` receive, the refusal class and the origin accessor — and the
+ * composition refusals, for the reason the hook refusals above are here. The
+ * registry is `./composition`'s: a root builds it, a module never does.
+ */
+export type {
+  CommandAdmissionMeta,
+  CommandAdmitHandler,
+  CommandMiddlewareCallContext,
+  CommandMiddlewareEntry,
+  CommandMiddlewareOrigin,
+  CommandObserveHandler,
+  CommandRunEntry,
+  CommandRunOutcome,
+} from './middleware/types.js';
+export {
+  CommandRefusedError,
+  type CommandRefusalStatus,
+  UndeclaredCommandMiddlewareError,
+  UnregisteredCommandMiddlewareError,
+  CommandMiddlewarePhaseMismatchError,
+  DuplicateCommandMiddlewareError,
+  CommandMiddlewareOriginError,
+  UnorderedCommandMiddlewareError,
+  CommandMiddlewareOrderContradictionError,
+  StaleCommandMiddlewareOrderError,
+} from './middleware/errors.js';
+export { currentCommandMiddlewareOrigin } from './middleware/origin.js';

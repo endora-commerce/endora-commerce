@@ -45,7 +45,7 @@ N = no audit; ? = to confirm in T001–T009):
 | Product | create, update, archive, restore, delete, variant create/update/delete, scoped_values.save, scopes.update | — | — | — |
 | Category | create, update, delete | — | — | move (?: likely `update` with a parent), inventory thresholds (N here; audited by `inventory`'s caller as `low_stock_threshold.update`) |
 | Opportunity | all listed (`crm`: 33 `commandBus.run` sites, 0 hand audits) | — | — | — |
-| Project | all listed (`projects`: 38 sites, 0 hand audits) | — | — | archive/restore: no such operation |
+| Project | all listed (`projects`: 38 sites, 0 hand audits; confirmed by T006) | — | — | archive/restore: no such operation |
 | Task | all listed except below | — | — | create many (?) |
 
 **Inventory (T001, Organization, 2026-11-25).** Measured against the table above:
@@ -85,6 +85,13 @@ no attribute-values-only Command, so `setCustomFieldValues` runs the `PATCH`'s `
 the merge applied inside it (R-19.2). One side-effect gap was found and closed: a searchable flip
 through the published port queued no reindex (R-19.6). No operation moves in or out of FR-024. No
 in-repository module consumes the deprecated ports, so no manifest edge is owed.
+
+**Inventory (T006, Project, 2026-11-26).** Measured against the table above: every operation of
+FR-027 is **C** — 38 top-level `commandBus.run` sites and the per-Organization children, no hand
+audit anywhere in the module — so nothing converts. No operation moves in or out of FR-027. The
+questions the inventory raised (an administrator on two rows, `expectedVersion` over two tokens, the
+multi-Command `PATCH` and Organization set, the answer shape) are R-22, and the findings are in
+`contracts/project-command-port.md` § *Inventory findings*.
 
 **Rationale.** The issues' definition of done — "each operation is one audited Command … the admin
 routes and the port run the same Commands, so command hooks and the audit trail see one write path" —
@@ -919,3 +926,149 @@ need (and a typed-double change across the workspace); it can be added when a co
 
 **Ruling (architect, 2026-11-26):** Confirmed. R-10 sends reads to read ports, and R-16.5 forbids a deprecated port's answers from changing. Widening `CatalogAttributeReadPort.listByFlag` waits for a consumer (Principle IV, R-16.8's rule). The paid PIM modules call `listAttributes`, so keeping the admin service's read keeps their answers byte-identical.
 
+## R-22 US7 (Project, #1828): decisions on the T006 inventory findings (2026-11-26)
+
+The T006 inventory (`contracts/project-command-port.md` § *Inventory findings*) raised the questions
+below, which R-16, R-17, R-18 and the precedents do not answer in terms. The implementing session had
+no channel to the architect, so each was recorded as proposed with the alternative rejected; **all eight
+are ruled below (architect, 2026-11-26), each confirmed**, R-22.3 and R-22.5 with a contract text change
+owed. None needed the owner. None is irreversible, and none touches tenant isolation: every write still starts from
+`ProjectAccess.loadVisible` under the ambient context and locks the Project in its Command. Code
+references are to `origin/master` `d936722d5`.
+
+### R-22.1 The port runs the route's service methods, which build the Commands
+
+**Proposed.** `projects` has no `commands/` directory: each Command is built inline in the service
+method its route calls (`ProjectService`, `MoveService`, `LinkService`, `ProjectCommentService`), and
+that method also does what the route does around the Command — the workflow check, the completion gate
+and the stage guards before it; Stage Tasks, mentions, a message's Members and a deleted Project's
+Tasks after it. Each such method is split into the write (`createProject`, `updateProject`,
+`applyOrganizations`, `applyMembers`, `moveProject`, `closeProject`, `reopenProject`, `link`, `write`,
+plus `delete` / `remove` as they were) and the route's wrapper, which only renders the reader-language
+answer. The port calls the write; the caller's `source` and `extensions` reach the Command through the
+copied `withCallerOptions` (R-18.6), applied inside the service. This is convention item 2a.2's "the
+one your admin route runs", reached the way `organizationCommandPort` reaches moderation and
+restrictions — through the route's own runner.
+
+**Rejected.** *Moving each Command into a `commands/*.command.ts` factory first* — some 1,500 lines
+moved with no behavioural difference, and a conflict with #1950 (open), which edits the same
+services and adds its own merge refusal to `lockProject`; through the services, a port call inherits
+that refusal without either change knowing of the other. *A port over its own copies of the
+Commands* — two write paths, the defect FR-002 removes.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-3 rejected *the port calls the route's service method* because services elsewhere are not Commands; R-2 measured every Project operation as C, so the premise does not hold here, and parity is still by construction: the route's wrapper and the port call one write method, and the wrapper only renders. The fourth `withCallerOptions` copy is behaviourally identical to `organizations'` and falls under R-18.6's bounded exception; #1961 must list `projects` beside the other three before merge. #1950's inheritance holds: every method but `create` (which locks no existing row) reaches `lockProject` (`link-service.ts`, `comment-service.ts`, `move-service.ts`, `project-service.ts`).
+
+### R-22.2 `create` and `addComment` need an administrator behind the call
+
+**Finding.** `projects.created_by_admin_user_id` and `project_comments.author_admin_user_id` are
+`not null`: a Project is somebody's, and a comment has an author. The create Command refused a call
+with no administrator with a plain `Error` inside its transaction (a 500); the comment service already
+refused it `403 FORBIDDEN` before anything was read.
+
+**Proposed.** Both are refused `403 FORBIDDEN` before anything is read when no administrator is behind
+the call — the comment route's refusal, now also `createProject`'s first statement. A worker runs them
+under `withSystemScopeActingFor(adminUserId, reason)` (the administrator who queued the work), which
+the platform already offers; every other method runs under `withSystemScope` with the `system` actor.
+The JSDoc says so on both methods and on the port. The investor case of #1828 needs neither.
+
+**Rejected.** *Making the two columns nullable* — a migration and a widening every reader of
+`ProjectComment.author` and of the creator would have to handle (`ProjectCommentSchema.author` is not
+nullable), to let a write record nobody. *An `actorAdminUserId` input* — R-4: the actor is never input.
+*Keeping the 500* — a refusal of the caller's context is not a server fault.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-4 and Principle XIII decide it: the actor is ambient and never input, and a `not null` author column cannot be satisfied by the `system` actor without fabricating an administrator. A `403` before any read is the comment route's existing refusal and is not a server fault. `withSystemScopeActingFor` also applies that administrator's Organization reach to the create, so no tenant widening (Principle XI).
+
+### R-22.3 `expectedVersion` is the token the route checks; the record carries both
+
+**Finding.** A Project has two optimistic-concurrency tokens (issue #449): `version` (its fields, state
+and Stage — `PATCH`, `move`, `close`, `reopen` require it) and `configurationVersion` (its sets —
+`PUT …/organizations` and `…/members` accept it, optionally). `ProjectRecord` carried neither, so a
+caller could not pass back what it read.
+
+**Proposed.** `options.expectedVersion` names the token the operation's route checks: `version` on
+`update`, `setCustomFieldValues`, `moveToStage`, `close` and `reopen`; `configurationVersion` on
+`setOrganizations` and `setMembers`; ignored by `link`, `unlink`, `addComment` and `delete`, whose
+routes check none (R-5). A stale token is the route's **`409 PROJECT_CHANGED`**, not `VERSION_CONFLICT`
+(convention item 5: refusals are the route's; R-16.5's precedent for a published code). Absent, it is
+the version the method's own `loadVisible` read — the Command writes over that, under the Project's row
+lock, and a change that landed in between is still refused rather than overwritten. `ProjectRecord`
+gains `version` and `configurationVersion`, required, filled by the owner from the row.
+
+**Rejected.** *Ignoring `expectedVersion` on the two sets and keeping `configurationVersion` as an
+input member* — two spellings of "the version I read" on one port. *Requiring it* — R-16.6.
+*Answering `VERSION_CONFLICT`* — the admin client already handles `PROJECT_CHANGED`; one refusal, one
+code.
+
+**Ruling (architect, 2026-11-26): confirmed, with one contract text change.** Convention item 5, R-16.5 and R-18.8 decide the code: the refusal is the route's published `409 PROJECT_CHANGED`. Absent, the token read by `loadVisible` is held, which is R-16.6's "writes over the version it reads, the row's lock still applies". Owed: `AggregateCommandOptions.expectedVersion`'s JSDoc (`packages/contracts/src/aggregate-ports.ts`) says `409 VERSION_CONFLICT` unconditionally; reword it to "refused `409` with the code the owner's admin route answers — `VERSION_CONFLICT` unless the port's JSDoc names its own". Both tokens stay **required** on `ProjectRecord`: a port's record is reached in the `call` direction, where a wider return is compatible (`contract-surface.md` § Directions), the owner is its only implementer (R-1), and `../paid-modules` holds no reference to `ProjectRecord` or `projectReadPort` (read 2026-11-26). R-18.7's optional form does not transfer: under `exactOptionalPropertyTypes` an optional token cannot be passed back as `expectedVersion`, which is its purpose.
+
+### R-22.4 `update` is `projects.project.update` only
+
+**Proposed.** The admin `PATCH` runs up to four Commands. The port's `update` takes the four fields of
+the first (title, description, value, start date) and runs it alone; the values are
+`setCustomFieldValues` (the second); visibility and listed people (`.visibility_set`,
+`.viewers_set`) are not offered, as the contract's first draft already listed them as configuration.
+
+**Rejected.** *The whole `PATCH` body* — one method of up to four Commands, of which only two are
+hookable: `extensions` would reach some of them and be silently dropped by the others, and a caller
+could not tell which write a refusal stopped (the second commits after the first, finding 3).
+
+**Ruling (architect, 2026-11-26): confirmed.** Convention item 2a.2 and R-16.2: one method per Command the route runs for that operation, so a refusal and the `extensions` reach exactly one write. Visibility and viewers stay off the port as configuration (R-9); adding them later is additive (R-16.8's rule).
+
+### R-22.5 `extensions` and `source` on `setOrganizations` go to the children
+
+**Proposed.** `projects.project.organizations_set` is the parent of one `organization_add` /
+`organization_remove` per change, records nothing and is not hookable; the children are (#1845). The
+caller's options are applied to each child, so the hooks on them get the extension input, and each
+child's entry records `source`. A set that changes nothing runs no Command and so checks no key. On
+every other method the options reach the one Command it runs, and the bus refuses a key no present hook
+module claims — every key on `setMembers`, `link`, `unlink`, `addComment` and `delete`, none of whose
+actions is hookable (the R-18.8 rule).
+
+**Rejected.** *The parent* — the bus would refuse every key, since nothing can claim one on an action
+that is not hookable. *Declaring `organizations_set` hookable* — R-16.8: a declaration is a public
+contract, added when something needs it; the children already name each Organization.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-16.8: the parent is not hookable and nothing can claim a key on it; the children name the Organization and are. One sentence is owed in `ProjectCommandPort`'s JSDoc: a set that changes nothing runs no Command, so an unclaimed `extensions` key is not refused on it.
+
+### R-22.6 The answer is the record read after the write under the Organization rule
+
+**Proposed.** The routes answer `ProjectDetail` (reader-language, with the caller's permissions). The
+port answers `ProjectRecord`, read after the write through `ProjectAccess.rowAfterWrite` — the
+Organization rule alone, the routes' own after-write read — so a write that took the Project out of the
+acting administrator's visibility still answers it. `setOrganizations` answers `null` when the
+caller's own change took the Project out of their reach (the route's `{ outOfReach: true }`); under
+`withSystemScope` it never does. `link` answers `{ linkId }` and `addComment` `{ commentId }` — the ids
+a caller needs for `unlink` and to find its comment; `unlink` and `delete` answer nothing.
+
+**Rejected.** *`ProjectDetail`* — a language parameter and an admin-panel shape on a server-side port.
+*`findVisible` after the write* — a Member who removed themselves would be told a committed change
+did not happen.
+
+**Ruling (architect, 2026-11-26): confirmed; no Principle XI risk.** Every method first passes `loadVisible`, which answers an invisible Project `404 PROJECT_NOT_FOUND` exactly as a missing one, and `rowAfterWrite` / `inReachAfterWrite` are reached only after a committed write that began there. So `null` from `setOrganizations` reports only the effect of the caller's own permitted write on a Project it could see: it confirms nothing the caller could not already see. `rowAfterWrite` keeps the Organization rule, so a Project another writer has moved out of reach since answers `404`. The condition, binding: neither method may ever serve a first read (its JSDoc says so). Keep it that way.
+
+### R-22.7 `setCustomFieldValues` runs the `PATCH`'s Command, with the merge under the lock
+
+**Proposed.** One factory, `ProjectService.#customFieldsCommand`, builds
+`projects.project.custom_fields_update` for the route and the port. The route's merge answers the bag it
+validated before the Command, held to the `version` that read carried (unchanged); the port's is the
+caller's merge, run on the bag the Command read under the row lock, as `organizationCommandPort`'s is.
+A merge that changes nothing writes, bumps and records nothing (spec edge case "same value"), the hooks
+still running with an empty `changedCustomFields`. Unlike Organizations (R-16.2), the admin edit and the
+port run **one** action, so a hook that must see every change of the values registers once.
+
+**Rejected.** *Recording an entry for a no-op merge*, as `organization.set_custom_field_values` does —
+the spec's edge case asks for nothing recorded, and the route never runs the Command for an unchanged
+bag.
+
+**Ruling (architect, 2026-11-26): confirmed.** The spec's *Same value* edge case decides it: a write that changes nothing records nothing. `organization.set_custom_field_values` recording an entry for a no-op merge is the outlier. R-16.2 and T025 keep it there for parity with the deprecated `organizationCustomFieldWritePort`, so the inconsistency is accepted for now. Align Organizations to the edge case in the change that removes the deprecated port.
+
+### R-22.8 `addComment` takes the route's body, notes and messages alike
+
+**Proposed.** `CreateProjectCommentBody` (`kind: 'note' | 'message'`), running
+`projects.project.note_add` or `.message_add` as the route does; a message tells the Project's other
+Members who may see it, after the commit, for both paths.
+
+**Rejected.** *Notes only*, as the contract's first draft's table had it — the route is one operation
+for both kinds, and an integration posting into the internal thread would otherwise have no way to.
+
+**Ruling (architect, 2026-11-26): confirmed.** The port offers the route's operation (2a.2), and the route takes both kinds. The entry records the comment id and the body's length, never the body (`audit-state.md` list 1), on both paths. The message notice still passes each recipient's visibility.
