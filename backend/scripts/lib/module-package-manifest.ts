@@ -952,11 +952,22 @@ function typesPackageFor(name: string): string {
  *     Measured on a real socket in
  *     `backend/test/contract/real-socket-reply-contract.test.ts`; held over
  *     every published manifest by `test/unit/packages/fastify-peer-floor.test.ts`.
+ *   * **`@mikro-orm/*` ≥ 7.2.11** — the release the MikroORM 7 switch (#1866) was
+ *     characterised and type-checked against. Earlier 7.x releases are not a
+ *     tested combination, and `@mikro-orm/postgresql` pins its `@mikro-orm/core`
+ *     peer exactly, so a bare `^7` would admit a pair nobody ran. One floor for
+ *     every `@mikro-orm/*` package the estate names, because they move together.
  *
  * A floor whose major is not the one the application runs is refused rather
  * than applied: it would be a stale floor for a major nobody runs any more.
  */
-const PEER_FLOORS: ReadonlyMap<string, string> = new Map([['fastify', '5.11.0']]);
+const PEER_FLOORS: ReadonlyMap<string, string> = new Map([
+  ['fastify', '5.11.0'],
+  ['@mikro-orm/core', '7.2.11'],
+  ['@mikro-orm/decorators', '7.2.11'],
+  ['@mikro-orm/migrations', '7.2.11'],
+  ['@mikro-orm/postgresql', '7.2.11'],
+]);
 
 /** `^${major}`, or `^${floor}` when {@link PEER_FLOORS} records one for `name`. */
 function peerRangeFor(packageName: string, name: string, major: string): string {

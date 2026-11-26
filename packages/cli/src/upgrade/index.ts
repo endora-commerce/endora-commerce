@@ -56,6 +56,7 @@ import {
   rewriteRange,
 } from '../lib/release-index.js';
 import { workspaceGlobs } from '../new-module/host.js';
+import { applyWiringPlan, planWiring, type WiringPlan } from './wiring.js';
 
 // The range rule lives beside the release index because `endora generate`
 // writes a release range too, and this file already imports that one.
@@ -515,6 +516,21 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
   const storefrontMoves = moves('storefront');
 
   if (!instanceMoves && !storefrontMoves) {
+    // The packages are where they should be; the wiring may not be. An instance upgraded
+    // by a CLI that handed nothing over (0.112.0) is still on that release's wiring, and
+    // this second run is what brings it over (#1848).
+    const wiring = planWiring(instanceDir);
+    if (wiring.changes.length > 0 || wiring.edited.length > 0) {
+      say(`endora upgrade — ${instanceDir} is already at ${to}; its wiring is not.`);
+      const finished = await finishWiring(instanceDir, wiring, options.dryRun === true, options.run ?? spawnStep, say, {
+        instanceDir,
+        storefrontDir,
+        from,
+        to,
+        files,
+      });
+      return { ...finished, lines };
+    }
     say(`endora upgrade — ${instanceDir} is already at ${to} — nothing to do.`);
     say(
       'Every release package names it, it is the one installed, and no lockfile holds another. ' +
@@ -553,12 +569,17 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
         argv: ['install'],
         cwd: instanceDir,
       },
+      // Handed over (#1848): the CLI this install just put in the instance re-renders the
+      // wiring with its own template — this process is the release being left and knows
+      // only its own — and then runs `setup`.
       {
         id: 'setup',
-        command: 'pnpm run setup',
-        purpose: 'generate, build, migrate and install any module the release adds — each idempotent',
+        command: 'pnpm exec endora upgrade --finish',
+        purpose:
+          "the installed release's CLI brings the wiring to its rendering, then `setup`: generate, " +
+          'build, type-check, migrate and install any module the release adds — each idempotent',
         bin: 'pnpm',
-        argv: ['run', 'setup'],
+        argv: ['exec', 'endora', 'upgrade', '--finish'],
         cwd: instanceDir,
       },
     );
@@ -638,6 +659,99 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<UpgradeR
     say(`  cd ${storefrontDir} && pnpm run build && pnpm run start   # the storefront, built on ${to}`);
   }
   return { instanceDir, storefrontDir, from, to, upToDate: false, files, steps, exitCode: 0, lines };
+}
+
+/** The setup step, run in the instance after the wiring is written. */
+function setupStep(instanceDir: string): UpgradeStep {
+  return {
+    id: 'setup',
+    command: 'pnpm run setup',
+    purpose: 'generate, build, type-check, migrate and install any module the release adds — each idempotent',
+    bin: 'pnpm',
+    argv: ['run', 'setup'],
+    cwd: instanceDir,
+  };
+}
+
+/** Report, write and set up: the half of an upgrade the installed release's CLI does. */
+async function finishWiring(
+  instanceDir: string,
+  wiring: WiringPlan,
+  dry: boolean,
+  run: (step: UpgradeStep) => Promise<number>,
+  say: (line: string) => void,
+  base: Pick<UpgradeResult, 'instanceDir' | 'storefrontDir' | 'from' | 'to' | 'files'>,
+): Promise<UpgradeResult> {
+  for (const change of wiring.changes) {
+    say(`  ${change.what}: ${dry ? 'would be ' : ''}brought to this release's rendering`);
+  }
+  for (const kept of wiring.edited) {
+    say(`  ${kept.what}: edited by hand, left as it is — ${kept.remedy}`);
+  }
+  if (wiring.edited.length > 0) {
+    say(
+      '  A file left as it is still runs: the instance composes as it did before this release ' +
+        '(its overlay code is not compiled, and one line at boot says nothing was compared).',
+    );
+  }
+  const steps = wiring.changes.length > 0 ? [setupStep(instanceDir)] : [];
+  if (dry) {
+    for (const step of steps) say(`  It would then run: ${step.command}`);
+    return { ...base, upToDate: false, steps, exitCode: 0, lines: [] };
+  }
+  applyWiringPlan(wiring);
+  for (const step of steps) {
+    say(`[setup] ${step.command}`);
+    const code = await run(step);
+    if (code !== 0) {
+      say(`${step.command} failed (exit ${String(code)}). The wiring is written; run it again.`);
+      return { ...base, upToDate: false, steps, exitCode: code, lines: [] };
+    }
+  }
+  return { ...base, upToDate: wiring.changes.length === 0, steps, exitCode: 0, lines: [] };
+}
+
+export interface UpgradeFinishOptions {
+  readonly cwd?: string | undefined;
+  readonly dryRun?: boolean | undefined;
+  readonly echo?: ((line: string) => void) | undefined;
+  readonly run?: ((step: UpgradeStep) => Promise<number>) | undefined;
+}
+
+/**
+ * `endora upgrade --finish` — what the CLI an upgrade just installed does: bring the wiring
+ * to its own rendering (`./wiring.ts`), then run `setup`. The step before it, in the CLI
+ * being left, moved the packages; this is the half only the new release can do.
+ */
+export async function runUpgradeFinish(options: UpgradeFinishOptions = {}): Promise<UpgradeResult> {
+  const cwd = resolve(options.cwd ?? process.cwd());
+  const lines: string[] = [];
+  const say = (line: string): void => {
+    lines.push(line);
+    options.echo?.(line);
+  };
+  const instanceDir = findInstanceRoot(cwd);
+  if (instanceDir === null) {
+    throw new UpgradeHostError(`no \`pnpm-workspace.yaml\` above ${cwd}, so there is no instance to finish.`);
+  }
+  say(`endora upgrade --finish — ${instanceDir}`);
+  const wiring = planWiring(instanceDir);
+  const result = await finishWiring(
+    instanceDir,
+    { changes: wiring.changes, edited: wiring.edited },
+    options.dryRun === true,
+    options.run ?? spawnStep,
+    say,
+    { instanceDir, storefrontDir: null, from: '', to: '', files: [] },
+  );
+  // The wiring may be current already; `setup` is this step's other half regardless.
+  if (!options.dryRun && wiring.changes.length === 0 && result.exitCode === 0) {
+    const step = setupStep(instanceDir);
+    say(`[setup] ${step.command}`);
+    const code = await (options.run ?? spawnStep)(step);
+    return { ...result, steps: [step], exitCode: code, lines };
+  }
+  return { ...result, lines };
 }
 
 function refusal(reasons: readonly string[]): UpgradeInputError {

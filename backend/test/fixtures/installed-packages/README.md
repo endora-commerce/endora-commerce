@@ -18,8 +18,9 @@ Node's own resolver, imported, and read for entity metadata — the same path
 a case needs into a throwaway `node_modules` directory **inside the repository**,
 because that is what makes two things true at once: Node resolves the
 `exports` subpaths (the root has to be called `node_modules`), and
-`@mikro-orm/core` resolves out of the host, which is how a real package receives
-its optional peer.
+`@mikro-orm/decorators` (and through it `@mikro-orm/core`) resolves out of the
+host, which is how a real package receives its optional peer. Since MikroORM 7
+(#1866) the entity decorators are imported from `@mikro-orm/decorators/legacy`.
 
 The built output is called `lib/`, not `dist/`: `dist/` is in `.gitignore`, and a
 fixture that is not committed is a red proof nobody else can run.

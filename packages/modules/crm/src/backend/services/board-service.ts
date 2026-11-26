@@ -1,5 +1,5 @@
 import { raw, type FilterQuery } from '@mikro-orm/core';
-import type { EntityManager } from '@mikro-orm/postgresql';
+import type { EntityManager, QBFilterQuery } from '@mikro-orm/postgresql';
 import {
   type AdminUserReadPort,
   type OpportunityBoard,
@@ -192,7 +192,9 @@ export class BoardService {
         raw('count(*)::int as "count"'),
         raw(`coalesce(sum(${effectiveOpportunityValueSql('o')}), 0)::numeric(16,2)::text as "total"`),
       ])
-      .where(conditions.length > 0 ? { $and: conditions } : {})
+      // MikroORM 7's QueryBuilder overloads do not infer a conditional `$and`; the
+      // condition is the entity's own filter query either way.
+      .where((conditions.length > 0 ? { $and: conditions } : {}) as QBFilterQuery<CrmOpportunity, 'o'>)
       .groupBy(['o.statusCode', 'o.currency'])
       .orderBy({ statusCode: 'asc', currency: 'asc' });
     // The tenant predicate. A QueryBuilder does not take the entity filters on

@@ -1368,7 +1368,7 @@ wierszy:
 | --- | --- |
 | `rfqId` | Nowe zapytanie ofertowe. |
 | `organizationId` | Organizacja, dla której je utworzono. |
-| `adminUserId` | Administrator, który je utworzył. |
+| `adminUserId` | Administrator, który je utworzył, albo `null`, gdy utworzył je kod serwerowy bez udziału administratora — zob. *Zapisy po stronie serwera*. |
 | `origin` | To, co żądanie utworzenia niosło jako `origin`, albo `null`. |
 
 `rfq.created.v1` pozostaje zdarzeniem zapytania przesłanego przez samego klienta i na tej ścieżce
@@ -1385,6 +1385,169 @@ utworzono. Endpoint klienta takiego pola nie przyjmuje.
 Ekran tworzenia (`/quote-requests/new`) czyta to samo z adresu, gdy otwiera go inny ekran:
 `originType` i `originId`, `organizationId` i `customerAccountId` do wstępnego wyboru klienta oraz
 `returnTo`, czyli ścieżkę w Admin UI, do której wraca się po utworzeniu zapytania.
+
+## Zapisy po stronie serwera
+
+Inny moduł, moduł nakładki (overlay) albo worker integracji (konektor ERP lub CRM) zapisuje
+zapytanie ofertowe przez **`quoteRequestCommandPort`** — port zapisu agregatu QuoteRequest,
+zadeklarowany jako `QuoteRequestCommandPort` w `@endora-commerce/contracts`. Nigdy nie zapisuje
+sam do tabel tego modułu.
+
+| Metoda | Akcja audytu | Co administrator robi w ten sam sposób |
+| --- | --- | --- |
+| `create(input, options?)` | `quote_request.create_on_behalf` | `POST /api/v1/admin/quote-requests` |
+| `update(id, patch, options?)` | `quote_request.modify` | `PATCH /api/v1/admin/quote-requests/:id` |
+| `setCustomFieldValues(id, merge, options?)` | `quote_request.custom_fields.update` | — (administrator wysyła wartości przez `PATCH`) |
+| `assign(id, { adminUserId }, options?)` | `quote_request.assign` | `POST /api/v1/admin/quote-requests/:id/assign` |
+| `approve(id, { note? }, options?)` | `quote_request.approve` | `POST /api/v1/admin/quote-requests/:id/approve` |
+| `cancel(id, { reason }, options?)` | `quote_request.cancel` | `POST /api/v1/admin/quote-requests/:id/cancel` |
+| `sendDocument(id, input, options?)` | `quote_request.send_document` | `POST /api/v1/admin/quote-requests/:id/pdf/send` |
+
+**Jedna ścieżka zapisu.** Każda metoda uruchamia to samo polecenie (Command), które uruchamia
+endpoint administracyjny — zbudowane przez tę samą fabrykę i uruchamiane przez ten sam mechanizm —
+więc oba zapisy nie mogą się różnić: jeden wpis audytu z tym samym stanem, te same wpisy historii
+i rewizja, te same powiadomienia dla kupującego i zespołu — dostarczone raz — i to samo zdarzenie
+(`rfq.created_by_admin.v1`, `rfq.modified.v1`, `rfq.approved.v1`, `rfq.canceled.v1`). Dane
+wejściowe to treści żądań endpointów, walidowane tymi samymi schematami, a odmowy to błędy
+endpointów z ich kodami.
+
+**Kto zapisał.** Aktor jest ten z bieżącego kontekstu, nigdy parametr: administrator w żądaniu
+administracyjnym albo pod `withSystemScopeActingFor`; aktor **system** pod `withSystemScope` w
+workerze. Zapis bez administratora widnieje w historii zapytania jako *System* i zachowuje
+bieżącego opiekuna, a zapytanie utworzone w ten sposób nie ma administratora tworzącego ani
+przypisanego. Port nie sprawdza uprawnień — bramką jest wywołujący — więc nigdy nie rozwiązuj go
+dla trasy dostępnej dla klienta.
+
+**Opcje** (ostatni parametr każdej metody):
+
+- `source` — kod pisany małymi literami, który nazywa integrację (`erp`, `pim.sync`, najwyżej
+  64 znaki), zapisywany jako `source` we wpisie audytu obok aktora. To on odróżnia dwie
+  integracje, gdy obie zapisują jako system. Każda inna wartość jest odrzucana z
+  `422 VALIDATION_FAILED`, zanim cokolwiek zostanie zapisane.
+- `expectedVersion` — odczytana `version`; zapytanie, które się w międzyczasie zmieniło, jest
+  odrzucane z `409 VERSION_CONFLICT`, tak jak przy `If-Match`. `create` i `sendDocument` ją
+  pomijają.
+- `extensions` — dane wejściowe dla hooków poleceń na danej akcji. Żadna akcja portu nie jest
+  dostępna dla hooków (jedyną taką akcją modułu jest wysłanie zapytania przez kupującego, opisane
+  niżej), więc każdy klucz jest odrzucany z `422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek
+  zostanie zapisane.
+
+**Z workera podaj kanał.** `create` zakłada zapytanie w kanale `salesChannelId`, a bez niego w
+kanale bieżącego żądania; worker nie ma żądania, więc bez `salesChannelId` utworzenie jest
+odrzucane z `422 RFQ_SALES_CHANNEL_NOT_ALLOWED` (`no_channel`).
+
+**Same wartości pól niestandardowych.** `setCustomFieldValues` przyjmuje `merge` — funkcję z
+bieżących wartości na nowe — i uruchamia ją wewnątrz swojego polecenia. Moduł nie waliduje:
+wywołaj `CustomFieldValuePort.validateAndMerge` wewnątrz `merge`. W odróżnieniu od `update` nie
+zapisuje rewizji i nikogo nie powiadamia; wpis audytu wymienia zmienione klucze, nigdy ich
+wartości, a `merge`, który niczego nie zmienia, niczego nie zapisuje.
+
+**Celowo niedostępne:** ponowne przesłanie, przyjęcie lub odrzucenie rewizji oraz zamiana na
+zamówienie. To decyzje samego kupującego, podejmowane w sklepie.
+
+**Gdy moduł jest wyłączony**, rozwiązanie portu kończy się bezpieczną odmową
+`503 MODULE_DISABLED` i nic nie jest zapisywane. Moduł, który z niego korzysta, deklaruje
+`quote_requests` w `dependencies` swojego manifestu albo jako krawędź `nonBindingDependencies`
+`refuses-without` i rozwiązuje port przy każdym użyciu.
+
+## Akcje dostępne dla hooków
+
+Oba sposoby wysłania zapytania ofertowego przez kupującego są zadeklarowane jako dostępne dla hooków,
+więc inny moduł — moduł nakładki wdrożenia albo zainstalowany pakiet — może brać w nich udział.
+Utworzenie zapytania przez kupującego **jest** jego wysłaniem: jeden zapis zakłada zapytanie w
+statusie *Pending*, z pozycjami, rewizją 1, wpisami historii o utworzeniu i wysłaniu oraz
+powiadomieniami o nowym zapytaniu. Nie ma szkicu wysyłanego później. *Wyślij ponownie* to ten sam
+zapis na pozycjach wcześniejszego zapytania: **nowe** zapytanie z wpisem o ponownym wysłaniu, które
+nie zmienia wcześniejszego.
+
+Zarejestruj hook poleceń wobec referencji z `QUOTE_REQUEST_HOOKABLE_ACTIONS`
+(`@endora-commerce/contracts`) i wymień `quote_requests` w `dependencies` swojego manifestu. Hook
+`beforeCommit` działa wewnątrz transakcji zapisu: może zapisywać własne tabele albo uruchomić
+polecenie przez `ctx.run` i może odrzucić zapis własnym kodem błędu, co wycofuje cały zapis. Odbiorca
+`afterCommit` jest obsługiwany przez kolejkę dostarczeń platformy po zatwierdzeniu zapisu, co najmniej
+raz. Jak hooki są uruchamiane, porządkowane i odrzucane, opisuje strona architektury *Command Bus*.
+Ekran *Hooki poleceń* w panelu administracyjnym pokazuje każdą akcję, zarejestrowane na niej hooki
+oraz oczekujące i nieudane wiersze kolejki dostarczeń.
+
+| Akcja | Referencja | Zapisywana przez | Dane hooka |
+| --- | --- | --- | --- |
+| `quote_request.create` | `QUOTE_REQUEST_HOOKABLE_ACTIONS.create` | `POST /api/v1/quote-requests` oraz każde wywołanie `RfqCustomerPort.createForCustomer` w procesie (koszyk, lista zakupowa albo szybkie zamówienie zamienione na zapytanie, zamówienie skopiowane do zapytania) | `quoteRequestId`, `organizationId`, `customerAccountId`, `salesChannelId`, `assignedAdminUserId`, `itemCount`, a w `beforeCommit` także `assign(adminUserId)` |
+| `quote_request.resubmit` | `QUOTE_REQUEST_HOOKABLE_ACTIONS.resubmit` | `POST /api/v1/quote-requests/:id/resubmit` | to samo, przy czym `quoteRequestId` to nowe zapytanie, oraz `sourceQuoteRequestId` |
+
+Obie akcje oferują obie fazy. `quote_request.create` ogłasza po zatwierdzeniu `rfq.created.v1`;
+`quote_request.resubmit` nie ogłasza zdarzenia domenowego, tak jak wcześniej. Wiersz kolejki dostarczeń zawiera te same identyfikatory co dane hooka, z
+`assignedAdminUserId` takim, jaki był w chwili zatwierdzenia zapisu, i jest kierowany do organizacji
+zapytania: jego odbiorca działa w kontekście przypiętym do tej organizacji. Oba zawierają **tylko
+identyfikatory, kody i liczby**: nigdy notatki do zapytania, pozycji, produktów ani cen. Zapytanie
+tworzone przez kupującego nie zapisuje wartości pól niestandardowych, więc żadne z nich ich nie
+wymienia. Hook, który potrzebuje więcej, odczytuje zapytanie przez `quoteRequestReadPort` — po
+zatwierdzeniu zapisu, bo ten port nie widzi otwartej transakcji. Żadna trasa ani port nie przekazuje
+jeszcze tym akcjom danych rozszerzeń (`extensions`).
+
+### Przypisanie wysłanego zapytania do opiekuna
+
+Hook `beforeCommit` ustawia osobę przypisaną do zapytania **wewnątrz jego wysłania**, wywołując
+`assign(adminUserId)` na swoich danych — nie przez endpoint administracyjny i nie drugim zapisem po
+zatwierdzeniu, kiedy powiadomienie o nowym zapytaniu byłoby już ustalone dla osoby przypisanej w tamtej
+chwili, czyli dla nikogo.
+
+```ts
+import { ERROR_CODES, QUOTE_REQUEST_HOOKABLE_ACTIONS as QR } from '@endora-commerce/contracts';
+
+ctx.commandHooks([
+  {
+    id: 'route-to-representative',
+    on: QR.create,
+    phase: 'beforeCommit',
+    handler: async ({ data }) => {
+      for (const candidate of await myRoutingRule(data.customerAccountId, data.organizationId)) {
+        try {
+          await data.assign(candidate);
+          return;
+        } catch (error) {
+          if ((error as { code?: string }).code !== ERROR_CODES.RFQ_ASSIGNEE_NOT_ELIGIBLE) throw error;
+        }
+      }
+    },
+  },
+]);
+```
+
+- **Kogo można przypisać.** Obowiązuje ta sama reguła co wszędzie indziej (zob. *Kogo można przypisać
+  do zapytania ofertowego* niżej). Każdy inny jest odrzucany z `422 RFQ_ASSIGNEE_NOT_ELIGIBLE` i nic
+  nie zostaje zapisane, więc hook może przechwycić ten błąd i spróbować kolejnego kandydata.
+  Nieprzechwycony błąd odrzuca wysłanie zapytania, a kupujący widzi komunikat sformułowany dla niego
+  (token `submission`).
+- **Zmiana jest audytowana w tym samym zapisie.** `assign` uruchamia własne polecenie modułu,
+  `quote_request.assign`, jako polecenie podrzędne wysłania: z osobnym wpisem audytu, z
+  identyfikatorem modułu hooka jako `source`, obok niezmienionego wpisu `quote_request.create` lub `quote_request.resubmit`.
+  Ponowne przypisanie obecnej osoby niczego nie zapisuje.
+- **Powiadomienia trafiają do osoby przypisanej.** O nowym zapytaniu dowiadują się osoba przypisana i
+  przedstawiciele handlowi organizacji (zob. *Powiadomienia*). Po `assign` powiadomienia są
+  rejestrowane ponownie, w tej samej transakcji, więc osoba przypisana je dostaje.
+- **Tylko w trakcie działania hooka.** `assign` zgłasza błąd, gdy zostanie wywołane gdziekolwiek
+  indziej niż w trwającym hooku `beforeCommit` na akcji, której dane je zawierają. Hook uruchamiany po
+  innym widzi wybór tamtego w `assignedAdminUserId`.
+
+Edycja szkicu przez kupującego, jego odpowiedź na ofertę, zamiana na zamówienie i wszystkie zapisy
+operatora nie są dostępne dla hooków.
+
+### Kogo można przypisać do zapytania ofertowego
+
+Jedna reguła, gdziekolwiek administrator zostaje wskazany jako osoba przypisana do zapytania —
+w endpoincie administracyjnym `POST /api/v1/admin/quote-requests/:id/assign`, w
+`quoteRequestCommandPort.assign` i w `assign` hooka. Administrator musi:
+
+- być **aktywny** (nie dezaktywowany ani usunięty);
+- mieć uprawnienie **`rfqs:handle`** (albo rolę z pełnymi uprawnieniami);
+- **mieć dostęp do organizacji zapytania** — jego zakres administracyjny ją obejmuje, co dla
+  przedstawiciela handlowego oznacza regułę przedstawiciela (przypisanie, roll-up albo organizacja,
+  do której nikt nie jest przypisany).
+
+Każdy inny jest odrzucany z `422 RFQ_ASSIGNEE_NOT_ELIGIBLE`, zanim cokolwiek zostanie zapisane.
+Usunięcie przypisania (`null`, w porcie) jest zawsze dozwolone. Zapisanie oferty, zatwierdzenie i
+anulowanie nadal czynią osobą przypisaną administratora, który to robi, bez sprawdzania reguły: w
+endpointach administracyjnych ten administrator już ją spełnia.
 
 ## Zdarzenia oferowane webhookom wychodzącym
 

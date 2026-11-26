@@ -151,9 +151,9 @@ describe('FR-109 — `setup` is the conjunction of the named entries, never a se
     }
   });
 
-  it('it is the four steps of the printed sequence, in the printed order', () => {
+  it('it is the five steps of the printed sequence, in the printed order', () => {
     expect(scriptsOf(withAdminMember())['setup']).toBe(
-      'pnpm run generate && pnpm run build && pnpm run migrate && pnpm run module:install --all',
+      'pnpm run generate && pnpm run build && pnpm run typecheck && pnpm run migrate && pnpm run module:install --all',
     );
   });
 
@@ -165,7 +165,7 @@ describe('FR-109 — `setup` is the conjunction of the named entries, never a se
     const scripts = scriptsOf(planInput({ docsRanges: new Map(), modules: [] }));
     expect(scripts['generate']).toBeUndefined();
     expect(scripts['setup']).toBe(
-      'pnpm run build && pnpm run migrate && pnpm run module:install --all',
+      'pnpm run build && pnpm run typecheck && pnpm run migrate && pnpm run module:install --all',
     );
   });
 
@@ -173,7 +173,7 @@ describe('FR-109 — `setup` is the conjunction of the named entries, never a se
     const scripts = scriptsOf(planInput({ docsRanges: new Map() }));
     expect(scripts['generate']).toBe('endora generate');
     expect(scripts['setup']).toBe(
-      'pnpm run generate && pnpm run build && pnpm run migrate && pnpm run module:install --all',
+      'pnpm run generate && pnpm run build && pnpm run typecheck && pnpm run migrate && pnpm run module:install --all',
     );
   });
 });
@@ -246,7 +246,7 @@ describe('T1-H — the block a client follows', () => {
 
   it('it names what `setup` runs, so a client can take any step by hand', () => {
     const setup = steps().find((step) => step.startsWith('pnpm run setup'))!;
-    for (const named of ['generate', 'build', 'migrate', 'module:install --all']) {
+    for (const named of ['generate', 'build', 'typecheck', 'migrate', 'module:install --all']) {
       expect(setup).toContain(named);
     }
   });

@@ -148,9 +148,12 @@ describe('RfqAdminService.listAll — one page, filtered in the query (issue #31
     await service.listAll(REP, { sort: 'total:asc' });
     const [, , options] = listCall(findAndCount);
     const [primary, tieBreak] = options.orderBy as [Record<string, unknown>, unknown];
-    const [key] = Object.keys(primary);
-    expect(String(key)).not.toBe('total');
-    expect(Object.values(primary)).toEqual(['asc']);
+    // The key is a `raw()` fragment, which MikroORM 7 (#1866) keys by a symbol:
+    // `Object.keys` / `Object.values` skip it, `Reflect.ownKeys` does not.
+    const keys = Reflect.ownKeys(primary);
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).not.toBe('total');
+    expect(keys.map((key) => (primary as Record<PropertyKey, unknown>)[key])).toEqual(['asc']);
     expect(tieBreak).toEqual({ id: 'asc' });
   });
 

@@ -30,8 +30,16 @@ import {
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { AuditPort, PlatformLogger } from '@endora-commerce/platform/kernel';
-import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
+import {
+  makeBuyerCreateQuoteRequestCommand,
+  makeBuyerResubmitQuoteRequestCommand,
+  type QuoteRequestBuyerCommandDeps,
+  type QuoteRequestBuyerLine,
+} from '../commands/quote-request-buyer-commands.js';
+import type { AssigneeEligibility } from './assignee-eligibility.js';
+import { QuoteRequest } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import {
   QuoteRequestEvent,
@@ -46,7 +54,7 @@ import type { QuoteRequestBusinessIdGenerator } from './quote-request-business-i
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { raisedInScopeLanguage, raisedOnChannelId } from './raised-on-channel.js';
 import { hasUnpricedLine, quoteIncompleteError, unitPriceText } from './agreed-price.js';
-import { inTransaction, underRowLock } from './transition-lock.js';
+import { underRowLock } from './transition-lock.js';
 import type { NotificationKick } from './notifications/kick.js';
 import { summarize } from './summarize.js';
 import { channelCurrencies, channelCurrency, requestLineCurrency } from './line-currency.js';
@@ -210,6 +218,17 @@ export interface RfqServiceDeps {
   resolveTaxRate: (organizationId: string) => Promise<number>;
   /** Feature 054 — audits RFQ writes co-transactionally when provided. */
   auditLog?: AuditPort;
+  /**
+   * Issue #1906 — the buyer's create-and-submit and submit-again run as the
+   * Commands `quote_request.create` and `.resubmit` (Principle XIII), declared
+   * hookable; the buyer's other writes keep their hand audit through {@link auditLog}.
+   */
+  commandBus: Pick<CommandBus, 'run'>;
+  /**
+   * Issue #1906 — who a command hook on `quote_request.create` may make the
+   * request's assignee (`assignee-eligibility.ts`).
+   */
+  assigneeEligibility: AssigneeEligibility;
   /**
    * Feature 155 (threat F6) — where the server-side cause of an `unknown_unit`
    * refusal goes; the buyer's answer never carries it. Absent: not logged.
@@ -612,114 +631,55 @@ export class RfqService {
     // Issue #303 — decided here, once: the raised-on channel's currency.
     const lineCurrency = await channelCurrency(em, salesChannelId);
 
-    const businessId = await this.generateBusinessId(em);
-    // `specs/179-rfq-and-customer-notifications/` FR-001 — the request, its
-    // lines, revision 1, its two history entries and the notification records
-    // naming `submitted` commit together, or none of them does.
-    const rfq = await inTransaction(em, async () => {
-      const rfq = em.create(QuoteRequest, {
-        ...(businessId ? { businessId } : {}),
-        organizationId: ctx.organizationId,
-        customerAccountId: ctx.customerAccountId,
-        salesChannelId,
-        status: 'Pending' satisfies QuoteRequestStatus,
-        headerNote: input.headerNote ?? null,
-        submittedAt: new Date(),
-        currentRevisionNumber: 1,
-        lastCustomerSeenRevisionNumber: 1,
-      });
-      await em.persist(rfq).flush();
-
-      const items: QuoteRequestItem[] = [];
-      for (const [index, lineInput] of input.items.entries()) {
-        const product = productById.get(lineInput.productId)!;
-        const unit = packaging[index]!;
-        // Feature 043 — append the packaging-unit name to the snapshot name so
-        // RFQ views show "<name> (Paleta)", and persist the structured snapshot.
-        // Feature 155 (FR-026) — the name and base quantity are the catalogue
-        // unit's, beside its id; a line naming no unit stores plain pieces.
-        // Feature 163 (FR-017 d, N2) — the name is the one the buyer saw: the
-        // effective name at the request's (channel, language).
-        const baseName = lineNames.get(product.id) || product.name;
-        const productName = unit.packagingUnitName ? `${baseName} (${unit.packagingUnitName})` : baseName;
-        const item = em.create(QuoteRequestItem, {
-          quoteRequestId: rfq.id,
-          productId: product.id,
-          productName,
-          productSlug: product.slug,
-          variantId: lineInput.variantId ?? null,
-          quantity: lineInput.quantity,
-          packagingUnitId: unit.packagingUnitId,
-          packagingUnitName: unit.packagingUnitName,
-          packagingUnitBaseQuantity: unit.packagingUnitBaseQuantity,
-          desiredUnitPrice:
-            lineInput.desiredUnitPrice !== undefined ? unitPriceText(lineInput.desiredUnitPrice) : null,
-          lineNote: lineInput.lineNote ?? null,
-          lineCurrency,
-          ...referenceColumns(references[index] ?? null, capturedAt),
-          // Feature 159 — the request's order, stored (ungrouped: one section).
-          position: index,
-        });
-        items.push(item);
-      }
-      this.#audit(em, 'quote_request.create', rfq.id, null, {
-        status: rfq.status,
-        itemCount: items.length,
-        salesChannelId: rfq.salesChannelId ?? null,
-      });
-      await em.persist(items).flush();
-
-      const revision = await this.deps.revisionService.record(
-        {
-          rfq,
-          items,
-          actor: { customerAccountId: ctx.customerAccountId },
-        },
-        em,
-      );
-
-      await this.deps.eventService.append(
-        {
-          quoteRequestId: rfq.id,
-          eventType: 'created',
-          actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
-          payload: { type: 'created' },
-          revisionId: revision.id,
-        },
-        em,
-      );
-      const submitted = await this.deps.eventService.append(
-        {
-          quoteRequestId: rfq.id,
-          eventType: 'submitted',
-          actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
-          payload: {
-            type: 'submitted',
-            itemCount: items.length,
-          },
-          revisionId: revision.id,
-        },
-        em,
-      );
-
-      await this.deps.notificationService.record(em, {
-        change: 'submitted',
-        sourceEvent: submitted,
-        rfq,
-        actor: { customerAccountId: ctx.customerAccountId },
-      });
-      return rfq;
+    const lines = input.items.map((lineInput, index): QuoteRequestBuyerLine => {
+      const product = productById.get(lineInput.productId)!;
+      const unit = packaging[index]!;
+      // Feature 043 — append the packaging-unit name to the snapshot name so
+      // RFQ views show "<name> (Paleta)", and persist the structured snapshot.
+      // Feature 155 (FR-026) — the name and base quantity are the catalogue
+      // unit's, beside its id; a line naming no unit stores plain pieces.
+      // Feature 163 (FR-017 d, N2) — the name is the one the buyer saw: the
+      // effective name at the request's (channel, language).
+      const baseName = lineNames.get(product.id) || product.name;
+      return {
+        productId: product.id,
+        productName: unit.packagingUnitName ? `${baseName} (${unit.packagingUnitName})` : baseName,
+        productSlug: product.slug,
+        variantId: lineInput.variantId ?? null,
+        quantity: lineInput.quantity,
+        packagingUnitId: unit.packagingUnitId,
+        packagingUnitName: unit.packagingUnitName,
+        packagingUnitBaseQuantity: unit.packagingUnitBaseQuantity,
+        desiredUnitPrice: lineInput.desiredUnitPrice !== undefined ? unitPriceText(lineInput.desiredUnitPrice) : null,
+        lineNote: lineInput.lineNote ?? null,
+        lineCurrency,
+        ...referenceColumns(references[index] ?? null, capturedAt),
+        // Feature 159 — the request's order, stored (ungrouped: one section).
+        position: index,
+      };
     });
+
+    // Issue #1906 — the write is a Command, `quote_request.create`, hookable
+    // for both phases: a `beforeCommit` hook may veto it or set its assignee
+    // before the operators' notifications are fixed. The request, its lines,
+    // revision 1, its two history entries and the records naming `submitted`
+    // commit together, or none of them does
+    // (`specs/179-rfq-and-customer-notifications/` FR-001); `rfq.created.v1`
+    // is announced on the commit.
+    const rfq = await this.deps.commandBus.run(
+      makeBuyerCreateQuoteRequestCommand(
+        this.#buyerCommandDeps(),
+        {
+          customer: { customerAccountId: ctx.customerAccountId, organizationId: ctx.organizationId },
+          salesChannelId,
+          headerNote: input.headerNote ?? null,
+          lines,
+        },
+      ),
+    );
     this.kickNotificationDelivery();
 
-    this.deps.events.emit('rfq.created.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      rfqId: rfq.id,
-      organizationId: rfq.organizationId,
-    });
-
-    return this.serializeFull(em, rfq, false);
+    return this.serializeFull(this.deps.emFactory(), rfq, false);
   }
 
   // -------------------------------------------------------------------------
@@ -1017,29 +977,20 @@ export class RfqService {
       lines: sourceItems,
     });
     const capturedAt = new Date();
+
+    // Issue #1906 — the write is a Command, `quote_request.resubmit`, hookable
+    // for both phases like the create: a `beforeCommit` hook may veto it or set
+    // the new request's assignee before the operators' notifications are fixed.
     // A re-submitted request is numbered like any other, never with the
-    // entity's `QR-<uuid>` placeholder.
-    const businessId = await this.generateBusinessId(em);
-
-    // FR-001 — as `createForCustomer`: the new request and everything naming
-    // it commit together.
-    const newRfq = await inTransaction(em, async () => {
-      const newRfq = em.create(QuoteRequest, {
-        ...(businessId ? { businessId } : {}),
-        organizationId: ctx.organizationId,
-        customerAccountId: ctx.customerAccountId,
+    // entity's `QR-<uuid>` placeholder; it and everything naming it commit
+    // together (FR-001). The source request is not written.
+    const newRfq = await this.deps.commandBus.run(
+      makeBuyerResubmitQuoteRequestCommand(this.#buyerCommandDeps(), {
+        customer: { customerAccountId: ctx.customerAccountId, organizationId: ctx.organizationId },
         salesChannelId,
-        status: 'Pending' satisfies QuoteRequestStatus,
         headerNote: body.headerNote ?? null,
-        submittedAt: new Date(),
-        currentRevisionNumber: 1,
-        lastCustomerSeenRevisionNumber: 1,
-      });
-      await em.persist(newRfq).flush();
-
-      const newItems: QuoteRequestItem[] = sourceItems.map((src, index) =>
-        em.create(QuoteRequestItem, {
-          quoteRequestId: newRfq.id,
+        sourceQuoteRequestId: sourceRfq.id,
+        lines: sourceItems.map((src, index) => ({
           productId: src.productId,
           productName: src.productName,
           productSlug: src.productSlug ?? null,
@@ -1051,56 +1002,23 @@ export class RfqService {
           ...referenceColumns(references[index] ?? null, capturedAt),
           // Feature 159 — the order the buyer was shown, ungrouped (FR-026).
           position: index,
-        }),
-      );
-      this.#audit(em, 'quote_request.resubmit', newRfq.id, null, {
-        status: newRfq.status,
-        itemCount: newItems.length,
-        salesChannelId: newRfq.salesChannelId ?? null,
-      });
-      await em.persist(newItems).flush();
-
-      const revision = await this.deps.revisionService.record(
-        {
-          rfq: newRfq,
-          items: newItems,
-          actor: { customerAccountId: ctx.customerAccountId },
-        },
-        em,
-      );
-
-      await this.deps.eventService.append(
-        {
-          quoteRequestId: newRfq.id,
-          eventType: 'created',
-          actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
-          payload: { type: 'created', sourceRfqId: sourceRfq.id },
-          revisionId: revision.id,
-        },
-        em,
-      );
-      const submittedEvt = await this.deps.eventService.append(
-        {
-          quoteRequestId: newRfq.id,
-          eventType: 're-submitted',
-          actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
-          payload: { type: 're-submitted', sourceRfqId: sourceRfq.id, newRfqId: newRfq.id },
-          revisionId: revision.id,
-        },
-        em,
-      );
-
-      await this.deps.notificationService.record(em, {
-        change: 'resubmitted',
-        sourceEvent: submittedEvt,
-        rfq: newRfq,
-        actor: { customerAccountId: ctx.customerAccountId },
-      });
-      return newRfq;
-    });
+        })),
+      }),
+    );
     this.kickNotificationDelivery();
 
-    return this.serializeFull(em, newRfq, false);
+    return this.serializeFull(this.deps.emFactory(), newRfq, false);
+  }
+
+  /** What the buyer's two submission Commands write through (issue #1906). */
+  #buyerCommandDeps(): QuoteRequestBuyerCommandDeps {
+    return {
+      generateBusinessId: (within) => this.generateBusinessId(within),
+      revisionService: this.deps.revisionService,
+      eventService: this.deps.eventService,
+      notificationService: this.deps.notificationService,
+      assigneeEligibility: this.deps.assigneeEligibility,
+    };
   }
 
   // -------------------------------------------------------------------------

@@ -1,0 +1,23 @@
+{
+  // The third backend type-check program (issue #1847,
+  // `specs/190-overlay-full-modules/contracts/overlay-build.md` §1): the overlay
+  // modules under `src/apps/`. Its own program because `erasableSyntaxOnly` is a
+  // program-level option, and overlay code is the code an instance loads through
+  // Node's type stripping — an `enum`, a `namespace` or a constructor parameter
+  // property raises `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` there, so it is refused
+  // here, in both trees, by the same flag.
+  //
+  // Compiler options are `./tsconfig.json`'s otherwise, `paths` included, so these
+  // files are checked against the branch's own package sources exactly as the
+  // rest of `src` is. `./tsconfig.json` excludes `src/apps/**`, so no file is a
+  // root of both; `exclude` is reset here because the inherited one would
+  // exclude these very files. `tsconfig.build.json` (the image build) still emits
+  // `src/apps` -> `dist/apps` as it did.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "erasableSyntaxOnly": true,
+    "paths": {}
+  },
+  "include": ["src/apps/**/*"],
+  "exclude": []
+}

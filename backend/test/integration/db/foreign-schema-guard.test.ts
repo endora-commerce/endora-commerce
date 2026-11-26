@@ -229,8 +229,8 @@ describe('the foreign-schema guard on a real migrate', () => {
  * Issue #1860 (part of #1073). This pins the guard's refusals of raw database
  * handles, and it must stay green after the move to MikroORM 7.
  *
- * Today the raw handle is knex (`getKnex`). #1864 moves raw SQL off it, and
- * MikroORM 7 offers kysely (`getKysely`) instead. So the routes are data and the
+ * The raw handle was knex (`getKnex`) on MikroORM 6; #1864 moved raw SQL off
+ * it, and MikroORM 7 (#1866) offers kysely (`getKysely`) instead. So the routes are data and the
  * assertion is not: when the access path changes, change or add rows in
  * {@link RAW_ACCESS_ROUTES} and leave {@link expectRawAccessRefused} alone. A
  * route must be refused with the guard's own error, and the row it tried to
@@ -247,19 +247,86 @@ describe('the foreign-schema guard on raw database handles (#1860)', () => {
   }
 
   type RawAccessRoute = readonly [label: string, attempt: (self: Migration) => Promise<unknown>];
+  /** A kysely handle — a `Kysely` instance or a transaction — deleting the rogue row. */
+  type KyselyLike = {
+    deleteFrom(table: string): { where(column: string, op: string, value: unknown): { execute(): Promise<unknown> } };
+  };
   const deleteRogue = (handle: unknown): Promise<unknown> =>
-    (handle as (table: string) => { where(w: object): { delete(): Promise<unknown> } })(HOST_TABLE)
-      .where({ name: 'rogue' })
-      .delete();
+    (handle as KyselyLike).deleteFrom(HOST_TABLE).where('name', '=', 'rogue').execute();
 
+  const rogueDelete = `delete from "${HOST_TABLE}" where "name" = 'rogue'`;
+  type Connection = ReturnType<ReturnType<Migration['getEntityManager']>['getConnection']>;
+  const connectionOf = (self: Migration): Connection => self.getEntityManager().getConnection();
+  const kyselyOf = (handle: unknown): unknown => (handle as { getKysely(): unknown }).getKysely();
+  const clientOf = (connection: unknown): unknown => (connection as { getClient(): unknown }).getClient();
+  const driverOf = (self: Migration) =>
+    (
+      self as unknown as {
+        driver: { execute(sql: string): Promise<unknown>; createEntityManager(): unknown; getConnection(): Connection };
+      }
+    ).driver;
+
+  // MikroORM 7 (#1866): the raw handle is kysely — `getKysely()` on an entity
+  // manager, `getClient()` on a connection, and a transaction is a kysely
+  // transaction. MikroORM 6's knex routes (`getKnex()`) are gone with the major.
   const RAW_ACCESS_ROUTES: readonly RawAccessRoute[] = [
-    ['getEntityManager().getKnex()', (self) => deleteRogue(self.getEntityManager().getKnex())],
-    ['getEntityManager().getConnection().getKnex()', (self) => deleteRogue(self.getEntityManager().getConnection().getKnex())],
-    ['getEntityManager().fork().getKnex()', (self) => deleteRogue(self.getEntityManager().fork().getKnex())],
+    ['getEntityManager().getKysely()', (self) => deleteRogue(kyselyOf(self.getEntityManager()))],
+    ['getEntityManager().getConnection().getClient()', (self) => deleteRogue(clientOf(self.getEntityManager().getConnection()))],
+    ['getEntityManager().fork().getKysely()', (self) => deleteRogue(kyselyOf(self.getEntityManager().fork()))],
     [
-      'getEntityManager().transactional(em => em.getKnex())',
-      (self) => self.getEntityManager().transactional((em) => deleteRogue(em.getKnex())),
+      'getEntityManager().transactional(em => em.getKysely())',
+      (self) => self.getEntityManager().transactional((em) => deleteRogue(kyselyOf(em))),
     ],
+    // Issue #1889 — the migration's own handles, the connection's client, and
+    // the transactions a connection begins or hands a `transactional` callback.
+    ['this.getKysely()', (self) => deleteRogue(kyselyOf(self))],
+    ['this.getEntityManager().getDriver().execute()', (self) => self.getEntityManager().getDriver().execute(rogueDelete)],
+    [
+      'this.getEntityManager().getDriver().getConnection().getClient()',
+      (self) => deleteRogue(clientOf(self.getEntityManager().getDriver().getConnection())),
+    ],
+    [
+      'this.getEntityManager().getDriver().nativeDelete()',
+      (self) => self.getEntityManager().getDriver().nativeDelete(X178Host, { name: 'rogue' }),
+    ],
+    ['this.driver.execute()', (self) => driverOf(self).execute(rogueDelete)],
+    ['this.driver.getConnection().execute()', (self) => driverOf(self).getConnection().execute(rogueDelete)],
+    ['this.driver.createEntityManager().nativeDelete()', async (self) => {
+      const em = (await driverOf(self).createEntityManager()) as unknown as ReturnType<Migration['getEntityManager']>;
+      return em.nativeDelete(X178Host, { name: 'rogue' });
+    }],
+    ['getConnection().getNativeClient()', async (self) => {
+      const pool = (await (connectionOf(self) as unknown as { getNativeClient(): Promise<unknown> }).getNativeClient()) as {
+        query(sql: string): Promise<unknown>;
+      };
+      return pool.query(rogueDelete);
+    }],
+    [
+      'getConnection().begin() + trx.deleteFrom()',
+      async (self) => {
+        const connection = connectionOf(self);
+        const trx = await connection.begin();
+        try {
+          return await deleteRogue(trx);
+        } finally {
+          await connection.rollback(trx);
+        }
+      },
+    ],
+    [
+      'getConnection().begin({ ctx: this.ctx }) + trx.deleteFrom()',
+      async (self) => {
+        const connection = connectionOf(self);
+        const trx = await connection.begin({ ctx: (self as unknown as { ctx: never }).ctx });
+        try {
+          return await deleteRogue(trx);
+        } finally {
+          await connection.rollback(trx);
+        }
+      },
+    ],
+    ['getConnection().transactional(trx => trx.deleteFrom())', (self) => connectionOf(self).transactional((trx) => deleteRogue(trx))],
+    ['this.ctx', (self) => deleteRogue((self as unknown as { ctx: unknown }).ctx)],
   ];
 
   const rogueRows = async (): Promise<number> =>
@@ -299,33 +366,58 @@ describe('the foreign-schema guard on raw database handles (#1860)', () => {
   });
 
   /**
-   * Open (#1889): raw database handles the guard does not wrap yet. They hold
-   * the same assertion and fail it today; when #1889 closes them, `it.fails`
-   * turns red and the row moves into {@link RAW_ACCESS_ROUTES}.
+   * The sanctioned routes over the same sealed handles still run, inside the
+   * migration's transaction: a sealed transaction is a transaction context
+   * again where it re-enters the ORM.
+   */
+  it('still runs the sanctioned routes on a table the migration creates', async () => {
+    const insert = (id: string) => `insert into "acme_raw_rows" ("id") values ('${id}')`;
+    const ids = [randomUUID(), randomUUID(), randomUUID(), randomUUID()] as const;
+    const error = await migrate(
+      packageMigration('Migration20261201T100046AcmeErpSanctioned', async (self) => {
+        const ctx = (self as unknown as { ctx: never }).ctx;
+        await self.execute(`create table "acme_raw_rows" ("id" uuid primary key)`);
+        const em = self.getEntityManager();
+        const connection = em.getConnection();
+        await connection.execute(insert(ids[0]), [], 'run', ctx);
+        const trx = await connection.begin({ ctx });
+        await connection.execute(insert(ids[1]), [], 'run', trx);
+        await connection.commit(trx);
+        await em.transactional(async (inner) => {
+          await inner.getConnection().execute(insert(ids[2]), [], 'run', inner.getTransactionContext());
+        });
+        const fork = em.fork();
+        await fork.begin({ ctx });
+        await fork.find(X178Host, {});
+        await fork.execute(insert(ids[3]));
+        await fork.commit();
+      }),
+    );
+    expect(error).toBeNull();
+    const rows = await db.query<{ id: string }>(`select "id" from "acme_raw_rows"`);
+    expect(rows.map((row) => row.id).sort()).toEqual([...ids].sort());
+    expect(await executed()).toContain('Migration20261201T100046AcmeErpSanctioned');
+  });
+
+  /**
+   * Open (follow-up to #1889): the entity manager's transaction context is the
+   * real transaction, because the ORM's own flush, loading and query builders
+   * read it back through `getTransactionContext()` and hand it to the unsealed
+   * driver. It holds the same assertion and fails it today; when it is sealed,
+   * `it.fails` turns red and the row moves into {@link RAW_ACCESS_ROUTES}.
+   *
+   * Revisited on MikroORM 7 (#1866) and left open: 7.2.11 reads the context back
+   * through `getTransactionContext()` in `UnitOfWork` (the flush), `EntityLoader`,
+   * `Collection`, `TransactionManager` and `SqlEntityManager`, and hands it to
+   * the real driver every time, so a sealed one breaks the flush the guard
+   * exists to judge. On 7 the handle is a kysely transaction, which the row
+   * below drives.
    */
   const OPEN_RAW_ACCESS_ROUTES: readonly RawAccessRoute[] = [
-    ['this.getKnex() builder', (self) => deleteRogue(self.getKnex())],
-    [
-      'this.getKnex().raw()',
-      (self) =>
-        (self.getKnex() as unknown as { raw(sql: string): Promise<unknown> }).raw(
-          `delete from "${HOST_TABLE}" where "name" = 'rogue'`,
-        ),
-    ],
-    [
-      'this.getEntityManager().getDriver().execute()',
-      (self) => self.getEntityManager().getDriver().execute(`delete from "${HOST_TABLE}" where "name" = 'rogue'`),
-    ],
-    [
-      'this.driver.execute()',
-      (self) =>
-        (self as unknown as { driver: { execute(sql: string): Promise<unknown> } }).driver.execute(
-          `delete from "${HOST_TABLE}" where "name" = 'rogue'`,
-        ),
-    ],
+    ['getEntityManager().getTransactionContext()', (self) => deleteRogue(self.getEntityManager().getTransactionContext())],
   ];
 
-  it.fails.each(OPEN_RAW_ACCESS_ROUTES)('open (#1889): refuses %s, and the row survives', async (_label, attempt) => {
+  it.fails.each(OPEN_RAW_ACCESS_ROUTES)('open: refuses %s, and the row survives', async (_label, attempt) => {
     await expectRawAccessRefused(attempt);
   });
 });

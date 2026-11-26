@@ -1,0 +1,138 @@
+# `acceptance:storefront-scaffold` on GitHub Actions — the acceptance criterion
+# for `endora new storefront` (`specs/071-modular-packaging/roadmap.md` § F7).
+#
+# The port of `.gitlab-ci.yml`'s `acceptance:storefront-scaffold`. The paragraph
+# above that job carries the reasoning — why the copy has to leave the monorepo,
+# why the job boots a backend for A6, why the tarball route, and why each of
+# the variables below is set and `SESSION_COOKIE_SECRET` is not — and it is not
+# copied here. `backend/test/unit/ci/actions-tranche-one-parity.test.ts` holds
+# this file equal to that job in what it runs and in when it runs.
+#
+# ## Why it is here
+#
+# Nothing ran it since GitLab stopped creating pipelines, and its record
+# drifted unseen: measured on `master` (1bf72381), A8 failed — the scaffold
+# resolved React 19.3.1 with no lockfile, and one storefront snapshot held
+# React's own form-replay script. With that fixed (#1920) it measured 8 of 8.
+#
+# ## The steps, as GitLab ran them
+#
+# Create the database, migrate it, start the backend in the background, wait
+# for it to answer, then run the criterion. Postgres, Redis and Meilisearch are
+# service containers on the runner's loopback, as `backend-suite.yml` arranges
+# them; the runner image already carries `psql`, `curl` and `git`, which
+# GitLab's slim image had to install (`git` because `endora new storefront`
+# derives its copy from `git ls-files`).
+#
+# ## When it runs
+#
+# Every push to `master`, unfiltered, and a pull request touching GitLab's
+# `changes:` list with `.gitlab-ci.yml` replaced by this file. Not a required
+# check: a skipped workflow reports no status.
+
+name: acceptance-storefront-scaffold
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'packages/cli/src/new-storefront/**/*'
+      - 'packages/cli/src/bin/endora.ts'
+      - 'storefront/**/*'
+      - 'packages/contracts/**/*'
+      - 'packages/cms-components/**/*'
+      - 'packages/page-builder-core/**/*'
+      - 'backend/scripts/acceptance/storefront-scaffold*.ts'
+      - 'backend/acceptance/storefront-scaffold-expected-state.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/acceptance-storefront-scaffold.yml'
+  push:
+    branches: [master]
+
+concurrency:
+  group: acceptance-storefront-scaffold-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance-storefront-scaffold:
+    name: acceptance:storefront-scaffold
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: b2b
+          POSTGRES_PASSWORD: b2b
+          POSTGRES_DB: b2b
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U b2b -d b2b"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      meilisearch:
+        image: getmeili/meilisearch:v1.11
+        env:
+          MEILI_MASTER_KEY: devMasterKeyChangeMe
+          MEILI_ENV: development
+          MEILI_NO_ANALYTICS: 'true'
+        ports:
+          - 7700:7700
+        # 127.0.0.1, not localhost: see the same check in `docker-compose.yml`.
+        options: >-
+          --health-cmd "wget --quiet --spider http://127.0.0.1:7700/health"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      # GitLab's values, addresses moved to the runner's loopback. The database
+      # name satisfies the disposable-name convention `(^|_)test(_|$)`.
+      DATABASE_URL: postgresql://b2b:b2b@localhost:5432/b2b_storefront_acceptance_test
+      REDIS_URL: redis://localhost:6379
+      MEILISEARCH_URL: http://localhost:7700
+      MEILISEARCH_API_KEY: devMasterKeyChangeMe
+      JWT_SECRET: storefront-acceptance-secret-not-a-real-one-000000
+      NEWSLETTER_TOKEN_SECRET: storefront-acceptance-newsletter-not-a-real-one-000
+      NODE_ENV: development
+      LOG_LEVEL: warn
+      PUBLIC_API_BASE_URL: http://127.0.0.1:3001
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      # actions/cache v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:packages
+      # One step, as GitLab's `script:` was one shell: the backgrounded backend
+      # has to outlive the commands after it.
+      - run: |
+          PGPASSWORD=b2b psql -h localhost -U b2b -d postgres -c "create database b2b_storefront_acceptance_test"
+          pnpm --filter backend exec tsx src/db/migrate.ts up
+          pnpm --filter backend exec tsx src/index.ts > /tmp/backend.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null "$PUBLIC_API_BASE_URL/api/v1/storefront/module-presence" && break || sleep 2; done
+          curl -s -o /dev/null -w '%{http_code}\n' "$PUBLIC_API_BASE_URL/api/v1/storefront/module-presence" || (tail -50 /tmp/backend.log && exit 1)
+          pnpm --filter backend run acceptance:storefront-scaffold:ci

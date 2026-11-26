@@ -48,8 +48,21 @@ function isLiveAccount(account: CustomerAccountRecord): boolean {
 }
 
 /** An administrator who may act at all: `active` and not deleted. */
-function isActiveAdministrator(admin: AdminUserRecord | undefined): admin is AdminUserRecord {
+export function isActiveAdministrator(admin: AdminUserRecord | undefined): admin is AdminUserRecord {
   return admin !== undefined && admin.status === 'active' && admin.deletedAt === null;
+}
+
+/**
+ * Whether an administrator holds `rfqs:handle` — the wildcard role included, as
+ * `requireAdmin` judges it. One rule for the operator side below and for the
+ * assignee a command hook names (issue #1906, `assignee-eligibility.ts`).
+ */
+export async function holdsRfqHandle(
+  permissions: Pick<PermissionReadPort, 'listPermissions'>,
+  adminUserId: string,
+): Promise<boolean> {
+  const held = await permissions.listPermissions(adminUserId);
+  return held.includes('*') || held.includes(RFQ_HANDLE_PERMISSION);
 }
 
 /**
@@ -75,10 +88,7 @@ function isActiveAdministrator(admin: AdminUserRecord | undefined): admin is Adm
  * representatives in assignment order.
  */
 export function createRecipientResolver(deps: RecipientResolverDeps): NotificationRecipientResolver {
-  const holdsHandle = async (adminUserId: string): Promise<boolean> => {
-    const held = await deps.permissions.listPermissions(adminUserId);
-    return held.includes('*') || held.includes(RFQ_HANDLE_PERMISSION);
-  };
+  const holdsHandle = (adminUserId: string): Promise<boolean> => holdsRfqHandle(deps.permissions, adminUserId);
 
   const handlers = async (admins: readonly AdminUserRecord[]): Promise<string[]> => {
     const kept: string[] = [];

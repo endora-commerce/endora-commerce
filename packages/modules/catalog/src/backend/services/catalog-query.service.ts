@@ -485,7 +485,7 @@ interface ListingKeyset {
    */
   after(cursor: ListingKeysetCursor): Record<string, unknown>;
   /** The ordering — a `raw()` key under a name ordering; same rule as {@link after}. */
-  orderBy(): Record<string, 'asc' | 'desc'>;
+  orderBy(): Record<string, 'asc' | 'desc'> | Array<Record<string, 'asc' | 'desc'>>;
 }
 
 /**
@@ -3232,7 +3232,9 @@ export class CatalogQueryService {
             )]: [],
           };
         },
-        orderBy: () => ({ [raw((alias: string) => name.sql(alias), name.params)]: direction, id: direction }),
+        // MikroORM 7 (#1866) refuses one `orderBy` object that mixes a `raw()` key
+        // with field keys; an array of single-key objects keeps the same order.
+        orderBy: () => [{ [raw((alias: string) => name.sql(alias), name.params)]: direction }, { id: direction }],
       };
     }
     // The default ordering is `createdAt desc, id desc`, in every sort that

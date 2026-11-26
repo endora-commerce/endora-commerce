@@ -1,6 +1,7 @@
 import type { MetadataStorage } from '@mikro-orm/core';
 import { DuplicateTableMappingError } from '../kernel/schema-extensions/errors.js';
 import type { AllowedProjections } from './schema-extension-projection.js';
+import { allMetadata } from './all-metadata.js';
 
 /**
  * The replacement for MikroORM's duplicate-table check
@@ -28,7 +29,7 @@ interface MappedMeta {
 
 export function assertTableMappings(storage: MetadataStorage, allowed: AllowedProjections): void {
   const byTable = new Map<string, MappedMeta[]>();
-  for (const meta of Object.values(storage.getAll()) as MappedMeta[]) {
+  for (const meta of allMetadata(storage) as MappedMeta[]) {
     if (meta.abstract || meta.embeddable || meta.virtual) continue;
     // A single-table-inheritance child shares its root's table by design.
     if (meta.root !== undefined && meta.root !== meta) continue;

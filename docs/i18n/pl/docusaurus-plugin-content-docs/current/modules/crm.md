@@ -2388,7 +2388,7 @@ dwa opublikowane porty — nigdy przez tabele ani klasy CRM. Oba typy eksportuje
 
 | Nazwa w kontenerze | Typ | Co robi |
 | --- | --- | --- |
-| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByIds(ids)`, `findByDocument(kind, documentId)`, `listOpenForOrganization(organizationId)` i `search({ q, limit })` (numer lub tytuł, najwyżej 20). Każda zwraca zwykłe wartości `OpportunityRecord` — id, numer, tytuł, organizację, kod i rodzaj statusu, osobę przypisaną, wartość, walutę, daty — albo `null` / pustą listę. `statusName(code, language)` nazywa status tak jak ekrany CRM: jego nazwą w tym języku, a w razie jej braku nazwą domyślną albo kodem. |
+| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByIds(ids)`, `findByDocument(kind, documentId)`, `listOpenForOrganization(organizationId)` i `search({ q, limit })` (numer lub tytuł, najwyżej 20). Każda zwraca zwykłe wartości `OpportunityRecord` — id, numer, tytuł, organizację, kod i rodzaj statusu, osobę przypisaną, wartość, walutę, daty — albo `null` / pustą listę. `statusName(code, language)` nazywa status tak jak ekrany CRM: jego nazwą w tym języku, a w razie jej braku nazwą domyślną albo kodem. `listNotes({ organizationId?, authorAdminUserId?, createdFrom?, createdBefore?, cursor?, limit })` wypisuje notatki zapisane przy szansach, od najstarszej, stronami po najwyżej 100 — zobacz *Odczyt notatek* niżej. |
 | `opportunityTransitionPort` | `OpportunityTransitionPort` | `applyStatus({ opportunityId, to, actor, reason? })` przeprowadza szansę przez skonfigurowany przepływ, razem ze strażnikami i zdarzeniami, i zwraca wynik jako wartość. |
 
 ```ts
@@ -2418,6 +2418,19 @@ if (!outcome.applied && outcome.reason !== 'already_there') {
 - **Odczyty i zmiany działają w zakresie organizacji wywołującego.** Wywołujący
   ograniczony do wybranych organizacji nie odczyta ani nie przesunie szansy
   innej organizacji.
+- **Odczyt notatek.** `listNotes` zwraca `{ items, nextCursor }`. Każdy element
+  to `OpportunityNoteRecord`: `id` notatki, jej `opportunityId`,
+  `organizationId` szansy, `author` (`id` i `name`), `body` w zapisanej postaci,
+  `createdAt` i `editedAt`. Każdy filtr jest opcjonalny, a filtry się łączą:
+  organizacja, autor i czas utworzenia od `createdFrom` (włącznie) do
+  `createdBefore` (bez tej chwili). Następną stronę pobierasz, przekazując
+  `nextCursor` strony jako `cursor`; na ostatniej stronie jest `null`. Port
+  wypisuje wyłącznie notatki — nigdy wewnętrznych wiadomości ani usuniętych
+  notatek — i tylko przy szansach, do których sięga zakres organizacji
+  wywołującego, więc przedstawiciel handlowy czyta notatki organizacji ze
+  swojego zakresu. Kursor, którego port nie wydał, albo niepoprawna data
+  kończą się odmową `422 VALIDATION_FAILED`. Port nie sprawdza uprawnień:
+  zapytaj o `crm:read` sam, zanim go wywołasz.
 - **Zadeklaruj zależność w manifeście.** Moduł, który nie może działać bez CRM,
   wpisuje `crm` w `dependencies`. Moduł, który może, wpisuje go w
   `nonBindingDependencies` z `kind: 'degrades-without'`, nazwą portu i zdaniem

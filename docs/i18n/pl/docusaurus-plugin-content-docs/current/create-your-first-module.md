@@ -196,7 +196,9 @@ export function registerModule(ctx: ModuleContext): void {
 
 Nic w instancji nie kompiluje tego pliku: Node uruchamia go bezpośrednio i usuwa typy w locie.
 Pisz więc zwykły TypeScript — `enum`, `namespace` albo właściwość deklarowana w parametrze
-konstruktora zatrzymuje start błędem `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`.
+konstruktora zatrzymuje start błędem `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. `pnpm run typecheck`
+zgłasza wszystkie trzy wcześniej, razem z każdym błędem typów w `apps/`, a `pnpm run setup`
+uruchamia go przed `migrate`.
 
 ## Krok 5 — Dodaj tłumaczenia
 

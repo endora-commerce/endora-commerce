@@ -117,6 +117,7 @@ be a row this table's own reconciliation
 | --- | --- |
 | `backend/package.json` | derived — the member's own name and its `scripts`; **no dependency of its own**: the module set is the root's |
 | `backend/tsconfig.json` | client's, standalone |
+| `backend/tsconfig.apps.json` | client's — extends `backend/tsconfig.json`; the type-check of the overlay code under `apps/` with `erasableSyntaxOnly` (issue #1847, `specs/190-overlay-full-modules/contracts/overlay-build.md` §1) |
 | `backend/src/index.ts` | **wiring** — port, `SESSION_COOKIE_SECRET`, trusted-proxy parse, `composeApp()`, listen. The shape of `backend/src/index.ts` in this repository, which is already 114 lines and already reads only environment |
 | `backend/src/worker.ts` | **wiring** — 61 lines here |
 | `backend/src/cli.ts` | **wiring** — the operator CLI. Five lines: `runCli({ deploymentRoot })` over `<scope>platform/cli`. It was this table's one **omitted** row until `specs/123-oss-install-experience/` G2, on the reason *"the demo layer around it is exported under no subpath"* — discharged by moving `backend/src/cli/demo-command.ts` into `<scope>platform/demo` and the dispatch itself into `<scope>platform/cli`, rather than by widening the `exports` map |

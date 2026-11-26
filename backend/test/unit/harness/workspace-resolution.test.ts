@@ -1460,6 +1460,52 @@ describe('which program owns each backend source file', () => {
     expect(findings).toEqual([]);
   });
 
+  it('judges three programs as it judges two — the overlay program is one more owner', () => {
+    // Issue #1847: `backend/src/apps/**` moved out of `tsconfig.json` into
+    // `tsconfig.apps.json`, the program that sets `erasableSyntaxOnly`. An
+    // overlay file left in both is checked twice and once without the flag.
+    const three: WorkspaceMember = {
+      ...backend,
+      manifest: {
+        name: 'backend',
+        scripts: {
+          typecheck:
+            'tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json --noEmit && ' +
+            'tsc -p tsconfig.apps.json --noEmit',
+        },
+      },
+    };
+    const overlay = '/repo/backend/src/apps/example/modules/a/backend.ts';
+    const sources = (): readonly string[] => ['/repo/backend/src/index.ts', overlay];
+
+    expect(
+      typeCheckProgramOwnership(
+        three,
+        sources,
+        programs({
+          'tsconfig.json': ['/repo/backend/src/index.ts'],
+          'test/tsconfig.json': [],
+          'tsconfig.apps.json': [overlay],
+        }),
+        EMPTY_LEDGER,
+      ),
+    ).toEqual([]);
+    expect(
+      typeCheckProgramOwnership(
+        three,
+        sources,
+        programs({
+          'tsconfig.json': ['/repo/backend/src/index.ts', overlay],
+          'test/tsconfig.json': [],
+          'tsconfig.apps.json': [overlay],
+        }),
+        EMPTY_LEDGER,
+      ),
+    ).toEqual([
+      'in-several-programs src/apps/example/modules/a/backend.ts (tsconfig.json, tsconfig.apps.json)',
+    ]);
+  });
+
   it('reads an unreadable configuration as a finding and judges no file against it', () => {
     const findings = typeCheckProgramOwnership(
       backend,
@@ -1530,5 +1576,31 @@ describe('which program owns each backend source file', () => {
     }
 
     expect(typeCheckProgramOwnership(member!, listSources, readProgram)).toEqual([]);
+  });
+
+  it('every TypeScript file under `backend/src/apps/` is owned by the overlay program', () => {
+    // Issue #1847, `specs/190-overlay-full-modules/` T004. Ownership alone would
+    // pass with the overlays still in `tsconfig.json`, where `erasableSyntaxOnly`
+    // is off — so the owner is named, and the flag is read off the parsed
+    // configuration rather than off its text.
+    const root = findCheckoutRoot(process.cwd())!;
+    const backendDir = join(root, 'backend');
+    const overlaySources = nodeTypeScriptSourceLister()(join(backendDir, 'src', 'apps'));
+    expect(overlaySources.length).toBeGreaterThan(0);
+
+    const member = workspaceMembers(root, nodeWorkspaceFs()).find(
+      (candidate) => candidate.dir === backendDir,
+    )!;
+    expect(typeCheckConfigsOf(member)).toContain('tsconfig.apps.json');
+
+    const owned = new Set(nodeTypeCheckProgramReader()(backendDir, 'tsconfig.apps.json') ?? []);
+    expect(overlaySources.filter((file) => !owned.has(file))).toEqual([]);
+
+    const parsed = ts.getParsedCommandLineOfConfigFile(
+      join(backendDir, 'tsconfig.apps.json'),
+      {},
+      { ...ts.sys, onUnRecoverableConfigFileDiagnostic: () => {} } as ts.ParseConfigFileHost,
+    );
+    expect(parsed?.options.erasableSyntaxOnly).toBe(true);
   });
 });

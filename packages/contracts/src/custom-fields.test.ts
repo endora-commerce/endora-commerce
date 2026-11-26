@@ -388,6 +388,7 @@ describe('CUSTOM_FIELD_HOST_BINDINGS', () => {
       table: 'products',
       valueColumn: 'attribute_values',
       ownerModuleId: 'catalog',
+      aggregatePort: 'catalogProductCommandPort',
     });
   });
 
@@ -406,5 +407,38 @@ describe('CUSTOM_FIELD_HOST_BINDINGS', () => {
       projects: 'projects',
       tasks: 'tasks',
     });
+  });
+
+  /**
+   * `specs/186-aggregate-ports/` research R-14 (D-293, OD-3) — each host names
+   * the one write port of its aggregate, the port a server-side custom-field
+   * write goes through. Port names are not derivable from the entity type
+   * (`category` → `catalogCategoryCommandPort`), so the row says it.
+   */
+  it('names each host aggregate port, a `<aggregate>CommandPort` container name', () => {
+    for (const [entityType, binding] of Object.entries(cf.CUSTOM_FIELD_HOST_BINDINGS)) {
+      expect(binding.aggregatePort, entityType).toMatch(/^[a-z][A-Za-z]*CommandPort$/);
+    }
+  });
+
+  it('binds each host to the aggregate port data-model.md names', () => {
+    expect(
+      Object.fromEntries(Object.entries(cf.CUSTOM_FIELD_HOST_BINDINGS).map(([type, b]) => [type, b.aggregatePort])),
+    ).toEqual({
+      organization: 'organizationCommandPort',
+      customer: 'customerAccountCommandPort',
+      order: 'orderCommandPort',
+      quote_request: 'quoteRequestCommandPort',
+      product: 'catalogProductCommandPort',
+      category: 'catalogCategoryCommandPort',
+      opportunity: 'opportunityCommandPort',
+      project: 'projectCommandPort',
+      task: 'taskCommandPort',
+    });
+  });
+
+  it('gives no two hosts of different aggregates one port', () => {
+    const ports = Object.values(cf.CUSTOM_FIELD_HOST_BINDINGS).map((b) => b.aggregatePort);
+    expect(new Set(ports).size).toBe(ports.length);
   });
 });

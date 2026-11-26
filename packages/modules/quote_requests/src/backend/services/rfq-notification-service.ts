@@ -88,9 +88,9 @@ export class RfqNotificationService {
 
   /** Returns the number of records written. */
   async record(within: EntityManager, input: RecordNotificationsInput): Promise<number> {
-    // command-coverage-ignore: notification delivery bookkeeping — per-recipient
-    // delivery records written in the transaction of the audited transition they
-    // announce, not an audited domain-state mutation of their own (research R-19).
+    // Notification delivery bookkeeping — per-recipient delivery records written
+    // in the transaction of the audited transition they announce, not an audited
+    // domain-state mutation of their own (research R-19); `persistPlanned` writes them.
     assertSourceEvent(input.change, input.sourceEvent);
     const row = NOTIFICATION_MATRIX[input.change];
     const audiences = new Set(RECORDED_CHANNELS.map((channel) => row.channels[channel]));
@@ -104,28 +104,73 @@ export class RfqNotificationService {
       { customer, operator },
       input.actor?.customerAccountId ?? null,
     );
-    if (planned.length === 0) return 0;
-    for (const cell of planned) {
-      within.persist(
-        within.create(QuoteRequestNotification, {
-          organizationId: input.rfq.organizationId,
-          quoteRequestId: input.rfq.id,
-          sourceEventId: input.sourceEvent.id,
-          change: input.change,
-          recipientKind: cell.recipientKind,
-          recipientId: cell.recipientId,
-          channel: cell.channel,
-          status: 'pending',
-          attempts: 0,
-          lastError: null,
-          closedAt: null,
-          sourceOccurredAt: input.sourceEvent.createdAt,
-        }),
-      );
-    }
-    await within.flush();
-    return planned.length;
+    return persistPlanned(within, input, planned);
   }
+
+  /**
+   * Issue #1906 — record the **operator side** of a change again, after the
+   * request's assignee changed inside the write that recorded it: a command
+   * hook on the buyer's `quote_request.create` set it through its data's
+   * `assign`. The operator side is resolved from the assignee (research R-5), so
+   * the records {@link record} wrote before the hook ran name the wrong people.
+   *
+   * Only a change's own write may call this: the records it replaces are the
+   * ones that write just made — `pending`, uncommitted, never delivered (the
+   * delivery kick runs after the commit). The customer side is left as it is.
+   * Returns the number of records written.
+   */
+  async rerecordOperatorSide(within: EntityManager, input: RecordNotificationsInput): Promise<number> {
+    // command-coverage-ignore: notification delivery bookkeeping, as `record` —
+    // the records of the audited write they announce, replaced inside it.
+    assertSourceEvent(input.change, input.sourceEvent);
+    const stale = await within.find(QuoteRequestNotification, {
+      sourceEventId: input.sourceEvent.id,
+      recipientKind: 'admin',
+    });
+    if (stale.length > 0) {
+      within.remove(stale);
+      // Before the new rows: one administrator may be in both, and the unique
+      // key (source entry, recipient, channel) would refuse the insert.
+      await within.flush();
+    }
+    const row = NOTIFICATION_MATRIX[input.change];
+    const channels = RECORDED_CHANNELS.filter((channel) => row.channels[channel] === 'operator');
+    if (channels.length === 0) return 0;
+    const operator = await this.recipients.operatorSide(input.rfq);
+    return persistPlanned(within, input, plannedNotifications(input.change, { customer: [], operator }, null, channels));
+  }
+}
+
+/** One `pending` record per planned cell, on `within`; returns how many. */
+async function persistPlanned(
+  within: EntityManager,
+  input: RecordNotificationsInput,
+  planned: readonly PlannedNotification[],
+): Promise<number> {
+  // command-coverage-ignore: notification delivery bookkeeping — the records
+  // `record` and `rerecordOperatorSide` plan, written in the transaction of the
+  // audited transition they announce (research R-19).
+  if (planned.length === 0) return 0;
+  for (const cell of planned) {
+    within.persist(
+      within.create(QuoteRequestNotification, {
+        organizationId: input.rfq.organizationId,
+        quoteRequestId: input.rfq.id,
+        sourceEventId: input.sourceEvent.id,
+        change: input.change,
+        recipientKind: cell.recipientKind,
+        recipientId: cell.recipientId,
+        channel: cell.channel,
+        status: 'pending',
+        attempts: 0,
+        lastError: null,
+        closedAt: null,
+        sourceOccurredAt: input.sourceEvent.createdAt,
+      }),
+    );
+  }
+  await within.flush();
+  return planned.length;
 }
 
 /** A caller naming the wrong history entry is a programming error, refused before anything is written. */

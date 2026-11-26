@@ -34,7 +34,7 @@ function entities(moduleId: string, ...tables: string[]): void {
   for (const table of tables) {
     writeFileSync(
       join(dir, `${table}.entity.ts`),
-      `import { Entity } from '@mikro-orm/core';\n` +
+      `import { Entity } from '@mikro-orm/decorators/legacy';\n` +
         `@Entity({ tableName: '${table}' })\n` +
         `export class Some {}\n`,
       'utf8',
@@ -314,7 +314,7 @@ describe('deriveFkGraph — module roots', () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, 'points.entity.ts'),
-      `import { Entity } from '@mikro-orm/core';\n` +
+      `import { Entity } from '@mikro-orm/decorators/legacy';\n` +
         `@Entity({ tableName: 'loyalty_points' })\n` +
         `export class Some {}\n`,
       'utf8',

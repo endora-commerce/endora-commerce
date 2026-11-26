@@ -1177,6 +1177,26 @@ export interface ProjectReadPort {
    * most `limit` (≤ 20) — the Projects group of the `@@` list (R-5).
    */
   search(query: ProjectSearchQuery): Promise<ProjectRecord[]>;
+  /**
+   * The notes written on the Projects the caller may see, one page at a time,
+   * oldest first — for a cross-record notes list or an export (issue #1905).
+   * Narrowed by Organization, author and creation time, all optional and
+   * combined with *and*. A note is a `note` comment that has not been deleted;
+   * the internal **messages** of a Project are not notes and are never listed.
+   *
+   * **The notes of an Organization** are the notes of every Project linked to
+   * it, whichever other Organizations that Project is linked to as well; an
+   * internal Project (linked to none) has notes of no Organization, so an
+   * `organizationId` never selects them.
+   *
+   * The reach is the one every other method has, `ProjectAccess` under the
+   * caller's own context: a Project out of the caller's Organization reach —
+   * any one of its Organizations — or its visibility contributes no note, and
+   * a caller without `projects:read` reads none. A malformed `organizationId`
+   * or `authorAdminUserId` selects nothing. A `cursor` this port did not
+   * issue, or an invalid `Date`, is refused with 422 `VALIDATION_FAILED`.
+   */
+  listNotes(query: ProjectNoteQuery): Promise<ProjectNotePage>;
 }
 
 /** What `ProjectReadPort.search` is asked. */
@@ -1188,6 +1208,46 @@ export interface ProjectSearchQuery {
 
 /** The most Projects one `ProjectReadPort.search` answers. */
 export const PROJECT_READ_PORT_SEARCH_MAX = 20;
+
+/** A note on a Project as it crosses a module boundary — a plain shape, never the entity. */
+export interface ProjectNoteRecord {
+  id: string;
+  projectId: string;
+  /** The Project's Organizations, as {@link ProjectRecord.organizationIds}; empty for an internal Project. */
+  organizationIds: string[];
+  /** Who wrote it; `name` is `''` for an administrator `admin_users` no longer knows. */
+  author: { id: string; name: string };
+  /** The text as stored, reference tokens included. */
+  body: string;
+  createdAt: Date;
+  /** When its author last edited it; `null` for a note never edited. */
+  editedAt: Date | null;
+}
+
+/** What `ProjectReadPort.listNotes` is asked. */
+export interface ProjectNoteQuery {
+  /** Only the notes of the Projects linked to this Organization. */
+  organizationId?: string | undefined;
+  /** Only the notes this administrator wrote. */
+  authorAdminUserId?: string | undefined;
+  /** Only notes created at or after this instant. */
+  createdFrom?: Date | undefined;
+  /** Only notes created strictly before this instant. */
+  createdBefore?: Date | undefined;
+  /** The previous page's `nextCursor`; absent or `null` for the first page. */
+  cursor?: string | null | undefined;
+  /** At most {@link PROJECT_READ_PORT_NOTES_MAX}; `0` answers an empty page. */
+  limit: number;
+}
+
+/** One page of `ProjectReadPort.listNotes`; `nextCursor` is `null` on the last. */
+export interface ProjectNotePage {
+  items: ProjectNoteRecord[];
+  nextCursor: string | null;
+}
+
+/** The most notes one `ProjectReadPort.listNotes` page answers. */
+export const PROJECT_READ_PORT_NOTES_MAX = 100;
 
 export type ProjectStageGuardKind = 'move' | 'close_completed' | 'close_lost' | 'reopen';
 

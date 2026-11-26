@@ -26,9 +26,11 @@
  * `--entities` and got a module with no table would find out at the first
  * query.
  *
- *   * **schema** (`--entities`, `--tenant-scope`). An overlay module contributes
- *     no `@Entity()` class and no migration (D-106); `endora generate` refuses
- *     one in an instance.
+ *   * **schema** (`--entities`, `--tenant-scope`). An overlay module may own a
+ *     table since D-297 (`specs/190-overlay-full-modules/` #1850), and the
+ *     platform reads its entities and migrations; what is not here yet is the
+ *     scaffold for them (#1852, `overlay-cli.md` §1), so the flags are refused
+ *     with a sentence saying what to write by hand.
  *   * **an admin screen** (`--admin`, `--action`). A screen is a module
  *     package's `./admin` layer, which the admin registry is generated from. An
  *     overlay module is in no registry, so a palette action would open a route
@@ -157,15 +159,15 @@ function refuseWhatAnOverlayCannotBe(
   const refusals: (readonly [boolean, string])[] = [
     [
       input.entities === true,
-      '--entities: an overlay module contributes no schema — no `@Entity()` class and no ' +
-        'migration — and `endora generate`, `migrate`, every `module:*` command and the API ' +
-        'at boot each refuse one. Keep small state in Settings; a module ' +
-        'that owns a table is a module package.',
+      '--entities: `endora new module` does not scaffold an overlay module\'s schema yet. An ' +
+        'overlay module may own a table: write the entity by hand under its `entities/`, ' +
+        'export it as `entities` from `backend.ts`, and put one migration per file in its ' +
+        '`migrations/` — `migrate` applies them.',
     ],
     [
       input.tenantScope !== undefined,
-      '--tenant-scope: it chooses the decorator on an emitted entity, and an overlay module ' +
-        'contributes no schema.',
+      '--tenant-scope: it chooses the decorator on an emitted entity, and an overlay module\'s ' +
+        'entity is not scaffolded yet — write it by hand, with its tenancy decorator.',
     ],
     [
       input.admin !== undefined,
@@ -433,8 +435,8 @@ function overlayBackend(spec: ModuleScaffoldSpec, scope: string): string {
   lines.push('// Nothing in an instance compiles this file: Node loads it and strips the types');
   lines.push('// as it goes. So it is written in the subset stripping accepts — an `enum`, a');
   lines.push('// `namespace` or a constructor parameter property stops the start with');
-  lines.push('// ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX. A union of string literals is the `enum`');
-  lines.push('// you want.');
+  lines.push('// ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX. `pnpm run typecheck` reports all three');
+  lines.push('// first. A union of string literals is the `enum` you want.');
   lines.push('');
   if (gate !== null) {
     lines.push(`interface ${cradle} {`);

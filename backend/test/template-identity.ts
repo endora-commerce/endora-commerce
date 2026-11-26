@@ -27,6 +27,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { readdirSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { isAbsolute, join, relative } from 'node:path';
@@ -87,7 +88,9 @@ export interface MigrationSourceRoot {
  * The `external` roots are not here and cannot be: an installed extension
  * package ships migrations (D-106.2) from a directory that exists only in the
  * instance that installed it, so that half is *discovered*, per run, by
- * {@link migrationSourceRoots}. This list used to say there could never be a
+ * {@link migrationSourceRoots}. So are the `overlay` roots
+ * (`specs/190-overlay-full-modules/` FR-039): which deployment's overlay
+ * modules a run migrates is a fact about the process, not the tree. This list used to say there could never be a
  * third root at all, citing the retired D-105 ("an overlay ships no
  * migration") — which D-106 narrowed and D-106.2 reversed.
  */
@@ -169,6 +172,11 @@ export async function migrationSourceRoots(
     readonly version: string;
     readonly migrationsDirectory: string | null;
   }[],
+  overlays: readonly {
+    readonly source: string;
+    readonly version: string;
+    readonly migrationsDirectory: string | null;
+  }[] = [],
 ): Promise<readonly MigrationSourceRoot[]> {
   return [
     ...MIGRATION_SOURCE_ROOTS,
@@ -181,7 +189,37 @@ export async function migrationSourceRoots(
         sourceExtension: '.js' as const,
         recordAs: `${contribution.packageName}@${contribution.version}`,
       })),
+    ...overlays
+      .filter((contribution) => contribution.migrationsDirectory !== null)
+      .map((contribution) => overlayMigrationRoot(contribution.migrationsDirectory as string, contribution)),
   ];
+}
+
+/**
+ * The root one overlay module's migrations are read from — their **own** origin,
+ * `overlay` (`specs/190-overlay-full-modules/` FR-039, R-7), so a deployment's
+ * migrations are floored on their own and a package's surplus cannot cover them.
+ *
+ * In this repository the directory is under `backend/src/apps/` and is recorded
+ * `backend/`-relative, as core's are. Anywhere else — a compiled tree, an
+ * instance — its absolute path is a fact about the checkout, so it is recorded
+ * under the overlay's own label and version, as a package's is. The extension is
+ * whichever the directory holds: `.ts` read from sources, `.js` compiled.
+ */
+function overlayMigrationRoot(
+  directory: string,
+  contribution: { readonly source: string; readonly version: string },
+): MigrationSourceRoot {
+  const inside = relative(BACKEND_ROOT, directory);
+  const compiled = !readdirSync(directory).some((name) => name.endsWith('.ts') && !name.endsWith('.d.ts'));
+  return {
+    origin: 'overlay',
+    kind: 'directory',
+    sourceExtension: compiled ? '.js' : '.ts',
+    ...(inside.startsWith('..') || isAbsolute(inside)
+      ? { path: directory, recordAs: `${contribution.source}@${contribution.version}` }
+      : { path: inside }),
+  };
 }
 
 /**
@@ -368,6 +406,13 @@ export interface TemplateIdentityOptions {
   readonly migrations?: readonly RegisteredMigration[];
   /** Where sources are read from; `MIGRATION_SOURCE_ROOTS` unless supplied. */
   readonly sourceRoots?: readonly MigrationSourceRoot[];
+  /**
+   * The environment the configured order is read under — `process.env` unless
+   * supplied. A test that selects a deployment in-process passes
+   * `{ ...process.env, DEPLOYMENT: '<name>' }` and gets that deployment's
+   * identity, overlay migrations included (FR-039, FR-040).
+   */
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 /** What one producer contributed, and what the walk found of it. */
@@ -444,12 +489,16 @@ export async function templateIdentity(
   const configured =
     options.migrations !== undefined && options.sourceRoots !== undefined
       ? undefined
-      : await (await import('../src/db/configured-migrations.js')).configuredMigrations();
+      : await (await import('../src/db/configured-migrations.js')).configuredMigrations(
+          options.env ?? process.env,
+        );
   const registered = options.migrations ?? configured?.registered ?? [];
-  // The `external` roots come from the same answer the registrations did, so a
-  // package cannot be registered by one and unread by the other.
+  // The `external` and `overlay` roots come from the same answer the
+  // registrations did, so a package or an overlay module cannot be registered by
+  // one and unread by the other.
   const roots =
-    options.sourceRoots ?? (await migrationSourceRoots(configured?.packages ?? []));
+    options.sourceRoots ??
+    (await migrationSourceRoots(configured?.packages ?? [], configured?.overlays ?? []));
   const walked = await walkSources(root, roots);
 
   // The origins are derived from the two inputs on every call rather than

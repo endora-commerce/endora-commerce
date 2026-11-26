@@ -703,10 +703,10 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'composition/cursor-seal.ts': ['createCursorSeal'],
   // What an entry point does with a refusal the platform wrote for the
   // operator: `exitOnRefusal` on `composeApp`'s promise in the API and the
-  // worker, `refuseOverlaySchema` in `migrate`, which composes nothing and has
-  // to ask. A scaffolded instance's three wiring files name them; a module has
-  // no process to exit.
-  'overlay/overlay-schema.ts': ['exitOnRefusal', 'refuseOverlaySchema'],
+  // worker. A scaffolded instance's wiring names it; a module has no process to
+  // exit. `refuseOverlaySchema`, which `migrate` called, went with the schema
+  // refusal it carried (`specs/190-overlay-full-modules/` FR-037).
+  'overlay/overlay-schema.ts': ['exitOnRefusal'],
   'http/server.ts': ['buildServer', 'ModulePlugin'],
   'http/interceptors/index.ts': ['ApiInterceptorRegistry'],
   // T119b. `./http` carries `HttpError` — what a module *raises* — and not the

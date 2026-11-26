@@ -193,7 +193,8 @@ export function registerModule(ctx: ModuleContext): void {
 
 Nothing in an instance compiles this file: Node runs it directly and removes the types as it goes.
 So write plain TypeScript — an `enum`, a `namespace` or a constructor parameter property stops the
-start with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`.
+start with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. `pnpm run typecheck` reports all three before
+that, together with any type error in `apps/`, and `pnpm run setup` runs it before `migrate`.
 
 ## Step 5 — Add the translations
 

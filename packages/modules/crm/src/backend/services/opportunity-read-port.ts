@@ -2,6 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   OPPORTUNITY_READ_PORT_SEARCH_MAX,
   type OpportunityDocumentKind,
+  type OpportunityNotePage,
+  type OpportunityNoteQuery,
   type OpportunityReadPort,
   type OpportunityRecord,
   type OpportunitySearchQuery,
@@ -12,6 +14,7 @@ import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import { effectiveOpportunityValue } from '../domain/effective-value.js';
 import { resolveOpportunityStatusName } from '../domain/opportunity-status-graph.js';
 import { isUuid } from './opportunity-access.js';
+import type { OpportunityCommentService } from './opportunity-comment-service.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
 /**
@@ -27,13 +30,25 @@ import type { WorkflowReadService } from './workflow-read-service.js';
  * does not exist. A link carries no tenant column of its own, so
  * `findByDocument` reads the link only to learn which Opportunity to ask for,
  * and then asks for that Opportunity through the scoped EntityManager: the
- * parent decides, never the child.
+ * parent decides, never the child. `listNotes` is the comment service's, which
+ * owns the table and joins every note to its Opportunity for the same reason.
  */
 export class OpportunityReadPortService implements OpportunityReadPort {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly workflowRead: WorkflowReadService,
+    /**
+     * The comment service, resolved per call: it reaches this class back
+     * through the reference service, so a constructor argument would be a
+     * cycle in the container.
+     */
+    private readonly comments: () => Pick<OpportunityCommentService, 'listNotes'>,
   ) {}
+
+  /** The notes of the Opportunities in the caller's tenant scope, a keyset page at a time (issue #1905). */
+  listNotes(query: OpportunityNoteQuery): Promise<OpportunityNotePage> {
+    return this.comments().listNotes(query);
+  }
 
   async findById(id: string): Promise<OpportunityRecord | null> {
     if (!isUuid(id)) return null;

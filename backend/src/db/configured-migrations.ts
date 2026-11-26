@@ -44,6 +44,7 @@ import {
 } from '@endora-commerce/platform/db';
 
 import { DISCOVERED_MANIFESTS } from '../manifest-index.generated.js';
+import { deploymentRoot, selectedDeployment } from '../overlay/overlay-roots.js';
 import { MIGRATION_REGISTRY } from './migrations-registry.generated.js';
 
 /** Re-exported so a caller that already reads this seam has one import. */
@@ -101,19 +102,29 @@ export function coreModuleDependencies(): Map<string, readonly string[]> {
   return committedModuleDependencies(DISCOVERED_MANIFESTS);
 }
 
-let memoised: Promise<ConfiguredMigrations> | undefined;
+const memoised = new Map<string, Promise<ConfiguredMigrations>>();
 
 /**
  * This platform's migration order: the committed core registry merged with
- * every installed package's `./migrations` export.
+ * every installed package's `./migrations` export and the selected
+ * deployment's overlay modules, read from {@link deploymentRoot}
+ * (`specs/190-overlay-full-modules/` FR-035).
  *
- * Memoised for the process. `env` is read on the first call only — it selects
- * the `node_modules` roots (`ENDORA_INSTANCE_ROOT`), and an instance does not
- * move underneath a running platform.
+ * Memoised per deployment, `''` for bare core: a test that selects a deployment
+ * in-process gets that deployment's order — and its own migration template
+ * (FR-039, FR-040) — while a bare-core caller in the same process keeps its
+ * own. `env` is otherwise read on the first call only — it selects the
+ * `node_modules` roots (`ENDORA_INSTANCE_ROOT`), and an instance does not move
+ * underneath a running platform.
  */
 export async function configuredMigrations(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ConfiguredMigrations> {
-  memoised ??= discoverConfiguredMigrations(CORE_SOURCES, env);
-  return memoised;
+  const key = selectedDeployment(env) ?? '';
+  let order = memoised.get(key);
+  if (order === undefined) {
+    order = discoverConfiguredMigrations(CORE_SOURCES, env, deploymentRoot());
+    memoised.set(key, order);
+  }
+  return order;
 }

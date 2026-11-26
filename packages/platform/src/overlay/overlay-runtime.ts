@@ -41,8 +41,10 @@ import {
   assertNoModuleIdCollisions,
   type ModuleIdClaim,
 } from '../lifecycle/services/module-id-claims.js';
-import { assertOverlayModulesShipNoSchema } from './overlay-schema.js';
+import { assertOverlayLayout } from './overlay-layout.js';
+import { assertOverlayBuildFresh, type OverlayRoots } from './overlay-freshness.js';
 import { listOverlayModuleDirs } from './resolve-overlay.js';
+import { activeOverlayModulesRoot, overlayModulesRootFor, selectedDeployment } from './deployment-roots.js';
 
 /**
  * The two spellings one unit has: `<stem>.js` in a compiled tree, `<stem>.ts`
@@ -140,9 +142,12 @@ export function overlayModuleIdsUnder(
   claimsOutsideTheOverlay: readonly ModuleIdClaim[],
 ): string[] {
   const ids = listOverlayModuleDirs(root);
-  // Before the claims are checked and long before anything is imported: a tree
-  // that ships schema is refused whole, whichever seam asked (`overlay-schema.ts`).
-  assertOverlayModulesShipNoSchema(root, ids);
+  // Before the claims are checked and long before anything is imported: flat, and
+  // not a package (`specs/190-overlay-full-modules/` FR-002 – FR-003). It stands
+  // where the schema refusal stood until overlay schema discovery replaced that
+  // refusal (FR-037, #1850): an overlay module's schema is read, not refused
+  // (`overlay-schema.ts`).
+  assertOverlayLayout(root, ids);
   assertNoModuleIdCollisions([
     ...claimsOutsideTheOverlay,
     ...ids.map((id) => ({
@@ -390,5 +395,61 @@ export function overlayModulesUnder(
     ids,
     manifests: async () => (root === null ? [] : await overlayModuleManifestsUnder(root, ids())),
     entries: async () => (root === null ? [] : await overlayModuleEntriesForIds(root, ids())),
+  };
+}
+
+/**
+ * The active deployment's overlay modules, judged against their sources first
+ * (`specs/190-overlay-full-modules/` FR-015, contract `overlay-build.md` §4, #1848).
+ *
+ * The one resolution every process that composes or lists overlay modules goes
+ * through — the API and the worker (`defaultComposition`), the operator CLI and
+ * `module:*` (`instanceManifestEntries`). The guard runs inside {@link OverlayModules.ids},
+ * which both halves call before they import anything, so a stale, unbuilt or orphaned
+ * compiled unit is refused before a line of it runs. With no source root it says once
+ * that nothing was compared; run from sources (source root = deployment root) it has
+ * nothing to compare.
+ */
+export function overlayModulesFor(
+  roots: OverlayRoots,
+  env: NodeJS.ProcessEnv,
+  claimsOutsideTheOverlay: () => readonly ModuleIdClaim[],
+  options: { readonly rebuild?: string; readonly info?: (line: string) => void } = {},
+): OverlayModules {
+  const root = activeOverlayModulesRoot(roots.deploymentRoot, env);
+  const resolved = overlayModulesUnder(root, claimsOutsideTheOverlay);
+  const deployment = selectedDeployment(env);
+  let judged = false;
+  const judge = (): void => {
+    // Not gated on the compiled modules root: a deployment whose `modules/` was never
+    // built has none, and that is exactly the `unbuilt` case the guard exists for.
+    if (judged || deployment === null) return;
+    assertOverlayBuildFresh(roots, deployment, {
+      rebuild: options.rebuild ?? 'pnpm run build',
+      ...(options.info === undefined ? {} : { info: options.info }),
+    });
+    // The layout is the sources' (FR-002 – FR-003): `tsc` emits no `package.json` and no
+    // build configuration, so a check over the compiled tree alone would let a package in
+    // disguise through — measured by acceptance:instance A18.
+    const source = roots.deploymentSourceRoot;
+    if (source !== undefined && source !== roots.deploymentRoot) {
+      const sourceModules = overlayModulesRootFor(source, deployment);
+      assertOverlayLayout(sourceModules, listOverlayModuleDirs(sourceModules));
+    }
+    judged = true;
+  };
+  return {
+    ids: () => {
+      judge();
+      return resolved.ids();
+    },
+    manifests: async () => {
+      judge();
+      return await resolved.manifests();
+    },
+    entries: async () => {
+      judge();
+      return await resolved.entries();
+    },
   };
 }

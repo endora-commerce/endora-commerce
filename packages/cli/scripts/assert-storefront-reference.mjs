@@ -20,6 +20,12 @@ try {
 } catch (error) {
   problem = error instanceof Error ? error.message : String(error);
 }
+if (found !== null && !existsSync(join(cliDir, 'dist', 'runtime-assets.mjs'))) {
+  // The second carried file (`scripts/write-runtime-assets.mjs`): without it,
+  // `endora build overlays` cannot classify an overlay module's assets in an instance.
+  found = null;
+  problem = 'dist/runtime-assets.mjs is absent';
+}
 if (found === null) {
   process.stderr.write(
     `@endora-commerce/cli: refusing to pack ${cliDir} — ${problem}.\n` +

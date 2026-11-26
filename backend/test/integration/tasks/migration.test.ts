@@ -590,7 +590,7 @@ describe('tasks schema (163 init + 165 task management)', () => {
   });
 
   it('is registered and executed: the migrator records the task_management migration', async () => {
-    const executed = await orm.getMigrator().getExecutedMigrations();
+    const executed = await orm.migrator.getExecuted();
     expect(executed.map((migration) => migration.name)).toContain(taskManagementMigration().name);
   });
 

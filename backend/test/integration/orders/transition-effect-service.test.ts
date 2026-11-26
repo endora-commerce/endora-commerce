@@ -302,7 +302,7 @@ describe('OrderTransitionEffectService (spec 142, T08)', () => {
 
   it('holds no database connection while a handler runs', async () => {
     const orderId = await owingBoth();
-    const pool = connectionPool(h.em());
+    const pool = await connectionPool(h.em());
     const usedDuringHandler: number[] = [];
     stock.mockImplementation(async () => {
       usedDuringHandler.push(pool.used());

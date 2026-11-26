@@ -276,6 +276,16 @@ Organization can transact. While the status is anything other than
 `active`, the platform refuses Order placement, RFQ submission, and
 cart-line addition with HTTP 423.
 
+Each transition — approve, reject, block, unblock — is one Command:
+`organization.approved`, `organization.rejected`, `organization.blocked` and
+`organization.unblocked`. The status change and its audit entry are written
+in one transaction, and the entry names whoever acted: the administrator, or
+nobody for the approval `auto` mode makes on registration (the `system`
+actor). The `organization.status_changed.v1` event is sent once the change
+has committed, and never for one that was refused or rolled back. The
+customer's approval or rejection e-mail follows the commit, and a message
+that cannot be sent does not undo the transition.
+
 The legacy `suspended` status was renamed to `blocked` by migration
 `20260611T140349_organizations_consolidation.ts`, which writes an explanatory
 `blocked_reason` on every remapped row (it writes no audit-log entry).

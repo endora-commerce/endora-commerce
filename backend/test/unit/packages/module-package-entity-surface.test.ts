@@ -222,7 +222,7 @@ describe('D-168 — the shapes the analysis refuses', () => {
     mkdirSync(join(dir, 'entities'), { recursive: true });
     writeFileSync(
       join(dir, 'entities', 'widget.entity.ts'),
-      `import { Entity } from '@mikro-orm/core';\n${ENTITY}\nexport class Widget {}\n`,
+      `import { Entity } from '@mikro-orm/decorators/legacy';\n${ENTITY}\nexport class Widget {}\n`,
     );
     for (const [file, text] of Object.entries(extra)) {
       mkdirSync(dirname(join(dir, file)), { recursive: true });

@@ -1,4 +1,5 @@
-import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { OptionalProps } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { GlobalEntity } from '../../tenancy/org-scoped.decorator.js';
 
 /** What a ledger row records. */

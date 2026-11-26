@@ -1,13 +1,15 @@
 import {
   Collection,
+  OptionalProps,
+} from '@mikro-orm/core';
+import {
   Entity,
   Index,
   ManyToMany,
-  OptionalProps,
   PrimaryKey,
   Property,
   Unique,
-} from '@mikro-orm/core';
+} from '@mikro-orm/decorators/legacy';
 import { GlobalEntity } from '../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import { SalesChannel } from '../sales-channels/sales-channel.entity.js';

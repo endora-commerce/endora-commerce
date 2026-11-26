@@ -1,15 +1,17 @@
 import {
   Collection,
+  OptionalProps,
+} from '@mikro-orm/core';
+import {
   Entity,
   Enum,
   Index,
   ManyToMany,
   ManyToOne,
-  OptionalProps,
   PrimaryKey,
   Property,
   Unique,
-} from '@mikro-orm/core';
+} from '@mikro-orm/decorators/legacy';
 import { GlobalEntity } from '../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import { SettingGroup } from './setting-group.entity.js';

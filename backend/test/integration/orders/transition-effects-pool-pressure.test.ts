@@ -119,7 +119,7 @@ describe('more concurrent cancellations than pooled connections (spec 142, FR-00
   };
 
   it('answers every one of them 200 and releases everything, without waiting on the pool', async () => {
-    const pool = connectionPool(h.em());
+    const pool = await connectionPool(h.em());
     // Well above the pool, so the old shape — two connections per attempt —
     // cannot fit however the requests interleave.
     const concurrent = pool.max * 3;

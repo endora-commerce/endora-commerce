@@ -8,7 +8,13 @@
 import { buildServer } from '@endora-commerce/platform/composition';
 import { parseTrustedProxy, type TrustedProxy } from '@endora-commerce/platform/composition';
 import { composeApp, resolveSessionCookieSecret } from './composition.js';
-import { deploymentRoot } from './overlay/overlay-roots.js';
+import { deploymentRoot, deploymentSourceRoot } from './overlay/overlay-roots.js';
+
+/** The sources the compiled overlays are judged against (#1848, FR-016); none under `tsx`'s. */
+const sourceRoot = (): { deploymentSourceRoot?: string } => {
+  const root = deploymentSourceRoot();
+  return root === undefined ? {} : { deploymentSourceRoot: root };
+};
 
 async function main(): Promise<void> {
   const port = Number(process.env['PORT'] ?? 3001);
@@ -47,7 +53,7 @@ async function main(): Promise<void> {
   // as an unhandled rejection with no context. Catch it and fail loud + clean.
   let composition: Awaited<ReturnType<typeof composeApp>>;
   try {
-    composition = await composeApp({ deploymentRoot: deploymentRoot() });
+    composition = await composeApp({ deploymentRoot: deploymentRoot(), ...sourceRoot() });
   } catch (err) {
     console.error(
       '[boot] composeApp() failed — the backend cannot start. ' +
