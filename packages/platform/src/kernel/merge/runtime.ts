@@ -81,7 +81,7 @@ export function createRecordMergeRuntime(options: CreateRecordMergeRuntimeOption
   const computeCoverage = (): MergeCoverageResult => {
     coverage ??= runtimeMergeCoverage({
       population: populationFromMetadata(
-        Object.values(options.orm.getMetadata().getAll())
+        [...new Set(options.orm.getMetadata().getAll().values())]
           .filter((meta) => !meta.embeddable && !meta.virtual && !meta.abstract)
           .map((meta) => ({ className: meta.className, properties: meta.properties, path: meta.path })),
         (_className, path) => entityOwnerFromPath(path),

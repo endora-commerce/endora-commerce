@@ -105,7 +105,7 @@ describe('Organization merge — end to end (T072)', () => {
    * column and column type from the ORM's metadata and the catalogue.
    */
   async function deriveColumns(): Promise<DerivedColumn[]> {
-    const metas = Object.values(h.orm.getMetadata().getAll()) as Array<{
+    const metas = [...new Set(h.orm.getMetadata().getAll().values())] as Array<{
       className: string;
       tableName: string;
       properties: Record<string, { fieldNames?: string[] }>;
@@ -660,6 +660,14 @@ describe('Organization merge — end to end (T072)', () => {
       expect(modules.has(moduleId), moduleId).toBe(true);
     }
     expect(columns.length).toBeGreaterThan(40);
+  });
+
+  // MikroORM 7 returns the metadata as a `Map`, which `Object.values` reads as empty: the
+  // runtime twin then saw no population and every module passed as covered.
+  it('reads the composed population into the runtime coverage, and finds every reference covered', () => {
+    const coverage = h.recordMergeRuntime.coverage();
+    expect(coverage.sites).toBeGreaterThan(40);
+    expect(coverage.uncoveredModules).toEqual([]);
   });
 
   describe('an uninterrupted merge (the control of SC-003)', () => {
