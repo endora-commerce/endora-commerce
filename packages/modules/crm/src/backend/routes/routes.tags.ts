@@ -60,7 +60,8 @@ export async function registerCrmTagRoutes(app: FastifyInstance, deps: TagRoutes
     { preHandler: requireAdmin('crm:write'), schema: { body: SetOpportunityTagsRequestSchema } },
     async (request) => {
       const body = SetOpportunityTagsRequestSchema.parse(request.body);
-      return { data: await deps.opportunityService.setTags(request.params.id, body.tagIds) };
+      await deps.opportunityService.setTags(request.params.id, body.tagIds);
+      return { data: await deps.opportunityService.get(request.params.id) };
     },
   );
 }
