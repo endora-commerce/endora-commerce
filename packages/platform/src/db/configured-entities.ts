@@ -107,8 +107,10 @@ export async function configuredEntitiesFrom(
   const packages = await discoverPackageSchema(env);
   // The deployment's own modules, read the way a package's are (#1850, contract
   // `overlay-schema-discovery.md` §2) — after the packages, so a list with no
-  // overlay is the list it always was.
-  const overlays = await discoverOverlaySchema(inputs.deploymentRoot, env);
+  // overlay is the list it always was. Their `schemaExtensions` are judged by the
+  // migration merge, which sees the composed graph V10 walks (FR-065); this set
+  // is built without it, so it does not judge them a second time.
+  const overlays = await discoverOverlaySchema(inputs.deploymentRoot, env, { schemaExtensions: false });
   // The platform's own six first (`specs/110-instance-repository/` T141).
   // They are this package's, and an instance supplies `coreEntities: []` —
   // which used to mean it registered none of them, so nothing mapped the

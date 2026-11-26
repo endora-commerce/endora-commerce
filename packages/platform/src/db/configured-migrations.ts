@@ -516,6 +516,18 @@ export async function discoverConfiguredMigrations(
   env: NodeJS.ProcessEnv = process.env,
   deploymentRoot?: string,
 ): Promise<ConfiguredMigrations> {
+  const coreModuleDependencies = committedModuleDependencies(sources.manifests);
+  const packages = await discoverPackageSchema(env);
+  // V10 for an overlay's `schemaExtensions` walks the composed graph
+  // (`specs/190-overlay-full-modules/` FR-065): core's edges and the packages'
+  // beside the overlays', so a host owner reached through a module outside the
+  // overlay root is in the closure, as it is in the order computed below.
+  const composedDependencies = new Map<string, readonly string[]>(coreModuleDependencies);
+  for (const contribution of packages) {
+    if (!composedDependencies.has(contribution.id)) {
+      composedDependencies.set(contribution.id, contribution.dependencies);
+    }
+  }
   return configuredMigrationsFrom({
     // The platform's own migrations are merged in here rather than asked of the
     // host (`specs/110-instance-repository/` T141). They are this package's
@@ -532,9 +544,9 @@ export async function discoverConfiguredMigrations(
       PLATFORM_MIGRATION_ENTRIES,
       (entry) => entry.cls,
     ),
-    coreModuleDependencies: committedModuleDependencies(sources.manifests),
-    packages: await discoverPackageSchema(env),
-    overlays: await discoverOverlaySchema(deploymentRoot, env),
+    coreModuleDependencies,
+    packages,
+    overlays: await discoverOverlaySchema(deploymentRoot, env, { composedDependencies }),
     requiredModules: requiredModulesOf(sources.manifests),
   });
 }
