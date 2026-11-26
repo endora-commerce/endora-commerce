@@ -16,6 +16,7 @@ sentence this deployment wrote when it made the change.
 | --- |
 | `carrier_fixture` |
 | `command_hook_fixture` |
+| `command_middleware_fixture` |
 | `erp_challenger_fixture` |
 | `erp_incumbent_fixture` |
 | `example_overlay` |
@@ -55,6 +56,8 @@ rung 2 — run before or after what the owner already serves, or inside a write 
 
 | What | Changed by | Owned by | Why |
 | --- | --- | --- | --- |
+| `hold-marked` (admit, `organization.`) | `command_middleware_fixture` | the Command Bus (no module owns it) | Core admits every Command. This fixture refuses an Organization write — a child write inside a bigger one included — only for a request whose id carries its hold marker, with its own translated code and before anything is written. It is the reference admission rule the command-middleware contract tests compose, and it changes nothing for any other request. |
+| `record-marked` (observe, `organization.`) | `command_middleware_fixture` | the Command Bus (no module owns it) | After a marked request’s Organization write has committed or rolled back, this fixture keeps the run’s names-only summary and the tenant context it was observed in, which the command-middleware tests read. It cannot slow, fail or change the write, and it ignores every request that does not carry its marker. |
 | `organization-timing` (observe, `organization.`) | `example_overlay` | the Command Bus (no module owns it) | Core runs no middleware on the Command Bus. After any write that touched an Organization has committed or rolled back, this deployment logs how long it took and how it ended — the action, the outcome, the error code and a count, never a value. It is the reference `observe` middleware: it cannot slow, fail or change the write, and it replaces what a deployment used to do by wrapping `commandBus`. |
 
 ### Ports this deployment consumes

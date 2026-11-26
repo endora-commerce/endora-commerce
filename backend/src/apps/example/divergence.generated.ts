@@ -12,6 +12,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
   "overlayModules": [
     "carrier_fixture",
     "command_hook_fixture",
+    "command_middleware_fixture",
     "erp_challenger_fixture",
     "erp_incumbent_fixture",
     "example_overlay",
@@ -94,6 +95,40 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "id": "observe-register"
       },
       "reason": "The same hook on storefront self-registration, which is one Command since spec 176 P1. On a marked name it writes its own audit entry inside the registration transaction and may refuse the registration with its own code, so the whole registration — Organization, first account, token — rolls back; any other name passes through untouched."
+    },
+    {
+      "key": "command-middleware:command_middleware_fixture:hold-marked",
+      "kind": "command-middleware",
+      "module": "command_middleware_fixture",
+      "subject": "hold-marked",
+      "owner": null,
+      "rung": 2,
+      "detail": {
+        "kind": "command-middleware",
+        "phase": "admit",
+        "id": "hold-marked",
+        "actions": [
+          "organization."
+        ]
+      },
+      "reason": "Core admits every Command. This fixture refuses an Organization write — a child write inside a bigger one included — only for a request whose id carries its hold marker, with its own translated code and before anything is written. It is the reference admission rule the command-middleware contract tests compose, and it changes nothing for any other request."
+    },
+    {
+      "key": "command-middleware:command_middleware_fixture:record-marked",
+      "kind": "command-middleware",
+      "module": "command_middleware_fixture",
+      "subject": "record-marked",
+      "owner": null,
+      "rung": 2,
+      "detail": {
+        "kind": "command-middleware",
+        "phase": "observe",
+        "id": "record-marked",
+        "actions": [
+          "organization."
+        ]
+      },
+      "reason": "After a marked request’s Organization write has committed or rolled back, this fixture keeps the run’s names-only summary and the tenant context it was observed in, which the command-middleware tests read. It cannot slow, fail or change the write, and it ignores every request that does not carry its marker."
     },
     {
       "key": "command-middleware:example_overlay:organization-timing",
