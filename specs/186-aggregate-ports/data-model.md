@@ -30,7 +30,7 @@ it.
 | `OpportunityRecord` | `packages/contracts/src/crm.ts` | `customFieldValues: Record<string, unknown>` |
 | `ProjectRecord` | `packages/contracts/src/projects.ts` | `customFieldValues: Record<string, unknown>` |
 | `TaskRecord` | `packages/contracts/src/tasks.ts` | `customFieldValues: Record<string, unknown>` |
-| `OrderRecord` | `packages/contracts/src/orders.ts` | `payer: OrderPayer \| null` (`orderPayerSchema`, `specs/182-related-payers/`) |
+| `OrderRecord` | `packages/contracts/src/orders.ts` | `payer?: OrderPayer \| null` (`orderPayerSchema`, `specs/182-related-payers/`; optional on the type, always filled — research R-18.7) |
 
 Already present and unchanged: `OrganizationRecord`, `CustomerAccountRecord`, `OrderRecord`,
 `QuoteRequestRecord`, `CatalogCategoryRecord` (`customFieldValues`); `CatalogProductRecord`
@@ -77,7 +77,7 @@ What happens to each existing write-shaped port of the nine owners. "Deprecated"
 | `customerAccountMemberCommandPort` | `prepareCreate` | kept (same reason) | — |
 | `orderTransitionPort` | `applyStatus` | deprecated | `orderCommandPort.applyStatus` |
 | | `isTerminal` | deprecated | `orderReadPort.isTerminal` (moved) |
-| `orderPaymentStatusApplyPort` | (all) | deprecated | `orderCommandPort.applyPaymentStatus` |
+| `orderPaymentStatusApplyPort` | (all) | **kept** (the settlement's co-transactional write on the caller's `EntityManager`, research R-18.1) | — |
 | `orderExternalReferencePort` | `set` | deprecated | `orderCommandPort.setExternalReference` |
 | | `get`, `listForOrder`, `findOrderIds` | kept (reads; may move to `orderReadPort` later, not here) | — |
 | `orderPlacementPort` | `placeOrder` | deprecated **when US11 lands** | `orderCommandPort.place` |
