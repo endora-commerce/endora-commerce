@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ZodType } from 'zod';
+import { z, type ZodType } from 'zod';
 import {
   adminAddOrderCommentRequestSchema,
   adminOrderPaymentStatusTransitionSchema,
@@ -58,7 +58,17 @@ export interface OrderCommandServiceDeps {
   readonly comments: () => Pick<OrderCommentService, 'addByAdmin'>;
 }
 
-const statusInputSchema = adminOrderStatusTransitionSchema.pick({ to: true }).extend({
+/**
+ * Not the admin route's `orderStatusCodeSchema` for `to`: a server-side caller
+ * forwards a code it was configured with — a payment or delivery method's
+ * `statusOnSuccess` / `statusOnFailure`, which their own schemas accept as any
+ * 1–64 characters — and a code no status has must be the `unknown_status`
+ * outcome the graph answers, never a thrown 422 a provider callback would turn
+ * into a retry loop (refusals are values). Only a missing or empty `to` is
+ * refused before the graph is asked.
+ */
+const statusInputSchema = z.object({
+  to: z.string().min(1),
   reason: adminOrderStatusTransitionSchema.shape.reason.nullable(),
 });
 const paymentStatusInputSchema = adminOrderPaymentStatusTransitionSchema.pick({ to: true });

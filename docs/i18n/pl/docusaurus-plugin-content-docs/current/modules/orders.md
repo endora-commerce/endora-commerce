@@ -1104,8 +1104,11 @@ wartość.
 `not_found`, `unknown_status`, `not_permitted` (brak krawędzi albo status końcowy) lub `vetoed`
 (odmówił strażnik przed przejściem), albo `{ applied: false, reason: 'already_there', from }`.
 Polegają na tym wywołujący, którzy odpowiadają dostawcy płatności lub przewoźnikowi: zgłoszona
-odmowa stałaby się odpowiedzią z błędem, którą dostawca ponawia bez końca. Odmowa niczego nie
-zapisuje ani nie rejestruje, tak samo `already_there`. Przekazany `reason` trafia do zdarzeń
+odmowa stałaby się odpowiedzią z błędem, którą dostawca ponawia bez końca. Z tego samego powodu
+`to` może być dowolnym niepustym kodem, nie tylko takim, który dopuszcza wzorzec punktu końcowego
+panelu: skonfigurowany status metody płatności lub dostawy może być zapisany inaczej, a kod, którego
+nie ma żaden status, daje `unknown_status`. Odmowa niczego nie zapisuje ani nie rejestruje, tak
+samo `already_there`. Przekazany `reason` trafia do zdarzeń
 i nigdy do wpisu audytu.
 
 **Kto to zapisał.** Aktor jest aktorem z otoczenia, nigdy parametrem: administrator w żądaniu

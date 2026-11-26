@@ -148,6 +148,15 @@ describe('orderCommandPort — the admin routes’ Commands (#1823)', () => {
         viaPort: () => observe(b.id, () => scoped(() => asAdmin(() => port.applyStatus(b.id, { to: 'paid' }))), probe(b.id)),
       });
       expect(heardFor(b.id)).toEqual([{ from: 'new', to: 'paid' }]);
+      // The admin route keeps its strict status-code pattern (review of #1963).
+      const strict = await h.app.inject({
+        method: 'POST',
+        url: `${ORDERS}/${a.id}/status`,
+        cookies: ADMIN,
+        payload: { to: 'On-Hold' },
+      });
+      expect(strict.statusCode).toBeGreaterThanOrEqual(400);
+      expect(strict.statusCode).toBeLessThan(500);
     });
 
     it('answers applied, and records the caller’s source beside the system actor from a worker', async () => {
@@ -180,6 +189,19 @@ describe('orderCommandPort — the admin routes’ Commands (#1823)', () => {
             reason: 'unknown_status',
             from: 'new',
           });
+          // Review of #1963 — a code outside the admin route's pattern, as a
+          // payment or delivery method may be configured with, is the same
+          // outcome, never a thrown 422 (refusals are values).
+          expect(await port.applyStatus(order.id, { to: 'On-Hold' })).toMatchObject({
+            applied: false,
+            reason: 'unknown_status',
+            from: 'new',
+          });
+          expect(
+            await h
+              .container.resolve<OrderTransitionPort>('orderTransitionPort')
+              .applyStatus({ orderId: order.id, to: 'On-Hold', actor: { kind: 'system', source: 'payment' } }),
+          ).toMatchObject({ applied: false, reason: 'unknown_status', from: 'new' });
           expect(await port.applyStatus(order.id, { to: 'completed' })).toMatchObject({
             applied: false,
             reason: 'not_permitted',

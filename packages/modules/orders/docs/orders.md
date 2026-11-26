@@ -1177,8 +1177,11 @@ with `reason` one of `not_found`, `unknown_status`, `not_permitted` (no edge, or
 a terminal status) and `vetoed` (a before-guard refused it), or
 `{ applied: false, reason: 'already_there', from }`. Callers that answer a
 payment or carrier provider rely on this: a thrown refusal would become an
-error response the provider retries for ever. A refusal writes and records
-nothing, and neither does `already_there`. The `reason` you pass travels on the
+error response the provider retries for ever. For the same reason `to` is any
+non-empty code, not only one the admin endpoint's pattern admits: a payment or
+delivery method's configured status may be spelled otherwise, and a code no
+status has is `unknown_status`. A refusal writes and records nothing, and
+neither does `already_there`. The `reason` you pass travels on the
 events and is never written into the audit entry.
 
 **Who wrote it.** The actor is the ambient one, never a parameter: an

@@ -17,13 +17,20 @@ import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actor
  * `stateAfter.source === 'payment'` as "the payment ingress wrote this hold",
  * and that answer lets a buyer cancel. It is safe only because `source` is set
  * by server-side callers of `orderCommandPort` and by nothing an HTTP request
- * carries. This holds it: every admin and buyer route that writes an order
- * entry is sent a `source` (in the body and in the query string), and the
- * entry it records carries none. The route schemas strip unknown body keys
- * rather than refusing them, so the assertion is on the recorded entry.
+ * carries. This holds it for the routes that write a status, a payment status
+ * or a comment entry — the admin status, bulk status, payment-status and
+ * comment routes, and the buyer's comment and cancel routes: each is sent a
+ * `source` in the body, the query string and request headers, plus a spoofed
+ * extension, and the entry it records carries none. The route schemas strip
+ * unknown body keys rather than refusing them, so the assertion is on the
+ * recorded entry.
  *
- * External references have no HTTP route (integration only, through the
- * port), so there is nothing to send there.
+ * Not covered here: `PATCH /api/v1/admin/orders/:id/custom-fields`, whose body
+ * is the values bag itself (a `source` key there is a custom-field key, judged
+ * by the field definitions), and the assistant's status tool, which takes no
+ * free parameters beyond the status and reason. Both reach the Command with no
+ * caller options, as the routes above do. External references have no HTTP
+ * route (integration only, through the port).
  */
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
@@ -61,12 +68,13 @@ describe('order entries’ source cannot come from HTTP input (#1823)', () => {
   const entries = (objectId: string) =>
     h.em().fork().find(AuditLogEntry, { objectType: 'order', objectId }, { orderBy: { actedAt: 'asc' } });
 
-  /** Sends the write with `source` in the body and the query string; answers the status code. */
+  /** Sends the write with `source` in the body, the query string and headers; answers the status code. */
   async function send(cookies: Record<string, string>, url: string, body: Record<string, unknown>): Promise<number> {
     const res = await h.app.inject({
       method: 'POST',
       url: `${url}?source=payment`,
       cookies,
+      headers: { source: 'payment', 'x-source': 'payment', 'x-command-source': 'payment' },
       payload: { ...body, ...SPOOF, extensions: { attacker: SPOOF } },
     });
     return res.statusCode;

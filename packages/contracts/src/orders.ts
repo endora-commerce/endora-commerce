@@ -2036,7 +2036,9 @@ export interface OrderCommandPort {
    * **Refusals are outcomes, not exceptions** — `not_found`, `unknown_status`,
    * `not_permitted`, `vetoed` — and `already_there` records nothing, because
    * callers answer payment and shipment providers, which retry a non-2xx
-   * forever. A refusal writes and audits nothing.
+   * forever. A refusal writes and audits nothing. `to` is any non-empty code
+   * — a method's configured status may not match the admin route's pattern —
+   * and one no status has is `unknown_status`, never a thrown 422.
    */
   applyStatus(
     id: string,
