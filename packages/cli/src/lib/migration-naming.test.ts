@@ -66,6 +66,10 @@ describe('file and class names, over a table of module ids and slugs', () => {
     ]);
   });
 
+  it('folds diacritics instead of deleting the letters (check:diacritic-folds, #244)', () => {
+    expect(normalizeSlug('Dodaj Żółw Świeże')).toBe('dodaj_zolw_swieze');
+  });
+
   it('refuses a slug with nothing in it', () => {
     expect(() => normalizeSlug(' !! ')).toThrow(/empty slug/);
   });

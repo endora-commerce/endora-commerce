@@ -15,6 +15,7 @@
  * Pure: nothing here reads a filesystem. Where a migration goes, and which
  * stamps are taken, is each host's own question.
  */
+import { slugify } from '@endora-commerce/contracts';
 
 /**
  * The frozen historical prefix's watermark
@@ -53,14 +54,13 @@ export function classNameFromFile(filename: string): string {
   return `Migration${stamp}${pascal}`;
 }
 
-/** `Add Index!` → `add_index`; an empty result is refused. */
+/**
+ * `Add Index!` → `add_index`, `Żółw` → `zolw`; an empty result is refused. The shared
+ * `slugify` folds diacritics before collapsing, so a non-ASCII letter is kept, not deleted
+ * (issue #244, `check:diacritic-folds`).
+ */
 export function normalizeSlug(name: string): string {
-  const slug = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .replace(/_{2,}/g, '_');
+  const slug = slugify(name, { separator: '_' });
   if (slug.length === 0) {
     throw new Error(`--name "${name}" produces an empty slug; use snake_case letters and digits.`);
   }
