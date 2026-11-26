@@ -46,7 +46,7 @@ N = no audit; ? = to confirm in T001–T009):
 | Category | create, update, delete | — | — | move (?: likely `update` with a parent), inventory thresholds (N here; audited by `inventory`'s caller as `low_stock_threshold.update`) |
 | Opportunity | all listed (`crm`: 33 `commandBus.run` sites, 0 hand audits) | — | — | — |
 | Project | all listed (`projects`: 38 sites, 0 hand audits) | — | — | archive/restore: no such operation |
-| Task | all listed except below | — | — | create many (?) |
+| Task | all listed (`tasks`: 38 sites; the four hand-recorded entries are inside Commands — confirmed by T009) | — | — | create many: C (one `tasks.task.create` per entry, T009) |
 
 **Inventory (T001, Organization, 2026-11-25).** Measured against the table above:
 `sales_rep_assign` / `sales_rep_unassign` are **H-in**, not C (`sales-rep-assignment-service.ts`
@@ -73,6 +73,15 @@ effects of the admin routes are not the port's but `customers'`, around the port
 revocation after a block or deletion, and the last-administrator guard before it — so a port call
 would skip them; both move into the Commands (R-17.1, R-17.2). No operation moves in or out of
 FR-021. The questions the inventory raised are R-17.
+
+**Inventory (T009, Task, 2026-11-26).** Measured against the table above
+(`contracts/task-command-port.md` § *Inventory findings*): every operation of FR-028 is **C**, and
+the `?` resolves to C too — `createMany` runs one `tasks.task.create` per entry. The four
+`recordAuditFromContext` sites left in the module each record a *second* object's entry inside a
+Command's `run`, on its `em` (a deleted Task's former sub-tasks, the other Task of a relation, the
+reminders a cleared due date removes, the Tasks a configuration removal moves), so nothing converts.
+The admin `PATCH` is up to seven Commands, each its own transaction, not one. No operation moves in
+or out of FR-028. The questions the inventory raised are R-23.
 
 **Rationale.** The issues' definition of done — "each operation is one audited Command … the admin
 routes and the port run the same Commands, so command hooks and the audit trail see one write path" —
@@ -770,3 +779,131 @@ helper should move there.
   precedent (`setCustomFieldValues` against `organizationCustomFieldWritePort`).
 
 
+## R-23 US10 (Task, #1829): decisions on the T009 inventory findings (2026-11-26)
+
+The T009 inventory (`contracts/task-command-port.md` § *Inventory findings*) raised the questions
+below, which R-16 to R-22 and the precedents do not answer in terms. **Every item is proposed,
+pending the architect.** None is irreversible: each is a port's behaviour in an unreleased change.
+None touches tenant isolation either, because a Task's reach is its context rule and every write
+still starts from `TaskAccess.loadVisible` under the ambient context. The precedents applied without
+a new decision are these. The port runs the routes' own service methods, split into the write and the
+route's rendering (R-22.1); the actor is ambient (R-4). `withCallerOptions` is a fifth copy (R-18.6,
+refs #1961). A no-op records nothing (R-22.7). Code references are to `origin/master` `dfd043bbd`.
+
+### R-23.1 `update` takes the `PATCH` body without its values, and runs the route's Commands in the route's order
+
+**Proposed.** `TaskUpdatePatch` is `UpdateTaskBody` without `customFieldValues`: the fields, the
+context, the parent, the priority, the tags, the assignees (replace, or add and remove) and privacy.
+`update` runs the route's write, `TaskService.updateTask`, so the same Commands run in the same order:
+`privacy_change` to public, `parent_change`, `tasks.task.update`, `priority_change`, `tags_change`,
+`assignees_change`, then `privacy_change` to private. Each is its own transaction, as on the route,
+and the parent comes first because it is the one refused inside its Command. Values are
+`setCustomFieldValues`.
+
+**Rejected.** *`tasks.task.update` alone, as R-22.4 decided for Projects.* Assigning, prioritising,
+tagging, nesting and privacy would then be unreachable from server code, and that is the gap #1829
+was filed for ("server-side code cannot update a Task"). R-22.4's own reason does not hold here.
+That reason was that `extensions` would reach some of the Commands and be dropped by others, but no
+Task action is hookable. The bus therefore refuses every key on the first Command, before anything is
+written (finding 8). *One parent transaction around the sequence* — it changes what the admin `PATCH`
+commits, which is the route's behaviour and out of this feature's scope. *One method per Command
+(`setAssignees`, `setPriority`, `setTags`, `setParent`, `setPrivate`)* — five methods #1829 did not
+list, each a copy of one branch of the `PATCH`, with the same partial-write property between them as
+the route has between its Commands.
+
+### R-23.2 Seven methods need an administrator behind the call, refused `403 FORBIDDEN` before anything is read
+
+**Proposed.** Five author columns are `not null` (finding 3), and a draft is its Creator's (FR-037).
+`create`, `createMany`, `publish`, `relate`, `link`, `addReminder` and `addComment` are therefore
+refused `403 FORBIDDEN` before anything is read when no administrator is behind the call. That is
+`addComment`'s refusal today, and R-22.2's. A worker runs them under
+`withSystemScopeActingFor(adminUserId, reason)`, and `publish` under the draft's Creator: acting for
+anybody else is the route's 404. The other seven methods run under `withSystemScope` with the
+`system` actor. The deprecated `taskWritePort.createMany` delegates and so answers that `403` where it
+used to throw a plain `Error` (a 500) inside its first Command.
+
+**Rejected.** *Nullable author columns* — a migration and a widening of every reader, so that a
+write can record nobody (R-22.2). *Keeping the 500* — refusing the caller's context is not a server
+fault. *Letting the system publish anybody's draft* — the draft is the Creator's until they publish
+it (FR-037). Until then the system would announce, as theirs, something they had not finished.
+
+### R-23.3 A private Task is read-only to the bare system scope
+
+**Proposed.** `assertMayChange` is unchanged: under `withSystemScope` every write but a delete of
+another administrator's private Task answers `403 TASK_PRIVATE_READ_ONLY`, as it does for every
+administrator but the Creator (owner ruling Q1 = B). A worker that must change one acts for its
+Creator. The system sees private Tasks (the read port is not narrowed for it), and deleting one stays
+open to it, as to a `tasks:see_private` holder.
+
+**Rejected.** *Exempting the system actor* — any integration could then rewrite a Task its Creator
+marked private, which FR-038 promises nobody but the Creator may change.
+
+### R-23.4 `setStatus` takes `{ to, from? }`; `to` is not validated on the port
+
+**Proposed.** `from` is the route's optimistic check. Absent, it is the status the method's own
+`loadVisible` read, and a Task moved since is still refused with the route's
+`409 TASK_TRANSITION_CONFLICT`, the R-16.6 rule for "the version I read". `to` and `from` are not
+parsed with `taskStatusCodeSchema`. A code the workflow does not hold, malformed or not, reaches the
+Command and is the route's `422 TASK_STATUS_UNKNOWN` with `details.statusCode`. A move the
+workflow forbids is `409 TASK_TRANSITION_FORBIDDEN`, naming the permitted statuses in English
+(`en`), since a port has no reader. `expectedVersion` is ignored by every method: a Task has no
+`version` column (R-5).
+
+**Rejected.** *Parsing `to` with the route's schema* — a malformed code would be
+`422 VALIDATION_FAILED`, a second answer to "not a status of this workflow". That was the blocking
+finding on #1963's status codes. *Requiring `from`* — R-16.6: an integration that just read the
+record would have to send back what the port already reads.
+
+### R-23.5 Answers: the record after the write, an id where the caller needs one, nothing otherwise
+
+**Proposed.** `create`, `update`, `setStatus`, `setCustomFieldValues` and `publish` answer the
+`TaskRecord` read after the write by its id (`TaskAccess.rowAfterWrite`, never a first read), so a
+write that moved the Task out of the caller's sight still answers it.
+- `createMany` answers `{ ids }` and `deleteInContext` answers `{ deleted }`, as today.
+- `link` answers `{ linkId }`, the id `unlink` takes. Linking a record already linked answers the
+  existing link's id and records nothing.
+- `addReminder` answers `{ reminderId }` and `addComment` answers `{ commentId }`.
+- `relate`, `unrelate`, `unlink` and `delete` answer nothing.
+- `relate` and `unrelate` take the other Task's id, as their route does (finding 6).
+
+**Rejected.** *`TaskDetail`* — a reader language and an admin-screen shape on a server-side port
+(R-22.6). *Answering the sub-task count from `delete`* — a count of what the caller may see, a
+reader's number, which `withSystemScope` would answer for nobody.
+
+### R-23.6 The hand-recorded entries stay inside their Commands, without `source`
+
+**Proposed.** Four entries are recorded by hand on the Command's own transaction: a deleted Task's
+former sub-tasks (`parent_change`, `reason: 'parent_deleted'`), the other side of a relation, the
+relative reminders a cleared due date removes, and the Tasks a configuration removal moves. They are
+kept as they are. Each is a second object's entry in the same transaction, under the same actor. They
+do not carry the caller's `source`, which goes on the entry of the Command the method runs.
+
+**Rejected.** *Child Commands for each* — one more action per side effect, with nothing to gain:
+no Task action is hookable, and the entries already commit and roll back with their Command.
+*Copying `source` onto them* — `withCallerOptions` wraps the Command's own outcome. Reaching the
+hand-recorded entries would mean threading the caller's options through `recordAuditFromContext`
+call sites shared with configuration writes that have no caller.
+
+### R-23.7 `createMany` and `deleteInContext` keep the write port's semantics
+
+**Proposed.** Both move onto `taskCommandPort` as they are. `createMany` keeps the context owner's
+path: no record-sight check, assignees active only (the #506 ruling for a Stage's holders), source-key
+idempotence (R-19), at most `TASK_WRITE_PORT_BATCH_MAX`, and no bell. `deleteInContext` deletes every
+Task of the record, whoever may see it. `taskWritePort` delegates to the same service, so the two
+names are one implementation.
+
+**Rejected.** *`createMany` as `create` in a loop* — it would add the `tasks:read` and `canSeeAs`
+checks that refuse a Stage's holders and fail the whole batch (issue #506's ruling). It would also
+lose the source keys a retried Stage entry depends on.
+
+### R-23.8 `setCustomFieldValues` runs the `PATCH`'s Command with the merge under the row lock
+
+**Proposed.** One factory, `changeTaskCustomFieldsCommand(id, merge)`, now takes a merge over the bag
+it reads under the Task's lock. The route passes the bag it validated before the Command
+(unchanged), and the port passes the caller's merge. Before the Command the port asks `loadVisible`
+and `assertMayChange`, as the `PATCH` does. A merge that changes nothing writes and records nothing
+(R-22.7). The admin edit and the port run one action, `tasks.task.custom_fields_change`, so one hook
+registration sees every change. A merge that answers anything but a plain object is refused
+`422 VALIDATION_FAILED` with nothing written.
+
+**Rejected.** *A second Command for the port* — two write paths, the defect FR-002 removes.
