@@ -4,7 +4,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   DeliveryMethodReadPort,
   OrderReadPort,
-  OrderTransitionPort,
+  OrderCommandPort,
 } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -90,12 +90,12 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
   const ports = (): {
     orderReadPort: OrderReadPort;
     deliveryMethodReadPort: DeliveryMethodReadPort;
-    orderTransitionPort: OrderTransitionPort;
+    orderCommandPort: OrderCommandPort;
   } =>
     h.container.cradle as unknown as {
       orderReadPort: OrderReadPort;
       deliveryMethodReadPort: DeliveryMethodReadPort;
-      orderTransitionPort: OrderTransitionPort;
+      orderCommandPort: OrderCommandPort;
     };
 
   /** Refusals, when a case wants to read them rather than ignore them. */
@@ -120,7 +120,7 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
     new ReceiveShipmentHandler(
       h.em,
       ports().deliveryMethodReadPort,
-      ports().orderTransitionPort,
+      ports().orderCommandPort,
       log,
       events,
     );

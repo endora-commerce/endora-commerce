@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   OrderReadPort,
-  OrderTransitionPort,
+  OrderCommandPort,
   PaymentMethodReadPort,
 } from '@endora-commerce/contracts';
 import {
@@ -98,13 +98,13 @@ describe('ReceivePaymentHandler', () => {
    */
   const handlerPorts = (): [
     PaymentMethodReadPort,
-    OrderTransitionPort,
+    OrderCommandPort,
     OrderPaymentStatusApplyPort,
     OrderPaymentSettlementEffectsPort,
     SettlementLogger,
   ] => [
     h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
-    h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+    h.container.resolve<OrderCommandPort>('orderCommandPort'),
     h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
     h.container.resolve<OrderPaymentSettlementEffectsPort>('orderPaymentSettlementEffectsPort'),
     quiet,

@@ -21,6 +21,7 @@ import {
 } from './services/order-service.js';
 import { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderTransitionService } from './services/order-transition-service.js';
+import { applyStatusAsOutcome } from './services/order-status-outcome.js';
 import type { OrderTransitionEffectService } from './services/order-transition-effect-service.js';
 import { OrderListService } from './services/order-list-service.js';
 import { OrderListViewService } from './services/order-list-view-service.js';
@@ -55,7 +56,6 @@ import type {
   LinePricePort,
   LinePricesPort,
   OrderStatusRegistry,
-  OrderTransitionPort,
   OrganizationDetailsPort,
   OrganizationPermissionPort,
   OrganizationRestrictionPort,
@@ -84,8 +84,12 @@ import type { OrdersTranslate } from './orders-prose.js';
 export interface OrdersModuleOptions {
   emFactory: () => EntityManager;
   eventBus: EventBus;
-  /** Feature 054 — audits order-config/comment writes co-transactionally when provided. */
-  commandBus?: CommandBus;
+  /**
+   * Feature 054 — audits order-config writes co-transactionally;
+   * `specs/186-aggregate-ports/` US4 — runs the status, payment-status and
+   * comment Commands, so it is required.
+   */
+  commandBus: CommandBus;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
   resolveCustomerContext: (req: FastifyRequest) => {
@@ -210,15 +214,6 @@ export interface OrdersModuleOptions {
   /** Accessors: both owners are deactivatable `degrades-without` edges. */
   deliveryMethodRead: () => DeliveryMethodReadPort | null;
   paymentMethodRead: () => PaymentMethodReadPort | null;
-  /**
-   * This module's own lifecycle-write port (feature 085).
-   *
-   * Handed in rather than reached for: the port is registered in `backend.ts`,
-   * which is where every gate in this module is applied, and the buyer's
-   * cancellation is a caller of the seam like any other. Resolving it here
-   * would need the container, which a module does not see.
-   */
-  orderTransitionPort: OrderTransitionPort;
   /**
    * The three `inventory` ports the stock reservation runs on, as one accessor
    * (D-94.4, issue #188; feature 080, T048). `null` ⇒ `inventory` is not
@@ -364,6 +359,12 @@ export interface OrdersModuleOptions {
    * built beside it would answer from a cache no admin edit ever clears.
    */
   exposeOrderStatusGraphService?: (service: OrderStatusGraphService) => void;
+  /**
+   * `specs/186-aggregate-ports/` US4 — the comment service the admin route
+   * runs, for `orderCommandPort.addComment`: one instance, so the port's
+   * comment is the route's Command with the route's notice after it.
+   */
+  exposeOrderCommentService?: (service: OrderCommentService) => void;
   /**
    * The follow-ups an order transition owes, recorded with the status and run
    * after it commits (`specs/142-order-transition-atomicity/`). Built in
@@ -529,6 +530,7 @@ export function commerceModule(options: OrdersModuleOptions) {
           : {}),
         resolveTaxRate: options.resolveTaxRate,
         transitionEffects: options.transitionEffects,
+        commandBus: options.commandBus,
         ...(options.log ? { log: options.log } : {}),
         ...(options.translate ? { translate: options.translate } : {}),
         neighbours: {
@@ -571,8 +573,8 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.emFactory,
       options.eventBus,
       orderStatusGraphService,
+      options.commandBus,
       options.transitionEffects,
-      options.auditLogService,
       options.log,
     );
     // Feature 043 — hand the configured transition engine to composition so the
@@ -583,15 +585,26 @@ export function commerceModule(options: OrdersModuleOptions) {
     if (options.exposeOrderStatusGraphService) {
       options.exposeOrderStatusGraphService(orderStatusGraphService);
     }
-    // Feature 085 (US3) — the buyer's own cancellation. It writes through
-    // `orderTransitionPort` rather than through the service beside it: the port
-    // is the seam as this module publishes it, it answers a refusal as a value,
-    // and going through it means the buyer's cancellation gets the stock and
-    // credit release and the audit entry by exactly the path every other
-    // cancellation now takes.
+    // Feature 085 (US3) — the buyer's own cancellation. It writes through the
+    // outcome-shaped transition `orderCommandPort.applyStatus` publishes
+    // (`applyStatusAsOutcome`), so a refusal is a value and the buyer's
+    // cancellation gets the stock and credit release and the audit entry by
+    // exactly the path every other cancellation takes — and not through the
+    // port itself, which a customer-session route never resolves
+    // (`specs/186-aggregate-ports/` R-7, R-17.5).
     const customerOrderCancellation = new CustomerOrderCancellationService({
       emFactory: options.emFactory,
-      transitions: options.orderTransitionPort,
+      transitions: {
+        applyStatus: (input) =>
+          applyStatusAsOutcome(
+            {
+              emFactory: options.emFactory,
+              transitions: () => orderTransitionService,
+              graph: () => orderStatusGraphService,
+            },
+            input,
+          ),
+      },
       graphService: orderStatusGraphService,
       paymentMethodRead: options.paymentMethodRead,
       // Issue #284 — the kernel audit log, read back. The transition entries
@@ -615,6 +628,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.emFactory,
       orderStatusGraphService,
       options.customerAccountRead,
+      options.commandBus,
       options.mailer,
       options.getTransactionalEmailSender,
     );
@@ -647,6 +661,7 @@ export function commerceModule(options: OrdersModuleOptions) {
     );
 
     if (options.exposeOrderService) options.exposeOrderService(orderService);
+    if (options.exposeOrderCommentService) options.exposeOrderCommentService(orderCommentService);
 
     await registerOrderRoutes(app, {
       orderService,
@@ -687,7 +702,7 @@ export function commerceModule(options: OrdersModuleOptions) {
         : {}),
       ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
       ...(options.customFieldListFilter ? { customFieldListFilter: options.customFieldListFilter } : {}),
-      ...(options.commandBus ? { commandBus: options.commandBus } : {}),
+      commandBus: options.commandBus,
       organizationPermissions: () => options.organizationPermissions,
     });
 

@@ -24,6 +24,9 @@ Admin routes are gated by `orders:read` (read) / `orders:write` (mutations).
 | `POST /api/v1/admin/orders/:id/status` | admin | Status transition (audited) |
 | `POST /api/v1/admin/orders/:id/payment-status` | admin | Payment status transition (audited) |
 
+Server-side code writes an order through `orderCommandPort` (see *Server-side
+writes* below).
+
 ## Who sees a colleague's order
 
 A buyer sees the orders they placed. Every other order of their Organization —
@@ -525,7 +528,9 @@ that fails announces nothing.
 - **Bulk** — `POST …/bulk/status` (eligible orders move; skipped reported with
   reason — a skipped order has not moved) and `…/bulk/print-invoices`.
 - **Comments** — admin/customer `…/:id/comments` with customer-visibility +
-  notify flags; closed on terminal orders (`409 ORDER_COMMENTS_CLOSED`). The platform also writes internal
+  notify flags; closed on terminal orders (`409 ORDER_COMMENTS_CLOSED`). Since
+  0.113.0 every comment, the buyer's included, is recorded in the audit log as
+  `order.comment.add` — the comment's id and its two flags, never its text. The platform also writes internal
   **system notes** here for custom-field values not carried into the order —
   see *The system note* below.
 - **Reorder** — `…/:id/reorder` rebuilds the cart (gated by
@@ -1104,15 +1109,19 @@ they can see. Buyers never see them.
 an order number: a fragment, matched case-insensitively, whichever system
 recorded it. The message is not searched.
 
-**For a module author**, the seam is the port `orderExternalReferencePort`
-(`OrderExternalReferencePort` in `@endora-commerce/contracts`, container name
-also exported as `ORDER_EXTERNAL_REFERENCE_PORT`). Resolve it per use with
-`lazyPort`; it has no admin HTTP route.
+**For a module author**, an entry is written with
+`orderCommandPort.setExternalReference(orderId, system, { state, reference?, message? }, options?)`
+(see *Server-side writes* below) and read through the port
+`orderExternalReferencePort` (`OrderExternalReferencePort` in
+`@endora-commerce/contracts`, container name also exported as
+`ORDER_EXTERNAL_REFERENCE_PORT`). Resolve both per use with `lazyPort`; neither
+has an admin HTTP route.
 
-- `set(orderId, system, { state, reference?, message? })` creates or updates the
-  system's entry. An omitted `reference` keeps the stored one and `null` clears
-  it; an omitted `message` means none, so reporting `synced` after an `error`
-  does not leave the refusal standing.
+- `setExternalReference` creates or updates the system's entry. An omitted
+  `reference` keeps the stored one and `null` clears it; an omitted `message`
+  means none, so reporting `synced` after an `error` does not leave the refusal
+  standing. `orderExternalReferencePort.set(orderId, system, value)` does the
+  same and is deprecated since 0.113.0.
 - `get(orderId, system)`, `listForOrder(orderId)` read entries back, and
   `findOrderIds(system, reference)` finds the orders carrying an exact reference
   — normally one.
@@ -1128,6 +1137,103 @@ An entry outlives its writer: uninstalling the module that wrote it leaves the
 entry on the order, as history. Migration
 `20261110T143322_orders_order_external_references.ts` creates the table
 (`order_external_references`, unique on order and system), empty.
+
+## Server-side writes
+
+Another module, an overlay module or an integration worker (an ERP, a warehouse
+system, a payment or carrier connector) changes an order through
+**`orderCommandPort`**, the Order aggregate's write port, declared as
+`OrderCommandPort` in `@endora-commerce/contracts`. It never writes this
+module's tables itself. Resolve it per use with
+`lazyPort<OrderCommandPort>(ctx, 'orderCommandPort')`, with `orders` in the
+calling module's manifest `dependencies`.
+
+| Method | Audit action | What the admin does the same way |
+| --- | --- | --- |
+| `applyStatus(id, { to, reason? }, options?)` | `order.status_transition` | `POST /api/v1/admin/orders/:id/status` |
+| `applyPaymentStatus(id, { to }, options?)` | `order.payment_status_transition` | `POST /api/v1/admin/orders/:id/payment-status` |
+| `setCustomFieldValues(id, merge, options?)` | `order.custom_fields.update` | `PATCH /api/v1/admin/orders/:id/custom-fields` |
+| `addComment(id, { body, isCustomerVisible, notifyCustomer }, options?)` | `order.comment.add` | `POST /api/v1/admin/orders/:id/comments` |
+| `setExternalReference(id, system, value, options?)` | `order.external_reference.set` | — (see *External system references*) |
+
+**One write path.** Each method runs the same Command the admin endpoint runs,
+so the two cannot write differently: one audit entry with the same state, the
+same follow-ups and the same announcements. A status change validates against
+the configured graph, runs the before-guards, records the stock and credit
+release a cancellation owes in the same transaction, attempts them once it has
+committed, and then emits the `order.status.*` events. A comment that is
+visible to the customer and asks to notify them e-mails the customer after it
+has committed, as from the admin; the comment has an author only when an
+administrator is the actor. Inputs are the endpoints' request bodies, validated
+with the same limits, and refusals are the endpoints' errors with their codes
+(`422 VALIDATION_FAILED` for an input outside them, `404 ORDER_NOT_FOUND`,
+`409 ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED`, `409 ORDER_COMMENTS_CLOSED`).
+`setExternalReference` keeps the `400 VALIDATION_FAILED` it has always answered
+for a malformed value.
+
+**A status change answers an outcome rather than throwing.** `applyStatus`
+returns `{ applied: true, from, to }`, or `{ applied: false, reason, from, detail }`
+with `reason` one of `not_found`, `unknown_status`, `not_permitted` (no edge, or
+a terminal status) and `vetoed` (a before-guard refused it), or
+`{ applied: false, reason: 'already_there', from }`. Callers that answer a
+payment or carrier provider rely on this: a thrown refusal would become an
+error response the provider retries for ever. A refusal writes and records
+nothing, and neither does `already_there`. The `reason` you pass travels on the
+events and is never written into the audit entry.
+
+**Who wrote it.** The actor is the ambient one, never a parameter: an
+administrator inside an admin request, or under `withSystemScopeActingFor`; the
+**system** actor under `withSystemScope` in a worker. With no tenant context at
+all the write is refused before anything is stored. The port checks no
+permission — the caller is the gate — so never resolve it for a customer-facing
+route: the buyer's own cancellation and comments are not this port's.
+
+**Call it after your own transaction has committed**, never inside it: each call
+opens its own transaction, and one opened inside yours would commit on its own.
+
+**Options** (the last parameter of every method):
+
+- `source` — a lower-case code naming the integration (`payment`, `erp`,
+  `erp.orders`, at most 64 characters), recorded as `source` in the audit entry
+  beside the actor. It is what tells two integrations apart when both write as
+  the system. Any other value is refused with `422 VALIDATION_FAILED` before
+  anything is read or written. `payment` and `shipment` also name the actor on
+  the status events.
+- `expectedVersion` — ignored: an order has no version.
+- `extensions` — input for command hooks. No Order action is declared hookable
+  yet, so any key is refused with `422 COMMAND_EXTENSION_UNCLAIMED` before
+  anything is written.
+
+**Deliberately not offered:** placing an order (it will be added when placement
+runs as a Command), reorder (it builds a basket), clone to a quote request
+(`quoteRequestCommandPort`), the bulk status change (call `applyStatus` per
+order), the status and transition configuration, and the buyer's own
+cancellation.
+
+**Not replaced: the settlement's write.** A payment gateway's callback moves the
+payment status on the `payments` module's own transaction, together with the
+payment row, through `orderPaymentStatusApplyPort` (`@endora-commerce/mod-orders/ports`).
+That port stays: `applyPaymentStatus` is the operator's change, judged by the
+operator's moves and audited, and it opens its own transaction.
+
+`orders` cannot be switched off, so the port is always available.
+
+### Deprecated: `orderTransitionPort` and `orderExternalReferencePort.set`
+
+Deprecated since 0.113.0 and to be removed in a later release. Until then each
+delegates to its replacement, so it writes the same entries and answers the same
+outcomes and refusals as before:
+
+| Deprecated call | Use instead |
+| --- | --- |
+| `orderTransitionPort.applyStatus({ orderId, to, actor, reason })` | `orderCommandPort.applyStatus(orderId, { to, reason }, { source })` |
+| `orderTransitionPort.isTerminal(orderId)` | `orderReadPort.isTerminal(orderId)` |
+| `orderExternalReferencePort.set(orderId, system, value)` | `orderCommandPort.setExternalReference(orderId, system, value)` |
+
+The deprecated `applyStatus` no longer takes the actor from its input: the
+audit entry names the ambient actor, as every other write does, and the
+`source` of the actor you pass (`payment`, `shipment`, …) is recorded as the
+entry's `source`. The reads of `orderExternalReferencePort` stay.
 
 ## Extension points
 

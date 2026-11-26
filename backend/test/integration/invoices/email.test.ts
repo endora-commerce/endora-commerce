@@ -18,6 +18,7 @@ import {
 // so a hand-built service in a test takes the same implementation the container
 // registers under `orderReadPort`.
 import { OrderReadService } from '../../../../packages/modules/orders/dist/backend/services/order-read-port.js';
+import { OrderStatusGraphService } from '../../../../packages/modules/orders/dist/backend/services/order-status-graph-service.js';
 
 /**
  * **The `invoices` services below are imported from the package's `dist`, not from
@@ -94,7 +95,7 @@ audit);
     await h.settings.adminService.setValueForAllChannels('invoices.storefront_base_url', 'https://shop.example.com', null, audit);
 
     sender = new CapturingSender();
-    const orderReadPort = new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort'));
+    const orderReadPort = new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort'), () => new OrderStatusGraphService(h.em));
     const invoiceService = new InvoiceService(
       h.em,
       orderReadPort,
@@ -163,10 +164,10 @@ audit);
     const id = await issue();
     const logged: Array<{ message: string; context: Record<string, unknown> }> = [];
     const throwingDispatcher = new InvoiceEmailDispatcher({
-      orderReadPort: new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort')),
+      orderReadPort: new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort'), () => new OrderStatusGraphService(h.em)),
       invoiceService: new InvoiceService(
         h.em,
-        new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort')),
+        new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort'), () => new OrderStatusGraphService(h.em)),
         new InvoiceNumberGenerator(createSettingsPatternResolver(h.settings.settingsService)),
         new SellerSettingsResolver(h.settings.settingsService),
       ),

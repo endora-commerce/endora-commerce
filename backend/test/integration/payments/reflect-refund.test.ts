@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { OrderTransitionPort, PaymentMethodReadPort } from '@endora-commerce/contracts';
+import type { OrderCommandPort, PaymentMethodReadPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -62,7 +62,7 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
     const handler = new ReceivePaymentHandler(
       () => h.em(),
       h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
-      h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+      h.container.resolve<OrderCommandPort>('orderCommandPort'),
       h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
       h.container.resolve<OrderPaymentSettlementEffectsPort>('orderPaymentSettlementEffectsPort'),
       { warn: (details, message) => warnings.push({ details, message }) },
@@ -92,7 +92,7 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
       // `lazyPort`: the hold a full refund puts on the order is a transition
       // like any other since feature 085 Phase D, so it is audited and its
       // side-effects run.
-      h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+      h.container.resolve<OrderCommandPort>('orderCommandPort'),
       // The co-transactional half (feature 080, T048): the order's payment
       // status moves to `refunded` on this handler's own transaction, through
       // the port `orders` publishes for it.
@@ -140,7 +140,7 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
       objectId: orderId,
     });
     expect(audited).toHaveLength(1);
-    expect(audited[0]?.stateAfter).toEqual({ status: 'on_hold' });
+    expect(audited[0]?.stateAfter).toEqual({ status: 'on_hold', source: 'payment' });
 
     // Re-applying the same full refund is a no-op (idempotent).
     const again = await handler.reflectRefund({

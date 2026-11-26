@@ -14,8 +14,11 @@
  *
  * ## What the recorded entry can and cannot say
  *
- * The entry carries `actorAdminUserId` and `impersonatedCustomerAccountId` and
- * **not** the actor's `kind` or `source`. So the three shapes research R14
+ * The entry carries `actorAdminUserId`, `impersonatedCustomerAccountId` and —
+ * since the transition became a Command (0.113.0) — `actorCustomerAccountId`,
+ * and **not** the actor's `kind`. It may carry `stateAfter.source`, the code a
+ * port caller names itself with (`specs/186-aggregate-ports/`), which is not
+ * read here. So the three shapes research R14
  * tabulated are readable — an administrator acted, an administrator acted for a
  * customer, the customer acted themselves — plus the fourth it did not list:
  * both columns null, which is a `{ kind: 'system', … }` actor.
@@ -46,6 +49,21 @@ export interface StatusTransitionRecord {
   statusAfter: string | null;
   actorAdminUserId: string | null;
   impersonatedCustomerAccountId: string | null;
+  /**
+   * The Customer Account that acted for itself. Since 0.113.0 the transition
+   * is a Command (`specs/186-aggregate-ports/` US4), whose bus records a buyer's
+   * own cancellation here; the hand audit before it put the buyer in
+   * `impersonatedCustomerAccountId`. Either names an actor. Optional so an
+   * entry read before the column was filled still compiles.
+   */
+  actorCustomerAccountId?: string | null;
+  /**
+   * `stateAfter.source` — the code a caller of `orderCommandPort` names itself
+   * with (`specs/186-aggregate-ports/` R-4). `payment` is the settlement
+   * ingress whoever its ambient actor was (research R-18.2). Optional: entries
+   * written before 0.113.0 carry none.
+   */
+  source?: string | null;
 }
 
 /**
@@ -58,6 +76,9 @@ export interface StatusTransitionRecord {
  *   must not guess.
  */
 export type StatusAuthor = 'system' | 'named_actor' | 'unknown';
+
+/** The `source` code the payment settlement ingress records its status moves under. */
+export const SETTLEMENT_SOURCE = 'payment';
 
 /**
  * The author of `currentStatus`, from this order's entries.
@@ -79,8 +100,15 @@ export function authorOfCurrentStatus(
   const latest = records.filter((record) => record.actedAt.getTime() === latestAt);
 
   if (latest.some((record) => record.statusAfter !== currentStatus)) return 'unknown';
+  // The settlement ingress names itself since 0.113.0; before, it was told
+  // apart only by recording no actor. An operator recording a decline through
+  // the ingress (`POST /api/v1/payments/receive`) is still the ingress.
+  if (latest.every((record) => record.source === SETTLEMENT_SOURCE)) return 'system';
   const named = latest.some(
-    (record) => record.actorAdminUserId !== null || record.impersonatedCustomerAccountId !== null,
+    (record) =>
+      record.actorAdminUserId !== null ||
+      record.impersonatedCustomerAccountId !== null ||
+      (record.actorCustomerAccountId ?? null) !== null,
   );
   return named ? 'named_actor' : 'system';
 }

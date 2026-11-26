@@ -32,6 +32,7 @@ import { twoDecimalAmount } from './money-input.js';
 import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 import { vatSummaryRowSchema } from './invoices.js';
 import { payerCommercialTermsSchema } from './related-payers.js';
+import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
 
 /**
  * Orders module contracts — Source of truth per Principle V.
@@ -1409,6 +1410,14 @@ export interface OrderRecord {
   createdAt: Date;
   updatedAt: Date;
   customFieldValues: Record<string, unknown>;
+  /**
+   * `specs/186-aggregate-ports/` (`data-model.md`, R-8) — the payer as the
+   * order stores it (`specs/182-related-payers/`, {@link orderPayerSchema}),
+   * `null` when the buyer pays. Always filled by `orders`; optional on the type
+   * only so a record built before it still compiles, as
+   * {@link OrderRecord.payerOrganizationId} is.
+   */
+  payer?: OrderPayer | null;
 }
 
 /** One line of an order, as `invoices` reads it. */
@@ -1515,6 +1524,18 @@ export interface OrderReadPort {
    * subscriber runs the order may already have moved on.
    */
   findStatusDefinition(code: string): Promise<OrderStatusDefinitionRecord | null>;
+  /**
+   * Whether an order's current status is terminal, per the configured graph
+   * (`specs/186-aggregate-ports/`: moved here from `orderTransitionPort`, a
+   * read on a write port).
+   *
+   * A caller that has to refuse acting on a finished order asks this rather
+   * than comparing against the string `'cancelled'`: the status set is
+   * operator-configurable and a deployment may add terminal statuses of its
+   * own. `null` when there is no such order, so the caller answers 404 in its
+   * own words instead of guessing.
+   */
+  isTerminal(orderId: string): Promise<boolean | null>;
 }
 
 /** One configured order status, as a consumer labels it. */
@@ -1850,6 +1871,13 @@ export interface OrderTransitionPort {
    * validation, the before-guards, the audit entry and the status's
    * side-effects. The caller invokes none of those and needs to know about
    * none of them.
+   *
+   * Delegates to {@link OrderCommandPort.applyStatus}: the same Command, the
+   * same outcomes. `actor` is not taken from the input any more (an actor is
+   * never input, Principle XIII): the audit entry records the ambient actor,
+   * and `actor.source`, when given, is recorded as the caller's `source` code.
+   *
+   * @deprecated since 0.113.0; use {@link OrderCommandPort.applyStatus} instead.
    */
   applyStatus(input: {
     orderId: string;
@@ -1866,6 +1894,8 @@ export interface OrderTransitionPort {
    * operator-configurable and a deployment may add terminal statuses of its
    * own. `null` when there is no such order, so the caller answers 404 in its
    * own words instead of guessing.
+   *
+   * @deprecated since 0.113.0; use {@link OrderReadPort.isTerminal} instead.
    */
   isTerminal(orderId: string): Promise<boolean | null>;
 }
@@ -1924,7 +1954,11 @@ export interface OrderExternalReference {
  * `nonDeactivatable` never enters one.
  */
 export interface OrderExternalReferencePort {
-  /** Upsert this system's entry for the order: one Command, one audit row per actual change. */
+  /**
+   * Upsert this system's entry for the order: one Command, one audit row per actual change.
+   *
+   * @deprecated since 0.113.0; use {@link OrderCommandPort.setExternalReference} instead.
+   */
   set(orderId: string, system: string, value: OrderExternalReferenceWrite): Promise<OrderExternalReference>;
   /** This system's entry for the order, or `null`. */
   get(orderId: string, system: string): Promise<OrderExternalReference | null>;
@@ -1932,6 +1966,136 @@ export interface OrderExternalReferencePort {
   listForOrder(orderId: string): Promise<OrderExternalReference[]>;
   /** The orders whose reference in `system` equals `reference` exactly (normally 0 or 1). */
   findOrderIds(system: string, reference: string): Promise<string[]>;
+}
+
+/** What {@link OrderCommandPort.applyStatus} moves an order to. */
+export interface OrderStatusTransitionInput {
+  /** A configured status code (the lifecycle is a table, not an enum). */
+  readonly to: string;
+  /**
+   * Why, in the caller's words. Carried on the `order.status.*` events, never
+   * into the audit entry (`specs/conventions/audit-state.md`).
+   */
+  readonly reason?: string | null;
+}
+
+/**
+ * What {@link OrderCommandPort.applyPaymentStatus} moves an order's money axis
+ * to: the operator's targets (`adminOrderPaymentStatusTransitionSchema`), judged
+ * against `PAYMENT_STATUS_TRANSITIONS`' operator edges.
+ */
+export interface OrderPaymentStatusTransitionInput {
+  readonly to: 'paid' | 'refunded';
+}
+
+/** A comment {@link OrderCommandPort.addComment} adds, as the admin route's body. */
+export interface OrderCommentInput {
+  /** Plain text, 1–8000 characters. Never recorded in the audit entry. */
+  readonly body: string;
+  /** Whether the buyer sees it. */
+  readonly isCustomerVisible: boolean;
+  /** Whether the buyer is e-mailed about it — only a customer-visible comment ever notifies. */
+  readonly notifyCustomer: boolean;
+}
+
+/**
+ * Container name: `orderCommandPort`. Owner: `orders` (`specs/186-aggregate-ports/`, D-293).
+ *
+ * The Order aggregate's write port: each method runs one audited Command, the
+ * one the admin route for the same operation runs, with the ambient actor —
+ * under `withSystemScope(reason)` the `system` actor, and the caller's
+ * `options.source` code names the integration in the entry (D-293.6).
+ * **No permission is checked** — the caller is the gate; never resolve it for
+ * a customer-facing route (a buyer's own cancellation and comment are not this
+ * port's). Call it after your own commit, never inside your transaction: each
+ * call opens its own (issue #200).
+ *
+ * `options.expectedVersion` is ignored by every method: an order has no
+ * `version` column. `options.extensions` reach the command hooks on the
+ * method's action; `orders` declares none hookable yet, so any key is refused
+ * `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+ *
+ * Not offered (`specs/186-aggregate-ports/contracts/order-command-port.md`):
+ * placement (additive later, issue #1887), reorder (a basket — carts'
+ * aggregate), clone to quote (`quoteRequestCommandPort`), bulk status (loop
+ * {@link OrderCommandPort.applyStatus}), the status and transition
+ * configuration, and the buyer's own cancellation.
+ *
+ * **Owner off:** `orders` declares `activation.nonDeactivatable`, so it never
+ * enters an absent state; the port is registered with `providePort` like
+ * every other name this module publishes, so the answer stays the manifest's.
+ * Do not wrap a call in a bare `catch`.
+ */
+export interface OrderCommandPort {
+  /**
+   * `order.status_transition` — move an order to a configured status,
+   * applying the lifecycle: graph validation, the before-guards, the audit
+   * entry, what the status owes (the stock and credit release of a
+   * cancellation) and the `order.status.*` announcements after the commit.
+   *
+   * **Refusals are outcomes, not exceptions** — `not_found`, `unknown_status`,
+   * `not_permitted`, `vetoed` — and `already_there` records nothing, because
+   * callers answer payment and shipment providers, which retry a non-2xx
+   * forever. A refusal writes and audits nothing.
+   */
+  applyStatus(
+    id: string,
+    input: OrderStatusTransitionInput,
+    options?: AggregateCommandOptions,
+  ): Promise<OrderTransitionOutcome>;
+  /**
+   * `order.payment_status_transition` — the operator's change of the money
+   * axis, as `POST /api/v1/admin/orders/:id/payment-status`. A move that is
+   * not an operator edge is refused `409 ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED`
+   * with nothing written; an unknown order `404 ORDER_NOT_FOUND`; an order
+   * already there answers the record unchanged and records nothing. The credit
+   * release a payment owes commits with it and is attempted after the commit.
+   *
+   * Not the settlement's write: a payment provider's callback moves the money
+   * axis on the settlement's own transaction through `orderPaymentStatusApplyPort`
+   * (`@endora-commerce/mod-orders/ports`), which stays.
+   */
+  applyPaymentStatus(
+    id: string,
+    input: OrderPaymentStatusTransitionInput,
+    options?: AggregateCommandOptions,
+  ): Promise<OrderRecord>;
+  /**
+   * `order.custom_fields.update` — the caller's read-modify-write of the
+   * order's custom-field values, made over the bag read under the order's row
+   * lock (issue #399). The caller validates inside `merge`
+   * (`CustomFieldValuePort.validateAndMerge`); a refusal it throws propagates
+   * and writes nothing. `404 NOT_FOUND` for an unknown order.
+   */
+  setCustomFieldValues(
+    id: string,
+    merge: CustomFieldMerge,
+    options?: AggregateCommandOptions,
+  ): Promise<OrderRecord>;
+  /**
+   * `order.comment.add` — an operator comment on an order, as
+   * `POST /api/v1/admin/orders/:id/comments`. Refused `409 ORDER_COMMENTS_CLOSED`
+   * on a terminal order, `404 ORDER_NOT_FOUND` on an unknown one, and
+   * `422 VALIDATION_FAILED` for a body outside 1–8000 characters. A
+   * customer-visible comment with `notifyCustomer` e-mails the buyer after the
+   * commit, best effort. The entry records the comment's id and its two flags,
+   * never its body. The comment has no author (the system actor wrote it)
+   * unless the ambient actor is an administrator.
+   */
+  addComment(id: string, input: OrderCommentInput, options?: AggregateCommandOptions): Promise<OrderComment>;
+  /**
+   * `order.external_reference.set` — upsert one external system's entry on the
+   * order, as {@link OrderExternalReferencePort.set} did: a write that changes
+   * nothing records nothing and does not move `updatedAt`; an unknown order is
+   * `404 ORDER_NOT_FOUND`, a value or system key outside the published schemas
+   * `400 VALIDATION_FAILED`.
+   */
+  setExternalReference(
+    id: string,
+    system: string,
+    value: OrderExternalReferenceWrite,
+    options?: AggregateCommandOptions,
+  ): Promise<OrderExternalReference>;
 }
 
 /**

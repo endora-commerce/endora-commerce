@@ -1,5 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomFieldValuePort, Order as OrderResponse } from '@endora-commerce/contracts';
+import type {
+  CustomFieldValuePort,
+  Order as OrderResponse,
+  OrderComment as OrderCommentView,
+} from '@endora-commerce/contracts';
+import type { OrderComment } from './entities/order-comment.entity.js';
 import type { Order } from './entities/order.entity.js';
 import { OrderStatus } from './entities/order-status.entity.js';
 import { OrderAppliedPromotion } from './entities/order-applied-promotion.entity.js';
@@ -152,3 +157,21 @@ async function serializeShared(
   };
 }
 
+
+/**
+ * The published `orderCommentSchema` (issue #599) — the admin comment routes'
+ * answer and `orderCommandPort.addComment`'s.
+ */
+export function serializeComment(c: OrderComment): OrderCommentView {
+  return {
+    id: c.id,
+    orderId: c.orderId,
+    authorAdminUserId: c.authorAdminUserId ?? null,
+    authorCustomerAccountId: c.authorCustomerAccountId ?? null,
+    body: c.body,
+    isCustomerVisible: c.isCustomerVisible,
+    notifyCustomer: c.notifyCustomer,
+    systemNote: c.systemNote ?? null,
+    createdAt: c.createdAt.toISOString(),
+  };
+}

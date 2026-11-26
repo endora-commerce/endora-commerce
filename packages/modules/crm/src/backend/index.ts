@@ -21,7 +21,7 @@ import type {
   OpportunityTransitionPort,
   OrderListPort,
   OrderReadPort,
-  OrderTransitionPort,
+  OrderCommandPort,
   OrganizationDetailsPort,
   QuoteRequestReadPort,
   ReportingTimeZonePort,
@@ -272,7 +272,7 @@ export function registerModule(ctx: ModuleContext): void {
           new OrderStatusPropagationService({
             emFactory,
             commandBus,
-            orderTransitions: lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
+            orderTransitions: lazyPort<OrderCommandPort>(ctx, 'orderCommandPort'),
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
             canReadOrders: crmOwnerReadChecks.orders,
           }),

@@ -7,6 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { seedOrdersForInvoiceTests } from '../../helpers/seed-commerce.js';
 import { OrderReadService } from '../../../../packages/modules/orders/dist/backend/services/order-read-port.js';
+import { OrderStatusGraphService } from '../../../../packages/modules/orders/dist/backend/services/order-status-graph-service.js';
 import { Order } from '../../helpers/package-entities.js';
 
 /**
@@ -30,7 +31,7 @@ describe('OrderReadPort.findIdsByBusinessIdLike', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    port = new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort'));
+    port = new OrderReadService(h.em, h.container.resolve<OrganizationPermissionPort>('organizationPermissionPort'), () => new OrderStatusGraphService(h.em));
     await seedOrdersForInvoiceTests(h.em());
     sample = await h.em().findOneOrFail(
       Order,

@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   OrderTransitionOutcome,
-  OrderTransitionPort,
+  OrderCommandPort,
   PaymentMethodReadPort,
   PaymentMethodRecord,
 } from '@endora-commerce/contracts';
@@ -248,7 +248,8 @@ interface AskedFor {
   orderId: string;
   to: string;
   reason: string | null | undefined;
-  actor: unknown;
+  /** The caller's `source` code (`orderCommandPort`, 0.113.0), which replaced the input actor. */
+  source: string | undefined;
   /**
    * Whether the settlement transaction had already committed when the port was
    * called. This is the assertion the whole ordering rule reduces to: the port
@@ -262,21 +263,20 @@ interface AskedFor {
 function transitionPort(
   em: FakeEm,
   answer: OrderTransitionOutcome = { applied: true, from: 'new', to: 'paid' },
-): OrderTransitionPort & { asked: AskedFor[] } {
+): Pick<OrderCommandPort, 'applyStatus'> & { asked: AskedFor[] } {
   const asked: AskedFor[] = [];
   return {
     asked,
-    applyStatus: async (input) => {
+    applyStatus: async (orderId, input, options) => {
       asked.push({
-        orderId: input.orderId,
+        orderId,
         to: input.to,
         reason: input.reason,
-        actor: input.actor,
+        source: options?.source,
         afterCommit: em.committed,
       });
       return answer;
     },
-    isTerminal: async () => false,
   };
 }
 
@@ -388,7 +388,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
     expect(transition.asked[0]).toMatchObject({
       orderId: 'ord-1',
       to: 'paid',
-      actor: { kind: 'system', source: 'payment' },
+      source: 'payment',
       afterCommit: true,
     });
     // The order entity the transaction loaded carries the money axis and
@@ -624,7 +624,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
     const handler = new ReceivePaymentHandler(
       em.emFactory,
       readPort(methodRecord()),
-      switchedOff<OrderTransitionPort>('orders'),
+      switchedOff<OrderCommandPort>('orders'),
       applyPort,
       settlementEffectsPort(em),
       recordingLog(),

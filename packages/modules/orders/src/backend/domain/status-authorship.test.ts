@@ -39,6 +39,22 @@ function entry(patch: Partial<StatusTransitionRecord> = {}): StatusTransitionRec
 }
 
 describe('authorOfCurrentStatus', () => {
+  // `specs/186-aggregate-ports/` R-18.2 — the transition is a Command since
+  // 0.113.0: a customer acting for themselves is on its own column, and the
+  // settlement ingress names itself with `source: 'payment'`.
+  it('reads the customer the bus records on its own column as a named actor', () => {
+    expect(authorOfCurrentStatus([entry({ actorCustomerAccountId: 'buyer-1' })], 'on_hold')).toBe('named_actor');
+  });
+
+  it('reads the settlement ingress from its source, whoever its ambient actor was', () => {
+    expect(authorOfCurrentStatus([entry({ actorAdminUserId: 'admin-7', source: 'payment' })], 'on_hold')).toBe(
+      'system',
+    );
+    expect(authorOfCurrentStatus([entry({ actorAdminUserId: 'admin-7', source: 'shipment' })], 'on_hold')).toBe(
+      'named_actor',
+    );
+  });
+
   it('reads a system actor from an entry naming neither an admin nor a customer', () => {
     expect(authorOfCurrentStatus([entry()], 'on_hold')).toBe('system');
   });

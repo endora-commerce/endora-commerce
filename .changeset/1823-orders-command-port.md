@@ -1,0 +1,11 @@
+---
+'@endora-commerce/mod-orders': minor
+---
+
+**`orderCommandPort` — server-side writes on an Order** (issue #1823, `specs/186-aggregate-ports/` US4). Another module, an overlay or an integration worker changes an order's status and payment status, its custom-field values, comments and external references through the published port, with the ambient actor (the system actor under `withSystemScope`) and an optional `source` code recorded in the audit entry. Each method runs the Command its admin endpoint runs, with the same refusals, follow-ups, notices and events; a status change answers refusals as an outcome. `orderTransitionPort` and `orderExternalReferencePort.set` are deprecated and delegate to it; `orderReadPort.isTerminal` replaces `orderTransitionPort.isTerminal`, and order records carry `payer`.
+
+The status change (`order.status_transition`) and the operator's payment-status change (`order.payment_status_transition`) are now Commands: the change, its entry and what it owes still commit together, and the action strings and audit state are unchanged. Their entries now record the ambient actor rather than the actor a caller passed: a buyer's own cancellation is recorded as the customer acting for themselves (`actorCustomerAccountId`) where it used to fill the impersonation column, and an entry may carry a `source` code. The buyer's cancellation rules read both, so who may cancel is unchanged.
+
+Order comments are now the audited Command `order.comment.add`, for the operator and the buyer alike: the entry records the comment's id and its visibility and notify flags, never its text. Requests, responses and the customer notice are unchanged.
+
+For code that builds the services by hand: `OrderTransitionService` takes the Command Bus as its fourth constructor argument, in place of the audit port (now after it come the effect service and the logger); `OrderCommentService` takes the Command Bus as its fourth argument; `OrderService` takes `commandBus` in its options object and refuses a payment-status change without it; `OrderReadService` takes a graph accessor as its third argument; `OrdersModuleOptions.commandBus` is required and `orderTransitionPort` is gone from it.
