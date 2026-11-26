@@ -9,7 +9,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type {
   CatalogCategoryReadPort,
-  CatalogCategoryWritePort,
+  CatalogCategoryCommandPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
@@ -171,9 +171,9 @@ export function registerModule(ctx: ModuleContext): void {
           // files. Every one of them kept answering with its owner switched off.
           catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
           catalogCategories: lazyPort<CatalogCategoryReadPort>(ctx, 'catalogCategoryReadPort'),
-          catalogCategoryWrites: lazyPort<CatalogCategoryWritePort>(
+          catalogCategoryCommands: lazyPort<CatalogCategoryCommandPort>(
             ctx,
-            'catalogCategoryWritePort',
+            'catalogCategoryCommandPort',
           ),
           customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
           // Issue #259 / feature 163 — the availability gate on the notify-me

@@ -21,6 +21,7 @@ import { productPagePathsSchema } from './product-url-keys.js';
 import type { FieldPath, ScopeLevel } from './product-scope-model.js';
 import type { ProductScopedWriteCell } from './product-scopes.js';
 import { scopeVersionTokenSchema } from './scoped-write-encoding.js';
+import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
 
 /**
  * Catalog module contracts — Source of truth per Principle V.
@@ -3470,6 +3471,11 @@ export interface CategoryInventoryThresholdPatch {
 /**
  * Container name: `catalogCategoryWritePort`. Owner: `catalog`.
  *
+ * **Deprecated since 0.113.0** (`specs/186-aggregate-ports/` US8, issue
+ * #1826): the writes are {@link CatalogCategoryCommandPort}'s and the list is
+ * {@link CatalogCategoryReadPort.listAll}. Every method delegates to them —
+ * the same Commands, the same entries — until the port is removed.
+ *
  * `pim_ergonode` again, and again narrow: an import run lists the tree,
  * creates the categories it is missing and updates the ones that moved.
  *
@@ -3477,13 +3483,13 @@ export interface CategoryInventoryThresholdPatch {
  * consumer: `inventory` stores the per-category half of its display-band
  * thresholds in three columns on this module's `categories` table, and wrote
  * them by holding the entity. It is deliberately **not** a key on
- * {@link UpdateCategoryInput}: `update` runs the `category.update` Command,
- * emits the search-reindex event and writes an audit row, none of which a
- * threshold patch did or should — `inventory` records one
- * `low_stock_threshold.update` summary row for the whole patch, and an
- * operator reading a category's history should not find a rename-shaped entry
- * for it. The columns' owner is still the question underneath, and the answer
- * that retires this method is moving them into `inventory_thresholds` with
+ * {@link UpdateCategoryInput}: `update` runs the `category.update` Command and
+ * emits the search-reindex event, which a threshold patch should not. Since
+ * 0.113.0 it is a Command of its own, `category.inventory_thresholds.set`,
+ * audited by this module, and `inventory`'s `low_stock_threshold.update`
+ * summary no longer counts the category half (research R-20.3). The columns'
+ * owner is still the question underneath, and the answer that retires the
+ * method is moving them into `inventory_thresholds` with
  * `scopeKind = 'category'`, which is a data migration and not a cut.
  *
  * **Owner off:** the seam fails closed — resolving this port throws
@@ -3493,11 +3499,138 @@ export interface CategoryInventoryThresholdPatch {
  * `nonDeactivatable` never enters one.
  */
 export interface CatalogCategoryWritePort {
+  /**
+   * The live tree, ordered by sort order then slug — the read port's
+   * `listAll({ liveOnly: true })`, which this delegates to.
+   *
+   * @deprecated since 0.113.0; use {@link CatalogCategoryReadPort.listAll} instead.
+   */
   listAll(): Promise<CatalogCategoryRecord[]>;
+  /**
+   * Runs `category.create`, delegating to the aggregate port: the same
+   * Command, the same entry.
+   *
+   * @deprecated since 0.113.0; use {@link CatalogCategoryCommandPort.create} instead.
+   */
   create(input: CreateCategoryRequest): Promise<CatalogCategoryRecord>;
+  /**
+   * Runs `category.update`, delegating to the aggregate port: the same
+   * Command, the same entry.
+   *
+   * @deprecated since 0.113.0; use {@link CatalogCategoryCommandPort.update} instead.
+   */
   update(id: string, input: UpdateCategoryInput): Promise<CatalogCategoryRecord>;
-  /** Rejects an unknown or soft-deleted category with 404 `NOT_FOUND`. */
+  /**
+   * Runs `category.inventory_thresholds.set`, delegating to the aggregate
+   * port. Rejects an unknown or soft-deleted category with 404 `NOT_FOUND`.
+   *
+   * @deprecated since 0.113.0; use {@link CatalogCategoryCommandPort.setInventoryThresholds} instead.
+   */
   setInventoryThresholds(id: string, patch: CategoryInventoryThresholdPatch): Promise<void>;
+}
+
+/** {@link CatalogCategoryCommandPort.move}'s input: the category's place in the tree. */
+export interface CategoryMoveInput {
+  /** The new parent, or `null` for a root. */
+  readonly parentId: string | null;
+  /**
+   * The category's `sortOrder` among its siblings — the integer the tree is
+   * ordered by, not an index. Absent leaves it as it is.
+   */
+  readonly position?: number;
+}
+
+/**
+ * Container name: `catalogCategoryCommandPort`. Owner: `catalog`
+ * (`specs/186-aggregate-ports/` US8, D-293, issue #1826).
+ *
+ * The Category aggregate's write port: each method runs one audited Command,
+ * the one the admin route for the same operation runs, built by the same
+ * factory, with the ambient actor — an administrator inside an admin request
+ * (or under `withSystemScopeActingFor`), the `system` actor under
+ * `withSystemScope` in a worker. **No permission is checked** — the caller is
+ * the gate; never resolve it for a customer-facing route. Call it after your
+ * own commit: each call is a transaction of its own.
+ *
+ * What the route does beside its write happens here too: `update`, `move` and
+ * `setCustomFieldValues` emit `category.updated.v1` on commit, which re-indexes
+ * the category's subtree in search and flushes the storefront's
+ * `catalog:categories` cache (the navigation tree); `create` binds the new
+ * category to the default sales channel after it commits, as the admin create
+ * does.
+ *
+ * **Inputs and refusals are the admin route's**, as the platform's `HttpError`
+ * with its `code`: `422 VALIDATION_FAILED` for an input outside the route's
+ * schema, `404 NOT_FOUND` for an unknown, soft-deleted or malformed id or
+ * parent, `409 CATEGORY_SLUG_TAKEN`, `409 CATEGORY_MOVE_CYCLE`,
+ * `409 CATEGORY_HAS_CHILDREN`, `422 CUSTOM_FIELD_VALUE_INVALID`.
+ *
+ * **Options** ({@link AggregateCommandOptions}): `expectedVersion` is
+ * **ignored** — a category has no `version` column and no admin route checks
+ * one. `source` is recorded on the audit entry beside the actor; a code
+ * outside `aggregateCommandSourceSchema` is refused `422 VALIDATION_FAILED`
+ * before anything is read or written. `extensions` reaches the command hooks
+ * of the action; no category action is declared hookable, so today every key
+ * is refused `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+ *
+ * **Not offered, deliberately**: the category page content
+ * (`category.content.update`, the content editor's own write), the bulk
+ * import (`catalogBulkImportPort.importCategories`, report-shaped), product
+ * assignment (a Product operation), and channel membership (the kernel's
+ * membership writer). Reads are {@link CatalogCategoryReadPort}'s.
+ *
+ * **Owner off:** `catalog` declares itself non-deactivatable, so the gate
+ * cannot close in practice; it is registered anyway, and closed it would
+ * answer 503 `MODULE_DISABLED`.
+ */
+export interface CatalogCategoryCommandPort {
+  /**
+   * `category.create` — the admin create. Custom-field values in the input are
+   * validated with the administrator's rules inside the Command.
+   */
+  create(input: CreateCategoryRequest, options?: AggregateCommandOptions): Promise<CatalogCategoryRecord>;
+  /**
+   * `category.update` — the admin `PATCH`; an absent key is left as it is.
+   * `customFieldValues` is a patch merged over the stored bag and validated
+   * with the administrator's rules, as in the admin editor.
+   */
+  update(id: string, input: UpdateCategoryInput, options?: AggregateCommandOptions): Promise<CatalogCategoryRecord>;
+  /**
+   * `category.update` with the parent and, when given, the sort order — the
+   * admin `PATCH` that moves a category in the tree; there is no dedicated
+   * move action (research R-20.1). A parent under the category itself is
+   * refused `409 CATEGORY_MOVE_CYCLE`.
+   */
+  move(id: string, input: CategoryMoveInput, options?: AggregateCommandOptions): Promise<CatalogCategoryRecord>;
+  /**
+   * `category.delete` — the admin soft delete. A category with live children
+   * is refused `409 CATEGORY_HAS_CHILDREN`.
+   */
+  delete(id: string, options?: AggregateCommandOptions): Promise<void>;
+  /**
+   * `category.update` with the custom-field bag only (research R-20.2): the
+   * owner loads the category, runs `merge` over a copy of the current bag and
+   * stores its answer, in one Command. **The owner does not validate**: call
+   * `CustomFieldValuePort.validateAndMerge` inside `merge`; a refusal it
+   * throws propagates unchanged and writes nothing.
+   */
+  setCustomFieldValues(
+    id: string,
+    merge: CustomFieldMerge,
+    options?: AggregateCommandOptions,
+  ): Promise<CatalogCategoryRecord>;
+  /**
+   * `category.inventory_thresholds.set` — the category's three inventory
+   * display-band thresholds, as `inventory`'s threshold admin sets them
+   * (research R-20.3). An absent key is left alone and `null` clears the
+   * override; a patch that changes nothing writes and records nothing. Emits
+   * no event: no product document carries the thresholds.
+   */
+  setInventoryThresholds(
+    id: string,
+    patch: CategoryInventoryThresholdPatch,
+    options?: AggregateCommandOptions,
+  ): Promise<CatalogCategoryRecord>;
 }
 
 /**

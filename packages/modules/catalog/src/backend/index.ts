@@ -26,6 +26,7 @@ import type {
   CatalogBulkImportPort,
   PromptActionBulkProgressRegistryPort,
   PromptActionToolRegistryPort,
+  CatalogCategoryCommandPort,
   CatalogCategoryReadPort,
   CatalogCategoryWritePort,
   CatalogGalleryPort,
@@ -121,6 +122,7 @@ import {
   type TableMaintenanceProducer,
 } from './services/table-maintenance-queue.js';
 import { CategoryAdminService } from './services/category-admin.service.js';
+import { CatalogCategoryCommandService } from './services/catalog-category-command-port.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
 import { AttachmentService } from './services/attachment.service.js';
@@ -955,14 +957,34 @@ export function registerModule(ctx: ModuleContext): void {
     ctx.asFunction(() => new AttributeValueKeyService()).singleton(),
   );
 
+  // --- Category aggregate port (`specs/186-aggregate-ports/` US8, #1826) ---
+  /**
+   * The Category aggregate's write port: the admin routes' Commands, through
+   * the runner they share (`CategoryAdminService`), with the ambient actor.
+   */
+  ctx.di.providePort<CatalogCategoryCommandPort>(
+    'catalogCategoryCommandPort',
+    ctx
+      .asFunction(
+        () => new CatalogCategoryCommandService(() => ctx.cradle<CatalogCradle>().categoryAdminService),
+      )
+      .singleton(),
+  );
+
+  /** Deprecated since 0.113.0 — every method delegates (`catalog-write-ports.ts`). */
   ctx.di.providePort<CatalogCategoryWritePort>(
     'catalogCategoryWritePort',
     ctx
       .asFunction(() =>
-        createCatalogCategoryWritePort(() => ctx.cradle<CatalogCradle>().categoryAdminService),
+        createCatalogCategoryWritePort({
+          service: () => ctx.cradle<CatalogCradle>().categoryAdminService,
+          commandPort: () => lazyPort<CatalogCategoryCommandPort>(ctx, 'catalogCategoryCommandPort'),
+          readPort: () => lazyPort<CatalogCategoryReadPort>(ctx, 'catalogCategoryReadPort'),
+        }),
       )
       .singleton(),
   );
+  // --- end Category aggregate port ---
 
   /**
    * D-74 — the bulk import surface. `import_export` parses the spreadsheet;

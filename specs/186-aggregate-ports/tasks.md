@@ -26,7 +26,7 @@ events). No code change.
 - [x] T004 [P] Inventory QuoteRequest operations, the send-document route path and whether admin custom-field values ride on `modify`, in `specs/186-aggregate-ports/contracts/quote-request-command-port.md` — done with #1824: `update` is `modify` only (`patch_draft` is the buyer's), values ride on `modify`, the path is `/pdf/send`
 - [ ] T005 [P] Inventory Product and Attribute operations, the scoped-values route and the validator a caller uses for attribute values, in `specs/186-aggregate-ports/contracts/catalog-product-command-port.md`
 - [ ] T006 [P] Inventory Project operations and the stage-move route in `specs/186-aggregate-ports/contracts/project-command-port.md`
-- [ ] T007 [P] Inventory Category operations (move, values-only update, the threshold audit split with `inventory`) in `specs/186-aggregate-ports/contracts/catalog-category-command-port.md`
+- [x] T007 [P] Inventory Category operations (move, values-only update, the threshold audit split with `inventory`) in `specs/186-aggregate-ports/contracts/catalog-category-command-port.md` — #1826: move and values-only are `category.update` (C), thresholds N → `category.inventory_thresholds.set`; six findings in § *Inventory findings*, decisions R-20.1–R-20.7
 - [ ] T008 [P] Inventory Opportunity operations in `specs/186-aggregate-ports/contracts/opportunity-command-port.md`
 - [ ] T009 [P] Inventory Task operations (`createMany`, child Commands on `update`, the 8 hand audits) in `specs/186-aggregate-ports/contracts/task-command-port.md`
 - [ ] T010 Record in `specs/186-aggregate-ports/research.md` R-2 any readiness the inventory changed, and any operation it moves in or out of scope (an owner question if it changes FR-020–FR-028) — Organization recorded with #1821 (sales reps H-in, sales channels H-post through the kernel; one owner question for T028); the other eight inventories are open
@@ -176,11 +176,11 @@ the exit-2 rules, the `--since` / `release-changeset` placement) and `backend/te
 
 ## Phase 10: User Story 8 — Category (Priority: P3)
 
-- [ ] T082 [US8] Declare `CatalogCategoryCommandPort` in `packages/contracts/src/catalog.ts`; `@deprecated` on `CatalogCategoryWritePort` (`listAll` → `catalogCategoryReadPort.listAll`)
-- [ ] T083 [P] [US8] (after #1866) Failing parity test (navigation cache refresh on move) and a no-double-audit test for thresholds in `backend/test/contract/catalog/catalog-category-command-port.test.ts`
-- [ ] T084 [US8] (after #1866) Make thresholds a Command `category.inventory_thresholds.set` in `packages/modules/catalog/src/backend/services/category-admin.service.ts` (removing its `command-coverage-ignore`) and narrow `inventory`'s own audit to its settings in `packages/modules/inventory/src/backend/`
-- [ ] T085 [US8] (after #1866) Implement and register the port; `catalogCategoryWritePort` delegates; move in-repo consumers (`inventory`)
-- [ ] T086 [US8] Drain the `category` ledger entry; docs; changesets
+- [x] T082 [US8] Declare `CatalogCategoryCommandPort` in `packages/contracts/src/catalog.ts`; `@deprecated` on `CatalogCategoryWritePort` (`listAll` → `catalogCategoryReadPort.listAll`) — #1826: with `CategoryMoveInput`; type test `packages/contracts/src/catalog.category-command-port.test.ts`
+- [x] T083 [P] [US8] (after #1866) Failing parity test (navigation cache refresh on move) and a no-double-audit test for thresholds in `backend/test/contract/catalog/catalog-category-command-port.test.ts` — #1826: every method, the delegation of the deprecated port, `source`, extensions, refusals; worker test `backend/test/integration/catalog/catalog-category-command-port.worker.test.ts`; DB-free `packages/modules/catalog/src/backend/commands/category.commands.test.ts`
+- [x] T084 [US8] (after #1866) Make thresholds a Command `category.inventory_thresholds.set` in `packages/modules/catalog/src/backend/services/category-admin.service.ts` (removing its `command-coverage-ignore`) and narrow `inventory`'s own audit to its settings in `packages/modules/inventory/src/backend/` — #1826: every category Command is a factory in `commands/category.commands.ts`, run by the service; `inventory`'s summary drops `perCategoryCount` and is not written for a categories-only patch (R-20.3)
+- [x] T085 [US8] (after #1866) Implement and register the port; `catalogCategoryWritePort` delegates; move in-repo consumers (`inventory`) — #1826: `services/catalog-category-command-port.ts`; `create` / `update` of the deprecated port skip the input parse (R-20.4)
+- [ ] T086 [US8] Drain the `category` ledger entry; docs; changesets — docs (`catalog/category-server-side-writes.md`, EN + PL) and changesets landed with #1826; the ledger does not exist yet (T042), so there is no entry to drain
 
 ---
 

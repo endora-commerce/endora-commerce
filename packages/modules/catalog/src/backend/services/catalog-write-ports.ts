@@ -1,4 +1,6 @@
 import {
+  type CatalogCategoryCommandPort,
+  type CatalogCategoryReadPort,
   type CatalogCategoryWritePort,
   type CatalogProductScopeWritePort,
   type CatalogProductWritePort,
@@ -60,20 +62,31 @@ export function createCatalogProductWritePort(
   };
 }
 
-export function createCatalogCategoryWritePort(
-  getService: () => CategoryAdminService,
-): CatalogCategoryWritePort {
+/**
+ * `catalogCategoryWritePort` — deprecated since 0.113.0 (`specs/186-aggregate-ports/`
+ * US8, issue #1826). Every method delegates: `listAll` to the read port's live
+ * tree, `setInventoryThresholds` to `catalogCategoryCommandPort`, and `create` /
+ * `update` to the runner that port and the admin routes share, so the Command
+ * and the entry are the same. The two writes skip the port's input parse, which
+ * this port never had: in the release that only deprecates it, it accepts what
+ * it accepted before (research R-20.4).
+ */
+export function createCatalogCategoryWritePort(deps: {
+  readonly service: () => CategoryAdminService;
+  readonly commandPort: () => CatalogCategoryCommandPort;
+  readonly readPort: () => CatalogCategoryReadPort;
+}): CatalogCategoryWritePort {
   return {
-    async listAll() {
-      return (await getService().listAll()).map(toCatalogCategoryRecord);
-    },
+    listAll: () => deps.readPort().listAll({ liveOnly: true }),
     async create(input) {
-      return toCatalogCategoryRecord(await getService().create(input));
+      return toCatalogCategoryRecord(await deps.service().create(input));
     },
     async update(id, input) {
-      return toCatalogCategoryRecord(await getService().update(id, input));
+      return toCatalogCategoryRecord(await deps.service().update(id, input));
     },
-    setInventoryThresholds: (id, patch) => getService().setInventoryThresholds(id, patch),
+    async setInventoryThresholds(id, patch) {
+      await deps.commandPort().setInventoryThresholds(id, patch);
+    },
   };
 }
 
