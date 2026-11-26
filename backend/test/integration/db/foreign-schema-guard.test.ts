@@ -11,6 +11,7 @@ import {
   X178Host,
   declare,
   openFixtureOrm,
+  type Declarer,
   revertMigration,
   throwawayDatabase,
   type ThrowawayDatabase,
@@ -48,7 +49,14 @@ afterEach(async () => {
 });
 
 async function migrate(...packageMigrations: ReturnType<typeof packageMigration>[]): Promise<unknown> {
-  const orm = await openFixtureOrm(db.url, [onHost], { packageMigrations });
+  return migrateAs('package', ...packageMigrations);
+}
+
+async function migrateAs(
+  declarer: Declarer,
+  ...packageMigrations: ReturnType<typeof packageMigration>[]
+): Promise<unknown> {
+  const orm = await openFixtureOrm(db.url, [onHost], { packageMigrations, declarer });
   try {
     await migrateUpVerified(orm);
     return null;
@@ -238,6 +246,36 @@ describe('the foreign-schema guard on a real migrate', () => {
  * refusal apart from a handle that ran its SQL on a connection of its own,
  * outside the migration's transaction, and then failed for some other reason.
  */
+/**
+ * The back-fill cases with the declaring module as a deployment's overlay module
+ * (`specs/190-overlay-full-modules/` FR-065, T110): its own migrations take the
+ * guard with no first-party exemption (OR-4), and its declared `x_` columns on
+ * the host are its own to write, exactly as a package's are.
+ */
+describe('the foreign-schema guard, an overlay module declaring the columns', () => {
+  it('allows its back-fill of its own x_ column on its declared host', async () => {
+    const error = await migrateAs(
+      'overlay',
+      packageMigration('Migration20261201T100003AcmeErpBackfill', (self) =>
+        self.addSql(`update "${HOST_TABLE}" set "x_acme_erp_credit_tier" = 2 where "name" = 'none'`),
+      ),
+    );
+    expect(error).toBeNull();
+    expect(await executed()).toContain('Migration20261201T100003AcmeErpBackfill');
+  });
+
+  it('refuses a back-fill that also sets a core column', async () => {
+    const error = await migrateAs(
+      'overlay',
+      packageMigration('Migration20261201T100004AcmeErpBackfill', (self) =>
+        self.addSql(`update "${HOST_TABLE}" set "x_acme_erp_credit_tier" = 2, "name" = 'x'`),
+      ),
+    );
+    expect(error).toBeInstanceOf(ForeignSchemaWriteError);
+    expect(await columnsOf(HOST_TABLE)).not.toContain('x_acme_erp_credit_tier');
+  });
+});
+
 describe('the foreign-schema guard on raw database handles (#1860)', () => {
   /** `fixture_host`'s row the rogue package tries to delete. */
   class Migration20261110T000003FixtureHostSeed extends Migration {
