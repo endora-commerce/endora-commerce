@@ -27,7 +27,7 @@ events). No code change.
 - [ ] T005 [P] Inventory Product and Attribute operations, the scoped-values route and the validator a caller uses for attribute values, in `specs/186-aggregate-ports/contracts/catalog-product-command-port.md`
 - [ ] T006 [P] Inventory Project operations and the stage-move route in `specs/186-aggregate-ports/contracts/project-command-port.md`
 - [ ] T007 [P] Inventory Category operations (move, values-only update, the threshold audit split with `inventory`) in `specs/186-aggregate-ports/contracts/catalog-category-command-port.md`
-- [ ] T008 [P] Inventory Opportunity operations in `specs/186-aggregate-ports/contracts/opportunity-command-port.md`
+- [x] T008 [P] Inventory Opportunity operations in `specs/186-aggregate-ports/contracts/opportunity-command-port.md` — #1827: every operation a Command already (no conversion); the Commands are built by the routes' service methods, not factories (R-21.1); `setCustomFieldValues` is the update Command values-only; eight interface findings, R-21.1–R-21.8
 - [ ] T009 [P] Inventory Task operations (`createMany`, child Commands on `update`, the 8 hand audits) in `specs/186-aggregate-ports/contracts/task-command-port.md`
 - [ ] T010 Record in `specs/186-aggregate-ports/research.md` R-2 any readiness the inventory changed, and any operation it moves in or out of scope (an owner question if it changes FR-020–FR-028) — Organization recorded with #1821 (sales reps H-in, sales channels H-post through the kernel; one owner question for T028); the other eight inventories are open
 
@@ -186,11 +186,11 @@ the exit-2 rules, the `--since` / `release-changeset` placement) and `backend/te
 
 ## Phase 11: User Story 9 — Opportunity (Priority: P3)
 
-- [ ] T087 [US9] Declare `OpportunityCommandPort` and add `customFieldValues` to `OpportunityRecord` in `packages/contracts/src/crm.ts`; `@deprecated` on `OpportunityTransitionPort.applyStatus`
-- [ ] T088 [P] [US9] (after #1866) Failing parity test (guard veto outcome) and off-state test in `backend/test/contract/crm/opportunity-command-port.test.ts`
-- [ ] T089 [P] [US9] (after #1866) Failing worker test in `backend/test/integration/crm/opportunity-command-port.worker.test.ts`
-- [ ] T090 [US9] (after #1866) Implement and register `packages/modules/crm/src/backend/services/opportunity-command-port.ts`; the transition port delegates; fill `customFieldValues` in the read mapper
-- [ ] T091 [US9] Drain the `opportunity` ledger entry; docs; changesets
+- [x] T087 [US9] Declare `OpportunityCommandPort` and add `customFieldValues` to `OpportunityRecord` in `packages/contracts/src/crm.ts`; `@deprecated` on `OpportunityTransitionPort.applyStatus` — #1827: plus `OpportunityTransitionInput`; `customFieldValues` optional on the type (R-21.4); type test `packages/contracts/src/crm.command-port.test.ts`
+- [x] T088 [P] [US9] (after #1866) Failing parity test (guard veto outcome) and off-state test in `backend/test/contract/crm/opportunity-command-port.test.ts` — #1827: parity per method (`setCustomFieldValues` against the route's values-only `PATCH`), the veto and the other refusals as outcomes, `source`, extension and `source` refusals before the guards run, `expectedVersion`, the comment with no administrator, delegation of the deprecated port
+- [x] T089 [P] [US9] (after #1866) Failing worker test in `backend/test/integration/crm/opportunity-command-port.worker.test.ts` — #1827
+- [x] T090 [US9] (after #1866) Implement and register `packages/modules/crm/src/backend/services/opportunity-command-port.ts`; the transition port delegates; fill `customFieldValues` in the read mapper — #1827: the routes and the port call the same service methods, each gaining a `caller` for `withCallerOptions` (`commands/caller-options.ts`, R-21.6); the Change history tab drops a caller's `source` (R-21.7)
+- [ ] T091 [US9] Drain the `opportunity` ledger entry; docs; changesets — #1827: *Server-side writes* in EN and PL (re-pinned), the `custom-field-writes.md` list, `.changeset/1827-contracts-opportunity-command-port.md` and `1827-crm-opportunity-command-port.md`; the ledger does not exist yet (T042), so there is no entry to drain
 
 ---
 

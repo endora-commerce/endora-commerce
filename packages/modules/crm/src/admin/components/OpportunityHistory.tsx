@@ -26,6 +26,7 @@ import {
   humaniseKey,
   LABELLED_HISTORY_FIELDS,
   SILENT_HISTORY_FIELDS,
+  withoutCallerSource,
 } from '../lib/history-fields.js';
 import {
   calendarDateLabel,
@@ -125,7 +126,7 @@ export function historyChanges(
     const { outcome, ...rest } = before;
     return historyChanges({ before: null, after: { ...rest, retriedOutcome: outcome, ...after } });
   }
-  return recordHistoryChanges(entry, SILENT_HISTORY_FIELDS);
+  return recordHistoryChanges(withoutCallerSource(entry), SILENT_HISTORY_FIELDS);
 }
 
 export interface OpportunityHistoryProps {
