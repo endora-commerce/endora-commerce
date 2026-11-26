@@ -1331,7 +1331,8 @@ export type ProjectCloseInput =
  * an action is refused `422 COMMAND_EXTENSION_UNCLAIMED` before anything is
  * written, so every key is refused on `setMembers`, `link`, `unlink`,
  * `addComment` and `delete`, whose actions are not hookable
- * (`PROJECT_HOOKABLE_ACTIONS`).
+ * (`PROJECT_HOOKABLE_ACTIONS`). A `setOrganizations` call that changes nothing
+ * runs no Command, so an unclaimed `extensions` key is not refused there.
  *
  * **Answers.** A {@link ProjectRecord} read after the write under the
  * Organization rule alone, so a write that took the Project out of the
