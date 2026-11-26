@@ -584,3 +584,68 @@ describe('CommandBus — observe (189 T020)', () => {
     expect(seen[0]!.commands.map((entry) => entry.action)).toEqual(['quote.convert', 'organization.admin_patch']);
   });
 });
+
+describe('CommandBus — a switched-off middleware module (189 T030, FR-033)', () => {
+  it('skips an admit while its module is off, and runs it again once it is on, with no re-composition', async () => {
+    const present = new Set(['acme_hold']);
+    const h = makeHarness([{ moduleId: 'acme_hold', entries: [{ id: 'hold', phase: 'admit', admit: admitWhen(() => true) }] }], {
+      present: (moduleId) => present.has(moduleId),
+    });
+    await expect(asAdmin(() => h.bus.run(write('widget.create', 'w-1', [])))).rejects.toMatchObject({ code: REFUSED });
+    present.delete('acme_hold');
+    await expect(asAdmin(() => h.bus.run(write('widget.create', 'w-2', [])))).resolves.toBe('w-2');
+    present.add('acme_hold');
+    await expect(asAdmin(() => h.bus.run(write('widget.create', 'w-3', [])))).rejects.toMatchObject({ code: REFUSED });
+    expect(h.committedAudit.map((entry) => entry.objectId)).toEqual(['w-2']);
+  });
+
+  it('skips an observer while its module is off, and observes again once it is on', async () => {
+    const present = new Set(['acme_metrics']);
+    const seen: string[] = [];
+    const h = makeHarness(
+      [{ moduleId: 'acme_metrics', entries: [{ id: 'timing', phase: 'observe', observe: (outcome) => void seen.push(outcome.root.objectId) }] }],
+      { present: (moduleId) => present.has(moduleId) },
+    );
+    await asAdmin(() => h.bus.run(write('widget.create', 'w-1', [])));
+    await h.middleware.settled();
+    present.delete('acme_metrics');
+    await asAdmin(() => h.bus.run(write('widget.create', 'w-2', [])));
+    await h.middleware.settled();
+    present.add('acme_metrics');
+    await asAdmin(() => h.bus.run(write('widget.create', 'w-3', [])));
+    await h.middleware.settled();
+    expect(seen).toEqual(['w-1', 'w-3']);
+  });
+
+  it('lets an in-flight observer settle once, with nothing retried, when its module goes off meanwhile', async () => {
+    const present = new Set(['acme_metrics']);
+    let release!: () => void;
+    let calls = 0;
+    const h = makeHarness(
+      [
+        {
+          moduleId: 'acme_metrics',
+          entries: [
+            {
+              id: 'timing',
+              phase: 'observe',
+              observe: () => {
+                calls += 1;
+                return new Promise<void>((resolve) => {
+                  release = resolve;
+                });
+              },
+            },
+          ],
+        },
+      ],
+      { present: (moduleId) => present.has(moduleId) },
+    );
+    await asAdmin(() => h.bus.run(write('widget.create', 'w-1', [])));
+    await new Promise((resolve) => setImmediate(resolve));
+    present.delete('acme_metrics');
+    release();
+    await h.middleware.settled();
+    expect(calls).toBe(1);
+  });
+});
