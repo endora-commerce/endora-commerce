@@ -27,6 +27,17 @@ number", never pick a number, never edit an execution list.
    `Migration…Core…`) — that is what makes a class name unique across every module the
    platform can compose, including one installed from a package. `orderMigrations` refuses a
    violation as `unscoped-name` and `check:naming` refuses one in the core tree.
+   **An overlay module's form** (`specs/190-overlay-full-modules/` FR-056, FR-057): here,
+   `--module <overlay-id>` writes into `backend/src/apps/<deployment>/modules/<id>/migrations/`
+   — `DEPLOYMENT`, when set, is the only deployment looked in, and an id two deployments hold
+   is refused without it; in an instance, `endora new migration <id> --name <slug>` writes into
+   `apps/<deployment>/modules/<id>/migrations/` of the deployment `.env` selects and refuses an
+   id that is not an overlay module of it, since an installed package's migrations are its
+   author's. Both name the file with one implementation,
+   `@endora-commerce/cli/lib/migration-naming.js`, clamped above `BASELINE_THROUGH`, and
+   `endora new module --entities` names an overlay's first migration with it too. There is no
+   step 2 for either: an overlay's `migrations/` is read file by file at runtime and never
+   emitted into the registry (D-104) — `composer:generate` validates it and emits nothing.
 2. **Register it** — run `pnpm --filter backend run composer:generate` and commit
    **`backend/src/db/migrations-registry.generated.ts`** alongside the migration. The
    registry is generated from a filesystem walk (feature 071, F2) and replaced the

@@ -31,7 +31,9 @@ import {
   segmentOf,
 } from '@endora-commerce/cli';
 
+import * as naming from '@endora-commerce/cli/lib/migration-naming.js';
 import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
+import * as script from '../../../scripts/new-migration.js';
 import {
   classNameFromFile,
   formatStamp,
@@ -59,6 +61,33 @@ function specFor(id: string) {
     ...(id.startsWith('_') ? { nonDeactivatable: 'platform-internal' } : {}),
   });
 }
+
+describe('migration:new names a migration with the CLI\'s code, not a copy of it', () => {
+  // `specs/190-overlay-full-modules/` T100: the naming moved into
+  // `@endora-commerce/cli/lib/migration-naming.js`, so `endora new migration` in an
+  // instance and this repository's `migration:new` are one implementation. The
+  // identities are what say so — a second copy that happened to agree today
+  // would pass every value-level assertion below.
+  it.each([
+    'classNameFromFile',
+    'formatStamp',
+    'MIGRATION_FILE_RE',
+    'migrationFileName',
+    'nextFreeStamp',
+    'normalizeSlug',
+    'parseStamp',
+    'segmentFor',
+  ] as const)('%s is the CLI\'s', (name) => {
+    expect(script[name]).toBe(naming[name]);
+  });
+
+  it('the CLI\'s scaffold and buildScaffold name the same file and class', () => {
+    const input = { moduleId: 'orders', slug: 'probe', stamp: '20261126T101500' };
+    const ours = script.buildScaffold(input);
+    const theirs = naming.buildMigrationScaffold(input, []);
+    expect([ours.filename, ours.className]).toEqual([theirs.filename, theirs.className]);
+  });
+});
 
 describe('the scaffold and migration:new agree about a migration identity', () => {
   it('formats the same UTC stamp', () => {
@@ -107,6 +136,7 @@ describe('the scaffold and migration:new agree about a migration identity', () =
 describe('the frozen historical prefix', () => {
   it('is the same watermark on both sides', () => {
     expect(CLI_BASELINE_THROUGH).toBe(BASELINE_THROUGH);
+    expect(naming.BASELINE_THROUGH).toBe(BASELINE_THROUGH);
   });
 
   it('clamps a stamp that would land inside the frozen block', () => {

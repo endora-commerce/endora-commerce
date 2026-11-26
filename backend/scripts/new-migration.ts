@@ -4,6 +4,13 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import {
+  buildMigrationScaffold,
+  MIGRATION_FILE_RE,
+  nextFreeStamp,
+  type MigrationScaffold,
+  type MigrationScaffoldInput,
+} from '@endora-commerce/cli/lib/migration-naming.js';
+import {
   ModuleLayoutUnresolvableError,
   resolveModuleLayout,
   type ModuleTreeLayout,
@@ -22,6 +29,10 @@ import {
  *
  * Usage:
  *   pnpm --filter backend run migration:new -- --module orders --name placement_intents
+ *
+ * `--module` also takes an overlay module's id, and then the file lands in
+ * `src/apps/<deployment>/modules/<id>/migrations/` (`specs/190-overlay-full-modules/`
+ * FR-057); `DEPLOYMENT`, when set, is the only deployment looked in.
  *
  * The naming and registration rules are specified in
  * specs/065-manifest-aware-migrations/contracts/naming-convention.md §1, §2
@@ -90,163 +101,59 @@ function resolveCoreMigrationsDir(): string {
   return join(platformRoot, MIGRATIONS_DIRECTORY);
 }
 
-/** contracts/naming-convention.md §1 — the only recognizer any tool may use. */
-export const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_([a-z0-9_]+)\.ts$/;
+/**
+ * The naming rules themselves — the recognizer, the segment, the slug, the
+ * stamp and the class name — are `@endora-commerce/cli`'s
+ * (`specs/190-overlay-full-modules/` T100, FR-057): `endora new migration` names
+ * an instance's overlay migration with the same code, and an application may
+ * depend on a tool where a tool may not depend on an application. They are
+ * re-exported so every consumer here keeps its specifier.
+ */
+export {
+  classNameFromFile,
+  formatStamp,
+  MIGRATION_FILE_RE,
+  migrationFileName,
+  nextFreeStamp,
+  normalizeSlug,
+  parseStamp,
+  segmentFor,
+} from '@endora-commerce/cli/lib/migration-naming.js';
 
 /** The cross-cutting pseudo-module owning the platform's own `migrations/`. */
 const CORE_MODULE_ID = 'core';
-
-/** contracts/naming-convention.md §1 — segment normalization. */
-export function segmentFor(moduleId: string): string {
-  return moduleId === CORE_MODULE_ID ? CORE_MODULE_ID : moduleId.replace(/^_/, '');
-}
-
-/** contracts/naming-convention.md §2. */
-export function classNameFromFile(filename: string): string {
-  const match = MIGRATION_FILE_RE.exec(filename);
-  if (!match) throw new Error(`Unexpected migration filename: ${filename}`);
-  const [, stamp, tail] = match;
-  const pascal = tail!
-    .split('_')
-    .filter((segment) => segment.length > 0)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join('');
-  return `Migration${stamp}${pascal}`;
-}
 
 export function validateModuleId(moduleId: string, knownIds: ReadonlySet<string>): void {
   if (moduleId === CORE_MODULE_ID || knownIds.has(moduleId)) return;
   const valid = [CORE_MODULE_ID, ...knownIds].sort().join(', ');
   throw new Error(
-    `Unknown module id "${moduleId}". Valid ids are: ${valid}. ` +
-      `If the module is new, add its manifest.ts and run ` +
+    `Unknown module id "${moduleId}". Valid ids are: ${valid}, and the id of an overlay ` +
+      `module under src/apps/<deployment>/modules/ (DEPLOYMENT, when set, names the only ` +
+      `deployment looked in). If the module is new, add its manifest.ts and run ` +
       `\`pnpm --filter backend run manifest-index:generate\`.`,
   );
 }
 
-export function normalizeSlug(name: string): string {
-  const slug = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .replace(/_{2,}/g, '_');
-  if (slug.length === 0) {
-    throw new Error(`--name "${name}" produces an empty slug; use snake_case letters and digits.`);
-  }
-  return slug;
-}
+export type ScaffoldInput = MigrationScaffoldInput;
+export type Scaffold = MigrationScaffold;
 
-/** `YYYYMMDDTHHmmss`, UTC, fixed width, literal `T` at index 8. */
-export function formatStamp(date: Date): string {
-  const pad = (value: number, width = 2): string => String(value).padStart(width, '0');
-  return (
-    `${pad(date.getUTCFullYear(), 4)}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}` +
-    `T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}`
-  );
-}
-
-/** Inverse of {@link formatStamp}. */
-export function parseStamp(stamp: string): Date {
-  return new Date(
-    Date.UTC(
-      Number(stamp.slice(0, 4)),
-      Number(stamp.slice(4, 6)) - 1,
-      Number(stamp.slice(6, 8)),
-      Number(stamp.slice(9, 11)),
-      Number(stamp.slice(11, 13)),
-      Number(stamp.slice(13, 15)),
-    ),
-  );
-}
-
-/**
- * Advances by whole seconds until the stamp is free anywhere in the core tree.
- *
- * Tree-wide freedom is a tidiness rule, not an ordering one: a timestamp
- * orders migrations only within their own module, so two modules may legally
- * share one. Keeping core stamps distinct just keeps the committed registry
- * readable.
- *
- * `after` is a floor the result must strictly exceed. The CLI passes
- * `BASELINE_THROUGH`: everything the core registry contributed at or before it
- * is the frozen historical prefix, whose order is history and is never
- * recomputed. A new migration landing inside that block would be ordered by
- * that history instead of by its module's `dependencies`, so the clamp keeps
- * every new core migration in the open block.
- */
-export function nextFreeStamp(from: Date, taken: ReadonlySet<string>, after?: string): string {
-  const cursor = new Date(from.getTime());
-  cursor.setUTCMilliseconds(0);
-  if (after !== undefined) {
-    const floor = parseStamp(after).getTime();
-    if (cursor.getTime() <= floor) cursor.setTime(floor + 1_000);
-  }
-  let stamp = formatStamp(cursor);
-  while (taken.has(stamp)) {
-    cursor.setUTCSeconds(cursor.getUTCSeconds() + 1);
-    stamp = formatStamp(cursor);
-  }
-  return stamp;
-}
-
-/**
- * `<STAMP>_<SEGMENT>_<SLUG>.ts`. The segment is not repeated when the slug
- * already opens with it — that is what keeps `quote_requests_init` from
- * becoming `quote_requests_quote_requests_init`.
- */
-export function migrationFileName(stamp: string, moduleId: string, slug: string): string {
-  const segment = segmentFor(moduleId);
-  const tail = slug === segment || slug.startsWith(`${segment}_`) ? slug : `${segment}_${slug}`;
-  return `${stamp}_${tail}.ts`;
-}
-
-export interface ScaffoldInput {
-  moduleId: string;
-  slug: string;
-  stamp: string;
-}
-
-export interface Scaffold {
-  moduleId: string;
-  stamp: string;
-  filename: string;
-  className: string;
-  contents: string;
-}
+/** The class comment this repository's scaffold carries: registration is a regeneration. */
+const SCAFFOLD_DOC: readonly string[] = [
+  'TODO describe the change this migration makes.',
+  '',
+  'Registration is a regeneration: run',
+  '`pnpm --filter backend run composer:generate` and commit the result. An',
+  'unregistered migration does not run, and the round-trip guard fails the',
+  'build for it.',
+  '',
+  'This stamp orders this migration against its own module\'s migrations and',
+  'against nothing else. What puts it after another module\'s table is that',
+  'module appearing in this one\'s manifest `dependencies` — declare it if',
+  'this migration references a table it owns.',
+];
 
 export function buildScaffold(input: ScaffoldInput): Scaffold {
-  const slug = normalizeSlug(input.slug);
-  const filename = migrationFileName(input.stamp, input.moduleId, slug);
-  const className = classNameFromFile(filename);
-
-  const contents =
-    `import { Migration } from '@mikro-orm/migrations';\n` +
-    `\n` +
-    `/**\n` +
-    ` * TODO describe the change this migration makes.\n` +
-    ` *\n` +
-    ` * Registration is a regeneration: run\n` +
-    ` * \`pnpm --filter backend run composer:generate\` and commit the result. An\n` +
-    ` * unregistered migration does not run, and the round-trip guard fails the\n` +
-    ` * build for it.\n` +
-    ` *\n` +
-    ` * This stamp orders this migration against its own module's migrations and\n` +
-    ` * against nothing else. What puts it after another module's table is that\n` +
-    ` * module appearing in this one's manifest \`dependencies\` — declare it if\n` +
-    ` * this migration references a table it owns.\n` +
-    ` */\n` +
-    `export class ${className} extends Migration {\n` +
-    `  override async up(): Promise<void> {\n` +
-    `    // this.addSql(\`…\`);\n` +
-    `  }\n` +
-    `\n` +
-    `  override async down(): Promise<void> {\n` +
-    `    // this.addSql(\`…\`);\n` +
-    `  }\n` +
-    `}\n`;
-
-  return { moduleId: input.moduleId, stamp: input.stamp, filename, className, contents };
+  return buildMigrationScaffold(input, SCAFFOLD_DOC);
 }
 
 // ---------------------------------------------------------------------------
@@ -304,6 +211,78 @@ export interface MigrationTarget {
   readonly directory: string;
   /** The package that owns it, or `null` for core and the application's own tree. */
   readonly owner: ModulePackage | null;
+  /**
+   * The deployment whose overlay module this is, when it is one
+   * (`specs/190-overlay-full-modules/` FR-057). Absent for core, a package and
+   * an application-tree module.
+   */
+  readonly deployment?: string;
+}
+
+/** Hidden directories are not modules (`listOverlayModuleDirs`). */
+function visibleDirectoriesUnder(path: string): string[] {
+  if (!existsSync(path) || !statSync(path).isDirectory()) return [];
+  return readdirSync(path, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+/** Is `<overlayRoot>/<deployment>/modules/<id>/` a module — does it hold a manifest? */
+function isOverlayModule(overlayRoot: string, deployment: string, id: string): boolean {
+  const dir = join(overlayRoot, deployment, 'modules', id);
+  return existsSync(join(dir, 'manifest.ts')) || existsSync(join(dir, 'manifest.js'));
+}
+
+/**
+ * Where an **overlay** module's migrations live, or `null` when no deployment
+ * holds a module with this id (`specs/190-overlay-full-modules/` T102, FR-057).
+ *
+ * Since D-297 an overlay module owns its migrations, read at runtime from
+ * `apps/<deployment>/modules/<id>/migrations/` and never emitted into the
+ * bare-core registry (D-104) — which is why the manifest index does not list the
+ * id and {@link validateModuleId} would refuse it. `DEPLOYMENT`, when set, is
+ * the only deployment looked in, because it is the only one the process
+ * composes. Unset, the one deployment holding the id is the answer, and two that
+ * both hold it are a refusal rather than a choice.
+ */
+export function overlayMigrationTargetFor(
+  moduleId: string,
+  overlayRoot: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): MigrationTarget | null {
+  const selected = env['DEPLOYMENT'];
+  const deployments =
+    selected === undefined || selected === ''
+      ? visibleDirectoriesUnder(overlayRoot)
+      : [selected];
+  const holders = deployments.filter((deployment) =>
+    isOverlayModule(overlayRoot, deployment, moduleId),
+  );
+  if (holders.length === 0) return null;
+  if (holders.length > 1) {
+    throw new Error(
+      `Overlay module "${moduleId}" exists in ${String(holders.length)} deployments ` +
+        `(${holders.join(', ')}), and DEPLOYMENT is not set, so there is no telling which one ` +
+        `this migration belongs to. Run it again with DEPLOYMENT=<one of them>.`,
+    );
+  }
+  const deployment = holders[0]!;
+  return {
+    moduleId,
+    directory: join(overlayRoot, deployment, 'modules', moduleId, MIGRATIONS_DIRECTORY),
+    owner: null,
+    deployment,
+  };
+}
+
+/** Every overlay module's migrations directory, across every deployment. */
+function overlayMigrationDirs(overlayRoot: string): string[] {
+  return visibleDirectoriesUnder(overlayRoot).flatMap((deployment) =>
+    visibleDirectoriesUnder(join(overlayRoot, deployment, 'modules')).map((id) =>
+      join(overlayRoot, deployment, 'modules', id, MIGRATIONS_DIRECTORY),
+    ),
+  );
 }
 
 /**
@@ -368,6 +347,21 @@ export function refuseUnregisterableTarget(
   scaffold: Scaffold,
   walkRoots: readonly string[],
 ): void {
+  // An overlay migration is validated by the generator and emitted nowhere
+  // (`specs/190-overlay-full-modules/` FR-038): `collectMigrations` throws on a
+  // misnamed file or class and returns nothing for a valid one, so its verdict
+  // is "did not throw", asked of the key its walk gives the file.
+  if (target.deployment !== undefined) {
+    const root = walkRoots.find((candidate) => {
+      const within = relative(candidate, absolutePath);
+      return within !== '' && !within.startsWith('..') && !within.startsWith(sep);
+    });
+    if (root !== undefined) {
+      const key = relative(root, absolutePath).split(sep).join('/');
+      collectMigrations(coreSources({ [key]: scaffold.contents }));
+      return;
+    }
+  }
   const collected = ((): ReturnType<typeof collectMigrations> => {
     if (target.owner !== null) {
       const key = packageRelativePathOf(target.owner, absolutePath);
@@ -419,10 +413,13 @@ export function listMigrationDirs(
   return dirs;
 }
 
-/** Every `<STAMP>` already used anywhere in the tree. */
+/** Every `<STAMP>` already used anywhere in the tree, overlay modules included. */
 export function takenStamps(layout: ModuleTreeLayout, packages: readonly ModulePackage[]): Set<string> {
   const taken = new Set<string>();
-  for (const dir of listMigrationDirs(layout, packages)) {
+  for (const dir of [
+    ...listMigrationDirs(layout, packages),
+    ...overlayMigrationDirs(layout.overlayRoot),
+  ]) {
     if (!existsSync(dir) || !statSync(dir).isDirectory()) continue;
     for (const filename of readdirSync(dir)) {
       const match = MIGRATION_FILE_RE.exec(filename);
@@ -455,6 +452,16 @@ function parseArgs(argv: readonly string[]): { module?: string; name?: string } 
  */
 function followUp(target: MigrationTarget, scaffold: Scaffold, repoRoot: string): string {
   const steps = [`  pnpm --filter backend run composer:generate`];
+  if (target.deployment !== undefined) {
+    return [
+      `It is an overlay migration: the platform reads it from this directory at`,
+      `runtime under DEPLOYMENT=${target.deployment}, and nothing is emitted into the`,
+      `bare-core registry for it (D-104). The generator still validates its file and`,
+      `class names, so run it:`,
+      ``,
+      ...steps,
+    ].join('\n');
+  }
   if (target.owner === null) return steps.join('\n');
 
   const barrel = relative(repoRoot, join(target.directory, 'index.ts')).split(sep).join('/');
@@ -490,9 +497,14 @@ async function main(): Promise<void> {
 
   const layout = await resolveModuleLayout();
   const packages = modulePackages();
-  validateModuleId(args.module, new Set(layout.registeredIds));
+  const registered = new Set(layout.registeredIds);
+  const overlay =
+    args.module === CORE_MODULE_ID || registered.has(args.module)
+      ? null
+      : overlayMigrationTargetFor(args.module, layout.overlayRoot);
+  if (overlay === null) validateModuleId(args.module, registered);
 
-  const target = migrationTargetFor(args.module, layout, packages);
+  const target = overlay ?? migrationTargetFor(args.module, layout, packages);
   const stamp = nextFreeStamp(new Date(), takenStamps(layout, packages), BASELINE_THROUGH);
   const scaffold = buildScaffold({ moduleId: args.module, slug: args.name, stamp });
   const absolutePath = join(target.directory, scaffold.filename);

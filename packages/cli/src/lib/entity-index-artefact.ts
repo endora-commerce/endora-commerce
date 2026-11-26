@@ -52,6 +52,10 @@
  * `InstalledEntityIndex` and loses nothing a caller uses: `entityNamedIn` takes
  * the module id as a **string**, so per-key precision has no reader.
  */
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
+
+import { analyzeSource, walk } from '../rules/entity-tenant-classification.js';
 import { ModulePackageError, type ModulePackage } from './module-packages.js';
 
 /**
@@ -101,6 +105,7 @@ export interface EntityIndexEntry {
  */
 export function collectEntityIndexEntries(
   packages: readonly ModulePackage[],
+  overlays: readonly EntityIndexEntry[] = [],
 ): readonly EntityIndexEntry[] {
   const entries: EntityIndexEntry[] = [];
   for (const pkg of packages) {
@@ -120,7 +125,75 @@ export function collectEntityIndexEntries(
       specifier: `${pkg.name}/${BACKEND_SUBPATH.slice(2)}`,
     });
   }
+  for (const overlay of overlays) {
+    const holder = packages.find((pkg) => pkg.moduleId === overlay.moduleId);
+    if (holder !== undefined) {
+      // The platform refuses the same collision at boot; an index keyed by
+      // module id cannot hold both, and silently keeping one would point a
+      // test at a table the other one owns.
+      throw new ModulePackageError(
+        `[composer] the overlay module '${overlay.moduleId}' (${overlay.specifier}) claims the ` +
+          `module id ${holder.name} already holds. A module id is identity of record, so the ` +
+          `entity index cannot key both by it — and the platform refuses the pair at start.`,
+      );
+    }
+    entries.push(overlay);
+  }
   return [...entries].sort((a, b) => a.moduleId.localeCompare(b.moduleId));
+}
+
+function directoriesUnder(path: string): readonly string[] {
+  if (!existsSync(path) || !statSync(path).isDirectory()) return [];
+  return readdirSync(path, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+/**
+ * The selected deployment's overlay modules that own an entity
+ * (`specs/190-overlay-full-modules/` T104, FR-058).
+ *
+ * Since D-297 an overlay module may own a table, and a test in the instance
+ * writes its rows as it writes a package's — through the class the ORM
+ * registered, out of the module's `entities` array, which an overlay exports
+ * from its `backend.ts` (`overlay-schema-discovery.md` §1). So each such module
+ * is an entry keyed by its id, whose specifier is that file **relative to the
+ * index**: an overlay is no package and has no bare name.
+ *
+ * *Owns an entity* is read off **decorator syntax nodes** in the module's
+ * sources — the `@Entity()` a class carries — exactly as a package's
+ * classification is read, never off text a comment or a string could carry. A
+ * module with none has nothing for a test to build a row of and gets no entry.
+ * A module whose entity is not in its `entities` export is the platform's to
+ * refuse (`overlay-entity-unexported`), and the index does not second-guess it.
+ *
+ * `appsParent` is the directory holding `apps/` — the instance root. Only
+ * `deployment` is read: it is the one the instance composes, and an entry of
+ * another would name a class no ORM of this instance registers.
+ *
+ * **This repository's own committed index takes none.** It is rendered by
+ * `composer:generate` under every value of `DEPLOYMENT` alike (D-104), so the
+ * overlay entities of whichever deployment a run selected would make it
+ * differ by environment; a test here imports an overlay's entity directly.
+ */
+export function collectOverlayEntityIndexEntries(
+  appsParent: string,
+  deployment: string,
+  indexPath: string,
+): readonly EntityIndexEntry[] {
+  const modulesRoot = join(appsParent, 'apps', deployment, 'modules');
+  const entries: EntityIndexEntry[] = [];
+  for (const id of directoriesUnder(modulesRoot)) {
+    const moduleDir = join(modulesRoot, id);
+    const declares = walk(moduleDir).some(
+      (file) => analyzeSource(readFileSync(file, 'utf8'), file).length > 0,
+    );
+    if (!declares) continue;
+    const target = relative(dirname(indexPath), join(moduleDir, 'backend.js')).split(sep).join('/');
+    entries.push({ moduleId: id, specifier: target.startsWith('.') ? target : `./${target}` });
+  }
+  return entries;
 }
 
 /** Where the artefact lands, relative to the workspace root a host owns. */

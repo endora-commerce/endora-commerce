@@ -15,19 +15,9 @@
  * through the contracts package's own validator, and the whole tree through
  * `endora generate`.
  */
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -35,114 +25,11 @@ import { main } from '../src/bin/endora.js';
 import { generateFindingsRefusal, runGenerate } from '../src/generate/index.js';
 import { runNewModule, type NewModuleOptions } from '../src/new-module/index.js';
 import { ScaffoldInputError } from '../src/new-module/spec.js';
+import { classNameFromFile, MIGRATION_FILE_RE } from '../src/lib/migration-naming.js';
+import { runNewMigration } from '../src/new-migration/index.js';
+import { cleanInstances, instance, SCOPE } from './support/overlay-instance.js';
 
-const SCOPE = '@endora-commerce';
-const CONTRACTS_DIR = fileURLToPath(new URL('../../contracts', import.meta.url));
-const scratch: string[] = [];
-
-afterEach(() => {
-  while (scratch.length > 0) rmSync(scratch.pop()!, { recursive: true, force: true });
-});
-
-function write(path: string, content: string): void {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, content, 'utf8');
-}
-
-function installModule(root: string, id: string): void {
-  const dir = join(root, 'node_modules', SCOPE, `mod-${id}`);
-  write(
-    join(dir, 'package.json'),
-    JSON.stringify({
-      name: `${SCOPE}/mod-${id}`,
-      version: '1.0.0',
-      endora: { type: 'module', id },
-      exports: { '.': './dist/manifest.js', './backend': './dist/backend/index.js' },
-    }),
-  );
-  write(join(dir, 'dist', 'manifest.js'), `export const manifest = { id: '${id}' };\n`);
-  write(
-    join(dir, 'dist', 'backend', 'index.js'),
-    `export function registerModule(ctx) {\n    ctx.di.register({ ${id}Service: ctx.asValue(1) });\n}\n`,
-  );
-}
-
-function installPlatform(root: string): void {
-  const dir = join(root, 'node_modules', SCOPE, 'platform');
-  write(
-    join(dir, 'package.json'),
-    JSON.stringify({
-      name: `${SCOPE}/platform`,
-      version: '1.0.0',
-      endora: { type: 'platform' },
-      exports: {
-        './kernel': { types: './dist/kernel/index.d.ts', default: './dist/kernel/index.js' },
-        './composition': './dist/composition/index.js',
-      },
-    }),
-  );
-  write(join(dir, 'dist', 'kernel', 'index.js'), 'export {};\n');
-  write(
-    join(dir, 'dist', 'kernel', 'index.d.ts'),
-    "export type { ModuleContext } from './module-context.js';\n",
-  );
-  write(
-    join(dir, 'dist', 'kernel', 'module-context.d.ts'),
-    `export interface ModuleContext {
-    readonly di: { register(r: Record<string, unknown>): void; decorate(n: string, w: unknown): void };
-    cradle<C>(): C;
-    routes(register: (app: unknown) => void): void;
-    subscribe(event: string, handler: (payload: unknown) => void): void;
-}
-`,
-  );
-  write(
-    join(dir, 'dist', 'composition', 'index.js'),
-    `export function composeApp(options) {\n    const container = createRootContainer();\n` +
-      `    registerValues(container, { commandBus: buildCommandBus() });\n    return container;\n}\n`,
-  );
-}
-
-/** A scaffolded instance, as `endora new instance` and `pnpm install` leave it. */
-function instance(
-  options: {
-    env?: string | null;
-    deployments?: readonly string[];
-    contracts?: boolean;
-    modules?: readonly string[];
-  } = {},
-): string {
-  const root = mkdtempSync(join(tmpdir(), 'overlay-module-'));
-  scratch.push(root);
-  write(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - backend\n');
-  write(
-    join(root, 'package.json'),
-    JSON.stringify({
-      name: 'acme-shop',
-      private: true,
-      dependencies: {
-        ...(options.contracts === false ? {} : { [`${SCOPE}/contracts`]: '1.0.0' }),
-        [`${SCOPE}/platform`]: '^1.0.0',
-      },
-    }),
-  );
-  write(join(root, 'backend', 'package.json'), JSON.stringify({ name: 'acme-shop-backend' }));
-  for (const deployment of options.deployments ?? ['acme']) {
-    write(
-      join(root, 'apps', deployment, 'divergence.ts'),
-      'export const divergence = { omittedModules: [], decorationOrder: {}, reasons: {} };\n',
-    );
-    write(join(root, 'apps', deployment, 'modules', '.gitkeep'), '');
-  }
-  if (options.env !== null) write(join(root, '.env'), options.env ?? 'DEPLOYMENT=acme\n');
-  installPlatform(root);
-  for (const id of options.modules ?? ['settings', 'auth']) installModule(root, id);
-  // The real contracts package, so what the command writes is loaded through
-  // the validator a boot would load it through.
-  mkdirSync(join(root, 'node_modules', SCOPE), { recursive: true });
-  symlinkSync(CONTRACTS_DIR, join(root, 'node_modules', SCOPE, 'contracts'), 'dir');
-  return root;
-}
+afterEach(cleanInstances);
 
 const NOTICE: NewModuleOptions = {
   id: 'store_notice',
@@ -285,6 +172,126 @@ describe('in an instance, the command writes an overlay module', () => {
   });
 });
 
+describe('--entities: the module owns a table (FR-055, T103)', () => {
+  const NOW = new Date(Date.UTC(2026, 10, 26, 10, 15, 0));
+  const STAMP = '20261126T101500';
+
+  it('writes an entity, its `entities` export and a first migration', async () => {
+    const root = instance();
+    const result = await runNewModule({ ...NOTICE, entities: true, now: NOW, cwd: root });
+    expect(filesUnder(result.packageDir)).toEqual([
+      'backend.ts',
+      'entities/store-notice-item.entity.ts',
+      'i18n/en.json',
+      'i18n/pl.json',
+      'manifest.ts',
+      `migrations/${STAMP}_store_notice_init.ts`,
+    ]);
+  });
+
+  it('the entity takes its decorators from `/legacy` and exactly one tenancy decorator', async () => {
+    const root = instance();
+    const result = await runNewModule({ ...NOTICE, entities: true, now: NOW, cwd: root });
+    const entity = codeOf(
+      readFileSync(join(result.packageDir, 'entities/store-notice-item.entity.ts'), 'utf8'),
+    );
+    expect(entity).toContain(
+      `import { Entity, Index, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';`,
+    );
+    expect(entity).not.toMatch(/from '@mikro-orm\/(core|postgresql)'[^\n]*\bEntity\b/);
+    expect(entity).toContain(`import { OrgScoped } from '${SCOPE}/platform/tenancy';`);
+    expect(entity.match(/@(OrgScoped|CustomerScoped|GlobalEntity)\(\)/g)).toEqual(['@OrgScoped()']);
+    expect(entity).toContain(`@Entity({ tableName: 'store_notice_items' })`);
+    expect(entity).toContain('export class StoreNoticeItem {');
+    expect(entity).toContain('organizationId!: string;');
+    // What an instance's overlay program refuses under `erasableSyntaxOnly`.
+    expect(entity).not.toMatch(/\benum\b|\bnamespace\b|constructor\s*\(\s*(private|public|readonly)/);
+  });
+
+  it.each([
+    ['org-scoped', 'OrgScoped', 'organization_id'],
+    ['customer-scoped', 'CustomerScoped', 'customer_account_id'],
+    ['global', 'GlobalEntity', null],
+  ] as const)('--tenant-scope %s decorates it with @%s', async (scope, decorator, column) => {
+    const root = instance();
+    const result = await runNewModule({
+      ...NOTICE,
+      entities: true,
+      tenantScope: scope,
+      now: NOW,
+      cwd: root,
+    });
+    const entity = codeOf(
+      readFileSync(join(result.packageDir, 'entities/store-notice-item.entity.ts'), 'utf8'),
+    );
+    expect(entity.match(/@(OrgScoped|CustomerScoped|GlobalEntity)\(\)/g)).toEqual([`@${decorator}()`]);
+    const migration = readFileSync(
+      join(result.packageDir, `migrations/${STAMP}_store_notice_init.ts`),
+      'utf8',
+    );
+    if (column === null) expect(migration).not.toMatch(/organization_id|customer_account_id/);
+    else expect(migration).toContain(`"${column}" uuid not null`);
+  });
+
+  it('backend.ts exports the entity as `entities`, which is what the platform registers', async () => {
+    const root = instance();
+    const result = await runNewModule({ ...NOTICE, entities: true, now: NOW, cwd: root });
+    const backend = codeOf(readFileSync(join(result.packageDir, 'backend.ts'), 'utf8'));
+    expect(backend).toContain(
+      `import { StoreNoticeItem } from './entities/store-notice-item.entity.js';`,
+    );
+    expect(backend).toContain('export const entities = [StoreNoticeItem];');
+    expect(backend).toContain('export function registerModule(ctx: ModuleContext): void');
+  });
+
+  it('the migration is named by the shared rules and creates the entity’s table', async () => {
+    const root = instance();
+    const result = await runNewModule({ ...NOTICE, entities: true, now: NOW, cwd: root });
+    const file = `${STAMP}_store_notice_init.ts`;
+    expect(MIGRATION_FILE_RE.test(file)).toBe(true);
+    const migration = readFileSync(join(result.packageDir, 'migrations', file), 'utf8');
+    expect(migration).toContain(`export class ${classNameFromFile(file)} extends Migration {`);
+    expect(migration).toContain('create table "store_notice_items"');
+    expect(migration).toContain(`drop table if exists "store_notice_items"`);
+    // One migration per file, no barrel: an overlay's directory is read file by file.
+    expect(existsSync(join(result.packageDir, 'migrations', 'index.ts'))).toBe(false);
+  });
+
+  it('`endora new migration` stamps the next one after it', async () => {
+    const root = instance();
+    await runNewModule({ ...NOTICE, entities: true, now: NOW, cwd: root });
+    const next = await runNewMigration({ id: 'store_notice', name: 'init', cwd: root, now: NOW });
+    expect(next.filename).toBe('20261126T101501_store_notice_init.ts');
+  });
+
+  it('the next steps build the entity and migrate before the route', async () => {
+    const root = instance();
+    const steps = (await runNewModule({ ...NOTICE, entities: true, now: NOW, cwd: root }))
+      .nextSteps;
+    const build = steps.findIndex((step) => step.startsWith('pnpm run build'));
+    const migrate = steps.findIndex((step) => step.startsWith('pnpm run migrate'));
+    const generate = steps.findIndex((step) => step.startsWith('pnpm run generate'));
+    expect(build).toBeGreaterThanOrEqual(0);
+    expect(migrate).toBeGreaterThan(build);
+    expect(generate).toBeGreaterThanOrEqual(0);
+  });
+
+  it('`generate` reads the module with its schema and has nothing to ask', async () => {
+    const root = instance();
+    await runNewModule({ ...NOTICE, entities: true, now: NOW, cwd: root });
+    const generated = await runGenerate({ cwd: root });
+    expect(generated.divergence[0]?.overlayModules).toEqual(['store_notice']);
+    expect(generateFindingsRefusal(generated)).toBeNull();
+  });
+
+  it('a dry run reports the schema files and writes nothing', async () => {
+    const root = instance();
+    const result = await runNewModule({ ...NOTICE, entities: true, now: NOW, cwd: root, dryRun: true });
+    expect(result.files.map((file) => file.path)).toContain('entities/store-notice-item.entity.ts');
+    expect(existsSync(result.packageDir)).toBe(false);
+  });
+});
+
 describe('which deployment', () => {
   it('is the one directory under `apps/` when `.env` names none', async () => {
     const root = instance({ env: null });
@@ -320,7 +327,6 @@ describe('which deployment', () => {
 
 describe('what an overlay module cannot be is refused before anything is written', () => {
   const refused: ReadonlyArray<readonly [string, Partial<NewModuleOptions>, string]> = [
-    ['--entities', { entities: true }, 'by hand'],
     ['--admin', { admin: 'catalog', permissions: ['store_notice:read=View'] }, 'module package'],
     [
       '--action',
@@ -331,7 +337,9 @@ describe('what an overlay module cannot be is refused before anything is written
     ['--worker', { worker: true }, 'ctx.worker'],
     ['--subscriber', { subscriber: true }, 'ctx.subscribe'],
     ['--dir', { dir: 'somewhere' }, 'apps/acme/modules'],
-    ['--tenant-scope', { tenantScope: 'global' }, 'by hand'],
+    // Without `--entities` there is no entity for the scope to decorate, and
+    // quietly ignoring it is emitting less than was asked for.
+    ['--tenant-scope', { tenantScope: 'global' }, '--entities'],
   ];
   for (const [flag, extra, names] of refused) {
     it(`${flag} — exit 1, naming why`, async () => {
