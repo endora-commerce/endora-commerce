@@ -104,6 +104,9 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
     // `customer_account.create` of `organization.register`, resolved as
     // `customerAccountMemberCommandPort`.
     //
+    // And one with `specs/186-aggregate-ports/` US3 (issue #1822), in the same
+    // pair: the operator member panel writes through `customerAccountCommandPort`.
+    //
     // And one with issue #332: `assets_library` pushes its retention-days write
     // validator into `settings`' `settingWriteValidatorRegistry`, and `settings`
     // declares `assets_library`.
@@ -135,6 +138,7 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'orders:cartReadPort',
       'orders:cartWritePort',
       'organizations:addressServicePort',
+      'organizations:customerAccountCommandPort',
       'organizations:customerAccountMemberCommandPort',
       'organizations:customerAccountMemberWritePort',
       'organizations:customerAccountReadPort',
