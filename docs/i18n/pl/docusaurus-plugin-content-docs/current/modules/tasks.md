@@ -666,15 +666,21 @@ Inny moduł, moduł nakładki albo proces integracji zapisuje zadanie przez
 `TaskCommandPort` w `@endora-commerce/contracts`. Nigdy nie zapisuje
 bezpośrednio do tabel tego modułu.
 
-Każda metoda uruchamia te polecenia, które uruchamia trasa panelu
-administracyjnego dla tej samej operacji, przez tę samą usługę, więc
-sprawdzenia przed nimi, ślad audytu i powiadomienia po nich są takie same:
+Każda metoda uruchamia dokładnie jedno polecenie, we własnej transakcji: to,
+które trasa panelu administracyjnego uruchamia dla tej samej zmiany, przez tę
+samą usługę, więc sprawdzenia przed nim, ślad audytu i powiadomienia po nim są
+takie same, a odmowa zawsze oznacza, że nic nie zostało zapisane:
 
 | Metoda | Akcja audytu | Co administrator robi tak samo |
 | --- | --- | --- |
 | `create(input, options?)` | `tasks.task.create` | `POST /api/v1/admin/tasks` |
 | `createMany({ context, tasks }, options?)` | po jednym `tasks.task.create` na zadanie | brak: zadania rekordu, którego jesteś właścicielem (niżej) |
-| `update(id, patch, options?)` | `tasks.task.update`, `.assignees_change`, `.priority_change`, `.tags_change`, `.parent_change`, `.privacy_change` | `PATCH /api/v1/admin/tasks/:id` (wszystko poza `customFieldValues`) |
+| `update(id, { title?, description?, dueOn?, dueAt?, startOn?, context? }, options?)` | `tasks.task.update` | `PATCH /api/v1/admin/tasks/:id` (te pola) |
+| `setParent(id, { parentTaskId }, options?)` | `tasks.task.parent_change` | `PATCH /api/v1/admin/tasks/:id` (`parentTaskId`) |
+| `setPriority(id, { priorityCode }, options?)` | `tasks.task.priority_change` | `PATCH /api/v1/admin/tasks/:id` (`priorityCode`) |
+| `setTags(id, { tagIds }, options?)` | `tasks.task.tags_change` | `PATCH /api/v1/admin/tasks/:id` (`tagIds`) |
+| `setAssignees(id, { set } albo { add, remove }, options?)` | `tasks.task.assignees_change` | `PATCH /api/v1/admin/tasks/:id` (`assigneeIds` albo `addAssigneeIds` i `removeAssigneeIds`) |
+| `setPrivate(id, { private }, options?)` | `tasks.task.privacy_change` | `PATCH /api/v1/admin/tasks/:id` (`private`) |
 | `setStatus(id, { to, from? }, options?)` | `tasks.task.status_change` | `POST /api/v1/admin/tasks/:id/status` |
 | `setCustomFieldValues(id, merge, options?)` | `tasks.task.custom_fields_change` | `PATCH /api/v1/admin/tasks/:id` (`customFieldValues`) |
 | `publish(id, options?)` | `tasks.task.publish` | `POST /api/v1/admin/tasks/:id/publish` |
@@ -687,17 +693,23 @@ sprawdzenia przed nimi, ślad audytu i powiadomienia po nich są takie same:
 | `delete(id, options?)` | `tasks.task.delete` | `DELETE /api/v1/admin/tasks/:id` |
 | `deleteInContext({ contextType, contextId }, options?)` | po jednym `tasks.task.delete` na zadanie | brak: zadania rekordu, którego jesteś właścicielem (niżej) |
 
-`update` uruchamia to, co uruchamia `PATCH`, w tej samej kolejności, każde
-polecenie tylko wtedy, gdy coś zmienia, i każde we własnej transakcji:
-upublicznienie zadania, jego zadanie nadrzędne, pola, priorytet, etykiety,
-osoby przypisane i na końcu uczynienie go prywatnym. Odmowa w późniejszym
-poleceniu zostawia wcześniejsze zapisane, tak jak na ekranie. `setStatus`
+`PATCH` w panelu może zmienić to wszystko naraz, jako do siedmiu poleceń; port
+oferuje każde jako osobną metodę, więc wywołanie nigdy nie zostawia zmiany
+zapisanej tylko w części. `update` przyjmuje wyłącznie pola, które zapisuje
+`tasks.task.update`, a każdy inny klucz to `422` `VALIDATION_FAILED`.
+`setPrivate` jest sprawdzane względem zadania w jego obecnym stanie: zmienić je
+może tylko twórca, a zadanie prywatne nie należy do rekordu i nie ma osób
+przypisanych poza twórcą. Aby uczynić zadanie prywatnym, najpierw wyjmij je z
+rekordu przez `update`, a potem usuń pozostałe osoby przypisane przez
+`setAssignees`, w tej kolejności. Wywołanie, które niczego nie zmienia,
+niczego nie zapisuje ani nie rejestruje. `setStatus`
 przyjmuje jako `from` status, w którym odczytałeś zadanie, albo — gdy go
 pominiesz — status, który metoda odczytuje sama. Przejście, na które przebieg
 nie pozwala, to `409` `TASK_TRANSITION_FORBIDDEN`, zadanie, które nie jest już
 w `from`, to `409` `TASK_TRANSITION_CONFLICT`, a kod, którego przebieg nie
 zawiera, to `422` `TASK_STATUS_UNKNOWN`. To ostatnie dotyczy kodu w każdej
-postaci.
+postaci. Każda odmowa jest rzucana jako kod błędu trasy; żadna metoda nie
+zwraca w zamian wartości wyniku.
 
 `create`, `update`, `setStatus`, `setCustomFieldValues` i `publish` zwracają
 zadanie jako `TaskRecord`, odczytane po zapisie. `link` zwraca `{ linkId }`,
@@ -722,10 +734,14 @@ zasady:
   administrator, są odrzucane z `403` `FORBIDDEN`, zanim cokolwiek zostanie
   odczytane, więc uruchamiaj je w `withSystemScopeActingFor`. `publish`
   wymaga twórcy szkicu, bo każdy inny dostaje `404` `TASK_NOT_FOUND`, tak jak
-  na ekranie.
+  na ekranie. `setPrivate` też wymaga twórcy, a każdy inny dostaje `403`
+  `FORBIDDEN`.
 - Prywatne zadanie innego administratora jest tylko do odczytu dla wszystkich
   poza jego twórcą, również dla systemu: każdy zapis poza `delete` to `403`
-  `TASK_PRIVATE_READ_ONLY`.
+  `TASK_PRIVATE_READ_ONLY`. Usunięcie pozostaje możliwe, tak jak dla
+  posiadacza `tasks:see_private`: zmiana zadania prywatnego należy wyłącznie do
+  twórcy, a usunąć je może każdy, kto je widzi — system zaś widzi każde
+  zadanie.
 
 **To, co następuje po zapisie, następuje też po wywołaniu portu**: osoby nowo
 przypisane albo wspomniane przez `create`, `update` i `publish` dostają
@@ -744,19 +760,22 @@ zmianę wartości, rejestruje się raz.
 **Opcje**, ostatni argument każdej metody:
 
 - `source`: kod nazywający twoją integrację (`^[a-z][a-z0-9_.-]{0,63}$`),
-  zapisywany obok aktora we wpisie audytu każdego polecenia, które uruchamia
-  metoda. Każda inna wartość jest odrzucana z `422` `VALIDATION_FAILED`, zanim
+  zapisywany obok aktora we wpisie audytu polecenia, które uruchamia metoda.
+  Wpisy, które to polecenie zapisuje dla innego obiektu (dawne podzadania
+  usuniętego zadania, drugie zadanie powiązania, przypomnienia usunięte razem z
+  terminem), mają aktora, ale nie mają `source`. Każda inna wartość jest odrzucana z `422` `VALIDATION_FAILED`, zanim
   cokolwiek zostanie odczytane.
 - `expectedVersion`: pomijane. Zadanie nie ma wersji, a jego sprawdzeniem jest
   `from` w `setStatus`.
 - `extensions`: dane wejściowe dla haków poleceń akcji, według identyfikatora
   modułu haka. Żadna akcja zadania nie przyjmuje haków, więc każdy klucz jest
   odrzucany z `422` `COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek zostanie
-  zapisane. `update`, który niczego nie zmienia, nie uruchamia żadnego
+  zapisane. Wywołanie, które niczego nie zmienia, nie uruchamia żadnego
   polecenia, więc jego klucze nie są odrzucane.
 
-Wywołanie otwiera własne transakcje. Wywołuj je po zatwierdzeniu własnej
-transakcji, nigdy wewnątrz niej.
+Wywołanie jest osobną transakcją (`createMany` i `deleteInContext`: jedną na
+zadanie, niżej). Wywołuj je po zatwierdzeniu własnej transakcji, nigdy
+wewnątrz niej.
 
 **Zadania rekordu, którego jesteś właścicielem.** Moduł, który zarejestrował
 kontekst zadania (wyżej), tworzy i usuwa zadania własnych rekordów przez

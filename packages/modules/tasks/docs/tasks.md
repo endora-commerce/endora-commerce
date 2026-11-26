@@ -613,15 +613,21 @@ through **`taskCommandPort`**, the Task's write port, declared as
 `TaskCommandPort` in `@endora-commerce/contracts`. It never writes this module's
 tables itself.
 
-Each method runs the commands the admin route for the same operation runs,
-through the same service, so the checks before them, the audit trail and the
-notices after them are the same:
+Each method runs exactly one command, in a transaction of its own: the one
+the admin route runs for the same change, through the same service, so the
+checks before it, the audit trail and the notices after it are the same, and a
+refusal always means nothing was written:
 
 | Method | Audit action | What the admin does the same way |
 | --- | --- | --- |
 | `create(input, options?)` | `tasks.task.create` | `POST /api/v1/admin/tasks` |
 | `createMany({ context, tasks }, options?)` | one `tasks.task.create` per task | none: the tasks of a record you own (below) |
-| `update(id, patch, options?)` | `tasks.task.update`, `.assignees_change`, `.priority_change`, `.tags_change`, `.parent_change`, `.privacy_change` | `PATCH /api/v1/admin/tasks/:id` (everything but `customFieldValues`) |
+| `update(id, { title?, description?, dueOn?, dueAt?, startOn?, context? }, options?)` | `tasks.task.update` | `PATCH /api/v1/admin/tasks/:id` (those fields) |
+| `setParent(id, { parentTaskId }, options?)` | `tasks.task.parent_change` | `PATCH /api/v1/admin/tasks/:id` (`parentTaskId`) |
+| `setPriority(id, { priorityCode }, options?)` | `tasks.task.priority_change` | `PATCH /api/v1/admin/tasks/:id` (`priorityCode`) |
+| `setTags(id, { tagIds }, options?)` | `tasks.task.tags_change` | `PATCH /api/v1/admin/tasks/:id` (`tagIds`) |
+| `setAssignees(id, { set } or { add, remove }, options?)` | `tasks.task.assignees_change` | `PATCH /api/v1/admin/tasks/:id` (`assigneeIds`, or `addAssigneeIds` and `removeAssigneeIds`) |
+| `setPrivate(id, { private }, options?)` | `tasks.task.privacy_change` | `PATCH /api/v1/admin/tasks/:id` (`private`) |
 | `setStatus(id, { to, from? }, options?)` | `tasks.task.status_change` | `POST /api/v1/admin/tasks/:id/status` |
 | `setCustomFieldValues(id, merge, options?)` | `tasks.task.custom_fields_change` | `PATCH /api/v1/admin/tasks/:id` (`customFieldValues`) |
 | `publish(id, options?)` | `tasks.task.publish` | `POST /api/v1/admin/tasks/:id/publish` |
@@ -634,16 +640,21 @@ notices after them are the same:
 | `delete(id, options?)` | `tasks.task.delete` | `DELETE /api/v1/admin/tasks/:id` |
 | `deleteInContext({ contextType, contextId }, options?)` | one `tasks.task.delete` per task | none: the tasks of a record you own (below) |
 
-`update` runs what the `PATCH` runs, in the same order, each command only when
-it changes something and each in a transaction of its own: making the task
-public, its parent, its fields, its priority, its tags, its assignees, and
-making it private last. A refusal in a later command leaves the earlier ones
-written, as on the screen. `setStatus` takes the status you read the task in as
+The admin `PATCH` can change all of these at once, as up to seven commands;
+the port offers each as its own method, so a call never leaves part of a
+change written. `update` takes only the fields `tasks.task.update` writes, and
+any other key is `422` `VALIDATION_FAILED`. `setPrivate` is checked against the
+task as it stands: only its creator may change it, and a private task has no
+record and no assignee but its creator. To make a task private, take it out of
+its record with `update` and clear its other assignees with `setAssignees`
+first, in that order. A call that changes nothing writes and records nothing.
+`setStatus` takes the status you read the task in as
 `from`, or the one the method reads itself when you leave it out. A move the
 workflow does not permit is `409` `TASK_TRANSITION_FORBIDDEN`, a task no longer
 in `from` is `409` `TASK_TRANSITION_CONFLICT`, and a code the workflow does not
 hold is `422` `TASK_STATUS_UNKNOWN`. That last one applies whatever the code's
-form.
+form. Every refusal is thrown as the route's error code; no method answers an
+outcome value instead.
 
 `create`, `update`, `setStatus`, `setCustomFieldValues` and `publish` answer
 the task as a `TaskRecord`, read after the write. `link` answers `{ linkId }`,
@@ -667,10 +678,13 @@ and sees only what they may see. Two rules follow from what a task records:
   `FORBIDDEN` before anything is read when no administrator is behind the call,
   so run them under `withSystemScopeActingFor`. `publish` needs the draft's
   creator, since anybody else is answered `404` `TASK_NOT_FOUND`, as on the
-  screen.
+  screen. `setPrivate` needs the creator too, and is `403` `FORBIDDEN` for
+  anybody else.
 - Another administrator's private task is read-only to everybody but its
   creator, the system included: every write but `delete` is `403`
-  `TASK_PRIVATE_READ_ONLY`.
+  `TASK_PRIVATE_READ_ONLY`. Deleting one stays open, as it is to a holder of
+  `tasks:see_private`: changing a private task is its creator's alone, while
+  deleting it is open to whoever may see it, and the system sees every task.
 
 **What follows a write follows a port call too**: the people newly assigned or
 mentioned by `create`, `update` and `publish` are told (not while the task is a
@@ -687,17 +701,20 @@ change of the values registers once.
 **Options**, the last argument of every method:
 
 - `source`: a code naming your integration (`^[a-z][a-z0-9_.-]{0,63}$`),
-  recorded on the audit entry of each command a method runs, beside the actor.
-  Anything else is refused `422` `VALIDATION_FAILED` before anything is read.
+  recorded on the audit entry of the command a method runs, beside the actor.
+  The entries that command writes for another object (a deleted task's former
+  sub-tasks, the other task of a relation, reminders a cleared due date
+  removes) carry the actor but not the `source`. Anything else is refused
+  `422` `VALIDATION_FAILED` before anything is read.
 - `expectedVersion`: ignored. A task has no version, and `setStatus`'s `from`
   is its check.
 - `extensions`: input for the command hooks on the action, keyed by hook
   module id. No task action is hookable, so every key is refused `422`
-  `COMMAND_EXTENSION_UNCLAIMED` before anything is written. An `update` that
+  `COMMAND_EXTENSION_UNCLAIMED` before anything is written. A call that
   changes nothing runs no command, so its keys are not refused.
 
-A call opens its own transactions. Call it after your own commit, never inside
-it.
+A call is its own transaction (`createMany` and `deleteInContext`: one per
+task, below). Call it after your own commit, never inside it.
 
 **The tasks of a record you own.** A module that registered a task context
 (above) creates and deletes the tasks of its own records with `createMany` and

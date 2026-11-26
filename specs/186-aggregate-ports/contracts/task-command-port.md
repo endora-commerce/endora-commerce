@@ -14,9 +14,14 @@ outside the Command, before it (refusals) and after its commit (side effects).
 | --- | --- | --- | --- | --- |
 | `create(input, options?)` | `tasks.task.create` | C | `POST /tasks` (`routes.tasks.ts`, `TaskService.create`) | before: the context's owner and the caller's sight of it, `canChangeTasks`, private rules, assignees (active, `tasks:read`, may see the record), priority, tags, custom-field merge, parent, links, due moment; after: added assignees told (bell), newly mentioned people told — neither for a draft |
 | `createMany({ context, tasks }, options?)` | one `tasks.task.create` per entry | C | none (`taskWritePort.createMany`, `task-write-port.ts`) | before: batch size, entry shape, the context type's owner present, assignees active only (#506 ruling); source-key idempotence (R-19, #450); no bell |
-| `update(id, patch, options?)` | in this order, each only when it changes something, **each its own transaction**: `tasks.task.privacy_change` (to public), `tasks.task.parent_change` (`hierarchy-service.ts`), `tasks.task.update`, `tasks.task.priority_change`, `tasks.task.tags_change`, `tasks.task.assignees_change`, `tasks.task.privacy_change` (to private) | C | `PATCH /tasks/:id` (`TaskService.update`) | before: visibility, `assertMayChange`, take-out / put-in checks, assignees, private rules (Creator only), priority, tags; inside `tasks.task.update`: relative reminders follow a changed due moment (`followDueMoment`); after: added assignees and newly mentioned people told, not for a draft |
+| `update(id, patch, options?)` | `tasks.task.update` | C | `PATCH /tasks/:id` with the title, description, due date and time, start date or context (`TaskService.updateFields`) | before: visibility, `assertMayChange`, take-out / put-in checks, the kept assignees seeing a new record, a private Task in no record; inside: relative reminders follow a changed due moment (`followDueMoment`); after: newly mentioned people told, not for a draft |
+| `setParent(id, { parentTaskId }, options?)` | `tasks.task.parent_change` | C | `PATCH /tasks/:id` with `parentTaskId` (`hierarchy-service.ts`) | before: visibility, `assertMayChange`, the parent may be adopted; inside: cycle and depth under the hierarchy lock |
+| `setPriority(id, { priorityCode }, options?)` | `tasks.task.priority_change` | C | `PATCH /tasks/:id` with `priorityCode` | before: the priority is on the list; inside: held shared |
+| `setTags(id, { tagIds }, options?)` | `tasks.task.tags_change` | C | `PATCH /tasks/:id` with `tagIds` | before: every tag exists |
+| `setAssignees(id, { set } \| { add, remove }, options?)` | `tasks.task.assignees_change` | C | `PATCH /tasks/:id` with `assigneeIds`, or `addAssigneeIds` / `removeAssigneeIds` | before: active, `tasks:read`, may see the record; a private Task's only assignee is its Creator; after: the people added told, not for a draft |
+| `setPrivate(id, { private }, options?)` | `tasks.task.privacy_change` | C | `PATCH /tasks/:id` with `private` | before, against the Task as it stands: the Creator only, no context, no assignee but the Creator |
 | `setStatus(id, { to, from? }, options?)` | `tasks.task.status_change` | C | `POST /tasks/:id/status` (`TaskTransitionService.apply`) | every check inside the Command (target held, `from` still current, workflow move) |
-| `setCustomFieldValues(id, merge, options?)` | `tasks.task.custom_fields_change` | C | `PATCH /tasks/:id` with `customFieldValues` (runs between the tags and the assignees) | before: visibility, `assertMayChange`; the route merges before the Command, the port's merge runs under the row lock |
+| `setCustomFieldValues(id, merge, options?)` | `tasks.task.custom_fields_change` | C | `PATCH /tasks/:id` with `customFieldValues` | before: visibility, `assertMayChange`; the route merges before the Command, the port's merge runs under the row lock |
 | `publish(id, options?)` | `tasks.task.publish` | C | `POST /tasks/:id/publish` (`TaskService.publish`) | before: the caller is the draft's Creator; after: assignees and mentioned people told |
 | `relate(id, otherId, options?)` | `tasks.task.relate` | C | `PUT /tasks/:id/relations/:otherId` (`relation-service.ts`) | before: both Tasks visible and changeable; inside: a second entry on the other Task (hand-recorded on the Command's `em`) |
 | `unrelate(id, otherId, options?)` | `tasks.task.unrelate` | C | `DELETE /tasks/:id/relations/:otherId` | as `relate` |
@@ -43,7 +48,11 @@ reminder delivery, the digest, saved views, and the workflow, priority, tag and 
    (`task-audit-state.ts`, which runs inside a Command). R-23.6.
 2. **`update` is several Commands, not one, and not one transaction.** The draft said the route runs
    them "as children in one transaction". In fact it runs them one after another, each committed on
-   its own. The parent goes first because it is the one refused inside its Command. R-23.1.
+   its own. The parent goes first because it is the one refused inside its Command. R-23.1, ruled
+   *changed*: the port's `update` runs `tasks.task.update` alone, and each other Command of the
+   `PATCH` is its own method (`setParent`, `setPriority`, `setTags`, `setAssignees`, `setPrivate`,
+   `setCustomFieldValues`), over the same factories and the same checks, which `TaskService` shares
+   with the route's `updateTask`. The route's sequence is unchanged.
 3. **Seven methods need an administrator behind the call.** `tasks.created_by_admin_user_id`,
    `task_relations.created_by_admin_user_id`, `task_record_links.linked_by_admin_user_id`,
    `task_reminders.created_by_admin_user_id` and `task_comments.author_admin_user_id` are `not null`.
@@ -79,7 +88,8 @@ moves to `taskCommandPort`, keeping its `degrades-without` declaration under the
 
 ## Tests
 
-- `backend/test/contract/tasks/task-command-port.test.ts`: parity, the refusals of R-23.2–R-23.4,
+- `backend/test/contract/tasks/task-command-port.test.ts`: parity per method (each of R-23.1's
+  one-Command methods asserting exactly one audit row), the refusals of R-23.2–R-23.4,
   `source`, extensions, the off state and the delegation.
 - `backend/test/integration/tasks/task-command-port.worker.test.ts`: a worker publishes a draft and
   its assignees are told.
