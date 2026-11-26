@@ -2,6 +2,7 @@ import { bench, describe } from 'vitest';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import { CommandBus } from '../command-bus.js';
 import type { Command } from '../command.js';
+import { CommandMiddlewareRegistry } from './registry.js';
 import { EventBus, type EventBase } from '../../events/bus.js';
 import type { AuditPort, RecordAuditInput } from '../../kernel/ports/audit.js';
 import { runWithTenantContext, type TenantContext } from '../../tenancy/tenant-context.js';
@@ -25,7 +26,7 @@ import { runWithTenantContext, type TenantContext } from '../../tenancy/tenant-c
 
 const COMMANDS = 10_000;
 
-function harness(): { bus: CommandBus; recorded: RecordAuditInput[] } {
+function harness(middleware?: CommandMiddlewareRegistry): { bus: CommandBus; recorded: RecordAuditInput[] } {
   const recorded: RecordAuditInput[] = [];
   const fakeEm = {
     async transactional<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
@@ -41,6 +42,7 @@ function harness(): { bus: CommandBus; recorded: RecordAuditInput[] } {
   } as unknown as AuditPort;
   const bus = new CommandBus(orm, audit, new EventBus<Record<string, EventBase>>(), {
     getRequestMeta: () => ({ requestId: 'req-1', ipAddress: '127.0.0.1', userAgent: 'bench' }),
+    ...(middleware ? { middleware } : {}),
   });
   return { bus, recorded };
 }
@@ -63,7 +65,37 @@ async function runMany(bus: CommandBus, recorded: RecordAuditInput[]): Promise<v
   recorded.length = 0;
 }
 
+/** SC-003 — one synchronous `admit` and one `observe`, both matching every Command. */
+function withMiddleware(): CommandMiddlewareRegistry {
+  const quiet = { info: () => undefined, warn: () => undefined, error: () => undefined };
+  const registry = new CommandMiddlewareRegistry({ log: quiet });
+  registry.register('bench', [
+    { id: 'admit', phase: 'admit', admit: () => undefined },
+    { id: 'observe', phase: 'observe', observe: () => undefined },
+  ]);
+  registry.seal({
+    declarations: [
+      { moduleId: 'bench', id: 'admit', phase: 'admit', actions: '*' },
+      { moduleId: 'bench', id: 'observe', phase: 'observe', actions: '*' },
+    ],
+    moduleDependencies: {},
+    origins: { bench: 'deployment' },
+  });
+  return registry;
+}
+
 describe(`CommandBus — ${COMMANDS} no-op Commands`, () => {
   const plain = harness();
+  const registry = withMiddleware();
+  const middleware = harness(registry);
   bench('no middleware', () => runMany(plain.bus, plain.recorded), { iterations: 30, warmupIterations: 5 });
+  // The observers' own work is included: the sample ends once none is in flight.
+  bench(
+    'one sync admit and one observe',
+    async () => {
+      await runMany(middleware.bus, middleware.recorded);
+      await registry.settled();
+    },
+    { iterations: 30, warmupIterations: 5 },
+  );
 });
