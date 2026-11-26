@@ -11,7 +11,7 @@ import { OrganizationPicker } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, AlertTitle, Button, Checkbox, EditorSection, Label, Skeleton } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { organizationMergesApi } from './merge-api.js';
-import { canStart, fieldValueText, incompleteModules, moduleName, noticeMessage, participantLabel, refusalMessage, totalMoving, type Translate } from './merge-view.js';
+import { canStart, fieldValueText, incompleteModules, moduleName, noticeMessage, isHostStep, participantCounts, participantLabel, refusalMessage, shownInPreview, totalMoving, type Translate } from './merge-view.js';
 
 export interface OrganizationMergeFlowProps {
   /** The organization that stays. */
@@ -54,6 +54,8 @@ export function OrganizationMergeFlow(props: OrganizationMergeFlowProps): ReactN
   const translate: Translate = t;
   const pickerId = useId();
   const [step, setStep] = useState<Step>(1);
+  // The organization that stays is never offered as its own duplicate.
+  const survivorExcluded = useMemo(() => [props.survivorId], [props.survivorId]);
   const [loserId, setLoserId] = useState<string | null>(null);
   const [loserName, setLoserName] = useState<string>('');
   const [preview, setPreview] = useState<PreviewState>({ kind: 'idle' });
@@ -133,6 +135,7 @@ export function OrganizationMergeFlow(props: OrganizationMergeFlowProps): ReactN
               id={pickerId}
               ariaLabel={own('merge.flow.picker')}
               kind="company"
+              excludeIds={survivorExcluded}
               value={loserId}
               onChange={(id): void => {
                 setLoserId(id);
@@ -264,12 +267,12 @@ function PreviewReview(props: PreviewReviewProps): ReactNode {
   const otherRefusals = preview.refusals.filter((r) => r.code !== 'RECORD_MERGE_PARTICIPATION_INCOMPLETE');
   const participants = useMemo(
     () =>
-      preview.participants.map((p) => ({
+      preview.participants.filter(shownInPreview).map((p) => ({
         ...p,
-        total: Object.values(p.counts).reduce((a, b) => a + b, 0),
-        name: participantLabel(translate, p.moduleId, p.key),
+        moving: participantCounts(p),
+        name: isHostStep(p) ? own('merge.step.hostStructure') : participantLabel(translate, p.moduleId, p.key),
       })),
-    [preview.participants, translate],
+    [preview.participants, translate, own],
   );
 
   return (
@@ -306,8 +309,11 @@ function PreviewReview(props: PreviewReviewProps): ReactNode {
               <li key={`${p.moduleId}:${p.key}`} className="grid gap-1 py-2">
                 <div className="flex items-center justify-between gap-3">
                   <span>{p.name}</span>
-                  <span className="tabular-nums">{p.total}</span>
+                  <span className="tabular-nums">{p.moving.visible}</span>
                 </div>
+                {p.moving.deleted > 0 ? (
+                  <p className="text-xs text-muted-foreground">{own('merge.preview.moves.deleted', { count: p.moving.deleted })}</p>
+                ) : null}
                 {p.conflicts.map((c, i) => (
                   <p key={`c${i}`} className="text-xs text-muted-foreground">
                     {own('merge.preview.conflict', {

@@ -717,6 +717,7 @@
   "merge.flow.theSurvivor": "projekt, który zostaje",
   "merge.preview.moves.title": "Co przejdzie do {survivor}",
   "merge.preview.moves.none": "Duplikat nie ma rekordów do przeniesienia.",
+  "merge.preview.moves.deleted": "Oraz usunięte: {count} — też zostaną przeniesione, żeby nic nie wskazywało na duplikat.",
   "merge.preview.conflict": "Konflikt: {conflict} Rozwiązanie: {resolution}",
   "merge.preview.warning": "Ostrzeżenie",
   "merge.preview.values.title": "Różniące się wartości",
@@ -778,7 +779,6 @@
   "merge.list.title": "Scalenia projektów",
   "merge.list.filter": "Pokaż",
   "merge.list.filterAll": "Wszystkie scalenia",
-  "merge.list.loading": "Wczytywanie scaleń",
   "merge.list.loadError": "Nie udało się wczytać scaleń.",
   "merge.list.pair": "{loser} z {survivor}",
   "merge.list.resumeRow": "Wznów scalanie {merge}",
@@ -808,5 +808,6 @@
   "merge.mergedFrom.title": "Scalone projekty",
   "merge.mergedFrom.entry": "Scalono z {loser}",
   "notifications.merge.needsAttention.title": "Scalanie {loser} z {survivor} wymaga uwagi",
-  "notifications.merge.completed.title": "Projekt {loser} scalono z {survivor}"
+  "notifications.merge.completed.title": "Projekt {loser} scalono z {survivor}",
+  "merge.participation.project-records": "komentarze, linki i załączniki"
 }

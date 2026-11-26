@@ -10,6 +10,8 @@ import {
   phasesOf,
   progressOf,
   refusalMessage,
+  participantCounts,
+  shownInPreview,
   totalMoving,
   type Translate,
 } from './merge-view.js';
@@ -28,7 +30,7 @@ const BUNDLES: Record<string, Record<string, string>> = {
     'merge.warning.API_KEY_BOUND_KEYS_REPOINTED': '{count} keys re-pointed.',
   },
   orders: { 'module.name': 'Orders', 'errors.RECORD_MERGE_BUSY': 'An order is being placed.', 'merge.warning.OPEN_PLACEMENT': 'Open placement.' },
-  crm: { 'module.name': 'CRM' },
+  crm: { 'module.name': 'CRM', 'merge.participation.organization-opportunities': 'opportunities' },
 };
 
 const t: Translate = (scope, key, params) => {
@@ -154,9 +156,43 @@ describe('participant notices and labels, for codes and modules this screen was 
     expect(noticeMessage(t, 'conflict', 'orders', { code: 'OPEN_PLACEMENT' })).toBe('Open placement.');
   });
 
-  it('names a participant by its module, with its key when the key is not the module id', () => {
+  it('names a participant by its module, with the module’s own words for the part when it has them, never by its key', () => {
     expect(participantLabel(t, 'orders', 'orders')).toBe('Orders');
     expect(participantLabel(t, 'price_lists', 'price-lists')).toBe('price_lists');
-    expect(participantLabel(t, 'orders', 'order-notes')).toBe('Orders (order-notes)');
+    expect(participantLabel(t, 'orders', 'order-notes')).toBe('Orders');
+    expect(participantLabel(t, 'crm', 'organization-opportunities')).toBe('CRM — opportunities');
+  });
+});
+
+describe('deleted records in the preview', () => {
+  const participant = {
+    moduleId: 'addresses',
+    key: 'addresses',
+    phase: 'addresses',
+    counts: { 'Address.organizationId': 24 },
+    deletedCounts: { 'Address.organizationId': 22 },
+    conflicts: [],
+    warnings: [],
+  };
+
+  it('counts what the operator still sees, and the deleted rows apart', () => {
+    expect(participantCounts(participant)).toEqual({ visible: 2, deleted: 22 });
+    expect(participantCounts({ ...participant, deletedCounts: undefined })).toEqual({ visible: 24, deleted: 0 });
+  });
+
+  it('leaves the deleted rows out of what the confirmation says moves', () => {
+    expect(totalMoving(preview({ participants: [participant] }))).toBe(2);
+  });
+});
+
+describe('which participants the preview lists', () => {
+  const row = { moduleId: 'orders', key: 'orders', phase: 'records', counts: { 'Order.organizationId': 0 }, conflicts: [], warnings: [] };
+
+  it('lists one that moves something, has deleted rows, a conflict or a warning, and leaves out the rest', () => {
+    expect(shownInPreview(row)).toBe(false);
+    expect(shownInPreview({ ...row, counts: { 'Order.organizationId': 1 } })).toBe(true);
+    expect(shownInPreview({ ...row, counts: { 'Order.organizationId': 2 }, deletedCounts: { 'Order.organizationId': 2 } })).toBe(true);
+    expect(shownInPreview({ ...row, warnings: [{ code: 'W' }] })).toBe(true);
+    expect(shownInPreview({ ...row, conflicts: [{ code: 'C', resolution: 'survivor' }] })).toBe(true);
   });
 });

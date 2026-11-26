@@ -290,11 +290,13 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
 
   // FR-062: assigning a role needs `customers:manage` alone, so the role list
   // is read only when the operator may read it; otherwise the selects offer the
-  // roles the members hold. A personal Organization's role routes answer 404.
+  // roles the members hold. A personal Organization's role routes answer 404,
+  // and so do a merged (archived) one's.
   const orgLoaded = org !== null;
   const isPersonal = org?.isPersonal === true;
+  const isMerged = org?.mergedIntoOrganizationId != null;
   const refreshRoles = useCallback(async (): Promise<void> => {
-    if (!canReadRoles || !orgLoaded || isPersonal) {
+    if (!canReadRoles || !orgLoaded || isPersonal || isMerged) {
       setRoleList(null);
       return;
     }
@@ -304,7 +306,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     } catch {
       setRoleList(null);
     }
-  }, [canReadRoles, orgLoaded, isPersonal, id]);
+  }, [canReadRoles, orgLoaded, isPersonal, isMerged, id]);
 
   useEffect(() => {
     void refreshRoles();

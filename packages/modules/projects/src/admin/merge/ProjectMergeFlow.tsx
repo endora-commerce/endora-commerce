@@ -12,7 +12,7 @@ import { useTranslation, useTranslationContext } from '@endora-commerce/admin-ki
 import { projectMergesApi } from './merge-api.js';
 import { projectsApi } from '../api.js';
 import { ProjectLookup } from '../components/LookupPickers.js';
-import { canStart, fieldValueText, moduleName, noticeMessage, participantLabel, refusalMessage, totalMoving, type Translate } from './merge-view.js';
+import { canStart, fieldValueText, moduleName, noticeMessage, isHostStep, participantCounts, participantLabel, refusalMessage, shownInPreview, totalMoving, type Translate } from './merge-view.js';
 
 /** The modules the start waits for (`RECORD_MERGE_PARTICIPATION_INCOMPLETE`), from the preview. */
 function incompleteModules(preview: ProjectMergePreview): readonly string[] {
@@ -271,12 +271,12 @@ function PreviewReview(props: PreviewReviewProps): ReactNode {
   const otherRefusals = preview.refusals.filter((r) => r.code !== 'RECORD_MERGE_PARTICIPATION_INCOMPLETE');
   const participants = useMemo(
     () =>
-      preview.participants.map((p) => ({
+      preview.participants.filter(shownInPreview).map((p) => ({
         ...p,
-        total: Object.values(p.counts).reduce((a, b) => a + b, 0),
-        name: participantLabel(translate, p.moduleId, p.key),
+        moving: participantCounts(p),
+        name: isHostStep(p) ? own('merge.step.hostStructure') : participantLabel(translate, p.moduleId, p.key),
       })),
-    [preview.participants, translate],
+    [preview.participants, translate, own],
   );
 
   return (
@@ -313,8 +313,11 @@ function PreviewReview(props: PreviewReviewProps): ReactNode {
               <li key={`${p.moduleId}:${p.key}`} className="grid gap-1 py-2">
                 <div className="flex items-center justify-between gap-3">
                   <span>{p.name}</span>
-                  <span className="tabular-nums">{p.total}</span>
+                  <span className="tabular-nums">{p.moving.visible}</span>
                 </div>
+                {p.moving.deleted > 0 ? (
+                  <p className="text-xs text-muted-foreground">{own('merge.preview.moves.deleted', { count: p.moving.deleted })}</p>
+                ) : null}
                 {p.conflicts.map((c, i) => (
                   <p key={`c${i}`} className="text-xs text-muted-foreground">
                     {own('merge.preview.conflict', {

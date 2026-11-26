@@ -92,14 +92,14 @@ export function noticeMessage(
 }
 
 /**
- * A participant or a step, named for the operator: the module's own name, and its
- * participation key beside it when the key is not just the module's id (a module
- * may take part more than once). Works for modules this screen does not know.
+ * A participant or a step, named by its module — with the module's own words
+ * for the part (`merge.participation.<key>` in its bundle) when it has more
+ * than one, and never by its key, which is an identifier, not a label.
  */
 export function participantLabel(t: Translate, moduleId: string, key: string): string {
   const name = moduleName(t, moduleId);
-  const plain = key === moduleId || key === moduleId.replaceAll('_', '-');
-  return plain ? name : `${name} (${key})`;
+  const part = resolved(t, moduleId, `merge.participation.${key}`);
+  return part === null ? name : `${name} — ${part}`;
 }
 
 /** May the operator start? Only a preview with no refusal. */
@@ -115,12 +115,38 @@ export function incompleteModules(preview: OrganizationMergePreview): readonly s
   return Array.isArray(modules) ? modules.map(String) : [];
 }
 
-/** Rows that would follow the survivor, over every participant. */
+const sumOf = (counts: Readonly<Record<string, number>> | undefined): number =>
+  Object.values(counts ?? {}).reduce((a, b) => a + b, 0);
+
+/**
+ * What one participant moves: the rows the operator still sees, and apart the
+ * soft-deleted ones that move with them — which `counts` includes, so they are
+ * taken out of it here rather than shown as records the duplicate seems to hold.
+ */
+export function participantCounts(participant: {
+  readonly counts: Readonly<Record<string, number>>;
+  readonly deletedCounts?: Readonly<Record<string, number>> | undefined;
+}): { visible: number; deleted: number } {
+  const deleted = sumOf(participant.deletedCounts);
+  return { visible: Math.max(0, sumOf(participant.counts) - deleted), deleted };
+}
+
+/**
+ * Whether the preview lists a participant: one that moves something, has
+ * deleted rows, a conflict or a warning. The rest move nothing and only
+ * lengthen the list; the progress view still shows every step.
+ */
+export function shownInPreview(participant: Parameters<typeof participantCounts>[0] & {
+  readonly conflicts: readonly unknown[];
+  readonly warnings: readonly unknown[];
+}): boolean {
+  const { visible, deleted } = participantCounts(participant);
+  return visible > 0 || deleted > 0 || participant.conflicts.length > 0 || participant.warnings.length > 0;
+}
+
+/** Rows the operator sees that would follow the survivor, over every participant. */
 export function totalMoving(preview: OrganizationMergePreview): number {
-  return preview.participants.reduce(
-    (sum, participant) => sum + Object.values(participant.counts).reduce((a, b) => a + b, 0),
-    0,
-  );
+  return preview.participants.reduce((sum, participant) => sum + participantCounts(participant).visible, 0);
 }
 
 /**

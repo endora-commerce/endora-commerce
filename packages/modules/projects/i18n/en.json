@@ -717,6 +717,7 @@
   "merge.flow.theSurvivor": "the project to keep",
   "merge.preview.moves.title": "What moves to {survivor}",
   "merge.preview.moves.none": "The duplicate holds no records to move.",
+  "merge.preview.moves.deleted": "Also {count} deleted, which move too so that nothing points at the duplicate.",
   "merge.preview.conflict": "Conflict: {conflict} Resolved by: {resolution}",
   "merge.preview.warning": "Warning",
   "merge.preview.values.title": "Values that differ",
@@ -778,7 +779,6 @@
   "merge.list.title": "Project merges",
   "merge.list.filter": "Show",
   "merge.list.filterAll": "All merges",
-  "merge.list.loading": "Loading merges",
   "merge.list.loadError": "The merges could not be loaded.",
   "merge.list.pair": "{loser} into {survivor}",
   "merge.list.resumeRow": "Resume the merge of {merge}",
@@ -808,5 +808,6 @@
   "merge.mergedFrom.title": "Merged projects",
   "merge.mergedFrom.entry": "Merged from {loser}",
   "notifications.merge.needsAttention.title": "Merging {loser} into {survivor} needs attention",
-  "notifications.merge.completed.title": "{loser} was merged into {survivor}"
+  "notifications.merge.completed.title": "{loser} was merged into {survivor}",
+  "merge.participation.project-records": "comments, links and attachments"
 }

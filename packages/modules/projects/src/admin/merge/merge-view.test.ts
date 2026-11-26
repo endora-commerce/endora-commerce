@@ -9,6 +9,8 @@ import {
   phasesOf,
   progressOf,
   refusalMessage,
+  participantCounts,
+  shownInPreview,
   totalMoving,
   type Translate,
 } from './merge-view.js';
@@ -21,6 +23,7 @@ const BUNDLES: Record<string, Record<string, string>> = {
     'errors.PROJECT_MERGED': 'Merged.',
     'visibility.option.everyone': 'Everyone',
     'merge.value.valueWithCurrency': '{amount} {currency}',
+    'merge.participation.project-records': 'comments',
   },
   tasks: { 'module.name': 'Tasks' },
 };
@@ -59,8 +62,9 @@ describe('Project merge view helpers', () => {
     expect(refusalMessage(t, { code: 'SOMETHING_NEW' })).toBe('SOMETHING_NEW');
   });
 
-  it('names a participant by its module, and its key beside it when the key says more', () => {
-    expect(participantLabel(t, 'tasks', 'project-tasks')).toBe('Tasks (project-tasks)');
+  it('names a participant by its module, with the module’s own words for the part when it has them, never by its key', () => {
+    expect(participantLabel(t, 'tasks', 'project-tasks')).toBe('Tasks');
+    expect(participantLabel(t, 'projects', 'project-records')).toBe('projects — comments');
     expect(participantLabel(t, 'tasks', 'tasks')).toBe('Tasks');
     expect(noticeMessage(t, 'warning', 'tasks', { code: 'X' })).toBe('X');
   });
@@ -103,5 +107,36 @@ describe('Project merge view helpers', () => {
     expect(fieldValueText('visibility', 'everyone', own)).toBe('Everyone');
     expect(fieldValueText('description', '', own)).toBeNull();
     expect(fieldValueText('title', 'Tender', own)).toBe('Tender');
+  });
+});
+
+describe('deleted records in the preview', () => {
+  const participant = {
+    moduleId: 'addresses',
+    key: 'addresses',
+    phase: 'addresses',
+    counts: { 'Address.organizationId': 24 },
+    deletedCounts: { 'Address.organizationId': 22 },
+    conflicts: [],
+    warnings: [],
+  };
+
+  it('counts what the operator still sees, and the deleted rows apart', () => {
+    expect(participantCounts(participant)).toEqual({ visible: 2, deleted: 22 });
+    expect(participantCounts({ ...participant, deletedCounts: undefined })).toEqual({ visible: 24, deleted: 0 });
+  });
+
+  it('leaves the deleted rows out of what the confirmation says moves', () => {
+    expect(totalMoving(preview({ participants: [participant] }))).toBe(2);
+  });
+});
+
+describe('which participants the preview lists', () => {
+  const row = { moduleId: 'tasks', key: 'project-tasks', phase: 'records', counts: { 'Task.contextId': 0 }, conflicts: [], warnings: [] };
+
+  it('lists one that moves something or has a notice, and leaves out the rest', () => {
+    expect(shownInPreview(row)).toBe(false);
+    expect(shownInPreview({ ...row, counts: { 'Task.contextId': 3 } })).toBe(true);
+    expect(shownInPreview({ ...row, warnings: [{ code: 'W' }] })).toBe(true);
   });
 });

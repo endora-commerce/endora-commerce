@@ -162,7 +162,7 @@ describe('the Project merge flow', () => {
     const user = userEvent.setup();
     renderFlow(onStarted);
     await pickDuplicate(user);
-    expect(await screen.findByText(/Tasks \(project-tasks\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Tasks$/)).toBeInTheDocument();
     const title = await screen.findByRole('radiogroup', { name: EN['merge.field.title']! });
     await user.click(within(title).getByRole('radio', { name: /Tender \(copy\)/ }));
     fireEvent.click(screen.getByRole('button', { name: EN['merge.flow.next']! }));
