@@ -32,7 +32,7 @@ import { assertSalesChannelsExist } from '../services/organization-write-guards.
  */
 
 export interface SetSalesChannelsCommandDeps {
-  readonly membership: Pick<SalesChannelMembershipPort, 'replaceChannelsForEntity' | 'listChannelsForEntity'>;
+  readonly membership: Pick<SalesChannelMembershipPort, 'replaceChannelsForEntity'>;
 }
 
 export interface SetSalesChannelsCommandInput {
@@ -66,18 +66,21 @@ export function makeSetSalesChannelsCommand(
           { path: 'salesChannelIds', issue: 'too_small' },
         ]);
       }
-      // The committed set the replacement starts from, for the entry's `before`.
-      const before = (await deps.membership.listChannelsForEntity('organization', organization.id))
-        .map((channel) => channel.id)
-        .sort();
-      const { changed } = await deps.membership.replaceChannelsForEntity('organization', organization.id, [first, ...rest], {
-        em,
-        actorAdminUserId: actor.actorAdminUserId,
-      });
+      const { changed, previousChannelIds } = await deps.membership.replaceChannelsForEntity(
+        'organization',
+        organization.id,
+        [first, ...rest],
+        { em, actorAdminUserId: actor.actorAdminUserId },
+      );
       if (!changed) return { result: organization, skipAudit: true };
+      // The writer's own read inside this transaction is the entry's `before`:
+      // a second read on another connection could see a different set.
+      if (previousChannelIds === undefined) {
+        throw new Error('organization.sales_channels.set: the membership writer did not answer the set it replaced.');
+      }
       return {
         result: organization,
-        before: { salesChannelIds: before },
+        before: { salesChannelIds: [...previousChannelIds].sort() },
         after: { salesChannelIds: [...new Set(input.salesChannelIds)].sort() },
       };
     },

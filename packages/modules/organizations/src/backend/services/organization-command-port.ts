@@ -99,7 +99,7 @@ export interface OrganizationAggregateDeps {
    * Kernel-provided; binds a created Organization's channels in the creating
    * transaction, and replaces them inside `organization.sales_channels.set`.
    */
-  readonly membership: Pick<SalesChannelMembershipPort, 'replaceChannelsForEntity' | 'listChannelsForEntity'>;
+  readonly membership: Pick<SalesChannelMembershipPort, 'replaceChannelsForEntity'>;
   readonly dictionaryValidator: Pick<DictionaryValidator, 'validateCountryCode'>;
   readonly tree: OrganizationTreeService;
   readonly customFieldValues: Pick<CustomFieldValuePort, 'validateAndMerge'>;

@@ -3,7 +3,7 @@ import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { CommandBus } from '@endora-commerce/platform/commands';
 import { EventBus, type EventBase } from '@endora-commerce/platform/events';
-import type { AuditPort, MembershipMutationOptions, SalesChannel } from '@endora-commerce/platform/kernel';
+import type { AuditPort, MembershipMutationOptions } from '@endora-commerce/platform/kernel';
 import { withSystemScope, withSystemScopeActingFor } from '@endora-commerce/platform/tenancy';
 import { makeSetSalesChannelsCommand } from './set-sales-channels.command.js';
 
@@ -12,8 +12,8 @@ import { makeSetSalesChannelsCommand } from './set-sales-channels.command.js';
  * research R-16.1). The replacement runs through the kernel's membership
  * writer on the Command's own `em` — so the writer enlists, and its
  * per-membership entries commit or roll back with this one — and the Command
- * records one `organization` entry of its own, the channel ids before and
- * after. The same set again changes nothing and records nothing; an unknown
+ * records one `organization` entry of its own, the channel ids before (the
+ * writer's own in-transaction read) and after. The same set again changes nothing and records nothing; an unknown
  * Organization and an unknown channel are refused before anything is written,
  * the channel with the code the caller names (R-16.5).
  */
@@ -52,9 +52,6 @@ function harness(options: { assigned?: string[]; deleted?: boolean; writerFails?
     },
   };
   const membership = {
-    async listChannelsForEntity(_type: string, id: string) {
-      return (id === ORG ? assigned.map((channelId) => ({ id: channelId })) : []) as unknown as SalesChannel[];
-    },
     async replaceChannelsForEntity(
       entityType: string,
       entityId: string,
@@ -66,10 +63,10 @@ function harness(options: { assigned?: string[]; deleted?: boolean; writerFails?
       const desired = [...new Set(channelIds)].sort();
       const current = [...assigned].sort();
       if (desired.length === current.length && desired.every((id, i) => id === current[i])) {
-        return { changed: false };
+        return { changed: false, previousChannelIds: current };
       }
       assigned = desired;
-      return { changed: true };
+      return { changed: true, previousChannelIds: current };
     },
   };
   const audit = {
@@ -178,6 +175,19 @@ describe('organization.sales_channels.set (186 T028, R-16.1)', () => {
       expect(h.audits).toEqual([]);
       expect(h.assigned()).toEqual([CH_A]);
     }
+  });
+
+  it('refuses to guess the previous set when the writer does not answer it', async () => {
+    const h = harness();
+    const membership = {
+      replaceChannelsForEntity: async () => ({ changed: true }),
+    };
+    await expect(
+      withSystemScope('unit test: writer without previous set', () =>
+        h.bus.run(makeSetSalesChannelsCommand({ membership }, { organizationId: ORG, salesChannelIds: [CH_B] })),
+      ),
+    ).rejects.toThrow(/did not answer the set it replaced/);
+    expect(h.audits).toEqual([]);
   });
 
   it('records nothing when the writer refuses', async () => {

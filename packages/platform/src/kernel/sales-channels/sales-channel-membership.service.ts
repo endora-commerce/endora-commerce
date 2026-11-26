@@ -95,6 +95,16 @@ export interface MembershipMutationResult {
   changed: boolean;
   /** Set when the FR-008 fallback was applied. */
   fallbackAppliedToDefault?: boolean;
+  /**
+   * The entity's channel ids before the mutation, sorted — the set
+   * {@link SalesChannelMembershipService.replaceChannelsForEntity} replaced
+   * (or found already in place), from its own read on the manager it writes
+   * on, so inside the caller's transaction when it enlists. Lets a caller
+   * record the previous set without a second read on another connection
+   * (`specs/186-aggregate-ports/`, `organization.sales_channels.set`). Only
+   * `replaceChannelsForEntity` sets it.
+   */
+  previousChannelIds?: string[];
 }
 
 export class SalesChannelMembershipService {
@@ -395,12 +405,14 @@ export class SalesChannelMembershipService {
         em.getTransactionContext(),
       );
     const existingIds = existingRows.map((row) => row.sales_channel_id);
+    // Sorted by the statement; copied so the caller cannot alter the diff below.
+    const previousChannelIds = [...existingIds];
     const desiredSorted = [...desiredIds].sort();
     if (
       existingIds.length === desiredSorted.length &&
       existingIds.every((id, index) => id === desiredSorted[index])
     ) {
-      return { changed: false };
+      return { changed: false, previousChannelIds };
     }
 
     await em.transactional(async (tx) => {
@@ -441,7 +453,7 @@ export class SalesChannelMembershipService {
       this.emitMembershipChanged(channelId, entityType, entityId, 'add');
     }
 
-    return { changed: true };
+    return { changed: true, previousChannelIds };
   }
 
   /**

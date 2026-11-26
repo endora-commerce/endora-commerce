@@ -81,6 +81,8 @@ export interface SalesChannelMembershipPort {
   /**
    * Replace an entity's complete channel membership set atomically.
    * Complete-record integrations use this instead of composing add/remove.
+   * Answers `previousChannelIds`, the set it replaced, read on the manager it
+   * writes on.
    */
   replaceChannelsForEntity(
     entityType: ChannelMemberEntityType,
