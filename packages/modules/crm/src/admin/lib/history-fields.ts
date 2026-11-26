@@ -92,3 +92,25 @@ export function humaniseKey(key: string): string {
     .trim()
     .toLowerCase();
 }
+
+/** The one action whose `source` is the Opportunity's origin (`manual`, `order`, `quote_request`). */
+const ORIGIN_SOURCE_ACTION = 'crm.opportunity.create';
+
+/**
+ * An entry as the tab reads it: on every action but the creation, `source` is
+ * the code of the integration that wrote through `opportunityCommandPort`
+ * (`specs/186-aggregate-ports/` R-4), not a field of the Opportunity, so it is
+ * dropped rather than shown as a change of "Source". On the creation it is the
+ * origin, which a port-made Opportunity always has as `manual` — and an origin
+ * the tab does not know already reads as *Manual*. The platform audit log keeps
+ * the code; only this tab leaves it out (research R-21.7).
+ */
+export function withoutCallerSource<T extends { action?: string; before: unknown; after: unknown }>(entry: T): T {
+  if (entry.action === ORIGIN_SOURCE_ACTION) return entry;
+  const strip = (state: unknown): unknown => {
+    if (state === null || typeof state !== 'object' || Array.isArray(state) || !('source' in state)) return state;
+    const { source: _source, ...rest } = state as Record<string, unknown>;
+    return rest;
+  };
+  return { ...entry, before: strip(entry.before), after: strip(entry.after) };
+}

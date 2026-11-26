@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { calendarDateSchema, isoDateTimeSchema } from './common.js';
 import { collectionEnvelope, dataEnvelope } from './envelopes.js';
 import { customFieldFilterSchema, customFieldValuesSchema } from './custom-fields.js';
+import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
 import type { SupportedLanguage } from './platform-language.js';
 import type { QuoteRequestStatus } from './quote-requests.js';
 import { twoDecimalAmountString } from './money-input.js';
@@ -1605,6 +1606,14 @@ export interface OpportunityRecord {
   closedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * The operator-defined field values (User Story 15), keyed by definition key
+   * — the bag `opportunityCommandPort.setCustomFieldValues` writes
+   * (`specs/186-aggregate-ports/` R-8). Always filled by `crm`; optional on the
+   * type so a record built by a consumer's test double before 0.113.0 still
+   * compiles (research R-21.4).
+   */
+  customFieldValues?: Record<string, unknown>;
 }
 
 /**
@@ -1746,10 +1755,129 @@ export type OpportunityTransitionOutcome =
  * must not wrap the call in a bare `catch`.
  */
 export interface OpportunityTransitionPort {
+  /**
+   * @deprecated since 0.113.0; use {@link OpportunityCommandPort.transition} instead.
+   *
+   * Delegates to it: the same Command, guards, events and outcome. `actor` is
+   * no longer read — the actor is the ambient one, as on every aggregate port
+   * (`specs/186-aggregate-ports/` R-4, research R-21.2).
+   */
   applyStatus(input: {
     opportunityId: string;
     to: string;
     actor: OpportunityStatusActor;
     reason?: string | null;
   }): Promise<OpportunityTransitionOutcome>;
+}
+
+/** What `opportunityCommandPort.transition` is asked: the route's body. */
+export interface OpportunityTransitionInput {
+  to: string;
+  reason?: string | null;
+}
+
+/**
+ * Container name: `opportunityCommandPort`. Owner: `crm`
+ * (`specs/186-aggregate-ports/`, D-293, issue #1827).
+ *
+ * The Opportunity aggregate's write port: each method runs one audited
+ * Command, the one the admin route for the same operation runs, with the
+ * ambient actor — an administrator inside an admin request (or under
+ * `withSystemScopeActingFor`), the `system` actor under `withSystemScope` in a
+ * worker. **No permission is checked** — the caller is the gate; never resolve
+ * it for a customer-facing route. Call it after your own commit: each call is a
+ * transaction of its own.
+ *
+ * What the route does beside its write happens here too: the domain events
+ * (`crm.opportunity.created.v1`, `.assigned.v1`, `.document_linked.v1`, the
+ * status events) dispatched on commit, the assignee's and the mentioned
+ * people's notices, the value recalculation after a link changes or the mode
+ * becomes `computed`, and — for a transition — the guards, the linked Orders
+ * asked to follow, and the after-events.
+ *
+ * **Inputs and refusals are the admin route's.** Each input is the body the
+ * route validates, parsed with the same schema — an invalid one is refused
+ * `422 VALIDATION_FAILED` — and each refusal is the route's `HttpError` with
+ * its `code`: `404 CRM_OPPORTUNITY_NOT_FOUND` for an unknown, malformed or
+ * out-of-reach id, `422 CRM_ASSIGNEE_INVALID`, `422 CUSTOM_FIELD_VALUE_INVALID`,
+ * `409 CRM_DOCUMENT_ALREADY_LINKED`, `422 CRM_LINK_ORGANIZATION_MISMATCH`, and
+ * the others the routes answer. **`transition` is the exception** (FR-008): it
+ * answers its refusals as an {@link OpportunityTransitionOutcome}, as
+ * `opportunityTransitionPort` did, so a caller answering a third party never
+ * reads an HTTP error to learn that a guard vetoed the move.
+ *
+ * **`addComment` needs an ambient administrator.** A note or message has an
+ * author, so under a bare `withSystemScope` it is refused `403 FORBIDDEN`, as
+ * the route refuses a request with no administrator; a worker writes one under
+ * `withSystemScopeActingFor(adminUserId, reason)`, which records that
+ * administrator as author and actor. This is the one method that narrows
+ * FR-005 ("callable from a worker with no administrator", research R-21.3).
+ *
+ * **Options** ({@link AggregateCommandOptions}): `expectedVersion` is honoured
+ * by `update` — the route's `If-Match` — and refused `409 VERSION_CONFLICT`
+ * when the Opportunity has moved on; every other method ignores it, as its
+ * route has no version rule. `source` is recorded as `source` in the audit
+ * entry's `stateAfter` beside the actor — **do not use `manual`, `order` or
+ * `quote_request`**: they are the Opportunity's origin codes, which the create
+ * entry records under the same key, and the Change history tab would read
+ * such a code as the origin (research R-21.7). `extensions`: no `crm` action is
+ * declared hookable, so any key is refused `422 COMMAND_EXTENSION_UNCLAIMED`
+ * before anything is read or written.
+ *
+ * **Not offered, deliberately**: attachments (an upload flow), Events and
+ * their reminders, the retry and dismissal of a refused Order propagation, the
+ * value recalculation, the follow flag of a link — sub-entities and
+ * maintenance, each additive later. The status workflow, tags and order-status
+ * mappings are configuration, not the aggregate.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`; nothing
+ * half-executes. A consumer declares `crm` in `dependencies` (or as a
+ * `nonBindingDependencies` `refuses-without` edge) and never wraps the call in a
+ * bare `catch`.
+ */
+export interface OpportunityCommandPort {
+  /** `crm.opportunity.create` — `POST /opportunities`. An absent `assignedAdminUserId` applies the default rule. */
+  create(input: CreateOpportunityRequest, options?: AggregateCommandOptions): Promise<OpportunityRecord>;
+  /** `crm.opportunity.update` — `PATCH /opportunities/:id`; honours `expectedVersion`. */
+  update(id: string, patch: UpdateOpportunityRequest, options?: AggregateCommandOptions): Promise<OpportunityRecord>;
+  /**
+   * `crm.opportunity.update`, values only — what the route's `PATCH` records
+   * for a body of `customFieldValues` alone. `merge` runs under the
+   * Opportunity's row lock, inside the Command; the caller validates inside it
+   * (`CustomFieldValuePort.validateAndMerge`), and a refusal it throws
+   * propagates unchanged and writes nothing.
+   */
+  setCustomFieldValues(id: string, merge: CustomFieldMerge, options?: AggregateCommandOptions): Promise<OpportunityRecord>;
+  /** `crm.opportunity.assign` — `POST /opportunities/:id/assign`; `null` unassigns, the same assignee writes nothing. */
+  assign(id: string, input: { adminUserId: string | null }, options?: AggregateCommandOptions): Promise<OpportunityRecord>;
+  /**
+   * `crm.opportunity.transition` — `POST /opportunities/:id/transition`, the
+   * guards and events included. A refusal is a value; a concurrent move
+   * (`409 CRM_TRANSITION_CONFLICT`) and the module switched off are thrown.
+   */
+  transition(
+    id: string,
+    input: OpportunityTransitionInput,
+    options?: AggregateCommandOptions,
+  ): Promise<OpportunityTransitionOutcome>;
+  /** `crm.opportunity.tag_set` — `PUT /opportunities/:id/tags`; replaces the whole set. */
+  setTags(id: string, input: { tagIds: readonly string[] }, options?: AggregateCommandOptions): Promise<OpportunityRecord>;
+  /** `crm.opportunity.link_add` — `POST /opportunities/:id/links`. */
+  link(id: string, input: CreateOpportunityLinkRequest, options?: AggregateCommandOptions): Promise<OpportunityLink>;
+  /** `crm.opportunity.link_remove` — `DELETE /opportunities/:id/links/:linkId`. */
+  unlink(id: string, linkId: string, options?: AggregateCommandOptions): Promise<void>;
+  /**
+   * `crm.opportunity.note_add` or `.message_add`, by `kind` — `POST /opportunities/:id/comments`.
+   * Needs an ambient administrator, the author: `403 FORBIDDEN` under a bare
+   * `withSystemScope`; a worker calls it under `withSystemScopeActingFor`
+   * (R-21.3 — narrows FR-005 for this method only).
+   */
+  addComment(
+    id: string,
+    input: CreateOpportunityCommentRequest,
+    options?: AggregateCommandOptions,
+  ): Promise<OpportunityComment>;
+  /** `crm.opportunity.delete` — `DELETE /opportunities/:id`, its children with it. */
+  delete(id: string, options?: AggregateCommandOptions): Promise<void>;
 }
