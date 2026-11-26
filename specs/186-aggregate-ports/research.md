@@ -628,12 +628,11 @@ consumes, and every one of them would then be a frozen or stable entry.
 ## R-19 US6 (Product, #1825): decisions on the T005 inventory findings (2026-11-26)
 
 The T005 inventory (`contracts/catalog-product-command-port.md` § *Inventory findings*) raised the
-questions below, which R-16 to R-18 and the precedents do not answer in terms. Each is **(proposed,
-pending architect)**, with the alternative rejected. None is irreversible, and none touches tenant
+questions below, which R-16 to R-18 and the precedents do not answer in terms. Each was proposed by the implementing session with the alternative rejected. **All eight are ruled below (architect, 2026-11-26)**: seven as proposed, and R-19.7 as proposed plus one conversion fix. None was escalated to the owner, because every one of them is decided by a rule or a precedent. None is irreversible, and none touches tenant
 isolation or sales-channel scoping: the scoped write keeps the import's channel-membership refusal
 (`SCOPE_INVALID`) unchanged. Code references are to `origin/master` `d936722d5`.
 
-### R-19.1 `applyScopedValues` runs `product.scoped_values.import`, not the editor's save (proposed, pending architect)
+### R-19.1 `applyScopedValues` runs `product.scoped_values.import`, not the editor's save
 
 **Finding.** The contract sketch said both "`applyScopedValues` replaces `applyScopes`" and
 "`product.scoped_values.save`, `PUT …/scoped-values`". They are two operations: the save is the
@@ -653,7 +652,9 @@ version a connector does not hold, the completeness gate a connector must not me
 deprecated port would change behaviour in the release that only deprecates it. *Both methods* — the
 save has no server-side caller (R-9's rule).
 
-### R-19.2 `setCustomFieldValues` runs `product.update`; a dropped key is removed; the owner validates (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. R-10 and R-16.2 decide it: the port method takes the operation the deprecated port runs, so `applyScopes` can delegate with identical entries, and A-6 (feature 163) keeps a connector's write ungated. The editor's save is the operator's alone (R-9: no server-side caller) and stays under *Not offered*. The channel-membership refusal (`SCOPE_INVALID`) is unchanged, so Principle XII is untouched.
+
+### R-19.2 `setCustomFieldValues` runs `product.update`; a dropped key is removed; the owner validates
 
 **Finding.** Product has no attribute-values-only Command. The admin `PATCH` merges `attributeValues`
 over the stored bag, so it cannot remove a key; `CustomFieldMerge` answers the whole bag.
@@ -675,7 +676,9 @@ through `validateAndMerge`* (`custom-field-writes.md`'s rule for the other hosts
 product for a required attribute outside its set, and would skip the attribute-set rule the route
 holds.
 
-### R-19.3 `applyScopedValues` takes the aggregate ports' `source`; the deprecated port keeps its registered-module rule (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. The action string is the `PATCH`'s (R-2, FR-003: one action per write), and the owner-side validation is the only one that knows a product's required attributes are its set's, which `validateAndMerge` does not. The `custom-field-writes.md` amendment on this branch is the rule's single home for the exception and stands. Removal is safe as built: `assertRequiredAttributesPresent` runs on the whole merged bag, so a merge that drops a required attribute of the product's set is refused and writes nothing. That refusal must have its own test in `catalog-product-command-port.test.ts` if it does not already. The entry keeps the `PATCH`'s shape (`changedFields: ['attributeValues']`), not R-8's `changedCustomFields`, so the product's record history keeps one reader (`audit-state.md`).
+
+### R-19.3 `applyScopedValues` takes the aggregate ports' `source`; the deprecated port keeps its registered-module rule
 
 **Proposed.** The new method validates `source` with `aggregateCommandSourceSchema`, optional; absent,
 the entry records `source: null` beside the actor (D-293.6). The deprecated `applyScopes` keeps
@@ -686,7 +689,9 @@ are unchanged. The cell cap and the duplicate refusal run on both (`assertIntegr
 one option, and a refusal of codes such as `erp.sync` that every other aggregate port accepts.
 *Requiring `source`* — R-4 rejects it for the system actor.
 
-### R-19.4 The Commands stay private factories of `CatalogAdminService`; route and port share the service method (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. R-4 sets one `source` grammar for the port family. R-16.5 keeps a deprecated port's published refusals, so `applyScopes` keeps feature 174's R21 registered-module rule before it delegates.
+
+### R-19.4 The Commands stay private factories of `CatalogAdminService`; route and port share the service method
 
 **Proposed.** Each port method calls the service method the route calls (`createProduct`,
 `updateProductAudited`, `archiveProduct`, …), which gains a trailing `caller?: CallerOptions` that it
@@ -700,7 +705,9 @@ category bridge), so the move is a rewrite of a 2 500-line service with no behav
 route-side side effects (the default channel binding, `product.archived.v1`, the variant events) live
 in the service methods, which the port must reach anyway (FR-013). It can follow on its own.
 
-### R-19.5 `update` through the port is not completeness-gated (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. Convention item 2a.2 is about substance: one construction site per action, reached by both route and port, so hooks and the entry cannot differ. The `orders` precedent (R-18) extracted factories only where it converted a write to a Command. Here every write already is one. The two conditions are that the service method builds its one Command and nothing else does, and that the parity tests prove route and port produce the same entry. Extracting the factories is a later refactor, not owed by #1825. `withCallerOptions` is the fourth copy under R-18.6's bounded exception and is moved by #1961.
+
+### R-19.5 `update` through the port is not completeness-gated
 
 **Proposed.** The port runs the container's `catalogAdminService`, which has no completeness gate;
 only the plugin's routes instance has one (feature 163, A-6: imports and connectors are never
@@ -710,7 +717,9 @@ warnings, as through the deprecated port. Stated in the contract.
 **Rejected.** *Composing the gate into the port* — it would start refusing connector writes the
 deprecated port accepted, in the release that only deprecates it, against A-6.
 
-### R-19.6 The reindex of a searchable flip is queued for the port too (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. Feature 163's A-6 (imports and connectors are never gated) and R-16.5 (a deprecated port's answers do not change in the release that only deprecates it) decide it. This narrows FR-008 for this one gate, as R-16.5 did for one refusal. The method's JSDoc must say the gate is the operator's, so an integration does not read its absence as a defect.
+
+### R-19.6 The reindex of a searchable flip is queued for the port too
 
 **Finding.** `setSearchReindexEnqueuer` was called only on the routes' service instance, so an
 `isSearchable` flip through `catalogProductWritePort.updateAttributeByIdOrKey` already queued no
@@ -723,7 +732,9 @@ the ambient administrator, else the system placeholder the route already uses.
 **Rejected.** *The port resolving the plugin's instance* — it is built in the plugin body and carries
 the completeness gate (R-19.5). *Leaving it* — FR-013.
 
-### R-19.7 `expectedVersion` is the editor version; the deprecated `updateProduct` converts its token (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed. FR-013 and item 2a.2: a side effect of the route follows the port call. Only the requester's identity is derived, from the ambient actor (R-4), never from input. Note that this changes the deprecated `catalogProductWritePort.updateAttributeByIdOrKey` too: a searchable flip through it now queues a reindex. That is the fix. The paid PIM modules were read (2026-11-26) and only seed `isSearchable: false` on create; their updates touch labels, `isFilterable`, `isVisibleOnProductPage` and `isVariantAxis`, so none of them queues a new job. The changeset must name the change.
+
+### R-19.7 `expectedVersion` is the editor version; the deprecated `updateProduct` converts its token
 
 **Proposed.** The product's concurrency rule is the editor version (`products.scope_version`, an
 opaque decimal token on the `PATCH`). The port takes it as `options.expectedVersion: number`
@@ -737,7 +748,9 @@ Organization's inputs; the deprecated `updateProduct` moves a `version` it is gi
 `expectedVersion`* — changes the shared options type for one aggregate. The conversion loses nothing
 in practice: the counter would need 2^53 saves of one product.
 
-### R-19.8 The deprecated `listAttributes*` keep their own reads (proposed, pending architect)
+**Ruling (architect, 2026-11-26):** Confirmed, with one code change. R-5 types `expectedVersion` as a number and R-16.4 drops `version` from the input. Today a malformed token reaches `?::bigint` in `bumpScopeVersion` and answers a `500`, so converting it to a `422` changes no published refusal. But `Number()` also accepts `''`, `' 7 '`, `'0x1F'` and `'1e3'` and maps them to versions silently. **Code change (owed in this pull request):** in `createCatalogProductWritePort.updateProduct` (`catalog-write-ports.ts`), convert with `/^\d+$/.test(version) ? Number(version) : Number.NaN`, so any token that is not decimal digits reaches `versionTokenOf` and is refused `422 VALIDATION_FAILED`. Add a test for `''` and `'0x1F'`. The paid PIM modules and `comarch_xl` pass no `version` to `updateProduct` (read 2026-11-26), so delegation changes none of their answers.
+
+### R-19.8 The deprecated `listAttributes*` keep their own reads
 
 **Proposed.** `catalogProductWritePort.listAttributes` and `.listAttributesByFlag` keep calling the
 admin service's reads rather than delegating to `catalogAttributeReadPort`; their deprecation points
@@ -747,3 +760,6 @@ says to filter `listAll()` for those two.
 
 **Rejected.** *Adding the two flags to the read port* — a read-port widening this story does not
 need (and a typed-double change across the workspace); it can be added when a consumer asks.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-10 sends reads to read ports, and R-16.5 forbids a deprecated port's answers from changing. Widening `CatalogAttributeReadPort.listByFlag` waits for a consumer (Principle IV, R-16.8's rule). The paid PIM modules call `listAttributes`, so keeping the admin service's read keeps their answers byte-identical.
+
