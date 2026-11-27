@@ -73,7 +73,11 @@ renders the input only (IX).
   filtered by presence and `requiredPermission`, and computes the layout (§5).
 - `useDeclaredFormSubmission()` returns `{ core, extensions }` for the host's existing request: the
   host merges `extensions` into its body. A field hidden by `hidden` or by `visibleWhen`, and a
-  read-only one, is not in `core` (keeps the stored value — the host endpoint merges).
+  read-only one, is not in `core` (keeps the stored value — the host endpoint merges). The one
+  exception: a read-only, visible field that a present `fieldBehaviours` derivation targets on this
+  form is in `core` with its derived value, on create always and on edit when the value differs
+  from the loaded one (D-300.12; the replacement pattern relies on it). A hidden field is never
+  submitted, derived or not.
 - The host's existing one-Save session is unchanged; slots fold into the host part (FR-016).
 
 ## §4 Server side
@@ -126,6 +130,14 @@ For one form, after overrides (`field-overrides.md`):
 
 Registration order, bundle order and process never affect the result (SC-005).
 
+**One implementation (D-300.14).** The algorithm is `formLayout(input)` in
+`@endora-commerce/contracts` (`admin-forms.ts`, beside `evaluateFieldCondition`), with step 1
+exported on its own as `applyFieldMoves(sections, moves)`. The platform's effective-forms response
+calls `applyFieldMoves` to compute `section` and `order`. The admin kit calls `formLayout` with the
+server's order and no moves. `check:admin-forms` calls `formLayout` for its own findings and its
+determinism test. `FORM_LAYOUT_VECTORS` is run by the contracts' own test. Every sort is by code
+point (`a < b`), never `localeCompare`, whose answer depends on the process's ICU locale.
+
 ## §6 Check: `admin-forms` analysis
 
 One analysis, `packages/cli/src/lib/admin-forms.ts`, two readers: `check:admin-forms` in this
@@ -138,7 +150,23 @@ empty or short read. Findings:
 | Code | Severity |
 | --- | --- |
 | `unknown-field-set`, `unknown-form`, `unknown-anchor`, `foreign-slot-anchor`, `position-anchor-mismatch`, `duplicate-slot-key`, `slot-owner-not-a-dependency`, `undeclared-form`, `unrendered-form`, `control-without-declaration`, `declaration-without-control` | refusal |
+| `required-not-fillable` (a field effectively required on a create form, made `readOnly` there by an override, with no `fieldBehaviours` entry of the same module targeting it on that form; D-300.12) | refusal |
 | `ambiguous-slot-order`, `deprecated-anchor` | warning |
+
+How the codes read (D-300.15):
+
+- `position-anchor-mismatch` is a field anchor with `start` or `end`, or a section anchor with
+  `before` or `after`. The schema makes this unrepresentable for a typed contribution, so the check
+  sees it only in a literal the type system did not hold.
+- `unknown-anchor` also fires when the anchor is declared on the field set but not shown on one of
+  the forms the slot targets (remedy: narrow the slot's `forms`). A family member anchor
+  (`attributeValues.color`) counts as shown where the form shows the family. It also fires for a
+  cycle of own-slot anchors, which places none of them. The finding then names every slot in the
+  cycle.
+- `duplicate-slot-key` fires when one module contributes one key twice to overlapping forms. On
+  disjoint forms two contributions are legitimate, for example a different anchor on a create form
+  and an edit form. They must still agree on `type` and `writePermission`, because they are one wire
+  key and one hook schema, and otherwise the finding fires.
 
 It needs entries in `check-inventory.test.ts`, the `endora check` estate manifest (`package`, phase
 admin), `check-read-sizes.ts`, and a companion test (`specs/conventions/check-estate.md`).

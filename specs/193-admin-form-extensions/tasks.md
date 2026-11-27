@@ -53,7 +53,7 @@ the merge request that changes their inputs.
 - [ ] T021 [T] Hook-runner test: the check runs before every module hook, ignores `commandHookOrder`, raises no `UnorderedCommandHooksError`, and a refusal rolls back with no audit entry and no outbox row.
 - [ ] T022 [T] `fieldSlotHook` tests: an absent slice is a no-op; an invalid slice gives `FIELD_SLOT_INPUT_INVALID` with its paths; a write without permission gives `FIELD_WRITE_FORBIDDEN`; `noteAuditChanges` is called.
 - [ ] T023 [T] Format validator tests from the shared vectors, plus `ctx.fieldFormats` registration and `format-without-validator`.
-- [ ] T024 [T] Contract test for `GET /api/v1/admin/forms`. It covers the response schema, presence filtering, layering core → code → operator through a stub `FormLayoutOverrideSource`, `operatorKinds`, the ETag, and a memo that changes on a presence change and on a `b2b:form-layout:changed` message.
+- [ ] T024 [T] Contract test for `GET /api/v1/admin/effective-forms` (D-300.9). It covers the response schema, presence filtering, layering core → code → operator through a stub `FormLayoutOverrideSource`, `operatorKinds`, the ETag, and a memo that changes on a presence change and on a `b2b:form-layout:changed` message.
 - [ ] T025 Implement `forms/registry.ts`, `seal.ts`, `field-rule-check.ts`, `formats.ts` and `effective-forms.ts`. Add `ctx.fieldSets` and `ctx.fieldFormats` to `ModuleContext`, classify them in `SEAM_CLASSIFICATION` (own surface), and publish `fieldSlotHook` on `./kernel`.
 - [ ] T026 T-B6: resolve an API-key actor's scopes for `writePermission`. Write the red test first. If no resolution exists, refuse with a documented code and record that in research R-12.
 - [ ] T027 Add the route in `lifecycle/routes.admin.ts`; the `FIELD_RULE_VIOLATION`, `FIELD_WRITE_FORBIDDEN` and `FIELD_SLOT_INPUT_INVALID` codes; the `fieldRules.*` sentences in `_lifecycle`'s `en` and `pl` bundles; and the subscription to `FORM_LAYOUT_CHANGED_CHANNEL`.
@@ -173,6 +173,20 @@ the merge request that changes their inputs.
 - [ ] T078 Add the contract-surface rows in `specs/conventions/contract-surface.md`. Add a *Form extensions* host-adoption checklist in `module-admin-surfaces.md`.
 - [ ] T079 Add the addenda for 178 OD-178-6 (closed) and 187 OR-10 (narrowly reopened by D-300.1). Add the upgrade note (additive), and confirm the constitution 4.6.0 sign-off is recorded.
 - [ ] T080 Release verification: `pnpm -r run typecheck`, `pnpm -r run lint`, `pnpm --filter '!backend' run test`, `check:admin-forms`, the permission inventory and palette coverage per deployment, and `workflow_dispatch` of `backend-suite.yml` (D-198).
+
+## Phase 2 ruling follow-ups (D-300.9 to D-300.16, R-24)
+
+These are added to the work package named on each line. WP-D merges before WP-B, because WP-B
+imports `applyFieldMoves` from WP-D's contracts change.
+- [ ] T081 [T] WP-D: move `formLayout` and its types into `packages/contracts/src/admin-forms.ts` as `formLayout` and `applyFieldMoves`, with code-point comparisons. `FORM_LAYOUT_VECTORS` moves to the contracts test, and the CLI imports the function (D-300.14).
+- [ ] T082 [T] WP-D: `required-not-fillable` in `check:admin-forms`, covering a `readOnly` override on an effectively required create-form field with no `fieldBehaviours` entry of the same module on that form (D-300.12). Also: name the cycle members in `unknown-anchor`, and fire `duplicate-slot-key` on disjoint forms when `type` or `writePermission` differ (D-300.15).
+- [ ] T083 [T] WP-D: the #2020 contracts fixes, which are `_?` in `inputControlIdRe`, the `defineFieldSet` comment and `formOverrideGrants[].reason` `.max(280)` (D-300.16).
+- [ ] T084 [T] WP-B: `Command.buyerSelfService`, inherited through the bus lineage and passed as `FieldRuleCheckContext.buyerSelfService`, with the honour rule of D-300.10.
+- [ ] T085 [T] WP-B: `requiredWhen` is held when a field its condition reads changed (D-300.11).
+- [ ] T086 [T] WP-B: composition's `required-not-fillable` refuses `hidden` only (D-300.12). `effective-forms.ts` uses `applyFieldMoves` with per-key effective moves (D-300.14). The route moves to `/api/v1/admin/effective-forms` (D-300.9; done). The changeset gets a **Breaking change** paragraph (D-300.13).
+- [ ] T087 [T] WP-C: client rules hold the same set as the server on edit forms (D-300.11). A read-only field that a present derivation targets is submitted (D-300.12). The layout comes from the contracts' `formLayout` (D-300.14).
+- [ ] T088 [T] WP-E1 and WP-E3: `buyerSelfService` on `organization.register`, on `customer_account.register_standalone`, and on the invitation acceptance through `CustomerAccountMemberWritePort.create`'s new optional input. Add a test that lists every storefront route reaching a field-set writer (D-300.10).
+- [ ] T089 [T] WP-L1: an operator `hidden` or `readOnly` on an effectively required create-form field is refused with no exemption (D-300.12).
 
 ## Dependencies (summary)
 
