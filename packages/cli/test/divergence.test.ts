@@ -38,6 +38,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { main } from '../src/bin/endora.js';
 
 import {
+  generateFindingsRefusal,
   generateReport,
   GenerateHostError,
   runGenerate,
@@ -53,6 +54,7 @@ import {
   seamsFromKernel,
 } from '../src/lib/divergence-artefacts.js';
 import { installedModulePackages, type ModulePackage } from '../src/lib/module-packages.js';
+import { guardSeamReplacementFor } from '@endora-commerce/contracts';
 
 const SCOPE = '@endora-commerce';
 const scratch: string[] = [];
@@ -134,6 +136,7 @@ function installPlatform(root: string): void {
       `    registerValues(container, {\n` +
       `        commandBus: buildCommandBus(),\n` +
       `        eventBus: new EventBus(),\n` +
+      `        redis: buildRedis(),\n` +
       `    });\n` +
       `    composedModules.contribute({ salesChannelCodeIdPort: buildChannelPort() });\n` +
       `    return container;\n` +
@@ -288,8 +291,77 @@ export function registerModule(ctx: ModuleContext): void {
     expect(json.entries).toContainEqual(expect.objectContaining({ subject: 'commandBus', owner: null }));
     // `unowned-subject` is the finding this discriminates against, and it is the
     // one an instance would raise for every decoration if the platform's own
-    // registrations were not read.
+    // registrations were not read. What it does raise since 0.113.0 is the
+    // guard-seam deprecation (189 FR-051), as a warning — the case below.
+    expect(report?.findings.filter((finding) => finding.severity !== 'warning')).toEqual([]);
+  });
+
+  /**
+   * 189 T072 (FR-051, FR-053; `contracts/guard-seam-narrowing.md` §3). D-296 narrows D-156.4 for
+   * the four guard seams only: an overlay's decoration of one is a `deprecated-decoration`
+   * **warning** in 0.113.0 (P3 makes it an error in 0.114.0), and a decoration of any other
+   * root-supplied name — `redis` here — raises nothing. Every other finding carries no severity,
+   * which reads as an error.
+   */
+  function decoratingInstance(name: string): string {
+    const root = instance({
+      declaration: `export const divergence = {
+  omittedModules: [],
+  decorationOrder: {},
+  reasons: { 'decoration:acme_overlay:${name}': 'We wrap the root registration on purpose.' },
+};
+`,
+    });
+    write(
+      join(root, 'apps', 'acme', 'modules', 'acme_overlay', 'backend.ts'),
+      `import type { ModuleContext } from '@endora-commerce/platform/kernel';
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.decorate<Wrapped>('${name}', (inner) => wrap(inner));
+}
+`,
+    );
+    return root;
+  }
+
+  it('a guard-seam decoration is a `deprecated-decoration` warning naming the replacement (189 FR-051)', () => {
+    const root = decoratingInstance('commandBus');
+    const [report] = renderInstanceDivergence({ root, packages: installedOf(root) });
+    expect(report?.findings).toEqual([
+      {
+        kind: 'deprecated-decoration',
+        severity: 'warning',
+        where: 'apps/acme/modules/acme_overlay/backend.ts',
+        detail: expect.stringContaining('acme_overlay') as unknown as string,
+      },
+    ]);
+    const [finding] = report!.findings;
+    expect(finding?.detail).toContain('commandBus');
+    expect(finding?.detail).toContain(guardSeamReplacementFor('commandBus'));
+  });
+
+  it('a decoration of another root-supplied name raises nothing (189 FR-053)', () => {
+    const root = decoratingInstance('redis');
+    const [report] = renderInstanceDivergence({ root, packages: installedOf(root) });
+    const json = JSON.parse(
+      report!.renderings.find((rendering) => rendering.outputPath.endsWith('.json'))!.content,
+    ) as { entries: ReadonlyArray<{ subject: string; owner: string | null }> };
+    expect(json.entries).toContainEqual(expect.objectContaining({ subject: 'redis', owner: null }));
     expect(report?.findings).toEqual([]);
+  });
+
+  it('`endora generate` prints warnings under `warnings:` and refuses only over an error (189 FR-051)', async () => {
+    const warned = await runGenerate({ cwd: decoratingInstance('commandBus') });
+    const printed = generateReport(warned).join('\n');
+    expect(printed).toMatch(/warnings:\n\s+\[deprecated-decoration\] apps\/acme\/modules\/acme_overlay\/backend\.ts/);
+    // The exit decision: `runGenerateCommand` returns 1 exactly when a refusal is not null.
+    expect(generateFindingsRefusal(warned)).toBeNull();
+
+    const failed = await runGenerate({
+      cwd: instance({
+        declaration: `export const divergence = { omittedModules: [], decorationOrder: {}, reasons: {} };\n`,
+      }),
+    });
+    expect(generateFindingsRefusal(failed)).toContain('[undeclared-divergence]');
   });
 
   it('reads `ModuleContext`’s members out of the platform’s emitted declarations', () => {
