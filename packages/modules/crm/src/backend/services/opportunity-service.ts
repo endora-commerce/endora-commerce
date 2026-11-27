@@ -23,6 +23,7 @@ import {
   type OpportunityDetail,
   type OpportunityDocumentKind,
   type OpportunityExcludedDocument,
+  type OpportunityHookData,
   type OpportunityLink,
   type OpportunityListQuery,
   type OpportunitySource,
@@ -68,6 +69,7 @@ import { storedReferencesOf, type ReferenceService, type ReferenceSource } from 
 import type { TagService } from './tag-service.js';
 import { mergeOpportunityCustomFields } from './opportunity-custom-fields.js';
 import { auditSnapshot, opportunityValues, recordValueChange } from './opportunity-audit-state.js';
+import { opportunityHookData, opportunityOutboxData } from './opportunity-hook-data.js';
 import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
@@ -173,6 +175,12 @@ interface CreateOptions {
 
 /** What an edit that changed the assignee hands on: the announcement, and whom to tell. */
 type ReassignedOpportunity = Parameters<typeof assignedEvent>[0] & { number: string };
+
+/** What the edit Command answers: the reassignment to announce, and the hook data of the write. */
+interface UpdateOutcome {
+  reassigned: ReassignedOpportunity | null;
+  hook: OpportunityHookData;
+}
 
 const FALLBACK_LANGUAGE = 'en';
 /** How many times an edit validates its custom fields again before it answers a conflict. */
@@ -414,7 +422,7 @@ export class OpportunityService {
     input: CreateOpportunityRequest,
     initialStatusCode: string,
     options: CreateOptions = { source: 'manual' },
-  ): Command<{ id: string; organizationId: string; number: string }> {
+  ): Command<{ id: string; organizationId: string; number: string; hook: OpportunityHookData }> {
     const id = randomUUID();
     return {
       action: 'crm.opportunity.create',
@@ -488,7 +496,12 @@ export class OpportunityService {
           after: opportunityValues(opportunity, tags.map((tag) => tag.name)),
         });
         return {
-          result: { id, organizationId: opportunity.organizationId, number: opportunity.number },
+          result: {
+            id,
+            organizationId: opportunity.organizationId,
+            number: opportunity.number,
+            hook: opportunityHookData(opportunity, start.kind, null, values),
+          },
           before: null,
           after: {
             ...auditSnapshot(opportunity),
@@ -512,6 +525,9 @@ export class OpportunityService {
         };
         return { eventName: CRM_EVENTS.CREATED, payload };
       },
+      // Hookable (`specs/193-admin-form-extensions/` FR-111): the record and the names it was given.
+      hookData: (result) => result.hook,
+      outboxData: (result) => opportunityOutboxData(result.hook),
     };
   }
 
@@ -828,7 +844,7 @@ export class OpportunityService {
    * the port's values-only write instead: run over the locked bag, its answer
    * stored.
    */
-  #updateCommand(
+  async #updateCommand(
     id: string,
     patch: UpdateOpportunityRequest,
     ifMatch: number | null,
@@ -844,7 +860,7 @@ export class OpportunityService {
     },
     caller: CallerOptions,
   ): Promise<ReassignedOpportunity | null> {
-    return this.deps.commandBus.run(withCallerOptions<ReassignedOpportunity | null>({
+    const outcome = await this.deps.commandBus.run(withCallerOptions<UpdateOutcome>({
       action: 'crm.opportunity.update',
       objectType: 'crm_opportunity',
       objectId: id,
@@ -855,6 +871,10 @@ export class OpportunityService {
         if (ifMatch !== null && ifMatch !== opportunity.version) {
           throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The opportunity was updated concurrently.');
         }
+        // What the hook data calls the status — an edit never moves it. A status
+        // the workflow no longer holds closes nothing: `open`, as the read port says.
+        const statusKind =
+          (await em.findOne(CrmOpportunityStatus, { code: opportunity.statusCode }))?.kind ?? 'open';
         if (patch.salesChannelId && (await em.count(SalesChannel, { id: patch.salesChannelId })) === 0) {
           throw invalid('The sales channel does not exist.');
         }
@@ -863,7 +883,12 @@ export class OpportunityService {
           !isDeepStrictEqual(opportunity.customFieldValues ?? {}, custom.validatedAgainst)
         ) {
           custom.onStale({ ...(opportunity.customFieldValues ?? {}) });
-          return { result: null, skipAudit: true };
+          // Nothing written; the caller validates again and retries. A hook is
+          // handed the Opportunity as it is, with nothing changed.
+          return {
+            result: { reassigned: null, hook: opportunityHookData(opportunity, statusKind, auditSnapshot(opportunity), {}) },
+            skipAudit: true,
+          };
         }
         const before = auditSnapshot(opportunity);
         // Absent means "leave the tags as they are"; present replaces the set.
@@ -911,23 +936,30 @@ export class OpportunityService {
         const assignedAdminUserId = opportunity.assignedAdminUserId ?? null;
         if (before.valueMode !== 'computed' && opportunity.valueMode === 'computed') custom.onBecameComputed();
         return {
-          result:
-            previousAdminUserId === assignedAdminUserId
-              ? null
-              : {
-                  opportunityId: opportunity.id,
-                  organizationId: opportunity.organizationId,
-                  number: opportunity.number,
-                  title: opportunity.title,
-                  assignedAdminUserId,
-                  previousAdminUserId,
-                },
+          result: {
+            reassigned:
+              previousAdminUserId === assignedAdminUserId
+                ? null
+                : {
+                    opportunityId: opportunity.id,
+                    organizationId: opportunity.organizationId,
+                    number: opportunity.number,
+                    title: opportunity.title,
+                    assignedAdminUserId,
+                    previousAdminUserId,
+                  },
+            hook: opportunityHookData(opportunity, statusKind, before, values),
+          },
           before,
           after: { ...auditSnapshot(opportunity), ...values },
         };
       },
-      event: (result) => (result ? assignedEvent(result) : undefined),
+      event: (result) => (result.reassigned ? assignedEvent(result.reassigned) : undefined),
+      // Hookable (`specs/193-admin-form-extensions/` FR-111): the after-state and what changed.
+      hookData: (result) => result.hook,
+      outboxData: (result) => opportunityOutboxData(result.hook),
     }, caller));
+    return outcome.reassigned;
   }
 
   async delete(id: string, caller: CallerOptions = {}): Promise<void> {
