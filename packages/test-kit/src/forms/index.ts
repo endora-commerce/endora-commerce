@@ -75,14 +75,14 @@ function unwrap(schema: ZodSchemaLike): ZodSchemaLike {
 }
 
 /** The enum vocabulary a schema accepts, or `null` when it is not an enum. */
-function enumValues(schema: ZodSchemaLike): string[] | null {
+function zodEnumOptions(schema: ZodSchemaLike): string[] | null {
   const def = defOf(schema);
   if (def.type === 'enum' && def.entries) return Object.values(def.entries).map(String);
   if (def.type === 'literal' && def.values) return def.values.map(String);
   if (def.type === 'union' && def.options) {
     const values: string[] = [];
     for (const option of def.options) {
-      const inner = enumValues(unwrap(option));
+      const inner = zodEnumOptions(unwrap(option));
       if (inner === null) return null;
       values.push(...inner);
     }
@@ -118,7 +118,7 @@ function typeMismatch(type: FieldValueType, schema: ZodSchemaLike): string | nul
       case 'datetime':
         return kind === 'string' || kind === 'date';
       case 'enum':
-        return enumValues(schema) !== null;
+        return zodEnumOptions(schema) !== null;
       case 'string[]':
       case 'reference[]': {
         const inner = element();
@@ -126,7 +126,7 @@ function typeMismatch(type: FieldValueType, schema: ZodSchemaLike): string | nul
       }
       case 'enum[]': {
         const inner = element();
-        return inner !== null && enumValues(inner) !== null;
+        return inner !== null && zodEnumOptions(inner) !== null;
       }
       case 'composite':
         return kind === 'object' || kind === 'record';
@@ -201,7 +201,7 @@ function compare(
   }
   if (field.type === 'enum' || field.type === 'enum[]') {
     const subject = field.type === 'enum[]' ? unwrap(defOf(resolved.schema).element ?? resolved.schema) : resolved.schema;
-    const options = [...(enumValues(subject) ?? [])].sort();
+    const options = [...(zodEnumOptions(subject) ?? [])].sort();
     const declaredOptions = [...(field.options ?? [])].sort();
     if (JSON.stringify(options) !== JSON.stringify(declaredOptions)) {
       problems.push(`${at}: options are [${declaredOptions.join(', ')}] in the declaration and [${options.join(', ')}] in the schema.`);
