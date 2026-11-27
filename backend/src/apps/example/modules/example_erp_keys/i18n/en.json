@@ -1,0 +1,22 @@
+{
+  "actions.openExampleErpKeys.description": "Look up an organization by the key your ERP knows it by",
+  "actions.openExampleErpKeys.label": "ERP keys",
+  "admin.columns.erpKey": "ERP key",
+  "admin.columns.organization": "Organization",
+  "admin.description": "The key each organization carries in your ERP. Keys are set when an ERP import creates the organization.",
+  "admin.empty.description": "An organization gets a key when an ERP import creates it with one.",
+  "admin.empty.title": "No ERP keys yet",
+  "admin.error": "The ERP keys could not be loaded.",
+  "admin.lookup.hint": "Letters, digits and hyphens; case does not matter.",
+  "admin.lookup.label": "ERP key",
+  "admin.lookup.submit": "Find",
+  "admin.noResults.title": "No organization holds this key",
+  "admin.results": "{count} ERP keys",
+  "admin.retry": "Try again",
+  "admin.tableCaption": "Organizations and their ERP keys",
+  "admin.title": "ERP keys",
+  "adminRoles.permission.example_erp_keys:read": "Read the ERP keys of organizations",
+  "errors.EXAMPLE_ERP_KEYS_KEY_INVALID": "An ERP key is 1–40 letters, digits and hyphens, starting with a letter or a digit.",
+  "errors.EXAMPLE_ERP_KEYS_KEY_TAKEN": "Another organization already holds this ERP key.",
+  "nav.exampleErpKeys.label": "ERP keys"
+}
