@@ -125,6 +125,11 @@ function callerOf(options: AggregateCommandOptions): CallerOptions {
   return { source: options.source, extensions: options.extensions };
 }
 
+/** The published record of an account, with its second factor as read before the Command. */
+function recordWith(enrolled: ReadonlySet<string>): (account: CustomerAccount) => CustomerAccountRecord {
+  return (account) => toCustomerAccountRecord(account, enrolled.has(account.id));
+}
+
 export class CustomerAccountCommandService implements CustomerAccountCommandPort {
   constructor(private readonly deps: CustomerAccountCommandServiceDeps) {}
 
@@ -160,7 +165,15 @@ export class CustomerAccountCommandService implements CustomerAccountCommandPort
     options: AggregateCommandOptions = {},
   ): Promise<CustomerAccountRecord> {
     const caller = callerOf(options);
-    return this.#record(await this.#run(makeUpdateCustomerAccountProfileCommand({ customerAccountId: id, patch }), caller));
+    // Asked **before** the Command opens its transaction, as `setCustomFieldValues`
+    // does: a hook's after-state record and the response both carry it. An id
+    // that is not a UUID is refused `404` by the Command; nobody is asked.
+    const enrolled = isUuidShape(id) ? await this.deps.twoFactorEnrolments([id]) : new Set<string>();
+    const account = await this.#run(
+      makeUpdateCustomerAccountProfileCommand({ customerAccountId: id, patch, toRecord: recordWith(enrolled) }),
+      caller,
+    );
+    return recordWith(enrolled)(account);
   }
 
   async block(
@@ -211,8 +224,11 @@ export class CustomerAccountCommandService implements CustomerAccountCommandPort
     // Asked **before** the Command opens its transaction: the answer is another
     // module's, and only shapes the response.
     const enrolled = await this.deps.twoFactorEnrolments([id]);
-    const account = await this.#run(makeSetCustomerCustomFieldValuesCommand({ customerAccountId: id, merge }), caller);
-    return toCustomerAccountRecord(account, enrolled.has(account.id));
+    const account = await this.#run(
+      makeSetCustomerCustomFieldValuesCommand({ customerAccountId: id, merge, toRecord: recordWith(enrolled) }),
+      caller,
+    );
+    return recordWith(enrolled)(account);
   }
 
   async setSubtreeRollup(

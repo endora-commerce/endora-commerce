@@ -1,4 +1,9 @@
-import { defineModuleManifest, type ModuleDemoManifest } from '@endora-commerce/contracts';
+import {
+  CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS,
+  defineModuleManifest,
+  toHookableActionDeclaration,
+  type ModuleDemoManifest,
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
@@ -209,6 +214,11 @@ export const manifest = defineModuleManifest({
     { code: 'CUSTOMER_NOT_FOUND' },
     { code: 'CUSTOMER_RESTORE_WINDOW_ELAPSED' },
   ],
+  // `specs/193-admin-form-extensions/` FR-110, FR-114 (D-300): the account's
+  // creation, profile edit and custom-field edit, both phases. None of the
+  // three is reversible (176 R-20), which `customer-account-hookable-actions.test.ts`
+  // holds.
+  hookableActions: Object.values(CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   // Feature 076 (D-79) — the customer-group admin surface came here with the

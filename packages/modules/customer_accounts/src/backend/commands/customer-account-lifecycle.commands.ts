@@ -1,5 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, isUuidShape, type AuthSessionPort, type CustomFieldMerge } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  isUuidShape,
+  type AuthSessionPort,
+  type CustomerAccountOutbox,
+  type CustomerAccountRecord,
+  type CustomerAccountUpdateHookData,
+  type CustomFieldMerge,
+} from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
@@ -224,15 +232,33 @@ export function makeSetCustomerGroupCommand(input: {
  * `customer.custom_fields.update` (feature 055) — the caller's merge, run
  * between this Command's load and its write so a concurrent patch is not lost.
  * The entry names the keys whose value changed, never the values (D-288).
+ *
+ * Hookable, both phases (`specs/193-admin-form-extensions/` FR-110): a hook is
+ * handed the after-state through `toRecord`, which the caller builds with what
+ * it already knows of the account's second factor.
  */
 export function makeSetCustomerCustomFieldValuesCommand(input: {
   readonly customerAccountId: string;
   readonly merge: CustomFieldMerge;
+  readonly toRecord: (account: CustomerAccount) => CustomerAccountRecord;
 }): Command<LifecycleResult> {
+  // Set by `run`, which the bus calls before `hookData` and `outboxData`.
+  let changedCustomFields: readonly string[] = [];
   return {
     action: 'customer.custom_fields.update',
     objectType: 'customer_account',
     objectId: input.customerAccountId,
+    hookData: (account): CustomerAccountUpdateHookData => ({
+      customerAccount: input.toRecord(account),
+      changedFields: [],
+      changedCustomFields,
+    }),
+    outboxData: (account): CustomerAccountOutbox => ({
+      customerAccountId: account.id,
+      organizationId: account.organizationId ?? null,
+      changedFields: [],
+      changedCustomFields,
+    }),
     run: async ({ em }) => {
       const account = isUuidShape(input.customerAccountId)
         ? await em.findOne(CustomerAccount, { id: input.customerAccountId })
@@ -240,11 +266,8 @@ export function makeSetCustomerCustomFieldValuesCommand(input: {
       if (!account) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer not found.');
       const current = { ...(account.customFieldValues ?? {}) };
       account.customFieldValues = await input.merge(current);
-      return {
-        result: account,
-        before: null,
-        after: { changedCustomFields: changedKeys(current, account.customFieldValues ?? {}) },
-      };
+      changedCustomFields = changedKeys(current, account.customFieldValues ?? {});
+      return { result: account, before: null, after: { changedCustomFields } };
     },
   };
 }
