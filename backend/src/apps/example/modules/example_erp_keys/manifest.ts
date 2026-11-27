@@ -108,4 +108,19 @@ export const manifest = defineModuleManifest({
       weight: 400,
     },
   ],
+  // `specs/192-organization-merge/` FR-045 — a key names one Organization, so an
+  // Organization merge says what becomes of the loser's: it moves to a survivor
+  // that has none, and stays on the archived loser otherwise (`merge.ts`).
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'erp-keys',
+        phase: 'configuration',
+        references: [
+          { entity: 'ExampleErpOrganizationKey', property: 'organizationId', disposition: 'survivor_wins_fill_gaps' },
+        ],
+      },
+    ],
+  },
 });

@@ -127,13 +127,20 @@ zainstalowany pakiet i obowiązują go te same reguły:
 - **Kolumny rozszerzające** — moduł nakładkowy może zadeklarować `schemaExtensions` w rozszerzalnej
   tabeli rdzenia, tak jak zainstalowany pakiet; zobacz
   [Zadeklarowane kolumny rozszerzające](./schema-extensions.md).
+- **Udział w scalaniu** — tabela wskazująca organizację (lub inny scalany host) określa, co
+  scalanie robi z wierszami organizacji scalanej, w `merge.participates` manifestu i przez
+  `ctx.merge.participate`, tak jak w pakiecie. Bez tej deklaracji kontrola pokrycia odrzuca drzewo.
 - **Przeniesienie zachowuje identyfikator** — moduł przeniesiony później z nakładki do pakietu
   zachowuje identyfikator modułu, więc migracje, które baza danych już zapisała, nadal się
   zgadzają.
 
 `apps/example/modules/example_erp_keys/` w repozytorium platformy to referencyjny moduł nakładkowy,
 który warto skopiować: tabela poboczna przy `organizations` z migracją, wypełniający ją hook
-polecenia, port w `ports.ts` oraz ekran panelu administracyjnego z akcją palety poleceń.
+polecenia, port w `ports.ts`, ekran panelu administracyjnego z akcją palety poleceń oraz krok
+scalania organizacji. Przy scalaniu organizacja docelowa bez klucza ERP przejmuje klucz organizacji
+scalanej; organizacja docelowa z kluczem go zachowuje, a klucz scalanej zostaje przy niej po
+archiwizacji i jest wymieniony w podglądzie scalania. Uzgodnienie tego klucza w systemie ERP należy
+do integratora: platforma nie może wiedzieć, który rekord ERP powinien pozostać.
 
 **Powód, dla którego kiedyś tego odmawiano, wycofano.** Moduł nakładkowy nie wnosił kiedyś schematu,
 bo nakładka znajduje się w tym samym repozytorium i w tym samym buildzie co rdzeń, więc tabelę
