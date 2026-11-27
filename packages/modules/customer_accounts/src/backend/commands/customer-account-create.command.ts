@@ -3,7 +3,9 @@ import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
   normalizeEmailAddress,
+  type CustomerAccountCreateHookData,
   type CustomerAccountCreatePreparation,
+  type CustomerAccountOutbox,
   type CustomerAccountRecord,
 } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
@@ -62,10 +64,21 @@ function makeCreateCustomerAccountCommand(
   input: CustomerAccountCreatePreparation & { organizationId: string; organizationRoleId: string; passwordHash: string },
 ): Command<CustomerAccountRecord> {
   const customerAccountId = randomUUID();
+  // The names of the fields the account was created with, as its audit entry
+  // records them; set by `run`, which the bus calls before the two below.
+  let createdFields: readonly string[] = [];
   return {
     action: 'customer_account.create',
     objectType: 'customer_account',
     objectId: customerAccountId,
+    // `specs/193-admin-form-extensions/` FR-110: hookable, both phases.
+    hookData: (record): CustomerAccountCreateHookData => ({ customerAccount: record }),
+    outboxData: (record): CustomerAccountOutbox => ({
+      customerAccountId: record.id,
+      organizationId: record.organizationId,
+      changedFields: createdFields,
+      changedCustomFields: [],
+    }),
     run: async ({ em }) => {
       const email = normalizeEmailAddress(input.email);
       if (await em.findOne(CustomerAccount, { email })) throw emailTaken();
@@ -99,7 +112,9 @@ function makeCreateCustomerAccountCommand(
         if (err instanceof UniqueConstraintViolationException) throw emailTaken();
         throw err;
       }
-      return { result: deps.toRecord(account), before: null, after: accountCreatedAuditState(account) };
+      const after = accountCreatedAuditState(account);
+      createdFields = after['changedFields'] as string[];
+      return { result: deps.toRecord(account), before: null, after };
     },
   };
 }

@@ -108,8 +108,10 @@ export function useProjectComments(projectId: string, kind: ProjectCommentKind):
   return useMemo(
     () => ({
       list: () => projectsApi.listComments(projectId, kind),
-      add: (body: string) => projectsApi.addComment(projectId, kind, body),
-      update: (commentId: string, body: string) => projectsApi.updateComment(projectId, commentId, body),
+      add: (body: string, customFieldValues?: Record<string, unknown>) =>
+        projectsApi.addComment(projectId, kind, body, customFieldValues),
+      update: (commentId: string, body: string, customFieldValues?: Record<string, unknown>) =>
+        projectsApi.updateComment(projectId, commentId, body, customFieldValues),
       remove: (commentId: string) => projectsApi.deleteComment(projectId, commentId),
     }),
     [projectId, kind],

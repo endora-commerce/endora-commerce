@@ -221,9 +221,13 @@ anonimizacja dotrze do usuniętego konta.
   64 znaki), zapisywany jako `source` we wpisie audytu obok aktora. Każda inna wartość jest
   odrzucana z `422 VALIDATION_FAILED`, zanim cokolwiek zostanie odczytane lub zapisane.
 - `expectedVersion` — pomijana: konto nie ma wersji.
-- `extensions` — dane dla hooków poleceń akcji. Żadna akcja konta nie jest jeszcze dostępna dla
-  hooków, więc każdy klucz jest odrzucany z `422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek
-  zostanie zapisane.
+- `extensions` — dane dla hooków poleceń akcji, pod kluczem identyfikatora modułu hooka. Hooki
+  mogą działać przed commitem i po nim na trzech akcjach: `customer_account.create` (`create`),
+  `customer_account.update_profile` (`updateProfile`) i `customer.custom_fields.update`
+  (`setCustomFieldValues`); ich referencje to `CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS` w
+  `@endora-commerce/contracts`. Klucz, którego nie przejmuje żaden obecny moduł hooka na danej
+  akcji — a na każdej innej metodzie każdy klucz — jest odrzucany z
+  `422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek zostanie zapisane.
 
 **Czego port nie oferuje.** Przeniesienie konta do innej organizacji (metody
 `setOrganization`, `detachToPersonalOrganization` i `attachToOrganization` starszych portów)

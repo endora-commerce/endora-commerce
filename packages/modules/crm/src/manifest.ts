@@ -1,6 +1,8 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  OPPORTUNITY_HOOKABLE_ACTIONS,
+  toHookableActionDeclaration,
   type CustomFieldWriteDeclaration,
   type ModuleDemoManifest,
 } from '@endora-commerce/contracts';
@@ -119,7 +121,7 @@ const demo: ModuleDemoManifest<ModuleContext> = {
 
 /**
  * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-11) — the
- * admin writes of this module's custom-field host, for `check:custom-field-writes`.
+ * admin writes of this module's custom-field hosts, for `check:custom-field-writes`.
  * Read as a literal by the check: keep every entry a literal object.
  */
 export const customFieldWrites = [
@@ -136,6 +138,21 @@ export const customFieldWrites = [
     method: 'PATCH',
     path: '/api/v1/admin/crm/opportunities/:id',
     body: 'UpdateOpportunityRequestSchema',
+  },
+  // Issue #2005 — a note on an Opportunity: written with the note, and edited with its text.
+  {
+    entityType: 'opportunity_note',
+    kind: 'create',
+    method: 'POST',
+    path: '/api/v1/admin/crm/opportunities/:id/comments',
+    body: 'CreateOpportunityCommentRequestSchema',
+  },
+  {
+    entityType: 'opportunity_note',
+    kind: 'update',
+    method: 'PATCH',
+    path: '/api/v1/admin/crm/opportunities/:id/comments/:commentId',
+    body: 'UpdateOpportunityCommentRequestSchema',
   },
 ] satisfies CustomFieldWriteDeclaration[];
 
@@ -529,6 +546,15 @@ export const manifest = defineModuleManifest({
       ],
     },
   ],
+  /**
+   * Command hooks (`specs/193-admin-form-extensions/` FR-111, issue #2006;
+   * the mechanism is `specs/176-command-hooks-outbox/`): creating and editing
+   * an Opportunity, the two writes of its editor's field set. Each Command
+   * supplies `hookData` (the uncommitted record and the changed names) and
+   * `outboxData` of ids and field names only;
+   * `opportunity-hookable-actions.test.ts` holds each to its ref.
+   */
+  hookableActions: Object.values(OPPORTUNITY_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   demo,

@@ -831,8 +831,8 @@ nie otwierałeś, liczą się tylko wiadomości napisane po aktualizacji.
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | Notatki szansy, od najstarszej. `kind=message` — rozmowa. Parametr `kind` jest wymagany. |
-| `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Dodanie: `{ "kind": "note" \| "message", "body" }`. |
-| `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edycja notatki: `{ "body" }`. Tylko autor. |
+| `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Dodanie: `{ "kind": "note" \| "message", "body", "customFieldValues"? }` — wartości tylko dla notatki. |
+| `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edycja notatki: `{ "body", "customFieldValues"? }`, wartości scalane klucz po kluczu. Tylko autor. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Usunięcie notatki. Tylko autor. |
 | `POST /api/v1/admin/crm/opportunities/:id/messages/read` | `crm:read` | Informacja, że przeczytałeś rozmowę aż do wskazanej wiadomości: `{ "throughMessageId" }`. Odpowiedź: `{ "unreadMessageCount" }` — ile wiadomości pozostaje dla ciebie nieprzeczytanych. |
 
@@ -854,6 +854,40 @@ są nieprzeczytane wiadomości: wiadomość jest nieprzeczytana, gdy jest nowsza
 zarówno od tej chwili, jak i od twojego znacznika, więc znacznik starszy od tej
 chwili nie sprawia, że cokolwiek znów staje się nieprzeczytane. Liczone są
 wyłącznie wiadomości, które pokazuje karta *Wiadomości*.
+
+### Pola niestandardowe notatki
+
+Operator dodaje do notatek własne pola — na przykład **Typ** z wyborem
+*telefon*, *spotkanie* i *e-mail* — na ekranie **Pola niestandardowe**
+(`/custom-fields`), gdzie *Notatka szansy sprzedażowej* jest jednym z typów
+rekordów. Każde pole ma typ (tekst, liczba, tak/nie, data, jeden wybór albo
+kilka) i może być wymagane. Nie trzeba niczego programować.
+
+- Pola są pod treścią, gdy piszesz notatkę, i w formularzu notatki, gdy
+  edytujesz własną. Każda notatka pokazuje swoje wartości w jednym wierszu pod
+  treścią. Pola są oferowane, a ich wartości pokazywane, administratorowi,
+  który może też przeglądać pola niestandardowe (`custom_fields:read`).
+- Wartość niezgodna z polem — puste pole wymagane, liczba, która nie jest
+  liczbą, wybór spoza listy — jest odrzucana, a pole zostaje wskazane; notatka
+  nie jest zapisywana. Pole wymagane jest wymagane przy każdej nowej notatce,
+  także napisanej przez API albo przez integrację.
+- Edycja notatki zmienia tylko te pola, które zmieniłeś; pozostałe zachowują
+  swoje wartości.
+- **Wiadomość** nie ma pól: wiadomość wysłana z wartościami jest odrzucana.
+- Historia zmian szansy podaje nazwy pól, które notatka otrzymała albo zmieniła,
+  nigdy ich wartości — dziennik audytu platformy nie jest prowadzony osobno dla
+  każdej organizacji.
+- Gdy moduł CRM jest wyłączony, *Notatka szansy sprzedażowej* nie jest
+  oferowana na ekranie pól niestandardowych; jej pola i wszystkie wartości są
+  zachowane i wracają razem z modułem.
+
+Dla programistów: typ encji to `opportunity_note`. Wartości to
+`customFieldValues` w `POST` i `PATCH /api/v1/admin/crm/opportunities/:id/comments…`
+oraz w każdym komentarzu zwracanym przez API administracyjne;
+`opportunityCommandPort.addComment` przyjmuje je tak samo jak trasa, a
+`opportunityReadPort.listNotes` zwraca je przy każdej notatce. Ponieważ notatka
+jest hostem pól niestandardowych, zainstalowany moduł może też rozszerzyć
+`crm.CrmOpportunityComment` tabelą poboczną.
 
 ## Załączniki
 
@@ -2463,7 +2497,7 @@ zapisu szansy, zadeklarowany jako `OpportunityCommandPort` w
 | `setTags(id, { tagIds }, options?)` | `crm.opportunity.tag_set` | `PUT /api/v1/admin/crm/opportunities/:id/tags` |
 | `link(id, { documentKind, documentId, syncStatus? }, options?)` | `crm.opportunity.link_add` | `POST /api/v1/admin/crm/opportunities/:id/links` |
 | `unlink(id, linkId, options?)` | `crm.opportunity.link_remove` | `DELETE /api/v1/admin/crm/opportunities/:id/links/:linkId` |
-| `addComment(id, { kind, body }, options?)` | `crm.opportunity.note_add`, `crm.opportunity.message_add` | `POST /api/v1/admin/crm/opportunities/:id/comments` |
+| `addComment(id, { kind, body, customFieldValues? }, options?)` | `crm.opportunity.note_add`, `crm.opportunity.message_add` | `POST /api/v1/admin/crm/opportunities/:id/comments` |
 | `delete(id, options?)` | `crm.opportunity.delete` | `DELETE /api/v1/admin/crm/opportunities/:id` |
 
 **Jedna ścieżka zapisu.** Każda metoda uruchamia to samo polecenie (Command) co
@@ -2508,14 +2542,52 @@ osobną transakcją.
 - `expectedVersion` — `version` szansy, którą odczytałeś. `update` go
   przestrzega, tak jak `If-Match` w panelu, i odmawia zapisu szansy, która się
   zmieniła, kodem `409 VERSION_CONFLICT`. Pozostałe metody go pomijają.
-- `extensions` — żaden zapis CRM nie jest zadeklarowany jako dostępny dla
-  hooków, więc każdy klucz kończy się odmową `422 COMMAND_EXTENSION_UNCLAIMED`,
-  zanim cokolwiek zostanie odczytane lub zapisane.
+- `extensions` — dane wejściowe dla hooków poleceń zapisu, z kluczem będącym
+  identyfikatorem modułu hooka (zob. *Akcje dostępne dla hooków* niżej).
+  `create`, `update` i `setCustomFieldValues` przekazują je dalej, a klucz,
+  którego nie obsługuje żaden obecny moduł hooka, kończy się odmową
+  `422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek zostanie zapisane.
+  Pozostałe metody wykonują zapisy niedostępne dla hooków, więc odmawiają
+  każdego klucza, zanim cokolwiek zostanie odczytane lub zapisane.
 
 **Czego port nie oferuje**: załączników, wydarzeń i ich przypomnień, ponawiania
 ani odrzucania zmiany zamówienia, której odmówiono, przeliczania wartości ani
 tego, czy powiązane zamówienie podąża za szansą. Przepływ, tagi i mapowania
 statusów zamówień to konfiguracja, a nie część szansy.
+
+### Akcje dostępne dla hooków
+
+Utworzenie i edycja szansy są zadeklarowane jako dostępne dla hooków, więc inny
+moduł — moduł nakładki wdrożenia albo zainstalowany pakiet — może w nich
+uczestniczyć. Zarejestruj hook polecenia na referencji z
+`OPPORTUNITY_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`) i dopisz `crm` do
+`dependencies` w manifeście. Hook `beforeCommit` działa w transakcji zapisu i
+może go odrzucić własnym kodem, co wycofuje zapis. Handler `afterCommit` jest
+dostarczany przez outbox platformy po zatwierdzeniu, co najmniej raz. Sposób
+działania hooków opisuje strona architektury *Command Bus*.
+
+| Akcja | Referencja | Kto zapisuje |
+| --- | --- | --- |
+| `crm.opportunity.create` | `OPPORTUNITY_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/crm/opportunities`, `opportunityCommandPort.create` oraz szansa tworzona dla złożonego zamówienia lub zapytania ofertowego |
+| `crm.opportunity.update` | `OPPORTUNITY_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/crm/opportunities/:id`, `opportunityCommandPort.update` i `opportunityCommandPort.setCustomFieldValues` |
+
+Obie oferują obie fazy. Hook `beforeCommit` dostaje `opportunity` — szansę w
+stanie po zapisie, jeszcze niezatwierdzoną, w kształcie zwracanym przez
+`opportunityReadPort` — oraz `changedFields` i `changedCustomFields`,
+posortowane nazwy tego, co zapis ustawił lub zmienił. Wiersz outboxu zawiera
+wyłącznie `opportunityId`, `organizationId`, `changedFields` i
+`changedCustomFields`, nigdy wartości, a jego handler działa w Organizacji
+szansy.
+
+- **Szansa tworzona dla zamówienia lub zapytania ofertowego** powstaje z
+  wartością wyliczaną i jest przeliczana po zatwierdzeniu, więc jej hook
+  utworzenia widzi wartość sprzed tego przeliczenia.
+- **Edycja, która trafi na równoczesną zmianę pól dodatkowych**, jest ponownie
+  walidowana i powtarzana. Hooki działają raz, dla próby, która zapisuje.
+- **Żaden inny zapis CRM nie jest dostępny dla hooków** — zmiana statusu,
+  przypisanie, etykiety, powiązania, notatki i wiadomości, wydarzenia,
+  załączniki i usunięcie. Hook zarejestrowany na którymś z nich jest odrzucany
+  przy starcie.
 
 ## Włączanie i wyłączanie
 

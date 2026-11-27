@@ -70,6 +70,7 @@ const note = (body: string, references: OpportunityReference[] = []): Opportunit
   references,
   editedAt: null,
   createdAt: '2026-10-05T10:00:00.000Z',
+  customFieldValues: {},
 });
 
 let notes: OpportunityComment[];

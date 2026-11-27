@@ -802,8 +802,8 @@ since, only messages written after the upgrade count.
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | The opportunity's notes, oldest first. `kind=message` for the conversation. `kind` is required. |
-| `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Write one: `{ "kind": "note" \| "message", "body" }`. |
-| `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edit a note: `{ "body" }`. Its author only. |
+| `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Write one: `{ "kind": "note" \| "message", "body", "customFieldValues"? }` — the values for a note only. |
+| `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edit a note: `{ "body", "customFieldValues"? }`, the values merged key by key. Its author only. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Delete a note. Its author only. |
 | `POST /api/v1/admin/crm/opportunities/:id/messages/read` | `crm:read` | Say that you have read the conversation up to a message: `{ "throughMessageId" }`. Answers `{ "unreadMessageCount" }` — what is left unread for you. |
 
@@ -823,6 +823,38 @@ unread when it is newer than both that instant and your marker, so a marker
 older than the instant makes nothing unread again. The count takes the messages
 the *Messages* tab lists and no others.
 
+### Custom fields on a note
+
+An operator adds fields of their own to notes — a **Type** with the choices
+*call*, *meeting* and *e-mail*, say — on the **Custom fields** screen
+(`/custom-fields`), where *Opportunity note* is one of the record types. Each
+field has a type (text, number, yes/no, date, a choice or several choices) and
+may be required. No code is needed.
+
+- The fields are under the text when you write a note, and in a note's form
+  when you edit your own. Each note shows its values in one line under its
+  text. The fields are offered to, and their values shown to, an administrator
+  who may also view custom fields (`custom_fields:read`).
+- A value that breaks its field — a required field left empty, a number that
+  is not one, a choice that is not offered — is refused, and the field is
+  named; the note is not saved. A required field is asked for on every new
+  note, also one written through the API or by an integration.
+- Editing a note changes only the fields you changed; the others keep their
+  values.
+- A **message** has no fields: a message sent with values is refused.
+- The opportunity's change history names the fields a note was given or
+  changed, never their values — the platform's audit log is not kept per
+  Organization.
+- While CRM is switched off, *Opportunity note* is not offered on the
+  custom-fields screen; its fields and every value are kept, and are back when
+  the module is.
+
+For developers: the entity type is `opportunity_note`. The values are
+`customFieldValues` on `POST` and `PATCH /api/v1/admin/crm/opportunities/:id/comments…`
+and on every comment the admin API answers; `opportunityCommandPort.addComment`
+takes them as the route does, and `opportunityReadPort.listNotes` answers them
+on each note. Because a note is a custom-field host, an installed module may
+also extend `crm.CrmOpportunityComment` with a side table.
 ## Attachments
 
 A brief, a drawing, a signed offer — files can be attached to an opportunity.
@@ -2367,7 +2399,7 @@ in the calling module's manifest `dependencies` (or in
 | `setTags(id, { tagIds }, options?)` | `crm.opportunity.tag_set` | `PUT /api/v1/admin/crm/opportunities/:id/tags` |
 | `link(id, { documentKind, documentId, syncStatus? }, options?)` | `crm.opportunity.link_add` | `POST /api/v1/admin/crm/opportunities/:id/links` |
 | `unlink(id, linkId, options?)` | `crm.opportunity.link_remove` | `DELETE /api/v1/admin/crm/opportunities/:id/links/:linkId` |
-| `addComment(id, { kind, body }, options?)` | `crm.opportunity.note_add`, `crm.opportunity.message_add` | `POST /api/v1/admin/crm/opportunities/:id/comments` |
+| `addComment(id, { kind, body, customFieldValues? }, options?)` | `crm.opportunity.note_add`, `crm.opportunity.message_add` | `POST /api/v1/admin/crm/opportunities/:id/comments` |
 | `delete(id, options?)` | `crm.opportunity.delete` | `DELETE /api/v1/admin/crm/opportunities/:id` |
 
 **One write path.** Each method runs the same Command as the admin endpoint,
@@ -2412,13 +2444,50 @@ transaction of its own.
 - `expectedVersion` — the opportunity's `version` you read. `update` honours
   it, as the admin's `If-Match` does, and refuses a moved-on opportunity with
   `409 VERSION_CONFLICT`. The other methods ignore it.
-- `extensions` — no CRM write is declared hookable, so any key is refused with
-  `422 COMMAND_EXTENSION_UNCLAIMED` before anything is read or written.
+- `extensions` — input for the command hooks on the write, keyed by hook
+  module id (see *Hookable actions* below). `create`, `update` and
+  `setCustomFieldValues` pass it on, and a key no present hook module claims is
+  refused with `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+  The other methods run writes that are not hookable, so they refuse any key
+  before anything is read or written.
 
 **Not offered**: attachments, events and their reminders, retrying or
 dismissing an order change that was refused, recalculating a value, and
 whether a linked order follows the opportunity. The workflow, the tags and the
 order-status mappings are configuration, not part of an opportunity.
+
+### Hookable actions
+
+Creating and editing an opportunity are declared hookable, so another module
+— a deployment's overlay module or an installed package — can take part in
+them. Register a command hook against the ref in
+`OPPORTUNITY_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`) and list `crm`
+in your manifest `dependencies`. A `beforeCommit` hook runs inside the write's
+transaction and may refuse it with a code of its own, which rolls the write
+back. An `afterCommit` handler is delivered through the platform's outbox after
+the commit, at least once. How hooks run is on the *Command Bus* architecture
+page.
+
+| Action | Ref | Written by |
+| --- | --- | --- |
+| `crm.opportunity.create` | `OPPORTUNITY_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/crm/opportunities`, `opportunityCommandPort.create`, and the opportunity created for a placed order or quote request |
+| `crm.opportunity.update` | `OPPORTUNITY_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/crm/opportunities/:id`, `opportunityCommandPort.update` and `opportunityCommandPort.setCustomFieldValues` |
+
+Both offer both phases. A `beforeCommit` hook is handed `opportunity`, the
+opportunity as the write leaves it, not yet committed, in the shape
+`opportunityReadPort` answers, with `changedFields` and `changedCustomFields`,
+the sorted names of what the write set or changed. The outbox row carries
+`opportunityId`, `organizationId`, `changedFields` and `changedCustomFields`
+only, never a value, and its handler runs in the opportunity's Organization.
+
+- **An opportunity created for an order or a quote request** is created with a
+  computed value and recalculated after the commit, so its create hook sees the
+  value before that recalculation.
+- **An edit that meets a concurrent custom-field change** is validated again
+  and retried. Hooks run once, for the attempt that writes.
+- **Every other CRM write is not hookable** — a transition, an assignment,
+  tags, links, notes and messages, events, attachments and a deletion. A hook
+  registered on one of them is refused at startup.
 
 ## Switching it on and off
 

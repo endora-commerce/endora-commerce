@@ -64,7 +64,7 @@ import type { EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { lazyEntityExtensionReads, lazyPort, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -902,17 +902,24 @@ export function registerModule(ctx: ModuleContext): void {
   // inside `catalogProductFilterPort` rather than in the caller's conjunction.
   // ---------------------------------------------------------------------------
 
+  // `specs/187-side-table-extensions/` FR-058 — `include` on the record reads
+  // of both ports; resolved only for a read that names one.
+  const extensionReads = (): EntityExtensionReads =>
+    lazyEntityExtensionReads(() => ctx.cradle<{ entityExtensionReads: EntityExtensionReads }>().entityExtensionReads);
+
   ctx.di.providePort<CatalogProductReadPort>(
     'catalogProductReadPort',
     ctx
-      .asFunction(({ emFactory }: CatalogCradle) => new CatalogProductReadService(emFactory))
+      .asFunction(
+        ({ emFactory }: CatalogCradle) => new CatalogProductReadService(emFactory, { extensionReads: extensionReads() }),
+      )
       .singleton(),
   );
 
   ctx.di.providePort<CatalogCategoryReadPort>(
     'catalogCategoryReadPort',
     ctx
-      .asFunction(({ emFactory }: CatalogCradle) => new CatalogCategoryReadService(emFactory))
+      .asFunction(({ emFactory }: CatalogCradle) => new CatalogCategoryReadService(emFactory, extensionReads()))
       .singleton(),
   );
 

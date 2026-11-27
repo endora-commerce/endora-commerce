@@ -37,6 +37,10 @@
       "types": "./dist/command-middleware/index.d.ts",
       "default": "./dist/command-middleware/index.js"
     },
+    "./forms": {
+      "types": "./dist/forms/index.d.ts",
+      "default": "./dist/forms/index.js"
+    },
     "./module": {
       "types": "./dist/module/index.d.ts",
       "default": "./dist/module/index.js"
@@ -88,6 +92,7 @@
     "ioredis": "^5.10.1",
     "pg": "^8.20.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.12"
+    "vitest": "^4.1.12",
+    "zod": "^4.2.0"
   }
 }

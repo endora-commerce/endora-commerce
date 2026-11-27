@@ -11,15 +11,24 @@ import type {
   CatalogProductValueOverrideRecord,
   CatalogValueOverrideLookupOptions,
   CatalogProductVariantRecord,
+  EntityExtensionReadOptions,
   ProductLinkKind,
+  WithEntityExtensions,
 } from '@endora-commerce/contracts';
 import { isUuidShape } from '@endora-commerce/contracts';
+import { lazyEntityExtensionReads, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink } from '../entities/product-link.entity.js';
 import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.js';
 import { ProductValueOverride } from '../entities/product-value-override.entity.js';
 import { ProductVariant } from '../entities/product-variant.entity.js';
 import { uuidArrayLiteral } from './sql-id-arrays.js';
+
+/** The host name side-table loaders register against (`specs/187-side-table-extensions/`). */
+const HOST = 'catalog.Product';
+
+type LookupOptions = CatalogProductLookupOptions & EntityExtensionReadOptions;
+type Extended = WithEntityExtensions<CatalogProductRecord>;
 
 /**
  * The row-level read model `catalog` publishes (feature 075, Phase P).
@@ -37,9 +46,16 @@ import { uuidArrayLiteral } from './sql-id-arrays.js';
  * order, invoice, RFQ or shopping list. Naming the two narrowings is what
  * makes each caller's choice visible; defaulting both to `false` keeps the
  * wider read the default it already is.
+ *
+ * `findById`, `findByIds`, `findBySku`, `findBySkus` and `listAll` take
+ * `options.include` (`specs/187-side-table-extensions/` FR-058): the products
+ * the lookup answered, after its own narrowing, are handed on the entity
+ * manager that found them to the platform's `entityExtensionReads`. Without
+ * `include` nothing is resolved.
  */
 export class CatalogProductReadService implements CatalogProductReadPort {
   readonly #sparseSearchLimit: number;
+  readonly #extensionReads: EntityExtensionReads;
 
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -50,33 +66,32 @@ export class CatalogProductReadService implements CatalogProductReadPort {
        * Both answer the same page; a test forces each.
        */
       sparseSearchLimit?: number;
+      /** The kernel's `entityExtensionReads`; absent in a hand-built service, which has no loader to offer. */
+      extensionReads?: EntityExtensionReads;
     } = {},
   ) {
     this.#sparseSearchLimit = options.sparseSearchLimit ?? SPARSE_SEARCH_LIMIT;
+    this.#extensionReads = options.extensionReads ?? lazyEntityExtensionReads(() => undefined);
   }
 
-  async findById(
-    id: string,
-    options?: CatalogProductLookupOptions,
-  ): Promise<CatalogProductRecord | null> {
+  async findById(id: string, options?: LookupOptions): Promise<Extended | null> {
     if (!isUuidShape(id)) return null;
-    const product = await this.emFactory().findOne(Product, {
+    const em = this.emFactory();
+    const product = await em.findOne(Product, {
       id,
       ...productFilter(options),
     });
-    return product ? toCatalogProductRecord(product) : null;
+    return product ? this.#attachOne(product, options, em) : null;
   }
 
-  async findByIds(
-    ids: readonly string[],
-    options?: CatalogProductLookupOptions,
-  ): Promise<CatalogProductRecord[]> {
+  async findByIds(ids: readonly string[], options?: LookupOptions): Promise<Extended[]> {
     if (ids.length === 0) return [];
-    const products = await this.emFactory().find(Product, {
+    const em = this.emFactory();
+    const products = await em.find(Product, {
       id: { $in: [...ids] },
       ...productFilter(options),
     });
-    return products.map(toCatalogProductRecord);
+    return this.#attach(products, options, em);
   }
 
   /**
@@ -84,30 +99,26 @@ export class CatalogProductReadService implements CatalogProductReadPort {
    * product and deleted ones holding the same SKU. It answers the live one, else the most
    * recently deleted, ordered so the choice is deterministic.
    */
-  async findBySku(
-    sku: string,
-    options?: CatalogProductLookupOptions,
-  ): Promise<CatalogProductRecord | null> {
-    const product = await this.emFactory().findOne(
+  async findBySku(sku: string, options?: LookupOptions): Promise<Extended | null> {
+    const em = this.emFactory();
+    const product = await em.findOne(
       Product,
       { sku, ...productFilter(options) },
       { orderBy: LIVE_FIRST },
     );
-    return product ? toCatalogProductRecord(product) : null;
+    return product ? this.#attachOne(product, options, em) : null;
   }
 
   /** One record per SKU, chosen as {@link findBySku} chooses it (issue #693). */
-  async findBySkus(
-    skus: readonly string[],
-    options?: CatalogProductLookupOptions,
-  ): Promise<CatalogProductRecord[]> {
+  async findBySkus(skus: readonly string[], options?: LookupOptions): Promise<Extended[]> {
     if (skus.length === 0) return [];
-    const products = await this.emFactory().find(
+    const em = this.emFactory();
+    const products = await em.find(
       Product,
       { sku: { $in: [...skus] }, ...productFilter(options) },
       { orderBy: LIVE_FIRST },
     );
-    return firstPerSku(products).map(toCatalogProductRecord);
+    return this.#attach(firstPerSku(products), options, em);
   }
 
   async countByIds(ids: readonly string[]): Promise<number> {
@@ -115,13 +126,28 @@ export class CatalogProductReadService implements CatalogProductReadPort {
     return this.emFactory().count(Product, { id: { $in: [...ids] } });
   }
 
-  async listAll(options?: CatalogProductLookupOptions): Promise<CatalogProductRecord[]> {
-    const products = await this.emFactory().find(
+  async listAll(options?: LookupOptions): Promise<Extended[]> {
+    const em = this.emFactory();
+    const products = await em.find(
       Product,
       productFilter(options) as FilterQuery<Product>,
       { orderBy: { sku: 'asc' } },
     );
-    return products.map(toCatalogProductRecord);
+    return this.#attach(products, options, em);
+  }
+
+  async #attach(
+    products: readonly Product[],
+    options: EntityExtensionReadOptions | undefined,
+    em: EntityManager,
+  ): Promise<Extended[]> {
+    return [...(await this.#extensionReads.attach(HOST, products.map(toCatalogProductRecord), options, em))];
+  }
+
+  async #attachOne(product: Product, options: EntityExtensionReadOptions | undefined, em: EntityManager): Promise<Extended> {
+    const record = toCatalogProductRecord(product);
+    const [attached] = await this.#extensionReads.attach(HOST, [record], options, em);
+    return attached ?? record;
   }
 
   /**

@@ -160,6 +160,11 @@ anything is written, so a misspelt or switched-off module never loses data silen
 for that Command, decided per call, with no restart. The write behaves as if the module were
 not installed.
 
+**Operator commands run no hooks.** A Command Bus an operator command builds for itself, outside
+the application — today the schema-extension lifecycle commands — has no hook registry, so its
+Commands run no `beforeCommit` hook and enqueue no `afterCommit` delivery. They are still audited.
+The same bus runs no [command middleware](#command-middleware) either.
+
 **Composition refuses what cannot be ordered or is not offered.** At boot, after every module
 has registered and before any boot hook, the platform refuses: a hook on an action no module
 declares; a phase the owner does not offer; one action declared by two modules; a duplicate
@@ -290,6 +295,38 @@ in `errorCodes` already has its `errors.<CODE>` sentence; give a `PermanentOutbo
 `pl.json` — the `errors.*` family is the error envelope's and takes SCREAMING_SNAKE codes
 only. The platform translates its own three: `hook-unregistered`, `permanent-failure` and
 `handler-failed`. A code nobody translates is shown raw.
+
+## Command middleware: `admit` and `observe` {#command-middleware}
+
+A hook takes part in one write an owner declared. **Command middleware** runs on every Command
+whose action matches a filter its module declares — `'*'`, a full action or a prefix ending in
+`.` — whoever owns it, children included. It has two phases and no third:
+
+```text
+admit(root) → transaction: run → hooks → audit entry → event → outbox rows → commit → observe
+```
+
+- **`admit`** runs before the Command does anything, before the transaction opens, and again for
+  each matching child Command. It receives metadata only and may only pass or throw
+  `CommandRefusedError` with a code its module declares. A refused Command writes nothing and
+  records no audit entry; an `admit` that throws anything else, or does not answer within its
+  budget, refuses with `503 COMMAND_ADMISSION_FAILED` or `503 COMMAND_ADMISSION_TIMEOUT`. An
+  installed extension package may not contribute one.
+- **`observe`** runs after the run has committed or rolled back, detached from the caller, with
+  the outcome as ids, codes and booleans. It cannot change the write, and a throw in it is logged
+  and swallowed.
+
+Middleware is declared in the manifest's `commandMiddleware` and registered with
+`ctx.commandMiddleware`; composition refuses either without the other. It is skipped while its
+module is off, and code running inside it cannot run a Command (`500
+COMMAND_MIDDLEWARE_REENTRY`). Which seam to choose, and who may use it, is rung 2c of
+[the customisation ladder](./customisation-ladder.md#2c--command-middleware).
+
+**Operator commands run no middleware.** A Command Bus an operator command builds for itself,
+outside the application — today the schema-extension lifecycle commands — has no middleware
+registry, so its Commands run no `admit` and no `observe`, and no hooks either. They are still
+audited. `admit` is a business policy gate for the application's paths: do not rely on it to stop
+a maintenance command run by someone with shell and database access.
 
 ## Reversibility & undo
 

@@ -37,9 +37,10 @@ import { expectPortParity, observeWrite, type ParityObservation } from '../../he
  * operation runs. Each case performs the operation twice, once through the
  * route and once through the port under the same administrator, on two
  * Opportunities in the same state, and holds what each wrote to the other
- * (`expectPortParity`): the audit entries, the command hooks fired (none: no
- * `crm` action is hookable), the outbox rows, and a side-effect probe where the
- * route has one — the assignee's notice.
+ * (`expectPortParity`): the audit entries, the command hooks fired (none: this
+ * server composes no hook module, though `crm.opportunity.create` and `.update`
+ * are hookable since `specs/193-admin-form-extensions/` FR-111), the outbox
+ * rows, and a side-effect probe where the route has one — the assignee's notice.
  *
  * `setCustomFieldValues` has no route of its own: it is measured against the
  * route's `PATCH` carrying `customFieldValues` alone, the `crm.opportunity.update`
@@ -47,7 +48,8 @@ import { expectPortParity, observeWrite, type ParityObservation } from '../../he
  *
  * Then the port's own additions: `source` recorded beside the actor, a
  * malformed `source` and an extension key refused before anything is read —
- * a transition's guards included — `expectedVersion` honoured by `update`, a
+ * a transition's guards included — an unclaimed key on a hookable Command
+ * refused by the bus before anything is written, `expectedVersion` honoured by `update`, a
  * guard's veto answered as an outcome, the deprecated
  * `opportunityTransitionPort` delegating, and the owner switched off.
  */
@@ -365,6 +367,25 @@ describe('opportunityCommandPort — the admin routes’ Commands (#1827)', () =
       }
       expect(guardRuns).toBe(runs);
       expect((await reread(opportunity.id)).statusCode).toBe('new');
+      expect((await reread(opportunity.id)).title).toBe('Port parity');
+      expect(await entries(opportunity.id)).toHaveLength(recorded);
+    });
+
+    it('forwards extensions on the hookable create and update: an unclaimed key is the bus’s 422, nothing written (193 FR-111)', async () => {
+      const opportunity = await fresh();
+      const recorded = (await entries(opportunity.id)).length;
+      const title = `Never ${randomUUID()}`;
+      for (const write of <Array<() => Promise<unknown>>>[
+        () => port.create({ title, organizationId: TEST_ORGANIZATION_ID, currency: 'PLN' }, { extensions: { nobody_claims_this: {} } }),
+        () => port.update(opportunity.id, { title }, { extensions: { nobody_claims_this: {} } }),
+        () => port.setCustomFieldValues(opportunity.id, async (bag) => bag, { extensions: { nobody_claims_this: {} } }),
+      ]) {
+        expect(await refusal(asAdmin(write))).toMatchObject({
+          statusCode: 422,
+          code: ERROR_CODES.COMMAND_EXTENSION_UNCLAIMED,
+        });
+      }
+      expect(await h.em().fork().count(CrmOpportunity, { title }, { filters: false })).toBe(0);
       expect((await reread(opportunity.id)).title).toBe('Port parity');
       expect(await entries(opportunity.id)).toHaveLength(recorded);
     });
