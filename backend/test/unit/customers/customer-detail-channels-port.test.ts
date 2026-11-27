@@ -80,6 +80,7 @@ function readPort(
     salesChannelIdsForCustomer,
     findStatusDefinition:
       unreachable('findStatusDefinition') as unknown as OrderReadPort['findStatusDefinition'],
+    isTerminal: unreachable('isTerminal') as unknown as OrderReadPort['isTerminal'],
   };
 }
 

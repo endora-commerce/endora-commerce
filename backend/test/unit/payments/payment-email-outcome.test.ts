@@ -79,6 +79,7 @@ function orderReadPort(order: OrderRecord | null): OrderReadPort {
     findIdsByBusinessIdLike: async () => [],
     salesChannelIdsForCustomer: async () => [],
     findStatusDefinition: async () => null,
+    isTerminal: async () => false,
   };
 }
 

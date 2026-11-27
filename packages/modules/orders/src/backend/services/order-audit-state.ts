@@ -42,6 +42,12 @@ export const ORDER_AUDIT_KEYS: ReadonlySet<string> = new Set([
   'carriedCustomFieldKeys',
   'changedCustomFields',
   'customFieldCarry',
+  // `specs/186-aggregate-ports/` — the calling integration's code (research R-4),
+  // and a comment's id and its two flags (`order.comment.add`; never its body).
+  'source',
+  'commentId',
+  'isCustomerVisible',
+  'notifyCustomer',
 ]);
 
 /** The sorted keys whose value differs between two custom-field bags. */
@@ -93,14 +99,39 @@ export function apiKeyPlacementAuditState(
  *
  * The entry names the keys whose value changed (`changedCustomFields`); the
  * values stay on the Order.
+ *
+ * The route's patch, as a {@link makeSetOrderCustomFieldValuesCommand} merge:
+ * one factory for the route and for `orderCommandPort.setCustomFieldValues`
+ * (`specs/186-aggregate-ports/` US4), so the two cannot record different
+ * entries.
  */
 export function orderCustomFieldsUpdateCommand(
   orderId: string,
   patch: Record<string, unknown>,
   customFieldValues: Pick<CustomFieldValuePort, 'validateAndMerge'>,
 ): Command<Order> {
+  return makeSetOrderCustomFieldValuesCommand({
+    orderId,
+    merge: (current) => customFieldValues.validateAndMerge('order', current, patch),
+  });
+}
+
+/** The audit action of every write of an Order's custom-field values. */
+export const ORDER_CUSTOM_FIELDS_UPDATE_ACTION = 'order.custom_fields.update';
+
+/**
+ * `order.custom_fields.update` over a caller's read-modify-write
+ * (`CustomFieldMerge`, research R-8): the bag is read under the row lock and
+ * handed to `merge`, and its answer is stored. The caller validates inside
+ * `merge`; a refusal it throws rolls the Command back with nothing written.
+ */
+export function makeSetOrderCustomFieldValuesCommand(input: {
+  readonly orderId: string;
+  readonly merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>;
+}): Command<Order> {
+  const { orderId, merge } = input;
   return {
-    action: 'order.custom_fields.update',
+    action: ORDER_CUSTOM_FIELDS_UPDATE_ACTION,
     objectType: 'order',
     objectId: orderId,
     run: async ({ em }) => {
@@ -114,7 +145,7 @@ export function orderCustomFieldsUpdateCommand(
       );
       if (!order) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
       const current = { ...(order.customFieldValues ?? {}) };
-      order.customFieldValues = await customFieldValues.validateAndMerge('order', current, patch);
+      order.customFieldValues = await merge({ ...current });
       return {
         result: order,
         before: null,

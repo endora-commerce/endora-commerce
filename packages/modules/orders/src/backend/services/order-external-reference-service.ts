@@ -8,11 +8,13 @@ import {
   orderExternalReferenceWriteSchema,
   type AdminOrderExternalReference,
   type OrderExternalReference as OrderExternalReferenceRecord,
+  type OrderCommandPort,
   type OrderExternalReferencePort,
   type OrderExternalReferenceWrite,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderExternalReference } from '../entities/order-external-reference.entity.js';
 
@@ -39,17 +41,27 @@ export const ORDER_EXTERNAL_REFERENCE_SET_ACTION = 'order.external_reference.set
  * empty rather than refusing.
  */
 export class OrderExternalReferenceService implements OrderExternalReferencePort {
-  constructor(private readonly deps: { emFactory: () => EntityManager; commandBus: CommandBus }) {}
+  constructor(
+    private readonly deps: {
+      emFactory: () => EntityManager;
+      commandBus: Pick<CommandBus, 'run'>;
+      /**
+       * `specs/186-aggregate-ports/` US4 (T060) — the aggregate port `set`
+       * delegates to, resolved per call. Absent (a unit test building this
+       * service alone), `set` runs the same Command itself.
+       */
+      commands?: () => Pick<OrderCommandPort, 'setExternalReference'>;
+    },
+  ) {}
 
+  /** @deprecated since 0.113.0; use {@link OrderCommandPort.setExternalReference} instead. */
   async set(
     orderId: string,
     system: string,
     value: OrderExternalReferenceWrite,
   ): Promise<OrderExternalReferenceRecord> {
-    const key = parseOr400(orderExternalReferenceSystemSchema, system, 'system');
-    const write = parseOr400(orderExternalReferenceWriteSchema, value, 'value');
-    if (!isUuidShape(orderId)) throw orderNotFound();
-    return this.deps.commandBus.run(setCommand(orderId, key, write));
+    if (this.deps.commands) return this.deps.commands().setExternalReference(orderId, system, value);
+    return setOrderExternalReference(this.deps.commandBus, { orderId, system, value });
   }
 
   async get(orderId: string, system: string): Promise<OrderExternalReferenceRecord | null> {
@@ -72,6 +84,25 @@ export class OrderExternalReferenceService implements OrderExternalReferencePort
     );
     return rows.map((row) => row.orderId);
   }
+}
+
+/**
+ * `order.external_reference.set` — the write {@link OrderExternalReferenceService.set}
+ * and `orderCommandPort.setExternalReference` both run. Refusals first: a
+ * system key or a value outside the published schemas is `400
+ * VALIDATION_FAILED` before any Command runs, a malformed order id the `404
+ * ORDER_NOT_FOUND` an unknown one is. `caller` is the port caller's `source`
+ * and extension input.
+ */
+export async function setOrderExternalReference(
+  commandBus: Pick<CommandBus, 'run'>,
+  input: { orderId: string; system: string; value: OrderExternalReferenceWrite },
+  caller: CallerOptions = {},
+): Promise<OrderExternalReferenceRecord> {
+  const key = parseOr400(orderExternalReferenceSystemSchema, input.system, 'system');
+  const write = parseOr400(orderExternalReferenceWriteSchema, input.value, 'value');
+  if (!isUuidShape(input.orderId)) throw orderNotFound();
+  return commandBus.run(withCallerOptions(setCommand(input.orderId, key, write), caller));
 }
 
 /** Every system's entry for one order, by system key — the port's read and the admin detail's. */

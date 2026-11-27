@@ -23,7 +23,7 @@
  * module to move.
  *
  * Every ordinary read and write of an order is published in
- * `@endora-commerce/contracts` — `OrderReadPort`, `OrderTransitionPort`,
+ * `@endora-commerce/contracts` — `OrderReadPort`, `OrderCommandPort`,
  * `OrderStatusRegistry` — and belongs there. What lands here is only what
  * cannot: the qualifying test D-171 states is not *"is this a real published
  * port"* but *"does this signature stop the interface living in
@@ -72,7 +72,7 @@ import type { OrderPaymentStatus, OrderStatus } from '@endora-commerce/contracts
  * first narrowing).
  *
  * `status` is the lifecycle axis and is read-only here: the settlement decides
- * the *money* axis and asks `orderTransitionPort` for the lifecycle move after
+ * the *money* axis and asks `orderCommandPort` for the lifecycle move after
  * its transaction has committed, so what the caller needs back is the status
  * the order is at, to hand to that port as the "from" it observed.
  */
@@ -118,7 +118,7 @@ export interface OrderPaymentStatusApplied {
  * module publishes no entity class by name.
  *
  * **The lifecycle half is not here and must not come here.** `order.status` is
- * `OrderTransitionPort.applyStatus` in `@endora-commerce/contracts`, called
+ * `OrderCommandPort.applyStatus` in `@endora-commerce/contracts`, called
  * *after* the settlement transaction commits, because it obtains its own
  * `EntityManager` and a call from inside would write the order on a second
  * pooled connection the caller's rollback cannot reach (issue #200). This port
