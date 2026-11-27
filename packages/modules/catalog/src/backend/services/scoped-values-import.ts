@@ -75,6 +75,17 @@ export function assertIntegrationCall(
   if (!SOURCE_SHAPE.test(source) || !isRegisteredModule(source)) {
     throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'The source is not a registered module.', { field: 'source' });
   }
+  assertIntegrationCells(cells);
+}
+
+/**
+ * The call-level checks of every integration write that do not concern its caller: at most
+ * {@link PRODUCT_SCOPED_WRITE_CELLS_MAX} cells, each a valid write op, no (field, scope) twice.
+ * `catalogProductCommandPort.applyScopedValues` runs these alone (its `source` is the aggregate
+ * ports' code, `specs/186-aggregate-ports/` research R-19.3); the deprecated connector port runs
+ * them after its registered-module rule.
+ */
+export function assertIntegrationCells(cells: readonly ProductScopedWriteCell[]): void {
   if (cells.length > PRODUCT_SCOPED_WRITE_CELLS_MAX) {
     throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, `At most ${PRODUCT_SCOPED_WRITE_CELLS_MAX} cells per call.`, {
       field: 'cells',
@@ -298,12 +309,20 @@ export async function runScopedImport(
   deps: ScopedImportDeps,
   productId: string,
   cells: readonly ProductScopedWriteCell[],
-  options: { source: string; extras?: ScopedImportExtras; path?: 'connector' | 'import' },
+  options: {
+    /** The integration's code, in both states of the entry; `null` for an aggregate-port call that named none. */
+    source: string | null;
+    extras?: ScopedImportExtras;
+    path?: 'connector' | 'import';
+    /** The aggregate port caller's extension input (spec 176); the bus refuses a key no hook claims. */
+    extensions?: Readonly<Record<string, unknown>>;
+  },
 ): Promise<ScopedImportResult> {
   const command: Command<ScopedImportResult> = {
     action: 'product.scoped_values.import',
     objectType: 'product',
     objectId: productId,
+    ...(options.extensions !== undefined ? { extensions: options.extensions } : {}),
     run: async ({ em }) => {
       await bumpScopeVersion(em, productId);
       const state = await loadScopedState(em, productId, deps);
