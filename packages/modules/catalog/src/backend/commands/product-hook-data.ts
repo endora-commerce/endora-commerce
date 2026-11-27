@@ -19,6 +19,17 @@ import { opValue, type ScopedSavePlan } from '../services/scoped-values-save.ser
  * list 1).
  */
 
+/**
+ * `specs/193-admin-form-extensions/` D-300.8 (`contracts/hookable-writers.md` §3.1) — the
+ * action each product write of a bulk edit runs under, on the inline and the queued path.
+ * It is the `product.update` write — the same audit state, `product.updated.v1` and
+ * `ProductUpdateHookData` — under its own action, which is **never** declared hookable: the
+ * bulk edit is reversible, so no module hook may see it (176 §6). It becomes a rule-check-only
+ * writer of the product field set (WP-P1). Module-local on purpose: it is not a ref in
+ * `PRODUCT_HOOKABLE_ACTIONS` and not in the manifest's `hookableActions`.
+ */
+export const PRODUCT_BULK_UPDATE_ITEM_ACTION = 'product.bulk_update.item';
+
 export function productCreateHookData(product: Product, categoryIds: readonly string[]): ProductCreateHookData {
   return { product: toCatalogProductRecord(product), categoryIds: [...categoryIds] };
 }

@@ -10,9 +10,9 @@
  *     scoped two carry one entry per saved scope;
  *  2. none of the four is reversible: the module's one undo restores a bulk
  *     operation, never a product Command's entry (176 §6, research R-22);
- *  3. `product.bulk_update` stays undeclared (FR-113), and the field writes of
- *     a bulk edit reach the bus as `product.update` Commands, which supply hook
- *     data per product (T009);
+ *  3. `product.bulk_update` stays undeclared (FR-113), and a bulk edit writes
+ *     each product as `product.bulk_update.item` (D-300.8), which supplies hook
+ *     data for the field-rule check but no module hook can attach to (T009);
  *  4. on a real bus, a present hook on `product.update` is handed the hook data
  *     and its own `extensions` key through `catalogProductCommandPort`; an
  *     unclaimed key is `422 COMMAND_EXTENSION_UNCLAIMED` with nothing written;
@@ -27,6 +27,7 @@ import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   PRODUCT_HOOKABLE_ACTIONS as PRODUCT,
+  hookableAction,
   type HookableActionRef,
   type OutboxData,
   type ProductCreateHookData,
@@ -34,7 +35,7 @@ import {
   type ProductUpdateHookData,
   type SaveScopedValuesRequest,
 } from '@endora-commerce/contracts';
-import { CommandBus, type Command, type CommandHookEntry } from '@endora-commerce/platform/commands';
+import { CommandBus, UndeclaredHookableActionError, type Command, type CommandHookEntry } from '@endora-commerce/platform/commands';
 import { EventBus, type EventBase } from '@endora-commerce/platform/events';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { withSystemScopeActingFor } from '@endora-commerce/platform/tenancy';
@@ -46,7 +47,7 @@ import { CatalogBulkUpdateService } from '../services/catalog-bulk-update.servic
 import { createCatalogProductCommandPort } from '../services/catalog-command-ports.js';
 import { runScopedImport, type ScopedImportDeps } from '../services/scoped-values-import.js';
 import type { ScopedSavePlan } from '../services/scoped-values-save.service.js';
-import { productUpdateHookData, scopedValuesHookScope } from './product-hook-data.js';
+import { PRODUCT_BULK_UPDATE_ITEM_ACTION, productUpdateHookData, scopedValuesHookScope } from './product-hook-data.js';
 import { scopedValuesSaveCommand, type ScopedValuesCommandDeps, type ScopedValuesSaveResult } from './scoped-values.commands.js';
 
 const P1 = '00000000-0000-4000-8000-000000193001';
@@ -289,7 +290,8 @@ function harness(
     moduleDependencies: { [HOOK_MODULE]: ['catalog'] },
     hooks,
   });
-  const bus = new CommandBus(orm, audit, new EventBus<Record<string, EventBase>>(), { hooks: registry });
+  const events = new EventBus<Record<string, EventBase>>();
+  const bus = new CommandBus(orm, audit, events, { hooks: registry });
   const commands: Array<Command<unknown>> = [];
   const spied = {
     run: <T>(command: Command<T>) => {
@@ -310,7 +312,7 @@ function harness(
     importDeps: () => ({}) as ScopedImportDeps,
   });
   const bulk = new CatalogBulkUpdateService(() => em as unknown as EntityManager, admin);
-  return { rows, audits, outbox, commands, admin, port, bulk };
+  return { rows, audits, outbox, commands, admin, port, bulk, events };
 }
 
 describe('product.update on a real bus (FR-112, FR-114)', () => {
@@ -381,17 +383,75 @@ describe('product.update hook data names the category set when the write named o
   });
 });
 
-describe('product.bulk_update stays undeclared; its writes supply hook data per product (FR-113, T009)', () => {
-  it('a bulk edit reaches the bus as one product.update per product, each with hook data, and never as a declared bulk action', async () => {
+/**
+ * D-300.8 (`contracts/hookable-writers.md` §3.1) — a bulk edit writes each product as
+ * `product.bulk_update.item`, never `product.update`: the bulk edit is reversible, so
+ * no module hook may see it. The item Command is the same write — the same audit
+ * state and `product.updated.v1` — and supplies `ProductUpdateHookData` for the
+ * field-rule check alone. The queued path and the undo are held on a real database
+ * in `backend/test/contract/catalog/products-bulk-update-audited.test.ts`.
+ */
+describe('a bulk edit writes product.bulk_update.item, which no hook can attach to (D-300.8, FR-113, T009)', () => {
+  const hookable = new Set(Object.values(PRODUCT).map((ref) => ref.action));
+
+  it('runs one product.bulk_update.item per product and no hookable action; a product.update hook does not run', async () => {
     const recording = recordingCommandHooks();
     const h = harness([{ moduleId: HOOK_MODULE, entries: [recording.on(PRODUCT.update)] }]);
     const result = await asAdmin(() => h.bulk.bulkUpdate({ productIds: [P1, P2], fields: { visibility: 'logged_in_only' } }));
     expect(result.summary).toMatchObject({ succeeded: 2, failed: 0 });
-    expect(h.commands.map((command) => command.action)).toEqual(['product.update', 'product.update']);
-    expect(recording.calls.map((call) => [call.objectId, (call.data as ProductUpdateHookData).changedFields])).toEqual([
-      [P1, ['visibility']],
-      [P2, ['visibility']],
+    expect(h.commands.map((command) => [command.action, command.objectId])).toEqual([
+      [PRODUCT_BULK_UPDATE_ITEM_ACTION, P1],
+      [PRODUCT_BULK_UPDATE_ITEM_ACTION, P2],
     ]);
-    expect(manifest.hookableActions?.map((declaration) => declaration.action)).not.toContain('product.bulk_update');
+    expect(h.commands.some((command) => hookable.has(command.action))).toBe(false);
+    expect(recording.calls).toEqual([]);
+    expect(h.outbox).toEqual([]);
+
+    // The same hook runs for a single-product write.
+    await asAdmin(() => h.port.update(P1, { name: `${SENTINEL}SINGLE` } as never));
+    expect(recording.calls.map((call) => [call.action, call.objectId])).toEqual([['product.update', P1]]);
+  });
+
+  it('the item Command is the product.update write: its hook data, its event, its audit state, and no outbox data', async () => {
+    const h = harness([]);
+    const announced: Array<{ productId: string; changedFields: string[] }> = [];
+    h.events.on('product.updated.v1', (payload) => {
+      const p = payload as unknown as { productId: string; changedFields: string[] };
+      announced.push({ productId: p.productId, changedFields: p.changedFields });
+    });
+    await asAdmin(() => h.bulk.bulkUpdate({ productIds: [P1], fields: { visibility: 'logged_in_only' } }));
+    await asAdmin(() => h.port.update(P2, { visibility: 'logged_in_only' } as never));
+
+    const [item, single] = h.commands;
+    expect([item!.action, single!.action]).toEqual([PRODUCT_BULK_UPDATE_ITEM_ACTION, 'product.update']);
+    expect(item!.objectType).toBe('product');
+    expect(item!.outboxData).toBeUndefined();
+    const data = item!.hookData!(h.rows.get(P1)!) as ProductUpdateHookData;
+    expect(data).toEqual(productUpdateHookData(h.rows.get(P1)!, ['visibility'], undefined));
+    expect(announced).toEqual([
+      { productId: P1, changedFields: ['visibility'] },
+      { productId: P2, changedFields: ['visibility'] },
+    ]);
+
+    const [itemEntry, singleEntry] = h.audits;
+    expect(itemEntry).toMatchObject({ action: PRODUCT_BULK_UPDATE_ITEM_ACTION, objectType: 'product', objectId: P1 });
+    expect(singleEntry).toMatchObject({ action: 'product.update', objectType: 'product', objectId: P2 });
+    const keys = (entry: Record<string, unknown> | undefined, side: string) => Object.keys((entry?.[side] ?? {}) as object).sort();
+    expect(keys(itemEntry, 'stateBefore')).toEqual(keys(singleEntry, 'stateBefore'));
+    expect(keys(itemEntry, 'stateAfter')).toEqual(keys(singleEntry, 'stateAfter'));
+    expect((itemEntry!['stateAfter'] as { changedFields: string[] }).changedFields).toEqual(['visibility']);
+  });
+
+  it('is not declared: a hook registered on it is refused at composition', () => {
+    expect(manifest.hookableActions?.map((declaration) => declaration.action)).not.toContain(PRODUCT_BULK_UPDATE_ITEM_ACTION);
+    expect(hookable.has(PRODUCT_BULK_UPDATE_ITEM_ACTION)).toBe(false);
+    const undeclared = hookableAction(PRODUCT_BULK_UPDATE_ITEM_ACTION, 'product', ['beforeCommit']);
+    expect(() =>
+      sealedCommandHookRegistry({
+        hookableActions: (manifest.hookableActions ?? []).map((declaration) => ({ moduleId: 'catalog', ...declaration })),
+        moduleDependencies: { [HOOK_MODULE]: ['catalog'] },
+        hooks: [{ moduleId: HOOK_MODULE, entries: [recordingCommandHooks().on(undeclared)] }],
+      }),
+    ).toThrow(UndeclaredHookableActionError);
   });
 });

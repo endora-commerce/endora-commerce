@@ -230,7 +230,7 @@ describe('CatalogBulkUpdateService — the completeness gate (FR-061, US6 #4)', 
           reads += 1;
           return 'refuse';
         },
-        updateProductAudited: async (id: string, _req: unknown, gate: { completeness?: string }) => {
+        updateProductForBulkEdit: async (id: string, _req: unknown, gate: { completeness?: string }) => {
           gates.push(gate?.completeness);
           if (id === P1) throw incomplete();
           return {};
@@ -254,7 +254,7 @@ describe('CatalogBulkUpdateService — the completeness gate (FR-061, US6 #4)', 
           reads += 1;
           return 'refuse';
         },
-        updateProductAudited: async () => ({}),
+        updateProductForBulkEdit: async () => ({}),
       } as unknown as CatalogAdminService,
     );
     await svc.bulkUpdate({ productIds: [P1], fields: { visibility: 'public' } });
@@ -262,10 +262,10 @@ describe('CatalogBulkUpdateService — the completeness gate (FR-061, US6 #4)', 
   });
 });
 
-describe('CatalogBulkUpdateService — every product write is the audited Command (issue #241)', () => {
+describe('CatalogBulkUpdateService — every product write is the audited product.bulk_update.item Command (issue #241, D-300.8)', () => {
   const em = { findOne: async (_entity: unknown, where: { id: string }) => ({ id: where.id, attributeSetId: 'set' }) };
 
-  it('runs updateProductAudited per product with the gate, never the unaudited updateProduct', async () => {
+  it('runs updateProductForBulkEdit per product with the gate, never updateProductAudited nor the unaudited updateProduct', async () => {
     const audited: Array<{ id: string; req: unknown; gate: unknown }> = [];
     const unaudited: string[] = [];
     const svc = new CatalogBulkUpdateService(
@@ -273,12 +273,17 @@ describe('CatalogBulkUpdateService — every product write is the audited Comman
       {
         hasCommandBus: () => true,
         completenessMode: async () => 'warn',
-        updateProductAudited: async (id: string, req: unknown, gate: unknown) => {
+        updateProductForBulkEdit: async (id: string, req: unknown, gate: unknown) => {
           audited.push({ id, req, gate });
           return {};
         },
         updateProduct: async (id: string) => {
           unaudited.push(id);
+          return {};
+        },
+        // D-300.8 — `product.update`, whose module hooks a bulk edit must not reach.
+        updateProductAudited: async (id: string) => {
+          unaudited.push(`product.update:${id}`);
           return {};
         },
       } as unknown as CatalogAdminService,
@@ -310,7 +315,7 @@ describe('CatalogBulkUpdateService — fails closed without a Command Bus (issue
       {
         hasCommandBus: () => false,
         completenessMode: async () => undefined,
-        updateProductAudited: async (id: string) => {
+        updateProductForBulkEdit: async (id: string) => {
           writes.push(id);
           return {};
         },

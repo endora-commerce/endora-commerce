@@ -1029,15 +1029,17 @@ export const manifest = defineModuleManifest({
   /**
    * `specs/193-admin-form-extensions/` FR-112 – FR-114 — the four Product writes a
    * command hook may take part in: the create, the global update (the admin
-   * `PATCH`, the aggregate port's `update` and `setCustomFieldValues`, each
-   * product of a bulk edit), the editor's scoped save and the integration's
-   * scoped import. The refs are `PRODUCT_HOOKABLE_ACTIONS` in
+   * `PATCH`, the aggregate port's `update` and `setCustomFieldValues`), the
+   * editor's scoped save and the integration's scoped import. The refs are `PRODUCT_HOOKABLE_ACTIONS` in
    * `@endora-commerce/contracts`, and each Command's tests hold it to its ref
    * with `expectHookableCommand`.
    *
-   * None of the four is reversible. `product.bulk_update` is not declared: the
-   * bulk edit is the reversible write (its undo is `product.bulk_update.undo`),
-   * and 176 §6 keeps hooks off a reversible write (FR-113).
+   * None of the four is reversible. The bulk edit is the reversible write (its
+   * undo is `product.bulk_update.undo`), and 176 §6 keeps hooks off it (FR-113):
+   * neither its summary entry `product.bulk_update` nor the action each of its
+   * product writes runs under, `product.bulk_update.item`, is declared, so a
+   * `product.update` hook never sees a bulk edit (D-300.8,
+   * `specs/193-admin-form-extensions/contracts/hookable-writers.md` §3.1).
    */
   hookableActions: Object.values(PRODUCT_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
 });
