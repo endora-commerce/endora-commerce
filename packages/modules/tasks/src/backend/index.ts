@@ -23,6 +23,7 @@ import {
   type QuoteRequestReadPort,
   type SettingsAdminPort,
   type SettingWriteValidatorRegistryPort,
+  type TaskCommandPort,
   type TaskReadPort,
   type TaskWritePort,
   type TransactionalEmailSender,
@@ -97,6 +98,7 @@ import { TaskMaintenanceService } from './services/maintenance-service.js';
 import { TaskTimeZoneRederiveService } from './services/time-zone-rederive-service.js';
 import { createTaskNotifier, type TaskNotifier } from './services/task-notifier.js';
 import { TaskReadPortService } from './services/task-read-port.js';
+import { TaskCommandService } from './services/task-command-port.js';
 import { TaskService } from './services/task-service.js';
 import { TaskSettingsService } from './services/task-settings-service.js';
 import { isSystemActor, TaskVisibility } from './services/task-visibility.js';
@@ -137,6 +139,7 @@ interface TasksCradle {
   readonly tasksWorkflowRead: TaskWorkflowRead;
   readonly tasksNotifier: TaskNotifier;
   readonly tasksTaskService: TaskService;
+  readonly tasksCommandService: TaskCommandService;
   readonly tasksHistoryService: TaskHistoryService;
   readonly tasksOwnerReadChecks: OwnerReadChecks;
   readonly tasksRecordOwners: TaskRecordOwners;
@@ -828,26 +831,68 @@ export function registerModule(ctx: ModuleContext): void {
   // --- end of Reminders, the daily digest and the maintenance pass ----------------------
 
   // --- Published ports (contracts/ports-and-events.md §1) ---------------------------
-  // What another module reads and writes Tasks through. Both are `providePort`:
-  // gated, so a consumer resolving either while this module is off gets
-  // `ModuleDisabledError` (503 `MODULE_DISABLED`) and nothing half-executes.
+  // What another module reads and writes Tasks through. All three are
+  // `providePort`: gated, so a consumer resolving one while this module is off
+  // gets `ModuleDisabledError` (503 `MODULE_DISABLED`) and nothing half-executes.
   ctx.di.providePort<TaskReadPort>(
     'taskReadPort',
     ctx.asFunction(({ tasksTaskService }: TasksCradle) => new TaskReadPortService(tasksTaskService)).singleton(),
   );
+  // The Task aggregate's write port (`specs/186-aggregate-ports/` US10, #1829):
+  // the routes' own service methods, so a port call and an admin request run
+  // the same Commands with the same checks before and the same notices after.
+  // One service behind both names: the deprecated `taskWritePort` delegates.
+  ctx.di.register({
+    tasksCommandService: ctx
+      .asFunction(
+        ({
+          commandBus,
+          emFactory,
+          taskContextRegistry,
+          tasksWorkflowRead,
+          auditLogService,
+          tasksTaskService,
+          tasksTransitionService,
+          tasksRelationService,
+          tasksRecordLinkService,
+          tasksReminderService,
+          tasksCommentService,
+          tasksAccess,
+        }: TasksCradle) =>
+          new TaskCommandService({
+            tasks: tasksTaskService,
+            transitions: tasksTransitionService,
+            relations: tasksRelationService,
+            links: tasksRecordLinkService,
+            reminders: tasksReminderService,
+            comments: tasksCommentService,
+            contextTasks: new TaskWritePortService({
+              commandBus,
+              emFactory,
+              contexts: taskContextRegistry,
+              adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+              workflow: tasksWorkflowRead,
+              auditLog: auditLogService,
+            }),
+            access: tasksAccess,
+          }),
+      )
+      .singleton(),
+  });
+  ctx.di.providePort<TaskCommandPort>(
+    'taskCommandPort',
+    ctx.asFunction(({ tasksCommandService }: TasksCradle) => tasksCommandService).singleton(),
+  );
+  // Deprecated since 0.113.0 (OD-4): both methods are `taskCommandPort`'s, to
+  // which this delegates — one implementation under two names until 0.114.0.
   ctx.di.providePort<TaskWritePort>(
     'taskWritePort',
     ctx
       .asFunction(
-        ({ commandBus, emFactory, taskContextRegistry, tasksWorkflowRead, auditLogService }: TasksCradle) =>
-          new TaskWritePortService({
-            commandBus,
-            emFactory,
-            contexts: taskContextRegistry,
-            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
-            workflow: tasksWorkflowRead,
-            auditLog: auditLogService,
-          }),
+        ({ tasksCommandService }: TasksCradle): TaskWritePort => ({
+          createMany: (input) => tasksCommandService.createMany(input),
+          deleteInContext: (q) => tasksCommandService.deleteInContext(q),
+        }),
       )
       .singleton(),
   );

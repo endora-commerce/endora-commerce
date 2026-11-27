@@ -556,7 +556,7 @@ The contract a descriptor keeps:
   and taking out with `422` `TASK_CONTEXT_INVALID`, and deleting with `403`
   `FORBIDDEN`.
 - `renderNote(note, language)`, optional, words the note your module left on a
-  task when it created it (`contextNote` of `taskWritePort.createMany`) in the
+  task when it created it (`contextNote` of `taskCommandPort.createMany`) in the
   reader's language. Store a key rather than a sentence — Projects stores the
   responsible role — and answer the sentence here; without it the note is shown
   as stored.
@@ -577,7 +577,7 @@ The contract a descriptor keeps:
   no administrator behind it — is never narrowed.
 
 **The maintenance pass.** A context owner deletes the tasks of a record it
-deletes through `taskWritePort.deleteInContext` — but only while Tasks is on.
+deletes through `taskCommandPort.deleteInContext` — but only while Tasks is on.
 What was deleted while Tasks was off is found by the last pass of the
 `tasks-reminders` worker, which runs at most every **fifteen minutes**: for each
 **present** owner that implements `existingContexts`, it reads the distinct
@@ -593,14 +593,147 @@ pass with nothing to do enters no system scope.
 
 ### Reading and writing tasks from another module
 
-Two ports, both gated — resolving either while Tasks is off throws, and the
-call answers `503` `MODULE_DISABLED`. Resolve them with `lazyPort` and declare
-them `degrades-without` with a `whenAbsent` sentence.
+Three ports, all gated: resolving any of them while Tasks is off throws, and
+the call answers `503` `MODULE_DISABLED`, with nothing written. Do not catch
+that refusal and carry on. Resolve them per use with `lazyPort` and declare the
+edge in your manifest: Tasks can be switched off, so list it in `dependencies`
+or declare a `nonBindingDependencies` entry (`degrades-without` with a
+`whenAbsent` sentence, or `refuses-without`).
 
 | Port | Methods |
 | --- | --- |
-| `taskReadPort` (`TaskReadPort`) | `findById`, `findByIds`, `search` (number or title), `listInContext`, `listOpenInContext` (open category and not a draft — a completion gate's question), `countInContext`. A `TaskRecord` carries `status` (a code), `statusCategory`, `closed`, `assigneeIds`, `dueAt`, `draft` and `private`. Narrowed by the full visibility rule for an administrator — context, drafts, private tasks — not for the system. |
-| `taskWritePort` (`TaskWritePort`) | `createMany({ context, tasks })` — at most 100 tasks, each `{ title, description?, assigneeIds?, dueOn?, contextGroupId?, contextNote?, sourceKey? }`, published, in the workflow's start status; one audited `tasks.task.create` command and one `tasks.task.created.v1` event per task created; refused with `TASK_CONTEXT_INVALID` when no switched-on module owns the context type and with `TASK_ASSIGNEE_INVALID` when an assignee is not an active administrator, before anything is written. Whether an assignee may see the record is the owning module's to decide — a project assigns each stage task to the member holding its role — so the port does not ask it, as the Tasks screens and API do. `deleteInContext({ contextType, contextId })` — every task of one record, one audited `tasks.task.delete` command each. |
+| `taskReadPort` (`TaskReadPort`) | `findById`, `findByIds`, `search` (number or title), `listInContext`, `listOpenInContext` (open category and not a draft — a completion gate's question), `countInContext`. A `TaskRecord` carries `status` (a code), `statusCategory`, `closed`, `assigneeIds`, `dueAt`, `draft`, `private` and `customFieldValues` (every key the task's values hold). Narrowed by the full visibility rule for an administrator — context, drafts, private tasks — not for the system. |
+| `taskCommandPort` (`TaskCommandPort`) | The Task's write port, in the next section. |
+| `taskWritePort` (`TaskWritePort`) | **Deprecated since 0.113.0**, removed in 0.114.0. `createMany` and `deleteInContext` are now `taskCommandPort.createMany` and `taskCommandPort.deleteInContext`, to which these delegate unchanged. Move a call by resolving `taskCommandPort` instead and renaming the edge in your manifest. |
+
+### Writing tasks from another module
+
+Another module, an overlay module or an integration worker writes a task
+through **`taskCommandPort`**, the Task's write port, declared as
+`TaskCommandPort` in `@endora-commerce/contracts`. It never writes this module's
+tables itself.
+
+Each method runs exactly one command, in a transaction of its own: the one
+the admin route runs for the same change, through the same service, so the
+checks before it, the audit trail and the notices after it are the same, and a
+refusal always means nothing was written:
+
+| Method | Audit action | What the admin does the same way |
+| --- | --- | --- |
+| `create(input, options?)` | `tasks.task.create` | `POST /api/v1/admin/tasks` |
+| `createMany({ context, tasks }, options?)` | one `tasks.task.create` per task | none: the tasks of a record you own (below) |
+| `update(id, { title?, description?, dueOn?, dueAt?, startOn?, context? }, options?)` | `tasks.task.update` | `PATCH /api/v1/admin/tasks/:id` (those fields) |
+| `setParent(id, { parentTaskId }, options?)` | `tasks.task.parent_change` | `PATCH /api/v1/admin/tasks/:id` (`parentTaskId`) |
+| `setPriority(id, { priorityCode }, options?)` | `tasks.task.priority_change` | `PATCH /api/v1/admin/tasks/:id` (`priorityCode`) |
+| `setTags(id, { tagIds }, options?)` | `tasks.task.tags_change` | `PATCH /api/v1/admin/tasks/:id` (`tagIds`) |
+| `setAssignees(id, { set } or { add, remove }, options?)` | `tasks.task.assignees_change` | `PATCH /api/v1/admin/tasks/:id` (`assigneeIds`, or `addAssigneeIds` and `removeAssigneeIds`) |
+| `setPrivate(id, { private }, options?)` | `tasks.task.privacy_change` | `PATCH /api/v1/admin/tasks/:id` (`private`) |
+| `setStatus(id, { to, from? }, options?)` | `tasks.task.status_change` | `POST /api/v1/admin/tasks/:id/status` |
+| `setCustomFieldValues(id, merge, options?)` | `tasks.task.custom_fields_change` | `PATCH /api/v1/admin/tasks/:id` (`customFieldValues`) |
+| `publish(id, options?)` | `tasks.task.publish` | `POST /api/v1/admin/tasks/:id/publish` |
+| `relate(id, otherId, options?)` | `tasks.task.relate` | `PUT /api/v1/admin/tasks/:id/relations/:otherId` |
+| `unrelate(id, otherId, options?)` | `tasks.task.unrelate` | `DELETE /api/v1/admin/tasks/:id/relations/:otherId` |
+| `link(id, { kind, id }, options?)` | `tasks.task.link` | `POST /api/v1/admin/tasks/:id/links` |
+| `unlink(id, linkId, options?)` | `tasks.task.unlink` | `DELETE /api/v1/admin/tasks/:id/links/:linkId` |
+| `addReminder(id, input, options?)` | `tasks.reminder.add` | `POST /api/v1/admin/tasks/:id/reminders` |
+| `addComment(id, { body }, options?)` | `tasks.comment.add` | `POST /api/v1/admin/tasks/:id/comments` |
+| `delete(id, options?)` | `tasks.task.delete` | `DELETE /api/v1/admin/tasks/:id` |
+| `deleteInContext({ contextType, contextId }, options?)` | one `tasks.task.delete` per task | none: the tasks of a record you own (below) |
+
+The admin `PATCH` can change all of these at once, as up to seven commands;
+the port offers each as its own method, so a call never leaves part of a
+change written. `update` takes only the fields `tasks.task.update` writes, and
+any other key is `422` `VALIDATION_FAILED`. `setPrivate` is checked against the
+task as it stands: only its creator may change it, and a private task has no
+record and no assignee but its creator. To make a task private, take it out of
+its record with `update` and clear its other assignees with `setAssignees`
+first, in that order. Each setter's member is required: leaving it out, passing
+`undefined`, or adding a key the method does not take is `422`
+`VALIDATION_FAILED` with nothing written; `null` is how you clear a parent or a
+priority. A call that changes nothing writes and records nothing.
+`setStatus` takes the status you read the task in as
+`from`, or the one the method reads itself when you leave it out. A move the
+workflow does not permit is `409` `TASK_TRANSITION_FORBIDDEN`, a task no longer
+in `from` is `409` `TASK_TRANSITION_CONFLICT`, and a code the workflow does not
+hold is `422` `TASK_STATUS_UNKNOWN`. That last one applies whatever the code's
+form. Every refusal is thrown as the route's error code; no method answers an
+outcome value instead.
+
+`create`, `update`, `setStatus`, `setCustomFieldValues` and `publish` answer
+the task as a `TaskRecord`, read after the write. `link` answers `{ linkId }`,
+the existing link's id for a record already linked. `addReminder` answers
+`{ reminderId }` and `addComment` answers `{ commentId }`. The other methods
+answer nothing, except `createMany` (`{ ids }`) and `deleteInContext`
+(`{ deleted }`). Attachments, editing or deleting a comment, removing a
+reminder, the digest, saved views, and the workflow, priority, tag and board
+configuration are not offered.
+
+**No permission is checked**: the caller is the gate, and the port is never
+resolved for a customer-facing route. **The actor is the ambient one**, never
+an argument. A worker calls under `withSystemScope(reason)`: it sees every
+task, and each entry records the `system` actor. Under
+`withSystemScopeActingFor(adminUserId, reason)` it acts as that administrator
+and sees only what they may see. Two rules follow from what a task records:
+
+- `create`, `createMany`, `publish`, `relate`, `link`, `addReminder` and
+  `addComment` record an administrator on the row: the task's creator, or the
+  author of the relation, link, reminder or comment. They are refused `403`
+  `FORBIDDEN` before anything is read when no administrator is behind the call,
+  so run them under `withSystemScopeActingFor`. `publish` needs the draft's
+  creator, since anybody else is answered `404` `TASK_NOT_FOUND`, as on the
+  screen. `setPrivate` needs the creator too, and is `403` `FORBIDDEN` for
+  anybody else.
+- Another administrator's private task is read-only to everybody but its
+  creator, the system included: every write but `delete` is `403`
+  `TASK_PRIVATE_READ_ONLY`. Deleting one stays open, as it is to a holder of
+  `tasks:see_private`: changing a private task is its creator's alone, while
+  deleting it is open to whoever may see it, and the system sees every task.
+
+**What follows a write follows a port call too**: the people newly assigned or
+mentioned by `create`, `update` and `publish` are told (not while the task is a
+draft), the assignees and the creator are told of a comment, relative
+reminders follow a changed due date, and the module's events are emitted.
+
+**`setCustomFieldValues`** takes a callback over the stored values. The module
+runs it under the task's lock, between its own read and its own write, and does
+not validate: call `CustomFieldValuePort.validateAndMerge('task', current, patch)`
+inside it. A callback that changes nothing writes and records nothing. The
+admin edit runs the same audit action, so a command hook that has to see every
+change of the values registers once.
+
+**Options**, the last argument of every method:
+
+- `source`: a code naming your integration (`^[a-z][a-z0-9_.-]{0,63}$`),
+  recorded on the audit entry of the command a method runs, beside the actor.
+  The entries that command writes for another object (a deleted task's former
+  sub-tasks, the other task of a relation, reminders a cleared due date
+  removes) carry the actor but not the `source`. Anything else is refused
+  `422` `VALIDATION_FAILED` before anything is read.
+- `expectedVersion`: ignored. A task has no version, and `setStatus`'s `from`
+  is its check.
+- `extensions`: input for the command hooks on the action, keyed by hook
+  module id. No task action is hookable, so every key is refused `422`
+  `COMMAND_EXTENSION_UNCLAIMED` before anything is written. A call that
+  changes nothing runs no command, so its keys are not refused.
+
+A call is its own transaction (`createMany` and `deleteInContext`: one per
+task, below). Call it after your own commit, never inside it.
+
+**The tasks of a record you own.** A module that registered a task context
+(above) creates and deletes the tasks of its own records with `createMany` and
+`deleteInContext`. `createMany({ context, tasks })` takes at most 100 tasks,
+each `{ title, description?, assigneeIds?, dueOn?, contextGroupId?,
+contextNote?, sourceKey? }`. They are published, in the workflow's start
+status, with one audited `tasks.task.create` command and one
+`tasks.task.created.v1` event per task created, and nobody is notified. The
+call is refused with `TASK_CONTEXT_INVALID` when no switched-on module owns the
+context type, and with `TASK_ASSIGNEE_INVALID` when an assignee is not an
+active administrator, before anything is written. Whether an assignee may see
+the record is the owning module's to decide (a project assigns each stage task
+to the member holding its role), so the port does not ask it, as the Tasks
+screens and API do. The caller's sight of the record is not asked either.
+`deleteInContext({ contextType, contextId })` deletes every task of one record,
+whoever may see it, with one audited `tasks.task.delete` command each.
 
 **`sourceKey` makes creation idempotent.** A task given a `sourceKey` (up to 100
 characters) is created only if the context holds no task with that key; the
@@ -610,9 +743,6 @@ with the same keys create each task once — the database's unique key decides,
 and the loser answers the winner's id. Projects passes each stage task
 definition's id, which is what makes its *Create the stage's tasks again*
 safe to repeat.
-
-Call `createMany` **after your own transaction has committed**: each task is
-written in a transaction of its own.
 
 `./backend` also exports **`nextTaskNumber(em)`**, the module's door to its
 number sequence — the next `TSK-…` number on the caller's transaction, for code

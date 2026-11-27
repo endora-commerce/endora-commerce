@@ -6,6 +6,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { TaskComment } from '../entities/task-comment.entity.js';
 import { TaskReference } from '../entities/task-reference.entity.js';
 import { TASK_AUDIT_OBJECT_TYPE } from './task-history-service.js';
@@ -72,11 +73,11 @@ export class TaskCommentService {
     return this.#render(rows);
   }
 
-  async add(taskId: string, body: string): Promise<TaskCommentView> {
+  async add(taskId: string, body: string, caller: CallerOptions = {}): Promise<TaskCommentView> {
     const author = this.#author();
     const task = await this.deps.access.loadVisible(taskId);
     this.deps.access.assertMayChange(task);
-    const written = await this.deps.commandBus.run({
+    const written = await this.deps.commandBus.run(withCallerOptions({
       action: 'tasks.comment.add',
       objectType: TASK_AUDIT_OBJECT_TYPE,
       objectId: task.id,
@@ -91,7 +92,7 @@ export class TaskCommentService {
           after: { commentId: comment.id, authorAdminUserId: author, length: body.length },
         };
       },
-    });
+    }, caller));
 
     // After the commit: the comment exists whatever becomes of the bell.
     const mentioned = await this.#tellMentioned(task, newlyMentioned(null, written.body));

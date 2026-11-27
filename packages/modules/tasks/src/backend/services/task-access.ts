@@ -178,6 +178,20 @@ export function actingAdminUserId(): string | null {
   return actor?.kind === 'admin' && actor.id ? actor.id : null;
 }
 
+/**
+ * The administrator behind a write that records one on its row — a Task's
+ * Creator, a relation's, a link's, a reminder's or a comment's author — or 403
+ * `FORBIDDEN` before anything is read (`specs/186-aggregate-ports/` R-23.2). An
+ * admin route always has one; a worker calling `taskCommandPort` under the
+ * bare system scope has none, and runs these under
+ * `withSystemScopeActingFor` instead.
+ */
+export function requireActingAdmin(message: string): string {
+  const adminUserId = actingAdminUserId();
+  if (adminUserId === null) throw new HttpError(403, ERROR_CODES.FORBIDDEN, message);
+  return adminUserId;
+}
+
 /** Someone else's private Task: readable and deletable by a `tasks:see_private` holder, nothing else. */
 export function isSomeoneElsesPrivate(row: Pick<TaskRow, 'is_private' | 'created_by_admin_user_id'>): boolean {
   return row.is_private && row.created_by_admin_user_id !== actingAdminUserId();

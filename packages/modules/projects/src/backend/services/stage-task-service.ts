@@ -44,7 +44,7 @@ import { responsibleRoleNote } from './task-context-descriptor.js';
  * - **Materialisation.** On entering a Stage that has definitions and has never
  *   had them created or skipped: with Tasks on, the move's own Command stamps
  *   `tasks_materialized_at` and, **after it commits**, this service asks
- *   `taskWritePort.createMany` for them — one `tasks.task.create` Command per
+ *   `taskCommandPort.createMany` for them — one `tasks.task.create` Command per
  *   Task, audited by the Tasks module on behalf of the administrator who
  *   moved. With Tasks off the move stamps `tasks_skipped_at` and notes
  *   `stage_tasks_skipped`. Both stamps are terminal: re-entering never creates

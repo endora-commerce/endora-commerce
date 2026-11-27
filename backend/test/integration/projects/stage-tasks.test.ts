@@ -6,7 +6,7 @@ import {
   ProjectStageEntryListResponseSchema,
   TaskDetailResponseSchema,
   type ProjectDetail,
-  type TaskWritePort,
+  type TaskCommandPort,
 } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -251,7 +251,7 @@ describe('projects — Stage Tasks (US2)', () => {
     expect((await putStageTasks(p.id, build, DEFINITIONS())).statusCode).toBe(200);
     expect((await callProjects(h, 'POST', `/${p.id}/stages/${build}/materialize-tasks`)).statusCode).toBe(409);
 
-    const port = h.container.resolve<TaskWritePort>('taskWritePort');
+    const port = h.container.resolve<TaskCommandPort>('taskCommandPort');
     const spy = vi.spyOn(port, 'createMany').mockRejectedValueOnce(new Error('tasks store unavailable'));
     let moved;
     try {
