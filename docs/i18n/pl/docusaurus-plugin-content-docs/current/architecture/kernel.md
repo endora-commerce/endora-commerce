@@ -206,7 +206,10 @@ odtąd legalnie go dekorować: reguła dekoracji była zamkiem w drzwiach fronto
 drzwiami bocznymi. Celowo nie ma tu wyjątku dla nakładki. Wdrożenie zmienia to, co otrzymuje się
 pod nazwą dostarczaną przez composition root, przez `ctx.di.decorate` w swoim module nakładkowym,
 dzięki czemu rdzeń nadal deleguje przez opakowanie; przejęcie nazwy wprost odcięłoby to od razu
-wszystkim konsumentom, a zastąpienie musi być czynnością *bardziej* jawną.
+wszystkim konsumentom, a zastąpienie musi być czynnością *bardziej* jawną. Czterech nazw
+dostarczanych przez composition root także nie da się dekorować: to punkty zabezpieczeń
+`commandBus`, `auditLogService`, `eventBus` i `emFactory`, przestarzałe w 0.113.0 i odrzucane od
+0.114.0 — zobacz [drabinę dostosowań](./customisation-ladder.md#4a--decoration).
 
 ### `lazyPort<T>(ctx, 'name')` — odczyt cudzego portu
 
@@ -260,6 +263,27 @@ Dwie kolejne reguły, które łatwo przeoczyć:
 - **Zadeklaruj zależność.** Jeśli twój moduł pobiera port należący do `X`, `X` musi być w twoim
   `manifest.dependencies`. Ta deklaracja sprawia, że krawędź istnieje dla cyklu życia, dla
   kolejności migracji i dla operatora, który wyłącza `X`. Bez niej kontrola portów przerywa build.
+
+### Co wnosi moduł nakładkowy wdrożenia {#what-an-overlay-module-contributes}
+
+Moduł nakładkowy w `apps/<deployment>/modules/<id>/` jest składany przez tę samą funkcję
+`registerModule(ctx)` i te same trzy punkty rozszerzenia. Różni się tym, skąd odczytuje się część
+jego wkładu, bo nie jest pakietem i nie ma mapy `exports`:
+
+| Wkład | Pakiet modułu | Moduł nakładkowy |
+| --- | --- | --- |
+| Usługi, porty, trasy, workery, subskrypcje, hooki, middleware poleceń | `registerModule` w `./backend` | `registerModule` w `backend.ts` — te same wywołania |
+| Encje | `entities` z `./backend` | `entities` z `backend.ts` |
+| Migracje | tablica `./migrations` | jego katalog `migrations/`, czytany plik po pliku |
+| Zadeklarowane kolumny rozszerzeń | `schemaExtensions` z `./backend` | `schemaExtensions` z `backend.ts` |
+| Typy portów dla innych modułów | ścieżka `./ports` zawierająca wyłącznie typy | `ports.ts`, importowany przez `import type` przez sąsiedni moduł nakładkowy tego samego wdrożenia, który od niego zależy |
+| Ekrany panelu administracyjnego i akcje palety poleceń | warstwa `./admin` | `admin/index.tsx`, wyłącznie w buildzie panelu własnego wdrożenia |
+
+Moduł nakładkowy może **publikować** port dla sąsiednich modułów i **pobierać** dowolny opublikowany
+port, ale nie może zająć nazwy należącej do innego modułu — `ctx.di.providePort` i
+`ctx.di.register` nie dają mu żadnego wyjątku. Jego migracje przechodzą przez strażnika obcego
+schematu bez wyjątku, a jego poziom zaufania to pochodzenie `deployment`, nadawane przez loader na
+podstawie miejsca, w którym znalazł moduł.
 
 ## Dwa kształty krawędzi moduł↔moduł
 

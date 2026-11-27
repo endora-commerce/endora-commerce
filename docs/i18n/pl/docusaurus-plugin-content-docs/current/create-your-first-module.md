@@ -194,11 +194,13 @@ export function registerModule(ctx: ModuleContext): void {
 - **`requireAdmin('store_notice:read')`** chroni drugą trasę uprawnieniem z manifestu. Kod musi być
   identyczny.
 
-Nic w instancji nie kompiluje tego pliku: Node uruchamia go bezpośrednio i usuwa typy w locie.
-Pisz więc zwykły TypeScript — `enum`, `namespace` albo właściwość deklarowana w parametrze
-konstruktora zatrzymuje start błędem `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. `pnpm run typecheck`
-zgłasza wszystkie trzy wcześniej, razem z każdym błędem typów w `apps/`, a `pnpm run setup`
-uruchamia go przed `migrate`.
+Instancja kompiluje ten plik tak samo jak resztę swojego backendu: `pnpm run build` uruchamia
+`endora build overlays`, które kompiluje `apps/` do `backend/dist/apps`, a `pnpm run dev:all`
+przebudowuje go przy każdej zmianie. API i każde polecenie `module:*` przed startem porównują
+skompilowany kod z `apps/` i zatrzymują się — ze wskazaniem obu plików — na zmianie, której nie
+przebudowano. Pisz zwykły TypeScript: `pnpm run typecheck` sprawdza `apps/` z włączonym
+`erasableSyntaxOnly`, więc zgłasza `enum`, `namespace` albo właściwość deklarowaną w parametrze
+konstruktora, razem z każdym błędem typów, a `pnpm run setup` uruchamia go przed `migrate`.
 
 ## Krok 5 — Dodaj tłumaczenia
 
@@ -374,21 +376,50 @@ bez restartu, a pokazuje go `pnpm run module:status`. Moduł jest obecny tylko w
 wyłączniki są włączone — resztę, w tym `module:uninstall`, opisuje
 [Cykl życia modułu](./modules/lifecycle.md).
 
-## Czym moduł nakładkowy być nie może
+## Dalej: tabela, port i ekran panelu {#going-further}
 
-Trzy ograniczenia decydują o tym, czym może być pierwszy moduł:
+Komunikat sklepu trzyma swoją jedyną wartość w ustawieniu. Moduł nakładkowy jest pełnoprawnym
+modułem, więc gdy Twój potrzebuje więcej, może mieć własną tabelę w bazie danych, publikować port i
+dostarczać ekran w panelu administracyjnym. Szkielet tworzy każdą z tych rzeczy po podaniu flagi:
 
-- **Moduł nakładkowy nie może mieć własnej tabeli w bazie danych.** Wnosi ustawienia, trasy,
-  uprawnienia i tłumaczenia, ale żadnej encji i żadnej migracji — nic w instancji by ich nie
-  uruchomiło, więc tabela by nie powstała. Katalog `migrations/` albo `entities/` w module
-  nakładkowym jest odrzucany, z nazwą każdego pliku, przez `pnpm run generate`,
-  `pnpm run migrate`, każde polecenie `module:*` oraz przez API i workera przy starcie. Niewielki
-  stan trzymaj w ustawieniach, tak jak ten moduł.
-- **Moduł, który potrzebuje własnej tabeli, jest pakietem modułu** — podobnie jak moduł z własnym
-  ekranem w panelu administracyjnym. W instancji `endora new module` zapisuje moduł nakładkowy,
-  a `--entities` i `--admin` odrzuca, podając powód. Szkielet pakietu — z `--entities` dla tabeli
-  i `--admin` dla ekranu — tworzy tylko w klonie repozytorium Endora Commerce. Ten samouczek nie
-  obejmuje ręcznego pisania pakietu.
+```bash
+pnpm exec endora new module loyalty_points \
+  --name "Loyalty points" \
+  --description "Points customers collect on their orders." \
+  --permission "loyalty_points:read=View loyalty points" \
+  --entities --ports \
+  --admin catalog --action open-loyalty-points=/loyalty-points
+```
+
+- **`--entities`** tworzy encję w `entities/`, wymienioną w eksporcie `entities` w `backend.ts`,
+  oraz jej pierwszą migrację w `migrations/`. Encja ma dokładnie jeden dekorator tenantowy (wybiera
+  go `--tenant-scope`; domyślnie zawężenie do organizacji), a jej dekoratory MikroORM pochodzą z
+  `@mikro-orm/decorators/legacy` — dlatego moduł potrzebuje buildu. Uruchom `pnpm run build`, a
+  potem `pnpm run migrate`, aby utworzyć tabelę. Każda późniejsza zmiana tabeli to nowa migracja:
+
+  ```bash
+  pnpm exec endora new migration loyalty_points --name add_expiry
+  ```
+
+  Platforma czyta `migrations/` plik po pliku, więc sam plik wystarcza, by migracja była
+  zarejestrowana. Migracja może zapisywać wyłącznie tabele mapowane przez własne encje modułu;
+  wszystko inne jest odrzucane przy `migrate`.
+- **`--ports`** tworzy `ports.ts` z interfejsem portu i wywołanie `ctx.di.providePort`, które go
+  rejestruje. Inny moduł nakładkowy Twojego wdrożenia korzysta z niego przez `import type` z
+  `../loyalty_points/ports.js` i `lazyPort`, a `loyalty_points` wymienia w swoich `dependencies`.
+- **`--admin`** tworzy `admin/index.tsx` i ekran we wskazanej sekcji menu bocznego, a
+  **`--action`** — jego wpis w palecie poleceń. `pnpm run generate` dodaje ekran do buildu panelu
+  Twojego wdrożenia, a panel uruchomiony z Twoim `DEPLOYMENT` go pokazuje.
+
+Każda z tych rzeczy dodaje wpis do raportu rozbieżności tam, gdzie sięga do platformy, więc
+`pnpm run generate` prosi o jego uzasadnienie w `divergence.ts`, tak jak w kroku 6.
+
+Zostają dwa ograniczenia:
+
+- **Moduł to katalog, a nie pakiet.** Leży bezpośrednio w `modules/` i nie ma własnego
+  `package.json` ani konfiguracji buildu. Gdy obejmuje dwa odrębne zakresy, napisz dwa moduły i
+  wymień pierwszy w `dependencies` drugiego. Moduł, który chcesz opublikować albo zainstalować w
+  drugiej instancji, jest pakietem i po przeniesieniu do pakietu zachowuje identyfikator modułu.
 - **Ten samouczek nie pokazuje komunikatu w sklepie.** Sklep, który instalator zapisał obok Twojej
   instancji, należy do Ciebie i możesz go edytować — zobacz [Sklep](./getting-started.md#sklep) —
   a ta trasa jest tym, co sklep by wywoływał.
@@ -415,13 +446,15 @@ Część w `$(…)` wypisuje dokładną wersję pakietu kontraktów, której uż
 dzięki czemu oba pakiety pozostają w jednym wydaniu.
 
 W tych wydaniach `pnpm run generate` kończy się też kodem 0 mimo niewyjaśnionego wpisu w raporcie
-rozbieżności i nie odrzuca katalogu `migrations/` w module nakładkowym: czytaj to, co wypisuje,
-a nie jego kod wyjścia.
+rozbieżności: czytaj to, co wypisuje, a nie jego kod wyjścia. Moduł nakładkowy nie może tam w
+ogóle mieć tabeli; do tego potrzebna jest instancja w wydaniu 0.113.0 lub nowszym.
 
 ## Co dalej
 
 - [Wzorzec nakładki](./architecture/overlay-pattern.md) — wszystko, co może robić moduł nakładkowy,
-  w tym zmiana działania usługi platformy przez `ctx.di.decorate`.
+  w tym posiadanie własnego schematu i zmiana działania usługi platformy przez `ctx.di.decorate`.
+- [Migracje bazy danych](./architecture/migrations.md#how-to-create-a-migration-in-an-overlay-module)
+  — jak nazywa się, porządkuje i zabezpiecza migracje modułu nakładkowego.
 - [Drabina dostosowań](./architecture/customisation-ladder.md) — po który mechanizm sięgnąć
   najpierw i ile każdy z nich kosztuje przy następnej aktualizacji.
 - [Uprawnienia](./architecture/permissions.md) — jak mają się do siebie kody uprawnień, role i

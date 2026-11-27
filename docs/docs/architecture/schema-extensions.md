@@ -6,9 +6,11 @@ sidebar_label: Declared extension columns
 
 # Declared extension columns
 
-An installed module package can add a few columns of its own **to a core table** — an ERP
-code on an organization, say — without editing core, without a hand-written `alter table`, and
-without losing them on the next platform upgrade. It declares them; the platform does the rest.
+An installed module package, or a deployment's own overlay module, can add a few columns of its
+own **to a core table** — an ERP code on an organization, say — without editing core, without a
+hand-written `alter table`, and without losing them on the next platform upgrade. It declares
+them; the platform does the rest. Everything below says "package"; an overlay module declares
+in exactly the same way, from its `backend.ts`, under its own module id.
 
 This is rung **D2** of the data ladder on
 [The customisation ladder](./customisation-ladder.md). Try the lower rungs first: an operator
@@ -32,9 +34,11 @@ and the message lists the tables that are.
 
 ## The rules
 
-- **Only an installed package declares.** A module package of the platform's own repository
-  owns its tables or uses a side table, and a per-deployment overlay module ships no schema;
-  the generator refuses both.
+- **An installed package or an overlay module declares.** A declaration is exported as
+  `schemaExtensions` from an installed package's `./backend`, or from a per-deployment overlay
+  module's `backend.ts` and nowhere else under `apps/<deployment>/`. A module package of the
+  platform's own repository owns its tables or uses a side table, and the generator refuses a
+  declaration from one.
 - **You must depend on the host.** The host's owning module must be in your manifest's
   `dependencies` closure, or the declaration is refused (`host-not-a-dependency`).
 - **The columns are yours, and only yours.** Their physical names are
