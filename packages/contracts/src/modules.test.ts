@@ -454,6 +454,20 @@ describe('DeploymentDivergenceDeclarationSchema — commandMiddlewareOrder (189 
   });
 });
 
+describe('DivergenceDetail — form-override and form-override-grant (193 T031, FR-070)', () => {
+  it('carries the kinds an override sets and whether they are presentation only', () => {
+    const detail: DivergenceDetail = { kind: 'form-override', kinds: ['label', 'validation'], presentationOnly: false };
+    const kind: DivergenceKind = detail.kind;
+    expect(kind).toBe('form-override');
+  });
+
+  it('carries the package name a grant matches', () => {
+    const detail: DivergenceDetail = { kind: 'form-override-grant', packageName: '@acme/pim-tax' };
+    const kind: DivergenceKind = detail.kind;
+    expect(kind).toBe('form-override-grant');
+  });
+});
+
 describe('DivergenceDetail — command-middleware (189 T005, FR-034)', () => {
   it('carries the phase, id and filter', () => {
     const detail: DivergenceDetail = { kind: 'command-middleware', phase: 'observe', id: 'timing', actions: '*' };

@@ -187,3 +187,160 @@ export const FIELD_FORMAT_VECTORS: Readonly<
     refuse: ['', '000000', '#abc', '#gggggg', 'red'],
   },
 };
+
+// ---------------------------------------------------------------------------
+// Layout (`field-slots.md` §5, SC-005)
+// ---------------------------------------------------------------------------
+
+/** A slot field as the layout reads it: its wire key is `<moduleId>.<key>`. */
+export interface FormLayoutVectorSlot {
+  readonly moduleId: string;
+  readonly key: string;
+  readonly anchor:
+    | { readonly field: string; readonly position: 'before' | 'after' }
+    | { readonly section: string; readonly position: 'start' | 'end' };
+  readonly weight: number;
+  readonly visibleWhen?: FieldCondition;
+}
+
+/** A `position` override of a core key: to another section, and/or before or after a key. */
+export interface FormLayoutVectorMove {
+  readonly moduleId: string;
+  readonly key: string;
+  readonly section?: string;
+  readonly before?: string;
+  readonly after?: string;
+}
+
+/**
+ * One form's layout: the declared sections, the effective overrides that move,
+ * hide or condition a core key, the slots, and the values conditions read.
+ * `expected` lists each rendered section's items in order — a core key, or a
+ * slot's wire key `<moduleId>.<key>`. A section with no item is not listed.
+ */
+export interface FormLayoutVector {
+  readonly name: string;
+  readonly sections: readonly { readonly key: string; readonly keys: readonly string[] }[];
+  readonly moves?: readonly FormLayoutVectorMove[];
+  readonly hidden?: readonly string[];
+  readonly visibleWhen?: Readonly<Record<string, FieldCondition>>;
+  readonly slots?: readonly FormLayoutVectorSlot[];
+  readonly values?: Readonly<Record<string, unknown>>;
+  readonly expected: readonly { readonly section: string; readonly items: readonly string[] }[];
+}
+
+const IDENTITY = { key: 'identity', keys: ['name', 'taxId', 'parentId'] } as const;
+const ADDRESS = { key: 'address', keys: ['registeredAddress'] } as const;
+
+/**
+ * The normative layout cases. The CLI's `admin-forms` analysis and the
+ * admin-kit's `DeclaredFormSection` both run this table, and each also runs it
+ * with its slots and moves shuffled: registration order, bundle order and
+ * process never change the result (SC-005).
+ */
+export const FORM_LAYOUT_VECTORS: readonly FormLayoutVector[] = [
+  {
+    name: 'core keys in declared order, sections in declared order',
+    sections: [IDENTITY, ADDRESS],
+    expected: [
+      { section: 'identity', items: ['name', 'taxId', 'parentId'] },
+      { section: 'address', items: ['registeredAddress'] },
+    ],
+  },
+  {
+    name: 'a slot before and a slot after a core key',
+    sections: [IDENTITY],
+    slots: [
+      { moduleId: 'acme_erp', key: 'code', anchor: { field: 'taxId', position: 'after' }, weight: 0 },
+      { moduleId: 'acme_erp', key: 'prefix', anchor: { field: 'taxId', position: 'before' }, weight: 0 },
+    ],
+    expected: [{ section: 'identity', items: ['name', 'acme_erp.prefix', 'taxId', 'acme_erp.code', 'parentId'] }],
+  },
+  {
+    name: 'slots on one anchor and position sort by weight, then module id, then key',
+    sections: [IDENTITY],
+    slots: [
+      { moduleId: 'zeta', key: 'a', anchor: { field: 'name', position: 'after' }, weight: 10 },
+      { moduleId: 'beta', key: 'b', anchor: { field: 'name', position: 'after' }, weight: 0 },
+      { moduleId: 'alpha', key: 'z', anchor: { field: 'name', position: 'after' }, weight: 10 },
+      { moduleId: 'alpha', key: 'y', anchor: { field: 'name', position: 'after' }, weight: 10 },
+      { moduleId: 'alpha', key: 'x', anchor: { field: 'name', position: 'after' }, weight: -5 },
+    ],
+    expected: [
+      { section: 'identity', items: ['name', 'alpha.x', 'beta.b', 'alpha.y', 'alpha.z', 'zeta.a', 'taxId', 'parentId'] },
+    ],
+  },
+  {
+    name: 'a hidden core key renders nothing and keeps its anchor (the replacement pattern)',
+    sections: [IDENTITY],
+    hidden: ['taxId'],
+    slots: [{ moduleId: 'acme_nip', key: 'nip', anchor: { field: 'taxId', position: 'after' }, weight: 0 }],
+    expected: [{ section: 'identity', items: ['name', 'acme_nip.nip', 'parentId'] }],
+  },
+  {
+    name: 'section start and end slots sit before the first item and after the last',
+    sections: [IDENTITY],
+    slots: [
+      { moduleId: 'acme', key: 'last', anchor: { section: 'identity', position: 'end' }, weight: 0 },
+      { moduleId: 'acme', key: 'first', anchor: { section: 'identity', position: 'start' }, weight: 0 },
+      { moduleId: 'acme', key: 'before', anchor: { field: 'name', position: 'before' }, weight: 0 },
+    ],
+    expected: [{ section: 'identity', items: ['acme.first', 'acme.before', 'name', 'taxId', 'parentId', 'acme.last'] }],
+  },
+  {
+    name: 'a slot anchored on its own module’s slot is emitted beside it, recursively',
+    sections: [IDENTITY],
+    slots: [
+      { moduleId: 'acme', key: 'street', anchor: { field: 'name', position: 'after' }, weight: 0 },
+      { moduleId: 'acme', key: 'zip', anchor: { field: 'acme.street', position: 'after' }, weight: 0 },
+      { moduleId: 'acme', key: 'city', anchor: { field: 'acme.zip', position: 'after' }, weight: 0 },
+      { moduleId: 'acme', key: 'label', anchor: { field: 'acme.street', position: 'before' }, weight: 0 },
+      { moduleId: 'other', key: 'flag', anchor: { field: 'name', position: 'after' }, weight: 5 },
+    ],
+    expected: [
+      { section: 'identity', items: ['name', 'acme.label', 'acme.street', 'acme.zip', 'acme.city', 'other.flag', 'taxId', 'parentId'] },
+    ],
+  },
+  {
+    name: 'a moved core key goes to its target; moved keys on one target order by (module id, key)',
+    sections: [IDENTITY, ADDRESS],
+    moves: [
+      { moduleId: 'zeta', key: 'name', after: 'registeredAddress' },
+      { moduleId: 'alpha', key: 'parentId', after: 'registeredAddress' },
+      { moduleId: 'alpha', key: 'taxId', section: 'address' },
+    ],
+    expected: [{ section: 'address', items: ['registeredAddress', 'parentId', 'name', 'taxId'] }],
+  },
+  {
+    name: 'a key moved before another stays before it, and slots follow the key they anchor on',
+    sections: [IDENTITY],
+    moves: [{ moduleId: 'acme', key: 'parentId', before: 'name' }],
+    slots: [{ moduleId: 'acme', key: 'note', anchor: { field: 'parentId', position: 'after' }, weight: 0 }],
+    expected: [{ section: 'identity', items: ['parentId', 'acme.note', 'name', 'taxId'] }],
+  },
+  {
+    name: 'an item whose visibleWhen is false is dropped, and so is a section left with none',
+    sections: [IDENTITY, ADDRESS],
+    visibleWhen: { registeredAddress: { field: 'name', op: 'isNotEmpty' } },
+    slots: [
+      {
+        moduleId: 'acme',
+        key: 'vat',
+        anchor: { field: 'taxId', position: 'after' },
+        weight: 0,
+        visibleWhen: { field: 'taxId', op: 'isNotEmpty' },
+      },
+    ],
+    values: { name: '', taxId: '' },
+    expected: [{ section: 'identity', items: ['name', 'taxId', 'parentId'] }],
+  },
+  {
+    name: 'a slot whose anchor names nothing in the form is not rendered (the check refuses it)',
+    sections: [IDENTITY],
+    slots: [
+      { moduleId: 'acme', key: 'lost', anchor: { field: 'nickname', position: 'after' }, weight: 0 },
+      { moduleId: 'acme', key: 'stray', anchor: { section: 'billing', position: 'start' }, weight: 0 },
+    ],
+    expected: [{ section: 'identity', items: ['name', 'taxId', 'parentId'] }],
+  },
+];
