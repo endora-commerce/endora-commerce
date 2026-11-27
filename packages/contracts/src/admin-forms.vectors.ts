@@ -11,7 +11,7 @@
 // imports it as `@endora-commerce/contracts/admin-forms.vectors`, and it must
 // therefore import nothing a consumer's install lacks (no `vitest`).
 
-import type { FieldCondition, FieldFormat } from './admin-forms.js';
+import type { FieldCondition, FieldFormat, FormLayoutMove, FormLayoutSlot } from './admin-forms.js';
 
 /** One evaluation: `evaluateFieldCondition(condition, values)` must answer `expected`. */
 export interface FieldConditionVector {
@@ -192,25 +192,9 @@ export const FIELD_FORMAT_VECTORS: Readonly<
 // Layout (`field-slots.md` §5, SC-005)
 // ---------------------------------------------------------------------------
 
-/** A slot field as the layout reads it: its wire key is `<moduleId>.<key>`. */
-export interface FormLayoutVectorSlot {
-  readonly moduleId: string;
-  readonly key: string;
-  readonly anchor:
-    | { readonly field: string; readonly position: 'before' | 'after' }
-    | { readonly section: string; readonly position: 'start' | 'end' };
-  readonly weight: number;
-  readonly visibleWhen?: FieldCondition;
-}
-
-/** A `position` override of a core key: to another section, and/or before or after a key. */
-export interface FormLayoutVectorMove {
-  readonly moduleId: string;
-  readonly key: string;
-  readonly section?: string;
-  readonly before?: string;
-  readonly after?: string;
-}
+/** The layout's slot and move shapes, under the names the vectors were published with. */
+export type FormLayoutVectorSlot = FormLayoutSlot;
+export type FormLayoutVectorMove = FormLayoutMove;
 
 /**
  * One form's layout: the declared sections, the effective overrides that move,

@@ -649,7 +649,8 @@ export const DeploymentDivergenceDeclarationSchema = z.object({
           z.strictObject({
             moduleId: z.string().regex(moduleIdRe),
             packageName: z.string().min(1),
-            reason: z.string().min(1),
+            // The same cap as `FieldOverride.reason` (D-300.16).
+            reason: z.string().min(1).max(280),
           }),
         )
         .min(1),

@@ -588,6 +588,11 @@ describe('DeploymentDivergenceDeclarationSchema — formOverrideGrants (193 T014
     expect(DeploymentDivergenceDeclarationSchema.parse({}).formOverrideGrants).toBeUndefined();
   });
 
+  it('accepts a reason of exactly 280 characters (D-300.16)', () => {
+    const reason = 'x'.repeat(280);
+    expect(DeploymentDivergenceDeclarationSchema.parse({ formOverrideGrants: { organization: [{ ...grant, reason }] } }).formOverrideGrants?.['organization']?.[0]?.reason).toBe(reason);
+  });
+
   it('accepts grants per field set', () => {
     expect(DeploymentDivergenceDeclarationSchema.parse({ formOverrideGrants: { organization: [grant] } }).formOverrideGrants).toEqual({
       organization: [grant],
@@ -600,6 +605,8 @@ describe('DeploymentDivergenceDeclarationSchema — formOverrideGrants (193 T014
     ['an empty reason', { organization: [{ ...grant, reason: '' }] }],
     ['a malformed module id', { organization: [{ ...grant, moduleId: 'Acme' }] }],
     ['an empty package name', { organization: [{ ...grant, packageName: '' }] }],
+    // D-300.16 (#2020): the same cap as `FieldOverride.reason`.
+    ['a reason of 281 characters', { organization: [{ ...grant, reason: 'x'.repeat(281) }] }],
   ])('refuses %s', (_name, formOverrideGrants) => {
     expect(() => DeploymentDivergenceDeclarationSchema.parse({ formOverrideGrants })).toThrow();
   });
