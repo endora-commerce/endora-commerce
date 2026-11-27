@@ -3,6 +3,7 @@ import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { ModuleOrigin } from '@endora-commerce/contracts';
 import type { CommandHookCompositionInput, CommandHookRegistry } from '../commands/hooks/registry.js';
 import type { CommandMiddlewareCompositionInput, CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
+import type { EntityExtensionLoaderRegistry } from './entity-extensions/registry.js';
 import { moduleOriginOf } from '../lifecycle/services/module-origin.js';
 import { registerValues, type KernelContainer } from './container.js';
 import { effectiveState } from './lifecycle/effective-state.js';
@@ -144,6 +145,12 @@ export interface ModuleEntry {
    * from the root the module was discovered under, never from anything the
    * module says about itself. It exempts the module from the ownership rule on
    * `ctx.di.decorate`, which is why it is a location and not a declaration.
+   *
+   * D-156.4, narrowed by D-296: the narrowing covers the four guard seams only
+   * (`GUARD_SEAM_REGISTRATIONS`: `commandBus`, `auditLogService`, `eventBus`,
+   * `emFactory`). An overlay's decoration of one is deprecated in 0.113.0 — it
+   * composes, warns and is flagged `deprecated` on `kernel.decorations` — and is
+   * refused from 0.114.0. Every other name the exemption reaches is unchanged.
    */
   readonly overlay?: boolean;
   /**
@@ -228,6 +235,15 @@ export interface ComposeModulesOptions {
    * present, nothing is declared, so any registered middleware refuses.
    */
   readonly commandMiddleware?: Omit<CommandMiddlewareCompositionInput, 'origins'> | undefined;
+  /**
+   * The side-table loader registry the root also hands `entityExtensionReads`
+   * (`specs/187-side-table-extensions/` B1). Every module's
+   * `ctx.entityExtensionLoaders` registers into it — judged against the
+   * declarations the root built it with — and this call seals it after the
+   * middleware registry, before the boot phase. Absent in a root that serves
+   * no extension includes; `ctx.entityExtensionLoaders` then refuses.
+   */
+  readonly entityExtensionLoaderRegistry?: EntityExtensionLoaderRegistry | undefined;
   /**
    * Share one ledger across several `composeModules` calls — which is what a
    * root does while modules are converted one batch at a time, so a converted
@@ -436,6 +452,9 @@ export function composeModules(
         ...(options.commandMiddlewareRegistry
           ? { commandMiddlewareRegistry: options.commandMiddlewareRegistry }
           : {}),
+        ...(options.entityExtensionLoaderRegistry
+          ? { entityExtensionLoaderRegistry: options.entityExtensionLoaderRegistry }
+          : {}),
       });
 
       try {
@@ -539,6 +558,13 @@ export function composeModules(
     }
   }
 
+  // ---- Sealing the side-table loader registry (187 B1) --------------------
+  //
+  // Every refusal of a loader (L1, L2) is raised at its registration, so the
+  // seal decides nothing but L3: from here on a loader registered from a
+  // command's context refuses rather than appearing in a running process.
+  options.entityExtensionLoaderRegistry?.seal();
+
   // The report is emitted, not merely available: a deployment running a client
   // override should say so once at boot, in the same place the operator already
   // reads what the platform composed.
@@ -550,6 +576,8 @@ export function composeModules(
           decoratedBy: entry.moduleId,
           owner: entry.owner ?? null,
           depth: entry.depth,
+          // 189 FR-050 — a guard-seam wrap by an overlay (D-296), on its way out.
+          ...(entry.deprecated === true ? { deprecated: true } : {}),
         })),
       },
       'kernel.decorations',
@@ -604,6 +632,9 @@ export function composeModules(
           : {}),
         ...(options.commandMiddlewareRegistry
           ? { commandMiddlewareRegistry: options.commandMiddlewareRegistry }
+          : {}),
+        ...(options.entityExtensionLoaderRegistry
+          ? { entityExtensionLoaderRegistry: options.entityExtensionLoaderRegistry }
           : {}),
       });
     },

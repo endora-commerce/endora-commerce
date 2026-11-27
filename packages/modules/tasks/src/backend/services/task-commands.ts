@@ -2,6 +2,7 @@ import { LockMode } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { isDeepStrictEqual } from 'node:util';
 import {
+  ERROR_CODES,
   TASK_ASSIGNEES_MAX,
   TASKS_EVENTS,
   type TaskAssigneesChangedEvent,
@@ -11,6 +12,7 @@ import {
   type TaskLinkTarget,
 } from '@endora-commerce/contracts';
 import { recordAuditFromContext, type Command } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { randomUUID } from 'crypto';
 import { Task } from '../entities/task.entity.js';
@@ -530,12 +532,19 @@ export function changeTaskTagsCommand(id: string, tagIds: readonly string[]): Co
 }
 
 /**
- * `tasks.task.custom_fields_change` — the bag `custom_fields` validated and
- * merged; the audit row names the keys that changed, and the Task's value
- * store holds them before and after (#470).
- * `false` when nothing changed.
+ * `tasks.task.custom_fields_change` — the bag `merge` answers over the one the
+ * Command read under the Task's lock: the admin `PATCH` answers the bag
+ * `custom_fields` validated before the Command, `taskCommandPort` the caller's
+ * merge (`specs/186-aggregate-ports/` R-23.8), so both run this one action. The
+ * audit row names the keys that changed, and the Task's value store holds them
+ * before and after (#470). `false` when nothing changed (nothing written,
+ * nothing recorded); a merge answering anything but a plain object is 422
+ * `VALIDATION_FAILED`, before anything is written.
  */
-export function changeTaskCustomFieldsCommand(id: string, merged: Record<string, unknown>): Command<boolean> {
+export function changeTaskCustomFieldsCommand(
+  id: string,
+  merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
+): Command<boolean> {
   return {
     action: 'tasks.task.custom_fields_change',
     objectType: 'task',
@@ -543,15 +552,22 @@ export function changeTaskCustomFieldsCommand(id: string, merged: Record<string,
     run: async ({ em }) => {
       const task = await lockedTask(em as EntityManager, id);
       const current = task.customFieldValues ?? {};
-      const keys = [...new Set([...Object.keys(current), ...Object.keys(merged)])].filter(
-        (key) => !isDeepStrictEqual(current[key], merged[key]),
+      const merged: unknown = await merge({ ...current });
+      if (merged === null || typeof merged !== 'object' || Array.isArray(merged)) {
+        throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'The custom-field merge must answer an object.', [
+          { path: 'customFieldValues', issue: 'Expected an object.' },
+        ]);
+      }
+      const next = merged as Record<string, unknown>;
+      const keys = [...new Set([...Object.keys(current), ...Object.keys(next)])].filter(
+        (key) => !isDeepStrictEqual(current[key], next[key]),
       );
       if (keys.length === 0) return { result: false, skipAudit: true };
-      task.customFieldValues = merged;
+      task.customFieldValues = { ...(merged as Record<string, unknown>) };
       // The values go to the Task's own store; the entry names the keys (#470).
       const values = recordTaskValueChange(em as EntityManager, task.id, {
         before: { customFieldValues: { ...current } },
-        after: { customFieldValues: { ...merged } },
+        after: { customFieldValues: { ...task.customFieldValues } },
       });
       return { result: true, before: null, after: { ...values } };
     },

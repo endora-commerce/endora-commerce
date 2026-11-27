@@ -1,0 +1,11 @@
+---
+'@endora-commerce/platform': minor
+---
+
+**Breaking change** (issue #1835, owner ruling on #1983): `ModuleContext` gains a new **required** member, `entityExtensionLoaders(entries)`. Code that only calls a context the platform builds needs no change; code that constructs a `ModuleContext` object of its own (a hand-written test double) fails to type-check until it adds the method.
+
+**Side-table extensions on host read ports** (`specs/187-side-table-extensions/` B1). A module whose manifest `extends` a host registers one bulk loader per host with `ctx.entityExtensionLoaders([{ host: 'organizations.Organization', schema, load: async (ids, { em }) => Map }])` (new `EntityExtensionLoaderEntry` on `./kernel`). The module id is stamped by the context; registration is refused as `EntityExtensionInvalidError` for a host the manifest does not extend (`loader-without-extension`), a second loader for one host (`duplicate-loader`) or a call after composition (`registration-after-seal`).
+
+The kernel registers `entityExtensionReads` (`EntityExtensionReads` on `./kernel`): a host read port hands it the records it authorised with the caller's `include` and its own entity manager. Without `include` the records come back as given and nothing runs. With it: at most 8 distinct includes (`422 VALIDATION_FAILED` past that or for anything but `extensions.<moduleId>`); an include no composed loader serves for the host is `422 ENTITY_EXTENSION_UNCLAIMED` before any loader runs; a switched-off module is skipped (key absent); each present module's loader is called once, in include order, with the records' ids, its values parsed with its schema (`EntityExtensionLoaderOutputError`, 500, on a refusal) and attached as `extensions.<moduleId>` (`null` without a value). `lazyEntityExtensionReads(resolve)` (on `./kernel`) is how a host module holds it, so a read without `include` resolves nothing.
+
+New on `./composition`: `EntityExtensionLoaderRegistry`, `entityExtensionDeclarationsFrom(manifests)` and `createEntityExtensionReads`; `ComposeModulesOptions` gains `entityExtensionLoaderRegistry`, sealed after the command-middleware registry. `composeApp` builds the registry from the composed manifests and registers `entityExtensionReads`.

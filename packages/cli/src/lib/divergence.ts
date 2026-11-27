@@ -69,7 +69,11 @@ import { realpathSync } from 'node:fs';
 import ts from 'typescript';
 
 import * as publishedContracts from '@endora-commerce/contracts';
-import { commandActionFiltersOverlap } from '@endora-commerce/contracts';
+import {
+  commandActionFiltersOverlap,
+  guardSeamReplacementFor,
+  isGuardSeamRegistration,
+} from '@endora-commerce/contracts';
 import type {
   DivergenceBoundary,
   DivergenceDetail,
@@ -141,6 +145,13 @@ export const SEAM_CLASSIFICATION: Readonly<Record<string, SeamClassification>> =
   ungatedRoutes: {
     verdict: 'own-surface',
     why: "the module's own route, outside the module's own gate; the reason string is required at the call and is read there, and it removes no other module's gate",
+  },
+  // `specs/187-side-table-extensions/` B1 — data ladder D1, not a code rung: the
+  // loader reads the module's own declared side table, and a host read port
+  // attaches it only when its caller names this module in `include`.
+  entityExtensionLoaders: {
+    verdict: 'own-surface',
+    why: "the module's own side table, read only for a caller that names this module in `include`; without it the host's read answers exactly as core does",
   },
   onBoot: {
     verdict: 'own-surface',
@@ -1006,7 +1017,9 @@ export type DivergenceFindingKind =
   /** A `commandMiddlewareOrder` entry naming no `admit` contributor of this deployment (189). */
   | 'stale-middleware-order'
   /** A `commandMiddlewareOrder` naming one module of a tie and not the other (189). */
-  | 'incomplete-middleware-order';
+  | 'incomplete-middleware-order'
+  /** An overlay's decoration of one of the four guard seams (189 FR-051; D-296). */
+  | 'deprecated-decoration';
 
 export interface DivergenceFinding {
   readonly kind: DivergenceFindingKind;
@@ -1014,6 +1027,30 @@ export interface DivergenceFinding {
   /** Repo-relative, or the declaration's own path; never a line-keyed identity. */
   readonly where: string;
   readonly detail: string;
+  /**
+   * Absent means `'error'`, so every finding written before 189 keeps failing. `'warning'` is
+   * printed and does not fail a run: `deprecated-decoration` in 0.113.0, until 0.114.0 makes it
+   * an error (`specs/189-command-middleware/contracts/guard-seam-narrowing.md` §3).
+   */
+  readonly severity?: 'error' | 'warning';
+}
+
+/** A finding fails the run unless it says it is a warning. */
+export function isDivergenceError(finding: Pick<DivergenceFinding, 'severity'>): boolean {
+  return finding.severity !== 'warning';
+}
+
+/** The two counts a summary line prints: `findings=<errors> warnings=<warnings>`. */
+export function divergenceFindingCounts(
+  findings: ReadonlyArray<Pick<DivergenceFinding, 'severity'>>,
+): { readonly errors: number; readonly warnings: number } {
+  const errors = findings.filter(isDivergenceError).length;
+  return { errors, warnings: findings.length - errors };
+}
+
+/** `check:divergence`'s exit over its findings: 1 when any is an error, 0 over warnings alone. */
+export function divergenceExitCode(findings: ReadonlyArray<Pick<DivergenceFinding, 'severity'>>): 0 | 1 {
+  return findings.some(isDivergenceError) ? 1 : 0;
 }
 
 /** What each finding means and what to do about it. */
@@ -1053,8 +1090,9 @@ export const DIVERGENCE_REMEDIES: Readonly<Record<DivergenceFindingKind, string>
     'decoration is added — which is how a deployment silently reacquires an ambiguity it resolved.',
   'foreign-order-member':
     'A `decorationOrder` entry names a module that is not one of this deployment’s overlay modules.\n' +
-    'Only an overlay module may decorate a name it does not own (D-156.4), so there is no ordering\n' +
-    'this entry can resolve — the composer would ignore it.',
+    'Only an overlay module may decorate a name it does not own (D-156.4, narrowed by D-296 for\n' +
+    'the four guard seams only), so there is no ordering this entry can resolve — the composer would\n' +
+    'ignore it.',
   'incomplete-order':
     'A `decorationOrder` entry names fewer modules than decorate that registration. A partial order\n' +
     'refuses the composition at boot (`AmbiguousDecorationError`) rather than ordering it, so the\n' +
@@ -1069,6 +1107,14 @@ export const DIVERGENCE_REMEDIES: Readonly<Record<DivergenceFindingKind, string>
     'middlewares whose filters can match one Command, from modules neither of which depends on the\n' +
     'other. The composer refuses the pair at boot (`UnorderedCommandMiddlewareError`) unless both\n' +
     'are named — add the missing module where it should run (first runs first).',
+  'deprecated-decoration':
+    'An overlay module decorates one of the four guard seams a composition root supplies —\n' +
+    '`commandBus`, `auditLogService`, `eventBus` or `emFactory` — through which Principles XI and\n' +
+    'XIII are enforced. D-296 narrows D-156.4 for these four names only: the decoration still\n' +
+    'composes in 0.113.0, and from 0.114.0 composition refuses it with `GuardSeamDecorationError`.\n' +
+    'Replace it with the declared seam the finding names (command middleware, a command hook,\n' +
+    '`ctx.subscribe`); see `docs/docs/architecture/customisation-ladder.md`. Decorating any other\n' +
+    'root-supplied name, or a module’s registration, is unchanged.',
 };
 
 /**
@@ -1276,8 +1322,13 @@ export function deriveDivergence(input: DivergenceInput): DivergenceResult {
   const overlayModules = [...input.overlayModules].sort();
   const overlaySet = new Set(overlayModules);
 
-  const note = (kind: DivergenceFindingKind, where: string, detail: string): void => {
-    findings.push({ kind, deployment: input.deployment, where, detail });
+  const note = (
+    kind: DivergenceFindingKind,
+    where: string,
+    detail: string,
+    severity?: 'warning',
+  ): void => {
+    findings.push({ kind, deployment: input.deployment, where, detail, ...(severity === undefined ? {} : { severity }) });
   };
 
   // FR-031 — every `ModuleContext` member the platform declares has exactly one
@@ -1339,6 +1390,19 @@ export function deriveDivergence(input: DivergenceInput): DivergenceResult {
         continue;
       }
       owner = registered ?? null;
+      // 189 FR-051 (D-296, narrowing D-156.4): a root's guard seam, decorated by
+      // an overlay. Still an entry — it composes in 0.113.0 — and a warning
+      // beside it; P3 (0.114.0) makes the severity an error. Any other
+      // root-supplied name (`redis`, `orm`, …) raises nothing here.
+      if (kind === 'decoration' && owner === null && isGuardSeamRegistration(site.subject)) {
+        note(
+          'deprecated-decoration',
+          site.file,
+          `overlay module '${site.moduleId}' decorates the guard seam '${site.subject}', deprecated ` +
+            `by D-296 and refused from 0.114.0. Instead: ${guardSeamReplacementFor(site.subject)}`,
+          'warning',
+        );
+      }
       // `specs/190-overlay-full-modules/contracts/overlay-ports.md` §5 — a port a
       // **sibling overlay module** of this deployment provides is the deployment's
       // own surface: it diverges from nothing in core, so it asks for no reason.

@@ -7,4 +7,5 @@ export declare class AcmeLinksOrderNote {
   note: string;
 }
 export declare const entities: readonly [typeof AcmeLinksOrganizationRef, typeof AcmeLinksOrderNote];
-export declare function registerModule(): void;
+export declare const AcmeLinksOrganizationRefSchema: import('zod').ZodType<{ externalRef: string }>;
+export declare function registerModule(ctx: import('@endora-commerce/platform/kernel').ModuleContext): void;

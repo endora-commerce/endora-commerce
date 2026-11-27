@@ -210,7 +210,7 @@ describe('tasks audit state carries names, never values (#470)', () => {
     const h = harness();
     seedTask(h.em);
     await asAdmin(() =>
-      h.commandBus.run(changeTaskCustomFieldsCommand('00000000-0000-4000-8000-0000000004b1', { risk: S.customFieldNew })),
+      h.commandBus.run(changeTaskCustomFieldsCommand('00000000-0000-4000-8000-0000000004b1', async () => ({ risk: S.customFieldNew }))),
     );
     expectNoAuditValues(h.entries, SENTINELS);
     expect(h.entries[0]?.stateAfter).toMatchObject({ changedCustomFields: ['risk'] });

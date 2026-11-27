@@ -10,7 +10,7 @@ import type { TaskContextRegistry } from './task-context-registry.js';
  * The maintenance pass — Tasks never stay orphaned (`specs/165-task-management/`
  * research R-19, FR-040, SC-006; issue #450).
  *
- * A context's owner deletes its record's Tasks through `taskWritePort` only
+ * A context's owner deletes its record's Tasks through `taskCommandPort` only
  * while Tasks is on; a Project deleted while Tasks was off keeps its Tasks,
  * hidden for good, and a Stage deleted then keeps its Tasks in a group no
  * screen shows. This pass, the third of the `tasks-reminders` tick, at most

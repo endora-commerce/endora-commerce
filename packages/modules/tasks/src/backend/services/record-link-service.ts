@@ -13,7 +13,8 @@ import { HttpError } from '@endora-commerce/platform/http';
 import type { OwnerReadChecks } from './owner-read-permissions.js';
 import type { SwitchableRecordKind, TaskRecordOwners } from './record-owners.js';
 import type { TaskReferenceService } from './reference-service.js';
-import { isUuid, type TaskAccess } from './task-access.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
+import { isUuid, requireActingAdmin, type TaskAccess } from './task-access.js';
 import { TASK_AUDIT_OBJECT_TYPE } from './task-history-service.js';
 
 /** How many records the link picker offers for one search. */
@@ -134,18 +135,37 @@ export class TaskRecordLinkService {
     });
   }
 
-  /** `POST /tasks/:id/links` — the link, and whether it is new. */
+  /** `POST /tasks/:id/links` — the link, resolved for the reader, and whether it is new. */
   async link(taskId: string, target: TaskLinkTarget): Promise<{ link: TaskLink; created: boolean }> {
+    const { taskId: id, created } = await this.linkRecord(taskId, target);
+    const link = (await this.linksOf(id)).find((one) => one.kind === target.kind && one.recordId === target.id);
+    if (!link) throw linkNotFound();
+    return { link, created };
+  }
+
+  /**
+   * The write of `POST /tasks/:id/links`, shared with `taskCommandPort.link`:
+   * the link's id, and whether it is new — an existing link's id, with nothing
+   * recorded, for a record already linked. `linked_by_admin_user_id` is not
+   * null, so with nobody behind the call it is 403 before anything is read
+   * (`specs/186-aggregate-ports/` R-23.2).
+   */
+  async linkRecord(
+    taskId: string,
+    target: TaskLinkTarget,
+    caller: CallerOptions = {},
+  ): Promise<{ taskId: string; linkId: string; created: boolean }> {
+    requireActingAdmin('A record is linked to a Task by an administrator.');
     const task = await this.deps.access.loadVisible(taskId);
     this.deps.access.assertMayChange(task);
     await this.assertLinkable([target]);
-    const created = await this.deps.commandBus.run({
+    const created = await this.deps.commandBus.run(withCallerOptions({
       action: 'tasks.task.link',
       objectType: TASK_AUDIT_OBJECT_TYPE,
       objectId: task.id,
       run: async ({ em, actor }) => {
         if (actor.actorAdminUserId === null) {
-          // `linked_by_admin_user_id` is not null: a link is made by somebody.
+          // Unreachable past the check above, and kept: the column is not null.
           throw new Error('tasks: a record is linked by an administrator; the ambient actor is none.');
         }
         const inserted = (await (em as EntityManager).execute(
@@ -157,18 +177,21 @@ export class TaskRecordLinkService {
         if (inserted.length === 0) return { result: false, skipAudit: true };
         return { result: true, before: { link: null }, after: { link: audited(target) } };
       },
-    });
-    const link = (await this.linksOf(task.id)).find((one) => one.kind === target.kind && one.recordId === target.id);
-    if (!link) throw linkNotFound();
-    return { link, created };
+    }, caller));
+    const rows = (await this.deps.emFactory().execute(
+      `select l."id" from "task_record_links" l where l."task_id" = ? and l."record_kind" = ? and l."record_id" = ?`,
+      [task.id, target.kind, target.id],
+    )) as Array<{ id: string }>;
+    if (!rows[0]) throw linkNotFound();
+    return { taskId: task.id, linkId: rows[0].id, created };
   }
 
-  /** `DELETE /tasks/:id/links/:linkId` — 404 for a link this Task does not have. */
-  async unlink(taskId: string, linkId: string): Promise<void> {
+  /** `DELETE /tasks/:id/links/:linkId`, and `taskCommandPort.unlink` — 404 for a link this Task does not have. */
+  async unlink(taskId: string, linkId: string, caller: CallerOptions = {}): Promise<void> {
     const task = await this.deps.access.loadVisible(taskId);
     this.deps.access.assertMayChange(task);
     if (!isUuid(linkId)) throw linkNotFound();
-    await this.deps.commandBus.run({
+    await this.deps.commandBus.run(withCallerOptions({
       action: 'tasks.task.unlink',
       objectType: TASK_AUDIT_OBJECT_TYPE,
       objectId: task.id,
@@ -185,7 +208,7 @@ export class TaskRecordLinkService {
           after: { link: null },
         };
       },
-    });
+    }, caller));
   }
 
   /**
