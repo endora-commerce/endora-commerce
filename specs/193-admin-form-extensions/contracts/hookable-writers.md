@@ -12,7 +12,7 @@ export interface CustomerAccountUpdateHookData {
   readonly changedFields: readonly string[];
   readonly changedCustomFields: readonly string[];
 }
-export type CustomerAccountOutbox = { customerAccountId: string; organizationId: string | null; changedFields: readonly string[] };
+export type CustomerAccountOutbox = { customerAccountId: string; organizationId: string | null; changedFields: readonly string[]; changedCustomFields: readonly string[] }; // changedCustomFields: the keys whose value changed; empty on create and on a profile update (as `organizations`)
 export const CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS = {
   create:             hookableAction<CustomerAccountCreateHookData, CustomerAccountOutbox>('customer_account.create', 'customer_account', ['beforeCommit', 'afterCommit']),
   updateProfile:      hookableAction<CustomerAccountUpdateHookData, CustomerAccountOutbox>('customer_account.update_profile', 'customer_account', ['beforeCommit', 'afterCommit']),
