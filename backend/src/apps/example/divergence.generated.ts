@@ -12,6 +12,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
   "overlayModules": [
     "carrier_fixture",
     "command_hook_fixture",
+    "command_middleware_fixture",
     "erp_challenger_fixture",
     "erp_incumbent_fixture",
     "example_overlay",
@@ -23,6 +24,22 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     "pim_incumbent_fixture"
   ],
   "entries": [
+    {
+      "key": "column-extension:overlay_notes_fixture:organizations",
+      "kind": "column-extension",
+      "module": "overlay_notes_fixture",
+      "subject": "organizations",
+      "owner": "organizations",
+      "rung": null,
+      "detail": {
+        "kind": "column-extension",
+        "dataRung": "D2",
+        "columns": [
+          "x_overlay_notes_fixture_last_note_at"
+        ]
+      },
+      "reason": "Core keeps an Organization’s columns its own. This fixture adds one nullable column to `organizations`, for when the organization’s last note was written, through the generated schema-extension step an installed package would use: ledgered under the fixture’s id, never exposed on an admin read, and kept as orphaned with its values when the fixture is hard-uninstalled. No core column is changed, and nothing core runs reads it."
+    },
     {
       "key": "command-hook:command_hook_fixture:organization.create#deliver-create",
       "kind": "command-hook",
@@ -78,6 +95,57 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "id": "observe-register"
       },
       "reason": "The same hook on storefront self-registration, which is one Command since spec 176 P1. On a marked name it writes its own audit entry inside the registration transaction and may refuse the registration with its own code, so the whole registration — Organization, first account, token — rolls back; any other name passes through untouched."
+    },
+    {
+      "key": "command-middleware:command_middleware_fixture:hold-marked",
+      "kind": "command-middleware",
+      "module": "command_middleware_fixture",
+      "subject": "hold-marked",
+      "owner": null,
+      "rung": 2,
+      "detail": {
+        "kind": "command-middleware",
+        "phase": "admit",
+        "id": "hold-marked",
+        "actions": [
+          "organization."
+        ]
+      },
+      "reason": "Core admits every Command. This fixture refuses an Organization write — a child write inside a bigger one included — only for a request whose id carries its hold marker, with its own translated code and before anything is written. It is the reference admission rule the command-middleware contract tests compose, and it changes nothing for any other request."
+    },
+    {
+      "key": "command-middleware:command_middleware_fixture:record-marked",
+      "kind": "command-middleware",
+      "module": "command_middleware_fixture",
+      "subject": "record-marked",
+      "owner": null,
+      "rung": 2,
+      "detail": {
+        "kind": "command-middleware",
+        "phase": "observe",
+        "id": "record-marked",
+        "actions": [
+          "organization."
+        ]
+      },
+      "reason": "After a marked request’s Organization write has committed or rolled back, this fixture keeps the run’s names-only summary and the tenant context it was observed in, which the command-middleware tests read. It cannot slow, fail or change the write, and it ignores every request that does not carry its marker."
+    },
+    {
+      "key": "command-middleware:example_overlay:organization-timing",
+      "kind": "command-middleware",
+      "module": "example_overlay",
+      "subject": "organization-timing",
+      "owner": null,
+      "rung": 2,
+      "detail": {
+        "kind": "command-middleware",
+        "phase": "observe",
+        "id": "organization-timing",
+        "actions": [
+          "organization."
+        ]
+      },
+      "reason": "Core runs no middleware on the Command Bus. After any write that touched an Organization has committed or rolled back, this deployment logs how long it took and how it ended — the action, the outcome, the error code and a count, never a value. It is the reference `observe` middleware: it cannot slow, fail or change the write, and it replaces what a deployment used to do by wrapping `commandBus`."
     },
     {
       "key": "decoration:example_overlay:pricingService",
@@ -361,6 +429,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     "recorded": [
       "column-extension",
       "command-hook",
+      "command-middleware",
       "decoration",
       "interceptor",
       "omission",
@@ -372,6 +441,10 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       "worker"
     ],
     "notRecorded": [
+      {
+        "seam": "ctx.entityExtensionLoaders",
+        "why": "the module's own side table, read only for a caller that names this module in `include`; without it the host's read answers exactly as core does"
+      },
       {
         "seam": "ctx.onBoot",
         "why": "the module's own boot hook, run inside its own system scope; it contributes nothing another module resolves"
@@ -391,6 +464,10 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       {
         "seam": "an overlay module's own entities and migrations",
         "why": "a table an overlay module creates is its own surface, migrated under the foreign-schema guard with no exemption, so it cannot touch a table it does not own; what it declares on another module's table is recorded, as a column extension"
+      },
+      {
+        "seam": "a port an overlay module consumes from a sibling overlay module",
+        "why": "the port is the deployment's own surface and diverges from nothing in core — its provider's `port-provided` is recorded; the consumer's import is held by the overlay boundary analysis (`check:module-boundary`, `endora generate`) and its edge by the manifest `dependencies`"
       }
     ],
     "runtimeOnly": [

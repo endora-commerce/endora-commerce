@@ -14,6 +14,7 @@ import type {
   CreditLimitReadPort,
   CustomFieldListFilterPort,
   CustomFieldValuePort,
+  CustomerAccountCommandPort,
   CustomerAccountMemberCommandPort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
@@ -44,13 +45,14 @@ import type {
 } from '@endora-commerce/contracts';
 import type {
   AuditPort,
+  EntityExtensionReads,
   SalesChannelMembershipPort,
   SchemaExtensionReads,
 } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
+import { effectiveState, lazyEntityExtensionReads, lazyPort } from '@endora-commerce/platform/kernel';
 import type { OrganizationReadPort } from '@endora-commerce/platform/kernel';
 import type {
   RequireAdminAnyFactory,
@@ -286,6 +288,8 @@ export interface OrganizationsCradle {
    * the point of use, like every kernel name this module does not capture.
    */
   readonly schemaExtensionReads: SchemaExtensionReads;
+  /** `specs/187-side-table-extensions/` FR-054 — the side-table reads, kernel-registered like the line above. */
+  readonly entityExtensionReads: EntityExtensionReads;
   readonly dictionaryValidator: DictionaryValidator;
   readonly emailMailer: EmailMailerPort;
   readonly adminNotificationRecordPort: AdminNotificationRecordPort;
@@ -849,6 +853,9 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'customerAccountMemberCommandPort',
             ),
+            // `specs/186-aggregate-ports/` US3 (issue #1822) — the operator's
+            // member panel writes through the CustomerAccount aggregate port.
+            customerAccountCommandPort: lazyPort<CustomerAccountCommandPort>(ctx, 'customerAccountCommandPort'),
             customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
             // Issue #1903 — the admin list's custom-field filters
             // (`specs/157-custom-fields-list-filters/`).
@@ -980,7 +987,16 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<OrganizationDetailsPort>(
     'organizationDetailsPort',
     ctx
-      .asFunction(({ emFactory }: OrganizationsCradle) => new OrganizationDetailsService(emFactory))
+      .asFunction(
+        ({ emFactory }: OrganizationsCradle) =>
+          // `specs/187-side-table-extensions/` FR-058 — `include` on the four
+          // record reads; the kernel's `entityExtensionReads` is resolved only
+          // for a read that names one.
+          new OrganizationDetailsService(
+            emFactory,
+            lazyEntityExtensionReads(() => cradle().entityExtensionReads),
+          ),
+      )
       .singleton(),
   );
 

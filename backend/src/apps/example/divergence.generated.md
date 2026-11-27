@@ -16,6 +16,7 @@ sentence this deployment wrote when it made the change.
 | --- |
 | `carrier_fixture` |
 | `command_hook_fixture` |
+| `command_middleware_fixture` |
 | `erp_challenger_fixture` |
 | `erp_incumbent_fixture` |
 | `example_overlay` |
@@ -48,6 +49,16 @@ rung 2 — run before or after what the owner already serves, or inside a write 
 | `organization.create` (beforeCommit, `observe-create`) | `command_hook_fixture` | `organizations` | Core creates an Organization in one audited Command. This fixture takes part in that write only for an Organization whose name carries its marker: inside the same transaction it records an audit entry of its own, names what it wrote in the core entry, and refuses with its own translated code when the name also carries its veto word. It is the reference hook module the command-hook contract tests compose, and it changes nothing for any other name. |
 | `organization.register` (afterCommit, `deliver-register`) | `command_hook_fixture` | `organizations` | The same handler on storefront self-registration: its row is written in the registration transaction, so a registration that rolls back leaves none, and delivery restores the new Organization's context and the registration's request id. It acts only on a marked name. |
 | `organization.register` (beforeCommit, `observe-register`) | `command_hook_fixture` | `organizations` | The same hook on storefront self-registration, which is one Command since spec 176 P1. On a marked name it writes its own audit entry inside the registration transaction and may refuse the registration with its own code, so the whole registration — Organization, first account, token — rolls back; any other name passes through untouched. |
+
+### Command middleware this deployment runs on the Command Bus
+
+rung 2 — run before or after what the owner already serves, or inside a write it declared hookable. Costs a coupling to an endpoint identity or a hookable action, both versioned public API.
+
+| What | Changed by | Owned by | Why |
+| --- | --- | --- | --- |
+| `hold-marked` (admit, `organization.`) | `command_middleware_fixture` | the Command Bus (no module owns it) | Core admits every Command. This fixture refuses an Organization write — a child write inside a bigger one included — only for a request whose id carries its hold marker, with its own translated code and before anything is written. It is the reference admission rule the command-middleware contract tests compose, and it changes nothing for any other request. |
+| `record-marked` (observe, `organization.`) | `command_middleware_fixture` | the Command Bus (no module owns it) | After a marked request’s Organization write has committed or rolled back, this fixture keeps the run’s names-only summary and the tenant context it was observed in, which the command-middleware tests read. It cannot slow, fail or change the write, and it ignores every request that does not carry its marker. |
+| `organization-timing` (observe, `organization.`) | `example_overlay` | the Command Bus (no module owns it) | Core runs no middleware on the Command Bus. After any write that touched an Organization has committed or rolled back, this deployment logs how long it took and how it ended — the action, the outcome, the error code and a count, never a value. It is the reference `observe` middleware: it cannot slow, fail or change the write, and it replaces what a deployment used to do by wrapping `commandBus`. |
 
 ### Ports this deployment consumes
 
@@ -87,6 +98,14 @@ rung 4 — change what the container hands out. Costs a contract-version couplin
 | `ledgerFixtureDeliveryProcessor` | `ledger_vendor_fixture` | `ledger_vendor_fixture` | The vendor half of a delivery: the sequence of calls a ledger vendor makes between picking a queued row up and marking it delivered. It owns no queue and no worker, deliberately — a queue is a vendor’s own scaling decision and nothing in the ledger’s contract is expressed through one, so a fixture with a queue would add Redis to this deployment’s boot and prove nothing the free module owns. |
 | `ledgerFixtureHttp` | `ledger_vendor_fixture` | `ledger_vendor_fixture` | This vendor’s one outward port, declared in the module’s own directory rather than in `@endora-commerce/contracts` because nobody outside the module speaks it. It composes to a client that **refuses** every call, for the same reason `product_feeds`’ delivery adapters do: there is no remote here, so a code path that starts reaching for one has to fail loudly rather than quietly succeed. |
 
+### Columns this deployment adds to another module's table
+
+data ladder D2 — declared extension columns on a table another module owns. Costs a dependency on the host’s module; the platform generates the DDL, records it in a ledger and verifies it, and the host keeps its table and every column it did not let you declare.
+
+| What | Changed by | Owned by | Why |
+| --- | --- | --- | --- |
+| `organizations` (`x_overlay_notes_fixture_last_note_at`) | `overlay_notes_fixture` | `organizations` | Core keeps an Organization’s columns its own. This fixture adds one nullable column to `organizations`, for when the organization’s last note was written, through the generated schema-extension step an installed package would use: ledgered under the fixture’s id, never exposed on an admin read, and kept as orphaned with its values when the fixture is hard-uninstalled. No core column is changed, and nothing core runs reads it. |
+
 ## What this report does not cover
 
 A report that lists what it records and says nothing about the rest is indistinguishable
@@ -97,11 +116,13 @@ and the facts only a running instance can answer.
 
 | Seam | Why it is not a divergence |
 | --- | --- |
+| `ctx.entityExtensionLoaders` | the module's own side table, read only for a caller that names this module in `include`; without it the host's read answers exactly as core does |
 | `ctx.onBoot` | the module's own boot hook, run inside its own system scope; it contributes nothing another module resolves |
 | `ctx.routes` | a route an overlay module registers is its own route, gated on its own module — not a change to what core serves |
 | `ctx.ungatedRoutes` | the module's own route, outside the module's own gate; the reason string is required at the call and is read there, and it removes no other module's gate |
 | `manifest.ts declarations (permissions, palette actions, i18n bundles, CLI commands)` | each is a module declaring its own surface, and each is already swept by the instrument that owns it — the permission inventory, the bundle-shape test, the action-route check |
 | `an overlay module's own entities and migrations` | a table an overlay module creates is its own surface, migrated under the foreign-schema guard with no exemption, so it cannot touch a table it does not own; what it declares on another module's table is recorded, as a column extension |
+| `a port an overlay module consumes from a sibling overlay module` | the port is the deployment's own surface and diverges from nothing in core — its provider's `port-provided` is recorded; the consumer's import is held by the overlay boundary analysis (`check:module-boundary`, `endora generate`) and its edge by the manifest `dependencies` |
 
 ### Facts only a running instance knows
 

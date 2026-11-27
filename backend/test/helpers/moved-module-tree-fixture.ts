@@ -1677,7 +1677,7 @@ function copyAdminApplication(root: string): void {
 function copyAdminShellPackage(root: string): void {
   const members = workspaceMembers(REPO_ROOT, nodeWorkspaceFs());
   const shellRoot = findAdminShellRoot(members);
-  const owner = members.find((member) => shellRoot.startsWith(`${member.dir}/`));
+  const owner = members.find((member) => shellRoot.startsWith(`${member.dir}${sep}`));
   if (owner === undefined) {
     throw new Error(
       `[moved-module-tree-fixture] the admin shell root ${shellRoot} belongs to no workspace ` +

@@ -8,10 +8,10 @@
  * deletes its entry in the same merge request. Delete this file when the last entry goes;
  * an empty shard is refused, because a done signal that says nothing is not one.
  *
- * Every entry here is **scheduled**, not retained: the file is `organizations`'s and the
- * only thing between it and its package is the batch that moves it. A retained entry — a
- * plain string — is the other claim, that the file is right to stay under
- * `backend/test`, and there is none in this shard.
+ * Every entry but one is **scheduled**: the file is `organizations`'s and the only thing
+ * between it and its package is the batch that moves it. A retained entry — a plain
+ * string — is the other claim, that the file is right to stay under `backend/test`; the
+ * one below is `specs/187-side-table-extensions/` T037's.
  */
 import type { TestOwnershipLedgerEntry } from '../../check-test-ownership.js';
 
@@ -47,4 +47,13 @@ export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
   'backend/test/unit/organizations/error-code-sentences.test.ts': SCHEDULED,
   'backend/test/unit/organizations/org-registration-notifier-presence.test.ts': SCHEDULED,
   'backend/test/unit/organizations/organization-read-port-shape.test.ts': SCHEDULED,
+  // Retained: it boots no server, but `openAcmeLinksInstance` clones the run's migrated
+  // template and opens it with this host's generated entity index, migration registry and
+  // `ENTITY_OWNERS` — `setupMigratorTestDb`'s reason for being a host composer — and the
+  // side-table fixture it migrates is `backend/test/fixtures/`'. Neither exists in the package.
+  'backend/test/contract/organizations/organization-details-port-extensions.test.ts':
+    'Composes the host: `openAcmeLinksInstance` opens a clone of the migrated template with the ' +
+    'generated entity index, migration registry and ENTITY_OWNERS of this repository, and migrates ' +
+    'the `mod-acme-links` fixture onto it (`specs/187-side-table-extensions/` T037). The package ' +
+    'has neither the template nor the registries.',
 };

@@ -41,7 +41,17 @@ every consumer of that name resolves, and a core module wrapping `commandBus`,
 `auditLogService` or another module's read port is a coupling nothing declares. Ask the owner
 for a seam instead (a port, a contribution point, an event). An overlay module is exempt, and
 the exemption is structural: `loadOverlayModuleEntries` marks an entry `overlay: true` from
-the root it was discovered under, so core cannot assert it.
+the root it was discovered under, so core cannot assert it. That exemption is **D-156.4, narrowed
+by D-296**, and the narrowing covers the four guard seams only — `commandBus`, `auditLogService`,
+`eventBus`, `emFactory` (`GUARD_SEAM_REGISTRATIONS` in `@endora-commerce/contracts`): an overlay's
+decoration of one is deprecated in 0.113.0 (it composes, logs `kernel.decoration.deprecated` and is a
+`deprecated-decoration` warning in the divergence report) and refused from 0.114.0. Use command
+middleware (`admit` to refuse, `observe` to measure) or a command hook instead of wrapping
+`commandBus` or `auditLogService`, `ctx.subscribe` or an `afterCommit` hook instead of wrapping
+`eventBus`, and a port from the owning module instead of `emFactory`; `guardSeamReplacementFor`
+carries the full text. Decorating another overlay module's registration, a workspace module's, or any
+other root-supplied name (`redis`, `orm`, `requireAdmin`, …) is unchanged
+(`specs/189-command-middleware/contracts/guard-seam-narrowing.md`).
 **An overlay module ships `backend.ts`, not `plugin.ts`** (D-103). It is composed by the
 kernel container exactly as a core module is — appended to the core list in the one
 `composeModules` call — and uses `ctx.routes` / `ctx.worker` / `ctx.subscribe` /
@@ -120,8 +130,30 @@ below is unchanged. What D-297 holds every overlay module to:
   repository's `module:uninstall` script still answers for core alone
   (`coreMigrationOwnership()`), so a hard uninstall of an overlay module from that terminal is
   refused; an instance's answers for its overlays.
+- **Its admin layer is `admin/index.tsx`** (FR-080 – FR-086, #1855), exporting the
+  `contributions` a package's `./admin` layer exports. It lands in its deployment's own registry,
+  `admin/src/deployments/<deployment>.generated.ts`, never in the bare-core one; the admin build
+  selects one registry from `DEPLOYMENT` (unset is `none`, a missing one refuses the build). The
+  admin's type-check owns the layer and the backend's overlay program excludes it. Palette
+  coverage, the permission inventory, `check:action-route-permissions` and the bundle-shape test
+  judge it per deployment — the checklists of `module-admin-surfaces.md` apply unchanged.
+- **It may publish port types to its siblings, through `ports.ts` alone** (FR-070 – FR-072,
+  `specs/190-overlay-full-modules/contracts/overlay-ports.md`, #1854). The owner registers the
+  port with `ctx.di.providePort` and declares its types in `modules/<owner>/ports.ts`
+  (`endora new module --ports` writes both). Another overlay module may import that file, and
+  nothing else of the owner, iff the import is `import type` (or every specifier `type`), it
+  resolves to exactly `<sibling>/ports.ts`, both modules are in the **same** deployment, and the
+  importer's manifest `dependencies` name the owner, transitively; it resolves the port with
+  `lazyPort`. Every other import between two overlay modules is a finding naming each failed
+  clause, from **one** analysis (`packages/cli/src/lib/overlay-boundary.ts`) with two readers:
+  `check:module-boundary` here, where no ledger entry can excuse one, and `endora generate` in an
+  instance, which exits 1 after writing. The dependency behaves as between any two modules:
+  install refuses a missing one, both activation axes refuse to switch the owner off under a
+  present dependent, and `uninstall --hard` is `dependents-block`. A port consumed from a
+  sibling is not a divergence (it is named under `notRecorded`); the owner's `port-provided` is.
 - **Promotion keeps the id.** A module promoted from an overlay to a package keeps its module
-  id, so the migration class names a database has already recorded still match.
+  id, so the migration class names a database has already recorded still match. Its `ports.ts`
+  becomes the package's `./ports` subpath, and consumers switch the specifier to it.
 - **The trust tier is derived, never claimed.** An overlay module's tier is `deployment`, read
   from the `origin` the loader stamps on its module entry from where it discovered the module
   (`specs/189-command-middleware/contracts/module-origin.md`). No manifest field feeds it.

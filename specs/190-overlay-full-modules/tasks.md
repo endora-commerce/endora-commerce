@@ -64,30 +64,50 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 3 — Overlay ports and dependencies (#1854, US4) — stands alone
 
-- [ ] T030 Test: overlay-boundary analysis — sanctioned type import passes; value import, other file, other deployment, missing dependency each reported with the failed clause — `packages/cli/src/lib/overlay-boundary.test.ts` [FR-070, FR-071]
-- [ ] T031 Implement `overlay-boundary.ts`
-- [ ] T032 Reader 1: `backend/scripts/check-module-boundary.ts` uses the analysis for overlay↔overlay edges; red proof in its test; existing ledger entries for such edges (if any) re-derived [FR-071]
-- [ ] T033 Reader 2: `endora generate` reports findings, exit 1 after writing — `packages/cli/src/generate/index.test.ts` [FR-071]
-- [ ] T034 Test: dependency between two overlay modules — composition, install refusal of a missing dependency, deactivation refused naming the dependent, `dependents-block` on hard uninstall — platform lifecycle tests over a temp deployment root [FR-072]
-- [ ] T035 Lift `--ports`: emits `ports.ts` + `providePort` — `packages/cli/src/new-module/overlay.test.ts` [FR-059]
-- [ ] T036 Divergence: sibling-overlay port consumption under `notRecorded` — `packages/cli/src/lib/divergence.test.ts`
-- [ ] T037 C-1 (OR-10): no origin or tier code in this feature. Before Phase 6, confirm that 189's `ModuleOrigin` / `ModuleEntry.origin` (`specs/189-command-middleware/contracts/module-origin.md` §1 – §2) has merged. Grep the WP3 diff for `TrustTier`, `trustTierOf` or any new origin union: expected none [FR-090]
-- [ ] T038 Convention sentences (overlay ports) updated; changeset cli `minor`
+- [x] T030 Test: overlay-boundary analysis — sanctioned type import passes; value import, other file, other deployment, missing dependency each reported with the failed clause — `packages/cli/src/lib/overlay-boundary.test.ts` [FR-070, FR-071]
+  - A finding lists **every** failed clause (`type-only`, `ports-file`, `same-deployment`, `declared-dependency`). Type-only also admits an `import('…').T` type node; a type re-export (`export type … from`) is not an import and fails `type-only`. A manifest whose `dependencies` are not literals declares nothing (fail closed)
+- [x] T031 Implement `overlay-boundary.ts`
+  - Both readers read `dependencies` off each overlay `manifest.ts` as a literal (`readManifestDependencies`): an instance has no manifest index and must not execute a client's manifest to lint it
+- [x] T032 Reader 1: `backend/scripts/check-module-boundary.ts` uses the analysis for overlay↔overlay edges; red proof in its test; existing ledger entries for such edges (if any) re-derived [FR-071]
+  - Per specifier (`overlayEdgeOf`): the sanctioned import is no reach; any other is a violation carrying `overlayClauses` that no ledger entry can excuse (an entry for it is stale, as R2's overlay writes). The ledger held no overlay↔overlay entry. Red proofs in `backend/test/unit/scripts/check-module-boundary.test.ts`; on the real tree a value import between two `example` overlays exits 1
+- [x] T033 Reader 2: `endora generate` reports findings, exit 1 after writing — `packages/cli/src/generate/index.test.ts` [FR-071]
+  - In `packages/cli/test/generate-overlay-boundary.test.ts`, beside the instance fixture (`test/support/overlay-instance.ts`) it uses. Every deployment on disk is read. `GenerateResult.overlayBoundary`; `generateFindingsRefusal` gains the section
+- [x] T034 Test: dependency between two overlay modules — composition, install refusal of a missing dependency, deactivation refused naming the dependent, `dependents-block` on hard uninstall — platform lifecycle tests over a temp deployment root [FR-072]
+  - `packages/platform/src/overlay/overlay-dependencies.test.ts`, through `defaultComposition`, `composeModules`, the orchestrator (in-memory row store and lock) and `assertActivationWritable` (both axes, and activation of the dependent with the owner off). No production change was needed; seen red by dropping the fixture's dependency (6 of 7 fail). Migration order is not re-proved here (#1850's)
+- [x] T035 Lift `--ports`: emits `ports.ts` + `providePort` — `packages/cli/src/new-module/overlay.test.ts` [FR-059]
+  - In `packages/cli/test/new-module-overlay.test.ts` (the overlay scaffold's existing suite). The port is the `status()` shape whatever the layers (an overlay has no service layer). The published port is `port-provided`, so the next steps name its `reasons` key. `backend/test/unit/packages/cli-overlay-entities-scaffold.test.ts` now scaffolds with `--ports` too, so the type-check under `tsconfig.apps.json` covers `providePort` against the real `ModuleContext`
+- [x] T036 Divergence: sibling-overlay port consumption under `notRecorded` — `packages/cli/src/lib/divergence.test.ts`
+  - In `packages/cli/test/divergence.test.ts`. The three committed reports (`example`, `acceptance`, core) are regenerated: one `notRecorded` line each, no entry moved
+- [x] T037 C-1 (OR-10): no origin or tier code in this feature. Before Phase 6, confirm that 189's `ModuleOrigin` / `ModuleEntry.origin` (`specs/189-command-middleware/contracts/module-origin.md` §1 – §2) has merged. Grep the WP3 diff for `TrustTier`, `trustTierOf` or any new origin union: expected none [FR-090]
+  - 2026-11-26: 189's `ModuleOrigin` has **not** merged — `rg -n "moduleOriginOf|ModuleOrigin\b" packages` finds nothing (only the discovery union `ModuleIdClaimOrigin`). The WP3 diff holds no `TrustTier`, `trustTierOf` or origin union
+- [x] T038 Convention sentences (overlay ports) updated; changeset cli `minor`
+  - `overlay-modules.md` (D-297 list: ports, the boundary, the dependency, promotion of `ports.ts`); `.changeset/1854-overlay-ports.md` (cli `minor`; platform gained a test only). The published pages stay with WP11 (`contracts/docs-pass.md`)
 
 ## Phase 4 — Overlay admin layer (#1855, US3) — after Phase 0
 
-- [ ] T040 Test: `emitDeploymentAdminRegistry` — two deployments, bare → empty, relative imports, sorted — `packages/cli/src/lib/admin-artefacts.test.ts` [FR-080]
-- [ ] T041 Implement the renderer and the Tailwind `@source` per overlay admin layer of every deployment on disk [FR-080, FR-082]
-- [ ] T042 This repository: `composer:generate` renders `admin/src/deployments/{example,none}.generated.ts`; `overlay:check` byte-compares every deployment; commit artefacts [FR-080]
-- [ ] T043 Instance: `endora generate` renders them uncommitted; `.gitignore` entry in the template [FR-080]
-- [ ] T044 Test + implement wiring: `admin/vite.config.ts` alias selection (unset → none; missing file → refuse), `resolve.dedupe`; `admin/src/main.tsx` concatenation; `admin/tsconfig.json` includes overlay admin layers; backend overlay project excludes them — both trees [FR-081, FR-083, FR-084]
-- [ ] T045 Test: bundle-content — admin built for deployment A holds no import of B's layer (two fixture deployments) [SC-004]
-- [ ] T046 Move palette coverage analysis into `packages/cli/src/lib/palette-coverage.ts`; `admin/test/unit/palette-coverage.test.ts` iterates every deployment on disk; `endora generate` reports it (exit 1 after writing) [FR-085]
-- [ ] T047 [P] `registered-bundles-shape.test.ts`, `check:action-route-permissions`, permission inventory (`DEPLOYMENT=<name>`): populations include overlay admin layers — red proof with a fixture overlay action [FR-086]
-- [ ] T048 Lift `--admin` / `--action` in `new-module/overlay.ts` [FR-059]
-- [ ] T049 Instance admin image `ARG DEPLOYMENT` (`deploy.ts` `adminDockerfile`); acceptance builds an overlay admin layer [FR-081, FR-084]
-- [ ] T050 `module-admin-surfaces.md` item 7 sentence replaced [FR-104]
-- [ ] T051 Changeset for #1855: cli `minor`, marked **`breaking change`**, **0.113.0** (OR-11). The body carries the upgrade note of FR-018: the admin image's new `ARG DEPLOYMENT` (`deploy.ts` `adminDockerfile`); the admin build selecting `admin/src/deployments/<deployment>.generated.ts`, rendered uncommitted by `endora generate` and git-ignored by the template; and `endora upgrade` re-rendering the admin wiring, with a hand-edited file reported and not overwritten. Written for the same 0.113.0 *After upgrading* section as T023. Verified against T044 / T049 [FR-018]
+- [x] T040 Test: `emitDeploymentAdminRegistry` — two deployments, bare → empty, relative imports, sorted — `packages/cli/src/lib/admin-artefacts.test.ts` [FR-080]
+  - Also: `admin/index.ts` in place of the fixed `index.tsx` is refused, and so is a deployment named `none`
+- [x] T041 Implement the renderer and the Tailwind `@source` per overlay admin layer of every deployment on disk [FR-080, FR-082]
+- [x] T042 This repository: `composer:generate` renders `admin/src/deployments/{example,none}.generated.ts`; `overlay:check` byte-compares every deployment; commit artefacts [FR-080]
+  - `acceptance.generated.ts` too (every deployment on disk). The fixture layer is `overlay_notes_fixture/admin/` (one screen over its notes read, a palette action, i18n bundles). `us3-artifact-env-independence.test.ts` admits exactly two carriers of a deployment tree: a deployment registry's own layers and the stylesheet's `@source` lines; `check:module-boundary` treats the deployment registries as generated roots
+- [x] T043 Instance: `endora generate` renders them uncommitted; `.gitignore` entry in the template [FR-080]
+  - `endora upgrade` rewrites `admin/src/main.tsx`, `admin/vite.config.ts` and `admin/tsconfig.json` while they are 0.112.0's rendering (recorded in `wiring-renderings.ts`; the renderers were byte-identical between `v0.112.0` and the base), and appends the `.gitignore` line
+- [x] T044 Test + implement wiring: `admin/vite.config.ts` alias selection (unset → none; missing file → refuse), `resolve.dedupe`; `admin/src/main.tsx` concatenation; `admin/tsconfig.json` includes overlay admin layers; backend overlay project excludes them — both trees [FR-081, FR-083, FR-084]
+  - The selection is one function both configs import, `@endora-commerce/cli/lib/admin-deployment.js` (admin gains a `@endora-commerce/cli` devDependency). `DEPLOYMENT` is read from the environment, then `backend/.env` here and the root `.env` in an instance. `tsconfig.build.json` excludes overlay admin layers; ESLint lints them against `admin/tsconfig.json`. Admin built here for `DEPLOYMENT` unset (no fixture code) and `example` (the fixture's chunk shares the one React and kit chunks); `DEPLOYMENT=nope` refuses
+- [x] T045 Test: bundle-content — admin built for deployment A holds no import of B's layer (two fixture deployments) [SC-004]
+  - `admin/test/unit/deployment-bundle.test.ts`: two fixture deployments built with Vite's `build()` through the real renderer and selection; measured in an instance too (A20)
+- [x] T046 Move palette coverage analysis into `packages/cli/src/lib/palette-coverage.ts`; `admin/test/unit/palette-coverage.test.ts` iterates every deployment on disk; `endora generate` reports it (exit 1 after writing) [FR-085]
+  - In an instance the overlay `admin/index.tsx` and `manifest.ts` are read off the syntax tree (JSX cannot be imported by Node); an undecidable declaration is a finding. Surfaces judged there are the overlays'; actions are the overlays' plus the installed packages'; no exemption ledger
+- [x] T047 [P] `registered-bundles-shape.test.ts`, `check:action-route-permissions`, permission inventory (`DEPLOYMENT=<name>`): populations include overlay admin layers — red proof with a fixture overlay action [FR-086]
+  - `backend/test/unit/overlay/overlay-admin-populations.test.ts` (a retained test-ownership entry). The route walk leaves an overlay `admin/` out, as it does a package's UI layers; the permission inventory already read overlay `admin/` data, now proven
+- [x] T048 Lift `--admin` / `--action` in `new-module/overlay.ts` [FR-059]
+  - A scaffold with `--admin --action --entities` written into `backend/src/apps/example` type-checks under `admin/tsconfig.json` and `tsconfig.apps.json` (measured, not committed)
+- [x] T049 Instance admin image `ARG DEPLOYMENT` (`deploy.ts` `adminDockerfile`); acceptance builds an overlay admin layer [FR-081, FR-084]
+  - `DEPLOYMENT` is a declared admin build input, so this repository's `admin/Dockerfile` (which now copies `backend/src/apps/`), `build:admin` and the demo build pass it; no image was built here (no Docker daemon). `acceptance:instance` A20, `tarball` mode: pass=19 fail=0 unmeasured=1 of 20, agreeing with the recorded expectation; `registry` not run. A20 reports the admin `typecheck` without judging it: a created admin member installs no React types, so its own `src/main.tsx` fails with TS7016 too (pre-existing, not FR-083's)
+- [x] T050 `module-admin-surfaces.md` item 7 sentence replaced [FR-104]
+  - And `overlay-modules.md` gains the admin-layer bullet
+- [x] T051 Changeset for #1855: cli `minor`, marked **`breaking change`**, **0.113.0** (OR-11). The body carries the upgrade note of FR-018: the admin image's new `ARG DEPLOYMENT` (`deploy.ts` `adminDockerfile`); the admin build selecting `admin/src/deployments/<deployment>.generated.ts`, rendered uncommitted by `endora generate` and git-ignored by the template; and `endora upgrade` re-rendering the admin wiring, with a hand-edited file reported and not overwritten. Written for the same 0.113.0 *After upgrading* section as T023. Verified against T044 / T049 [FR-018]
+  - `.changeset/1855-overlay-admin.md`; 0.113.0 is not released (`v0.112.0` is the newest tag)
 
 ## ══ Gate: #1866 (MikroORM 7.2.11, legacy decorators) merged ══
 
@@ -134,7 +154,7 @@ built with `DEPLOYMENT=example`.
 ## Phase 7 — Lifecycle (#1851, US5) — after Phase 6
 
 - [x] T090 Test: lifecycle sequence of `contracts/overlay-lifecycle.md` §5 — `backend/test/integration/_lifecycle/overlay-tables.integration.test.ts` [FR-045]
-  - Over `overlay_notes_fixture` on `deploymentDatabase('example')`, driving the orchestrator, `loadModulePresence` (boot) and `migrateUpVerified` (migrate) in-process; the file first reverts the overlay migration, so `install` has a pending one to apply. Deactivation writes the activation Setting and refreshes the registry cache, as `module.activation.set` + `propagateActivationChange` do. Not measured: the `x_*` column orphaned by the hard uninstall — overlay `schemaExtensions` are #1853 (Phase 9), so no overlay can declare one yet. Red before T091 on the four status assertions
+  - Over `overlay_notes_fixture` on `deploymentDatabase('example')`, driving the orchestrator, `loadModulePresence` (boot) and `migrateUpVerified` (migrate) in-process; the file first reverts the overlay migration, so `install` has a pending one to apply. Deactivation writes the activation Setting and refreshes the registry cache, as `module.activation.set` + `propagateActivationChange` do. The `x_*` column orphaned by the hard uninstall is measured since #1853 (Phase 9), once `overlay_notes_fixture` declared one. Red before T091 on the four status assertions
 - [x] T091 `module:status` lists overlay migrations per module with origin [FR-045]
   - `OperatorRuntime.migrations` (optional): `module:status <id>` prints the module's migrations (name, origin, applied / pending) under its row, and `--json` carries `migrations` on every row; the whole table without an id does not (core owns hundreds). This repository's script passes `configuredMigrations()`; `instanceOperatorRuntime` passes `instanceMigrationCatalogue`. Unchanged: this repository's `module:uninstall` script still passes `coreMigrationOwnership()`, so a hard uninstall of an overlay module from that terminal is refused (stated in `overlay-modules.md`); an instance's is not
 - [x] T092 [P] Off-state test template for overlays; `check:off-state-coverage` counts overlay modules of every deployment [FR-046]
@@ -161,9 +181,12 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 9 — `x_*` columns from overlays (#1853, US6) — after Phase 6
 
-- [ ] T110 Test: overlay `schemaExtensions` held to V9 – V11 with the overlay context; generated step at the head of the overlay block; ledger rows under the overlay id; orphaned on hard uninstall — re-run the 178 fixtures with an overlay declarer [FR-065, FR-066]
-- [ ] T111 Implement in `overlaySchemaContributionsUnder` + merge; composer keeps refusing workspace module packages, accepts overlays
-- [ ] T112 `schema-extensions` convention sentence; changeset platform `minor`
+- [x] T110 Test: overlay `schemaExtensions` held to V9 – V11 with the overlay context; generated step at the head of the overlay block; ledger rows under the overlay id; orphaned on hard uninstall — re-run the 178 fixtures with an overlay declarer [FR-065, FR-066]
+  - Platform `overlay/overlay-schema-extensions.test.ts` (V9 – V11, closure across overlays and over the composed graph, step at the head of the block, ownership, physical-name collision with a package). The 178 fixture helper takes `declarer: 'package' | 'overlay'`; `schema-extension-reconcile` and `_lifecycle/schema-extension-uninstall` run over both, `foreign-schema-guard` gains the overlay back-fill pair. `overlay_notes_fixture` now declares one `x_*` column on `organizations`, so T090's lifecycle test measures the orphan it could not, and `column-extension` is derived from a real declaration (reason in `example/divergence.ts`). Most of the merge was already Phase 6's, so those cases were green on arrival; red first were the composed-graph closure, the entity reader refusing what the merge accepts, the composer path, the harness and the lifecycle orphan
+- [x] T111 Implement in `overlaySchemaContributionsUnder` + merge; composer keeps refusing workspace module packages, accepts overlays
+  - `OverlaySchemaOptions.composedDependencies` (core + packages' edges, built by `discoverConfiguredMigrations`) and `schemaExtensions: false` for `configuredEntitiesFrom`, which cannot see that graph. The composer accepts a declaration only under `apps/<d>/modules/<id>/`. The test harness floors the `generated` origin at zero (no file; its name carries the declarations' hash) and digests the platform's step and DDL sources instead
+- [x] T112 `schema-extensions` convention sentence; changeset platform `minor`
+  - `module-migrations.md` R2; `.changeset/1853-overlay-schema-extensions.md`. Published `architecture/schema-extensions.md` (+ pl) still says an overlay ships no schema: `docs-pass.md` gives it to WP11. `module:schema-extensions` `list` / `drop` already read overlay declarations through the ORM configuration in both trees; `audit-packages` stays package-only: its pre-upgrade audit is for migrations written before the guard refused, and an overlay migration has run guarded from its first `migrate`
 
 ## Phase 10 — Reference overlay (#1856, US8) — after Phases 4, 6, 187 (#1834) and #1835
 

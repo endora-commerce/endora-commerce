@@ -57,6 +57,11 @@ import {
   ApiInterceptorRegistry,
   AuditLogService,
   CommandHookRegistry,
+  CommandMiddlewareRegistry,
+  createEntityExtensionReads,
+  EntityExtensionLoaderRegistry,
+  entityExtensionDeclarationsFrom,
+  commandMiddlewareFrom,
   createCommandOutboxWake,
   AuditRedactionService,
   activationDeclarationsFrom,
@@ -86,8 +91,10 @@ import {
 } from '@endora-commerce/platform/composition';
 import { CommandBus } from '@endora-commerce/platform/commands';
 import {
+  activeEntityExtensionContext,
   activeSchemaExtensionContext,
   createSchemaExtensionReads,
+  verifyEntityExtensions,
   verifySchemaExtensions,
 } from '@endora-commerce/platform/db';
 import { EventBus } from '@endora-commerce/platform/events';
@@ -274,6 +281,12 @@ export interface ComposeTestServerOptions {
    */
   readonly commandHookOrder?: Readonly<Record<string, readonly string[]>> | undefined;
   /**
+   * The `admit` command-middleware tie-break the deployment declares
+   * (`specs/189-command-middleware/` FR-031), forwarded to `composeModules` as
+   * `composeApp` forwards it, for `commandHookOrder`'s reason.
+   */
+  readonly commandMiddlewareOrder?: readonly string[] | undefined;
+  /**
    * Which module ids presence reports as enabled.
    *
    * Defaults to every module the composition's manifests declare, which is what
@@ -329,6 +342,13 @@ export async function composeTestServer(
     (sql, params = []) =>
       orm.em.getConnection().execute(sql, params, 'all') as Promise<Record<string, unknown>[]>,
     activeSchemaExtensionContext(),
+  );
+  // And the declared side tables, read-only, as `composeApp` holds them
+  // (`specs/187-side-table-extensions/` FR-022): one catalog query.
+  await verifyEntityExtensions(
+    (sql, params = []) =>
+      orm.em.getConnection().execute(sql, params, 'all') as Promise<Record<string, unknown>[]>,
+    activeEntityExtensionContext(),
   );
   // Mirror the production seam: forks stamp the tenant filter from the ambient
   // `TenantContext`, which the request-scope hook below establishes.
@@ -405,9 +425,23 @@ export async function composeTestServer(
     // drain itself.
     const commandOutboxWake = createCommandOutboxWake(redis);
     closeOutboxWake = () => commandOutboxWake.close();
+    // `specs/189-command-middleware/` FR-041 — as `composeApp` builds it: one
+    // registry, shared by the bus and every module context, sealed by
+    // `composeModules`, presence asked per call from the effective state, its
+    // failures on the platform logger.
+    const commandMiddlewareRegistry = new CommandMiddlewareRegistry({
+      isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+      log: platformLogger(),
+    });
+    // `specs/187-side-table-extensions/` B1 — as `composeApp` builds it: judged
+    // against the composed manifests' `extends`, sealed by `composeModules`.
+    const entityExtensionLoaderRegistry = new EntityExtensionLoaderRegistry({
+      declarations: entityExtensionDeclarationsFrom(manifests),
+    });
     const commandBus = new CommandBus(orm, auditLogService, eventBus, {
       hooks: commandHookRegistry,
       outboxWake: commandOutboxWake,
+      middleware: commandMiddlewareRegistry,
     });
 
     const salesChannels = composeSalesChannelsKernel({
@@ -478,6 +512,11 @@ export async function composeTestServer(
         declarations: () => activeSchemaExtensionContext().declarations,
         state: effectiveState,
       }),
+      // `specs/187-side-table-extensions/` FR-054 — as `composeApp` registers it.
+      entityExtensionReads: createEntityExtensionReads({
+        registry: entityExtensionLoaderRegistry,
+        state: effectiveState,
+      }),
       apiInterceptors,
       resolvedModuleRegistry: composition.manifests,
       // Whether this process runs queue consumers — the platform's one
@@ -511,6 +550,15 @@ export async function composeTestServer(
         moduleDependencies: moduleDependencyClosureFrom(manifests),
         commandHookOrder: options.commandHookOrder,
       },
+      // 189 P1 — sealed after the hook registry, against the same manifest set.
+      commandMiddlewareRegistry,
+      commandMiddleware: {
+        declarations: commandMiddlewareFrom(manifests),
+        moduleDependencies: moduleDependencyClosureFrom(manifests),
+        commandMiddlewareOrder: options.commandMiddlewareOrder,
+      },
+      // 187 B1 — sealed after the middleware registry.
+      entityExtensionLoaderRegistry,
     });
 
     const composedContext: ComposedPlatformContext = { ...platform, composed };

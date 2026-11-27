@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -138,6 +139,7 @@ describe('Order comments', () => {
       h.em,
       new OrderStatusGraphService(h.em),
       ordersNeighbourPorts(h.em).customerAccountRead,
+      h.container.resolve<CommandBus>('commandBus'),
       mailer,
     );
 

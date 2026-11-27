@@ -80,7 +80,19 @@ import {
   scanInstalledModulePackages,
   type SkippedInstalledPackage,
 } from '../lib/module-packages.js';
-import { DIVERGENCE_REMEDIES, type DivergenceFindingKind } from '../lib/divergence.js';
+import {
+  DIVERGENCE_REMEDIES,
+  isDivergenceError,
+  type DivergenceFindingKind,
+} from '../lib/divergence.js';
+import { commandMiddlewareDeclarationsIn } from '../lib/command-middleware-declarations.js';
+import {
+  analyzeOverlayBoundary,
+  OVERLAY_BOUNDARY_CLAUSES,
+  overlayBoundaryInputUnder,
+  type OverlayBoundaryClause,
+  type OverlayBoundaryFinding,
+} from '../lib/overlay-boundary.js';
 import {
   movableVersion,
   ownReleaseIndexPath,
@@ -90,6 +102,14 @@ import {
   type ReleaseIndexEntry,
 } from '../lib/release-index.js';
 import { InstanceHostError } from '../new-instance/host.js';
+import {
+  instancePaletteCoverage,
+  OverlayAdminInputError,
+  paletteRefusal,
+  paletteReport,
+  renderInstanceOverlayAdmin,
+  type DeploymentPaletteCoverage,
+} from './overlay-admin.js';
 import { resolveDeployment } from '../new-module/overlay.js';
 import { ScaffoldInputError } from '../new-module/spec.js';
 import {
@@ -202,6 +222,14 @@ export interface GenerateResult {
    */
   readonly divergence: readonly InstanceDivergence[];
   /**
+   * Every import between two overlay modules that is not the sanctioned one
+   * (`specs/190-overlay-full-modules/contracts/overlay-ports.md` §2), over every
+   * deployment on disk — the analysis `check:module-boundary` runs in the platform
+   * repository. Reported, and the run exits 1 after writing, as for a divergence
+   * finding.
+   */
+  readonly overlayBoundary: readonly OverlayBoundaryFinding[];
+  /**
    * The release modules this run declared (or, on a dry run, would declare)
    * because an installed module needs them — see the file header.
    */
@@ -213,7 +241,28 @@ export interface GenerateResult {
   readonly unlisted: readonly UnlistedReleaseModule[];
   /** Why this CLI's release index could not be read, when a needed module sent this run to it. */
   readonly releaseIndexError: string | null;
+  /**
+   * Installed packages that are not this release's first-party module packages
+   * and declare `admit` command middleware (`specs/189-command-middleware/`
+   * D-296.3, FR-004). The boot refuses each with `CommandMiddlewareOriginError`;
+   * this is the same refusal before boot. Reported, and the run exits 1 after
+   * writing.
+   */
+  readonly packageAdmit: readonly PackageAdmitFinding[];
+  /**
+   * Palette coverage of every deployment's overlay admin layers
+   * (`specs/190-overlay-full-modules/` FR-085). Empty with no admin member.
+   */
+  readonly palette: readonly DeploymentPaletteCoverage[];
   readonly dryRun: boolean;
+}
+
+/** One installed package declaring `admit` middleware it may not contribute. */
+export interface PackageAdmitFinding {
+  readonly moduleId: string;
+  readonly packageName: string;
+  /** The ids of its `admit` declarations. */
+  readonly middleware: readonly string[];
 }
 
 /**
@@ -290,9 +339,20 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
   // not a refusal: `endora new instance` writes one only when the shell and the
   // design system resolve, so a headless instance is a tree this command must
   // still be able to serve.
+  let palette: readonly DeploymentPaletteCoverage[] = [];
   try {
     const contributions = collectAdminContributions(scan.packages);
     const sources = collectTailwindSources(root, scan.packages);
+    // One registry per deployment under `apps/`, and bare core's — the admin
+    // build selects one (`specs/190-overlay-full-modules/` FR-080, FR-082).
+    let overlayAdmin: ReturnType<typeof renderInstanceOverlayAdmin>;
+    try {
+      overlayAdmin = renderInstanceOverlayAdmin(root, GENERATED_REGISTRY_HEADER);
+    } catch (error: unknown) {
+      if (error instanceof OverlayAdminInputError) throw new GenerateInputError(error.message);
+      throw error;
+    }
+    palette = await instancePaletteCoverage(root, scan.packages);
     artefacts.push(
       {
         path: adminRegistryOutputPathIn(root),
@@ -305,9 +365,11 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
           sources,
           GENERATED_STYLESHEET_HEADER,
           collectBlockStylesheets(root),
+          overlayAdmin.sources,
         ),
         label: `the admin stylesheet enumeration (${String(sources.length)} package(s))`,
       },
+      ...overlayAdmin.registries,
     );
   } catch (error: unknown) {
     if (!(error instanceof AdminLayoutUnresolvableError)) throw error;
@@ -434,6 +496,14 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
     throw new GenerateHostError(error.message);
   }
 
+  // --- the overlay boundary (`specs/190-overlay-full-modules/` FR-071) --------
+  //
+  // Over the same overlay sources the divergence half reads, and over every
+  // deployment on disk for the same reason: a client's tree holds them all, and an
+  // edge into another deployment is one of the findings. Nothing is written for it;
+  // its findings are printed and refuse the run after the artefacts are on disk.
+  const overlayBoundary = analyzeOverlayBoundary(overlayBoundaryInputUnder(root)).findings;
+
   // No member and no deployment is a workspace this command has anything to do
   // with, and a run that wrote nothing and said it succeeded is the silent green
   // the whole estate refuses. It is a refusal the operator can act on — exit 1 —
@@ -486,11 +556,58 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
     collected,
     swept,
     divergence,
+    overlayBoundary,
     declared: release.declared,
     unlisted: release.unlisted,
     releaseIndexError: release.releaseIndexError,
+    packageAdmit: packageAdmitFindings(scan, options),
+    palette,
     dryRun: options.dryRun === true,
   };
+}
+
+/**
+ * The installed packages whose manifest declares `admit` command middleware
+ * and that are not a first-party module package of this release
+ * (`specs/189-command-middleware/contracts/module-origin.md` §2): the package's
+ * own name **and** its module id must be one entry of this CLI's release index,
+ * the same pair the platform's generated first-party list holds. An index this
+ * run cannot read makes no package first-party — the boot answers the same
+ * question from the platform's own list, and a refusal here is never weaker
+ * than that one.
+ */
+function packageAdmitFindings(
+  scan: ReturnType<typeof scanInstalledModulePackages>,
+  options: GenerateOptions,
+): PackageAdmitFinding[] {
+  let index: ReleaseIndex | null = null;
+  try {
+    const file = options.releaseIndexFile ?? ownReleaseIndexPath();
+    index = parseReleaseIndex(readFileSync(file, 'utf8'), file);
+  } catch {
+    index = null;
+  }
+  const firstParty = new Set(
+    (index?.packages ?? []).map((entry) => `${entry.name}\0${entry.moduleId ?? ''}`),
+  );
+  const findings: PackageAdmitFinding[] = [];
+  for (const pkg of scan.packages) {
+    const target = pkg.exports.get('.');
+    if (target === undefined) continue;
+    const file = join(pkg.dir, target);
+    if (!existsSync(file)) continue;
+    const admits = commandMiddlewareDeclarationsIn(
+      readFileSync(file, 'utf8'),
+      file,
+    ).declarations.filter((declaration) => declaration.phase === 'admit');
+    if (admits.length === 0 || firstParty.has(`${pkg.name}\0${pkg.moduleId}`)) continue;
+    findings.push({
+      moduleId: pkg.moduleId,
+      packageName: pkg.name,
+      middleware: admits.map((declaration) => declaration.id),
+    });
+  }
+  return findings.sort((a, b) => a.moduleId.localeCompare(b.moduleId));
 }
 
 function spawnStep(step: GenerateStep): Promise<number> {
@@ -565,7 +682,11 @@ async function declareReleaseModules(
     for (const entry of index?.packages ?? []) {
       if (entry.moduleId !== undefined) byModule.set(entry.moduleId, entry);
     }
-    const planned: { entry: ReleaseIndexEntry; moduleId: string; neededBy: readonly ReleaseModuleNeed[] }[] = [];
+    const planned: {
+      entry: ReleaseIndexEntry;
+      moduleId: string;
+      neededBy: readonly ReleaseModuleNeed[];
+    }[] = [];
     for (const [moduleId, neededBy] of needs) {
       const entry = byModule.get(moduleId);
       if (entry === undefined) unlisted.push({ moduleId, neededBy });
@@ -588,7 +709,11 @@ async function declareReleaseModules(
     // a tag) gives no range to copy, so the release's own version is written,
     // exact.
     let text: string;
-    let manifest: { dependencies?: Record<string, unknown>; devDependencies?: Record<string, unknown>; optionalDependencies?: Record<string, unknown> };
+    let manifest: {
+      dependencies?: Record<string, unknown>;
+      devDependencies?: Record<string, unknown>;
+      optionalDependencies?: Record<string, unknown>;
+    };
     try {
       text = readFileSync(manifestPath, 'utf8');
       manifest = JSON.parse(text) as typeof manifest;
@@ -600,17 +725,24 @@ async function declareReleaseModules(
       );
     }
     const platformName = index?.packages.find((entry) => entry.name.endsWith('/platform'))?.name;
-    const platformSpec = platformName === undefined ? undefined : manifest.dependencies?.[platformName];
+    const platformSpec =
+      platformName === undefined ? undefined : manifest.dependencies?.[platformName];
     const platformVersion = typeof platformSpec === 'string' ? movableVersion(platformSpec) : null;
     const before = text;
     for (const plan of planned) {
       const name = plan.entry.name;
-      const existing = [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies]
+      const existing = [
+        manifest.dependencies,
+        manifest.devDependencies,
+        manifest.optionalDependencies,
+      ]
         .map((field) => field?.[name])
         .find((spec): spec is string => typeof spec === 'string');
       const spec =
         existing ??
-        (platformVersion === null ? plan.entry.version : rewriteRange(platformSpec as string, platformVersion)!);
+        (platformVersion === null
+          ? plan.entry.version
+          : rewriteRange(platformSpec as string, platformVersion)!);
       if (existing === undefined) {
         try {
           text = insertDependency(text, name, spec);
@@ -636,7 +768,12 @@ async function declareReleaseModules(
     if (options.dryRun === true) break;
 
     if (text !== before) writeFileSync(manifestPath, text, 'utf8');
-    const step: GenerateStep = { command: 'pnpm install', bin: 'pnpm', argv: ['install'], cwd: root };
+    const step: GenerateStep = {
+      command: 'pnpm install',
+      bin: 'pnpm',
+      argv: ['install'],
+      cwd: root,
+    };
     options.echo?.(
       `${step.command} — ${listed(planned.map((plan) => plan.entry.name))}, which ` +
         `${listed(planned.map((plan) => needLine(plan.moduleId, plan.neededBy)))}`,
@@ -683,11 +820,13 @@ export function generateReport(result: GenerateResult): readonly string[] {
         `\`omittedModules\``,
     );
   }
-  lines.push(...result.artefacts.map(
-    (artefact) =>
-      `${result.dryRun ? 'would write' : 'wrote'} ${relative(result.root, artefact.path)} — ` +
-      `${artefact.label}`,
-  ));
+  lines.push(
+    ...result.artefacts.map(
+      (artefact) =>
+        `${result.dryRun ? 'would write' : 'wrote'} ${relative(result.root, artefact.path)} — ` +
+        `${artefact.label}`,
+    ),
+  );
   if (result.swept.length > 0) {
     lines.push(
       `removed ${String(result.swept.length)} module reference page(s) no installed module ` +
@@ -706,8 +845,17 @@ export function generateReport(result: GenerateResult): readonly string[] {
     // The generator writes the artefact whatever it found, exactly as this
     // repository's does; a finding is something the client can act on and the
     // person running this is the person who can.
-    for (const finding of report.findings) {
+    for (const finding of report.findings.filter(isDivergenceError)) {
       lines.push(`  [${finding.kind}] ${finding.where}: ${finding.detail}`);
+    }
+    // 189 FR-051 — a warning is printed under its own heading and refuses
+    // nothing: `deprecated-decoration` in 0.113.0, an error from 0.114.0.
+    const warnings = report.findings.filter((finding) => !isDivergenceError(finding));
+    if (warnings.length > 0) {
+      lines.push('warnings:');
+      for (const finding of warnings) {
+        lines.push(`  [${finding.kind}] ${finding.where}: ${finding.detail}`);
+      }
     }
     // Never folded into "declares nothing": an absent declaration and one this
     // run could not read are the same answer only if you let them be.
@@ -718,6 +866,20 @@ export function generateReport(result: GenerateResult): readonly string[] {
       );
     }
   }
+  // After the divergence lines and before the summary of copies, so a finding sits
+  // beside the other findings this run printed.
+  for (const finding of result.overlayBoundary) {
+    lines.push(
+      `[overlay-boundary] ${finding.file}:${String(finding.line)}: overlay module ` +
+        `${finding.importer} imports '${finding.specifier}' from overlay module ` +
+        `${finding.target}${
+          finding.targetDeployment === finding.importerDeployment
+            ? ''
+            : ` of deployment ${finding.targetDeployment}`
+        } — fails ${finding.failed.map((clause) => `[${clause}]`).join(' ')}`,
+    );
+  }
+  lines.push(...paletteReport(result.palette));
   if (result.collected !== null) {
     lines.push(
       `copied ${String(result.collected.copied.length)} module-owned page(s) into ` +
@@ -736,10 +898,10 @@ export function generateReport(result: GenerateResult): readonly string[] {
     lines.push(
       skipped.kind === 'links-out-of-node-modules'
         ? `excluded ${skipped.name} — links-out-of-node-modules, real path ${skipped.realPath}. ` +
-          `A linked package is invisible to this instance's runtime discovery too, so an ` +
-          `artefact naming it would register a screen the backend never composes. Develop it ` +
-          `as an overlay module under \`apps/<deployment>/modules/\`, or \`pnpm pack\` it and ` +
-          `install the tarball.`
+            `A linked package is invisible to this instance's runtime discovery too, so an ` +
+            `artefact naming it would register a screen the backend never composes. Develop it ` +
+            `as an overlay module under \`apps/<deployment>/modules/\`, or \`pnpm pack\` it and ` +
+            `install the tarball.`
         : `excluded ${skipped.at} — unreadable: ${skipped.reason}`,
     );
   }
@@ -758,10 +920,23 @@ export function generateReport(result: GenerateResult): readonly string[] {
  * 0 made `pnpm run setup` a green run over a deployment nobody had explained.
  *
  * No ledger and no flag to waive it, for the reason the check has none: every
- * finding is a file the deployment owns and one edit from compliance.
+ * finding is a file the deployment owns and one edit from compliance. The overlay
+ * boundary's findings (FR-071) refuse the run on the same terms — `check:module-boundary`
+ * is their instrument here and has no other in an instance.
  */
 export function generateFindingsRefusal(result: GenerateResult): string | null {
-  const findings = result.divergence.flatMap((report) => report.findings);
+  const sections = [
+    divergenceFindingsSection(result),
+    overlayBoundarySection(result),
+    packageAdmitSection(result),
+  ].filter((section): section is string[] => section !== null);
+  if (sections.length === 0) return null;
+  return [...sections.flat(), 'Fix them and run `pnpm run generate` again.'].join('\n');
+}
+
+function divergenceFindingsSection(result: GenerateResult): string[] | null {
+  // Errors only: a warning was printed by `generateReport` and refuses nothing (189 FR-051).
+  const findings = result.divergence.flatMap((report) => report.findings.filter(isDivergenceError));
   const unreadable = result.divergence.flatMap((report) =>
     report.unresolvedDeclaration.map((field) => `${report.deployment}: ${field}`),
   );
@@ -791,8 +966,59 @@ export function generateFindingsRefusal(result: GenerateResult): string | null {
       `    \`decorationOrder\` and \`reasons\` as literals in that file.`,
     );
   }
-  lines.push('Fix them and run `pnpm run generate` again.');
-  return lines.join('\n');
+  return lines;
+}
+
+/**
+ * The overlay boundary's half (FR-071). No waiver, for the reason the divergence half
+ * has none: each finding is one import in the client's own tree, one edit from the
+ * sanctioned shape.
+ */
+function overlayBoundarySection(result: GenerateResult): string[] | null {
+  if (result.overlayBoundary.length === 0) return null;
+  const clauses = [
+    ...new Set(result.overlayBoundary.flatMap((finding) => finding.failed)),
+  ] as OverlayBoundaryClause[];
+  const order = Object.keys(OVERLAY_BOUNDARY_CLAUSES) as OverlayBoundaryClause[];
+  return [
+    `the artefacts ${result.dryRun ? 'would be' : 'were'} written, and the overlay boundary is ` +
+      `not clean: ${String(result.overlayBoundary.length)} import(s) ` +
+      `between overlay modules, each listed above. The one import an overlay module may make ` +
+      `of another is \`import type\` of the sibling's \`ports.ts\`, in the same deployment, ` +
+      `by a module that declares the sibling in its manifest \`dependencies\`. What each ` +
+      `failed clause asks for:`,
+    ...order
+      .filter((clause) => clauses.includes(clause))
+      .flatMap((clause) => [`  [${clause}]`, `    ${OVERLAY_BOUNDARY_CLAUSES[clause]}`]),
+  ];
+}
+
+/**
+ * The command-middleware half (189, D-296.3): an installed package may
+ * contribute `observe` middleware only, and no grant changes that.
+ */
+function packageAdmitSection(result: GenerateResult): string[] | null {
+  if (result.packageAdmit.length === 0) return null;
+  return [
+    `${String(result.packageAdmit.length)} installed package(s) declare admit command middleware, which ` +
+      `an installed package may not contribute (ruling D-296.3) — the platform refuses to boot with ` +
+      `CommandMiddlewareOriginError:`,
+    ...result.packageAdmit.map(
+      (finding) =>
+        `  ${finding.packageName} (${finding.moduleId}): ${finding.middleware.map((id) => `'${id}'`).join(', ')}`,
+    ),
+    `  [package-admit-middleware]`,
+    `    Ask the package's author for a release that declares it as observe, or move the admission`,
+    `    rule into one of this deployment's own overlay modules under apps/<deployment>/modules/.`,
+  ];
+}
+
+/**
+ * Why the palette half of this run is not a success, or `null` — exit 1 after
+ * writing, as {@link generateFindingsRefusal} (FR-085).
+ */
+export function generatePaletteRefusal(result: GenerateResult): string | null {
+  return paletteRefusal(result.palette);
 }
 
 /** Is this instance's admin registry the same as the one on disk? */

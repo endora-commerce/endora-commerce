@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { AuditPort, EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import type { EventBus } from '@endora-commerce/platform/events';
 import {
   ERROR_CODES,
@@ -70,6 +70,7 @@ import { registerQuoteRequestSalesChannelAttributions } from './services/sales-c
 import {
   effectiveState,
   enterSystemScope,
+  lazyEntityExtensionReads,
   lazyPort,
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
@@ -662,8 +663,13 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ emFactory }: QuoteRequestsCradle) =>
-          new QuoteRequestReadService(emFactory, (key, language) =>
-            lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate('quote_requests', key, language),
+          new QuoteRequestReadService(
+            emFactory,
+            (key, language) =>
+              lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate('quote_requests', key, language),
+            // `specs/187-side-table-extensions/` FR-058 — `include` on the
+            // record reads; resolved only for a read that names one.
+            lazyEntityExtensionReads(() => ctx.cradle<{ entityExtensionReads: EntityExtensionReads }>().entityExtensionReads),
           ),
       )
       .singleton(),

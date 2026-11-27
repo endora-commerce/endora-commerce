@@ -17,6 +17,7 @@ import {
 import { ExtensionAttributesSchema } from './schema-extensions.js';
 import { customFieldValuesSchema } from './custom-fields.js';
 import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
+import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -963,10 +964,11 @@ export type OrganizationConvertToCompanyInput = Omit<
  * **Inputs and refusals are the admin route's**, as the platform's `HttpError`
  * with its `code`: `422 VALIDATION_FAILED` for an input outside the route's
  * limits, `404 NOT_FOUND` for an unknown, soft-deleted or malformed id, and
- * each method's own below. The one difference is on `create`, which answers an
- * unknown sales channel `422 UNKNOWN_SALES_CHANNEL` where the admin route
- * answers `VALIDATION_FAILED` (research R-16.5): the code the deprecated
- * `organizationWritePort.create` has always answered.
+ * each method's own below. The one difference is an unknown sales channel, on
+ * `create` and `setSalesChannels`: `422 UNKNOWN_SALES_CHANNEL` where the admin
+ * routes answer `VALIDATION_FAILED` (research R-16.5), the code the deprecated
+ * `organizationWritePort.create` has always answered, with the same message
+ * and `details` paths.
  *
  * **Options** ({@link AggregateCommandOptions}): `expectedVersion` is honoured
  * by `update`, the four moderation methods, `setRestrictions` and
@@ -1107,6 +1109,25 @@ export interface OrganizationCommandPort {
   changeTaxId(
     organizationId: string,
     input: OrganizationChangeTaxIdInput,
+    options?: OrganizationCommandPortOptions,
+  ): Promise<OrganizationRecord>;
+  /**
+   * `organization.sales_channels.set` — replaces the sales channels the
+   * Organization's members may sign in and shop on, as
+   * `PUT …/:id/sales-channels` does, and answers the Organization. At least
+   * one distinct channel id (`422 VALIDATION_FAILED` otherwise); an inactive
+   * channel may be assigned. The kernel's membership writer records one
+   * `sales_channel.membership.changed` entry per membership added or removed,
+   * in the same transaction as this method's own entry (the ids before and
+   * after); the Organization's access cache is dropped after the commit and
+   * `sales_channels.membership_changed` emitted per membership. The set the
+   * Organization already has changes, records and emits nothing. Refusals:
+   * `404 NOT_FOUND`, `422 UNKNOWN_SALES_CHANNEL` (with `details` naming
+   * `salesChannelIds.<index>`). Ignores `expectedVersion`.
+   */
+  setSalesChannels(
+    id: string,
+    input: OrganizationSalesChannelsUpdateBody,
     options?: OrganizationCommandPortOptions,
   ): Promise<OrganizationRecord>;
   /**
@@ -1281,15 +1302,28 @@ export interface OrganizationConvertedToCompanyEvent {
  * more than the predicate does.
  */
 export interface OrganizationDetailsPort {
-  findById(id: string): Promise<OrganizationRecord | null>;
-  findByIds(ids: readonly string[]): Promise<OrganizationRecord[]>;
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>`; absent or
+   * empty, the answer is exactly what it was without the parameter. The same
+   * holds for {@link findByIds}, {@link searchByName} and {@link findByTaxId}.
+   */
+  findById(id: string, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OrganizationRecord> | null>;
+  findByIds(
+    ids: readonly string[],
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrganizationRecord>[]>;
   /** How many of these ids exist — the `count === ids.length` existence check. */
   countByIds(ids: readonly string[]): Promise<number>;
   /**
    * Diacritic-insensitive name search over `nameSearch`, ordered by name.
    * An empty `query` returns the first `limit` organisations.
    */
-  searchByName(query: string, limit: number): Promise<OrganizationRecord[]>;
+  searchByName(
+    query: string,
+    limit: number,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrganizationRecord>[]>;
   /** The same search, ids only — for the order list's organisation filter. */
   searchIdsByName(query: string): Promise<string[]>;
   /**
@@ -1300,7 +1334,10 @@ export interface OrganizationDetailsPort {
    * In `global` there is at most one; in `per-tree-root` a head office and its
    * branches. Never matches a personal organization, which has no tax ID.
    */
-  findByTaxId(taxId: string, options?: { includeDeleted?: boolean }): Promise<OrganizationRecord[]>;
+  findByTaxId(
+    taxId: string,
+    options?: { includeDeleted?: boolean } & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrganizationRecord>[]>;
   /**
    * The single organization a tax ID resolves to — the root of the tree that
    * holds it (the live root, else the oldest live match), `none` when no live
@@ -1327,7 +1364,7 @@ export interface OrganizationDetailsPort {
  *
  * A port of its own rather than a method on the read-only
  * {@link OrganizationDetailsPort}, mirroring
- * `CustomerAccountLifecycleWritePort.setCustomFieldValues` on the account side.
+ * `CustomerAccountCommandPort.setCustomFieldValues` on the account side.
  *
  * **The merge is the caller's.** The owner loads the Organization, calls
  * `merge` with its current bag and stores what `merge` returns — inside **one
@@ -1787,7 +1824,7 @@ export interface PersonalOrganizationPort {
    * may be listed, and is left alone because it still has a live member.
    *
    * Reads only the owner's rows; writes nothing. Unbounded, like
-   * `CustomerAccountLifecycleWritePort.listDueForAnonymization`: in steady
+   * `CustomerAccountReadPort.listDueForAnonymization`: in steady
    * state it answers an empty list.
    */
   listIncompletelyScrubbed(): Promise<string[]>;
@@ -1796,7 +1833,7 @@ export interface PersonalOrganizationPort {
    * Whether {@link listIncompletelyScrubbed} would list anything — **yes or
    * no, and nothing else**. The retention sweep's scheduled tick asks it with
    * no tenant context, before it enters the system scope, beside
-   * `CustomerAccountLifecycleWritePort.hasDueForAnonymization`, so that a tick
+   * `CustomerAccountReadPort.hasDueForAnonymization`, so that a tick
    * with organisation-side residue to finish is not taken for an idle one. It
    * is the list's own row source; no id, row or count leaves it.
    */

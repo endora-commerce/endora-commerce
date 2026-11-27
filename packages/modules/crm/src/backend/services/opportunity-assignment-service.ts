@@ -15,6 +15,7 @@ import { randomUUID } from 'crypto';
 import { pickDefaultAssignee } from '../domain/default-assignee.js';
 import type { AdminReach } from './admin-reach.js';
 import { crmNotificationText, tellAfterCommit, type CrmNotifier } from './crm-notifier.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { loadOpportunity } from './opportunity-access.js';
 
 export interface OpportunityAssignmentServiceDeps {
@@ -100,15 +101,16 @@ export class OpportunityAssignmentService {
   /**
    * Assign, reassign or (with `null`) unassign. One Command, announced once
    * with the previous assignee; naming the assignee the Opportunity already has
-   * writes nothing. The new assignee is told afterwards.
+   * writes nothing. The new assignee is told afterwards. `caller` is
+   * `opportunityCommandPort`'s `source` and `extensions`, absent on the route.
    */
-  async assign(opportunityId: string, adminUserId: string | null): Promise<void> {
+  async assign(opportunityId: string, adminUserId: string | null, caller: CallerOptions = {}): Promise<void> {
     // The parent first: an Opportunity the caller cannot see is a 404 before
     // the assignee is looked at.
     const visible = await loadOpportunity(this.deps.emFactory(), opportunityId);
     if (adminUserId !== null) await this.assertAssignable(adminUserId, visible.organizationId);
 
-    const change = await this.deps.commandBus.run({
+    const change = await this.deps.commandBus.run(withCallerOptions({
       action: 'crm.opportunity.assign',
       objectType: 'crm_opportunity',
       objectId: opportunityId,
@@ -134,7 +136,7 @@ export class OpportunityAssignmentService {
         };
       },
       event: (result) => (result ? assignedEvent(result) : undefined),
-    });
+    }, caller));
     if (change) await this.notifyAssigned(change);
   }
 

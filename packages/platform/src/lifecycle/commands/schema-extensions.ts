@@ -8,6 +8,12 @@ import { declaredElements, dropColumnSql, dropIndexSql, quoteIdent } from '../..
 import { auditForeignSchemaWrites, type AuditedPackage } from '../../db/foreign-schema-guard.js';
 import { PLATFORM_ENTITIES } from '../../db/platform-schema.js';
 import { FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS } from '../../migrations/index.js';
+import {
+  activeEntityExtensionContext,
+  type EntityExtensionContext,
+} from '../../kernel/entity-extensions/context.js';
+import { judgeEntityExtensions } from '../../kernel/entity-extensions/declarations.js';
+import { inspectEntityExtensions, type EntityExtensionListRow } from '../../db/entity-extension-verifier.js';
 
 /**
  * `module:schema-extensions list | drop | audit-packages` — the operator's view of the
@@ -39,6 +45,18 @@ export interface SchemaExtensionsRuntime {
   readonly err: (line: string) => void;
   /** The installed packages' raw schema contributions — `audit-packages`' population. */
   readonly packages?: () => Promise<readonly AuditedPackage[]>;
+  /**
+   * The side tables the ORM configuration resolved and who maps each table
+   * (`specs/187-side-table-extensions/` FR-040). Read after {@link orm} opened,
+   * so discovery has run. Defaults to what the configuration recorded.
+   */
+  readonly entityExtensions?: () => EntityExtensionContext;
+  /**
+   * The dependency edges of modules that are not installed packages — the
+   * committed graph — so `audit-packages` walks a host owner reached through a
+   * core module (FR-041). Absent: the packages' own edges alone.
+   */
+  readonly moduleDependencies?: () => ReadonlyMap<string, readonly string[]>;
 }
 
 export const SCHEMA_EXTENSIONS_EXIT = { ok: 0, usage: 64, refused: 65, failed: 70 } as const;
@@ -131,12 +149,19 @@ async function list(rt: SchemaExtensionsRuntime, args: Parsed): Promise<number> 
         `order by module_id, host_table, kind, physical_name`,
       args.moduleId === undefined ? [] : [args.moduleId],
     )) as LedgerRow[];
+  // `specs/187-side-table-extensions/` FR-040, FR-042 — side tables are derived
+  // on each run from the declarations and the one catalog query, never read
+  // from or written to the ledger. `list` reports a violation; it never fails on one.
+  const sideTables = (await entityExtensionRows(rt, orm)).filter(
+    (row) => args.moduleId === undefined || row.moduleId === args.moduleId,
+  );
   if (args.json) {
-    rt.out(`${JSON.stringify({ elements: rows }, null, 2)}\n`);
+    rt.out(`${JSON.stringify({ elements: rows, entityExtensions: sideTables }, null, 2)}\n`);
     return SCHEMA_EXTENSIONS_EXIT.ok;
   }
   if (rows.length === 0) {
     rt.out('(no schema extensions recorded)\n');
+    printEntityExtensionRows(rt, sideTables);
     return SCHEMA_EXTENSIONS_EXIT.ok;
   }
   const header = ['MODULE', 'HOST', 'KIND', 'ELEMENT', 'KEY', 'STATUS', 'APPLIED', 'ORPHANED'];
@@ -154,7 +179,36 @@ async function list(rt: SchemaExtensionsRuntime, args: Parsed): Promise<number> 
   const line = (cells: readonly string[]): string =>
     cells.map((cell, column) => cell.padEnd(widths[column]!)).join('  ').trimEnd();
   rt.out(`${[line(header), ...table.map(line)].join('\n')}\n`);
+  printEntityExtensionRows(rt, sideTables);
   return SCHEMA_EXTENSIONS_EXIT.ok;
+}
+
+async function entityExtensionRows(rt: SchemaExtensionsRuntime, orm: MikroORM): Promise<readonly EntityExtensionListRow[]> {
+  const context = (rt.entityExtensions ?? activeEntityExtensionContext)();
+  const connection = orm.em.getConnection();
+  const report = await inspectEntityExtensions(
+    (sql, params = []) => connection.execute(sql, params) as Promise<Record<string, unknown>[]>,
+    context,
+  );
+  return report.rows;
+}
+
+/** The second section of `list` (`contracts/schema-extensions-cli.md` §1); nothing when there is no row. */
+function printEntityExtensionRows(rt: SchemaExtensionsRuntime, rows: readonly EntityExtensionListRow[]): void {
+  if (rows.length === 0) return;
+  const header = ['MODULE', 'ORIGIN', 'HOST', 'TABLE', 'CONSTRAINT', 'STATUS'];
+  const table = rows.map((row) => [
+    row.moduleId ?? '-',
+    row.origin ?? '-',
+    row.host,
+    row.table,
+    row.constraint ?? '-',
+    row.status,
+  ]);
+  const widths = header.map((title, column) => Math.max(title.length, ...table.map((cells) => cells[column]!.length)));
+  const line = (cells: readonly string[]): string =>
+    cells.map((cell, column) => cell.padEnd(widths[column]!)).join('  ').trimEnd();
+  rt.out(`\nEntity extensions (side tables)\n${[line(header), ...table.map(line)].join('\n')}\n`);
 }
 
 async function drop(rt: SchemaExtensionsRuntime, args: Parsed): Promise<number> {
@@ -169,7 +223,17 @@ async function drop(rt: SchemaExtensionsRuntime, args: Parsed): Promise<number> 
     )) as LedgerRow[]
   ).filter((row) => args.key === undefined || row.declared_key === args.key);
   if (targets.length === 0) {
-    rt.err(`[schema-extensions] nothing to drop: "${moduleId}" has no live ledger element${args.key === undefined ? '' : ` for key "${args.key}"`}.\n`);
+    // `specs/187-side-table-extensions/` schema-extensions-cli.md §3 — a side
+    // table is the module's own, dropped by its own `down()` on uninstall.
+    const sideTablesOnly = (rt.entityExtensions ?? activeEntityExtensionContext)().extensions.some(
+      (extension) => extension.moduleId === moduleId,
+    );
+    rt.err(
+      sideTablesOnly
+        ? `[schema-extensions] ${moduleId} has no orphaned schema-extension elements; side tables are dropped by ` +
+            'uninstalling the module\n'
+        : `[schema-extensions] nothing to drop: "${moduleId}" has no live ledger element${args.key === undefined ? '' : ` for key "${args.key}"`}.\n`,
+    );
     return SCHEMA_EXTENSIONS_EXIT.refused;
   }
 
@@ -297,17 +361,27 @@ async function auditPackages(rt: SchemaExtensionsRuntime, args: Parsed): Promise
     rt.err('[schema-extensions] audit-packages: this entry point supplies no installed-package population\n');
     return SCHEMA_EXTENSIONS_EXIT.failed;
   }
+  const packages = await rt.packages();
+  // `specs/187-side-table-extensions/` FR-041 — the static verdict of every
+  // `extends` entry (E1 – E5), before and without the database.
+  const sideTables = entityExtensionVerdicts(packages, rt.moduleDependencies?.() ?? new Map());
   const orm = await rt.orm();
   const audit = await auditForeignSchemaWrites({
-    packages: await rt.packages(),
+    packages,
     driver: orm.em.getDriver(),
     config: orm.config,
     platformEntities: PLATFORM_ENTITIES,
     exemptions: FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS,
   });
+  const sideTablesRefused = sideTables.some((verdict) => verdict.verdict !== 'ok');
   if (args.json) {
-    rt.out(`${JSON.stringify(audit, null, 2)}\n`);
+    rt.out(`${JSON.stringify({ ...audit, entityExtensions: sideTables }, null, 2)}\n`);
   } else {
+    for (const verdict of sideTables) {
+      rt.out(
+        `${verdict.packageName} (${verdict.moduleId}) extends ${verdict.entity} → ${verdict.table}: ${verdict.verdict}\n`,
+      );
+    }
     for (const finding of audit.findings) {
       rt.out(
         `${finding.packageName} (${finding.moduleId}) ${finding.migration}.${finding.method}() → ${finding.table}: ` +
@@ -329,7 +403,38 @@ async function auditPackages(rt: SchemaExtensionsRuntime, args: Parsed): Promise
             `and, on a host it declares, its own x_<module>_ columns.\n`,
     );
   }
-  return audit.findings.length === 0 ? SCHEMA_EXTENSIONS_EXIT.ok : SCHEMA_EXTENSIONS_EXIT.refused;
+  return audit.findings.length === 0 && !sideTablesRefused ? SCHEMA_EXTENSIONS_EXIT.ok : SCHEMA_EXTENSIONS_EXIT.refused;
+}
+
+interface PackageExtendsVerdict {
+  readonly packageName: string;
+  readonly moduleId: string;
+  readonly entity: string;
+  readonly table: string;
+  readonly verdict: string;
+}
+
+/** One verdict per `extends` entry of each installed package, over its graph and `committed`. */
+function entityExtensionVerdicts(
+  packages: readonly AuditedPackage[],
+  committed: ReadonlyMap<string, readonly string[]>,
+): PackageExtendsVerdict[] {
+  const names = new Map(packages.map((pkg) => [pkg.id, pkg.packageName] as const));
+  return judgeEntityExtensions(
+    packages.map((pkg) => ({
+      moduleId: pkg.id,
+      origin: 'package' as const,
+      dependencies: pkg.dependencies ?? [],
+      extends: pkg.entityExtensions ?? [],
+    })),
+    { dependencies: committed },
+  ).map((verdict) => ({
+    packageName: names.get(verdict.moduleId) ?? verdict.moduleId,
+    moduleId: verdict.moduleId,
+    entity: verdict.entity,
+    table: verdict.table,
+    verdict: verdict.verdict,
+  }));
 }
 
 export async function runSchemaExtensionsCommand(

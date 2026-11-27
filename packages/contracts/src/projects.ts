@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
+import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
 import { calendarDateSchema } from './common.js';
 import { dataEnvelope } from './envelopes.js';
 import { customFieldFiltersQueryParamSchema, customFieldValuesSchema } from './custom-fields.js';
@@ -1148,6 +1150,25 @@ export interface ProjectRecord {
   templateId: string | null;
   closedAt: Date | null;
   createdAt: Date;
+  /**
+   * The custom-field values as stored on the Project (`specs/186-aggregate-ports/`
+   * FR-015) — every key the bag holds, `internal` fields included: the reader is
+   * code, and what an administrator's screen hides is the screen's affair.
+   */
+  customFieldValues: Record<string, unknown>;
+  /**
+   * The optimistic-concurrency token of the Project's own fields, state and
+   * Stage (`ProjectDetail.version`) — what {@link ProjectCommandPort}'s
+   * `expectedVersion` names on `update`, `setCustomFieldValues`, `moveToStage`,
+   * `close` and `reopen`.
+   */
+  version: number;
+  /**
+   * The token of the Project's sets (`ProjectDetail.configurationVersion`,
+   * issue #449) — what `expectedVersion` names on `setOrganizations` and
+   * `setMembers`.
+   */
+  configurationVersion: number;
 }
 
 /**
@@ -1163,20 +1184,31 @@ export interface ProjectRecord {
  * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`.
  */
 export interface ProjectReadPort {
-  findById(id: string): Promise<ProjectRecord | null>;
-  findByRecord(kind: ProjectRecordKind, id: string): Promise<ProjectRecord | null>;
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>` to the Projects
+   * the caller may see; absent or empty, the answer is exactly what it was
+   * without it. The same holds for {@link findByRecord}, {@link findByIds} and
+   * {@link search}.
+   */
+  findById(id: string, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<ProjectRecord> | null>;
+  findByRecord(
+    kind: ProjectRecordKind,
+    id: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<ProjectRecord> | null>;
   /**
    * The Projects of `ids` the caller may see, in no particular order — a
    * hidden, missing or malformed id is simply absent. One query for a page of
    * references (`specs/165-task-management/` R-5).
    */
-  findByIds(ids: readonly string[]): Promise<ProjectRecord[]>;
+  findByIds(ids: readonly string[], options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<ProjectRecord>[]>;
   /**
    * Projects the caller may see whose number or title contains `q`
    * (case-insensitively; every visible one for an empty `q`), newest first, at
    * most `limit` (≤ 20) — the Projects group of the `@@` list (R-5).
    */
-  search(query: ProjectSearchQuery): Promise<ProjectRecord[]>;
+  search(query: ProjectSearchQuery, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<ProjectRecord>[]>;
   /**
    * The notes written on the Projects the caller may see, one page at a time,
    * oldest first — for a cross-record notes list or an export (issue #1905).
@@ -1248,6 +1280,148 @@ export interface ProjectNotePage {
 
 /** The most notes one `ProjectReadPort.listNotes` page answers. */
 export const PROJECT_READ_PORT_NOTES_MAX = 100;
+
+/**
+ * What `ProjectCommandPort.update` may change — the four fields
+ * `projects.project.update` writes, the admin `PATCH`'s body without its
+ * `version` (which travels as `options.expectedVersion`), its custom fields
+ * (`setCustomFieldValues`) and who sees the Project (not offered).
+ */
+export type ProjectUpdatePatch = Pick<UpdateProjectBody, 'title' | 'description' | 'value' | 'startOn'>;
+
+/** What `ProjectCommandPort.close` is given: `POST …/close`'s body without its `version`. */
+export type ProjectCloseInput =
+  | { readonly outcome: 'completed' }
+  | { readonly outcome: 'lost'; readonly lossReasonId: string; readonly comment?: string };
+
+/**
+ * Container name: `projectCommandPort`. Owner: `projects` (`specs/186-aggregate-ports/`
+ * US7, issue #1828, D-293).
+ *
+ * The Project aggregate's write port: each method runs the audited Command —
+ * or, for `setOrganizations`, the one transaction of Commands — the admin
+ * route for the same operation runs, through the route's own service, with the
+ * ambient actor. **No permission is checked** — the caller is the gate; never
+ * resolve it for a customer-facing route. Call it after your own commit: a call
+ * is its own transaction.
+ *
+ * **Whose Projects.** Every method starts, as the route does, from the
+ * Projects the ambient caller may see: under `withSystemScope` every one;
+ * under `withSystemScopeActingFor(adminUserId, reason)` that administrator's,
+ * both rules applied (`projects:read`, Organization reach, visibility). A
+ * Project the caller may not see is `404 PROJECT_NOT_FOUND`, as a missing one.
+ * `create` and `addComment` record an administrator on the row (the creator,
+ * the author) and so are refused `403 FORBIDDEN` before anything is read when
+ * no administrator is behind the call — run them under
+ * `withSystemScopeActingFor`.
+ *
+ * **What follows the write follows a port call too**: the Stage Tasks of a
+ * Stage entered by `create` or `moveToStage` (while Tasks is on), the people a
+ * description or a comment newly mentions, the Members told of a message, the
+ * Tasks of a deleted Project, and the module's events. The registered stage
+ * guards (`projectStageGuardRegistry`) run on `moveToStage`, `close` and
+ * `reopen` as on the routes; a refusal is `409 PROJECT_GUARD_REFUSED`.
+ *
+ * **Inputs and refusals are the admin route's**, as the platform's `HttpError`
+ * with its `code`: an input outside the route's schema is `422
+ * VALIDATION_FAILED`; the rest are the `PROJECTS_ERROR_CODES` the route
+ * answers.
+ *
+ * **Options** ({@link AggregateCommandOptions}). `expectedVersion` is the token
+ * the route checks: {@link ProjectRecord.version} on `update`,
+ * `setCustomFieldValues`, `moveToStage`, `close` and `reopen`;
+ * {@link ProjectRecord.configurationVersion} on `setOrganizations` and
+ * `setMembers`. A stale one is refused `409 PROJECT_CHANGED`, the route's code.
+ * Absent, it is the token the method's own read saw, held to the Project's row
+ * lock: a change another caller committed in between is refused `409
+ * PROJECT_CHANGED` too, rather than overwritten — or, on the two sets, merged
+ * with a diff computed from the stale read (issue #1986). `setCustomFieldValues`
+ * is the exception: its `merge` runs on the values read under the lock, so
+ * absent it checks nothing. `link`, `unlink`, `addComment` and `delete` ignore
+ * it. `source` is
+ * recorded on each audit entry beside the actor; a code outside
+ * `aggregateCommandSourceSchema` is refused `422 VALIDATION_FAILED` before
+ * anything is read or written. `extensions` reaches the command hooks of the
+ * Commands a method runs — on `setOrganizations` the per-Organization
+ * `projects.project.organization_add` / `.organization_remove`, which are
+ * hookable, and not their parent; a key no present hook module claims on such
+ * an action is refused `422 COMMAND_EXTENSION_UNCLAIMED` before anything is
+ * written, so every key is refused on `setMembers`, `link`, `unlink`,
+ * `addComment` and `delete`, whose actions are not hookable
+ * (`PROJECT_HOOKABLE_ACTIONS`). Two calls run no Command, so an unclaimed
+ * `extensions` key is not refused on them: a `setOrganizations` that changes
+ * nothing, and an `update` whose patch is empty (no title, description, value
+ * or start date) — the claim is checked per Command, against a hook registry
+ * the owner cannot read.
+ *
+ * **Answers.** A {@link ProjectRecord} read after the write under the
+ * Organization rule alone, so a write that took the Project out of the
+ * caller's own visibility still answers it. `setOrganizations` answers `null`
+ * when the caller's own change took the Project out of their Organization
+ * reach — the change committed, as the route's `{ outOfReach: true }` says.
+ *
+ * **Not offered**: archiving and restoring (the module has no such
+ * operation); the Project's visibility and listed people, its Stages and
+ * workflow, Stage Task definitions, templates, roles, loss reasons and
+ * attachments (configuration); editing or deleting a note (its author's own
+ * act).
+ *
+ * **Owner off:** fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`; nothing is
+ * written.
+ */
+export interface ProjectCommandPort {
+  /** `POST /projects` — `projects.project.create`. Needs an administrator behind the call. */
+  create(input: CreateProjectBody, options?: AggregateCommandOptions): Promise<ProjectRecord>;
+  /**
+   * `PATCH /projects/:id` (title, description, value, start date) —
+   * `projects.project.update`. An empty patch runs no Command: it writes
+   * nothing, answers the record, and refuses no `extensions` key.
+   */
+  update(id: string, patch: ProjectUpdatePatch, options?: AggregateCommandOptions): Promise<ProjectRecord>;
+  /**
+   * `projects.project.custom_fields_update`, the Command the admin `PATCH` runs
+   * for the values. `merge` runs between the Command's load, under the
+   * Project's row lock, and its write; the owner does not validate — call
+   * `CustomFieldValuePort.validateAndMerge` inside it. A merge that changes
+   * nothing writes and records nothing.
+   */
+  setCustomFieldValues(id: string, merge: CustomFieldMerge, options?: AggregateCommandOptions): Promise<ProjectRecord>;
+  /**
+   * `PUT /projects/:id/organizations` — the whole set, in one transaction: one
+   * `projects.project.organization_add` or `.organization_remove` per change.
+   * `null` when the change took the Project out of the caller's reach.
+   */
+  setOrganizations(
+    id: string,
+    input: { readonly organizationIds: readonly string[] },
+    options?: AggregateCommandOptions,
+  ): Promise<ProjectRecord | null>;
+  /** `PUT /projects/:id/members` — the whole set, Members and their Roles: `projects.project.member_set`. */
+  setMembers(
+    id: string,
+    input: { readonly members: readonly ProjectMemberInput[] },
+    options?: AggregateCommandOptions,
+  ): Promise<ProjectRecord>;
+  /** `POST /projects/:id/move` — `projects.project.stage_move`, the workflow, gate and stage guards first. */
+  moveToStage(id: string, input: { readonly toStageId: string }, options?: AggregateCommandOptions): Promise<ProjectRecord>;
+  /** `POST /projects/:id/close` — `projects.project.close`. */
+  close(id: string, input: ProjectCloseInput, options?: AggregateCommandOptions): Promise<ProjectRecord>;
+  /** `POST /projects/:id/reopen` — `projects.project.reopen`, into the Stage it was closed in. */
+  reopen(id: string, options?: AggregateCommandOptions): Promise<ProjectRecord>;
+  /** `POST /projects/:id/links` — `projects.project.link_add`; answers the link's id. */
+  link(id: string, input: CreateProjectLinkBody, options?: AggregateCommandOptions): Promise<{ linkId: string }>;
+  /** `DELETE /projects/:id/links/:linkId` — `projects.project.link_remove`. */
+  unlink(id: string, linkId: string, options?: AggregateCommandOptions): Promise<void>;
+  /**
+   * `POST /projects/:id/comments` — `projects.project.note_add` or
+   * `.message_add`; answers the comment's id. Needs an administrator behind the
+   * call, who is its author.
+   */
+  addComment(id: string, input: CreateProjectCommentBody, options?: AggregateCommandOptions): Promise<{ commentId: string }>;
+  /** `DELETE /projects/:id` — `projects.project.delete`, refused while records are linked. */
+  delete(id: string, options?: AggregateCommandOptions): Promise<void>;
+}
 
 export type ProjectStageGuardKind = 'move' | 'close_completed' | 'close_lost' | 'reopen';
 

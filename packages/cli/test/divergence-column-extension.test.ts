@@ -41,13 +41,13 @@ export function registerModule(): void {}
 
 const KEY = 'column-extension:acme_erp:organizations';
 
-function input(reasons: Record<string, string> = {}): DivergenceInput {
+function input(reasons: Record<string, string> = {}, text: string = BACKEND): DivergenceInput {
   return {
     deployment: 'acme',
     overlayRoot: 'backend/src/apps/acme/modules',
     overlayModules: ['acme_erp'],
     sources: [
-      { moduleId: 'acme_erp', file: 'backend/src/apps/acme/modules/acme_erp/backend.ts', text: BACKEND },
+      { moduleId: 'acme_erp', file: 'backend/src/apps/acme/modules/acme_erp/backend.ts', text },
     ],
     routes: new Map(),
     owners: new Map(),
@@ -117,5 +117,44 @@ describe('the `column-extension` divergence kind (190 T093)', () => {
     expect(markdown).toContain("### Columns this deployment adds to another module's table");
     expect(markdown).toContain('data ladder D2');
     expect(markdown).toContain('`organizations` (`x_acme_erp_erp_code`, `x_acme_erp_synced_at`)');
+  });
+
+  // #1941 case 1: the walk keyed on the callee's spelling, so a renamed import was not a
+  // declaration at all — no entry, no finding, a column the report never names.
+  it('follows an aliased import of defineColumnExtension', () => {
+    const aliased = `
+import { defineColumnExtension as extendColumns } from '@endora-commerce/platform/kernel';
+
+export const schemaExtensions = [
+  extendColumns({ host: 'organizations', module: 'acme_erp', columns: { erpCode: { type: 'text' } } }),
+];
+`;
+    const { report, findings } = deriveDivergence(input({}, aliased));
+    expect(report.entries.filter((entry) => entry.kind === 'column-extension')).toEqual([
+      expect.objectContaining({ key: KEY, detail: expect.objectContaining({ columns: ['x_acme_erp_erp_code'] }) }),
+    ]);
+    expect(findings.filter((finding) => finding.kind === 'computed-subject')).toEqual([]);
+  });
+
+  // #1941 case 1: a spread (or any non-literal) `columns` value used to be read as "no columns",
+  // recording an entry that lists none of the columns the declaration adds.
+  it.each([
+    ['a spread inside columns', `columns: { ...shared, erpCode: { type: 'text' } }`],
+    ['a columns value that is not an object literal', 'columns: shared'],
+    ['a spread beside columns', `...defaults, columns: { erpCode: { type: 'text' } }`],
+  ])('reports %s as computed-subject rather than recording a partial column list', (_, columns) => {
+    const spread = `
+import { defineColumnExtension } from '@endora-commerce/platform/kernel';
+const shared = { syncedAt: { type: 'timestamptz' } } as const;
+const defaults = {};
+export const schemaExtensions = [
+  defineColumnExtension({ host: 'organizations', module: 'acme_erp', ${columns} }),
+];
+`;
+    const { report, findings } = deriveDivergence(input({}, spread));
+    expect(report.entries.filter((entry) => entry.kind === 'column-extension')).toEqual([]);
+    expect(findings.filter((finding) => finding.kind === 'computed-subject').map((f) => f.detail)).toEqual([
+      expect.stringContaining('columns'),
+    ]);
   });
 });

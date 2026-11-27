@@ -36,7 +36,7 @@
  * `composer:generate`'s committed bytes are unchanged by the move and
  * `overlay:check` is what says so.
  */
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
 import {
@@ -225,8 +225,9 @@ export function emitAdminRegistry(
 // item 5), and a registry that filtered would make it a restart.
 //
 // **Bare core under every value of \`DEPLOYMENT\`** (D-104), like the manifest
-// index: a deployment's overlay modules are discovered at runtime and
-// contribute to no committed artefact.
+// index. A deployment's overlay admin layers are in that deployment's own
+// registry, \`deployments/<deployment>.generated.ts\`, which the admin build
+// selects beside this one (\`specs/190-overlay-full-modules/\` FR-080).
 
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 
@@ -258,6 +259,227 @@ export function adminRegistryOutputPathIn(root: string): string {
   const members = workspaceMembers(root, nodeWorkspaceFs());
   const { member, target } = findAliasMember(members);
   return join(resolve(member.dir, target), ADMIN_REGISTRY_ARTEFACT);
+}
+
+/** The admin source root: where both registries and the stylesheet enumeration land. */
+export function adminSourceRootIn(root: string): string {
+  return dirname(adminRegistryOutputPathIn(root));
+}
+
+// ── the deployment admin registries ─────────────────────────────────────────
+//
+// `specs/190-overlay-full-modules/` FR-080 – FR-082, `contracts/overlay-admin-layer.md`
+// §2, research R-8. An overlay module ships its admin surface as
+// `apps/<deployment>/modules/<id>/admin/index.tsx` exporting `contributions`, the
+// export a package's `./admin` layer has. Those layers go into a registry **per
+// deployment**, never into the bare-core one: the admin build selects exactly
+// one deployment registry (`DEPLOYMENT`), so a bundle built for one deployment
+// imports none of another's code (SC-004), and a registry filtered at render
+// would have been an artefact that depends on the environment (#120).
+
+/** Where the deployment registries sit, under the admin source root. */
+export const DEPLOYMENT_REGISTRY_DIRECTORY = 'deployments';
+
+/** The registry an admin built with no `DEPLOYMENT` selects: bare core, empty. */
+export const BARE_CORE_DEPLOYMENT_REGISTRY = 'none';
+
+/** The fixed entry of an overlay module's admin layer (`overlay-module-layout.md` §2). */
+export const OVERLAY_ADMIN_ENTRY = 'index.tsx';
+
+/** One overlay module's admin layer, found on disk. */
+export interface DeploymentAdminLayer {
+  readonly deployment: string;
+  readonly moduleId: string;
+  /** Absolute: `apps/<deployment>/modules/<id>/admin`. */
+  readonly directory: string;
+  /** Absolute: that directory's `index.tsx`. */
+  readonly entry: string;
+}
+
+/** A deployment tree that cannot be rendered into a registry — the operator's to fix. */
+export class DeploymentAdminLayerError extends Error {
+  override readonly name = 'DeploymentAdminLayerError';
+}
+
+function visibleDirectoriesUnder(path: string): readonly string[] {
+  if (!existsSync(path)) return [];
+  return readdirSync(path, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+/**
+ * Every deployment under `appsRoot`, sorted, each with its overlay modules that
+ * ship `admin/index.tsx`, sorted by module id.
+ *
+ * **Every deployment on disk**, not the selected one: this repository commits
+ * one registry per deployment and `overlay:check` compares each (#120), and an
+ * instance renders all of them so switching `DEPLOYMENT` needs no regenerate.
+ *
+ * Two refusals, both of a tree that would otherwise build wrong in silence: an
+ * `admin/` holding `index.ts` rather than the fixed `index.tsx` (the registry
+ * would leave a screen out), and a deployment named `none`, whose registry would
+ * be the file bare core selects.
+ */
+export function collectDeploymentAdminLayers(
+  appsRoot: string,
+): ReadonlyMap<string, readonly DeploymentAdminLayer[]> {
+  const found = new Map<string, DeploymentAdminLayer[]>();
+  for (const deployment of visibleDirectoriesUnder(appsRoot)) {
+    if (deployment === BARE_CORE_DEPLOYMENT_REGISTRY) {
+      throw new DeploymentAdminLayerError(
+        `${join(appsRoot, deployment)} is a deployment named '${deployment}', and the admin build ` +
+          `reserves ${DEPLOYMENT_REGISTRY_DIRECTORY}/${deploymentRegistryFileName(null)} for bare ` +
+          `core — the registry an admin built with no DEPLOYMENT selects. Rename the deployment.`,
+      );
+    }
+    const layers: DeploymentAdminLayer[] = [];
+    const modulesRoot = join(appsRoot, deployment, 'modules');
+    for (const moduleId of visibleDirectoriesUnder(modulesRoot)) {
+      const directory = join(modulesRoot, moduleId, ADMIN_LAYER);
+      const entry = join(directory, OVERLAY_ADMIN_ENTRY);
+      if (existsSync(entry)) {
+        layers.push({ deployment, moduleId, directory, entry });
+        continue;
+      }
+      if (existsSync(join(directory, 'index.ts'))) {
+        throw new DeploymentAdminLayerError(
+          `${join(directory, 'index.ts')} is an overlay module's admin entry under the wrong name. ` +
+            `The deployment admin registry imports ${ADMIN_LAYER}/${OVERLAY_ADMIN_ENTRY} — the ` +
+            `layer is JSX, and the fixed name is the one every tree reads — so this module's ` +
+            `screens would be left out of the admin with no error. Rename it to ` +
+            `${OVERLAY_ADMIN_ENTRY}.`,
+        );
+      }
+    }
+    found.set(deployment, layers);
+  }
+  return found;
+}
+
+/** `acme.generated.ts`, or `none.generated.ts` for bare core. */
+export function deploymentRegistryFileName(deployment: string | null): string {
+  return `${deployment ?? BARE_CORE_DEPLOYMENT_REGISTRY}.generated.ts`;
+}
+
+/** One deployment registry entry: the module id and the relative specifier of its layer. */
+export interface DeploymentAdminEntry {
+  readonly moduleId: string;
+  readonly specifier: string;
+}
+
+/** The type-only import of the entry shape, from the core registry beside this one. */
+const REGISTRY_ENTRY_TYPE_SPECIFIER = `../${ADMIN_REGISTRY_ARTEFACT.replace(/\.ts$/, '.js')}`;
+
+/** Pure render of one deployment registry; `null` renders bare core's. */
+export function emitDeploymentAdminRegistry(
+  deployment: string | null,
+  entries: readonly DeploymentAdminEntry[],
+  header: string = COMPOSER_REGISTRY_HEADER,
+): string {
+  const sorted = [...entries].sort((a, b) => a.moduleId.localeCompare(b.moduleId));
+  const imports = sorted
+    .map(
+      (entry, index) =>
+        `import { contributions as ${adminBindingOf(index)} } from '${entry.specifier}';\n`,
+    )
+    .join('');
+  const body = sorted
+    .map(
+      (entry, index) =>
+        `  { moduleId: '${entry.moduleId}', contributions: ${adminBindingOf(index)} },\n`,
+    )
+    .join('');
+  const subject =
+    deployment === null
+      ? `// Bare core's deployment admin registry: an admin built with no \`DEPLOYMENT\`
+// selects it, and it holds no overlay module.`
+      : `// The deployment admin registry of \`${deployment}\` — the \`admin/index.tsx\` of each of
+// its overlay modules, sorted by module id and imported by relative path.`;
+  return `${header}//
+${subject}
+//
+// The admin build selects exactly one deployment registry, through the
+// \`@endora-commerce-deployment/admin\` alias in \`admin/vite.config.ts\`, and renders it after
+// \`MODULE_ADMIN_CONTRIBUTIONS\`. So a bundle built for one deployment imports no
+// code of another (\`specs/190-overlay-full-modules/\` FR-080, FR-081, SC-004).
+// Every route and zone component is a \`() => import('…')\` factory, as in a
+// package's layer, so this file costs the declarations and none of the screens.
+
+import type { AdminRegistryEntry } from '${REGISTRY_ENTRY_TYPE_SPECIFIER}';
+${imports === '' ? '' : `\n${imports}`}
+export const DEPLOYMENT_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
+${body}];
+`;
+}
+
+/** One rendered deployment registry. */
+export interface RenderedDeploymentRegistry {
+  /** `null` for bare core's. */
+  readonly deployment: string | null;
+  readonly outputPath: string;
+  readonly content: string;
+  /** How many overlay admin layers it imports. */
+  readonly modules: number;
+}
+
+/** A relative module specifier, `./` prefixed when it would otherwise be bare. */
+function relativeSpecifier(fromDir: string, to: string): string {
+  const path = relative(fromDir, to).split(sep).join('/');
+  return path.startsWith('.') ? path : `./${path}`;
+}
+
+/**
+ * Bare core's registry and one per deployment on disk, in that order, rendered
+ * into `adminSourceRoot`.
+ *
+ * The specifier names the layer's `index.js`: both the admin's type-check
+ * (`moduleResolution: Bundler`) and Vite resolve a `.js` import of a TypeScript
+ * file to the `.tsx` source.
+ */
+export function renderDeploymentAdminRegistriesInto(
+  adminSourceRoot: string,
+  appsRoot: string,
+  header: string = COMPOSER_REGISTRY_HEADER,
+): readonly RenderedDeploymentRegistry[] {
+  const directory = join(adminSourceRoot, DEPLOYMENT_REGISTRY_DIRECTORY);
+  const rendered: RenderedDeploymentRegistry[] = [
+    {
+      deployment: null,
+      outputPath: join(directory, deploymentRegistryFileName(null)),
+      content: emitDeploymentAdminRegistry(null, [], header),
+      modules: 0,
+    },
+  ];
+  for (const [deployment, layers] of collectDeploymentAdminLayers(appsRoot)) {
+    const entries = layers.map((layer) => ({
+      moduleId: layer.moduleId,
+      specifier: relativeSpecifier(directory, join(layer.directory, 'index.js')),
+    }));
+    rendered.push({
+      deployment,
+      outputPath: join(directory, deploymentRegistryFileName(deployment)),
+      content: emitDeploymentAdminRegistry(deployment, entries, header),
+      modules: entries.length,
+    });
+  }
+  return rendered;
+}
+
+/**
+ * The directory of every overlay admin layer of every deployment on disk,
+ * relative to the stylesheet enumeration in `adminSourceRoot` — one `@source`
+ * each (FR-082). Tailwind is a static scan, and an overlay screen's classes are
+ * dropped in silence when its directory is not scanned.
+ */
+export function collectOverlayAdminSources(
+  adminSourceRoot: string,
+  appsRoot: string,
+): readonly string[] {
+  return [...collectDeploymentAdminLayers(appsRoot).values()]
+    .flat()
+    .map((layer) => relative(adminSourceRoot, layer.directory).split(sep).join('/'));
 }
 
 // ── the admin stylesheet composition ────────────────────────────────────────
@@ -548,9 +770,18 @@ export function emitTailwindRegistry(
   entries: readonly TailwindSourceEntry[],
   header: string = COMPOSER_STYLESHEET_HEADER,
   blockStylesheets: readonly BlockStylesheetEntry[] = [],
+  overlayAdminSources: readonly string[] = [],
 ): string {
-  // The section is written only when a module declares one, so a tree in which
-  // none does renders the bytes it rendered before the section existed.
+  // Each section is written only when something declares it, so a tree in which
+  // nothing does renders the bytes it rendered before the section existed.
+  const overlays =
+    overlayAdminSources.length === 0
+      ? ''
+      : `\n/*\n * Overlay admin layers — one \`@source\` per overlay module, of every deployment\n` +
+        ` * on disk, that ships \`admin/index.tsx\` (\`specs/190-overlay-full-modules/\` FR-082).\n` +
+        ` * They are no package, so no \`./tailwind.css\` of theirs declares them.\n */\n` +
+        overlayAdminSources.map((source) => `@source "${source}";`).join('\n') +
+        '\n';
   const blocks =
     blockStylesheets.length === 0
       ? ''
@@ -580,7 +811,7 @@ export function emitTailwindRegistry(
  * sources need no directive here (R2.3).
  */
 ${imports}
-`;
+${overlays}`;
 }
 
 /** Where the generated stylesheet lands: beside the admin contribution registry. */

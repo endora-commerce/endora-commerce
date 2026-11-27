@@ -6,10 +6,10 @@
  * current ones.
  *
  * Every write that records an account entry is run against an in-memory
- * EntityManager with a recording audit port. The Commands
- * (`customer.custom_fields.update`, `customer_account.change_role`) run through
- * the **real** `CommandBus`; the other writes record through the audit port
- * directly, as they always have, and are held to the same sentinels.
+ * EntityManager with a recording audit port. The Commands run through the
+ * **real** `CommandBus` — every lifecycle write is one since
+ * `specs/186-aggregate-ports/` (#1822); the two Organization moves still record
+ * through the audit port directly, and are held to the same sentinels.
  */
 import { AssertionError } from 'node:assert';
 import { randomUUID } from 'node:crypto';
@@ -23,6 +23,7 @@ import { makeChangeCustomerAccountRoleCommand } from '../commands/customer-accou
 import type { CustomerAccountRoleCommandDeps, CustomerAccountRoleRow } from '../commands/customer-account-role-rules.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { CUSTOMER_ACCOUNT_AUDIT_KEYS, accountCreatedAuditState } from './customer-account-audit-state.js';
+import { CustomerAccountCommandService } from './customer-account-command-port.js';
 import { CustomerAccountLifecycleWriteService } from './customer-account-lifecycle-ports.js';
 import { CustomerAccountMemberWriteService } from './customer-account-ports.js';
 
@@ -75,6 +76,7 @@ const ORG = randomUUID();
 const NEW_ORG = randomUUID();
 const ROLE = randomUUID();
 const NEW_ROLE = randomUUID();
+const ADMINISTRATOR_ROLE = randomUUID();
 
 const S = {
   email: 's470@example.test',
@@ -158,13 +160,23 @@ function harness() {
   const provision = {
     provisionFor: async () => ({ id: ORG, administratorRoleId: ROLE }),
   } as unknown as PersonalOrganizationProvisionApi;
-  const lifecycle = new CustomerAccountLifecycleWriteService(
-    () => em as never,
-    audit as never,
-    noEnrolments,
-    provision,
+  // Since `specs/186-aggregate-ports/` (#1822) the lifecycle writes are the
+  // aggregate port's Commands; the deprecated port delegates to it.
+  const commands = new CustomerAccountCommandService({
     commandBus,
-  );
+    emFactory: () => em as never,
+    twoFactorEnrolments: noEnrolments,
+    // Nobody here holds the Administrator role, so the depletion guard reads nothing more.
+    roles: { findRole: async () => null, predefinedRoleId: async () => ADMINISTRATOR_ROLE },
+    isPersonal: async () => false,
+    personalOrganizations: provision,
+    sessions: { destroyAllForCustomer: async () => undefined },
+    afterCommit: async (fn) => fn(),
+  });
+  const lifecycle = new CustomerAccountLifecycleWriteService(() => em as never, audit as never, noEnrolments, {
+    commands,
+    reads: { listDueForAnonymization: async () => [], hasDueForAnonymization: async () => false },
+  });
   // `customer_account.create` is a Command since `specs/176-command-hooks-outbox/`
   // (FR-004): the member write runs it through the same bus.
   const members = new CustomerAccountMemberWriteService(() => em as never, noEnrolments, audit as never, { commandBus });
@@ -196,8 +208,8 @@ describe('customer_accounts audit state carries names, never values (#470)', () 
     const h = harness();
     const account = seedAccount(h.em);
 
-    await h.lifecycle.block(account.id, { actorAdminUserId: ADMIN, reason: S.reason });
-    await h.lifecycle.unblock(account.id, { actorAdminUserId: ADMIN });
+    await asAdmin(() => h.lifecycle.block(account.id, { actorAdminUserId: ADMIN, reason: S.reason }));
+    await asAdmin(() => h.lifecycle.unblock(account.id, { actorAdminUserId: ADMIN }));
 
     expectNoAuditValues(h.entries, SENTINELS);
     expect(h.entries.map((e) => e.action)).toEqual(['customer_account.blocked', 'customer_account.unblocked']);
@@ -241,7 +253,9 @@ describe('customer_accounts audit state carries names, never values (#470)', () 
   it('customer_account.register_standalone — no e-mail, name or tenant', async () => {
     const h = harness();
 
-    await h.lifecycle.createStandalone({ email: S.email, password: 'S470-pass-word', firstName: S.firstName, lastName: S.lastName });
+    await asAdmin(() =>
+      h.lifecycle.createStandalone({ email: S.email, password: 'S470-pass-word', firstName: S.firstName, lastName: S.lastName }),
+    );
 
     expectNoAuditValues(h.entries, SENTINELS);
     expect(h.entries[0]?.action).toBe('customer_account.register_standalone');

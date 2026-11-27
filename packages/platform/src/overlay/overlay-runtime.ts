@@ -37,6 +37,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
 import type { ModuleEntry } from '../kernel/compose.js';
+import { moduleOriginOf } from '../lifecycle/services/module-origin.js';
 import {
   assertNoModuleIdCollisions,
   type ModuleIdClaim,
@@ -337,6 +338,9 @@ async function overlayModuleEntriesForIds(
       registerModule: registerModule as ModuleEntry['registerModule'],
       // From the root, never from the module. See the note above.
       overlay: true,
+      // The trust tier, from the same discovery: an overlay module is
+      // `deployment` whatever it ships (`specs/189-command-middleware/contracts/module-origin.md` §6).
+      origin: moduleOriginOf('overlay', false),
     });
   }
   return entries;

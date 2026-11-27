@@ -68,6 +68,15 @@ describe('assertNoSchemaExtensionDeclarations', () => {
     ).not.toThrow();
   });
 
+  it('refuses one under a deployment but outside its overlay modules — nothing would read it', () => {
+    // `specs/190-overlay-full-modules/` FR-065: the platform reads an overlay
+    // module's `backend` export; a declaration beside `divergence.ts` would be
+    // accepted here and then silently never declare anything.
+    expect(() =>
+      assertNoSchemaExtensionDeclarations(coreSources({ 'apps/example/columns.ts': DECLARATION })),
+    ).toThrow(/application's own tree/);
+  });
+
   it('still refuses one in the application tree outside `apps/`', () => {
     expect(() =>
       assertNoSchemaExtensionDeclarations(coreSources({ 'kernel/columns.ts': DECLARATION })),

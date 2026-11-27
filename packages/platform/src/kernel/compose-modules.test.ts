@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { CommandHookRegistry } from '../commands/hooks/registry.js';
+import { CommandMiddlewareOriginError } from '../commands/middleware/errors.js';
+import { CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
 import { EventBus } from '../events/index.js';
 import { getTenantContext } from '../tenancy/tenant-context.js';
 import { createRootContainer, registerValues } from './container.js';
@@ -465,5 +468,112 @@ describe('D-156.6 — a root-supplied name is not a module to take', () => {
     expect(container.resolve<string>('pricingService')).toBe('core');
     expect(container.resolve<string>('promotionService')).toBe('promo');
     expect(container.resolve<string>('hostValue')).toBe('host');
+  });
+});
+
+describe('composeModules — command middleware (189 T015, FR-002, FR-034)', () => {
+  const DECLARED = [
+    { moduleId: 'acme_hold', id: 'hold', phase: 'admit' as const, actions: ['organization.'] },
+    { moduleId: 'acme_metrics', id: 'timing', phase: 'observe' as const, actions: '*' as const },
+  ];
+
+  it('seals the registry after the hook registry and before the boot phase, with each entry’s origin', async () => {
+    const order: string[] = [];
+    const hooks = new CommandHookRegistry();
+    const middleware = new CommandMiddlewareRegistry({ log: log() });
+    const sealHooks = hooks.seal.bind(hooks);
+    hooks.seal = (input) => {
+      order.push('hooks sealed');
+      sealHooks(input);
+    };
+    const sealMiddleware = middleware.seal.bind(middleware);
+    middleware.seal = (input) => {
+      order.push('middleware sealed');
+      expect(input.origins).toEqual({ acme_hold: 'deployment', acme_metrics: 'package', organizations: 'core' });
+      sealMiddleware(input);
+    };
+    const composed = composeModules(
+      [
+        entry('organizations', (ctx) => ctx.onBoot(() => void order.push('boot'))),
+        {
+          ...entry('acme_hold', (ctx) => ctx.commandMiddleware([{ id: 'hold', phase: 'admit', admit: () => undefined }])),
+          overlay: true,
+        },
+        {
+          ...entry('acme_metrics', (ctx) => ctx.commandMiddleware([{ id: 'timing', phase: 'observe', observe: () => undefined }])),
+          installedPackage: true,
+        },
+      ],
+      {
+        container: createRootContainer(),
+        eventBus: new EventBus(),
+        log: log(),
+        commandHookRegistry: hooks,
+        commandMiddlewareRegistry: middleware,
+        commandMiddleware: { declarations: DECLARED, moduleDependencies: {} },
+      },
+    );
+    expect(middleware.isSealed).toBe(true);
+    await composed.runBootHooks();
+    expect(order).toEqual(['hooks sealed', 'middleware sealed', 'boot']);
+  });
+
+  it('logs the composed middleware once, with module, id, phase, origin and position', () => {
+    const lines: Array<{ obj: unknown; msg: string }> = [];
+    const recording = { info: (obj: unknown, msg: string) => void lines.push({ obj, msg }), warn: () => {}, error: () => {} };
+    composeModules(
+      [
+        { ...entry('acme_hold', (ctx) => ctx.commandMiddleware([{ id: 'hold', phase: 'admit', admit: () => undefined }])), overlay: true },
+        { ...entry('acme_metrics', (ctx) => ctx.commandMiddleware([{ id: 'timing', phase: 'observe', observe: () => undefined }])), installedPackage: true },
+      ],
+      {
+        container: createRootContainer(),
+        eventBus: new EventBus(),
+        log: recording,
+        commandMiddlewareRegistry: new CommandMiddlewareRegistry({ log: recording }),
+        commandMiddleware: { declarations: DECLARED, moduleDependencies: {} },
+      },
+    );
+    const boot = lines.filter((line) => line.msg === 'kernel.command-middleware');
+    expect(boot).toEqual([
+      {
+        msg: 'kernel.command-middleware',
+        obj: {
+          middleware: [
+            { module: 'acme_hold', id: 'hold', phase: 'admit', origin: 'deployment', position: 1, actions: ['organization.'] },
+            { module: 'acme_metrics', id: 'timing', phase: 'observe', origin: 'package', position: null, actions: '*' },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it('logs nothing when no middleware is composed', () => {
+    const lines: string[] = [];
+    composeModules([entry('organizations', () => undefined)], {
+      container: createRootContainer(),
+      eventBus: new EventBus(),
+      log: { info: (_obj, msg) => void lines.push(msg), warn: () => {}, error: () => {} },
+      commandMiddlewareRegistry: new CommandMiddlewareRegistry({ log: log() }),
+    });
+    expect(lines).not.toContain('kernel.command-middleware');
+  });
+
+  it('refuses composition, unwrapped, when the registry refuses at sealing', () => {
+    expect(() =>
+      composeModules(
+        [{ ...entry('acme_pkg', (ctx) => ctx.commandMiddleware([{ id: 'hold', phase: 'admit', admit: () => undefined }])), installedPackage: true }],
+        {
+          container: createRootContainer(),
+          eventBus: new EventBus(),
+          log: log(),
+          commandMiddlewareRegistry: new CommandMiddlewareRegistry({ log: log() }),
+          commandMiddleware: {
+            declarations: [{ moduleId: 'acme_pkg', id: 'hold', phase: 'admit', actions: '*' }],
+            moduleDependencies: {},
+          },
+        },
+      ),
+    ).toThrow(CommandMiddlewareOriginError);
   });
 });

@@ -18,6 +18,7 @@ import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { randomUUID } from 'crypto';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import type { CrmQuoteRequestDocument, CrmQuoteRequests } from './crm-quote-requests.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
 import { recordValueChange } from './opportunity-audit-state.js';
@@ -137,7 +138,16 @@ function toLink(link: CrmOpportunityLink, document: LinkedDocument | undefined):
 export class OpportunityLinkService {
   constructor(private readonly deps: OpportunityLinkServiceDeps) {}
 
-  async add(opportunityId: string, input: CreateOpportunityLinkRequest): Promise<OpportunityLink> {
+  /**
+   * `crm.opportunity.link_add` — `POST /opportunities/:id/links` and
+   * `opportunityCommandPort.link`; `caller` is the port's `source` and
+   * `extensions`, absent on the route.
+   */
+  async add(
+    opportunityId: string,
+    input: CreateOpportunityLinkRequest,
+    caller: CallerOptions = {},
+  ): Promise<OpportunityLink> {
     const em = this.deps.emFactory();
     const opportunity = await loadOpportunity(em, opportunityId);
     const { document, organizationId } = await this.#resolve(input.documentKind, input.documentId);
@@ -162,7 +172,7 @@ export class OpportunityLinkService {
 
     let link: CrmOpportunityLink;
     try {
-      link = await this.deps.commandBus.run({
+      link = await this.deps.commandBus.run(withCallerOptions({
         action: 'crm.opportunity.link_add',
         objectType: 'crm_opportunity',
         objectId: opportunity.id,
@@ -200,7 +210,7 @@ export class OpportunityLinkService {
           };
           return { eventName: CRM_EVENTS.DOCUMENT_LINKED, payload };
         },
-      });
+      }, caller));
     } catch (error) {
       // Two requests linking one document at once: the look-up above let both
       // through and the unique constraint refused the second at commit. The
@@ -365,8 +375,9 @@ export class OpportunityLinkService {
     return rendered;
   }
 
-  async remove(opportunityId: string, linkId: string): Promise<void> {
-    await this.deps.commandBus.run({
+  /** `crm.opportunity.link_remove` — the route's `DELETE …/links/:linkId` and `opportunityCommandPort.unlink`. */
+  async remove(opportunityId: string, linkId: string, caller: CallerOptions = {}): Promise<void> {
+    await this.deps.commandBus.run(withCallerOptions({
       action: 'crm.opportunity.link_remove',
       objectType: 'crm_opportunity',
       objectId: opportunityId,
@@ -381,7 +392,7 @@ export class OpportunityLinkService {
         em.remove(found);
         return { result: undefined, before, after: null };
       },
-    });
+    }, caller));
     await this.deps.linksChanged(opportunityId);
   }
 

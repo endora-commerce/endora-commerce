@@ -771,6 +771,19 @@ export const manifest = defineModuleManifest({
    * still pending; `share-command.ts` supplies the hook data.
    */
   hookableActions: Object.values(QUOTE_REQUEST_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
+  /**
+   * The two negotiation-policy side tables (feature 146), declared so the
+   * platform verifies their shape at `migrate` and at boot
+   * (`specs/187-side-table-extensions/` FR-032): each primary key is a
+   * cascading foreign key to its host's, and each entity follows its host's
+   * tenancy — `QuoteRequestOrgPolicy` is `@OrgScoped` keyed by the
+   * organization itself, `QuoteRequestAccountPolicy` is transitively scoped to
+   * its customer account, whose organization can move.
+   */
+  extends: [
+    { entity: 'organizations.Organization', table: 'quote_request_org_policies' },
+    { entity: 'customer_accounts.CustomerAccount', table: 'quote_request_account_policies' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   actions: [

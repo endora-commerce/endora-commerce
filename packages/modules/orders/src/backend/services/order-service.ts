@@ -26,7 +26,6 @@ import {
   isUuidShape,
   type CartRecord,
 } from '@endora-commerce/contracts';
-import { LockMode } from '@mikro-orm/core';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import {
@@ -41,8 +40,10 @@ import {
 } from './transactional-email-helper.js';
 
 import type { AuditPort, PlatformLogger } from '@endora-commerce/platform/kernel';
-import { actorFromContext } from '@endora-commerce/platform/commands';
-import { getTenantContext, withSystemScope } from '@endora-commerce/platform/tenancy';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
+import { makeOrderPaymentStatusTransitionCommand } from '../commands/order-payment-status-transition.command.js';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { NoSystemDefaultChannel } from '@endora-commerce/platform/kernel';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Order } from '../entities/order.entity.js';
@@ -123,8 +124,6 @@ import type { CartPlacementApplyPort } from '@endora-commerce/mod-carts/ports';
 import type { InventoryReservationApplyPort } from '@endora-commerce/mod-inventory/ports';
 import { releaseOrderAllocations } from './order-allocation-release.js';
 import type { OrderTransitionEffectService } from './order-transition-effect-service.js';
-import { effectsOwedByPaymentStatusChange } from '../domain/transition-effects.js';
-import { decidePaymentStatusChange } from '../domain/payment-status-transition.js';
 import { judgeQuoteRequestSource } from '../domain/quote-request-source.js';
 import {
   adminLayout,
@@ -635,6 +634,7 @@ export class OrderService {
     | undefined;
 
   private readonly transitionEffects: OrderTransitionEffectService | undefined;
+  private readonly commandBus: Pick<CommandBus, 'run'> | undefined;
   private readonly log: PlatformLogger | undefined;
   /** This module's bundle, for the in-code order confirmation (issue #95). Absent, English. */
   private readonly translate: OrdersTranslate | undefined;
@@ -685,6 +685,13 @@ export class OrderService {
        * when there is nowhere to record it.
        */
       transitionEffects?: OrderTransitionEffectService;
+      /**
+       * `specs/186-aggregate-ports/` US4 — runs the operator's payment-status
+       * change as the `order.payment_status_transition` Command. Optional only
+       * so that a placement-only service can be built without it; the change
+       * itself refuses to run without it.
+       */
+      commandBus?: Pick<CommandBus, 'run'>;
       log?: PlatformLogger;
       /**
        * This module's bundle (`_i18n`'s `adminI18nService`), from which the
@@ -725,6 +732,7 @@ export class OrderService {
     this.confirmationRecipients = paymentDeps?.confirmationRecipients;
     this.getTransactionalEmailSender = paymentDeps?.getTransactionalEmailSender;
     this.transitionEffects = paymentDeps?.transitionEffects;
+    this.commandBus = paymentDeps?.commandBus;
     this.translate = paymentDeps?.translate;
     this.log = paymentDeps?.log;
     this.resolveMinOrderValue = paymentDeps?.resolveMinOrderValue;
@@ -3253,6 +3261,7 @@ export class OrderService {
   async transitionPaymentStatus(
     orderId: string,
     to: 'paid' | 'refunded',
+    caller: CallerOptions = {},
   ): Promise<Order> {
     const em = this.emFactory();
     // Through the tenant filter first: a caller outside the order's scope gets
@@ -3261,64 +3270,20 @@ export class OrderService {
     const visible = await em.findOne(Order, { id: orderId });
     if (!visible) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
 
-    const { order, owes } = await em.transactional(async (tx) => {
-      const locked = await tx.findOne(
-        Order,
-        { id: orderId },
-        { lockMode: LockMode.PESSIMISTIC_WRITE, refresh: true },
-      );
-      if (!locked) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
-
-      // Issue #1574 — decided on the LOCKED row, never on the pre-lock read
-      // above: a settlement that lands between the two is judged as it is. The
-      // status the order already has is a no-op — no audit entry, and no second
-      // follow-up (a repeated `paid` recorded a second `credit.release`).
-      const paymentBefore = locked.paymentStatus;
-      const decision = decidePaymentStatusChange(paymentBefore, to, 'operator');
-      if (decision.kind === 'unchanged') return { order: locked, owes: false };
-      if (decision.kind === 'refused') {
-        throw new HttpError(
-          409,
-          ERROR_CODES.ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED,
-          `The payment status cannot change from "${paymentBefore}" to "${to}".`,
-          {
-            ...(decision.token ? { code: decision.token } : {}),
-            from: paymentBefore,
-            to,
-          },
-        );
-      }
-
-      const owed = effectsOwedByPaymentStatusChange(locked, to);
-      if (owed.length > 0 && !this.transitionEffects) {
-        throw new Error(
-          `OrderService: marking an order "${to}" owes ${owed.map((o) => o.effect).join(' and ')}, ` +
-            'and no effect service was supplied to record it. Refusing rather than committing ' +
-            'a payment status whose follow-up would be lost.',
-        );
-      }
-
-      locked.paymentStatus = to;
-      // Feature 054 — audit the payment-status change co-transactionally (actor
-      // from the ambient TenantContext; the admin route always carries one).
-      if (this.auditLog) {
-        const ctx = getTenantContext();
-        const actor = ctx ? actorFromContext(ctx) : null;
-        this.auditLog.recordWithin(tx, {
-          action: 'order.payment_status_transition',
-          objectType: 'order',
-          objectId: locked.id,
-          actorAdminUserId: actor?.actorAdminUserId ?? null,
-          impersonatedCustomerAccountId: actor?.impersonatedCustomerAccountId ?? null,
-          stateBefore: { paymentStatus: paymentBefore },
-          stateAfter: { paymentStatus: to },
-        });
-      }
-      if (this.transitionEffects && owed.length > 0) {
-        await this.transitionEffects.record(tx, locked, owed, 'transition');
-      }
-      return { order: locked, owes: owed.length > 0 };
-    });
+    // `specs/186-aggregate-ports/` US4 (T058) — one Command,
+    // `order.payment_status_transition`: decided on the locked row, the new
+    // status, its entry (the ambient actor, by the bus) and the credit release
+    // it owes committed together; an order already there records nothing, and
+    // a move that is not an operator edge is refused with nothing written.
+    if (!this.commandBus) {
+      throw new Error('OrderService: a payment-status change runs on the Command Bus, and none was supplied.');
+    }
+    const { order, owes } = await this.commandBus.run(
+      withCallerOptions(
+        makeOrderPaymentStatusTransitionCommand({ effects: this.transitionEffects }, { orderId, to }),
+        caller,
+      ),
+    );
 
     if (owes && this.transitionEffects) {
       try {

@@ -1905,6 +1905,76 @@ describe('a migration\u2019s cross-module SQL \u2014 an overlay module\u2019s', 
   });
 });
 
+/**
+ * An import between two overlay modules (`specs/190-overlay-full-modules/` FR-071, T032).
+ *
+ * The verdict is the shared analysis' (`@endora-commerce/cli/lib/overlay-boundary.js`),
+ * not this check's ledger: the sanctioned shape — `import type` of the sibling's
+ * `ports.ts`, same deployment, declared dependency — is no reach at all, and any
+ * other is a violation an entry cannot excuse, since `endora generate` refuses the
+ * same edge in an instance where no ledger exists. An entry naming it is stale.
+ */
+describe('checkModuleBoundary — an edge between two overlay modules is the overlay analysis\u2019', () => {
+  const OWNER = 'apps/acme/modules/acme_loyalty';
+  const CONSUMER = 'apps/acme/modules/acme_reports';
+  const CONSUMER_FILE = `${CONSUMER}/backend.ts`;
+
+  function check(source: string, declared: readonly string[], shards: LedgerShard[] = []) {
+    return checkModuleBoundary(
+      {
+        sources: new Map([
+          [`${OWNER}/manifest.ts`, "export const manifest = defineModuleManifest({ id: 'acme_loyalty', dependencies: [] });"],
+          [`${OWNER}/ports.ts`, 'export interface LoyaltyReadPort { points(): number }'],
+          [`${OWNER}/services/points.ts`, 'export const points = 1;'],
+          [
+            `${CONSUMER}/manifest.ts`,
+            `export const manifest = defineModuleManifest({ id: 'acme_reports', dependencies: [${declared.map((d) => `'${d}'`).join(', ')}] });`,
+          ],
+          [CONSUMER_FILE, source],
+        ]),
+      },
+      shards,
+    );
+  }
+
+  it('the sanctioned import is no reach at all', () => {
+    const result = check("import type { LoyaltyReadPort } from '../acme_loyalty/ports.js';", [
+      'acme_loyalty',
+    ]);
+    expect(result.total).toBe(0);
+    expect(result.violations).toEqual([]);
+  });
+
+  it('a type import of ports.ts with no declared dependency is a violation naming the clause', () => {
+    const result = check("import type { LoyaltyReadPort } from '../acme_loyalty/ports.js';", []);
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0]).toMatchObject({
+      moduleId: 'acme_reports',
+      target: 'acme_loyalty',
+      overlayClauses: ['declared-dependency'],
+    });
+  });
+
+  it('a value import of another file cannot be ledgered: still a violation, the entry stale', () => {
+    const key = `${CONSUMER_FILE}:acme_loyalty/services/points`;
+    const result = check("import { points } from '../acme_loyalty/services/points.js';", ['acme_loyalty'], [
+      shard('acme_reports', { [key]: 'a deployment exemption' }),
+    ]);
+    expect(result.violations.map((finding) => keyOf(finding))).toEqual([key]);
+    expect(result.violations[0]).toMatchObject({ overlayClauses: ['type-only', 'ports-file'] });
+    expect(result.ledgered).toEqual([]);
+    expect(result.stale).toEqual([key]);
+  });
+
+  it('an overlay reaching a core module is still the ledgered rule', () => {
+    const source = "import { Product } from '../../../../modules/catalog/entities/product.entity.js';";
+    const key = `${CONSUMER_FILE}:catalog/entities/product.entity`;
+    const result = check(source, [], [shard('acme_reports', { [key]: 'reason' })]);
+    expect(result.violations).toEqual([]);
+    expect(result.ledgered.map((finding) => keyOf(finding))).toEqual([key]);
+  });
+});
+
 describe('a migration\u2019s cross-module SQL \u2014 the refusals (contract §6)', () => {
   const READ = {
     moduleFiles: ['modules/orders/a.ts'],

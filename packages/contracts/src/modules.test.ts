@@ -1,11 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { CAPABILITY_KEYS } from './capabilities.js';
 import {
   DeploymentDivergenceDeclarationSchema,
+  EntityExtensionDeclarationSchema,
+  GUARD_SEAM_REGISTRATIONS,
+  MODULE_ORIGINS,
   ORGANIZATION_PERMISSION_CODE,
   defineModuleManifest,
+  guardSeamReplacementFor,
+  isGuardSeamRegistration,
   moduleOrganizationPermissionDeclarationSchema,
+  type DivergenceDetail,
+  type DivergenceKind,
+  type GuardSeamRegistration,
   type ModuleManifest,
+  type ModuleOrigin,
 } from './modules.js';
 
 /**
@@ -310,5 +319,178 @@ describe('DeploymentDivergenceDeclarationSchema — commandHookOrder (176 T020, 
     expect(() =>
       DeploymentDivergenceDeclarationSchema.parse({ commandHookOrder: { 'organization.create': ['acme_erp'] } }),
     ).toThrow();
+  });
+});
+
+/**
+ * `specs/187-side-table-extensions/contracts/entity-extension-declaration.md`
+ * §1 — the `extends` manifest field (FR-001): E1 is the schema, E5 the
+ * duplicate-table refusal `defineModuleManifest` can decide from one manifest.
+ * E2 – E4 need the whole composition and are the platform's.
+ */
+describe('defineModuleManifest — entity extensions (187 T004, FR-001, E1, E5)', () => {
+  const entry = { entity: 'organizations.Organization', table: 'acme_erp_organization_links' };
+
+  it('accepts a declaration on a host and keeps it', () => {
+    const m = manifest({ id: 'acme_erp', dependencies: ['organizations'], extends: [entry] });
+    expect(m.extends).toEqual([entry]);
+  });
+
+  it('leaves the field absent when nothing is declared — most modules extend nothing', () => {
+    expect(manifest({ id: 'acme_erp' }).extends).toBeUndefined();
+  });
+
+  it('accepts an underscore-prefixed owner module id', () => {
+    expect(EntityExtensionDeclarationSchema.safeParse({ entity: '_lifecycle.Thing', table: 'acme_x' }).success).toBe(
+      true,
+    );
+  });
+
+  it.each([
+    ['no class name', 'organizations'],
+    ['a lower-case class name', 'organizations.organization'],
+    ['an upper-case module id', 'Organizations.Organization'],
+    ['two dots', 'organizations.Organization.Extra'],
+    ['a table name instead of a class', 'organizations.organizations'],
+  ])('refuses an entity reference with %s', (_label, entity) => {
+    expect(EntityExtensionDeclarationSchema.safeParse({ entity, table: 'acme_links' }).success).toBe(false);
+    expect(() => manifest({ id: 'acme_erp', extends: [{ entity, table: 'acme_links' }] })).toThrow();
+  });
+
+  it('refuses an upper-case table, a leading digit and a 64-byte table', () => {
+    for (const table of ['Acme_links', '1acme', `a${'b'.repeat(63)}`]) {
+      expect(EntityExtensionDeclarationSchema.safeParse({ entity: entry.entity, table }).success, table).toBe(false);
+    }
+    expect(EntityExtensionDeclarationSchema.safeParse({ entity: entry.entity, table: `a${'b'.repeat(62)}` }).success).toBe(
+      true,
+    );
+  });
+
+  it('refuses an extra key on an entry', () => {
+    expect(EntityExtensionDeclarationSchema.safeParse({ ...entry, columns: [] }).success).toBe(false);
+    expect(() => manifest({ id: 'acme_erp', extends: [{ ...entry, columns: [] } as never] })).toThrow();
+  });
+
+  it('accepts 16 entries and refuses a 17th', () => {
+    const entries = (n: number) => Array.from({ length: n }, (_, i) => ({ entity: entry.entity, table: `acme_t${i}` }));
+    expect(manifest({ id: 'acme_erp', extends: entries(16) }).extends).toHaveLength(16);
+    expect(() => manifest({ id: 'acme_erp', extends: entries(17) })).toThrow();
+  });
+
+  it('refuses one table declared twice in one manifest, naming the module, the table and the rule (E5)', () => {
+    expect(() =>
+      manifest({
+        id: 'acme_erp',
+        extends: [entry, { entity: 'orders.Order', table: entry.table }],
+      }),
+    ).toThrow(/acme_erp.*duplicate-table.*acme_erp_organization_links|acme_erp.*acme_erp_organization_links.*duplicate-table/);
+  });
+});
+
+describe('ModuleOrigin (189 T001, contracts/module-origin.md §1)', () => {
+  it('is exactly core, deployment and package', () => {
+    expect(MODULE_ORIGINS).toEqual(['core', 'deployment', 'package']);
+    expectTypeOf<ModuleOrigin>().toEqualTypeOf<'core' | 'deployment' | 'package'>();
+  });
+});
+
+describe('defineModuleManifest — command middleware (189 T004, FR-001, FR-003, FR-004)', () => {
+  it('accepts a list of declarations and keeps it', () => {
+    const declarations = [
+      { id: 'legal-hold', phase: 'admit' as const, actions: ['organization.'] },
+      { id: 'timing', phase: 'observe' as const, actions: '*' as const },
+    ];
+    expect(manifest({ id: 'acme_hold', commandMiddleware: declarations }).commandMiddleware).toEqual(declarations);
+  });
+
+  it('applies assertCommandMiddlewareRules, naming the module', () => {
+    expect(() =>
+      manifest({
+        id: 'acme_hold',
+        commandMiddleware: [
+          { id: 'hold', phase: 'admit', actions: '*' },
+          { id: 'hold', phase: 'admit', actions: '*' },
+        ],
+      }),
+    ).toThrow(/acme_hold/);
+    expect(() =>
+      manifest({ id: 'acme_hold', commandMiddleware: [{ id: 'hold', phase: 'admit', actions: '*', timeoutMs: 501 }] }),
+    ).toThrow(/acme_hold/);
+  });
+
+  it('refuses a malformed declaration through the schema', () => {
+    expect(() =>
+      manifest({
+        id: 'acme_hold',
+        commandMiddleware: [{ id: 'hold', phase: 'transform', actions: '*' } as never],
+      }),
+    ).toThrow();
+  });
+
+  it('refuses an authored `origin` key, pointing to the module-origin contract', () => {
+    expect(() => manifest({ id: 'acme_hold', origin: 'core' } as never)).toThrow(
+      /acme_hold.*origin.*module-origin\.md/,
+    );
+  });
+});
+
+describe('DeploymentDivergenceDeclarationSchema — commandMiddlewareOrder (189 T005, FR-031)', () => {
+  it('is optional, so an existing declaration still parses and types', () => {
+    expect(DeploymentDivergenceDeclarationSchema.parse({}).commandMiddlewareOrder).toBeUndefined();
+  });
+
+  it('accepts two or more module ids, first runs first', () => {
+    expect(
+      DeploymentDivergenceDeclarationSchema.parse({ commandMiddlewareOrder: ['acme_hold', 'acme_rate'] })
+        .commandMiddlewareOrder,
+    ).toEqual(['acme_hold', 'acme_rate']);
+  });
+
+  it('refuses a list of one module and a malformed id', () => {
+    expect(() => DeploymentDivergenceDeclarationSchema.parse({ commandMiddlewareOrder: ['acme_hold'] })).toThrow();
+    expect(() =>
+      DeploymentDivergenceDeclarationSchema.parse({ commandMiddlewareOrder: ['acme_hold', 'Acme-Rate'] }),
+    ).toThrow();
+  });
+});
+
+describe('DivergenceDetail — command-middleware (189 T005, FR-034)', () => {
+  it('carries the phase, id and filter', () => {
+    const detail: DivergenceDetail = { kind: 'command-middleware', phase: 'observe', id: 'timing', actions: '*' };
+    const kind: DivergenceKind = detail.kind;
+    expect(kind).toBe('command-middleware');
+  });
+});
+
+/**
+ * The guard seams (189 T068, FR-055, `contracts/guard-seam-narrowing.md` §1 and §2).
+ *
+ * The list is pinned to its exact content on purpose. Adding, removing or renaming a guard seam is
+ * not a refactor: it is a ruling that amends D-296 (D-296.5 as amended narrows D-156.4 to these four
+ * names and no others), so this test fails until whoever changes the list changes it too, citing the
+ * ruling. `backend/test/contract/kernel/harness-parity.test.ts` holds the other side: both
+ * composition roots register every name here as root-supplied.
+ */
+describe('GUARD_SEAM_REGISTRATIONS (189 T068, FR-055)', () => {
+  it('is exactly the four guard seams D-296 names', () => {
+    expect(GUARD_SEAM_REGISTRATIONS).toEqual(['commandBus', 'auditLogService', 'eventBus', 'emFactory']);
+    expectTypeOf<GuardSeamRegistration>().toEqualTypeOf<
+      'commandBus' | 'auditLogService' | 'eventBus' | 'emFactory'
+    >();
+  });
+
+  it('tells a guard seam from other root plumbing', () => {
+    for (const name of GUARD_SEAM_REGISTRATIONS) expect(isGuardSeamRegistration(name)).toBe(true);
+    expect(isGuardSeamRegistration('redis')).toBe(false);
+    expect(isGuardSeamRegistration('orm')).toBe(false);
+    expect(isGuardSeamRegistration('requireAdmin')).toBe(false);
+  });
+
+  it('names a non-empty replacement for each of the four', () => {
+    for (const name of GUARD_SEAM_REGISTRATIONS) {
+      expect(guardSeamReplacementFor(name).trim()).not.toBe('');
+    }
+    // Total over the four names, and typed so that it takes nothing else.
+    expectTypeOf(guardSeamReplacementFor).parameter(0).toEqualTypeOf<GuardSeamRegistration>();
   });
 });

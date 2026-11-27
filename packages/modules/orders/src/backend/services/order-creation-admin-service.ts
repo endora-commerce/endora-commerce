@@ -207,8 +207,11 @@ export class OrderCreationAdminService {
     // Resolve each address side to an org address id. An inline address is
     // created in the org book (so placeOrder can look it up and snapshot it);
     // a non-saved inline address is soft-deleted again after placement — the
-    // order keeps its standalone JSONB snapshot, so the book stays clean.
+    // order keeps its standalone JSONB snapshot, so the book stays clean. A
+    // refused order removes every inline address it wrote, a saved one
+    // included: nothing was ordered, so nothing is kept for reuse.
     const transientAddressIds: string[] = [];
+    const inlineAddressIds: string[] = [];
     const resolveAddress = async (
       kind: 'delivery' | 'billing',
       id: string | undefined,
@@ -229,12 +232,13 @@ export class OrderCreationAdminService {
         // Never demote the org's real default for an order-form address.
         isDefault: false,
       });
+      inlineAddressIds.push(created.id);
       if (!inline.saveToAddressBook) transientAddressIds.push(created.id);
       return created.id;
     };
 
-    const cleanupTransient = async (): Promise<void> => {
-      for (const addressId of transientAddressIds) {
+    const removeAddresses = async (addressIds: readonly string[]): Promise<void> => {
+      for (const addressId of addressIds) {
         try {
           await this.addressService.deleteAddress(organizationId, addressId);
         } catch (error) {
@@ -323,12 +327,12 @@ export class OrderCreationAdminService {
         },
       );
     } catch (err) {
-      await cleanupTransient();
+      await removeAddresses(inlineAddressIds);
       throw err;
     }
     // Placement succeeded and snapshotted the addresses onto the order; drop any
     // one-time addresses from the reusable org address book.
-    await cleanupTransient();
+    await removeAddresses(transientAddressIds);
 
     // Optional initial comment captured on the create form.
     if (input.comment) {

@@ -12,6 +12,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import { GUARD_SEAM_REGISTRATIONS } from '@endora-commerce/contracts';
 // Comments removed by the parser rather than by an ordered pair of regexes
 // (issue #241). This file is where the ordered pair was wrong: block-first, a
 // `//` line ending in a route glob at `test-server.ts:1544` opened a comment
@@ -590,11 +591,95 @@ describe('T075 — a converted module costs no test-helper edit', () => {
       expect(source, `${root} does not pass commandHookOrder`).toContain(
         'commandHookOrder: divergenceDeclaration.commandHookOrder',
       );
+      // `specs/189-command-middleware/` FR-031 — the `admit` middleware
+      // tie-break, for the same reason: a deployment that orders two admission
+      // rules in production and not in its tests meets
+      // `UnorderedCommandMiddlewareError` in every test.
+      expect(source, `${root} does not pass commandMiddlewareOrder`).toContain(
+        'commandMiddlewareOrder: divergenceDeclaration.commandMiddlewareOrder',
+      );
       // Read once and used twice, never loaded twice: two `import()`s of one
       // file answering one question is how the omissions and the order come to
       // disagree about which declaration this deployment wrote.
       const loads = [...source.matchAll(/loadDivergenceDeclaration\(/g)].length;
       expect(loads, `${root} loads the declaration ${loads} time(s)`).toBe(1);
+    }
+  });
+
+  it('both compositions wire the command-middleware registry identically (189 FR-041)', () => {
+    // A test double that skipped child Commands would reproduce, in every
+    // contributor's suite, the defect the middleware point exists to fix (R-17).
+    // So there is no double: both compositions build the one registry with the
+    // live effective state, hand that one object to the bus and to
+    // `composeModules`, and seal it against the same derivation.
+    for (const [root, source] of COMPOSITION_SOURCES) {
+      const code = codeOnly(source);
+      expect([...code.matchAll(/\bnew CommandMiddlewareRegistry\s*\(/g)].length, `${root} builds the registry once`).toBe(1);
+      expect(code, `${root} asks presence of the effective state`).toMatch(
+        /new CommandMiddlewareRegistry\(\{\s*isPresent: \(moduleId\) => effectiveState\.isPresent\(moduleId\),\s*log: platformLogger\(\),\s*\}\)/,
+      );
+      expect(code, `${root} hands the registry to the bus`).toMatch(/middleware: commandMiddlewareRegistry,/);
+      expect(code, `${root} hands the registry to composeModules`).toMatch(/\bcommandMiddlewareRegistry,\s*commandMiddleware: \{/);
+      expect(code, `${root} seals it against the manifests' declarations`).toMatch(/declarations: commandMiddlewareFrom\(/);
+    }
+  });
+
+  it('both roots supply every guard seam as a root registration (189 T069, FR-055)', () => {
+    // `GUARD_SEAM_REGISTRATIONS` is a list, not a derivation (D-296.5): nothing
+    // in the ledger tells a guard seam from other root plumbing. So the list has
+    // to be held to the roots from this side, or a rename at a root would leave
+    // it naming nothing and the deprecation in `decorate` would warn about no
+    // decoration anyone can write.
+    //
+    // "Root-supplied" is what `decorate`'s predicate reads as
+    // `ownerOf(name) === undefined` over a held name. It is decided here by
+    // position: a name a root registers **before** `composeModules(` is in the
+    // container when every module registers, so a module that claims it is
+    // refused with `ForeignRegistrationError` and the name keeps no owner. The
+    // ORM-derived names arrive through `registerOrm(container, …)`, whose own
+    // keys are read off the platform's `kernel/container.ts`.
+    const containerPath = join(platformSrc as string, 'kernel', 'container.ts');
+    const ormNames = new Set<string>();
+    everyNode(ts.createSourceFile(containerPath, readFileSync(containerPath, 'utf8'), ts.ScriptTarget.ES2022, true), (node) => {
+      if (!ts.isFunctionDeclaration(node) || node.name?.text !== 'registerOrm' || node.body === undefined) return;
+      everyNode(node.body, (child) => {
+        if (!ts.isCallExpression(child) || !ts.isPropertyAccessExpression(child.expression)) return;
+        if (child.expression.name.text !== 'register') return;
+        const [values] = child.arguments;
+        if (values === undefined || !ts.isObjectLiteralExpression(values)) return;
+        for (const property of values.properties) {
+          if (property.name !== undefined && ts.isIdentifier(property.name)) ormNames.add(property.name.text);
+        }
+      });
+    });
+    expect(ormNames.has('emFactory'), '`registerOrm` registers `emFactory`').toBe(true);
+
+    for (const [root, source] of COMPOSITION_SOURCES) {
+      const code = codeOnly(source);
+      const composeAt = code.indexOf('= composeModules(');
+      expect(composeAt, `${root} composes no modules`).toBeGreaterThan(0);
+      const beforeCompose = ts.createSourceFile('root.ts', code.slice(0, composeAt), ts.ScriptTarget.ES2022, true);
+      const supplied = new Set<string>();
+      everyNode(beforeCompose, (node) => {
+        if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)) return;
+        if (node.expression.text === 'registerOrm') {
+          for (const name of ormNames) supplied.add(name);
+          return;
+        }
+        if (node.expression.text !== 'registerValues') return;
+        const values = node.arguments[1];
+        if (values === undefined || !ts.isObjectLiteralExpression(values)) return;
+        for (const property of values.properties) {
+          if (property.name !== undefined && ts.isIdentifier(property.name)) supplied.add(property.name.text);
+        }
+      });
+      const missing = GUARD_SEAM_REGISTRATIONS.filter((name) => !supplied.has(name));
+      expect(
+        missing,
+        `${root} does not register these guard seams before composing the modules, so ` +
+          '`GUARD_SEAM_REGISTRATIONS` names something that root does not supply. Changing the ' +
+          'list is a ruling that amends D-296.',
+      ).toEqual([]);
     }
   });
 

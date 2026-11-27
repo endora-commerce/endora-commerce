@@ -1,10 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  EntityExtensionReadOptions,
   OrganizationDetailsPort,
   OrganizationRecord,
   TaxIdResolution,
+  WithEntityExtensions,
 } from '@endora-commerce/contracts';
 import { normalizeOrganizationName } from '@endora-commerce/contracts';
+import { lazyEntityExtensionReads, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { Organization } from '../entities/organization.entity.js';
 import { TaxIdLookupService } from './tax-id-lookup-service.js';
 
@@ -29,23 +32,45 @@ import { TaxIdLookupService } from './tax-id-lookup-service.js';
  * `findByTaxId` / `resolveByTaxId` (`specs/177-tax-id-scope/`, FR-023) are
  * {@link TaxIdLookupService}'s, published here — beside `findById` — because they
  * are reads (owner ruling D-290, OD-1).
+ *
+ * `findById`, `findByIds`, `searchByName` and `findByTaxId` take
+ * `options.include` (`specs/187-side-table-extensions/` FR-058): the records
+ * they found, on the entity manager that found them, are handed to the
+ * platform's `entityExtensionReads`, which attaches the named modules'
+ * side-table values. Without `include` nothing is resolved or loaded.
  */
+const HOST = 'organizations.Organization';
+
 export class OrganizationDetailsService implements OrganizationDetailsPort {
   readonly #lookups: TaxIdLookupService;
 
-  constructor(private readonly emFactory: () => EntityManager) {
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** The kernel's `entityExtensionReads`; absent in a hand-built service, which has no loader to offer. */
+    private readonly extensionReads: EntityExtensionReads = lazyEntityExtensionReads(() => undefined),
+  ) {
     this.#lookups = new TaxIdLookupService(emFactory);
   }
 
-  async findById(id: string): Promise<OrganizationRecord | null> {
-    const organization = await this.emFactory().findOne(Organization, { id });
-    return organization ? toOrganizationRecord(organization) : null;
+  async findById(
+    id: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrganizationRecord> | null> {
+    const em = this.emFactory();
+    const organization = await em.findOne(Organization, { id });
+    if (!organization) return null;
+    const [record] = await this.#attach([toOrganizationRecord(organization)], options, em);
+    return record ?? null;
   }
 
-  async findByIds(ids: readonly string[]): Promise<OrganizationRecord[]> {
+  async findByIds(
+    ids: readonly string[],
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrganizationRecord>[]> {
     if (ids.length === 0) return [];
-    const organizations = await this.emFactory().find(Organization, { id: { $in: [...ids] } });
-    return organizations.map(toOrganizationRecord);
+    const em = this.emFactory();
+    const organizations = await em.find(Organization, { id: { $in: [...ids] } });
+    return this.#attach(organizations.map(toOrganizationRecord), options, em);
   }
 
   async countByIds(ids: readonly string[]): Promise<number> {
@@ -53,12 +78,17 @@ export class OrganizationDetailsService implements OrganizationDetailsPort {
     return this.emFactory().count(Organization, { id: { $in: [...ids] } });
   }
 
-  async searchByName(query: string, limit: number): Promise<OrganizationRecord[]> {
-    const organizations = await this.emFactory().find(Organization, this.#where(query), {
+  async searchByName(
+    query: string,
+    limit: number,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrganizationRecord>[]> {
+    const em = this.emFactory();
+    const organizations = await em.find(Organization, this.#where(query), {
       orderBy: { name: 'asc' },
       limit,
     });
-    return organizations.map(toOrganizationRecord);
+    return this.#attach(organizations.map(toOrganizationRecord), options, em);
   }
 
   async searchIdsByName(query: string): Promise<string[]> {
@@ -70,12 +100,14 @@ export class OrganizationDetailsService implements OrganizationDetailsPort {
 
   async findByTaxId(
     taxId: string,
-    options: { includeDeleted?: boolean } = {},
-  ): Promise<OrganizationRecord[]> {
+    options: { includeDeleted?: boolean } & EntityExtensionReadOptions = {},
+  ): Promise<WithEntityExtensions<OrganizationRecord>[]> {
+    const em = this.emFactory();
     const found = await this.#lookups.findByTaxId(taxId, {
       ...(options.includeDeleted === undefined ? {} : { includeDeleted: options.includeDeleted }),
+      em,
     });
-    return found.map(toOrganizationRecord);
+    return this.#attach(found.map(toOrganizationRecord), options, em);
   }
 
   async resolveByTaxId(taxId: string): Promise<TaxIdResolution> {
@@ -88,6 +120,14 @@ export class OrganizationDetailsService implements OrganizationDetailsPort {
       case 'ambiguous':
         return { kind: 'ambiguous', organizations: resolution.organizations.map(toOrganizationRecord) };
     }
+  }
+
+  async #attach(
+    records: OrganizationRecord[],
+    options: EntityExtensionReadOptions | undefined,
+    em: EntityManager,
+  ): Promise<WithEntityExtensions<OrganizationRecord>[]> {
+    return [...(await this.extensionReads.attach(HOST, records, options, em))];
   }
 
   #where(query: string): Record<string, unknown> {

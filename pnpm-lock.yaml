@@ -306,6 +306,9 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
     devDependencies:
+      '@endora-commerce/cli':
+        specifier: workspace:*
+        version: link:../packages/cli
       '@testing-library/dom':
         specifier: ^10.4.2
         version: 10.4.2

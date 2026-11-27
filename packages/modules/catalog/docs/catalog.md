@@ -482,6 +482,98 @@ modules are present. The payload is sent whole; the strict schemas are
   default; override the slugifier in `catalog-admin.service.ts` if locale
   collisions become a concern.
 
+## Server-side writes
+
+Another module, an overlay module or an integration worker (a PIM or ERP
+connector) writes a product through **`catalogProductCommandPort`**, the Product
+aggregate's write port, and attribute definitions through
+**`catalogAttributeCommandPort`** — declared as `CatalogProductCommandPort` and
+`CatalogAttributeCommandPort` in `@endora-commerce/contracts`. It never writes
+this module's tables itself. Resolve each per use with
+`lazyPort<CatalogProductCommandPort>(ctx, 'catalogProductCommandPort')`, with
+`catalog` in the calling module's manifest `dependencies`. Reads stay on
+`catalogProductReadPort` and `catalogAttributeReadPort`.
+
+| Method | Audit action | What the admin does the same way |
+| --- | --- | --- |
+| `create(req, options?)` | `product.create` | `POST /api/v1/admin/catalog/products` |
+| `update(id, req, options?)` | `product.update` | `PATCH /api/v1/admin/catalog/products/:id` |
+| `archive(id, options?)` / `restore(id, options?)` | `product.archive` / `product.restore` | `POST …/products/:id/archive`, `…/restore` |
+| `delete(id, options?)` | `product.delete` | `DELETE …/products/:id` |
+| `createVariant(productId, req, options?)` | `product_variant.create` | `POST …/products/:productId/variants` |
+| `updateVariant(productId, variantId, req, options?)` | `product_variant.update` | `PATCH …/variants/:variantId` |
+| `deleteVariant(productId, variantId, options?)` | `product_variant.delete` | `DELETE …/variants/:variantId` |
+| `setCustomFieldValues(id, merge, options?)` | `product.update` | `PATCH …/products/:id` with `attributeValues` |
+| `applyScopedValues(id, { cells }, options?)` | `product.scoped_values.import` | — (the products import writes the same way) |
+
+| `catalogAttributeCommandPort` method | Audit action | Admin endpoint |
+| --- | --- | --- |
+| `create(req, options?)` | `catalog.attribute.create` | `POST /api/v1/admin/catalog/attributes` |
+| `update(idOrKey, req, options?)` | `catalog.attribute.update` | `PATCH …/attributes/:idOrKey` |
+| `delete(idOrKey, options?)` | `catalog.attribute.delete` | `DELETE …/attributes/:idOrKey` |
+| `addOption(idOrKey, input, options?)` | `catalog.attribute_option.create` | `POST …/attributes/:idOrKey/options` |
+| `updateOption(optionId, input, options?)` | `catalog.attribute_option.update` | `PATCH …/options/:optionId` |
+| `deleteOption(optionId, options?)` | `catalog.attribute_option.delete` | `DELETE …/options/:optionId` |
+
+**One write path.** Each method calls the service method the admin endpoint
+calls, so the two cannot write differently: the same audit entry, the same
+`product.*` events after the commit — which keep the search index, the
+storefront pages and the outbound webhooks up to date — a new product bound to
+the default sales channel, the attribute definitions refreshed, and a full
+search reindex queued when `isSearchable` flips. Inputs are the endpoints'
+request bodies (`update` without `version`), and refusals are the endpoints'
+errors with their codes. The one difference: the **completeness check** does
+not run — a status change through `update` is never refused for missing
+content and returns no warnings, as for imports and connectors.
+
+**A product's custom fields are its attribute values.** `setCustomFieldValues`
+hands your `merge` the product's current `attributeValues` and stores what it
+returns, in one `product.update` entry; a key it leaves out is removed. Unlike
+the other entities, the catalog checks the result itself, with the rules of the
+admin edit: every changed key belongs to the product's attribute set
+(`400 VALIDATION_FAILED`), the set's required attributes keep a value, and
+neither a price (`400 PRICE_SET_IN_PRICE_BOOKS`) nor a Page Builder content
+attribute (`400 ATTRIBUTE_VALUE_REJECTED`) is accepted.
+
+**Scoped values.** `applyScopedValues` writes cells — a field at Global, a
+channel or a channel and language — exactly as the connector port always has:
+only the cells you name change, each refused cell is reported and the rest
+applied, URL keys are never taken over (see [URL keys and
+redirects](./catalog/url-keys-and-redirects.md)). One audit entry per call,
+the product's editor version moves, one `product.updated.v1`.
+
+**Who wrote it.** The actor is the ambient one, never a parameter: an
+administrator inside an admin request, or under `withSystemScopeActingFor`; the
+**system** actor under `withSystemScope` in a worker. The ports check no
+permission — the caller is the gate — so never resolve them for a
+customer-facing route.
+
+**Options** (the last parameter of every method):
+
+- `source` — a lower-case code naming the integration (`pim_akeneo`,
+  `erp.sync`, at most 64 characters), recorded as `source` in the audit entry
+  beside the actor. Any other value is refused with `422 VALIDATION_FAILED`
+  before anything is read or written.
+- `expectedVersion` — the product's editor version you read (the `version` of
+  `GET …/products/:id/scoped-values`); `update` and `setCustomFieldValues`
+  refuse a product that has moved on with `409 VERSION_CONFLICT`. Every other
+  method ignores it.
+- `extensions` — no catalog write is declared hookable yet, so any key is
+  refused with `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+
+**Not offered**: bundle slots, grouped items, links, the gallery, attachments,
+packaging units, URL keys and redirects (each has its own admin screen),
+duplicating a product, bulk edit and bulk import (`catalogBulkImportPort`), and
+the scoped editor's save of one scope. Categories are a separate aggregate.
+`catalog` cannot be switched off, so the ports are always available.
+
+**Deprecated since 0.113.0**, removed in a later release:
+`catalogProductWritePort` (each write moves to the method of the same operation
+above; `listAttributes` and `listAttributesByFlag` to `catalogAttributeReadPort`)
+and `catalogProductScopeWritePort.applyScopes` (to `applyScopedValues`, with the
+same cells and `source`). Both delegate to the new ports meanwhile, so their
+entries and refusals are unchanged.
+
 ## Order rules: minimum order quantity and returnable
 
 Two rules on a product decide how it may be ordered and whether it may be sent

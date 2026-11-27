@@ -907,6 +907,25 @@ export const ERROR_CODES = {
   /** A retry of a command outbox row that is not dead (176 P4): only a failed delivery can be retried. */
   COMMAND_OUTBOX_NOT_DEAD: 'COMMAND_OUTBOX_NOT_DEAD',
 
+  // Command middleware (`specs/189-command-middleware/` FR-060) — the Command
+  // Bus's answers when an admission rule cannot decide, or a middleware runs a
+  // Command. A contributor's own refusal codes are its module's.
+  /** An `admit` middleware did not settle within its budget; nothing was written (503). */
+  COMMAND_ADMISSION_TIMEOUT: 'COMMAND_ADMISSION_TIMEOUT',
+  /** An `admit` middleware threw something other than a refusal; nothing was written (503). */
+  COMMAND_ADMISSION_FAILED: 'COMMAND_ADMISSION_FAILED',
+  /** A command middleware called `CommandBus.run` (500). */
+  COMMAND_MIDDLEWARE_REENTRY: 'COMMAND_MIDDLEWARE_REENTRY',
+
+  // Side-table extensions (`specs/187-side-table-extensions/` FR-054) — a host
+  // read port's answer to an `include` no composed module claims.
+  /**
+   * 422 — `include` named `extensions.<moduleId>` for a host no loader of that
+   * module serves in this build; `details: [{ path, issue: 'unclaimed' }, …]`.
+   * Raised before any loader runs, and independent of either presence axis.
+   */
+  ENTITY_EXTENSION_UNCLAIMED: 'ENTITY_EXTENSION_UNCLAIMED',
+
   // Module Lifecycle (feature 073 — operator activation)
   /** No manifest and no registry row answer to this module id. */
   MODULE_NOT_FOUND: 'MODULE_NOT_FOUND',

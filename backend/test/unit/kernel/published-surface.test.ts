@@ -312,6 +312,19 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'schema-extensions/zod.js': ['columnExtensionPatchSchema', 'columnExtensionSchema'],
   'schema-extensions/accessor.js': ['ExtensionColumnsAccessor', 'extensionColumns'],
   'schema-extensions/reads.js': ['ExtensionAttributeMap', 'ExtensionJsonValue', 'SchemaExtensionReads'],
+  /**
+   * `specs/187-side-table-extensions/` B1 (T034) — the entry a module hands
+   * `ctx.entityExtensionLoaders` for a side table its manifest `extends`. A
+   * module writes it; nothing else about the registry is a module's, so the
+   * registry class is on `./composition`, not here.
+   */
+  'entity-extensions/loaders.js': ['EntityExtensionLoaderEntry'],
+  /**
+   * T036 — the reads service a host read port hands its records to, and the
+   * lazy holder that resolves it only for a read that names an `include`. The
+   * factory is the root's, on `./composition`.
+   */
+  'entity-extensions/reads.js': ['EntityExtensionReads', 'lazyEntityExtensionReads'],
   'schema-extensions/errors.js': [
     'ExtensionHostRowNotFoundError',
     'ExtensionProjectionWriteError',
@@ -452,6 +465,37 @@ const PUBLISHED_COMMANDS_SURFACE: Readonly<Record<string, readonly string[]>> = 
   'hooks/origin.js': ['currentCommandHookOrigin', 'CommandHookOrigin'],
   /** 176 P3 — what an `afterCommit` handler throws to dead-letter its row at once. */
   'outbox/errors.js': ['PermanentOutboxFailure'],
+  /**
+   * `specs/189-command-middleware/` P1 (`contracts/command-middleware-api.md`
+   * §2, §3) — what a middleware author writes against: the entry
+   * `ctx.commandMiddleware` takes, what `admit` and `observe` receive, and the
+   * running middleware's shape.
+   */
+  'middleware/types.js': [
+    'CommandAdmissionMeta',
+    'CommandAdmitHandler',
+    'CommandMiddlewareCallContext',
+    'CommandMiddlewareEntry',
+    'CommandMiddlewareOrigin',
+    'CommandObserveHandler',
+    'CommandRunEntry',
+    'CommandRunOutcome',
+  ],
+  /** The refusal class and the composition refusals a middleware author meets at boot. */
+  'middleware/errors.js': [
+    'CommandRefusedError',
+    'CommandRefusalStatus',
+    'UndeclaredCommandMiddlewareError',
+    'UnregisteredCommandMiddlewareError',
+    'CommandMiddlewarePhaseMismatchError',
+    'DuplicateCommandMiddlewareError',
+    'CommandMiddlewareOriginError',
+    'UnorderedCommandMiddlewareError',
+    'CommandMiddlewareOrderContradictionError',
+    'StaleCommandMiddlewareOrderError',
+  ],
+  /** The running middleware, for the re-entry guard's readers. */
+  'middleware/origin.js': ['currentCommandMiddlewareOrigin'],
 };
 
 /** `src/http/index.ts` — the `./http` subpath, as MR !880 built it. */
@@ -774,7 +818,16 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   // sealed against. Beside `requiredModulesFrom` for its reason; the test kit's
   // `composeTestServer` and its `command-hooks` helper are the consumers.
   'commands/hooks/registry.ts': ['CommandHookRegistry'],
-  'kernel/lifecycle/command-hook-inputs.ts': ['hookableActionsFrom', 'moduleDependencyClosureFrom'],
+  'kernel/lifecycle/command-hook-inputs.ts': ['commandMiddlewareFrom', 'hookableActionsFrom', 'moduleDependencyClosureFrom'],
+  // `specs/189-command-middleware/` P1 — the command-middleware registry, beside
+  // the hook registry for its reason; the test kit's `composeTestServer` and
+  // its `command-middleware` helpers are the consumers.
+  'commands/middleware/registry.ts': ['CommandMiddlewareRegistry'],
+  // `specs/187-side-table-extensions/` B1 — the side-table loader registry and
+  // the reads service a root registers over it, beside the middleware registry
+  // for its reason; the test kit's `composeTestServer` is the consumer.
+  'kernel/entity-extensions/registry.ts': ['EntityExtensionLoaderRegistry', 'entityExtensionDeclarationsFrom'],
+  'kernel/entity-extensions/reads.ts': ['createEntityExtensionReads'],
   // `specs/176-command-hooks-outbox/` P3 — the outbox's host half. Both roots
   // build the wake-up they hand their `CommandBus`; the generated entity
   // registry names the entity class (`ModuleRegistration`'s reason, below);

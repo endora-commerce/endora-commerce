@@ -2,8 +2,11 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   normalizeEmailAddress,
+  type CustomerAccountCommandPort,
   type CustomerAccountCreateInput,
   type CustomerAccountLookupOptions,
+  type EntityExtensionReadOptions,
+  type WithEntityExtensions,
   type CustomerAccountMemberWritePort,
   type CustomerAccountProfilePatch,
   type CustomerAccountReadPort,
@@ -18,25 +21,25 @@ import {
 } from '@endora-commerce/contracts';
 import { recordAuditFromContext, type CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
-import { verifyPassword } from '@endora-commerce/platform/kernel';
+import type { AuditPort, EntityExtensionReads } from '@endora-commerce/platform/kernel';
+import { lazyEntityExtensionReads, verifyPassword } from '@endora-commerce/platform/kernel';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import type { CustomerAuthService } from './customer-auth-service.js';
 import { makeChangeCustomerAccountRoleCommand } from '../commands/customer-account-change-role.command.js';
-import { makePromoteOrganizationAdminCommand } from '../commands/customer-account-promote-admin.command.js';
 import { makeRemoveMemberCommand } from '../commands/customer-account-remove-member.command.js';
 import { prepareCustomerAccountCreate } from '../commands/customer-account-create.command.js';
-import { makeSetCustomerAccountSubtreeRollupCommand } from '../commands/customer-account-set-subtree-rollup.command.js';
 import {
   entityManagerAccountRoleStore,
   type CustomerAccountRoleCommandDeps,
   type OrganizationRoleLookup,
 } from '../commands/customer-account-role-rules.js';
 import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
-import {
-  changedKeys,
-  organizationMoveAuditState,
-} from './customer-account-audit-state.js';
+// A cycle by design: the deprecated member port delegates to the aggregate
+// port, which maps its rows with this file's `toCustomerAccountRecord`. Both
+// are used only inside calls, never while either module is being evaluated.
+import { CustomerAccountCommandService } from './customer-account-command-port.js';
+import { anyRowExists, type WorkRows } from './scheduled-work-probe.js';
+import { organizationMoveAuditState } from './customer-account-audit-state.js';
 
 /**
  * The published face of `customer_accounts` (feature 075, Phase P).
@@ -121,6 +124,9 @@ export async function toOneCustomerAccountRecord(
 }
 
 /** `{ deletedAt: null }` when the caller asked for it, nothing otherwise. */
+/** The host name side-table loaders register against (`specs/187-side-table-extensions/`). */
+const CUSTOMER_ACCOUNT_HOST = 'customer_accounts.CustomerAccount';
+
 function activeFilter(options?: CustomerAccountLookupOptions): { deletedAt?: null } {
   return options?.activeOnly ? { deletedAt: null } : {};
 }
@@ -149,30 +155,49 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
      * creation order.
      */
     private readonly roles?: Pick<OrganizationRoleLookup, 'predefinedRoleId'>,
+    /**
+     * The kernel's `entityExtensionReads` (`specs/187-side-table-extensions/`
+     * FR-058), for `include` on {@link findById}, {@link findByIds},
+     * {@link searchByEmail} and {@link listAll}. Absent in a hand-built
+     * service, which has no loader to offer.
+     */
+    private readonly extensionReads: EntityExtensionReads = lazyEntityExtensionReads(() => undefined),
   ) {}
 
   async findById(
     id: string,
-    options?: CustomerAccountLookupOptions,
-  ): Promise<CustomerAccountRecord | null> {
+    options?: CustomerAccountLookupOptions & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CustomerAccountRecord> | null> {
     if (!isUuidShape(id)) return null;
-    const account = await this.emFactory().findOne(CustomerAccount, {
+    const em = this.emFactory();
+    const account = await em.findOne(CustomerAccount, {
       id,
       ...activeFilter(options),
     });
-    return account ? toOneCustomerAccountRecord(this.twoFactorEnrolments, account) : null;
+    if (!account) return null;
+    const [record] = await this.#attach([await toOneCustomerAccountRecord(this.twoFactorEnrolments, account)], options, em);
+    return record ?? null;
   }
 
   async findByIds(
     ids: readonly string[],
-    options?: CustomerAccountLookupOptions,
-  ): Promise<CustomerAccountRecord[]> {
+    options?: CustomerAccountLookupOptions & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CustomerAccountRecord>[]> {
     if (ids.length === 0) return [];
-    const accounts = await this.emFactory().find(CustomerAccount, {
+    const em = this.emFactory();
+    const accounts = await em.find(CustomerAccount, {
       id: { $in: [...ids] },
       ...activeFilter(options),
     });
-    return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
+    return this.#attach(await toCustomerAccountRecords(this.twoFactorEnrolments, accounts), options, em);
+  }
+
+  async #attach(
+    records: CustomerAccountRecord[],
+    options: EntityExtensionReadOptions | undefined,
+    em: EntityManager,
+  ): Promise<WithEntityExtensions<CustomerAccountRecord>[]> {
+    return [...(await this.extensionReads.attach(CUSTOMER_ACCOUNT_HOST, records, options, em))];
   }
 
   async findByEmail(
@@ -244,14 +269,19 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
     });
   }
 
-  async searchByEmail(query: string, limit: number): Promise<CustomerAccountRecord[]> {
+  async searchByEmail(
+    query: string,
+    limit: number,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CustomerAccountRecord>[]> {
     const trimmed = query.trim();
-    const accounts = await this.emFactory().find(
+    const em = this.emFactory();
+    const accounts = await em.find(
       CustomerAccount,
       trimmed ? { email: { $ilike: `%${trimmed}%` } } : {},
       { orderBy: { email: 'asc' }, limit },
     );
-    return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
+    return this.#attach(await toCustomerAccountRecords(this.twoFactorEnrolments, accounts), options, em);
   }
 
   async searchIdsByName(query: string): Promise<string[]> {
@@ -272,14 +302,62 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
     return accounts.map((account) => account.id);
   }
 
-  async listAll(): Promise<CustomerAccountRecord[]> {
-    const accounts = await this.emFactory().find(
+  async listAll(options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<CustomerAccountRecord>[]> {
+    const em = this.emFactory();
+    const accounts = await em.find(
       CustomerAccount,
       {},
       { orderBy: { email: 'asc' } },
     );
+    return this.#attach(await toCustomerAccountRecords(this.twoFactorEnrolments, accounts), options, em);
+  }
+
+  /**
+   * The retention sweep's work list (`specs/186-aggregate-ports/` moved it here
+   * from the deprecated lifecycle port): the ids through the shared row source,
+   * then the entities through the ORM, so the tenant filter still applies.
+   */
+  async listDueForAnonymization(cutoff: Date): Promise<CustomerAccountRecord[]> {
+    const em = this.emFactory();
+    const due = dueForAnonymization(cutoff);
+    const rows = await em.execute<Array<{ id: string }>>(`select "id" ${due.from}`, [...due.params]);
+    if (rows.length === 0) return [];
+    const accounts = await em.find(CustomerAccount, { id: { $in: rows.map((row) => row.id) } });
     return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
   }
+
+  /**
+   * The sweep tick's question, asked outside any tenant scope (issue #857;
+   * `docs/docs/architecture/tenant-scoping.md` § *A scheduled tick with nothing
+   * to do enters no scope*). It learns one bit, through `anyRowExists`, over the
+   * work list's own row source.
+   */
+  async hasDueForAnonymization(cutoff: Date): Promise<boolean> {
+    return anyRowExists(this.emFactory(), [dueForAnonymization(cutoff)]);
+  }
+}
+
+/**
+ * The accounts the retention sweep anonymises at `cutoff`, as a row source —
+ * **the one statement of that rule** (issue #857). Soft-deleted before the
+ * cutoff and not anonymised yet, **or** anonymised by an earlier scrub that left
+ * residue behind (issue #843, `hasScrubResidue` in
+ * `commands/customer-account-anonymize.command.ts`). The residue branch is not
+ * under the cutoff: the window already elapsed once, and an operator raising
+ * `customers.deletion_retention_days` afterwards must not take the account off
+ * the list for good. `listDueForAnonymization` lists through it and
+ * `hasDueForAnonymization` asks through it, so a condition added here is added
+ * to both by the same edit and the sweep's question cannot drift from its work
+ * list.
+ */
+function dueForAnonymization(cutoff: Date): WorkRows {
+  return {
+    from:
+      'from "customer_accounts" where ("deleted_at" is not null and "deleted_at" < ? and "anonymized_at" is null)' +
+      ` or ("anonymized_at" is not null and ("block_reason" is not null or "custom_field_values" <> '{}'::jsonb` +
+      ` or "preferred_language" is not null))`,
+    params: [cutoff],
+  };
 }
 
 /**
@@ -332,24 +410,19 @@ export class CustomerPasswordVerificationService implements CustomerPasswordVeri
 }
 
 /**
- * The member lifecycle `organizations` runs over this module's table
- * (feature 075, Phase C).
+ * `customerAccountMemberWritePort` — the member lifecycle `organizations` runs
+ * over accounts in its Organizations (feature 075, Phase C).
  *
- * It ran it by creating and mutating the `CustomerAccount` entity in its own
- * services and route handlers — seven write sites across five files. They are
- * six methods here, each one unit of work on this table alone, because a write
- * port that took the caller's `EntityManager` would publish the coupling
- * instead of removing it (D-78).
+ * **Deprecated since 0.113.0** (`specs/186-aggregate-ports/` T051, issue
+ * #1822): `create`, `updateProfile`, `setSubtreeRollup`,
+ * `promoteToOrganizationAdmin` and `markEmailVerified` delegate to
+ * `customerAccountCommandPort`, so each runs the Command it ran — or, for
+ * `updateProfile` and `markEmailVerified`, the Command its hand-written entry
+ * became — with the same action, state and refusals.
  *
- * **Each write audits itself**, in the same unit of work, exactly as
- * `addresses`' `AddressService` does — the role changes, which `RoleService`
- * used to audit the same way, are Commands since `specs/170-organization-roles/`
- * WP-02b, and so are {@link CustomerAccountMemberWriteService.promoteToOrganizationAdmin}
- * and, since issue #1338, {@link CustomerAccountMemberWriteService.setSubtreeRollup}. The
- * host's own row is a different fact and stays where it is: "an operator edited
- * this member on the organisation panel" is not "this account's e-mail
- * changed", and the role endpoint has recorded both for as long as it has
- * existed.
+ * `attachToOrganization` is a move between Organizations, the Membership
+ * concern `specs/191-membership-join-requests/` owns; it is left as it is and
+ * deprecated there.
  */
 export class CustomerAccountMemberWriteService implements CustomerAccountMemberWritePort {
   constructor(
@@ -357,134 +430,35 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
     private readonly twoFactorEnrolments: TwoFactorEnrolmentReader,
     private readonly auditLog?: AuditPort,
     /**
-     * The bus {@link create}, {@link setSubtreeRollup} and
-     * {@link promoteToOrganizationAdmin} run their Commands with, and the role lookup the promotion needs
-     * (`specs/170-organization-roles/` WP-02b; `specs/176-command-hooks-outbox/`
-     * FR-004). Optional so the hand-built test services that never write
-     * through them need not wire them; each method refuses without them.
+     * The aggregate port the deprecated methods delegate to. A hand-built test
+     * service may pass only a bus (and the role lookup the promotion needs), and
+     * gets a port over them; without either, each delegated method refuses.
      */
-    private readonly commands?: { commandBus: CommandBus; roles?: OrganizationRoleLookup },
+    private readonly commands?: {
+      commandBus?: CommandBus;
+      roles?: OrganizationRoleLookup;
+      port?: CustomerAccountCommandPort;
+    },
   ) {}
 
-  /**
-   * `specs/176-command-hooks-outbox/` FR-004 — the `customer_account.create`
-   * Command, top-level: the same implementation a registration runs as its
-   * child, so the bus writes the one audit entry and nothing here does.
-   */
   async create(input: CustomerAccountCreateInput): Promise<CustomerAccountRecord> {
-    const commandBus = this.commands?.commandBus;
-    if (!commandBus) {
-      throw new Error('CustomerAccountMemberWriteService: the creation runs a Command; construct the service with its bus.');
-    }
-    const { organizationId, organizationRoleId, ...rest } = input;
-    const prepared = await prepareCustomerAccountCreate(rest, NEW_ACCOUNT_RECORD);
-    return commandBus.run(prepared.command({ organizationId, organizationRoleId }));
+    return this.#port().create(input);
   }
 
-  async updateProfile(
-    customerAccountId: string,
-    patch: CustomerAccountProfilePatch,
-  ): Promise<CustomerAccountRecord> {
-    const em = this.emFactory();
-    const account = await this.#loadLive(em, customerAccountId);
-    const before = {
-      email: account.email,
-      firstName: account.firstName,
-      lastName: account.lastName,
-      emailVerifiedAt: account.emailVerifiedAt ?? null,
-    };
-    if (patch.email !== undefined) {
-      const nextEmail = normalizeEmailAddress(patch.email);
-      if (nextEmail !== account.email) {
-        const taken = await em.findOne(CustomerAccount, { email: nextEmail, deletedAt: null });
-        if (taken && taken.id !== account.id) {
-          throw new HttpError(
-            409,
-            ERROR_CODES.EMAIL_ALREADY_REGISTERED,
-            'That email is already used by another account.',
-          );
-        }
-        account.email = nextEmail;
-        account.emailVerifiedAt = null;
-      }
-    }
-    if (patch.firstName !== undefined) account.firstName = patch.firstName;
-    if (patch.lastName !== undefined) account.lastName = patch.lastName;
-    // The names of what changed, never the e-mail or the names (D-288).
-    this.#audit(em, 'customer_account.update_profile', account.id, null, {
-      changedFields: changedKeys(before, {
-        email: account.email,
-        firstName: account.firstName,
-        lastName: account.lastName,
-        emailVerifiedAt: account.emailVerifiedAt ?? null,
-      }),
-    });
-    await em.flush();
-    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
+  async updateProfile(customerAccountId: string, patch: CustomerAccountProfilePatch): Promise<CustomerAccountRecord> {
+    return this.#port().updateProfile(customerAccountId, patch);
   }
 
-  /**
-   * Issue #1338 — the `customer_account.set_subtree_rollup` Command: the write
-   * and its one audit entry commit together, and nothing here audits.
-   */
-  async setSubtreeRollup(
-    customerAccountId: string,
-    enabled: boolean,
-  ): Promise<CustomerAccountRecord> {
-    const commandBus = this.commands?.commandBus;
-    if (!commandBus) {
-      throw new Error('CustomerAccountMemberWriteService: the roll-up toggle runs a Command; construct the service with its bus.');
-    }
-    const account = await commandBus.run(makeSetCustomerAccountSubtreeRollupCommand({ customerAccountId, enabled }));
-    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
+  async setSubtreeRollup(customerAccountId: string, enabled: boolean): Promise<CustomerAccountRecord> {
+    return this.#port().setSubtreeRollup(customerAccountId, { enabled });
   }
 
-  /**
-   * Runs `customer_account.promote_organization_admin` on the bus
-   * (`specs/170-organization-roles/` WP-02b): the Command writes the role and
-   * its legacy value, and the bus records its one audit entry.
-   */
   async promoteToOrganizationAdmin(customerAccountId: string): Promise<CustomerAccountRecord> {
-    const roleCommands = this.commands;
-    if (!roleCommands?.roles) {
-      throw new Error(
-        'CustomerAccountMemberWriteService: the promotion runs a Command; construct the service with its bus and role lookup.',
-      );
-    }
-    const account = await this.#loadLive(this.emFactory(), customerAccountId);
-    await roleCommands.commandBus.run(
-      makePromoteOrganizationAdminCommand(
-        { roles: roleCommands.roles, store: entityManagerAccountRoleStore },
-        { organizationId: account.organizationId, customerAccountId: account.id },
-      ),
-    );
-    const promoted = await this.emFactory().findOneOrFail(CustomerAccount, { id: account.id }, { refresh: true });
-    return toOneCustomerAccountRecord(this.twoFactorEnrolments, promoted);
+    return this.#port().promoteToOrganizationAdmin(customerAccountId);
   }
 
-  async markEmailVerified(
-    customerAccountId: string,
-    verifiedAt: Date,
-  ): Promise<CustomerAccountRecord> {
-    const em = this.emFactory();
-    if (!isUuidShape(customerAccountId)) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
-    }
-    const account = await em.findOne(CustomerAccount, { id: customerAccountId });
-    if (!account) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
-    }
-    // Idempotent: a retried verification keeps the first timestamp, and records
-    // nothing the second time — an audit row per retry would say a change
-    // happened that did not.
-    if (!account.emailVerifiedAt) {
-      account.emailVerifiedAt = verifiedAt;
-      this.#audit(em, 'customer_account.email_verified', account.id, { emailVerifiedAt: null }, {
-        emailVerifiedAt: verifiedAt.toISOString(),
-      });
-      await em.flush();
-    }
-    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
+  async markEmailVerified(customerAccountId: string, verifiedAt: Date): Promise<CustomerAccountRecord> {
+    return this.#port().markEmailVerified(customerAccountId, { verifiedAt });
   }
 
   async attachToOrganization(
@@ -510,38 +484,61 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
     account.organizationRoleId = organizationRoleId;
     // A tenant move by name: the Organization ids stay out of the audit log (D-288).
     const move = organizationMoveAuditState(before, { organizationId, organizationRoleId });
-    this.#audit(em, 'customer_account.attach_organization', account.id, move.stateBefore, move.stateAfter);
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'customer_account.attach_organization',
+        objectType: 'customer_account',
+        objectId: account.id,
+        stateBefore: move.stateBefore,
+        stateAfter: move.stateAfter,
+      });
+    }
     await em.flush();
     return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
-  #audit(
-    em: EntityManager,
-    action: string,
-    objectId: string,
-    stateBefore: Record<string, unknown> | null,
-    stateAfter: Record<string, unknown> | null,
-  ): void {
-    if (!this.auditLog) return;
-    recordAuditFromContext(this.auditLog, em, {
-      action,
-      objectType: 'customer_account',
-      objectId,
-      stateBefore,
-      stateAfter,
-    });
-  }
+  #delegate: CustomerAccountCommandPort | undefined;
 
-  async #loadLive(em: EntityManager, id: string): Promise<CustomerAccount> {
-    if (!isUuidShape(id)) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
+  #port(): CustomerAccountCommandPort {
+    if (this.commands?.port) return this.commands.port;
+    const commandBus = this.commands?.commandBus;
+    if (!commandBus) {
+      throw new Error('CustomerAccountMemberWriteService: each write runs a Command; construct the service with its bus.');
     }
-    const account = await em.findOne(CustomerAccount, { id, deletedAt: null });
-    if (!account) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
-    }
-    return account;
+    this.#delegate ??= memberCommandServiceOver({
+      emFactory: this.emFactory,
+      twoFactorEnrolments: this.twoFactorEnrolments,
+      commandBus,
+      ...(this.commands?.roles ? { roles: this.commands.roles } : {}),
+    });
+    return this.#delegate;
   }
+}
+
+/**
+ * The aggregate port over a bus alone, for a hand-built service that delegates
+ * only the member methods: the lifecycle dependencies (sessions, provisioning,
+ * the personal-Organization check) refuse if anything ever reaches for them.
+ */
+function memberCommandServiceOver(deps: {
+  emFactory: () => EntityManager;
+  twoFactorEnrolments: TwoFactorEnrolmentReader;
+  commandBus: CommandBus;
+  roles?: OrganizationRoleLookup;
+}): CustomerAccountCommandPort {
+  const unwired = (what: string) => (): never => {
+    throw new Error(`CustomerAccountMemberWriteService: ${what} is not wired on a member-only service.`);
+  };
+  return new CustomerAccountCommandService({
+    commandBus: deps.commandBus,
+    emFactory: deps.emFactory,
+    twoFactorEnrolments: deps.twoFactorEnrolments,
+    roles: deps.roles ?? { findRole: unwired('the role lookup'), predefinedRoleId: unwired('the role lookup') },
+    isPersonal: unwired('the personal-Organization check'),
+    personalOrganizations: { provisionFor: unwired('the personal-Organization provisioning') },
+    sessions: { destroyAllForCustomer: unwired('the session store') },
+    afterCommit: unwired('the after-commit scope'),
+  });
 }
 
 /**

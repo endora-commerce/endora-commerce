@@ -45,6 +45,7 @@ import {
   evaluateA9,
   evaluateA18,
   evaluateA19,
+  evaluateA20,
   evaluateA16,
   evaluateA17,
   type ActorScopeObservation,
@@ -1880,3 +1881,59 @@ describe('A19 — an overlay module that owns a table migrates and serves its ro
     expect(evaluateA19(observation({ failure: 'no deployment' })).state).toBe('unmeasured');
   });
 });
+
+describe('A20 — the admin is built for one deployment, and holds that deployment’s overlay admin layer', () => {
+  type Observation = Parameters<typeof evaluateA20>[0];
+  const ok = { code: 0, output: '' };
+  const observation = (overrides: Partial<Observation> = {}): Observation => ({
+    moduleId: 'instance_acceptance_screens',
+    deployment: 'acme',
+    marker: 'a20-overlay-screen',
+    generated: ok,
+    deploymentBuild: ok,
+    deploymentHolds: true,
+    bareBuild: ok,
+    bareHolds: false,
+    typecheck: ok,
+    ...overrides,
+  });
+
+  it('passes when the deployment bundle holds the screen and the bare-core bundle does not', () => {
+    const result = evaluateA20(observation());
+    expect(result).toMatchObject({ id: 'A20', state: 'pass' });
+    expect(result.detail).toContain('DEPLOYMENT=acme');
+  });
+
+  it('fails when `generate` refused the tree the overlay admin layer is in', () => {
+    const result = evaluateA20(observation({ generated: { code: 1, output: 'palette coverage is not clean' } }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('palette coverage is not clean');
+  });
+
+  it('fails when the admin built for the deployment does not hold the screen', () => {
+    expect(evaluateA20(observation({ deploymentHolds: false })).state).toBe('fail');
+    expect(evaluateA20(observation({ deploymentBuild: { code: 1, output: 'Could not resolve' } })).state).toBe('fail');
+  });
+
+  it('fails when the bare-core bundle holds the overlay screen too — SC-004', () => {
+    const result = evaluateA20(observation({ bareHolds: true }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('bare core');
+  });
+
+  it('reports the admin type-check beside the verdict rather than judging it', () => {
+    // The admin member of a created instance installs no React types, so its
+    // own `src/main.tsx` does not type-check either (measured 2026-11-26, #1855).
+    const result = evaluateA20(observation({ typecheck: { code: 2, output: 'error TS7016' } }));
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('`typecheck` exited 2');
+    expect(evaluateA20(observation()).detail).toContain('`typecheck` passed');
+  });
+
+  it('is unmeasured when there was nothing to build', () => {
+    expect(evaluateA20(observation({ failure: 'the created tree holds no `admin/` member' })).state).toBe(
+      'unmeasured',
+    );
+  });
+});
+

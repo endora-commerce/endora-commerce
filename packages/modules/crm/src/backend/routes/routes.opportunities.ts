@@ -78,7 +78,10 @@ export async function registerCrmOpportunityRoutes(
     '/api/v1/admin/crm/opportunities',
     { preHandler: requireAdmin('crm:write'), schema: { body: CreateOpportunityRequestSchema } },
     async (request, reply) => {
-      const created = await opportunities.create(CreateOpportunityRequestSchema.parse(request.body));
+      // The Command `opportunityCommandPort.create` runs too (186 US9); the
+      // response is read after its commit.
+      const id = await opportunities.create(CreateOpportunityRequestSchema.parse(request.body));
+      const created = await opportunities.get(id);
       setEtag(reply, created.version);
       reply.code(201);
       return { data: created };
@@ -99,11 +102,12 @@ export async function registerCrmOpportunityRoutes(
     '/api/v1/admin/crm/opportunities/:id',
     { preHandler: requireAdmin('crm:write'), schema: { body: UpdateOpportunityRequestSchema } },
     async (request, reply) => {
-      const updated = await opportunities.update(
+      await opportunities.update(
         request.params.id,
         UpdateOpportunityRequestSchema.parse(request.body),
         parseIfMatch(request),
       );
+      const updated = await opportunities.get(request.params.id);
       setEtag(reply, updated.version);
       return { data: updated };
     },

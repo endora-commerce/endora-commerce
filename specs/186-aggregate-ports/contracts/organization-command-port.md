@@ -98,7 +98,7 @@ export interface OrganizationCommandPort {
   setCustomFieldValues(id: string, merge: CustomFieldMerge, options?: AggregateCommandOptions): Promise<OrganizationRecord>;
   convertToCompany(id: string, input: OrganizationConvertToCompanyInput, options?: OrganizationCommandPortOptions): Promise<OrganizationRecord>;
   changeTaxId(id: string, input: OrganizationChangeTaxIdInput, options?: OrganizationCommandPortOptions): Promise<OrganizationRecord>;
-  setSalesChannels(id: string, input: { salesChannelIds: readonly [string, ...string[]] }, options?: AggregateCommandOptions): Promise<OrganizationRecord>;
+  setSalesChannels(id: string, input: OrganizationSalesChannelsUpdateBody, options?: AggregateCommandOptions): Promise<OrganizationRecord>;
   setRestrictions(id: string, input: OrganizationAllowListsReplace, options?: AggregateCommandOptions): Promise<OrganizationRestrictions>;
   patchRestriction(id: string, kind: OrganizationAllowListKind, patch: OrganizationAllowListPatch, options?: AggregateCommandOptions): Promise<OrganizationRestrictions>;
   setCreditInheritanceMode(id: string, input: { mode: CreditInheritanceMode }, options?: AggregateCommandOptions): Promise<OrganizationRecord>;

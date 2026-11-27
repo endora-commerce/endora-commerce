@@ -273,3 +273,40 @@ describe("resolveManifestEntries — three suppliers plus the platform's own res
     expect([overlayCalls, packageCalls]).toEqual([1, 1]);
   });
 });
+
+/**
+ * `specs/187-side-table-extensions/` T011 — the static side-table rules (E2 –
+ * E4) run over the **resolved** set, so a composition the lifecycle, boot or
+ * `migrate` reads is refused before any of them acts on it, whichever source
+ * the declaring module came from.
+ */
+describe('resolveManifestEntries — side-table declarations (187 FR-002 – FR-005)', () => {
+  const host: ModuleManifest = { ...manifestOf('organizations') };
+  const declaring = (dependencies: string[]): ModuleManifest => ({
+    ...manifestOf('acme_erp'),
+    dependencies,
+    extends: [{ entity: 'organizations.Organization', table: 'acme_erp_organization_links' }],
+  });
+  const sourcesWith = (acme: ModuleManifest, from: 'overlay' | 'package'): ManifestSources => ({
+    core: coreManifestEntries([{ id: 'organizations', manifest: host, manifestPath: '/core/organizations/manifest.ts' }]),
+    overlay: async () => (from === 'overlay' ? [{ ...overlayFound('acme_erp'), manifest: acme }] : []),
+    packages: async () => (from === 'package' ? [{ ...packageFound('acme_erp', '@acme/mod-acme-erp'), manifest: acme }] : []),
+  });
+
+  it.each(['overlay', 'package'] as const)('accepts a correct declaration from %s', async (from) => {
+    const entries = await resolveManifestEntries(sourcesWith(declaring(['organizations']), from));
+    expect(entries.map((entry) => entry.manifest.id)).toContain('acme_erp');
+  });
+
+  it.each(['overlay', 'package'] as const)(
+    'refuses a declaration from %s whose host owner is not a dependency, naming the rule',
+    async (from) => {
+      await expect(resolveManifestEntries(sourcesWith(declaring([]), from))).rejects.toMatchObject({
+        name: 'EntityExtensionInvalidError',
+        rule: 'host-not-a-dependency',
+        moduleId: 'acme_erp',
+        origin: from,
+      });
+    },
+  );
+});

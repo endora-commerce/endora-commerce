@@ -78,17 +78,37 @@ remind you of.
 **Code with no admin request to ride on — a subscriber, an overlay module, an integration worker —
 writes a host's values through the owner's published write port, never a native `UPDATE` of the
 host's `custom_field_values`** (Principle I; the column is the host's, whatever module knows the
-value). Today the two hosts that publish one are:
+value). Today the hosts that publish one are:
 
-- `customer_accounts` — `customerAccountLifecycleWritePort.setCustomFieldValues(customerAccountId, merge)`;
+- `customer_accounts` — `customerAccountCommandPort.setCustomFieldValues(customerAccountId, merge, options?)`,
+  the aggregate port (`specs/186-aggregate-ports/` US3); the narrow
+  `customerAccountLifecycleWritePort.setCustomFieldValues` is deprecated since 0.113.0 and delegates
+  to it. Both run `customer.custom_fields.update`, the Command the admin
+  `PATCH /api/v1/admin/customers/:id/custom-fields` runs;
 - `organizations` — `organizationCommandPort.setCustomFieldValues(organizationId, merge, options?)`, the
   aggregate port (`specs/186-aggregate-ports/` US1); the narrow
   `organizationCustomFieldWritePort.setCustomFieldValues` is deprecated since 0.113.0 and delegates
   to it. Both run `organization.set_custom_field_values`, which is not what the admin edit runs
   (`organization.admin_patch` writes the columns and the bag in one Command), so a command hook that
   must see every change of the bag registers on both actions.
+- `catalog` — `catalogProductCommandPort.setCustomFieldValues(productId, merge, options?)`, the
+  aggregate port (`specs/186-aggregate-ports/` US6). A product's bag is its attribute values; the
+  write runs the admin `PATCH`'s `product.update`, and **the owner validates** the merge's answer
+  with the attribute-set rules — the one host where the caller does not call `validateAndMerge`
+  (research R-19.2).
+- `projects` — `projectCommandPort.setCustomFieldValues(projectId, merge, options?)`, the aggregate
+  port (`specs/186-aggregate-ports/` US7). It runs `projects.project.custom_fields_update`, the
+  Command the admin `PATCH` runs for the values, so one hook registration sees every change.
+  must see every change of the bag registers on both actions;
+- `crm` — `opportunityCommandPort.setCustomFieldValues(opportunityId, merge, options?)`, the aggregate
+  port (`specs/186-aggregate-ports/` US9), which runs `crm.opportunity.update` — the entry the admin
+  `PATCH /api/v1/admin/crm/opportunities/:id` records for a body of `customFieldValues` alone — with the
+  merge run under the Opportunity's row lock.
+- `orders` — `orderCommandPort.setCustomFieldValues(orderId, merge, options?)`, the aggregate port
+  (`specs/186-aggregate-ports/` US4), which runs `order.custom_fields.update` — the Command the admin
+  `PATCH /api/v1/admin/orders/:id/custom-fields` runs, the bag read under the order's row lock.
 
-Both have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
+All have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
 callback over the current bag that the owner runs between its own load and its own write, as one
 Command with one audit row; **the owner does not validate**, so the caller calls
 `CustomFieldValuePort.validateAndMerge` inside `merge` (the administrator's rules: an `internal`
@@ -96,9 +116,7 @@ field is accepted), and a refusal propagates unchanged and writes nothing; the a
 ambient one, never a parameter. The full statement is each contract's JSDoc.
 
 **A host that adds one adds it to its aggregate's write port, not as a new port**
-(`module-composition.md` item 2a, D-293). `customerAccountLifecycleWritePort` is a request-shaped
-port that `specs/186-aggregate-ports/` folds into `customerAccountCommandPort`, deprecated for one
-release first (`contract-surface.md`); this list names it until that lands.
+(`module-composition.md` item 2a, D-293), as both entries above now do.
 
 **The ports are not `customFieldWrites` declarations, and `check:custom-field-writes` does not
 know them.** Its subject is an HTTP write: a route it can hold to the module's registration and to

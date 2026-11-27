@@ -52,6 +52,13 @@ RUN pnpm --filter "admin^..." run build
 
 ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+# The deployment whose overlay admin layers the bundle holds
+# (`specs/190-overlay-full-modules/` FR-081): `vite.config.ts` selects
+# `src/deployments/<DEPLOYMENT>.generated.ts`, and unset is bare core's `none`.
+# The layers live under `backend/src/apps/`, so that directory is copied too.
+ARG DEPLOYMENT
+ENV DEPLOYMENT=$DEPLOYMENT
+COPY backend/src/apps/ backend/src/apps/
 RUN pnpm --filter admin run build
 
 # --- Runtime: static files behind nginx ---

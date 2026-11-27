@@ -3,8 +3,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   type OrderReadPort,
+  type OrderCommandPort,
   type OrderStatusActor,
-  type OrderTransitionPort,
   type PropagationOutcome,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -26,8 +26,12 @@ import type { OwnerReadCheck } from './owner-read-permissions.js';
 export interface OrderStatusPropagationServiceDeps {
   emFactory: () => EntityManager;
   commandBus: CommandBus;
-  /** `orders`' ports — lazy, resolved per call, never captured. */
-  orderTransitions: OrderTransitionPort;
+  /**
+   * `orders`' ports — lazy, resolved per call, never captured. The lifecycle
+   * write is `orderCommandPort` since 0.113.0 (`specs/186-aggregate-ports/`
+   * US4; it was `orderTransitionPort`).
+   */
+  orderTransitions: Pick<OrderCommandPort, 'applyStatus'>;
   orders: OrderReadPort;
   /** Whether the caller holds `orders:read`: without it an outcome names no Order number. */
   canReadOrders: OwnerReadCheck;
@@ -124,7 +128,7 @@ function isUnresolved(row: CrmStatusPropagation): boolean {
  *    the status change or not at all, so there is never a moved Opportunity
  *    with no record of what it owes.
  * 2. **Ask** — after that commit and outside any transaction, each Order is
- *    asked through `orderTransitionPort.applyStatus`. That is `orders`' own
+ *    asked through `orderCommandPort.applyStatus`. That is `orders`' own
  *    seam: the Order workflow's graph, its guards, its audit entry and its
  *    follow-ups all apply, and a refusal comes back as a value.
  * 3. **Record** — the answer is written onto the row and returned.
@@ -498,10 +502,10 @@ export class OrderStatusPropagationService {
     request: { actor: OrderStatusActor; reason: string | null },
   ): Promise<{ outcome: CrmPropagationOutcome; detail: string | null }> {
     try {
-      const answer = await this.deps.orderTransitions.applyStatus({
-        orderId: row.orderId,
+      // The Order's entry and events name the ambient actor (the aggregate
+      // port takes none as input); `request.actor` is the Opportunity's.
+      const answer = await this.deps.orderTransitions.applyStatus(row.orderId, {
         to: row.orderStatusCode,
-        actor: request.actor,
         reason: request.reason,
       });
       if (answer.applied) return { outcome: 'applied', detail: null };

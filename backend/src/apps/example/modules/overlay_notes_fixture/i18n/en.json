@@ -1,0 +1,11 @@
+{
+  "actions.openOverlayNotesFixture.label": "Overlay notes fixture",
+  "actions.openOverlayNotesFixture.description": "Open the example deployment's overlay notes fixture",
+  "admin.count": "Notes visible to you: {count}",
+  "admin.description": "An example-deployment fixture: an overlay module with a table and an admin screen.",
+  "admin.error": "The notes could not be loaded.",
+  "admin.loading": "Loading…",
+  "admin.title": "Overlay notes fixture",
+  "adminRoles.permission.overlay_notes_fixture:read": "Read the overlay notes fixture",
+  "nav.overlayNotesFixture.label": "Overlay notes fixture"
+}

@@ -255,7 +255,8 @@ export interface OffStateCoverageInput {
   readonly deploymentModules?: readonly string[];
   /**
    * The overlay modules, of every deployment on disk, that **own tables** — a
-   * `migrations/` or an `entities/` directory — with their activation
+   * `migrations/` or an `entities/` directory, or a backend `entities` export
+   * — keyed on their manifest id, with their activation
    * control (`specs/190-overlay-full-modules/` FR-046,
    * `contracts/overlay-lifecycle.md` §4).
    *
@@ -953,11 +954,14 @@ async function loadModules(indexPath: string): Promise<LoadedModules> {
  * and not the active one, for the reason `overlay:check` gives: an artefact
  * only a run nobody makes would check is an artefact nothing checks.
  *
- * "Owns tables" is the overlay schema reader's own two directories
+ * "Owns tables" is what the overlay schema reader reads
  * (`overlay-schema-discovery.md` §1): a `migrations/` or an `entities/`
- * directory with a file in it. The activation control is read off the
- * manifest itself, imported, because it is the one fact the population is
- * keyed on and a text match would be a second reading of it.
+ * directory with a file in it, or a non-empty `entities` export of the
+ * module's `backend` unit — the list the ORM actually registers, imported only
+ * when neither directory answered (#1941). The module is keyed on its
+ * manifest's `id`, not its directory name (#1941), and the activation control
+ * is read off the same imported manifest, because it is the one fact the
+ * population is keyed on and a text match would be a second reading of it.
  */
 export async function deploymentModulesUnder(
   modulesRoots: readonly string[],
@@ -987,18 +991,31 @@ export async function deploymentModulesUnder(
     }
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-      const manifestPath = ['manifest.ts', 'manifest.js']
-        .map((name) => join(root, entry.name, name))
-        .find(isFile);
+      const unit = (name: string): string | undefined =>
+        [`${name}.ts`, `${name}.js`].map((file) => join(root, entry.name, file)).find(isFile);
+      const manifestPath = unit('manifest');
       if (manifestPath === undefined) continue;
-      ids.add(entry.name);
-      if (!['migrations', 'entities'].some((dir) => hasFiles(join(root, entry.name, dir)))) continue;
       const loaded = (await import(pathToFileURL(manifestPath).href)) as {
-        manifest?: { activation?: { settingCode?: unknown } };
+        manifest?: { id?: unknown; activation?: { settingCode?: unknown } };
       };
+      // The manifest id, which is what an `expectModuleAbsent` call names and
+      // what the platform registers; the directory is only where it was found.
+      const moduleId = typeof loaded.manifest?.id === 'string' ? loaded.manifest.id : entry.name;
+      ids.add(moduleId);
+      if (!(hasFiles(join(root, entry.name, 'migrations')) || hasFiles(join(root, entry.name, 'entities')))) {
+        // No schema directory with files — but the ORM registers the backend's
+        // `entities` export, not a directory (`overlay-schema.ts`), so a table
+        // declared only there is still a table this module keeps while off.
+        const backendPath = unit('backend');
+        const backend =
+          backendPath === undefined
+            ? undefined
+            : ((await import(pathToFileURL(backendPath).href)) as { entities?: unknown });
+        if (!(Array.isArray(backend?.entities) && backend.entities.length > 0)) continue;
+      }
       const settingCode = loaded.manifest?.activation?.settingCode;
-      population.set(entry.name, {
-        moduleId: entry.name,
+      population.set(moduleId, {
+        moduleId,
         activationSettingCode: typeof settingCode === 'string' ? settingCode : null,
       });
     }

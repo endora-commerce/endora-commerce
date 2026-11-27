@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   ERROR_CODES,
+  SALES_CHANNEL_AUDIT_ACTIONS,
   type OrganizationCommandPort,
   type OrganizationCustomFieldWritePort,
   type OrganizationWritePort,
@@ -32,7 +33,9 @@ import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/s
  * `update` and `setCustomFieldValues` have no admin route of their own (the
  * admin `PATCH` runs `organization.admin_patch`, which the port does not
  * offer, R-16.2): they are measured against the deprecated narrow ports that
- * ran them until now. `setSalesChannels` is US1b's.
+ * ran them until now. `setSalesChannels` (US1b) also compares what the
+ * kernel's membership writer recorded beside the Command's entry (R-16.1), and
+ * that the access cache was dropped.
  *
  * Then the port's own additions: `source` recorded beside the actor, a
  * malformed `source` and an unclaimed extension refused with nothing written,
@@ -358,6 +361,65 @@ describe('organizationCommandPort — the admin routes’ Commands (#1821)', () 
     });
   });
 
+  it('setSalesChannels — organization.sales_channels.set, the membership entries beside it, the cache dropped (US1b)', async () => {
+    const [a, b] = [await fresh(), await fresh()];
+    /** The membership writer's entries for the Organization, and the set the access rule now reads. */
+    const membershipProbe = async (organizationId: string) => {
+      const rows = await h
+        .em()
+        .fork()
+        .find(AuditLogEntry, {
+          action: SALES_CHANNEL_AUDIT_ACTIONS.MEMBERSHIP_CHANGED,
+          objectType: 'sales_channel_membership',
+          objectId: { $like: `%:organization:${organizationId}` },
+        });
+      const ops = rows.map((row) => {
+        const after = row.stateAfter as { op: string; channelId: string };
+        return `${after.op}:${after.channelId}`;
+      });
+      return {
+        ops: ops.sort(),
+        actors: [...new Set(rows.map((row) => row.actorAdminUserId))],
+        permitted: [...(await h.salesChannels.accessPolicy.permittedChannelIds(organizationId))].sort(),
+      };
+    };
+    // Warm the access cache first: a write that did not drop it would leave the old set.
+    const warmed = async <T>(id: string, write: () => Promise<T>): Promise<T> => {
+      await h.salesChannels.accessPolicy.permittedChannelIds(id);
+      return write();
+    };
+    const { port: viaPort } = await expectPortParity({
+      viaRoute: () =>
+        observe(
+          a.id,
+          () => warmed(a.id, () => route('PUT', `${ORGS}/${a.id}/sales-channels`, { salesChannelIds: [channel] })),
+          () => membershipProbe(a.id),
+        ),
+      viaPort: () =>
+        observe(
+          b.id,
+          () => warmed(b.id, () => asAdmin(() => port.setSalesChannels(b.id, { salesChannelIds: [channel] }))),
+          () => membershipProbe(b.id),
+        ),
+    });
+    expect(viaPort.audit).toEqual([
+      expect.objectContaining({
+        action: 'organization.sales_channels.set',
+        actorAdminUserId: TEST_ADMIN_ID,
+        stateAfter: { salesChannelIds: [channel] },
+      }),
+    ]);
+    expect(viaPort.sideEffects).toMatchObject({ permitted: [channel], actors: [TEST_ADMIN_ID] });
+    expect((viaPort.sideEffects as { ops: string[] }).ops).toContain(`add:${channel}`);
+
+    // The same set again: nothing recorded on either side of the bridge.
+    const repeat = await observe(b.id, () => asAdmin(() => port.setSalesChannels(b.id, { salesChannelIds: [channel] })), () =>
+      membershipProbe(b.id),
+    );
+    expect(repeat.audit).toEqual([]);
+    expect(repeat.sideEffects).toEqual(viaPort.sideEffects);
+  });
+
   describe('the port’s own options and refusals', () => {
     it('records source beside the actor', async () => {
       const org = await fresh();
@@ -435,6 +497,38 @@ describe('organizationCommandPort — the admin routes’ Commands (#1821)', () 
       ).toMatchObject({ statusCode: 422, code: ERROR_CODES.UNKNOWN_SALES_CHANNEL, details: [{ path: 'salesChannelIds.0', issue: unknown }] });
     });
 
+    it('setSalesChannels: records source, ignores expectedVersion, refuses an unknown channel UNKNOWN_SALES_CHANNEL (R-16.5) and an empty set', async () => {
+      const org = await fresh();
+      await asAdmin(() =>
+        port.setSalesChannels(org.id, { salesChannelIds: [channel] }, { source: 'erp.sync', expectedVersion: org.version + 7 }),
+      );
+      expect((await entries(org.id)).at(-1)).toMatchObject({
+        action: 'organization.sales_channels.set',
+        stateAfter: { salesChannelIds: [channel], source: 'erp.sync' },
+      });
+      const recorded = (await entries(org.id)).length;
+      const unknown = randomUUID();
+      expect(
+        await refusal(asAdmin(() => port.setSalesChannels(org.id, { salesChannelIds: [channel, unknown] }))),
+      ).toMatchObject({ statusCode: 422, code: ERROR_CODES.UNKNOWN_SALES_CHANNEL, details: [{ path: 'salesChannelIds.1', issue: unknown }] });
+      // The admin route answers the same refusal with its own code, the paths unchanged.
+      const res = await h.app.inject({
+        method: 'PUT',
+        url: `${ORGS}/${org.id}/sales-channels`,
+        cookies: ADMIN,
+        payload: { salesChannelIds: [channel, unknown] },
+      });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().error).toMatchObject({ code: ERROR_CODES.VALIDATION_FAILED, details: [{ path: 'salesChannelIds.1', issue: unknown }] });
+      expect(
+        await refusal(asAdmin(() => port.setSalesChannels(org.id, { salesChannelIds: [] }))),
+      ).toMatchObject({ statusCode: 422, code: ERROR_CODES.VALIDATION_FAILED });
+      expect(
+        await refusal(asAdmin(() => port.setSalesChannels(org.id, { salesChannelIds: [channel] }, { source: 'Not A Code' }))),
+      ).toMatchObject({ statusCode: 422, code: ERROR_CODES.VALIDATION_FAILED });
+      expect(await entries(org.id)).toHaveLength(recorded);
+    });
+
     it('answers an unknown Organization with NOT_FOUND', async () => {
       const unknown = randomUUID();
       for (const write of <Array<() => Promise<unknown>>>[
@@ -442,6 +536,7 @@ describe('organizationCommandPort — the admin routes’ Commands (#1821)', () 
         () => port.setParent(unknown, { parentId: null }),
         () => port.setRestrictions(unknown, { paymentMethodIds: [], deliveryMethodIds: [], warehouseIds: [] }),
         () => port.assignSalesRep(unknown, { adminUserId: TEST_ADMIN_ID }),
+        () => port.setSalesChannels(unknown, { salesChannelIds: [channel] }),
       ]) {
         expect(await refusal(asAdmin(write))).toMatchObject({ statusCode: 404, code: ERROR_CODES.NOT_FOUND });
       }

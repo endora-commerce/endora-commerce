@@ -1,6 +1,10 @@
 import type { EventBus } from '../events/bus.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
+import type { ModuleOrigin } from '@endora-commerce/contracts';
 import type { CommandHookCompositionInput, CommandHookRegistry } from '../commands/hooks/registry.js';
+import type { CommandMiddlewareCompositionInput, CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
+import type { EntityExtensionLoaderRegistry } from './entity-extensions/registry.js';
+import { moduleOriginOf } from '../lifecycle/services/module-origin.js';
 import { registerValues, type KernelContainer } from './container.js';
 import { effectiveState } from './lifecycle/effective-state.js';
 import {
@@ -141,6 +145,12 @@ export interface ModuleEntry {
    * from the root the module was discovered under, never from anything the
    * module says about itself. It exempts the module from the ownership rule on
    * `ctx.di.decorate`, which is why it is a location and not a declaration.
+   *
+   * D-156.4, narrowed by D-296: the narrowing covers the four guard seams only
+   * (`GUARD_SEAM_REGISTRATIONS`: `commandBus`, `auditLogService`, `eventBus`,
+   * `emFactory`). An overlay's decoration of one is deprecated in 0.113.0 — it
+   * composes, warns and is flagged `deprecated` on `kernel.decorations` — and is
+   * refused from 0.114.0. Every other name the exemption reaches is unchanged.
    */
   readonly overlay?: boolean;
   /**
@@ -160,6 +170,26 @@ export interface ModuleEntry {
    * granting a stranger the audit path.
    */
   readonly installedPackage?: boolean;
+  /**
+   * The module's trust tier (`specs/189-command-middleware/contracts/module-origin.md`
+   * §2): **set by the loader from where it found the module, never by the
+   * module**, through `moduleOriginOf`. Absent from the generated composer's
+   * entries, which are `core`; {@link composeModules} reads an absent value off
+   * `overlay` and `installedPackage` by the same table.
+   *
+   * It does not touch decoration: `overlay` and `installedPackage` keep their
+   * meaning and are not derived from it (§3). Read only by the contribution
+   * registries that ask for a tier — command middleware today.
+   */
+  readonly origin?: ModuleOrigin;
+  /**
+   * The `name` in the installed package's own `package.json` — not the
+   * dependency key it was installed under, so an npm alias shows its real
+   * name (`contracts/module-origin.md` §2). Set by the package loader only;
+   * absent for core and overlay entries. What a per-point grant is matched
+   * against (§5 item 3).
+   */
+  readonly installedPackageName?: string;
 }
 
 export interface ComposeModulesOptions {
@@ -188,6 +218,32 @@ export interface ComposeModulesOptions {
    * no action is hookable, so any registered hook refuses the composition.
    */
   readonly commandHooks?: CommandHookCompositionInput | undefined;
+  /**
+   * The command-middleware registry the root also handed its `CommandBus`
+   * (`specs/189-command-middleware/` P1). Every module's `ctx.commandMiddleware`
+   * registers into it, and this call seals it after the command-hook registry
+   * and before the boot phase, with the origin of each entry — which the
+   * composer derives and nothing else may supply (`contracts/module-origin.md`
+   * §2). Absent in a root that wires no middleware; `ctx.commandMiddleware`
+   * then refuses.
+   */
+  readonly commandMiddlewareRegistry?: CommandMiddlewareRegistry | undefined;
+  /**
+   * What the middleware registry is sealed against, as data the root derives:
+   * `commandMiddlewareFrom(manifests)`, `moduleDependencyClosureFrom(manifests)`
+   * and the deployment's `commandMiddlewareOrder`. Omitted with a registry
+   * present, nothing is declared, so any registered middleware refuses.
+   */
+  readonly commandMiddleware?: Omit<CommandMiddlewareCompositionInput, 'origins'> | undefined;
+  /**
+   * The side-table loader registry the root also hands `entityExtensionReads`
+   * (`specs/187-side-table-extensions/` B1). Every module's
+   * `ctx.entityExtensionLoaders` registers into it — judged against the
+   * declarations the root built it with — and this call seals it after the
+   * middleware registry, before the boot phase. Absent in a root that serves
+   * no extension includes; `ctx.entityExtensionLoaders` then refuses.
+   */
+  readonly entityExtensionLoaderRegistry?: EntityExtensionLoaderRegistry | undefined;
   /**
    * Share one ledger across several `composeModules` calls — which is what a
    * root does while modules are converted one batch at a time, so a converted
@@ -393,6 +449,12 @@ export function composeModules(
         ...(options.commandHookRegistry
           ? { commandHookRegistry: options.commandHookRegistry }
           : {}),
+        ...(options.commandMiddlewareRegistry
+          ? { commandMiddlewareRegistry: options.commandMiddlewareRegistry }
+          : {}),
+        ...(options.entityExtensionLoaderRegistry
+          ? { entityExtensionLoaderRegistry: options.entityExtensionLoaderRegistry }
+          : {}),
       });
 
       try {
@@ -456,6 +518,53 @@ export function composeModules(
     );
   }
 
+  // ---- Sealing the command-middleware registry (189 P1) -------------------
+  //
+  // After the hook seal, before the boot phase, for the hook seal's reasons.
+  // The origin map is the composer's to build: from each entry's loader-stamped
+  // `origin`, or — for an entry no loader stamped — from the two flags by the
+  // same table (`contracts/module-origin.md` §2). One map, handed to every
+  // registry that reads a tier, and to nothing else.
+  if (options.commandMiddlewareRegistry) {
+    const origins: Record<string, ModuleOrigin> = {};
+    for (const entry of entries) {
+      origins[entry.id] =
+        entry.origin ??
+        moduleOriginOf(entry.overlay === true ? 'overlay' : entry.installedPackage === true ? 'package' : 'core', false);
+    }
+    options.commandMiddlewareRegistry.seal({
+      declarations: options.commandMiddleware?.declarations ?? [],
+      moduleDependencies: options.commandMiddleware?.moduleDependencies ?? {},
+      commandMiddlewareOrder: options.commandMiddleware?.commandMiddlewareOrder,
+      origins,
+    });
+    // FR-034 — once at boot, beside `kernel.decorations`: what runs on every
+    // Command should be readable from the build.
+    const plan = options.commandMiddlewareRegistry.plan();
+    if (plan.length > 0) {
+      options.log.info(
+        {
+          middleware: plan.map((entry) => ({
+            module: entry.moduleId,
+            id: entry.id,
+            phase: entry.phase,
+            origin: entry.origin,
+            position: entry.position,
+            actions: entry.actions,
+          })),
+        },
+        'kernel.command-middleware',
+      );
+    }
+  }
+
+  // ---- Sealing the side-table loader registry (187 B1) --------------------
+  //
+  // Every refusal of a loader (L1, L2) is raised at its registration, so the
+  // seal decides nothing but L3: from here on a loader registered from a
+  // command's context refuses rather than appearing in a running process.
+  options.entityExtensionLoaderRegistry?.seal();
+
   // The report is emitted, not merely available: a deployment running a client
   // override should say so once at boot, in the same place the operator already
   // reads what the platform composed.
@@ -467,6 +576,8 @@ export function composeModules(
           decoratedBy: entry.moduleId,
           owner: entry.owner ?? null,
           depth: entry.depth,
+          // 189 FR-050 — a guard-seam wrap by an overlay (D-296), on its way out.
+          ...(entry.deprecated === true ? { deprecated: true } : {}),
         })),
       },
       'kernel.decorations',
@@ -518,6 +629,12 @@ export function composeModules(
         // with the registry's own message rather than "no registry mounted".
         ...(options.commandHookRegistry
           ? { commandHookRegistry: options.commandHookRegistry }
+          : {}),
+        ...(options.commandMiddlewareRegistry
+          ? { commandMiddlewareRegistry: options.commandMiddlewareRegistry }
+          : {}),
+        ...(options.entityExtensionLoaderRegistry
+          ? { entityExtensionLoaderRegistry: options.entityExtensionLoaderRegistry }
           : {}),
       });
     },

@@ -182,9 +182,24 @@ export { requiredModulesFrom } from '../kernel/lifecycle/required-modules.js';
 // it registers through `ctx.commandHooks`.
 export { CommandHookRegistry } from '../commands/hooks/registry.js';
 export {
+  commandMiddlewareFrom,
   hookableActionsFrom,
   moduleDependencyClosureFrom,
 } from '../kernel/lifecycle/command-hook-inputs.js';
+// `specs/189-command-middleware/` P1 — the command-middleware registry a root
+// builds once and hands its `CommandBus` and `composeModules`, beside the hook
+// registry for the hook registry's reason; `commandMiddlewareFrom` (above) is
+// the declarations it is sealed against.
+export { CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
+// `specs/187-side-table-extensions/` B1 — the side-table loader registry a root
+// builds once from its manifests' `extends` and hands `composeModules`, and the
+// reads service it registers as `entityExtensionReads` over it. The test kit's
+// `composeTestServer` is the consumer outside this package.
+export {
+  EntityExtensionLoaderRegistry,
+  entityExtensionDeclarationsFrom,
+} from '../kernel/entity-extensions/registry.js';
+export { createEntityExtensionReads } from '../kernel/entity-extensions/reads.js';
 // `specs/176-command-hooks-outbox/` P3 — the outbox's host half. The wake-up
 // is what both roots hand their `CommandBus`; the entity class is here for
 // `ModuleRegistration`'s reason (the generated entity registry names it, and no

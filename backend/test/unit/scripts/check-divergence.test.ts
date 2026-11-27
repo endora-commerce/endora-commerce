@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   claimFileOnce,
   divergenceBoundary,
+  divergenceExitCode,
+  divergenceFindingCounts,
   divergenceRefusal,
   moduleContextSeams,
   routeIdentities,
   selfContradictingSubjects,
   SEAM_CLASSIFICATION,
+  type DivergenceFinding,
   type DivergenceRefusalInput,
   type DivergenceRefusalKind,
   type DivergenceResult,
@@ -47,7 +50,7 @@ describe('the derivation covers every seam a deployment can use (SC-008)', () =>
     // the fixture and must contribute nothing: they are a module acting on its
     // own surface, which is not a divergence from core.
     expect([...byKind.keys()].sort()).toEqual([...divergenceBoundary().recorded].sort());
-    expect(derived.report.entries).toHaveLength(11);
+    expect(derived.report.entries).toHaveLength(12);
   });
 
   it('stamps the rung the ladder gives each seam', () => {
@@ -214,6 +217,76 @@ describe('the findings — one red proof per shape it refuses', () => {
         ],
       }),
     ).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 189 T072 (FR-051, FR-053; `specs/189-command-middleware/contracts/guard-seam-narrowing.md` §3).
+ *
+ * D-296 narrows D-156.4 for the four guard seams only. An overlay's decoration of one is a
+ * `deprecated-decoration` finding of severity `warning` in 0.113.0 (P3 makes it an error in
+ * 0.114.0); a decoration of any other root-supplied name raises nothing new. A finding with no
+ * severity is an error, so every existing kind keeps failing the check.
+ */
+describe('deprecated-decoration — a warning, and only over a guard seam (189 T072)', () => {
+  function decorating(name: string): ReturnType<typeof fixtureDivergence> {
+    return fixtureDivergence({
+      rootSupplied: new Set(['commandBus', 'auditLogService', 'eventBus', 'emFactory', 'redis']),
+      reasons: { [`decoration:acme_overlay:${name}`]: 'We wrap the root registration on purpose.' },
+      omittedModules: [],
+      sources: [
+        {
+          moduleId: 'acme_overlay',
+          file: 'backend/src/apps/acme/modules/acme_overlay/backend.ts',
+          text: `
+            import type { ModuleContext } from '../../../../kernel/index.js';
+            export function registerModule(ctx: ModuleContext): void {
+              ctx.di.decorate<Wrapped>('${name}', (inner) => inner);
+            }
+          `,
+        },
+      ],
+    });
+  }
+
+  it.each(['commandBus', 'auditLogService', 'eventBus', 'emFactory'])(
+    'raises a warning for an overlay decorating %s',
+    (name) => {
+      const { findings } = decorating(name);
+      expect(findings).toEqual([
+        expect.objectContaining({
+          kind: 'deprecated-decoration',
+          severity: 'warning',
+          where: 'backend/src/apps/acme/modules/acme_overlay/backend.ts',
+        }),
+      ]);
+      expect(findings[0]?.detail).toContain(name);
+    },
+  );
+
+  it('raises nothing for an overlay decorating `redis`', () => {
+    expect(decorating('redis').findings).toEqual([]);
+  });
+
+  it('leaves every existing finding without a severity, which reads as an error', () => {
+    const { findings } = fixtureDivergence({ reasons: {} });
+    expect(findings.length).toBeGreaterThan(0);
+    for (const finding of findings) expect(finding.severity).toBeUndefined();
+  });
+
+  it('exits 0 over warnings alone and 1 over any error, counting each apart', () => {
+    const warning = decorating('commandBus').findings;
+    const error: DivergenceFinding = {
+      kind: 'undeclared-divergence',
+      deployment: 'acme',
+      where: 'backend/src/apps/acme/divergence.ts',
+      detail: 'no sentence',
+    };
+    expect(divergenceExitCode([])).toBe(0);
+    expect(divergenceExitCode(warning)).toBe(0);
+    expect(divergenceExitCode([...warning, error])).toBe(1);
+    expect(divergenceExitCode([error])).toBe(1);
+    expect(divergenceFindingCounts([...warning, error, error])).toEqual({ errors: 2, warnings: 1 });
   });
 });
 

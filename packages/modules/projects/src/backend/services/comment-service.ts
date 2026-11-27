@@ -14,6 +14,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { NOTE_CURSOR_INSTANT_SQL, encodeNoteCursor, noteListBounds } from '../domain/note-page.js';
 import { ProjectComment } from '../entities/project-comment.entity.js';
 import { ProjectReference } from '../entities/project-reference.entity.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { newlyMentioned, type ProjectMentionService, type SavedProjectMentions } from './mention-service.js';
 import { actingAdminUserId, isUuid, type ProjectAccess } from './project-access.js';
 import { lockProject } from './project-service.js';
@@ -221,9 +222,20 @@ export class ProjectCommentService {
   }
 
   async add(projectId: string, input: CreateProjectCommentBody): Promise<ProjectCommentView> {
+    return this.#renderOne(await this.write(projectId, input));
+  }
+
+  /**
+   * The comment itself and who is told of it — what the route and
+   * `projectCommandPort.addComment` share (`specs/186-aggregate-ports/`
+   * R-22.1). Its author is the administrator behind the call; with none —
+   * a worker under `withSystemScope` — it is refused 403 before anything is
+   * read (R-22.2).
+   */
+  async write(projectId: string, input: CreateProjectCommentBody, caller: CallerOptions = {}): Promise<ProjectComment> {
     const author = this.#author();
     const project = await this.deps.access.loadVisible(projectId);
-    const written = await this.deps.commandBus.run({
+    const written = await this.deps.commandBus.run(withCallerOptions<ProjectComment>({
       action: input.kind === 'note' ? 'projects.project.note_add' : 'projects.project.message_add',
       objectType: 'project',
       objectId: project.id,
@@ -249,7 +261,7 @@ export class ProjectCommentService {
           },
         };
       },
-    });
+    }, caller));
 
     // After the commit: the comment exists whatever becomes of the bell.
     const mentioned = await this.#tellMentioned({
@@ -274,7 +286,7 @@ export class ProjectCommentService {
         });
       }
     }
-    return this.#renderOne(written);
+    return written;
   }
 
   /** Edit a note. Its author only; a message is refused whoever asks. */

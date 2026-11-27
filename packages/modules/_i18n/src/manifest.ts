@@ -229,6 +229,20 @@ export const manifest = defineModuleManifest({
     // command outbox, the platform's own table of afterCommit deliveries for
     // every module: an operator retried a row that is not dead (409).
     { code: 'COMMAND_OUTBOX_NOT_DEAD' },
+    // T3 by noun (3) — `specs/189-command-middleware/` FR-060. The noun is the
+    // Command Bus's admission and middleware step, which runs for every
+    // module's Commands: an admission rule that timed out or failed (503,
+    // nothing written) and a middleware that ran a Command (500). A
+    // contributor's own refusal codes are its module's, not these.
+    { code: 'COMMAND_ADMISSION_TIMEOUT' },
+    { code: 'COMMAND_ADMISSION_FAILED' },
+    { code: 'COMMAND_MIDDLEWARE_REENTRY' },
+    // T3 by noun (1) — `specs/187-side-table-extensions/` FR-054. The noun is
+    // the side-table extension include on a host read port, which the
+    // platform's `entityExtensionReads` answers for every extensible host: an
+    // `include` no loader of the composition claims (422). The module the
+    // include names is in the details, not owned by the code.
+    { code: 'ENTITY_EXTENSION_UNCLAIMED' },
     // T3 by D-122 (1) — issue #1560. A batch reorder (`PUT …/order`) whose
     // list is not the current one: a row left out or named twice (409). The
     // noun is an ordered configuration list, and `crm` and `tasks` each own

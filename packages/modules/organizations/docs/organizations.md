@@ -193,13 +193,12 @@ with `organizations` in the calling module's manifest `dependencies`.
 | `setCustomFieldValues(id, merge, options?)` | `organization.set_custom_field_values` | — (the admin sends values with `PATCH`) |
 | `convertToCompany(id, input, options?)` | `organization.convert_to_company` | `POST /api/v1/admin/organizations/:id/convert-to-company` |
 | `changeTaxId(id, { taxId }, options?)` | `organization.tax_id.change` | `POST /api/v1/admin/organizations/:id/change-tax-id` |
+| `setSalesChannels(id, { salesChannelIds }, options?)` | `organization.sales_channels.set` | `PUT /api/v1/admin/organizations/:id/sales-channels` |
 | `setRestrictions(id, lists, options?)` | `organization.allow_lists_replace` | `PUT /api/v1/admin/organizations/:id/restrictions` |
 | `patchRestriction(id, kind, { add?, remove? }, options?)` | `organization.allow_list_patch` | `PATCH /api/v1/admin/organizations/:id/restrictions/*` |
 | `setCreditInheritanceMode(id, { mode }, options?)` | `organization.set_credit_mode` | `PUT /api/v1/admin/organizations/:id/credit-inheritance-mode` |
 | `assignSalesRep(id, { adminUserId }, options?)` | `organization.sales_rep_assign` | `POST /api/v1/admin/organizations/:id/sales-reps` |
 | `unassignSalesRep(id, { adminUserId }, options?)` | `organization.sales_rep_unassign` | `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` |
-
-The sales channels of an existing Organization are not on the port yet.
 
 **One write path.** Each method runs the same Command the admin endpoint runs,
 built by the same factory, so the two cannot write differently: one audit entry
@@ -211,9 +210,9 @@ the endpoints' request bodies without their `version`, validated with the same
 limits, and refusals are the endpoints' errors with their codes
 (`422 VALIDATION_FAILED` for an input outside them, `404 NOT_FOUND`,
 `422 ORGANIZATION_STATUS_INVALID`, `409 VERSION_CONFLICT`, and each operation's
-own). The one difference: `create` answers a sales channel that does not exist
-with `422 UNKNOWN_SALES_CHANNEL`, where the admin endpoint answers
-`422 VALIDATION_FAILED`.
+own). The one difference: `create` and `setSalesChannels` answer a sales
+channel that does not exist with `422 UNKNOWN_SALES_CHANNEL`, where the admin
+endpoints answer `422 VALIDATION_FAILED`.
 
 **Who wrote it.** The actor is the ambient one, never a parameter: an
 administrator inside an admin request, or under `withSystemScopeActingFor`; the
@@ -253,6 +252,13 @@ takes an optional reason and sends no notice; neither does `unblock`.
 **Placing an Organization in the tree.** `setParent` with a parent id assigns
 the first parent (`organization.set_parent`) or moves a branch to another
 parent (`organization.move`); `parentId: null` detaches it to a root.
+
+**Sales channels.** `setSalesChannels` replaces the whole set with the ids you
+pass — at least one, each once; an inactive channel may be assigned. Besides
+its own `organization.sales_channels.set` entry, one audit row is written per
+channel added or removed, in the same transaction, and the Organization's
+members are decided on the new set from their next request. Passing the set the
+Organization already has changes and records nothing.
 
 **Custom-field values alone.** `setCustomFieldValues` takes a `merge` — a
 function from the current values to the new ones — and runs it inside its
@@ -339,7 +345,7 @@ When this rule was introduced, every existing Organization was assigned the syst
 
 ### In the admin
 
-- **Sales channels panel** — on an Organization's page, its heading badged *Applies immediately*. With `customers:manage` it is a list of checkboxes, one per channel, and each tick or untick is saved the moment it is made — there is no Save of its own, and it is not part of the page's Save. While a change is being saved the panel says so (*"Adding Trade…"*) and takes no other change until it is done; a change that could not be saved puts the checkbox back and says why. Without `customers:manage` it is a read-only list. Inactive channels are marked *(inactive)* and the system-default channel is badged. Unticking the last channel is refused: *"An organization must be assigned at least one sales channel."* Removing a channel asks no confirmation: ticking it again restores it. Each added or removed channel writes one audit row. A change applies at once on the server that saved it and on every other server within 30 seconds.
+- **Sales channels panel** — on an Organization's page, its heading badged *Applies immediately*. With `customers:manage` it is a list of checkboxes, one per channel, and each tick or untick is saved the moment it is made — there is no Save of its own, and it is not part of the page's Save. While a change is being saved the panel says so (*"Adding Trade…"*) and takes no other change until it is done; a change that could not be saved puts the checkbox back and says why. Without `customers:manage` it is a read-only list. Inactive channels are marked *(inactive)* and the system-default channel is badged. Unticking the last channel is refused: *"An organization must be assigned at least one sales channel."* Removing a channel asks no confirmation: ticking it again restores it. Each change writes one audit entry on the Organization (`organization.sales_channels.set`) and one audit row per channel added or removed. A change applies at once on the server that saved it and on every other server within 30 seconds.
 - **New organization** — a button on the Organizations list and an action in the command palette (⌘K / Ctrl+K), both shown with `customers:manage`. The form asks for the name, tax ID, registered address, status (*Active* or *Pending verification*) and the sales channels, with the system-default channel pre-selected. A platform administrator (not a sales representative) also gets an optional *parent organization*, which creates the Organization as a branch of it; once a parent is chosen, the tax-ID field notes that a branch may use its head office's tax ID when the tax-ID scope is *One tree per tax ID*. The creation is one audited command; the new Organization's page opens when it is saved. Members are invited from that page once the Organization exists.
 
 ## Commercial party and moderation
@@ -1620,6 +1626,10 @@ never a custom role's name or description.
 - **`organization.allow_lists_replace`**, **`organization.allow_list_patch`** —
   the allowed payment-method, delivery-method and warehouse ids (for a patch,
   its kind and the ids added and removed), written in the change's transaction.
+- **`organization.sales_channels.set`** — the sales channels before and after,
+  by id, written in the change's transaction beside one
+  `sales_channel.membership.changed` row per channel added or removed. Saving the set the
+  Organization already has records nothing.
 - **`organization.sales_rep_assign`**, **`.sales_rep_unassign`** — the
   representative by id. Assigning a representative already assigned, or
   removing one who is not, changes nothing and records nothing.

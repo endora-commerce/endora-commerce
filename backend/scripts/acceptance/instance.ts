@@ -149,6 +149,7 @@ import {
   evaluateA17,
   evaluateA18,
   evaluateA19,
+  evaluateA20,
   type ActorScopeObservation,
   type AdminStylesheetObservation,
   type DivergenceReportEntry,
@@ -237,6 +238,15 @@ const SCHEMA_MIGRATION_FILE = '20270101T000000_instance_acceptance_notes_init.ts
 const SCHEMA_MIGRATION = 'Migration20270101T000000InstanceAcceptanceNotesInit';
 const SCHEMA_SEEDED = 'seeded by its own migration';
 const SCHEMA_PROBE_PATH = '/api/v1/storefront/instance-acceptance-notes/list';
+
+/**
+ * A20's fixture (`specs/190-overlay-full-modules/` T049, #1855): an overlay module with an admin
+ * layer — one landing route, its palette action, and a screen rendering {@link ADMIN_MARKER}
+ * through the kit — so the admin built for the deployment can be searched for it.
+ */
+const ADMIN_MODULE_ID = 'instance_acceptance_screens';
+const ADMIN_ROUTE = '/instance-acceptance-screens';
+const ADMIN_MARKER = 'a20-overlay-screen';
 const OVERLAY_REASON =
   'The acceptance criterion writes this overlay module, so R6.3 A8 has an overlay module to ' +
   'compose and a decoration to look for in the rendered report.';
@@ -1871,6 +1881,111 @@ function writeSchemaOverlayModule(target: string, deployment: string): readonly 
   return Object.keys(files).map((path) => `apps/${deployment}/modules/${SCHEMA_MODULE_ID}/${path}`);
 }
 
+/** A20's fixture module, under the deployment's overlay modules root. */
+function writeAdminOverlayModule(target: string, deployment: string): readonly string[] {
+  const moduleDir = join(target, 'apps', deployment, 'modules', ADMIN_MODULE_ID);
+  const files: Record<string, string> = {
+    'manifest.ts':
+      `// Written by \`acceptance:instance\` — A20's fixture: an overlay module with an admin layer.\n` +
+      `export const manifest = {\n` +
+      `  id: '${ADMIN_MODULE_ID}',\n` +
+      `  name: 'Instance acceptance screens',\n` +
+      `  description: "The acceptance criterion's overlay module with an admin layer.",\n` +
+      `  version: '1.0.0',\n` +
+      `  dependencies: [],\n` +
+      `  actions: [\n` +
+      `    {\n` +
+      `      id: 'open-instance-acceptance-screens',\n` +
+      `      labelKey: 'actions.open.label',\n` +
+      `      descriptionKey: 'actions.open.description',\n` +
+      `      icon: 'Box',\n` +
+      `      targetRoute: '${ADMIN_ROUTE}',\n` +
+      `    },\n` +
+      `  ],\n` +
+      `};\n`,
+    'admin/index.tsx':
+      `import type { AdminContributions } from '${SCOPE}/admin-kit/contributions';\n` +
+      `\n` +
+      `export const contributions: AdminContributions = {\n` +
+      `  routes: [{ path: '${ADMIN_ROUTE}', index: true, component: () => import('./pages/ScreensPage.js') }],\n` +
+      `};\n`,
+    'admin/pages/ScreensPage.tsx':
+      `import type { ReactNode } from 'react';\n` +
+      `import { Card, CardContent } from '${SCOPE}/admin-kit/ui';\n` +
+      `\n` +
+      `export default function ScreensPage(): ReactNode {\n` +
+      `  return (\n` +
+      `    <Card>\n` +
+      `      <CardContent>${ADMIN_MARKER}</CardContent>\n` +
+      `    </Card>\n` +
+      `  );\n` +
+      `}\n`,
+  };
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(moduleDir, path)), { recursive: true });
+    writeFileSync(join(moduleDir, path), content, 'utf8');
+  }
+  return Object.keys(files).map((path) => `apps/${deployment}/modules/${ADMIN_MODULE_ID}/${path}`);
+}
+
+/** Does any script `outDir` holds carry `needle`? */
+function bundleHolds(outDir: string, needle: string): boolean {
+  return filesWithSuffix(outDir, ['.js', '.mjs']).some((file) => readFileSync(file, 'utf8').includes(needle));
+}
+
+/**
+ * A20's probe (`specs/190-overlay-full-modules/` T049, #1855): write an overlay module with an
+ * admin layer, run the instance's own `generate`, then the admin member's own `build` twice —
+ * with `DEPLOYMENT` set to the deployment and with it blank — each into a directory of its own,
+ * so `admin/dist`, which A5, A7 and A13 read, stays the tree the command wrote. Last, the admin
+ * member's own `typecheck`, whose program includes the overlay admin layers.
+ */
+function measureOverlayAdmin(
+  target: string,
+  deployment: string,
+  environment: NodeJS.ProcessEnv,
+): Parameters<typeof evaluateA20>[0] {
+  const base = { moduleId: ADMIN_MODULE_ID, deployment, marker: ADMIN_MARKER };
+  const none = {
+    generated: null,
+    deploymentBuild: null,
+    deploymentHolds: null,
+    bareBuild: null,
+    bareHolds: null,
+    typecheck: null,
+  };
+  if (!existsSync(join(target, 'admin'))) {
+    return { ...base, ...none, failure: 'the created tree holds no `admin/` member, so there is no admin to build' };
+  }
+  const written = writeAdminOverlayModule(target, deployment);
+  notes.push(`wrote ${written.join(', ')} — A20's fixture, an overlay module with an admin layer`);
+  const generated = run('pnpm', ['run', 'generate'], { cwd: target, env: environment });
+  if (generated.code !== 0) return { ...base, ...none, generated };
+  const withDeployment = join(target, 'admin', 'dist-a20-deployment');
+  const bare = join(target, 'admin', 'dist-a20-bare');
+  const deploymentBuild = run('pnpm', ['-C', 'admin', 'run', 'build', '--outDir', withDeployment], {
+    cwd: target,
+    env: { ...environment, DEPLOYMENT: deployment },
+  });
+  const bareBuild = run('pnpm', ['-C', 'admin', 'run', 'build', '--outDir', bare], {
+    cwd: target,
+    env: { ...environment, DEPLOYMENT: '' },
+  });
+  const typecheck = run('pnpm', ['-C', 'admin', 'run', 'typecheck'], { cwd: target, env: environment });
+  const observation = {
+    ...base,
+    generated,
+    deploymentBuild,
+    deploymentHolds: deploymentBuild.code === 0 ? bundleHolds(withDeployment, ADMIN_MARKER) : null,
+    bareBuild,
+    bareHolds: bareBuild.code === 0 ? bundleHolds(bare, ADMIN_MARKER) : null,
+    typecheck,
+  };
+  rmSync(withDeployment, { recursive: true, force: true });
+  rmSync(bare, { recursive: true, force: true });
+  return observation;
+}
+
 /**
  * A19's probe (`specs/190-overlay-full-modules/` T080, #1850): write an overlay module that owns a
  * table, run the instance's own `setup` over it — `generate`, `build`, `typecheck`, `migrate` and
@@ -2607,6 +2722,7 @@ async function main(): Promise<void> {
           });
           results.push({ id: 'A18', state: 'unmeasured', detail: 'there is no deployment to build an overlay in' });
           results.push({ id: 'A19', state: 'unmeasured', detail: 'there is no deployment to write an overlay module into' });
+          results.push({ id: 'A20', state: 'unmeasured', detail: 'there is no deployment to write an overlay admin layer into' });
         } else {
           overlayEnvironment = { ...environment, DEPLOYMENT: deployment };
           notes.push(
@@ -2621,6 +2737,7 @@ async function main(): Promise<void> {
               await measureOverlaySchema(target, deployment, overlayEnvironment, database.databaseUrl),
             ),
           );
+          results.push(evaluateA20(measureOverlayAdmin(target, deployment, overlayEnvironment)));
         }
       } else {
         results.push(
@@ -2639,6 +2756,7 @@ async function main(): Promise<void> {
         });
         results.push({ id: 'A18', state: 'unmeasured', detail: 'the instance did not migrate, so there is no overlay build to break' });
         results.push({ id: 'A19', state: 'unmeasured', detail: 'the instance did not migrate, so there is no schema to add an overlay table to' });
+        results.push({ id: 'A20', state: 'unmeasured', detail: 'the instance did not migrate, so the overlay steps before A20 did not run' });
         results.push({
           id: 'A9',
           state: 'unmeasured',
@@ -2670,6 +2788,7 @@ async function main(): Promise<void> {
       });
       results.push({ id: 'A18', state: 'unmeasured', detail: 'there is no install to build an overlay in' });
       results.push({ id: 'A19', state: 'unmeasured', detail: 'there is no install to migrate an overlay module in' });
+      results.push({ id: 'A20', state: 'unmeasured', detail: 'there is no install to build an admin in' });
       results.push({
         id: 'A9',
         state: 'unmeasured',

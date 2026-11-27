@@ -13,6 +13,7 @@ import { CustomerAccount } from '../entities/customer-account.entity.js';
 /**
  * What the three member Commands share — `customer_account.change_role`,
  * `customer_account.remove_member` and `customer_account.promote_organization_admin`
+ * — and, for its depletion guard, `customer_account.blocked` / `.deleted`
  * (`specs/170-organization-roles/` WP-02b; `contracts/commands-audit-events.md`
  * §2–§3; research R-22, R-23, R-29, R-32).
  *
@@ -105,6 +106,37 @@ export async function refuseLosingLastAdministrator(
 ): Promise<void> {
   const administratorRoleId = await deps.roles.predefinedRoleId(account.organizationId, 'administrator');
   if (account.organizationRoleId !== administratorRoleId) return;
+  const holders = await store.lockActiveHolders(account.organizationId, administratorRoleId);
+  if (holders.filter((id) => id !== account.id).length === 0) throw refusal();
+}
+
+/**
+ * `organizations`' answer to whether an Organization is a personal one — the
+ * one fact the depletion guard below needs that this module does not hold.
+ */
+export type PersonalOrganizationCheck = (organizationId: string) => Promise<boolean>;
+
+/**
+ * The depletion guard of a block and a soft delete (`409 ORG_OWNER_DEPLETION`;
+ * `specs/170-organization-roles/` WP-03, owner ruling PR-3;
+ * `specs/186-aggregate-ports/` research R-17.2): `account` may not be the last
+ * active, unblocked holder of a **company** Organization's *Administrator*. A
+ * personal Organization's sole member is its administrator by construction, and
+ * its depletion is that Organization's intended end.
+ *
+ * Race-free, as {@link refuseLosingLastAdministrator} is: the holders are
+ * locked before they are counted. The personal check is asked only of an
+ * administrator, so a member's block reads nothing of `organizations`.
+ */
+export async function refuseDepletingCompanyOrganization(
+  deps: { readonly roles: OrganizationRoleLookup; readonly isPersonal: PersonalOrganizationCheck },
+  store: CustomerAccountRoleStore,
+  account: CustomerAccountRoleRow,
+  refusal: () => HttpError,
+): Promise<void> {
+  const administratorRoleId = await deps.roles.predefinedRoleId(account.organizationId, 'administrator');
+  if (account.organizationRoleId !== administratorRoleId) return;
+  if (await deps.isPersonal(account.organizationId)) return;
   const holders = await store.lockActiveHolders(account.organizationId, administratorRoleId);
   if (holders.filter((id) => id !== account.id).length === 0) throw refusal();
 }

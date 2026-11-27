@@ -1,5 +1,6 @@
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import type { HookableActionOwnership } from '../../commands/hooks/registry.js';
+import type { CommandMiddlewareCompositionInput } from '../../commands/middleware/registry.js';
 
 /**
  * What `composeModules` seals the command-hook registry against
@@ -18,6 +19,20 @@ export function hookableActionsFrom(manifests: readonly ModuleManifest[]): reado
       objectType: declaration.objectType,
       phases: [...declaration.phases],
     })),
+  );
+}
+
+/**
+ * Every composed module's `commandMiddleware` declarations, each with its
+ * module (`specs/189-command-middleware/` FR-002, research R-12): what the
+ * composer seals the command-middleware registry against, derived by the root
+ * for `hookableActionsFrom`'s reason.
+ */
+export function commandMiddlewareFrom(
+  manifests: readonly ModuleManifest[],
+): CommandMiddlewareCompositionInput['declarations'] {
+  return manifests.flatMap((manifest) =>
+    (manifest.commandMiddleware ?? []).map((declaration) => ({ moduleId: manifest.id, ...declaration })),
   );
 }
 

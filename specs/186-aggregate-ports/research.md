@@ -39,13 +39,13 @@ N = no audit; ? = to confirm in T001–T009):
 | Aggregate | C | H-in | H-post | N / ? |
 | --- | --- | --- | --- | --- |
 | Organization | create, update, set_parent, move, delete, set_custom_field_values, convert_to_company, tax_id.change, set_credit_mode | allow_lists_replace, allow_list_patch (`organization-restriction-service.ts`); sales_rep_assign/unassign (`sales-rep-assignment-service.ts`, measured by T001) | approved, rejected, blocked, unblocked (`organization-moderation-service.ts` `transition`, audit after commit); sales channels (T001: the kernel membership writer, see below) | — |
-| CustomerAccount | create, change_role, set_preferred_language, remove_member, promote_organization_admin, set_subtree_rollup, custom_fields.update | block, unblock, soft-delete, restore, group assign, create standalone, anonymise (`customer-account-lifecycle-ports.ts`) | — | update_profile, email_verified (?) |
+| CustomerAccount | create, change_role, set_preferred_language, remove_member, promote_organization_admin, set_subtree_rollup, custom_fields.update | create standalone, anonymise (`customer-account-lifecycle-ports.ts`); update_profile, email_verified (`customer-account-ports.ts`, measured by T002) | block, unblock, soft-delete, restore, group assign (`customer-account-lifecycle-ports.ts`, `AuditPort.record` after the flush — measured by T002) | — |
 | Order | custom_fields.update, external_reference.set | status_transition (`order-transition-service.ts`), payment_status_transition (`order-service.ts`) | place_on_behalf (impersonation only) | comments (`order-comment-service.ts`, N); buyer placement (N) |
 | QuoteRequest | send_document | create, create_on_behalf, patch_draft, modify, approve, assign, cancel (`rfq-service.ts`, `rfq-admin-service.ts` `#audit`) | — | admin custom-field values (?) |
 | Product | create, update, archive, restore, delete, variant create/update/delete, scoped_values.save, scopes.update | — | — | — |
 | Category | create, update, delete | — | — | move (?: likely `update` with a parent), inventory thresholds (N here; audited by `inventory`'s caller as `low_stock_threshold.update`) |
 | Opportunity | all listed (`crm`: 33 `commandBus.run` sites, 0 hand audits) | — | — | — |
-| Project | all listed (`projects`: 38 sites, 0 hand audits) | — | — | archive/restore: no such operation |
+| Project | all listed (`projects`: 38 sites, 0 hand audits; confirmed by T006) | — | — | archive/restore: no such operation |
 | Task | all listed except below | — | — | create many (?) |
 
 **Inventory (T001, Organization, 2026-11-25).** Measured against the table above:
@@ -62,6 +62,53 @@ being changes to `packages/platform` rather than to `organizations`
 (`contracts/organization-command-port.md` § *Inventory findings* 1). No operation moves in or out of
 FR-020. The other findings (detach, the reject reason, `expectedVersion`, a refusal code) are
 interface decisions for T019, listed there.
+
+**Inventory (T002, CustomerAccount, 2026-11-26).** Measured against the table above
+(`contracts/customer-account-command-port.md` § *Inventory findings*): block, unblock, soft-delete,
+restore and the group assignment are **H-post**, not H-in — the lifecycle service flushes and then
+records through `AuditPort.record`, on its own fork; the create-standalone and anonymisation writes
+are H-in. The two `?` resolve to **H-in**: `update_profile` and `email_verified` are recorded by hand
+on the write's unit of work in `CustomerAccountMemberWriteService`. All seven convert. Two side
+effects of the admin routes are not the port's but `customers'`, around the port call — the session
+revocation after a block or deletion, and the last-administrator guard before it — so a port call
+would skip them; both move into the Commands (R-17.1, R-17.2). No operation moves in or out of
+FR-021. The questions the inventory raised are R-17.
+
+**Inventory (T005, Product, 2026-11-26).** Measured against the table above
+(`contracts/catalog-product-command-port.md` § *Inventory findings*): every Product, variant and
+attribute-definition operation is **C**, as listed — no conversion. The Commands are private factories
+of `CatalogAdminService`, shared by route and port at the service method (R-19.4). Two findings change
+what the port runs rather than the readiness: the scoped write the contract sketch named
+(`product.scoped_values.save`) is the editor's one-scope save, not the connector write the deprecated
+`applyScopes` runs (`product.scoped_values.import`), and the port takes the latter (R-19.1); there is
+no attribute-values-only Command, so `setCustomFieldValues` runs the `PATCH`'s `product.update` with
+the merge applied inside it (R-19.2). One side-effect gap was found and closed: a searchable flip
+through the published port queued no reindex (R-19.6). No operation moves in or out of FR-024. No
+in-repository module consumes the deprecated ports, so no manifest edge is owed.
+
+**Inventory (T006, Project, 2026-11-26).** Measured against the table above: every operation of
+FR-027 is **C** — 38 top-level `commandBus.run` sites and the per-Organization children, no hand
+audit anywhere in the module — so nothing converts. No operation moves in or out of FR-027. The
+questions the inventory raised (an administrator on two rows, `expectedVersion` over two tokens, the
+multi-Command `PATCH` and Organization set, the answer shape) are R-22, and the findings are in
+`contracts/project-command-port.md` § *Inventory findings*.
+**Inventory (T008, Opportunity, 2026-11-26).** The row stands: every operation of FR-026 is a Command
+(`crm`'s 33 `commandBus.run` sites, no hand audit), so nothing converts, and no operation moves in or
+out of FR-026. Two facts the row does not show: the Commands are built inline by the service methods
+the routes call, not by factories under `commands/` (R-21.1); and `setCustomFieldValues` has no route
+of its own — it runs `crm.opportunity.update` as the route's `PATCH` records it for a body of
+`customFieldValues` alone. The interface decisions are R-21; the table is
+`contracts/opportunity-command-port.md` § *Inventory*.
+**Inventory (T003, Order, 2026-11-26).** Measured against the table above
+(`contracts/order-command-port.md` § *Inventory findings*): `status_transition` and
+`payment_status_transition` are **H-in** as listed; the status entry took its actor from the caller's
+`OrderStatusActor`, so as a Command the buyer's own cancellation records `actorCustomerAccountId`
+instead of `impersonatedCustomerAccountId` (R-18.2). Comments are **N** for the buyer as well as the
+operator; both convert (R-18.4). `custom_fields.update` and `external_reference.set` are C. Placement
+(H-post / N) stays out of this change: issue #1887 makes it a Command, and `place` is added then
+(R-18.3). One operation moves **out** of the deprecation list, not out of FR-022:
+`orderPaymentStatusApplyPort` is the settlement's co-transactional write, not a duplicate of the
+operator's `applyPaymentStatus`, and is kept (R-18.1). The questions the inventory raised are R-18.
 
 **Rationale.** The issues' definition of done — "each operation is one audited Command … the admin
 routes and the port run the same Commands, so command hooks and the audit trail see one write path" —
@@ -612,3 +659,717 @@ consumes, and every one of them would then be a frozen or stable entry.
 - *One pull request*: it puts 188's dependency behind the platform fix.
 - *Folding P0 into US1b*: it leaves the create and registration defect open until the port work is
   done.
+
+## R-17 US3 (CustomerAccount, #1822): decisions on the T002 inventory findings (2026-11-26)
+
+The T002 inventory (`contracts/customer-account-command-port.md` § *Inventory findings*) raised six
+questions R-16 and the Organization precedent do not answer in terms. The implementing session
+proposed each; **all six are ruled below (architect, 2026-11-26), each as proposed.** None is a business
+call or reverses a recorded decision, so none was escalated to the owner. Code references are to `origin/master` `71035e51d`.
+
+### R-17.1 The session revocation of a block and a deletion moves into the Command, after its commit
+
+**Finding.** `customerAccountLifecycleWritePort.block` and `.softDelete` only write and audit;
+`customers`' `CustomerModerationService.block` and `CustomerDeletionService.softDelete` call
+`authSessionPort.destroyAllForCustomer` after the port returns.
+
+**Decision.** `customer_account.blocked` and `customer_account.deleted` defer
+`authSessionPort.destroyAllForCustomer(id)` to their commit through `EventBus.afterScope` (issue
+#1926, R-16.1), handed to the factories as `afterCommit`. `customers` no longer calls it. A
+session-store failure after the commit is logged and does not fail the call — `afterScope` isolates a
+deferred function as it isolates an event handler — where it used to answer `500` after a committed
+block. An idempotent block (already blocked) ends no session, as before.
+
+**Rationale.** FR-013: the route's side effects follow the port call, and US3 scenario "a worker
+blocks an account; its sessions end" is the reason the issue names the revocation. An after-commit
+path keeps "a block that rolls back ends nobody's session", which a call inside `run` would break, and
+works for a child run, which a port-wrapper call after `commandBus.run` would not (R-16.4's argument).
+
+**Rejected.** *The port calls the revocation after `commandBus.run` returns* — a child run has no
+"after"; and the route and the port would then each have to remember it. *A subscriber of a new
+`customer_account.blocked.v1` event* — a new published event for one in-module consumer, and handler
+failures are swallowed with no ordering guarantee against the response.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-16.1's `afterScope` is the sanctioned after-commit
+path, and the "block stays, failure logged" outcome is no weaker than today's, where a `500` also
+followed a committed block. It is not a session-security regression: a session whose account is not
+active binds no customer actor (`packages/modules/auth/src/backend/plugin.ts`, the `account?.active`
+check), so a surviving session row is answered `401` by `requireCustomer`. That check is the guarantee;
+the revocation is hygiene, and must stay so — do not relax the bind check on the strength of this one.
+
+### R-17.2 The last-administrator guard of a block and a deletion moves into the Command, under the holders' lock
+
+**Finding.** `customers`' `OrganizationDepletionGuard` refuses `409 ORG_OWNER_DEPLETION` before the
+port call, over an unlocked count; a port call skips it, and two concurrent blocks of a company's two
+administrators can both pass.
+
+**Decision.** `customer_account.blocked` and `customer_account.deleted` run
+`refuseDepletingCompanyOrganization` (`commands/customer-account-role-rules.ts`): when the account
+holds its Organization's *Administrator* and the Organization is not personal
+(`organizationDetailsPort.findById(…).isPersonal`, resolved per call), lock the active holders
+(`lockActiveHolders`, the R-29 lock of `change_role` / `remove_member`) and refuse when no other would
+remain. Same code and messages as `customers` answered. `customers` drops the guard for block and
+delete; it keeps it for `unassign`, the Membership move (191). The order of the route's refusals is
+unchanged: the authority check (`403`), then the idempotent shortcut, then the guard.
+
+**Rationale.** FR-008 — the port answers the route's refusals — and the invariant "a company
+Organization keeps an administrator" is the aggregate's, as `CANNOT_DEMOTE_LAST_ADMIN` already is in
+`change_role`. Moving it under the lock also closes the race.
+
+**Rejected.** *Leave it in `customers`* — the port would block the last administrator, which no admin
+path can. *Both places* — two statements of one rule.
+
+**Ruling (architect, 2026-11-26): confirmed.** The invariant is the aggregate's (FR-008, the
+`CANNOT_DEMOTE_LAST_ADMIN` precedent), and locking the holders closes a race the route-side guard had.
+The Organization is the account's own, read by id, so no cross-tenant read is introduced (Principle XI).
+
+### R-17.3 The restore window stays the caller's
+
+**Decision.** `customers.deletion_retention_days` is `customers`' setting, and `customers` depends on
+`customer_accounts`, not the reverse. `restore` refuses only an anonymised account (the owner's own
+`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`); the admin route keeps refusing a restore past the window before
+the sweep has reached the account. The contract names it among the route's gates.
+
+**Rejected.** *Reading the setting in `customer_accounts`* — a dependency edge the wrong way round.
+
+**Ruling (architect, 2026-11-26): confirmed.** The dependency direction decides it (Principle I), and
+R-7 already makes the caller the gate. A server-side caller restoring through the port owns the window
+check, as the contract states.
+
+### R-17.4 `setPreferredLanguage`: the caller's `source` is the state's `source`; the buyer's own port is kept
+
+**Findings.** `customer_account.set_preferred_language` already records `source: 'self_service' |
+'sign_in'` — the key R-4 records a caller's code under. Its only route is the buyer's own page, which is
+customer-facing.
+
+**Decision.**
+
+- The port's `setPreferredLanguage` overwrites, as `self_service` does, and records the caller's
+  `source` code, or `null` when it passes none (R-4's "null when absent"). The Command's input source
+  widens to `CustomerPreferredLanguageSource | null` internally; the published type is unchanged.
+- `customerAccountPreferencePort.setPreferredLanguage` is **not deprecated**, against `data-model.md`'s
+  row: it is the buyer's own write (the customer-facing route R-7 keeps the aggregate port away from),
+  in the same position as `captureIfUnset`. It now runs `customerAccountCommandPort.setPreferredLanguage`
+  with the code `self_service`, so there is one write and its entry is unchanged. `data-model.md`
+  § *Port disposition* is amended.
+
+**Rejected.** *Deprecating it and moving the self route onto the aggregate port* — contradicts R-7,
+and leaves the buyer's route on a port whose contract says "never for a customer-facing route".
+*A new published `CustomerPreferredLanguageSource` member* — a widening for no reader.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-7 decides it: the buyer's own route may not resolve
+the aggregate port, so the port it does resolve cannot be deprecated without leaving it nowhere. The
+`data-model.md` § *Port disposition* amendment stands.
+
+### R-17.5 The storefront member routes stay on the kept ports; the operator's member panel moves
+
+**Finding.** T052 names `organizations/routes.members.ts`, which is the storefront member area
+(`requireCustomer` and the Organization-administrator gate). The operator's member panel is in
+`organizations/routes.admin.ts`.
+
+**Decision.** The operator's routes — create, role, roll-up, profile, removal and the
+recover-admin-access promotion — call `customerAccountCommandPort`. `routes.members.ts` keeps
+`customerAccountRoleCommandPort.changeRole` and `customerRolePort.removeMember`, both kept by the
+disposition table, which build the same Commands. The rule applied, for this and R-17.4: a route under
+a customer session does not resolve the aggregate port; a server-side flow that has verified its own
+gate (a token: e-mail verification, invitation accept) may.
+
+**Rejected.** *Moving the storefront routes too* — R-7.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-7 again; T052's file reference was a slip, and the
+rule stated above (customer session → never the aggregate port; a token-verified server-side flow → may)
+is adopted as the reading of R-7 for the remaining US stories.
+
+### R-17.6 `withCallerOptions` is copied into `customer_accounts`, not shared
+
+**Decision.** `commands/caller-options.ts` is a copy of `organizations`' twenty lines. A module's
+`commands/` is its own (Principle I), and a shared helper is a new name on
+`@endora-commerce/platform/commands`, a hotspot this change does not touch; with a third owner the
+helper should move there.
+
+**Ruling (architect, 2026-11-26): confirmed.** Principle I and YAGNI; the move to
+`@endora-commerce/platform/commands` is owed when a third module needs the helper, not before.
+
+### R-17.7 The smaller choices
+
+**Ruling (architect, 2026-11-26): confirmed, all three.**
+
+- *The deprecated methods ignore `actorAdminUserId` and `audit`.* R-4 and Principle XIII decide it: an
+  actor is never taken from input, and the bus stamps the request metadata. The one caller this changes
+  is the paid `comarch_xl` module, which passes the nil UUID as `actorAdminUserId` to
+  `setCustomerGroup`; its entries used to record a fabricated administrator and now record `system`,
+  which is the truth. When it moves onto `customerAccountCommandPort` (inventory finding 10) it passes
+  `source: 'comarch_xl'` (R-4) so the entries name the integration again.
+- *`expectedVersion` is ignored.* R-5 and R-16.6 decide it: no `version` column, and `expectedUpdatedAt`
+  stays the member routes' own gate.
+- *Parity without an admin route is measured against the deprecated or buyer ports.* R-16.2's
+  precedent (`setCustomFieldValues` against `organizationCustomFieldWritePort`).
+
+## R-21 US9 (Opportunity, #1827): decisions on the T008 inventory findings (2026-11-26)
+
+The T008 inventory (`contracts/opportunity-command-port.md` § *Inventory*) raised the questions
+below, which R-16, R-17, R-18 and the precedents do not answer in terms. Each was proposed by the implementing session with the alternative rejected. **All eight are ruled below (architect, 2026-11-26)**: six as proposed, and R-21.5 as proposed plus one test guard. None was escalated to the owner, because every one of them is decided by a rule or a precedent. None is a business call, irreversible, or touches tenant
+isolation: every read stays on the scoped EntityManager the route uses. Code references are to
+`origin/master` `d936722d5`.
+
+### R-21.1 The port calls the routes' service methods; no factories are extracted
+
+**Finding.** Convention item 2a.2 reads "from the same factory under `src/backend/commands/`". `crm`
+has no `commands/` directory: each of the ten operations' Commands is an object literal built by the
+service method its route calls (`OpportunityService.create`, `.update`, `.setTags`, `.delete`,
+`OpportunityAssignmentService.assign`, `OpportunityTransitionService.apply`,
+`OpportunityLinkService.add` / `.remove`, `OpportunityCommentService.add`), and that method also does
+what the route does around the write — the validation reads before the Command, the notices, the
+value recalculation, a transition's guards, Orders and events.
+
+**Proposed.** The port calls the same service method, which gains a trailing `caller: CallerOptions`
+parameter (absent on the route) wrapped around its one Command by `withCallerOptions` — the shape
+`orders` (R-18, `OrderTransitionService.apply`) and `organizations` (the moderation service) already
+use. One method, one Command, so the hooks, the audit entry and the side effects cannot differ between
+the paths. The three methods whose routes answered the detail (`create`, `update`, `setTags`) now
+answer the id or nothing; the routes read the detail after the call, as the transition and assignment
+routes already did, and the port reads the record.
+
+**Rejected.** *Extracting ten factories into `commands/`*: each would take the service's private
+helpers (`#replaceTags`, `#saveReferences`, the tag resolver, the mention bookkeeping) as
+dependencies, a refactor of about 1,200 lines that changes neither what the route nor what the port
+runs. *Resolving the port from the routes*: the route would go through its own module's gate twice,
+and the transition route needs the propagation outcomes the port's outcome does not carry.
+
+**Ruling (architect, 2026-11-26):** Confirmed, on the terms of R-19.4. Item 2a.2 requires one construction site per action, reached by route and port alike. `crm` already runs every one of them on the bus (R-2's row), and the `orders` precedent extracted factories only where it converted. The condition is that each service method builds its one Command and nothing else does, and that the parity tests compare the route's entry with the port's. Moving the routes' detail read after the call is a route-internal change, and the admin responses must stay byte-identical. The existing route contract tests are the guard for that.
+
+### R-21.2 The deprecated transition port's `actor` is not read; the cause follows the ambient actor
+
+**Finding.** `opportunityTransitionPort.applyStatus` takes an `actor` and derives the cause from it
+(`admin` → `manual`, else `system`); the bus already records the ambient actor in the audit entry, but
+the history row's `actorAdminUserId`, the guard event and the status events read the input `actor`.
+
+**Proposed.** As R-18.2 for Orders: the actor is ambient on every path (R-4); `applyStatus` delegates
+to `opportunityCommandPort.transition` and ignores `actor`. `transition` derives the cause from the
+ambient actor by the rule the old port used — `manual` under an administrator, `system` under none —
+so a worker's transition reads `system` in the history, the guard event and the webhook payload. The
+admin route keeps its own `manual`. The one in-repository caller (`backend/test/integration/crm/ports.test.ts`)
+passes `{ kind: 'system' }` under an administrator; it now records that administrator, which is the
+truth. `../paid-modules` has no caller.
+
+**Rejected.** *Reading `actor` on the deprecated path only*: two write paths for one action, the
+defect FR-002 removes, and an actor taken from input (Principle XIII). *`cause: 'manual'` for every
+port call*: a connector's move would read as an operator's.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-18.2 is the precedent in terms: an actor is never input (R-4, R-17.7, Principle XIII), and the deprecated port delegates and ignores `actor`. The cause is derived from the ambient actor. That means `withSystemScopeActingFor` reads `manual`, because an administrator is acting, and a bare system scope reads `system`. The one in-repository test changes its expectation to the administrator it runs under. `../paid-modules` has no caller (checked 2026-11-26).
+
+### R-21.3 `addComment` requires an ambient administrator
+
+**Finding.** A note or message has an author: `crm_opportunity_comments.author_admin_user_id` is not
+nullable, the comment is rendered by its author, and only its author edits or deletes a note. Under a
+bare `withSystemScope` there is none, and the service refuses `403 FORBIDDEN` ("Only an administrator
+can write on an opportunity."). FR-005 asks every operation to be callable from a worker with no
+administrator.
+
+**Proposed.** Keep the route's refusal: the method's JSDoc says so, and a worker writes a comment
+under `withSystemScopeActingFor(adminUserId, reason)`, which records that administrator as author and
+actor. The worker test does exactly that. This narrows FR-005 for one method, as R-16.5 narrowed
+FR-008 for one refusal.
+
+**Rejected.** *A nullable author (a "system" note)*: a migration (`data-model.md`: no schema change),
+plus a rendering, edit and delete rule for an authorless note — a feature, not a port. *A fabricated
+author id*: Principle XIII.
+
+**Ruling (architect, 2026-11-26):** Confirmed; this needs no owner. The comment's author is the aggregate's own invariant: a non-null `author_admin_user_id`, and only the author may edit or delete. Principle XIII forbids fabricating one. `withSystemScopeActingFor` is the sanctioned way for a worker to name the administrator it acts for (item 2a.3). R-16.5 is the precedent for narrowing an FR's wording for one method while keeping its intent. The JSDoc and `contracts/opportunity-command-port.md` must state the narrowing, and so must FR-005's note in `spec.md` if the spec carries per-method notes. The refusal stays the route's `403 FORBIDDEN` (item 2a.5).
+
+### R-21.4 `OpportunityRecord.customFieldValues` is optional on the type
+
+**Proposed.** `customFieldValues?: Record<string, unknown>`, always filled by `crm`'s mapper — R-18.7's
+reasoning for `OrderRecord.payer`: a read-direction type, compatible either way for a reader, and a
+record a consumer's test double builds before 0.113.0 keeps compiling. `data-model.md`'s row is
+amended. (The one in-repository double, `projects`' `linked-records.test.ts`, casts and would compile
+either way; `../paid-modules` builds none.)
+
+**Rejected.** *Required*, as `data-model.md` wrote it: breaks every hand-built record outside this
+repository in the release that only adds the field.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-18.7 is the precedent in terms. `OpportunityRecord` is read-direction (`contract-surface.md` § Directions), `crm`'s mapper always fills the field, and `data-model.md` is amended to the optional form.
+
+### R-21.5 Any `extensions` key is refused before anything is read
+
+**Finding.** No `crm` action is declared hookable, so the bus refuses every key
+(`422 COMMAND_EXTENSION_UNCLAIMED`) — but only when the Command runs. A transition runs its guards and
+emits its two `.before` events first, so a call the bus refuses would still have run every guard and
+announced a move that never happened.
+
+**Proposed.** The port's `callerOf` refuses any key itself, before anything is read, with the bus's
+code and the bus's `details` shape. When a `crm` action is first declared hookable (R-16.8's rule:
+when something needs it), this pre-check is removed for that action in the same change.
+
+**Rejected.** *Leaving it to the bus*: a refused transition has already been announced to `.before`
+subscribers. *Reading the hook registry from the port*: `claimants()` is the bus's own; exposing it is
+a change to `packages/platform/src/commands/`, which this work does not touch.
+
+**Ruling (architect, 2026-11-26):** Confirmed, with one guard added. R-18.8 left `extensions` to the bus because no Order method announces anything before its Command. Here `transition` emits its `.before` events first, so a call the bus will refuse must be refused before that, and refusing it for every method keeps one rule per port, as `source` is (issue #1922). The risk is a stale pre-check that keeps refusing after an action is declared hookable. **Code change (owed in this pull request):** add a unit test beside `opportunity-command-port.ts` that asserts `crm`'s manifest declares no `hookableActions`, and name the pre-check in the assertion's message. Declaring the first hookable action then fails that test and forces the pre-check to be removed in the same change. The message must keep the bus's code and `details` shape byte-identical; that is already tested.
+
+### R-21.6 `withCallerOptions` is copied a fourth time, into `crm`
+
+**Proposed.** R-18.6's bounded exception, once more: `packages/platform/src/commands/` is still held
+for spec 189, so `crm` carries a copy identical in behaviour (the body is byte-identical to
+`organizations`'; only the header names this port), and #1961 moves it with the other three.
+
+**Rejected.** *Importing another module's copy*: Principle I.
+
+**Ruling (architect, 2026-11-26):** Confirmed under R-18.6's bounded exception. `packages/platform/src/commands/` is still held for spec 189. The copy stays byte-identical in behaviour to `organizations`'. #1961 moves all four copies (`organizations`, `customer_accounts`, `orders`, `crm`) in one change, and #1961's body must list `crm` (and `catalog`, R-19.4).
+
+### R-21.7 The caller's `source` replaces the create entry's origin `source`; the Change history tab drops it elsewhere
+
+**Finding.** `crm.opportunity.create` already records `source` in its `stateAfter` — the Opportunity's
+origin (`manual`, `order`, `quote_request`) — the key R-4 records a caller's code under, and the
+Change history tab lists every changed key of an entry, `source` under the label *Source*.
+
+**Proposed.**
+
+- Keep R-4 and the shared helper unchanged: a port caller's code is `stateAfter.source`. On the
+  create, it replaces the origin, which for a port-made Opportunity is always `manual` and is still in
+  the row's `source` column; the tab shows an origin it does not know as *Manual*, which is right.
+- The Change history tab (`withoutCallerSource`, `src/admin/lib/history-fields.ts`) drops `source`
+  from every entry but the create, where it is not a field of the Opportunity. The platform audit log
+  keeps it.
+
+**Rejected.** *Recording the caller's code under another key in `crm`*: breaks the one spelling the
+nine ports share and that `aggregate-port-parity.ts` and audit filters read. *Keeping the origin and
+dropping the caller's code on the create*: the one entry that says which integration created the
+Opportunity would not.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-17.4 is the precedent in terms: a Command whose state already uses `source` for where the write came from takes the caller's code there, because one spelling across the ports is what `aggregate-port-parity.ts` and saved audit filters read (R-4). The origin is not lost, because the row's `source` column still holds it. One residual is accepted and recorded here. A caller code can collide with an origin code (`order`, `quote_request`), and the create entry would then read as that origin in the Change history tab. Nothing else reads the create entry's `source` as an origin. The contract must tell integrations not to use the three origin codes as their `source`. The tab change affects display only, and the platform audit log keeps the code, so the audit trail (XIII) is intact.
+
+### R-21.8 `transition`'s input is the published port's, not the route's body schema
+
+**Proposed.** `to` is any string — an unknown or malformed code is the `unknown_status` outcome, as
+`opportunityTransitionPort` answers it — and `reason` is a string or `null` without the route's
+2,000-character limit, which the published port never applied. So the deprecated port's delegation
+changes no answer. FR-008 already makes this method's refusals outcomes rather than the route's.
+
+**Rejected.** *Parsing with `TransitionOpportunityRequestSchema`*: a malformed code would become a
+`422` where the published port answers `unknown_status`, and a long reason a refusal it never had, in
+the release that only deprecates that port.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-16.5 says a deprecated port's answers do not change. #1963's blocking finding is the same lesson: an unknown or malformed code is the `unknown_status` outcome that FR-008 and item 2a.5 allow for a status change, not a thrown `422`. The unbounded reason is safe to store, because it lands in `crm`'s own `text` column and the value-change table, never in audit state (`audit-state.md` list 1). It already travels on the guard and status events today, so their payloads do not change.
+## R-19 US6 (Product, #1825): decisions on the T005 inventory findings (2026-11-26)
+
+The T005 inventory (`contracts/catalog-product-command-port.md` § *Inventory findings*) raised the
+questions below, which R-16 to R-18 and the precedents do not answer in terms. Each was proposed by the implementing session with the alternative rejected. **All eight are ruled below (architect, 2026-11-26)**: seven as proposed, and R-19.7 as proposed plus one conversion fix. None was escalated to the owner, because every one of them is decided by a rule or a precedent. None is irreversible, and none touches tenant
+isolation or sales-channel scoping: the scoped write keeps the import's channel-membership refusal
+(`SCOPE_INVALID`) unchanged. Code references are to `origin/master` `d936722d5`.
+
+### R-19.1 `applyScopedValues` runs `product.scoped_values.import`, not the editor's save
+
+**Finding.** The contract sketch said both "`applyScopedValues` replaces `applyScopes`" and
+"`product.scoped_values.save`, `PUT …/scoped-values`". They are two operations: the save is the
+operator's atomic write of one scope — every field of it, the completeness gate, the editor's
+`version` required — and the import is the connector's write of cells across scopes, per-cell
+tolerant, ungated, URL keys never forced, which `applyScopes` and the products import run.
+
+**Proposed.** `applyScopedValues(id, { cells }, options?)` runs `product.scoped_values.import` through
+the existing `runScopedImport`, so the deprecated `applyScopes` delegates with identical behaviour.
+Parity is measured against the deprecated port (R-16.2's precedent for an operation with no admin
+route of its own); US6 scenario 1's "the search and cache refresh … of the admin editor's save" holds
+because both Commands announce `product.updated.v1` and bump the editor version. The editor's save is
+listed under *Not offered*.
+
+**Rejected.** *The save Command* — `applyScopes` could no longer delegate (one scope per call, a
+version a connector does not hold, the completeness gate a connector must not meet, A-6), so the
+deprecated port would change behaviour in the release that only deprecates it. *Both methods* — the
+save has no server-side caller (R-9's rule).
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-10 and R-16.2 decide it: the port method takes the operation the deprecated port runs, so `applyScopes` can delegate with identical entries, and A-6 (feature 163) keeps a connector's write ungated. The editor's save is the operator's alone (R-9: no server-side caller) and stays under *Not offered*. The channel-membership refusal (`SCOPE_INVALID`) is unchanged, so Principle XII is untouched.
+
+### R-19.2 `setCustomFieldValues` runs `product.update`; a dropped key is removed; the owner validates
+
+**Finding.** Product has no attribute-values-only Command. The admin `PATCH` merges `attributeValues`
+over the stored bag, so it cannot remove a key; `CustomFieldMerge` answers the whole bag.
+`CustomFieldValuePort.validateAndMerge('product', …)` enforces `required` across every product
+attribute definition, while a product's required attributes are those of its attribute set.
+
+**Proposed.** A new mode of the `product.update` factory (`CatalogAdminService.setAttributeValues`):
+inside the Command the owner loads the product, calls `merge` with its current bag, and stores the
+answer — keys the answer drops are removed. The changed keys meet the `PATCH`'s own rules (attribute
+set, the set's required attributes, no price key, no content attribute); the entry is the `PATCH`'s,
+`changedFields: ['attributeValues']`; a merge that changes nothing records nothing. `expectedVersion`
+is honoured as on `update` (R-19.7). The contract says the owner validates and why
+`validateAndMerge` is not the validator.
+
+**Rejected.** *A new action `product.set_attribute_values`* — a second action for one write, which
+breaks audit continuity (FR-003) and the record history's single action for attribute edits. *The
+`PATCH`'s merge semantics* — the merge callback could not remove a value. *The caller validates
+through `validateAndMerge`* (`custom-field-writes.md`'s rule for the other hosts) — it would refuse a
+product for a required attribute outside its set, and would skip the attribute-set rule the route
+holds.
+
+**Ruling (architect, 2026-11-26):** Confirmed. The action string is the `PATCH`'s (R-2, FR-003: one action per write), and the owner-side validation is the only one that knows a product's required attributes are its set's, which `validateAndMerge` does not. The `custom-field-writes.md` amendment on this branch is the rule's single home for the exception and stands. Removal is safe as built: `assertRequiredAttributesPresent` runs on the whole merged bag, so a merge that drops a required attribute of the product's set is refused and writes nothing. That refusal must have its own test in `catalog-product-command-port.test.ts` if it does not already. The entry keeps the `PATCH`'s shape (`changedFields: ['attributeValues']`), not R-8's `changedCustomFields`, so the product's record history keeps one reader (`audit-state.md`).
+
+### R-19.3 `applyScopedValues` takes the aggregate ports' `source`; the deprecated port keeps its registered-module rule
+
+**Proposed.** The new method validates `source` with `aggregateCommandSourceSchema`, optional; absent,
+the entry records `source: null` beside the actor (D-293.6). The deprecated `applyScopes` keeps
+feature 174's R21 rule — a module id present in the registry — before it delegates, so its refusals
+are unchanged. The cell cap and the duplicate refusal run on both (`assertIntegrationCells`).
+
+**Rejected.** *The registered-module rule on the new method* — one port family with two grammars for
+one option, and a refusal of codes such as `erp.sync` that every other aggregate port accepts.
+*Requiring `source`* — R-4 rejects it for the system actor.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-4 sets one `source` grammar for the port family. R-16.5 keeps a deprecated port's published refusals, so `applyScopes` keeps feature 174's R21 registered-module rule before it delegates.
+
+### R-19.4 The Commands stay private factories of `CatalogAdminService`; route and port share the service method
+
+**Proposed.** Each port method calls the service method the route calls (`createProduct`,
+`updateProductAudited`, `archiveProduct`, …), which gains a trailing `caller?: CallerOptions` that it
+hands to `withCallerOptions` around its own Command. The convention's "from the same factory in
+`src/backend/commands/`" (item 2a.2) is met in substance — one factory, one Command, one entry — but
+not in file location. `withCallerOptions` is the fourth local copy (R-18.6, refs #1961).
+
+**Rejected.** *Extracting the ten product and variant factories into `commands/`* — they close over
+the service's collaborators (slug allocation, the attribute-set guards, the completeness gate, the
+category bridge), so the move is a rewrite of a 2 500-line service with no behaviour change, and the
+route-side side effects (the default channel binding, `product.archived.v1`, the variant events) live
+in the service methods, which the port must reach anyway (FR-013). It can follow on its own.
+
+**Ruling (architect, 2026-11-26):** Confirmed. Convention item 2a.2 is about substance: one construction site per action, reached by both route and port, so hooks and the entry cannot differ. The `orders` precedent (R-18) extracted factories only where it converted a write to a Command. Here every write already is one. The two conditions are that the service method builds its one Command and nothing else does, and that the parity tests prove route and port produce the same entry. Extracting the factories is a later refactor, not owed by #1825. `withCallerOptions` is the fourth copy under R-18.6's bounded exception and is moved by #1961.
+
+### R-19.5 `update` through the port is not completeness-gated
+
+**Proposed.** The port runs the container's `catalogAdminService`, which has no completeness gate;
+only the plugin's routes instance has one (feature 163, A-6: imports and connectors are never
+gated). A status change through `update` is never refused `SCOPE_INCOMPLETE` and answers no
+warnings, as through the deprecated port. Stated in the contract.
+
+**Rejected.** *Composing the gate into the port* — it would start refusing connector writes the
+deprecated port accepted, in the release that only deprecates it, against A-6.
+
+**Ruling (architect, 2026-11-26):** Confirmed. Feature 163's A-6 (imports and connectors are never gated) and R-16.5 (a deprecated port's answers do not change in the release that only deprecates it) decide it. This narrows FR-008 for this one gate, as R-16.5 did for one refusal. The method's JSDoc must say the gate is the operator's, so an integration does not read its absence as a defect.
+
+### R-19.6 The reindex of a searchable flip is queued for the port too
+
+**Finding.** `setSearchReindexEnqueuer` was called only on the routes' service instance, so an
+`isSearchable` flip through `catalogProductWritePort.updateAttributeByIdOrKey` already queued no
+reindex — an FR-013 gap that predates this feature.
+
+**Proposed.** The plugin hands the same enqueuer to the container's instance through a new plugin
+option, `shareSearchReindexEnqueuer`, which `index.ts` wires. The requester of the queued operation is
+the ambient administrator, else the system placeholder the route already uses.
+
+**Rejected.** *The port resolving the plugin's instance* — it is built in the plugin body and carries
+the completeness gate (R-19.5). *Leaving it* — FR-013.
+
+**Ruling (architect, 2026-11-26):** Confirmed. FR-013 and item 2a.2: a side effect of the route follows the port call. Only the requester's identity is derived, from the ambient actor (R-4), never from input. Note that this changes the deprecated `catalogProductWritePort.updateAttributeByIdOrKey` too: a searchable flip through it now queues a reindex. That is the fix. The paid PIM modules were read (2026-11-26) and only seed `isSearchable: false` on create; their updates touch labels, `isFilterable`, `isVisibleOnProductPage` and `isVariantAxis`, so none of them queues a new job. The changeset must name the change.
+
+### R-19.7 `expectedVersion` is the editor version; the deprecated `updateProduct` converts its token
+
+**Proposed.** The product's concurrency rule is the editor version (`products.scope_version`, an
+opaque decimal token on the `PATCH`). The port takes it as `options.expectedVersion: number`
+(R-5), refuses a value that is not a non-negative safe integer `422 VALIDATION_FAILED`, and passes it
+as the token; `update` and `setCustomFieldValues` honour it, every other method ignores it. The
+port's input type drops `version` (`CatalogProductUpdateInput`), as R-16.4 dropped it from
+Organization's inputs; the deprecated `updateProduct` moves a `version` it is given into
+`expectedVersion: Number(version)`.
+
+**Rejected.** *Keeping `version` in the input* — two spellings of one option on one call. *A string
+`expectedVersion`* — changes the shared options type for one aggregate. The conversion loses nothing
+in practice: the counter would need 2^53 saves of one product.
+
+**Ruling (architect, 2026-11-26):** Confirmed, with one code change. R-5 types `expectedVersion` as a number and R-16.4 drops `version` from the input. Today a malformed token reaches `?::bigint` in `bumpScopeVersion` and answers a `500`, so converting it to a `422` changes no published refusal. But `Number()` also accepts `''`, `' 7 '`, `'0x1F'` and `'1e3'` and maps them to versions silently. **Code change (owed in this pull request):** in `createCatalogProductWritePort.updateProduct` (`catalog-write-ports.ts`), convert with `/^\d+$/.test(version) ? Number(version) : Number.NaN`, so any token that is not decimal digits reaches `versionTokenOf` and is refused `422 VALIDATION_FAILED`. Add a test for `''` and `'0x1F'`. The paid PIM modules and `comarch_xl` pass no `version` to `updateProduct` (read 2026-11-26), so delegation changes none of their answers.
+
+### R-19.8 The deprecated `listAttributes*` keep their own reads
+
+**Proposed.** `catalogProductWritePort.listAttributes` and `.listAttributesByFlag` keep calling the
+admin service's reads rather than delegating to `catalogAttributeReadPort`; their deprecation points
+at the read port. `listAttributesByFlag` takes `isRequired` and `isMassEditable`, which
+`CatalogAttributeReadPort.listByFlag` does not, so delegation would change answers; the changeset
+says to filter `listAll()` for those two.
+
+**Rejected.** *Adding the two flags to the read port* — a read-port widening this story does not
+need (and a typed-double change across the workspace); it can be added when a consumer asks.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-10 sends reads to read ports, and R-16.5 forbids a deprecated port's answers from changing. Widening `CatalogAttributeReadPort.listByFlag` waits for a consumer (Principle IV, R-16.8's rule). The paid PIM modules call `listAttributes`, so keeping the admin service's read keeps their answers byte-identical.
+
+## R-22 US7 (Project, #1828): decisions on the T006 inventory findings (2026-11-26)
+
+The T006 inventory (`contracts/project-command-port.md` § *Inventory findings*) raised the questions
+below, which R-16, R-17, R-18 and the precedents do not answer in terms. The implementing session had
+no channel to the architect, so each was recorded as proposed with the alternative rejected; **all eight
+are ruled below (architect, 2026-11-26), each confirmed**, R-22.3 and R-22.5 with a contract text change
+owed. None needed the owner. None is irreversible, and none touches tenant isolation: every write still starts from
+`ProjectAccess.loadVisible` under the ambient context and locks the Project in its Command. Code
+references are to `origin/master` `d936722d5`.
+
+### R-22.1 The port runs the route's service methods, which build the Commands
+
+**Proposed.** `projects` has no `commands/` directory: each Command is built inline in the service
+method its route calls (`ProjectService`, `MoveService`, `LinkService`, `ProjectCommentService`), and
+that method also does what the route does around the Command — the workflow check, the completion gate
+and the stage guards before it; Stage Tasks, mentions, a message's Members and a deleted Project's
+Tasks after it. Each such method is split into the write (`createProject`, `updateProject`,
+`applyOrganizations`, `applyMembers`, `moveProject`, `closeProject`, `reopenProject`, `link`, `write`,
+plus `delete` / `remove` as they were) and the route's wrapper, which only renders the reader-language
+answer. The port calls the write; the caller's `source` and `extensions` reach the Command through the
+copied `withCallerOptions` (R-18.6), applied inside the service. This is convention item 2a.2's "the
+one your admin route runs", reached the way `organizationCommandPort` reaches moderation and
+restrictions — through the route's own runner.
+
+**Rejected.** *Moving each Command into a `commands/*.command.ts` factory first* — some 1,500 lines
+moved with no behavioural difference, and a conflict with #1950 (open), which edits the same
+services and adds its own merge refusal to `lockProject`; through the services, a port call inherits
+that refusal without either change knowing of the other. *A port over its own copies of the
+Commands* — two write paths, the defect FR-002 removes.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-3 rejected *the port calls the route's service method* because services elsewhere are not Commands; R-2 measured every Project operation as C, so the premise does not hold here, and parity is still by construction: the route's wrapper and the port call one write method, and the wrapper only renders. The fourth `withCallerOptions` copy is behaviourally identical to `organizations'` and falls under R-18.6's bounded exception; #1961 must list `projects` beside the other three before merge. #1950's inheritance holds: every method but `create` (which locks no existing row) reaches `lockProject` (`link-service.ts`, `comment-service.ts`, `move-service.ts`, `project-service.ts`).
+
+### R-22.2 `create` and `addComment` need an administrator behind the call
+
+**Finding.** `projects.created_by_admin_user_id` and `project_comments.author_admin_user_id` are
+`not null`: a Project is somebody's, and a comment has an author. The create Command refused a call
+with no administrator with a plain `Error` inside its transaction (a 500); the comment service already
+refused it `403 FORBIDDEN` before anything was read.
+
+**Proposed.** Both are refused `403 FORBIDDEN` before anything is read when no administrator is behind
+the call — the comment route's refusal, now also `createProject`'s first statement. A worker runs them
+under `withSystemScopeActingFor(adminUserId, reason)` (the administrator who queued the work), which
+the platform already offers; every other method runs under `withSystemScope` with the `system` actor.
+The JSDoc says so on both methods and on the port. The investor case of #1828 needs neither.
+
+**Rejected.** *Making the two columns nullable* — a migration and a widening every reader of
+`ProjectComment.author` and of the creator would have to handle (`ProjectCommentSchema.author` is not
+nullable), to let a write record nobody. *An `actorAdminUserId` input* — R-4: the actor is never input.
+*Keeping the 500* — a refusal of the caller's context is not a server fault.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-4 and Principle XIII decide it: the actor is ambient and never input, and a `not null` author column cannot be satisfied by the `system` actor without fabricating an administrator. A `403` before any read is the comment route's existing refusal and is not a server fault. `withSystemScopeActingFor` also applies that administrator's Organization reach to the create, so no tenant widening (Principle XI).
+
+### R-22.3 `expectedVersion` is the token the route checks; the record carries both
+
+**Finding.** A Project has two optimistic-concurrency tokens (issue #449): `version` (its fields, state
+and Stage — `PATCH`, `move`, `close`, `reopen` require it) and `configurationVersion` (its sets —
+`PUT …/organizations` and `…/members` accept it, optionally). `ProjectRecord` carried neither, so a
+caller could not pass back what it read.
+
+**Proposed.** `options.expectedVersion` names the token the operation's route checks: `version` on
+`update`, `setCustomFieldValues`, `moveToStage`, `close` and `reopen`; `configurationVersion` on
+`setOrganizations` and `setMembers`; ignored by `link`, `unlink`, `addComment` and `delete`, whose
+routes check none (R-5). A stale token is the route's **`409 PROJECT_CHANGED`**, not `VERSION_CONFLICT`
+(convention item 5: refusals are the route's; R-16.5's precedent for a published code). Absent, it is
+the version the method's own `loadVisible` read — the Command writes over that, under the Project's row
+lock, and a change that landed in between is still refused rather than overwritten. `ProjectRecord`
+gains `version` and `configurationVersion`, required, filled by the owner from the row.
+
+**Rejected.** *Ignoring `expectedVersion` on the two sets and keeping `configurationVersion` as an
+input member* — two spellings of "the version I read" on one port. *Requiring it* — R-16.6.
+*Answering `VERSION_CONFLICT`* — the admin client already handles `PROJECT_CHANGED`; one refusal, one
+code.
+
+**Ruling (architect, 2026-11-26): confirmed, with one contract text change.** Convention item 5, R-16.5 and R-18.8 decide the code: the refusal is the route's published `409 PROJECT_CHANGED`. Absent, the token read by `loadVisible` is held, which is R-16.6's "writes over the version it reads, the row's lock still applies". Owed: `AggregateCommandOptions.expectedVersion`'s JSDoc (`packages/contracts/src/aggregate-ports.ts`) says `409 VERSION_CONFLICT` unconditionally; reword it to "refused `409` with the code the owner's admin route answers — `VERSION_CONFLICT` unless the port's JSDoc names its own". Both tokens stay **required** on `ProjectRecord`: a port's record is reached in the `call` direction, where a wider return is compatible (`contract-surface.md` § Directions), the owner is its only implementer (R-1), and `../paid-modules` holds no reference to `ProjectRecord` or `projectReadPort` (read 2026-11-26). R-18.7's optional form does not transfer: under `exactOptionalPropertyTypes` an optional token cannot be passed back as `expectedVersion`, which is its purpose.
+
+**Addendum (#1986): the two sets hold the token they read; their admin routes keep their answer.** As merged in #1974, `setOrganizations` and `setMembers` with no `expectedVersion` passed `undefined` to `lockProjectForConfiguration`, which checks nothing: the Organizations diff, computed from a read outside the Command, was applied under the lock regardless, so a caller who read {X} and asked for {X, Y} after another set {Z} landed {Y, Z}, a set nobody asked for (the Members' archived-Role check reads outside the lock the same way). The port now passes `'read'` (`ConfigurationToken`, `project-service.ts`): the `configuration_version` its own `loadVisible` read, held to the lock, so that change is refused `409 PROJECT_CHANGED` and the stored set stays the other caller's — this ruling's text, now kept. The admin `PUT …/organizations` and `PUT …/members` still pass `undefined` when the body carries no `configurationVersion`, and the admin client sends none on either: refusing there would turn a published `200` into a `409` for a client the route has always accepted, which is a route change this follow-up does not make (#1828 shipped the port saying no admin route changes). They keep "last writer wins on the diff", pinned by a contract test; making the client send its token is the route's own change. `setCustomFieldValues` is unaffected: its `merge` runs on the bag read under the lock, so absent it needs no token. An `update` with an empty patch runs no Command, so — like a `setOrganizations` that changes nothing (R-22.5) — an unclaimed `extensions` key is not refused on it; the bus checks claims per Command against a hook registry the owner cannot read (`./composition` is the root's), and a probe Command would run the action's hooks and enqueue its `afterCommit` rows for a write that changes nothing. Both exceptions are named in `ProjectCommandPort`'s JSDoc.
+
+### R-22.4 `update` is `projects.project.update` only
+
+**Proposed.** The admin `PATCH` runs up to four Commands. The port's `update` takes the four fields of
+the first (title, description, value, start date) and runs it alone; the values are
+`setCustomFieldValues` (the second); visibility and listed people (`.visibility_set`,
+`.viewers_set`) are not offered, as the contract's first draft already listed them as configuration.
+
+**Rejected.** *The whole `PATCH` body* — one method of up to four Commands, of which only two are
+hookable: `extensions` would reach some of them and be silently dropped by the others, and a caller
+could not tell which write a refusal stopped (the second commits after the first, finding 3).
+
+**Ruling (architect, 2026-11-26): confirmed.** Convention item 2a.2 and R-16.2: one method per Command the route runs for that operation, so a refusal and the `extensions` reach exactly one write. Visibility and viewers stay off the port as configuration (R-9); adding them later is additive (R-16.8's rule).
+
+### R-22.5 `extensions` and `source` on `setOrganizations` go to the children
+
+**Proposed.** `projects.project.organizations_set` is the parent of one `organization_add` /
+`organization_remove` per change, records nothing and is not hookable; the children are (#1845). The
+caller's options are applied to each child, so the hooks on them get the extension input, and each
+child's entry records `source`. A set that changes nothing runs no Command and so checks no key. On
+every other method the options reach the one Command it runs, and the bus refuses a key no present hook
+module claims — every key on `setMembers`, `link`, `unlink`, `addComment` and `delete`, none of whose
+actions is hookable (the R-18.8 rule).
+
+**Rejected.** *The parent* — the bus would refuse every key, since nothing can claim one on an action
+that is not hookable. *Declaring `organizations_set` hookable* — R-16.8: a declaration is a public
+contract, added when something needs it; the children already name each Organization.
+
+**Ruling (architect, 2026-11-26): confirmed.** R-16.8: the parent is not hookable and nothing can claim a key on it; the children name the Organization and are. One sentence is owed in `ProjectCommandPort`'s JSDoc: a set that changes nothing runs no Command, so an unclaimed `extensions` key is not refused on it.
+
+### R-22.6 The answer is the record read after the write under the Organization rule
+
+**Proposed.** The routes answer `ProjectDetail` (reader-language, with the caller's permissions). The
+port answers `ProjectRecord`, read after the write through `ProjectAccess.rowAfterWrite` — the
+Organization rule alone, the routes' own after-write read — so a write that took the Project out of the
+acting administrator's visibility still answers it. `setOrganizations` answers `null` when the
+caller's own change took the Project out of their reach (the route's `{ outOfReach: true }`); under
+`withSystemScope` it never does. `link` answers `{ linkId }` and `addComment` `{ commentId }` — the ids
+a caller needs for `unlink` and to find its comment; `unlink` and `delete` answer nothing.
+
+**Rejected.** *`ProjectDetail`* — a language parameter and an admin-panel shape on a server-side port.
+*`findVisible` after the write* — a Member who removed themselves would be told a committed change
+did not happen.
+
+**Ruling (architect, 2026-11-26): confirmed; no Principle XI risk.** Every method first passes `loadVisible`, which answers an invisible Project `404 PROJECT_NOT_FOUND` exactly as a missing one, and `rowAfterWrite` / `inReachAfterWrite` are reached only after a committed write that began there. So `null` from `setOrganizations` reports only the effect of the caller's own permitted write on a Project it could see: it confirms nothing the caller could not already see. `rowAfterWrite` keeps the Organization rule, so a Project another writer has moved out of reach since answers `404`. The condition, binding: neither method may ever serve a first read (its JSDoc says so). Keep it that way.
+
+### R-22.7 `setCustomFieldValues` runs the `PATCH`'s Command, with the merge under the lock
+
+**Proposed.** One factory, `ProjectService.#customFieldsCommand`, builds
+`projects.project.custom_fields_update` for the route and the port. The route's merge answers the bag it
+validated before the Command, held to the `version` that read carried (unchanged); the port's is the
+caller's merge, run on the bag the Command read under the row lock, as `organizationCommandPort`'s is.
+A merge that changes nothing writes, bumps and records nothing (spec edge case "same value"), the hooks
+still running with an empty `changedCustomFields`. Unlike Organizations (R-16.2), the admin edit and the
+port run **one** action, so a hook that must see every change of the values registers once.
+
+**Rejected.** *Recording an entry for a no-op merge*, as `organization.set_custom_field_values` does —
+the spec's edge case asks for nothing recorded, and the route never runs the Command for an unchanged
+bag.
+
+**Ruling (architect, 2026-11-26): confirmed.** The spec's *Same value* edge case decides it: a write that changes nothing records nothing. `organization.set_custom_field_values` recording an entry for a no-op merge is the outlier. R-16.2 and T025 keep it there for parity with the deprecated `organizationCustomFieldWritePort`, so the inconsistency is accepted for now. Align Organizations to the edge case in the change that removes the deprecated port.
+
+### R-22.8 `addComment` takes the route's body, notes and messages alike
+
+**Proposed.** `CreateProjectCommentBody` (`kind: 'note' | 'message'`), running
+`projects.project.note_add` or `.message_add` as the route does; a message tells the Project's other
+Members who may see it, after the commit, for both paths.
+
+**Rejected.** *Notes only*, as the contract's first draft's table had it — the route is one operation
+for both kinds, and an integration posting into the internal thread would otherwise have no way to.
+
+**Ruling (architect, 2026-11-26): confirmed.** The port offers the route's operation (2a.2), and the route takes both kinds. The entry records the comment id and the body's length, never the body (`audit-state.md` list 1), on both paths. The message notice still passes each recipient's visibility.
+## R-18 US4 (Order, #1823): decisions on the T003 inventory findings (2026-11-26)
+
+The T003 inventory (`contracts/order-command-port.md` § *Inventory findings*) raised the questions
+below, which R-16, R-17 and the precedents do not answer in terms. The implementing session had no
+channel to the architect, so each was recorded as proposed with the alternative rejected; the
+architect's ruling (2026-11-26) closes each item. None is a business call, irreversible, or touches tenant isolation. Code
+references are to `origin/master` `934991c5b`.
+
+### R-18.1 `orderPaymentStatusApplyPort` is kept, not deprecated
+
+**Finding.** `data-model.md` § *Port disposition* deprecates `orderPaymentStatusApplyPort` in favour of
+`orderCommandPort.applyPaymentStatus`. The two are not the same operation: the apply port writes on the
+**caller's** `EntityManager`, inside `payments`' settlement transaction, because `payments_order_fk`
+holds the payment row and `orders.payment_status` together (D-169); it judges the move for the
+`settlement` actor (which admits `failed`); it answers a refused move as a value so the payment row
+still commits; and it records no entry of its own (the lifecycle move after the commit does).
+
+**Proposed.** Keep it, as a capability port with semantics the aggregate port does not have
+(convention item 2a.9). `applyPaymentStatus` is the operator's change, as the admin route makes it: its
+own transaction, the operator's edges, one `order.payment_status_transition` entry. `data-model.md` §
+*Port disposition* is amended.
+
+**Rejected.** *Deprecate it and delegate* — a port call opens its own transaction (R-6), so the
+settlement would commit the payment row and the order's money axis separately, the failure
+`payments_order_fk` exists to prevent. *An `em` parameter on `applyPaymentStatus`* — R-6 rejects it.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-6 refuses an `em` parameter and `payments_order_fk` (D-169) needs the payment row and the money axis in one transaction, so this is semantics the aggregate port does not have — `module-composition.md` item 2a.9 admits exactly that capability port. Not deprecated; the `data-model.md` amendment stands.
+
+### R-18.2 The status Command records the ambient actor; the deprecated port's `actor.source` becomes `source`
+
+**Proposed.** `order.status_transition` runs on the Command Bus, so its entry names the ambient actor,
+for every caller. The deprecated `orderTransitionPort.applyStatus` delegates to
+`orderCommandPort.applyStatus(orderId, { to, reason }, { source: actor.source })`: the input `actor` is
+no longer the entry's (R-17.7's rule: an actor is never input), and its `source` (`payment`, `shipment`)
+is recorded as the entry's `source`. The actor the `order.status.*` events carry is derived from the
+ambient context (`ambientOrderStatusActor`), with `source` when it is one the event vocabulary names.
+Consequence: a buyer's own cancellation is recorded in `actorCustomerAccountId` (the bus's column for a
+customer acting for itself) rather than in `impersonatedCustomerAccountId`; the cancellability predicate
+(`domain/status-authorship.ts`, issue #284) counts that column as a named actor. And a hold the
+settlement ingress wrote is no longer recognisable by its missing actor alone — an operator recording a
+decline through `POST /api/v1/payments/receive` is now the ambient administrator — so the predicate also
+reads `stateAfter.source === 'payment'` as the ingress (the fact its header said it lacked). Its answers
+are therefore unchanged, and entries written before 0.113.0 read as before.
+
+**Rejected.** *Keep the hand audit for the deprecated port's callers* — two write paths for one
+action, the defect FR-002 removes. *Map a customer actor into `impersonatedCustomerAccountId`* — records
+an impersonation that did not happen.
+
+**Ruling (architect, 2026-11-26):** Confirmed. An actor is never input (R-4, R-17.7, Principle XIII), and recording the buyer in `impersonatedCustomerAccountId` was a misattribution the bus now corrects; `audit_logs`' viewer and recent-activity feed already render `actorCustomerAccountId` (spec 170), and no other reader of `order.status_transition` entries reads the actor columns. The predicate keeps its answers: an operator's decline through `POST /api/v1/payments/receive` carries `source: 'payment'` and reads as the ingress, so it does not block the buyer's cancel; a shipment move under an ambient administrator now reads `named_actor`, which fails closed and is excluded by the `statusOnFailure` comparison anyway. Owed in this pull request: the header of `domain/status-authorship.ts` still says `source` "is not read here" and that the two ingresses "record identically" — rewrite it to the new rule. `source` is trusted because only in-process port callers set it and no route reads it from a request body (R-7); keep it that way.
+
+### R-18.3 `place` stays out of this change; #1887 owns placement as a Command
+
+**Proposed.** #1823 lists `place` and the payer; #1887 states that placement is not a Command and makes
+it one (`order.place`, with hook data), and that #1823's `place` then runs it. A port method may only sit
+over a Command (R-2), so `place` is added with #1887 (US11, T097–T101), additively (R-1), and
+`orderPlacementPort` is deprecated then. What the payer needs from this change is on the read side:
+`OrderRecord.payer` (R-18.7).
+
+**Rejected.** *Publish `place` over the current placement* — the port would promise hooks and an audit
+entry the buyer's placement does not write.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-2: a port method sits over a Command, and placement is not one until #1887; `place` is added additively there (R-1).
+
+### R-18.4 Comments are the `order.comment.add` Command for the operator and the buyer
+
+**Proposed.** One factory, `makeOrderCommentAddCommand`, for `POST /api/v1/admin/orders/:id/comments`,
+`orderCommandPort.addComment` and the buyer's `POST /api/v1/orders/:id/comments` (through the module's
+own service — a customer session never resolves the port, R-17.5). The entry records `commentId`,
+`isCustomerVisible` and `notifyCustomer`; never the body. The notice stays after the commit, in the
+service, for route and port alike. Both `command-coverage-ignore` markers go.
+
+**Rejected.** *The operator's comment only* — one entity with two write paths, and an ignore marker
+whose reason ("not audited domain state") the other path would contradict. *Recording the body* — free
+text in a global audit table (`audit-state.md` list 1).
+
+**Ruling (architect, 2026-11-26):** Confirmed. One entity, one write path (R-3); the body is free text and stays out of audit state (`audit-state.md` list 1). The buyer's path keeps its existing ownership check before the Command runs (Principle XI); the ambient customer is the entry's `actorCustomerAccountId`.
+
+### R-18.5 The buyer's cancellation runs the module-internal outcome helper, not the port
+
+**Proposed.** `CustomerOrderCancellationService` resolved `orderTransitionPort` and so would have moved
+to `orderCommandPort`; R-17.5 forbids a customer-session route the aggregate port. It runs
+`applyStatusAsOutcome` (`services/order-status-outcome.ts`), the function the port's `applyStatus` runs,
+over the same transition engine — the same Command, outcome and follow-ups. `payments`' buyer payment
+retry reads terminality from `orderReadPort.isTerminal`, a read port, which a customer route may use.
+
+**Rejected.** *Resolve the port from the buyer's route* — R-7, R-17.5.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-7 and R-17.5 decide it: a customer session never resolves the aggregate port; running the same module-internal helper keeps one Command and one outcome.
+
+### R-18.6 `withCallerOptions` is copied a second time, into `orders`
+
+**Proposed.** R-17.6 says the helper moves to `@endora-commerce/platform/commands` when a third module
+needs it; `orders` is that module (with `organizations` and the unmerged `customer_accounts` copy).
+`packages/platform/src/commands/` is held by another session (spec 189, middleware) and may not be
+edited from here, so `orders` copies the twenty lines; the move is owed as a follow-up once that
+surface is free, and takes all three copies with it. Follow-up: refs #1961.
+
+**Rejected.** *Import `organizations`' copy* — another module's internals (Principle I).
+
+**Ruling (architect, 2026-11-26):** Confirmed as a bounded exception to R-17.6's trigger. `packages/platform/src/commands/` is held for spec 189, so the third copy is accepted; a follow-up issue is filed before merge, labelled for spec 189's surface, and moves all three copies (`organizations`, `customer_accounts`, `orders`) in one change once that surface is free. The copy must stay byte-identical in behaviour to `organizations`' (no local drift).
+
+### R-18.7 `OrderRecord.payer` is optional on the type
+
+**Proposed.** `payer?: OrderPayer | null`, always filled by `orders` from the stored payer (the admin
+serialiser's shape), as `payerOrganizationId?` already is on the same record, so a record built by a
+consumer's test double before 0.113.0 still compiles. `data-model.md` wrote it required.
+
+**Rejected.** *Required* — every hand-built `OrderRecord` outside this repository stops compiling in the
+release that only adds the field; the read direction gains nothing from the `?`'s absence.
+
+**Ruling (architect, 2026-11-26):** Confirmed. `OrderRecord` is a read-direction type: either form is compatible for a reader (`contract-surface.md` § Directions), and the optional form also keeps hand-built doubles compiling; `orders` always fills it. `data-model.md` is amended to the optional form.
+
+### R-18.8 Published refusal codes are kept on the port; `expectedVersion` and `extensions`
+
+**Proposed.** `setExternalReference` answers a malformed value `400 VALIDATION_FAILED`, as the published
+`orderExternalReferencePort.set` does (R-16.5's precedent), not the convention's 422;
+`setCustomFieldValues` answers an unknown order `404 NOT_FOUND`, as its route does. The other methods'
+input refusals are `422 VALIDATION_FAILED`. `expectedVersion` is ignored by every method (no `version`
+column, R-5). `extensions` reach the bus, which refuses every key (`422 COMMAND_EXTENSION_UNCLAIMED`)
+until an Order action is declared hookable; declaring them is #1887's (placement) or a later need's
+(R-16.8's rule).
+
+**Rejected.** *Unifying on 422* — changes a published refusal in the release that only deprecates its
+port.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-16.5 keeps a published refusal code over the convention's; R-5 and R-16.6 ignore `expectedVersion` where the row has no version; R-16.8 leaves hookability to the first need, so the bus's `COMMAND_EXTENSION_UNCLAIMED` is the right answer meanwhile. The port's JSDoc says `expectedVersion` is ignored, so a caller is not misled.
+
+### R-18.9 `isTerminal` is a required method of `OrderReadPort`
+
+**Proposed.** The read moves to `orderReadPort` as the disposition table says, as a required method
+(D-97.3 refuses optional ones). The only implementer is the owner (R-1); four in-repository test doubles
+gained the method; `../paid-modules` holds no full double of the read port.
+
+**Rejected.** *Keep it on the deprecated port only* — a read on a write port is what R-10 removes.
+
+**Ruling (architect, 2026-11-26):** Confirmed; not a contract-surface break. A port method's direction is `call` (`contract-surface.md` § Kinds): adding a method is compatible for every caller, and the only implementer is the owner (R-1). `../paid-modules` was read (2026-11-26): paypal, stripe, autopay, tpay, payu, inpost, dhl_parcel only call the port; their doubles (`inpost` `adapter-renderers.test.ts`, `generate-and-poll.test.ts`; `tpay` `notification-payload-projection.test.ts`) are partial objects cast `as unknown as OrderReadPort` or untyped, so none stops compiling. `check:port-shape` refuses the optional form (D-97.3).

@@ -19,7 +19,7 @@ import {
   type UpdateProjectBody,
   roundHalfUp,
 } from '@endora-commerce/contracts';
-import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { randomUUID } from 'crypto';
 import { enterStage, todayIn } from '../domain/deadline.js';
@@ -37,8 +37,9 @@ import { ProjectValueChange, type ProjectValueState } from '../entities/project-
 import { projectSnapshot } from './project-audit-state.js';
 import { ProjectViewer } from '../entities/project-viewer.entity.js';
 import { isDeepStrictEqual } from 'node:util';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { newlyMentioned, type ProjectMentionService, type SavedProjectMentions } from './mention-service.js';
-import type { ProjectAccess, VisibleProjectRow } from './project-access.js';
+import { actingAdminUserId, type ProjectAccess, type VisibleProjectRow } from './project-access.js';
 import { mergeProjectCustomFields } from './project-custom-fields.js';
 import { tellAfterCommit } from './project-notifier.js';
 import { nextProjectNumber } from './project-number.js';
@@ -157,6 +158,28 @@ export function assertConfigurationReadAt(
   expected: number | undefined,
 ): void {
   if (expected !== undefined && visible.configuration_version !== expected) throw projectChanged();
+}
+
+/**
+ * The `configurationVersion` a write of the Project's Organizations or Members
+ * holds (`specs/186-aggregate-ports/` R-22.3, addendum #1986):
+ *
+ * - a number — the caller's token, held from the read to the lock;
+ * - `'read'` — the version the write's own `loadVisible` read, held the same
+ *   way, so a set another caller committed in between is refused `409
+ *   PROJECT_CHANGED` rather than merged with a diff computed from the stale
+ *   read. `projectCommandPort` passes it when no `expectedVersion` is sent;
+ * - `undefined` — not checked: the admin `PUT` sent none, and its published
+ *   answer does not refuse such a client (last writer wins on the diff).
+ */
+export type ConfigurationToken = number | 'read' | undefined;
+
+/** The token a set holds, `'read'` resolved to what its `loadVisible` read. */
+function heldConfigurationVersion(
+  visible: Pick<VisibleProjectRow, 'configuration_version'>,
+  token: ConfigurationToken,
+): number | undefined {
+  return token === 'read' ? visible.configuration_version : token;
 }
 
 /**
@@ -311,6 +334,27 @@ export class ProjectService {
 
   /** `POST /projects` — the Project in its first Stage, with Organizations, Members and workflow. */
   async create(body: CreateProjectBody, language: string): Promise<ProjectDetail> {
+    return this.deps.read.afterWrite(await this.createProject(body), language);
+  }
+
+  /**
+   * The create itself, and what follows its commit — what the route and
+   * `projectCommandPort.create` share (`specs/186-aggregate-ports/` R-22.1).
+   * Answers the new Project's id.
+   *
+   * A Project is somebody's (`created_by_admin_user_id` is not null), so a
+   * caller with no administrator behind it — a worker under `withSystemScope` —
+   * is refused 403 before anything is read (R-22.2); it runs under
+   * `withSystemScopeActingFor` instead.
+   */
+  async createProject(body: CreateProjectBody, caller: CallerOptions = {}): Promise<string> {
+    if (actingAdminUserId() === null) {
+      throw new HttpError(
+        403,
+        ERROR_CODES.FORBIDDEN,
+        'A project is created by an administrator; call it on behalf of one.',
+      );
+    }
     let template: TemplateGraph | null = null;
     if (body.templateId) {
       if (body.stages) {
@@ -352,7 +396,7 @@ export class ProjectService {
       organizationIds: [...new Set(body.organizationIds)].sort(),
       changedCustomFields: changedCustomFieldKeys({}, customFieldValues),
     });
-    await this.deps.commandBus.run({
+    await this.deps.commandBus.run(withCallerOptions<string>({
       action: 'projects.project.create',
       objectType: 'project',
       objectId: id,
@@ -473,10 +517,10 @@ export class ProjectService {
         };
         return { eventName: PROJECTS_EVENTS.PROJECT_CREATED, payload };
       },
-    });
+    }, caller));
     if (plan.materialize) await this.deps.stageTasks.materializeAfterCommit(id, firstStageId, entryId);
     if (created.mentions) await this.#tellMentioned(created.mentions);
-    return this.deps.read.afterWrite(id, language);
+    return id;
   }
 
   /**
@@ -491,8 +535,24 @@ export class ProjectService {
    * bumps it.
    */
   async update(id: string, body: UpdateProjectBody, language: string): Promise<ProjectDetail> {
+    const visible = await this.updateProject(id, body);
+    return this.deps.read.afterWrite(visible.id, language);
+  }
+
+  /**
+   * The edit itself — what the route and `projectCommandPort.update` share
+   * (`specs/186-aggregate-ports/` R-22.1). `version` absent is the version
+   * `loadVisible` read (the port's `expectedVersion`, R-22.3); `caller` reaches
+   * `projects.project.update`, the one hookable Command a port call runs here.
+   */
+  async updateProject(
+    id: string,
+    body: Omit<UpdateProjectBody, 'version'> & { version?: number | undefined },
+    caller: CallerOptions = {},
+  ): Promise<VisibleProjectRow> {
     const visible = await this.deps.access.loadVisible(id);
-    if (visible.version !== body.version) throw projectChanged();
+    const version = body.version ?? visible.version;
+    if (visible.version !== version) throw projectChanged();
     const storedValues = visible.custom_field_values ?? {};
     const customFieldValues = await mergeProjectCustomFields(this.deps.customFields, storedValues, body.customFieldValues);
     const customFieldsChange = !isDeepStrictEqual(customFieldValues, storedValues);
@@ -516,7 +576,7 @@ export class ProjectService {
       body.title !== undefined || body.description !== undefined || body.value !== undefined || body.startOn !== undefined;
     const visibilityChange = body.visibility !== undefined && body.visibility !== visible.visibility;
 
-    let expected = body.version;
+    let expected = version;
     let first = true;
     const described: { mentions: SavedProjectMentions | null } = { mentions: null };
     /**
@@ -540,7 +600,7 @@ export class ProjectService {
       // Hookable (#1845): the names of the fields whose value changed, set by `run`.
       let changedFields: string[] = [];
       const hooked = (): ProjectUpdateHookData => ({ projectId: visible.id, changedFields });
-      await this.deps.commandBus.run({
+      await this.deps.commandBus.run(withCallerOptions<null>({
         action: 'projects.project.update',
         objectType: 'project',
         objectId: visible.id,
@@ -588,34 +648,14 @@ export class ProjectService {
             },
           };
         },
-      });
+      }, caller));
     }
     if (customFieldsChange) {
-      // Hookable (#1845): the keys of the custom fields whose value changed, set by `run`.
-      let changedCustomFields: string[] = [];
-      const hooked = (): ProjectCustomFieldsUpdateHookData => ({ projectId: visible.id, changedCustomFields });
-      await this.deps.commandBus.run({
-        action: 'projects.project.custom_fields_update',
-        objectType: 'project',
-        objectId: visible.id,
-        hookData: hooked,
-        outboxData: hooked,
-        run: async ({ em }) => {
-          // The version is what holds the bag to the one merged above: every
-          // write of the bag bumps it.
-          const project = await claim(em as EntityManager);
-          const before = { ...(project.customFieldValues ?? {}) };
-          project.customFieldValues = customFieldValues;
-          bumped(project);
-          changedCustomFields = changedCustomFieldKeys(before, customFieldValues);
-          // The audit trail names the fields; their values go to the Project's own store (T144 F4, T145).
-          return {
-            result: null,
-            before: null,
-            after: recordValueChange(em as EntityManager, visible.id, null, { before, after: customFieldValues }),
-          };
-        },
-      });
+      // The version is what holds the bag to the one merged above: every
+      // write of the bag bumps it.
+      await this.deps.commandBus.run(
+        this.#customFieldsCommand(visible.id, async () => customFieldValues, async (em) => claim(em), bumped),
+      );
     }
     if (visibilityChange) {
       await this.deps.commandBus.run({
@@ -653,7 +693,84 @@ export class ProjectService {
       });
     }
     if (described.mentions) await this.#tellMentioned(described.mentions);
-    return this.deps.read.afterWrite(visible.id, language);
+    return visible;
+  }
+
+  /**
+   * `projectCommandPort.setCustomFieldValues` (`specs/186-aggregate-ports/`
+   * R-22.7) — `projects.project.custom_fields_update`, the Command the admin
+   * `PATCH` runs for the values, with the caller's `merge` run on the bag the
+   * Command reads under the Project's row lock. The owner does not validate:
+   * the caller calls `CustomFieldValuePort.validateAndMerge` inside `merge`.
+   * Held to `expectedVersion` when sent; a merge that changes nothing writes,
+   * bumps and records nothing.
+   */
+  async setCustomFieldValues(
+    id: string,
+    merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
+    expectedVersion: number | undefined,
+    caller: CallerOptions = {},
+  ): Promise<void> {
+    const visible = await this.deps.access.loadVisible(id);
+    if (expectedVersion !== undefined && visible.version !== expectedVersion) throw projectChanged();
+    await this.deps.commandBus.run(
+      withCallerOptions(
+        this.#customFieldsCommand(
+          visible.id,
+          merge,
+          async (em) => {
+            const project = await lockProject(em, this.deps.access, visible.id);
+            if (expectedVersion !== undefined && project.version !== expectedVersion) throw projectChanged();
+            return project;
+          },
+          (project) => {
+            project.version += 1;
+          },
+        ),
+        caller,
+      ),
+    );
+  }
+
+  /**
+   * `projects.project.custom_fields_update` (hookable, #1845): the bag `merge`
+   * answers for the one the Project holds under the lock `claim` takes, its
+   * changed keys named in the trail and their values kept in the Project's own
+   * store (T144 F4, T145). The admin `PATCH` and `setCustomFieldValues` both
+   * run it; nothing changed records nothing and leaves the version alone.
+   */
+  #customFieldsCommand(
+    projectId: string,
+    merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
+    claim: (em: EntityManager) => Promise<Project>,
+    bumped: (project: Project) => void,
+  ): Command<null> {
+    // Hookable (#1845): the keys of the custom fields whose value changed, set by `run`.
+    let changedCustomFields: string[] = [];
+    const hooked = (): ProjectCustomFieldsUpdateHookData => ({ projectId, changedCustomFields });
+    return {
+      action: 'projects.project.custom_fields_update',
+      objectType: 'project',
+      objectId: projectId,
+      hookData: hooked,
+      outboxData: hooked,
+      run: async ({ em }) => {
+        const project = await claim(em as EntityManager);
+        const before = { ...(project.customFieldValues ?? {}) };
+        // A copy: a merge that mutates its argument cannot rewrite `before`.
+        const after = await merge({ ...before });
+        changedCustomFields = changedCustomFieldKeys(before, after);
+        if (isDeepStrictEqual(before, after)) return { result: null, skipAudit: true };
+        project.customFieldValues = after;
+        bumped(project);
+        // The audit trail names the fields; their values go to the Project's own store (T144 F4, T145).
+        return {
+          result: null,
+          before: null,
+          after: recordValueChange(em as EntityManager, projectId, null, { before, after }),
+        };
+      },
+    };
   }
 
   /**
@@ -676,9 +793,9 @@ export class ProjectService {
   }
 
   /** `DELETE /projects/:id` — refused while records are linked (FR-021). */
-  async delete(id: string): Promise<void> {
+  async delete(id: string, caller: CallerOptions = {}): Promise<void> {
     const visible = await this.deps.access.loadVisible(id);
-    await this.deps.commandBus.run({
+    await this.deps.commandBus.run(withCallerOptions<null>({
       action: 'projects.project.delete',
       objectType: 'project',
       objectId: visible.id,
@@ -697,7 +814,7 @@ export class ProjectService {
         em.remove(project);
         return { result: null, before, after: null };
       },
-    });
+    }, caller));
     // Its Tasks go with it too (spec edge case) — after the commit, through
     // the Tasks module's own Commands. With Tasks off they stay, belonging to
     // a Project nobody can see, and so are hidden by the Tasks module, whose
@@ -727,7 +844,29 @@ export class ProjectService {
     language: string,
     version?: number,
   ): Promise<ProjectDetail | ProjectOutOfReachAfterWrite> {
+    const visible = await this.applyOrganizations(id, organizationIds, version);
+    if (!(await this.deps.access.inReachAfterWrite(visible.id))) return { id: visible.id, outOfReach: true };
+    return this.deps.read.afterWrite(visible.id, language);
+  }
+
+  /**
+   * The set itself — what the route and `projectCommandPort.setOrganizations`
+   * share (`specs/186-aggregate-ports/` R-22.1). `token` is the
+   * {@link ConfigurationToken} held from the read of the current set to the
+   * lock: the diff applied under the lock is the one computed from that read,
+   * so a held token is what stops a set committed in between being merged
+   * into it (#1986). `caller` reaches each child
+   * Command, the hookable `organization_add` / `organization_remove`, and not
+   * the parent, which records nothing and is not hookable (R-22.5).
+   */
+  async applyOrganizations(
+    id: string,
+    organizationIds: readonly string[],
+    token?: ConfigurationToken,
+    caller: CallerOptions = {},
+  ): Promise<VisibleProjectRow> {
     const visible = await this.deps.access.loadVisible(id);
+    const version = heldConfigurationVersion(visible, token);
     assertConfigurationReadAt(visible, version);
     const current = (
       (await this.deps.emFactory().execute(
@@ -760,7 +899,7 @@ export class ProjectService {
               targetOrganizationId: organizationId,
               changed,
             });
-            await ctx.run({
+            await ctx.run(withCallerOptions<null>({
               action: 'projects.project.organization_add',
               objectType: 'project',
               objectId: visible.id,
@@ -776,7 +915,7 @@ export class ProjectService {
                 changed = true;
                 return { result: null, before: null, after: { organizationId } };
               },
-            });
+            }, caller));
           }
           for (const organizationId of removed) {
             // Hookable (#1845): `changed` is false when the row was already gone.
@@ -786,7 +925,7 @@ export class ProjectService {
               targetOrganizationId: organizationId,
               changed,
             });
-            await ctx.run({
+            await ctx.run(withCallerOptions<null>({
               action: 'projects.project.organization_remove',
               objectType: 'project',
               objectId: visible.id,
@@ -798,14 +937,13 @@ export class ProjectService {
                 changed = true;
                 return { result: null, before: { organizationId }, after: null };
               },
-            });
+            }, caller));
           }
           return { result: null, skipAudit: true };
         },
       });
     }
-    if (!(await this.deps.access.inReachAfterWrite(visible.id))) return { id: visible.id, outOfReach: true };
-    return this.deps.read.afterWrite(visible.id, language);
+    return visible;
   }
 
   /**
@@ -818,7 +956,24 @@ export class ProjectService {
     language: string,
     version?: number,
   ): Promise<ProjectDetail> {
+    const visible = await this.applyMembers(id, members, version);
+    return this.deps.read.afterWrite(visible.id, language);
+  }
+
+  /**
+   * The set itself — what the route and `projectCommandPort.setMembers` share
+   * (R-22.1). `token` is the {@link ConfigurationToken} held from the read of
+   * the held Roles — which decides whether an archived Role may stay — to the
+   * lock (#1986).
+   */
+  async applyMembers(
+    id: string,
+    members: readonly ProjectMemberInput[],
+    token?: ConfigurationToken,
+    caller: CallerOptions = {},
+  ): Promise<VisibleProjectRow> {
     const visible = await this.deps.access.loadVisible(id);
+    const version = heldConfigurationVersion(visible, token);
     assertConfigurationReadAt(visible, version);
     const em = this.deps.emFactory();
     const held = (await em.execute(
@@ -833,7 +988,7 @@ export class ProjectService {
     }
     await this.#assertMembers(members, heldRoles);
 
-    await this.deps.commandBus.run({
+    await this.deps.commandBus.run(withCallerOptions<null>({
       action: 'projects.project.member_set',
       objectType: 'project',
       objectId: visible.id,
@@ -878,8 +1033,8 @@ export class ProjectService {
           after: { members: members.map((m) => ({ adminUserId: m.adminUserId, roleIds: [...m.roleIds].sort() })) },
         };
       },
-    });
-    return this.deps.read.afterWrite(visible.id, language);
+    }, caller));
+    return visible;
   }
 
   /**

@@ -10,8 +10,8 @@ import type { DeploymentDivergenceDeclaration } from '@endora-commerce/contracts
  * out for that same reason — a field an author never sees is a field they never
  * learn they have.
  *
- * Four things are declared here and only four, because they are the four no
- * walk can produce:
+ * These are declared here and nothing else, because they are what no walk can
+ * produce:
  *
  *  - `omittedModules` — a module this deployment does not ship, with a reason
  *    in prose. D-101, and the boot refuses an omission that is not here. The
@@ -23,6 +23,11 @@ import type { DeploymentDivergenceDeclaration } from '@endora-commerce/contracts
  *  - `commandHookOrder` — the order of two command-hook modules on one action
  *    that no manifest dependency ranks (spec 176). Optional; written out here
  *    for the same reason the others are.
+ *  - `commandMiddlewareOrder` — the order of two `admit` command-middleware
+ *    modules whose filters can meet and that no manifest dependency ranks
+ *    (spec 189). Optional, and it lists at least two modules, so it is absent
+ *    here: this deployment's one middleware is an `observe`, which is never
+ *    ordered.
  *  - `reasons` — one sentence per divergence the platform derives, keyed by the
  *    derived entry's own key. It answers; it cannot enumerate.
  *
@@ -185,6 +190,14 @@ export const divergence: DeploymentDivergenceDeclaration = {
       'repository registers a refund handler, and `GatewayRefundRegistryPort` would be compiled ' +
       'against by no consumer at all (FR-021, FR-063). Same rung, same shape: the owner published ' +
       'the seam, the consumer declares it, and nothing of `payments` is wrapped or replaced.',
+    // `overlay_notes_fixture` — 190 #1853 (FR-065, FR-066): the one overlay
+    // declarer of an `x_*` column in this repository.
+    'column-extension:overlay_notes_fixture:organizations':
+      'Core keeps an Organization’s columns its own. This fixture adds one nullable column to ' +
+      '`organizations`, for when the organization’s last note was written, through the generated ' +
+      'schema-extension step an installed package would use: ledgered under the fixture’s id, ' +
+      'never exposed on an admin read, and kept as orphaned with its values when the fixture is ' +
+      'hard-uninstalled. No core column is changed, and nothing core runs reads it.',
     'decoration:example_overlay:pricingService':
       'Core resolves a line price from the price lists a customer is entitled to. This ' +
       'deployment prefixes the resolved list id so that a reference reader can see, on a live ' +
@@ -196,6 +209,24 @@ export const divergence: DeploymentDivergenceDeclaration = {
       'interceptor stamps its response so that the reference deployment demonstrates the ' +
       'rung-2 seam end to end. It runs after the handler and adds a field; it vetoes nothing ' +
       'and writes nothing, which is what a `post` interceptor may do.',
+    // `command_middleware_fixture` — 189 P1. Two entries, one per declared
+    // middleware, because a middleware is keyed by its id.
+    'command-middleware:command_middleware_fixture:hold-marked':
+      'Core admits every Command. This fixture refuses an Organization write — a child write ' +
+      'inside a bigger one included — only for a request whose id carries its hold marker, with ' +
+      'its own translated code and before anything is written. It is the reference admission ' +
+      'rule the command-middleware contract tests compose, and it changes nothing for any other request.',
+    'command-middleware:command_middleware_fixture:record-marked':
+      'After a marked request’s Organization write has committed or rolled back, this fixture keeps ' +
+      'the run’s names-only summary and the tenant context it was observed in, which the ' +
+      'command-middleware tests read. It cannot slow, fail or change the write, and it ignores every ' +
+      'request that does not carry its marker.',
+    'command-middleware:example_overlay:organization-timing':
+      'Core runs no middleware on the Command Bus. After any write that touched an Organization ' +
+      'has committed or rolled back, this deployment logs how long it took and how it ended — ' +
+      'the action, the outcome, the error code and a count, never a value. It is the reference ' +
+      '`observe` middleware: it cannot slow, fail or change the write, and it replaces what a ' +
+      'deployment used to do by wrapping `commandBus`.',
     'registration:example_overlay:exampleOverlayService':
       'Core registers no service of this name — it is this deployment’s own, and it exists so ' +
       'that the container’s ownership ledger has an overlay claimant to answer for. A core ' +

@@ -7,6 +7,7 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { createCatalogProductScopeWritePort, createCatalogProductWritePort } from './catalog-write-ports.js';
+import { createCatalogProductCommandPort } from './catalog-command-ports.js';
 import { assertIntegrationCall, firstDuplicateCell } from './scoped-values-import.js';
 import { CatalogAdminService, type CatalogEventBus } from './catalog-admin.service.js';
 import type { CatalogAttributeReadService, CatalogAttributeView } from './catalog-attribute-read.service.js';
@@ -88,8 +89,7 @@ describe('assertIntegrationCall (R21)', () => {
   it('the port refuses the call before any Command runs', async () => {
     const run = vi.fn();
     const port = createCatalogProductScopeWritePort({
-      commandBus: () => ({ run }) as never,
-      importDeps: () => ({}) as never,
+      products: () => ({ applyScopedValues: run }) as never,
       isRegisteredModule: registered,
     });
     await expect(port.applyScopes(ITEM, { cells: [cell('name')] }, { source: 'not_registered' })).rejects.toMatchObject({
@@ -124,7 +124,18 @@ describe('createCatalogProductWritePort — content attribute keys (feature 172)
         listAll: async () => [view('buying_guide', 'page_builder'), view('color', 'enum')],
       } as unknown as CatalogAttributeReadService,
     );
-    return createCatalogProductWritePort(() => service);
+    // Deprecated since 0.113.0 (#1825): the write port delegates to the aggregate port, which
+    // calls the same service method.
+    const products = createCatalogProductCommandPort({
+      admin: () => service,
+      commandBus: () => ({ run: untouched }) as never,
+      importDeps: () => ({}) as never,
+    });
+    return createCatalogProductWritePort({
+      products: () => products,
+      attributes: () => ({}) as never,
+      attributeReads: () => service,
+    });
   }
 
   async function refusal(promise: Promise<unknown>): Promise<HttpError> {

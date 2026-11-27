@@ -277,6 +277,38 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'while a hook would run. A 500: the owner broke its own published contract. The raiser is ' +
       'the Command Bus.',
   },
+  // `specs/189-command-middleware/` P1 — the Command Bus's answers when an
+  // admission rule cannot decide, or a middleware runs a Command.
+  COMMAND_ADMISSION_TIMEOUT: {
+    to: '_i18n',
+    reason:
+      'Minted by spec 189 P1 (FR-013) for an `admit` command middleware that did not settle within ' +
+      'its budget: the Command is refused before it writes anything, failing closed. A 503. The ' +
+      'raiser is the Command Bus.',
+  },
+  COMMAND_ADMISSION_FAILED: {
+    to: '_i18n',
+    reason:
+      'Minted by spec 189 P1 (FR-013) for an `admit` command middleware that threw something other ' +
+      'than a refusal: the Command is refused before it writes anything, failing closed. A 503. The ' +
+      'raiser is the Command Bus.',
+  },
+  COMMAND_MIDDLEWARE_REENTRY: {
+    to: '_i18n',
+    reason:
+      'Minted by spec 189 P1 (FR-015) for a command middleware that called `CommandBus.run`: an ' +
+      'admission rule would loop and an observer would write outside its contract. A 500. The raiser ' +
+      'is the Command Bus.',
+  },
+  // `specs/187-side-table-extensions/` B1 — a host read port's answer to an
+  // `include` no composed loader claims.
+  ENTITY_EXTENSION_UNCLAIMED: {
+    to: '_i18n',
+    reason:
+      'Minted by spec 187 B1 (FR-054) for a read whose `include` names `extensions.<moduleId>` that no ' +
+      'loader of the composition serves for the host — refused 422 before any loader runs, so a ' +
+      'misspelt module never reads as "no values". The raiser is the platform\'s `entityExtensionReads`.',
+  },
   COMMAND_OUTBOX_NOT_DEAD: {
     to: '_i18n',
     reason:
@@ -3466,6 +3498,36 @@ export const PLATFORM_OWNED_ERROR_CODES: PlatformOwnedErrorCodes = {
     reason:
       'A Command declared hookable that supplied no hook data. The refusal is the Command Bus\'s, ' +
       'raised for whichever owner declared the action, so no one module owns it.',
+  },
+  // `specs/189-command-middleware/` P1 — command middleware is a step of the
+  // platform's Command Bus, which no module owns.
+  COMMAND_ADMISSION_TIMEOUT: {
+    tier: 'T3',
+    reason:
+      'An admission rule that did not answer in time. The noun is the Command Bus\'s admission step, ' +
+      'which runs every contributing module\'s rules over every module\'s Commands; the middleware is ' +
+      'named in the log, not owned by the code.',
+  },
+  COMMAND_ADMISSION_FAILED: {
+    tier: 'T3',
+    reason:
+      'An admission rule that failed. The noun is the Command Bus\'s admission step, which spans every ' +
+      'contributing module and every Command at once, so no one module owns it.',
+  },
+  COMMAND_MIDDLEWARE_REENTRY: {
+    tier: 'T3',
+    reason:
+      'A command middleware that ran a Command. The refusal is the Command Bus\'s, raised for whichever ' +
+      'module contributed the middleware, so no one module owns it.',
+  },
+  // `specs/187-side-table-extensions/` B1 — the include is answered by the
+  // platform for every extensible host, so no one module owns it.
+  ENTITY_EXTENSION_UNCLAIMED: {
+    tier: 'T3',
+    reason:
+      'An extension include no composed loader claims. The noun is the side-table include on a host ' +
+      'read port, which the platform answers for all nine hosts and every extending module at once; ' +
+      'the module the include names is in the details, not owned by the code.',
   },
   COMMAND_OUTBOX_NOT_DEAD: {
     tier: 'T3',

@@ -1,4 +1,8 @@
-import type { CustomerAccountPreferencePort, CustomerAccountRecord } from '@endora-commerce/contracts';
+import type {
+  CustomerAccountCommandPort,
+  CustomerAccountPreferencePort,
+  CustomerAccountRecord,
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { makeSetCustomerAccountPreferredLanguageCommand } from '../commands/customer-account-set-preferred-language.command.js';
@@ -14,14 +18,30 @@ import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
  * the request channel and passes it in that channel's spelling.
  * `captureIfUnset` is a sign-in's capture and fills only an unknown value. See
  * the contract for the rest.
+ *
+ * Since `specs/186-aggregate-ports/` (issue #1822, research R-17.4)
+ * `setPreferredLanguage` is `customerAccountCommandPort.setPreferredLanguage`
+ * with the code `self_service`: one write, and the entry records
+ * `source: 'self_service'` as it always has. It is not deprecated — the buyer's
+ * own page is a customer-facing route, which the aggregate port must never
+ * serve — and `captureIfUnset` stays this port's alone.
  */
 export class CustomerAccountPreferenceService implements CustomerAccountPreferencePort {
   constructor(
     private readonly twoFactorEnrolments: TwoFactorEnrolmentReader,
     private readonly commandBus: CommandBus,
+    /** The aggregate port the owner's choice runs; a hand-built test service runs the Command itself. */
+    private readonly commands?: Pick<CustomerAccountCommandPort, 'setPreferredLanguage'>,
   ) {}
 
   async setPreferredLanguage(customerAccountId: string, preferredLanguage: string): Promise<CustomerAccountRecord> {
+    if (this.commands) {
+      return this.commands.setPreferredLanguage(
+        customerAccountId,
+        { language: preferredLanguage },
+        { source: 'self_service' },
+      );
+    }
     const account = await this.commandBus.run(
       makeSetCustomerAccountPreferredLanguageCommand({ customerAccountId, preferredLanguage, source: 'self_service' }),
     );

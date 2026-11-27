@@ -1,0 +1,11 @@
+{
+  "actions.openOverlayNotesFixture.label": "Fikstura notatek nakładki",
+  "actions.openOverlayNotesFixture.description": "Otwórz fiksturę notatek nakładki wdrożenia przykładowego",
+  "admin.count": "Notatki widoczne dla Ciebie: {count}",
+  "admin.description": "Fikstura wdrożenia przykładowego: moduł nakładki z tabelą i ekranem administracyjnym.",
+  "admin.error": "Nie udało się wczytać notatek.",
+  "admin.loading": "Wczytywanie…",
+  "admin.title": "Fikstura notatek nakładki",
+  "adminRoles.permission.overlay_notes_fixture:read": "Odczyt fikstury notatek nakładki",
+  "nav.overlayNotesFixture.label": "Fikstura notatek nakładki"
+}

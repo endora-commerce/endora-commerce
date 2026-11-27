@@ -170,7 +170,13 @@ export interface InstanceDivergence {
   readonly overlayModules: readonly string[];
   readonly entries: number;
   /** Findings the derivation raised — `check:divergence`'s subject, printed here. */
-  readonly findings: ReadonlyArray<{ readonly kind: string; readonly where: string; readonly detail: string }>;
+  readonly findings: ReadonlyArray<{
+    readonly kind: string;
+    readonly where: string;
+    readonly detail: string;
+    /** Absent means an error; `'warning'` is printed and refuses nothing (189 FR-051). */
+    readonly severity?: 'error' | 'warning';
+  }>;
   /** Declaration fields this run could not resolve to literals, each named. */
   readonly unresolvedDeclaration: readonly string[];
 }
@@ -313,6 +319,7 @@ export function renderInstanceDivergence(input: {
         kind: finding.kind,
         where: finding.where,
         detail: finding.detail,
+        ...(finding.severity === undefined ? {} : { severity: finding.severity }),
       })),
       unresolvedDeclaration: reading.unresolved,
     };

@@ -755,6 +755,7 @@ async function runGenerateCommand(
 ): Promise<number> {
   const {
     generateFindingsRefusal,
+    generatePaletteRefusal,
     generateReport,
     GenerateHostError,
     GenerateInputError,
@@ -782,11 +783,11 @@ async function runGenerateCommand(
       `  ${String(result.modules)} installed module package(s) in the population\n`,
     );
     // After the report, so the lines it refers to are already on the screen.
-    const refusal = generateFindingsRefusal(result);
-    if (refusal !== null) {
-      process.stderr.write(`endora: ${refusal}\n`);
-      return 1;
-    }
+    const refusals = [generateFindingsRefusal(result), generatePaletteRefusal(result)].filter(
+      (refusal): refusal is string => refusal !== null,
+    );
+    for (const refusal of refusals) process.stderr.write(`endora: ${refusal}\n`);
+    if (refusals.length > 0) return 1;
     return 0;
   } catch (error: unknown) {
     if (error instanceof GenerateInputError) {

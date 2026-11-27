@@ -106,7 +106,7 @@ method is unchanged.
 | Host | Port (container name) | Methods that gain `options` | Phase |
 | --- | --- | --- | --- |
 | `organizations.Organization` | `OrganizationDetailsPort` (`organizationDetailsPort`) | `findById`, `findByIds`, `searchByName`, `findByTaxId` | B1 |
-| `customer_accounts.CustomerAccount` | `CustomerAccountReadPort` | `searchByEmail`, `listAll` | B2 |
+| `customer_accounts.CustomerAccount` | `CustomerAccountReadPort` (`customerAccountReadPort`) | `findById`, `findByIds`, `searchByEmail`, `listAll` | B2 |
 | `orders.Order` | `OrderReadPort` (`orderReadPort`) | `findById`, `findByIdForCustomer`, `findByIds`, `listAll` | B2 |
 | `quote_requests.QuoteRequest` | `QuoteRequestReadPort` | `findById`, `findByBusinessId`, `findByIds` | B2 |
 | `catalog.Product` | `CatalogProductReadPort` | `listAll` | B2 |
@@ -115,7 +115,11 @@ method is unchanged.
 | `projects.Project` | `ProjectReadPort` | `findById`, `findByRecord`, `findByIds`, `search` | B2 |
 | `tasks.Task` | `TaskReadPort` | `findById`, `findByIds`, `search`, `listInContext`, `listOpenInContext` | B2 |
 
-Method lists were read from the contracts on `ff7efc3e8`. **Coordination with
+Method lists were read from the contracts on `ff7efc3e8`; the `customer_accounts` row was updated
+with B2 (#1835): `findById` and `findByIds` (whose `options` already carried
+`CustomerAccountLookupOptions`, now intersected with `EntityExtensionReadOptions`) were on the port
+before that commit, so the note below about a missing by-id method no longer holds for it.
+`ERROR_CODES` has no `VALIDATION_ERROR`; semantics 2 answers `422 VALIDATION_FAILED`. **Coordination with
 `specs/186-aggregate-ports/`**: `CustomerAccountReadPort` and `CatalogProductReadPort` have no by-id
 record method today; adding one is the aggregate port's business, not this feature's. If 186 adds,
 renames or replaces a read port for an aggregate, the `options` parameter goes on the port 186
