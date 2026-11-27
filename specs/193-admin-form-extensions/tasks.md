@@ -23,7 +23,7 @@ the merge request that changes their inputs.
 
 ### WP-H3 `catalog` (FR-112, FR-113, FR-114, §3)
 - [ ] T008 [T][P] Add `product-hooks.test.ts`, and `expectHookableCommand` tests for `product.create`, `product.update`, `product.scoped_values.save` and `product.scoped_values.import`, with per-scope hook data. Add a test proving the four are not reversible.
-- [ ] T009 [T][P] A test that `product.bulk_update` supplies `hookData` and stays undeclared as hookable.
+- [ ] T009 [T][P] Tests that every product write of a bulk edit, inline and queued, runs as `product.bulk_update.item` and never as an action in `PRODUCT_HOOKABLE_ACTIONS`. The tests also cover that the action supplies `ProductUpdateHookData` and emits `product.updated.v1`, that it records the audit state of `product.update`, that a hook registered on it is refused at composition, and that a `product.update` hook runs for neither the bulk edit nor its undo (D-300.8).
 - [ ] T010 Add `product-hooks.ts`, the Command data, the manifest entries, `catalogProductCommandPort` options, and a changeset.
 
 ### WP-A contracts (FR-001, FR-005, FR-010, FR-020, FR-022, FR-030, FR-040, FR-051, FR-070, FR-083, FR-091)
@@ -117,7 +117,7 @@ the merge request that changes their inputs.
 
 ### WP-P1 product editor, declare first (FR-120, FR-125, FR-126, `contracts/product-editor-adoption.md`)
 - [ ] T052 [T] Record `ProductEditor.adoption-snapshot.test.tsx`: the accessible structure at global, channel and locale scope, recorded against the current editor (green now, held from here on).
-- [ ] T053 [T] `expectFieldSetMatchesSchemas(PRODUCT_FIELD_SET)`, plus `expectFieldSetWriters` for the four hookable writers (scoped) and `product.bulk_update` as rule-check-only.
+- [ ] T053 [T] `expectFieldSetMatchesSchemas(PRODUCT_FIELD_SET)`, plus `expectFieldSetWriters` for the four hookable writers (scoped) and `product.bulk_update.item` as rule-check-only.
 - [ ] T054 Add `scripts/check-paid-admin-layers.sh` (read-only typecheck and build of `../paid-modules` PIM admin layers against the built packages; exit 0 with a notice when they are absent). Document running it in the catalog MR template note.
 - [ ] T055 Add `product-form.ts` (the keys from §1), the manifest, `ctx.fieldSets`, and the module-local key-to-`fieldPath` map. Make no render change.
 

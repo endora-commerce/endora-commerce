@@ -52,14 +52,39 @@ export interface ProductScopedValuesHookData {
 }
 ```
 
-`product.bulk_update` is reversible, so it is **not** declared hookable. It supplies `hookData` and
-is registered in `ctx.fieldSets` as `{ on: …, ruleCheckOnly: true }`. The undo Command
-`product.bulk_update.undo` is not a writer.
+### §3.1 The bulk edit (D-300.8)
+
+A bulk edit writes no `product.update`. Here is how it writes, measured on WP-H3 (`753b15f16`):
+
+| Entry | What it is | Hookable | Writer |
+| --- | --- | --- | --- |
+| `product.bulk_update` | One summary audit row per run, written by `CatalogBulkUpdateService.recordSummaryAudit` through the audit port. It is **not** a Command. | no | no |
+| `product.bulk_update.item` | The Command per product for status, visibility, returnable, attribute set, categories and attribute values, on the inline and the queued path. Before D-300.8 this was `product.update`. | **no** | rule-check-only |
+| `product.archive` / `product.restore`, `product.scopes.update` | The Commands a bulk edit runs for `archived` and `scopedStatus`. | no | not in the product field set |
+| `product.bulk_update.undo` | One Command per undo (`objectType: 'bulk_operation'`). It restores columns and scope rows directly from `revertState` and writes no product Command. | no | no (undo) |
+
+- `product.bulk_update.item` runs the same `run` as `product.update`. It records the same audit
+  state (`stateBefore`, `stateAfter`, `changedFields`), emits `product.updated.v1`, and supplies
+  `hookData` of type `ProductUpdateHookData` for the field-rule check. It has no `outboxData`,
+  because no `afterCommit` handler can exist for it.
+- The action is module-local. It is not in `PRODUCT_HOOKABLE_ACTIONS` and not in the manifest's
+  `hookableActions`, so a hook registered on it is refused at composition
+  (`UndeclaredHookableActionError`). The ref that `ctx.fieldSets` needs for `on` stays inside
+  `catalog`.
+- It is not reachable from `catalogProductCommandPort`. The aggregate port's `update` and
+  `setCustomFieldValues` stay `product.update`.
+- **What a hook author can rely on.** `product.update` hooks see every product write except a bulk
+  edit's. To observe bulk edits and their undo, listen to `product.updated.v1`: the per-product
+  Command emits it, and the undo emits it for every product it restores. An invariant that has to
+  bind bulk edits too is a field rule (`requiredWhen`, `options`, `writePermission`), which a
+  rule-check-only writer enforces. A `beforeCommit` veto does not bind bulk edits.
+- The undo is not a writer. A rule added after a bulk edit cannot block undoing it (R-22).
 
 ## §4 Obligations per action
 
 1. A test showing the Command is not reversible, run before the action is declared (T002, T006, T008). If it is
-   reversible, it becomes rule-check-only instead.
+   reversible, or a reversible parent operation composes it (D-300.8), the write it performs for that
+   parent runs under an action of its own, which is rule-check-only.
 2. `hookData` and `outboxData` on the Command, and `expectHookableCommand(command, ref)` in its tests.
 3. A manifest `hookableActions` entry (`toHookableActionDeclaration`).
 4. A changeset on `@endora-commerce/contracts` and the owner package. The change is additive.

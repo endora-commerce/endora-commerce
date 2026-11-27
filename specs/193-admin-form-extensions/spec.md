@@ -82,6 +82,13 @@ without editing core and without a rule that the UI enforces and the API ignores
 - **D-300.7**: Principle XV is amended to state what a deployment may and may not adjust on a core
   form, and that operator overrides are presentation only (constitution 4.6.0, drafted on #2010's 4.5.0). The wording is
   pending the owner's sign-off.
+- **D-300.8** *(architect ruling, 2026-11-27, raised by WP-H3; within 176 §6, so no owner answer is
+  needed)*: Each product write of a bulk edit runs as its own action, `product.bulk_update.item`. It
+  is never declared hookable and is a rule-check-only writer. Module hooks on `product.update`
+  therefore never see a bulk edit, on the inline path or the queued one, and its undo leaves no hook
+  state behind. A module that must observe bulk edits and their undo listens to
+  `product.updated.v1`, which both emit. An invariant that must bind bulk edits is a field rule.
+  The reasoning is in R-22 § *The bulk edit (D-300.8)*.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -346,9 +353,13 @@ field sets. Field-rule checks and slot hooks can then reach every write path, as
 1. **Given** the published refs, **When** a module registers a `beforeCommit` hook on
    `customer_account.update_profile`, `crm.opportunity.update` or `product.update`, **Then** it runs
    inside the Command and can veto the write, under 176's semantics.
-2. **Given** a reversible Command that writes a field set, for example the product bulk update,
-   **Then** it is not hookable (176 §6). It is registered as a **rule-check-only writer**, so a
-   tightened rule still binds it, while slot hooks cannot attach to it (FR-113).
+2. **Given** a write that a stored-revert undo reverses, for example each product write of a product
+   bulk edit, **Then** it runs under its own action, which is not hookable (176 §6). That action is
+   registered as a **rule-check-only writer**, so a tightened rule still binds it, while module and
+   slot hooks cannot attach to it (FR-113, D-300.8).
+3. **Given** a module with a `beforeCommit` or `afterCommit` hook on `product.update`, **When** an
+   operator bulk-edits products and then undoes the edit, **Then** the hook runs for neither. Each
+   product write and each undone product emits `product.updated.v1` (D-300.8).
 
 ---
 
@@ -643,9 +654,15 @@ they are, with the same props. The four PIM modules render their protection togg
 - **FR-112**: `catalog` MUST publish `PRODUCT_HOOKABLE_ACTIONS` (`create`, `update`,
   `scopedValuesSave`, `scopedValuesImport`) in `product-hooks.ts`. The scoped-value hook data carries
   `{ productId, scope, after, changedFields }` per saved scope.
-- **FR-113**: A reversible Command that writes a field set MUST NOT be declared hookable (176 §6). It
-  MAY be registered as a rule-check-only writer, `ctx.fieldSets(... { ruleCheckOnly: true })`, which
-  admits the field-rule check alone. It MUST supply `hookData`. Undo actions are not writers.
+- **FR-113**: A write that a stored-revert undo reverses MUST NOT run under a hookable action
+  (176 §6). This includes a per-record Command that a reversible parent operation composes, not
+  only a Command that is itself reversible. Such a write MUST run under an action of its own that is
+  never declared hookable. It MAY be registered as a rule-check-only writer,
+  `ctx.fieldSets(... { ruleCheckOnly: true })`, which admits the field-rule check alone, and then
+  it MUST supply `hookData`. Undo actions are not writers. In `catalog`, each product write of a
+  bulk edit runs as `product.bulk_update.item`, a rule-check-only writer, on the inline and the
+  queued path alike, and never as `product.update`. The summary entry `product.bulk_update` is an
+  audit row, not a Command, and is not a writer (D-300.8).
 - **FR-114**: Each new action MUST have `expectHookableCommand` tests, be listed in its owner's
   manifest `hookableActions`, and be announced in a changeset (additive).
 

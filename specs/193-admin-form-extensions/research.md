@@ -1,6 +1,6 @@
 # Research — Admin form extensions (193)
 
-Architect rulings R-1 to R-23. Each one gives the decision, the reasons for it, and the
+Architect rulings R-1 to R-23 (R-22 also carries D-300.8, an architect ruling). Each one gives the decision, the reasons for it, and the
 alternatives that were rejected. On 2026-11-27 the owner answered OQ-193-1 to OQ-193-6; the answers
 are recorded as **D-300** in `spec.md`. R-21 to R-23 design what D-300.5 and D-300.6 require.
 
@@ -581,7 +581,7 @@ Measured actions:
 | `customer_account` | `customer_account.create`, `customer_account.update_profile`, `customer.custom_fields.update` | all three, both phases | the `customers` screen writes through `customer_accounts`' port (feature 075) |
 | `opportunity` | `crm.opportunity.create`, `crm.opportunity.update` | both | the custom-field port runs `crm.opportunity.update` |
 | `product` | `product.create`, `product.update`, `product.scoped_values.save`, `product.scoped_values.import` | all four | scoped hook data is per scope (FR-112) |
-| `product` | `product.bulk_update` (reversible, worker) | **no**; rule-check-only writer (FR-113) | 176 §6 forbids hooks on a reversible Command |
+| `product` | `product.bulk_update.item`, one per product of a bulk edit (inline and queued) | **no**; rule-check-only writer (FR-113, D-300.8) | the queued run is reversible, and 176 §6 forbids hooks on a reversed write. `product.bulk_update` itself is a summary audit row, not a Command |
 
 **The rule-check-only writer.** The field-rule check writes nothing, so it does not break undo, which
 is the reason 176 keeps hooks off reversible Commands. It can therefore run on a reversible Command,
@@ -594,6 +594,91 @@ Each Command named in the table must be verified as non-reversible before it is 
 
 Hook data follows 176 §6 and audit-state list 1 for the outbox. The `beforeCommit` data may carry the
 after-state record, as `OrganizationUpdateHookData` does.
+
+### The bulk edit (D-300.8)
+
+**What WP-H3 found.** The table originally listed `product.bulk_update` as a reversible Command.
+That was wrong. Measured on WP-H3 (`753b15f16`):
+- `product.bulk_update` is a summary row that `CatalogBulkUpdateService.recordSummaryAudit` writes
+  straight to the audit port (`packages/modules/catalog/src/backend/services/catalog-bulk-update.service.ts`).
+  It is not a Command.
+- The field writes are one `product.update` Command per product, through
+  `CatalogAdminService.updateProductAudited`. The queued run (`BulkOperationService`, above
+  `BULK_ASYNC_THRESHOLD`) wraps them in a revert snapshot, so once `product.update` is hookable, a
+  hook fires on every product of a reversible edit.
+- The undo is **one** Command, `product.bulk_update.undo` (`objectType: 'bulk_operation'`). It
+  restores columns with `em.assign` and scope rows with `restoreScopedStatus`
+  (`bulk-operation.service.ts`, `#undoCommand`). It runs no `product.update`, so a hook never sees
+  the revert. After commit it emits `product.updated.v1` for each restored product.
+- The bus picks hooks by `command.action` alone (`packages/platform/src/commands/command-bus.ts`,
+  `execute` and `runBeforeCommitHooks`). A run has no way to opt out.
+
+So the guarantee in 176 §6 was being broken. A `beforeCommit` hook's side rows stayed behind after an
+undo, and so did the external effect of an `afterCommit` handler. None of this reached a test,
+because the undo never runs a hookable action.
+
+**Decision.** Each product write of a bulk edit runs under its own action,
+`product.bulk_update.item`. The action has the same `run`, audit state, event and `hookData` as
+`product.update`, and no `outboxData`. It is never declared hookable and is registered as a
+rule-check-only writer. This holds on the inline path and the queued one, and whichever fields the
+edit touches. The undo is unchanged.
+
+**Rationale.**
+- *No new mechanism.* The rule-check-only writer already exists in this design (FR-113, field-rules
+  §2/§5), and so does the composition refusal of hooks on an undeclared action. The change is one
+  action string chosen by the caller and one service method.
+- *176 §6 holds by construction.* No action that a reversible run executes can carry a module
+  hook, so an undo cannot leave hook state behind. The field-rule check still binds bulk edits
+  (D-300.3), and because it writes nothing, undo stays honest.
+- *One rule a hook author can state.* "`product.update` hooks never see bulk edits" is predictable.
+  Splitting by reversibility, with hooks on the inline path (≤ `BULK_ASYNC_THRESHOLD`) or on
+  non-revertible fields and none on a queued revertible run, would make the hook's coverage depend on
+  selection size. A test with 20 products would pass, and production with 500 would behave
+  differently. A veto would therefore not be an invariant on either variant, and the narrow variant
+  hides that.
+- *A symmetric observation channel already exists.* `product.updated.v1` is emitted by every
+  forward product write and by the undo for every restored product. A hook only ever sees the
+  forward half.
+- *Audit history improves rather than degrades.* `RecordHistory`
+  (`packages/admin-kit/src/components/record-history/RecordHistory.tsx`) reads entries by object,
+  not by action, so a product's history still lists the write, labelled as a bulk edit. Recent
+  Activity lists `product.update` and `product.bulk_update` (`catalog/src/manifest.ts`
+  `recentActivity`). Per-product bulk rows stop flooding the card, and the summary row stands for
+  the run, as it was meant to. No reader in this repository or in `../paid-modules` filters on the
+  `product.update` string for anything other than a label or that card.
+
+**Costs accepted.**
+- From this release, an audit-log query for `--action=product.update` no longer returns per-product
+  bulk writes. Rows written before the release keep `product.update`, so they are not rewritten.
+  This is called out in the catalog changeset.
+- A `beforeCommit` veto on `product.update` does not bind bulk edits. That was already true of every
+  reversible write under 176, and the field rule is the instrument that does bind them.
+
+**Rejected.**
+- *(A) Accept hooks inside a bulk edit and let the undo be "another edit".* This rests on a false
+  premise: the undo writes no `product.update`. Routing the undo through per-product `product.update`
+  children would make every hook a potential refusal of the undo. A tightened `required` on a
+  cleared field would refuse a revert to the old empty value (D-300.4). Because a child failure rolls
+  back the whole undo Command, the per-record conflict reporting (054 FR-006/FR-007) would turn into
+  all-or-nothing. It also only makes hook state "follow" for hooks that are pure functions of
+  product state. That is not a property 176 asks of a hook, and nothing can check it.
+- *(C) A platform rule-check-only run mode for a hookable action.* It changes the bus at its
+  hottest point (`execute`). It is also a per-run hook bypass, so the field-rule check would be the
+  only thing holding it to its purpose, and any owner could set it on any run. A separate action
+  gives the same effect, and the composition refusal already holds it.
+- *(D) `product.bulk_update` as a parent Command with per-product children, and hooks gated by
+  lineage.* A parent Command is one transaction. The queued run deliberately commits each product
+  on its own (no batch abort, progress counters, thousands of products). Gating by lineage is also a
+  platform change, to `Lineage` and hook selection, made for a single caller.
+- *(E) Keep the hooks, and mark the operation not reversible whenever a present module hooks
+  `product.update`.* Every deployment with a product slot field registers such a hook (FR-112,
+  `fieldSlotHook`), so 193's main use case would switch off 054's undo. Exempting slot hooks would
+  mean a new hook classification on the bus.
+
+**Guard against recurrence.** A test asserts that a bulk run, both inline and queued, executes no
+action from `PRODUCT_HOOKABLE_ACTIONS`. A product write that a later feature adds to the bulk edit
+then fails that test until it is given a non-hookable action, which covers, for example, archive or
+restore being declared hookable in the future.
 
 ## R-23: How the product editor adopts without a big-bang rewrite
 

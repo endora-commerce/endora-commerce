@@ -120,7 +120,7 @@ docs/docs/architecture/admin-form-extensions.md (+pl), customisation-ladder.md (
 | --- | --- | --- | --- | --- |
 | 1 | **H1** | customer_accounts | `CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS` (3); `hookData` and `outboxData`; manifest; port forwards `extensions` | — |
 | 1 | **H2** | crm | `OPPORTUNITY_HOOKABLE_ACTIONS` (2), same obligations | — |
-| 1 | **H3** | catalog | `PRODUCT_HOOKABLE_ACTIONS` (4, including the scoped data); `product.bulk_update` gets `hookData` for rule-check-only use | — |
+| 1 | **H3** | catalog | `PRODUCT_HOOKABLE_ACTIONS` (4, including the scoped data); each bulk-edit product write runs as the non-hookable `product.bulk_update.item` (D-300.8), with `hookData` for rule-check-only use | — |
 | 1 | **A** | contracts | Declaration types and schemas, conditions and evaluator, vectors, controls and formats, manifest fields, `AdminContributions` arrays, divergence kinds, grants, the `FormLayoutOverrideSource` port and its channel, test-kit schema helper | 189 origin on master |
 | 2 | **B** | platform | `FormRegistry.seal` refusals; `ctx.fieldSets` (including `ruleCheckOnly` and `scoped`) and `ctx.fieldFormats`; the field-rule check (ordering-exempt, actor skip, no retroactive `required`); `fieldSlotHook`; formats; `GET /api/v1/admin/forms` with the operator layer and the memo; error codes and bundles; T-B6 API-key scopes; test-kit writer helper | A |
 | 2 | **D** | cli + scripts | The `admin-forms` analysis; `check:admin-forms` and its estate obligations; `endora generate`; divergence derivation | A |
@@ -130,7 +130,7 @@ docs/docs/architecture/admin-form-extensions.md (+pl), customisation-ladder.md (
 | 5 | **E2** | projects | Two forms; `?extensions=` wire on the detail read | E1 |
 | 5 | **E3** | customers / customer_accounts | `customer_account` field set (owned by `customer_accounts`) and the `customer.edit` form (declared by `customers`); wire; render swap | E1, H1 |
 | 5 | **E4** | crm | Two opportunity forms; wire; render swap | E1, H2 |
-| 5 | **P1** | catalog | `PRODUCT_FIELD_SET`, `product.edit`, writers (scoped, rule-check-only bulk); record snapshots; paid-layer build script | E1, H3 |
+| 5 | **P1** | catalog | `PRODUCT_FIELD_SET`, `product.edit`, writers (scoped, rule-check-only `product.bulk_update.item`); record snapshots; paid-layer build script | E1, H3 |
 | 6 | **P2 – P6** | catalog | Section MRs: Content, Availability, Identity, Categories, Media | P1 (in order) |
 | 7 | **P7** | catalog | Attributes family | P6 |
 | 5 | **L1** | custom_fields | Table and migration, entity, Commands (set, reset, rekey), routes, port, cache and invalidation, permission, errors, i18n | B |
