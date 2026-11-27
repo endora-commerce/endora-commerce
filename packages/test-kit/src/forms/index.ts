@@ -1,6 +1,7 @@
 /**
- * `@endora-commerce/test-kit/forms` — the owner-side proof that a field set
- * agrees with the host's write contract (`specs/193-admin-form-extensions/`
+ * `@endora-commerce/test-kit/forms` — the owner-side proofs that a field set
+ * agrees with the host's write contract, and that its writers project what
+ * they write (`expectFieldSetWriters`, T028) (`specs/193-admin-form-extensions/`
  * FR-003, T017; `contracts/field-rules.md` §2).
  *
  * A field set restates, per field, what the host's create and update body
@@ -17,6 +18,8 @@
 
 import { AssertionError } from 'node:assert';
 import type { FieldDeclaration, FieldSetDeclaration, FieldValueType } from '@endora-commerce/contracts';
+import type { Command } from '@endora-commerce/platform/commands';
+import type { FieldSetRegistration } from '@endora-commerce/platform/kernel';
 
 /** What the helper reads of a Zod 4 schema. Any `z.ZodType` satisfies it. */
 export interface ZodSchemaLike {
@@ -243,6 +246,105 @@ export function expectFieldSetMatchesSchemas(set: FieldSetDeclaration, schemas: 
     throw new AssertionError({
       message:
         `expectFieldSetMatchesSchemas: field set '${set.id}' disagrees with its write schemas (FR-003):\n` +
+        problems.map((problem) => `  - ${problem}`).join('\n'),
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The writers (T028, `contracts/field-rules.md` §2, invariant I-5)
+// ---------------------------------------------------------------------------
+
+/** One writer's Command and a result of its run, to feed `hookData` with. */
+export interface FieldSetWriterCase<TResult = unknown> {
+  readonly command: Command<TResult>;
+  readonly result: TResult;
+}
+
+/** A writer the owner lists and does not exercise here, with the reason (e.g. a buyer-only path, D-300.3). */
+export interface FieldSetWriterSkip {
+  readonly skip: string;
+}
+
+/**
+ * Fail unless every writer of `registration` is proven by its Command: there
+ * is a case for each writer's action and a writer for each case; the Command
+ * is that action's and supplies `hookData` — the bus answers a writer without
+ * it with `500 COMMAND_HOOK_DATA_MISSING` — and the writer's projection of that
+ * hook data returns every key it lists in `writes`: in `after`, and on an
+ * update with a `before` holding them or a `changed` list. A scoped writer
+ * projects an array with one entry per saved scope, each held the same way. A
+ * family key (`attributeValues.*`) is data-driven and is not asked for. Every
+ * problem is reported at once.
+ */
+export function expectFieldSetWriters(
+  registration: FieldSetRegistration,
+  commandsByAction: Readonly<Record<string, FieldSetWriterCase<never> | FieldSetWriterCase<unknown> | FieldSetWriterSkip>>,
+): void {
+  const problems: string[] = [];
+  const actions = new Set(registration.writers.map((writer) => writer.on.action));
+  for (const action of Object.keys(commandsByAction).sort()) {
+    if (!actions.has(action)) problems.push(`'${action}' has a Command here and is not a writer of the field set.`);
+  }
+  for (const writer of registration.writers) {
+    const action = writer.on.action;
+    const entry = commandsByAction[action];
+    if (entry === undefined) {
+      problems.push(`'${action}' is a writer and has no Command here: pass one, or { skip: '<reason>' }.`);
+      continue;
+    }
+    if ('skip' in entry) {
+      if (entry.skip.trim().length === 0) problems.push(`'${action}' is skipped with no reason; say why it is not exercised.`);
+      continue;
+    }
+    const { command, result } = entry as FieldSetWriterCase<unknown>;
+    if (command.action !== action) {
+      problems.push(`'${action}': the Command given runs '${command.action}'.`);
+      continue;
+    }
+    if (typeof command.hookData !== 'function') {
+      problems.push(`'${action}': the Command supplies no hookData, which the field-rule check projects (COMMAND_HOOK_DATA_MISSING).`);
+      continue;
+    }
+    const projected = writer.project(command.hookData(result));
+    const scopes: readonly unknown[] =
+      writer.scoped === true ? (Array.isArray(projected) ? projected : []) : Array.isArray(projected) ? [] : [projected];
+    if (writer.scoped === true && !Array.isArray(projected)) {
+      problems.push(`'${action}' is a scoped writer and its projection is not an array of scopes.`);
+      continue;
+    }
+    if (writer.scoped !== true && Array.isArray(projected)) {
+      problems.push(`'${action}' is not a scoped writer and its projection is an array.`);
+      continue;
+    }
+    if (scopes.length === 0) problems.push(`'${action}' projects no scope.`);
+    const literal = writer.writes.filter((key) => !key.endsWith('.*'));
+    for (const [index, scope] of scopes.entries()) {
+      const at = writer.scoped === true ? `'${action}' (scope ${index})` : `'${action}'`;
+      const projection = scope as { readonly before?: unknown; readonly after?: unknown; readonly changed?: unknown };
+      const after = projection.after;
+      if (typeof after !== 'object' || after === null) {
+        problems.push(`${at}: the projection has no after-state.`);
+        continue;
+      }
+      const missing = literal.filter((key) => !Object.prototype.hasOwnProperty.call(after, key));
+      if (missing.length > 0) problems.push(`${at}: writes ${missing.map((key) => `'${key}'`).join(', ')}, which the projection does not return in after.`);
+      const hasChanged = Array.isArray(projection.changed);
+      const before = projection.before;
+      if (writer.mode === 'update' && !hasChanged) {
+        if (typeof before !== 'object' || before === null) {
+          problems.push(`${at}: an update projection returns before or changed; it returns neither.`);
+        } else {
+          const unknownBefore = literal.filter((key) => !Object.prototype.hasOwnProperty.call(before, key));
+          if (unknownBefore.length > 0) problems.push(`${at}: writes ${unknownBefore.map((key) => `'${key}'`).join(', ')}, which the projection does not return in before.`);
+        }
+      }
+    }
+  }
+  if (problems.length > 0) {
+    throw new AssertionError({
+      message:
+        `expectFieldSetWriters: the writers of field set '${registration.set.id}' do not project what they write (I-5):\n` +
         problems.map((problem) => `  - ${problem}`).join('\n'),
     });
   }
