@@ -124,6 +124,15 @@ export const manifest = defineModuleManifest({
   },
   i18n: { bundlesDir: 'i18n' },
   /**
+   * `specs/193-admin-form-extensions/` WP-B — the platform's field-rule check
+   * and `fieldSlotHook` (`contracts/field-rules.md` §5, `field-slots.md` §4).
+   * T3 by noun: the noun is a declared form extension's rule, which the
+   * platform enforces on every module's writers; the module whose rule it is
+   * is named in each `details[]` entry, not by the code. Each entry's own
+   * sentence is under `fieldRules.<code>` in this bundle.
+   */
+  errorCodes: [{ code: 'FIELD_RULE_VIOLATION' }, { code: 'FIELD_WRITE_FORBIDDEN' }, { code: 'FIELD_SLOT_INPUT_INVALID' }],
+  /**
    * Principle XVI. The screen that says what this deployment offers and what
    * the business has switched on is reachable from ⌘K, not only from a nav
    * entry buried under System — it is the surface an operator goes looking for

@@ -45,6 +45,11 @@ GET /api/v1/admin/forms      preHandler: requireAdmin()   (no code — FR-023)
 200 EffectiveFormsResponseSchema, ETag
 ```
 
+> **WP-B note (2026-11-27), pending an architect ruling.** `/api/v1/admin/forms` is already the
+> `forms` module's form list (`specs/170-forms-module/`, with `/:id` beneath it), and two owners of
+> one path refuse the boot (`FST_ERR_DUPLICATED_ROUTE`). WP-B serves the effective forms at
+> `GET /api/v1/admin/effective-forms`; everything else in this section holds as written.
+
 ```ts
 export const EffectiveFieldSchema = z.object({
   key: z.string(),

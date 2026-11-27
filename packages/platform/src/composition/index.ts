@@ -200,6 +200,13 @@ export {
   entityExtensionDeclarationsFrom,
 } from '../kernel/entity-extensions/registry.js';
 export { createEntityExtensionReads } from '../kernel/entity-extensions/reads.js';
+// `specs/193-admin-form-extensions/` WP-B — the form registry a root builds once
+// and hands `composeModules` (which seals it and attaches it to the hook
+// registry), and the declarations it is sealed against, derived from the
+// manifests beside `hookableActionsFrom`. The test kit's `composeTestServer` is
+// the consumer outside this package.
+export { FormRegistry } from '../kernel/forms/registry.js';
+export { formDeclarationsFrom } from '../kernel/forms/inputs.js';
 // `specs/176-command-hooks-outbox/` P3 — the outbox's host half. The wake-up
 // is what both roots hand their `CommandBus`; the entity class is here for
 // `ModuleRegistration`'s reason (the generated entity registry names it, and no

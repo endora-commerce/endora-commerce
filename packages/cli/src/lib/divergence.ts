@@ -153,6 +153,20 @@ export const SEAM_CLASSIFICATION: Readonly<Record<string, SeamClassification>> =
     verdict: 'own-surface',
     why: "the module's own side table, read only for a caller that names this module in `include`; without it the host's read answers exactly as core does",
   },
+  // `specs/193-admin-form-extensions/` T025 — both are a module acting on its
+  // own surface: `fieldSets` lists the writers of a field set the module's own
+  // manifest declares (another module's is refused at composition), and
+  // `fieldFormats` validates formats in the module's own namespace. What a
+  // deployment changes about a core form is its manifest's `formOverrides`,
+  // which the report records as `form-override` from the declaration.
+  fieldSets: {
+    verdict: 'own-surface',
+    why: "the writers of the module's own field set, which only its owner may register; the field-rule check they enable enforces rules other modules declare, and those are recorded where they are declared",
+  },
+  fieldFormats: {
+    verdict: 'own-surface',
+    why: "a validator for a format in the module's own namespace, which only a control the module itself declares can require",
+  },
   onBoot: {
     verdict: 'own-surface',
     why: "the module's own boot hook, run inside its own system scope; it contributes nothing another module resolves",

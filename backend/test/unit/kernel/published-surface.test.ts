@@ -325,6 +325,14 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
    * factory is the root's, on `./composition`.
    */
   'entity-extensions/reads.js': ['EntityExtensionReads', 'lazyEntityExtensionReads'],
+  /**
+   * `specs/193-admin-form-extensions/` WP-B (T025) — what an owner hands
+   * `ctx.fieldSets` and `ctx.fieldFormats`, and the helper a slot module builds
+   * its `beforeCommit` hooks with. The registry, its seal and the effective
+   * forms are the host's (`./composition`).
+   */
+  'forms/types.js': ['FieldFormatRegistration', 'FieldProjection', 'FieldScopedProjection', 'FieldSetRegistration', 'FieldSetWriter'],
+  'forms/field-slot-hook.js': ['FieldSlotHookSpec', 'fieldSlotHook'],
   'schema-extensions/errors.js': [
     'ExtensionHostRowNotFoundError',
     'ExtensionProjectionWriteError',
@@ -828,6 +836,12 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   // for its reason; the test kit's `composeTestServer` is the consumer.
   'kernel/entity-extensions/registry.ts': ['EntityExtensionLoaderRegistry', 'entityExtensionDeclarationsFrom'],
   'kernel/entity-extensions/reads.ts': ['createEntityExtensionReads'],
+  // `specs/193-admin-form-extensions/` WP-B — the form registry a root builds
+  // once and hands `composeModules`, and the declarations it is sealed against,
+  // beside the loader registry for its reason; the test kit's
+  // `composeTestServer` is the consumer.
+  'kernel/forms/registry.ts': ['FormRegistry'],
+  'kernel/forms/inputs.ts': ['formDeclarationsFrom'],
   // `specs/176-command-hooks-outbox/` P3 — the outbox's host half. Both roots
   // build the wake-up they hand their `CommandBus`; the generated entity
   // registry names the entity class (`ModuleRegistration`'s reason, below);

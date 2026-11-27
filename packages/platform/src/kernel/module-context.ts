@@ -25,6 +25,8 @@ import type { CommandMiddlewareRegistry } from '../commands/middleware/registry.
 import type { CommandMiddlewareEntry } from '../commands/middleware/types.js';
 import type { EntityExtensionLoaderEntry } from './entity-extensions/loaders.js';
 import type { EntityExtensionLoaderRegistry } from './entity-extensions/registry.js';
+import type { FormRegistry } from './forms/registry.js';
+import type { FieldFormatRegistration, FieldSetRegistration } from './forms/types.js';
 import {
   defineModuleRoutes,
   defineModuleWorker,
@@ -800,6 +802,47 @@ export interface ModuleContext {
   entityExtensionLoaders(entries: readonly EntityExtensionLoaderEntry<unknown>[]): void;
 
   /**
+   * The writers of this module's own field sets (`specs/193-admin-form-extensions/`
+   * FR-041, `contracts/field-rules.md` §2): for each field set the manifest
+   * declares in `fieldSets`, every action that writes the entity, with a pure
+   * projection from its hook data to the field values. The platform's
+   * field-rule check runs first in each writer's `beforeCommit` phase over that
+   * projection, so a deployment's tightened rule binds the admin UI, the API,
+   * imports, ports and workers alike.
+   *
+   * The module id is stamped here. Registration resolves nothing. Refused at
+   * composition: a field set another module owns (`foreign-field-set-registration`),
+   * a writer on an action that is not hookable with `beforeCommit` (unless
+   * `ruleCheckOnly`, which in turn must not be hookable), a key outside the
+   * set, and a field that accepts a server-enforced kind no writer writes
+   * (`accepts-unenforceable`). Calling this after composition throws.
+   *
+   * ```ts
+   * ctx.fieldSets([
+   *   { set: ORGANIZATION_FIELD_SET, writers: [
+   *     { on: ORGANIZATION_HOOKABLE_ACTIONS.create, mode: 'create', writes: [...],
+   *       project: (data) => ({ before: null, after: … }) },
+   *   ] },
+   * ]);
+   * ```
+   */
+  fieldSets(entries: readonly FieldSetRegistration[]): void;
+
+  /**
+   * Server validators of this module's own field formats
+   * (`specs/193-admin-form-extensions/` FR-033, `contracts/input-controls.md`
+   * §1): the format a control in the manifest's `inputControls` declares, as
+   * `<this module id>.<name>`. A control whose format nobody validates refuses
+   * the composition (`format-without-validator`); while this module is off,
+   * the format is not enforced, as its control is not offered (R-14).
+   *
+   * ```ts
+   * ctx.fieldFormats([{ id: 'acme_erp.nip', validate: (value) => isNip(value) }]);
+   * ```
+   */
+  fieldFormats(entries: readonly FieldFormatRegistration[]): void;
+
+  /**
    * The explicit boot phase (FR-021). Runs once every module has registered,
    * inside `enterSystemScope('boot: <module id>')`, so it may resolve.
    *
@@ -885,6 +928,12 @@ export interface ModuleContextOptions {
    */
   readonly entityExtensionLoaderRegistry?: EntityExtensionLoaderRegistry;
   /**
+   * The composition's form registry (`specs/193-admin-form-extensions/` WP-B).
+   * Absent in a root that composes no form extensions; `fieldSets` and
+   * `fieldFormats` then refuse.
+   */
+  readonly formRegistry?: FormRegistry;
+  /**
    * Shared across every module of one composition, so a name registered twice
    * is caught naming both modules (T042). Absent for a hand-built context — a
    * single module cannot collide with itself.
@@ -950,6 +999,7 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
     commandHookRegistry,
     commandMiddlewareRegistry,
     entityExtensionLoaderRegistry,
+    formRegistry,
     ownership,
   } = options;
   const isRegistering = options.isRegistering ?? ((): boolean => false);
@@ -1328,6 +1378,32 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
       entityExtensionLoaderRegistry.register(
         module.id,
         entries.map((entry) => ({ host: entry.host, schema: entry.schema, load: entry.load })),
+      );
+    },
+
+    fieldSets(entries) {
+      if (!formRegistry) {
+        throw new Error(
+          `[kernel] module '${module.id}' registered a field set, but this composition root mounts no form registry.`,
+        );
+      }
+      // Rebuilt rather than spread, so nothing an entry carries besides its two
+      // fields reaches the registry.
+      formRegistry.registerFieldSets(
+        module.id,
+        entries.map((entry) => ({ set: entry.set, writers: entry.writers })),
+      );
+    },
+
+    fieldFormats(entries) {
+      if (!formRegistry) {
+        throw new Error(
+          `[kernel] module '${module.id}' registered a field format, but this composition root mounts no form registry.`,
+        );
+      }
+      formRegistry.registerFormats(
+        module.id,
+        entries.map((entry) => ({ id: entry.id, validate: entry.validate })),
       );
     },
 

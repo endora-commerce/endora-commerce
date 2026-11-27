@@ -32,6 +32,14 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "why": "the module's own side table, read only for a caller that names this module in `include`; without it the host's read answers exactly as core does"
       },
       {
+        "seam": "ctx.fieldFormats",
+        "why": "a validator for a format in the module's own namespace, which only a control the module itself declares can require"
+      },
+      {
+        "seam": "ctx.fieldSets",
+        "why": "the writers of the module's own field set, which only its owner may register; the field-rule check they enable enforces rules other modules declare, and those are recorded where they are declared"
+      },
+      {
         "seam": "ctx.onBoot",
         "why": "the module's own boot hook, run inside its own system scope; it contributes nothing another module resolves"
       },
