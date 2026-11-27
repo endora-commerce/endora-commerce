@@ -1,8 +1,9 @@
 /**
  * `specs/193-admin-form-extensions/` T030 (FR-002, FR-012, FR-031; SC-003,
  * SC-005) — the `admin-forms` analysis: one red case per finding code in
- * `contracts/field-slots.md` §6, the layout algorithm of §5 over the shared
- * vectors, and the same layout under shuffled registration.
+ * `contracts/field-slots.md` §6, and its findings under shuffled registration.
+ * The §5 layout is `formLayout` in `@endora-commerce/contracts` (D-300.14),
+ * whose own test runs the vectors.
  *
  * Every case enters at the top of the analysis (issue #130): an admin layer and
  * a host screen as **source text**, through the readers a real run uses, and a
@@ -12,13 +13,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { FORM_LAYOUT_VECTORS, type FormLayoutVector } from '@endora-commerce/contracts/admin-forms.vectors';
-
 import {
   ADMIN_FORMS_REMEDIES,
   adminFormsExitCode,
   adminFormsFindings,
-  formLayout,
   formRenderSitesIn,
   formsModuleFromManifest,
   readAdminLayerForms,
@@ -91,7 +89,7 @@ async function importer(specifier: string): Promise<unknown> {
   throw new Error(`no module ${specifier}`);
 }
 
-function layerSource(fields: string, controls = ''): string {
+function layerSource(fields: string, controls = '', behaviours = ''): string {
   return `
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 
@@ -100,6 +98,7 @@ const ANCHOR = 'taxId';
 export const contributions: AdminContributions = {
   fields: [${fields}],
   ${controls === '' ? '' : `controls: [${controls}],`}
+  ${behaviours === '' ? '' : `fieldBehaviours: [${behaviours}],`}
 };
 `;
 }
@@ -175,6 +174,7 @@ describe('the admin-forms analysis over a compliant tree', () => {
         'duplicate-slot-key',
         'foreign-slot-anchor',
         'position-anchor-mismatch',
+        'required-not-fillable',
         'slot-owner-not-a-dependency',
         'undeclared-form',
         'unknown-anchor',
@@ -247,15 +247,43 @@ describe('§6 refusals', () => {
     expect(narrowed.findings).toEqual([]);
   });
 
-  it('unknown-anchor — own-module slots anchored on each other, which no form can place', async () => {
-    const pair = [
+  it('unknown-anchor — own-module slots anchored in a cycle, each finding naming every member (D-300.15)', async () => {
+    const cycle = [
       "{ fieldSet: 'organization', key: 'a', type: 'string', weight: 0, labelKey: 'a', anchor: { field: 'acme_erp.b', position: 'after' } }",
-      "{ fieldSet: 'organization', key: 'b', type: 'string', weight: 0, labelKey: 'b', anchor: { field: 'acme_erp.a', position: 'before' } }",
+      "{ fieldSet: 'organization', key: 'b', type: 'string', weight: 0, labelKey: 'b', anchor: { field: 'acme_erp.c', position: 'before' } }",
+      "{ fieldSet: 'organization', key: 'c', type: 'string', weight: 0, labelKey: 'c', anchor: { field: 'acme_erp.a', position: 'after' } }",
     ];
-    const { findings } = await analyse({ layers: { acme_erp: layerSource(pair.join(', ')) } });
+    const { findings } = await analyse({ layers: { acme_erp: layerSource(cycle.join(', ')) } });
     const found = kinds(findings, 'unknown-anchor');
-    expect(found.map((finding) => finding.subject)).toEqual(['acme_erp.a', 'acme_erp.b']);
-    expect(found[0]!.detail).toContain('cycle');
+    expect(found.map((finding) => finding.subject)).toEqual(['acme_erp.a', 'acme_erp.b', 'acme_erp.c']);
+    for (const finding of found) {
+      expect(finding.detail).toContain("cycle 'acme_erp.a' → 'acme_erp.b' → 'acme_erp.c'");
+    }
+  });
+
+  it('a family member counts as shown where the form shows the family (D-300.15)', async () => {
+    const product = {
+      id: 'catalog',
+      fieldSets: [{ id: 'product', ownerModuleId: 'catalog', fields: [{ key: 'name', required: true }, { key: 'attributeValues.*', required: false }] }],
+      adminForms: [{ id: 'product.edit', fieldSet: 'product', mode: 'edit', sections: [{ key: 'attributes', keys: ['attributeValues.*'] }] }],
+    };
+    const slot = "{ fieldSet: 'product', key: 'swatch', type: 'string', weight: 0, labelKey: 's', anchor: { field: 'attributeValues.color', position: 'after' } }";
+    const { findings } = await analyse({
+      manifests: { catalog: product, acme_pim: { id: 'acme_pim', dependencies: ['catalog'] } },
+      layers: { acme_pim: layerSource(slot) },
+      hosts: {},
+    });
+    expect(kinds(findings, 'unknown-anchor')).toEqual([]);
+    // Where the form does not show the family, the member is not shown either.
+    const without = await analyse({
+      manifests: {
+        catalog: { ...product, adminForms: [{ ...product.adminForms[0], sections: [{ key: 'attributes', keys: ['name'] }] }] },
+        acme_pim: { id: 'acme_pim', dependencies: ['catalog'] },
+      },
+      layers: { acme_pim: layerSource(slot) },
+      hosts: {},
+    });
+    expect(kinds(without.findings, 'unknown-anchor')).toHaveLength(1);
   });
 
   it('foreign-slot-anchor — a slot anchored on another module’s slot', async () => {
@@ -310,6 +338,26 @@ describe('§6 refusals', () => {
     expect(kinds(disjoint.findings, 'duplicate-slot-key')).toEqual([]);
   });
 
+  it('duplicate-slot-key — one key on disjoint forms whose type or writePermission differ (D-300.15)', async () => {
+    const onCreate = ERP_SLOT.replace("key: 'erpCode',", "key: 'erpCode', forms: ['organization.create'], writePermission: 'erp:write',");
+    const onEdit = (change: string) =>
+      ERP_SLOT.replace("key: 'erpCode',", `key: 'erpCode', forms: ['organization.edit'], ${change}`).replace('field: ANCHOR', "field: 'name'");
+    const type = await analyse({
+      layers: { acme_erp: layerSource(`${onCreate}, ${onEdit("writePermission: 'erp:write',").replace("type: 'string'", "type: 'integer'")}`) },
+    });
+    expect(kinds(type.findings, 'duplicate-slot-key')).toHaveLength(1);
+    expect(kinds(type.findings, 'duplicate-slot-key')[0]!.detail).toContain('type');
+    const permission = await analyse({
+      layers: { acme_erp: layerSource(`${onCreate}, ${onEdit("writePermission: 'erp:admin',")}`) },
+    });
+    expect(kinds(permission.findings, 'duplicate-slot-key')).toHaveLength(1);
+    expect(kinds(permission.findings, 'duplicate-slot-key')[0]!.detail).toContain('writePermission');
+    const agreeing = await analyse({
+      layers: { acme_erp: layerSource(`${onCreate}, ${onEdit("writePermission: 'erp:write',")}`) },
+    });
+    expect(kinds(agreeing.findings, 'duplicate-slot-key')).toEqual([]);
+  });
+
   it('slot-owner-not-a-dependency — a slot module that does not depend on the owner', async () => {
     const { findings } = await analyse({
       manifests: { organizations: ORGANIZATIONS_MANIFEST, acme_erp: { id: 'acme_erp', dependencies: [] } },
@@ -344,6 +392,74 @@ describe('§6 refusals', () => {
     const found = kinds(findings, 'unrendered-form');
     expect(found).toHaveLength(1);
     expect(found[0]).toMatchObject({ moduleId: 'organizations', subject: 'organization.edit' });
+  });
+
+  describe('required-not-fillable — a readOnly override on a create form, with no derivation (D-300.12)', () => {
+    const overriding = (overrides: string) => ({
+      ...ERP_MANIFEST,
+      formOverrides: overrides,
+    });
+    const run = (overrides: unknown[], behaviours = '', extraManifests: Record<string, Record<string, unknown>> = {}) =>
+      analyse({
+        manifests: { organizations: ORGANIZATIONS_MANIFEST, acme_erp: overriding(overrides as never), ...extraManifests },
+        layers: { acme_erp: layerSource(ERP_SLOT, '', behaviours) },
+      });
+    const readOnlyTaxId = { target: 'organization.taxId', readOnly: true, reason: 'The ERP owns the tax id.' };
+
+    it('refuses a readOnly override on a core-required field of a create form', async () => {
+      const { findings } = await run([readOnlyTaxId]);
+      const found = kinds(findings, 'required-not-fillable');
+      expect(found).toHaveLength(1);
+      expect(found[0]).toMatchObject({ severity: 'refusal', moduleId: 'acme_erp', subject: 'organization.taxId' });
+      expect(found[0]!.detail).toContain("'organization.create'");
+    });
+
+    it('accepts it when a fieldBehaviours entry of the same module targets the field on that form', async () => {
+      const all = await run([readOnlyTaxId], "{ target: 'organization.taxId', behaviour: () => import('./DeriveTaxId.js') }");
+      expect(kinds(all.findings, 'required-not-fillable')).toEqual([]);
+      const narrowed = await run(
+        [readOnlyTaxId],
+        "{ target: 'organization.taxId', forms: ['organization.create'], behaviour: () => import('./DeriveTaxId.js') }",
+      );
+      expect(kinds(narrowed.findings, 'required-not-fillable')).toEqual([]);
+      const elsewhere = await run(
+        [readOnlyTaxId],
+        "{ target: 'organization.taxId', forms: ['organization.edit'], behaviour: () => import('./DeriveTaxId.js') }",
+      );
+      expect(kinds(elsewhere.findings, 'required-not-fillable')).toHaveLength(1);
+    });
+
+    it("does not count another module's derivation", async () => {
+      const { findings } = await analyse({
+        manifests: {
+          organizations: ORGANIZATIONS_MANIFEST,
+          acme_erp: overriding([readOnlyTaxId] as never),
+          acme_tax: { id: 'acme_tax', dependencies: ['organizations'] },
+        },
+        layers: {
+          acme_erp: layerSource(ERP_SLOT),
+          acme_tax: layerSource('', '', "{ target: 'organization.taxId', behaviour: () => import('./D.js') }"),
+        },
+      });
+      expect(kinds(findings, 'required-not-fillable')).toHaveLength(1);
+    });
+
+    it('refuses it on a field made required by a tightened `required: true`', async () => {
+      const { findings } = await run([
+        { target: 'organization.parentId', readOnly: true, reason: 'Set by the ERP.' },
+        { target: 'organization.parentId', validation: { required: true }, reason: 'Every buyer has a parent.' },
+      ]);
+      expect(kinds(findings, 'required-not-fillable').map((finding) => finding.subject)).toEqual(['organization.parentId']);
+    });
+
+    it('does not fire on an edit form, on a field nothing requires, or on readOnly: false', async () => {
+      const edit = await run([{ ...readOnlyTaxId, forms: ['organization.edit'] }]);
+      expect(kinds(edit.findings, 'required-not-fillable')).toEqual([]);
+      const optional = await run([{ target: 'organization.parentId', readOnly: true, reason: 'Set by the ERP.' }]);
+      expect(kinds(optional.findings, 'required-not-fillable')).toEqual([]);
+      const off = await run([{ ...readOnlyTaxId, readOnly: false }]);
+      expect(kinds(off.findings, 'required-not-fillable')).toEqual([]);
+    });
   });
 
   it('control-without-declaration — an admin control no manifest declares', async () => {
@@ -463,58 +579,13 @@ describe('the readers', () => {
 });
 
 // ---------------------------------------------------------------------------
-// §5 — the layout, over the shared vectors, and under shuffled registration
+// SC-005 — the analysis under shuffled registration
 // ---------------------------------------------------------------------------
 
-function layoutOf(vector: FormLayoutVector, order: (n: number) => number[] = (n) => [...Array(n).keys()]) {
-  const slots = vector.slots ?? [];
-  const moves = vector.moves ?? [];
-  return formLayout({
-    sections: vector.sections,
-    hidden: vector.hidden ?? [],
-    visibleWhen: vector.visibleWhen ?? {},
-    values: vector.values ?? {},
-    slots: order(slots.length).map((index) => slots[index]!),
-    moves: order(moves.length).map((index) => moves[index]!),
-  });
-}
-
-/** A deterministic permutation, so a failure names a reproducible order. */
-function permutation(seed: number): (n: number) => number[] {
-  return (n) => {
-    const indexes = [...Array(n).keys()];
-    let state = seed;
-    for (let i = n - 1; i > 0; i -= 1) {
-      state = (state * 1103515245 + 12345) % 2147483648;
-      const j = state % (i + 1);
-      [indexes[i], indexes[j]] = [indexes[j]!, indexes[i]!];
-    }
-    return indexes;
-  };
-}
-
-describe('§5 layout (shared vectors)', () => {
-  for (const vector of FORM_LAYOUT_VECTORS) {
-    it(vector.name, () => {
-      expect(layoutOf(vector).map((section) => ({ section: section.key, items: section.items.map((item) => item.key) }))).toEqual(
-        vector.expected,
-      );
-    });
-  }
-});
-
-describe('§5 layout is deterministic under shuffled registration (SC-005)', () => {
-  for (const vector of FORM_LAYOUT_VECTORS) {
-    it(vector.name, () => {
-      const reference = JSON.stringify(layoutOf(vector));
-      for (let seed = 1; seed <= 50; seed += 1) {
-        expect(JSON.stringify(layoutOf(vector, permutation(seed))), `seed ${String(seed)}`).toBe(reference);
-      }
-      // Reversed registration, the order a second process reading the registry backwards would see.
-      expect(JSON.stringify(layoutOf(vector, (n) => [...Array(n).keys()].reverse()))).toBe(reference);
-    });
-  }
-
+describe('the analysis is deterministic under shuffled registration (SC-005)', () => {
+  // The layout's own vectors, in order and shuffled, are the contracts' test
+  // (`packages/contracts/src/admin-forms.layout.test.ts`, D-300.14): the
+  // function is theirs. What is this package's is the analysis over it.
   it('the analysis’ findings do not depend on registration order either', async () => {
     const slots = [
       ERP_SLOT,

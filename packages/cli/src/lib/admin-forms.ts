@@ -36,11 +36,11 @@
  *
  * ## The layout
  *
- * {@link formLayout} is §5's algorithm, normative and deterministic. The admin
- * kit renders with its own implementation; both run the vectors published as
- * `@endora-commerce/contracts/admin-forms.vectors`, shuffled as well as in
- * order, so registration order, bundle order and process never change a form
- * (SC-005).
+ * §5's algorithm has one implementation, `formLayout` in
+ * `@endora-commerce/contracts` (D-300.14): this analysis, the platform's
+ * effective-forms response and the admin kit all call it, so registration
+ * order, bundle order and process never change a form (SC-005). This package
+ * keeps the shuffled-registration test over its own findings.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -49,14 +49,23 @@ import { pathToFileURL } from 'node:url';
 
 import ts from 'typescript';
 
-import {
-  evaluateFieldCondition,
-  fieldOverrideKinds,
-  PRESENTATION_OVERRIDES,
-  type FieldCondition,
-  type FieldOverrideKind,
+import { fieldOverrideKinds, PRESENTATION_OVERRIDES, type FieldOverrideKind } from '@endora-commerce/contracts';
+
+/**
+ * The layout, re-exported from its one home (D-300.14) so this subpath keeps
+ * offering what it offered: a caller of the analysis lays a form out with the
+ * same function the admin kit and the platform call.
+ */
+export {
+  applyFieldMoves,
+  formLayout,
+  type FormLayoutInput,
+  type FormLayoutItem,
+  type FormLayoutMove,
+  type FormLayoutSection,
+  type FormLayoutSectionKeys,
+  type FormLayoutSlot,
 } from '@endora-commerce/contracts';
-import type { FormLayoutVectorMove, FormLayoutVectorSlot } from '@endora-commerce/contracts/admin-forms.vectors';
 
 import { parseSource } from './parsed-source.js';
 
@@ -67,6 +76,8 @@ import { parseSource } from './parsed-source.js';
 /** One field of a field set, as far as this analysis reads it. */
 export interface FormsField {
   readonly key: string;
+  /** Required on create by core. */
+  readonly required: boolean;
   readonly deprecatedAliases: readonly string[];
 }
 
@@ -79,6 +90,8 @@ export interface FormsFieldSet {
 export interface FormsAdminForm {
   readonly id: string;
   readonly fieldSet: string;
+  /** `null` when the declaration does not say. */
+  readonly mode: 'create' | 'edit' | null;
   readonly sections: readonly { readonly key: string; readonly keys: readonly string[] }[];
 }
 
@@ -92,6 +105,19 @@ export interface FormsModule {
   readonly adminForms: readonly FormsAdminForm[];
   /** The ids of its `inputControls`. */
   readonly inputControls: readonly string[];
+  /** Its `formOverrides`, as far as `required-not-fillable` reads them (D-300.12). */
+  readonly formOverrides: readonly FormsOverride[];
+}
+
+/** One `formOverrides` entry, projected to what this analysis reads. */
+export interface FormsOverride {
+  /** `<fieldSetId>.<fieldKey>`. */
+  readonly target: string;
+  /** Absent: every form of the set. */
+  readonly forms?: readonly string[];
+  readonly readOnly: boolean;
+  /** `validation.required: true` — server-enforced, so entity-level, whatever `forms` says. */
+  readonly requiredTightened: boolean;
 }
 
 /** A slot's anchor as written: the pairing of kind and position is a finding of its own. */
@@ -107,8 +133,19 @@ export interface FormsSlot {
   /** Absent: every form of the set. */
   readonly forms?: readonly string[];
   readonly key: string;
+  /** Its value type; one key on two forms must agree on it (D-300.15). */
+  readonly type: string;
+  readonly writePermission?: string;
   readonly anchor: FormsSlotAnchor;
   readonly weight: number;
+}
+
+/** One `fieldBehaviours` entry, as far as `required-not-fillable` reads it (D-300.12). */
+export interface FormsBehaviour {
+  /** `<fieldSet>.<key>`. */
+  readonly target: string;
+  /** Absent: every form of the set. */
+  readonly forms?: readonly string[];
 }
 
 /** What one module's admin layer contributes that this analysis judges. */
@@ -118,6 +155,8 @@ export interface FormsLayer {
   readonly slots: readonly FormsSlot[];
   /** The ids of its `controls`. */
   readonly controls: readonly string[];
+  /** Its `fieldBehaviours`; absent is none. */
+  readonly behaviours?: readonly FormsBehaviour[];
 }
 
 /** One form a host screen renders. */
@@ -142,6 +181,7 @@ export type AdminFormsFindingKind =
   | 'unrendered-form'
   | 'control-without-declaration'
   | 'declaration-without-control'
+  | 'required-not-fillable'
   | 'ambiguous-slot-order'
   | 'deprecated-anchor';
 
@@ -201,6 +241,11 @@ export const ADMIN_FORMS_REMEDIES: Readonly<Record<AdminFormsFindingKind, string
   'declaration-without-control':
     "A manifest declares an input control its admin layer's `controls` supplies no component for. " +
     'Add the component, or remove the declaration.',
+  'required-not-fillable':
+    'A `readOnly` override makes a field that is required on create — by core, or by a tightened ' +
+    '`required: true` — read-only on a create form, and nothing fills it: the record could never be ' +
+    'created there. Add a `fieldBehaviours` entry in the same module that derives the field on that ' +
+    'form, or narrow the override\'s `forms` to the edit forms (D-300.12).',
   'ambiguous-slot-order':
     'Two modules place a slot on one anchor and position with one weight. The order is still ' +
     'deterministic — `(weight, moduleId, localKey)` — but neither author chose it. Give one a ' +
@@ -425,16 +470,25 @@ export function adminFormsFindings(input: AdminFormsInput): AdminFormsFinding[] 
     placed.find((candidate) => candidate.slot.moduleId === moduleId && candidate.slot.fieldSet === fieldSet && candidate.slot.key === key);
   const cyclic = new Set<Placed>();
   for (const entry of placed) {
-    const seen = new Set<Placed>();
+    const chain: Placed[] = [];
     let current: Placed | undefined = entry;
-    while (current !== undefined && current.anchor.kind === 'own-slot' && !seen.has(current)) {
-      seen.add(current);
+    while (current !== undefined && current.anchor.kind === 'own-slot' && !chain.includes(current)) {
+      chain.push(current);
       current = placedOf(current.slot.moduleId, current.slot.fieldSet, current.anchor.key.slice(current.slot.moduleId.length + 1));
     }
-    if (current !== undefined && seen.has(current)) {
+    if (current !== undefined && chain.includes(current)) {
+      // The cycle proper — a slot leading into it is reported by its own walk
+      // as the same cycle. Every member is named, in code-point order (D-300.15).
+      const members = chain.slice(chain.indexOf(current)).map((member) => `${member.slot.moduleId}.${member.slot.key}`).sort(compare);
       cyclic.add(entry);
       const wire = `${entry.slot.moduleId}.${entry.slot.key}`;
-      note('unknown-anchor', entry.slot.moduleId, wire, entry.slot.where, `slot '${wire}' is anchored on '${entry.anchor.key}', in a cycle of '${entry.slot.moduleId}' slots that reaches no core key or section, so no form can place it`);
+      note(
+        'unknown-anchor',
+        entry.slot.moduleId,
+        wire,
+        entry.slot.where,
+        `slot '${wire}' is anchored on '${entry.anchor.key}', in the cycle ${members.map((member) => `'${member}'`).join(' → ')} of '${entry.slot.moduleId}' slots, which reaches no core key or section, so no form can place it`,
+      );
     }
   }
 
@@ -462,10 +516,25 @@ export function adminFormsFindings(input: AdminFormsInput): AdminFormsFinding[] 
     for (const [key, same] of [...byKey].sort(([a], [b]) => compare(a, b))) {
       if (same.length < 2) continue;
       const targetsOf = (slot: FormsSlot): readonly string[] => slot.forms ?? setForms;
+      const wire = `${same[0]!.moduleId}.${key}`;
       const clash = same.some((left, i) => same.slice(i + 1).some((right) => overlaps(targetsOf(left), targetsOf(right))));
       if (clash) {
-        const wire = `${same[0]!.moduleId}.${key}`;
         note('duplicate-slot-key', same[0]!.moduleId, wire, same[0]!.where, `'${same[0]!.moduleId}' declares slot key '${key}' on field set '${set.id}' ${String(same.length)} times, on forms that overlap`);
+        continue;
+      }
+      // On disjoint forms the declarations share one wire key, one hook schema
+      // and one write gate, so they must agree on both (D-300.15).
+      const disagree = (['type', 'writePermission'] as const).filter(
+        (property) => new Set(same.map((slot) => slot[property] ?? '(none)')).size > 1,
+      );
+      if (disagree.length > 0) {
+        note(
+          'duplicate-slot-key',
+          same[0]!.moduleId,
+          wire,
+          same[0]!.where,
+          `'${same[0]!.moduleId}' declares slot key '${key}' on field set '${set.id}' on disjoint forms with different ${disagree.join(' and ')}; one wire key has one type and one write gate`,
+        );
       }
     }
   }
@@ -509,6 +578,43 @@ export function adminFormsFindings(input: AdminFormsInput): AdminFormsFinding[] 
     note('unrendered-form', moduleId, formId, where, `'${moduleId}' lists form '${formId}' and no host renders it`);
   }
 
+  // D-300.12 — `readOnly` on a field effectively required on a create form,
+  // with no derivation of the same module targeting it there. Composition
+  // refuses `hidden` there; only this check sees `fieldBehaviours`.
+  const tightened = new Set(modules.flatMap((module) => module.formOverrides.filter((o) => o.requiredTightened).map((o) => o.target)));
+  const behavioursOf = new Map(input.layers.map((layer) => [layer.moduleId, layer.behaviours ?? []] as const));
+  for (const module of modules) {
+    const byTarget = new Map<string, string[]>();
+    for (const override of module.formOverrides) {
+      if (!override.readOnly) continue;
+      const dot = override.target.indexOf('.');
+      const set = sets.get(override.target.slice(0, dot));
+      const key = override.target.slice(dot + 1);
+      const field = set?.fields.find((candidate) => candidate.key === key);
+      if (set === undefined || field === undefined) continue; // composition's `unknown-field`
+      if (!field.required && !tightened.has(override.target)) continue;
+      const formIds = override.forms ?? formsOfSet(set.id);
+      for (const formId of formIds) {
+        const form = forms.get(formId)?.form;
+        if (form === undefined || form.mode !== 'create') continue;
+        if (!form.sections.some((section) => section.keys.includes(key))) continue;
+        const derived = (behavioursOf.get(module.moduleId) ?? []).some(
+          (behaviour) => behaviour.target === override.target && (behaviour.forms === undefined || behaviour.forms.includes(formId)),
+        );
+        if (!derived) byTarget.set(override.target, [...new Set([...(byTarget.get(override.target) ?? []), formId])]);
+      }
+    }
+    for (const [target, formIds] of [...byTarget].sort(([a], [b]) => compare(a, b))) {
+      note(
+        'required-not-fillable',
+        module.moduleId,
+        target,
+        module.where,
+        `'${module.moduleId}' makes '${target}' read-only on ${quoted(formIds.sort(compare))}, where it is required on create, and no \`fieldBehaviours\` entry of '${module.moduleId}' derives it there`,
+      );
+    }
+  }
+
   // FR-031, both directions, per module.
   const controlsOf = new Map(input.layers.map((layer) => [layer.moduleId, layer] as const));
   for (const layer of [...input.layers].sort((a, b) => compare(a.moduleId, b.moduleId))) {
@@ -532,119 +638,6 @@ export function adminFormsFindings(input: AdminFormsInput): AdminFormsFinding[] 
     (a, b) =>
       compare(a.kind, b.kind) || compare(a.moduleId, b.moduleId) || compare(a.subject, b.subject) || compare(a.where, b.where) || compare(a.detail, b.detail),
   );
-}
-
-// ---------------------------------------------------------------------------
-// 3. The layout (`field-slots.md` §5)
-// ---------------------------------------------------------------------------
-
-export type FormLayoutSlot = FormLayoutVectorSlot;
-export type FormLayoutMove = FormLayoutVectorMove;
-
-export interface FormLayoutInput {
-  /** The form's sections, in declared order, each with its core keys in order. */
-  readonly sections: readonly { readonly key: string; readonly keys: readonly string[] }[];
-  /** Effective `position` overrides. */
-  readonly moves?: readonly FormLayoutMove[];
-  /** Core keys hidden by an override: rendered as nothing, anchors kept. */
-  readonly hidden?: readonly string[];
-  /** Effective `visibleWhen` per core key. */
-  readonly visibleWhen?: Readonly<Record<string, FieldCondition>>;
-  readonly slots?: readonly FormLayoutSlot[];
-  /** The form's current values, which every condition reads. */
-  readonly values?: Readonly<Record<string, unknown>>;
-}
-
-export interface FormLayoutItem {
-  readonly kind: 'field' | 'slot';
-  /** A core key, or a slot's wire key `<moduleId>.<key>`. */
-  readonly key: string;
-}
-
-export interface FormLayoutSection {
-  readonly key: string;
-  readonly items: readonly FormLayoutItem[];
-}
-
-const bySlotOrder = (a: FormLayoutSlot, b: FormLayoutSlot): number =>
-  a.weight - b.weight || compare(a.moduleId, b.moduleId) || compare(a.key, b.key);
-
-/**
- * §5, deterministic: sections in declared order; core keys in declared order
- * after `position` overrides (moved keys applied in `(moduleId, key)` order);
- * around each key the slots anchored before it, the key unless hidden, the
- * slots anchored after it, each sorted `(weight, moduleId, localKey)` and each
- * followed recursively by the slots of its own module anchored on it; section
- * `start` and `end` slots outermost; then items whose `visibleWhen` is false
- * are dropped, and a section left with no item with them.
- *
- * Input order is never read: every list is sorted before it is used.
- */
-export function formLayout(input: FormLayoutInput): FormLayoutSection[] {
-  const order = input.sections.map((section) => ({ key: section.key, keys: [...section.keys] }));
-  const sectionOf = (key: string) => order.find((section) => section.keys.includes(key)) ?? null;
-
-  // 1. Position overrides, in (moduleId, key) order. Keys moved after one
-  //    anchor keep that order by following the last key placed there.
-  const moves = [...(input.moves ?? [])].sort((a, b) => compare(a.moduleId, b.moduleId) || compare(a.key, b.key));
-  const lastAfter = new Map<string, string>();
-  for (const move of moves) {
-    const from = sectionOf(move.key);
-    if (from === null) continue;
-    const anchor = move.before ?? move.after;
-    const target = anchor !== undefined ? sectionOf(anchor) : order.find((section) => section.key === move.section) ?? null;
-    if (target === null || anchor === move.key) continue;
-    from.keys.splice(from.keys.indexOf(move.key), 1);
-    if (move.before !== undefined) {
-      target.keys.splice(target.keys.indexOf(move.before), 0, move.key);
-    } else if (move.after !== undefined) {
-      const behind = lastAfter.get(move.after);
-      const at = behind !== undefined && target.keys.includes(behind) ? target.keys.indexOf(behind) : target.keys.indexOf(move.after);
-      target.keys.splice(at + 1, 0, move.key);
-      lastAfter.set(move.after, move.key);
-    } else {
-      target.keys.push(move.key);
-    }
-  }
-
-  // 2 – 3. Slots around their anchors.
-  const slots = [...(input.slots ?? [])].sort(bySlotOrder);
-  const around = new Map<string, FormLayoutSlot[]>();
-  for (const slot of slots) {
-    const anchor = slot.anchor;
-    const id = 'field' in anchor ? `field ${anchor.field} ${anchor.position}` : `section ${anchor.section} ${anchor.position}`;
-    around.set(id, [...(around.get(id) ?? []), slot]);
-  }
-  const hidden = new Set(input.hidden ?? []);
-  const values = input.values ?? {};
-  const visible = (condition: FieldCondition | undefined): boolean =>
-    condition === undefined || evaluateFieldCondition(condition, values);
-
-  const rendered: FormLayoutSection[] = [];
-  for (const section of order) {
-    const items: FormLayoutItem[] = [];
-    const emitSlot = (slot: FormLayoutSlot): void => {
-      const wire = `${slot.moduleId}.${slot.key}`;
-      for (const child of around.get(`field ${wire} before`) ?? []) if (child.moduleId === slot.moduleId) emitSlot(child);
-      if (visible(slot.visibleWhen)) items.push({ kind: 'slot', key: wire });
-      for (const child of around.get(`field ${wire} after`) ?? []) if (child.moduleId === slot.moduleId) emitSlot(child);
-    };
-    for (const slot of around.get(`section ${section.key} start`) ?? []) emitSlot(slot);
-    for (const key of section.keys) {
-      const family = key.endsWith('.*') ? key.slice(0, -1) : null;
-      const anchoredOn = (position: 'before' | 'after'): FormLayoutSlot[] =>
-        family === null
-          ? around.get(`field ${key} ${position}`) ?? []
-          : slots.filter((slot) => 'field' in slot.anchor && slot.anchor.position === position && slot.anchor.field.startsWith(family));
-      for (const slot of anchoredOn('before')) emitSlot(slot);
-      if (!hidden.has(key) && visible(input.visibleWhen?.[key])) items.push({ kind: 'field', key });
-      for (const slot of anchoredOn('after')) emitSlot(slot);
-    }
-    for (const slot of around.get(`section ${section.key} end`) ?? []) emitSlot(slot);
-    // 4. A section with no item is dropped.
-    if (items.length > 0) rendered.push({ key: section.key, items });
-  }
-  return rendered;
 }
 
 // ---------------------------------------------------------------------------
@@ -790,9 +783,11 @@ function lineOf(tree: ts.SourceFile, node: ts.Node): number {
 /** A slot entry as data, or why it is not one. */
 function slotOf(moduleId: string, where: string, value: Literal): FormsSlot | string {
   if (!isRecord(value)) return 'not an object literal';
-  const { fieldSet, forms, key, anchor, weight } = value;
+  const { fieldSet, forms, key, anchor, weight, type, writePermission } = value;
   if (!isString(fieldSet)) return '`fieldSet` is not a string literal or a same-file constant';
   if (!isString(key)) return '`key` is not a string literal or a same-file constant';
+  if (!isString(type)) return '`type` is not a string literal or a same-file constant';
+  if (writePermission !== undefined && !isString(writePermission)) return '`writePermission` is not a string literal';
   if (forms !== undefined && !isStrings(forms)) return '`forms` is not a literal array of form ids';
   if (typeof weight !== 'number') return '`weight` is not a number literal';
   if (!isRecord(anchor)) return '`anchor` is not an object literal';
@@ -807,6 +802,8 @@ function slotOf(moduleId: string, where: string, value: Literal): FormsSlot | st
     fieldSet,
     ...(forms === undefined ? {} : { forms }),
     key,
+    type,
+    ...(writePermission === undefined ? {} : { writePermission }),
     anchor: isString(field) ? { field, position } : { section: section as string, position },
     weight,
   };
@@ -827,6 +824,7 @@ export function readAdminLayerForms(
   const unreadable: string[] = [];
   const slots: FormsSlot[] = [];
   const controls: string[] = [];
+  const behaviours: FormsBehaviour[] = [];
   const contributions = exportedLiteral(tree, 'contributions');
   if (contributions === 'unreadable') unreadable.push(`${file}: \`contributions\` is not an object literal`);
   if (typeof contributions !== 'string') {
@@ -858,8 +856,26 @@ export function readAdminLayerForms(
         }
       }
     }
+    const declaredBehaviours = propertyOf(contributions, 'fieldBehaviours');
+    if (declaredBehaviours !== null) {
+      const list = unwrap(declaredBehaviours);
+      if (!ts.isArrayLiteralExpression(list)) {
+        unreadable.push(`${file}:${String(lineOf(tree, declaredBehaviours))}: \`fieldBehaviours\` is not an array literal`);
+      } else {
+        for (const element of list.elements) {
+          const value = ts.isSpreadElement(element) ? OPAQUE : literalOf(element, constants);
+          const target = isRecord(value) ? value['target'] : OPAQUE;
+          const forms = isRecord(value) ? value['forms'] : OPAQUE;
+          if (isString(target) && (forms === undefined || isStrings(forms))) {
+            behaviours.push({ target, ...(forms === undefined ? {} : { forms }) });
+          } else {
+            unreadable.push(`${file}:${String(lineOf(tree, element))}: a field behaviour whose \`target\` or \`forms\` is not a literal`);
+          }
+        }
+      }
+    }
   }
-  return { layer: { moduleId, where: file, slots, controls }, unreadable };
+  return { layer: { moduleId, where: file, slots, controls, behaviours }, unreadable };
 }
 
 function fieldSetOf(value: unknown): FormsFieldSet | null {
@@ -870,6 +886,7 @@ function fieldSetOf(value: unknown): FormsFieldSet | null {
     const aliases = field['deprecatedAliases'];
     fields.push({
       key: field['key'],
+      required: field['required'] === true,
       deprecatedAliases: Array.isArray(aliases) ? aliases.filter(isRecord).map((alias) => alias['key']).filter(isString) : [],
     });
   }
@@ -883,7 +900,31 @@ function adminFormOf(value: unknown): FormsAdminForm | null {
     if (!isRecord(section) || !isString(section['key']) || !isStrings(section['keys'])) return null;
     sections.push({ key: section['key'], keys: section['keys'] });
   }
-  return { id: value['id'], fieldSet: value['fieldSet'], sections };
+  const mode = value['mode'] === 'create' || value['mode'] === 'edit' ? value['mode'] : null;
+  return { id: value['id'], fieldSet: value['fieldSet'], mode, sections };
+}
+
+/**
+ * A `formOverrides` entry projected to the four properties this analysis
+ * reads; `null` when one of those is not a literal. Its other values (a
+ * `default`, a `reason`) are never read here, so they need not be literals.
+ */
+function overrideOf(value: unknown): FormsOverride | null {
+  if (!isRecord(value) || !isString(value['target'])) return null;
+  const forms = value['forms'];
+  const readOnly = value['readOnly'];
+  const validation = value['validation'];
+  if (forms !== undefined && !isStrings(forms)) return null;
+  if (readOnly !== undefined && typeof readOnly !== 'boolean') return null;
+  if (validation !== undefined && !isRecord(validation)) return null;
+  const required = isRecord(validation) ? validation['required'] : undefined;
+  if (required !== undefined && typeof required !== 'boolean') return null;
+  return {
+    target: value['target'],
+    ...(forms === undefined ? {} : { forms }),
+    readOnly: readOnly === true,
+    requiredTightened: required === true,
+  };
 }
 
 /**
@@ -923,6 +964,7 @@ export function formsModuleFromManifest(
       fieldSets: listOf('fieldSets', fieldSetOf),
       adminForms: listOf('adminForms', adminFormOf),
       inputControls: listOf('inputControls', (value) => (isRecord(value) && isString(value['id']) ? value['id'] : null)),
+      formOverrides: listOf('formOverrides', overrideOf),
     },
     unreadable,
   };
@@ -943,7 +985,7 @@ export function readManifestForms(
   const manifest = exportedLiteral(tree, 'manifest');
   if (typeof manifest === 'string') {
     return {
-      module: { moduleId, where: file, dependencies: [], fieldSets: [], adminForms: [], inputControls: [] },
+      module: { moduleId, where: file, dependencies: [], fieldSets: [], adminForms: [], inputControls: [], formOverrides: [] },
       unreadable: [`${file}: no \`export const manifest\` object literal`],
     };
   }
@@ -960,6 +1002,31 @@ export function readManifestForms(
       continue;
     }
     value[field] = literal;
+  }
+  // `formOverrides` is projected per entry: only the properties this analysis
+  // reads must be literals (D-300.12), so a computed `default` is no finding.
+  const overrides = propertyOf(manifest, 'formOverrides');
+  if (overrides !== null) {
+    const list = unwrap(overrides);
+    if (!ts.isArrayLiteralExpression(list)) {
+      unreadable.push(`${file}:${String(lineOf(tree, overrides))}: \`formOverrides\` is not an array literal`);
+    } else {
+      const projected: FormsOverride[] = [];
+      for (const element of list.elements) {
+        const override = ts.isSpreadElement(element) ? null : overrideOf(literalOf(element, constants));
+        if (override === null) {
+          unreadable.push(`${file}:${String(lineOf(tree, element))}: a form override whose target, forms, readOnly or validation.required is not a literal`);
+        } else {
+          projected.push(override);
+        }
+      }
+      value['formOverrides'] = projected.map((override) => ({
+        target: override.target,
+        ...(override.forms === undefined ? {} : { forms: override.forms }),
+        readOnly: override.readOnly,
+        ...(override.requiredTightened ? { validation: { required: true } } : {}),
+      }));
+    }
   }
   const read = formsModuleFromManifest(value, file);
   return { module: read.module!, unreadable: [...unreadable, ...read.unreadable] };

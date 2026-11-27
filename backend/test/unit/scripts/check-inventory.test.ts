@@ -5194,7 +5194,7 @@ const CHECKS: readonly CheckEntry[] = [
     // `endora generate`.
     //
     // It lands at **zero declarations** — no module declares a field set until
-    // the first adopter — so this entry carries the weight: thirteen finding
+    // the first adopter — so this entry carries the weight: fourteen finding
     // codes, one proof each, each entering as source text; the unreadable
     // declaration, which is a refusal rather than a skip (issue #113); and the
     // five exit-2 reasons, one per input whose absence would make a predicate
@@ -5279,6 +5279,23 @@ const CHECKS: readonly CheckEntry[] = [
             acme_erp: adminFormsLayer([adminFormsSlot()]),
             acme_vat: adminFormsLayer([adminFormsSlot({ key: "'vatCode'" })]),
           },
+        }),
+      ),
+      // D-300.12 — a `readOnly` override on a core-required field of a create
+      // form, with no derivation of the same module.
+      'required-not-fillable': top(() =>
+        adminFormsFindingCount('required-not-fillable', {
+          manifests: [
+            {
+              ...ADMIN_FORMS_OWNER,
+              fieldSets: [{ ...ADMIN_FORMS_OWNER.fieldSets[0]!, fields: [{ key: 'name' }, { key: 'taxId', required: true }] }],
+              adminForms: [
+                ...ADMIN_FORMS_OWNER.adminForms,
+                { id: 'organization.create', fieldSet: 'organization', mode: 'create', sections: [{ key: 'identity', keys: ['name', 'taxId'] }] },
+              ],
+            },
+            { ...ADMIN_FORMS_ERP, formOverrides: [{ target: 'organization.taxId', readOnly: true, reason: 'Set by the ERP.' }] },
+          ],
         }),
       ),
       'deprecated-anchor': top(() =>
@@ -12444,9 +12461,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // it still tells a vocabulary name from a utility.
       'backend/scripts/check-class-vocabulary.ts': 7,
       'backend/scripts/check-bundle-pairing.ts': 5,
-      // Thirteen finding codes (two of them warnings), the unreadable
-      // declaration and the five exit-2 reasons (193 T033).
-      'backend/scripts/check-admin-forms.ts': 19,
+      // Fourteen finding codes (two of them warnings; `required-not-fillable`
+      // is D-300.12's), the unreadable declaration and the five exit-2 reasons
+      // (193 T033).
+      'backend/scripts/check-admin-forms.ts': 20,
       // Four findings, the help popover's own 280 edge, and three
       // discriminations: a setting description at 120, a help popover at 280,
       // and a palette description outside the grammar.
