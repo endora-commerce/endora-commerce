@@ -12,6 +12,7 @@ import {
   withProbeReads,
   type EntityExtensionProbe,
 } from '../../helpers/entity-extension-probe.js';
+import { assignOrganizationRole, predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -41,9 +42,12 @@ const ids: string[] = [];
 let foreignId = '';
 let organizationA = '';
 let customerA = '';
+/** A colleague of `customerA` in Organization A whose *Member* role lacks `orders.view_organization`. */
+let memberOfA = '';
 
 const port = (): OrderReadPort => h.container.resolve<OrderReadPort>('orderReadPort');
 const customerOfA = () => ({ customerAccountId: customerA, organizationId: organizationA });
+const memberContextOfA = () => ({ customerAccountId: memberOfA, organizationId: organizationA });
 /** As an administrator confined to Organization A. */
 const asA = <R>(body: () => Promise<R>): Promise<R> =>
   runWithTenantContext(
@@ -67,6 +71,9 @@ beforeAll(async () => {
     const custA = await seedCustomer(em, orgA.id, { email: `probe-oa-${T}@example.com` });
     const custB = await seedCustomer(em, orgB.id, { email: `probe-ob-${T}@example.com` });
     customerA = custA.id;
+    const member = await seedCustomer(em, orgA.id, { email: `probe-om-${T}@example.com` });
+    await assignOrganizationRole(em, member.id, await predefinedRoleIdOf(em, orgA.id, 'member'));
+    memberOfA = member.id;
     for (let index = 0; index < 50; index += 1) {
       const order = await seedOrder(em, {
         organizationId: orgA.id,
@@ -154,6 +161,21 @@ describe('OrderReadPort with include (FR-054, FR-056)', () => {
     expect(result).toEqual([null, null]);
     expect(probeStatements(statements)).toEqual([]);
     expect(probe.calls).toEqual([]);
+  });
+
+  it('findByIdForCustomer: a colleague without orders.view_organization gets null and no loader runs', async () => {
+    probe.calls.length = 0;
+    const id = ids[11]!;
+    const { result, statements } = await probed(() => port().findByIdForCustomer(id, memberContextOfA(), INCLUDE));
+    expect(result).toBeNull();
+    expect(probeStatements(statements)).toEqual([]);
+    expect(probe.calls).toEqual([]);
+
+    // The same order, read by the buyer who placed it, does carry the extension.
+    const own = await probed(() => port().findByIdForCustomer(id, customerOfA(), INCLUDE));
+    expect(own.result?.extensions).toEqual(markerOf(id));
+    expect(probe.calls).toEqual([[id]]);
+    expect(probeStatements(own.statements)).toHaveLength(1);
   });
 
   it('omits the key and runs no loader while the extending module is absent', async () => {
