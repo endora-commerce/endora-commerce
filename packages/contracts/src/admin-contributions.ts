@@ -35,6 +35,7 @@ import { KnownIconNameSchema } from './admin-actions.js';
 import { blockNameRe } from './cms.js';
 import type { InvoiceKind } from './invoices.js';
 import type { ShipmentStatus } from './shipping-methods.js';
+import type { AdminFieldBehaviour, AdminFieldContribution, AdminInputControlContribution } from './admin-forms.js';
 
 // ---------------------------------------------------------------------------
 // Field-level patterns
@@ -1469,7 +1470,7 @@ export interface AdminBlockContribution extends z.infer<typeof AdminBlockContrib
  * What a module package's `src/admin/index.ts` exports — and the only thing it
  * exports.
  *
- * All four arrays are optional, so a module shipping only a nav entry pointing
+ * Every array is optional, so a module shipping only a nav entry pointing
  * at a host route is legal and so is one shipping only a zone contribution.
  * The entry may not export a component, a hook or a service:
  * `check:module-boundary`'s D-171 rule designates a subpath as contract surface
@@ -1482,4 +1483,11 @@ export interface AdminContributions {
   readonly nav?: readonly AdminNavDeclaration[];
   readonly zones?: readonly AdminZoneContribution[];
   readonly blocks?: readonly AdminBlockContribution[];
+  // `specs/193-admin-form-extensions/` — admin form extensions, in their own block.
+  /** Slot fields this module adds to another module's declared forms (`contracts/field-slots.md` §1). */
+  readonly fields?: readonly AdminFieldContribution[];
+  /** The components of the input controls this module's manifest declares in `inputControls`. */
+  readonly controls?: readonly AdminInputControlContribution[];
+  /** Masks and derivations: UI only, the server never runs them (`contracts/field-rules.md` §4). */
+  readonly fieldBehaviours?: readonly AdminFieldBehaviour[];
 }
