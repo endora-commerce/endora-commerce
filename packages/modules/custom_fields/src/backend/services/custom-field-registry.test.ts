@@ -35,7 +35,26 @@ describe('custom-field registry', () => {
     // `specs/165-task-management/` research R-8.
     expect(SUPPORTED_ENTITIES.task.ownerModuleId).toBe('tasks');
     expect(SUPPORTED_ENTITIES.task.orgOwned).toBe(false);
-    expect([...owned].sort()).toEqual(['opportunity', 'project', 'quote_request', 'task']);
+    // Issue #2005 — a note follows the module its parent belongs to.
+    expect(SUPPORTED_ENTITIES.opportunity_note.ownerModuleId).toBe('crm');
+    expect(SUPPORTED_ENTITIES.project_note.ownerModuleId).toBe('projects');
+    expect([...owned].sort()).toEqual(['opportunity', 'opportunity_note', 'project', 'project_note', 'quote_request', 'task']);
+  });
+
+  // Issue #2005 — a note is a plain host: no list of notes to filter, nothing
+  // carried to or from it, no buyer form and no Page Builder document.
+  it('offers no marker on the two note types', () => {
+    for (const type of ['opportunity_note', 'project_note'] as const) {
+      const meta = SUPPORTED_ENTITIES[type];
+      expect(meta.orgOwned).toBe(true);
+      expect(meta.listFilter).toBeUndefined();
+      expect(meta.carryTargets).toBeUndefined();
+      expect(meta.customerInputSurfaces).toBeUndefined();
+      expect(meta.pageBuilderValues).toBeUndefined();
+      expect(meta.managedBy).toBeUndefined();
+    }
+    expect(SUPPORTED_ENTITIES.opportunity_note.labelKey).toBe('customFields.entity.opportunityNote');
+    expect(SUPPORTED_ENTITIES.project_note.labelKey).toBe('customFields.entity.projectNote');
   });
 
   // `specs/162-custom-fields-value-carry/` data-model §1.1 — the carry pairs.

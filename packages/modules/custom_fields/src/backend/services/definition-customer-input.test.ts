@@ -138,6 +138,8 @@ describe('buyer input and admin access — the four refusals at create', () => {
     'project',
     'task',
     'product',
+    'opportunity_note',
+    'project_note',
   ];
   for (const entityType of NO_SURFACE) {
     it(`refuses opening a ${entityType} field with customer_input_unsupported`, async () => {
