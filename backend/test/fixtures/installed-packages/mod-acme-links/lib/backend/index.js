@@ -2,6 +2,7 @@
 // decorator is applied as an ordinary call.
 import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 import { GlobalEntity, TransitivelyScoped } from '@endora-commerce/platform/tenancy';
+import { z } from 'zod';
 
 /** organizations is global and the tenant root: the side entity is global too. */
 export class AcmeLinksOrganizationRef {}
@@ -19,4 +20,27 @@ TransitivelyScoped('Order', 'orderId')(AcmeLinksOrderNote);
 
 export const entities = [AcmeLinksOrganizationRef, AcmeLinksOrderNote];
 
-export function registerModule() {}
+/**
+ * The value this module attaches under `extensions.acme_links` on an
+ * organization read (`specs/187-side-table-extensions/` FR-053): its contract,
+ * published from the package so a consumer narrows with it.
+ */
+export const AcmeLinksOrganizationRefSchema = z.object({ externalRef: z.string() });
+
+/**
+ * One bulk loader per side table: one `in` statement for every id it is
+ * handed, on the host port's entity manager, in the caller's context — never a
+ * widened scope. An id with no side row is left out and reads as `null`.
+ */
+export function registerModule(ctx) {
+  ctx.entityExtensionLoaders([
+    {
+      host: 'organizations.Organization',
+      schema: AcmeLinksOrganizationRefSchema,
+      load: async (ids, { em }) => {
+        const rows = await em.find(AcmeLinksOrganizationRef, { organizationId: { $in: [...ids] } });
+        return new Map(rows.map((row) => [row.organizationId, { externalRef: row.externalRef }]));
+      },
+    },
+  ]);
+}

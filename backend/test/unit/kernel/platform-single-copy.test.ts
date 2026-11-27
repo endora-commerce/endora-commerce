@@ -423,12 +423,16 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // (`specs/189-command-middleware/` P1) published `CommandRefusedError`,
     // `currentCommandMiddlewareOrigin` and the eight composition refusals; the
     // handler and outcome shapes are types and carry no identity.
-    // **94 -> 95 is the same event, on `./tenancy`:** the record merge
+    // **94 -> 95 is the same event, on `./kernel`:** side-table extensions
+    // (`specs/187-side-table-extensions/` B1) published `lazyEntityExtensionReads`,
+    // how a host read port holds `entityExtensionReads`; `EntityExtensionReads`
+    // and `EntityExtensionLoaderEntry` are types and carry no identity.
+    // **95 -> 96 is the same event, on `./tenancy`:** the record merge
     // (`specs/192-organization-merge/`) published `mergeWriteRefusal`, what a
     // host module asks before a write naming a merging or merged record; the
     // `RecordMergeService` it added to `./kernel` is a type and carries no
     // identity.
-    // **95 -> 96 is the same event, on `./tenancy`:** the merge reference guard
+    // **96 -> 97 is the same event, on `./tenancy`:** the merge reference guard
     // (`specs/192-organization-merge/` FR-047) published `assertMergeWritable`,
     // what a module's own SQL asks before setting a declared reference.
     //
@@ -441,7 +445,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(96);
+    expect(total).toBe(97);
   });
 
   /**

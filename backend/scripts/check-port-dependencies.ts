@@ -219,6 +219,11 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // columns an extensible host's admin reads attach. Built by both roots over
   // the ORM's declarations and the effective state; no module owns the name.
   'schemaExtensionReads',
+  // `specs/187-side-table-extensions/` FR-054 — its side-table twin: the reads
+  // service an extensible host's read ports hand their records to, built by both
+  // roots over the composition's loader registry and the effective state; no
+  // module owns the name.
+  'entityExtensionReads',
   'commandBus',
   // Who an admin actor is, resolved differently by production and the harness
   // — which is exactly the difference a composition root exists to hold.

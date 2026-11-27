@@ -80,7 +80,11 @@ import {
   scanInstalledModulePackages,
   type SkippedInstalledPackage,
 } from '../lib/module-packages.js';
-import { DIVERGENCE_REMEDIES, type DivergenceFindingKind } from '../lib/divergence.js';
+import {
+  DIVERGENCE_REMEDIES,
+  isDivergenceError,
+  type DivergenceFindingKind,
+} from '../lib/divergence.js';
 import { commandMiddlewareDeclarationsIn } from '../lib/command-middleware-declarations.js';
 import {
   analyzeOverlayBoundary,
@@ -841,8 +845,17 @@ export function generateReport(result: GenerateResult): readonly string[] {
     // The generator writes the artefact whatever it found, exactly as this
     // repository's does; a finding is something the client can act on and the
     // person running this is the person who can.
-    for (const finding of report.findings) {
+    for (const finding of report.findings.filter(isDivergenceError)) {
       lines.push(`  [${finding.kind}] ${finding.where}: ${finding.detail}`);
+    }
+    // 189 FR-051 — a warning is printed under its own heading and refuses
+    // nothing: `deprecated-decoration` in 0.113.0, an error from 0.114.0.
+    const warnings = report.findings.filter((finding) => !isDivergenceError(finding));
+    if (warnings.length > 0) {
+      lines.push('warnings:');
+      for (const finding of warnings) {
+        lines.push(`  [${finding.kind}] ${finding.where}: ${finding.detail}`);
+      }
     }
     // Never folded into "declares nothing": an absent declaration and one this
     // run could not read are the same answer only if you let them be.
@@ -922,7 +935,8 @@ export function generateFindingsRefusal(result: GenerateResult): string | null {
 }
 
 function divergenceFindingsSection(result: GenerateResult): string[] | null {
-  const findings = result.divergence.flatMap((report) => report.findings);
+  // Errors only: a warning was printed by `generateReport` and refuses nothing (189 FR-051).
+  const findings = result.divergence.flatMap((report) => report.findings.filter(isDivergenceError));
   const unreadable = result.divergence.flatMap((report) =>
     report.unresolvedDeclaration.map((field) => `${report.deployment}: ${field}`),
   );

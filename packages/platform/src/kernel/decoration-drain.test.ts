@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GUARD_SEAM_REGISTRATIONS, guardSeamReplacementFor } from '@endora-commerce/contracts';
 import { EventBus } from '../events/index.js';
 import {
   createRootContainer,
@@ -617,5 +618,165 @@ describe('FR-004 — the wrapper keeps a non-asValue inner’s lifetime', () => 
     expect(() => container.resolve<{ read: () => unknown }>('consumer')).toThrow(
       /shorter lifetime/,
     );
+  });
+});
+
+/**
+ * 189 T070 (FR-050, FR-053, `contracts/guard-seam-narrowing.md` §1 step 4 and §3) — one
+ * release of warning.
+ *
+ * D-296 narrows D-156.4 for the four guard seams only. In 0.113.0 an overlay's decoration of one
+ * still composes and keeps its wrap; it is logged once per (module, guard seam) and marked
+ * `deprecated` in the ledger and on the `kernel.decorations` line. Every other root-supplied name
+ * (`redis` here) keeps its D-156.4 behaviour with no warning, so the narrowing is held from both
+ * sides. P3 (0.114.0) flips the guard-seam cases below to `GuardSeamDecorationError`; the `redis`
+ * case does not flip.
+ */
+describe('189 T070 — an overlay decorating a guard seam is deprecated, and only a guard seam', () => {
+  interface Line {
+    readonly level: 'info' | 'warn' | 'error';
+    readonly fields: Record<string, unknown>;
+    readonly msg: string;
+  }
+
+  function capturingLog(): { lines: Line[]; log: ReturnType<typeof log> } {
+    const lines: Line[] = [];
+    const at =
+      (level: Line['level']) =>
+      (fields: unknown, msg?: unknown): void => {
+        lines.push({ level, fields: fields as Record<string, unknown>, msg: String(msg) });
+      };
+    return { lines, log: { info: at('info'), warn: at('warn'), error: at('error') } as ReturnType<typeof log> };
+  }
+
+  function rootValues(container: KernelContainer): void {
+    registerValues(container, {
+      commandBus: 'bus',
+      auditLogService: 'audit',
+      eventBus: 'events',
+      emFactory: 'em',
+      redis: 'redis',
+    });
+  }
+
+  function overlayWrapping(id: string, names: readonly string[]): ModuleEntry {
+    return {
+      id,
+      version: '1.0.0',
+      overlay: true,
+      registerModule: (ctx) => {
+        for (const name of names) ctx.di.decorate<string>(name, (inner) => `${inner}+${id}`);
+      },
+    };
+  }
+
+  it('composes, keeps the wrap and warns once per (module, guard seam), naming the replacement', () => {
+    const container = createRootContainer();
+    rootValues(container);
+    const { lines, log: capture } = capturingLog();
+
+    const composed = composeModules(
+      // Each guard seam twice from one module: the warning is per (module, name), not per call.
+      [overlayWrapping('acme_overlay', [...GUARD_SEAM_REGISTRATIONS, ...GUARD_SEAM_REGISTRATIONS])],
+      { container, eventBus: new EventBus(), log: capture },
+    );
+
+    for (const name of GUARD_SEAM_REGISTRATIONS) {
+      expect(container.resolve<string>(name)).toMatch(/\+acme_overlay\+acme_overlay$/);
+    }
+    const warnings = lines.filter((line) => line.msg === 'kernel.decoration.deprecated');
+    expect(warnings.map((line) => line.fields['registration'])).toEqual([...GUARD_SEAM_REGISTRATIONS]);
+    for (const warning of warnings) {
+      expect(warning.level).toBe('warn');
+      expect(warning.fields).toEqual({
+        overlay: 'acme_overlay',
+        registration: warning.fields['registration'],
+        replacement: guardSeamReplacementFor(warning.fields['registration'] as never),
+        refusedFrom: '0.114.0',
+        ruling: 'D-296',
+      });
+    }
+    expect(composed.decorations.every((entry) => entry.deprecated === true)).toBe(true);
+
+    const report = lines.find((line) => line.msg === 'kernel.decorations');
+    const overrides = report?.fields['overrides'] as ReadonlyArray<Record<string, unknown>>;
+    expect(overrides).toHaveLength(8);
+    expect(overrides.every((entry) => entry['deprecated'] === true)).toBe(true);
+  });
+
+  it('warns once for each overlay module that decorates the same guard seam', () => {
+    const container = createRootContainer();
+    rootValues(container);
+    const { lines, log: capture } = capturingLog();
+
+    composeModules([overlayWrapping('acme_one', ['commandBus']), overlayWrapping('acme_two', ['commandBus'])], {
+      container,
+      eventBus: new EventBus(),
+      log: capture,
+      decorationOrder: { commandBus: ['acme_one', 'acme_two'] },
+    });
+
+    expect(container.resolve<string>('commandBus')).toBe('bus+acme_one+acme_two');
+    expect(
+      lines.filter((line) => line.msg === 'kernel.decoration.deprecated').map((line) => line.fields['overlay']),
+    ).toEqual(['acme_one', 'acme_two']);
+  });
+
+  it('lets an overlay decorate `redis` with no warning and no deprecated flag (D-156.4 unchanged)', () => {
+    const container = createRootContainer();
+    rootValues(container);
+    const { lines, log: capture } = capturingLog();
+
+    const composed = composeModules([overlayWrapping('acme_overlay', ['redis'])], {
+      container,
+      eventBus: new EventBus(),
+      log: capture,
+    });
+
+    expect(container.resolve<string>('redis')).toBe('redis+acme_overlay');
+    expect(lines.filter((line) => line.level === 'warn')).toEqual([]);
+    expect(composed.decorations).toHaveLength(1);
+    expect('deprecated' in (composed.decorations[0] as object)).toBe(false);
+    const report = lines.find((line) => line.msg === 'kernel.decorations');
+    const [override] = report?.fields['overrides'] as ReadonlyArray<Record<string, unknown>>;
+    expect(override).toEqual({ registration: 'redis', decoratedBy: 'acme_overlay', owner: null, depth: 1 });
+  });
+
+  it("logs nothing for an overlay decorating a workspace module's or another overlay's registration", () => {
+    const container = createRootContainer();
+    const { lines, log: capture } = capturingLog();
+
+    const composed = composeModules(
+      [
+        owner('price_lists', 'core'),
+        {
+          id: 'acme_base',
+          version: '1.0.0',
+          overlay: true,
+          registerModule: (ctx) => ctx.di.register({ acmeLabel: ctx.asValue('acme') }),
+        },
+        overlayWrapping('acme_overlay', ['label', 'acmeLabel']),
+      ],
+      { container, eventBus: new EventBus(), log: capture },
+    );
+
+    expect(container.resolve<string>('label')).toBe('core+acme_overlay');
+    expect(container.resolve<string>('acmeLabel')).toBe('acme+acme_overlay');
+    expect(lines.filter((line) => line.level === 'warn')).toEqual([]);
+    expect(composed.decorations.some((entry) => 'deprecated' in entry)).toBe(false);
+  });
+
+  it("still refuses an installed package's registration first, logging nothing", () => {
+    const container = createRootContainer();
+    const { lines, log: capture } = capturingLog();
+
+    expect(() =>
+      composeModules([packageOwningGreeter('crm'), overlayWrapping('acme_overlay', ['greeter'])], {
+        container,
+        eventBus: new EventBus(),
+        log: capture,
+      }),
+    ).toThrow(PackageDecorationNotOfferedError);
+    expect(lines.filter((line) => line.msg === 'kernel.decoration.deprecated')).toEqual([]);
   });
 });

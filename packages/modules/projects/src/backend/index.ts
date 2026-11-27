@@ -24,9 +24,9 @@ import type {
   QuoteRequestReadPort,
   ReportingTimeZonePort,
   SettingWriteValidatorRegistryPort,
+  TaskCommandPort,
   TaskContextRegistryPort,
   TaskReadPort,
-  TaskWritePort,
   TransactionalEmailSender,
   WebhookEventRegistryPort,
 } from '@endora-commerce/contracts';
@@ -34,8 +34,10 @@ import { PROJECT_WEBHOOK_EVENT_TYPES } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import {
   effectiveState,
+  lazyEntityExtensionReads,
   lazyPort,
   type AuditPort,
+  type EntityExtensionReads,
   type ModuleContext,
   type RecordMergeService,
   type RequireAdminFactory,
@@ -259,7 +261,7 @@ export function registerModule(ctx: ModuleContext): void {
         (): ProjectTasks => ({
           present: () => effectiveState.isPresent('tasks'),
           read: lazyPort<TaskReadPort>(ctx, 'taskReadPort'),
-          write: lazyPort<TaskWritePort>(ctx, 'taskWritePort'),
+          write: lazyPort<TaskCommandPort>(ctx, 'taskCommandPort'),
         }),
       )
       .singleton(),
@@ -449,6 +451,7 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({
+          emFactory,
           projectsAccess,
           projectsReadService,
           projectsRecordProjectService,
@@ -460,6 +463,15 @@ export function registerModule(ctx: ModuleContext): void {
             records: projectsRecordProjectService,
             notes: projectsCommentService,
             merges: () => ctx.cradle<ProjectsCradle>().projectsMergeService,
+            // `specs/187-side-table-extensions/` FR-058 — `include` on the
+            // record reads; the kernel's `entityExtensionReads` is resolved
+            // only for a read that names one.
+            extensions: {
+              reads: lazyEntityExtensionReads(
+                () => ctx.cradle<{ entityExtensionReads: EntityExtensionReads }>().entityExtensionReads,
+              ),
+              em: emFactory,
+            },
           }),
       )
       .singleton(),

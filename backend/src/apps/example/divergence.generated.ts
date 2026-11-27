@@ -442,6 +442,10 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     ],
     "notRecorded": [
       {
+        "seam": "ctx.entityExtensionLoaders",
+        "why": "the module's own side table, read only for a caller that names this module in `include`; without it the host's read answers exactly as core does"
+      },
+      {
         "seam": "ctx.merge.host",
         "why": "the module's own record type made mergeable; the runner calls it for that record type only"
       },

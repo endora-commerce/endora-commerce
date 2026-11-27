@@ -244,6 +244,8 @@ export * from './modules.js';
 export * from './command-hooks.js';
 // `specs/189-command-middleware/` P1 — the command-middleware declaration, phases and budgets.
 export * from './command-middleware.js';
+// `specs/187-side-table-extensions/` B1 — `include: ['extensions.<moduleId>']` on host read ports.
+export * from './entity-extensions.js';
 export * from './organization-hooks.js';
 // `specs/186-aggregate-ports/` — the options and the custom-field merge every aggregate write port shares.
 export * from './aggregate-ports.js';

@@ -21,6 +21,7 @@ import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
 import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
 import type { CustomFieldListFilterCondition } from './custom-fields.js';
+import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
 
 // --- the anonymisation event ---------------------------------------------------
 //
@@ -216,15 +217,21 @@ export interface CustomerAccountLookupOptions {
  * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface CustomerAccountReadPort {
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>`; absent or
+   * empty, the answer is exactly what it was without it. The same holds for
+   * {@link findByIds}, {@link searchByEmail} and {@link listAll}.
+   */
   findById(
     id: string,
-    options?: CustomerAccountLookupOptions,
-  ): Promise<CustomerAccountRecord | null>;
+    options?: CustomerAccountLookupOptions & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CustomerAccountRecord> | null>;
 
   findByIds(
     ids: readonly string[],
-    options?: CustomerAccountLookupOptions,
-  ): Promise<CustomerAccountRecord[]>;
+    options?: CustomerAccountLookupOptions & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CustomerAccountRecord>[]>;
 
   findByEmail(
     email: string,
@@ -278,7 +285,11 @@ export interface CustomerAccountReadPort {
    * answer: a picker that loads every account to keep 200 of them is a
    * full-table read wearing a port.
    */
-  searchByEmail(query: string, limit: number): Promise<CustomerAccountRecord[]>;
+  searchByEmail(
+    query: string,
+    limit: number,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CustomerAccountRecord>[]>;
 
   /**
    * Ids of accounts whose e-mail, first name or last name contains `query`,
@@ -298,7 +309,7 @@ export interface CustomerAccountReadPort {
   searchIdsByName(query: string): Promise<string[]>;
 
   /** Every account, for the bulk export adapter. Ordered by email. */
-  listAll(): Promise<CustomerAccountRecord[]>;
+  listAll(options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<CustomerAccountRecord>[]>;
 
   /**
    * Soft-deleted accounts whose retention window elapsed before `cutoff` and

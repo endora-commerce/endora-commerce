@@ -12,6 +12,7 @@ import { customFieldCarrySkipSchema, customFieldValuesSchema } from './custom-fi
 import { fourDecimalUnitPrice } from './money-input.js';
 import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
+import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
 
 /**
  * Quote Requests (RFQ) module contracts — feature 008 workflow rewrite.
@@ -1148,7 +1149,13 @@ export interface QuoteRequestLineRecord {
  * `nonDeactivatable` never enters one.
  */
 export interface QuoteRequestReadPort {
-  findById(id: string): Promise<QuoteRequestRecord | null>;
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>`; absent or
+   * empty, the answer is exactly what it was without it. The same holds for
+   * {@link findByBusinessId} and {@link findByIds}.
+   */
+  findById(id: string, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<QuoteRequestRecord> | null>;
   /**
    * A status's name in `language`, in this module's own wording (the one its
    * global-search results use); a code outside {@link rfqStatusSchema} answers
@@ -1183,7 +1190,10 @@ export interface QuoteRequestReadPort {
    * connector had been reading `quote_requests` with a raw statement to
    * resolve it.
    */
-  findByBusinessId(businessId: string): Promise<QuoteRequestRecord | null>;
+  findByBusinessId(
+    businessId: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<QuoteRequestRecord> | null>;
   /**
    * What the quote is worth, by the one rule of {@link quoteRequestAmountSchema},
    * or `null` when the quote is missing or out of the caller's scope — the
@@ -1201,7 +1211,10 @@ export interface QuoteRequestReadPort {
    * Added for issue #457: `projects` read the Quote Requests linked to a
    * Project one `findById` at a time.
    */
-  findByIds(ids: readonly string[]): Promise<QuoteRequestRecord[]>;
+  findByIds(
+    ids: readonly string[],
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<QuoteRequestRecord>[]>;
   /**
    * What each quote of `quoteRequestIds` is worth, keyed by quote id — what
    * {@link amountOf} answers for each id, in a fixed number of reads. A quote

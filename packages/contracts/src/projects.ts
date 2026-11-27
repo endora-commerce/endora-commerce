@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
+import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
 import { calendarDateSchema } from './common.js';
 import { dataEnvelope } from './envelopes.js';
 import { customFieldFiltersQueryParamSchema, customFieldValuesSchema } from './custom-fields.js';
@@ -1207,20 +1208,31 @@ export interface ProjectRecord {
  * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`.
  */
 export interface ProjectReadPort {
-  findById(id: string): Promise<ProjectRecord | null>;
-  findByRecord(kind: ProjectRecordKind, id: string): Promise<ProjectRecord | null>;
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>` to the Projects
+   * the caller may see; absent or empty, the answer is exactly what it was
+   * without it. The same holds for {@link findByRecord}, {@link findByIds} and
+   * {@link search}.
+   */
+  findById(id: string, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<ProjectRecord> | null>;
+  findByRecord(
+    kind: ProjectRecordKind,
+    id: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<ProjectRecord> | null>;
   /**
    * The Projects of `ids` the caller may see, in no particular order — a
    * hidden, missing or malformed id is simply absent. One query for a page of
    * references (`specs/165-task-management/` R-5).
    */
-  findByIds(ids: readonly string[]): Promise<ProjectRecord[]>;
+  findByIds(ids: readonly string[], options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<ProjectRecord>[]>;
   /**
    * Projects the caller may see whose number or title contains `q`
    * (case-insensitively; every visible one for an empty `q`), newest first, at
    * most `limit` (≤ 20) — the Projects group of the `@@` list (R-5).
    */
-  search(query: ProjectSearchQuery): Promise<ProjectRecord[]>;
+  search(query: ProjectSearchQuery, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<ProjectRecord>[]>;
   /**
    * The notes written on the Projects the caller may see, one page at a time,
    * oldest first — for a cross-record notes list or an export (issue #1905).

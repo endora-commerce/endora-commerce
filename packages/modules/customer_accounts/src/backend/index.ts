@@ -37,7 +37,7 @@ import type { EventBus } from '@endora-commerce/platform/events';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { lazyEntityExtensionReads, lazyPort, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { registerCustomerAccountAuditReferences } from './services/audit-references.js';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -263,7 +263,15 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ emFactory }: CustomerAccountsCradle) =>
-          new CustomerAccountReadService(emFactory, twoFactorEnrolments, organizationRoles),
+          new CustomerAccountReadService(
+            emFactory,
+            twoFactorEnrolments,
+            organizationRoles,
+            // `specs/187-side-table-extensions/` FR-058 — `include` on the
+            // record reads; the kernel's `entityExtensionReads` is resolved
+            // only for a read that names one.
+            lazyEntityExtensionReads(() => ctx.cradle<{ entityExtensionReads: EntityExtensionReads }>().entityExtensionReads),
+          ),
       )
       .singleton(),
   );

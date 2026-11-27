@@ -10,6 +10,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { resolveTaskStatusName, type TaskStatusGraph } from '../domain/task-status-graph.js';
 import { TaskStatus } from '../entities/task-status.entity.js';
 import type { TaskAccess } from './task-access.js';
@@ -20,6 +21,19 @@ export interface TaskTransitionServiceDeps {
   commandBus: CommandBus;
   access: Pick<TaskAccess, 'loadVisible' | 'assertMayChange'>;
   workflow: Pick<TaskWorkflowRead, 'graph'>;
+}
+
+/**
+ * A move: the target code, and the status the caller read the Task in. The
+ * route always sends `from`; `taskCommandPort.setStatus` may leave it out, and
+ * then the status this service reads stands in for it
+ * (`specs/186-aggregate-ports/` R-23.4). Neither is checked for its form: a
+ * code the workflow does not hold is 422 `TASK_STATUS_UNKNOWN` from inside the
+ * Command.
+ */
+export interface TaskStatusMoveInput {
+  readonly to: string;
+  readonly from?: string | undefined;
 }
 
 /** What a move did: `false` when the Task already was in the target status (nothing written). */
@@ -93,13 +107,20 @@ function transitionConflict(current: string): HttpError {
 export class TaskTransitionService {
   constructor(private readonly deps: TaskTransitionServiceDeps) {}
 
-  async apply(id: string, body: TaskStatusChangeBody, language: SupportedLanguage): Promise<AppliedTaskTransition> {
+  async apply(
+    id: string,
+    body: TaskStatusChangeBody | TaskStatusMoveInput,
+    language: SupportedLanguage,
+    caller: CallerOptions = {},
+  ): Promise<AppliedTaskTransition> {
     const row = await this.deps.access.loadVisible(id);
     this.deps.access.assertMayChange(row);
+    const to = String(body.to);
+    const expected = body.from === undefined ? row.status : String(body.from);
     const workflow = this.deps.workflow;
     let applied: { from: string; draft: boolean; toCategory: TaskStatusCategory; context: Pick<TaskStatusChangedEvent, 'contextType' | 'contextId' | 'contextGroupId'> } | undefined;
 
-    await this.deps.commandBus.run({
+    await this.deps.commandBus.run(withCallerOptions({
       action: 'tasks.task.status_change',
       objectType: 'task',
       objectId: row.id,
@@ -107,15 +128,15 @@ export class TaskTransitionService {
         const em = commandEm as EntityManager;
         const task = await lockedTask(em, row.id);
         const from = task.status;
-        const target = await em.findOne(TaskStatus, { code: body.to }, { lockMode: LockMode.PESSIMISTIC_READ });
-        if (!target) throw taskStatusUnknown(body.to);
-        if (from === body.to) return { result: undefined, skipAudit: true };
-        if (from !== body.from) throw transitionConflict(from);
+        const target = await em.findOne(TaskStatus, { code: to }, { lockMode: LockMode.PESSIMISTIC_READ });
+        if (!target) throw taskStatusUnknown(to);
+        if (from === to) return { result: undefined, skipAudit: true };
+        if (from !== expected) throw transitionConflict(from);
         const graph = await workflow.graph(em);
-        if (!graph.canTransition(from, body.to)) throw transitionForbidden(graph, from, language);
+        if (!graph.canTransition(from, to)) throw transitionForbidden(graph, from, language);
 
         const before = auditSnapshot(task);
-        task.status = body.to;
+        task.status = to;
         if (target.category === 'done') task.completedAt = task.completedAt ?? new Date();
         else task.completedAt = null;
         applied = {
@@ -137,13 +158,13 @@ export class TaskTransitionService {
           ...envelope(),
           taskId: row.id,
           from: applied.from,
-          to: body.to,
+          to,
           toCategory: applied.toCategory,
           ...applied.context,
         };
         return { eventName: TASKS_EVENTS.STATUS_CHANGED, payload };
       },
-    });
+    }, caller));
     return { taskId: row.id, changed: applied !== undefined };
   }
 }

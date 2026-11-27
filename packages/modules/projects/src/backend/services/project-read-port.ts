@@ -1,5 +1,8 @@
+import type { EntityManager } from '@mikro-orm/core';
 import {
   PROJECT_READ_PORT_SEARCH_MAX,
+  type EntityExtensionReadOptions,
+  type WithEntityExtensions,
   type ProjectNotePage,
   type ProjectNoteQuery,
   type ProjectMergePreview,
@@ -9,6 +12,7 @@ import {
   type ProjectRecordKind,
   type ProjectSearchQuery,
 } from '@endora-commerce/contracts';
+import { lazyEntityExtensionReads, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import type { ProjectCommentService } from './comment-service.js';
 import type { ProjectMergeService } from '../merge/project-merge-service.js';
 import { projectNotFound, type ProjectAccess, type VisibleProjectRow } from './project-access.js';
@@ -23,7 +27,16 @@ export interface ProjectReadPortDeps {
   notes: Pick<ProjectCommentService, 'listNotes'>;
   /** The Project merge (`specs/192-organization-merge/` US6), resolved per call. */
   merges: () => Pick<ProjectMergeService, 'preview' | 'resolveMerged' | 'get'>;
+  /**
+   * `specs/187-side-table-extensions/` FR-058 — the kernel's
+   * `entityExtensionReads` and the entity manager a loader reads on, for
+   * `include`. Absent in a hand-built service, which has no loader to offer.
+   */
+  extensions?: { readonly reads: EntityExtensionReads; readonly em: () => EntityManager };
 }
+
+const HOST = 'projects.Project';
+const NO_EXTENSIONS = lazyEntityExtensionReads(() => undefined);
 
 /**
  * `projectReadPort` (`specs/163-projects-and-tasks/contracts/ports-and-events.md`
@@ -37,26 +50,36 @@ export interface ProjectReadPortDeps {
  * Organizations come from the summary the record panel answers with. Notes
  * are listed by the comment service, whose statement carries `ProjectAccess`'s
  * predicate over each note's Project.
+ *
+ * `findById`, `findByRecord`, `findByIds` and `search` take `options.include`:
+ * only the Projects `ProjectAccess` answered are handed to the platform's
+ * `entityExtensionReads`, so a loader never sees one the caller may not.
  */
 export class ProjectReadPortService implements ProjectReadPort {
   constructor(private readonly deps: ProjectReadPortDeps) {}
 
-  async findById(id: string): Promise<ProjectRecord | null> {
+  async findById(id: string, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<ProjectRecord> | null> {
     const row = await this.deps.access.findVisible(id);
-    return row === null ? null : this.#record(row);
+    return row === null ? null : this.#attachOne(await this.#record(row), options);
   }
 
   /** The Projects of `ids` the caller may see; a hidden or missing id is absent (165 R-5). */
-  async findByIds(ids: readonly string[]): Promise<ProjectRecord[]> {
+  async findByIds(
+    ids: readonly string[],
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<ProjectRecord>[]> {
     const rows = await this.deps.access.findVisibleMany(ids);
-    return Promise.all(rows.map((row) => this.#record(row)));
+    return this.#attach(await Promise.all(rows.map((row) => this.#record(row))), options);
   }
 
   /** Projects the caller may see by number or title, newest first, at most 20 (165 R-5). */
-  async search(query: ProjectSearchQuery): Promise<ProjectRecord[]> {
+  async search(
+    query: ProjectSearchQuery,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<ProjectRecord>[]> {
     const limit = Math.min(Math.max(0, Math.trunc(query.limit)), PROJECT_READ_PORT_SEARCH_MAX);
     const rows = await this.deps.access.searchVisible(query.q ?? '', limit);
-    return Promise.all(rows.map((row) => this.#record(row)));
+    return this.#attach(await Promise.all(rows.map((row) => this.#record(row))), options);
   }
 
   /** The notes of the Projects the caller may see, a keyset page at a time (issue #1905). */
@@ -64,9 +87,34 @@ export class ProjectReadPortService implements ProjectReadPort {
     return this.deps.notes.listNotes(query);
   }
 
-  async findByRecord(kind: ProjectRecordKind, id: string): Promise<ProjectRecord | null> {
+  async findByRecord(
+    kind: ProjectRecordKind,
+    id: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<ProjectRecord> | null> {
     const row = await this.deps.records.findByRecord(kind, id);
-    return row === null ? null : this.#record(row);
+    return row === null ? null : this.#attachOne(await this.#record(row), options);
+  }
+
+  async #attach(
+    records: ProjectRecord[],
+    options: EntityExtensionReadOptions | undefined,
+  ): Promise<WithEntityExtensions<ProjectRecord>[]> {
+    if (options?.include === undefined || options.include.length === 0) return records;
+    const extensions = this.deps.extensions;
+    // Without a reads service every include is unclaimed, refused before any
+    // entity manager is read — so the hand-built case needs none.
+    if (extensions === undefined) return [...(await NO_EXTENSIONS.attach(HOST, records, options, undefined as never))];
+    // The manager `ProjectAccess` reads on: the same factory, in the caller's context.
+    return [...(await extensions.reads.attach(HOST, records, options, extensions.em()))];
+  }
+
+  async #attachOne(
+    record: ProjectRecord,
+    options: EntityExtensionReadOptions | undefined,
+  ): Promise<WithEntityExtensions<ProjectRecord>> {
+    const [attached] = await this.#attach([record], options);
+    return attached ?? record;
   }
 
   /**

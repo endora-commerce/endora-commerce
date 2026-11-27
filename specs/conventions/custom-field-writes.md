@@ -107,6 +107,9 @@ value). Today the hosts that publish one are:
 - `orders` — `orderCommandPort.setCustomFieldValues(orderId, merge, options?)`, the aggregate port
   (`specs/186-aggregate-ports/` US4), which runs `order.custom_fields.update` — the Command the admin
   `PATCH /api/v1/admin/orders/:id/custom-fields` runs, the bag read under the order's row lock.
+- `tasks` — `taskCommandPort.setCustomFieldValues(taskId, merge, options?)`, the aggregate port
+  (`specs/186-aggregate-ports/` US10). It runs `tasks.task.custom_fields_change`, the Command the
+  admin `PATCH` runs for the values, so one hook registration sees every change.
 
 All have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
 callback over the current bag that the owner runs between its own load and its own write, as one

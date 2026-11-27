@@ -606,7 +606,7 @@ Kontrakt, którego deskryptor przestrzega:
   `TASK_CONTEXT_INVALID`, a usuwanie z `403` `FORBIDDEN`.
 - `renderNote(note, language)`, opcjonalna, formułuje w języku czytającego
   notatkę, którą twój moduł zostawił na zadaniu przy jego tworzeniu
-  (`contextNote` z `taskWritePort.createMany`). Zapisuj klucz, a nie zdanie —
+  (`contextNote` z `taskCommandPort.createMany`). Zapisuj klucz, a nie zdanie —
   Projekty zapisują rolę odpowiedzialną — a zdanie zwracaj tutaj; bez tej
   metody notatka jest pokazywana tak, jak ją zapisano.
 - `existingContexts(ids)`, opcjonalna, odpowiada, **które z tych rekordów wciąż
@@ -628,7 +628,7 @@ Kontrakt, którego deskryptor przestrzega:
   nie jest zawężany.
 
 **Przebieg porządkujący.** Właściciel kontekstu usuwa zadania usuwanego rekordu
-przez `taskWritePort.deleteInContext` — ale tylko wtedy, gdy moduł Zadania jest
+przez `taskCommandPort.deleteInContext` — ale tylko wtedy, gdy moduł Zadania jest
 włączony. To, co usunięto przy wyłączonym module, znajduje ostatni przebieg
 workera `tasks-reminders`, uruchamiany najwyżej co **piętnaście minut**: dla
 każdego **obecnego** właściciela implementującego `existingContexts` czyta
@@ -645,15 +645,158 @@ bez pracy nie wchodzi w zakres systemowy.
 
 ### Odczyt i zapis zadań z innego modułu
 
-Dwa porty, oba za bramką — rozwiązanie któregokolwiek przy wyłączonym module
-Zadania rzuca wyjątek, a wywołanie odpowiada `503` `MODULE_DISABLED`.
-Rozwiązuj je przez `lazyPort` i deklaruj jako `degrades-without` ze zdaniem
-`whenAbsent`.
+Trzy porty, wszystkie za bramką: rozwiązanie któregokolwiek przy wyłączonym
+module Zadania rzuca wyjątek, a wywołanie odpowiada `503` `MODULE_DISABLED` i
+nic nie zostaje zapisane. Nie przechwytuj tej odmowy, by działać dalej.
+Rozwiązuj je przy każdym użyciu przez `lazyPort` i deklaruj krawędź w swoim
+manifeście: moduł Zadania można wyłączyć, więc wpisz go do `dependencies` albo
+zadeklaruj wpis `nonBindingDependencies` (`degrades-without` ze zdaniem
+`whenAbsent` albo `refuses-without`).
 
 | Port | Metody |
 | --- | --- |
-| `taskReadPort` (`TaskReadPort`) | `findById`, `findByIds`, `search` (numer albo tytuł), `listInContext`, `listOpenInContext` (kategoria otwarta i nie szkic — pytanie blokady zakończenia), `countInContext`. `TaskRecord` ma `status` (kod), `statusCategory`, `closed`, `assigneeIds`, `dueAt`, `draft` i `private`. Zawężane pełną regułą widoczności dla administratora — kontekst, szkice, zadania prywatne — ale nie dla systemu. |
-| `taskWritePort` (`TaskWritePort`) | `createMany({ context, tasks })` — najwyżej 100 zadań, każde `{ title, description?, assigneeIds?, dueOn?, contextGroupId?, contextNote?, sourceKey? }`, opublikowane, w statusie początkowym przebiegu; jedno audytowane polecenie `tasks.task.create` i jedno zdarzenie `tasks.task.created.v1` na każde utworzone zadanie; odrzucane z `TASK_CONTEXT_INVALID`, gdy żaden włączony moduł nie jest właścicielem typu kontekstu, i z `TASK_ASSIGNEE_INVALID`, gdy osoba przypisana nie jest aktywnym administratorem — zanim cokolwiek zostanie zapisane. Czy osoba przypisana może zobaczyć rekord, rozstrzyga moduł, do którego rekord należy — projekt przypisuje każde zadanie etapu członkowi z jego rolą — więc port o to nie pyta, w przeciwieństwie do ekranów i API zadań. `deleteInContext({ contextType, contextId })` — wszystkie zadania jednego rekordu, każde przez osobne audytowane polecenie `tasks.task.delete`. |
+| `taskReadPort` (`TaskReadPort`) | `findById`, `findByIds`, `search` (numer albo tytuł), `listInContext`, `listOpenInContext` (kategoria otwarta i nie szkic — pytanie blokady zakończenia), `countInContext`. `TaskRecord` ma `status` (kod), `statusCategory`, `closed`, `assigneeIds`, `dueAt`, `draft`, `private` i `customFieldValues` (każdy klucz, który mają wartości zadania). Zawężane pełną regułą widoczności dla administratora — kontekst, szkice, zadania prywatne — ale nie dla systemu. |
+| `taskCommandPort` (`TaskCommandPort`) | Port zapisu zadania, opisany w następnej sekcji. |
+| `taskWritePort` (`TaskWritePort`) | **Przestarzały od 0.113.0**, usuwany w 0.114.0. `createMany` i `deleteInContext` to teraz `taskCommandPort.createMany` i `taskCommandPort.deleteInContext`, do których te metody przekazują wywołanie bez zmian. Przenieś wywołanie, rozwiązując zamiast niego `taskCommandPort` i zmieniając nazwę krawędzi w manifeście. |
+
+### Zapis zadań z innego modułu
+
+Inny moduł, moduł nakładki albo proces integracji zapisuje zadanie przez
+**`taskCommandPort`**, port zapisu zadania, zadeklarowany jako
+`TaskCommandPort` w `@endora-commerce/contracts`. Nigdy nie zapisuje
+bezpośrednio do tabel tego modułu.
+
+Każda metoda uruchamia dokładnie jedno polecenie, we własnej transakcji: to,
+które trasa panelu administracyjnego uruchamia dla tej samej zmiany, przez tę
+samą usługę, więc sprawdzenia przed nim, ślad audytu i powiadomienia po nim są
+takie same, a odmowa zawsze oznacza, że nic nie zostało zapisane:
+
+| Metoda | Akcja audytu | Co administrator robi tak samo |
+| --- | --- | --- |
+| `create(input, options?)` | `tasks.task.create` | `POST /api/v1/admin/tasks` |
+| `createMany({ context, tasks }, options?)` | po jednym `tasks.task.create` na zadanie | brak: zadania rekordu, którego jesteś właścicielem (niżej) |
+| `update(id, { title?, description?, dueOn?, dueAt?, startOn?, context? }, options?)` | `tasks.task.update` | `PATCH /api/v1/admin/tasks/:id` (te pola) |
+| `setParent(id, { parentTaskId }, options?)` | `tasks.task.parent_change` | `PATCH /api/v1/admin/tasks/:id` (`parentTaskId`) |
+| `setPriority(id, { priorityCode }, options?)` | `tasks.task.priority_change` | `PATCH /api/v1/admin/tasks/:id` (`priorityCode`) |
+| `setTags(id, { tagIds }, options?)` | `tasks.task.tags_change` | `PATCH /api/v1/admin/tasks/:id` (`tagIds`) |
+| `setAssignees(id, { set } albo { add, remove }, options?)` | `tasks.task.assignees_change` | `PATCH /api/v1/admin/tasks/:id` (`assigneeIds` albo `addAssigneeIds` i `removeAssigneeIds`) |
+| `setPrivate(id, { private }, options?)` | `tasks.task.privacy_change` | `PATCH /api/v1/admin/tasks/:id` (`private`) |
+| `setStatus(id, { to, from? }, options?)` | `tasks.task.status_change` | `POST /api/v1/admin/tasks/:id/status` |
+| `setCustomFieldValues(id, merge, options?)` | `tasks.task.custom_fields_change` | `PATCH /api/v1/admin/tasks/:id` (`customFieldValues`) |
+| `publish(id, options?)` | `tasks.task.publish` | `POST /api/v1/admin/tasks/:id/publish` |
+| `relate(id, otherId, options?)` | `tasks.task.relate` | `PUT /api/v1/admin/tasks/:id/relations/:otherId` |
+| `unrelate(id, otherId, options?)` | `tasks.task.unrelate` | `DELETE /api/v1/admin/tasks/:id/relations/:otherId` |
+| `link(id, { kind, id }, options?)` | `tasks.task.link` | `POST /api/v1/admin/tasks/:id/links` |
+| `unlink(id, linkId, options?)` | `tasks.task.unlink` | `DELETE /api/v1/admin/tasks/:id/links/:linkId` |
+| `addReminder(id, input, options?)` | `tasks.reminder.add` | `POST /api/v1/admin/tasks/:id/reminders` |
+| `addComment(id, { body }, options?)` | `tasks.comment.add` | `POST /api/v1/admin/tasks/:id/comments` |
+| `delete(id, options?)` | `tasks.task.delete` | `DELETE /api/v1/admin/tasks/:id` |
+| `deleteInContext({ contextType, contextId }, options?)` | po jednym `tasks.task.delete` na zadanie | brak: zadania rekordu, którego jesteś właścicielem (niżej) |
+
+`PATCH` w panelu może zmienić to wszystko naraz, jako do siedmiu poleceń; port
+oferuje każde jako osobną metodę, więc wywołanie nigdy nie zostawia zmiany
+zapisanej tylko w części. `update` przyjmuje wyłącznie pola, które zapisuje
+`tasks.task.update`, a każdy inny klucz to `422` `VALIDATION_FAILED`.
+`setPrivate` jest sprawdzane względem zadania w jego obecnym stanie: zmienić je
+może tylko twórca, a zadanie prywatne nie należy do rekordu i nie ma osób
+przypisanych poza twórcą. Aby uczynić zadanie prywatnym, najpierw wyjmij je z
+rekordu przez `update`, a potem usuń pozostałe osoby przypisane przez
+`setAssignees`, w tej kolejności. Pole każdej z tych metod jest wymagane:
+pominięcie go, przekazanie `undefined` albo dodanie klucza, którego metoda nie
+przyjmuje, to `422` `VALIDATION_FAILED` i nic nie zostaje zapisane; `null`
+oznacza wyczyszczenie zadania nadrzędnego albo priorytetu. Wywołanie, które
+niczego nie zmienia, niczego nie zapisuje ani nie rejestruje. `setStatus`
+przyjmuje jako `from` status, w którym odczytałeś zadanie, albo — gdy go
+pominiesz — status, który metoda odczytuje sama. Przejście, na które przebieg
+nie pozwala, to `409` `TASK_TRANSITION_FORBIDDEN`, zadanie, które nie jest już
+w `from`, to `409` `TASK_TRANSITION_CONFLICT`, a kod, którego przebieg nie
+zawiera, to `422` `TASK_STATUS_UNKNOWN`. To ostatnie dotyczy kodu w każdej
+postaci. Każda odmowa jest rzucana jako kod błędu trasy; żadna metoda nie
+zwraca w zamian wartości wyniku.
+
+`create`, `update`, `setStatus`, `setCustomFieldValues` i `publish` zwracają
+zadanie jako `TaskRecord`, odczytane po zapisie. `link` zwraca `{ linkId }`,
+a dla rekordu już powiązanego identyfikator istniejącego powiązania.
+`addReminder` zwraca `{ reminderId }`, a `addComment` zwraca `{ commentId }`.
+Pozostałe metody nie zwracają nic, poza `createMany` (`{ ids }`) i
+`deleteInContext` (`{ deleted }`). Załączniki, edycja i usuwanie komentarza,
+usuwanie przypomnienia, podsumowanie, zapisane widoki oraz konfiguracja
+przebiegu, priorytetów, etykiet i tablicy nie są oferowane.
+
+**Port nie sprawdza żadnych uprawnień**: bramką jest wywołujący, a portu nigdy
+nie rozwiązuje się dla trasy dostępnej klientom. **Aktorem jest aktor
+otoczenia**, nigdy argument. Proces wywołuje port w `withSystemScope(reason)`:
+widzi wtedy każde zadanie, a każdy wpis zapisuje aktora `system`. W
+`withSystemScopeActingFor(adminUserId, reason)` działa jako ten administrator i
+widzi tylko to, co on może zobaczyć. Z tego, co zapisuje zadanie, wynikają dwie
+zasady:
+
+- `create`, `createMany`, `publish`, `relate`, `link`, `addReminder` i
+  `addComment` zapisują w wierszu administratora: twórcę zadania albo autora
+  powiązania, przypomnienia lub komentarza. Gdy za wywołaniem nie stoi żaden
+  administrator, są odrzucane z `403` `FORBIDDEN`, zanim cokolwiek zostanie
+  odczytane, więc uruchamiaj je w `withSystemScopeActingFor`. `publish`
+  wymaga twórcy szkicu, bo każdy inny dostaje `404` `TASK_NOT_FOUND`, tak jak
+  na ekranie. `setPrivate` też wymaga twórcy, a każdy inny dostaje `403`
+  `FORBIDDEN`.
+- Prywatne zadanie innego administratora jest tylko do odczytu dla wszystkich
+  poza jego twórcą, również dla systemu: każdy zapis poza `delete` to `403`
+  `TASK_PRIVATE_READ_ONLY`. Usunięcie pozostaje możliwe, tak jak dla
+  posiadacza `tasks:see_private`: zmiana zadania prywatnego należy wyłącznie do
+  twórcy, a usunąć je może każdy, kto je widzi — system zaś widzi każde
+  zadanie.
+
+**To, co następuje po zapisie, następuje też po wywołaniu portu**: osoby nowo
+przypisane albo wspomniane przez `create`, `update` i `publish` dostają
+powiadomienie (nie dopóki zadanie jest szkicem), osoby przypisane i twórca
+dostają powiadomienie o komentarzu, przypomnienia względne podążają za zmienionym
+terminem, a moduł wysyła swoje zdarzenia.
+
+**`setCustomFieldValues`** przyjmuje funkcję zwrotną operującą na zapisanych
+wartościach. Moduł uruchamia ją pod blokadą zadania, między własnym odczytem a
+własnym zapisem, i niczego nie sprawdza: wywołaj w niej
+`CustomFieldValuePort.validateAndMerge('task', current, patch)`. Funkcja, która
+niczego nie zmienia, niczego nie zapisuje ani nie rejestruje. Edycja w panelu
+uruchamia tę samą akcję audytu, więc hak polecenia, który ma widzieć każdą
+zmianę wartości, rejestruje się raz.
+
+**Opcje**, ostatni argument każdej metody:
+
+- `source`: kod nazywający twoją integrację (`^[a-z][a-z0-9_.-]{0,63}$`),
+  zapisywany obok aktora we wpisie audytu polecenia, które uruchamia metoda.
+  Wpisy, które to polecenie zapisuje dla innego obiektu (dawne podzadania
+  usuniętego zadania, drugie zadanie powiązania, przypomnienia usunięte razem z
+  terminem), mają aktora, ale nie mają `source`. Każda inna wartość jest odrzucana z `422` `VALIDATION_FAILED`, zanim
+  cokolwiek zostanie odczytane.
+- `expectedVersion`: pomijane. Zadanie nie ma wersji, a jego sprawdzeniem jest
+  `from` w `setStatus`.
+- `extensions`: dane wejściowe dla haków poleceń akcji, według identyfikatora
+  modułu haka. Żadna akcja zadania nie przyjmuje haków, więc każdy klucz jest
+  odrzucany z `422` `COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek zostanie
+  zapisane. Wywołanie, które niczego nie zmienia, nie uruchamia żadnego
+  polecenia, więc jego klucze nie są odrzucane.
+
+Wywołanie jest osobną transakcją (`createMany` i `deleteInContext`: jedną na
+zadanie, niżej). Wywołuj je po zatwierdzeniu własnej transakcji, nigdy
+wewnątrz niej.
+
+**Zadania rekordu, którego jesteś właścicielem.** Moduł, który zarejestrował
+kontekst zadania (wyżej), tworzy i usuwa zadania własnych rekordów przez
+`createMany` i `deleteInContext`. `createMany({ context, tasks })` przyjmuje
+najwyżej 100 zadań, każde `{ title, description?, assigneeIds?, dueOn?,
+contextGroupId?, contextNote?, sourceKey? }`. Są one opublikowane, w statusie
+początkowym przebiegu, z jednym audytowanym poleceniem `tasks.task.create` i
+jednym zdarzeniem `tasks.task.created.v1` na każde utworzone zadanie, i nikt
+nie dostaje powiadomienia. Wywołanie jest odrzucane z `TASK_CONTEXT_INVALID`,
+gdy żaden włączony moduł nie jest właścicielem typu kontekstu, i z
+`TASK_ASSIGNEE_INVALID`, gdy osoba przypisana nie jest aktywnym
+administratorem — zanim cokolwiek zostanie zapisane. Czy osoba przypisana może
+zobaczyć rekord, rozstrzyga moduł, do którego rekord należy (projekt przypisuje
+każde zadanie etapu członkowi z jego rolą), więc port o to nie pyta, w
+przeciwieństwie do ekranów i API zadań. Nie pyta też, czy wywołujący widzi
+rekord. `deleteInContext({ contextType, contextId })` usuwa wszystkie zadania
+jednego rekordu, niezależnie od tego, kto może je zobaczyć, każde przez osobne
+audytowane polecenie `tasks.task.delete`.
 
 **`sourceKey` czyni tworzenie idempotentnym.** Zadanie z `sourceKey` (do 100
 znaków) jest tworzone tylko wtedy, gdy kontekst nie ma zadania z tym kluczem;
@@ -664,9 +807,6 @@ zadanie raz — rozstrzyga unikalny klucz bazy danych, a przegrany zwraca
 identyfikator zwycięzcy. Projekty przekazują identyfikator definicji każdego
 zadania etapu i dzięki temu *Utwórz ponownie zadania etapu* można bezpiecznie
 powtarzać.
-
-Wywołuj `createMany` **po zatwierdzeniu własnej transakcji**: każde zadanie
-jest zapisywane we własnej transakcji.
 
 `./backend` eksportuje też **`nextTaskNumber(em)`**, dostęp modułu do jego
 sekwencji numerów — następny numer `TSK-…` w transakcji wywołującego, dla
