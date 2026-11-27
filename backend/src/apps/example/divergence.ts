@@ -39,9 +39,13 @@ export const divergence: DeploymentDivergenceDeclaration = {
   omittedModules: [],
   decorationOrder: {},
   // `specs/176-command-hooks-outbox/` FR-014 — the order of two hook modules on
-  // one action that no manifest dependency ranks. One hook module ships here, so
-  // there is nothing to order.
-  commandHookOrder: {},
+  // one action that no manifest dependency ranks. `command_hook_fixture` and
+  // `example_erp_keys` both hook `organization.create` and neither depends on
+  // the other. The fixture runs first: it may veto, and a refusal before the ERP
+  // key is written is one statement fewer to roll back. The two never act on the
+  // same create in practice — the fixture only on a marked name, the ERP keys
+  // module only when the caller hands it a key.
+  commandHookOrder: { 'organization.create': ['command_hook_fixture', 'example_erp_keys'] },
   reasons: {
     // `command_hook_fixture` — 176 P2. Two entries, one per hook, because a
     // command hook is keyed by its id: one module may register several on one
@@ -198,6 +202,26 @@ export const divergence: DeploymentDivergenceDeclaration = {
       'schema-extension step an installed package would use: ledgered under the fixture’s id, ' +
       'never exposed on an admin read, and kept as orphaned with its values when the fixture is ' +
       'hard-uninstalled. No core column is changed, and nothing core runs reads it.',
+    // `example_erp_keys` — 190 US8 (#1856), the reference overlay module. Its
+    // side table on `organizations` is its own surface (`notRecorded`, with its
+    // extension-attribute loader); what reaches into core is the three below.
+    'command-hook:example_erp_keys:organization.create#fill-erp-key':
+      'Core creates an Organization in one audited Command. When a server-side caller such as an ERP ' +
+      'import hands the create an ERP key under `extensions.example_erp_keys`, this module writes the ' +
+      'key into its own side table inside that transaction and names the field, never the value, in ' +
+      'the core entry; a malformed key or one another Organization holds is refused with its own ' +
+      'translated code and the whole create rolls back. A create without the extension, every ' +
+      'administrator create included, is untouched.',
+    'port-consumed:example_erp_keys:organizationDetailsPort':
+      'The names its ERP-key list shows, read through the port `organizations` publishes for ' +
+      'Organization records rather than by a join on a table this module does not own. Read-only, ' +
+      'in the caller’s tenant context, and resolved per call, so `organizations` stays the one ' +
+      'owner of what an Organization record is.',
+    'port-provided:example_erp_keys:exampleErpKeysPort':
+      'Core has no notion of an external ERP key. This port answers an Organization’s key, and the ' +
+      'Organization holding a key, from this module’s own side table and in the caller’s scope; ' +
+      'its types are in the module’s `ports.ts`. It fails closed while the module is off, and nothing ' +
+      'in core resolves it.',
     'decoration:example_overlay:pricingService':
       'Core resolves a line price from the price lists a customer is entitled to. This ' +
       'deployment prefixes the resolved list id so that a reference reader can see, on a live ' +
