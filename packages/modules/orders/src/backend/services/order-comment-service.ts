@@ -1,8 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
-import { HttpError } from '@endora-commerce/platform/http';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
+import { makeOrderCommentAddCommand } from '../commands/order-comment-add.command.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
-import { Order } from '../entities/order.entity.js';
+import type { Order } from '../entities/order.entity.js';
 import type {
   CustomerAccountReadPort,
   EmailMailerPort,
@@ -25,37 +26,56 @@ import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
  * and notify flags; customer-authored comments are always customer-visible and
  * never notify (FR-033). A customer-visible admin comment with notify on sends
  * the customer an email (best-effort).
+ *
+ * Every comment is the audited `order.comment.add` Command since 0.113.0
+ * (`specs/186-aggregate-ports/` US4, research R-18.4); it was a plain flush
+ * under a `command-coverage-ignore` before.
  */
 export class OrderCommentService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly graphService: OrderStatusGraphService,
     private readonly customerAccountRead: CustomerAccountReadPort,
+    /**
+     * `specs/186-aggregate-ports/` US4 (T059) — a comment is the
+     * `order.comment.add` Command, for the operator, the buyer and
+     * `orderCommandPort.addComment` alike.
+     */
+    private readonly commandBus: Pick<CommandBus, 'run'>,
     private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
 
+  /**
+   * An operator's comment. The notice to the buyer — a customer-visible
+   * comment with `notifyCustomer` — is sent after the Command has committed,
+   * best effort, and never fails the call.
+   */
   async addByAdmin(
     orderId: string,
     adminUserId: string | null,
     input: { body: string; isCustomerVisible: boolean; notifyCustomer: boolean },
+    caller: CallerOptions = {},
   ): Promise<OrderComment> {
-    // command-coverage-ignore: order comments are an append-only communication
-    // thread, not audited domain-state — no before-state, no undo value.
-    const em = this.emFactory();
-    const order = await this.loadNonTerminalOrder(em, orderId);
-    const comment = em.create(OrderComment, {
-      orderId,
-      authorAdminUserId: adminUserId,
-      authorCustomerAccountId: null,
-      body: input.body,
-      isCustomerVisible: input.isCustomerVisible,
-      notifyCustomer: input.notifyCustomer,
-    });
-    await em.persist(comment).flush();
+    const { comment, order } = await this.commandBus.run(
+      withCallerOptions(
+        makeOrderCommentAddCommand(
+          { graph: this.graphService },
+          {
+            orderId,
+            authorAdminUserId: adminUserId,
+            authorCustomerAccountId: null,
+            body: input.body,
+            isCustomerVisible: input.isCustomerVisible,
+            notifyCustomer: input.notifyCustomer,
+          },
+        ),
+        caller,
+      ),
+    );
 
     if (input.isCustomerVisible && input.notifyCustomer) {
-      await this.notifyCustomer(em, order, input.body);
+      await this.notifyCustomer(this.emFactory(), order, input.body);
     }
     return comment;
   }
@@ -65,20 +85,20 @@ export class OrderCommentService {
     customerAccountId: string,
     input: { body: string },
   ): Promise<OrderComment> {
-    // command-coverage-ignore: order comments are an append-only communication
-    // thread, not audited domain-state — no before-state, no undo value.
-    const em = this.emFactory();
-    await this.loadNonTerminalOrder(em, orderId);
     // Customers cannot set internal-visibility or notify flags (FR-033).
-    const comment = em.create(OrderComment, {
-      orderId,
-      authorAdminUserId: null,
-      authorCustomerAccountId: customerAccountId,
-      body: input.body,
-      isCustomerVisible: true,
-      notifyCustomer: false,
-    });
-    await em.persist(comment).flush();
+    const { comment } = await this.commandBus.run(
+      makeOrderCommentAddCommand(
+        { graph: this.graphService },
+        {
+          orderId,
+          authorAdminUserId: null,
+          authorCustomerAccountId: customerAccountId,
+          body: input.body,
+          isCustomerVisible: true,
+          notifyCustomer: false,
+        },
+      ),
+    );
     return comment;
   }
 
@@ -100,24 +120,6 @@ export class OrderCommentService {
       { orderId, isCustomerVisible: true, systemNote: null },
       { orderBy: { createdAt: 'asc' } },
     );
-  }
-
-  private async loadNonTerminalOrder(em: EntityManager, orderId: string): Promise<Order> {
-    if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
-    const order = await em.findOne(Order, { id: orderId });
-    if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
-    const graph = await this.graphService.loadGraph();
-    if (graph.isTerminal(order.status)) {
-      throw new HttpError(
-        409,
-        // Issue #86 — its own code: under `VALIDATION_FAILED` this sentence
-        // was answered in English whatever the reader asked for.
-        ERROR_CODES.ORDER_COMMENTS_CLOSED,
-        'Commenting is closed for completed or cancelled orders.',
-        { orderId },
-      );
-    }
-    return order;
   }
 
   /**

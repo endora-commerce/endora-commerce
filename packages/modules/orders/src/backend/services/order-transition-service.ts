@@ -1,16 +1,16 @@
 import { randomUUID } from 'crypto';
-import { LockMode } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
+import { rethrowIfModuleDisabled, type PlatformLogger } from '@endora-commerce/platform/kernel';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import {
-  rethrowIfModuleDisabled,
-  type AuditPort,
-  type PlatformLogger,
-} from '@endora-commerce/platform/kernel';
-import { ORDER_STATUS_COMPLETED } from '../domain/order-status-graph.js';
-import { effectsOwedByStatusTransition } from '../domain/transition-effects.js';
+  makeOrderStatusTransitionCommand,
+  ORDER_STATUS_TRANSITION_ACTION,
+  OrderStatusMovedError,
+} from '../commands/order-status-transition.command.js';
 import { Order } from '../entities/order.entity.js';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import type { OrderTransitionEffectService } from './order-transition-effect-service.js';
@@ -23,15 +23,12 @@ import {
 } from '../events/order-status-events.js';
 
 /**
- * The audit action every applied status transition is recorded under.
- *
- * Exported since issue #284, which gave the entries a **reader**: the buyer's
- * cancellability predicate asks who wrote an order's current status, and a
- * reader looking for one spelling of this string while the writer used another
- * would find no history and refuse every held order — silently, and in the
- * safe direction, which is the worst way for a defect like that to fail.
+ * The audit action every applied status transition is recorded under — now
+ * the action of the `order.status_transition` Command
+ * (`../commands/order-status-transition.command.ts`), re-exported here for
+ * the readers that imported it from this file (issue #284).
  */
-export const ORDER_STATUS_TRANSITION_ACTION = 'order.status_transition';
+export { ORDER_STATUS_TRANSITION_ACTION };
 
 /** A registered guard fires before a matching transition and may veto it. */
 type TransitionGuard = (e: OrderStatusEvent) => void | Promise<void>;
@@ -83,6 +80,17 @@ export class OrderTransitionService {
     private readonly events: EventBus,
     private readonly graphService: OrderStatusGraphService,
     /**
+     * `specs/186-aggregate-ports/` US4 (T058) — the status write is the
+     * `order.status_transition` Command: one audit entry per applied
+     * transition, recorded by the bus with the **ambient** actor, beside the
+     * status and what it owes, on one transaction. It replaced the hand audit
+     * of feature 054 (`AuditPort.recordWithin`), which took the actor from the
+     * caller's `OrderStatusActor`. The event orchestration around it is
+     * unchanged: before-guards and before-events ahead of the write, the drain
+     * and the after-events once it has committed.
+     */
+    private readonly commandBus: Pick<CommandBus, 'run'>,
+    /**
      * Records and runs the follow-ups a transition owes.
      *
      * Optional only so that a transition engine can be built over a graph alone
@@ -93,14 +101,6 @@ export class OrderTransitionService {
      * remove.
      */
     private readonly effects?: OrderTransitionEffectService,
-    /**
-     * Feature 054 — the status write is audited co-transactionally (one entry
-     * per applied transition, `stateBefore`/`stateAfter` = {status}). Recorded
-     * on the same transaction as the status; the event orchestration around it
-     * is unchanged (before-guards, before/after bus emits keep their ordering),
-     * so this does not route through the Command Bus's own scope.
-     */
-    private readonly auditLog?: AuditPort,
     private readonly log?: PlatformLogger,
   ) {}
 
@@ -128,12 +128,18 @@ export class OrderTransitionService {
    * second finds the status moved, abandons its write, and is evaluated again
    * as a fresh call would be — which for the same target answers the order
    * unchanged, exactly as a repeat does.
+   *
+   * `actor` is what the `order.status.*` events carry; the audit entry
+   * records the ambient actor (the Command Bus's). `caller` is what
+   * `orderCommandPort` adds to the Command — the integration's `source` code
+   * and the hooks' extension input (`specs/186-aggregate-ports/`).
    */
   async apply(
     orderId: string,
     to: string,
     actor: OrderStatusActor,
     reason?: string | null,
+    caller: CallerOptions = {},
   ): Promise<Order> {
     for (let evaluation = 0; ; evaluation += 1) {
       const em = this.emFactory();
@@ -176,57 +182,21 @@ export class OrderTransitionService {
       }
 
       // --- apply: status, audit entry and what the status owes, together -----
-      const applied = await em.transactional(async (tx) => {
-        // The row lock is what makes "at most one outstanding follow-up per
-        // order and effect" a rule this code keeps rather than a constraint it
-        // trips. `refresh` because the entity is already in the identity map:
-        // without it the lock would be taken and the stale status kept.
-        const locked = await tx.findOne(
-          Order,
-          { id: orderId },
-          { lockMode: LockMode.PESSIMISTIC_WRITE, refresh: true },
+      // One Command (`order.status_transition`): the order row locked, the
+      // status, its entry and one row per follow-up committed together. An
+      // order somebody moved between the read above and the lock is refused
+      // by the Command with nothing written; the caller re-evaluates from the
+      // top.
+      let applied: Order;
+      try {
+        applied = await this.commandBus.run(
+          withCallerOptions(
+            makeOrderStatusTransitionCommand({ effects: this.effects }, { orderId, from, to }),
+            caller,
+          ),
         );
-        if (!locked) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
-        // Somebody moved the order between the read above and this lock.
-        // Nothing has been written; the caller re-evaluates from the top.
-        if (locked.status !== from) return null;
-
-        const owed = effectsOwedByStatusTransition(locked, to);
-        if (owed.length > 0 && !this.effects) {
-          throw new Error(
-            `OrderTransitionService: the transition to "${to}" owes ${owed
-              .map((o) => o.effect)
-              .join(' and ')}, and no effect service was supplied to record it. ` +
-              'Refusing rather than committing a status whose follow-up would be lost.',
-          );
-        }
-
-        locked.status = to;
-        // Issue #905 — the first entry into `completed` is the anchor of the
-        // return window and the consumer's withdrawal period. Stamped once, in
-        // the transaction that writes the status, and never rewritten.
-        if (to === ORDER_STATUS_COMPLETED && locked.completedAt == null) {
-          locked.completedAt = new Date();
-        }
-        if (this.auditLog) {
-          this.auditLog.recordWithin(tx, {
-            action: ORDER_STATUS_TRANSITION_ACTION,
-            objectType: 'order',
-            objectId: locked.id,
-            actorAdminUserId: actor.kind === 'admin' ? (actor.adminUserId ?? null) : null,
-            impersonatedCustomerAccountId:
-              actor.kind === 'customer' ? (actor.customerAccountId ?? null) : null,
-            stateBefore: { status: from },
-            stateAfter: { status: to },
-          });
-        }
-        if (this.effects && owed.length > 0) {
-          await this.effects.record(tx, locked, owed, 'transition');
-        }
-        return locked;
-      });
-
-      if (applied === null) {
+      } catch (error) {
+        if (!(error instanceof OrderStatusMovedError)) throw error;
         if (evaluation < MAX_REEVALUATIONS) continue;
         throw new HttpError(
           409,

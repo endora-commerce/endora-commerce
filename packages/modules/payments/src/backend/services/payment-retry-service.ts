@@ -3,7 +3,6 @@ import {
   type CustomerAccountReadPort,
   type OrderPaymentStatus,
   type OrderReadPort,
-  type OrderTransitionPort,
   type PaymentAdapterRegistryPort,
   type PaymentRetryNextAction,
   type PaymentRetryResult,
@@ -52,7 +51,8 @@ import type { PaymentService } from './payment-service.js';
  * The lifecycle term is **terminality, not the string `cancelled`**. The status
  * set is operator-configurable and a deployment may add terminal statuses of
  * its own, so the question goes to the graph through
- * `orderTransitionPort.isTerminal`. And the reason it is asked at all is Phase
+ * `orderReadPort.isTerminal` (moved there from `orderTransitionPort` in
+ * 0.113.0, `specs/186-aggregate-ports/`). And the reason it is asked at all is Phase
  * D's: the ingress no longer writes a terminal status, so a terminal order is
  * always a deliberate human decision — an administrator's, or the buyer's own —
  * and paying it again would silently override the person who made it, on stock
@@ -76,12 +76,6 @@ export interface PaymentRetryDeps {
   orderRead: OrderReadPort;
   customerAccountRead: CustomerAccountReadPort;
   paymentService: PaymentService;
-  /**
-   * The lifecycle read, for the terminality term. `orders` owns the graph and
-   * the graph is what decides which statuses are ends — this module may not
-   * name one.
-   */
-  orderTransition: OrderTransitionPort;
   /**
    * Read per call rather than captured: the registry is contributed at boot by
    * whichever gateway modules are present, and an operator can switch one off
@@ -147,7 +141,7 @@ export class PaymentRetryService {
     // `null` is "no such order", which the read above says otherwise; it means
     // the order was deleted between the two reads, and the attempt this would
     // open is the one that then answers.
-    if ((await this.deps.orderTransition.isTerminal(order.id)) === true) {
+    if ((await this.deps.orderRead.isTerminal(order.id)) === true) {
       // A second code rather than the money term's, because the two terms are
       // orthogonal and so are the buyer's answers to them: `PAYMENT_NOT_DUE`
       // says there is nothing to pay, this says the order is over and the

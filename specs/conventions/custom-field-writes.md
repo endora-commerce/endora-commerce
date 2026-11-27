@@ -99,6 +99,9 @@ value). Today the hosts that publish one are:
   port (`specs/186-aggregate-ports/` US9), which runs `crm.opportunity.update` — the entry the admin
   `PATCH /api/v1/admin/crm/opportunities/:id` records for a body of `customFieldValues` alone — with the
   merge run under the Opportunity's row lock.
+- `orders` — `orderCommandPort.setCustomFieldValues(orderId, merge, options?)`, the aggregate port
+  (`specs/186-aggregate-ports/` US4), which runs `order.custom_fields.update` — the Command the admin
+  `PATCH /api/v1/admin/orders/:id/custom-fields` runs, the bag read under the order's row lock.
 - `tasks` — `taskCommandPort.setCustomFieldValues(taskId, merge, options?)`, the aggregate port
   (`specs/186-aggregate-ports/` US10). It runs `tasks.task.custom_fields_change`, the Command the
   admin `PATCH` runs for the values, so one hook registration sees every change.
