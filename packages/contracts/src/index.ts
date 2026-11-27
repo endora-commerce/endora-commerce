@@ -259,6 +259,8 @@ export * from './promotion-hooks.js';
 export * from './quote-request-hooks.js';
 // `specs/193-admin-form-extensions/` FR-111 (#2006) — `crm`'s Opportunity create and edit.
 export * from './opportunity-hooks.js';
+// `specs/193-admin-form-extensions/` FR-112 — `catalog`'s Product writes.
+export * from './product-hooks.js';
 export * from './platform-info.js';
 export * from './admin-feedback.js';
 export * from './admin-actions.js';

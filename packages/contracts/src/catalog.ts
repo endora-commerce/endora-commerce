@@ -3549,8 +3549,13 @@ export type CatalogProductUpdateInput = Omit<UpdateProductRequest, 'version'>;
  * product that has moved on is refused `409 VERSION_CONFLICT`. Every other
  * method ignores it. `source` is recorded on the audit entry beside the actor;
  * a code outside `aggregateCommandSourceSchema` is refused
- * `422 VALIDATION_FAILED` before anything is read or written. `extensions`:
- * no `catalog` action is hookable yet, so any key is refused
+ * `422 VALIDATION_FAILED` before anything is read or written. `extensions`
+ * reach the method's Command: `create`, `update`, `setCustomFieldValues` and
+ * `applyScopedValues` run hookable actions (`PRODUCT_HOOKABLE_ACTIONS`,
+ * `specs/193-admin-form-extensions/` FR-112), where each key is handed to the
+ * present hook module of that id; a key no present hook module on the action
+ * claims — and every key on `archive`, `restore`, `delete` and the variant
+ * methods, whose actions are not hookable — is refused
  * `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
  *
  * **Not offered**: bundle slots, grouped items, product links, the gallery,
