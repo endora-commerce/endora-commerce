@@ -142,6 +142,13 @@ export const SEAM_CLASSIFICATION: Readonly<Record<string, SeamClassification>> =
     verdict: 'own-surface',
     why: "the module's own route, outside the module's own gate; the reason string is required at the call and is read there, and it removes no other module's gate",
   },
+  // `specs/187-side-table-extensions/` B1 — data ladder D1, not a code rung: the
+  // loader reads the module's own declared side table, and a host read port
+  // attaches it only when its caller names this module in `include`.
+  entityExtensionLoaders: {
+    verdict: 'own-surface',
+    why: "the module's own side table, read only for a caller that names this module in `include`; without it the host's read answers exactly as core does",
+  },
   onBoot: {
     verdict: 'own-surface',
     why: "the module's own boot hook, run inside its own system scope; it contributes nothing another module resolves",

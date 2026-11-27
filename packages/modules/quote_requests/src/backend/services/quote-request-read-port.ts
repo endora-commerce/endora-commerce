@@ -1,12 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  EntityExtensionReadOptions,
   QuoteRequestAmount,
   QuoteRequestLineRecord,
   QuoteRequestReadPort,
   QuoteRequestRecord,
   SupportedLanguage,
+  WithEntityExtensions,
 } from '@endora-commerce/contracts';
 import { OPEN_QUOTE_REQUEST_STATUSES, isUuidShape } from '@endora-commerce/contracts';
+import { lazyEntityExtensionReads, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import { loadArrangedQuoteLines, toLineGroup } from './line-order.js';
@@ -23,12 +26,21 @@ import { quoteRequestStatusName, type QuoteRequestsTranslate } from './quote-req
  *
  * The full customer-facing projection stays `RfqService` — this is the row,
  * for the callers that only need to count or cross-reference one.
+ *
+ * `findById`, `findByBusinessId` and `findByIds` take `options.include`
+ * (`specs/187-side-table-extensions/` FR-058): the quotes found under the
+ * caller's scope, on the entity manager that found them, are handed to the
+ * platform's `entityExtensionReads`. Without `include` nothing is resolved.
  */
+const HOST = 'quote_requests.QuoteRequest';
+
 export class QuoteRequestReadService implements QuoteRequestReadPort {
   constructor(
     private readonly emFactory: () => EntityManager,
     /** This module's own bundle — the wording {@link statusName} answers in. */
     private readonly translate: QuoteRequestsTranslate,
+    /** The kernel's `entityExtensionReads`; absent in a hand-built service, which has no loader to offer. */
+    private readonly extensionReads: EntityExtensionReads = lazyEntityExtensionReads(() => undefined),
   ) {}
 
   /** Issue #455 — a status by this module's own name for it, in `language`. */
@@ -36,10 +48,14 @@ export class QuoteRequestReadService implements QuoteRequestReadPort {
     return quoteRequestStatusName(this.translate, status, language);
   }
 
-  async findById(id: string): Promise<QuoteRequestRecord | null> {
+  async findById(
+    id: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<QuoteRequestRecord> | null> {
     if (!isUuidShape(id)) return null;
-    const quote = await this.emFactory().findOne(QuoteRequest, { id });
-    return quote ? toQuoteRequestRecord(quote) : null;
+    const em = this.emFactory();
+    const quote = await em.findOne(QuoteRequest, { id });
+    return quote ? this.#attachOne(toQuoteRequestRecord(quote), options, em) : null;
   }
 
   /**
@@ -47,9 +63,13 @@ export class QuoteRequestReadService implements QuoteRequestReadPort {
    * passes one) and the column carries a unique index, so `findOne` is the
    * whole of the lookup.
    */
-  async findByBusinessId(businessId: string): Promise<QuoteRequestRecord | null> {
-    const quote = await this.emFactory().findOne(QuoteRequest, { businessId });
-    return quote ? toQuoteRequestRecord(quote) : null;
+  async findByBusinessId(
+    businessId: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<QuoteRequestRecord> | null> {
+    const em = this.emFactory();
+    const quote = await em.findOne(QuoteRequest, { businessId });
+    return quote ? this.#attachOne(toQuoteRequestRecord(quote), options, em) : null;
   }
 
   async listOpenForOrganizations(
@@ -123,11 +143,24 @@ export class QuoteRequestReadService implements QuoteRequestReadPort {
    * same scoped EntityManager, so an out-of-scope quote is absent exactly as
    * `findById` answers `null` for it.
    */
-  async findByIds(ids: readonly string[]): Promise<QuoteRequestRecord[]> {
+  async findByIds(
+    ids: readonly string[],
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<QuoteRequestRecord>[]> {
     const candidates = [...new Set(ids.filter(isUuidShape))];
     if (candidates.length === 0) return [];
-    const quotes = await this.emFactory().find(QuoteRequest, { id: { $in: candidates } });
-    return quotes.map(toQuoteRequestRecord);
+    const em = this.emFactory();
+    const quotes = await em.find(QuoteRequest, { id: { $in: candidates } });
+    return [...(await this.extensionReads.attach(HOST, quotes.map(toQuoteRequestRecord), options, em))];
+  }
+
+  async #attachOne(
+    record: QuoteRequestRecord,
+    options: EntityExtensionReadOptions | undefined,
+    em: EntityManager,
+  ): Promise<WithEntityExtensions<QuoteRequestRecord>> {
+    const [attached] = await this.extensionReads.attach(HOST, [record], options, em);
+    return attached ?? record;
   }
 
   /**

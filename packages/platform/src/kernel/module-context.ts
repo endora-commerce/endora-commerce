@@ -19,6 +19,8 @@ import type { CommandHookRegistry } from '../commands/hooks/registry.js';
 import type { CommandHookEntry } from '../commands/hooks/types.js';
 import type { CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
 import type { CommandMiddlewareEntry } from '../commands/middleware/types.js';
+import type { EntityExtensionLoaderEntry } from './entity-extensions/loaders.js';
+import type { EntityExtensionLoaderRegistry } from './entity-extensions/registry.js';
 import {
   defineModuleRoutes,
   defineModuleWorker,
@@ -745,6 +747,29 @@ export interface ModuleContext {
   commandMiddleware(entries: readonly CommandMiddlewareEntry[]): void;
 
   /**
+   * Side-table loaders owned by this module (`specs/187-side-table-extensions/`
+   * FR-053, `contracts/extension-attributes-read-ports.md` §2): one bulk loader
+   * per host whose side table this module's manifest declares in `extends`.
+   * A host read port asked for `include: ['extensions.<this module id>']`
+   * calls it once per read with the ids of the records it authorised.
+   *
+   * The module id is stamped here, never taken from the entry. Registration
+   * resolves nothing and reads no presence state; a read skips the loader
+   * while this module is switched off. Refused, as `EntityExtensionInvalidError`:
+   * a host the manifest does not extend (`loader-without-extension`), a second
+   * loader for one host (`duplicate-loader`) and any call after composition
+   * (`registration-after-seal`).
+   *
+   * ```ts
+   * ctx.entityExtensionLoaders([
+   *   { host: 'organizations.Organization', schema: OrgRefSchema,
+   *     load: async (ids, { em }) => { … one `in` query … } },
+   * ]);
+   * ```
+   */
+  entityExtensionLoaders(entries: readonly EntityExtensionLoaderEntry<unknown>[]): void;
+
+  /**
    * The explicit boot phase (FR-021). Runs once every module has registered,
    * inside `enterSystemScope('boot: <module id>')`, so it may resolve.
    *
@@ -825,6 +850,11 @@ export interface ModuleContextOptions {
    */
   readonly commandMiddlewareRegistry?: CommandMiddlewareRegistry;
   /**
+   * The composition's side-table loader registry (187 B1). Absent in a root
+   * that serves no extension includes; `entityExtensionLoaders` then refuses.
+   */
+  readonly entityExtensionLoaderRegistry?: EntityExtensionLoaderRegistry;
+  /**
    * Shared across every module of one composition, so a name registered twice
    * is caught naming both modules (T042). Absent for a hand-built context — a
    * single module cannot collide with itself.
@@ -880,8 +910,18 @@ export interface ModuleContextOptions {
 }
 
 export function createModuleContext(options: ModuleContextOptions): ModuleContext {
-  const { module, container, eventBus, sink, log, interceptorRegistry, commandHookRegistry, commandMiddlewareRegistry, ownership } =
-    options;
+  const {
+    module,
+    container,
+    eventBus,
+    sink,
+    log,
+    interceptorRegistry,
+    commandHookRegistry,
+    commandMiddlewareRegistry,
+    entityExtensionLoaderRegistry,
+    ownership,
+  } = options;
   const isRegistering = options.isRegistering ?? ((): boolean => false);
   const isDeploymentOverlay = options.overlay === true;
   const decorationQueue = options.decorationQueue;
@@ -1216,6 +1256,21 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
             ? { id: entry.id, phase: 'admit', admit: entry.admit }
             : { id: entry.id, phase: 'observe', observe: entry.observe },
         ),
+      );
+    },
+
+    entityExtensionLoaders(entries) {
+      if (!entityExtensionLoaderRegistry) {
+        throw new Error(
+          `[kernel] module '${module.id}' registered a side-table loader, but this composition root ` +
+            `mounts no entity-extension loader registry.`,
+        );
+      }
+      // Rebuilt rather than spread, so nothing an entry carries besides its
+      // three fields — a `moduleId` in particular — reaches the registry.
+      entityExtensionLoaderRegistry.register(
+        module.id,
+        entries.map((entry) => ({ host: entry.host, schema: entry.schema, load: entry.load })),
       );
     },
 

@@ -17,6 +17,7 @@ import {
 import { ExtensionAttributesSchema } from './schema-extensions.js';
 import { customFieldValuesSchema } from './custom-fields.js';
 import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
+import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -1301,15 +1302,28 @@ export interface OrganizationConvertedToCompanyEvent {
  * more than the predicate does.
  */
 export interface OrganizationDetailsPort {
-  findById(id: string): Promise<OrganizationRecord | null>;
-  findByIds(ids: readonly string[]): Promise<OrganizationRecord[]>;
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>`; absent or
+   * empty, the answer is exactly what it was without the parameter. The same
+   * holds for {@link findByIds}, {@link searchByName} and {@link findByTaxId}.
+   */
+  findById(id: string, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OrganizationRecord> | null>;
+  findByIds(
+    ids: readonly string[],
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrganizationRecord>[]>;
   /** How many of these ids exist — the `count === ids.length` existence check. */
   countByIds(ids: readonly string[]): Promise<number>;
   /**
    * Diacritic-insensitive name search over `nameSearch`, ordered by name.
    * An empty `query` returns the first `limit` organisations.
    */
-  searchByName(query: string, limit: number): Promise<OrganizationRecord[]>;
+  searchByName(
+    query: string,
+    limit: number,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrganizationRecord>[]>;
   /** The same search, ids only — for the order list's organisation filter. */
   searchIdsByName(query: string): Promise<string[]>;
   /**
@@ -1320,7 +1334,10 @@ export interface OrganizationDetailsPort {
    * In `global` there is at most one; in `per-tree-root` a head office and its
    * branches. Never matches a personal organization, which has no tax ID.
    */
-  findByTaxId(taxId: string, options?: { includeDeleted?: boolean }): Promise<OrganizationRecord[]>;
+  findByTaxId(
+    taxId: string,
+    options?: { includeDeleted?: boolean } & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrganizationRecord>[]>;
   /**
    * The single organization a tax ID resolves to — the root of the tree that
    * holds it (the live root, else the oldest live match), `none` when no live

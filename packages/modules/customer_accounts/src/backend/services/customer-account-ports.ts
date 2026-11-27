@@ -5,6 +5,8 @@ import {
   type CustomerAccountCommandPort,
   type CustomerAccountCreateInput,
   type CustomerAccountLookupOptions,
+  type EntityExtensionReadOptions,
+  type WithEntityExtensions,
   type CustomerAccountMemberWritePort,
   type CustomerAccountProfilePatch,
   type CustomerAccountReadPort,
@@ -19,8 +21,8 @@ import {
 } from '@endora-commerce/contracts';
 import { recordAuditFromContext, type CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
-import { verifyPassword } from '@endora-commerce/platform/kernel';
+import type { AuditPort, EntityExtensionReads } from '@endora-commerce/platform/kernel';
+import { lazyEntityExtensionReads, verifyPassword } from '@endora-commerce/platform/kernel';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import type { CustomerAuthService } from './customer-auth-service.js';
 import { makeChangeCustomerAccountRoleCommand } from '../commands/customer-account-change-role.command.js';
@@ -122,6 +124,9 @@ export async function toOneCustomerAccountRecord(
 }
 
 /** `{ deletedAt: null }` when the caller asked for it, nothing otherwise. */
+/** The host name side-table loaders register against (`specs/187-side-table-extensions/`). */
+const CUSTOMER_ACCOUNT_HOST = 'customer_accounts.CustomerAccount';
+
 function activeFilter(options?: CustomerAccountLookupOptions): { deletedAt?: null } {
   return options?.activeOnly ? { deletedAt: null } : {};
 }
@@ -150,30 +155,49 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
      * creation order.
      */
     private readonly roles?: Pick<OrganizationRoleLookup, 'predefinedRoleId'>,
+    /**
+     * The kernel's `entityExtensionReads` (`specs/187-side-table-extensions/`
+     * FR-058), for `include` on {@link findById}, {@link findByIds},
+     * {@link searchByEmail} and {@link listAll}. Absent in a hand-built
+     * service, which has no loader to offer.
+     */
+    private readonly extensionReads: EntityExtensionReads = lazyEntityExtensionReads(() => undefined),
   ) {}
 
   async findById(
     id: string,
-    options?: CustomerAccountLookupOptions,
-  ): Promise<CustomerAccountRecord | null> {
+    options?: CustomerAccountLookupOptions & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CustomerAccountRecord> | null> {
     if (!isUuidShape(id)) return null;
-    const account = await this.emFactory().findOne(CustomerAccount, {
+    const em = this.emFactory();
+    const account = await em.findOne(CustomerAccount, {
       id,
       ...activeFilter(options),
     });
-    return account ? toOneCustomerAccountRecord(this.twoFactorEnrolments, account) : null;
+    if (!account) return null;
+    const [record] = await this.#attach([await toOneCustomerAccountRecord(this.twoFactorEnrolments, account)], options, em);
+    return record ?? null;
   }
 
   async findByIds(
     ids: readonly string[],
-    options?: CustomerAccountLookupOptions,
-  ): Promise<CustomerAccountRecord[]> {
+    options?: CustomerAccountLookupOptions & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CustomerAccountRecord>[]> {
     if (ids.length === 0) return [];
-    const accounts = await this.emFactory().find(CustomerAccount, {
+    const em = this.emFactory();
+    const accounts = await em.find(CustomerAccount, {
       id: { $in: [...ids] },
       ...activeFilter(options),
     });
-    return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
+    return this.#attach(await toCustomerAccountRecords(this.twoFactorEnrolments, accounts), options, em);
+  }
+
+  async #attach(
+    records: CustomerAccountRecord[],
+    options: EntityExtensionReadOptions | undefined,
+    em: EntityManager,
+  ): Promise<WithEntityExtensions<CustomerAccountRecord>[]> {
+    return [...(await this.extensionReads.attach(CUSTOMER_ACCOUNT_HOST, records, options, em))];
   }
 
   async findByEmail(
@@ -245,14 +269,19 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
     });
   }
 
-  async searchByEmail(query: string, limit: number): Promise<CustomerAccountRecord[]> {
+  async searchByEmail(
+    query: string,
+    limit: number,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CustomerAccountRecord>[]> {
     const trimmed = query.trim();
-    const accounts = await this.emFactory().find(
+    const em = this.emFactory();
+    const accounts = await em.find(
       CustomerAccount,
       trimmed ? { email: { $ilike: `%${trimmed}%` } } : {},
       { orderBy: { email: 'asc' }, limit },
     );
-    return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
+    return this.#attach(await toCustomerAccountRecords(this.twoFactorEnrolments, accounts), options, em);
   }
 
   async searchIdsByName(query: string): Promise<string[]> {
@@ -273,13 +302,14 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
     return accounts.map((account) => account.id);
   }
 
-  async listAll(): Promise<CustomerAccountRecord[]> {
-    const accounts = await this.emFactory().find(
+  async listAll(options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<CustomerAccountRecord>[]> {
+    const em = this.emFactory();
+    const accounts = await em.find(
       CustomerAccount,
       {},
       { orderBy: { email: 'asc' } },
     );
-    return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
+    return this.#attach(await toCustomerAccountRecords(this.twoFactorEnrolments, accounts), options, em);
   }
 
   /**

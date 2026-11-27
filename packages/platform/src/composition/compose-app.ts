@@ -118,6 +118,11 @@ import { createSchemaExtensionReads } from '../kernel/schema-extensions/reads.js
 import { verifySchemaExtensions } from '../db/schema-extension-verifier.js';
 import { verifyEntityExtensions } from '../db/entity-extension-verifier.js';
 import { activeEntityExtensionContext } from '../kernel/entity-extensions/context.js';
+import { createEntityExtensionReads } from '../kernel/entity-extensions/reads.js';
+import {
+  EntityExtensionLoaderRegistry,
+  entityExtensionDeclarationsFrom,
+} from '../kernel/entity-extensions/registry.js';
 import { createRegistrationOwnership } from '../kernel/module-context.js';
 import {
   assertPublicApiBaseUrlConfigured,
@@ -734,6 +739,12 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     isPresent: (moduleId) => effectiveState.isPresent(moduleId),
     log: platformLogger(),
   });
+  // `specs/187-side-table-extensions/` B1 — the side-table loader registry,
+  // judged against every composed manifest's `extends` (L1) as each module
+  // registers, sealed by `composeModules` below; `entityExtensionReads` reads it.
+  const entityExtensionLoaderRegistry = new EntityExtensionLoaderRegistry({
+    declarations: entityExtensionDeclarationsFrom(resolvedRegistry.map((entry) => entry.manifest)),
+  });
   const commandBus = new CommandBus(orm, auditLogService, eventBus, {
     hooks: commandHookRegistry,
     outboxWake: commandOutboxWake,
@@ -825,6 +836,13 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // ORM registered and the effective module state.
     schemaExtensionReads: createSchemaExtensionReads({
       declarations: activeSchemaExtensions,
+      state: effectiveState,
+    }),
+    // `specs/187-side-table-extensions/` FR-054 — side-table values on the
+    // extensible hosts' read ports, over the loaders the modules registered and
+    // the effective module state.
+    entityExtensionReads: createEntityExtensionReads({
+      registry: entityExtensionLoaderRegistry,
       state: effectiveState,
     }),
     storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
@@ -959,6 +977,8 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       moduleDependencies: moduleDependencyClosureFrom(resolvedRegistry.map((entry) => entry.manifest)),
       commandMiddlewareOrder: options.commandMiddlewareOrder,
     },
+    // 187 B1 — sealed after the middleware registry.
+    entityExtensionLoaderRegistry,
   });
 
   const composedContext: ComposedAppContext = {
