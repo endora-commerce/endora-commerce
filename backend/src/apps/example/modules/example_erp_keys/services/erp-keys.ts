@@ -26,15 +26,21 @@ export async function loadErpKeys(
 
 /** `exampleErpKeysPort` — see {@link ExampleErpKeysPort}. */
 export class ExampleErpKeysService implements ExampleErpKeysPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  readonly #emFactory: () => EntityManager;
+
+  // No parameter property: overlay code compiles under `erasableSyntaxOnly`
+  // (`backend/tsconfig.apps.json`, spec 190 FR-010).
+  constructor(emFactory: () => EntityManager) {
+    this.#emFactory = emFactory;
+  }
 
   async keyOf(organizationId: string): Promise<string | null> {
-    const row = await this.emFactory().findOne(ExampleErpOrganizationKey, { organizationId });
+    const row = await this.#emFactory().findOne(ExampleErpOrganizationKey, { organizationId });
     return row?.erpKey ?? null;
   }
 
   async organizationIdOf(erpKey: string): Promise<string | null> {
-    const row = await this.emFactory().findOne(ExampleErpOrganizationKey, { erpKey: normalizeErpKey(erpKey) });
+    const row = await this.#emFactory().findOne(ExampleErpOrganizationKey, { erpKey: normalizeErpKey(erpKey) });
     return row?.organizationId ?? null;
   }
 }

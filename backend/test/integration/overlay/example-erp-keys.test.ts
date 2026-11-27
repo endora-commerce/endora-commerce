@@ -127,6 +127,9 @@ describe('example_erp_keys fills its side table from a hook on organization.crea
     const [entry] = await h.em().fork().find(AuditLogEntry, { action: 'organization.create', objectId: keyed });
     expect(entry?.stateAfter).toMatchObject({ extensions: { [MODULE_ID]: { changedFields: ['erpKey'] } } });
     expect(JSON.stringify(entry?.stateAfter)).not.toContain(KEY);
+    // The module's own write is its own Command, with its own entry (Principle XIII).
+    const own = await h.em().fork().find(AuditLogEntry, { action: 'example_erp_keys.key.set', objectId: keyed });
+    expect(own.map((row) => row.stateAfter)).toEqual([{ changedFields: ['erpKey'] }]);
   });
 
   it('left a create without the extension untouched', async () => {

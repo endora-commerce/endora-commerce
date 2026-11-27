@@ -1,7 +1,7 @@
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { describe, expect, it, vi } from 'vitest';
 import type { OrganizationCreateHookData } from '@endora-commerce/contracts';
-import { CommandHookRefusal, type CommandHookContext } from '@endora-commerce/platform/commands';
+import { CommandHookRefusal, type Command, type CommandHookContext } from '@endora-commerce/platform/commands';
 import {
   PLATFORM_MIGRATION_ENTRIES,
   committedModuleDependencies,
@@ -13,7 +13,7 @@ import { getTenantContext } from '@endora-commerce/platform/tenancy';
 
 import * as erpKeysBackend from '../../../src/apps/example/modules/example_erp_keys/backend.js';
 import { ExampleErpOrganizationKey } from '../../../src/apps/example/modules/example_erp_keys/entities/example-erp-organization-key.entity.js';
-import { fillErpKeyOnCreate } from '../../../src/apps/example/modules/example_erp_keys/hooks/fill-erp-key.js';
+import { SET_ERP_KEY_ACTION, fillErpKeyOnCreate } from '../../../src/apps/example/modules/example_erp_keys/hooks/fill-erp-key.js';
 import {
   EXAMPLE_ERP_KEYS_ERROR_CODES,
   EXAMPLE_ERP_KEYS_HOST,
@@ -85,10 +85,15 @@ describe('the ERP key value', () => {
   });
 });
 
-/** A `beforeCommit` context over a fake transaction; `flush` is the caller's. */
+/**
+ * A `beforeCommit` context over a fake transaction; `flush` is the caller's.
+ * `run` executes a child Command on the same `em`, as the bus does, and keeps
+ * what each child would record in its own audit entry.
+ */
 function hookContext(extension: unknown, flush: () => Promise<void> = async () => {}) {
   const created: Array<{ entity: unknown; data: unknown }> = [];
   const noted: string[] = [];
+  const children: Array<{ action: string; objectId: string; after: unknown }> = [];
   const em = {
     create: vi.fn((entity: unknown, data: unknown) => {
       created.push({ entity, data });
@@ -105,10 +110,14 @@ function hookContext(extension: unknown, flush: () => Promise<void> = async () =
     em,
     actor: { actorAdminUserId: null },
     module: { id: MODULE_ID },
-    run: vi.fn(),
+    run: async (child: Command<unknown>) => {
+      const outcome = await child.run({ em: em as never, actor: { actorAdminUserId: null } as never });
+      children.push({ action: child.action, objectId: child.objectId, after: outcome.after });
+      return outcome.result;
+    },
     noteAuditChanges: (fields: readonly string[]) => void noted.push(...fields),
   } as unknown as CommandHookContext<OrganizationCreateHookData>;
-  return { ctx, em, created, noted };
+  return { ctx, em, created, noted, children };
 }
 
 async function refusalOf(promise: Promise<unknown>): Promise<CommandHookRefusal> {
@@ -130,13 +139,17 @@ describe('the beforeCommit hook on organization.create', () => {
     expect(noted).toEqual([]);
   });
 
-  it('writes the side row on the Command’s transaction, normalised, and names the field, never the value', async () => {
-    const { ctx, em, created, noted } = hookContext({ erpKey: ' sap-0042' });
+  it('writes the side row through its own audited Command on the create’s transaction, normalised', async () => {
+    const { ctx, em, created, noted, children } = hookContext({ erpKey: ' sap-0042' });
     await fillErpKeyOnCreate(ctx);
     expect(created).toEqual([
       { entity: ExampleErpOrganizationKey, data: { organizationId: ORGANIZATION_ID, erpKey: 'SAP-0042' } },
     ]);
     expect(em.flush).toHaveBeenCalledOnce();
+    // Its own entry and the create's both name the field — never the key (audit-state.md).
+    expect(children).toEqual([
+      { action: SET_ERP_KEY_ACTION, objectId: ORGANIZATION_ID, after: { changedFields: ['erpKey'] } },
+    ]);
     expect(noted).toEqual(['erpKey']);
   });
 
