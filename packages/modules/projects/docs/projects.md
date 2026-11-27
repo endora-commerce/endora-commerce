@@ -589,6 +589,38 @@ templates screen (*Stage deadline alert*). While Projects is switched off no
 alert is sent, and none is used up: an alert due that day still goes out once
 the module is back on the same day.
 
+### Custom fields on a note
+
+An operator adds fields of their own to notes — a **Type** with the choices
+*call*, *meeting* and *e-mail*, say — on the **Custom fields** screen
+(`/custom-fields`), where *Project note* is one of the record types. Each field
+has a type (text, number, yes/no, date, a choice or several choices) and may be
+required. No code is needed.
+
+- The fields are under the text when you write a note, and in a note's form
+  when you edit your own. Each note shows its values in one line under its
+  text. The fields are offered to, and their values shown to, an administrator
+  who may also view custom fields (`custom_fields:read`).
+- A value that breaks its field — a required field left empty, a number that
+  is not one, a choice that is not offered — is refused, and the field is
+  named; the note is not saved. A required field is asked for on every new
+  note, also one written through the API or by an integration.
+- Editing a note changes only the fields you changed; the others keep their
+  values.
+- A **message** has no fields: a message sent with values is refused.
+- The project's change history names the fields a note was given or changed,
+  never their values — the platform's audit log is not kept per Organization.
+- While Projects is switched off, *Project note* is not offered on the
+  custom-fields screen; its fields and every value are kept, and are back when
+  the module is.
+
+For developers: the entity type is `project_note`. The values are
+`customFieldValues` on `POST` and `PATCH /api/v1/admin/projects/:id/comments…`
+and on every comment the admin API answers; `projectCommandPort.addComment`
+takes them as the route does, and `projectReadPort.listNotes` answers them on
+each note. Because a note is a custom-field host, an installed module may also
+extend `projects.ProjectComment` with a side table.
+
 ## Custom fields
 
 An operator adds fields of their own to projects — a site region, a contract
@@ -766,9 +798,9 @@ project `version`. Re-read the project after a `409`.
 | `POST /api/v1/admin/projects/:id/links` | `projects:write` | `{ kind: 'order' \| 'quote_request' \| 'opportunity', recordId }` → `201` `{ data: ProjectLink }`. `503` `MODULE_DISABLED` while the kind's module is off; `403` without its owner's read code; `404` `PROJECT_RECORD_NOT_FOUND` for a record that does not exist or is out of the caller's reach; `422` `PROJECT_LINK_ORGANIZATION_MISMATCH` for a record of an Organization the project does not have; `409` `PROJECT_RECORD_ALREADY_LINKED`, whose `details.project` (`{ id, number, title }`) names the project holding it only to a caller who may see that project. |
 | `DELETE /api/v1/admin/projects/:id/links/:linkId` | `projects:write` | `204`; `404` for a link of another project or one that does not exist. |
 | `GET /api/v1/admin/projects/records/:kind/:recordId/project` | `projects:read` | `{ data: ProjectSummary }` — the project an `order`, `quote_request`, `opportunity` or `task` (through its context) belongs to; `404` `PROJECT_NOT_FOUND` alike for a record in no project and one in a project the caller may not see. Needs the kind's read code as well (`403`), and its module on (`503`). |
-| `GET /api/v1/admin/projects/:id/comments?kind=note\|message` | `projects:read` | `{ data: ProjectComment[] }`, oldest first, deleted notes left out; each with `references` — what its tokens name for the reader. |
-| `POST /api/v1/admin/projects/:id/comments` | `projects:write` | `{ kind, body }` → `201` `{ data: ProjectComment }`. A message notifies every member who may see the project except its author; a newly mentioned person who may see it is notified once. |
-| `PATCH /api/v1/admin/projects/:id/comments/:commentId`, `DELETE …` | `projects:write` | A note, by its author only — `403` `PROJECT_NOTE_NOT_AUTHOR` for anybody else; a message never — `409` `PROJECT_MESSAGE_IMMUTABLE`. `DELETE` keeps the row, marked. |
+| `GET /api/v1/admin/projects/:id/comments?kind=note\|message` | `projects:read` | `{ data: ProjectComment[] }`, oldest first, deleted notes left out; each with `references` — what its tokens name for the reader — and `customFieldValues` (`{}` on a message). |
+| `POST /api/v1/admin/projects/:id/comments` | `projects:write` | `{ kind, body, customFieldValues? }` → `201` `{ data: ProjectComment }`; the values for a note only. A message notifies every member who may see the project except its author; a newly mentioned person who may see it is notified once. |
+| `PATCH /api/v1/admin/projects/:id/comments/:commentId`, `DELETE …` | `projects:write` | `PATCH` takes `{ body, customFieldValues? }`, the values merged key by key. A note, by its author only — `403` `PROJECT_NOTE_NOT_AUTHOR` for anybody else; a message never — `409` `PROJECT_MESSAGE_IMMUTABLE`. `DELETE` keeps the row, marked. |
 | `POST /api/v1/admin/projects/:id/messages/read` | `projects:read` | `{ throughMessageId }` → `{ data: { unreadMessageCount } }`; the caller's own read marker, which only moves forward. Not audited. |
 | `GET /api/v1/admin/projects/:id/attachments` | `projects:read` | `{ data: ProjectAttachment[] }`, each with a download link valid for minutes. |
 | `POST /api/v1/admin/projects/:id/attachments/upload` | `projects:write` | `multipart/form-data` with one `file` part → `201`; stored private, then attached — a file that could not be attached is taken back. `415` for active content or a type the library refuses, `413` `PROJECT_ATTACHMENT_TOO_LARGE` beyond 25 MB, and the library's own size limit. |
@@ -1179,7 +1211,7 @@ that follows the write are the same:
 | `reopen(id, options?)` | `projects.project.reopen` | `POST /api/v1/admin/projects/:id/reopen` |
 | `link(id, { kind, recordId }, options?)` | `projects.project.link_add` | `POST /api/v1/admin/projects/:id/links` |
 | `unlink(id, linkId, options?)` | `projects.project.link_remove` | `DELETE /api/v1/admin/projects/:id/links/:linkId` |
-| `addComment(id, { kind, body }, options?)` | `projects.project.note_add`, `.message_add` | `POST /api/v1/admin/projects/:id/comments` |
+| `addComment(id, { kind, body, customFieldValues? }, options?)` | `projects.project.note_add`, `.message_add` | `POST /api/v1/admin/projects/:id/comments` |
 | `delete(id, options?)` | `projects.project.delete` | `DELETE /api/v1/admin/projects/:id` |
 
 Most methods answer the project as a `ProjectRecord`, read after the write.

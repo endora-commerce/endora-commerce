@@ -4,8 +4,17 @@ import type {
   CatalogCategoryProductCount,
   CatalogCategoryReadPort,
   CatalogCategoryRecord,
+  EntityExtensionReadOptions,
+  WithEntityExtensions,
 } from '@endora-commerce/contracts';
+import { lazyEntityExtensionReads, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { Category } from '../entities/category.entity.js';
+
+/** The host name side-table loaders register against (`specs/187-side-table-extensions/`). */
+const HOST = 'catalog.Category';
+
+type LookupOptions = { liveOnly?: boolean } & EntityExtensionReadOptions;
+type Extended = WithEntityExtensions<CatalogCategoryRecord>;
 
 /**
  * The category read model `catalog` publishes (feature 075, Phase P).
@@ -19,38 +28,46 @@ import { Category } from '../entities/category.entity.js';
  * a loop whose depth is data, in a module that does not own the table. Moving
  * it here bounds it: the write path forbids a cycle, but a corrupt
  * `parent_id` should degrade into a short answer rather than hang a request.
+ *
+ * `findById`, `findByIds`, `findBySlug`, `listAll` and `ancestorsOf` take
+ * `options.include` (`specs/187-side-table-extensions/` FR-058): the
+ * categories the lookup answered, after its own narrowing, are handed on the
+ * entity manager that found them to the platform's `entityExtensionReads` —
+ * the whole ancestor chain in one call, after the walk. Without `include`
+ * nothing is resolved.
  */
 const MAX_ANCESTOR_DEPTH = 64;
 
 export class CatalogCategoryReadService implements CatalogCategoryReadPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** The kernel's `entityExtensionReads`; absent in a hand-built service, which has no loader to offer. */
+    private readonly extensionReads: EntityExtensionReads = lazyEntityExtensionReads(() => undefined),
+  ) {}
 
-  async findById(
-    id: string,
-    options?: { liveOnly?: boolean },
-  ): Promise<CatalogCategoryRecord | null> {
-    const category = await this.emFactory().findOne(Category, {
+  async findById(id: string, options?: LookupOptions): Promise<Extended | null> {
+    const em = this.emFactory();
+    const category = await em.findOne(Category, {
       id,
       ...liveFilter(options),
     });
-    return category ? toCatalogCategoryRecord(category) : null;
+    return category ? this.#attachOne(toCatalogCategoryRecord(category), options, em) : null;
   }
 
-  async findByIds(
-    ids: readonly string[],
-    options?: { liveOnly?: boolean },
-  ): Promise<CatalogCategoryRecord[]> {
+  async findByIds(ids: readonly string[], options?: LookupOptions): Promise<Extended[]> {
     if (ids.length === 0) return [];
-    const categories = await this.emFactory().find(Category, {
+    const em = this.emFactory();
+    const categories = await em.find(Category, {
       id: { $in: [...ids] },
       ...liveFilter(options),
     });
-    return categories.map(toCatalogCategoryRecord);
+    return this.#attach(categories.map(toCatalogCategoryRecord), options, em);
   }
 
-  async findBySlug(slug: string): Promise<CatalogCategoryRecord | null> {
-    const category = await this.emFactory().findOne(Category, { slug });
-    return category ? toCatalogCategoryRecord(category) : null;
+  async findBySlug(slug: string, options?: EntityExtensionReadOptions): Promise<Extended | null> {
+    const em = this.emFactory();
+    const category = await em.findOne(Category, { slug });
+    return category ? this.#attachOne(toCatalogCategoryRecord(category), options, em) : null;
   }
 
   async countByIds(ids: readonly string[]): Promise<number> {
@@ -58,13 +75,14 @@ export class CatalogCategoryReadService implements CatalogCategoryReadPort {
     return this.emFactory().count(Category, { id: { $in: [...ids] } });
   }
 
-  async listAll(options?: { liveOnly?: boolean }): Promise<CatalogCategoryRecord[]> {
-    const categories = await this.emFactory().find(
+  async listAll(options?: LookupOptions): Promise<Extended[]> {
+    const em = this.emFactory();
+    const categories = await em.find(
       Category,
       liveFilter(options) as FilterQuery<Category>,
       { orderBy: { sortOrder: 'asc', slug: 'asc' } },
     );
-    return categories.map(toCatalogCategoryRecord);
+    return this.#attach(categories.map(toCatalogCategoryRecord), options, em);
   }
 
   async listWithInventoryThresholds(): Promise<CatalogCategoryRecord[]> {
@@ -78,7 +96,7 @@ export class CatalogCategoryReadService implements CatalogCategoryReadPort {
     return categories.map(toCatalogCategoryRecord);
   }
 
-  async ancestorsOf(categoryId: string): Promise<CatalogCategoryRecord[]> {
+  async ancestorsOf(categoryId: string, options?: EntityExtensionReadOptions): Promise<Extended[]> {
     const em = this.emFactory();
     const chain: CatalogCategoryRecord[] = [];
     const seen = new Set<string>();
@@ -90,7 +108,24 @@ export class CatalogCategoryReadService implements CatalogCategoryReadPort {
       chain.push(toCatalogCategoryRecord(cursor));
       cursorId = cursor.parentCategoryId ?? null;
     }
-    return chain;
+    return this.#attach(chain, options, em);
+  }
+
+  async #attach(
+    records: CatalogCategoryRecord[],
+    options: EntityExtensionReadOptions | undefined,
+    em: EntityManager,
+  ): Promise<Extended[]> {
+    return [...(await this.extensionReads.attach(HOST, records, options, em))];
+  }
+
+  async #attachOne(
+    record: CatalogCategoryRecord,
+    options: EntityExtensionReadOptions | undefined,
+    em: EntityManager,
+  ): Promise<Extended> {
+    const [attached] = await this.extensionReads.attach(HOST, [record], options, em);
+    return attached ?? record;
   }
 
   /**

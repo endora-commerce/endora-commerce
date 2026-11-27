@@ -19,6 +19,7 @@ sentence this deployment wrote when it made the change.
 | `command_middleware_fixture` |
 | `erp_challenger_fixture` |
 | `erp_incumbent_fixture` |
+| `example_erp_keys` |
 | `example_overlay` |
 | `ledger_challenger_fixture` |
 | `ledger_vendor_fixture` |
@@ -49,6 +50,7 @@ rung 2 — run before or after what the owner already serves, or inside a write 
 | `organization.create` (beforeCommit, `observe-create`) | `command_hook_fixture` | `organizations` | Core creates an Organization in one audited Command. This fixture takes part in that write only for an Organization whose name carries its marker: inside the same transaction it records an audit entry of its own, names what it wrote in the core entry, and refuses with its own translated code when the name also carries its veto word. It is the reference hook module the command-hook contract tests compose, and it changes nothing for any other name. |
 | `organization.register` (afterCommit, `deliver-register`) | `command_hook_fixture` | `organizations` | The same handler on storefront self-registration: its row is written in the registration transaction, so a registration that rolls back leaves none, and delivery restores the new Organization's context and the registration's request id. It acts only on a marked name. |
 | `organization.register` (beforeCommit, `observe-register`) | `command_hook_fixture` | `organizations` | The same hook on storefront self-registration, which is one Command since spec 176 P1. On a marked name it writes its own audit entry inside the registration transaction and may refuse the registration with its own code, so the whole registration — Organization, first account, token — rolls back; any other name passes through untouched. |
+| `organization.create` (beforeCommit, `fill-erp-key`) | `example_erp_keys` | `organizations` | Core creates an Organization in one audited Command. When a server-side caller such as an ERP import hands the create an ERP key under `extensions.example_erp_keys`, this module writes the key into its own side table inside that transaction and names the field, never the value, in the core entry; a malformed key or one another Organization holds is refused with its own translated code and the whole create rolls back. A create without the extension, every administrator create included, is untouched. |
 
 ### Command middleware this deployment runs on the Command Bus
 
@@ -60,6 +62,14 @@ rung 2 — run before or after what the owner already serves, or inside a write 
 | `record-marked` (observe, `organization.`) | `command_middleware_fixture` | the Command Bus (no module owns it) | After a marked request’s Organization write has committed or rolled back, this fixture keeps the run’s names-only summary and the tenant context it was observed in, which the command-middleware tests read. It cannot slow, fail or change the write, and it ignores every request that does not carry its marker. |
 | `organization-timing` (observe, `organization.`) | `example_overlay` | the Command Bus (no module owns it) | Core runs no middleware on the Command Bus. After any write that touched an Organization has committed or rolled back, this deployment logs how long it took and how it ended — the action, the outcome, the error code and a count, never a value. It is the reference `observe` middleware: it cannot slow, fail or change the write, and it replaces what a deployment used to do by wrapping `commandBus`. |
 
+### Ports this deployment publishes
+
+rung 3 — a strategy port the owner published. Costs a dependency edge in your manifest; the owner keeps the seam and keeps fixing it behind you.
+
+| What | Changed by | Owned by | Why |
+| --- | --- | --- | --- |
+| `exampleErpKeysPort` | `example_erp_keys` | `example_erp_keys` | Core has no notion of an external ERP key. This port answers an Organization’s key, and the Organization holding a key, from this module’s own side table and in the caller’s scope; its types are in the module’s `ports.ts`. It fails closed while the module is off, and nothing in core resolves it. |
+
 ### Ports this deployment consumes
 
 rung 3 — a strategy port the owner published. Costs a dependency edge in your manifest; the owner keeps the seam and keeps fixing it behind you.
@@ -67,6 +77,7 @@ rung 3 — a strategy port the owner published. Costs a dependency edge in your 
 | What | Changed by | Owned by | Why |
 | --- | --- | --- | --- |
 | `shippingAdapterRegistry` | `carrier_fixture` | `delivery_methods` | The contribution seam `delivery_methods` publishes for a module that ships parcels, reached from this fixture’s boot hook so that the carrier port keeps an implementor in this repository after feature 134’s wave 1 removes `inpost` and `dhl_parcel` (FR-021, FR-063). It is rung 3 read exactly as the ladder intends: the owner published the seam, the consumer declares the dependency, and nothing of `delivery_methods` is wrapped or replaced. The fixture is a reference implementor rather than a delivery capability — it seeds no method, owns no table and serves no route — so what this deployment gains is a contributor to an existing registry and no behaviour a shop would notice. |
+| `organizationDetailsPort` | `example_erp_keys` | `organizations` | The names its ERP-key list shows, read through the port `organizations` publishes for Organization records rather than by a join on a table this module does not own. Read-only, in the caller’s tenant context, and resolved per call, so `organizations` stays the one owner of what an Organization record is. |
 | `invoiceLedgerRegistryPort` | `ledger_challenger_fixture` | `invoice_ledger` | The vendor mutex, asked from this module’s own activation interceptor. A second declared member is what keeps the refusal a property of a pair once the paid vendors leave: with `ledger_vendor_fixture` alone the family would have no sibling the registry knows from a declaration and no second interceptor on the shared route. |
 | `configurationTypeRegistry` | `ledger_vendor_fixture` | `credentials` | The credential shape this vendor’s connection takes, described to `credentials` from a boot hook so that its admin screen can render a form for it. A contribution, not a gate: the owner filters by contributor when it enumerates, so switching this module off withdraws the type while leaving any stored row visible. |
 | `credentialsService` | `ledger_vendor_fixture` | `credentials` | The fixture’s API key and webhook secret, resolved by the frozen credential code the delivery row carries rather than by a live settings read — freezing is the property the free ledger’s retry assertions are about, and a fixture that read live values would exercise the opposite of it. |

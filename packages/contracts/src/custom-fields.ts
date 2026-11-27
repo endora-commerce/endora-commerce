@@ -4,7 +4,8 @@ import type { SupportedLanguage } from './platform-language.js';
 
 /**
  * Custom Fields Layer (feature 055) — entity-agnostic runtime custom fields
- * on core entities (Category, Order, Organization, Customer, QuoteRequest).
+ * on core entities (Category, Order, Organization, Customer, QuoteRequest) and
+ * on the hosts later features added (see {@link supportedEntityTypeSchema}).
  *
  * These are the source-of-truth boundary schemas (Principle V). The per-value
  * validator applied to host records is DERIVED at runtime from a stored
@@ -32,6 +33,11 @@ export const supportedEntityTypeSchema = z.enum([
   // Feature 165 — a Task of the `tasks` module (research R-8); offered only
   // while that module is present.
   'task',
+  // Issue #2005 — a note on an Opportunity (`crm`) and a note on a Project
+  // (`projects`): a comment of kind `note`, never a message. Each is offered
+  // only while the module that owns it is present.
+  'opportunity_note',
+  'project_note',
 ]);
 export type SupportedEntityType = z.infer<typeof supportedEntityTypeSchema>;
 
@@ -139,6 +145,22 @@ export const CUSTOM_FIELD_HOST_BINDINGS = {
     ownerModuleId: 'tasks',
     entityClassName: 'Task',
     aggregatePort: 'taskCommandPort',
+  },
+  // Issue #2005 — a note's values are written with the note: the aggregate
+  // port is its parent's, whose `addComment` carries them.
+  opportunity_note: {
+    table: 'crm_opportunity_comments',
+    valueColumn: 'custom_field_values',
+    ownerModuleId: 'crm',
+    entityClassName: 'CrmOpportunityComment',
+    aggregatePort: 'opportunityCommandPort',
+  },
+  project_note: {
+    table: 'project_comments',
+    valueColumn: 'custom_field_values',
+    ownerModuleId: 'projects',
+    entityClassName: 'ProjectComment',
+    aggregatePort: 'projectCommandPort',
   },
 } as const satisfies Record<SupportedEntityType, CustomFieldHostBinding>;
 

@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   OPPORTUNITY_READ_PORT_SEARCH_MAX,
+  type EntityExtensionReadOptions,
   type OpportunityDocumentKind,
   type OpportunityNotePage,
   type OpportunityNoteQuery,
@@ -8,7 +9,9 @@ import {
   type OpportunityRecord,
   type OpportunitySearchQuery,
   type SupportedLanguage,
+  type WithEntityExtensions,
 } from '@endora-commerce/contracts';
+import { lazyEntityExtensionReads, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import { effectiveOpportunityValue } from '../domain/effective-value.js';
@@ -32,7 +35,17 @@ import type { WorkflowReadService } from './workflow-read-service.js';
  * and then asks for that Opportunity through the scoped EntityManager: the
  * parent decides, never the child. `listNotes` is the comment service's, which
  * owns the table and joins every note to its Opportunity for the same reason.
+ *
+ * **Extensions after scope.** `findById`, `findByDocument`,
+ * `listOpenForOrganization`, `findByIds` and `search` take `options.include`
+ * (`specs/187-side-table-extensions/` FR-058): the Opportunities the scoped
+ * EntityManager returned, and no other, are handed on that EntityManager to
+ * the platform's `entityExtensionReads`. Without `include` nothing is resolved.
  */
+const HOST = 'crm.CrmOpportunity';
+
+type Extended = WithEntityExtensions<OpportunityRecord>;
+
 export class OpportunityReadPortService implements OpportunityReadPort {
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -43,6 +56,8 @@ export class OpportunityReadPortService implements OpportunityReadPort {
      * cycle in the container.
      */
     private readonly comments: () => Pick<OpportunityCommentService, 'listNotes'>,
+    /** The kernel's `entityExtensionReads`; absent in a hand-built service, which has no loader to offer. */
+    private readonly extensionReads: EntityExtensionReads = lazyEntityExtensionReads(() => undefined),
   ) {}
 
   /** The notes of the Opportunities in the caller's tenant scope, a keyset page at a time (issue #1905). */
@@ -50,12 +65,12 @@ export class OpportunityReadPortService implements OpportunityReadPort {
     return this.comments().listNotes(query);
   }
 
-  async findById(id: string): Promise<OpportunityRecord | null> {
+  async findById(id: string, options?: EntityExtensionReadOptions): Promise<Extended | null> {
     if (!isUuid(id)) return null;
     const em = this.emFactory();
     const opportunity = await em.findOne(CrmOpportunity, { id });
     if (!opportunity) return null;
-    return (await this.#records(em, [opportunity]))[0] ?? null;
+    return (await this.#records(em, [opportunity], options))[0] ?? null;
   }
 
   /**
@@ -64,11 +79,11 @@ export class OpportunityReadPortService implements OpportunityReadPort {
    * (`specs/165-task-management/` research R-5). Checks no permission: the
    * caller asks `crm:read` itself.
    */
-  async findByIds(ids: readonly string[]): Promise<OpportunityRecord[]> {
+  async findByIds(ids: readonly string[], options?: EntityExtensionReadOptions): Promise<Extended[]> {
     const candidates = [...new Set(ids.filter(isUuid))];
     if (candidates.length === 0) return [];
     const em = this.emFactory();
-    return this.#records(em, await em.find(CrmOpportunity, { id: { $in: candidates } }));
+    return this.#records(em, await em.find(CrmOpportunity, { id: { $in: candidates } }), options);
   }
 
   /**
@@ -77,7 +92,7 @@ export class OpportunityReadPortService implements OpportunityReadPort {
    * most {@link OPPORTUNITY_READ_PORT_SEARCH_MAX} — the `@@` document list's
    * Opportunities (165 R-5). Checks no permission.
    */
-  async search(query: OpportunitySearchQuery): Promise<OpportunityRecord[]> {
+  async search(query: OpportunitySearchQuery, options?: EntityExtensionReadOptions): Promise<Extended[]> {
     const limit = Math.min(Math.max(0, Math.trunc(query.limit)), OPPORTUNITY_READ_PORT_SEARCH_MAX);
     if (limit === 0) return [];
     const needle = (query.q ?? '').trim();
@@ -88,18 +103,22 @@ export class OpportunityReadPortService implements OpportunityReadPort {
       needle === '' ? {} : { $or: [{ number: { $ilike: like } }, { title: { $ilike: like } }] },
       { orderBy: { createdAt: 'desc', number: 'desc' }, limit },
     );
-    return this.#records(em, rows);
+    return this.#records(em, rows, options);
   }
 
-  async findByDocument(kind: OpportunityDocumentKind, documentId: string): Promise<OpportunityRecord | null> {
+  async findByDocument(
+    kind: OpportunityDocumentKind,
+    documentId: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<Extended | null> {
     if (!isUuid(documentId)) return null;
     const em = this.emFactory();
     const link = await em.findOne(CrmOpportunityLink, { documentKind: kind, documentId });
     if (!link) return null;
-    return this.findById(link.opportunityId);
+    return this.findById(link.opportunityId, options);
   }
 
-  async listOpenForOrganization(organizationId: string): Promise<OpportunityRecord[]> {
+  async listOpenForOrganization(organizationId: string, options?: EntityExtensionReadOptions): Promise<Extended[]> {
     if (!isUuid(organizationId)) return [];
     const em = this.emFactory();
     const graph = await this.workflowRead.loadGraph(em);
@@ -110,7 +129,7 @@ export class OpportunityReadPortService implements OpportunityReadPort {
       { organizationId, statusCode: { $in: openCodes } },
       { orderBy: { createdAt: 'desc', number: 'desc' } },
     );
-    return this.#records(em, rows);
+    return this.#records(em, rows, options);
   }
 
   /**
@@ -123,10 +142,14 @@ export class OpportunityReadPortService implements OpportunityReadPort {
     return status ? resolveOpportunityStatusName(status, language) : code;
   }
 
-  async #records(em: EntityManager, rows: readonly CrmOpportunity[]): Promise<OpportunityRecord[]> {
+  async #records(
+    em: EntityManager,
+    rows: readonly CrmOpportunity[],
+    options: EntityExtensionReadOptions | undefined,
+  ): Promise<Extended[]> {
     if (rows.length === 0) return [];
     const graph = await this.workflowRead.loadGraph(em);
-    return rows.map((row) => ({
+    const records = rows.map((row): OpportunityRecord => ({
       id: row.id,
       number: row.number,
       title: row.title,
@@ -146,5 +169,6 @@ export class OpportunityReadPortService implements OpportunityReadPort {
       // `specs/186-aggregate-ports/` R-8 — on the row already, so no query.
       customFieldValues: { ...(row.customFieldValues ?? {}) },
     }));
+    return [...(await this.extensionReads.attach(HOST, records, options, em))];
   }
 }

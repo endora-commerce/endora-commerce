@@ -831,8 +831,8 @@ nie otwierałeś, liczą się tylko wiadomości napisane po aktualizacji.
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | Notatki szansy, od najstarszej. `kind=message` — rozmowa. Parametr `kind` jest wymagany. |
-| `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Dodanie: `{ "kind": "note" \| "message", "body" }`. |
-| `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edycja notatki: `{ "body" }`. Tylko autor. |
+| `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Dodanie: `{ "kind": "note" \| "message", "body", "customFieldValues"? }` — wartości tylko dla notatki. |
+| `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edycja notatki: `{ "body", "customFieldValues"? }`, wartości scalane klucz po kluczu. Tylko autor. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Usunięcie notatki. Tylko autor. |
 | `POST /api/v1/admin/crm/opportunities/:id/messages/read` | `crm:read` | Informacja, że przeczytałeś rozmowę aż do wskazanej wiadomości: `{ "throughMessageId" }`. Odpowiedź: `{ "unreadMessageCount" }` — ile wiadomości pozostaje dla ciebie nieprzeczytanych. |
 
@@ -854,6 +854,40 @@ są nieprzeczytane wiadomości: wiadomość jest nieprzeczytana, gdy jest nowsza
 zarówno od tej chwili, jak i od twojego znacznika, więc znacznik starszy od tej
 chwili nie sprawia, że cokolwiek znów staje się nieprzeczytane. Liczone są
 wyłącznie wiadomości, które pokazuje karta *Wiadomości*.
+
+### Pola niestandardowe notatki
+
+Operator dodaje do notatek własne pola — na przykład **Typ** z wyborem
+*telefon*, *spotkanie* i *e-mail* — na ekranie **Pola niestandardowe**
+(`/custom-fields`), gdzie *Notatka szansy sprzedażowej* jest jednym z typów
+rekordów. Każde pole ma typ (tekst, liczba, tak/nie, data, jeden wybór albo
+kilka) i może być wymagane. Nie trzeba niczego programować.
+
+- Pola są pod treścią, gdy piszesz notatkę, i w formularzu notatki, gdy
+  edytujesz własną. Każda notatka pokazuje swoje wartości w jednym wierszu pod
+  treścią. Pola są oferowane, a ich wartości pokazywane, administratorowi,
+  który może też przeglądać pola niestandardowe (`custom_fields:read`).
+- Wartość niezgodna z polem — puste pole wymagane, liczba, która nie jest
+  liczbą, wybór spoza listy — jest odrzucana, a pole zostaje wskazane; notatka
+  nie jest zapisywana. Pole wymagane jest wymagane przy każdej nowej notatce,
+  także napisanej przez API albo przez integrację.
+- Edycja notatki zmienia tylko te pola, które zmieniłeś; pozostałe zachowują
+  swoje wartości.
+- **Wiadomość** nie ma pól: wiadomość wysłana z wartościami jest odrzucana.
+- Historia zmian szansy podaje nazwy pól, które notatka otrzymała albo zmieniła,
+  nigdy ich wartości — dziennik audytu platformy nie jest prowadzony osobno dla
+  każdej organizacji.
+- Gdy moduł CRM jest wyłączony, *Notatka szansy sprzedażowej* nie jest
+  oferowana na ekranie pól niestandardowych; jej pola i wszystkie wartości są
+  zachowane i wracają razem z modułem.
+
+Dla programistów: typ encji to `opportunity_note`. Wartości to
+`customFieldValues` w `POST` i `PATCH /api/v1/admin/crm/opportunities/:id/comments…`
+oraz w każdym komentarzu zwracanym przez API administracyjne;
+`opportunityCommandPort.addComment` przyjmuje je tak samo jak trasa, a
+`opportunityReadPort.listNotes` zwraca je przy każdej notatce. Ponieważ notatka
+jest hostem pól niestandardowych, zainstalowany moduł może też rozszerzyć
+`crm.CrmOpportunityComment` tabelą poboczną.
 
 ## Załączniki
 
@@ -2463,7 +2497,7 @@ zapisu szansy, zadeklarowany jako `OpportunityCommandPort` w
 | `setTags(id, { tagIds }, options?)` | `crm.opportunity.tag_set` | `PUT /api/v1/admin/crm/opportunities/:id/tags` |
 | `link(id, { documentKind, documentId, syncStatus? }, options?)` | `crm.opportunity.link_add` | `POST /api/v1/admin/crm/opportunities/:id/links` |
 | `unlink(id, linkId, options?)` | `crm.opportunity.link_remove` | `DELETE /api/v1/admin/crm/opportunities/:id/links/:linkId` |
-| `addComment(id, { kind, body }, options?)` | `crm.opportunity.note_add`, `crm.opportunity.message_add` | `POST /api/v1/admin/crm/opportunities/:id/comments` |
+| `addComment(id, { kind, body, customFieldValues? }, options?)` | `crm.opportunity.note_add`, `crm.opportunity.message_add` | `POST /api/v1/admin/crm/opportunities/:id/comments` |
 | `delete(id, options?)` | `crm.opportunity.delete` | `DELETE /api/v1/admin/crm/opportunities/:id` |
 
 **Jedna ścieżka zapisu.** Każda metoda uruchamia to samo polecenie (Command) co

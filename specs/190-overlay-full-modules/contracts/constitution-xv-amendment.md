@@ -49,7 +49,7 @@ The quoted "current" text below is `master` at `babfae111` plus 189's sentences.
    same guards as a module package. Its migrations pass the platform's foreign-schema guard with no
    deployment exemption, and every entity it registers is classified (Principle XI) or the platform
    does not boot. Overlay code is compiled and type-checked by one deployment-level build. An
-   overlay is never a package in disguise: it has no per-module build, manifest or exports map."
+   overlay is never a package in disguise: it has no per-module build, package manifest or exports map."
    With this placement, 189's guard-seam clause still closes the bullet, unchanged.
 3. **"Bounded overridable surface (YAGNI)."** Keep the list as 189 left it ("services, routes,
    config, declared command hooks, declared command middleware, and whole new modules") and keep

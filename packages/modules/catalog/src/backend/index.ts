@@ -26,6 +26,7 @@ import type {
   CatalogBulkImportPort,
   PromptActionBulkProgressRegistryPort,
   PromptActionToolRegistryPort,
+  CatalogCategoryCommandPort,
   CatalogCategoryReadPort,
   CatalogCategoryWritePort,
   CatalogGalleryPort,
@@ -63,7 +64,7 @@ import type { EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { lazyEntityExtensionReads, lazyPort, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import { CATALOG_MERGE_PARTICIPATION_KEY, CatalogMergeParticipant } from './merge/organization-merge-participant.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -124,6 +125,7 @@ import {
   type TableMaintenanceProducer,
 } from './services/table-maintenance-queue.js';
 import { CategoryAdminService } from './services/category-admin.service.js';
+import { CatalogCategoryCommandService } from './services/catalog-category-command-port.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
 import { AttachmentService } from './services/attachment.service.js';
@@ -901,17 +903,24 @@ export function registerModule(ctx: ModuleContext): void {
   // inside `catalogProductFilterPort` rather than in the caller's conjunction.
   // ---------------------------------------------------------------------------
 
+  // `specs/187-side-table-extensions/` FR-058 — `include` on the record reads
+  // of both ports; resolved only for a read that names one.
+  const extensionReads = (): EntityExtensionReads =>
+    lazyEntityExtensionReads(() => ctx.cradle<{ entityExtensionReads: EntityExtensionReads }>().entityExtensionReads);
+
   ctx.di.providePort<CatalogProductReadPort>(
     'catalogProductReadPort',
     ctx
-      .asFunction(({ emFactory }: CatalogCradle) => new CatalogProductReadService(emFactory))
+      .asFunction(
+        ({ emFactory }: CatalogCradle) => new CatalogProductReadService(emFactory, { extensionReads: extensionReads() }),
+      )
       .singleton(),
   );
 
   ctx.di.providePort<CatalogCategoryReadPort>(
     'catalogCategoryReadPort',
     ctx
-      .asFunction(({ emFactory }: CatalogCradle) => new CatalogCategoryReadService(emFactory))
+      .asFunction(({ emFactory }: CatalogCradle) => new CatalogCategoryReadService(emFactory, extensionReads()))
       .singleton(),
   );
 
@@ -1004,14 +1013,34 @@ export function registerModule(ctx: ModuleContext): void {
     ctx.asFunction(() => new AttributeValueKeyService()).singleton(),
   );
 
+  // --- Category aggregate port (`specs/186-aggregate-ports/` US8, #1826) ---
+  /**
+   * The Category aggregate's write port: the admin routes' Commands, through
+   * the runner they share (`CategoryAdminService`), with the ambient actor.
+   */
+  ctx.di.providePort<CatalogCategoryCommandPort>(
+    'catalogCategoryCommandPort',
+    ctx
+      .asFunction(
+        () => new CatalogCategoryCommandService(() => ctx.cradle<CatalogCradle>().categoryAdminService),
+      )
+      .singleton(),
+  );
+
+  /** Deprecated since 0.113.0 — every method delegates (`catalog-write-ports.ts`). */
   ctx.di.providePort<CatalogCategoryWritePort>(
     'catalogCategoryWritePort',
     ctx
       .asFunction(() =>
-        createCatalogCategoryWritePort(() => ctx.cradle<CatalogCradle>().categoryAdminService),
+        createCatalogCategoryWritePort({
+          service: () => ctx.cradle<CatalogCradle>().categoryAdminService,
+          commandPort: () => lazyPort<CatalogCategoryCommandPort>(ctx, 'catalogCategoryCommandPort'),
+          readPort: () => lazyPort<CatalogCategoryReadPort>(ctx, 'catalogCategoryReadPort'),
+        }),
       )
       .singleton(),
   );
+  // --- end Category aggregate port ---
 
   /**
    * D-74 — the bulk import surface. `import_export` parses the spreadsheet;

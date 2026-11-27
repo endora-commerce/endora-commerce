@@ -361,21 +361,33 @@ export const crmApi = {
     );
   },
 
-  addComment(id: string, kind: OpportunityCommentKind, body: string): Promise<OpportunityComment> {
+  /** `customFieldValues` — a note's values (issue #2005); a message sends none. */
+  addComment(
+    id: string,
+    kind: OpportunityCommentKind,
+    body: string,
+    customFieldValues?: Record<string, unknown>,
+  ): Promise<OpportunityComment> {
     return data(
       apiClient.post<{ data: OpportunityComment }>(`${BASE}/opportunities/${id}/comments`, {
         kind,
         body,
+        ...(customFieldValues === undefined ? {} : { customFieldValues }),
       }),
     );
   },
 
   /** A note, by its author. A message answers 409 `CRM_MESSAGE_IMMUTABLE` whoever asks. */
-  updateComment(id: string, commentId: string, body: string): Promise<OpportunityComment> {
+  updateComment(
+    id: string,
+    commentId: string,
+    body: string,
+    customFieldValues?: Record<string, unknown>,
+  ): Promise<OpportunityComment> {
     return data(
       apiClient.patch<{ data: OpportunityComment }>(
         `${BASE}/opportunities/${id}/comments/${commentId}`,
-        { body },
+        { body, ...(customFieldValues === undefined ? {} : { customFieldValues }) },
       ),
     );
   },

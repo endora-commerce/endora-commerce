@@ -36,16 +36,27 @@ conflating them is what made the previous version of this list wrong.
 | --- | --- | --- | --- |
 | act on its **own** surface | yes | yes | yes |
 | act on **another module's** surface, by that module's invitation | yes | yes | yes |
-| act on another module's surface **uninvited** | no | **yes, totally** | no |
+| act on another module's surface **uninvited** | no | **yes**, except an installed package's registrations and the four guard seams | no |
 
 The middle row is rungs 1–3: a seam the owner published, at which you are a
 guest. The bottom row is rung 4, and a deployment is the only party that has it —
 because a deployment owns its instance outright: it edits its own tree, it builds
 the image, and it answers to nobody but itself.
 
+**The column is decided by where the platform found the module, never by what
+the module says.** Every composed module has an origin, stamped by the loader
+that discovered it: `core` (a module of the platform, including a first-party
+module package installed in an instance), `deployment` (an overlay module under
+`apps/<deployment>/modules/`) or `package` (every other installed package). No
+manifest field sets it, and owning a table does not change it. A deployment may
+grant an installed package one named contribution point in its committed
+`divergence.ts`, where a point offers that; the grant is a permission at that
+point only, and the package's origin stays `package` everywhere else.
+
 Every "who may" answer on this page is enforced by a guard that exists
 (`ForeignDecorationError`, `PackageDecorationNotOfferedError`,
-`DuplicateRegistrationError`, `ForeignRegistrationError`), not by this table.
+`DuplicateRegistrationError`, `ForeignRegistrationError`,
+`CommandMiddlewareOriginError`), not by this table.
 
 ---
 
@@ -102,8 +113,9 @@ or refuse it — use a command hook, which is rung 2 (2b below).
 
 ## Rung 2 — run before or after what the owner already serves
 
-Two mechanisms, one rung: around an endpoint (2a) or inside a write (2b). Both
-are a published identity the owner versions, and both may refuse.
+Three mechanisms, one rung: around an endpoint (2a), inside a write the owner
+declared hookable (2b), or around every Command whose action matches a filter
+(2c). Each may refuse; none replaces what the owner does.
 
 ### 2a — an API interceptor
 
@@ -160,6 +172,55 @@ deployment orders two unrelated hook modules in its `divergence.ts`
 record, whichever endpoint or port it came through; data of your own that must
 commit with the core row or not at all.
 
+### 2c — command middleware {#2c--command-middleware}
+
+**Mechanism.** `ctx.commandMiddleware([{ id, phase, … }])`, declared in your
+manifest's `commandMiddleware` with the same id, the phase and an action filter —
+`'*'`, a full action (`quote_request.create`) or a prefix ending in `.`
+(`organization.`). Two phases, and nothing else:
+
+- **`admit`** runs before the Command does anything, before the transaction
+  opens, for the root Command and every matching child. It gets metadata only —
+  the action, the object, the actor, the organisation, the request id and the
+  lineage — and may only pass or throw `CommandRefusedError` with a code your
+  manifest declares. A refused Command writes nothing and records no audit entry.
+- **`observe`** runs after the run has committed or rolled back, detached from
+  the caller, and gets the outcome: committed or not, the refusal or error code,
+  the duration, and every Command the run attempted. It is read-only, and a
+  throw in it is logged and swallowed.
+
+**Costs.** A coupling to action names, which are the owners' and change with
+them. Every `admit` runs on the write path of every Command it matches, so it has
+a time budget (100 ms by default, 500 ms at most) and fails closed when it is
+exceeded; `observe` has its own (1000 ms, 5000 ms at most) and a cap on how many
+are in flight.
+
+**Loses.** Nothing structural. There is no phase that changes a Command's input,
+sees its data or its result, or runs around it — what an owner writes stays the
+owner's.
+
+**Who.** `admit`: a core module or your deployment's overlay module; an installed
+package is refused at composition (`CommandMiddlewareOriginError`), and no grant
+lifts that. `observe`: everyone, an installed package seeing the request id but
+not the IP address or user agent. Two `admit` modules with overlapping filters
+and no dependency path are ordered in your `divergence.ts`
+(`commandMiddlewareOrder`), or composition refuses. Both phases are skipped while
+their module is off.
+
+**When it is the answer.** Measuring writes, an extra audit sink, a rate limit, a
+maintenance freeze, a legal hold — cross-cutting behaviour on Commands, the things
+a deployment used to get by wrapping `commandBus`.
+[Moving a bus wrap to command middleware](./overlay-pattern.md#moving-a-bus-wrap-to-command-middleware)
+is the worked migration.
+
+:::note Operator commands run no middleware and no hooks
+A Command Bus an operator command builds for itself, outside the application —
+today the schema-extension lifecycle commands — runs no command middleware and no
+command hooks, on either phase. Its Commands are still audited. Do not rely on an
+`admit` rule to stop a maintenance command run by someone with shell and database
+access.
+:::
+
 ---
 
 ## Rung 3 — a strategy port the owner published
@@ -191,6 +252,22 @@ rung 4 for the same problem is product feedback that the seam belongs in core as
 a rung-3 port — which is exactly what the rung stamps on your report make
 measurable.
 
+**Between your own modules, the rung is open.** One of your overlay modules may
+publish a port with `ctx.di.providePort`, its types in that module's `ports.ts`,
+and another of your overlay modules may resolve it with `lazyPort` — importing
+nothing of the owner but `ports.ts`, with `import type`, and naming the owner in
+its manifest `dependencies`. What a deployment cannot do is substitute a port a
+core module or a package owns.
+
+:::note Policy points are not built yet
+A *policy point* — a decision an owner declares, which other modules take part in
+as participants — is specified for a later release and does not exist in this
+one. When it lands, it sits on this rung: a core module and your overlay modules
+may be participants, and an installed package only with a grant your
+`divergence.ts` gives it for that one point. Until then, nothing on this page
+refers to it.
+:::
+
 :::note If you are the module author publishing one
 A published port's shape is a contract type, never your own class; the container
 name in its doc block is contract and a check holds you to it; and an **optional
@@ -211,7 +288,7 @@ before it is removed or changed.
 
 Two mechanisms, one rung, and the second is the wider of the two.
 
-### 4a — decoration
+### 4a — decoration {#4a--decoration}
 
 **Mechanism.** `ctx.di.decorate<T>('<name>', (inner) => …)` from your deployment's
 own overlay module. **Wrap and delegate; do not replace.**
@@ -227,11 +304,28 @@ name it there.
 method still reaches you. **Everything, if you replace**: replacement severs the
 delegation permanently.
 
-**Who.** A **deployment's overlay module only**, and totally: it may wrap
-anything the container holds, including the names no module owns (`commandBus`,
-`auditLogService`, `eventBus`, `emFactory`). A core module wrapping another
-module's registration is refused. An installed package is refused — not
-ledgered, because what is at stake is the integrity of the audit path.
+**Who.** A **deployment's overlay module only**. It may wrap what core and the
+deployment's own modules register, and any name a composition root supplies
+(`redis`, `orm`, `requireAdmin`, …) — **every root-supplied name stays
+decoratable but four**. A core module wrapping another module's registration is
+refused, and so is anyone wrapping a registration an installed package owns.
+
+**The four guard seams.** `commandBus`, `auditLogService`, `eventBus` and
+`emFactory` (`GUARD_SEAM_REGISTRATIONS` in `@endora-commerce/contracts`) are the
+names through which tenant isolation and write auditing are enforced, so no
+module decorates them:
+
+| Release | An overlay decorating a guard seam |
+| --- | --- |
+| up to 0.112.x | composes |
+| 0.113.0 | **deprecated** — composes, logs `kernel.decoration.deprecated` once per module and name, and is a `deprecated-decoration` warning in your divergence report |
+| 0.114.0 | **refused** at composition |
+
+What to use instead: command middleware (rung 2c) or a command hook (2b) for
+`commandBus`; an `observe` middleware or a read of `audit_log_entries` for
+`auditLogService`; `ctx.subscribe` or an `afterCommit` hook for `eventBus`; and
+for `emFactory` nothing — tenant scoping is not overridable, so ask the owning
+module for a port.
 
 **Two of your overlay modules wrapping one name** is refused unless your
 deployment declares the order, innermost first:
@@ -285,7 +379,7 @@ highest price on this list for something rung 2 would have done.
 
 ---
 
-## The data ladder: where new data lives
+## The data ladder: where new data lives {#the-data-ladder-where-new-data-lives}
 
 The rungs above change **behaviour**. New **data** has a ladder of its own, and
 it is ordered the same way: start at the bottom.
@@ -293,8 +387,8 @@ it is ordered the same way: start at the bottom.
 | Rung | Mechanism | Who | Survives upgrades because |
 | --- | --- | --- | --- |
 | D0 | **Runtime custom fields** — an operator defines a field on a host entity in the admin | an operator, at run time | it is data: a definition row and a value in the host's own value bag |
-| D1 | **A side table** your module owns, keyed by the core row's id and read through your module's port | any module you own, an installed package | the table is yours; core never touches it |
-| D2 | **Declared extension columns** — additive `x_<moduleId>_*` columns on an extensible core table, declared with `defineColumnExtension` | an installed module package that depends on the host | the platform generates the DDL, records it in a ledger, verifies it at every migrate and boot, and core CI holds every open extensible table to keeping them |
+| D1 | **A side table** your module owns, keyed by the core row's id and read through your module's port | any module you own, an installed package, a deployment overlay | the table is yours; core never touches it |
+| D2 | **Declared extension columns** — additive `x_<moduleId>_*` columns on an extensible core table, declared with `defineColumnExtension` | an installed module package or a deployment overlay that depends on the host | the platform generates the DDL, records it in a ledger, verifies it at every migrate and boot, and core CI holds every open extensible table to keeping them |
 | D3 | **A variant the owning module provides** — a type, a status, a configurable shape the owner already models | the owner decides; you configure it | it is the owner's own schema |
 
 **D2 is narrow on purpose.** The extensible tables are exactly the custom-field
@@ -310,11 +404,10 @@ example and every rule are on [Declared extension columns](./schema-extensions.m
 **Never a rung: overriding core schema.** A core column, constraint, index or
 entity class is never changed from outside its module, and a package migration
 that writes another module's table is refused at `migrate` — by the platform, not
-by review. Today a per-deployment overlay module ships no entity class and no
-migration, and both are refused: own the table from a module package of yours (D1)
-and read it from the overlay through that module's port. A later release lifts
-that refusal (see [Overlay pattern](./overlay-pattern.md)); an overlay module's
-migrations then face the same guard, with no exemption.
+by review. A per-deployment overlay module owns its own entities and migrations —
+a side table (D1) or declared columns (D2) — and its migrations face that same
+guard, with no exemption for being the deployment's own (see
+[Overlay pattern](./overlay-pattern.md#an-overlay-module-owns-its-schema)).
 
 The reason is **not** migration ordering — that argument was measured false and
 is retired. The reason is that a shared core schema is the only thing that makes
@@ -350,8 +443,9 @@ repository, regenerated from your tree and byte-compared in CI:
 Beside them sits the one file you write by hand,
 `backend/src/apps/<deployment>/divergence.ts`, which carries the things no walk
 can produce: the modules you do not ship, the wrapping order where two of your
-overlay modules decorate one name, the order of two command-hook modules no
-dependency ranks, and **one sentence per divergence saying why**.
+overlay modules decorate one name, the order of two command-hook modules or two
+`admit` middleware modules no dependency ranks, and **one sentence per divergence
+saying why**.
 
 The two are reconciled both ways. A divergence with no sentence fails the build,
 and so does a sentence describing a divergence that is gone — which is how a

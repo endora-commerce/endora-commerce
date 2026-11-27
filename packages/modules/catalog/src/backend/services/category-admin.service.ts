@@ -1,34 +1,30 @@
-import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
   isCustomFieldValidationFailure,
   type CategoryContentEnvelope,
+  type CategoryInventoryThresholdPatch,
   type CreateCategoryRequest,
+  type CustomFieldMerge,
   type CustomFieldValuePort,
   type UpdateCategoryInput,
   isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
-import type { CommandBus, CommandEvent } from '@endora-commerce/platform/commands';
+import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { Category } from '../entities/category.entity.js';
-import { requireLinkableAsset, requireLinkableContentAssets, type LinkableAssetReader } from './linkable-asset.js';
-
-/** Result of a category write closure: the entity + its audit snapshot. */
-interface CategoryWrite {
-  result: Category;
-  before: Record<string, unknown> | null;
-  after: Record<string, unknown> | null;
-  skipAudit?: boolean;
-  /**
-   * Feature 068 — domain event dispatched once the write commits (dropped on
-   * rollback), in the shape the Command Bus expects.
-   */
-  event?: CommandEvent;
-}
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
+import {
+  makeCreateCategoryCommand,
+  makeDeleteCategoryCommand,
+  makeSetCategoryContentCommand,
+  makeSetCategoryInventoryThresholdsCommand,
+  makeUpdateCategoryCommand,
+  type CategoryCustomFieldPatchMerge,
+} from '../commands/category.commands.js';
+import type { LinkableAssetReader } from './linkable-asset.js';
 
 /**
  * Feature 068 — events this service publishes.
@@ -54,37 +50,6 @@ export interface CategoryEvents extends Record<string, EventBase> {
 
 export type CategoryEventBus = EventBus<CategoryEvents>;
 
-function categoryUpdatedEvent(
-  categoryId: string,
-): CommandEvent<CategoryEvents['category.updated.v1']> {
-  return {
-    eventName: 'category.updated.v1',
-    payload: {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      categoryId,
-    },
-  };
-}
-
-function categoryContentUpdatedEvent(
-  categoryId: string,
-): CommandEvent<CategoryEvents['category.content.updated.v1']> {
-  return {
-    eventName: 'category.content.updated.v1',
-    payload: {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      categoryId,
-    },
-  };
-}
-
-/** The languages an envelope carries — what the audit row records of it. */
-function contentLanguagesOf(content: CategoryContentEnvelope): string[] {
-  return Object.keys(content?.languages ?? {}).sort();
-}
-
 /**
  * CategoryAdminService (T090). Backs the admin Categories tree editor.
  *
@@ -92,6 +57,10 @@ function contentLanguagesOf(content: CategoryContentEnvelope): string[] {
  *   - parent must exist (or be null for a root)
  *   - moving a category MUST NOT create a cycle — when reparenting, walk
  *     up the new parent's chain and refuse if the moved id appears.
+ *
+ * Both are enforced by the Commands in `../commands/category.commands.ts`,
+ * which this service runs for the admin routes and for
+ * `catalogCategoryCommandPort` alike (`specs/186-aggregate-ports/` US8).
  *
  * Soft delete (`deletedAt`) is used so categorised products keep their
  * historical reference; the public catalog filters them out.
@@ -141,10 +110,7 @@ export class CategoryAdminService {
   }
 
   /** Validate + merge a custom-field patch, mapping validation errors to HTTP 422. */
-  async #mergeCustomFields(
-    current: Record<string, unknown>,
-    patch: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
+  readonly #mergeCustomFields: CategoryCustomFieldPatchMerge = async (current, patch) => {
     if (!this.customFieldValues) return current;
     try {
       return await this.customFieldValues.validateAndMerge('category', current ?? {}, patch);
@@ -164,50 +130,29 @@ export class CategoryAdminService {
       }
       throw err;
     }
-  }
+  };
 
   /**
-   * Feature 054 — run a category write through the Command Bus (co-transactional
-   * audit) or a plain forked em (bus-less tests). `write` performs the mutation
-   * on the given em and returns the entity + before/after snapshot.
+   * Runs one of the Category Commands (`../commands/category.commands.ts`)
+   * through the Command Bus — co-transactional audit, the event on commit —
+   * with the port caller's `source` and `extensions` added when there are any
+   * (`specs/186-aggregate-ports/` US8). Without a bus (narrow unit tests) the
+   * Command's `run` executes on a plain forked em and its event is emitted
+   * directly; nothing is audited then.
    */
-  async #audited(
-    action: string,
-    objectId: string,
-    write: (em: EntityManager) => Promise<CategoryWrite>,
-  ): Promise<Category> {
-    if (this.commandBus) {
-      // The event is declared per run, so `event()` can hand the bus whatever
-      // the closure produced. Captured here rather than on the entity because
-      // the bus dispatches it after the transaction commits.
-      let declared: CommandEvent | undefined;
-      return this.commandBus.run({
-        action,
-        objectType: 'category',
-        objectId,
-        run: async ({ em }) => {
-          const w = await write(em);
-          declared = w.event;
-          return {
-            result: w.result,
-            before: w.before,
-            after: w.after,
-            ...(w.skipAudit ? { skipAudit: true } : {}),
-          };
-        },
-        event: () => declared,
-      });
-    }
+  async #run<T>(command: Command<T>, caller: CallerOptions = {}): Promise<T> {
+    if (this.commandBus) return this.commandBus.run(withCallerOptions(command, caller));
     const em = this.emFactory();
-    const w = await write(em);
-    await em.flush(); // no-op when the closure already flushed (create/update)
-    if (w.event) {
+    const outcome = await command.run({ em, actor: NO_BUS_ACTOR });
+    await em.flush(); // no-op when the Command already flushed
+    const event = command.event?.(outcome.result);
+    if (event) {
       this.events?.emit(
-        w.event.eventName as keyof CategoryEvents & string,
-        w.event.payload as CategoryEvents[keyof CategoryEvents & string],
+        event.eventName as keyof CategoryEvents & string,
+        event.payload as CategoryEvents[keyof CategoryEvents & string],
       );
     }
-    return w.result;
+    return outcome.result;
   }
 
   async listAll(): Promise<Category[]> {
@@ -219,140 +164,55 @@ export class CategoryAdminService {
     );
   }
 
-  async create(input: CreateCategoryRequest): Promise<Category> {
-    const id = randomUUID();
-    const cat = await this.#audited('category.create', id, async (em) => {
-      if (input.parentCategoryId) await this.#assertParentExists(em, input.parentCategoryId);
-      // Feature 175 (FR-015, FR-016) — validated as a merge onto an empty bag,
-      // inside this Command: a refusal rolls the create back, a `required`
-      // definition is refused even when no value is sent, and the audit row
-      // below carries what was stored.
-      const customFieldValues = await this.#mergeCustomFields({}, input.customFieldValues ?? {});
-      const created = em.create(Category, {
-        id,
-        ...(input.parentCategoryId !== undefined
-          ? { parentCategoryId: input.parentCategoryId }
-          : {}),
-        name: input.name,
-        slug: input.slug,
-        sortOrder: input.sortOrder ?? 0,
-        // Feature 068 — omitted means active (the column default).
-        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-        customFieldValues,
-      });
-      try {
-        await em.flush();
-      } catch (err) {
-        if (err instanceof UniqueConstraintViolationException) {
-          throw new HttpError(409, ERROR_CODES.CATEGORY_SLUG_TAKEN, `Slug "${input.slug}" already exists under this parent.`, {
-            slug: input.slug,
-            parentCategoryId: input.parentCategoryId ?? null,
-          });
-        }
-        throw err;
-      }
-      return {
-        result: created,
-        before: null,
-        after: {
-          name: created.name,
-          slug: created.slug,
-          parentCategoryId: created.parentCategoryId ?? null,
-          sortOrder: created.sortOrder,
-          isActive: created.isActive,
-          customFieldValues: created.customFieldValues,
-        },
-      };
-    });
+  /** `category.create` (`POST …/categories`, `catalogCategoryCommandPort.create`). */
+  async create(input: CreateCategoryRequest, caller?: CallerOptions): Promise<Category> {
+    const cat = await this.#run(makeCreateCategoryCommand({ mergeCustomFields: this.#mergeCustomFields }, input), caller);
     // Feature 005 / FR-011 — bind to Default unless this category was
-    // already given memberships through some other path.
+    // already given memberships through some other path. After the commit, as
+    // it has always been: the kernel writer runs on its own transaction here.
     if (this.salesChannelMembership) {
       await this.salesChannelMembership.bindToDefaultIfEmpty('category', cat.id);
     }
     return cat;
   }
 
-  async update(id: string, input: UpdateCategoryInput): Promise<Category> {
-    return this.#audited('category.update', id, async (em) => {
-      if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
-      const cat = await em.findOne(Category, { id, deletedAt: null });
-      if (!cat) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
-      const before = {
-        name: cat.name,
-        slug: cat.slug,
-        parentCategoryId: cat.parentCategoryId ?? null,
-        sortOrder: cat.sortOrder,
-        isActive: cat.isActive,
-      };
-      if (input.parentCategoryId !== undefined) {
-        if (input.parentCategoryId !== null) {
-          await this.#assertParentExists(em, input.parentCategoryId);
-          await this.#assertNoCycle(em, id, input.parentCategoryId);
-        }
-        cat.parentCategoryId = input.parentCategoryId;
-      }
-      if (input.name !== undefined) cat.name = input.name;
-      if (input.slug !== undefined) cat.slug = input.slug;
-      if (input.sortOrder !== undefined) cat.sortOrder = input.sortOrder;
-      if (input.isActive !== undefined) cat.isActive = input.isActive;
-      if (input.mainImageAssetId !== undefined) {
-        // Feature 166 (FR-006) — a new image the caller may not see answers as
-        // a missing one. The one already linked is this category's own
-        // unrestricted reference, so it is visible and needs no question.
-        if (input.mainImageAssetId !== null && input.mainImageAssetId !== (cat.mainImageAssetId ?? null)) {
-          await requireLinkableAsset(this.#requireAssets(), input.mainImageAssetId);
-        }
-        cat.mainImageAssetId = input.mainImageAssetId;
-      }
-      if (input.customFieldValues !== undefined) {
-        cat.customFieldValues = await this.#mergeCustomFields(cat.customFieldValues ?? {}, input.customFieldValues);
-      }
-      try {
-        await em.flush();
-      } catch (err) {
-        if (err instanceof UniqueConstraintViolationException) {
-          throw new HttpError(409, ERROR_CODES.CATEGORY_SLUG_TAKEN, 'Another category already uses this slug under that parent.', {
-            slug: cat.slug,
-            parentCategoryId: cat.parentCategoryId ?? null,
-          });
-        }
-        throw err;
-      }
-      return {
-        result: cat,
-        before,
-        after: {
-          name: cat.name,
-          slug: cat.slug,
-          parentCategoryId: cat.parentCategoryId ?? null,
-          sortOrder: cat.sortOrder,
-          isActive: cat.isActive,
+  /**
+   * `category.update` (`PATCH …/categories/:id`, and the port's `update` and
+   * `move`). `customFieldValues` is a patch validated with the administrator's
+   * rules.
+   */
+  async update(id: string, input: UpdateCategoryInput, caller?: CallerOptions): Promise<Category> {
+    const { customFieldValues, ...patch } = input;
+    return this.#run(
+      makeUpdateCategoryCommand(
+        { linkableAssets: () => this.#requireAssets() },
+        {
+          categoryId: id,
+          patch,
+          ...(customFieldValues !== undefined
+            ? { customFields: (current: Record<string, unknown>) => this.#mergeCustomFields(current, customFieldValues) }
+            : {}),
         },
-        // Feature 068 — the subtree's products carry this category's slug and
-        // (through the activation flag) their reachability, so every update
-        // has to reach the search index.
-        event: categoryUpdatedEvent(cat.id),
-      };
-    });
+      ),
+      caller,
+    );
   }
 
-  async softDelete(id: string): Promise<void> {
-    await this.#audited('category.delete', id, async (em) => {
-      if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
-      const cat = await em.findOne(Category, { id, deletedAt: null });
-      if (!cat) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
-      const childCount = await em.count(Category, { parentCategoryId: id, deletedAt: null });
-      if (childCount > 0) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.CATEGORY_HAS_CHILDREN,
-          `Cannot delete: ${childCount} child category(ies) still attached. Move or delete them first.`,
-          { categoryId: id, childCount },
-        );
-      }
-      cat.deletedAt = new Date();
-      return { result: cat, before: { name: cat.name, slug: cat.slug }, after: { deletedAt: cat.deletedAt } };
-    });
+  /**
+   * `category.update` with the custom-field bag only, the caller's merge in
+   * place of the admin's validated patch (`catalogCategoryCommandPort.setCustomFieldValues`,
+   * research R-20.2). The caller validates inside `merge`.
+   */
+  async setCustomFieldValues(id: string, merge: CustomFieldMerge, caller?: CallerOptions): Promise<Category> {
+    return this.#run(
+      makeUpdateCategoryCommand({ linkableAssets: () => this.#requireAssets() }, { categoryId: id, patch: {}, customFields: merge }),
+      caller,
+    );
+  }
+
+  /** `category.delete` (`DELETE …/categories/:id`, `catalogCategoryCommandPort.delete`). */
+  async softDelete(id: string, caller?: CallerOptions): Promise<void> {
+    await this.#run(makeDeleteCategoryCommand({ categoryId: id }), caller);
   }
 
   /**
@@ -387,80 +247,36 @@ export class CategoryAdminService {
     id: string,
     content: CategoryContentEnvelope,
   ): Promise<CategoryContentEnvelope> {
-    const cat = await this.#audited('category.content.update', id, async (em) => {
-      const found = await em.findOne(
-        Category,
-        { id, deletedAt: null },
-        { populate: ['content'] },
-      );
-      if (!found) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
-      // Issue #544 — an asset id the content newly embeds must be one the
-      // caller may see, as for the main image.
-      await requireLinkableContentAssets(this.assets, content, found.content ?? null);
-      const before = { contentLanguages: contentLanguagesOf(found.content ?? null) };
-      found.content = content;
-      await em.flush();
-      return {
-        result: found,
-        before,
-        after: { contentLanguages: contentLanguagesOf(content) },
-        event: categoryContentUpdatedEvent(found.id),
-      };
-    });
+    const cat = await this.#run(makeSetCategoryContentCommand({ contentAssets: this.assets }, { categoryId: id, content }));
     return cat.content ?? null;
   }
 
   /**
-   * Set the inventory display-band thresholds on a category (feature 075,
-   * Phase C — published as `catalogCategoryWritePort.setInventoryThresholds`).
+   * Set the inventory display-band thresholds on a category — the Command
+   * `category.inventory_thresholds.set` (`specs/186-aggregate-ports/` US8,
+   * research R-20.3), run by `catalogCategoryCommandPort.setInventoryThresholds`
+   * for `inventory`'s threshold admin.
    *
    * `inventory` owns the meaning of these three columns and stored them here
-   * because the storefront resolver reads them alongside the category row. It
-   * wrote them by importing `Category`; this is the same write, on this side of
-   * the boundary, and deliberately the same write and no more: no Command, no
-   * `category.updated.v1`, no `category.update` audit row. The caller records
-   * one `low_stock_threshold.update` summary row for the whole patch, and
-   * routing this through {@link update} would give an operator reading a
-   * category's history a second, differently-named entry for the same act.
+   * because the storefront resolver reads them alongside the category row.
+   * Deliberately not {@link update}: no `category.updated.v1` (nothing on a
+   * product document changes) and no `category.update` entry, whose state
+   * would read as a rename. The entry is this action's own, with the three
+   * columns before and after; `inventory`'s `low_stock_threshold.update`
+   * summary no longer counts the category half.
    */
   async setInventoryThresholds(
     id: string,
-    patch: { high?: number | null; medium?: number | null; low?: number | null },
-  ): Promise<void> {
-    // command-coverage-ignore: three threshold columns on a category row, audited
-    // by the caller as one `low_stock_threshold.update` summary — see the doc
-    // comment above and `ThresholdAdminService.patch`.
-    const em = this.emFactory();
-    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Category ${id} not found`);
-    const cat = await em.findOne(Category, { id, deletedAt: null });
-    if (!cat) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Category ${id} not found`);
-    if (patch.high !== undefined) cat.inventoryThresholdHigh = patch.high;
-    if (patch.medium !== undefined) cat.inventoryThresholdMedium = patch.medium;
-    if (patch.low !== undefined) cat.inventoryThresholdLow = patch.low;
-    await em.flush();
-  }
-
-  async #assertParentExists(em: EntityManager, parentId: string): Promise<void> {
-    const exists = await em.count(Category, { id: parentId, deletedAt: null });
-    if (exists === 0) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Parent category not found.');
-    }
-  }
-
-  async #assertNoCycle(em: EntityManager, movedId: string, newParentId: string): Promise<void> {
-    let cursor: string | null = newParentId;
-    const seen = new Set<string>();
-    while (cursor) {
-      if (cursor === movedId) {
-        throw new HttpError(409, ERROR_CODES.CATEGORY_MOVE_CYCLE, 'Cannot move category beneath one of its descendants.', {
-          categoryId: movedId,
-          parentCategoryId: newParentId,
-        });
-      }
-      if (seen.has(cursor)) break; // defensive guard against pre-existing cycles
-      seen.add(cursor);
-      const parent: Category | null = await em.findOne(Category, { id: cursor });
-      cursor = parent?.parentCategoryId ?? null;
-    }
+    patch: CategoryInventoryThresholdPatch,
+    caller?: CallerOptions,
+  ): Promise<Category> {
+    return this.#run(makeSetCategoryInventoryThresholdsCommand({ categoryId: id, patch }), caller);
   }
 }
+
+/** The actor a no-bus run hands its Command; nothing is audited on that path. */
+const NO_BUS_ACTOR = {
+  actorAdminUserId: null,
+  impersonatedCustomerAccountId: null,
+  kind: 'system',
+} as const;

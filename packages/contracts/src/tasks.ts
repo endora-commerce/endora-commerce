@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
+import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
 import { calendarDateSchema, isoDateTimeSchema } from './common.js';
 import { customFieldFiltersQueryParamSchema, customFieldValuesSchema } from './custom-fields.js';
 import { dataEnvelope } from './envelopes.js';
@@ -1227,22 +1228,33 @@ export interface TaskContextQuery {
  * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`.
  */
 export interface TaskReadPort {
-  findById(id: string): Promise<TaskRecord | null>;
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>`, loaded for the
+   * Tasks the caller may see — after the whole visibility predicate — and no
+   * other; absent or empty, the answer is exactly what it was without it. The
+   * same holds for {@link findByIds}, {@link search}, {@link listInContext} and
+   * {@link listOpenInContext}.
+   */
+  findById(id: string, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<TaskRecord> | null>;
   /**
    * The Tasks of `ids` the caller may see, in no particular order — a hidden,
    * missing or malformed id is simply absent. One query for a page of
    * references (`specs/163-projects-and-tasks/` FR-044).
    */
-  findByIds(ids: readonly string[]): Promise<TaskRecord[]>;
+  findByIds(ids: readonly string[], options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<TaskRecord>[]>;
   /**
    * Tasks the caller may see whose number or title contains `q`
    * (case-insensitively; every visible Task for an empty `q`), newest first,
    * at most `limit` — the Tasks group of the `@@` document list (FR-044).
    */
-  search(query: TaskSearchQuery): Promise<TaskRecord[]>;
-  listInContext(q: TaskContextQuery): Promise<TaskRecord[]>;
+  search(query: TaskSearchQuery, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<TaskRecord>[]>;
+  listInContext(q: TaskContextQuery, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<TaskRecord>[]>;
   /** Category `open` and not a draft — the completion gate's question (R-1, R-3). */
-  listOpenInContext(q: TaskContextQuery): Promise<TaskRecord[]>;
+  listOpenInContext(
+    q: TaskContextQuery,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<TaskRecord>[]>;
   countInContext(q: TaskContextQuery): Promise<number>;
 }
 

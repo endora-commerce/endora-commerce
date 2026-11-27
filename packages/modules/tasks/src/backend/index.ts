@@ -31,8 +31,10 @@ import {
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import {
   effectiveState,
+  lazyEntityExtensionReads,
   lazyPort,
   type AuditPort,
+  type EntityExtensionReads,
   type ModuleContext,
   type RequireAdminFactory,
   type SettingsReadPort,
@@ -837,7 +839,18 @@ export function registerModule(ctx: ModuleContext): void {
   // gets `ModuleDisabledError` (503 `MODULE_DISABLED`) and nothing half-executes.
   ctx.di.providePort<TaskReadPort>(
     'taskReadPort',
-    ctx.asFunction(({ tasksTaskService }: TasksCradle) => new TaskReadPortService(tasksTaskService)).singleton(),
+    ctx
+      .asFunction(
+        ({ tasksTaskService, emFactory }: TasksCradle) =>
+          new TaskReadPortService(
+            tasksTaskService,
+            emFactory,
+            // `specs/187-side-table-extensions/` FR-058 — `include` on the
+            // record reads; resolved only for a read that names one.
+            lazyEntityExtensionReads(() => ctx.cradle<{ entityExtensionReads: EntityExtensionReads }>().entityExtensionReads),
+          ),
+      )
+      .singleton(),
   );
   // The Task aggregate's write port (`specs/186-aggregate-ports/` US10, #1829):
   // the routes' own service methods, so a port call and an admin request run

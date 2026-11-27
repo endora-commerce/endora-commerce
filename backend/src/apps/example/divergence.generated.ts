@@ -15,6 +15,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     "command_middleware_fixture",
     "erp_challenger_fixture",
     "erp_incumbent_fixture",
+    "example_erp_keys",
     "example_overlay",
     "ledger_challenger_fixture",
     "ledger_vendor_fixture",
@@ -95,6 +96,20 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "id": "observe-register"
       },
       "reason": "The same hook on storefront self-registration, which is one Command since spec 176 P1. On a marked name it writes its own audit entry inside the registration transaction and may refuse the registration with its own code, so the whole registration — Organization, first account, token — rolls back; any other name passes through untouched."
+    },
+    {
+      "key": "command-hook:example_erp_keys:organization.create#fill-erp-key",
+      "kind": "command-hook",
+      "module": "example_erp_keys",
+      "subject": "organization.create",
+      "owner": "organizations",
+      "rung": 2,
+      "detail": {
+        "kind": "command-hook",
+        "phase": "beforeCommit",
+        "id": "fill-erp-key"
+      },
+      "reason": "Core creates an Organization in one audited Command. When a server-side caller such as an ERP import hands the create an ERP key under `extensions.example_erp_keys`, this module writes the key into its own side table inside that transaction and names the field, never the value, in the core entry; a malformed key or one another Organization holds is refused with its own translated code and the whole create rolls back. A create without the extension, every administrator create included, is untouched."
     },
     {
       "key": "command-middleware:command_middleware_fixture:hold-marked",
@@ -219,6 +234,18 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "kind": "port-consumed"
       },
       "reason": "The contribution seam `delivery_methods` publishes for a module that ships parcels, reached from this fixture’s boot hook so that the carrier port keeps an implementor in this repository after feature 134’s wave 1 removes `inpost` and `dhl_parcel` (FR-021, FR-063). It is rung 3 read exactly as the ladder intends: the owner published the seam, the consumer declares the dependency, and nothing of `delivery_methods` is wrapped or replaced. The fixture is a reference implementor rather than a delivery capability — it seeds no method, owns no table and serves no route — so what this deployment gains is a contributor to an existing registry and no behaviour a shop would notice."
+    },
+    {
+      "key": "port-consumed:example_erp_keys:organizationDetailsPort",
+      "kind": "port-consumed",
+      "module": "example_erp_keys",
+      "subject": "organizationDetailsPort",
+      "owner": "organizations",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The names its ERP-key list shows, read through the port `organizations` publishes for Organization records rather than by a join on a table this module does not own. Read-only, in the caller’s tenant context, and resolved per call, so `organizations` stays the one owner of what an Organization record is."
     },
     {
       "key": "port-consumed:ledger_challenger_fixture:invoiceLedgerRegistryPort",
@@ -375,6 +402,18 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "kind": "port-consumed"
       },
       "reason": "The contribution seam `payment_methods` publishes for a module that settles a payment, reached from this fixture’s boot hook so that the gateway port keeps an implementor in this repository after feature 134’s wave 2 removes `autopay`, `paypal`, `payu`, `stripe` and `tpay` (FR-021, FR-063). It is the carrier fixture’s entry above one family over, and rung 3 read exactly as the ladder intends: the owner published the seam, the consumer declares the dependency, and nothing of `payment_methods` is wrapped or replaced. The fixture is a reference implementor rather than a payment capability — it seeds no method, owns no table and serves no route — so what this deployment gains is a contributor to an existing registry and no behaviour a shop would notice."
+    },
+    {
+      "key": "port-provided:example_erp_keys:exampleErpKeysPort",
+      "kind": "port-provided",
+      "module": "example_erp_keys",
+      "subject": "exampleErpKeysPort",
+      "owner": "example_erp_keys",
+      "rung": 3,
+      "detail": {
+        "kind": "port-provided"
+      },
+      "reason": "Core has no notion of an external ERP key. This port answers an Organization’s key, and the Organization holding a key, from this module’s own side table and in the caller’s scope; its types are in the module’s `ports.ts`. It fails closed while the module is off, and nothing in core resolves it."
     },
     {
       "key": "registration:example_overlay:exampleOverlayService",

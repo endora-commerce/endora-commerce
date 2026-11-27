@@ -432,13 +432,30 @@ const commentBodySchema = z.string().min(1).max(PROJECT_COMMENT_BODY_MAX);
 export const ProjectCommentListQuerySchema = z.object({ kind: projectCommentKindSchema });
 export type ProjectCommentListQuery = z.infer<typeof ProjectCommentListQuerySchema>;
 
+/**
+ * `POST /projects/:id/comments`. `customFieldValues` (issue #2005) are the
+ * note's values, keyed by `project_note` definition key and validated with the
+ * administrator's rules; a `required` definition is enforced on every note
+ * create, also when none are sent. A message is not a custom-field host: a
+ * message with a non-empty bag is refused `422 VALIDATION_FAILED`.
+ */
 export const CreateProjectCommentBodySchema = z
-  .object({ kind: projectCommentKindSchema, body: commentBodySchema })
+  .object({
+    kind: projectCommentKindSchema,
+    body: commentBodySchema,
+    customFieldValues: customFieldValuesSchema.optional(),
+  })
   .strict();
 export type CreateProjectCommentBody = z.infer<typeof CreateProjectCommentBodySchema>;
 
-/** `PATCH /projects/:id/comments/:commentId` — a note, by its author; a message never changes. */
-export const UpdateProjectCommentBodySchema = z.object({ body: commentBodySchema }).strict();
+/**
+ * `PATCH /projects/:id/comments/:commentId` — a note, by its author; a message
+ * never changes. `customFieldValues` (issue #2005) are merged key by key into
+ * what the note holds; absent leaves them as they are.
+ */
+export const UpdateProjectCommentBodySchema = z
+  .object({ body: commentBodySchema, customFieldValues: customFieldValuesSchema.optional() })
+  .strict();
 export type UpdateProjectCommentBody = z.infer<typeof UpdateProjectCommentBodySchema>;
 
 /**
@@ -828,6 +845,8 @@ export const ProjectCommentSchema = z.object({
   references: z.array(RecordReferenceSchema),
   editedAt: isoTimestampSchema.nullable(),
   createdAt: isoTimestampSchema,
+  /** A note's `project_note` values (issue #2005); always `{}` on a message. */
+  customFieldValues: customFieldValuesSchema,
 });
 export type ProjectComment = z.infer<typeof ProjectCommentSchema>;
 
@@ -1296,6 +1315,8 @@ export interface ProjectNoteRecord {
   createdAt: Date;
   /** When its author last edited it; `null` for a note never edited. */
   editedAt: Date | null;
+  /** Its `project_note` custom-field values (issue #2005), every key as stored; `{}` for none. */
+  customFieldValues: Record<string, unknown>;
 }
 
 /** What `ProjectReadPort.listNotes` is asked. */
@@ -1458,7 +1479,11 @@ export interface ProjectCommandPort {
   /**
    * `POST /projects/:id/comments` — `projects.project.note_add` or
    * `.message_add`; answers the comment's id. Needs an administrator behind the
-   * call, who is its author.
+   * call, who is its author. A note's `customFieldValues` (issue #2005) are
+   * validated as the route validates them — the administrator's rules,
+   * `required` included —, refused `422 CUSTOM_FIELD_VALUE_INVALID`, and
+   * written with the note; on a message a non-empty bag is `422
+   * VALIDATION_FAILED`.
    */
   addComment(id: string, input: CreateProjectCommentBody, options?: AggregateCommandOptions): Promise<{ commentId: string }>;
   /** `DELETE /projects/:id` — `projects.project.delete`, refused while records are linked. */

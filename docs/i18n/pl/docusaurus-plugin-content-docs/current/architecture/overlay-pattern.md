@@ -16,11 +16,16 @@ rdzenia działa bez zmian.
   `backend/src/apps/<deployment>/modules/<id>/…`. Aktywne wdrożenie wybiera zmienna środowiskowa
   `DEPLOYMENT` w czasie budowania; jeśli nie jest ustawiona (albo wdrożenie nie ma katalogu
   nakładki), powstaje build samego rdzenia.
-- **Moduł nakładkowy jest właścicielem każdego pliku, który zawiera.** Żaden jego plik nie
-  przesłania, nie zastępuje ani nie rozszerza pliku innego modułu. Jego zawartość nie jest w żaden
-  sposób klasyfikowana i nie ma reguł, co wolno mu gdzie umieścić — to zwykły moduł, który po
-  prostu należy do jednego klienta. (Nie zawsze tak było; zobacz *Przesłanianie plików zostało
-  wycofane* poniżej).
+- **Moduł nakładkowy jest pełnoprawnym modułem i właścicielem każdego pliku, który zawiera.** Może
+  mieć własne tabele i migracje, publikować port dla innych modułów wdrożenia oraz dostarczać ekran
+  panelu administracyjnego z akcjami palety poleceń — pod tymi samymi zabezpieczeniami co pakiet
+  modułu. Żaden jego plik nie przesłania, nie zastępuje ani nie rozszerza pliku innego modułu; to
+  zwykły moduł, który po prostu należy do jednego klienta. (Nie zawsze tak było; zobacz
+  *Przesłanianie plików zostało wycofane* poniżej).
+- **Płaski i niebędący pakietem** — moduł jest bezpośrednim podkatalogiem `modules/` i nie ma
+  własnego `package.json`, `tsconfig*.json` ani konfiguracji bundlera. Dwa odrębne zakresy
+  odpowiedzialności to dwa sąsiednie moduły i zadeklarowana zależność; zobacz *Układ modułu
+  nakładkowego* poniżej.
 - **Jeden identyfikator, jeden właściciel** — jeśli identyfikator modułu nakładkowego jest już
   zajęty przez rdzeń, pakiet modułu w workspace, zainstalowany pakiet albo inny moduł nakładkowy,
   kompozycja kończy się błędem, który wskazuje plik każdego z modułów zgłaszających ten
@@ -56,14 +61,20 @@ wdrożenia referencyjnego to `backend/src/apps/`. W **instancji** — drzewie, k
   instalator. Bez tej wartości instancja startuje jako sama platforma i żaden z jej modułów
   nakładkowych nie zostaje złożony.
 - **Szkielet** — `pnpm exec endora new module <id> --name … --description …` tworzy tam moduł
-  nakładkowy: `manifest.ts`, `backend.ts` i oba pliki `i18n/`. Odrzuca, podając powód, flagi, które
-  żądają czegoś, czym moduł nakładkowy być nie może — tabeli (`--entities`), ekranu w panelu
-  administracyjnym (`--admin`, `--action`) czy opublikowanego portu (`--ports`). Konsumenta kolejki
-  albo subskrypcję zdarzenia dopisuje się ręcznie w `backend.ts`, przez `ctx.worker(…)` i
-  `ctx.subscribe(…)`.
-- **Bez kroku budowania** — Node wczytuje TypeScript modułu nakładkowego bezpośrednio, usuwając
-  typy, więc moduł pisze się w podzbiorze języka, który na to pozwala: bez `enum`, bez `namespace`
-  i bez właściwości deklarowanych w parametrach konstruktora.
+  nakładkowy: `manifest.ts`, `backend.ts` i oba pliki `i18n/`. `--entities` dodaje encję w
+  `entities/` i jej pierwszą migrację w `migrations/`; `--ports` dodaje `ports.ts` i wywołanie
+  `ctx.di.providePort`, które rejestruje port; `--admin` i `--action` dodają `admin/index.tsx`,
+  ekran i jego wpis w palecie poleceń. Odrzuca, podając powód, `--worker` i `--subscriber`: każde z
+  nich to jedno wywołanie w `backend.ts`, `ctx.worker(…)` albo `ctx.subscribe(…)`.
+  `pnpm exec endora new migration <id> --name <slug>` tworzy kolejną migrację modułu.
+- **Build** — `pnpm run build` uruchamia `endora build overlays`, które kompiluje `apps/` własnym
+  `tsc -p backend/tsconfig.apps.json` instancji do `backend/dist/apps` i kopiuje obok kodu katalog
+  `i18n/` każdego modułu; `pnpm run dev` robi to samo przy każdej zmianie. API, worker i każde
+  polecenie `module:*` uruchamiają skompilowany kod i najpierw porównują go z `apps/`: zmiana, której
+  nie przebudowano, moduł, którego nigdy nie zbudowano, albo skompilowany plik bez źródła
+  zatrzymują je, ze wskazaniem obu plików. `pnpm run typecheck` sprawdza kod nakładek z włączonym
+  `erasableSyntaxOnly`, więc pisz zwykły TypeScript: bez `enum`, bez `namespace` i bez właściwości
+  deklarowanych w parametrach konstruktora.
 - **Raport rozbieżności** — `pnpm run generate` zapisuje
   `apps/<deployment>/divergence.generated.md` i — już po zapisaniu raportu — kończy się kodem 1,
   dopóki wyprowadzona rozbieżność nie ma uzasadnienia w `divergence.ts` albo uzasadnienie opisuje
@@ -71,6 +82,9 @@ wdrożenia referencyjnego to `backend/src/apps/`. W **instancji** — drzewie, k
   przypadków nie przejdzie niezauważony.
 - **Cykl życia** — `pnpm run module:install <id>`, `module:enable`, `module:disable`,
   `module:uninstall` i `module:status` traktują moduł nakładkowy tak samo jak każdy inny.
+  `pnpm run migrate` wykonuje jego migracje, `module:status <id>` je wymienia, wyłączenie modułu
+  albo miękkie odinstalowanie zachowuje jego tabele i wiersze, a `module:uninstall --hard` je
+  wycofuje.
 
 Całość krok po kroku pokazuje [Utwórz swój pierwszy moduł](../create-your-first-module.md).
 
@@ -84,53 +98,91 @@ rozszerzenia nie przyjmuje ścieżki.
 | Zmienić działanie usługi rdzenia | `ctx.di.decorate('<name>', (inner) => …)` z własnego modułu nakładkowego wdrożenia — zobacz *Nadpisanie usługi to dekoracja* poniżej |
 | Dodać nową możliwość | moduł nakładkowy tylko dla tego klienta w `backend/src/apps/<deployment>/modules/<id>/`, zawierający `backend.ts` i `manifest.ts` |
 | Wykonać kod przed endpointem innego modułu lub po nim, zablokować go albo przepisać jego odpowiedź | `ctx.interceptors` |
+| Wziąć udział w zapisie, który właściciel zadeklarował jako dostępny dla hooków — dodać własny wiersz albo go odrzucić | hook polecenia, `ctx.commandHooks` |
+| Odrzucać albo mierzyć każde polecenie (Command), którego akcja pasuje do filtra | middleware poleceń, `ctx.commandMiddleware` — `admit` albo `observe`; zobacz *Przeniesienie wrappera szyny na middleware poleceń* poniżej |
 | Zmienić zachowanie, które właściciel przewidział jako zmienne | port strategii publikowany przez właściciela, rejestrowany przez `ctx.di.providePort` i odczytywany przez `lazyPort` |
 | Zmienić konfigurację | ustawienie zadeklarowane w manifeście, a `divergence.ts`, aby pominąć moduł |
-| Dodać tabele specyficzne dla klienta | dziś w instalowanym pakiecie modułu (w repozytorium platformy: w module z jej własnego drzewa), odczytywane z nakładki przez port tego modułu. Moduł nakładkowy jeszcze nie wnosi schematu, zobacz niżej |
+| Dodać tabele specyficzne dla klienta | własne tabele modułu nakładkowego: tabela poboczna, której jest właścicielem, albo zadeklarowane kolumny rozszerzające w rozszerzalnej tabeli rdzenia — zobacz *Moduł nakładkowy jest właścicielem swojego schematu* poniżej |
+| Współdzielić usługę między dwoma modułami wdrożenia | port, który właściciel rejestruje przez `ctx.di.providePort`, z typami w `ports.ts` właściciela |
 | **Zastąpić w całości handler trasy** | **Brak punktu rozszerzenia. Nie jest oferowane.** Zobacz *Jedyna rzecz bez punktu rozszerzenia* poniżej |
 
-## Moduł nakładkowy nie wnosi schematu
+## Moduł nakładkowy jest właścicielem swojego schematu {#an-overlay-module-owns-its-schema}
 
-Moduł nakładkowy wdrożenia wnosi rejestracje, trasy, dekoracje, interceptory, uprawnienia, pakiety
-tłumaczeń i18n oraz manifest. **Nie wnosi schematu**: ani klasy `@Entity()`, ani migracji.
+Od wydania 0.113.0 moduł nakładkowy wdrożenia może mieć własne encje i migracje, zarówno w
+instancji, jak i we własnym drzewie `apps/` repozytorium platformy. Wnosi je tak samo jak
+zainstalowany pakiet i obowiązują go te same reguły:
 
-Ta strona twierdziła kiedyś coś przeciwnego („dostarcz nowy schemat jako moduł nakładkowy tylko
-dla klienta, będący właścicielem własnych tabel”), a generator przez cały ten czas na to nie
-pozwalał.
+- **Encje** — `backend.ts` eksportuje `entities`, tablicę klas encji modułu, i każda klasa encji w
+  jego katalogu `entities/` musi się w niej znaleźć. Każda encja ma dokładnie jeden dekorator
+  tenantowy (`@OrgScoped`, `@CustomerScoped`, `@TransitivelyScoped`, `@RuleScoped` albo
+  `@GlobalEntity`), a dekoratory MikroORM importuje z `@mikro-orm/decorators/legacy`. Proces z encją
+  bez klasyfikacji nie startuje.
+- **Migracje** — katalog `migrations/` modułu, czytany plik po pliku: nie ma pliku indeksu ani
+  rejestru. Każdy plik ma nazwę `<YYYYMMDDTHHmmss>_<module>_<slug>.ts` i eksportuje jedną klasę,
+  której nazwa wynika z nazwy pliku. Kolejność łańcucha wyznaczają `dependencies` w manifeście
+  modułu, więc migracja odwołująca się do tabeli rdzenia wykonuje się po tej, która ją utworzyła.
+- **Zabezpieczenie przed zapisem do cudzego schematu, bez wyjątku** — migracja nakładki może
+  zapisywać wyłącznie tabele mapowane przez własne encje modułu, dokładnie tak jak migracja
+  zainstalowanego pakietu. Przynależność do wdrożenia nic tu nie zmienia.
+- **Kolumny rozszerzające** — moduł nakładkowy może zadeklarować `schemaExtensions` w rozszerzalnej
+  tabeli rdzenia, tak jak zainstalowany pakiet; zobacz
+  [Zadeklarowane kolumny rozszerzające](./schema-extensions.md).
+- **Przeniesienie zachowuje identyfikator** — moduł przeniesiony później z nakładki do pakietu
+  zachowuje identyfikator modułu, więc migracje, które baza danych już zapisała, nadal się
+  zgadzają.
 
-**Powodem nie jest kolejność migracji.** Ta strona podawała kiedyś taki powód — że kolejność
-wykonywania w rejestrze migracji ma sens „tylko dla stałego zbioru”, więc zbiór różny dla każdego
-wdrożenia nie ma jednej poprawnej kolejności, którą można zatwierdzić w repozytorium. Ten argument
-sprawdzono pomiarem i okazał się fałszywy: dodanie migracji modułu-liścia nie zmienia względnej
-kolejności żadnej istniejącej migracji, bo liść wnosi wyłącznie krawędzie zależności wychodzące od
-siebie. Argument wycofano; nie powtarzaj go.
+`apps/example/modules/example_erp_keys/` w repozytorium platformy to referencyjny moduł nakładkowy,
+który warto skopiować: tabela poboczna przy `organizations` z migracją, wypełniający ją hook
+polecenia, port w `ports.ts` oraz ekran panelu administracyjnego z akcją palety poleceń.
 
-**Ta reguła zostanie zniesiona.** Ta strona uzasadniała ją tym, że nakładka znajduje się w tym
-samym repozytorium i w tym samym buildzie co rdzeń, więc tabelę zawsze można dostarczyć w module
-rdzenia. W instancji to nie obowiązuje: instancja zależy od wydanych pakietów i nie ma drzewa
-rdzenia, w którym mogłaby umieścić tabelę, więc i to uzasadnienie wycofano. Jedno z kolejnych
-wydań czyni moduł nakładkowy pełnoprawnym modułem. Będzie on mógł mieć własne encje i migracje,
-publikować port oraz dostarczać ekrany panelu administracyjnego i akcje palety poleceń, zarówno w
-instancji, jak i we własnym drzewie `apps/` repozytorium platformy. Obowiązują go te same reguły co
-pakiet:
+**Powód, dla którego kiedyś tego odmawiano, wycofano.** Moduł nakładkowy nie wnosił kiedyś schematu,
+bo nakładka znajduje się w tym samym repozytorium i w tym samym buildzie co rdzeń, więc tabelę
+zawsze można dostarczyć w module rdzenia. W instancji to nie obowiązuje: instancja zależy od
+wydanych pakietów i nie ma drzewa rdzenia, w którym mogłaby umieścić tabelę. Drugi podawany
+kiedyś powód — że kolejność migracji ma sens „tylko dla stałego zbioru” — sprawdzono pomiarem i
+okazał się fałszywy: dodanie migracji modułu-liścia nie zmienia względnej kolejności żadnej
+istniejącej migracji. Nie powtarzaj żadnego z nich.
 
-- jego migracje przechodzą przez to samo zabezpieczenie przed zapisem do cudzego schematu co
-  migracje zainstalowanego pakietu, bez wyjątku z tego powodu, że należy do wdrożenia;
-- cały kod nakładek wdrożenia kompiluje jeden build; nie ma osobnego buildu, `package.json` ani
-  mapy `exports` dla każdego modułu;
-- moduł przeniesiony później z nakładki do pakietu zachowuje identyfikator modułu, więc migracje,
-  które baza danych już zapisała, nadal się zgadzają.
+**Nigdy nie jest oferowana** zmiana schematu innego modułu: kolumny, ograniczenia, indeksu ani
+klasy encji rdzenia nie da się nadpisać z modułu nakładkowego ani z żadnego innego miejsca. To
+opisuje [drabina danych](./customisation-ladder.md#the-data-ladder-where-new-data-lives).
 
-**Do tego wydania odmowa obowiązuje.** W instancji tabela potrzebna wdrożeniu trafia do
-instalowanego pakietu modułu, a moduł nakładkowy odczytuje ją przez port tego pakietu. Moduł
-nakładkowy zachowuje całą resztę: własne usługi, trasy, dekoracje i uprawnienia.
+## Układ modułu nakładkowego {#overlay-module-layout}
 
-**Pakiet rozszerzenia już może dostarczać schemat.** Autor pakietu zewnętrznego nie ma modułu
-rdzenia, w którym mógłby dostarczyć tabelę, więc dla pakietu ta reguła nie byłaby ograniczeniem do
-obejścia. Zakazywałaby całego programu pakietów rozszerzeń, a każda ich rodzina przechowuje stan.
-Pakiet ma więc własne encje i migracje. Platforma wykrywa je w czasie działania i uruchamia każdą
-migrację pakietu za zabezpieczeniem przed zapisem do cudzego schematu, które odrzuca zapis do
-tabeli niebędącej własnością pakietu.
+```text
+apps/<deployment>/
+├── divergence.ts                 # deklaracja wdrożenia (pisana ręcznie)
+├── divergence.generated.{ts,md}  # wyprowadzony raport
+└── modules/
+    └── <id>/                     # jeden moduł; <id> = identyfikator z manifestu
+```
+
+Kilka nazw w `<id>/` odczytuje coś innego niż sam moduł, więc są stałe:
+
+| Ścieżka | Kto ją odczytuje | Wymagana |
+| --- | --- | --- |
+| `manifest.ts` | loader, który po nim rozpoznaje moduł | tak |
+| `backend.ts` | loader: `registerModule`, `entities`, `schemaExtensions` | nie — moduł może nie mieć części serwerowej |
+| `i18n/en.json`, `i18n/pl.json` | `i18n.bundlesDir` w manifeście | gdy moduł ma jakąkolwiek etykietę |
+| `migrations/` | wykrywanie schematu, plik po pliku | gdy moduł ma własny schemat |
+| `admin/index.tsx` | build panelu administracyjnego wdrożenia | gdy moduł ma ekran w panelu |
+| `ports.ts` | sąsiedni moduł nakładkowy, wyłącznie przez `import type` | gdy moduł publikuje port |
+
+Cała reszta — `entities/`, `services/`, `hooks/`, `routes.ts` — to nazwy wybrane przez sam moduł.
+`manifest.ts` głębiej niż w `<id>/` jest odrzucany jako `nested-module`, a `package.json`,
+`tsconfig*.json` albo konfiguracja `tsup`, `vite` lub `vitest` wewnątrz modułu — jako
+`package-in-disguise`: cały kod nakładek wdrożenia kompiluje jeden projekt. Gdy moduł obejmuje dwa
+odrębne zakresy, utwórz dwa sąsiednie moduły i zadeklaruj zależność.
+
+**Między dwoma modułami nakładkowymi przechodzą tylko typy portów.** Moduł może importować
+`ports.ts` sąsiada, i nic poza nim, przez `import type`, gdy oba należą do tego samego wdrożenia,
+a `dependencies` w jego manifeście wymieniają sąsiada; port rozwiązuje wtedy przez `lazyPort`. Każdy
+inny import między dwoma modułami nakładkowymi jest odrzucany, ze wskazaniem każdego
+niespełnionego warunku.
+
+**Warstwa panelu administracyjnego jest per wdrożenie.** `admin/index.tsx` eksportuje te same
+`contributions` co warstwa `./admin` pakietu i trafia wyłącznie do buildu panelu własnego
+wdrożenia. Pokrycie palety poleceń i inwentarz uprawnień ocenia się dla tego wdrożenia.
 
 ## Nadpisanie usługi to dekoracja
 
@@ -211,9 +263,11 @@ jako `overlay: true` na podstawie katalogu, w którym moduł został znaleziony,
 `backend/src/apps/<deployment>/modules/`, więc rdzeń nie ma jak się pod niego podszyć, a
 `overlay:check` kończy się błędem przy ręcznie poprawionym artefakcie.
 
-**Wyjątek nie obejmuje zainstalowanych pakietów rozszerzeń.** Nakładka może opakować wszystko, co
-rejestruje rdzeń albo inny moduł tego samego wdrożenia, ale nie może opakować rejestracji należącej
-do pakietu zainstalowanego z `node_modules` — kompozycja odrzuca to błędem
+**Wyjątek nie obejmuje zainstalowanych pakietów rozszerzeń ani zabezpieczeń szyny.** Nakładka
+może opakować wszystko, co rejestruje rdzeń albo inny moduł tego samego wdrożenia, oraz każdą
+nazwę dostarczaną przez composition root (`redis`, `orm`, `requireAdmin`, …) — z wyjątkiem
+czterech punktów zabezpieczeń opisanych niżej. Nie może opakować rejestracji należącej do pakietu
+zainstalowanego z `node_modules` — kompozycja odrzuca to błędem
 `PackageDecorationNotOfferedError`, który wskazuje nakładkę, pakiet i rejestrację. Powód: nie ma
 kontraktu, *względem* którego można napisać opakowanie. Mapa `exports` pakietu publikuje
 `registerModule`, encje, migracje i `./ports`, ale żadna z tych ścieżek nie publikuje nazw, pod
@@ -225,6 +279,20 @@ oferowane”), a nie *forbidden* („zabronione”), i wskazuje wyjście: pakiet
 rejestracji można dekorować, najlepiej w `./ports`, gdzie zmiana kształtu wymaga podniesienia
 wersji głównej. Do tego czasu poproś autora pakietu o port lub zdarzenie albo użyj interceptora na
 jego trasach.
+
+**Czterech punktów zabezpieczeń nie da się dekorować od wydania 0.114.0.** `commandBus`,
+`auditLogService`, `eventBus` i `emFactory` to nazwy, przez które egzekwuje się izolację tenantów
+i audyt zapisów. Dekoracja jednej z nich przez nakładkę jest **przestarzała w 0.113.0** — nadal się
+składa, raz zapisuje w logu `kernel.decoration.deprecated` i jest ostrzeżeniem
+`deprecated-decoration` w raporcie rozbieżności — a **od 0.114.0 jest odrzucana**. Każda ma
+zamiennik:
+
+| Zamiast dekorować | Użyj |
+| --- | --- |
+| `commandBus` | middleware poleceń: `admit`, aby odrzucić, `observe`, aby mierzyć; hook polecenia dla jednej zadeklarowanej akcji |
+| `auditLogService` | middleware `observe` dla dodatkowego odbiorcy albo odczyt `audit_log_entries` dla trwałego; samego zapisu audytu nie da się zastąpić |
+| `eventBus` | `ctx.subscribe`, aby zareagować; hook `afterCommit` dla trwałego dostarczenia |
+| `emFactory` | nic — zawężania do tenanta nie da się nadpisać; poproś moduł właściciela o port |
 
 Dekoracje są **stosowane dopiero po zarejestrowaniu się wszystkich modułów**, a nie w chwili
 wywołania. Z której listy moduł został złożony, nie ma więc wpływu na to, co może opakować, a
@@ -266,10 +334,10 @@ dostaje ciszę.
 
 Wraz z mechanizmem wycofano odmowy: **Conflict** (dwie nakładki na ten sam element rdzenia),
 **Unknown target** (plik nakładki bez odpowiednika w rdzeniu) i **Schema override** (plik nakładki w
-`entities/` albo `migrations/` modułu rdzenia). Sama reguła dotycząca schematu *nie* została
-wycofana — moduł nakładkowy nadal nie wnosi schematu, a próba jest odrzucana, a nie ignorowana: w
-tym repozytorium przez `generate-composer.ts`, a w instancji przez polecenia wymienione niżej, w
-sekcji *Zabezpieczenia odmawiające w razie wątpliwości*.
+`entities/` albo `migrations/` modułu rdzenia). To, czemu służyła ostatnia z nich, *nie* zostało
+wycofane: żadna nakładka nie zmienia schematu innego modułu. Własne `entities/` i `migrations/`
+modułu nakładkowego to jego własny schemat, pilnowany przez zabezpieczenie przed zapisem do
+cudzego schematu — zobacz *Moduł nakładkowy jest właścicielem swojego schematu* wyżej.
 
 **Dlaczego mechanizmu nie naprawiono, tylko wycofano.** Przesłonięcie pliku wewnątrz
 opublikowanego pakietu nie jest spójną operacją. Platforma składa moduł przez
@@ -306,12 +374,21 @@ niczego po cichu — gdy wystąpi:
 - **Kolizja identyfikatora modułu** — moduł nakładkowy zgłasza identyfikator zajęty już przez
   rdzeń, pakiet modułu w workspace, zainstalowany pakiet albo inny moduł nakładkowy. Komunikat
   wskazuje plik każdego z nich.
-- **Schemat w nakładce** — klasa `@Entity()` albo migracja w `backend/src/apps/`, odrzucana przez
-  `generate-composer.ts`. W instancji katalog `migrations/` lub `entities/` albo klasę `@Entity()`
-  w `apps/<deployment>/modules/` odrzucają — wskazując każdy plik i sposób naprawy —
-  `pnpm run generate`, `pnpm run migrate`, każde polecenie `module:*` oraz API i worker przy
-  starcie. Nawet w drzewie, w którym nigdy nie uruchomiono `generate`, nie da się więc złożyć
-  modułu korzystającego z nieistniejącej tabeli.
+- **Układ** — manifest zagnieżdżony głębiej w module (`nested-module`) albo `package.json` lub
+  konfiguracja buildu wewnątrz modułu (`package-in-disguise`), odrzucane przez build nakładek i
+  każdy proces, który rozwiązuje moduły nakładkowe, ze wskazaniem pliku i sposobu naprawy.
+- **Nieaktualny build** — skompilowany kod nakładek niezgodny z `apps/`: zmiana, której nie
+  przebudowano (`stale`), moduł, którego nigdy nie zbudowano (`unbuilt`), skompilowany plik bez
+  źródła (`orphan`). API, worker i każde polecenie `module:*` odmawiają wtedy startu.
+- **Encja bez klasyfikacji** — encja nakładki bez dekoratora tenantowego albo z więcej niż jednym
+  zatrzymuje każdy proces konfigurujący ORM, zanim otworzy połączenie. Tak samo klasa encji w
+  `entities/`, której brakuje w eksporcie `entities` modułu, oraz plik migracji, którego nazwa,
+  klasa albo segment modułu do siebie nie pasują.
+- **Zapis do cudzej tabeli** — migracja nakładki dotykająca tabeli, której nie mapują jej własne
+  encje, odrzucana przy `migrate` przez zabezpieczenie przed zapisem do cudzego schematu.
+- **Import między modułami nakładkowymi** — cokolwiek innego niż `import type` z `ports.ts`
+  sąsiada, od którego manifest importującego zależy; zgłaszane przez `check:module-boundary` w tym
+  repozytorium i przez `pnpm run generate` w instancji.
 - **Brak manifestu** — katalog modułu nakładkowego bez `manifest.js`/`manifest.ts`. Komunikat
   wymienia obie nazwy.
 - **Backend bez rejestracji** — moduł nakładkowy, którego `backend.js`/`backend.ts` nie eksportuje
@@ -323,19 +400,149 @@ niczego po cichu — gdy wystąpi:
   właścicielem.
 - **Dekoracja pakietu** — nakładka dekoruje rejestrację należącą do zainstalowanego pakietu
   rozszerzenia; to jeszcze nie jest oferowane i komunikat odmowy to mówi.
+- **Dekoracja punktu zabezpieczeń** — nakładka dekoruje `commandBus`, `auditLogService`,
+  `eventBus` albo `emFactory`: ostrzeżenie w 0.113.0, odmowa od 0.114.0.
 
 ## Zabezpieczenia nadal obowiązują
 
 Dekoracja opakowuje *implementację*, nigdy punkt, w którym działa zabezpieczenie: kod nakładki
 podlega tej samej izolacji tenantów, temu samemu zawężaniu do kanału sprzedaży i temu samemu
-audytowi przez Command Bus co rdzeń. Moduły nakładkowe są zwykłymi uczestnikami cyklu życia —
-muszą rejestrować swoje uprawnienia i przejść kontrolę inwentarza uprawnień w każdym wdrożeniu.
+audytowi przez Command Bus co rdzeń, a zachowanie przekrojowe dla poleceń wnosi się jako
+zadeklarowane middleware poleceń. Moduły nakładkowe są zwykłymi uczestnikami cyklu życia — muszą
+rejestrować swoje uprawnienia i przejść kontrolę inwentarza uprawnień w każdym wdrożeniu.
+
+To, co moduł nakładkowy może wnieść do cudzych modułów, wynika z **miejsca, w którym platforma go
+znalazła**, a nigdy z tego, co sam deklaruje: ma pochodzenie `deployment`, bo loader wykrył go w
+`apps/<deployment>/modules/`, niezależnie od tego, czy ma własną tabelę. To pochodzenie może
+wnieść middleware poleceń `admit`, czego zainstalowany pakiet rozszerzenia (pochodzenie
+`package`) zrobić nie może.
+
+## Przeniesienie wrappera szyny na middleware poleceń {#moving-a-bus-wrap-to-command-middleware}
+
+Wdrożenie, które mierzyło lub ograniczało częstotliwość zapisów, opakowując `commandBus`,
+przenosi to opakowanie na middleware poleceń przed wydaniem 0.114.0. Przed — jedna dekoracja,
+która robi obie rzeczy:
+
+```ts
+// apps/acme/modules/acme_write_limits/backend.ts — przestarzałe w 0.113.0, odrzucane od 0.114.0
+ctx.di.decorate<Bus>('commandBus', (inner) => ({
+  ...inner,
+  async run(command) {
+    if (overLimit(command)) throw new HttpError(429, 'RATE_LIMITED', 'Too many writes');
+    const started = performance.now();
+    try { return await inner.run(command); }
+    finally { metrics.observe(command.action, performance.now() - started); }
+  },
+}));
+```
+
+Widziała tylko polecenie przekazane do `run`, nigdy poleceń podrzędnych, które ono uruchamia;
+działała dalej, gdy jej moduł był wyłączony; a nic dalej nie potrafiło odróżnić jej odmowy od
+nieudanego zapisu. Po — to samo zachowanie jako dwa zadeklarowane middleware, a dekoracja
+usunięta. Manifest deklaruje oba, z ich filtrami:
+
+```ts
+// apps/acme/modules/acme_write_limits/manifest.ts
+export const acmeWriteLimitsErrorCodes = defineModuleErrorCodes(['ACME_WRITE_LIMITS_RATE_LIMITED']);
+
+export const manifest = defineModuleManifest({
+  id: 'acme_write_limits',
+  // …
+  errorCodes: [{ code: 'ACME_WRITE_LIMITS_RATE_LIMITED' }],
+  commandMiddleware: [
+    { id: 'quote-rate-limit', phase: 'admit', actions: ['quote_request.create'] },
+    { id: 'write-metrics', phase: 'observe', actions: '*' },
+  ],
+});
+```
+
+a `backend.ts` rejestruje kod pod tymi samymi identyfikatorami i fazami:
+
+```ts
+// apps/acme/modules/acme_write_limits/backend.ts
+import { CommandRefusedError } from '@endora-commerce/platform/commands';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { acmeWriteLimitsErrorCodes } from './manifest.js';
+
+export function registerModule(ctx: ModuleContext): void {
+  ctx.commandMiddleware([
+    {
+      id: 'quote-rate-limit',
+      phase: 'admit',
+      admit: (meta) => {
+        if (meta.organizationId !== null && overLimit(meta.organizationId)) {
+          throw new CommandRefusedError(acmeWriteLimitsErrorCodes.ACME_WRITE_LIMITS_RATE_LIMITED, {
+            status: 429,
+            retryAfterSeconds: 60,
+          });
+        }
+      },
+    },
+    {
+      id: 'write-metrics',
+      phase: 'observe',
+      observe: (outcome) => {
+        metrics.observe(outcome.root.action, outcome.committed, outcome.durationMs);
+      },
+    },
+  ]);
+}
+```
+
+- **`admit`** działa, zanim polecenie cokolwiek zrobi — przed otwarciem transakcji — i także dla
+  pasującego polecenia podrzędnego. Dostaje wyłącznie metadane (akcję, obiekt, wykonawcę,
+  organizację, identyfikator żądania, pochodzenie w łańcuchu poleceń) i może jedynie przepuścić
+  polecenie albo rzucić `CommandRefusedError` z kodem zadeklarowanym przez moduł. Odrzucone
+  polecenie niczego nie zapisuje i nie tworzy wpisu w dzienniku audytu; wywołujący dostaje kod i
+  status. Ma limit czasu (domyślnie 100 ms, najwyżej 500 ms), a po jego przekroczeniu odmawia.
+- **`observe`** działa po zatwierdzeniu albo wycofaniu przebiegu i piszący nigdy na nie nie czeka.
+  Dostaje wynik — czy zatwierdzono, kod odmowy lub błędu, czas trwania i każde polecenie, którego
+  przebieg próbował — jako identyfikatory, kody i wartości logiczne, i niczego nie może zmienić.
+  Wyjątek rzucony w nim trafia do logu i jest pomijany.
+- Oba są pomijane, gdy ich moduł jest wyłączony, i oba pojawiają się w raporcie rozbieżności jako
+  `command-middleware`. Dwa moduły wdrożenia z nakładającymi się filtrami `admit` i bez zależności
+  między nimi porządkuje się w `divergence.ts` (`commandMiddlewareOrder`), w przeciwnym razie
+  kompozycja odmawia.
+
+`apps/example/modules/example_overlay/backend.ts` w repozytorium platformy rejestruje middleware
+`observe` w tym kształcie:
+
+<!-- verbatim-from: backend/src/apps/example/modules/example_overlay/backend.ts -->
+```ts
+ctx.commandMiddleware([
+  {
+    id: 'organization-timing',
+    phase: 'observe',
+    observe: (outcome, { log }) => {
+      log.info(
+        {
+          root: outcome.root.action,
+          committed: outcome.committed,
+          errorCode: outcome.errorCode,
+          commands: outcome.commands.length,
+          durationMs: Math.round(outcome.durationMs * 10) / 10,
+        },
+        'example_overlay.organization-timing',
+      );
+    },
+  },
+]);
+```
+
+:::note Polecenia operatora nie uruchamiają middleware
+Command Bus, który polecenie operatora buduje dla siebie poza aplikacją — dziś polecenia cyklu
+życia rozszerzeń schematu — **nie uruchamia middleware poleceń ani hooków poleceń**. Jego
+polecenia nadal są audytowane. `admit` to biznesowa bramka reguł dla ścieżek aplikacji; nie
+polegaj na nim, aby zatrzymać polecenie serwisowe uruchomione przez kogoś z dostępem do powłoki i
+bazy danych.
+:::
 
 ## Dodawanie nakładki
 
 ```bash
 # 1. Dodaj moduł nakładkowy wdrożenia (zawiera backend.ts, nigdy plugin.ts):
 #    backend/src/apps/acme/modules/acme_loyalty/{manifest,backend}.ts
+#    — z entities/ i migrations/, jeśli ma własną tabelę
 
 # 2. Nadpisz usługę rdzenia w jego registerModule, po nazwie rejestracji:
 #    ctx.di.decorate('pricingService', (inner) => wrap(inner))

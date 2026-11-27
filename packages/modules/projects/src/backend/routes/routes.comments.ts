@@ -70,7 +70,7 @@ export async function registerCommentRoutes(app: FastifyInstance, deps: CommentR
     async (request) => {
       const body = UpdateProjectCommentBodySchema.parse(request.body);
       return {
-        data: await comments.update(request.params.id, request.params.commentId, body.body),
+        data: await comments.update(request.params.id, request.params.commentId, body.body, body.customFieldValues),
       };
     },
   );

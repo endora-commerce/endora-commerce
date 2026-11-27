@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  CatalogCategoryCommandPort,
   CatalogCategoryReadPort,
-  CatalogCategoryWritePort,
   CatalogProductReadPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -50,11 +50,13 @@ export class ThresholdAdminService {
     /** `catalogCategoryReadPort`, owned by `catalog` (feature 075, Phase C). */
     private readonly catalogCategories: CatalogCategoryReadPort,
     /**
-     * `catalogCategoryWritePort`, owned by `catalog`. The per-category half of
-     * these thresholds lives in three columns on `catalog`'s `categories` row,
-     * so the write belongs to `catalog` and this module hands it the patch.
+     * `catalogCategoryCommandPort`, owned by `catalog` (`specs/186-aggregate-ports/`
+     * US8). The per-category half of these thresholds lives in three columns on
+     * `catalog`'s `categories` row, so the write — and its audit entry,
+     * `category.inventory_thresholds.set` — belongs to `catalog`, and this module
+     * hands it the patch.
      */
-    private readonly catalogCategoryWrites: CatalogCategoryWritePort,
+    private readonly catalogCategoryCommands: CatalogCategoryCommandPort,
     /** `catalogProductReadPort`, owned by `catalog` — the per-product existence check. */
     private readonly catalogProducts: CatalogProductReadPort,
     private readonly auditLog?: AuditPort,
@@ -131,7 +133,7 @@ export class ThresholdAdminService {
     await em.flush();
     if (input.perCategory) {
       for (const c of input.perCategory) {
-        await this.catalogCategoryWrites.setInventoryThresholds(c.categoryId, {
+        await this.catalogCategoryCommands.setInventoryThresholds(c.categoryId, {
           ...(c.high !== undefined ? { high: c.high } : {}),
           ...(c.medium !== undefined ? { medium: c.medium } : {}),
           ...(c.low !== undefined ? { low: c.low } : {}),
@@ -142,12 +144,17 @@ export class ThresholdAdminService {
 
     // Feature 024 — audit threshold patches as a single
     // `low_stock_threshold.update` row per request. Bulk patches across
-    // global / perCategory / perProduct collapse into one summary row so
-    // the dashboard isn't flooded (FR-011, SC-010).
-    if (this.auditLog && auditCtx) {
+    // global / perProduct collapse into one summary row so the dashboard
+    // isn't flooded (FR-011, SC-010).
+    //
+    // `specs/186-aggregate-ports/` US8 (research R-20.3) — the summary covers
+    // this module's own settings only. Each category's thresholds are audited
+    // by `catalog`, the columns' owner, as `category.inventory_thresholds.set`,
+    // so counting them here too would record one change twice; a patch that
+    // touches nothing but categories records no summary row.
+    if (this.auditLog && auditCtx && (input.global || input.perProduct)) {
       const touched: Record<string, unknown> = {};
       if (input.global) touched['global'] = input.global;
-      if (input.perCategory) touched['perCategoryCount'] = input.perCategory.length;
       if (input.perProduct) touched['perProductCount'] = input.perProduct.length;
       await this.auditLog.record({
         actorAdminUserId: auditCtx.actorAdminUserId,

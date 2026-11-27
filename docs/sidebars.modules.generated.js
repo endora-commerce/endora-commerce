@@ -138,6 +138,7 @@ const modules = [
       'modules/catalog/product-links',
       'modules/catalog/per-channel-per-language-overrides',
       'modules/catalog/url-keys-and-redirects',
+      'modules/catalog/category-server-side-writes',
       'module-reference/catalog',
     ],
   },

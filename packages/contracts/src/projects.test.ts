@@ -337,6 +337,23 @@ describe('§2.4 collaboration', () => {
     rejects(projects.UpdateProjectCommentBodySchema, { kind: 'message', body: 'x' });
   });
 
+  it('a note carries custom-field values on create and edit, and answers them (issue #2005)', () => {
+    accepts(projects.CreateProjectCommentBodySchema, { kind: 'note', body: 'Met.', customFieldValues: { type: 'call' } });
+    rejects(projects.CreateProjectCommentBodySchema, { kind: 'note', body: 'Met.', customFieldValues: 'call' });
+    accepts(projects.UpdateProjectCommentBodySchema, { body: 'Edited.', customFieldValues: { type: 'meeting' } });
+    const comment = {
+      id: UUID_A,
+      kind: 'note',
+      author: { id: UUID_A, name: 'Ada' },
+      body: 'Met.',
+      references: [],
+      editedAt: null,
+      createdAt: '2026-11-27T10:00:00.000Z',
+    };
+    rejects(projects.ProjectCommentSchema, comment);
+    accepts(projects.ProjectCommentSchema, { ...comment, customFieldValues: {} });
+  });
+
   it('read marker: names a message', () => {
     accepts(projects.MarkProjectMessagesReadBodySchema, { throughMessageId: UUID_A });
     rejects(projects.MarkProjectMessagesReadBodySchema, { throughMessageId: '2026-10-26T10:00:00Z' });

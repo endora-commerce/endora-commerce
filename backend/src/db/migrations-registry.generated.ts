@@ -190,6 +190,7 @@ import { Migration20261027T020030CrmOpportunityReferenceDocuments } from '@endor
 import { Migration20261028T143444CrmOpportunityReferenceKinds } from '@endora-commerce/mod-crm/migrations';
 import { Migration20261109T163616CrmOpportunityValueChanges } from '@endora-commerce/mod-crm/migrations';
 import { Migration20261122T074243CrmOpportunityListSavedViews } from '@endora-commerce/mod-crm/migrations';
+import { Migration20261127T091624CrmOpportunityCommentCustomFieldValues } from '@endora-commerce/mod-crm/migrations';
 
 // ── currencies ──────────────────────────────────────────────────────────────
 import { Migration20261117T065542CurrenciesTable } from '@endora-commerce/mod-currencies/migrations';
@@ -399,6 +400,7 @@ import { Migration20261114T145439ProjectsStageAlertInterrupted } from '@endora-c
 import { Migration20261114T153132ProjectsConfigurationVersions } from '@endora-commerce/mod-projects/migrations';
 import { Migration20261122T074256ProjectsListSavedViews } from '@endora-commerce/mod-projects/migrations';
 import { Migration20261125T124200ProjectsMergePointer } from '@endora-commerce/mod-projects/migrations';
+import { Migration20261127T091628ProjectsCommentCustomFieldValues } from '@endora-commerce/mod-projects/migrations';
 
 // ── promotions ──────────────────────────────────────────────────────────────
 import { Migration20260505T074605PromotionsCriteria } from '@endora-commerce/mod-promotions/migrations';
@@ -651,6 +653,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('crm', Migration20261028T143444CrmOpportunityReferenceKinds),
   migration('crm', Migration20261109T163616CrmOpportunityValueChanges),
   migration('crm', Migration20261122T074243CrmOpportunityListSavedViews),
+  migration('crm', Migration20261127T091624CrmOpportunityCommentCustomFieldValues),
 
   // ── currencies ──────────────────────────────────────────────────────────────
   migration('currencies', Migration20261117T065542CurrenciesTable),
@@ -860,6 +863,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('projects', Migration20261114T153132ProjectsConfigurationVersions),
   migration('projects', Migration20261122T074256ProjectsListSavedViews),
   migration('projects', Migration20261125T124200ProjectsMergePointer),
+  migration('projects', Migration20261127T091628ProjectsCommentCustomFieldValues),
 
   // ── promotions ──────────────────────────────────────────────────────────────
   migration('promotions', Migration20260505T074605PromotionsCriteria),

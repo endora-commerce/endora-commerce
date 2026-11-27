@@ -105,13 +105,16 @@ describe('crm init migration', () => {
           and column_name = 'custom_field_values'`,
     );
     expect(found).toEqual([{ data_type: 'jsonb', is_nullable: 'NO', column_default: `'{}'::jsonb` }]);
-    // The bag is the host row's own column: no other CRM table gained one.
-    const elsewhere = await rows<{ table_name: string }>(
-      `select table_name from information_schema.columns
+    // The bag is each host row's own column: besides the opportunity, only a note
+    // (`opportunity_note`, issue #2005) gained one — on its own table, with the same shape.
+    const elsewhere = await rows<{ table_name: string; data_type: string; is_nullable: string; column_default: string | null }>(
+      `select table_name, data_type, is_nullable, column_default from information_schema.columns
         where table_schema = current_schema() and table_name like 'crm\\_%'
           and column_name = 'custom_field_values' and table_name <> 'crm_opportunities'`,
     );
-    expect(elsewhere).toEqual([]);
+    expect(elsewhere).toEqual([
+      { table_name: 'crm_opportunity_comments', data_type: 'jsonb', is_nullable: 'NO', column_default: `'{}'::jsonb` },
+    ]);
   });
 
   it('creates the opportunity number sequence', async () => {

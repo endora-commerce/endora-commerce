@@ -230,9 +230,31 @@ describe('§6 notes and messages', () => {
     rejects(crm.CreateOpportunityCommentRequestSchema, { kind: 'note', body: 'x'.repeat(10_001) });
   });
 
-  it('update: carries the body only', () => {
+  it('update: carries the body, and optionally the note\'s custom-field values', () => {
     accepts(crm.UpdateOpportunityCommentRequestSchema, { body: 'Corrected.' });
     rejects(crm.UpdateOpportunityCommentRequestSchema, { body: '' });
+    // Issue #2005 — a note is a custom-field host.
+    accepts(crm.UpdateOpportunityCommentRequestSchema, { body: 'Corrected.', customFieldValues: { type: 'call' } });
+    rejects(crm.UpdateOpportunityCommentRequestSchema, { body: 'Corrected.', customFieldValues: 'call' });
+  });
+
+  it('create: carries custom-field values beside the body (issue #2005)', () => {
+    accepts(crm.CreateOpportunityCommentRequestSchema, { kind: 'note', body: 'Met.', customFieldValues: { type: 'call' } });
+    rejects(crm.CreateOpportunityCommentRequestSchema, { kind: 'note', body: 'Met.', customFieldValues: ['call'] });
+  });
+
+  it('a comment answers its custom-field values (issue #2005)', () => {
+    const comment = {
+      id: UUID_A,
+      kind: 'note',
+      author: { id: UUID_A, name: 'Ada' },
+      body: 'Met.',
+      references: [],
+      editedAt: null,
+      createdAt: '2026-11-27T10:00:00.000Z',
+    };
+    rejects(crm.OpportunityCommentSchema, comment);
+    accepts(crm.OpportunityCommentSchema, { ...comment, customFieldValues: { type: 'call' } });
   });
 });
 
