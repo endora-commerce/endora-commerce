@@ -292,6 +292,47 @@ describe('customer.custom_fields.update is hookable', () => {
   });
 });
 
+describe('a no-op write still runs its hooks once (no stale-retry branch)', () => {
+  // Neither update Command answers `skipAudit` or retries: a save that changes
+  // nothing records its entry, as it always did, and so runs each hook once
+  // with empty change lists. The bus runs hooks on a `skipAudit` outcome too,
+  // so a stale-and-retry branch would double them; there is none here.
+  it('customer_account.update_profile with an unchanged patch', async () => {
+    const recording = recordingCommandHooks();
+    const h = harness([
+      { moduleId: HOOK_MODULE, entries: [recording.on(ACCOUNTS.updateProfile), afterCommitEntry(ACCOUNTS.updateProfile)] },
+    ]);
+    const account = seedAccount(h.em);
+
+    await asAdmin(() => h.port.updateProfile(account.id, { firstName: S.firstName }));
+
+    expect(recording.calls).toHaveLength(1);
+    expect((recording.calls[0]!.data as CustomerAccountUpdateHookData).changedFields).toEqual([]);
+    expect(h.outbox()).toHaveLength(1);
+    expect(h.audits).toHaveLength(1);
+  });
+
+  it('customer.custom_fields.update with a merge that changes nothing', async () => {
+    const recording = recordingCommandHooks();
+    const h = harness([
+      {
+        moduleId: HOOK_MODULE,
+        entries: [recording.on(ACCOUNTS.customFieldsUpdate), afterCommitEntry(ACCOUNTS.customFieldsUpdate)],
+      },
+    ]);
+    const account = seedAccount(h.em);
+
+    await asAdmin(() => h.port.setCustomFieldValues(account.id, async (current) => current));
+
+    expect(recording.calls).toHaveLength(1);
+    expect((recording.calls[0]!.data as CustomerAccountUpdateHookData).changedCustomFields).toEqual([]);
+    expect(h.outbox().map((row) => row['data'])).toEqual([
+      { customerAccountId: account.id, organizationId: ORG, changedFields: [], changedCustomFields: [] },
+    ]);
+    expect(h.audits).toHaveLength(1);
+  });
+});
+
 describe('customerAccountCommandPort forwards extensions (193 T003)', () => {
   const cases: ReadonlyArray<{
     name: string;
