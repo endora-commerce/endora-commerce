@@ -95,6 +95,12 @@ describe('migration:new resolves a module wherever it lives (spawned over a spli
     expect(result.output).toContain(
       `packages/modules/${PACKAGED_MODULE}/src/migrations/${filename}`,
     );
+    expect(result.output).toContain('Register it, and commit every file the step below writes:');
+    expect(result.output).toContain(
+      `Add ${classNameFromFile(filename)} to packages/modules/${PACKAGED_MODULE}/src/migrations/index.ts — to the \`migrations\``,
+    );
+    expect(result.output).toContain('pnpm --filter backend run composer:generate');
+    expect(result.output).toContain('An unregistered migration does not run —');
     // `backend/src/modules/<id>/migrations` is where this went before the
     // repair, and the packaged module reads nothing there.
     expect(
@@ -115,6 +121,9 @@ describe('migration:new resolves a module wherever it lives (spawned over a spli
     const written = readdirSync(directory).filter((name) => name.includes(PROBE_SLUG));
     expect(written).toEqual([expect.stringMatching(/^\d{8}T\d{6}_core_scaffold_roots_probe\.ts$/)]);
     expect(result.output).toContain(`packages/platform/src/migrations/${written[0]!}`);
+    expect(result.output).toContain('Register it, and commit every file the step below writes:');
+    expect(result.output).toContain('pnpm --filter backend run composer:generate');
+    expect(result.output).toContain('An unregistered migration does not run —');
     // And not where it used to go: a scaffolder that fell back would write a
     // file into a directory the generator no longer walks, and an unregistered
     // migration does not run.
@@ -144,6 +153,12 @@ describe('migration:new resolves a module wherever it lives (spawned over a spli
     // Read at runtime under `DEPLOYMENT=example`, so nothing is regenerated
     // into the bare-core registry for it (D-104).
     expect(result.output).toContain('DEPLOYMENT=example');
+    expect(result.output).toContain('It is an overlay migration: the platform reads it from this directory at');
+    expect(result.output).toContain('bare-core registry for it (D-104). The generator still validates its file and');
+    expect(result.output).toContain('pnpm --filter backend run composer:generate');
+    expect(result.output).not.toContain('Register it, and commit every file the step below writes:');
+    expect(result.output).not.toContain('An unregistered migration does not run —');
+    expect(result.output).not.toContain('test/unit/db/migrations-registry.test.ts');
   });
 
   it('refuses an unknown id and names the real modules, not core alone', () => {
