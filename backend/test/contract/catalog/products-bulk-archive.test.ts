@@ -122,6 +122,7 @@ describe('POST /products/bulk-update — fields.archived (spec 163, T156k)', () 
         const audits = await h.em().fork().find(AuditLogEntry, { action: 'product.archive', objectId: id });
         expect(audits).toHaveLength(1);
         expect(await h.em().fork().find(AuditLogEntry, { action: 'product.update', objectId: id })).toHaveLength(0);
+        expect(await h.em().fork().find(AuditLogEntry, { action: 'product.bulk_update.item', objectId: id })).toHaveLength(0);
         expect(events.seen.filter((e) => e.productId === id)).toEqual([
           { name: 'product.updated.v1', productId: id, changedFields: ['archivedAt'] },
           { name: 'product.archived.v1', productId: id },

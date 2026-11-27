@@ -450,7 +450,8 @@ export function withoutUnchangedCells(state: ScopedProductState, plan: ScopedSav
   return { scope: plan.scope, cells, changedFields: [...new Set(cells.map((cell) => changedFieldOf(cell)))] };
 }
 
-const opValue = (op: ScopedWriteOp<unknown>): unknown => (op.op === 'set' ? op.value : op.op === 'empty' ? null : { inherit: true });
+/** The value a planned write leaves at its scope: the value, `null` for an empty override, `{ inherit: true }` for a removed one. */
+export const opValue = (op: ScopedWriteOp<unknown>): unknown => (op.op === 'set' ? op.value : op.op === 'empty' ? null : { inherit: true });
 
 /** The audit `before` / `after` (§3 step 9): `cells` keyed `field@scope`, and the re-applicable `changes` body. */
 export function auditStates(

@@ -626,6 +626,7 @@
   "errors.URL_KEY_REDIRECT_TAKEOVER_REQUIRED": "This URL key still redirects to another product. Confirm that you want to take it over; the other product will lose that redirect.",
   "errors.URL_REDIRECT_NOT_FOUND": "This redirect no longer exists. Refresh the page to see the product's current redirects.",
   "auditLog.product.update": "Product updated",
+  "auditLog.product.bulk_update.item": "Product updated by a bulk edit",
   "auditLog.product.archive": "Product archived",
   "auditLog.product.restore": "Product restored",
   "auditLog.product.scopes.update": "Product settings per sales channel updated",

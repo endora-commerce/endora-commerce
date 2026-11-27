@@ -227,8 +227,13 @@ the retention sweep has reached a deleted account.
   audit entry beside the actor. Any other value is refused with `422
   VALIDATION_FAILED` before anything is read or written.
 - `expectedVersion` — ignored: an account has no version.
-- `extensions` — input for command hooks on the action. No account action is
-  declared hookable yet, so any key is refused with `422
+- `extensions` — input for command hooks on the action, keyed by the hook's
+  module id. Three actions are hookable, both before and after the commit:
+  `customer_account.create` (`create`), `customer_account.update_profile`
+  (`updateProfile`) and `customer.custom_fields.update`
+  (`setCustomFieldValues`); their refs are `CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS`
+  in `@endora-commerce/contracts`. A key that no present hook module claims on
+  the action — on any other method, every key — is refused with `422
   COMMAND_EXTENSION_UNCLAIMED` before anything is written.
 
 **Not on the port.** Moving an account to another Organization (the

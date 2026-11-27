@@ -82,6 +82,7 @@ import type {
   DivergenceReport,
 } from '@endora-commerce/contracts';
 
+import { formOverrideDeclarationsIn, presentationOnly } from './admin-forms.js';
 import { commandMiddlewareDeclarationsIn, isManifestFile } from './command-middleware-declarations.js';
 
 // ---------------------------------------------------------------------------
@@ -1166,7 +1167,11 @@ export function divergenceBoundary(
   //
   // `column-extension` is the third with no member: a module exports its column
   // declarations rather than calling a seam (190, FR-047).
-  for (const kind of ['port-consumed', 'omission', 'column-extension'] as const) {
+  //
+  // `form-override` and `form-override-grant` are the fourth and fifth
+  // (`specs/193-admin-form-extensions/` FR-070): a manifest declaration and a
+  // `divergence.ts` grant respectively, neither a seam call.
+  for (const kind of ['port-consumed', 'omission', 'column-extension', 'form-override', 'form-override-grant'] as const) {
     if (!recorded.includes(kind)) recorded.push(kind);
   }
   recorded.sort();
@@ -1189,6 +1194,15 @@ export function divergenceBoundary(
   notRecorded.push({
     seam: "an overlay module's own entities and migrations",
     why: 'a table an overlay module creates is its own surface, migrated under the foreign-schema guard with no exemption, so it cannot touch a table it does not own; what it declares on another module\'s table is recorded, as a column extension',
+  });
+
+  // `specs/193-admin-form-extensions/` FR-070. A slot field is the module's own
+  // value in its own table, written by its own hook; the hook is recorded, as a
+  // `command-hook`, and what it changes on another module's form is recorded,
+  // as a `form-override`.
+  notRecorded.push({
+    seam: "an admin layer's slot fields (`AdminContributions.fields`)",
+    why: "a slot field is the module's own value, stored in its own side table or its own columns and written by its own hook on the host's write — the hook is recorded, as a command hook, and any change to the host form's own fields is recorded, as a form override",
   });
 
   // `specs/190-overlay-full-modules/contracts/overlay-ports.md` §5.
@@ -1253,6 +1267,13 @@ export interface DivergenceInput {
    * {@link extensibleHostOwners}; a test passes its own.
    */
   readonly hostOwners?: ReadonlyMap<string, string>;
+  /**
+   * Field-set id → the module that declares it (193): the owner of a
+   * `form-override` or `form-override-grant` entry. Absent, the owner is `null`
+   * — a host that cannot attribute field sets says so in `hostNotRecorded`;
+   * present and missing the id is `unowned-subject`, as an unknown host table is.
+   */
+  readonly fieldSetOwners?: ReadonlyMap<string, string>;
   /** The deployment's declaration. */
   readonly declaration: {
     readonly omittedModules: ReadonlyArray<{ readonly moduleId: string; readonly reason: string }>;
@@ -1260,6 +1281,12 @@ export interface DivergenceInput {
     readonly reasons: Readonly<Record<string, string>>;
     /** `specs/189-command-middleware/` FR-031 — the `admit` tie-break; absent means none. */
     readonly commandMiddlewareOrder?: readonly string[] | undefined;
+    /** `specs/193-admin-form-extensions/` FR-051 — field-set id → grants; absent means none. */
+    readonly formOverrideGrants?:
+      | Readonly<
+          Record<string, ReadonlyArray<{ readonly moduleId: string; readonly packageName: string; readonly reason: string }>>
+        >
+      | undefined;
   };
   /** `ModuleContext`'s own members, from the platform's source. */
   readonly seams: readonly string[];
@@ -1305,6 +1332,9 @@ export function divergenceKeyOf(entry: {
         : '';
   return `${entry.kind}:${entry.module}:${entry.subject}${suffix}`;
 }
+
+/** `FIELD_OVERRIDE_KINDS`' order, so an entry's kinds read the same in every run. */
+const FIELD_OVERRIDE_KIND_ORDER = publishedContracts.FIELD_OVERRIDE_KINDS;
 
 const SEAM_TO_KIND = (
   classification: Readonly<Record<string, SeamClassification>>,
@@ -1541,6 +1571,83 @@ export function deriveDivergence(input: DivergenceInput): DivergenceResult {
     }
   }
 
+  // `form-override` (193, FR-070): what an overlay module's manifest overrides
+  // on another module's field set — one entry per module and target, the kinds
+  // merged across its overrides of that target (one may be narrowed to a form,
+  // another not). Owned by the field set's owner; rung 2, because the owner's
+  // `accepts` is the invitation, as a hookable action is.
+  const fieldSetOwnerOf = (fieldSet: string, where: string): string | null | undefined => {
+    if (input.fieldSetOwners === undefined) return null;
+    const owner = input.fieldSetOwners.get(fieldSet);
+    if (owner !== undefined) return owner;
+    note(
+      'unowned-subject',
+      where,
+      `'${fieldSet}' is a field set no module in the composition declares, so no module owns the field this override changes`,
+    );
+    return undefined;
+  };
+  for (const source of input.sources) {
+    if (!isManifestFile(source.file)) continue;
+    const reading = formOverrideDeclarationsIn(source.text, source.file);
+    for (const site of reading.unresolved) {
+      note(
+        'computed-subject',
+        `${source.file}:${site.line}`,
+        `\`formOverrides\` declares an override the analysis cannot read as literals: ${site.text}`,
+      );
+    }
+    const merged = new Map<string, Set<string>>();
+    const firstLine = new Map<string, number>();
+    for (const declaration of reading.declarations) {
+      const kinds = merged.get(declaration.target) ?? new Set<string>();
+      for (const kind of declaration.kinds) kinds.add(kind);
+      merged.set(declaration.target, kinds);
+      if (!firstLine.has(declaration.target)) firstLine.set(declaration.target, declaration.line);
+    }
+    for (const [target, kinds] of merged) {
+      const fieldSet = target.slice(0, target.indexOf('.'));
+      const owner = fieldSetOwnerOf(fieldSet, `${source.file}:${String(firstLine.get(target))}`);
+      if (owner === undefined) continue;
+      const ordered = FIELD_OVERRIDE_KIND_ORDER.filter((kind) => kinds.has(kind));
+      const detail: DivergenceDetail = { kind: 'form-override', kinds: ordered, presentationOnly: presentationOnly(ordered) };
+      const key = divergenceKeyOf({ kind: 'form-override', module: source.moduleId, subject: target, detail });
+      entries.push({
+        key,
+        kind: 'form-override',
+        module: source.moduleId,
+        subject: target,
+        owner,
+        rung: 2,
+        detail,
+        reason: input.declaration.reasons[key] ?? '',
+      });
+    }
+  }
+
+  // `form-override-grant` (193, FR-051, D-300.2): the deployment lets an
+  // installed package override one field set. From the declaration, like an
+  // omission, and carrying its own reason the same way — the grant's `reason`
+  // is required where it is written.
+  const grants = input.declaration.formOverrideGrants ?? {};
+  for (const fieldSet of Object.keys(grants).sort()) {
+    for (const grant of grants[fieldSet] ?? []) {
+      const owner = fieldSetOwnerOf(fieldSet, input.declarationPath ?? `backend/src/apps/${input.deployment}/divergence.ts`);
+      if (owner === undefined) continue;
+      const detail: DivergenceDetail = { kind: 'form-override-grant', packageName: grant.packageName };
+      entries.push({
+        key: divergenceKeyOf({ kind: 'form-override-grant', module: grant.moduleId, subject: fieldSet, detail }),
+        kind: 'form-override-grant',
+        module: grant.moduleId,
+        subject: fieldSet,
+        owner,
+        rung: 2,
+        detail,
+        reason: grant.reason,
+      });
+    }
+  }
+
   // The omissions, from the declaration and from no seam at all. They are the
   // one kind the declaration supplies the population for, and it is D-101's
   // ruling that it does: the boot refuses an omission that is not declared, so
@@ -1583,11 +1690,12 @@ export function deriveDivergence(input: DivergenceInput): DivergenceResult {
       ? '(no deployment)'
       : `backend/src/apps/${input.deployment}/divergence.ts`);
 
-  // FR-004, both directions. An omission carries its reason inline, so it is
-  // never `undeclared-divergence`; every other kind reads the `reasons` map.
+  // FR-004, both directions. An omission and a form-override grant carry their
+  // reason inline, so neither is `undeclared-divergence`; every other kind reads
+  // the `reasons` map.
   const derivedKeys = new Set(entries.map((entry) => entry.key));
   for (const entry of entries) {
-    if (entry.kind === 'omission') continue;
+    if (entry.kind === 'omission' || entry.kind === 'form-override-grant') continue;
     if (entry.reason.length === 0) {
       note(
         'undeclared-divergence',
@@ -1748,6 +1856,11 @@ function detailFor(
       // `deriveSeamSites` pushes no site for `ctx.commandMiddleware`; the
       // entries are built from the manifest declaration.
       throw new Error(`a seam site was classified as 'command-middleware': ${site.text}`);
+    case 'form-override':
+    case 'form-override-grant':
+      // No `ModuleContext` member is classified to either: they are built from
+      // the manifest's `formOverrides` and the declaration's grants.
+      throw new Error(`a seam site was classified as '${kind}': ${site.text}`);
   }
 }
 
@@ -1779,6 +1892,10 @@ export function describeEntry(entry: DivergenceEntry): string {
       return `'${entry.module}' declares columns on '${entry.subject}', which ${owner} owns`;
     case 'command-middleware':
       return `'${entry.module}' runs ${entry.detail.kind === 'command-middleware' ? entry.detail.phase : ''} command middleware '${entry.subject}' on ${entry.detail.kind === 'command-middleware' && entry.detail.actions === '*' ? 'every Command' : 'matching Commands'}`;
+    case 'form-override':
+      return `'${entry.module}' overrides ${entry.detail.kind === 'form-override' ? entry.detail.kinds.join(', ') : ''} of '${entry.subject}', whose field set ${owner} owns`;
+    case 'form-override-grant':
+      return `this deployment lets the package '${entry.module}'${entry.detail.kind === 'form-override-grant' ? ` (${entry.detail.packageName})` : ''} override fields of '${entry.subject}', which ${owner} owns`;
   }
 }
 

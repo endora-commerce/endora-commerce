@@ -251,10 +251,16 @@ export * from './organization-hooks.js';
 export * from './aggregate-ports.js';
 // Issue #1845 — `projects`' hookable actions.
 export * from './project-hooks.js';
+// `specs/193-admin-form-extensions/` FR-110 — `customer_accounts`' account writes.
+export * from './customer-account-hooks.js';
 // Issue #1844 — `promotions`' promotion and coupon writes.
 export * from './promotion-hooks.js';
 // Issue #1906 — `quote_requests`' buyer create-and-submit.
 export * from './quote-request-hooks.js';
+// `specs/193-admin-form-extensions/` FR-111 (#2006) — `crm`'s Opportunity create and edit.
+export * from './opportunity-hooks.js';
+// `specs/193-admin-form-extensions/` FR-112 — `catalog`'s Product writes.
+export * from './product-hooks.js';
 export * from './platform-info.js';
 export * from './admin-feedback.js';
 export * from './admin-actions.js';

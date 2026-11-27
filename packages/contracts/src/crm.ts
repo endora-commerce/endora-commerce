@@ -1854,9 +1854,14 @@ export interface OpportunityTransitionInput {
  * entry's `stateAfter` beside the actor — **do not use `manual`, `order` or
  * `quote_request`**: they are the Opportunity's origin codes, which the create
  * entry records under the same key, and the Change history tab would read
- * such a code as the origin (research R-21.7). `extensions`: no `crm` action is
- * declared hookable, so any key is refused `422 COMMAND_EXTENSION_UNCLAIMED`
- * before anything is read or written.
+ * such a code as the origin (research R-21.7). `extensions`: `create`,
+ * `update` and `setCustomFieldValues` run the hookable `crm.opportunity.create`
+ * and `crm.opportunity.update` (`OPPORTUNITY_HOOKABLE_ACTIONS`,
+ * `specs/193-admin-form-extensions/` FR-111) and forward it to the Command,
+ * whose bus refuses a key no present hook module claims with
+ * `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written. Every other
+ * method runs a Command that is not hookable and refuses any key itself, before
+ * anything is read or written.
  *
  * **Not offered, deliberately**: attachments (an upload flow), Events and
  * their reminders, the retry and dismissal of a refused Order propagation, the

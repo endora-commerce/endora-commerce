@@ -14,9 +14,9 @@ import {
 import { lazyEntityExtensionReads, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
-import { effectiveOpportunityValue } from '../domain/effective-value.js';
 import { resolveOpportunityStatusName } from '../domain/opportunity-status-graph.js';
 import { isUuid } from './opportunity-access.js';
+import { opportunityRecordOf } from './opportunity-hook-data.js';
 import type { OpportunityCommentService } from './opportunity-comment-service.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
@@ -149,26 +149,8 @@ export class OpportunityReadPortService implements OpportunityReadPort {
   ): Promise<Extended[]> {
     if (rows.length === 0) return [];
     const graph = await this.workflowRead.loadGraph(em);
-    const records = rows.map((row): OpportunityRecord => ({
-      id: row.id,
-      number: row.number,
-      title: row.title,
-      organizationId: row.organizationId,
-      customerAccountId: row.customerAccountId ?? null,
-      salesChannelId: row.salesChannelId ?? null,
-      statusCode: row.statusCode,
-      // A status the workflow no longer holds closes nothing: `open`.
-      statusKind: graph.kindOf(row.statusCode) ?? 'open',
-      assignedAdminUserId: row.assignedAdminUserId ?? null,
-      value: effectiveOpportunityValue(row),
-      valueMode: row.valueMode,
-      currency: row.currency,
-      closedAt: row.closedAt ?? null,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      // `specs/186-aggregate-ports/` R-8 — on the row already, so no query.
-      customFieldValues: { ...(row.customFieldValues ?? {}) },
-    }));
+    // A status the workflow no longer holds closes nothing: `open`.
+    const records = rows.map((row) => opportunityRecordOf(row, graph.kindOf(row.statusCode) ?? 'open'));
     return [...(await this.extensionReads.attach(HOST, records, options, em))];
   }
 }

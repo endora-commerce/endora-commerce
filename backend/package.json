@@ -25,6 +25,7 @@
     "cart:abandonment-sweep": "tsx --env-file-if-exists=.env src/cli.ts carts abandonment-sweep",
     "channel:resolution": "tsx scripts/check-channel-resolution.ts",
     "check:action-route-permissions": "tsx scripts/check-action-route-permissions.ts",
+    "check:admin-forms": "tsx scripts/check-admin-forms.ts",
     "check:admin-surface": "tsx scripts/check-admin-surface.ts",
     "check:admin-zones": "tsx scripts/check-admin-zones.ts",
     "check:block-names": "tsx scripts/check-block-names.ts",

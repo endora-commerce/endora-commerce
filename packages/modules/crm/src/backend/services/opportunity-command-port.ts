@@ -41,7 +41,8 @@ import type { WorkflowReadService } from './workflow-read-service.js';
  * options are `OpportunityCommandPort` in `@endora-commerce/contracts`.
  *
  * **It checks no permission.** The caller is the gate. Each method validates
- * `source` and refuses any `extensions` key before it reads anything, parses
+ * `source` before it reads anything — and, unless it runs a hookable Command,
+ * refuses any `extensions` key there too (see {@link callerOf}) — parses
  * its input with the admin route's schema (a refusal is `422
  * VALIDATION_FAILED`), and calls the service method the route calls — each of
  * which runs the one Command of its operation and does what the route does
@@ -94,7 +95,7 @@ export class OpportunityCommandService implements OpportunityCommandPort {
   constructor(private readonly deps: OpportunityCommandServiceDeps) {}
 
   async create(input: CreateOpportunityRequest, options: AggregateCommandOptions = {}): Promise<OpportunityRecord> {
-    const caller = callerOf(options);
+    const caller = forwardedCallerOf(options);
     const body = parseOrRefuse(CreateOpportunityRequestSchema, input);
     return this.#record(await this.deps.opportunities().create(body, caller));
   }
@@ -104,7 +105,7 @@ export class OpportunityCommandService implements OpportunityCommandPort {
     patch: UpdateOpportunityRequest,
     options: AggregateCommandOptions = {},
   ): Promise<OpportunityRecord> {
-    const caller = callerOf(options);
+    const caller = forwardedCallerOf(options);
     const body = parseOrRefuse(UpdateOpportunityRequestSchema, patch);
     const expectedVersion = parseOrRefuse(z.number().int().nonnegative().optional(), options.expectedVersion);
     await this.deps.opportunities().update(id, body, expectedVersion ?? null, caller);
@@ -116,7 +117,7 @@ export class OpportunityCommandService implements OpportunityCommandPort {
     merge: CustomFieldMerge,
     options: AggregateCommandOptions = {},
   ): Promise<OpportunityRecord> {
-    const caller = callerOf(options);
+    const caller = forwardedCallerOf(options);
     await this.deps.opportunities().setCustomFieldValues(id, merge, caller);
     return this.#record(id);
   }
@@ -257,21 +258,36 @@ export class OpportunityCommandService implements OpportunityCommandPort {
 }
 
 /**
- * The caller's options as the Commands take them, refused here, first, so
- * nothing is read or written for a malformed one (issue #1922).
+ * The caller's options for `create`, `update` and `setCustomFieldValues`,
+ * which run the hookable `crm.opportunity.create` and `crm.opportunity.update`
+ * (`specs/193-admin-form-extensions/` FR-111, issue #2006): `source` refused
+ * outside the grammar (`422 VALIDATION_FAILED`) before anything is read, and
+ * `extensions` forwarded unread. The bus decides who claims a key — before the
+ * Command's `capture` and `run`, so an unclaimed one (`422
+ * COMMAND_EXTENSION_UNCLAIMED`) writes nothing.
+ */
+function forwardedCallerOf(options: AggregateCommandOptions): CallerOptions {
+  assertCallerSource(options);
+  return { source: options.source, extensions: options.extensions };
+}
+
+/**
+ * The caller's options for every other method, refused here, first, so nothing
+ * is read or written for a malformed one (issue #1922).
  *
  * - `source` outside the grammar → `422 VALIDATION_FAILED`.
  * - Any `extensions` key → `422 COMMAND_EXTENSION_UNCLAIMED`, the bus's own
- *   refusal. No `crm` action is declared hookable, so no hook module can claim
- *   a key and the bus would refuse it anyway — but only when the Command runs,
- *   which for a transition is after its guards and `.before` events; refused
- *   here it is refused before anything is read (research R-21.5).
+ *   refusal. These methods run Commands no `crm` manifest entry declares
+ *   hookable, so no hook module can claim a key and the bus would refuse it
+ *   anyway — but only when the Command runs, which for a transition is after
+ *   its guards and `.before` events; refused here it is refused before
+ *   anything is read (`specs/186-aggregate-ports/` research R-21.5).
  *
  * `expectedVersion` is read by `update` alone, the one route with a version rule.
  *
- * `opportunity-command-port.test.ts` holds the manifest to declaring no
- * hookable action: the first one fails it, and this pre-check goes for that
- * action in the same change.
+ * `opportunity-command-port.test.ts` holds the manifest's hookable actions to
+ * the two {@link forwardedCallerOf} serves: declaring another fails it, and
+ * the method running that action moves to forwarding in the same change.
  */
 function callerOf(options: AggregateCommandOptions): CallerOptions {
   assertCallerSource(options);

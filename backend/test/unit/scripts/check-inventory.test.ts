@@ -288,6 +288,8 @@ import * as ruleTenantClassification from '@endora-commerce/cli/rules/entity-ten
 import * as hostEntryPresence from '../../../scripts/check-entry-presence.js';
 import * as ruleEntryPresence from '@endora-commerce/cli/rules/entry-presence.js';
 import * as hostPortCatches from '../../../scripts/check-port-catches.js';
+import * as hostAdminForms from '../../../scripts/check-admin-forms.js';
+import * as ruleAdminForms from '@endora-commerce/cli/lib/admin-forms.js';
 import * as rulePortCatches from '@endora-commerce/cli/rules/port-catches.js';
 import {
   checkAdminSurface,
@@ -4276,6 +4278,88 @@ function rscDisciplineRefusals(files: readonly ClientSourceFile[]): number {
     : 1;
 }
 
+/**
+ * `check-admin-forms` at the top of its analysis (`specs/193-admin-form-extensions/`
+ * T033): manifests as the values their import yields, the admin layer and the
+ * host screen as **source text**, and the module the host imports its form
+ * from as that module's exports. A fixture handing in read slots would prove
+ * the classifier and leave the layer reader and the render resolution unproven.
+ *
+ * One compliant tree; every proof is one change to it, counting one kind.
+ */
+const ADMIN_FORMS_OWNER = {
+  id: 'organizations',
+  fieldSets: [
+    {
+      id: 'organization',
+      ownerModuleId: 'organizations',
+      fields: [{ key: 'name' }, { key: 'taxId', deprecatedAliases: [{ key: 'nip', since: '0.113.0' }] }],
+    },
+  ],
+  adminForms: [{ id: 'organization.edit', fieldSet: 'organization', sections: [{ key: 'identity', keys: ['name', 'taxId'] }] }],
+};
+const ADMIN_FORMS_HOST = {
+  'organizations/admin/Edit.tsx':
+    "import { ORGANIZATION_FORMS } from '@endora-commerce/contracts';\n" +
+    'export const Edit = () => <DeclaredFormProvider form={ORGANIZATION_FORMS.edit} />;\n',
+};
+const ADMIN_FORMS_EXPORTS = {
+  '@endora-commerce/contracts': { ORGANIZATION_FORMS: { edit: ADMIN_FORMS_OWNER.adminForms[0] } },
+};
+
+/** An admin layer contributing the slots (and controls) given, as source text. */
+function adminFormsLayer(slots: readonly string[], controls = ''): { file: string; source: string } {
+  return {
+    file: 'acme_erp/admin/index.tsx',
+    source:
+      'export const contributions = {\n' +
+      `  fields: [${slots.join(', ')}],\n` +
+      (controls === '' ? '' : `  controls: [${controls}],\n`) +
+      '};\n',
+  };
+}
+
+function adminFormsSlot(change: Partial<Record<'fieldSet' | 'key' | 'anchor' | 'forms', string>> = {}): string {
+  return (
+    `{ fieldSet: ${change.fieldSet ?? "'organization'"}, key: ${change.key ?? "'erpCode'"}, type: 'string', ` +
+    `weight: 0, labelKey: 'fields.erpCode', anchor: ${change.anchor ?? "{ field: 'taxId', position: 'after' }"}, ` +
+    `${change.forms === undefined ? '' : `forms: ${change.forms}, `}component: () => import('./ErpCode.js') }`
+  );
+}
+
+const ADMIN_FORMS_ERP = { id: 'acme_erp', dependencies: ['organizations'] };
+
+function adminFormsFindingCount(
+  kind: ruleAdminForms.AdminFormsFindingKind | 'unreadable',
+  change: {
+    readonly manifests?: readonly unknown[];
+    readonly layers?: Readonly<Record<string, { file: string; source: string }>>;
+    readonly hosts?: Readonly<Record<string, string>>;
+  } = {},
+): number {
+  const result = ruleAdminForms.adminFormsOverSources({
+    manifests: change.manifests ?? [ADMIN_FORMS_OWNER, ADMIN_FORMS_ERP],
+    layers: change.layers ?? { acme_erp: adminFormsLayer([adminFormsSlot()]) },
+    hosts: change.hosts ?? ADMIN_FORMS_HOST,
+    exports: ADMIN_FORMS_EXPORTS,
+  });
+  if (kind === 'unreadable') return result.unreadable.length;
+  return result.findings.filter((finding) => finding.kind === kind).length;
+}
+
+/** One exit-2 reason of the host, over a read record complete in every other input. */
+function adminFormsVacuous(change: Partial<hostAdminForms.AdminFormsReadRecord>): number {
+  const reason = hostAdminForms.vacuousAdminFormsReason({
+    adminApplication: true,
+    registryPresent: true,
+    registryLayers: 1,
+    manifests: 1,
+    hostFiles: 1,
+    ...change,
+  });
+  return reason === null ? 0 : 1;
+}
+
 const CHECKS: readonly CheckEntry[] = [
   {
     // Feature 091's P4a. The zone mechanism's two-way refusal — promised by
@@ -5098,6 +5182,137 @@ const CHECKS: readonly CheckEntry[] = [
           'layer-without-subpath',
         ),
       ),
+    },
+  },
+  {
+    // `specs/193-admin-form-extensions/` T033 (FR-002, FR-012, FR-031;
+    // `contracts/field-slots.md` §6). Field slots, admin forms and input
+    // controls across bare core and every deployment on disk — the admin half
+    // of a mechanism whose server half is the platform's `FormRegistry.seal`,
+    // which no admin layer reaches. A relocated analysis from the day it was
+    // written (`@endora-commerce/cli/lib/admin-forms.js`), whose other reader is
+    // `endora generate`.
+    //
+    // It lands at **zero declarations** — no module declares a field set until
+    // the first adopter — so this entry carries the weight: fourteen finding
+    // codes, one proof each, each entering as source text; the unreadable
+    // declaration, which is a refusal rather than a skip (issue #113); and the
+    // five exit-2 reasons, one per input whose absence would make a predicate
+    // vacuously clean. The two warnings are proven too: a warning that cannot
+    // fire is as blind as a refusal that cannot.
+    script: 'backend/scripts/check-admin-forms.ts',
+    npmScript: 'check:admin-forms',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-admin-forms.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its module half is the generated admin registry's list of layers and the
+    // generated manifest index, both read as data and both reconciled
+    // (`module-admin`, `manifest-index`) — not a walk of the module roots that
+    // could come back as a residue. A moved tree leaves the manifest import or a
+    // registry layer unread, which is a short walk and exit 2 here.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'unknown-field-set': top(() =>
+        adminFormsFindingCount('unknown-field-set', {
+          layers: { acme_erp: adminFormsLayer([adminFormsSlot({ fieldSet: "'organisation'" })]) },
+        }),
+      ),
+      'unknown-form': top(() =>
+        adminFormsFindingCount('unknown-form', {
+          layers: { acme_erp: adminFormsLayer([adminFormsSlot({ forms: "['organization.view']" })]) },
+        }),
+      ),
+      'unknown-anchor': top(() =>
+        adminFormsFindingCount('unknown-anchor', {
+          layers: { acme_erp: adminFormsLayer([adminFormsSlot({ anchor: "{ field: 'vatId', position: 'after' }" })]) },
+        }),
+      ),
+      'foreign-slot-anchor': top(() =>
+        adminFormsFindingCount('foreign-slot-anchor', {
+          manifests: [ADMIN_FORMS_OWNER, ADMIN_FORMS_ERP, { id: 'acme_notes', dependencies: ['organizations'] }],
+          layers: {
+            acme_erp: adminFormsLayer([adminFormsSlot()]),
+            acme_notes: adminFormsLayer([
+              adminFormsSlot({ key: "'note'", anchor: "{ field: 'acme_erp.erpCode', position: 'after' }" }),
+            ]),
+          },
+        }),
+      ),
+      'position-anchor-mismatch': top(() =>
+        adminFormsFindingCount('position-anchor-mismatch', {
+          layers: { acme_erp: adminFormsLayer([adminFormsSlot({ anchor: "{ field: 'taxId', position: 'end' }" })]) },
+        }),
+      ),
+      'duplicate-slot-key': top(() =>
+        adminFormsFindingCount('duplicate-slot-key', {
+          layers: { acme_erp: adminFormsLayer([adminFormsSlot(), adminFormsSlot()]) },
+        }),
+      ),
+      'slot-owner-not-a-dependency': top(() =>
+        adminFormsFindingCount('slot-owner-not-a-dependency', {
+          manifests: [ADMIN_FORMS_OWNER, { id: 'acme_erp', dependencies: [] }],
+        }),
+      ),
+      'undeclared-form': top(() =>
+        adminFormsFindingCount('undeclared-form', {
+          manifests: [{ ...ADMIN_FORMS_OWNER, adminForms: [] }, ADMIN_FORMS_ERP],
+        }),
+      ),
+      'unrendered-form': top(() => adminFormsFindingCount('unrendered-form', { hosts: {} })),
+      'control-without-declaration': top(() =>
+        adminFormsFindingCount('control-without-declaration', {
+          layers: {
+            acme_erp: adminFormsLayer([adminFormsSlot()], "{ id: 'acme_erp.code', component: () => import('./Code.js') }"),
+          },
+        }),
+      ),
+      'declaration-without-control': top(() =>
+        adminFormsFindingCount('declaration-without-control', {
+          manifests: [ADMIN_FORMS_OWNER, { ...ADMIN_FORMS_ERP, inputControls: [{ id: 'acme_erp.code', outputType: 'string' }] }],
+        }),
+      ),
+      'ambiguous-slot-order': top(() =>
+        adminFormsFindingCount('ambiguous-slot-order', {
+          manifests: [ADMIN_FORMS_OWNER, ADMIN_FORMS_ERP, { id: 'acme_vat', dependencies: ['organizations'] }],
+          layers: {
+            acme_erp: adminFormsLayer([adminFormsSlot()]),
+            acme_vat: adminFormsLayer([adminFormsSlot({ key: "'vatCode'" })]),
+          },
+        }),
+      ),
+      // D-300.12 — a `readOnly` override on a core-required field of a create
+      // form, with no derivation of the same module.
+      'required-not-fillable': top(() =>
+        adminFormsFindingCount('required-not-fillable', {
+          manifests: [
+            {
+              ...ADMIN_FORMS_OWNER,
+              fieldSets: [{ ...ADMIN_FORMS_OWNER.fieldSets[0]!, fields: [{ key: 'name' }, { key: 'taxId', required: true }] }],
+              adminForms: [
+                ...ADMIN_FORMS_OWNER.adminForms,
+                { id: 'organization.create', fieldSet: 'organization', mode: 'create', sections: [{ key: 'identity', keys: ['name', 'taxId'] }] },
+              ],
+            },
+            { ...ADMIN_FORMS_ERP, formOverrides: [{ target: 'organization.taxId', readOnly: true, reason: 'Set by the ERP.' }] },
+          ],
+        }),
+      ),
+      'deprecated-anchor': top(() =>
+        adminFormsFindingCount('deprecated-anchor', {
+          layers: { acme_erp: adminFormsLayer([adminFormsSlot({ anchor: "{ field: 'nip', position: 'after' }" })]) },
+        }),
+      ),
+      'unreadable-declaration': top(() =>
+        adminFormsFindingCount('unreadable', {
+          layers: { acme_erp: adminFormsLayer([adminFormsSlot({ fieldSet: 'FIELD_SET' })]) },
+        }),
+      ),
+      'vacuous-no-admin-application': top(() => adminFormsVacuous({ adminApplication: false })),
+      'vacuous-no-admin-registry': top(() => adminFormsVacuous({ registryPresent: false })),
+      'vacuous-registry-names-no-layer': top(() => adminFormsVacuous({ registryLayers: 0 })),
+      'vacuous-no-manifest': top(() => adminFormsVacuous({ manifests: 0 })),
+      'vacuous-no-host-source': top(() => adminFormsVacuous({ hostFiles: 0 })),
     },
   },
   {
@@ -12246,6 +12461,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // it still tells a vocabulary name from a utility.
       'backend/scripts/check-class-vocabulary.ts': 7,
       'backend/scripts/check-bundle-pairing.ts': 5,
+      // Fourteen finding codes (two of them warnings; `required-not-fillable`
+      // is D-300.12's), the unreadable declaration and the five exit-2 reasons
+      // (193 T033).
+      'backend/scripts/check-admin-forms.ts': 20,
       // Four findings, the help popover's own 280 edge, and three
       // discriminations: a setting description at 120, a help popover at 280,
       // and a palette description outside the grammar.
@@ -13384,6 +13603,9 @@ describe('a relocated analysis has one implementation and two hosts', () => {
       ['check-entity-tenant-classification', hostTenantClassification as unknown as Record<string, unknown>, ruleTenantClassification as unknown as Record<string, unknown>],
       ['check:entry-presence', hostEntryPresence as unknown as Record<string, unknown>, ruleEntryPresence as unknown as Record<string, unknown>],
       ['check:port-catches', hostPortCatches as unknown as Record<string, unknown>, rulePortCatches as unknown as Record<string, unknown>],
+      // `specs/193-admin-form-extensions/` T033 — relocated from the day it was
+      // written; its other host is `endora generate`.
+      ['check:admin-forms', hostAdminForms as unknown as Record<string, unknown>, ruleAdminForms as unknown as Record<string, unknown>],
     ];
 
   for (const [id, host, rule] of RELOCATED) {

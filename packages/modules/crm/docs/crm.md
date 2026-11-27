@@ -2444,13 +2444,50 @@ transaction of its own.
 - `expectedVersion` — the opportunity's `version` you read. `update` honours
   it, as the admin's `If-Match` does, and refuses a moved-on opportunity with
   `409 VERSION_CONFLICT`. The other methods ignore it.
-- `extensions` — no CRM write is declared hookable, so any key is refused with
-  `422 COMMAND_EXTENSION_UNCLAIMED` before anything is read or written.
+- `extensions` — input for the command hooks on the write, keyed by hook
+  module id (see *Hookable actions* below). `create`, `update` and
+  `setCustomFieldValues` pass it on, and a key no present hook module claims is
+  refused with `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+  The other methods run writes that are not hookable, so they refuse any key
+  before anything is read or written.
 
 **Not offered**: attachments, events and their reminders, retrying or
 dismissing an order change that was refused, recalculating a value, and
 whether a linked order follows the opportunity. The workflow, the tags and the
 order-status mappings are configuration, not part of an opportunity.
+
+### Hookable actions
+
+Creating and editing an opportunity are declared hookable, so another module
+— a deployment's overlay module or an installed package — can take part in
+them. Register a command hook against the ref in
+`OPPORTUNITY_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`) and list `crm`
+in your manifest `dependencies`. A `beforeCommit` hook runs inside the write's
+transaction and may refuse it with a code of its own, which rolls the write
+back. An `afterCommit` handler is delivered through the platform's outbox after
+the commit, at least once. How hooks run is on the *Command Bus* architecture
+page.
+
+| Action | Ref | Written by |
+| --- | --- | --- |
+| `crm.opportunity.create` | `OPPORTUNITY_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/crm/opportunities`, `opportunityCommandPort.create`, and the opportunity created for a placed order or quote request |
+| `crm.opportunity.update` | `OPPORTUNITY_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/crm/opportunities/:id`, `opportunityCommandPort.update` and `opportunityCommandPort.setCustomFieldValues` |
+
+Both offer both phases. A `beforeCommit` hook is handed `opportunity`, the
+opportunity as the write leaves it, not yet committed, in the shape
+`opportunityReadPort` answers, with `changedFields` and `changedCustomFields`,
+the sorted names of what the write set or changed. The outbox row carries
+`opportunityId`, `organizationId`, `changedFields` and `changedCustomFields`
+only, never a value, and its handler runs in the opportunity's Organization.
+
+- **An opportunity created for an order or a quote request** is created with a
+  computed value and recalculated after the commit, so its create hook sees the
+  value before that recalculation.
+- **An edit that meets a concurrent custom-field change** is validated again
+  and retried. Hooks run once, for the attempt that writes.
+- **Every other CRM write is not hookable** — a transition, an assignment,
+  tags, links, notes and messages, events, attachments and a deletion. A hook
+  registered on one of them is refused at startup.
 
 ## Switching it on and off
 

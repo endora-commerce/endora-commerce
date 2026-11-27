@@ -346,6 +346,37 @@ describe('catalogProductCommandPort — the admin routes’ Commands (#1825)', (
     expect((await fx.sql<{ archived_at: unknown }>(`select archived_at from products where id = ?`, [id]))[0]!.archived_at).toBeNull();
   });
 
+  // `specs/193-admin-form-extensions/` FR-112 – FR-114 — the four hookable Product writes take a
+  // caller's `extensions`; with no hook module claiming the key, each is refused before it writes.
+  it('the hookable writes — an unclaimed extension is refused 422 before anything is written', async () => {
+    const id = await fresh({ channels: [channel] });
+    const before = (await entries(id)).length;
+    const unclaimed = { extensions: { nobody_claims_this: { x: 1 } } };
+    const productCount = async () =>
+      (await fx.sql<{ n: number }>(`select count(*)::int as n from products where sku like ?`, [`P186-${fx.run}-%`]))[0]!.n;
+    const products = await productCount();
+    for (const write of <Array<() => Promise<unknown>>>[
+      () =>
+        port.create(
+          { sku: sku(), type: 'simple', name: 'Unclaimed', description: 'x', categoryIds: [], attributeValues: { [mandatory]: 'set' }, visibility: 'public' },
+          unclaimed,
+        ),
+      () => port.update(id, { name: 'Unclaimed' }, unclaimed),
+      () => port.setCustomFieldValues(id, async (current) => ({ ...current, [note]: 'unclaimed' }), unclaimed),
+      () =>
+        port.applyScopedValues(
+          id,
+          { cells: [{ scope: { level: 'channel', channelId: channel }, field: `attribute:${note}`, op: { op: 'set', value: 'unclaimed' } }] },
+          unclaimed,
+        ),
+    ]) {
+      expect(await refusal(asAdmin(write))).toEqual({ statusCode: 422, code: ERROR_CODES.COMMAND_EXTENSION_UNCLAIMED });
+    }
+    expect(await entries(id)).toHaveLength(before);
+    expect(await productCount()).toBe(products);
+    expect((await fx.sql<{ name: string }>(`select name from products where id = ?`, [id]))[0]!.name).not.toBe('Unclaimed');
+  });
+
   it('expectedVersion — the editor version: a stale one is refused 409 VERSION_CONFLICT', async () => {
     const id = await fresh();
     const version = async () =>
