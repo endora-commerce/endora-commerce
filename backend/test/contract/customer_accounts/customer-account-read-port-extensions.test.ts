@@ -1,5 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES, type CustomerAccountReadPort } from '@endora-commerce/contracts';
+import { resolveTenantContext } from '@endora-commerce/platform/composition';
+import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { runToken, seedCustomer, seedOrganization } from '../../helpers/admin-search-fixtures.js';
 import {
@@ -33,6 +36,8 @@ let h: BackendServerHandle;
 let probe: EntityExtensionProbe;
 const T = runToken();
 const ids: string[] = [];
+let organizationA = '';
+let foreignId = '';
 
 const port = (): CustomerAccountReadPort => h.container.resolve<CustomerAccountReadPort>('customerAccountReadPort');
 const probed = <R>(run: () => Promise<R>) => statementsOf(h.orm, () => withProbeReads(h.container, probe, run));
@@ -43,6 +48,9 @@ beforeAll(async () => {
   await withSystemScope('test seed: customer account read port extensions', async () => {
     const em = h.em();
     const organization = await seedOrganization(em, { name: `Probe Accounts ${T}` });
+    organizationA = organization.id;
+    const other = await seedOrganization(em, { name: `Probe Accounts B ${T}` });
+    foreignId = (await seedCustomer(em, other.id, { email: `probe-${T}-foreign@example.com` })).id;
     for (let index = 0; index < 50; index += 1) {
       const account = await seedCustomer(em, organization.id, {
         email: `probe-${T}-${index.toString().padStart(2, '0')}@example.com`,
@@ -139,5 +147,42 @@ describe('CustomerAccountReadPort with include (FR-054, FR-056)', () => {
     );
     expect(viaProbe.result).toMatchObject({ statusCode: 422, code: ERROR_CODES.ENTITY_EXTENSION_UNCLAIMED });
     expect(probeStatements(viaProbe.statements)).toEqual([]);
+  });
+});
+
+/**
+ * Review of #1991 (issue #1992): the loader is the only tenant guard a side
+ * table has (#1980), so it must never be handed an id the caller may not read.
+ * An administrator confined to Organization A asks for A's accounts and one of
+ * B's.
+ */
+describe('CustomerAccountReadPort with include, across tenants (XI)', () => {
+  const asA = <R>(body: () => Promise<R>): Promise<R> =>
+    runWithTenantContext(
+      resolveTenantContext(
+        { kind: 'admin', adminUserId: randomUUID() },
+        { allowAll: false, allowedOrganizationIds: [organizationA] },
+      ),
+      body,
+    );
+  const probedAsA = <R>(run: () => Promise<R>) =>
+    statementsOf(h.orm, () => withProbeReads(h.container, probe, () => asA(run)));
+
+  it('hands the loader only the ids the caller may read', async () => {
+    probe.calls.length = 0;
+    const { result, statements } = await probedAsA(() => port().findByIds([...ids, foreignId], INCLUDE));
+    expect(result.map((record) => record.id)).not.toContain(foreignId);
+    expect(result).toHaveLength(50);
+    expect(probeStatements(statements)).toHaveLength(1);
+    expect(probe.calls).toHaveLength(1);
+    expect(probe.calls[0]).not.toContain(foreignId);
+  });
+
+  it('runs no loader for an account out of reach: findById answers null', async () => {
+    probe.calls.length = 0;
+    const { result, statements } = await probedAsA(() => port().findById(foreignId, INCLUDE));
+    expect(result).toBeNull();
+    expect(probeStatements(statements)).toEqual([]);
+    expect(probe.calls).toEqual([]);
   });
 });
