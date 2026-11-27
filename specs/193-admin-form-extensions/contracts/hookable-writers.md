@@ -28,8 +28,8 @@ see no `extensions`.
 
 ```ts
 export const OPPORTUNITY_HOOKABLE_ACTIONS = {
-  create: hookableAction<OpportunityCreateHookData, OpportunityOutbox>('crm.opportunity.create', 'opportunity', ['beforeCommit', 'afterCommit']),
-  update: hookableAction<OpportunityUpdateHookData, OpportunityOutbox>('crm.opportunity.update', 'opportunity', ['beforeCommit', 'afterCommit']),
+  create: hookableAction<OpportunityCreateHookData, OpportunityOutbox>('crm.opportunity.create', 'crm_opportunity', ['beforeCommit', 'afterCommit']),
+  update: hookableAction<OpportunityUpdateHookData, OpportunityOutbox>('crm.opportunity.update', 'crm_opportunity', ['beforeCommit', 'afterCommit']),
 };
 ```
 
