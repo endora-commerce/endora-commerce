@@ -37,6 +37,7 @@ and the facts only a running instance can answer.
 
 | Seam | Why it is not a divergence |
 | --- | --- |
+| `ctx.entityExtensionLoaders` | the module's own side table, read only for a caller that names this module in `include`; without it the host's read answers exactly as core does |
 | `ctx.onBoot` | the module's own boot hook, run inside its own system scope; it contributes nothing another module resolves |
 | `ctx.routes` | a route an overlay module registers is its own route, gated on its own module — not a change to what core serves |
 | `ctx.ungatedRoutes` | the module's own route, outside the module's own gate; the reason string is required at the call and is read there, and it removes no other module's gate |
