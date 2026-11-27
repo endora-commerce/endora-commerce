@@ -550,8 +550,10 @@ export const DeploymentDivergenceDeclarationSchema = z.object({
    * to disagree.
    *
    * Only a deployment's own overlay modules can appear here: a core module and
-   * an installed package may not decorate a name they do not own (D-156.4), so
-   * every ambiguity this can resolve is between two of them.
+   * an installed package may not decorate a name they do not own (D-156.4,
+   * narrowed by D-296 for the four guard seams only — `GUARD_SEAM_REGISTRATIONS`
+   * — which an overlay may decorate in 0.113.0 with a warning and not from
+   * 0.114.0), so every ambiguity this can resolve is between two of them.
    *
    * Nothing reads it yet — the supply is P4 of
    * `specs/107-override-report-and-ladder/`.
@@ -996,6 +998,41 @@ function assertEntityExtensionRules(m: ModuleManifest): void {
  */
 export const MODULE_ORIGINS = ['core', 'deployment', 'package'] as const;
 export type ModuleOrigin = (typeof MODULE_ORIGINS)[number];
+
+/**
+ * The guard seams: the four registrations a composition root supplies through which Principles XI
+ * and XIII are enforced (`specs/189-command-middleware/contracts/guard-seam-narrowing.md` §1, owner
+ * ruling D-296.5 as amended).
+ *
+ * **A list, not a derivation**, because no ledger fact tells a guard seam from other root plumbing
+ * (`redis`, `orm`, `requireAdmin`, …). D-296 narrows D-156.4 for these four names only: an overlay
+ * module's decoration of one is deprecated in 0.113.0 and refused from 0.114.0, while every other
+ * root-supplied registration stays decoratable by an overlay. Changing the list is a ruling that
+ * amends D-296, and `modules.test.ts` pins it.
+ */
+export const GUARD_SEAM_REGISTRATIONS = ['commandBus', 'auditLogService', 'eventBus', 'emFactory'] as const;
+export type GuardSeamRegistration = (typeof GUARD_SEAM_REGISTRATIONS)[number];
+
+export const isGuardSeamRegistration = (name: string): name is GuardSeamRegistration =>
+  (GUARD_SEAM_REGISTRATIONS as readonly string[]).includes(name);
+
+const GUARD_SEAM_REPLACEMENTS: Readonly<Record<GuardSeamRegistration, string>> = {
+  commandBus:
+    'command middleware: `admit` to refuse, `observe` to measure; a command hook for one declared action',
+  auditLogService:
+    '`observe` middleware for an extra sink, or a read of `audit_log_entries` for a durable one; the audit writer itself is not replaceable',
+  eventBus: '`ctx.subscribe` for a reaction; an `afterCommit` hook for durable delivery',
+  emFactory: 'none. Tenant scoping is not overridable (Principle XI). Ask the owning module for a port',
+};
+
+/**
+ * What to use instead of decorating a guard seam (`guard-seam-narrowing.md` §2). The one statement
+ * of the replacement table: the platform's warning and the CLI's `deprecated-decoration` finding
+ * both read it from here, because the CLI reads an instance without loading the platform.
+ */
+export function guardSeamReplacementFor(name: GuardSeamRegistration): string {
+  return GUARD_SEAM_REPLACEMENTS[name];
+}
 
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),

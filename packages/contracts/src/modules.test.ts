@@ -3,12 +3,16 @@ import { CAPABILITY_KEYS } from './capabilities.js';
 import {
   DeploymentDivergenceDeclarationSchema,
   EntityExtensionDeclarationSchema,
+  GUARD_SEAM_REGISTRATIONS,
   MODULE_ORIGINS,
   ORGANIZATION_PERMISSION_CODE,
   defineModuleManifest,
+  guardSeamReplacementFor,
+  isGuardSeamRegistration,
   moduleOrganizationPermissionDeclarationSchema,
   type DivergenceDetail,
   type DivergenceKind,
+  type GuardSeamRegistration,
   type ModuleManifest,
   type ModuleOrigin,
 } from './modules.js';
@@ -455,5 +459,38 @@ describe('DivergenceDetail — command-middleware (189 T005, FR-034)', () => {
     const detail: DivergenceDetail = { kind: 'command-middleware', phase: 'observe', id: 'timing', actions: '*' };
     const kind: DivergenceKind = detail.kind;
     expect(kind).toBe('command-middleware');
+  });
+});
+
+/**
+ * The guard seams (189 T068, FR-055, `contracts/guard-seam-narrowing.md` §1 and §2).
+ *
+ * The list is pinned to its exact content on purpose. Adding, removing or renaming a guard seam is
+ * not a refactor: it is a ruling that amends D-296 (D-296.5 as amended narrows D-156.4 to these four
+ * names and no others), so this test fails until whoever changes the list changes it too, citing the
+ * ruling. `backend/test/contract/kernel/harness-parity.test.ts` holds the other side: both
+ * composition roots register every name here as root-supplied.
+ */
+describe('GUARD_SEAM_REGISTRATIONS (189 T068, FR-055)', () => {
+  it('is exactly the four guard seams D-296 names', () => {
+    expect(GUARD_SEAM_REGISTRATIONS).toEqual(['commandBus', 'auditLogService', 'eventBus', 'emFactory']);
+    expectTypeOf<GuardSeamRegistration>().toEqualTypeOf<
+      'commandBus' | 'auditLogService' | 'eventBus' | 'emFactory'
+    >();
+  });
+
+  it('tells a guard seam from other root plumbing', () => {
+    for (const name of GUARD_SEAM_REGISTRATIONS) expect(isGuardSeamRegistration(name)).toBe(true);
+    expect(isGuardSeamRegistration('redis')).toBe(false);
+    expect(isGuardSeamRegistration('orm')).toBe(false);
+    expect(isGuardSeamRegistration('requireAdmin')).toBe(false);
+  });
+
+  it('names a non-empty replacement for each of the four', () => {
+    for (const name of GUARD_SEAM_REGISTRATIONS) {
+      expect(guardSeamReplacementFor(name).trim()).not.toBe('');
+    }
+    // Total over the four names, and typed so that it takes nothing else.
+    expectTypeOf(guardSeamReplacementFor).parameter(0).toEqualTypeOf<GuardSeamRegistration>();
   });
 });

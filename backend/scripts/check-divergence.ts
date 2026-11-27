@@ -17,7 +17,9 @@
  *
  * Usage: `tsx scripts/check-divergence.ts [--list]`
  * Exit 0 = every divergence is derived, owned and explained; exit 1 = at least
- * one is not; exit 2 = the run could not see the population it judges.
+ * one is not; exit 2 = the run could not see the population it judges. A finding
+ * of severity `warning` (`deprecated-decoration`, 189 FR-051) is printed under
+ * `warnings:` and does not fail the run; every other finding is an error.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync } from 'node:fs';
@@ -34,7 +36,10 @@ import {
 } from './generate-divergence.js';
 import {
   DIVERGENCE_REMEDIES,
+  divergenceExitCode,
+  divergenceFindingCounts,
   divergenceRefusal,
+  isDivergenceError,
   selfContradictingSubjects,
   SEAM_CLASSIFICATION,
   type DivergenceFinding,
@@ -200,20 +205,26 @@ async function main(): Promise<void> {
     ],
   });
 
+  const counts = divergenceFindingCounts(findings);
   console.log(
-    `${PREFIX} deployments=${targets.length} sites=${sites} findings=${findings.length}`,
+    `${PREFIX} deployments=${targets.length} sites=${sites} findings=${counts.errors} ` +
+      `warnings=${counts.warnings}`,
   );
 
-  if (findings.length === 0) process.exit(0);
-
-  const kinds = [...new Set(findings.map((finding) => finding.kind))].sort();
-  for (const kind of kinds as DivergenceFindingKind[]) {
-    console.error(`\n[${kind}]\n${DIVERGENCE_REMEDIES[kind]}\n`);
-    for (const finding of findings.filter((candidate) => candidate.kind === kind)) {
-      console.error(`  - (${finding.deployment}) ${finding.where}\n      ${finding.detail}`);
+  const print = (heading: string | null, subset: readonly DivergenceFinding[]): void => {
+    if (subset.length === 0) return;
+    if (heading !== null) console.error(`\n${heading}`);
+    const kinds = [...new Set(subset.map((finding) => finding.kind))].sort();
+    for (const kind of kinds as DivergenceFindingKind[]) {
+      console.error(`\n[${kind}]\n${DIVERGENCE_REMEDIES[kind]}\n`);
+      for (const finding of subset.filter((candidate) => candidate.kind === kind)) {
+        console.error(`  - (${finding.deployment}) ${finding.where}\n      ${finding.detail}`);
+      }
     }
-  }
-  process.exit(1);
+  };
+  print(null, findings.filter(isDivergenceError));
+  print('warnings:', findings.filter((finding) => !isDivergenceError(finding)));
+  process.exit(divergenceExitCode(findings));
 }
 
 // CLI only — importing this module (the companion test does) must not scan.
