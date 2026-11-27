@@ -43,7 +43,7 @@ N = no audit; ? = to confirm in T001–T009):
 | Order | custom_fields.update, external_reference.set | status_transition (`order-transition-service.ts`), payment_status_transition (`order-service.ts`) | place_on_behalf (impersonation only) | comments (`order-comment-service.ts`, N); buyer placement (N) |
 | QuoteRequest | send_document | create, create_on_behalf, patch_draft, modify, approve, assign, cancel (`rfq-service.ts`, `rfq-admin-service.ts` `#audit`) | — | admin custom-field values (?) |
 | Product | create, update, archive, restore, delete, variant create/update/delete, scoped_values.save, scopes.update | — | — | — |
-| Category | create, update, delete | — | — | move (?: likely `update` with a parent), inventory thresholds (N here; audited by `inventory`'s caller as `low_stock_threshold.update`) |
+| Category | create, update, delete; move and set custom-field values (both `update`, T007) | — | — | inventory thresholds (N here; counted in `inventory`'s `low_stock_threshold.update` summary) — converted to `category.inventory_thresholds.set` (R-20.3) |
 | Opportunity | all listed (`crm`: 33 `commandBus.run` sites, 0 hand audits) | — | — | — |
 | Project | all listed (`projects`: 38 sites, 0 hand audits; confirmed by T006) | — | — | archive/restore: no such operation |
 | Task | all listed (`tasks`: 38 sites; the four hand-recorded entries are inside Commands — confirmed by T009) | — | — | create many: C (one `tasks.task.create` per entry, T009) |
@@ -118,6 +118,14 @@ Command's `run`, on its `em` (a deleted Task's former sub-tasks, the other Task 
 reminders a cleared due date removes, the Tasks a configuration removal moves), so nothing converts.
 The admin `PATCH` is up to seven Commands, each its own transaction, not one. No operation moves in
 or out of FR-028. The questions the inventory raised are R-23.
+**Inventory (T007, Category, 2026-11-26).** Measured on `origin/master` `d936722d5`. Both `?`
+resolve to **C**: the tree editor moves a category with the same `PATCH …/categories/:id` that edits
+it, and sets custom-field values on it too, so `move` and `setCustomFieldValues` are `category.update`
+(R-20.1, R-20.2). The thresholds are **N** in `catalog` and convert to a Command of their own
+(R-20.3). No operation moves in or out of FR-025. Two side-effect gaps, pre-existing on the admin path
+and kept for parity, are listed in `contracts/catalog-category-command-port.md` § *Inventory findings*:
+`category.create` and `category.delete` emit no event, so the storefront navigation learns of them on its
+cache TTL; and the default-channel bind of `create` runs after the commit (R-20.5).
 
 **Rationale.** The issues' definition of done — "each operation is one audited Command … the admin
 routes and the port run the same Commands, so command hooks and the audit trail see one write path" —
@@ -1591,3 +1599,141 @@ R-22.7's form.
 not block. No repository rule asks every commit to build: CI judges the pull request's head, `dco` is
 the only per-commit check, and master takes merge commits, so `git bisect --first-parent` steps over
 it. Squashing it into `dd7395ddf` is welcome and not required.
+## R-20 US8 (Category, #1826): decisions on the T007 inventory findings (2026-11-26)
+
+The T007 inventory (`contracts/catalog-category-command-port.md` § *Inventory findings*) raised the
+questions below, which R-16, R-17, R-18 and the precedents do not answer in terms. The implementing
+session had no channel to the architect, so each was recorded *proposed* with the alternative
+rejected; the architect's ruling now closes each entry. None is a business call or irreversible, and none changes a tenant-isolation
+or sales-channel path (R-20.5 names the one sales-channel write the port reaches and leaves it as it
+is). Code references are to `origin/master` `d936722d5`.
+
+### R-20.1 `move` is `category.update` with the parent and an optional sort order
+
+**Finding.** There is no move action. The tree editor (`CategoriesTree.tsx`) sends the parent in the
+same `PATCH …/categories/:id` that edits the name and slug, and the tree has no drag-reorder that
+renumbers siblings.
+
+**Proposed.** `move(id, { parentId: string | null; position?: number }, options?)` runs
+`makeUpdateCategoryCommand` with `parentCategoryId` and, when `position` is given, `sortOrder` —
+nothing else. `position` is the `sortOrder` integer the tree is ordered by, not an index; absent, the
+sort order is left. `null` moves to the root (R-16.3's reasoning). The entry, the cycle guard
+(`409 CATEGORY_MOVE_CYCLE`) and `category.updated.v1` — the navigation flush of US8 scenario 1 — are
+the admin `PATCH`'s.
+
+**Rejected.** *A new `category.move` action* — FR-003 keeps the action the admin path records, and the
+admin path records `category.update`; a second action would split one operation's history, and the
+admin route would have to move to it too. *`position` as a sibling index* — the port would renumber
+siblings, N writes that no admin operation performs, so there is no route to have parity with.
+
+**Ruling (architect, 2026-11-26):** Confirmed. FR-003 and R-2 decide it: the admin path records `category.update`, so `move` runs that Command and nothing else, with the route's cycle guard and the route's event. `null` moves to the root (R-16.3). A `position` that would renumber siblings has no route to have parity with (R-9).
+
+### R-20.2 `setCustomFieldValues` is `category.update` with the caller's merge
+
+**Finding.** The admin sets a category's custom-field values with the same `PATCH`, validated by
+`CustomFieldValuePort.validateAndMerge` inside `category.update`.
+
+**Proposed.** `makeUpdateCategoryCommand` takes the custom-field write as a merge function
+(`customFields`). The admin path passes "validate this patch with the administrator's rules"; the port
+passes the caller's `CustomFieldMerge`, over a copy of the stored bag, with no validation of its own
+(FR-012, `custom-field-writes.md`). Same action, same state, same `category.updated.v1` (search
+re-indexes the subtree, the storefront category cache is flushed) as the admin `PATCH` carrying only
+`customFieldValues`, which is what parity is measured against.
+
+**Rejected.** *A new `category.set_custom_field_values` action*, as Organization has — Organization's
+came from a narrow port that already recorded it (R-16.2); here the admin path for the operation records
+`category.update`, and a second action would make a hook author register on two actions for one bag.
+*Skipping the event for a values-only write* — the admin `PATCH` emits it, so the port would refresh
+less than the route (FR-013). *Adding `changedCustomFields` to `category.update`'s state now* — it
+changes the admin entry's shape; left to a follow-up (inventory finding 4).
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-20.2's own reasoning and R-19.2 decide it: the action string is the `PATCH`'s (R-2, FR-003), the merge is the caller's (R-8, `custom-field-writes.md`), and the event follows the route (FR-013). The `custom-field-writes.md` amendment on this branch is the rule's single home and stands. Category is platform-global (`audit-state.md` §5), so the bag on `category.create`'s entry is not a Principle XIII leak. One residue: `category.update`'s entry for a values-only write reads `before` = `after`, which falls short of R-8's `changedCustomFields`. That is the second pre-existing gap and gets its own issue (below), not this pull request.
+
+### R-20.3 Thresholds become `category.inventory_thresholds.set`; `inventory` stops counting them
+
+**Finding.** `CategoryAdminService.setInventoryThresholds` wrote three columns with no audit
+(`command-coverage-ignore`), and `inventory`'s `ThresholdAdminService.patch` counted the category half in
+its one `low_stock_threshold.update` summary (`perCategoryCount`).
+
+**Proposed.** A Command owned by `catalog`, `category.inventory_thresholds.set`, object type `category`,
+`before`/`after` the three columns (`inventoryThresholdHigh` / `Medium` / `Low`; Category is
+platform-global, `audit-state.md` §5). A patch that changes nothing answers `skipAudit` and writes
+nothing. No event: no product document and no cached storefront read carries them through a tag this
+module flushes. The port's patch is parsed with `inventory`'s own triple schema (`thresholdTripleSchema`,
+integers or `null`). `inventory` calls `catalogCategoryCommandPort.setInventoryThresholds` and its
+summary keeps `global` and `perProductCount`; a patch that touches only categories writes no summary.
+The two modules still write in separate transactions, as before.
+
+**Rejected.** *Keeping `perCategoryCount` in the summary* — one change recorded twice, under two object
+types (T084: "no double audit"). *Routing thresholds through `category.update`* — a rename-shaped entry
+and a subtree re-index for a display band, which the old port's JSDoc refused for the same reason.
+*Writing a summary row with no fields for a categories-only patch* — an entry that records nothing.
+
+**Ruling (architect, 2026-11-26):** Confirmed. Principle XIII requires one Command and one entry per domain write, owned by the writer of the columns, and T084's "no double audit" removes the count from `inventory`. Dropping a field from an existing action's state is acceptable. `audit-state.md` governs what an entry may hold, not that its shape is frozen, and no entry already written changes. No reader depends on the field: `perCategoryCount` has no reader in `admin/`, `packages/admin-shell`, `docs/`, the `audit_logs read` CLI or `../paid-modules` (read 2026-11-26), and the global audit viewer renders state generically. `audit-state.md` is not part of the contract surface (`contract-surface.md`), so the `minor` changeset that names the removal is the owed notice, and it is present. Values in `category.inventory_thresholds.set` are allowed (§5, Category is `@GlobalEntity()`). One entry per changed category replaces feature 024's single summary for that half. That is the granularity XIII asks for, and `skipAudit` on a no-op bounds it. Residue, pre-existing and **not** introduced here: `inventory`'s own global/per-product half is a bare `em.flush()` followed by `auditLog.record`, not a Command (Principle XIII), so its entry can survive a failed write and vice versa. A follow-up issue is owed for converting `low_stock_threshold.update` into a Command.
+
+### R-20.4 The deprecated `create` / `update` delegate without the port's input parse
+
+**Proposed.** `catalogCategoryWritePort.create` and `.update` run the runner the port and the admin
+routes share (`CategoryAdminService`, so the same factory, the same Command, the same entry — held by
+the delegation test) but skip the port's admin-schema parse, which the deprecated port never had.
+`setInventoryThresholds` delegates to `catalogCategoryCommandPort` (its parse only refuses a non-integer,
+which the integer column refused anyway), and `listAll` to `catalogCategoryReadPort.listAll({ liveOnly:
+true })`, the same query.
+
+**Rationale.** R-16.5's rule: a deprecated port behaves exactly as before in the release that only
+deprecates it. The paid PIM connectors build slugs from source codes and cut them at 160 characters,
+which can leave a trailing hyphen the kebab-case pattern refuses; refusing that in 0.113.0 would break an
+import that works on 0.112.0.
+
+**Rejected.** *Every method through the port's public methods* — tightens validation on the deprecated
+port in the deprecating release.
+
+**Ruling (architect, 2026-11-26):** Confirmed. R-16.5, R-19.5 and R-21.8 decide it: a deprecated port's answers do not change in the release that only deprecates it. `../paid-modules` was read on 2026-11-26. `pim_akeneo`, `pim_ergonode`, `pim_unopim`, `pim_pimcore` and `comarch_xl` call `catalogCategoryWritePort.create` / `.update`. `pim_ergonode`'s `createWithFreeSlug` cuts `` `${slug}-${attempt}` `` with `.slice(0, 160)`, which can end in a hyphen, so the admin parse would refuse an import that succeeds today. The new port keeps the admin parse (FR-008). Its `create` / `update` JSDoc must say that a migrating connector's slugs must already satisfy the kebab-case grammar. That adaptation waits for the paid modules' post-0.112.0 pass, not this pull request.
+
+### R-20.5 The default-channel bind of `create` stays after the commit
+
+**Finding.** `CategoryAdminService.create` runs `category.create`, then, after the commit,
+`salesChannelMembership.bindToDefaultIfEmpty('category', id)` without `em`, on the kernel writer's own
+transaction. The port runs the same runner, so it binds the same way.
+
+**Proposed.** Left as it is. Moving the bind into the Command (the writer enlists when given `em`, since
+#1926) would make the create and its channel membership atomic, which is better, but it changes a
+sales-channel write path (Principle XII) of the admin create, and this feature's brief stops at that line.
+Named here so the architect can rule it into a follow-up.
+
+**Rejected.** *Enlisting the bind in this change* — out of the brief for a Principle XII path.
+
+**Ruling (architect, 2026-11-26):** Confirmed for this pull request; **a follow-up `bug` issue is owed before merge.** The port must have parity with the route (FR-002), and the route binds after the commit today, so changing the route's Principle XII write path is outside #1826. But this placement is a defect, not a design. `bindToDefaultIfEmpty`'s own JSDoc says it is "wired into every owning module's create **transaction** (FR-011)". R-16.1 and #1928 made the writer enlist when it is given `em`, and `organization.create` and `organization.sales_channels.set` already use that. What is at stake: if the bind fails or the process dies after the commit, a category exists in no channel, and the caller sees an error for a create that did commit, so a retry answers `409 CATEGORY_SLUG_TAKEN`. **The issue's change:** move the bind into `makeCreateCategoryCommand`'s `transactional`, call `bindToDefaultIfEmpty('category', created.id, { em })`, and remove the post-commit call from `CategoryAdminService.create`. Route and port both get it through the one factory. Add a test that a vetoed or failing create leaves neither the category nor a membership row nor a `sales_channel.membership.changed` entry. Until then, the port's `create` JSDoc must not call the create atomic.
+
+### R-20.6 One `caller-options.ts` for `catalog`, shared with the Product port
+
+**Proposed.** `catalog/src/backend/commands/caller-options.ts` is the third copy of `organizations`'
+helper (R-17.6, R-18.6; #1961 moves them all). The Product port (#1825) lives in the same module and
+needs the same helper; the module keeps **one** copy, and whichever of #1825 and #1826 merges second
+takes the file already on `master`.
+
+**Ruling (architect, 2026-11-26):** Confirmed under R-18.6's bounded exception and R-19.4. `catalog` holds **one** copy, shared by the Product, Attribute and Category ports. wt-1825's and this branch's files differ only in their header comments (compared 2026-11-26). Whichever of #1825 and #1826 merges second keeps the file on `master` and merges the header to name all three ports. The copy stays byte-identical in behaviour to `organizations`'. #1961 lists `catalog` once (R-21.6).
+
+### R-20.7 The admin category routes run the shared runner, not the port object
+
+**Proposed.** `routes.admin.ts` keeps calling `CategoryAdminService`, which now runs the factories of
+`commands/category.commands.ts` — the one write path FR-002 asks for, as the Organization routes run
+their factories rather than `organizationCommandPort`. The one consumer in another module,
+`inventory`'s threshold admin, moves onto `catalogCategoryCommandPort` (an admin route, so R-7 and
+R-17.5 allow it); its manifest already declares `catalog` in `dependencies`.
+
+**Rejected.** *The owner's routes resolving its own port* — a container round trip that adds no gate and
+no parity the factories do not already give.
+
+**Ruling (architect, 2026-11-26):** Confirmed, on the terms of R-19.4 and R-21.1. There is one construction site per action (`commands/category.commands.ts`), and the route and the port reach it through `CategoryAdminService`. The parity tests compare the route's entry with the port's. `inventory`'s move onto `catalogCategoryCommandPort` is an admin-route caller (R-7, R-17.5) behind a declared `dependencies` edge, so Principle I holds.
+
+### R-20.8 The two pre-existing gaps the inventory found
+
+**Ruling (architect, 2026-11-26):** Both gaps get an issue. Neither is owed by #1826.
+1. `category.create` and `category.delete` emit no event, so the storefront category cache and the
+   navigation show a deleted category, or miss a new one, until the 5-minute TTL. File a `bug` issue:
+   give both Commands an `event`, as `category.update` has, through the lifecycle pub/sub flush
+   pattern. For delete, also re-index the subtree's products, whose documents carry the slug.
+2. `category.update`'s entry does not name changed custom fields: a values-only write records
+   `before` = `after`. File an issue to add `changedCustomFields` (the sorted keys, `audit-state.md`
+   list 1, R-8) to its state on both paths. It is additive, so it is not a breaking change.

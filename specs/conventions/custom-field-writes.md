@@ -91,15 +91,18 @@ value). Today the hosts that publish one are:
   to it. Both run `organization.set_custom_field_values`, which is not what the admin edit runs
   (`organization.admin_patch` writes the columns and the bag in one Command), so a command hook that
   must see every change of the bag registers on both actions.
-- `catalog` — `catalogProductCommandPort.setCustomFieldValues(productId, merge, options?)`, the
-  aggregate port (`specs/186-aggregate-ports/` US6). A product's bag is its attribute values; the
-  write runs the admin `PATCH`'s `product.update`, and **the owner validates** the merge's answer
-  with the attribute-set rules — the one host where the caller does not call `validateAndMerge`
-  (research R-19.2).
+- `catalog` — two hosts, one aggregate port each:
+  - products — `catalogProductCommandPort.setCustomFieldValues(productId, merge, options?)` (US6). A
+    product's bag is its attribute values; the write runs the admin `PATCH`'s `product.update`, and
+    **the owner validates** the merge's answer with the attribute-set rules — the one host where the
+    caller does not call `validateAndMerge` (research R-19.2);
+  - categories — `catalogCategoryCommandPort.setCustomFieldValues(categoryId, merge, options?)` (US8).
+    It runs `category.update`, the Command the admin category edit runs, with the caller's merge in
+    place of the admin's validated patch (research R-20.2), so a command hook on `category.update`
+    sees both.
 - `projects` — `projectCommandPort.setCustomFieldValues(projectId, merge, options?)`, the aggregate
   port (`specs/186-aggregate-ports/` US7). It runs `projects.project.custom_fields_update`, the
   Command the admin `PATCH` runs for the values, so one hook registration sees every change.
-  must see every change of the bag registers on both actions;
 - `crm` — `opportunityCommandPort.setCustomFieldValues(opportunityId, merge, options?)`, the aggregate
   port (`specs/186-aggregate-ports/` US9), which runs `crm.opportunity.update` — the entry the admin
   `PATCH /api/v1/admin/crm/opportunities/:id` records for a body of `customFieldValues` alone — with the
