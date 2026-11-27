@@ -1,6 +1,71 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 4.4.0 → 4.5.0
+Rationale: MINOR. Principle XV is rewritten around the sentences
+`specs/189-command-middleware/` landed in 4.4.0, as specified by
+`specs/190-overlay-full-modules/contracts/constitution-xv-amendment.md` and
+ruled by the owner on 2026-11-23 (D-297, OR-1 – OR-13). An overlay module
+becomes a full module: it may own schema, publish a port and ship an admin
+layer, under the same guards as a module package, compiled by one
+deployment-level build. The version found on `master` was 4.4.0 (189's
+amendment); this one chains from it.
+
+MINOR, not MAJOR. No compliant work becomes non-compliant: an overlay module
+without schema stays valid, and the constitution never required overlays to be
+build-less. Not PATCH: the bounded surface's "Overlay modules ship no schema"
+is reversed and a new bullet on trust is added, which is a material expansion
+of guidance rather than a clarification.
+
+Modified sections:
+  - XV. Untouched Core & Per-Deployment Overlay —
+    (1) the opening paragraph names the deployment's own modules changing core
+        through declared seams, instead of files that "shadow or extend their
+        core equivalents" (file shadowing was retired in 2026-09);
+    (2) "Overlays are ordinary participants" gains the full-module sentences,
+        inserted before the bullet's last sentence (the one 189's clause
+        extends), so 189's guard-seam clause still closes the bullet, verbatim;
+    (3) "Bounded overridable surface" replaces "Overlay modules ship no schema
+        … in an installed module package … a side table the package owns" with
+        the three schema rungs shipped from a module of the deployment's own
+        (an overlay module or an installed module package); 189's surface list
+        and command-middleware sentence are kept verbatim;
+    (4) new bullet "Trust follows origin";
+    (5) the Rationale's "(services / routes / config / new modules, schema
+        deferred)" sentence is replaced by one citing D-297.
+  - XIII. Uniform Write Auditing via Command Bus — not edited (OR-9). 189's
+    thin-layer sentence stands as 4.4.0 wrote it.
+
+Added sections:
+  - (none)
+
+Removed sections:
+  - (none)
+
+Templates / artifacts requiring alignment:
+  - ✅ .specify/templates/* — grep for "ship no schema" and "shadow" finds
+       nothing to align.
+  - ✅ AGENTS.md — its XV summary ("a deployment customises through an overlay
+       module, never by editing core") stays true; not edited.
+  - ✅ specs/conventions/overlay-modules.md — D-297 paragraph (Phases 2 – 9)
+       and the *Overlay module layout* section (#1857).
+  - ✅ docs/docs/architecture/overlay-pattern.md, customisation-ladder.md,
+       schema-extensions.md, migrations.md, kernel.md, command-bus.md and
+       docs/docs/create-your-first-module.md (+ Polish twins) — #1857.
+  - ⏳ docs/docs/upgrading-an-instance.md (+ pl) — the *After upgrading to
+       0.113.0* notes of #1848 and #1855 land in the 0.113.0 release pull
+       request (`contracts/docs-pass.md`, OR-11).
+
+Deferred items / TODOs:
+  - `specs/188-policy-points/` carries an XV amendment of its own that has not
+    landed; whichever merges second re-bumps the version and rebases on the
+    first (188 plan, XV row). Its policy-participant grant is the first grant
+    the "Trust follows origin" bullet describes.
+
+--- The 4.4.0 report follows unchanged.
+
+SYNC IMPACT REPORT
+==================
 Version change: 4.3.0 → 4.4.0
 Rationale: MINOR. Principle XIII's thin layer gains one sentence and Principle
 XV's two overlay bullets are extended, as specified by
@@ -1095,10 +1160,10 @@ service / interface, so modularity (I) holds. Introduced by feature `055-custom-
 ### XV. Untouched Core & Per-Deployment Overlay
 
 The platform is a **multi-deployment** product — one codebase, many client installations. A
-per-deployment customization MUST be delivered through a **per-deployment overlay location**
-whose files shadow or extend their core equivalents, resolved deterministically at
-build/composition time — **never** by editing a file under the core modules tree and never by
-forking. The following are binding for every feature that customizes a deployment or ships a
+per-deployment customization MUST be delivered through **the deployment's own modules** in a
+per-deployment overlay location, which change core only through declared seams and are resolved
+deterministically at build/composition time — **never** by editing a file under the core modules
+tree and never by forking. The following are binding for every feature that customizes a deployment or ships a
 capability meant to be per-deployment overridable:
 
 - **Untouched, deployment-agnostic core.** Core modules MUST contain no client-specific logic,
@@ -1127,7 +1192,13 @@ capability meant to be per-deployment overridable:
   generated module index), not a runtime lookup.
 - **Overlays are ordinary participants, under the same guards.** An overlay MUST be able to add a
   client-only module (routes, permissions, lifecycle participation) **without** editing the shared
-  core module registry or shared composition root. Overlay modules are ordinary module-lifecycle
+  core module registry or shared composition root. An overlay module is a **full module**. It may
+  own entities and migrations, publish a port, and ship admin surfaces and palette actions, under
+  the same guards as a module package. Its migrations pass the platform's foreign-schema guard
+  with no deployment exemption, and every entity it registers is classified (Principle XI) or the
+  platform does not boot. Overlay code is compiled and type-checked by one deployment-level build.
+  An overlay is never a package in disguise: it has no per-module build, manifest or exports map.
+  Overlay modules are ordinary module-lifecycle
   participants (install / uninstall / reconcile), MUST register their permissions and pass the
   permission-inventory check **per deployment**, and MUST run under the same tenant-isolation guard
   (Principle XI), sales-channel scoping (Principle XII), and Command-Bus auditing (Principle XIII)
@@ -1142,13 +1213,19 @@ capability meant to be per-deployment overridable:
   one after the Command commits. It extends the owner's write and never replaces it. Command
   middleware runs on every Command whose action matches its declared filter: `admit` before the
   Command does anything, which may only pass or refuse; `observe` after the run, read-only. It
-  never transforms a Command's input. Overlay modules ship no schema. A deployment needing new schema ships it
-  in an installed module package, on one of three rungs: a **side table** the package owns, **declared
-  extension columns** on an extensible table (Principle I), or a **variant the owning module
-  provides**. Schema, entity or migration overrides of existing core units — a core column, a
+  never transforms a Command's input. A deployment needing new schema ships it from a module of
+  its own (an overlay module or an installed module package) on one of three rungs: a **side
+  table** the module owns, **declared extension columns** on an extensible table (Principle I), or
+  a **variant the owning module provides**. Schema, entity or migration overrides of existing core units — a core column, a
   constraint, an index or entity metadata — are never offered. Resolution MUST be a
   build/composition-time concern on the **existing toolchain** — no new runtime dependency
   (Principle IV).
+- **Trust follows origin.** What a module may contribute across owners is decided by where the
+  platform discovered it (core, the deployment's overlay, or an installed package), never by
+  anything the module declares about itself. A deployment may grant an installed package one named
+  contribution point in its committed declaration; the grant is a permission at that point only
+  and changes neither the package's origin nor any other point. No origin may decorate a
+  registration an installed package owns, and no module decorates a guard seam.
 
 **Rationale**: The product is confirmed multi-deployment, but modules are wired by a
 hand-maintained static registry plus manual composition, and there is no overlay directory or
@@ -1164,8 +1241,10 @@ gated means core can evolve without silently breaking a deployment: drift is cau
 The layer is deliberately additive and thin — it composes with the module lifecycle and the
 existing guards rather than replacing them (an override runs under the same tenant / channel /
 audit guards as the code it replaces), reuses the existing filesystem-scan + codegen pattern, and
-adds no runtime dependency. The bounded v1 surface (services / routes / config / new modules,
-schema deferred) keeps the mechanism minimal until a real deployment need justifies more.
+adds no runtime dependency. Overlay schema was first deferred (D-106) on the premise that a
+deployment could always own a table from a core module of its own tree; an instance has no core
+tree to own a table from, so that premise does not hold there, and one module concept is cheaper
+than two (D-297).
 Introduced by feature `057-overlay-pattern-multideploy`.
 
 ### XVI. Module Discoverability in the Admin Command Palette
@@ -1645,4 +1724,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 4.4.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-11-27
+**Version**: 4.5.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-11-27
