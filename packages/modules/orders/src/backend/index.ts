@@ -84,7 +84,7 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { lazyEntityExtensionReads, lazyPort, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import type { OrganizationReadPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
@@ -939,6 +939,9 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
             // `isTerminal` (186 US4) reads the graph the routes write.
             () => requireExposed(exposed.orderStatusGraphService, 'the order status graph'),
+            // `specs/187-side-table-extensions/` FR-058 — `include` on the
+            // record reads; resolved only for a read that names one.
+            lazyEntityExtensionReads(() => ctx.cradle<{ entityExtensionReads: EntityExtensionReads }>().entityExtensionReads),
           ),
       )
       .singleton(),
