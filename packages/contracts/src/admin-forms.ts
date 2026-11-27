@@ -56,8 +56,8 @@ export const fieldTargetRe = /^[a-z][a-z0-9_]*\.(?:_?[a-z][a-zA-Z0-9_]*(?:\.[a-z
 /** A slot field's module-local key; the wire key is `<moduleId>.<key>` (FR-010). */
 export const slotFieldKeyRe = /^[a-z][a-zA-Z0-9]{0,47}$/;
 
-/** `platform.<name>` or `<moduleId>.<name>`. */
-export const inputControlIdRe = /^[a-z][a-z0-9_]*\.[a-z][a-zA-Z0-9]*$/;
+/** `platform.<name>` or `<moduleId>.<name>`; a module id may start with `_`, as `moduleIdRe` allows (D-300.16). */
+export const inputControlIdRe = /^_?[a-z][a-z0-9_]*\.[a-z][a-zA-Z0-9]*$/;
 
 /** A module format, `<moduleId>.<name>`; a platform format is one of {@link FIELD_FORMATS}. */
 export const moduleFieldFormatRe = /^_?[a-z][a-z0-9_]*\.[a-z][a-zA-Z0-9]*$/;
@@ -274,6 +274,164 @@ export function evaluateFieldCondition(condition: FieldCondition, values: Readon
 }
 
 // ---------------------------------------------------------------------------
+// Layout (`field-slots.md` §5, D-300.14) — the one implementation
+// ---------------------------------------------------------------------------
+
+/** A slot field as the layout reads it: its wire key is `<moduleId>.<key>`. */
+export interface FormLayoutSlot {
+  readonly moduleId: string;
+  readonly key: string;
+  readonly anchor:
+    | { readonly field: string; readonly position: 'before' | 'after' }
+    | { readonly section: string; readonly position: 'start' | 'end' };
+  readonly weight: number;
+  readonly visibleWhen?: FieldCondition;
+}
+
+/**
+ * An effective `position` of a core key: to another section, and/or before or
+ * after a key. An operator move sorts as module `custom_fields` (R-24.6).
+ */
+export interface FormLayoutMove {
+  readonly moduleId: string;
+  readonly key: string;
+  readonly section?: string;
+  readonly before?: string;
+  readonly after?: string;
+}
+
+/** One section as the layout lays it out: its key and its core keys in order. */
+export interface FormLayoutSectionKeys {
+  readonly key: string;
+  readonly keys: readonly string[];
+}
+
+/** Code point order, never a locale's: the same answer in every process. */
+function compareCodePoints(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+export interface FormLayoutInput {
+  /** The form's sections, in declared order, each with its core keys in order. */
+  readonly sections: readonly FormLayoutSectionKeys[];
+  /** Effective `position` overrides. */
+  readonly moves?: readonly FormLayoutMove[];
+  /** Core keys hidden by an override: rendered as nothing, anchors kept. */
+  readonly hidden?: readonly string[];
+  /** Effective `visibleWhen` per core key. */
+  readonly visibleWhen?: Readonly<Record<string, FieldCondition>>;
+  readonly slots?: readonly FormLayoutSlot[];
+  /** The form's current values, which every condition reads. */
+  readonly values?: Readonly<Record<string, unknown>>;
+}
+
+export interface FormLayoutItem {
+  readonly kind: 'field' | 'slot';
+  /** A core key, or a slot's wire key `<moduleId>.<key>`. */
+  readonly key: string;
+}
+
+export interface FormLayoutSection {
+  readonly key: string;
+  readonly items: readonly FormLayoutItem[];
+}
+
+const bySlotOrder = (a: FormLayoutSlot, b: FormLayoutSlot): number =>
+  a.weight - b.weight || compareCodePoints(a.moduleId, b.moduleId) || compareCodePoints(a.key, b.key);
+
+/**
+ * §5 step 1 on its own: the sections' core keys after `position` moves, applied
+ * in `(moduleId, key)` code-point order. Keys moved after one anchor keep that
+ * order by following the last key placed there. A move whose key or anchor is
+ * in no section is ignored (composition refuses it). Input order is never read.
+ */
+export function applyFieldMoves(
+  sections: readonly FormLayoutSectionKeys[],
+  moves: readonly FormLayoutMove[],
+): FormLayoutSectionKeys[] {
+  const order = sections.map((section) => ({ key: section.key, keys: [...section.keys] }));
+  const sectionOf = (key: string) => order.find((section) => section.keys.includes(key)) ?? null;
+  const sorted = [...moves].sort((a, b) => compareCodePoints(a.moduleId, b.moduleId) || compareCodePoints(a.key, b.key));
+  const lastAfter = new Map<string, string>();
+  for (const move of sorted) {
+    const from = sectionOf(move.key);
+    if (from === null) continue;
+    const anchor = move.before ?? move.after;
+    const target = anchor !== undefined ? sectionOf(anchor) : order.find((section) => section.key === move.section) ?? null;
+    if (target === null || anchor === move.key) continue;
+    from.keys.splice(from.keys.indexOf(move.key), 1);
+    if (move.before !== undefined) {
+      target.keys.splice(target.keys.indexOf(move.before), 0, move.key);
+    } else if (move.after !== undefined) {
+      const behind = lastAfter.get(move.after);
+      const at = behind !== undefined && target.keys.includes(behind) ? target.keys.indexOf(behind) : target.keys.indexOf(move.after);
+      target.keys.splice(at + 1, 0, move.key);
+      lastAfter.set(move.after, move.key);
+    } else {
+      target.keys.push(move.key);
+    }
+  }
+  return order;
+}
+
+/**
+ * §5, deterministic: sections in declared order; core keys in declared order
+ * after `position` overrides (moved keys applied in `(moduleId, key)` order);
+ * around each key the slots anchored before it, the key unless hidden, the
+ * slots anchored after it, each sorted `(weight, moduleId, localKey)` and each
+ * followed recursively by the slots of its own module anchored on it; section
+ * `start` and `end` slots outermost; then items whose `visibleWhen` is false
+ * are dropped, and a section left with no item with them.
+ *
+ * Step 1 is {@link applyFieldMoves}. Input order is never read: every list is
+ * sorted before it is used, and every comparison is by code point. The CLI
+ * check, the platform's effective-forms response and the admin kit all call
+ * this one function (D-300.14).
+ */
+export function formLayout(input: FormLayoutInput): FormLayoutSection[] {
+  const order = applyFieldMoves(input.sections, input.moves ?? []);
+
+  // 2 – 3. Slots around their anchors.
+  const slots = [...(input.slots ?? [])].sort(bySlotOrder);
+  const around = new Map<string, FormLayoutSlot[]>();
+  for (const slot of slots) {
+    const anchor = slot.anchor;
+    const id = 'field' in anchor ? `field ${anchor.field} ${anchor.position}` : `section ${anchor.section} ${anchor.position}`;
+    around.set(id, [...(around.get(id) ?? []), slot]);
+  }
+  const hidden = new Set(input.hidden ?? []);
+  const values = input.values ?? {};
+  const visible = (condition: FieldCondition | undefined): boolean =>
+    condition === undefined || evaluateFieldCondition(condition, values);
+
+  const rendered: FormLayoutSection[] = [];
+  for (const section of order) {
+    const items: FormLayoutItem[] = [];
+    const emitSlot = (slot: FormLayoutSlot): void => {
+      const wire = `${slot.moduleId}.${slot.key}`;
+      for (const child of around.get(`field ${wire} before`) ?? []) if (child.moduleId === slot.moduleId) emitSlot(child);
+      if (visible(slot.visibleWhen)) items.push({ kind: 'slot', key: wire });
+      for (const child of around.get(`field ${wire} after`) ?? []) if (child.moduleId === slot.moduleId) emitSlot(child);
+    };
+    for (const slot of around.get(`section ${section.key} start`) ?? []) emitSlot(slot);
+    for (const key of section.keys) {
+      const family = key.endsWith('.*') ? key.slice(0, -1) : null;
+      const anchoredOn = (position: 'before' | 'after'): FormLayoutSlot[] =>
+        family === null
+          ? around.get(`field ${key} ${position}`) ?? []
+          : slots.filter((slot) => 'field' in slot.anchor && slot.anchor.position === position && slot.anchor.field.startsWith(family));
+      for (const slot of anchoredOn('before')) emitSlot(slot);
+      if (!hidden.has(key) && visible(input.visibleWhen?.[key])) items.push({ kind: 'field', key });
+      for (const slot of anchoredOn('after')) emitSlot(slot);
+    }
+    for (const slot of around.get(`section ${section.key} end`) ?? []) emitSlot(slot);
+    // 4. A section with no item is dropped.
+    if (items.length > 0) rendered.push({ key: section.key, items });
+  }
+  return rendered;
+}
+
+// ---------------------------------------------------------------------------
 // Field sets and admin forms (`form-field-declaration.md` §1, §3)
 // ---------------------------------------------------------------------------
 
@@ -483,9 +641,12 @@ function refuseInvalid(schema: z.ZodType, value: unknown, what: string): void {
 }
 
 /**
- * Declare a field set. Identity with validation: the literal types are kept, so
- * a form, an anchor or a renderer naming an unknown key is a type error, and a
- * declaration the schema refuses throws at import time.
+ * Declare a field set. Identity with validation: the literal key types are kept
+ * (`FieldKeyOf`), so code typed against the set — a renderer map, a key-to-path
+ * map — refuses an unknown key at compile time, and a declaration the schema
+ * refuses throws at import time. A form declared with `defineAdminForm` has no
+ * type link to its set: that a form names only keys of its set is composition's
+ * `unknown-field` (D-300.16).
  */
 export function defineFieldSet<const F extends FieldSetDeclaration>(f: F): F {
   refuseInvalid(FieldSetDeclarationSchema, f, `field set "${String(f.id)}"`);

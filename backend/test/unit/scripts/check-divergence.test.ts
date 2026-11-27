@@ -50,7 +50,7 @@ describe('the derivation covers every seam a deployment can use (SC-008)', () =>
     // the fixture and must contribute nothing: they are a module acting on its
     // own surface, which is not a divergence from core.
     expect([...byKind.keys()].sort()).toEqual([...divergenceBoundary().recorded].sort());
-    expect(derived.report.entries).toHaveLength(12);
+    expect(derived.report.entries).toHaveLength(14);
   });
 
   it('stamps the rung the ladder gives each seam', () => {

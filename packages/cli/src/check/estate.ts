@@ -262,6 +262,33 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'B',
   },
   {
+    id: 'check:admin-forms',
+    script: 'backend/scripts/check-admin-forms.ts',
+    scope: 'package',
+    // `specs/193-admin-form-extensions/` §6. The admin half, beside
+    // `check:admin-zones`: a package's slots and controls are judged against its
+    // own manifest and against the field sets and forms of the modules it
+    // depends on — peers' manifests, which is tier B — and its forms against the
+    // hosts that render them. The analysis is relocated already and its other
+    // reader is `endora generate`, so the package host is a population, not a
+    // rewrite.
+    host: pending('Phase 4'),
+    partial: [
+      {
+        signal: 'unrendered-form',
+        reason:
+          "a form a package lists may be rendered by a peer's screen (FR-083: the module whose " +
+          'screen renders it declares it), and a lone package supplies no peer host',
+      },
+    ],
+    subjectDeclaration: {
+      kind: 'exports-subpath',
+      declaration: '`exports` subpath publishing an admin layer',
+    },
+    readsArtefact: false,
+    tier: 'B',
+  },
+  {
     id: 'check:admin-surface',
     script: 'backend/scripts/check-admin-surface.ts',
     scope: 'package',

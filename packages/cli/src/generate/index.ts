@@ -102,6 +102,7 @@ import {
   type ReleaseIndexEntry,
 } from '../lib/release-index.js';
 import { InstanceHostError } from '../new-instance/host.js';
+import { adminFormsLines, adminFormsSection, instanceAdminForms, type AdminFormsJudgement } from './admin-forms.js';
 import {
   instancePaletteCoverage,
   OverlayAdminInputError,
@@ -254,6 +255,12 @@ export interface GenerateResult {
    * (`specs/190-overlay-full-modules/` FR-085). Empty with no admin member.
    */
   readonly palette: readonly DeploymentPaletteCoverage[];
+  /**
+   * The admin-forms analysis over the installed packages and each deployment's
+   * overlay modules (`specs/193-admin-form-extensions/` FR-012). Empty with no
+   * admin member: a slot or a form is an admin surface.
+   */
+  readonly adminForms: readonly AdminFormsJudgement[];
   readonly dryRun: boolean;
 }
 
@@ -340,6 +347,7 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
   // design system resolve, so a headless instance is a tree this command must
   // still be able to serve.
   let palette: readonly DeploymentPaletteCoverage[] = [];
+  let adminForms: readonly AdminFormsJudgement[] = [];
   try {
     const contributions = collectAdminContributions(scan.packages);
     const sources = collectTailwindSources(root, scan.packages);
@@ -353,6 +361,7 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
       throw error;
     }
     palette = await instancePaletteCoverage(root, scan.packages);
+    adminForms = await instanceAdminForms(root, scan.packages);
     artefacts.push(
       {
         path: adminRegistryOutputPathIn(root),
@@ -562,6 +571,7 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
     releaseIndexError: release.releaseIndexError,
     packageAdmit: packageAdmitFindings(scan, options),
     palette,
+    adminForms,
     dryRun: options.dryRun === true,
   };
 }
@@ -880,6 +890,7 @@ export function generateReport(result: GenerateResult): readonly string[] {
     );
   }
   lines.push(...paletteReport(result.palette));
+  lines.push(...adminFormsLines(result.adminForms));
   if (result.collected !== null) {
     lines.push(
       `copied ${String(result.collected.copied.length)} module-owned page(s) into ` +
@@ -929,6 +940,7 @@ export function generateFindingsRefusal(result: GenerateResult): string | null {
     divergenceFindingsSection(result),
     overlayBoundarySection(result),
     packageAdmitSection(result),
+    adminFormsSection(result.adminForms),
   ].filter((section): section is string[] => section !== null);
   if (sections.length === 0) return null;
   return [...sections.flat(), 'Fix them and run `pnpm run generate` again.'].join('\n');

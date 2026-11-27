@@ -123,6 +123,8 @@ const KIND_HEADINGS: Readonly<Record<DivergenceKind, string>> = {
   'root-plugin': 'Plugins this deployment mounts at the server root',
   worker: 'Queues this deployment consumes',
   'column-extension': "Columns this deployment adds to another module's table",
+  'form-override': 'Fields this deployment overrides on another module’s forms',
+  'form-override-grant': 'Field sets this deployment lets an installed package override',
 };
 
 /** Stable order for the human rendering — most invasive last is not the point;
@@ -133,6 +135,8 @@ const KIND_ORDER: readonly DivergenceKind[] = [
   'interceptor',
   'command-hook',
   'command-middleware',
+  'form-override',
+  'form-override-grant',
   'port-provided',
   'port-consumed',
   'decoration',
@@ -213,6 +217,12 @@ function subjectCell(entry: DivergenceEntry): string {
     const filter =
       entry.detail.actions === '*' ? 'every Command' : entry.detail.actions.map((action) => `\`${action}\``).join(', ');
     return `\`${entry.subject}\` (${entry.detail.phase}, ${filter})`;
+  }
+  if (entry.kind === 'form-override' && entry.detail.kind === 'form-override') {
+    return `\`${entry.subject}\` (${entry.detail.kinds.join(', ')})`;
+  }
+  if (entry.kind === 'form-override-grant' && entry.detail.kind === 'form-override-grant') {
+    return `\`${entry.subject}\` (to \`${entry.detail.packageName}\`)`;
   }
   if (entry.kind === 'column-extension' && entry.detail.kind === 'column-extension') {
     return `\`${entry.subject}\` (${entry.detail.columns.map((column) => `\`${column}\``).join(', ')})`;
@@ -583,6 +593,15 @@ export const INSTANCE_BOUNDARY_NOTES: ReadonlyArray<{
       'as a composition root’s; the composition itself refuses a hook on an action no installed ' +
       'module declares, at boot',
   },
+  {
+    seam: 'the module that owns an overridden field set',
+    why:
+      'a `form-override` or `form-override-grant` entry names the field set it changes, and this ' +
+      'repository attributes it to the module whose manifest declares the field set. An instance ' +
+      'reads no module manifest here, for the reason above, so the owner is shown as a composition ' +
+      'root’s; the composition itself refuses an override of a field no installed module declares, ' +
+      'at boot (`unknown-field`)',
+  },
 ];
 
 /** One installed package this run could not read, named rather than skipped. */
@@ -853,6 +872,15 @@ export interface DeclarationLiterals {
   readonly reasons: Readonly<Record<string, string>>;
   /** `specs/189-command-middleware/` FR-031 — absent when the file does not write it. */
   readonly commandMiddlewareOrder?: readonly string[];
+  /**
+   * `specs/193-admin-form-extensions/` FR-051 — field-set id → the installed
+   * packages granted to override it; absent when the file does not write it.
+   * Read since WP-D (issue #2020): until then this reader dropped the field,
+   * and a grant was in no report.
+   */
+  readonly formOverrideGrants?: Readonly<
+    Record<string, ReadonlyArray<{ readonly moduleId: string; readonly packageName: string; readonly reason: string }>>
+  >;
 }
 
 /** The empty declaration — what a deployment that has declared nothing says. */
@@ -1062,12 +1090,64 @@ export function readDivergenceDeclaration(source: string, file: string): Declara
     }
   }
 
+  let formOverrideGrants: Record<string, Array<{ moduleId: string; packageName: string; reason: string }>> | undefined;
+  const declaredGrants = fields.get('formOverrideGrants');
+  if (declaredGrants !== undefined) {
+    if (!ts.isObjectLiteralExpression(declaredGrants)) {
+      unresolved.push('formOverrideGrants (not an object literal)');
+    } else {
+      const read: Record<string, Array<{ moduleId: string; packageName: string; reason: string }>> = {};
+      for (const property of declaredGrants.properties) {
+        if (!ts.isPropertyAssignment(property)) {
+          unresolved.push('formOverrideGrants (a property whose value is not written in place)');
+          continue;
+        }
+        const fieldSet = propertyNameOf(property.name);
+        const value = unwrap(property.initializer);
+        const grants: Array<{ moduleId: string; packageName: string; reason: string }> = [];
+        let readable = fieldSet !== null && ts.isArrayLiteralExpression(value);
+        if (readable && ts.isArrayLiteralExpression(value)) {
+          for (const element of value.elements) {
+            const entry = unwrap(element);
+            if (!ts.isObjectLiteralExpression(entry)) {
+              readable = false;
+              break;
+            }
+            let moduleId: string | null = null;
+            let packageName: string | null = null;
+            let reason: string | null = null;
+            for (const field of entry.properties) {
+              if (!ts.isPropertyAssignment(field)) continue;
+              const name = propertyNameOf(field.name);
+              const text = stringLiteralOf(unwrap(field.initializer));
+              if (name === 'moduleId') moduleId = text;
+              if (name === 'packageName') packageName = text;
+              if (name === 'reason') reason = text;
+            }
+            if (moduleId === null || packageName === null || reason === null) {
+              readable = false;
+              break;
+            }
+            grants.push({ moduleId, packageName, reason });
+          }
+        }
+        if (!readable) {
+          unresolved.push(`formOverrideGrants.${fieldSet ?? '<computed>'} (not a literal array of grants)`);
+          continue;
+        }
+        read[fieldSet!] = grants;
+      }
+      if (Object.keys(read).length > 0) formOverrideGrants = read;
+    }
+  }
+
   return {
     declaration: {
       omittedModules,
       decorationOrder,
       reasons,
       ...(commandMiddlewareOrder === undefined ? {} : { commandMiddlewareOrder }),
+      ...(formOverrideGrants === undefined ? {} : { formOverrideGrants }),
     },
     unresolved,
   };
