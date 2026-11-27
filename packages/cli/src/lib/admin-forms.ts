@@ -49,7 +49,13 @@ import { pathToFileURL } from 'node:url';
 
 import ts from 'typescript';
 
-import { fieldOverrideKinds, PRESENTATION_OVERRIDES, type FieldOverrideKind } from '@endora-commerce/contracts';
+import {
+  fieldOverrideKinds,
+  formLayout,
+  PRESENTATION_OVERRIDES,
+  type FieldOverrideKind,
+  type FormLayoutSlot,
+} from '@endora-commerce/contracts';
 
 /**
  * The layout, re-exported from its one home (D-300.14) so this subpath keeps
@@ -294,11 +300,6 @@ function overlaps(left: readonly string[], right: readonly string[]): boolean {
   return left.some((form) => right.includes(form));
 }
 
-type ResolvedAnchor =
-  | { readonly kind: 'field'; readonly key: string; readonly position: 'before' | 'after' }
-  | { readonly kind: 'section'; readonly key: string; readonly position: 'start' | 'end' }
-  | { readonly kind: 'own-slot'; readonly key: string; readonly position: 'before' | 'after' };
-
 /**
  * Every §6 finding over one composition, sorted so the answer does not depend
  * on the order anything was registered in.
@@ -352,12 +353,22 @@ export function adminFormsFindings(input: AdminFormsInput): AdminFormsFinding[] 
   }
   const layerModules = new Set(input.layers.map((layer) => layer.moduleId));
 
-  interface Placed {
+  /**
+   * A slot that passed every check one declaration decides, with its anchor
+   * resolved (an alias to its live key; a family member kept as written, which
+   * the layout places beside its family). Whether it is **placed** on a form is
+   * not decided here: it is whether `formLayout` renders it there (D-300.14).
+   */
+  interface Candidate {
     readonly slot: FormsSlot;
-    readonly anchor: ResolvedAnchor;
+    readonly wire: string;
+    readonly kind: 'field' | 'section' | 'own-slot';
+    /** The resolved field reference, section key or own slot's wire key. */
+    readonly anchorKey: string;
+    readonly layoutSlot: FormLayoutSlot;
     readonly targets: readonly string[];
   }
-  const placed: Placed[] = [];
+  const candidates: Candidate[] = [];
 
   for (const slot of slots) {
     const wire = `${slot.moduleId}.${slot.key}`;
@@ -394,6 +405,7 @@ export function adminFormsFindings(input: AdminFormsInput): AdminFormsFinding[] 
       }
       targets = [...new Set(slot.forms.filter((form) => setForms.includes(form)))].sort(compare);
     }
+    const base = { moduleId: slot.moduleId, key: slot.key, weight: slot.weight };
 
     const anchor = slot.anchor;
     if ('field' in anchor) {
@@ -405,25 +417,25 @@ export function adminFormsFindings(input: AdminFormsInput): AdminFormsFinding[] 
       const live = set.fields.map((field) => field.key);
       const aliasOf = new Map(set.fields.flatMap((field) => field.deprecatedAliases.map((alias) => [alias, field.key] as const)));
       const reference = anchor.field;
-      let resolved: ResolvedAnchor | null = null;
+      let resolved: { kind: 'field' | 'own-slot'; key: string } | null = null;
       if (live.includes(reference)) {
-        resolved = { kind: 'field', key: reference, position };
+        resolved = { kind: 'field', key: reference };
       } else if (aliasOf.has(reference)) {
         const key = aliasOf.get(reference)!;
         note('deprecated-anchor', slot.moduleId, wire, slot.where, `slot '${wire}' is anchored on '${reference}', a deprecated alias of '${key}' in field set '${set.id}'`);
-        resolved = { kind: 'field', key, position };
+        resolved = { kind: 'field', key };
       } else if (reference.includes('.')) {
         const prefix = reference.slice(0, reference.indexOf('.'));
         const local = reference.slice(prefix.length + 1);
         if (live.includes(`${prefix}.*`)) {
-          // One member of a declared family: placed beside the family.
-          resolved = { kind: 'field', key: `${prefix}.*`, position };
+          // One member of a declared family, kept as written.
+          resolved = { kind: 'field', key: reference };
         } else if (prefix === slot.moduleId) {
-          const own = (slotsOf.get(`${set.id} ${slot.moduleId}`) ?? []).find((candidate) => candidate.key === local);
-          if (own === undefined || own === slot) {
+          const own = (slotsOf.get(`${set.id} ${slot.moduleId}`) ?? []).some((candidate) => candidate.key === local && candidate.key !== slot.key);
+          if (!own) {
             note('unknown-anchor', slot.moduleId, wire, slot.where, `slot '${wire}' is anchored on '${reference}', which '${slot.moduleId}' does not contribute to field set '${set.id}'`);
           } else {
-            resolved = { kind: 'own-slot', key: reference, position };
+            resolved = { kind: 'own-slot', key: reference };
           }
         } else if ((slotsOf.get(`${set.id} ${prefix}`) ?? []).some((candidate) => candidate.key === local) || layerModules.has(prefix)) {
           note('foreign-slot-anchor', slot.moduleId, wire, slot.where, `slot '${wire}' is anchored on '${reference}', a slot of '${prefix}'; anchor it on a core key, a section or a slot of '${slot.moduleId}'`);
@@ -434,74 +446,97 @@ export function adminFormsFindings(input: AdminFormsInput): AdminFormsFinding[] 
         note('unknown-anchor', slot.moduleId, wire, slot.where, `slot '${wire}' is anchored on '${reference}', which field set '${set.id}' does not declare (its keys: ${live.join(', ')})`);
       }
       if (resolved === null) continue;
-      if (resolved.kind === 'field') {
-        const key = resolved.key;
-        const missing = targets.filter((formId) => !forms.get(formId)!.form.sections.some((section) => section.keys.includes(key)));
-        if (missing.length > 0) {
-          note(
-            'unknown-anchor',
-            slot.moduleId,
-            wire,
-            slot.where,
-            `slot '${wire}' is anchored on '${key}', which ${quoted(missing)} does not show — narrow its forms to the ones that show it`,
-          );
-          continue;
-        }
-      }
-      placed.push({ slot, anchor: resolved, targets });
+      candidates.push({
+        slot,
+        wire,
+        kind: resolved.kind,
+        anchorKey: resolved.key,
+        layoutSlot: { ...base, anchor: { field: resolved.key, position } },
+        targets,
+      });
     } else {
       if (anchor.position !== 'start' && anchor.position !== 'end') {
         note('position-anchor-mismatch', slot.moduleId, wire, slot.where, `slot '${wire}' is anchored on section '${anchor.section}' at '${anchor.position}'; a section anchor takes 'start' or 'end'`);
         continue;
       }
-      const missing = targets.filter((formId) => !forms.get(formId)!.form.sections.some((section) => section.key === anchor.section));
-      if (missing.length > 0) {
-        note('unknown-anchor', slot.moduleId, wire, slot.where, `slot '${wire}' is anchored on section '${anchor.section}', which ${quoted(missing)} does not have`);
+      candidates.push({
+        slot,
+        wire,
+        kind: 'section',
+        anchorKey: anchor.section,
+        layoutSlot: { ...base, anchor: { section: anchor.section, position: anchor.position } },
+        targets,
+      });
+    }
+  }
+
+  // Placement, per form, as the one layout renders it (D-300.14, review items
+  // 1 – 3): a candidate is placed on a form when `formLayout` emits it there.
+  // Every slot of the form's set that targets it is laid out together, so an own
+  // key declared once per form (D-300.15) is found on each form it targets, and
+  // an own-anchor chain is walked over that form's declarations only.
+  const placedOn = new Map<Candidate, string[]>();
+  const unplaced = new Map<Candidate, Map<string, string[]>>();
+  const miss = (candidate: Candidate, reason: string, formId: string): void => {
+    const reasons = unplaced.get(candidate) ?? new Map<string, string[]>();
+    reasons.set(reason, [...(reasons.get(reason) ?? []), formId]);
+    unplaced.set(candidate, reasons);
+  };
+  for (const [formId, { form }] of [...forms].sort(([a], [b]) => compare(a, b))) {
+    const onForm = candidates.filter((candidate) => candidate.slot.fieldSet === form.fieldSet && candidate.targets.includes(formId));
+    if (onForm.length === 0) continue;
+    const laidOut = formLayout({ sections: form.sections, slots: onForm.map((candidate) => candidate.layoutSlot) });
+    const rendered = new Set(laidOut.flatMap((section) => section.items.filter((item) => item.kind === 'slot').map((item) => item.key)));
+    const shows = (reference: string): boolean => {
+      const family = reference.includes('.') ? `${reference.slice(0, reference.indexOf('.'))}.*` : null;
+      return form.sections.some((section) => section.keys.includes(reference) || (family !== null && section.keys.includes(family)));
+    };
+    const byWire = new Map<string, Candidate>();
+    for (const candidate of onForm) if (!byWire.has(candidate.wire)) byWire.set(candidate.wire, candidate);
+    for (const candidate of onForm) {
+      if (rendered.has(candidate.wire)) {
+        placedOn.set(candidate, [...(placedOn.get(candidate) ?? []), formId]);
         continue;
       }
-      placed.push({ slot, anchor: { kind: 'section', key: anchor.section, position: anchor.position }, targets });
+      if (candidate.kind === 'field') {
+        miss(candidate, shows(candidate.anchorKey) ? `anchored on '${candidate.anchorKey}', which is not placed in` : `anchored on '${candidate.anchorKey}', which does not show it:`, formId);
+        continue;
+      }
+      if (candidate.kind === 'section') {
+        miss(candidate, `anchored on section '${candidate.anchorKey}', which does not have it:`, formId);
+        continue;
+      }
+      // An own-slot anchor: walk this form's chain.
+      const chain: string[] = [candidate.wire];
+      let next = byWire.get(candidate.anchorKey);
+      while (next !== undefined && next.kind === 'own-slot' && !chain.includes(next.wire)) {
+        chain.push(next.wire);
+        next = byWire.get(next.anchorKey);
+      }
+      if (next !== undefined && chain.includes(next.wire)) {
+        const members = chain.slice(chain.indexOf(next.wire)).sort(compare);
+        const list = members.map((member) => `'${member}'`).join(', ');
+        miss(
+          candidate,
+          members.includes(candidate.wire)
+            ? `anchored on '${candidate.anchorKey}' and is in the cycle of ${list} of '${candidate.slot.moduleId}' slots, which reaches no core key or section, on`
+            : `anchored on '${candidate.anchorKey}', which leads into the cycle of ${list} of '${candidate.slot.moduleId}' slots, which reaches no core key or section, on`,
+          formId,
+        );
+      } else {
+        miss(candidate, `anchored on '${candidate.anchorKey}', which is not placed in`, formId);
+      }
     }
   }
-
-  // An own-slot anchor is placed only if its chain of own-slot anchors ends on a
-  // core key or a section: a cycle has no root the layout can reach, so neither
-  // member would ever render.
-  const placedOf = (moduleId: string, fieldSet: string, key: string): Placed | undefined =>
-    placed.find((candidate) => candidate.slot.moduleId === moduleId && candidate.slot.fieldSet === fieldSet && candidate.slot.key === key);
-  const cyclic = new Set<Placed>();
-  for (const entry of placed) {
-    const chain: Placed[] = [];
-    let current: Placed | undefined = entry;
-    while (current !== undefined && current.anchor.kind === 'own-slot' && !chain.includes(current)) {
-      chain.push(current);
-      current = placedOf(current.slot.moduleId, current.slot.fieldSet, current.anchor.key.slice(current.slot.moduleId.length + 1));
-    }
-    if (current !== undefined && chain.includes(current)) {
-      // The cycle proper — a slot leading into it is reported by its own walk
-      // as the same cycle. Every member is named, in code-point order (D-300.15).
-      const members = chain.slice(chain.indexOf(current)).map((member) => `${member.slot.moduleId}.${member.slot.key}`).sort(compare);
-      cyclic.add(entry);
-      const wire = `${entry.slot.moduleId}.${entry.slot.key}`;
-      note(
-        'unknown-anchor',
-        entry.slot.moduleId,
-        wire,
-        entry.slot.where,
-        `slot '${wire}' is anchored on '${entry.anchor.key}', in the cycle ${members.map((member) => `'${member}'`).join(' → ')} of '${entry.slot.moduleId}' slots, which reaches no core key or section, so no form can place it`,
-      );
-    }
-  }
-
-  // An own-slot anchor is placed only if the slot it names is placed in every
-  // form this one targets; otherwise it has nowhere to go there.
-  for (const entry of placed) {
-    if (entry.anchor.kind !== 'own-slot' || cyclic.has(entry)) continue;
-    const local = entry.anchor.key.slice(entry.slot.moduleId.length + 1);
-    const target = placed.find((candidate) => candidate.slot.moduleId === entry.slot.moduleId && candidate.slot.fieldSet === entry.slot.fieldSet && candidate.slot.key === local);
-    const missing = target === undefined ? entry.targets : entry.targets.filter((form) => !target.targets.includes(form));
-    if (missing.length > 0) {
-      const wire = `${entry.slot.moduleId}.${entry.slot.key}`;
-      note('unknown-anchor', entry.slot.moduleId, wire, entry.slot.where, `slot '${wire}' is anchored on '${entry.anchor.key}', which is not placed in ${quoted(missing)}`);
+  for (const candidate of candidates) {
+    for (const [reason, formIds] of unplaced.get(candidate) ?? []) {
+      const where = quoted(formIds.sort(compare));
+      const detail = reason.endsWith('does not show it:')
+        ? `slot '${candidate.wire}' is anchored on '${candidate.anchorKey}', which ${where} does not show — narrow its forms to the ones that show it`
+        : reason.endsWith('does not have it:')
+          ? `slot '${candidate.wire}' is anchored on section '${candidate.anchorKey}', which ${where} does not have`
+          : `slot '${candidate.wire}' is ${reason} ${where}`;
+      note('unknown-anchor', candidate.slot.moduleId, candidate.wire, candidate.slot.where, detail);
     }
   }
 
@@ -539,28 +574,29 @@ export function adminFormsFindings(input: AdminFormsInput): AdminFormsFinding[] 
     }
   }
 
-  // Two modules, one anchor, one position, one weight: deterministic by the
-  // tie-break, chosen by neither author (R-4).
-  const ambiguous = new Map<string, Placed[]>();
-  for (const entry of placed) {
-    if (entry.anchor.kind === 'own-slot') continue;
-    const id = [entry.slot.fieldSet, entry.anchor.kind, entry.anchor.key, entry.anchor.position, String(entry.slot.weight)].join(' ');
-    ambiguous.set(id, [...(ambiguous.get(id) ?? []), entry]);
+  // Two modules, one anchor, one position, one weight, on a form both are
+  // placed on: deterministic by the tie-break, chosen by neither author (R-4).
+  // The anchor is the resolved reference, so two members of one family are two
+  // anchors (review item 7).
+  const ambiguous = new Map<string, Candidate[]>();
+  for (const candidate of candidates) {
+    if (candidate.kind === 'own-slot' || !placedOn.has(candidate)) continue;
+    const position = candidate.layoutSlot.anchor.position;
+    const id = [candidate.slot.fieldSet, candidate.kind, candidate.anchorKey, position, String(candidate.slot.weight)].join(' ');
+    ambiguous.set(id, [...(ambiguous.get(id) ?? []), candidate]);
   }
   for (const [, group] of [...ambiguous].sort(([a], [b]) => compare(a, b))) {
     for (let i = 0; i < group.length; i += 1) {
       for (let j = i + 1; j < group.length; j += 1) {
         const left = group[i]!;
         const right = group[j]!;
-        if (left.slot.moduleId === right.slot.moduleId || !overlaps(left.targets, right.targets)) continue;
-        const leftWire = `${left.slot.moduleId}.${left.slot.key}`;
-        const rightWire = `${right.slot.moduleId}.${right.slot.key}`;
+        if (left.slot.moduleId === right.slot.moduleId || !overlaps(placedOn.get(left)!, placedOn.get(right)!)) continue;
         note(
           'ambiguous-slot-order',
           right.slot.moduleId,
-          rightWire,
+          right.wire,
           right.slot.where,
-          `slots '${leftWire}' and '${rightWire}' are both ${left.anchor.position} ${left.anchor.kind} '${left.anchor.key}' of field set '${left.slot.fieldSet}' with weight ${String(left.slot.weight)}; the tie-break renders '${leftWire}' first`,
+          `slots '${left.wire}' and '${right.wire}' are both ${left.layoutSlot.anchor.position} ${left.kind} '${left.anchorKey}' of field set '${left.slot.fieldSet}' with weight ${String(left.slot.weight)}; the tie-break renders '${left.wire}' first`,
         );
       }
     }
@@ -1135,10 +1171,27 @@ export type FormModuleImporter = (specifier: string, fromFile: string) => Promis
  */
 export const importFormModule: FormModuleImporter = async (specifier, fromFile) => {
   const target = specifier.startsWith('.')
-    ? resolve(dirname(fromFile), specifier)
+    ? typeScriptSourceOf(resolve(dirname(fromFile), specifier))
     : createRequire(resolve(fromFile)).resolve(specifier);
   return import(pathToFileURL(target).href);
 };
+
+/**
+ * A relative `.js` specifier whose file is not on disk, resolved to the
+ * TypeScript source it names (review item 4): an overlay in an instance is
+ * unbuilt, and `endora generate` runs under plain `node`, which strips types
+ * from a `.ts` file (Node ≥ 22.18, this package's engine floor) but does not
+ * map `.js` to `.ts`. What it cannot load is stated rather than hidden: a
+ * `.tsx` file (JSX is not stripped), and a relative `.js` import *inside* that
+ * source, which Node resolves itself — both come back unreadable, named.
+ */
+function typeScriptSourceOf(path: string): string {
+  if (existsSync(path) || !/\.[cm]?js$/.test(path)) return path;
+  for (const candidate of [path.replace(/\.js$/, '.ts'), path.replace(/\.mjs$/, '.mts'), path.replace(/\.cjs$/, '.cts')]) {
+    if (candidate !== path && existsSync(candidate)) return candidate;
+  }
+  return path;
+}
 
 /** Each reference's form id, through the module it is imported from. */
 export async function resolveFormRenders(
@@ -1416,7 +1469,11 @@ export function judgeAdminForms(
   const judgements: AdminFormsJudgement[] = [
     { deployment: null, findings: baseFindings, unreadable: base.unreadable, sites: sitesOf(base) },
   ];
-  const seen = new Set(baseFindings.map((finding) => JSON.stringify(finding)));
+  // Matched by code, module, subject and place, never by the detail: a detail
+  // listing a set's forms changes when an overlay adds one (review item 6).
+  const identity = (finding: AdminFormsFinding): string =>
+    JSON.stringify([finding.kind, finding.moduleId, finding.subject, finding.where]);
+  const seen = new Set(baseFindings.map(identity));
   for (const { deployment, population } of deployments) {
     const overlayIds = new Set(population.modules.map((module) => module.moduleId).filter((id) => !baseIds.has(id)));
     const findings = adminFormsFindings({
@@ -1424,7 +1481,7 @@ export function judgeAdminForms(
       layers: [...base.layers, ...population.layers],
       renders: [...base.renders, ...population.renders],
       ...(options.baseRendersJudged === false ? { rendersJudgedFor: overlayIds } : {}),
-    }).filter((finding) => !seen.has(JSON.stringify(finding)));
+    }).filter((finding) => !seen.has(identity(finding)));
     judgements.push({ deployment, findings, unreadable: population.unreadable, sites: sitesOf(population) });
   }
   return judgements;

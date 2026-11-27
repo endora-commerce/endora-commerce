@@ -19,6 +19,7 @@ import {
   adminFormsFindings,
   formRenderSitesIn,
   formsModuleFromManifest,
+  judgeAdminForms,
   readAdminLayerForms,
   readManifestForms,
   resolveFormRenders,
@@ -257,7 +258,7 @@ describe('§6 refusals', () => {
     const found = kinds(findings, 'unknown-anchor');
     expect(found.map((finding) => finding.subject)).toEqual(['acme_erp.a', 'acme_erp.b', 'acme_erp.c']);
     for (const finding of found) {
-      expect(finding.detail).toContain("cycle 'acme_erp.a' → 'acme_erp.b' → 'acme_erp.c'");
+      expect(finding.detail).toContain("the cycle of 'acme_erp.a', 'acme_erp.b', 'acme_erp.c'");
     }
   });
 
@@ -489,6 +490,110 @@ describe('§6 refusals', () => {
       layers: { acme_erp: layerSource(ERP_SLOT, "{ id: 'acme_erp.code', component: () => import('./Code.js') }") },
     });
     expect(paired.findings).toEqual([]);
+  });
+});
+
+describe('placement per form, through `formLayout` (review items 1 – 3, D-300.14)', () => {
+  const own = (key: string, anchor: string, forms?: string) =>
+    `{ fieldSet: 'organization', key: '${key}', type: 'string', weight: 0, labelKey: '${key}', anchor: ${anchor}` +
+    `${forms === undefined ? '' : `, forms: ${forms}`} }`;
+
+  it('places a slot anchored on an own key declared separately per form, on every form', async () => {
+    const { findings } = await analyse({
+      layers: {
+        acme_erp: layerSource(
+          [
+            own('a', "{ field: 'registeredAddress', position: 'after' }", "['organization.create']"),
+            own('a', "{ field: 'parentId', position: 'after' }", "['organization.edit']"),
+            own('b', "{ field: 'acme_erp.a', position: 'after' }"),
+          ].join(', '),
+        ),
+      },
+    });
+    expect(findings).toEqual([]);
+  });
+
+  it('does not call crossed per-form own anchors a cycle, whatever the declaration order', async () => {
+    const declarations = [
+      own('a', "{ field: 'acme_erp.b', position: 'after' }", "['organization.create']"),
+      own('b', "{ field: 'acme_erp.a', position: 'after' }", "['organization.edit']"),
+      own('b', "{ section: 'identity', position: 'start' }", "['organization.create']"),
+      own('a', "{ section: 'identity', position: 'end' }", "['organization.edit']"),
+    ];
+    for (const order of [declarations, [...declarations].reverse()]) {
+      const { findings } = await analyse({ layers: { acme_erp: layerSource(order.join(', ')) } });
+      expect(findings).toEqual([]);
+    }
+  });
+
+  it('says a slot leading into a cycle leads into it, and lists the members without implying an order', async () => {
+    const { findings } = await analyse({
+      layers: {
+        acme_erp: layerSource(
+          [
+            own('a', "{ field: 'acme_erp.b', position: 'after' }"),
+            own('b', "{ field: 'acme_erp.a', position: 'after' }"),
+            own('c', "{ field: 'acme_erp.a', position: 'before' }"),
+          ].join(', '),
+        ),
+      },
+    });
+    const found = kinds(findings, 'unknown-anchor');
+    expect(found.map((finding) => finding.subject)).toEqual(['acme_erp.a', 'acme_erp.b', 'acme_erp.c']);
+    expect(found[0]!.detail).toContain("is in the cycle of 'acme_erp.a', 'acme_erp.b'");
+    expect(found[2]!.detail).toContain("leads into the cycle of 'acme_erp.a', 'acme_erp.b'");
+    expect(found.every((finding) => !finding.detail.includes('→'))).toBe(true);
+  });
+});
+
+describe('the deployment report repeats no base finding (review item 6)', () => {
+  it('matches a base finding by code, module, subject and place, not by its detail', () => {
+    const base = {
+      modules: [formsModuleFromManifest(ORGANIZATIONS_MANIFEST, 'organizations').module!, formsModuleFromManifest(ERP_MANIFEST, 'acme_erp').module!],
+      layers: [readAdminLayerForms('acme_erp', 'acme_erp/admin/index.tsx', layerSource(ERP_SLOT.replace("key: 'erpCode',", "key: 'erpCode', forms: ['organization.view'],"))).layer],
+      renders: [],
+      unreadable: [],
+      files: 1,
+    };
+    // The overlay adds a form over the set, which changes the base finding's
+    // detail ("its forms: …") without changing the finding.
+    const overlay = formsModuleFromManifest(
+      { id: 'acme_quick', dependencies: ['organizations'], adminForms: [{ id: 'organization.quick', fieldSet: 'organization', mode: 'edit', sections: [{ key: 'q', keys: ['name'] }] }] },
+      'acme_quick',
+    ).module!;
+    const [core, acme] = judgeAdminForms(base, [
+      { deployment: 'acme', population: { modules: [overlay], layers: [], renders: [], unreadable: [], files: 1 } },
+    ]);
+    expect(kinds(core!.findings, 'unknown-form')).toHaveLength(1);
+    expect(kinds(acme!.findings, 'unknown-form')).toEqual([]);
+  });
+});
+
+describe('ambiguous-slot-order and field families (review item 7)', () => {
+  const catalog = {
+    id: 'catalog',
+    fieldSets: [{ id: 'product', ownerModuleId: 'catalog', fields: [{ key: 'name' }, { key: 'attributeValues.*' }] }],
+    adminForms: [{ id: 'product.edit', fieldSet: 'product', mode: 'edit', sections: [{ key: 'attributes', keys: ['attributeValues.*'] }] }],
+  };
+  const slot = (key: string, member: string) =>
+    `{ fieldSet: 'product', key: '${key}', type: 'string', weight: 0, labelKey: 'k', anchor: { field: 'attributeValues.${member}', position: 'after' } }`;
+  const run = (first: string, second: string) =>
+    analyse({
+      manifests: {
+        catalog,
+        acme_a: { id: 'acme_a', dependencies: ['catalog'] },
+        acme_b: { id: 'acme_b', dependencies: ['catalog'] },
+      },
+      layers: { acme_a: layerSource(slot('one', first)), acme_b: layerSource(slot('two', second)) },
+      hosts: {},
+    });
+
+  it('does not warn for equal weights on two different members of one family', async () => {
+    expect(kinds((await run('color', 'size')).findings, 'ambiguous-slot-order')).toEqual([]);
+  });
+
+  it('warns for equal weights on the same member', async () => {
+    expect(kinds((await run('color', 'color')).findings, 'ambiguous-slot-order')).toHaveLength(1);
   });
 });
 
