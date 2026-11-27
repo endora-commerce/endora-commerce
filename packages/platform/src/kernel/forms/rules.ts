@@ -34,11 +34,17 @@ export interface MergedValidation {
   readonly options?: Bound<readonly string[]> | undefined;
   readonly patterns: readonly Bound<string>[];
   readonly formats: readonly Bound<string>[];
+  /**
+   * A whole number only: `platform.integer` on a decimal field implies it
+   * (`input-controls.md` §2). Reported as `format` with `{ format: 'integer' }`.
+   */
+  readonly wholeNumber?: RuleSource | undefined;
 }
 
 export interface ValidationContribution {
   readonly moduleId: string;
-  readonly validation: FieldValidationTightening;
+  readonly validation?: FieldValidationTightening | undefined;
+  readonly wholeNumber?: true | undefined;
 }
 
 const larger = <T extends number>(current: Bound<T> | undefined, next: Bound<T>): Bound<T> =>
@@ -60,7 +66,10 @@ export function mergeValidation(contributions: readonly ValidationContribution[]
   let options: Bound<readonly string[]> | undefined;
   const patterns: Bound<string>[] = [];
   const formats: Bound<string>[] = [];
-  for (const { moduleId, validation } of contributions) {
+  let wholeNumber: RuleSource | undefined;
+  for (const { moduleId, validation: given, wholeNumber: whole } of contributions) {
+    if (whole === true && wholeNumber === undefined) wholeNumber = { moduleId };
+    const validation = given ?? {};
     const source = { moduleId, messageKey: validation.messageKey };
     if (validation.required === true && required === undefined) required = source;
     if (validation.minLength !== undefined) minLength = larger(minLength, { ...source, value: validation.minLength });
@@ -78,7 +87,7 @@ export function mergeValidation(contributions: readonly ValidationContribution[]
       formats.push({ ...source, value: validation.format });
     }
   }
-  return { required, minLength, maxLength, min, max, options, patterns, formats };
+  return { required, minLength, maxLength, min, max, options, patterns, formats, wholeNumber };
 }
 
 /** Why a merged rule admits no value, or `null` when some value satisfies it. */
@@ -89,6 +98,13 @@ export function contradictionOf(field: FieldDeclaration, merged: MergedValidatio
   const min = Math.max(field.bounds?.min ?? -Infinity, merged.min?.value ?? -Infinity);
   const max = Math.min(field.bounds?.max ?? Infinity, merged.max?.value ?? Infinity);
   if (min > max) return `at least ${min} and at most ${max}`;
+  if ((field.type === 'integer' || merged.wholeNumber !== undefined) && Math.ceil(min) > Math.floor(max)) {
+    return `a whole number between ${min} and ${max}`;
+  }
+  if (merged.options !== undefined && (field.type === 'string' || field.type === 'string[]')) {
+    const fits = merged.options.value.some((option) => option.length >= minLength && option.length <= maxLength);
+    if (!fits) return `an option of ${minLength} to ${maxLength} characters, and every allowed option is outside that`;
+  }
   if (merged.options !== undefined && merged.options.value.length === 0) return 'no option every module allows';
   if (merged.formats.length > 1) return `two formats at once (${merged.formats.map((format) => format.value).join(', ')})`;
   return null;
@@ -101,6 +117,22 @@ export interface RuleViolation extends RuleSource {
 }
 
 export type FormatValidator = (format: string, value: string) => boolean;
+
+/**
+ * Compiled patterns, one per source. The sources are the sealed overrides'
+ * (bounded by the composition, at most 200 per module), so the cache cannot
+ * grow with traffic; a write tests every element against an already-built
+ * `RegExp`. A `u`-flag pattern without `g` or `y` keeps no state between tests.
+ */
+const PATTERNS = new Map<string, RegExp>();
+function compiled(source: string): RegExp {
+  let pattern = PATTERNS.get(source);
+  if (pattern === undefined) {
+    pattern = new RegExp(source, 'u');
+    PATTERNS.set(source, pattern);
+  }
+  return pattern;
+}
 
 const STRING_TYPES: ReadonlySet<FieldValueType> = new Set(['string', 'string[]', 'enum', 'enum[]', 'reference', 'reference[]', 'date', 'datetime']);
 
@@ -138,7 +170,7 @@ export function violationsOf(
         once({ ...merged.maxLength, code: 'too_long', params: { limit: merged.maxLength.value } });
       }
       for (const pattern of merged.patterns) {
-        if (!new RegExp(pattern.value, 'u').test(element)) once({ ...pattern, code: 'pattern' });
+        if (!compiled(pattern.value).test(element)) once({ ...pattern, code: 'pattern' });
       }
       for (const format of merged.formats) {
         if (!validateFormat(format.value, element)) once({ ...format, code: 'format', params: { format: format.value } });
@@ -154,6 +186,9 @@ export function violationsOf(
       }
       if (number !== null && merged.max !== undefined && number > merged.max.value) {
         once({ ...merged.max, code: 'above_max', params: { limit: merged.max.value } });
+      }
+      if (number !== null && merged.wholeNumber !== undefined && !Number.isInteger(number)) {
+        once({ ...merged.wholeNumber, code: 'format', params: { format: 'integer' } });
       }
     }
   }

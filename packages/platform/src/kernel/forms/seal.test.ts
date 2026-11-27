@@ -45,6 +45,7 @@ const WIDGET = defineFieldSet({
     { key: 'kind', type: 'enum', options: ['a', 'b', 'c'], required: false, accepts: [...PRESENTATION_OVERRIDES, 'validation', 'requiredWhen'] },
     { key: 'size', type: 'decimal', required: false, bounds: { min: 0, max: 1000 }, accepts: [...PRESENTATION_OVERRIDES, 'validation'] },
     { key: 'parentId', type: 'reference', references: 'widget', required: false, accepts: [...PRESENTATION_OVERRIDES] },
+    { key: 'count', type: 'integer', required: false, accepts: ['validation'] },
     { key: 'emails', type: 'string[]', required: false, accepts: [...PRESENTATION_OVERRIDES, 'validation', 'requiredWhen', 'writePermission'] },
     { key: 'note', type: 'string', required: false, accepts: ['label'] },
     { key: 'secret', type: 'string', required: false, writePermission: 'widgets:secret', accepts: ['label'] },
@@ -74,7 +75,7 @@ const EDIT = defineAdminForm({
 const WIDGET_CREATE = hookableAction<unknown>('widget.create', 'widget', ['beforeCommit']);
 const WIDGET_UPDATE = hookableAction<unknown>('widget.update', 'widget', ['beforeCommit']);
 const WIDGET_BULK = hookableAction<unknown>('widget.bulk_update.item', 'widget', ['beforeCommit']);
-const ALL_KEYS = ['name', 'code', 'kind', 'size', 'parentId', 'emails', 'note', 'secret', 'attributeValues.*'];
+const ALL_KEYS = ['name', 'code', 'kind', 'size', 'parentId', 'count', 'emails', 'note', 'secret', 'attributeValues.*'];
 
 function writer(on: typeof WIDGET_CREATE, extra: Partial<FieldSetWriter> = {}): FieldSetWriter {
   return {
@@ -359,6 +360,27 @@ describe('sealForms — overrides (193 T019, field-overrides.md §3)', () => {
     expect(
       refuse(override('acme', { target: 'widget.code', validation: { format: 'email' } }), override('acme_two', { target: 'widget.code', validation: { format: 'tel' } })).code,
     ).toBe('override-contradiction');
+  });
+
+  it('control-format-conflict: a validation.format other than the control\u2019s own (FR-033)', () => {
+    expect(refuse(override('acme', { target: 'widget.code', control: 'platform.email', validation: { format: 'tel' } })).code).toBe('control-format-conflict');
+    expect(() => sealForms(input({ formOverrides: [override('acme', { target: 'widget.code', control: 'platform.email', validation: { format: 'email' } })] }))).not.toThrow();
+  });
+
+  it('override-contradiction: options none of which fits the length bounds', () => {
+    expect(refuse(override('acme', { target: 'widget.code', validation: { options: ['ABCDE', 'FGHIJ'], maxLength: 3 } })).code).toBe('override-contradiction');
+    expect(() => sealForms(input({ formOverrides: [override('acme', { target: 'widget.code', validation: { options: ['AB', 'FGHIJ'], maxLength: 3 } })] }))).not.toThrow();
+  });
+
+  it('override-contradiction: no whole number between min and max on an integer field, or under platform.integer', () => {
+    expect(refuse(override('acme', { target: 'widget.count', validation: { min: 1.2, max: 1.8 } })).code).toBe('override-contradiction');
+    expect(refuse(override('acme', { target: 'widget.size', control: 'platform.integer', validation: { min: 1.2, max: 1.8 } })).code).toBe('override-contradiction');
+    expect(() => sealForms(input({ formOverrides: [override('acme', { target: 'widget.size', validation: { min: 1.2, max: 1.8 } })] }))).not.toThrow();
+  });
+
+  it('orders forms by id whatever the manifests\u2019 order, so the response and its ETag do not follow it', () => {
+    const sealed = sealForms(input({ adminForms: [{ moduleId: 'widgets', form: EDIT }, { moduleId: 'widgets', form: CREATE }] }));
+    expect(sealed.forms.map((form) => form.id)).toEqual(['widget.create', 'widget.edit']);
   });
 
   it('override-conflict: two modules set one presentation kind on one form', () => {

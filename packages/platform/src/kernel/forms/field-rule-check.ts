@@ -4,7 +4,6 @@ import {
   isEmptyFieldValue,
   type FieldCondition,
   type FieldRuleViolationDetail,
-  type FieldValidationTightening,
   type FieldWriteForbiddenDetail,
   type FieldWriteForbiddenReason,
 } from '@endora-commerce/contracts';
@@ -23,7 +22,7 @@ import {
   interpolate,
   writeForbiddenKey,
 } from './messages.js';
-import { mergeValidation, violationsOf, type FormatValidator, type RuleViolation } from './rules.js';
+import { mergeValidation, violationsOf, type FormatValidator, type RuleViolation, type ValidationContribution } from './rules.js';
 import type { RuleContribution, SealedFieldSet, SealedWriter } from './seal.js';
 import type { FieldProjection, FieldScopedProjection } from './types.js';
 
@@ -130,7 +129,7 @@ export function forbiddenDetail(path: string, permission: string, reason: FieldW
 }
 
 interface Present {
-  readonly validations: { moduleId: string; validation: FieldValidationTightening }[];
+  readonly validations: ValidationContribution[];
   readonly requiredWhen: RuleContribution['requiredWhen'][];
   readonly writePermission: string | undefined;
 }
@@ -141,7 +140,11 @@ function inForce(set: SealedFieldSet, key: string, isPresent: (moduleId: string)
   const ownerPermission = set.ownerWritePermissions.get(key);
   if (contributions.length === 0 && ownerPermission === undefined) return null;
   return {
-    validations: contributions.flatMap((c) => (c.validation === undefined ? [] : [{ moduleId: c.moduleId, validation: c.validation }])),
+    validations: contributions.flatMap((c) =>
+      c.validation === undefined && c.wholeNumber !== true
+        ? []
+        : [{ moduleId: c.moduleId, ...(c.validation === undefined ? {} : { validation: c.validation }), ...(c.wholeNumber === true ? { wholeNumber: true as const } : {}) }],
+    ),
     requiredWhen: contributions.flatMap((c) => (c.requiredWhen === undefined ? [] : [c.requiredWhen])),
     writePermission: ownerPermission ?? contributions.find((c) => c.writePermission !== undefined)?.writePermission,
   };

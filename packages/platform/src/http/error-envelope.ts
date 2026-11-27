@@ -520,7 +520,15 @@ async function localizeErrorEnvelope(
   // the original message and looks broken doing it. Same ruling as the missing
   // token key above — untranslated prose that is true beats a rendered
   // sentence that is not.
-  if (hasUnfilledPlaceholder(translated)) return withDetails;
+  if (hasUnfilledPlaceholder(translated)) {
+    // The details may still have been translated: then the body is in that
+    // language, and says so, for the reason the header is set below.
+    if (withDetails !== payload) {
+      reply.header('Content-Language', language);
+      varyBy(reply, 'Accept-Language');
+    }
+    return withDetails;
+  }
   // Say which language was chosen, and that the body varies with the header
   // that chose it (D-139 § 8.2). The sales-channel resolver already echoes
   // `X-Sales-Channel` on every response for exactly this reason, and the

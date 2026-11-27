@@ -22,7 +22,7 @@ import {
   type FormCompositionWarning,
 } from './errors.js';
 import { isPlatformFormat } from './formats.js';
-import { byCodePoint, contradictionOf, mergeValidation, type MergedValidation } from './rules.js';
+import { byCodePoint, contradictionOf, mergeValidation, type MergedValidation, type ValidationContribution } from './rules.js';
 import type { FieldFormatRegistration, FieldSetWriter } from './types.js';
 
 /**
@@ -93,6 +93,8 @@ export interface RuleContribution {
   readonly validation?: FieldValidationTightening | undefined;
   readonly requiredWhen?: FieldCondition | undefined;
   readonly writePermission?: string | undefined;
+  /** `platform.integer` on a decimal field: a whole number only (`input-controls.md` §2). */
+  readonly wholeNumber?: true | undefined;
 }
 
 export interface SealedForm {
@@ -291,7 +293,9 @@ export function sealForms(input: FormSealInput): SealedForms {
   }
 
   const formsById = new Map<string, SealedForm>();
-  for (const { moduleId, form } of input.adminForms) {
+  // Sorted, so the forms — and the effective-forms response and its ETag —
+  // never follow the order the manifests arrived in.
+  for (const { moduleId, form } of [...input.adminForms].sort((a, b) => byCodePoint(a.form.id, b.form.id))) {
     const existing = formsById.get(form.id);
     if (existing !== undefined) {
       throw new FormCompositionError(
@@ -664,6 +668,14 @@ export function sealForms(input: FormSealInput): SealedForms {
         );
       }
       const format = entry.control.format;
+      if (format !== undefined && override.validation?.format !== undefined && override.validation.format !== format) {
+        throw new FormCompositionError(
+          'control-format-conflict',
+          at,
+          `the override names validation.format '${override.validation.format}', and its control '${override.control}' enforces '${format}'`,
+          'The server enforces the control\u2019s own format, so the UI and the API hold one rule (FR-033): drop validation.format, or pick a control of that format.',
+        );
+      }
       if (format !== undefined && !isPlatformFormat(format) && formats.get(format)?.moduleId !== entry.moduleId) {
         throw new FormCompositionError(
           'format-without-validator',
@@ -735,7 +747,7 @@ export function sealForms(input: FormSealInput): SealedForms {
     for (const field of set.fields) if (field.writePermission !== undefined) ownerWritePermissions.set(field.key, field.writePermission);
 
     const rules = new Map<string, RuleContribution[]>();
-    const validations = new Map<string, { moduleId: string; validation: FieldValidationTightening }[]>();
+    const validations = new Map<string, ValidationContribution[]>();
     const writePermissionOf = new Map<string, { moduleId: string; code: string }>();
     for (const sealed of overrides) {
       const { override } = sealed;
@@ -753,29 +765,44 @@ export function sealForms(input: FormSealInput): SealedForms {
         }
         writePermissionOf.set(sealed.fieldKey, { moduleId: sealed.moduleId, code: override.writePermission });
       }
-      const controlFormat = override.control === undefined ? undefined : controls.get(override.control)?.control.format;
-      const validation: FieldValidationTightening | undefined =
-        controlFormat !== undefined ? { ...(override.validation ?? {}), format: override.validation?.format ?? controlFormat } : override.validation;
-      if (validation === undefined && override.requiredWhen === undefined && override.writePermission === undefined) continue;
-      const requires = new Set([sealed.moduleId]);
-      if (sealed.controlModuleId !== null) requires.add(sealed.controlModuleId);
-      const format = validation?.format;
-      const formatModule = format === undefined ? null : formatOwner(format);
-      if (formatModule !== null && formatModule !== undefined) requires.add(formatModule);
+      // Two contributions (input-controls.md §3): the format — the control's, or
+      // a module format — lapses while the module that validates it is off;
+      // everything else the override states binds while its declaring module
+      // is present.
+      const controlEntry = override.control === undefined ? undefined : controls.get(override.control);
+      const { format: ownFormat, ...stated } = override.validation ?? {};
+      const format = ownFormat ?? controlEntry?.control.format;
+      const wholeNumber = controlEntry !== undefined && sealed.field.type === 'decimal' && controlEntry.control.outputType === 'integer';
+      const statedRules = Object.keys(stated).some((key) => key !== 'messageKey') ? (stated as FieldValidationTightening) : undefined;
       const list = rules.get(sealed.fieldKey) ?? [];
-      list.push({
-        moduleId: sealed.moduleId,
-        requires: [...requires].sort(),
-        ...(validation === undefined ? {} : { validation }),
-        ...(override.requiredWhen === undefined ? {} : { requiredWhen: override.requiredWhen }),
-        ...(override.writePermission === undefined ? {} : { writePermission: override.writePermission }),
-      });
-      rules.set(sealed.fieldKey, list);
-      if (validation !== undefined) {
-        const merged = validations.get(sealed.fieldKey) ?? [];
-        merged.push({ moduleId: sealed.moduleId, validation });
-        validations.set(sealed.fieldKey, merged);
+      const merged = validations.get(sealed.fieldKey) ?? [];
+      if (statedRules !== undefined || override.requiredWhen !== undefined || override.writePermission !== undefined) {
+        list.push({
+          moduleId: sealed.moduleId,
+          requires: [sealed.moduleId],
+          ...(statedRules === undefined ? {} : { validation: statedRules }),
+          ...(override.requiredWhen === undefined ? {} : { requiredWhen: override.requiredWhen }),
+          ...(override.writePermission === undefined ? {} : { writePermission: override.writePermission }),
+        });
+        if (statedRules !== undefined) merged.push({ moduleId: sealed.moduleId, validation: statedRules });
       }
+      if (format !== undefined || wholeNumber) {
+        const requires = new Set([sealed.moduleId]);
+        if (sealed.controlModuleId !== null) requires.add(sealed.controlModuleId);
+        const formatModule = format === undefined ? null : formatOwner(format);
+        if (formatModule !== null && formatModule !== undefined) requires.add(formatModule);
+        const formatRule: FieldValidationTightening | undefined =
+          format === undefined ? undefined : { format, ...(stated.messageKey === undefined ? {} : { messageKey: stated.messageKey }) };
+        list.push({
+          moduleId: sealed.moduleId,
+          requires: [...requires].sort(byCodePoint),
+          ...(formatRule === undefined ? {} : { validation: formatRule }),
+          ...(wholeNumber ? { wholeNumber: true as const } : {}),
+        });
+        merged.push({ moduleId: sealed.moduleId, ...(formatRule === undefined ? {} : { validation: formatRule }), ...(wholeNumber ? { wholeNumber: true as const } : {}) });
+      }
+      if (list.length > 0) rules.set(sealed.fieldKey, list);
+      if (merged.length > 0) validations.set(sealed.fieldKey, merged);
     }
 
     // Several modules' `requiredWhen` on one field are served as one
@@ -815,7 +842,7 @@ export function sealForms(input: FormSealInput): SealedForms {
     for (const form of forms.filter((f) => f.mode === 'create')) {
       for (const key of formKeys(form)) {
         const field = resolve(key)!.field;
-        const tightened = (validations.get(key) ?? []).some((contribution) => contribution.validation.required === true);
+        const tightened = (validations.get(key) ?? []).some((contribution) => contribution.validation?.required === true);
         if (!field.required && !tightened) continue;
         const blocker = overrides.find((sealed) => sealed.fieldKey === key && sealed.forms.includes(form.id) && sealed.override.hidden === true);
         if (blocker !== undefined) {

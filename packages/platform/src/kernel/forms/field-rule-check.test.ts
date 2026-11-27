@@ -29,7 +29,7 @@ const SET = defineFieldSet({
     { key: 'name', type: 'string', required: true, bounds: { maxLength: 100 }, accepts: ['label', 'validation'] },
     { key: 'code', type: 'string', required: false, bounds: { maxLength: 32 }, accepts: [...PRESENTATION_OVERRIDES, 'validation', 'requiredWhen', 'writePermission'] },
     { key: 'kind', type: 'enum', options: ['a', 'b', 'c'], required: false, accepts: ['validation', 'requiredWhen'] },
-    { key: 'size', type: 'decimal', required: false, accepts: ['validation'] },
+    { key: 'size', type: 'decimal', required: false, accepts: ['control', 'validation'] },
     { key: 'emails', type: 'string[]', required: false, accepts: ['validation', 'requiredWhen', 'writePermission'] },
     { key: 'secret', type: 'string', required: false, writePermission: 'widgets:secret', accepts: [] },
     { key: 'title', type: 'string', required: false, accepts: ['validation'] },
@@ -249,6 +249,32 @@ describe('fieldRuleCheckFor — merging, conditions, presence (193 T020)', () =>
     expect(detailsOf(await refusal(on(ctx('widget.create', { name: 'N', code: '123' }))))).toEqual([expect.objectContaining({ path: 'code', code: 'format' })]);
     const off = checkOf(overrides, 'widget.create', { present: (id) => id !== 'acme_two' })!;
     await expect(off(ctx('widget.create', { name: 'N', code: '123' }))).resolves.toBeUndefined();
+  });
+
+  it('with the control\u2019s module off, only the format lapses: required, bounds and writePermission still bind (input-controls.md §3)', async () => {
+    const overrides = [{ moduleId: 'acme', override: { target: 'widget.code', control: 'acme_two.nip', validation: { required: true, maxLength: 12 }, writePermission: 'acme:emails' } }];
+    const off = { present: (id: string) => id !== 'acme_two' };
+    const create = checkOf(overrides, 'widget.create', off)!;
+    expect(detailsOf(await refusal(create(ctx('widget.create', { name: 'N' }, system))))).toEqual([expect.objectContaining({ path: 'code', code: 'required' })]);
+    expect(detailsOf(await refusal(create(ctx('widget.create', { name: 'N', code: 'ABCDEFGHIJKLM' }, system))))).toEqual([
+      expect.objectContaining({ path: 'code', code: 'too_long' }),
+    ]);
+    // The NIP format (ten digits) is the switched-off module's: it lapses.
+    await expect(create(ctx('widget.create', { name: 'N', code: '123' }, system))).resolves.toBeUndefined();
+    const update = checkOf(overrides, 'widget.update', off)!;
+    expect((await refusal(update(ctx('widget.update', { after: { code: '123' }, changed: ['code'] })))).statusCode).toBe(403);
+    // With the module on, the format binds too.
+    const on = checkOf(overrides, 'widget.create')!;
+    expect(detailsOf(await refusal(on(ctx('widget.create', { name: 'N', code: '123' }, system))))).toEqual([expect.objectContaining({ code: 'format' })]);
+  });
+
+  it('holds a decimal field under platform.integer to whole numbers on the server (input-controls.md §2)', async () => {
+    const check = checkOf([{ moduleId: 'acme', override: { target: 'widget.size', control: 'platform.integer' } }], 'widget.create')!;
+    const error = await refusal(check(ctx('widget.create', { name: 'N', size: 1.5 })));
+    expect(detailsOf(error)).toEqual([expect.objectContaining({ path: 'size', code: 'format', params: { format: 'integer' } })]);
+    expect(detailsOf(await refusal(check(ctx('widget.create', { name: 'N', size: '2.25' }))))).toEqual([expect.objectContaining({ code: 'format' })]);
+    await expect(check(ctx('widget.create', { name: 'N', size: 2 }))).resolves.toBeUndefined();
+    await expect(check(ctx('widget.create', { name: 'N', size: '3' }))).resolves.toBeUndefined();
   });
 
   it('answers undefined for an action no rule applies to: the common case costs one lookup', () => {

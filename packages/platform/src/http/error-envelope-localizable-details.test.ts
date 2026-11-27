@@ -72,6 +72,28 @@ describe('localizable details (193 T027)', () => {
     await app.close();
   });
 
+  it('says which language the details are in when the top-level sentence keeps the English', async () => {
+    const app = Fastify();
+    registerErrorEnvelope(app, {
+      errorTranslationTargets: { FIELD_RULE_VIOLATION: { moduleId: 'broken', key: 'errors.FIELD_RULE_VIOLATION' } },
+      // The top-level sentence names a placeholder nothing fills, so the envelope keeps the English.
+      translateErrorMessage: async (args) => (args.moduleId === 'broken' ? 'Błąd {missing}.' : translateErrorMessage(args)),
+      resolvePreferredLanguage: async () => 'pl',
+    });
+    app.get('/rules', async () => {
+      throw new HttpError(422, ERROR_CODES.FIELD_RULE_VIOLATION, 'Some values break the rules.', [
+        localizableDetail({ path: 'name', code: 'too_long', message: 'Enter at most 5 characters.' }, { moduleId: '_lifecycle', key: 'fieldRules.too_long', params: { limit: 5 } }),
+      ] as unknown as Record<string, unknown>);
+    });
+    await app.ready();
+    const res = await app.inject({ method: 'GET', url: '/rules' });
+    const body = res.json() as { error: { message: string; details: { message: string }[] } };
+    expect(body.error.message).toBe('Some values break the rules.');
+    expect(body.error.details[0]!.message).toBe('Wpisz najwyżej 5 znaków.');
+    expect(res.headers['content-language']).toBe('pl');
+    await app.close();
+  });
+
   it('keeps the mark off the wire', () => {
     const entry = localizableDetail({ path: 'name', message: 'x' }, { moduleId: '_lifecycle', key: 'k' });
     expect(JSON.parse(JSON.stringify(entry))).toEqual({ path: 'name', message: 'x' });

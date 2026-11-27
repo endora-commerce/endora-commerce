@@ -33,6 +33,8 @@ export const FORM_COMPOSITION_CODES = [
   'override-contradiction',
   'override-conflict',
   'control-type-mismatch',
+  /** An override's `validation.format` names a format other than its control's own (FR-033). */
+  'control-format-conflict',
   'unknown-control',
   'format-without-validator',
   'condition-foreign-field',
