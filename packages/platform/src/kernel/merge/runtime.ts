@@ -6,6 +6,7 @@ import { subscribeWhenReady } from '../cache/subscribe-when-ready.js';
 import type { PlatformLogger } from '../logging.js';
 import { enterSystemScope } from '../scope.js';
 import { mergeFreezeState } from '../../tenancy/merge-freeze.js';
+import { mergeReferenceGuard } from '../../tenancy/merge-reference-guard.js';
 import { entityOwnerFromPath, populationFromMetadata, runtimeMergeCoverage } from './completeness.js';
 import type { RecordMergeRegistry } from './registry.js';
 import { runRecordMerge, type RecordMergeChangedEvent, type RecordMergeRunOutcome, type RecordMergeRunnerDeps } from './runner.js';
@@ -69,6 +70,8 @@ export interface CreateRecordMergeRuntimeOptions {
 
 export function createRecordMergeRuntime(options: CreateRecordMergeRuntimeOptions): RecordMergeRuntime {
   const store = new PostgresRecordMergeStore(options.emFactory);
+  // FR-047: the ORM flush guard reads what this composition declares.
+  mergeReferenceGuard.use(() => options.registry.allDeclarations());
   let queue: Queue<RecordMergeJobData> | undefined;
   const producer = (): Queue<RecordMergeJobData> | undefined => {
     if (options.redis === undefined) return undefined;

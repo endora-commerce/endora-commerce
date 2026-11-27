@@ -195,6 +195,10 @@ export const mergeParticipationReferenceSchema = z
   .strict();
 export type MergeParticipationReference = z.infer<typeof mergeParticipationReferenceSchema>;
 
+/** How a participation's rows are frozen ({@link mergeParticipationDeclarationSchema} `freeze`). */
+export const MERGE_FREEZE_MODES = ['orm', 'guarded'] as const;
+export type MergeFreezeMode = (typeof MERGE_FREEZE_MODES)[number];
+
 export const mergeHostDeclarationSchema = z.object({ type: z.enum(RECORD_MERGE_HOST_TYPES) }).strict();
 export type MergeHostDeclaration = z.infer<typeof mergeHostDeclarationSchema>;
 
@@ -212,6 +216,15 @@ export const mergeParticipationDeclarationSchema = z
     trailing: z.boolean().optional(),
     /** Rows per batch Command; defaults to 500, members use 50 (R-16). */
     batchSize: z.number().int().positive().max(5000).optional(),
+    /**
+     * How a write naming a frozen or archived record is refused for these rows
+     * (FR-047). `orm` (the default): every write that sets a reference goes
+     * through an ORM flush, which the platform checks. `guarded`: the module
+     * also sets one in a `native*` call or a SQL statement, and each such site
+     * calls `assertMergeWritable` (`@endora-commerce/platform/tenancy`) first.
+     * `check:merge-participation` holds the module to it.
+     */
+    freeze: z.enum(MERGE_FREEZE_MODES).optional(),
     references: z.array(mergeParticipationReferenceSchema).min(1),
   })
   .strict()
@@ -483,6 +496,7 @@ export interface MergeDeclarationWithModule {
   readonly host: RecordMergeHostType;
   readonly key: string;
   readonly phase?: string | undefined;
+  readonly freeze?: MergeFreezeMode | undefined;
   readonly references: readonly MergeParticipationReference[];
 }
 

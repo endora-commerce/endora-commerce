@@ -1551,7 +1551,10 @@ Jak operator scala organizacje, śledzi scalanie i je wznawia w panelu administr
   (`different_trees`). Organizacje podrzędne duplikatu przechodzą pod organizację docelową.
 - Organizacja usunięta, odrzucona albo już scalona jest odrzucana
   (`RECORD_MERGE_RECORD_UNAVAILABLE`), podobnie jak para, której rekord bierze udział w innym
-  trwającym scalaniu (`RECORD_MERGE_ALREADY_RUNNING`).
+  trwającym scalaniu (`RECORD_MERGE_ALREADY_RUNNING`). Tak samo jest z duplikatem, który
+  wchłonął inną organizację w scalaniu, którego część dla wyłączonego modułu nie została jeszcze
+  nadrobiona (`RECORD_MERGE_ALREADY_RUNNING`, z identyfikatorem tamtego scalania): najpierw
+  włącz ten moduł.
 
 ### API panelu administracyjnego {#merge-admin-api}
 
@@ -1593,7 +1596,15 @@ a razem z NIP-em przechodzi ostatni wynik walidacji VAT duplikatu.
   polu wyboru ani w wyszukiwaniu. `GET /api/v1/admin/organizations/:id` nadal go zwraca, z
   identyfikatorem organizacji docelowej; zapis, który go wskazuje, jest odrzucany kodem
   `409 ORGANIZATION_MERGED` z `details.survivorId`. Kod serwerowy rozwiązuje stary identyfikator
-  przez `organizationDetailsPort.resolveMerged(id)`.
+  przez `organizationDetailsPort.resolveMerged(id)`. Organizacja scalona wcześniej z duplikatem
+  wskazuje teraz na organizację docelową, więc wskaźnik nigdy nie ma więcej niż jednego kroku.
+- Dla autorów modułów: zamrożenie i odmowa obejmują każde odwołanie, które manifest deklaruje w
+  `merge.participates`, poza odwołaniem zostawianym przy duplikacie jako historia, bez względu na
+  klasyfikację encji — platforma sprawdza każdy zapis przez ORM. Zapis ustawiający takie
+  odwołanie w SQL albo natywnym wywołaniu ORM (`nativeUpdate`, `nativeInsert`, `upsert`) jest
+  tam niewidoczny: zadeklaruj uczestnictwo z `freeze: 'guarded'` i przed nim wywołaj
+  `assertMergeWritable(host, ids)` z `@endora-commerce/platform/tenancy`.
+  `check:merge-participation` znajduje każde takie miejsce.
 - Zdarzenie `organization.merged.v1` jest publikowane jeden raz, z polami `organizationId`
   (organizacja docelowa), `mergedOrganizationId`, `mergeId`, `mergedAt` i `source`. Jest dostępne
   dla webhooków wychodzących. `organization.merge.start` jest akcją dostępną dla hooków, więc

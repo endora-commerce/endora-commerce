@@ -24,3 +24,13 @@ The record merge mechanism (issue #1907, `specs/192-organization-merge/`).
   `createRecordMergeRuntime`, `KERNEL_MERGE_PARTICIPATIONS` and the three entity classes; a root
   that composes by hand passes `mergeRegistry` and `mergeDeclarations` to `composeModules` and
   registers `recordMergeService` and `recordMergeRuntime`.
+- The freeze holds every declared reference, not only an `@OrgScoped` row's `organizationId`: a new
+  ORM subscriber refuses a create, upsert or update that sets any declared, not `kept`, reference —
+  a `@GlobalEntity` row, an id array, a text key, a polymorphic id — to a frozen or archived record.
+  `./tenancy` publishes `assertMergeWritable(hostType, ids)`, which a module calls before setting
+  one in SQL or a native ORM call.
+- A merge is refused `409 RECORD_MERGE_ALREADY_RUNNING` while its loser is the survivor of a
+  completed merge with a step left to catch up, and a write naming a record merged twice over
+  carries its last survivor.
+- The runtime coverage twin reads the ORM's metadata `Map` (MikroORM 7); it read nothing before, so
+  a start was never refused for an uncovered module.

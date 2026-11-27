@@ -691,7 +691,10 @@ The flow has three steps:
    default; an empty one takes the duplicate's. Custom fields are offered the
    same way. The stages, the state and the workflow of the project that stays
    are never offered: a merge does not merge two workflows.
-3. **Confirm.** Tick that a merge cannot be undone, then start it.
+3. **Confirm.** Tick that a merge cannot be undone, then start it. When the
+   duplicate is attached to organizations the project that stays is not, they
+   gain access to it — their users will see it. The preview lists them, and
+   you confirm that as well, apart.
 
 What happens to the duplicate's records:
 
@@ -1116,7 +1119,7 @@ platform runs the phases `structure` → `records` → `finalize`.
 | Route | Permission | What it does |
 | --- | --- | --- |
 | `POST /api/v1/admin/projects/:id/merge-preview` `{ loserId }` | `projects:merge` | The preview; `:id` is the project that stays. |
-| `POST /api/v1/admin/projects/:id/merges` `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true }` | `projects:merge` | Starts the merge; `202` with the merge. Without the acknowledgement `422` `RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED`. |
+| `POST /api/v1/admin/projects/:id/merges` `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true, acknowledgedOrganizationIds? }` | `projects:merge` | Starts the merge; `202` with the merge. Without the acknowledgement `422` `RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED`. Every organization the preview's `organizationsGainingAccess` lists must be in `acknowledgedOrganizationIds`, as they are at the start, or `422` `PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED` with `details.organizationIds`. |
 | `GET /api/v1/admin/project-merges[?state=&projectId=]` | `projects:merge` | The merges both of whose projects the caller sees. |
 | `GET /api/v1/admin/project-merges/:mergeId` | `projects:read` | One merge with its steps. |
 | `POST /api/v1/admin/project-merges/:mergeId/resume` / `cancel` `{ expectedVersion }` | `projects:merge` | Resume a merge that needs attention; cancel one before any record moved. |
@@ -1125,7 +1128,9 @@ Every route also asks the caller to see both projects and to hold
 `projects:write`; a project they may not see answers `404`
 `PROJECT_NOT_FOUND`. A write naming an archived project answers `409`
 `PROJECT_MERGED` with `details.survivorId`; a write naming a project being
-merged away answers `409` `RECORD_MERGE_IN_PROGRESS`.
+merged away answers `409` `RECORD_MERGE_IN_PROGRESS`. A project merged into the
+loser earlier points at the survivor once the merge completes, so a pointer is
+never more than one hop.
 
 The audited Commands, each against the project that stays and carrying the
 merge id, never a value: `projects.project.merge.start` (hookable — a

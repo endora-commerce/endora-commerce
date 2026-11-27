@@ -52,6 +52,7 @@ const preview = (overrides: Partial<ProjectMergePreview> = {}): ProjectMergePrev
   customFields: [],
   participants: [],
   incomplete: [],
+  organizationsGainingAccess: [],
   ...overrides,
 });
 

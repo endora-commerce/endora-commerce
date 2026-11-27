@@ -150,6 +150,7 @@ export type CatalogSeoProductMetaCopy = (
   input: { sourceProductId: string; targetProductId: string },
 ) => Promise<{ copied: number } | 'not-present'>;
 import { HttpError } from '@endora-commerce/platform/http';
+import { assertMergeWritable } from '@endora-commerce/platform/tenancy';
 import { Category } from '../entities/category.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductUrlRedirect } from '../entities/product-url-redirect.entity.js';
@@ -1290,6 +1291,13 @@ export class CatalogAdminService {
     );
 
     // Window, audience, MOQ and returnable at C; status inherits (the copy is reviewed first).
+    // `specs/192-organization-merge/` FR-047: the copied audience names
+    // Organizations in SQL the flush guard cannot see.
+    const audiences = await em.execute<Array<{ allowed_organization_ids: unknown }>>(
+      `select "allowed_organization_ids" from "product_channel_scopes" where "product_id" = ?`,
+      [source.id],
+    );
+    assertMergeWritable('organization', audiences.map((row) => row.allowed_organization_ids));
     const channelScopes = await count(
       `insert into "product_channel_scopes"
          ("product_id", "sales_channel_id", "status", "window_overridden", "publish_from", "publish_until",

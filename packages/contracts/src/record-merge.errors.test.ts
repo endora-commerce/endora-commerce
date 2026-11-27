@@ -41,7 +41,11 @@ describe('merge error codes', () => {
       'ORGANIZATION_MERGE_PERSONAL',
       'ORGANIZATION_MERGE_TREE_INVALID',
     ]);
-    // The Project host's one code (US6, OQ-6): a write naming an archived Project.
-    expect(Object.values(PROJECT_MERGE_ERROR_CODES)).toEqual(['PROJECT_MERGED']);
+    // The Project host's codes: a write naming an archived Project (US6, OQ-6),
+    // and a start that did not confirm the Organizations gaining access (FR-090).
+    expect(Object.values(PROJECT_MERGE_ERROR_CODES).sort()).toEqual([
+      'PROJECT_MERGED',
+      'PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED',
+    ]);
   });
 });

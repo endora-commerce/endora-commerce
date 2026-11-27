@@ -67,7 +67,7 @@ function service(options: { present: Set<string>; called: string[] }) {
       declared('crm'),
     ]),
   });
-  const em = { fork: () => em, findOne: async () => null } as unknown as EntityManager;
+  const em = { fork: () => em, findOne: async () => null, execute: async () => [] } as unknown as EntityManager;
   return new PlatformRecordMergeService({
     emFactory: () => em,
     registry,

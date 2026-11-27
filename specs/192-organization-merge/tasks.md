@@ -198,6 +198,12 @@ The port methods of the two aggregate ports that do not exist yet are follow-ups
 - [x] T087 Admin flow for projects, palette `merge-projects` (and `open-project-merges`), i18n en + pl, docs en + pl (`packages/modules/projects/docs/projects.md` § *Merging duplicate projects*, *Project merge*)
 - [x] T088 Integration `backend/test/integration/projects/project-merge.e2e.test.ts` (US6 scenarios), with the Project section of the pending ledger empty
 
+## Phase 8a: Review of #1950 (2026-11-27)
+
+- [x] T092 Chained merge: refuse a loser that is the survivor of a completed merge with a step left to catch up (platform `begin` and preview), re-point earlier pointers at finalize (`organizations`, `projects`), and the archived set's last survivor; C → A → D tests in both e2e files and the freeze unit test (FR-020, FR-020a)
+- [x] T093 The reference guard: `MergeReferenceGuardSubscriber` over every declared, not `kept`, reference; `assertMergeWritable`; `freeze: 'guarded'` on the participations that set a reference in SQL, and each site guarded; `unguarded-reference-write` in `check:merge-participation`; unit, check and e2e tests (FR-046)
+- [x] T094 FR-090 option C: `organizationsGainingAccess` in the preview, `acknowledgedOrganizationIds` checked under the start lock (`PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED`), the admin flow's second confirmation, i18n en + pl, tests
+
 ## Phase 9: Polish (each MR carries its own; T089 closes)
 
 - [ ] T089 `composer:generate`, `manifests:generate`, `pnpm install --lockfile-only`; the module-removal ledger and the pending ledger re-derived in the same MR; the full check list of plan § *Checks*
@@ -254,6 +260,7 @@ do not gate operators.
 | FR-042 | T028 |
 | FR-043, FR-044 | T044, T045 |
 | FR-045 | T008 – T012 |
+| FR-046 | T093 |
 | FR-050 | T031, T038, T075 |
 | FR-051 – FR-053 | T030, T033, T037, T023 |
 | FR-054 | T032, T039 |
@@ -263,4 +270,5 @@ do not gate operators.
 | FR-062 | T040, T059 – T067, T083, T084 |
 | FR-070 – FR-073 | T015, T017, T022, T072, T081 |
 | FR-080 – FR-083 | T074 – T079 |
-| FR-090 – FR-094 | T081 – T088 |
+| FR-090 – FR-094 | T081 – T088, T094 |
+| FR-020, FR-020a (chains) | T092 |

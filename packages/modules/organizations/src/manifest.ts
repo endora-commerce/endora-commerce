@@ -938,6 +938,8 @@ export const manifest = defineModuleManifest({
       {
         host: 'organization',
         key: 'host-structure',
+        // FR-047: a reference is also set in SQL, each site asking the freeze first.
+        freeze: 'guarded',
         phase: 'structure',
         references: [
           { entity: 'OrganizationRole', property: 'organizationId', disposition: 'union' },

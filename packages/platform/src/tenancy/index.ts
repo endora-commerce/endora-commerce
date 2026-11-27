@@ -90,3 +90,10 @@ export {
  * tenant resolution already ask it for every `@OrgScoped` write.
  */
 export { mergeWriteRefusal } from './merge-freeze.js';
+/**
+ * `specs/192-organization-merge/` FR-047 — throws that refusal for every id a
+ * reference value carries. A module calls it before a `native*` call or a SQL
+ * statement that sets a reference its manifest declares with
+ * `freeze: 'guarded'`; an ORM flush is checked by the platform itself.
+ */
+export { assertMergeWritable } from './merge-reference-guard.js';

@@ -716,7 +716,10 @@ Scalanie ma trzy kroki:
    niestandardowe są proponowane w ten sam sposób. Etapy, stan i przebieg
    projektu, który zostaje, nigdy nie są proponowane: scalanie nie łączy dwóch
    przebiegów.
-3. **Potwierdź.** Zaznacz, że scalenia nie można cofnąć, i rozpocznij je.
+3. **Potwierdź.** Zaznacz, że scalenia nie można cofnąć, i rozpocznij je. Gdy
+   duplikat jest przypisany do organizacji, do których projekt, który zostaje,
+   nie jest, uzyskają one do niego dostęp — ich użytkownicy będą go widzieć.
+   Podgląd je wymienia, a ty potwierdzasz to osobno.
 
 Co dzieje się z rekordami duplikatu:
 
@@ -1163,7 +1166,7 @@ platforma wykonuje fazy `structure` → `records` → `finalize`.
 | Trasa | Uprawnienie | Co robi |
 | --- | --- | --- |
 | `POST /api/v1/admin/projects/:id/merge-preview` `{ loserId }` | `projects:merge` | Podgląd; `:id` to projekt, który zostaje. |
-| `POST /api/v1/admin/projects/:id/merges` `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true }` | `projects:merge` | Rozpoczyna scalanie; `202` ze scalaniem. Bez potwierdzenia `422` `RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED`. |
+| `POST /api/v1/admin/projects/:id/merges` `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true, acknowledgedOrganizationIds? }` | `projects:merge` | Rozpoczyna scalanie; `202` ze scalaniem. Bez potwierdzenia `422` `RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED`. Każda organizacja z `organizationsGainingAccess` w podglądzie musi być w `acknowledgedOrganizationIds`, w stanie z chwili startu, inaczej `422` `PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED` z `details.organizationIds`. |
 | `GET /api/v1/admin/project-merges[?state=&projectId=]` | `projects:merge` | Scalenia, których oba projekty wywołujący widzi. |
 | `GET /api/v1/admin/project-merges/:mergeId` | `projects:read` | Jedno scalanie z krokami. |
 | `POST /api/v1/admin/project-merges/:mergeId/resume` / `cancel` `{ expectedVersion }` | `projects:merge` | Wznawia scalanie wymagające uwagi; anuluje scalanie, zanim jakikolwiek rekord został przeniesiony. |
@@ -1172,7 +1175,9 @@ Każda trasa wymaga też, aby wywołujący widział oba projekty i miał
 `projects:write`; projekt, którego nie widzi, daje `404` `PROJECT_NOT_FOUND`.
 Zapis dotyczący zarchiwizowanego projektu daje `409` `PROJECT_MERGED` z
 `details.survivorId`; zapis dotyczący projektu w trakcie scalania daje `409`
-`RECORD_MERGE_IN_PROGRESS`.
+`RECORD_MERGE_IN_PROGRESS`. Projekt scalony wcześniej z duplikatem po
+zakończeniu scalania wskazuje na projekt, który zostaje, więc wskaźnik nigdy nie
+ma więcej niż jednego kroku.
 
 Audytowane polecenia (Command), każde zapisywane przy projekcie, który
 zostaje, z identyfikatorem scalania i nigdy z wartością:

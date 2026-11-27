@@ -38,6 +38,8 @@ export interface ProjectMergeStartCommandInput {
   readonly source: string | null;
   /** The preview's per-module counts, recorded for the history (FR-060). */
   readonly participantCounts: Readonly<Record<string, number>>;
+  /** FR-090 — the Organizations the caller confirmed will gain access to the survivor. */
+  readonly acknowledgedOrganizationIds: readonly string[];
   readonly extensions?: Readonly<Record<string, unknown>>;
 }
 
@@ -45,6 +47,17 @@ export interface ProjectMergeStartDeps {
   readonly recordMerge: () => RecordMergeService;
   /** Whether the caller still sees the Project, asked on the Command's own `em` (`ProjectAccess`). */
   readonly assertVisibleUnderLock: (em: EntityManager, id: string) => Promise<void>;
+}
+
+/** The loser's Organizations the survivor does not have — what the union adds (FR-090). */
+export async function organizationsGainingAccess(em: EntityManager, survivorId: string, loserId: string): Promise<string[]> {
+  const rows = await em.execute<Array<{ organization_id: string }>>(
+    `select "organization_id" from "project_organizations" where "project_id" = ?
+      except select "organization_id" from "project_organizations" where "project_id" = ?
+      order by 1`,
+    [loserId, survivorId],
+  );
+  return rows.map((row) => row.organization_id);
 }
 
 /** The HTTP error a host refusal answers: `422` for the same Project, `409` otherwise. */
@@ -92,6 +105,19 @@ export function makeProjectMergeStartCommand(
       if (refusals.length > 0) throw projectMergeRefusalError(refusals[0]!);
       await deps.assertVisibleUnderLock(em as EntityManager, input.survivorId);
       await deps.assertVisibleUnderLock(em as EntityManager, input.loserId);
+      // FR-090 (owner decision C): the union widens who reaches the survivor,
+      // so every Organization it adds is confirmed — as it is under the lock.
+      const acknowledged = new Set(input.acknowledgedOrganizationIds);
+      const gaining = await organizationsGainingAccess(em as EntityManager, input.survivorId, input.loserId);
+      const unconfirmed = gaining.filter((id) => !acknowledged.has(id));
+      if (unconfirmed.length > 0) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED,
+          'Confirm the organizations that gain access to the project that stays.',
+          { organizationIds: unconfirmed },
+        );
+      }
 
       const record = await deps.recordMerge().begin(em as EntityManager, {
         mergeId: input.mergeId,
@@ -113,6 +139,7 @@ export function makeProjectMergeStartCommand(
           customFieldChoices: { ...input.customFieldChoices },
           source: input.source,
           participantCounts: { ...input.participantCounts },
+          organizationsGainingAccess: gaining,
         },
       };
     },

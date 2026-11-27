@@ -47,6 +47,19 @@ draft. Each took the recommendation.
 - Q: OQ-4. What happens to modules that are off at merge time? → A: They are skipped, and their
   part runs automatically when they are switched back on (FR-070, FR-071).
 
+### Session 2026-11-27
+
+The review of #1950 and the owner's answers to it.
+
+- Q: A survivor merged away later (C → A, then A → D) — what of C? → C's pointer follows to D at
+  finalize, and A may not be merged away while C → A still has a step to catch up (FR-020, FR-020a).
+- Q: The freeze held only `@OrgScoped` rows written through the ORM. → It holds every declared
+  reference: the platform checks every ORM write, and a module's own SQL is declared `guarded` and
+  asks the freeze at each site, held by the static check (FR-046). A database trigger was weighed
+  and not chosen.
+- Q: A Project merge takes the union of both Projects' Organizations (FR-090). → Kept (option C);
+  the preview lists the Organizations gaining access and the start confirms them apart.
+
 ## Context
 
 A store accumulates duplicates. The same company registers twice, an ERP import creates a second
@@ -284,9 +297,11 @@ viewers, tasks and mentions, merge them, and assert each disposition of the Proj
 ### Edge Cases
 
 - **Merge into itself**: refused before anything else.
-- **Chains**: A already absorbed C, and B is now merged into A. Allowed, and a pointer to C resolves
-  through A. An archived loser can never be a survivor or a loser again, and pointers are never
-  longer than one hop, because a loser cannot be merged.
+- **Chains**: A already absorbed C, and B is now merged into A. Allowed. A survivor may itself be
+  merged later: when A is merged into D, C's pointer is re-pointed to D at finalize, so a pointer
+  is never more than one hop (FR-020a). An archived loser can never be a survivor or a loser again.
+  A may not be merged away while C → A still has a step to catch up (a module that was off,
+  FR-071): the catch-up would move C's rows into an archived A (FR-020).
 - **Two merges racing on one record**: the second start is refused. At most one running merge
   involves a given Organization (as survivor or loser).
 - **Survivor not active**: a survivor that is *pending verification* or *blocked* may receive a
@@ -380,8 +395,11 @@ viewers, tasks and mentions, merge them, and assert each disposition of the Proj
 **Refusals (Organization merge)**
 
 - **FR-020**: A merge MUST be refused when the survivor and loser are the same, when either is
-  deleted or already merged, when the survivor is rejected, or when either is in another merge that
-  has not finished.
+  deleted or already merged, when the survivor is rejected, when either is in another merge that
+  has not finished, or when the loser is the survivor of an earlier merge that still has a step to
+  catch up (review of #1950, 2026-11-27).
+- **FR-020a**: Finalize MUST re-point every record archived into the loser to the survivor, so that
+  a pointer is never more than one hop; a write naming such a record MUST carry the last survivor.
 - **FR-021**: A merge MUST be refused when the loser is an ancestor of the survivor.
 - **FR-022**: A merge MUST be allowed only when both are roots or both are in the same tree, and
   refused for non-root Organizations of two different trees (D-299, OQ-3).
@@ -445,6 +463,13 @@ viewers, tasks and mentions, merge them, and assert each disposition of the Proj
   entity holding such a reference belongs to a module that declares no participation covering it.
   The same rule MUST apply to deployment overlays and installed packages that key side tables on a
   host id (`specs/187-side-table-extensions/`).
+- **FR-046**: The freeze of FR-004 and the refusal of FR-053 MUST hold every declared reference that
+  is not *kept on the loser*, whatever the entity's tenancy classification: the platform MUST check
+  every ORM write that sets one, and a module that also sets one in SQL or a native ORM call MUST
+  declare its participation `freeze: 'guarded'` and ask the freeze at each such site. The static
+  check of FR-045 MUST fail on a site that sets a declared reference outside an ORM flush without
+  both (review of #1950, owner decision 2026-11-27: the ORM guard plus a declaration, not a
+  database trigger).
 
 **The archived loser, identity and events**
 
@@ -518,7 +543,10 @@ viewers, tasks and mentions, merge them, and assert each disposition of the Proj
 
 - **FR-090**: A Project merge MUST be refused when the two are the same, when either is already
   merged, or when the actor cannot see and edit both. Both MAY be in any state. The survivor keeps
-  its state and current stage.
+  its state and current stage. The survivor keeps the union of both Projects' Organizations (FR-091),
+  so the preview MUST list every Organization attached only to the loser, which gains access to
+  the survivor, and a start MUST be refused (`PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED`) unless
+  it confirms each of them as they are under the start's lock (owner decision 2026-11-27, option C).
 - **FR-091**: The survivor MUST gain the loser's comments and attachments, links to orders, quotes
   and opportunities, Organizations (union), members (union, survivor's role on conflict) and viewers
   (union). Organizations a linked record needs MUST be added before the link moves.

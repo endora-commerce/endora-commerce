@@ -187,6 +187,12 @@ export function makeProjectMergeFinalizeCommand(
       loser.version += 1;
       loser.configurationVersion += 1;
       await em.flush();
+      // A pointer is never more than one hop: what was merged into the loser
+      // earlier now points at the survivor.
+      const repointed = await em.execute<Array<{ id: string }>>(
+        `update "projects" set "merged_into_project_id" = ? where "merged_into_project_id" = ? returning "id"`,
+        [survivor.id, loser.id],
+      );
       organizationIds = (
         await em.execute<Array<{ organization_id: string }>>(
           `select "organization_id" from "project_organizations" where "project_id" = ? order by "organization_id"`,
@@ -203,6 +209,7 @@ export function makeProjectMergeFinalizeCommand(
           changedFields,
           changedCustomFields,
           ...(valueChangeId !== undefined ? { valueChangeId } : {}),
+          ...(repointed.length > 0 ? { repointedMergedIds: repointed.map((row) => row.id).sort() } : {}),
         },
       };
     },

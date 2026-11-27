@@ -917,6 +917,7 @@ export function registerModule(ctx: ModuleContext): void {
             assertVisibleUnderLock: (em, id) => projectsAccess.assertVisibleUnderLock(em, id, 'visible'),
             customFieldValues,
             adminUsers: () => lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            organizations: () => lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
           }),
       )
       .singleton(),

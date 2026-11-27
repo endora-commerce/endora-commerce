@@ -402,6 +402,11 @@ const PUBLISHED_TENANCY_SURFACE: Readonly<Record<string, readonly string[]>> = {
    * record is answered: a host module asks it on its own routes.
    */
   'merge-freeze.js': ['mergeWriteRefusal'],
+  /**
+   * `specs/192-organization-merge/` FR-047 — the same answer for a module's own
+   * SQL setting a reference its manifest declares `freeze: 'guarded'`.
+   */
+  'merge-reference-guard.js': ['assertMergeWritable'],
 };
 
 /**

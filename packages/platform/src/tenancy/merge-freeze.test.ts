@@ -83,6 +83,17 @@ describe('mergeWriteRefusal for a Project', () => {
     expect(error?.details).toMatchObject({ survivorId: SURVIVOR, mergeId: MERGE });
   });
 
+  it('names the last survivor of a chain: C into A, then A into D', () => {
+    const c = '00000000-0000-4000-8000-0000000002e0';
+    const d = '00000000-0000-4000-8000-0000000002f0';
+    mergeFreezeState.archive('project', c, MERGE, LOSER);
+    mergeFreezeState.archive('organization', '00000000-0000-4000-8000-000000000300', MERGE, LOSER);
+    mergeFreezeState.archive('project', LOSER, SURVIVOR, d);
+    expect(mergeWriteRefusal('project', c, admin)?.details).toMatchObject({ survivorId: d, mergeId: MERGE });
+    // Another host type's record merged into an id that happens to match is not re-pointed.
+    expect(mergeFreezeState.archivedInto('organization', '00000000-0000-4000-8000-000000000300')).toBe(LOSER);
+  });
+
   it('refuses a frozen Project outside its merge, and lets its own merge scope write', () => {
     mergeFreezeState.freeze('project', LOSER, MERGE);
     expect(mergeWriteRefusal('project', LOSER, admin)?.code).toBe('RECORD_MERGE_IN_PROGRESS');

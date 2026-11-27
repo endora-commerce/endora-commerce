@@ -10,6 +10,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
+import { assertMergeWritable } from '@endora-commerce/platform/tenancy';
 import { Organization } from '../entities/organization.entity.js';
 import { predefinedRoleIdOn } from '../services/organization-role-store.js';
 import { taxIdConflictOf } from '../services/tax-id-conflict.js';
@@ -112,6 +113,9 @@ export function makeConvertToCompanyCommand(
       const rootId = org.path.split('/').filter(Boolean)[0] ?? org.id;
       if (!(await taxIdAvailableFor(em, taxId, rootId))) throw taxIdExistsRefusal();
 
+      // `specs/192-organization-merge/` FR-047: the roles name the Organization
+      // in SQL the flush guard cannot see.
+      assertMergeWritable('organization', org.id);
       await em.execute(
         `insert into "organization_roles"
            ("id", "organization_id", "kind", "permissions", "member_defaults_offered", "version", "created_at", "updated_at")

@@ -14,7 +14,6 @@ import {
   recordMergePreviewSchema,
   recordMergeRecordSchema,
   type RecordMergeChoice,
-  type RecordMergePreview,
   type RecordMergeRecord,
 } from './record-merge.js';
 
@@ -22,6 +21,8 @@ import {
 export const PROJECT_MERGE_ERROR_CODES = {
   /** 409 — a write names an archived (merged) Project; `details.survivorId` (OQ-6). */
   MERGED: 'PROJECT_MERGED',
+  /** 422 — a start that does not confirm every Organization gaining access; `details.organizationIds` (FR-090). */
+  ORGANIZATION_ACCESS_UNCONFIRMED: 'PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED',
 } as const;
 
 /**
@@ -50,6 +51,12 @@ export const projectMergeStartBodySchema = z
     fieldChoices: z.partialRecord(z.enum(PROJECT_MERGE_FIELD_CODES), choiceSchema).optional(),
     customFieldChoices: z.record(z.string().min(1).max(128), choiceSchema).optional(),
     acknowledgeIrreversible: z.boolean().optional(),
+    /**
+     * FR-090 — the Organizations the operator confirmed will gain access to
+     * the survivor: every one of the preview's `organizationsGainingAccess`,
+     * as they are at the start, or `422 PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED`.
+     */
+    acknowledgedOrganizationIds: z.array(uuidSchema).max(1000).optional(),
   })
   .strict();
 export type ProjectMergeStartBody = z.infer<typeof projectMergeStartBodySchema>;
@@ -63,6 +70,8 @@ export interface ProjectMergeStartInput {
   readonly fieldChoices?: Partial<Record<ProjectMergeFieldCode, RecordMergeChoice>>;
   readonly customFieldChoices?: Readonly<Record<string, RecordMergeChoice>>;
   readonly acknowledgeIrreversible: true;
+  /** FR-090 — every Organization gaining access to the survivor, confirmed. */
+  readonly acknowledgedOrganizationIds?: readonly string[];
 }
 
 /** `POST /api/v1/admin/project-merges/:mergeId/{resume,cancel}`. */
@@ -78,7 +87,17 @@ export const projectMergeListQuerySchema = z
   .strict();
 export type ProjectMergeListQuery = z.infer<typeof projectMergeListQuerySchema>;
 
-export const projectMergePreviewResponseSchema = z.object({ data: recordMergePreviewSchema });
+/**
+ * The Project merge preview: the platform's, and the Organizations attached
+ * only to the duplicate, which gain access to the survivor — the union of both
+ * Projects' Organizations is what the merge keeps (FR-090, owner decision C).
+ * A start must confirm each of them.
+ */
+export const projectMergePreviewSchema = recordMergePreviewSchema.extend({
+  organizationsGainingAccess: z.array(z.object({ id: uuidSchema, name: z.string() })),
+});
+
+export const projectMergePreviewResponseSchema = z.object({ data: projectMergePreviewSchema });
 export type ProjectMergePreviewResponse = z.infer<typeof projectMergePreviewResponseSchema>;
 
 /**
@@ -125,7 +144,7 @@ export function projectMergeStageMap(hostContext: Readonly<Record<string, unknow
   return { stageMap, fallbackStageId: typeof fallback === 'string' ? fallback : null };
 }
 
-export type ProjectMergePreview = RecordMergePreview;
+export type ProjectMergePreview = z.infer<typeof projectMergePreviewSchema>;
 export type ProjectMergeRecord = RecordMergeRecord;
 
 /** The merged event (`contracts/events-and-webhooks.md` §1). */

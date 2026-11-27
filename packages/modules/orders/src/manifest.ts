@@ -972,6 +972,8 @@ export const manifest = defineModuleManifest({
       {
         host: 'organization',
         key: 'organization-records',
+        // FR-047: a reference is also set in SQL, each site asking the freeze first.
+        freeze: 'guarded',
         phase: 'records',
         references: [
           { entity: 'Order', property: 'organizationId', disposition: 're_point' },

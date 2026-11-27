@@ -175,6 +175,12 @@ export function makeMergeFinalizeCommand(deps: MergeFinalizeDeps, input: MergeSt
         if (taxIdConflictOf(error) !== null) throw taxIdExistsRefusal();
         throw error;
       }
+      // A pointer is never more than one hop: what was merged into the loser
+      // earlier now points at the survivor, with the merge that put it there.
+      const repointed = await em.execute<Array<{ id: string }>>(
+        `update "organizations" set "merged_into_organization_id" = ? where "merged_into_organization_id" = ? returning "id"`,
+        [survivor.id, loser.id],
+      );
 
       const after = {
         ...before,
@@ -198,6 +204,7 @@ export function makeMergeFinalizeCommand(deps: MergeFinalizeDeps, input: MergeSt
           changedFields: changedKeys(before, after),
           changedCustomFields: changedKeys(beforeCustom, survivor.customFieldValues ?? {}),
           taxIdTaken,
+          ...(repointed.length > 0 ? { repointedMergedIds: repointed.map((row) => row.id).sort() } : {}),
         },
       };
     },

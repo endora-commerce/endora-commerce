@@ -10,3 +10,8 @@ property of the package's own entities must be declared, with a disposition, by 
 `check:divergence` classifies the two record-merge members of `ModuleContext`, `ctx.merge.host` and
 `ctx.merge.participate`, as `own-surface`: a module making its own record type mergeable, or moving
 its own records after a merge, is not a divergence from core.
+
+The rule also reports `unguarded-reference-write`: a module file that sets a declared, not `kept`,
+reference in SQL (`insert into` / `update … set`) or a native ORM call, while its participation is not
+`freeze: 'guarded'` or the file never asks the freeze (`assertMergeWritable`, `mergeWriteRefusal`).
+New exports `entityTablesFromSource` and `referenceWriteFindings`.

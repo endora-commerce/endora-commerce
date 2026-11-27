@@ -24,8 +24,15 @@ export interface ProjectMergeStartInput {
   fieldChoices?: Partial<Record<'title' | 'description' | 'valueAmount' | 'startOn' | 'visibility', 'survivor' | 'loser'>>;
   customFieldChoices?: Readonly<Record<string, 'survivor' | 'loser'>>;
   acknowledgeIrreversible: true;
+  /** FR-090 (option C): every Organization the preview lists as gaining access, confirmed. */
+  acknowledgedOrganizationIds?: readonly string[];
 }
 ```
+
+The preview adds `organizationsGainingAccess: { id, name }[]` — the loser's Organizations the
+survivor does not have. The start Command reads them again under its lock and refuses `422
+PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED` (`details.organizationIds`) for any not confirmed;
+its audit entry records `organizationsGainingAccess` (ids).
 
 `taskCommandPort` (#1829, additive):
 `moveContext({ contextType, fromContextId, toContextId, clearGroup: true }, { limit, mergeId }, options?) → { moved }`.

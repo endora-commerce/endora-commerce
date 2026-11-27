@@ -67,6 +67,7 @@ export function ProjectMergeFlow(props: ProjectMergeFlowProps): ReactNode {
   const [fieldChoices, setFieldChoices] = useState<Record<string, RecordMergeChoice>>({});
   const [customFieldChoices, setCustomFieldChoices] = useState<Record<string, RecordMergeChoice>>({});
   const [acknowledged, setAcknowledged] = useState(false);
+  const [accessAcknowledged, setAccessAcknowledged] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
@@ -86,6 +87,7 @@ export function ProjectMergeFlow(props: ProjectMergeFlowProps): ReactNode {
     if (loserId === null) return;
     setStep(2);
     setAcknowledged(false);
+    setAccessAcknowledged(false);
     setStartError(null);
     void loadPreview(loserId);
     // The duplicate's label, for the sentences that follow; the preview carries values, not names.
@@ -97,9 +99,13 @@ export function ProjectMergeFlow(props: ProjectMergeFlowProps): ReactNode {
 
   const ready = preview.kind === 'ready' ? preview.preview : null;
   const startable = canStart(ready);
+  // FR-090: the union of both Projects' Organizations widens who reaches the
+  // survivor; each one it adds is confirmed apart from the irreversibility.
+  const gaining = ready?.organizationsGainingAccess ?? [];
+  const confirmed = acknowledged && (gaining.length === 0 || accessAcknowledged);
 
   const start = async (): Promise<void> => {
-    if (loserId === null || !startable || !acknowledged) return;
+    if (loserId === null || !startable || !confirmed) return;
     setStarting(true);
     setStartError(null);
     try {
@@ -108,6 +114,7 @@ export function ProjectMergeFlow(props: ProjectMergeFlowProps): ReactNode {
         fieldChoices: fieldChoices as Partial<Record<ProjectMergeFieldCode, RecordMergeChoice>>,
         customFieldChoices,
         acknowledgeIrreversible: true,
+        ...(gaining.length > 0 ? { acknowledgedOrganizationIds: gaining.map((organization) => organization.id) } : {}),
       });
       props.onStarted(merge);
     } catch (err) {
@@ -224,10 +231,29 @@ export function ProjectMergeFlow(props: ProjectMergeFlowProps): ReactNode {
               })}
             </p>
           ) : null}
+          {gaining.length > 0 ? (
+            <Alert variant="warning">
+              <AlertTriangle aria-hidden="true" />
+              <AlertTitle>{own('merge.preview.access.title', { survivor: props.survivorName })}</AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc pl-5">
+                  {gaining.map((organization) => (
+                    <li key={organization.id}>{organization.name}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          ) : null}
           <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
             <Checkbox checked={acknowledged} onChange={(e): void => setAcknowledged(e.target.checked)} />
             {own('merge.flow.acknowledge')}
           </label>
+          {gaining.length > 0 ? (
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+              <Checkbox checked={accessAcknowledged} onChange={(e): void => setAccessAcknowledged(e.target.checked)} />
+              {own('merge.flow.acknowledgeAccess', { survivor: props.survivorName })}
+            </label>
+          ) : null}
           {startError !== null ? (
             <Alert variant="destructive">
               <AlertDescription>{startError}</AlertDescription>
@@ -239,7 +265,7 @@ export function ProjectMergeFlow(props: ProjectMergeFlowProps): ReactNode {
             </Button>
             <Button
               type="button"
-              disabled={!acknowledged || starting}
+              disabled={!confirmed || starting}
               aria-busy={starting ? true : undefined}
               onClick={(): void => void start()}
             >
@@ -302,6 +328,17 @@ function PreviewReview(props: PreviewReviewProps): ReactNode {
             </p>
           </AlertDescription>
         </Alert>
+      ) : null}
+
+      {preview.organizationsGainingAccess.length > 0 ? (
+        <EditorSection title={own('merge.preview.access.title', { survivor: props.survivorName })}>
+          <p className="text-sm text-muted-foreground">{own('merge.preview.access.body', { survivor: props.survivorName })}</p>
+          <ul className="list-disc pl-5 text-sm">
+            {preview.organizationsGainingAccess.map((organization) => (
+              <li key={organization.id}>{organization.name}</li>
+            ))}
+          </ul>
+        </EditorSection>
       ) : null}
 
       <EditorSection title={own('merge.preview.moves.title', { survivor: props.survivorName })}>

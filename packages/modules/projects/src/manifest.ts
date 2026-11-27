@@ -377,6 +377,8 @@ export const manifest = defineModuleManifest({
     { code: 'PROJECT_TEMPLATE_ROLE_ARCHIVED' },
     // `specs/192-organization-merge/` US6 (OQ-6) — a write naming a Project merged into another one.
     { code: 'PROJECT_MERGED' },
+    // `specs/192-organization-merge/` FR-090 — a merge start that does not confirm the Organizations gaining access.
+    { code: 'PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED' },
   ],
   /**
    * The one e-mail this module sends: a Stage deadline alert, to every Member
@@ -545,6 +547,8 @@ export const manifest = defineModuleManifest({
       {
         host: 'project',
         key: 'host-structure',
+        // FR-047: a reference is also set in SQL, each site asking the freeze first.
+        freeze: 'guarded',
         phase: 'structure',
         references: [
           { entity: 'ProjectOrganization', property: 'projectId', disposition: 'union' },
@@ -555,6 +559,8 @@ export const manifest = defineModuleManifest({
       {
         host: 'project',
         key: 'project-records',
+        // FR-047: a reference is also set in SQL, each site asking the freeze first.
+        freeze: 'guarded',
         phase: 'records',
         references: [
           { entity: 'ProjectLink', property: 'projectId', disposition: 're_point' },
@@ -588,6 +594,8 @@ export const manifest = defineModuleManifest({
       {
         host: 'organization',
         key: 'organization-projects',
+        // FR-047: a reference is also set in SQL, each site asking the freeze first.
+        freeze: 'guarded',
         phase: 'records',
         references: [
           { entity: 'ProjectOrganization', property: 'organizationId', disposition: 'union' },

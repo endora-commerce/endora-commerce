@@ -1067,6 +1067,11 @@ export const PROJECTS_ERROR_CODES = [
   'PROJECT_SAVED_VIEW_NAME_TAKEN',
   /** A write names a Project merged into another one; `details.survivorId` (`specs/192-organization-merge/` OQ-6). */
   'PROJECT_MERGED',
+  /**
+   * A Project merge start that does not confirm every Organization gaining
+   * access to the survivor; `details.organizationIds` (FR-090).
+   */
+  'PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED',
 ] as const;
 export type ProjectsErrorCode = (typeof PROJECTS_ERROR_CODES)[number];
 

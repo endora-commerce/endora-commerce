@@ -22,6 +22,7 @@
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { readFileSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { MergeDeclarationWithModule, MergePopulationEntity, ModuleManifest } from '@endora-commerce/contracts';
 import { KERNEL_MERGE_PARTICIPATIONS } from '@endora-commerce/platform/composition';
@@ -30,8 +31,12 @@ import {
   PREFIX,
   checkMergeParticipation,
   describeFinding,
+  entityTablesFromSource,
   persistedEntitiesFromSource,
+  referenceWriteFindings,
+  type EntityTable,
   type MergeParticipationResult,
+  type ReferenceWriteFinding,
 } from '@endora-commerce/cli/rules/merge-participation.js';
 import { walk } from '@endora-commerce/cli/rules/entity-tenant-classification.js';
 import { MERGE_PARTICIPATION_PENDING } from './ledgers/merge-participation-pending.js';
@@ -51,6 +56,7 @@ export function declarationsFrom(manifests: readonly ModuleManifest[]): MergeDec
         host: participation.host,
         key: participation.key,
         phase: participation.phase,
+        freeze: participation.freeze,
         references: participation.references,
       })),
     ),
@@ -58,13 +64,15 @@ export function declarationsFrom(manifests: readonly ModuleManifest[]): MergeDec
   ];
 }
 
-export function report(result: MergeParticipationResult, files: number): number {
+export function report(result: MergeParticipationResult, files: number, writes: readonly ReferenceWriteFinding[] = []): number {
+  const findings = result.findings.length + writes.length;
   console.log(
-    `${PREFIX} files=${files} entities=${result.entities} references=${result.sites} findings=${result.findings.length} ` +
+    `${PREFIX} files=${files} entities=${result.entities} references=${result.sites} findings=${findings} ` +
       `pending=${MERGE_PARTICIPATION_PENDING.length}`,
   );
   for (const finding of result.findings) console.error(`  - ${describeFinding(finding)}`);
-  return result.findings.length > 0 ? 1 : 0;
+  for (const finding of writes) console.error(`  - [${finding.kind}] ${finding.moduleId} ${finding.entity}.${finding.property}: ${finding.message}`);
+  return findings > 0 ? 1 : 0;
 }
 
 async function main(): Promise<void> {
@@ -78,13 +86,17 @@ async function main(): Promise<void> {
   });
   const platformRoot = layout.platformRoot;
   const population: MergePopulationEntity[] = [];
+  const tables: (EntityTable & { moduleId: string })[] = [];
+  const sources: { file: string; moduleId: string; text: string }[] = [];
   for (const file of files) {
     const text = readFileSync(file, 'utf8');
-    if (!ENTITY_HINT.test(text)) continue;
     const moduleId =
       layout.moduleIdOfPath(file) ?? (platformRoot !== null && file.startsWith(`${platformRoot}/`) ? 'core' : null);
     if (moduleId === null) continue;
+    sources.push({ file: relative(resolve(process.cwd(), '..'), file), moduleId, text });
+    if (!ENTITY_HINT.test(text)) continue;
     for (const entity of persistedEntitiesFromSource(text, file)) population.push({ moduleId, ...entity });
+    for (const table of entityTablesFromSource(text, file)) tables.push({ moduleId, ...table });
   }
   if (population.length === 0) {
     console.error(`${PREFIX} no persisted entity found in a tree that has hundreds — refusing a vacuous pass`);
@@ -110,8 +122,10 @@ async function main(): Promise<void> {
   }
 
   const result = checkMergeParticipation({ population, declarations, pending: MERGE_PARTICIPATION_PENDING });
+  // FR-047: a reference set outside an ORM flush is guarded where it is set.
+  const writes = referenceWriteFindings({ tables, declarations, files: sources });
   reportReadSize({ prefix: PREFIX, files: files.length, sites: result.sites, coverage: [coverage] });
-  process.exit(report(result, files.length));
+  process.exit(report(result, files.length, writes));
 }
 
 // CLI only — importing this module (the companion test does) must not scan.

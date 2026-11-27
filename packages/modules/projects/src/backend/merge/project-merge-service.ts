@@ -4,6 +4,7 @@ import {
   ERROR_CODES,
   type AdminUserReadPort,
   type CustomFieldValuePort,
+  type OrganizationDetailsPort,
   type ProjectMergePreview,
   type ProjectMergeRecord,
   type ProjectMergeView,
@@ -14,7 +15,11 @@ import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { RecordMergeService } from '@endora-commerce/platform/kernel';
 import { makeProjectMergeCancelCommand, makeProjectMergeResumeCommand } from '../commands/project-merge-control.command.js';
-import { makeProjectMergeStartCommand, projectMergeRefusalError } from '../commands/project-merge-start.command.js';
+import {
+  makeProjectMergeStartCommand,
+  organizationsGainingAccess,
+  projectMergeRefusalError,
+} from '../commands/project-merge-start.command.js';
 import { Project } from '../entities/project.entity.js';
 import { mergeProjectCustomFields } from '../services/project-custom-fields.js';
 import { changedKeys, resolvedCustomFieldValues } from './project-merge-rules.js';
@@ -32,6 +37,8 @@ export interface ProjectMergeStartRequest {
   readonly fieldChoices?: Readonly<Partial<Record<string, RecordMergeChoice>>>;
   readonly customFieldChoices?: Readonly<Record<string, RecordMergeChoice>>;
   readonly acknowledgeIrreversible?: boolean;
+  /** FR-090 — every Organization gaining access to the survivor, confirmed. */
+  readonly acknowledgedOrganizationIds?: readonly string[];
   /** D-293.6: the integration that asked, recorded on the merge and its audit entry. */
   readonly source?: string | null;
   readonly extensions?: Readonly<Record<string, unknown>>;
@@ -44,6 +51,8 @@ export interface ProjectMergeServiceDeps {
   readonly assertVisibleUnderLock: (em: EntityManager, id: string) => Promise<void>;
   readonly customFieldValues?: () => CustomFieldValuePort;
   readonly adminUsers?: () => Pick<AdminUserReadPort, 'findByIds'>;
+  /** The names of the Organizations gaining access (FR-090); absent, each is named by its id. */
+  readonly organizations?: () => Pick<OrganizationDetailsPort, 'findByIds'>;
 }
 
 function definedChoices(choices: Readonly<Partial<Record<string, RecordMergeChoice>>> | undefined): Record<string, RecordMergeChoice> {
@@ -55,9 +64,30 @@ function definedChoices(choices: Readonly<Partial<Record<string, RecordMergeChoi
 export class ProjectMergeService {
   constructor(private readonly deps: ProjectMergeServiceDeps) {}
 
-  /** FR-002 — every refusal, per present participant what would follow, and the values that differ. Writes nothing. */
-  preview(survivorId: string, loserId: string): Promise<ProjectMergePreview> {
-    return this.deps.recordMerge().preview('project', survivorId, loserId);
+  /**
+   * FR-002 — every refusal, per present participant what would follow, the
+   * values that differ, and the Organizations gaining access to the survivor
+   * (FR-090). Writes nothing.
+   */
+  async preview(survivorId: string, loserId: string): Promise<ProjectMergePreview> {
+    const [preview, gaining] = await Promise.all([
+      this.deps.recordMerge().preview('project', survivorId, loserId),
+      this.#organizationsGainingAccess(survivorId, loserId),
+    ]);
+    const names =
+      gaining.length > 0 && this.deps.organizations
+        ? new Map((await this.deps.organizations().findByIds(gaining)).map((organization) => [organization.id, organization.name]))
+        : new Map<string, string>();
+    return {
+      ...preview,
+      organizationsGainingAccess: gaining
+        .map((id) => ({ id, name: names.get(id) ?? id }))
+        .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
+    };
+  }
+
+  #organizationsGainingAccess(survivorId: string, loserId: string): Promise<string[]> {
+    return organizationsGainingAccess(this.deps.emFactory().fork({ clear: true }), survivorId, loserId);
   }
 
   /**
@@ -104,6 +134,7 @@ export class ProjectMergeService {
           customFieldChoices,
           source: request.source ?? null,
           participantCounts,
+          acknowledgedOrganizationIds: request.acknowledgedOrganizationIds ?? [],
           ...(request.extensions ? { extensions: request.extensions } : {}),
         },
       ),

@@ -8,7 +8,9 @@ import { isHostReferenceProperty, type MergeDeclarationWithModule, type MergePop
 import {
   checkMergeParticipation,
   declarationsFrom,
+  entityTablesFromSource,
   persistedEntitiesFromSource,
+  referenceWriteFindings,
 } from '../../../scripts/check-merge-participation.js';
 import { MERGE_PARTICIPATION_PENDING } from '../../../scripts/ledgers/merge-participation-pending.js';
 
@@ -153,6 +155,57 @@ describe('the findings — one red proof each, and its green twin', () => {
         { moduleId: 'orders', entity: 'Order', property: 'payerOrganizationId' },
       ]),
     ).toEqual([]);
+  });
+});
+
+// FR-047 — a write that sets a declared reference outside an ORM flush is
+// invisible to the platform's flush guard: the participation declares
+// `freeze: 'guarded'` and the file asks `assertMergeWritable` first.
+describe('unguarded-reference-write', () => {
+  const tables = entityTablesFromSource(ORDER_SOURCE, 'order.entity.ts').map((table) => ({ moduleId: 'orders', ...table }));
+  const run = (text: string, declaration: MergeDeclarationWithModule = ordersComplete, file = 'packages/modules/orders/src/backend/services/order-service.ts') =>
+    referenceWriteFindings({ tables, declarations: [declaration], files: [{ file, moduleId: 'orders', text }] }).map(
+      (finding) => `${finding.kind}:${finding.entity}.${finding.property}:${finding.line}`,
+    );
+  const insert = "await em.execute(`insert into \"orders\" (\"id\", \"organization_id\") values (?, ?)`, [id, org]);";
+  const setInUpdate = 'await em.execute(`update "orders" set "payer_organization_id" = ? where "id" = ?`, [org, id]);';
+  const filterInUpdate = 'await em.execute(`update "orders" set "status" = ? where "organization_id" = ?`, [s, org]);';
+  const nativeSets = 'await em.nativeUpdate(Order, { id }, { organizationId: org });';
+  const nativeFilters = 'await em.nativeUpdate(Order, { organizationId: org }, { status: "x" });';
+
+  it('reads each entity’s table and the columns of its persisted properties', () => {
+    expect(entityTablesFromSource(ORDER_SOURCE, 'order.entity.ts')).toEqual([
+      {
+        entity: 'Order',
+        table: 'orders',
+        columns: { id: 'id', organizationId: 'organization_id', payerOrganizationId: 'payer_organization_id' },
+      },
+    ]);
+  });
+
+  it('red: an insert, an update’s SET and a native call that set a reference', () => {
+    expect(run(insert)).toEqual(['unguarded-reference-write:Order.organizationId:1']);
+    expect(run(setInUpdate)).toEqual(['unguarded-reference-write:Order.payerOrganizationId:1']);
+    expect(run(nativeSets)).toEqual(['unguarded-reference-write:Order.organizationId:1']);
+  });
+
+  it('green: a statement or a native call that only filters by it', () => {
+    expect(run(filterInUpdate)).toEqual([]);
+    expect(run(nativeFilters)).toEqual([]);
+  });
+
+  it('red until both: the participation declares guarded and the file asks assertMergeWritable', () => {
+    const guarded = { ...ordersComplete, freeze: 'guarded' as const };
+    expect(run(insert, guarded)).toEqual(['unguarded-reference-write:Order.organizationId:1']);
+    expect(run(`assertMergeWritable('organization', org);\n${insert}`, ordersComplete)).toEqual([
+      'unguarded-reference-write:Order.organizationId:2',
+    ]);
+    expect(run(`assertMergeWritable('organization', org);\n${insert}`, guarded)).toEqual([]);
+  });
+
+  it('green: the merge’s own commands, and a kept reference', () => {
+    expect(run(insert, ordersComplete, 'packages/modules/orders/src/backend/commands/order-merge-reassign.command.ts')).toEqual([]);
+    expect(run(insert, orders([{ entity: 'Order', property: 'organizationId', disposition: 'kept' }]))).toEqual([]);
   });
 });
 

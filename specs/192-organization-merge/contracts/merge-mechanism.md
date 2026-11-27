@@ -27,6 +27,7 @@ export interface MergeParticipationDeclaration {
   key: string;                             // unique within the module, kebab-case
   phase: string;                           // one of the host's phases, never 'finalize'
   trailing?: boolean;                      // may finish after finalize (R-16)
+  freeze?: 'orm' | 'guarded';              // FR-046: 'guarded' when a reference is also set in SQL or a native call
   references: readonly {
     entity: string;                        // entity class name in this module
     property: string;                      // property holding the host id(s), or the polymorphic id
@@ -101,7 +102,14 @@ export interface MergeHostImplementation<H extends RecordMergeHostType> {
 | --- | --- | --- |
 | Tenant resolution | `packages/platform/src/tenancy/resolve-tenant-context.ts` | customer / bound API-key request on a frozen Organization: unsafe methods answer `409 RECORD_MERGE_IN_PROGRESS`; on an archived one: `409 ORGANIZATION_MERGED` |
 | Org write guard | `packages/platform/src/tenancy/org-write-guard.ts` | create/update of an `@OrgScoped` row carrying a frozen or archived Organization id is refused unless the ambient scope reason is `record-merge:<the merge's id>` |
+| Reference guard (FR-046) | `packages/platform/src/tenancy/merge-reference-guard.ts` | every ORM create, upsert and update that sets a declared, not `kept`, reference — any entity, an id array, a text key, a polymorphic id whose discriminator names the host — to a frozen or archived record is refused the same way |
+| Guarded SQL (FR-046) | the participant module | a participation declared `freeze: 'guarded'` calls `assertMergeWritable(host, ids)` (`@endora-commerce/platform/tenancy`) before each SQL statement or native call that sets a reference, or skips a view-state write with `mergeWriteRefusal`; `check:merge-participation` finds the sites |
 | Host routes / ports | the host module | writes naming the loser refused with the same codes |
+
+An archived record's refusal carries the **last** survivor: finalize re-points every record merged
+into the loser earlier (FR-020a), and the archived set follows the chain. A merge whose loser is the
+survivor of a completed merge with a step left to catch up is refused `409
+RECORD_MERGE_ALREADY_RUNNING` with that merge's id (FR-020).
 
 ## 5. Host-facing operations (implemented by the platform, called by the host's Commands)
 

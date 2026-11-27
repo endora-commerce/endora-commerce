@@ -30,3 +30,6 @@ Record merge vocabulary and the Organization merge shapes (issue #1907, `specs/1
 - `MERGE_CONFLICT_UNRESOLVABLE` — the conflict `resolution` that refuses a start (FR-026).
 - `ERROR_CODES` gains the ten `RECORD_MERGE_*` codes and `ORGANIZATION_MERGE_PERSONAL`,
   `ORGANIZATION_MERGE_TREE_INVALID` and `ORGANIZATION_MERGED`.
+- A `merge.participates` entry takes an optional `freeze: 'orm' | 'guarded'` (`MERGE_FREEZE_MODES`):
+  `guarded` when the module also sets a reference in SQL or a native ORM call, each site asking the
+  freeze first. `MergeDeclarationWithModule` carries it.

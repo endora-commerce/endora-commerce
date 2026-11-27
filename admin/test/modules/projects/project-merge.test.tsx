@@ -91,6 +91,7 @@ function preview(overrides: Partial<ProjectMergePreview> = {}): ProjectMergePrev
       { moduleId: 'tasks', key: 'project-tasks', phase: 'records', counts: { 'Task.contextId': 2 }, conflicts: [], warnings: [] },
     ],
     incomplete: [],
+    organizationsGainingAccess: [],
     ...overrides,
   };
 }
@@ -179,6 +180,28 @@ describe('the Project merge flow', () => {
       }),
     );
     expect(onStarted).toHaveBeenCalledWith(expect.objectContaining({ id: MERGE }));
+  });
+
+  it('names the Organizations gaining access and starts only once that is confirmed apart (FR-090)', async () => {
+    const gained = { id: '00000000-0000-4000-8000-000000192d09', name: 'Acme Builders' };
+    postSpy.mockResolvedValueOnce({ data: preview({ organizationsGainingAccess: [gained] }) });
+    postSpy.mockResolvedValueOnce({ data: merge() });
+    const user = userEvent.setup();
+    renderFlow();
+    await pickDuplicate(user);
+    expect(await screen.findByText('Acme Builders')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: EN['merge.flow.next']! }));
+    const start = screen.getByRole('button', { name: EN['merge.flow.start']! });
+    await user.click(screen.getByRole('checkbox', { name: EN['merge.flow.acknowledge']! }));
+    expect(start).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: /these organizations will gain access to PRJ-000001 Tender/ }));
+    await user.click(start);
+    await waitFor(() =>
+      expect(postSpy).toHaveBeenLastCalledWith(
+        `/api/v1/admin/projects/${PROJECT_ID}/merges`,
+        expect.objectContaining({ acknowledgeIrreversible: true, acknowledgedOrganizationIds: [gained.id] }),
+      ),
+    );
   });
 
   it('shows a refusal in words and goes no further', async () => {

@@ -1353,6 +1353,12 @@ export const ERROR_CODES = {
    * redirected.
    */
   PROJECT_MERGED: 'PROJECT_MERGED',
+  /**
+   * `specs/192-organization-merge/` FR-090 — a Project merge start that does
+   * not confirm every Organization the survivor gains from the duplicate;
+   * `details.organizationIds` (422).
+   */
+  PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED: 'PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED',
   /** An Organization outside the caller's reach, or one that does not exist — indistinguishable. */
   PROJECT_ORGANIZATION_OUT_OF_SCOPE: 'PROJECT_ORGANIZATION_OUT_OF_SCOPE',
   /** The Stage the Project is in cannot be deleted. */

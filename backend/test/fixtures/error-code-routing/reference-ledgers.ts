@@ -895,6 +895,13 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'carrying the id of the one it was merged into (409, OQ-6). The noun is the Project; the raise sites are ' +
       '`lockProject` of `projects` and the platform merge freeze, whose host code it is.',
   },
+  PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED: {
+    to: 'projects',
+    reason:
+      'Minted by `specs/192-organization-merge/` FR-090 (owner decision C) for a Project merge start that does not ' +
+      'confirm every Organization the survivor gains from the duplicate (422). The noun is the Project merge; the one ' +
+      'raise site is `ProjectMergeService.start` of `projects`.',
+  },
   TASK_VIEW_NAME_TAKEN: {
     to: 'tasks',
     reason:

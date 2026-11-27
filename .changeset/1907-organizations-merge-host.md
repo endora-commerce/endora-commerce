@@ -19,5 +19,8 @@ Organizations can be merged (issue #1907, `specs/192-organization-merge/`): this
   refused with `409 ORGANIZATION_MERGED`. A migration adds the columns and relaxes the company
   tax-ID presence check for merged rows only.
 - `organization.merged.v1` is published once per merge and offered as a webhook event type.
+- An Organization merged into the loser earlier is re-pointed to the survivor at finalize, so a
+  pointer is never more than one hop. The conversion to a company asks the freeze before it writes
+  its roles.
 - Until every module holding an Organization reference declares its participation, a start is
   refused with `409 RECORD_MERGE_PARTICIPATION_INCOMPLETE`; the preview works.

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   CUSTOMER_ACCOUNT_ORGANIZATION_CHANGED_EVENT,
+  ERROR_CODES,
   type MergeDisposition,
   type RecordMergeRecord,
 } from '@endora-commerce/contracts';
@@ -12,7 +13,7 @@ import { seedAnalyticsOpportunity } from '../../helpers/seed-crm-analytics.js';
 import { insertCompanyOrganization, mergeSql, seedRows } from '../../helpers/organization-merge-conformance.js';
 import { runWithTenantContext, type TenantContext } from '../../../src/tenancy/tenant-context.js';
 // The class the ORM registered from the package's `entities` array, not a second copy from source.
-import { Address } from '../../helpers/package-entities.js';
+import { Address, Promotion } from '../../helpers/package-entities.js';
 
 /**
  * `specs/192-organization-merge/` T072 — an Organization merge end to end, over
@@ -855,6 +856,97 @@ describe('Organization merge — end to end (T072)', () => {
           }),
         ).rejects.toMatchObject({ statusCode: 409, code: 'ORGANIZATION_MERGED', details: { survivorId: p.survivorId } });
       });
+    });
+  });
+
+  // A chain: C merged into A, then A into D. A record merged into the loser
+  // earlier follows it to the new survivor (a pointer is never more than one
+  // hop), and the loser may not be one whose own merge still has a step to
+  // catch up, which would otherwise move C's rows into an archived A.
+  describe('a chain: C into A, then A into D', () => {
+    let c: string;
+    let a: string;
+    let d: string;
+    let first: RecordMergeRecord;
+
+    beforeAll(async () => {
+      ({ survivorId: a, loserId: c } = await pair('E2E chain A-C'));
+      d = await insertCompanyOrganization(h, 'E2E chain D');
+      await withModulesDeactivated(['crm'], async () => {
+        first = await start({ survivorId: a, loserId: c });
+        const record = await drive(first.id);
+        expect(record.state).toBe('completed');
+        expect(record.steps.filter((step) => step.state !== 'done').map((step) => step.moduleId)).toEqual(['crm']);
+      });
+    }, 180_000);
+
+    it('refuses A as the loser while C into A still has a step to catch up', async () => {
+      const previewed = await preview(d, a);
+      expect(previewed.statusCode, previewed.body).toBe(200);
+      expect(previewed.json().data.refusals).toContainEqual(
+        expect.objectContaining({ code: ERROR_CODES.RECORD_MERGE_ALREADY_RUNNING, details: expect.objectContaining({ mergeId: first.id }) }),
+      );
+      const res = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/organizations/${d}/merges`,
+        cookies,
+        payload: { loserId: a, acknowledgeIrreversible: true },
+      });
+      expect(res.statusCode, res.body).toBe(409);
+      expect(res.json().error.code).toBe(ERROR_CODES.RECORD_MERGE_ALREADY_RUNNING);
+    });
+
+    it('merges A into D once C into A has caught up, and re-points C to D', async () => {
+      expect(await h.recordMergeRuntime.catchUp()).toContain(first.id);
+      await h.recordMergeRuntime.run(first.id);
+      expect((await readMerge(first.id)).steps.every((step) => step.state === 'done')).toBe(true);
+
+      const second = await drive((await start({ survivorId: d, loserId: a })).id);
+      expect(second.state).toBe('completed');
+      const pointers = await sql<Array<{ id: string; merged_into_organization_id: string }>>(
+        `select "id", "merged_into_organization_id" from "organizations" where "id" in (?, ?) order by "id"`,
+        [a, c],
+      );
+      expect(pointers.map((row) => row.merged_into_organization_id)).toEqual([d, d]);
+      const read = await h.app.inject({ method: 'GET', url: `/api/v1/admin/organizations/${c}`, cookies });
+      expect(read.statusCode, read.body).toBe(200);
+      expect(read.json().data).toMatchObject({ mergedIntoOrganizationId: d });
+      // The freeze names the last survivor too.
+      await expect(
+        runWithTenantContext(admin, async () => {
+          const em = h.em().fork();
+          em.persist(
+            em.create(Address, {
+              organizationId: c,
+              kind: 'delivery',
+              recipientName: 'Two hops',
+              street: 'ul. Krótka 2',
+              city: 'Kraków',
+              postalCode: '30-002',
+              country: 'PL',
+            } as never),
+          );
+          await em.flush();
+        }),
+      ).rejects.toMatchObject({ statusCode: 409, code: 'ORGANIZATION_MERGED', details: { survivorId: d } });
+    }, 180_000);
+
+    // FR-047: the freeze holds every declared reference, not only an
+    // `@OrgScoped` row's `organizationId` — here a `@GlobalEntity` row.
+    it('refuses a @GlobalEntity row pointed at the archived Organization through the ORM', async () => {
+      const id = randomUUID();
+      await sql(`insert into "promotions" ("id", "name", "created_at", "updated_at") values (?, 'Merge guard', now(), now())`, [id]);
+      await expect(
+        runWithTenantContext(admin, async () => {
+          const em = h.em().fork();
+          const promotion = await em.findOneOrFail(Promotion, { id } as never);
+          (promotion as { organizationId: string | null }).organizationId = c;
+          await em.flush();
+        }),
+      ).rejects.toMatchObject({ statusCode: 409, code: 'ORGANIZATION_MERGED', details: { survivorId: d } });
+      const [row] = await sql<Array<{ organization_id: string | null }>>(`select "organization_id" from "promotions" where "id" = ?`, [id]);
+      expect(row!.organization_id).toBeNull();
+      await sql(`delete from "promotions" where "id" = ?`, [id]);
     });
   });
 });

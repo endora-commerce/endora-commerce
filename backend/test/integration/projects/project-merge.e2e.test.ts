@@ -191,7 +191,12 @@ describe('Project merge (US6)', () => {
     });
 
     it('starts, freezing Q: a write naming Q is refused while the merge runs (R-6)', async () => {
-      const res = await start(p.id, { loserId: q.id, fieldChoices: { title: 'loser' }, acknowledgeIrreversible: true });
+      const res = await start(p.id, {
+        loserId: q.id,
+        fieldChoices: { title: 'loser' },
+        acknowledgeIrreversible: true,
+        acknowledgedOrganizationIds: [organizationB],
+      });
       expect(res.statusCode, res.body).toBe(202);
       merge = res.json().data;
       expect(merge).toMatchObject({ hostType: 'project', survivorId: p.id, loserId: q.id, state: 'running' });
@@ -361,6 +366,81 @@ describe('Project merge (US6)', () => {
       const note = await callProjects(h, 'POST', `/${loser.id}/comments`, { payload: { kind: 'note', body: 'Writable again' } });
       expect(note.statusCode, note.body).toBe(201);
       expect(await h.recordMergeRuntime.run(record.id)).toBe('idle');
+    });
+  });
+
+  // Owner decision (FR-090, option C): the survivor keeps the union of both
+  // Projects' Organizations, the preview names every Organization that gains
+  // access to it, and a start must confirm exactly those.
+  describe('Organizations gaining access to the survivor (FR-090)', () => {
+    let shared: string;
+    let gained: string;
+    let survivor: ProjectDetail;
+    let loser: ProjectDetail;
+
+    beforeAll(async () => {
+      shared = await insertCompanyOrganization(h, 'Access shared');
+      gained = await insertCompanyOrganization(h, 'Access gained');
+      survivor = await project('Access P', [shared]);
+      loser = await project('Access Q', [shared, gained]);
+    });
+
+    it('lists in the preview the Organizations attached only to the duplicate', async () => {
+      const res = await preview(survivor.id, loser.id);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().data.organizationsGainingAccess).toEqual([{ id: gained, name: expect.stringContaining('Access gained') }]);
+      const none = await preview(loser.id, survivor.id);
+      expect(none.json().data.organizationsGainingAccess).toEqual([]);
+    });
+
+    it('refuses a start that does not confirm every Organization gaining access', async () => {
+      for (const acknowledgedOrganizationIds of [undefined, [], [shared]]) {
+        const res = await start(survivor.id, {
+          loserId: loser.id,
+          acknowledgeIrreversible: true,
+          ...(acknowledgedOrganizationIds ? { acknowledgedOrganizationIds } : {}),
+        });
+        expect(res.statusCode, res.body).toBe(422);
+        expect(res.json().error).toMatchObject({
+          code: ERROR_CODES.PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED,
+          details: { organizationIds: [gained] },
+        });
+      }
+      expect(await sql<unknown[]>(`select 1 from "record_merges" where "loser_id" = ?`, [loser.id])).toEqual([]);
+    });
+
+    it('merges once they are confirmed, and the survivor holds both Projects\' Organizations', async () => {
+      const res = await start(survivor.id, { loserId: loser.id, acknowledgeIrreversible: true, acknowledgedOrganizationIds: [gained] });
+      expect(res.statusCode, res.body).toBe(202);
+      await h.recordMergeRuntime.run(res.json().data.id);
+      expect((await getProject(h, survivor.id)).organizations.map((organization) => organization.id).sort()).toEqual(
+        [shared, gained].sort(),
+      );
+    });
+  });
+
+  describe('a chain: C into A, then A into D', () => {
+    it('re-points C to D, so a pointer is never more than one hop', async () => {
+      const a = await project('Chain A', []);
+      const c = await project('Chain C', []);
+      const d = await project('Chain D', []);
+      for (const [survivorId, loserId] of [
+        [a.id, c.id],
+        [d.id, a.id],
+      ] as const) {
+        const res = await start(survivorId, { loserId, acknowledgeIrreversible: true });
+        expect(res.statusCode, res.body).toBe(202);
+        await h.recordMergeRuntime.run(res.json().data.id);
+        expect((await h.app.inject({ method: 'GET', url: `/api/v1/admin/project-merges/${res.json().data.id}`, cookies })).json().data.state).toBe(
+          'completed',
+        );
+      }
+      const rows = await sql<Array<{ merged_into_project_id: string }>>(
+        `select "merged_into_project_id" from "projects" where "id" in (?, ?)`,
+        [a.id, c.id],
+      );
+      expect(rows.map((row) => row.merged_into_project_id)).toEqual([d.id, d.id]);
+      expect(await getProject(h, c.id)).toMatchObject({ mergedIntoProjectId: d.id });
     });
   });
 });

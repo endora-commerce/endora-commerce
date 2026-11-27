@@ -21,7 +21,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
-import { mergeWriteRefusal } from '@endora-commerce/platform/tenancy';
+import { assertMergeWritable, mergeWriteRefusal } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import { enterStage, todayIn } from '../domain/deadline.js';
 import { defaultLinearMoves, type StageMoveDef } from '../domain/stage-graph.js';
@@ -929,6 +929,9 @@ export class ProjectService {
               hookData: hooked,
               outboxData: hooked,
               run: async ({ em: tx }) => {
+                // `specs/192-organization-merge/` FR-047: SQL the flush guard cannot see.
+                assertMergeWritable('project', visible.id);
+                assertMergeWritable('organization', organizationId);
                 const inserted = (await tx.execute(
                   `insert into "project_organizations" ("project_id", "organization_id") values (?, ?)
                    on conflict do nothing returning "organization_id"`,

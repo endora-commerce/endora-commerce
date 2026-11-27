@@ -31,3 +31,9 @@ Projects can be merged (issue #1907, `specs/192-organization-merge/` US6): this 
 
 Its `structure` phase writes the Stage map into the merge's host context first: each of the loser's
 Stages → the survivor's Stage of the same name, else the survivor's current Stage.
+
+The preview lists the Organizations attached only to the loser, which gain access to the survivor
+(`organizationsGainingAccess`), and the start refuses `422 PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED`
+unless the body's `acknowledgedOrganizationIds` confirms each, read again under the start's lock; the
+admin flow asks for that confirmation apart. A Project merged into the loser earlier is re-pointed to
+the survivor at finalize. Adding an Organization to a Project, and a read marker, ask the freeze first.

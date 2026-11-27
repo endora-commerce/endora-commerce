@@ -428,6 +428,9 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // host module asks before a write naming a merging or merged record; the
     // `RecordMergeService` it added to `./kernel` is a type and carries no
     // identity.
+    // **95 -> 96 is the same event, on `./tenancy`:** the merge reference guard
+    // (`specs/192-organization-merge/` FR-047) published `assertMergeWritable`,
+    // what a module's own SQL asks before setting a declared reference.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
@@ -438,7 +441,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(95);
+    expect(total).toBe(96);
   });
 
   /**

@@ -7,3 +7,6 @@ allow-list, global and per sales channel, the duplicate is replaced by the organ
 (never listed twice), through the audited, irreversible Command `catalog.product.merge_reassign`.
 The changed products' storefront pages are revalidated and, with `search` on, their search documents
 re-read.
+
+Copying a product's channel scopes asks the merge freeze first: an audience naming an Organization
+being merged or merged away refuses the copy.

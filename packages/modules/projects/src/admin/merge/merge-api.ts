@@ -16,6 +16,8 @@ export interface ProjectMergeStartRequest {
   readonly fieldChoices: Partial<Record<ProjectMergeFieldCode, RecordMergeChoice>>;
   readonly customFieldChoices: Readonly<Record<string, RecordMergeChoice>>;
   readonly acknowledgeIrreversible: true;
+  /** FR-090 — the preview's Organizations gaining access, confirmed apart. */
+  readonly acknowledgedOrganizationIds?: readonly string[];
 }
 
 const MERGES = '/api/v1/admin/project-merges';

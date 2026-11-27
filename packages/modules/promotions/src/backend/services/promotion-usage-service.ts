@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, roundHalfUp } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import { assertMergeWritable } from '@endora-commerce/platform/tenancy';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
 import type { FinalizeAppliedPromotion, UsageContext } from '../../ports/index.js';
@@ -159,6 +160,9 @@ export class PromotionUsageService {
      */
     const conn = em.getConnection();
     const trx = em.getTransactionContext();
+    // `specs/192-organization-merge/` FR-047: the counters' scope keys and the
+    // usage rows name the buyer's Organization in SQL the flush guard cannot see.
+    assertMergeWritable('organization', input.ctx.organizationId ?? null);
     const promoIds = input.applied.map((a) => a.promotionId);
     const promos = await em.find(Promotion, { id: { $in: promoIds } });
     const promoById = new Map(promos.map((p) => [p.id, p]));

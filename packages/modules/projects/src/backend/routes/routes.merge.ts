@@ -80,6 +80,7 @@ export async function registerProjectMergeRoutes(app: FastifyInstance, deps: Pro
         ...(body.acknowledgeIrreversible !== undefined
           ? { acknowledgeIrreversible: body.acknowledgeIrreversible }
           : {}),
+        ...(body.acknowledgedOrganizationIds ? { acknowledgedOrganizationIds: body.acknowledgedOrganizationIds } : {}),
       });
       reply.status(202);
       return { data: await view(record) };

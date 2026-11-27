@@ -1616,7 +1616,9 @@ How an operator merges, follows and resumes a merge in the Admin UI is the
   survivor.
 - A deleted, rejected or already merged organization is refused
   (`RECORD_MERGE_RECORD_UNAVAILABLE`), and so is a pair one of whose records is in another
-  running merge (`RECORD_MERGE_ALREADY_RUNNING`).
+  running merge (`RECORD_MERGE_ALREADY_RUNNING`). So is a loser that absorbed another
+  organization in a merge whose part for a switched-off module has not caught up yet
+  (`RECORD_MERGE_ALREADY_RUNNING`, with that merge's id): switch the module back on first.
 
 ### The admin API {#merge-admin-api}
 
@@ -1654,7 +1656,16 @@ releases it in the same write, and the loser's latest VAT validation result come
   `mergedIntoOrganizationId`, `mergedAt` and `mergeId`, and appears in no list, picker or
   search. `GET /api/v1/admin/organizations/:id` still answers it, with the survivor's id; a
   write naming it is refused with `409 ORGANIZATION_MERGED` and `details.survivorId`.
-  Server code resolves an old id with `organizationDetailsPort.resolveMerged(id)`.
+  Server code resolves an old id with `organizationDetailsPort.resolveMerged(id)`. An
+  organization merged into the loser earlier now points at the survivor too, so a pointer is
+  never more than one hop.
+- For module authors: the freeze and the refusal hold every reference your manifest declares
+  in `merge.participates`, except one kept on the loser as history, whatever the entity's tenancy
+  classification — the platform checks each ORM write. A write that sets such a reference in
+  SQL or a native ORM call (`nativeUpdate`, `nativeInsert`, `upsert`) is not seen there: declare
+  the participation `freeze: 'guarded'` and call `assertMergeWritable(host, ids)` from
+  `@endora-commerce/platform/tenancy` before it. `check:merge-participation` finds every such
+  site.
 - `organization.merged.v1` is published once, with `organizationId` (the survivor),
   `mergedOrganizationId`, `mergeId`, `mergedAt` and `source`. It is offered for outbound
   webhooks. `organization.merge.start` is a hookable action, so a deployment can veto a merge

@@ -2,6 +2,7 @@ import { defineConfig, type Options } from '@mikro-orm/postgresql';
 import { Migrator } from '@mikro-orm/migrations';
 import { PluralizingNamingStrategy } from './pluralizing-naming-strategy.js';
 import { OrgWriteGuardSubscriber } from '../tenancy/org-write-guard.js';
+import { MergeReferenceGuardSubscriber } from '../tenancy/merge-reference-guard.js';
 import type { ConfiguredEntity } from './configured-entities.js';
 import type { ConfiguredMigrations } from './configured-migrations.js';
 import { schemaExtensionProjections } from './schema-extension-projection.js';
@@ -226,7 +227,8 @@ export function mikroOrmConfigFrom(inputs: OrmConfigurationInputs): Options {
     // no input: its subscribed set and its predicate are both `tenancy/`'s, and
     // a host that could substitute it could switch the guard off.
     // See ../tenancy/org-write-guard.ts for what it does and does not catch.
-    subscribers: [new OrgWriteGuardSubscriber()],
+    // `specs/192-organization-merge/` FR-047: every declared merge reference, beside the org guard's `organizationId`.
+    subscribers: [new OrgWriteGuardSubscriber(), new MergeReferenceGuardSubscriber()],
     debug: process.env['NODE_ENV'] === 'development' && process.env['DB_DEBUG'] === 'true',
     allowGlobalContext: false,
     forceUndefined: true,

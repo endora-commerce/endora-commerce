@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { assertMergeWritable } from '@endora-commerce/platform/tenancy';
 import { ORDER_TRANSITION_EFFECTS, type OrderTransitionEffectKind } from '@endora-commerce/contracts';
 import {
   ModuleDisabledError,
@@ -175,6 +176,9 @@ export class OrderTransitionEffectService {
     origin: OrderTransitionEffectOrigin,
   ): Promise<number> {
     let written = 0;
+    // `specs/192-organization-merge/` FR-047: the row names the order's
+    // Organization in SQL the flush guard cannot see.
+    if (effects.length > 0) assertMergeWritable('organization', order.organizationId);
     for (const owed of effects) {
       const inserted = await tx.execute<Array<{ id: string }>>(
         `insert into "order_transition_effects"

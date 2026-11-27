@@ -82,9 +82,17 @@ class MergeFreezeState {
     this.#frozen.delete(this.#key(hostType, id));
   }
 
-  /** Move a loser from frozen to archived (a completed merge). */
+  /**
+   * Move a loser from frozen to archived (a completed merge). What was archived
+   * into the loser earlier now names the new survivor, as finalize re-points
+   * the records' own pointers.
+   */
   archive(hostType: RecordMergeHostType, id: string, mergeId: string, survivorId: string): void {
     this.#frozen.delete(this.#key(hostType, id));
+    const prefix = this.#key(hostType, '');
+    for (const [key, entry] of this.#archived) {
+      if (key.startsWith(prefix) && entry.survivorId === id) this.#archived.set(key, { ...entry, survivorId });
+    }
     this.#archived.set(this.#key(hostType, id), { mergeId, survivorId });
   }
 

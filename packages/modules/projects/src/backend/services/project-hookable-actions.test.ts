@@ -600,6 +600,7 @@ describe('projects.project.merge.start is hookable (`specs/192-organization-merg
         customFieldChoices: {},
         source: 'erp_connector',
         participantCounts: {},
+        acknowledgedOrganizationIds: [],
       },
     );
     expectHookableCommand(command, PROJECTS.mergeStart, { result: {} as never, sentinels: [SENTINEL] });

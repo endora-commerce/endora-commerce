@@ -83,6 +83,23 @@ function conflict(code: ErrorCode, message: string, details?: Record<string, unk
   return new HttpError(409, code, message, details);
 }
 
+/**
+ * A completed merge into `recordId` that still has a step to catch up — a
+ * deferred, failed or trailing one (D-299). Its record may not be merged away:
+ * the catch-up would move the earlier loser's rows into an archived record,
+ * which every later write refuses. Its locks are gone, so the lock check does
+ * not see it.
+ */
+async function unfinishedMergeInto(em: EntityManager, hostType: RecordMergeHostType, recordId: string): Promise<string | null> {
+  const [row] = await em.execute<{ id: string }[]>(
+    `select m."id" from "record_merges" m where m."host_type" = ? and m."survivor_id" = ? and m."state" = 'completed' ` +
+      `and exists (select 1 from "record_merge_steps" s where s."merge_id" = m."id" and s."state" <> 'done') ` +
+      `order by m."started_at" limit 1`,
+    [hostType, recordId],
+  );
+  return row?.id ?? null;
+}
+
 export class PlatformRecordMergeService implements RecordMergeService {
   constructor(private readonly deps: RecordMergeServiceDeps) {}
 
@@ -90,6 +107,12 @@ export class PlatformRecordMergeService implements RecordMergeService {
     const host = this.deps.registry.hostOf(input.hostType);
     if (host === undefined) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `No module hosts merges of ${input.hostType}.`);
+    }
+    const unfinished = await unfinishedMergeInto(em, input.hostType, input.loserId);
+    if (unfinished !== null) {
+      throw conflict(ERROR_CODES.RECORD_MERGE_ALREADY_RUNNING, 'An earlier merge into this record still has a step to catch up.', {
+        mergeId: unfinished,
+      });
     }
     const merge = em.create(RecordMerge, {
       ...(input.mergeId !== undefined ? { id: input.mergeId } : {}),
@@ -225,11 +248,13 @@ export class PlatformRecordMergeService implements RecordMergeService {
         refusal.code === ERROR_CODES.RECORD_MERGE_SAME_RECORD || refusal.code === ERROR_CODES.RECORD_MERGE_RECORD_UNAVAILABLE,
     );
 
-    const lock = await this.deps
-      .emFactory()
-      .fork({ clear: true })
-      .findOne(RecordMergeLock, { hostType, recordId: { $in: [survivorId, loserId] } });
+    const lockEm = this.deps.emFactory().fork({ clear: true });
+    const lock = await lockEm.findOne(RecordMergeLock, { hostType, recordId: { $in: [survivorId, loserId] } });
     if (lock !== null) refusals.push({ code: ERROR_CODES.RECORD_MERGE_ALREADY_RUNNING, details: { mergeId: lock.mergeId } });
+    else {
+      const unfinished = await unfinishedMergeInto(lockEm, hostType, loserId);
+      if (unfinished !== null) refusals.push({ code: ERROR_CODES.RECORD_MERGE_ALREADY_RUNNING, details: { mergeId: unfinished } });
+    }
 
     const participants: RecordMergePreview['participants'][number][] = [];
     if (Object.keys(own.counts).length > 0 || own.warnings.length > 0) {
@@ -347,12 +372,28 @@ export async function loadMergeFreezeSnapshot(em: EntityManager): Promise<MergeF
     `select "id", "host_type", "survivor_id", "loser_id", "state" from "record_merges" ` +
       `where "state" in ('running', 'needs_attention', 'completed')`,
   );
+  const completed = rows.filter((row) => row.state === 'completed');
+  // C merged into A, then A into D: C's survivor is D (one hop, as finalize
+  // re-points the archive's own pointer).
+  const survivorOf = new Map(completed.map((row) => [`${row.host_type}:${row.loser_id}`, row.survivor_id]));
+  const lastSurvivor = (hostType: RecordMergeHostType, id: string): string => {
+    let current = id;
+    for (let hops = 0; hops <= completed.length; hops += 1) {
+      const next = survivorOf.get(`${hostType}:${current}`);
+      if (next === undefined) return current;
+      current = next;
+    }
+    return current;
+  };
   return {
     frozen: rows
       .filter((row) => row.state !== 'completed')
       .map((row) => ({ hostType: row.host_type, id: row.loser_id, mergeId: row.id })),
-    archived: rows
-      .filter((row) => row.state === 'completed')
-      .map((row) => ({ hostType: row.host_type, id: row.loser_id, mergeId: row.id, survivorId: row.survivor_id })),
+    archived: completed.map((row) => ({
+      hostType: row.host_type,
+      id: row.loser_id,
+      mergeId: row.id,
+      survivorId: lastSurvivor(row.host_type, row.survivor_id),
+    })),
   };
 }

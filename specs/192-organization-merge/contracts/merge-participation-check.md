@@ -30,6 +30,7 @@ installed or not, before a merge may start. From these:
 | `foreign-declaration` | a module declares a reference on another module's entity |
 | `double-coverage` | two declarations cover one property |
 | `stale-pending` | a ledger entry whose property is now declared, or no longer exists |
+| `unguarded-reference-write` | FR-046: a non-test file of the module sets a declared, not `kept`, reference outside an ORM flush — `insert into "<table>" (…"<column>"…)`, `update "<table>" set …"<column>"…`, or a `native*` / `insert*` / `upsert*` call on the entity whose data sets the property (a non-literal data argument counts) — and the participation is not `freeze: 'guarded'` or the file asks neither `assertMergeWritable` nor `mergeWriteRefusal`. The merge's own code (`merge/` and `*merge*.ts`) and migrations are exempt |
 | `unknown-host` / `bad-phase` | as composition (`merge-mechanism.md` §1) |
 
 Exit 2 means nothing was read (an empty population, or a missing root). It prints its read-size
