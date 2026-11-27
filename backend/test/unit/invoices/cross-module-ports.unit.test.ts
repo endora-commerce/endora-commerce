@@ -177,6 +177,7 @@ function readPort(
       calls.push(`findStatusDefinition:${code}`);
       return null;
     },
+    isTerminal: async () => false,
   };
   return { port, calls: () => calls };
 }

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   OrderReadPort,
-  OrderTransitionPort,
+  OrderCommandPort,
   PaymentMethodReadPort,
 } from '@endora-commerce/contracts';
 import {
@@ -98,13 +98,13 @@ describe('ReceivePaymentHandler', () => {
    */
   const handlerPorts = (): [
     PaymentMethodReadPort,
-    OrderTransitionPort,
+    OrderCommandPort,
     OrderPaymentStatusApplyPort,
     OrderPaymentSettlementEffectsPort,
     SettlementLogger,
   ] => [
     h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
-    h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+    h.container.resolve<OrderCommandPort>('orderCommandPort'),
     h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
     h.container.resolve<OrderPaymentSettlementEffectsPort>('orderPaymentSettlementEffectsPort'),
     quiet,
@@ -180,6 +180,30 @@ describe('ReceivePaymentHandler', () => {
     const reloadedOrder = await em.findOne(Order, { id: order.id }, { refresh: true });
     expect(reloadedOrder!.status).toBe('on_hold');
     expect(reloadedOrder!.paymentStatus).toBe('failed');
+  });
+
+  /**
+   * Review of #1963 (`specs/186-aggregate-ports/` US4) — a method whose
+   * `statusOnFailure` names no configured status, in a spelling the admin
+   * status-code pattern would refuse (`On-Hold`; the method's own schema
+   * accepts any 1–64 characters). The lifecycle port answers that as the
+   * `unknown_status` outcome, so the settlement still records the decline and
+   * answers the provider normally, rather than throwing into a retry loop.
+   */
+  it('records a decline whose configured failure status is no status at all, and moves nothing', async () => {
+    const { order, payment } = await seedOrderWithPayment(h.em(), { statusOnFailure: 'On-Hold' });
+    const warnings: Array<Record<string, unknown>> = [];
+    const ports = handlerPorts();
+    ports[4] = { warn: (details) => void warnings.push(details as Record<string, unknown>) };
+    const handler = new ReceivePaymentHandler(h.em, ...ports);
+
+    const res = await handler.receive({ paymentId: payment.id, outcome: 'failure', failureReason: 'declined' });
+
+    expect(res.status).toBe('failed');
+    const reloadedOrder = await h.em().findOne(Order, { id: order.id }, { refresh: true });
+    expect(reloadedOrder!.status).toBe('new');
+    expect(reloadedOrder!.paymentStatus).toBe('failed');
+    expect(warnings).toEqual([expect.objectContaining({ orderId: order.id, to: 'On-Hold', refusal: 'unknown_status' })]);
   });
 
   /**

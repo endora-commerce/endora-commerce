@@ -3,8 +3,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type ReceiveShipment } from '@endora-commerce/contracts';
 import type {
   DeliveryMethodReadPort,
+  OrderCommandPort,
   OrderTransitionOutcome,
-  OrderTransitionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Shipment } from '../entities/shipment.entity.js';
@@ -68,8 +68,11 @@ export class ReceiveShipmentHandler {
      * different pooled connection whose commit the enclosing rollback cannot
      * reach (issue #200). A crash in between leaves the shipment recorded and
      * the order unmoved, which an operator can see and repeat.
+     *
+     * `orderCommandPort` since 0.113.0 (`specs/186-aggregate-ports/` US4),
+     * called with `source: 'shipment'`, which the audit entry records.
      */
-    private readonly orderTransition: OrderTransitionPort,
+    private readonly orderCommands: Pick<OrderCommandPort, 'applyStatus'>,
     /** Where a refused transition is recorded; see {@link CarrierCallbackLogger}. */
     private readonly log: CarrierCallbackLogger,
     private readonly events?: ShippingEventBus,
@@ -77,7 +80,7 @@ export class ReceiveShipmentHandler {
 
   async receive(input: ReceiveShipment): Promise<ReceiveShipmentResult> {
     // command-coverage-ignore: provider shipment-event ingestion — stamps the
-    // attempt result on the Shipment row, then asks `orderTransitionPort` for
+    // attempt result on the Shipment row, then asks `orderCommandPort` for
     // the lifecycle move, which records the `order.status_transition` audit
     // entry co-transactionally with the status write it performs. The reason on
     // this marker used to claim that audit while the handler assigned
@@ -222,12 +225,11 @@ export class ReceiveShipmentHandler {
     setting: StatusSetting,
     reason: string | null,
   ): Promise<string | null> {
-    const outcome: OrderTransitionOutcome = await this.orderTransition.applyStatus({
+    const outcome: OrderTransitionOutcome = await this.orderCommands.applyStatus(
       orderId,
-      to,
-      actor: { kind: 'system', source: 'shipment' },
-      reason,
-    });
+      { to, reason },
+      { source: 'shipment' },
+    );
 
     if (outcome.applied) return outcome.to;
     if (outcome.reason === 'already_there') return outcome.from;

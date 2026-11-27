@@ -9,8 +9,8 @@ import {
   type ReceivePayment,
 } from '@endora-commerce/contracts';
 import type {
+  OrderCommandPort,
   OrderTransitionOutcome,
-  OrderTransitionPort,
   PaymentMethodReadPort,
 } from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
@@ -48,7 +48,7 @@ import { paymentsErrorCodes } from '../../manifest.js';
  * the ruling is unaffected by its going. `order.status` was written here too,
  * on the same `tx` — a *transition*, with a graph, guards, an audit entry and
  * side-effects, none of which a column assignment performs. It moved to
- * `orderTransitionPort`, called after this transaction has committed. What is
+ * `orderCommandPort`, called after this transaction has committed. What is
  * left in the transaction is the money axis, `order.paymentStatus`, which is
  * the column `payments_order_fk` genuinely holds together with the payment row.
  *
@@ -58,7 +58,7 @@ import { paymentsErrorCodes } from '../../manifest.js';
  * themselves, so its constructor could not take a port none of them can build.
  * All four resolve `receivePaymentPort` today and the one construction left is
  * in `payments/backend.ts`, where `ctx` is in hand — so the payment-method read
- * is `paymentMethodReadPort` and the lifecycle write is `orderTransitionPort`.
+ * is `paymentMethodReadPort` and the lifecycle write is `orderCommandPort`.
  * Neither shares the constraint above: the method read is a read of a row this
  * transaction never writes (no FK obliges it to be co-transactional, and the
  * identical read is a port in `shipments`' twin handler), and the transition
@@ -181,12 +181,16 @@ export class ReceivePaymentHandler {
      * templated `order.status.*.after` events itself — so this handler no
      * longer resolves `orderStatusAnnouncePort`. Doing both would emit every
      * payment-driven status change twice.
+     *
+     * `orderCommandPort` since 0.113.0 (`specs/186-aggregate-ports/` US4):
+     * the Order aggregate's port, called with `source: 'payment'`, which the
+     * audit entry records beside the system actor.
      */
-    private readonly orderTransition: OrderTransitionPort,
+    private readonly orderCommands: Pick<OrderCommandPort, 'applyStatus'>,
     /**
      * The money axis of the order this payment settles (feature 080, T048).
      *
-     * **Called inside this handler's transaction**, unlike `orderTransition`
+     * **Called inside this handler's transaction**, unlike `orderCommands`
      * above, and the asymmetry is the whole reason there are two ports rather
      * than one: `payments_order_fk` (`on delete restrict`) holds the payment row
      * and `orders.payment_status` together, so that write may not commit
@@ -215,7 +219,7 @@ export class ReceivePaymentHandler {
   async receive(input: ReceivePayment): Promise<ReceivePaymentResult> {
     // command-coverage-ignore: provider payment-event ingestion — stamps the
     // attempt result on the Payment row and the order's payment status, then
-    // asks `orderTransitionPort` for the lifecycle move, which records the
+    // asks `orderCommandPort` for the lifecycle move, which records the
     // `order.status_transition` audit entry co-transactionally with the status
     // write it performs. The reason on this marker used to claim that audit
     // while the handler assigned `order.status` itself and reached the orders
@@ -425,12 +429,11 @@ export class ReceivePaymentHandler {
     statusBefore: string | null,
     reason: string | null,
   ): Promise<string | null> {
-    const outcome: OrderTransitionOutcome = await this.orderTransition.applyStatus({
+    const outcome: OrderTransitionOutcome = await this.orderCommands.applyStatus(
       orderId,
-      to,
-      actor: { kind: 'system', source: 'payment' },
-      reason,
-    });
+      { to, reason },
+      { source: 'payment' },
+    );
 
     if (outcome.applied) return outcome.to;
     // A second declined attempt on an order already at the failure status: the
