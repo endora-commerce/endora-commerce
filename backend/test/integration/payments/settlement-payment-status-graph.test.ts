@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { OrderTransitionPort, PaymentMethodReadPort } from '@endora-commerce/contracts';
+import type { OrderCommandPort, PaymentMethodReadPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -87,7 +87,7 @@ describe('settlement respects the payment-status graph (issue #1574)', () => {
     new ReceivePaymentHandler(
       h.em,
       h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
-      h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+      h.container.resolve<OrderCommandPort>('orderCommandPort'),
       port(),
       h.container.resolve<OrderPaymentSettlementEffectsPort>('orderPaymentSettlementEffectsPort'),
       { warn: (details, message) => warnings.push({ details: details as Record<string, unknown>, message }) },

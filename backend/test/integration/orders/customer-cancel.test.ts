@@ -193,14 +193,13 @@ describe('a buyer cancels their own order (085 Phase F)', () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]?.stateBefore).toEqual({ status: 'new' });
     expect(entries[0]?.stateAfter).toEqual({ status: 'cancelled' });
-    // The platform's one existing convention for a self-service customer
-    // action, as `returns` established it: no admin acted, and the customer
-    // account is carried on the impersonation column. The honest model is a
-    // dedicated actor column; it is a separate feature (research R14) because
-    // adding it here without migrating `returns` and every reader would leave
-    // two conventions for one fact.
+    // Since 0.113.0 the transition is a Command (`specs/186-aggregate-ports/`
+    // R-18.2), and the bus records a customer acting for themselves on the
+    // dedicated column (`specs/170-organization-roles/` R-21): no admin acted,
+    // and no impersonation happened.
     expect(entries[0]?.actorAdminUserId ?? null).toBeNull();
-    expect(entries[0]?.impersonatedCustomerAccountId).toBe(TEST_CUSTOMER_ID);
+    expect(entries[0]?.impersonatedCustomerAccountId ?? null).toBeNull();
+    expect(entries[0]?.actorCustomerAccountId).toBe(TEST_CUSTOMER_ID);
   });
 
   /**

@@ -84,7 +84,7 @@ import {
   listExternalReferenceRows,
   toAdminExternalReference,
 } from './services/order-external-reference-service.js';
-import { serializeOrderForAdmin, serializeOrderForCustomer } from './order-response.js';
+import { serializeComment, serializeOrderForAdmin, serializeOrderForCustomer } from './order-response.js';
 import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { PlatformLogger, RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -1564,21 +1564,6 @@ function serializeCommentForCustomer(c: OrderComment): OrderCommentView {
   // is the admin surface's.
   const { authorAdminUserId: _adminId, systemNote: _note, ...serialized } = serializeComment(c);
   return serialized;
-}
-
-/** The published `orderCommentSchema` (issue #599). */
-function serializeComment(c: OrderComment): OrderCommentView {
-  return {
-    id: c.id,
-    orderId: c.orderId,
-    authorAdminUserId: c.authorAdminUserId ?? null,
-    authorCustomerAccountId: c.authorCustomerAccountId ?? null,
-    body: c.body,
-    isCustomerVisible: c.isCustomerVisible,
-    notifyCustomer: c.notifyCustomer,
-    systemNote: c.systemNote ?? null,
-    createdAt: c.createdAt.toISOString(),
-  };
 }
 
 /** Resolve the acting admin user id from the production or test actor. */

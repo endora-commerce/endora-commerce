@@ -24,6 +24,9 @@ Trasy administracyjne są chronione przez `orders:read` (odczyt) i `orders:write
 | `POST /api/v1/admin/orders/:id/status` | administrator | Zmiana statusu (audytowana) |
 | `POST /api/v1/admin/orders/:id/payment-status` | administrator | Zmiana statusu płatności (audytowana) |
 
+Kod po stronie serwera zmienia zamówienie przez `orderCommandPort` (zob. *Zapisy po stronie
+serwera* niżej).
+
 ## Kto widzi zamówienie współpracownika
 
 Kupujący widzi zamówienia, które sam złożył. Każde inne zamówienie jego organizacji — na liście,
@@ -498,6 +501,8 @@ złożenie zamówienia niczego nie ogłasza.
   `…/bulk/print-invoices`.
 - **Komentarze** — `…/:id/comments` dla administratora i klienta, z flagą widoczności dla klienta i
   powiadomieniem; zablokowane w zamówieniach o statusie końcowym (`409 ORDER_COMMENTS_CLOSED`).
+  Od wersji 0.113.0 każdy komentarz, także kupującego, trafia do dziennika audytu jako
+  `order.comment.add` — identyfikator komentarza i jego dwie flagi, nigdy jego treść.
   Platforma zapisuje tu też wewnętrzne **notatki systemowe** o wartościach pól niestandardowych,
   których nie przeniesiono do zamówienia — zob. *Notatka systemowa* niżej.
 - **Ponowne zamówienie** — `…/:id/reorder` odtwarza koszyk (zależnie od ustawienia
@@ -1038,14 +1043,17 @@ nie widzą.
 po numerze zamówienia: po fragmencie, bez rozróżniania wielkości liter, niezależnie od tego, który
 system go zapisał. Komunikat nie jest przeszukiwany.
 
-**Dla autora modułu** punktem styku jest port `orderExternalReferencePort`
+**Dla autora modułu** wpis zapisuje
+`orderCommandPort.setExternalReference(orderId, system, { state, reference?, message? }, options?)`
+(zob. *Zapisy po stronie serwera* niżej), a odczytuje port `orderExternalReferencePort`
 (`OrderExternalReferencePort` w `@endora-commerce/contracts`; nazwa w kontenerze jest też
-eksportowana jako `ORDER_EXTERNAL_REFERENCE_PORT`). Rozwiązuj go przy każdym użyciu przez
-`lazyPort`; nie ma on trasy HTTP w panelu administracyjnym.
+eksportowana jako `ORDER_EXTERNAL_REFERENCE_PORT`). Oba rozwiązuj przy każdym użyciu przez
+`lazyPort`; żaden nie ma trasy HTTP w panelu administracyjnym.
 
-- `set(orderId, system, { state, reference?, message? })` tworzy lub aktualizuje wpis systemu.
-  Pominięty `reference` zachowuje zapisany numer, a `null` go czyści; pominięty `message` oznacza
-  brak komunikatu, więc zgłoszenie `synced` po `error` nie zostawia starego odrzucenia.
+- `setExternalReference` tworzy lub aktualizuje wpis systemu. Pominięty `reference` zachowuje
+  zapisany numer, a `null` go czyści; pominięty `message` oznacza brak komunikatu, więc zgłoszenie
+  `synced` po `error` nie zostawia starego odrzucenia. `orderExternalReferencePort.set(orderId,
+  system, value)` robi to samo i jest przestarzałe od wersji 0.113.0.
 - `get(orderId, system)` i `listForOrder(orderId)` odczytują wpisy, a
   `findOrderIds(system, reference)` znajduje zamówienia o dokładnie tym numerze — zwykle jedno.
 
@@ -1059,6 +1067,98 @@ zanim cokolwiek zostanie zapisane.
 Wpis przeżywa swojego autora: odinstalowanie modułu, który go zapisał, zostawia wpis na zamówieniu
 jako historię. Migracja `20261110T143322_orders_order_external_references.ts` tworzy pustą tabelę
 (`order_external_references`, unikalną dla pary zamówienie i system).
+
+## Zapisy po stronie serwera
+
+Inny moduł, moduł nakładkowy lub worker integracji (ERP, system magazynowy, łącznik płatności lub
+przewoźnika) zmienia zamówienie przez **`orderCommandPort`**, port zapisu agregatu zamówienia,
+zadeklarowany jako `OrderCommandPort` w `@endora-commerce/contracts`. Nigdy nie zapisuje sam tabel
+tego modułu. Rozwiązuj go przy każdym użyciu przez
+`lazyPort<OrderCommandPort>(ctx, 'orderCommandPort')`, z `orders` w `dependencies` manifestu
+modułu wywołującego.
+
+| Metoda | Akcja audytu | Co w panelu administracyjnym robi to samo |
+| --- | --- | --- |
+| `applyStatus(id, { to, reason? }, options?)` | `order.status_transition` | `POST /api/v1/admin/orders/:id/status` |
+| `applyPaymentStatus(id, { to }, options?)` | `order.payment_status_transition` | `POST /api/v1/admin/orders/:id/payment-status` |
+| `setCustomFieldValues(id, merge, options?)` | `order.custom_fields.update` | `PATCH /api/v1/admin/orders/:id/custom-fields` |
+| `addComment(id, { body, isCustomerVisible, notifyCustomer }, options?)` | `order.comment.add` | `POST /api/v1/admin/orders/:id/comments` |
+| `setExternalReference(id, system, value, options?)` | `order.external_reference.set` | — (zob. *Numery z systemów zewnętrznych*) |
+
+**Jedna ścieżka zapisu.** Każda metoda uruchamia tę samą komendę co punkt końcowy panelu, więc oba
+nie mogą zapisać inaczej: jeden wpis audytu o tym samym stanie, te same działania następcze i te
+same ogłoszenia. Zmiana statusu jest sprawdzana względem skonfigurowanego grafu, uruchamia
+strażników przed przejściem, w tej samej transakcji zapisuje zwolnienie stanów magazynowych
+i limitu kredytowego, które należą się po anulowaniu, próbuje je wykonać po zatwierdzeniu,
+a następnie emituje zdarzenia `order.status.*`. Komentarz widoczny dla klienta, który ma go
+powiadomić, wysyła klientowi e-mail po zatwierdzeniu, tak jak z panelu; komentarz ma autora tylko
+wtedy, gdy aktorem jest administrator. Dane wejściowe to treści żądań punktów końcowych,
+sprawdzane z tymi samymi limitami, a odmowy to błędy punktów końcowych z ich kodami
+(`422 VALIDATION_FAILED` dla danych spoza limitów, `404 ORDER_NOT_FOUND`,
+`409 ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED`, `409 ORDER_COMMENTS_CLOSED`).
+`setExternalReference` zachowuje `400 VALIDATION_FAILED`, którym zawsze odpowiadał na błędną
+wartość.
+
+**Zmiana statusu zwraca wynik zamiast zgłaszać błąd.** `applyStatus` zwraca
+`{ applied: true, from, to }` albo `{ applied: false, reason, from, detail }`, gdzie `reason` to
+`not_found`, `unknown_status`, `not_permitted` (brak krawędzi albo status końcowy) lub `vetoed`
+(odmówił strażnik przed przejściem), albo `{ applied: false, reason: 'already_there', from }`.
+Polegają na tym wywołujący, którzy odpowiadają dostawcy płatności lub przewoźnikowi: zgłoszona
+odmowa stałaby się odpowiedzią z błędem, którą dostawca ponawia bez końca. Z tego samego powodu
+`to` może być dowolnym niepustym kodem, nie tylko takim, który dopuszcza wzorzec punktu końcowego
+panelu: skonfigurowany status metody płatności lub dostawy może być zapisany inaczej, a kod, którego
+nie ma żaden status, daje `unknown_status`. Odmowa niczego nie zapisuje ani nie rejestruje, tak
+samo `already_there`. Przekazany `reason` trafia do zdarzeń
+i nigdy do wpisu audytu.
+
+**Kto to zapisał.** Aktor jest aktorem z otoczenia, nigdy parametrem: administrator w żądaniu
+panelu albo w `withSystemScopeActingFor`; aktor **systemowy** w `withSystemScope` w workerze. Bez
+żadnego kontekstu dzierżawcy zapis jest odrzucany, zanim cokolwiek zostanie zapisane. Port nie
+sprawdza uprawnień — to wywołujący pilnuje dostępu — więc nigdy nie rozwiązuj go dla trasy
+dostępnej dla klienta: własne anulowanie i komentarze kupującego nie należą do tego portu.
+
+**Wywołuj go po zatwierdzeniu własnej transakcji**, nigdy w jej trakcie: każde wywołanie otwiera
+własną transakcję, a otwarta wewnątrz Twojej zatwierdziłaby się niezależnie.
+
+**Opcje** (ostatni parametr każdej metody):
+
+- `source` — kod złożony z małych liter, nazywający integrację (`payment`, `erp`, `erp.orders`,
+  najwyżej 64 znaki), zapisywany jako `source` we wpisie audytu obok aktora. To on odróżnia dwie
+  integracje, gdy obie zapisują jako system. Każda inna wartość jest odrzucana z
+  `422 VALIDATION_FAILED`, zanim cokolwiek zostanie odczytane lub zapisane. `payment` i
+  `shipment` nazywają też aktora w zdarzeniach zmiany statusu.
+- `expectedVersion` — ignorowane: zamówienie nie ma wersji.
+- `extensions` — dane dla zaczepów komend. Żadna akcja zamówienia nie jest jeszcze zadeklarowana
+  jako obsługująca zaczepy, więc każdy klucz jest odrzucany z `422 COMMAND_EXTENSION_UNCLAIMED`,
+  zanim cokolwiek zostanie zapisane.
+
+**Celowo niedostępne:** złożenie zamówienia (zostanie dodane, gdy składanie zamówienia będzie
+komendą), ponowne zamówienie (buduje koszyk), skopiowanie do zapytania ofertowego
+(`quoteRequestCommandPort`), zbiorcza zmiana statusu (wywołaj `applyStatus` dla każdego
+zamówienia), konfiguracja statusów i przejść oraz własne anulowanie przez kupującego.
+
+**Bez zamiennika: zapis rozliczenia.** Wywołanie zwrotne bramki płatności zmienia status płatności
+w transakcji modułu `payments`, razem z wierszem płatności, przez `orderPaymentStatusApplyPort`
+(`@endora-commerce/mod-orders/ports`). Ten port zostaje: `applyPaymentStatus` to zmiana operatora,
+oceniana według ruchów dozwolonych operatorowi i audytowana, i otwiera własną transakcję.
+
+Modułu `orders` nie można wyłączyć, więc port jest zawsze dostępny.
+
+### Przestarzałe: `orderTransitionPort` i `orderExternalReferencePort.set`
+
+Przestarzałe od wersji 0.113.0; zostaną usunięte w jednym z kolejnych wydań. Do tego czasu każde
+deleguje do swojego zamiennika, więc zapisuje te same wpisy i zwraca te same wyniki i odmowy co
+wcześniej:
+
+| Przestarzałe wywołanie | Zamiast tego |
+| --- | --- |
+| `orderTransitionPort.applyStatus({ orderId, to, actor, reason })` | `orderCommandPort.applyStatus(orderId, { to, reason }, { source })` |
+| `orderTransitionPort.isTerminal(orderId)` | `orderReadPort.isTerminal(orderId)` |
+| `orderExternalReferencePort.set(orderId, system, value)` | `orderCommandPort.setExternalReference(orderId, system, value)` |
+
+Przestarzałe `applyStatus` nie bierze już aktora z danych wejściowych: wpis audytu wskazuje aktora
+z otoczenia, jak każdy inny zapis, a `source` przekazanego aktora (`payment`, `shipment`, …) jest
+zapisywany jako `source` wpisu. Odczyty `orderExternalReferencePort` zostają.
 
 ## Punkty rozszerzenia
 
