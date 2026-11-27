@@ -309,8 +309,10 @@ describe('sealForms — overrides (193 T019, field-overrides.md §3)', () => {
     expect(refuse(override('acme', { target: 'widget.kind', default: 'z' })).code).toBe('default-type-mismatch');
   });
 
-  it('required-not-fillable: a required field read-only on a create form', () => {
-    expect(refuse(override('acme', { target: 'widget.name', readOnly: true })).code).toBe('required-not-fillable');
+  it('leaves read-only on a required create field to check:admin-forms (D-300.12)', () => {
+    // Whether a derivation fills it is the admin layer's to see; composition
+    // refuses only what is never submitted.
+    expect(() => sealForms(input({ formOverrides: [override('acme', { target: 'widget.name', readOnly: true })] }))).not.toThrow();
   });
 
   it('required-not-fillable: a tightened-required field hidden on a create form', () => {

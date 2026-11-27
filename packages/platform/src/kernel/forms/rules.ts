@@ -159,3 +159,14 @@ export function violationsOf(
   }
   return found;
 }
+
+/**
+ * Order two identifiers by code point, never by locale (D-300.14): the
+ * layout and every list the seal or the effective forms sort must come out
+ * the same on every machine, whatever its ICU data says about `_` or case.
+ * Module ids, field keys and form ids are ASCII, where UTF-16 code units are
+ * code points.
+ */
+export function byCodePoint(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}

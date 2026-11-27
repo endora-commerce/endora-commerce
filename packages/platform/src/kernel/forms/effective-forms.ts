@@ -10,7 +10,7 @@ import {
   type FormLayoutOverrideRow,
   type OperatorKind,
 } from '@endora-commerce/contracts';
-import { mergeValidation } from './rules.js';
+import { byCodePoint, mergeValidation } from './rules.js';
 import type { SealedFieldSet, SealedForm, SealedForms, SealedOverride } from './seal.js';
 
 /**
@@ -133,7 +133,7 @@ function formFields(set: SealedFieldSet, form: SealedForm, isPresent: (moduleId:
 
   // Layout: declared, then code positions by (module, key), then operator positions by key.
   const layout = new Map(form.sections.map((section) => [section.key, [...section.keys]] as [string, string[]]));
-  for (const sealed of present.filter((s) => s.override.position !== undefined && s.forms.includes(form.id)).sort((a, b) => a.moduleId.localeCompare(b.moduleId) || a.fieldKey.localeCompare(b.fieldKey))) {
+  for (const sealed of present.filter((s) => s.override.position !== undefined && s.forms.includes(form.id)).sort((a, b) => byCodePoint(a.moduleId, b.moduleId) || byCodePoint(a.fieldKey, b.fieldKey))) {
     move(layout, sealed.fieldKey, sealed.override.position!);
   }
   const keys = form.sections.flatMap((section) => [...section.keys]);
@@ -142,7 +142,7 @@ function formFields(set: SealedFieldSet, form: SealedForm, isPresent: (moduleId:
     const inForce = rowInForce(rows.get(`${form.id}\0${key}`), set.field(key)!);
     if (inForce !== null) operator.set(key, inForce);
   }
-  for (const [key, { row, kinds }] of [...operator].sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [key, { row, kinds }] of [...operator].sort(([a], [b]) => byCodePoint(a, b))) {
     if (kinds.includes('position')) move(layout, key, row);
   }
 
@@ -192,7 +192,7 @@ function formFields(set: SealedFieldSet, form: SealedForm, isPresent: (moduleId:
       ...(visible === undefined ? {} : { visibleWhen: visible.override.visibleWhen! }),
       ...effectiveValidation(set, key, isPresent),
       overriddenBy: [...by]
-        .sort(([a], [b]) => a.localeCompare(b))
+        .sort(([a], [b]) => byCodePoint(a, b))
         .map(([module, entry]) => ({ module, origin: entry.origin, kinds: kindOrder(entry.kinds) })),
       operatorKinds: inForce === undefined ? [] : [...inForce.kinds],
     };

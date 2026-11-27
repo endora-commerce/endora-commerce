@@ -22,7 +22,7 @@ import {
   type FormCompositionWarning,
 } from './errors.js';
 import { isPlatformFormat } from './formats.js';
-import { contradictionOf, mergeValidation, type MergedValidation } from './rules.js';
+import { byCodePoint, contradictionOf, mergeValidation, type MergedValidation } from './rules.js';
 import type { FieldFormatRegistration, FieldSetWriter } from './types.js';
 
 /**
@@ -135,7 +135,7 @@ export interface SealedForms {
   readonly warnings: readonly FormCompositionWarning[];
 }
 
-const byModule = <T extends { readonly moduleId: string }>(a: T, b: T): number => a.moduleId.localeCompare(b.moduleId);
+const byModule = <T extends { readonly moduleId: string }>(a: T, b: T): number => byCodePoint(a.moduleId, b.moduleId);
 
 interface ResolvedKey {
   readonly field: FieldDeclaration;
@@ -277,7 +277,7 @@ export function sealForms(input: FormSealInput): SealedForms {
 
   // ---- Field sets and forms -------------------------------------------------
   const sets = new Map<string, { moduleId: string; set: FieldSetDeclaration; resolve: (key: string) => ResolvedKey | undefined }>();
-  for (const { moduleId, set } of [...input.fieldSets].sort((a, b) => a.set.id.localeCompare(b.set.id) || byModule(a, b))) {
+  for (const { moduleId, set } of [...input.fieldSets].sort((a, b) => byCodePoint(a.set.id, b.set.id) || byModule(a, b))) {
     const existing = sets.get(set.id);
     if (existing !== undefined) {
       throw new FormCompositionError(
@@ -455,7 +455,7 @@ export function sealForms(input: FormSealInput): SealedForms {
   // ---- Grants (field-overrides.md §4) -----------------------------------------
   const grants = input.formOverrideGrants ?? {};
   const grantedTo = new Map<string, Set<string>>();
-  for (const [setId, entries] of Object.entries(grants).sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [setId, entries] of Object.entries(grants).sort(([a], [b]) => byCodePoint(a, b))) {
     for (const grant of entries) {
       if (!sets.has(setId)) {
         throw new InvalidFormOverrideGrantError('unknown-field-set', grant.moduleId, setId, `no composed module declares field set '${setId}'`);
@@ -489,7 +489,7 @@ export function sealForms(input: FormSealInput): SealedForms {
 
   // ---- Overrides, one at a time (field-overrides.md §3) -----------------------
   const sealedOverrides = new Map<string, SealedOverride[]>();
-  const sortedOverrides = [...input.formOverrides].sort((a, b) => byModule(a, b) || a.override.target.localeCompare(b.override.target));
+  const sortedOverrides = [...input.formOverrides].sort((a, b) => byModule(a, b) || byCodePoint(a.override.target, b.override.target));
   for (const { moduleId, override } of sortedOverrides) {
     const dot = override.target.indexOf('.');
     const setId = override.target.slice(0, dot);
@@ -808,22 +808,22 @@ export function sealForms(input: FormSealInput): SealedForms {
       }
     }
 
-    // required-not-fillable: effectively required on a create form, and hidden
-    // or read-only there.
+    // required-not-fillable (D-300.12): effectively required on a create form,
+    // and hidden there — a hidden field is never submitted, so no derivation
+    // can fill it. `readOnly` there is `check:admin-forms`' to judge, because
+    // whether a `fieldBehaviours` derivation fills it is the admin layer's.
     for (const form of forms.filter((f) => f.mode === 'create')) {
       for (const key of formKeys(form)) {
         const field = resolve(key)!.field;
         const tightened = (validations.get(key) ?? []).some((contribution) => contribution.validation.required === true);
         if (!field.required && !tightened) continue;
-        const blocker = overrides.find(
-          (sealed) => sealed.fieldKey === key && sealed.forms.includes(form.id) && (sealed.override.hidden === true || sealed.override.readOnly === true),
-        );
+        const blocker = overrides.find((sealed) => sealed.fieldKey === key && sealed.forms.includes(form.id) && sealed.override.hidden === true);
         if (blocker !== undefined) {
           throw new FormCompositionError(
             'required-not-fillable',
             { moduleId: blocker.moduleId, fieldSet: set.id, field: key },
-            `the field is required on create form '${form.id}', and the override makes it ${blocker.override.hidden === true ? 'hidden' : 'read-only'} there`,
-            'A required field must be fillable on a create form: narrow the override to edit forms with forms, or drop the requirement.',
+            `the field is required on create form '${form.id}', and the override hides it there, so it is never submitted`,
+            'Narrow the hiding override to edit forms with forms, or drop the tightened requirement; a field a create form must carry is shown on it.',
           );
         }
       }
@@ -842,7 +842,7 @@ export function sealForms(input: FormSealInput): SealedForms {
   }
 
   const writersByAction = new Map<string, SealedWriter[]>();
-  for (const [setId, writers] of [...registered].sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [setId, writers] of [...registered].sort(([a], [b]) => byCodePoint(a, b))) {
     const sealed = fieldSets.get(setId)!;
     for (const writer of writers) {
       const list = writersByAction.get(writer.on.action) ?? [];
