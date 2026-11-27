@@ -7,7 +7,9 @@ import type { OpportunityTabProps } from '../tabs.js';
 
 /**
  * The *Notes* tab (User Story 4): what the people working an Opportunity want
- * remembered. A note is its author's — only they may edit or delete it.
+ * remembered. A note is its author's — only they may edit or delete it. A note
+ * carries the operator's `opportunity_note` custom fields (issue #2005), for a
+ * reader who holds `custom_fields:read`.
  */
 export function NotesTab(props: OpportunityTabProps): ReactNode {
   const t = useTranslation('crm');
@@ -26,6 +28,9 @@ export function NotesTab(props: OpportunityTabProps): ReactNode {
       referenceKinds={kinds}
       lookups={lookups}
       orderStatusLabel={orderStatusLabel}
+      // Issue #2005 — the operator's `opportunity_note` fields, in the composer and on each note.
+      // Reading their definitions is `custom_fields`' permission: without it, none are offered.
+      {...(hasPermission('custom_fields:read') ? { customFieldEntityType: 'opportunity_note' as const } : {})}
       // The tab's label counts the notes; the page reads that count again.
       onCountChange={props.reload}
       copy={{

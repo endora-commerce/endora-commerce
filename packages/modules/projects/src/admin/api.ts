@@ -397,13 +397,35 @@ export const projectsApi = {
     return data(apiClient.get<{ data: ProjectComment[] }>(`${BASE}/${projectId}/comments?kind=${kind}`));
   },
 
-  addComment(projectId: string, kind: ProjectCommentKind, body: string): Promise<ProjectComment> {
-    return data(apiClient.post<{ data: ProjectComment }>(`${BASE}/${projectId}/comments`, { kind, body }));
+  /** `customFieldValues` — a note's values (issue #2005); a message sends none. */
+  addComment(
+    projectId: string,
+    kind: ProjectCommentKind,
+    body: string,
+    customFieldValues?: Record<string, unknown>,
+  ): Promise<ProjectComment> {
+    return data(
+      apiClient.post<{ data: ProjectComment }>(`${BASE}/${projectId}/comments`, {
+        kind,
+        body,
+        ...(customFieldValues === undefined ? {} : { customFieldValues }),
+      }),
+    );
   },
 
-  /** A note, by its author; a message never changes. */
-  updateComment(projectId: string, commentId: string, body: string): Promise<ProjectComment> {
-    return data(apiClient.patch<{ data: ProjectComment }>(`${BASE}/${projectId}/comments/${commentId}`, { body }));
+  /** A note, by its author; a message never changes. Only the custom-field keys that changed are sent. */
+  updateComment(
+    projectId: string,
+    commentId: string,
+    body: string,
+    customFieldValues?: Record<string, unknown>,
+  ): Promise<ProjectComment> {
+    return data(
+      apiClient.patch<{ data: ProjectComment }>(`${BASE}/${projectId}/comments/${commentId}`, {
+        body,
+        ...(customFieldValues === undefined ? {} : { customFieldValues }),
+      }),
+    );
   },
 
   deleteComment(projectId: string, commentId: string): Promise<void> {

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
-import type { RecordReference } from '@endora-commerce/contracts';
-import { formatDateTime, useAuth } from '../../lib/index.js';
+import type { CustomFieldDefinitionDto, RecordReference, SupportedEntityType } from '@endora-commerce/contracts';
+// `apiClient` through the kit's `lib` barrel — see `CustomFieldValuesPanel.tsx`.
+import { apiClient, formatDateTime, useAuth } from '../../lib/index.js';
 import { Alert, AlertDescription } from '../../ui/alert.js';
 import { Badge } from '../../ui/badge.js';
 import { Button } from '../../ui/button.js';
@@ -10,6 +11,9 @@ import { useTranslationContext } from '../../i18n/TranslationProvider.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { EditorSection, useEditorSectionChrome, type EditorSectionChrome } from '../../ui/editor-section.js';
 import { ModalDialog } from '../modal-dialog/ModalDialog.js';
+import { resolveCustomFieldLabel } from '../custom-field-filters/custom-field-filter-chips.js';
+import { CustomFieldValuesPanel, formatReadValue } from '../custom-field-values/CustomFieldValuesPanel.js';
+import { customFieldErrorsOf } from '../custom-field-values/custom-field-errors.js';
 import { ReferenceField } from '../references/ReferenceField.js';
 import { ReferenceText } from '../references/ReferenceText.js';
 import type { ReferenceLookups, ReferenceTriggerKind } from '../references/reference-kinds.js';
@@ -29,13 +33,21 @@ export interface RecordComment {
    */
   deletedAt?: string | null;
   createdAt: string;
+  /** A note's custom-field values (issue #2005), keyed by definition key; absent on a record whose notes take none. */
+  customFieldValues?: Record<string, unknown>;
 }
 
 /** The record's own requests for its notes or messages. Keep it stable between renders: a new one reads again. */
 export interface CommentThreadApi<C extends RecordComment = RecordComment> {
   list: () => Promise<C[]>;
-  add: (body: string) => Promise<C>;
-  update: (commentId: string, body: string) => Promise<C>;
+  /**
+   * `customFieldValues` is sent for a note when the thread has a {@link
+   * CommentThreadProps.customFieldEntityType} and the writer chose a value (issue #2005); absent
+   * otherwise — the server reads that as `{}` and enforces a required field either way.
+   */
+  add: (body: string, customFieldValues?: Record<string, unknown>) => Promise<C>;
+  /** `customFieldValues` holds only the keys the writer changed, absent when none — the server merges. */
+  update: (commentId: string, body: string, customFieldValues?: Record<string, unknown>) => Promise<C>;
   remove: (commentId: string) => Promise<void>;
 }
 
@@ -102,6 +114,18 @@ export interface CommentThreadProps<C extends RecordComment = RecordComment> {
    * it, for a thread standing alone on a page.
    */
   chrome?: EditorSectionChrome;
+  /**
+   * Issue #2005 — the custom-field entity type of this record's **notes** (`opportunity_note`,
+   * `project_note`). Given, a note thread offers the type's fields in its composer and in a note's
+   * edit form, with `CustomFieldValuesPanel`'s inputs, and shows a line of each note's values. A
+   * message thread ignores it: a message takes no fields.
+   */
+  customFieldEntityType?: SupportedEntityType;
+}
+
+/** Whether a stored value is something to show — not absent, empty or an empty choice. */
+function hasValue(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && value.length === 0);
 }
 
 /**
@@ -138,6 +162,39 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const sequence = useRef(0);
+  const fieldsPrefix = useId();
+
+  // Issue #2005 — a note's custom fields: the definitions, read once for the composer, the edit
+  // form and the value lines; the composer's values and refusals; the edit form's.
+  const fieldsType = kind === 'note' ? props.customFieldEntityType : undefined;
+  const [definitions, setDefinitions] = useState<CustomFieldDefinitionDto[] | null>(null);
+  const [definitionsFailed, setDefinitionsFailed] = useState(false);
+  const [composerValues, setComposerValues] = useState<Record<string, unknown>>({});
+  const [composerErrors, setComposerErrors] = useState<Record<string, string>>({});
+  // A new composer panel after each note, so the next one starts with no values.
+  const [composerRound, setComposerRound] = useState(0);
+  const [editValues, setEditValues] = useState<Record<string, unknown>>({});
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (fieldsType === undefined) return undefined;
+    let live = true;
+    apiClient
+      .get<{ data: CustomFieldDefinitionDto[] }>(`/api/v1/admin/custom-fields/definitions?entityType=${fieldsType}`)
+      .then(
+        (response) => {
+          if (!live) return;
+          setDefinitions(response.data);
+          setDefinitionsFailed(false);
+        },
+        () => {
+          if (live) setDefinitionsFailed(true);
+        },
+      );
+    return (): void => {
+      live = false;
+    };
+  }, [fieldsType]);
 
   const load = useCallback(async (): Promise<void> => {
     const current = ++sequence.current;
@@ -162,7 +219,20 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
   }, [entries, onEntries]);
 
   const add = async (body: string): Promise<void> => {
-    const created = await api.add(body);
+    let created: C;
+    try {
+      // Only a bag with something in it: the server reads an absent bag as `{}` and enforces a
+      // required field either way, so a note with no field sends what it always sent.
+      const values = fieldsType !== undefined && Object.keys(composerValues).length > 0 ? composerValues : undefined;
+      created = values === undefined ? await api.add(body) : await api.add(body, values);
+    } catch (failure) {
+      // A refused value is shown at its field; the composer shows the sentence and keeps the text.
+      setComposerErrors(customFieldErrorsOf(failure) ?? {});
+      throw failure;
+    }
+    setComposerValues({});
+    setComposerErrors({});
+    setComposerRound((round) => round + 1);
     setEntries((previous) => [...(previous ?? []), created]);
     setNotice(copy.added);
     void onCountChange?.();
@@ -177,8 +247,10 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
     }
     setSaving(true);
     setEditError(null);
+    setEditErrors({});
     try {
-      const updated = await api.update(editingId, body);
+      const changed = fieldsType !== undefined && Object.keys(editValues).length > 0 ? editValues : undefined;
+      const updated = changed === undefined ? await api.update(editingId, body) : await api.update(editingId, body, changed);
       setEntries((previous) =>
         (previous ?? []).map((item) => (item.id === updated.id ? updated : item)),
       );
@@ -186,9 +258,53 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
       setNotice(t('comments.updated'));
     } catch (failure) {
       setEditError(commentErrorMessage(failure, t('comments.error.save')));
+      setEditErrors(customFieldErrorsOf(failure) ?? {});
     } finally {
       setSaving(false);
     }
+  };
+
+  /** The custom fields of a note, as `CustomFieldValuesPanel` draws them — embedded, no button of its own. */
+  const fieldsPanel = (
+    idPrefix: string,
+    values: Record<string, unknown>,
+    onChange: (values: Record<string, unknown>) => void,
+    fieldErrors: Record<string, string>,
+  ): ReactNode =>
+    fieldsType === undefined ? null : definitionsFailed ? (
+      <p role="alert" className="text-xs text-destructive">
+        {t('customFields.loadFailed')}
+      </p>
+    ) : definitions === null ? null : (
+      <CustomFieldValuesPanel
+        entityType={fieldsType}
+        definitions={definitions}
+        fieldIdPrefix={idPrefix}
+        values={values}
+        onChange={onChange}
+        fieldErrors={fieldErrors}
+        language={language}
+        chrome="section"
+        titleAs="h3"
+      />
+    );
+
+  /** One line of a note's stored values, by label — the fields a reader is shown at all. */
+  const valueLine = (item: C): ReactNode => {
+    if (fieldsType === undefined || definitions === null || item.kind !== 'note') return null;
+    const stored = item.customFieldValues ?? {};
+    const shown = definitions.filter((d) => (d.adminAccess ?? 'edit') !== 'hidden' && hasValue(stored[d.key]));
+    if (shown.length === 0) return null;
+    return (
+      <dl aria-label={t('customFields.title')} className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        {shown.map((d) => (
+          <div key={d.id} className="flex gap-1">
+            <dt className="text-muted-foreground">{resolveCustomFieldLabel(d.label, d.labelDefault, language)}:</dt>
+            <dd className="text-foreground">{formatReadValue(d, stored[d.key], language, t)}</dd>
+          </div>
+        ))}
+      </dl>
+    );
   };
 
   const confirmDelete = async (): Promise<void> => {
@@ -268,6 +384,8 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
                         onClick={(): void => {
                           setEditingId(item.id);
                           setDraft(item.body);
+                          setEditValues({});
+                          setEditErrors({});
                           setEditError(null);
                           setNotice('');
                         }}
@@ -309,6 +427,7 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
                       aria-invalid={editError !== null}
                       onValueChange={setDraft}
                     />
+                    {fieldsPanel(`${fieldsPrefix}-edit-${item.id}`, item.customFieldValues ?? {}, setEditValues, editErrors)}
                     {editError ? (
                       <p role="alert" className="text-xs text-destructive">
                         {editError}
@@ -336,13 +455,16 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2 text-sm">
-                    <ReferenceText
-                      text={item.body}
-                      references={item.references}
-                      {...(props.orderStatusLabel ? { orderStatusLabel: props.orderStatusLabel } : {})}
-                    />
-                  </div>
+                  <>
+                    <div className="mt-2 text-sm">
+                      <ReferenceText
+                        text={item.body}
+                        references={item.references}
+                        {...(props.orderStatusLabel ? { orderStatusLabel: props.orderStatusLabel } : {})}
+                      />
+                    </div>
+                    {valueLine(item)}
+                  </>
                 )}
               </li>
             );
@@ -364,7 +486,11 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
           referenceKinds={props.referenceKinds}
           lookups={props.lookups}
           onSubmit={add}
-        />
+        >
+          <Fragment key={composerRound}>
+            {fieldsPanel(`${fieldsPrefix}-new`, {}, setComposerValues, composerErrors)}
+          </Fragment>
+        </CommentComposer>
       ) : null}
 
       {pendingDelete ? (
