@@ -550,8 +550,10 @@ export const DeploymentDivergenceDeclarationSchema = z.object({
    * to disagree.
    *
    * Only a deployment's own overlay modules can appear here: a core module and
-   * an installed package may not decorate a name they do not own (D-156.4), so
-   * every ambiguity this can resolve is between two of them.
+   * an installed package may not decorate a name they do not own (D-156.4,
+   * narrowed by D-296 for the four guard seams only — `GUARD_SEAM_REGISTRATIONS`
+   * — which an overlay may decorate in 0.113.0 with a warning and not from
+   * 0.114.0), so every ambiguity this can resolve is between two of them.
    *
    * Nothing reads it yet — the supply is P4 of
    * `specs/107-override-report-and-ladder/`.

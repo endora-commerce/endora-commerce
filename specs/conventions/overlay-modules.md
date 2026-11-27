@@ -41,7 +41,17 @@ every consumer of that name resolves, and a core module wrapping `commandBus`,
 `auditLogService` or another module's read port is a coupling nothing declares. Ask the owner
 for a seam instead (a port, a contribution point, an event). An overlay module is exempt, and
 the exemption is structural: `loadOverlayModuleEntries` marks an entry `overlay: true` from
-the root it was discovered under, so core cannot assert it.
+the root it was discovered under, so core cannot assert it. That exemption is **D-156.4, narrowed
+by D-296**, and the narrowing covers the four guard seams only — `commandBus`, `auditLogService`,
+`eventBus`, `emFactory` (`GUARD_SEAM_REGISTRATIONS` in `@endora-commerce/contracts`): an overlay's
+decoration of one is deprecated in 0.113.0 (it composes, logs `kernel.decoration.deprecated` and is a
+`deprecated-decoration` warning in the divergence report) and refused from 0.114.0. Use command
+middleware (`admit` to refuse, `observe` to measure) or a command hook instead of wrapping
+`commandBus` or `auditLogService`, `ctx.subscribe` or an `afterCommit` hook instead of wrapping
+`eventBus`, and a port from the owning module instead of `emFactory`; `guardSeamReplacementFor`
+carries the full text. Decorating another overlay module's registration, a workspace module's, or any
+other root-supplied name (`redis`, `orm`, `requireAdmin`, …) is unchanged
+(`specs/189-command-middleware/contracts/guard-seam-narrowing.md`).
 **An overlay module ships `backend.ts`, not `plugin.ts`** (D-103). It is composed by the
 kernel container exactly as a core module is — appended to the core list in the one
 `composeModules` call — and uses `ctx.routes` / `ctx.worker` / `ctx.subscribe` /
