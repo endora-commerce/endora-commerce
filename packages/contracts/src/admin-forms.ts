@@ -628,6 +628,41 @@ export const FieldRuleViolationDetailSchema = z.object({
 });
 export type FieldRuleViolationDetail = z.infer<typeof FieldRuleViolationDetailSchema>;
 
+/**
+ * Why a field write was refused `403 FIELD_WRITE_FORBIDDEN` (`field-rules.md`
+ * §5 step 5, research R-12). Additive-only.
+ *
+ * - `missing-permission` — an administrator without the field's
+ *   `writePermission` changed it.
+ * - `api-key-scopes-unresolved` — an API key bound to an organization changed
+ *   it. The Command Bus carries no API-key id and no scopes (R-12, T026), so a
+ *   key's write to a field with a `writePermission` is refused until it can be
+ *   resolved. An unbound key acts in the system scope and is exempt, as a
+ *   system actor is.
+ */
+export const FIELD_WRITE_FORBIDDEN_REASONS = ['missing-permission', 'api-key-scopes-unresolved'] as const;
+export type FieldWriteForbiddenReason = (typeof FIELD_WRITE_FORBIDDEN_REASONS)[number];
+
+/** One entry of `403 FIELD_WRITE_FORBIDDEN`'s `details`: a changed field the actor may not write. */
+export const FieldWriteForbiddenDetailSchema = z.object({
+  /** A core key, or `extensions.<moduleId>.<key>` for a slot. */
+  path: z.string(),
+  /** The permission code the write needs. */
+  permission: z.string().min(1),
+  reason: z.enum(FIELD_WRITE_FORBIDDEN_REASONS),
+  /** In the request's language. */
+  message: z.string(),
+});
+export type FieldWriteForbiddenDetail = z.infer<typeof FieldWriteForbiddenDetailSchema>;
+
+/** One entry of `422 FIELD_SLOT_INPUT_INVALID`'s `details` (`field-slots.md` §4). */
+export const FieldSlotInputInvalidDetailSchema = z.object({
+  /** `extensions.<moduleId>.<key>`, then the path inside the value when it is nested. */
+  path: z.string().regex(/^extensions\.[a-z_][a-z0-9_]*(\.|$)/),
+  issue: z.string(),
+});
+export type FieldSlotInputInvalidDetail = z.infer<typeof FieldSlotInputInvalidDetailSchema>;
+
 // ---------------------------------------------------------------------------
 // Input controls (`input-controls.md` §1)
 // ---------------------------------------------------------------------------
