@@ -12,12 +12,13 @@ import {
   type AdminUserReadPort,
   type NewContextTask,
   type TaskContext,
-  type TaskWritePort,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { rethrowIfModuleDisabled, type AuditPort } from '@endora-commerce/platform/kernel';
 import { HttpError } from '@endora-commerce/platform/http';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { Task } from '../entities/task.entity.js';
+import { requireActingAdmin } from './task-access.js';
 import { assertAssignable } from './task-checks.js';
 import { createTaskCommand, deleteTaskCommand, type NewTaskFields } from './task-commands.js';
 import type { TaskContextRegistry } from './task-context-registry.js';
@@ -25,8 +26,12 @@ import { taskContextInvalid } from './task-errors.js';
 import type { TaskWorkflowRead } from './task-workflow-read.js';
 
 /**
- * `taskWritePort` — another module creating and deleting Tasks in a context it
- * owns (`specs/163-projects-and-tasks/contracts/ports-and-events.md` §1).
+ * A context owner's writes — another module creating and deleting Tasks in a
+ * context it owns (`specs/163-projects-and-tasks/contracts/ports-and-events.md`
+ * §1): `taskCommandPort.createMany` and `.deleteInContext`, and the deprecated
+ * `taskWritePort`, which delegates to them (`specs/186-aggregate-ports/`
+ * R-23.7). The caller's `source` and `extensions` reach every Command through
+ * `withCallerOptions`.
  *
  * `createMany` runs **one `tasks.task.create` Command per Task** under the
  * ambient actor, each starting in the workflow's current initial status
@@ -109,10 +114,19 @@ function validEntry(entry: NewContextTask, index: number): ValidEntry {
   };
 }
 
-export class TaskWritePortService implements TaskWritePort {
+export class TaskWritePortService {
   constructor(private readonly deps: TaskWritePortDeps) {}
 
-  async createMany(input: { context: TaskContext; tasks: NewContextTask[] }): Promise<{ ids: string[] }> {
+  /**
+   * `created_by_admin_user_id` is not null, so with nobody behind the call it
+   * is 403 before anything is read (R-23.2) — it used to be a plain `Error`
+   * from inside the first Command.
+   */
+  async createMany(
+    input: { context: TaskContext; tasks: NewContextTask[] },
+    caller: CallerOptions = {},
+  ): Promise<{ ids: string[] }> {
+    requireActingAdmin('A Task is created by an administrator.');
     const parsed = TaskContextSchema.safeParse(input.context);
     if (!parsed.success) throw invalid('The context is not a context type and a uuid.');
     const context = parsed.data;
@@ -141,7 +155,9 @@ export class TaskWritePortService implements TaskWritePort {
       const where = contextGroupId === undefined ? context : { ...context, contextGroupId };
       let id: string;
       try {
-        id = await this.deps.commandBus.run(createTaskCommand(where, { ...task, status, sourceKey }));
+        id = await this.deps.commandBus.run(
+          withCallerOptions(createTaskCommand(where, { ...task, status, sourceKey }), caller),
+        );
       } catch (error) {
         rethrowIfModuleDisabled(error);
         // Another call created this key meanwhile: the unique index refused
@@ -168,7 +184,10 @@ export class TaskWritePortService implements TaskWritePort {
     return new Map(rows.map((row) => [row.source_key, row.id]));
   }
 
-  async deleteInContext(q: { contextType: string; contextId: string }): Promise<{ deleted: number }> {
+  async deleteInContext(
+    q: { contextType: string; contextId: string },
+    caller: CallerOptions = {},
+  ): Promise<{ deleted: number }> {
     const parsed = TaskContextSchema.safeParse({ contextType: q.contextType, contextId: q.contextId });
     if (!parsed.success) throw invalid('The context is not a context type and a uuid.');
     const doomed = await this.deps.emFactory().find(
@@ -178,7 +197,8 @@ export class TaskWritePortService implements TaskWritePort {
     );
     let deleted = 0;
     for (const { id } of doomed) {
-      if ((await this.deps.commandBus.run(deleteTaskCommand(id, this.deps.auditLog))).deleted) deleted += 1;
+      const run = await this.deps.commandBus.run(withCallerOptions(deleteTaskCommand(id, this.deps.auditLog), caller));
+      if (run.deleted) deleted += 1;
     }
     return { deleted };
   }
