@@ -34,6 +34,7 @@ import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { CommandHookRegistry } from '../commands/hooks/registry.js';
 import type { FormRegistry } from '../kernel/forms/registry.js';
 import { subscribeWhenReady, type HandshakeAwareSubscriber } from '../kernel/cache/subscribe-when-ready.js';
+import { enterSystemScope } from '../kernel/scope.js';
 import { listCommandOutbox, makeRetryCommandOutboxCommand } from '../commands/outbox/admin.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../http/error-envelope.js';
@@ -452,7 +453,14 @@ export async function watchFormLayoutChanges(
   log?: { warn(object: Record<string, unknown>, message: string): void },
 ): Promise<void> {
   subscriber.on('message', (channel) => {
-    if (channel === FORM_LAYOUT_CHANGED_CHANNEL) registry.bumpLayoutGeneration();
+    if (channel !== FORM_LAYOUT_CHANGED_CHANNEL) return;
+    // A pub/sub callback has no caller to inherit a scope from, so it opens its
+    // own — around the callback, not the memo it drops, which a request also
+    // reaches. Nothing here reads a tenant-scoped row; the scope is the entry
+    // point's, as `registryCache.watch` opens one for its refresh.
+    void enterSystemScope('form layout changed', () => registry.bumpLayoutGeneration(), { entryPoint: 'message' }).catch(
+      (error: unknown) => log?.warn({ err: error }, '[forms] could not drop the effective-forms memo on b2b:form-layout:changed'),
+    );
   });
   try {
     await subscribeWhenReady(subscriber, FORM_LAYOUT_CHANGED_CHANNEL);

@@ -84,6 +84,11 @@ const MIGRATED_MODULES: readonly string[] = [
   // chain's answer for them. See the note on `CHAIN_ANSWER_ALIASES` in
   // `test/fixtures/error-code-routing/chain-answers.ts`.
   '_i18n',
+  // Minted (`specs/193-admin-form-extensions/` WP-B): the field-rule check's
+  // and `fieldSlotHook`'s three codes are `_lifecycle`'s, the manifest of the
+  // platform's own surfaces, beside the `fieldRules.*` sentences each detail is
+  // worded from; `MINTED_ERROR_CODES` accounts for them.
+  '_lifecycle',
   // Tier B, MR 5 — the four receivers that had to **create** an i18n bundle.
   // `credit_limits`, `api_keys`, `addresses` and `webhooks` declare their first
   // code here, and each of the eleven carries a `REHOMED_ERROR_CODES` entry, so

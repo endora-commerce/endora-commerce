@@ -427,6 +427,11 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // (`specs/187-side-table-extensions/` B1) published `lazyEntityExtensionReads`,
     // how a host read port holds `entityExtensionReads`; `EntityExtensionReads`
     // and `EntityExtensionLoaderEntry` are types and carry no identity.
+    // **95 -> 96 is the same event, on `./kernel`:** admin form extensions
+    // (`specs/193-admin-form-extensions/` WP-B) published `fieldSlotHook`, the
+    // helper a slot module builds its `beforeCommit` hooks with; the field-set,
+    // writer, projection and format registration shapes are types and carry no
+    // identity.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
@@ -437,7 +442,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(95);
+    expect(total).toBe(96);
   });
 
   /**
