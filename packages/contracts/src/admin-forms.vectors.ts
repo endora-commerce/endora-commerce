@@ -125,6 +125,29 @@ export const FIELD_CONDITION_SCHEMA_REFUSALS: readonly { readonly name: string; 
   { name: 'an empty field name', condition: { field: '', op: 'isEmpty' } },
 ];
 
+/**
+ * Hostile sizes (issue #2018): the schema must answer each with an ordinary
+ * failure, quickly — never a thrown `RangeError` from recursing into it, and
+ * never a full parse of a payload already over a cap.
+ */
+export function deepNotCondition(depth: number): unknown {
+  let condition: unknown = leaf;
+  for (let i = 0; i < depth; i += 1) condition = { not: condition };
+  return condition;
+}
+
+export const FIELD_CONDITION_HOSTILE_REFUSALS: readonly { readonly name: string; readonly condition: () => unknown }[] = [
+  { name: '20 000 nested not', condition: () => deepNotCondition(20_000) },
+  { name: 'an all of 200 000 leaves', condition: () => ({ all: Array.from({ length: 200_000 }, () => leaf) }) },
+  { name: 'an any of 200 000 leaves', condition: () => ({ any: Array.from({ length: 200_000 }, () => leaf) }) },
+  { name: 'an in of 200 000 values', condition: () => ({ field: 'kind', op: 'in', value: Array.from({ length: 200_000 }, (_, i) => i) }) },
+  { name: '20 000 nested all', condition: () => {
+    let condition: unknown = leaf;
+    for (let i = 0; i < 20_000; i += 1) condition = { all: [condition] };
+    return condition;
+  } },
+];
+
 /** Conditions at the caps, which the schema must accept. */
 export const FIELD_CONDITION_SCHEMA_ACCEPTS: readonly { readonly name: string; readonly condition: FieldCondition }[] = [
   { name: 'a bare leaf', condition: leaf },

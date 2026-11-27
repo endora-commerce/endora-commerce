@@ -1,17 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
   FIELD_CONDITION_MAX_DEPTH,
+  FIELD_CONDITION_MAX_IN_VALUES,
   FIELD_CONDITION_MAX_LEAVES,
   FIELD_FORMATS,
   FieldConditionSchema,
+  FieldOverrideSchema,
   evaluateFieldCondition,
   type FieldCondition,
 } from './admin-forms.js';
 import {
+  FIELD_CONDITION_HOSTILE_REFUSALS,
   FIELD_CONDITION_SCHEMA_ACCEPTS,
   FIELD_CONDITION_SCHEMA_REFUSALS,
   FIELD_CONDITION_VECTORS,
   FIELD_FORMAT_VECTORS,
+  deepNotCondition,
 } from './admin-forms.vectors.js';
 
 /**
@@ -81,6 +85,43 @@ describe('FieldConditionSchema (193 T012, depth and leaf caps)', () => {
     const wide = FIELD_CONDITION_SCHEMA_REFUSALS.find((v) => v.name === '17 leaves')!.condition;
     expect(JSON.stringify(FieldConditionSchema.safeParse(deep).error?.issues)).toMatch(/depth/);
     expect(JSON.stringify(FieldConditionSchema.safeParse(wide).error?.issues)).toMatch(/leaves/);
+  });
+});
+
+describe('FieldConditionSchema — hostile sizes (issue #2018)', () => {
+  it.each(FIELD_CONDITION_HOSTILE_REFUSALS.map((v) => [v.name, v.condition] as const))(
+    'refuses %s with an ordinary failure, quickly',
+    (_name, build) => {
+      const condition = build();
+      const started = Date.now();
+      let result: ReturnType<typeof FieldConditionSchema.safeParse> | undefined;
+      expect(() => {
+        result = FieldConditionSchema.safeParse(condition);
+      }).not.toThrow();
+      expect(result?.success).toBe(false);
+      // Generous for a loaded CI box; a full parse of the payload takes about a second.
+      expect(Date.now() - started).toBeLessThan(250);
+    },
+  );
+
+  it('holds each cap at its boundary', () => {
+    const leaf = { field: 'kind', op: 'isEmpty' } as const;
+    expect(FieldConditionSchema.safeParse(deepNotCondition(FIELD_CONDITION_MAX_DEPTH - 1)).success).toBe(true);
+    expect(FieldConditionSchema.safeParse(deepNotCondition(FIELD_CONDITION_MAX_DEPTH)).success).toBe(false);
+    const list = (n: number) => Array.from({ length: n }, () => leaf);
+    expect(FieldConditionSchema.safeParse({ all: list(FIELD_CONDITION_MAX_LEAVES) }).success).toBe(true);
+    expect(FieldConditionSchema.safeParse({ all: list(FIELD_CONDITION_MAX_LEAVES + 1) }).success).toBe(false);
+    expect(FieldConditionSchema.safeParse({ any: list(FIELD_CONDITION_MAX_LEAVES) }).success).toBe(true);
+    expect(FieldConditionSchema.safeParse({ any: list(FIELD_CONDITION_MAX_LEAVES + 1) }).success).toBe(false);
+    const values = (n: number) => Array.from({ length: n }, (_, i) => i);
+    expect(FieldConditionSchema.safeParse({ field: 'size', op: 'in', value: values(FIELD_CONDITION_MAX_IN_VALUES) }).success).toBe(true);
+    expect(FieldConditionSchema.safeParse({ field: 'size', op: 'in', value: values(FIELD_CONDITION_MAX_IN_VALUES + 1) }).success).toBe(false);
+  });
+
+  it('holds the caps where a condition is embedded, too', () => {
+    const override = { target: 'organization.emails', reason: 'r', visibleWhen: deepNotCondition(20_000) };
+    expect(() => FieldOverrideSchema.safeParse(override)).not.toThrow();
+    expect(FieldOverrideSchema.safeParse(override).success).toBe(false);
   });
 });
 

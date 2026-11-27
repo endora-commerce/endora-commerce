@@ -145,6 +145,12 @@ export type FieldCondition =
 export const FIELD_CONDITION_MAX_DEPTH = 4;
 /** Leaf conditions in one tree, counted across every branch. */
 export const FIELD_CONDITION_MAX_LEAVES = 16;
+/**
+ * Values one `in` leaf may list. Not a leaf count, so not the leaf cap: it is
+ * sized to cover an enum field's whole vocabulary (a country list is about
+ * 250), and it bounds what a manifest or the effective-forms response carries.
+ */
+export const FIELD_CONDITION_MAX_IN_VALUES = 256;
 
 const conditionField = z.string().regex(fieldReferenceRe);
 
@@ -155,45 +161,68 @@ const FieldConditionNodeSchema: z.ZodType<FieldCondition> = z.lazy(() =>
       op: z.enum(['equals', 'notEquals']),
       value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
     }),
-    z.strictObject({ field: conditionField, op: z.literal('in'), value: z.array(z.union([z.string(), z.number()])).min(1).readonly() }),
+    z.strictObject({
+      field: conditionField,
+      op: z.literal('in'),
+      value: z.array(z.union([z.string(), z.number()])).min(1).max(FIELD_CONDITION_MAX_IN_VALUES).readonly(),
+    }),
     z.strictObject({ field: conditionField, op: z.enum(['isEmpty', 'isNotEmpty']) }),
     // An empty `all` is vacuously true and an empty `any` false: neither is a
     // condition anybody means to write, so both are refused.
-    z.strictObject({ all: z.array(FieldConditionNodeSchema).min(1).readonly() }),
-    z.strictObject({ any: z.array(FieldConditionNodeSchema).min(1).readonly() }),
+    z.strictObject({ all: z.array(FieldConditionNodeSchema).min(1).max(FIELD_CONDITION_MAX_LEAVES).readonly() }),
+    z.strictObject({ any: z.array(FieldConditionNodeSchema).min(1).max(FIELD_CONDITION_MAX_LEAVES).readonly() }),
     z.strictObject({ not: FieldConditionNodeSchema }),
   ]),
 );
 
-function conditionShape(condition: FieldCondition): { depth: number; leaves: number } {
-  if ('all' in condition || 'any' in condition) {
-    const children = 'all' in condition ? condition.all : condition.any;
-    let depth = 0;
-    let leaves = 0;
-    for (const child of children) {
-      const shape = conditionShape(child);
-      depth = Math.max(depth, shape.depth);
-      leaves += shape.leaves;
+/**
+ * The size of a **raw** condition, measured iteratively and before any parse
+ * (issue #2018): the recursive schema is only ever handed a tree this has
+ * already bounded, so a hostile depth cannot overflow the stack and a hostile
+ * width is refused without being parsed. Stops at the first cap exceeded;
+ * malformed nodes count as leaves and are left to the schema to refuse.
+ */
+function conditionSizeRefusal(input: unknown): string | null {
+  const stack: { readonly node: unknown; readonly depth: number }[] = [{ node: input, depth: 1 }];
+  let leaves = 0;
+  while (stack.length > 0) {
+    const { node, depth } = stack.pop()!;
+    if (depth > FIELD_CONDITION_MAX_DEPTH) {
+      return `A field condition is more than ${FIELD_CONDITION_MAX_DEPTH} levels deep; the maximum depth is ${FIELD_CONDITION_MAX_DEPTH}.`;
     }
-    return { depth: depth + 1, leaves };
+    const record = typeof node === 'object' && node !== null ? (node as Record<string, unknown>) : null;
+    const children = record ? (Array.isArray(record.all) ? record.all : Array.isArray(record.any) ? record.any : null) : null;
+    if (children !== null) {
+      // Every child holds at least one leaf (an empty combinator is refused), so a
+      // list longer than the leaf cap is over it without looking inside.
+      if (children.length > FIELD_CONDITION_MAX_LEAVES) {
+        return `A field condition lists ${children.length} conditions in one combinator; the maximum is ${FIELD_CONDITION_MAX_LEAVES} leaves.`;
+      }
+      for (const child of children) stack.push({ node: child, depth: depth + 1 });
+    } else if (record && 'not' in record) {
+      stack.push({ node: record.not, depth: depth + 1 });
+    } else {
+      leaves += 1;
+      if (leaves > FIELD_CONDITION_MAX_LEAVES) {
+        return `A field condition has more than ${FIELD_CONDITION_MAX_LEAVES} leaves; the maximum is ${FIELD_CONDITION_MAX_LEAVES} leaves.`;
+      }
+    }
   }
-  if ('not' in condition) {
-    const shape = conditionShape(condition.not);
-    return { depth: shape.depth + 1, leaves: shape.leaves };
-  }
-  return { depth: 1, leaves: 1 };
+  return null;
 }
 
-/** `visibleWhen` / `requiredWhen`: a closed vocabulary, depth ≤ 4, leaves ≤ 16. */
-export const FieldConditionSchema: z.ZodType<FieldCondition> = FieldConditionNodeSchema.superRefine((condition, ctx) => {
-  const { depth, leaves } = conditionShape(condition);
-  if (depth > FIELD_CONDITION_MAX_DEPTH) {
-    ctx.addIssue({ code: 'custom', message: `A field condition is ${depth} levels deep; the maximum depth is ${FIELD_CONDITION_MAX_DEPTH}.` });
-  }
-  if (leaves > FIELD_CONDITION_MAX_LEAVES) {
-    ctx.addIssue({ code: 'custom', message: `A field condition has ${leaves} leaves; the maximum is ${FIELD_CONDITION_MAX_LEAVES} leaves.` });
-  }
-});
+/**
+ * `visibleWhen` / `requiredWhen`: a closed vocabulary, depth ≤ 4, leaves ≤ 16.
+ * The size is checked first and the parse runs only within it, so any input —
+ * however deep or wide — answers with an ordinary failure and never throws.
+ */
+export const FieldConditionSchema: z.ZodType<FieldCondition> = z
+  .unknown()
+  .superRefine((input, ctx) => {
+    const refusal = conditionSizeRefusal(input);
+    if (refusal !== null) ctx.addIssue({ code: 'custom', message: refusal, abort: true });
+  })
+  .pipe(FieldConditionNodeSchema);
 
 function valueOf(values: Readonly<Record<string, unknown>>, field: string): unknown {
   // An own key only: `constructor` is not a value somebody entered.
