@@ -190,6 +190,11 @@ for a button that does not exist.
 | shadow (a file)             | przesłaniać                         |                                                                       |
 | check (`check:*` script)    | kontrola                            | the script name stays as written                                      |
 | guard                       | zabezpieczenie                      |                                                                       |
+| guard seam                  | punkt zabezpieczeń                  | the four names `GUARD_SEAM_REGISTRATIONS` lists                       |
+| command hook                | hook polecenia                      | `beforeCommit` / `afterCommit` stay as identifiers                    |
+| command middleware          | middleware poleceń                  | `admit` / `observe` stay as identifiers                               |
+| policy point; participant   | punkt decyzyjny; uczestnik          |                                                                       |
+| origin (module trust tier)  | pochodzenie                         | the values `core` / `deployment` / `package` stay as written          |
 | tenant; tenant isolation    | tenant; izolacja tenantów           | the Organization is the tenant; inflect: tenanta, tenantów            |
 | channel scoping             | zawężanie do kanału sprzedaży       |                                                                       |
 | setting key                 | klucz ustawienia                    |                                                                       |

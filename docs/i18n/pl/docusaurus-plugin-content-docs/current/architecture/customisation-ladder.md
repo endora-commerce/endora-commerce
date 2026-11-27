@@ -34,16 +34,25 @@ poprzednia wersja tej listy była błędna.
 | --- | --- | --- | --- |
 | działanie we **własnym** obszarze | tak | tak | tak |
 | działanie w obszarze **innego modułu**, na jego zaproszenie | tak | tak | tak |
-| działanie w obszarze innego modułu **bez zaproszenia** | nie | **tak, bez ograniczeń** | nie |
+| działanie w obszarze innego modułu **bez zaproszenia** | nie | **tak**, z wyjątkiem rejestracji zainstalowanego pakietu i czterech punktów zabezpieczeń | nie |
 
 Środkowy wiersz to stopnie 1–3: punkt rozszerzenia opublikowany przez właściciela, w którym jesteś
 gościem. Dolny wiersz to stopień 4 i ma go wyłącznie wdrożenie — bo wdrożenie jest jedynym
 właścicielem swojej instancji: zmienia własne drzewo, buduje obraz i nie odpowiada przed nikim poza
 sobą.
 
+**Kolumnę wyznacza miejsce, w którym platforma znalazła moduł, a nigdy to, co moduł o sobie
+mówi.** Każdy złożony moduł ma pochodzenie, nadawane przez loader, który go wykrył: `core` (moduł
+platformy, w tym pakiet własnego modułu platformy zainstalowany w instancji), `deployment` (moduł
+nakładkowy w `apps/<deployment>/modules/`) albo `package` (każdy inny zainstalowany pakiet). Nie
+ustawia go żadne pole manifestu, a posiadanie tabeli go nie zmienia. Wdrożenie może przyznać
+zainstalowanemu pakietowi jeden nazwany punkt wpięcia w zatwierdzonym `divergence.ts`, o ile dany
+punkt to przewiduje; takie przyznanie jest uprawnieniem wyłącznie w tym punkcie, a wszędzie indziej
+pakiet nadal ma pochodzenie `package`.
+
 Każdą odpowiedź na pytanie „kto może” na tej stronie egzekwuje istniejące zabezpieczenie
 (`ForeignDecorationError`, `PackageDecorationNotOfferedError`, `DuplicateRegistrationError`,
-`ForeignRegistrationError`), a nie ta tabela.
+`ForeignRegistrationError`, `CommandMiddlewareOriginError`), a nie ta tabela.
 
 ---
 
@@ -99,8 +108,9 @@ albo zapis odrzucić — użyj hooka polecenia, czyli stopnia 2 (2b poniżej).
 
 ## Stopień 2 — kod przed tym, co właściciel już obsługuje, albo po tym
 
-Dwa mechanizmy, jeden stopień: wokół endpointu (2a) albo wewnątrz zapisu (2b). Oba są
-opublikowanym identyfikatorem, który właściciel wersjonuje, i oba mogą odmówić.
+Trzy mechanizmy, jeden stopień: wokół endpointu (2a), wewnątrz zapisu, który właściciel
+zadeklarował jako dostępny dla hooków (2b), albo wokół każdego polecenia, którego akcja pasuje do
+filtra (2c). Każdy może odmówić; żaden nie zastępuje tego, co robi właściciel.
 
 ### 2a — interceptor API
 
@@ -155,6 +165,50 @@ ustala twoje wdrożenie w `divergence.ts` (`commandHookOrder`).
 niezależnie od endpointu czy portu, przez który przyszedł; własne dane, które muszą zostać
 zatwierdzone razem z wierszem rdzenia albo wcale.
 
+### 2c — middleware poleceń {#2c--command-middleware}
+
+**Mechanizm.** `ctx.commandMiddleware([{ id, phase, … }])`, zadeklarowane w polu
+`commandMiddleware` manifestu z tym samym identyfikatorem, fazą i filtrem akcji — `'*'`, pełna
+akcja (`quote_request.create`) albo prefiks zakończony kropką (`organization.`). Dwie fazy i nic
+więcej:
+
+- **`admit`** działa, zanim polecenie cokolwiek zrobi, przed otwarciem transakcji, dla polecenia
+  głównego i każdego pasującego polecenia podrzędnego. Dostaje wyłącznie metadane — akcję, obiekt,
+  wykonawcę, organizację, identyfikator żądania i pochodzenie w łańcuchu poleceń — i może jedynie
+  przepuścić polecenie albo rzucić `CommandRefusedError` z kodem zadeklarowanym w twoim manifeście.
+  Odrzucone polecenie niczego nie zapisuje i nie tworzy wpisu w dzienniku audytu.
+- **`observe`** działa po zatwierdzeniu albo wycofaniu przebiegu, niezależnie od wywołującego, i
+  dostaje wynik: czy zatwierdzono, kod odmowy lub błędu, czas trwania i każde polecenie, którego
+  przebieg próbował. Tylko odczytuje, a wyjątek rzucony w nim trafia do logu i jest pomijany.
+
+**Koszt.** Powiązanie z nazwami akcji, które należą do właścicieli i zmieniają się razem z nimi.
+Każde `admit` działa na ścieżce zapisu każdego pasującego polecenia, więc ma limit czasu (domyślnie
+100 ms, najwyżej 500 ms) i odmawia po jego przekroczeniu; `observe` ma własny (1000 ms, najwyżej
+5000 ms) i limit jednocześnie trwających wywołań.
+
+**Co się traci.** Nic strukturalnie. Nie ma fazy, która zmienia dane wejściowe polecenia, widzi
+jego dane lub wynik albo działa wokół niego — to, co zapisuje właściciel, pozostaje właściciela.
+
+**Kto.** `admit`: moduł rdzenia albo moduł nakładkowy twojego wdrożenia; zainstalowany pakiet jest
+odrzucany przy kompozycji (`CommandMiddlewareOriginError`) i żadne przyznanie tego nie zmienia.
+`observe`: każdy, przy czym zainstalowany pakiet widzi identyfikator żądania, ale nie adres IP ani
+user agenta. Dwa moduły `admit` z nakładającymi się filtrami i bez ścieżki zależności porządkuje
+się w `divergence.ts` (`commandMiddlewareOrder`), w przeciwnym razie kompozycja odmawia. Obie fazy
+są pomijane, gdy ich moduł jest wyłączony.
+
+**Kiedy to jest odpowiedź.** Pomiar zapisów, dodatkowy odbiorca audytu, ograniczenie
+częstotliwości, zamrożenie na czas prac serwisowych, blokada prawna — zachowanie przekrojowe dla
+poleceń, czyli to, co wdrożenie dawniej uzyskiwało, opakowując `commandBus`.
+[Przeniesienie wrappera szyny na middleware poleceń](./overlay-pattern.md#moving-a-bus-wrap-to-command-middleware)
+pokazuje to krok po kroku.
+
+:::note Polecenia operatora nie uruchamiają middleware ani hooków
+Command Bus, który polecenie operatora buduje dla siebie poza aplikacją — dziś polecenia cyklu
+życia rozszerzeń schematu — nie uruchamia middleware poleceń ani hooków poleceń, w żadnej fazie.
+Jego polecenia nadal są audytowane. Nie polegaj na regule `admit`, aby zatrzymać polecenie
+serwisowe uruchomione przez kogoś z dostępem do powłoki i bazy danych.
+:::
+
 ---
 
 ## Stopień 3 — port strategii opublikowany przez właściciela
@@ -184,6 +238,20 @@ musi skorzystać ze stopnia 4.
 z tym samym problemem to informacja zwrotna dla produktu, że ten punkt rozszerzenia powinien trafić
 do rdzenia jako port stopnia 3 — i właśnie oznaczenia stopni w raporcie czynią to mierzalnym.
 
+**Między twoimi własnymi modułami ten stopień jest otwarty.** Jeden z twoich modułów nakładkowych
+może opublikować port przez `ctx.di.providePort`, z typami w swoim `ports.ts`, a inny twój moduł
+nakładkowy może go pobrać przez `lazyPort` — importując od właściciela wyłącznie `ports.ts`, przez
+`import type`, i wymieniając właściciela w `dependencies` swojego manifestu. Wdrożenie nie może
+natomiast podstawić portu, którego właścicielem jest moduł rdzenia albo pakiet.
+
+:::note Punkty decyzyjne (policy points) jeszcze nie istnieją
+*Punkt decyzyjny* — decyzja zadeklarowana przez właściciela, w której inne moduły biorą udział jako
+uczestnicy — jest wyspecyfikowany na jedno z kolejnych wydań i w tym wydaniu nie istnieje. Gdy się
+pojawi, znajdzie się na tym stopniu: uczestnikami mogą być moduł rdzenia i twoje moduły nakładkowe,
+a zainstalowany pakiet tylko wtedy, gdy twój `divergence.ts` przyzna mu to dla tego jednego punktu.
+Do tego czasu nic na tej stronie się do niego nie odwołuje.
+:::
+
 :::note Jeśli jesteś autorem modułu, który publikuje port
 Kształt opublikowanego portu jest typem kontraktu, nigdy twoją własną klasą; nazwa w kontenerze
 podana w jego bloku dokumentacji jest częścią kontraktu i pilnuje jej kontrola; a **opcjonalna
@@ -202,7 +270,7 @@ usunięta albo zmieniona, jest wycofywana na jedno wydanie.
 
 Dwa mechanizmy na jednym stopniu; drugi ma szerszy zasięg.
 
-### 4a — dekoracja
+### 4a — dekoracja {#4a--decoration}
 
 **Mechanizm.** `ctx.di.decorate<T>('<name>', (inner) => …)` z własnego modułu nakładkowego
 wdrożenia. **Opakuj i deleguj; nie zastępuj.**
@@ -217,11 +285,26 @@ twoją nakładkę.
 **Co się traci.** *Automatycznie* nic, o ile delegujesz — poprawka rdzenia w opakowanej metodzie
 nadal do ciebie dociera. **Wszystko, jeśli zastępujesz**: zastąpienie na stałe przecina delegację.
 
-**Kto.** **Wyłącznie moduł nakładkowy wdrożenia**, za to bez ograniczeń: może opakować wszystko, co
-jest w kontenerze, łącznie z nazwami, których właścicielem nie jest żaden moduł (`commandBus`,
-`auditLogService`, `eventBus`, `emFactory`). Moduł rdzenia, który opakowuje rejestrację innego
-modułu, zostaje odrzucony. Zainstalowany pakiet zostaje odrzucony — a nie tylko odnotowany w
-raporcie — bo stawką jest integralność ścieżki audytu.
+**Kto.** **Wyłącznie moduł nakładkowy wdrożenia.** Może opakować to, co rejestrują rdzeń i moduły
+tego wdrożenia, oraz każdą nazwę dostarczaną przez composition root (`redis`, `orm`,
+`requireAdmin`, …) — **każdą nazwę dostarczaną przez composition root można dekorować, z wyjątkiem
+czterech**. Moduł rdzenia, który opakowuje rejestrację innego modułu, zostaje odrzucony, tak samo
+jak każdy, kto opakowuje rejestrację należącą do zainstalowanego pakietu.
+
+**Cztery punkty zabezpieczeń.** `commandBus`, `auditLogService`, `eventBus` i `emFactory`
+(`GUARD_SEAM_REGISTRATIONS` w `@endora-commerce/contracts`) to nazwy, przez które egzekwuje się
+izolację tenantów i audyt zapisów, więc żaden moduł ich nie dekoruje:
+
+| Wydanie | Nakładka dekorująca punkt zabezpieczeń |
+| --- | --- |
+| do 0.112.x | składa się |
+| 0.113.0 | **przestarzała** — składa się, raz na moduł i nazwę zapisuje w logu `kernel.decoration.deprecated` i jest ostrzeżeniem `deprecated-decoration` w raporcie rozbieżności |
+| 0.114.0 | **odrzucana** przy kompozycji |
+
+Czego użyć zamiast tego: middleware poleceń (stopień 2c) albo hooka polecenia (2b) dla
+`commandBus`; middleware `observe` albo odczytu `audit_log_entries` dla `auditLogService`;
+`ctx.subscribe` albo hooka `afterCommit` dla `eventBus`; a dla `emFactory` niczego — zawężania do
+tenanta nie da się nadpisać, więc poproś moduł właściciela o port.
 
 **Dwa twoje moduły nakładkowe opakowujące tę samą nazwę** zostaną odrzucone, chyba że wdrożenie
 zadeklaruje kolejność, od najbardziej wewnętrznego:
@@ -274,7 +357,7 @@ załatwiłby stopień 2.
 
 ---
 
-## Drabina danych: gdzie trafiają nowe dane
+## Drabina danych: gdzie trafiają nowe dane {#the-data-ladder-where-new-data-lives}
 
 Stopnie powyżej zmieniają **zachowanie**. Nowe **dane** mają własną drabinę, uporządkowaną tak
 samo: zacznij od dołu.
@@ -282,8 +365,8 @@ samo: zacznij od dołu.
 | Stopień | Mechanizm | Kto | Przetrwa aktualizacje, bo |
 | --- | --- | --- | --- |
 | D0 | **Pola niestandardowe definiowane w czasie działania** — operator definiuje pole encji gospodarza w panelu administracyjnym | operator, w czasie działania | to dane: wiersz definicji i wartość we własnym zbiorze wartości gospodarza |
-| D1 | **Tabela poboczna**, której właścicielem jest twój moduł, kluczowana identyfikatorem wiersza rdzenia i odczytywana przez port twojego modułu | dowolny twój moduł, zainstalowany pakiet | tabela jest twoja; rdzeń jej nie dotyka |
-| D2 | **Zadeklarowane kolumny rozszerzeń** — addytywne kolumny `x_<moduleId>_*` w rozszerzalnej tabeli rdzenia, deklarowane przez `defineColumnExtension` | zainstalowany pakiet modułu zależny od gospodarza | platforma generuje DDL, zapisuje je w rejestrze, weryfikuje przy każdej migracji i każdym starcie, a CI rdzenia pilnuje, by każda otwarta rozszerzalna tabela je zachowała |
+| D1 | **Tabela poboczna**, której właścicielem jest twój moduł, kluczowana identyfikatorem wiersza rdzenia i odczytywana przez port twojego modułu | dowolny twój moduł, zainstalowany pakiet, nakładka wdrożenia | tabela jest twoja; rdzeń jej nie dotyka |
+| D2 | **Zadeklarowane kolumny rozszerzeń** — addytywne kolumny `x_<moduleId>_*` w rozszerzalnej tabeli rdzenia, deklarowane przez `defineColumnExtension` | zainstalowany pakiet modułu albo nakładka wdrożenia zależne od gospodarza | platforma generuje DDL, zapisuje je w rejestrze, weryfikuje przy każdej migracji i każdym starcie, a CI rdzenia pilnuje, by każda otwarta rozszerzalna tabela je zachowała |
 | D3 | **Wariant zapewniany przez moduł-właściciela** — typ, status, konfigurowalny kształt, który właściciel już modeluje | decyduje właściciel; ty konfigurujesz | to własny schemat właściciela |
 
 **D2 jest celowo wąski.** Rozszerzalne tabele to dokładnie tabele gospodarzy pól
@@ -298,11 +381,11 @@ audytowanym poleceniem. Przykład i wszystkie reguły są na stronie
 
 **Nigdy nie jest stopniem: nadpisywanie schematu rdzenia.** Kolumny, ograniczenia, indeksu ani
 klasy encji rdzenia nigdy nie zmienia się spoza ich modułu, a migracja pakietu zapisująca tabelę
-innego modułu jest odrzucana przy `migrate` — przez platformę, nie przez przegląd kodu. Dziś
-moduł nakładkowy wdrożenia nie zawiera ani klas encji, ani migracji, a jedno i drugie jest
-odrzucane: utwórz tabelę we własnym pakiecie modułu (D1) i odczytuj ją z nakładki przez port tego
-modułu. Jedno z kolejnych wydań znosi tę odmowę (zobacz [Wzorzec nakładki](./overlay-pattern.md));
-migracje modułu nakładkowego przechodzą wtedy przez to samo zabezpieczenie, bez wyjątku.
+innego modułu jest odrzucana przy `migrate` — przez platformę, nie przez przegląd kodu. Moduł
+nakładkowy wdrożenia ma własne encje i migracje — tabelę poboczną (D1) albo zadeklarowane kolumny
+(D2) — a jego migracje przechodzą przez to samo zabezpieczenie, bez wyjątku z tego powodu, że
+należą do wdrożenia (zobacz
+[Wzorzec nakładki](./overlay-pattern.md#an-overlay-module-owns-its-schema)).
 
 Powodem **nie** jest kolejność migracji — ten argument sprawdzono pomiarem, okazał się fałszywy i
 został wycofany. Powód jest taki, że wspólny schemat rdzenia to jedyne, co w ogóle umożliwia
@@ -337,7 +420,8 @@ repozytorium, generowanych ponownie z twojego drzewa i porównywanych bajt po ba
 Obok nich jest jedyny plik, który piszesz ręcznie, `backend/src/apps/<deployment>/divergence.ts`.
 Zawiera to, czego nie da się wyprowadzić z drzewa plików: moduły, których nie dostarczasz,
 kolejność opakowywania, gdy dwa twoje moduły nakładkowe dekorują tę samą nazwę, kolejność dwóch
-modułów z hookami poleceń, których nie porządkuje żadna zależność, oraz **po jednym zdaniu
+modułów z hookami poleceń albo dwóch modułów z middleware `admit`, których nie porządkuje żadna
+zależność, oraz **po jednym zdaniu
 uzasadnienia dla każdej rozbieżności**.
 
 Oba zestawy są porównywane w obie strony. Build kończy się błędem zarówno przy rozbieżności bez
