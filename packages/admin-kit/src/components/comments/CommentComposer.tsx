@@ -34,6 +34,11 @@ export interface CommentComposerProps {
   maxLength?: number;
   /** Sends the text; a rejection is shown here and what was typed is kept. */
   onSubmit: (body: string) => Promise<void>;
+  /**
+   * More fields of the same entry, drawn under the text and above the button — a note's custom
+   * fields (issue #2005). The host keeps their values and sends them from `onSubmit`.
+   */
+  children?: ReactNode;
 }
 
 /**
@@ -108,6 +113,7 @@ export function CommentComposer(props: CommentComposerProps): ReactNode {
           {problem}
         </p>
       ) : null}
+      {props.children}
       <div className="flex justify-end">
         <Button type="submit" className="min-h-11 sm:min-h-9" disabled={busy} aria-busy={busy}>
           {props.submitLabel}

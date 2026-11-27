@@ -705,9 +705,17 @@ export const OpportunityCommentListQuerySchema = z.object({
 });
 export type OpportunityCommentListQuery = z.infer<typeof OpportunityCommentListQuerySchema>;
 
+/**
+ * `POST /opportunities/:id/comments`. `customFieldValues` (issue #2005) are the
+ * note's values, keyed by `opportunity_note` definition key and validated with
+ * the administrator's rules; a `required` definition is enforced on every note
+ * create, also when none are sent. A message is not a custom-field host: a
+ * message with a non-empty bag is refused `422 VALIDATION_FAILED`.
+ */
 export const CreateOpportunityCommentRequestSchema = z.object({
   kind: opportunityCommentKindSchema,
   body: commentBodySchema,
+  customFieldValues: customFieldValuesSchema.optional(),
 });
 export type CreateOpportunityCommentRequest = z.infer<typeof CreateOpportunityCommentRequestSchema>;
 
@@ -727,8 +735,14 @@ export const OpportunityUnreadMessagesSchema = z.object({
 });
 export type OpportunityUnreadMessages = z.infer<typeof OpportunityUnreadMessagesSchema>;
 
+/**
+ * `PATCH /opportunities/:id/comments/:commentId` — a note's text and, merged
+ * key by key into what it holds, its custom-field values (issue #2005). Absent
+ * `customFieldValues` leaves them as they are.
+ */
 export const UpdateOpportunityCommentRequestSchema = z.object({
   body: commentBodySchema,
+  customFieldValues: customFieldValuesSchema.optional(),
 });
 export type UpdateOpportunityCommentRequest = z.infer<typeof UpdateOpportunityCommentRequestSchema>;
 
@@ -740,6 +754,8 @@ export const OpportunityCommentSchema = z.object({
   references: z.array(OpportunityReferenceSchema),
   editedAt: isoTimestampSchema.nullable(),
   createdAt: isoTimestampSchema,
+  /** A note's `opportunity_note` values (issue #2005); always `{}` on a message. */
+  customFieldValues: customFieldValuesSchema,
 });
 export type OpportunityComment = z.infer<typeof OpportunityCommentSchema>;
 
@@ -1711,6 +1727,8 @@ export interface OpportunityNoteRecord {
   createdAt: Date;
   /** When its author last edited it; `null` for a note never edited. */
   editedAt: Date | null;
+  /** Its `opportunity_note` custom-field values (issue #2005), every key as stored; `{}` for none. */
+  customFieldValues: Record<string, unknown>;
 }
 
 /** What `OpportunityReadPort.listNotes` is asked. */
@@ -1887,7 +1905,11 @@ export interface OpportunityCommandPort {
    * `crm.opportunity.note_add` or `.message_add`, by `kind` — `POST /opportunities/:id/comments`.
    * Needs an ambient administrator, the author: `403 FORBIDDEN` under a bare
    * `withSystemScope`; a worker calls it under `withSystemScopeActingFor`
-   * (R-21.3 — narrows FR-005 for this method only).
+   * (R-21.3 — narrows FR-005 for this method only). A note's
+   * `customFieldValues` (issue #2005) are validated as the route validates
+   * them — the administrator's rules, `required` included —, refused `422
+   * CUSTOM_FIELD_VALUE_INVALID`, and written with the note; on a message a
+   * non-empty bag is `422 VALIDATION_FAILED`.
    */
   addComment(
     id: string,

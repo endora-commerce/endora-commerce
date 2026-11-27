@@ -143,6 +143,8 @@ describe('crm — opportunityReadPort.listNotes (issue #1905)', () => {
       body: 'First on A1',
       createdAt: new Date('2026-03-01T09:00:00.000Z'),
       editedAt: null,
+      // Issue #2005 — a note is a custom-field host; this one holds no value.
+      customFieldValues: {},
     });
     expect(page.items[1]?.author).toEqual({ id: colleague.adminUserId, name: expect.stringContaining('notes-colleague') });
     expect(Object.getPrototypeOf(page.items[0])).toBe(Object.prototype);

@@ -38,6 +38,9 @@ const OWNED = [
 ] as const;
 type Owned = (typeof OWNED)[number];
 
+/** The other types an owner module owns, which leave with it (issue #2005: a note follows its parent's module). */
+const SAME_OWNER: Record<string, readonly string[]> = { crm: ['opportunity_note'] };
+
 const RUN = randomUUID().slice(0, 8);
 const fixtureKey = (name: string) => `cf157_${RUN}_${name}`;
 
@@ -140,7 +143,8 @@ describe('custom_fields — a host type follows its owner module', () => {
     // `integration/projects/custom-fields.test.ts` and, for `task`, in
     // `integration/tasks/custom-fields-host.test.ts`.
     expect(rows.map((row) => row.entityType).sort()).toEqual(
-      [...UNOWNED, ...OWNED.map((owned) => owned.entityType), 'project', 'task'].sort(),
+      // Issue #2005 — the notes of an Opportunity and of a Project follow `crm` and `projects`.
+      [...UNOWNED, ...OWNED.map((owned) => owned.entityType), 'project', 'task', 'opportunity_note', 'project_note'].sort(),
     );
     expect(rows.find((row) => row.entityType === 'task')).toEqual({
       entityType: 'task',
@@ -181,8 +185,10 @@ describe('custom_fields — a host type follows its owner module', () => {
           const during = await entityTypes();
           expect(during.map((row) => row.entityType)).not.toContain(owned.entityType);
           expect(during.flatMap((row) => row.carryTargets)).not.toContain(owned.entityType);
+          // Every type the same owner owns goes with it — `crm` owns `opportunity_note` too (issue #2005).
+          const sameOwner = new Set<string>([owned.entityType, ...(SAME_OWNER[owned.owner] ?? [])]);
           expect(during).toEqual(
-            withoutCarryTarget(before.filter((row) => row.entityType !== owned.entityType), owned.entityType),
+            withoutCarryTarget(before.filter((row) => !sameOwner.has(row.entityType)), owned.entityType),
           );
         });
         expect(await entityTypes()).toEqual(before);

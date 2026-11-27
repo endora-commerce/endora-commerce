@@ -29,6 +29,8 @@ const NON_PRODUCT_HOSTS: SupportedEntityType[] = [
   'opportunity',
   'project',
   'task',
+  'opportunity_note',
+  'project_note',
 ];
 
 function createInput(entityType: SupportedEntityType): CustomFieldDefinitionApplyCreateInput {

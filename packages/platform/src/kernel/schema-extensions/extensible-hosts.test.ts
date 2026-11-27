@@ -19,7 +19,8 @@ describe('EXTENSIBLE_HOSTS', () => {
     expect(new Map([...EXTENSIBLE_HOSTS].map(([table, host]) => [table, host.ownerModuleId]))).toEqual(
       expected,
     );
-    expect(EXTENSIBLE_HOSTS.size).toBe(9);
+    // Issue #2005 — the two note hosts.
+    expect(EXTENSIBLE_HOSTS.size).toBe(11);
   });
 });
 
@@ -77,7 +78,7 @@ describe('the Phase B rollout constant', () => {
  */
 describe('ENTITY_EXTENSION_HOSTS (187 T007)', () => {
   it('holds every binding under <owner>.<Class>, with its table, owner and class name', () => {
-    expect(ENTITY_EXTENSION_HOSTS.size).toBe(9);
+    expect(ENTITY_EXTENSION_HOSTS.size).toBe(11);
     for (const binding of Object.values(CUSTOM_FIELD_HOST_BINDINGS)) {
       expect(ENTITY_EXTENSION_HOSTS.get(`${binding.ownerModuleId}.${binding.entityClassName}`)).toEqual({
         table: binding.table,
@@ -92,10 +93,12 @@ describe('ENTITY_EXTENSION_HOSTS (187 T007)', () => {
       'catalog.Category',
       'catalog.Product',
       'crm.CrmOpportunity',
+      'crm.CrmOpportunityComment',
       'customer_accounts.CustomerAccount',
       'orders.Order',
       'organizations.Organization',
       'projects.Project',
+      'projects.ProjectComment',
       'quote_requests.QuoteRequest',
       'tasks.Task',
     ]);

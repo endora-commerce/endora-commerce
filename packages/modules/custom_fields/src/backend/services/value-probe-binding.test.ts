@@ -62,6 +62,8 @@ describe('hasStoredValues — per-entity {table, column} binding', () => {
     ['opportunity', 'crm_opportunities'],
     ['project', 'projects'],
     ['task', 'tasks'],
+    ['opportunity_note', 'crm_opportunity_comments'],
+    ['project_note', 'project_comments'],
   ])('still probes %s → %s.custom_field_values', async (entityType, table) => {
     const { em, calls } = fakeEm();
     await svc().hasStoredValues(em, entityType, 'some_key');

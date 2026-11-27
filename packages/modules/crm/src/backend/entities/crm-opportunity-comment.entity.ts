@@ -15,7 +15,7 @@ export type CrmOpportunityCommentKind = 'note' | 'message';
 @Entity({ tableName: 'crm_opportunity_comments' })
 @Index({ properties: ['opportunityId', 'kind', 'createdAt'] })
 export class CrmOpportunityComment {
-  [OptionalProps]?: 'id' | 'editedAt' | 'deletedAt' | 'createdAt';
+  [OptionalProps]?: 'id' | 'editedAt' | 'deletedAt' | 'createdAt' | 'customFieldValues';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -31,6 +31,14 @@ export class CrmOpportunityComment {
 
   @Property({ type: 'text' })
   body!: string;
+
+  /**
+   * A note's operator-defined field values, keyed by `opportunity_note`
+   * definition key (issue #2005). Validated by `custom_fields` and written by
+   * the note's own Commands; `{}` on a message, which is no host.
+   */
+  @Property({ type: 'json' })
+  customFieldValues: Record<string, unknown> = {};
 
   /** Notes only. */
   @Property({ type: 'datetime', nullable: true })
