@@ -32,6 +32,8 @@ The unique key is (`form_id`, `field_key`). A row with nothing set is deleted ra
 | `POST /api/v1/admin/custom-fields/forms/:formId/reset` | `custom_fields:forms` | `{ keys?: string[] }` (absent means all) → `custom_fields.form_layout.reset` |
 
 A refusal is `422 FORM_LAYOUT_OVERRIDE_INVALID` with `details: [{ path: 'fields.<i>.<kind>', code }]`.
+`required-not-fillable` refuses an operator `hidden` or `readOnly` on a field that is effectively
+required on a create form, with no exemption: the operator layer cannot see a derivation (D-300.12).
 The codes are `override-not-accepted`, `hidden-required-field`, `required-not-fillable`,
 `unknown-field`, `unknown-section`, `unknown-form`, `language-missing` and `too-long`. A stale
 `version` answers `409 FORM_LAYOUT_VERSION_CONFLICT`. Both codes are declared by `custom_fields` and

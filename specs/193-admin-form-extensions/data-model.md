@@ -89,7 +89,7 @@ touched, errors }`; layout per field-slots §5; submission splits into `{ core, 
 | I-3 | Every effective tightening narrows core; the conjunction is satisfiable | composition (`override-loosens-rule`, `override-contradiction`) |
 | I-4 | A replacing control's output fits the field type; its format has a server validator | composition (`control-type-mismatch`, `format-without-validator`) |
 | I-5 | Every server-enforced kind a field accepts is projected by every writer that writes it | owner composition (`accepts-unenforceable`) + `expectFieldSetWriters` |
-| I-6 | A rule the form shows is enforced by the field-rule check on every writer | one source (`GET /api/v1/admin/forms` and the check read one `FormRegistry`) + shared vectors |
+| I-6 | A rule the form shows is enforced by the field-rule check on every writer | one source (`GET /api/v1/admin/effective-forms` and the check read one `FormRegistry`) + shared vectors |
 | I-7 | A module not effectively present contributes nothing | `effectiveForms(snapshot)`, check step 1, presence predicate, 176 hook skip |
 | I-8 | Layout order is a function of declarations only | field-slots §5; shuffled-registration test |
 | I-9 | `hidden` / `readOnly` / `visibleWhen` change no API behaviour | FR-062; contract test: API accepts a write to a hidden field |

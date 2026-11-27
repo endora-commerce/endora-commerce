@@ -1,6 +1,7 @@
 # Research — Admin form extensions (193)
 
-Architect rulings R-1 to R-23 (R-22 also carries D-300.8, an architect ruling). Each one gives the decision, the reasons for it, and the
+Architect rulings R-1 to R-24 (R-22 also carries D-300.8, and R-24 carries D-300.9 to D-300.16,
+the phase 2 architect rulings). Each one gives the decision, the reasons for it, and the
 alternatives that were rejected. On 2026-11-27 the owner answered OQ-193-1 to OQ-193-6; the answers
 are recorded as **D-300** in `spec.md`. R-21 to R-23 design what D-300.5 and D-300.6 require.
 
@@ -130,7 +131,7 @@ existed. This feature is that consumer. The ruling belongs to the owner because 
 
 **Decision.** A deployment's overlay module declares `formOverrides` in its manifest. The
 declaration is pure data. Composition validates it (FR-021). The server enforces its rules (R-9),
-and `GET /api/v1/admin/forms` serves the effective presentation to the admin. Code-bearing behaviour,
+and `GET /api/v1/admin/effective-forms` serves the effective presentation to the admin. Code-bearing behaviour,
 such as masks and derivations, lives in the admin layer as `fieldBehaviours`, and it constrains the
 UI only (R-11).
 
@@ -297,9 +298,24 @@ working when it carries the stored value unchanged.
 - *Per-field read permissions in this feature.* That would change what every admin read, export and
   search returns per role, which is a separate feature with a far larger blast radius.
 
-[NEEDS CLARIFICATION, for the plan rather than the owner: `CommandActor` carries no API-key id
-today. The plan's task T-B6 establishes how the check obtains the key's scopes from the request
-context, or records that API-key writes on such fields are refused until it can.]
+**API-key actors (T-B6, recorded by WP-B, T026).** No resolution exists. `CommandActor` carries no
+API-key id and no scopes; the key's scopes live on `request.actor`, which `auth` decorates and no
+code inside a Command can reach (the tenant context keeps only `{ kind: 'api_key', id }`, and the
+Command Bus maps it to an actor with neither). So:
+
+- A **bound** key (actor kind `api_key`) that changes a field with an effective `writePermission`
+  is refused `403 FIELD_WRITE_FORBIDDEN`, with `details[].reason: 'api-key-scopes-unresolved'`
+  (`FIELD_WRITE_FORBIDDEN_REASONS` in `@endora-commerce/contracts`). The refusal fails closed; a
+  write that leaves the field unchanged is not affected.
+- An **unbound** key acts in the system scope (feature 062, FR-020), so the Command sees a
+  `system` actor, which is exempt as every system actor is. The platform cannot tell it apart
+  from a worker.
+- The tightened rules themselves (`validation`, `requiredWhen`, formats) bind every API-key write;
+  only the permission question is unresolved.
+
+Lifting the refusal needs the key's scopes on the Command's actor (or a request-scoped accessor
+the check may read), which is a change to `auth`, the tenant context and `CommandActor`, outside
+this feature.
 
 ## R-13: Trust tiers (D-300.2 rules the package row: A, grant only)
 
@@ -435,7 +451,7 @@ memo, keyed by the presence snapshot and an operator-layer generation counter.
   rule comes from this layer, so a stale entry is a presentation lag only.
 - **No shared Redis layer.** The table is read whole in one query, so a second shared copy would buy
   nothing (IV).
-- The admin refetches `GET /api/v1/admin/forms` when presence refreshes and after its own layout
+- The admin refetches `GET /api/v1/admin/effective-forms` when presence refreshes and after its own layout
   write. The response carries an `ETag`, which is a digest of the response.
 
 **Rationale.** Presence already has an invalidation channel, and the operator layer gets the
@@ -729,3 +745,210 @@ because they touch disjoint files.
 - *The release slips because of the product editor.* Every MR leaves the editor shippable, so the
   release can stop after any section with a partly adopted editor. The unadopted sections simply
   accept no overrides, and the spec calls this out as the cut line rather than as a defect.
+
+## R-24: Phase 2 rulings (D-300.9 to D-300.16, architect rulings, 2026-11-27)
+
+WP-B (platform, `packages/platform/src/kernel/forms/`) and WP-D (CLI and check,
+`packages/cli/src/lib/admin-forms.ts`, `backend/scripts/check-admin-forms.ts`) raised eight points
+before their merge requests opened. Each ruling below prefers the least machinery. None changes an
+owner answer. R-24.3 extends D-300.4's reasoning and is flagged for the owner, who may overrule it.
+
+### R-24.1: The effective-forms path (D-300.9)
+
+**Decision.** `GET /api/v1/admin/effective-forms`, registered by `_lifecycle` beside
+`/api/v1/admin/module-presence`.
+
+**Rationale.** `/api/v1/admin/forms` and `/api/v1/admin/forms/:id` belong to the `forms` module
+(`packages/modules/forms/src/backend/routes/routes.forms.ts`). `_lifecycle`'s own admin paths are
+flat nouns (`module-presence`, `command-hooks`, `command-outbox`), and `effective-forms` is one too.
+It names what the response is: the forms after every layer, not the declarations.
+
+**Rejected.**
+- *`/api/v1/admin/forms/effective`.* It sits in another module's namespace, next to that module's
+  `/:id`. It reads as a form called `effective`, and it would still be served while `forms` is
+  switched off.
+- *`/api/v1/admin/module-presence/forms`.* It couples two responses with different caches and
+  ETags.
+- *`/api/v1/admin/form-extensions`.* That is the name of the read-only screen (FR-072), which may
+  need a read of its own.
+
+### R-24.2: Telling a buyer's anonymous write from a system write (D-300.10)
+
+**Measured.** No anonymous actor kind exists, by design
+(`packages/platform/src/tenancy/resolve-tenant-context.ts`, "There is no anonymous kind"). An
+unauthenticated request gets `systemTenantContext('actor:none')` from
+`packages/platform/src/kernel/actor-tenant-context.ts`, and `actorFromContext`
+(`packages/platform/src/commands/actor.ts`) maps it to `kind: 'system'`. That is the same actor as a
+worker's. `organization.register`, the standalone registration
+(`customer-account-register-standalone.command.ts`) and the invitation acceptance run that way.
+`organization.register` runs `customer_account.create` as a child through `ctx.run`, on the same
+actor. WP-B skips only `kind: 'customer'` with no admin, so a deployment that tightens a
+`customer_account` or `organization` field would refuse storefront registration. That contradicts
+D-300.3 and T042 ("`register` is listed and skipped for buyer actors").
+
+**Decision.** `Command` gains an optional `buyerSelfService?: true`. The Command Bus carries it in
+the lineage it already keeps for child Commands (`Lineage.ancestors` in `command-bus.ts`), so a child
+inherits it from any ancestor. It reaches the field-rule check as
+`FieldRuleCheckContext.buyerSelfService: boolean`. The check skips a write when the actor is a
+customer acting for itself, or when the flag is set and the actor has no acting admin and is
+`system` or `customer`. The flag is ignored on `admin` and `api_key` actors and under
+impersonation, so setting it on an operator path cannot exempt that path. Without the flag a
+`system` actor stays bound. The storefront roots that run a field-set writer anonymously set it.
+`organization.register` sets it in WP-E1, and `customer_account.register_standalone` sets it in
+WP-E3. The invitation acceptance (`invitation-service.ts` in `organizations`) is a root
+`customer_account.create` run through `CustomerAccountMemberWritePort.create`, the same port the
+admin member create uses. That port's input therefore gains an optional `buyerSelfService?: true`,
+which it puts on the Command (WP-E3). `organizations` passes it from the acceptance only (WP-E1).
+WP-E3 also adds a test listing every storefront route that reaches a field-set writer, so that a
+new one cannot go unmarked.
+
+**Rationale.** The Command that the storefront route runs is the one place that knows it is a
+buyer's write, and it is server code. One optional member on a published interface is additive.
+Children inherit it from the lineage the bus already threads, so `customer_accounts` never names
+`organizations`' action.
+
+**Rejected.**
+- *Infer it from the tenant context's `reason === 'actor:none'`.* The reason is a free-text audit
+  string, and every unauthenticated route has it, including payment and integration callbacks. A
+  PIM webhook writing products would then escape rules that D-300.3 says bind it.
+- *A new `anonymous` actor kind.* Tenancy refuses one on purpose. It would change the audit
+  columns, every `kind` switch and the tenant guard, all for one check.
+- *A per-writer `selfService` flag in `ctx.fieldSets`.* `customer_account.create` is written by the
+  admin member create (bound) and the registration child (not bound). One action cannot carry both
+  answers.
+- *Keep WP-B's fail-closed behaviour.* It refuses a buyer's registration because of an
+  operator-side rule, which is the exact case D-300.3 excludes.
+
+### R-24.3: Non-retroactivity covers every rule kind (D-300.11)
+
+**Decision.** WP-B's reading is confirmed. On an update the check holds a field only when the write
+changed or cleared it, for bounds, `options`, `pattern` and `format` as for `required`. One
+correction: `requiredWhen` is also held when the write changed a field its condition reads. A
+create holds every field. The admin form holds the same set (`field-rules.md` §6).
+
+**Rationale.** D-300.4 keeps a rule added after the data from making existing records uneditable.
+The literal §5 step 4 would do exactly that for every other kind. Suppose a deployment adds
+`maxLength: 50` to a name and an organization has a 60-character name. That organization could not
+have its phone changed until someone shortened the name, and a bulk edit
+(`product.bulk_update.item`) would fail on rows it did not touch. Every value a write sets still
+satisfies the rule, which is what D-300.3's "binds every write" needs. The `requiredWhen` correction
+closes a hole in WP-B's version. A write that switches `country` to a value that makes `vatId`
+required, while leaving `vatId` empty, is the write that creates the violation, so it has to be held.
+
+**Rejected.**
+- *The literal step 4 (check every present value of `after`).* It is retroactive in all but name.
+- *`requiredWhen` held only when the target changed (WP-B as built).* That lets a write create a
+  violation it never has to answer for.
+
+**Owner flag.** This extends the owner's D-300.4 from `required` to every kind. Reversing it is a
+one-line change in `field-rule-check.ts` (`touched`), so no work waits on the owner.
+
+### R-24.4: Where `required-not-fillable`'s derivation exemption lives (D-300.12)
+
+**Measured.** The exemption depends on `fieldBehaviours`, which only the admin layer has. The admin
+layer's data half (`AdminFieldBehaviourSchema` in `packages/contracts/src/admin-forms.ts`) carries
+`target` and `forms` only. Whether the lazy factory exports a `mask` or a `derive` is not readable
+without evaluating it. `field-slots.md` §3 also left hidden and read-only fields out of the
+submission. With that rule even a real derivation could not fill a required create field, which
+breaks the replacement pattern (`field-replacement-pattern.md` §2 step 3).
+
+**Decision.** Split the refusal by instrument, with no data flag.
+- Composition (WP-B) refuses `hidden` on a field that is effectively required on a create form,
+  with no exemption. A hidden field is never submitted, derived or not.
+- `check:admin-forms` (WP-D) refuses `readOnly` there unless a `fieldBehaviours` entry of the module
+  that sets `readOnly` targets the field on that form. A mask on a read-only field does nothing, so
+  such an entry is a derivation in practice.
+- The admin kit (WP-C) submits a read-only, visible field that a present derivation targets, with
+  its derived value.
+- The operator layer (WP-L1) refuses both kinds on such a field with no exemption, because it
+  cannot see a derivation.
+
+**Rationale.** Each instrument refuses what it can see, and nothing is declared twice. The check
+already reads manifests (core required-ness, tightened `required`, `readOnly` overrides) and the
+admin registries (`fieldBehaviours`). The remaining gap is a behaviour entry that is a mask on a
+read-only required field. The server's required refusal answers it on the first create, so it is
+visible, not silent.
+
+**Rejected.**
+- *A data flag on the override (`derived: true`).* The server would trust a claim it cannot verify,
+  and the check would still need to verify it. That is two declarations of one fact.
+- *Move the whole refusal, `hidden` included, into the check.* Composition can refuse `hidden`
+  without the admin layer. Moving that half out would weaken the stronger instrument for nothing.
+
+### R-24.5: Required `ModuleContext` members (D-300.13)
+
+**Decision.** `fieldSets` and `fieldFormats` stay required. The platform changeset is `minor` and
+carries a **Breaking change** paragraph worded as #1835's (`.changeset/1835-platform-entity-extension-reads.md`).
+
+**Rationale.** `entityExtensionLoaders` set the precedent, and the owner prefers making breaks early
+while adoption is low. The break reaches only a hand-written `ModuleContext` double, and there is
+none in this repository or in `../paid-modules`. `major` is refused in `0.x`
+(`specs/conventions/release-intent.md`).
+
+**Rejected.** *Optional members.* Every caller would write `ctx.fieldSets?.(…)`, which silently
+skips a registration where the method is absent. That is the silent partial write that
+`CommandContext.run`'s comment refuses.
+
+### R-24.6: One layout implementation (D-300.14)
+
+**Measured.** The algorithm exists twice already, and WP-C would add a third. WP-D has `formLayout`
+in the CLI. WP-B's `effective-forms.ts` has its own `move()` for step 1, and its ordering differs:
+it applies operator moves after code moves rather than per key, and it sorts with `localeCompare`.
+
+**Decision.** `formLayout` and its input and output types move to
+`packages/contracts/src/admin-forms.ts`, beside `evaluateFieldCondition`. Step 1 is exported on its
+own as `applyFieldMoves`. The CLI imports it, `effective-forms.ts` replaces `move()` with it, and
+the kit calls `formLayout` with the server's order and no moves. The effective move of a key is the
+operator's when one is set, else the code override's (two code moves on one key are already
+`override-conflict`). An operator move sorts as module `custom_fields`. Every comparison is by code
+point. `FORM_LAYOUT_VECTORS` is run by the contracts' own test. The CLI keeps its
+shuffled-registration test over the analysis.
+
+**Rationale.** The function is pure (no `node:` or `typescript` import) and is the normative
+algorithm. Contracts is where the shared evaluator already lives, so all three readers get the same
+answer by construction, not by vectors.
+
+**Rejected.** *Two or three copies held against `FORM_LAYOUT_VECTORS`.* Vectors only find the drift
+they enumerate. The two copies that exist already disagree on a case the vectors do not cover.
+
+### R-24.7: `check:admin-forms`' readings of `field-slots.md` §6 (D-300.15)
+
+**Decision.**
+- (a) `position-anchor-mismatch`, meaning a field anchor with `start`/`end` or a section anchor with
+  `before`/`after`, is ratified.
+- (b) `unknown-anchor` is ratified. It also fires for an anchor the field set declares but a target
+  form does not show, and for a cycle of own-slot anchors, whose finding must name every slot in the
+  cycle. A family member counts as shown where the form shows the family.
+- (c) `duplicate-slot-key` firing only on overlapping forms is ratified, with one condition. Two
+  contributions of one key on disjoint forms must agree on `type` and `writePermission`, because
+  they share one wire key, one hook schema and one write gate. Otherwise the finding fires.
+
+**Rationale.** In (b) a slot whose anchor is absent from a form renders nowhere on that form, which
+is the failure the code exists for. A cycle is the same failure with no absent key. A new code
+would add nothing beyond the message. For (c), a module legitimately anchors one field differently
+on a create form and an edit form whose sections differ. Disagreeing types under one key are not
+legitimate.
+
+**Rejected.** *A separate `slot-anchor-cycle` code*, which would be one more code for the same
+remedy. *`duplicate-slot-key` regardless of forms*, which forces one anchor across forms that do not
+share keys.
+
+### R-24.8: Issue #2020 (D-300.16)
+
+**Decision.**
+1. `inputControlIdRe` gains `_?`, so it agrees with `moduleIdRe` and `moduleFieldFormatRe`.
+2. The `defineFieldSet` comment stops claiming that a form naming an unknown key is a type error.
+3. The declaration-level refusals the spec did not list (an override that sets no kind, an empty
+   `in`, an empty `all`/`any`) are kept and are now listed in `field-overrides.md` §1.
+   `minLength > maxLength` is not refused at declaration. Composition's `override-contradiction`
+   judges satisfiability once, over every module's conjunction, and a lone override's contradiction
+   is that conjunction's one-module case (`contradictionOf` in WP-B's `rules.ts`).
+4. `formOverrideGrants[].reason` is capped at 280, the same as `FieldOverride.reason`.
+5. The CLI reader of `formOverrideGrants` is done in WP-D (`divergence-artefacts.ts`).
+
+Items 1, 2 and 4 go into WP-D's merge request, which already changes `@endora-commerce/contracts`
+and carries its changeset. None of them is breaking: item 1 widens an input, and item 4 tightens a
+field that no release has shipped yet (WP-A, #2018, merged after 0.112.0).
+
+**Rejected.** *A separate contracts PR now.* It would mean a third PR and a third changeset on the
+file WP-D is already amending, for three lines.
