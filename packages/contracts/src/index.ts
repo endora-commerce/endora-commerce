@@ -259,6 +259,8 @@ export * from './platform-info.js';
 export * from './admin-feedback.js';
 export * from './admin-actions.js';
 export * from './admin-contributions.js';
+// `specs/193-admin-form-extensions/` WP-A — field sets, admin forms, overrides, controls and conditions.
+export * from './admin-forms.js';
 // Feature 164 — per-admin Admin UI preferences (pins, folded groups, rail mode, page sizes).
 export * from './admin-preferences.js';
 export * from './product-scope-overrides.js';

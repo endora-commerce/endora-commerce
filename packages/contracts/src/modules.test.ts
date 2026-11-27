@@ -494,3 +494,99 @@ describe('GUARD_SEAM_REGISTRATIONS (189 T068, FR-055)', () => {
     expectTypeOf(guardSeamReplacementFor).parameter(0).toEqualTypeOf<GuardSeamRegistration>();
   });
 });
+
+/**
+ * `specs/193-admin-form-extensions/` T014 — the four manifest fields
+ * (`contracts/form-field-declaration.md` §2, `field-overrides.md` §1,
+ * `input-controls.md` §1), the deployment's `formOverrideGrants`
+ * (`field-overrides.md` §4) and the two divergence kinds (§5, FR-070). Every
+ * field is optional, so a manifest that declares none of them is unchanged.
+ */
+describe('defineModuleManifest — admin form extensions (193 T014)', () => {
+  const fieldSet = {
+    id: 'widget',
+    ownerModuleId: 'widgets',
+    fields: [{ key: 'name', type: 'string' as const, required: true, accepts: ['label' as const] }],
+  };
+  const form = {
+    id: 'widget.edit',
+    fieldSet: 'widget',
+    mode: 'edit' as const,
+    sections: [{ key: 'main', keys: ['name'] }],
+  };
+  const override = { target: 'widget.name', labelKey: 'forms.name.label', reason: 'Our customers call it a title.' };
+  const control = { id: 'widgets.code', outputType: 'string' as const, format: 'widgets.code' };
+
+  it('leaves all four fields absent when nothing is declared', () => {
+    const m = manifest({ id: 'widgets' });
+    expect(m.fieldSets).toBeUndefined();
+    expect(m.adminForms).toBeUndefined();
+    expect(m.formOverrides).toBeUndefined();
+    expect(m.inputControls).toBeUndefined();
+  });
+
+  it('accepts and keeps each field', () => {
+    const m = manifest({ id: 'widgets', fieldSets: [fieldSet], adminForms: [form], inputControls: [control] });
+    expect(m.fieldSets).toEqual([fieldSet]);
+    expect(m.adminForms).toEqual([form]);
+    expect(m.inputControls).toEqual([control]);
+    expect(manifest({ id: 'acme', dependencies: ['widgets'], formOverrides: [override] }).formOverrides).toEqual([override]);
+  });
+
+  it('refuses a field set owned by another module, naming both', () => {
+    expect(() => manifest({ id: 'acme', fieldSets: [fieldSet] })).toThrow(/acme.*widget.*widgets/);
+  });
+
+  it('refuses one field set or one form declared twice in one manifest', () => {
+    expect(() => manifest({ id: 'widgets', fieldSets: [fieldSet, fieldSet] })).toThrow(/widgets.*duplicate-field-set.*widget/);
+    expect(() => manifest({ id: 'widgets', adminForms: [form, form] })).toThrow(/widgets.*duplicate-form.*widget\.edit/);
+  });
+
+  it('accepts a form over another module\'s field set (FR-083)', () => {
+    const m = manifest({ id: 'widget_screens', dependencies: ['widgets'], adminForms: [form] });
+    expect(m.adminForms).toEqual([form]);
+  });
+
+  it('refuses an input control outside the declaring module\'s namespace, and one declared twice', () => {
+    expect(() => manifest({ id: 'acme', inputControls: [control] })).toThrow(/acme.*widgets\.code/);
+    expect(() => manifest({ id: 'widgets', inputControls: [{ id: 'platform.text', outputType: 'string' }] })).toThrow(/widgets.*platform\.text/);
+    expect(() => manifest({ id: 'widgets', inputControls: [control, control] })).toThrow(/widgets.*widgets\.code.*twice/);
+  });
+
+  it('refuses malformed declarations through the schemas', () => {
+    expect(() => manifest({ id: 'widgets', fieldSets: [{ ...fieldSet, fields: [] }] })).toThrow();
+    expect(() => manifest({ id: 'widgets', adminForms: [{ ...form, mode: 'view' } as never] })).toThrow();
+    expect(() => manifest({ id: 'acme', formOverrides: [{ target: 'widget.name', reason: 'x' } as never] })).toThrow();
+    expect(() => manifest({ id: 'widgets', inputControls: [{ id: 'code', outputType: 'string' }] })).toThrow();
+  });
+
+  it('caps formOverrides at 200', () => {
+    const overrides = (n: number) => Array.from({ length: n }, () => override);
+    expect(manifest({ id: 'acme', formOverrides: overrides(200) }).formOverrides).toHaveLength(200);
+    expect(() => manifest({ id: 'acme', formOverrides: overrides(201) })).toThrow();
+  });
+});
+
+describe('DeploymentDivergenceDeclarationSchema — formOverrideGrants (193 T014, field-overrides.md §4)', () => {
+  const grant = { moduleId: 'acme_forms', packageName: '@acme/forms', reason: 'Vendor-supplied labels for our tax forms.' };
+
+  it('is optional, so an existing declaration still parses and types', () => {
+    expect(DeploymentDivergenceDeclarationSchema.parse({}).formOverrideGrants).toBeUndefined();
+  });
+
+  it('accepts grants per field set', () => {
+    expect(DeploymentDivergenceDeclarationSchema.parse({ formOverrideGrants: { organization: [grant] } }).formOverrideGrants).toEqual({
+      organization: [grant],
+    });
+  });
+
+  it.each([
+    ['an empty grant list', { organization: [] }],
+    ['a grant without a reason', { organization: [{ moduleId: 'acme_forms', packageName: '@acme/forms' }] }],
+    ['an empty reason', { organization: [{ ...grant, reason: '' }] }],
+    ['a malformed module id', { organization: [{ ...grant, moduleId: 'Acme' }] }],
+    ['an empty package name', { organization: [{ ...grant, packageName: '' }] }],
+  ])('refuses %s', (_name, formOverrideGrants) => {
+    expect(() => DeploymentDivergenceDeclarationSchema.parse({ formOverrideGrants })).toThrow();
+  });
+});
