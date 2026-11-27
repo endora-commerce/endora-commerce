@@ -229,18 +229,18 @@ to the port 186 publishes.
 
 - [x] T039 [P] [US4] `customer_accounts.CustomerAccount` — `CustomerAccountReadPort`.
   *Note:* Methods: `findById`, `findByIds`, `searchByEmail`, `listAll` — the by-id pair added to the §4 row, which predated them (row updated). `findByEmail`, `findInOrganization`, `listByOrganization` and `listDueForAnonymization` unchanged. Test `backend/test/contract/customer_accounts/customer-account-read-port-extensions.test.ts` (6) over the composition's real port; the include is served by `helpers/entity-extension-probe.ts` (a test-local `acme_probe` module composed through `composeModules`, swapped in as the container's `entityExtensionReads` for the call), whose loader reads the host table rather than a side table so the shared run database gains none.
-- [ ] T040 [P] [US4] `orders.Order` — `OrderReadPort`, plus US4 scenario 5: an actor scoped to
+- [x] T040 [P] [US4] `orders.Order` — `OrderReadPort`, plus US4 scenario 5: an actor scoped to
   organization A reading `[orderOfA, orderOfB]` → the loader of `mod-acme-links`' `acme_links_order_notes`
   receives only `orderOfA`.
-  *Note:* Not started: blocked by spec 186 PR #1963 (orders read port still changing).
+  *Note:* Methods per §4 (unchanged since 186 #1963): `findById`, `findByIdForCustomer`, `findByIds`, `listAll`; `isTerminal`, `listItems` and the id/channel/status lookups unchanged. Test `backend/test/contract/orders/order-read-port-extensions.test.ts` (7) over the composition's real port under an administrator confined to Organization A: 50 orders on `findByIds` and on `listAll`, one loader statement each; scenario 5 hands the loader `[orderOfA]` only. Scenario 5 is served by the `acme_probe` loader of `helpers/entity-extension-probe.ts`, not by `mod-acme-links`' order-notes loader: `orders` publishes no entity or service class (D-168), so `OrderReadService` cannot be built over the fixture's cloned instance without a second `Order` class (`UnresolvableTenantParentError`), and the fixture's side table may not enter the shared run database. What the scenario holds — the ids the port hands over after the tenant filter — is the same; `acme_links_order_notes` is reached through orders by T047/T048.
 - [x] T041 [P] [US4] `quote_requests.QuoteRequest` — `QuoteRequestReadPort`.
   *Note:* Methods per §4: `findById`, `findByBusinessId`, `findByIds` (`listOpenForOrganizations` unchanged, as the row says). Test `backend/test/contract/quote_requests/quote-request-read-port-extensions.test.ts` (6): under an administrator confined to Organization A the loader is handed only A's 50 quotes, never B's.
 - [ ] T042 [P] [US4] `catalog.Product` — `CatalogProductReadPort`.
   *Note:* Not started: blocked by spec 186 PRs #1975 / #1826 (catalog read ports still changing).
 - [ ] T043 [P] [US4] `catalog.Category` — `CatalogCategoryReadPort`.
   *Note:* Not started: blocked by spec 186 PRs #1975 / #1826 (catalog read ports still changing).
-- [ ] T044 [P] [US4] `crm.CrmOpportunity` — `OpportunityReadPort`.
-  *Note:* Not started: blocked by spec 186 PR #1976 (crm read port still changing).
+- [x] T044 [P] [US4] `crm.CrmOpportunity` — `OpportunityReadPort`.
+  *Note:* Methods per §4 (unchanged since 186 #1976): `findById`, `findByDocument` (which passes `options` to `findById`), `listOpenForOrganization`, `findByIds`, `search`; `statusName` and `listNotes` unchanged. Only the published `opportunityReadPort` is handed `entityExtensionReads`; the module-internal `crmOpportunityRecords` keeps the default, which serves no include. Test `backend/test/contract/crm/opportunity-read-port-extensions.test.ts` (6): under an administrator confined to Organization A, 50 Opportunities on `findByIds` (B's id among them, never handed over) and on `listOpenForOrganization`, one loader statement each; `search` answers its 20 with values.
 - [x] T045 [P] [US4] `projects.Project` — `ProjectReadPort`.
   *Note:* Methods per §4. `ProjectReadPortDeps` gains an optional `extensions: { reads, em }` (the provider passes `emFactory`, the factory `ProjectAccess` reads with); `projectRecordOf` and the command port are untouched. Test `backend/test/contract/projects/project-read-port-extensions.test.ts` (6): a Project hidden from the caller never reaches the loader; a member who sees it hands 51 ids.
 - [ ] T046 [P] [US4] `tasks.Task` — `TaskReadPort`.
