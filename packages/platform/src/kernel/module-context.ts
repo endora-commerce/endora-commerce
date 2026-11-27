@@ -9,7 +9,11 @@ import {
   type Resolver,
 } from 'awilix';
 import type { FastifyInstance } from 'fastify';
-import type { HookableActionRef } from '@endora-commerce/contracts';
+import {
+  guardSeamReplacementFor,
+  isGuardSeamRegistration,
+  type HookableActionRef,
+} from '@endora-commerce/contracts';
 import type { Worker } from 'bullmq';
 import type { ModulePlugin } from '../http/server.js';
 import type { EventBus } from '../events/bus.js';
@@ -213,6 +217,13 @@ export interface DecorationRecord {
   readonly owner: string | undefined;
   /** 1-based position in the wrapping chain for this name; innermost first. */
   readonly depth: number;
+  /**
+   * Set, and only ever to `true`, when a deployment's overlay module decorated one of the four
+   * guard seams a composition root supplies (`specs/189-command-middleware/` FR-050; D-296,
+   * narrowing D-156.4). Deprecated in 0.113.0 and refused from 0.114.0. Absent on every other
+   * decoration, a root-supplied name outside the four (`redis`, `orm`, …) included.
+   */
+  readonly deprecated?: true;
 }
 
 /**
@@ -303,7 +314,7 @@ export class AmbiguousDecorationError extends Error {
  * `auditLogService` to change what the audit records — so the rule as stated
  * and the code as written disagree, and the code is the one that runs.
  *
- * **That is deliberate and it stays.** A deployment owns its instance outright:
+ * **That is deliberate and it stays, except for the four guard seams.** A deployment owns its instance outright:
  * it edits its own `apps/<deployment>/` tree, it builds the image, and it
  * answers to nobody but itself — so refusing it `commandBus` would defend the
  * audit path against the one party entitled to change it, while a deployment
@@ -316,6 +327,14 @@ export class AmbiguousDecorationError extends Error {
  * D-103 had already made an overlay module's `ctx.di.decorate` do the same job
  * with none of its costs. The argument stands on the sentence above it, which
  * never needed the second mechanism.
+ *
+ * **D-156.4, narrowed by D-296** (`specs/189-command-middleware/contracts/guard-seam-narrowing.md`).
+ * The narrowing covers the four guard seams only — `commandBus`, `auditLogService`, `eventBus`,
+ * `emFactory` (`GUARD_SEAM_REGISTRATIONS`) — because command middleware and command hooks now
+ * give a deployment a declared way to do what wrapping them did. An overlay's decoration of one
+ * is deprecated in 0.113.0 (it composes, is warned as `kernel.decoration.deprecated` and is marked
+ * `deprecated` in the ledger) and refused from 0.114.0. Every other root-supplied name (`redis`,
+ * `orm`, `requireAdmin`, …) stays decoratable by an overlay exactly as above.
  *
  * **An installed extension package is** (D-156.1–D-156.9). `loadPackageModuleEntries`
  * therefore sets no `overlay` flag, and that is the ruled behaviour rather than
@@ -491,7 +510,12 @@ export function createDecorationQueue(): DecorationQueue {
  */
 export interface DecorationLedger {
   /** @throws {AmbiguousDecorationError} when two modules decorate `name` unordered. */
-  record(name: string, moduleId: string, owner: string | undefined): DecorationRecord;
+  record(
+    name: string,
+    moduleId: string,
+    owner: string | undefined,
+    flags?: { readonly deprecated?: boolean },
+  ): DecorationRecord;
   /** A private name for the resolver being wrapped, unique across the container. */
   innerNameFor(name: string): string;
   readonly entries: readonly DecorationRecord[];
@@ -511,7 +535,7 @@ export function createDecorationLedger(
       return `${name}$undecorated$${counter}`;
     },
 
-    record(name, moduleId, owner) {
+    record(name, moduleId, owner, flags) {
       const prior = entries.filter((entry) => entry.name === name);
       const priorModules = [...new Set(prior.map((entry) => entry.moduleId))];
 
@@ -546,7 +570,13 @@ export function createDecorationLedger(
         }
       }
 
-      const entry: DecorationRecord = { name, moduleId, owner, depth: prior.length + 1 };
+      const entry: DecorationRecord = {
+        name,
+        moduleId,
+        owner,
+        depth: prior.length + 1,
+        ...(flags?.deprecated === true ? { deprecated: true as const } : {}),
+      };
       entries.push(entry);
       return entry;
     },
@@ -1046,13 +1076,16 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
           //
           // `isDeploymentOverlay` is exempt from **both** halves, not just the
           // core-owned one, and the condition says so by being name-unscoped: a
-          // deployment's overlay module may wrap `commandBus` too. That is the
-          // ruled behaviour (D-156.4) — a deployment owns its instance and is
-          // not the stranger this guard defends against — and it is why the flag
-          // is never the mechanism by which an installed *package* would be
-          // granted decoration. See `ForeignDecorationError`'s doc block; it is
-          // written out there rather than here because the older prose said
-          // otherwise and the next reader's instinct is to "fix" this line.
+          // deployment's overlay module may wrap a root-supplied name too. That is
+          // the ruled behaviour (D-156.4, narrowed by D-296) — a deployment owns
+          // its instance and is not the stranger this guard defends against — and
+          // it is why the flag is never the mechanism by which an installed
+          // *package* would be granted decoration. The narrowing covers the four
+          // guard seams only (`GUARD_SEAM_REGISTRATIONS`): an overlay's wrap of one
+          // is deprecated in 0.113.0 (step 4 below) and refused from 0.114.0. See
+          // `ForeignDecorationError`'s doc block; it is written out there rather
+          // than here because the older prose said otherwise and the next
+          // reader's instinct is to "fix" this line.
           const owner = ownerOf(name);
           if (owner !== module.id) {
             // D-176 Q3, and it is asked **before** the overlay exemption
@@ -1069,7 +1102,31 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
               throw new ForeignDecorationError(name, module.id, owner);
             }
           }
-          decorations.record(name, module.id, owner);
+          // Step 4 of `guard-seam-narrowing.md` §1 (189 FR-050; D-296, narrowing
+          // D-156.4). Reached only by an overlay or by the owner itself, and the
+          // owner half is what makes it "a root's guard seam" rather than "a
+          // string". 0.113.0: record, warn once per (module, name), flag the
+          // entry. 0.114.0 throws here, before anything is recorded.
+          const deprecated =
+            isDeploymentOverlay && owner === undefined && isGuardSeamRegistration(name);
+          if (deprecated) {
+            const warnedAlready = decorations.entries.some(
+              (entry) => entry.name === name && entry.moduleId === module.id,
+            );
+            if (!warnedAlready) {
+              log.warn(
+                {
+                  overlay: module.id,
+                  registration: name,
+                  replacement: guardSeamReplacementFor(name),
+                  refusedFrom: '0.114.0',
+                  ruling: 'D-296',
+                },
+                'kernel.decoration.deprecated',
+              );
+            }
+          }
+          decorations.record(name, module.id, owner, { deprecated });
           const inner = container.getRegistration(name) as Resolver<T>;
           // Re-registering the previous resolver under a private name keeps the
           // inner instance resolving through the SAME container or scope, so its
@@ -1092,8 +1149,8 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
             // lifetime the pair never meant, so the first SINGLETON ancestor to
             // resolve the name raised `AwilixResolutionError: … has a shorter
             // lifetime than its ancestor` — measured on `commandBus` behind
-            // `catalog`, which is a name D-156.4 sanctions a deployment overlay
-            // wrapping by name (`specs/124-instance-customisation-gap/` FR-003).
+            // `catalog`, which is a name D-156.4 sanctioned a deployment overlay
+            // wrapping by name (deprecated by D-296 since 0.113.0) (`specs/124-instance-customisation-gap/` FR-003).
             //
             // The pair means "root-resolved constant", which is SINGLETON: two
             // resolutions give the same object, which is the whole contract of
