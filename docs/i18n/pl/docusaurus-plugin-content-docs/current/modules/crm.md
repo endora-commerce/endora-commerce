@@ -2542,14 +2542,52 @@ osobną transakcją.
 - `expectedVersion` — `version` szansy, którą odczytałeś. `update` go
   przestrzega, tak jak `If-Match` w panelu, i odmawia zapisu szansy, która się
   zmieniła, kodem `409 VERSION_CONFLICT`. Pozostałe metody go pomijają.
-- `extensions` — żaden zapis CRM nie jest zadeklarowany jako dostępny dla
-  hooków, więc każdy klucz kończy się odmową `422 COMMAND_EXTENSION_UNCLAIMED`,
-  zanim cokolwiek zostanie odczytane lub zapisane.
+- `extensions` — dane wejściowe dla hooków poleceń zapisu, z kluczem będącym
+  identyfikatorem modułu hooka (zob. *Akcje dostępne dla hooków* niżej).
+  `create`, `update` i `setCustomFieldValues` przekazują je dalej, a klucz,
+  którego nie obsługuje żaden obecny moduł hooka, kończy się odmową
+  `422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek zostanie zapisane.
+  Pozostałe metody wykonują zapisy niedostępne dla hooków, więc odmawiają
+  każdego klucza, zanim cokolwiek zostanie odczytane lub zapisane.
 
 **Czego port nie oferuje**: załączników, wydarzeń i ich przypomnień, ponawiania
 ani odrzucania zmiany zamówienia, której odmówiono, przeliczania wartości ani
 tego, czy powiązane zamówienie podąża za szansą. Przepływ, tagi i mapowania
 statusów zamówień to konfiguracja, a nie część szansy.
+
+### Akcje dostępne dla hooków
+
+Utworzenie i edycja szansy są zadeklarowane jako dostępne dla hooków, więc inny
+moduł — moduł nakładki wdrożenia albo zainstalowany pakiet — może w nich
+uczestniczyć. Zarejestruj hook polecenia na referencji z
+`OPPORTUNITY_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`) i dopisz `crm` do
+`dependencies` w manifeście. Hook `beforeCommit` działa w transakcji zapisu i
+może go odrzucić własnym kodem, co wycofuje zapis. Handler `afterCommit` jest
+dostarczany przez outbox platformy po zatwierdzeniu, co najmniej raz. Sposób
+działania hooków opisuje strona architektury *Command Bus*.
+
+| Akcja | Referencja | Kto zapisuje |
+| --- | --- | --- |
+| `crm.opportunity.create` | `OPPORTUNITY_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/crm/opportunities`, `opportunityCommandPort.create` oraz szansa tworzona dla złożonego zamówienia lub zapytania ofertowego |
+| `crm.opportunity.update` | `OPPORTUNITY_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/crm/opportunities/:id`, `opportunityCommandPort.update` i `opportunityCommandPort.setCustomFieldValues` |
+
+Obie oferują obie fazy. Hook `beforeCommit` dostaje `opportunity` — szansę w
+stanie po zapisie, jeszcze niezatwierdzoną, w kształcie zwracanym przez
+`opportunityReadPort` — oraz `changedFields` i `changedCustomFields`,
+posortowane nazwy tego, co zapis ustawił lub zmienił. Wiersz outboxu zawiera
+wyłącznie `opportunityId`, `organizationId`, `changedFields` i
+`changedCustomFields`, nigdy wartości, a jego handler działa w Organizacji
+szansy.
+
+- **Szansa tworzona dla zamówienia lub zapytania ofertowego** powstaje z
+  wartością wyliczaną i jest przeliczana po zatwierdzeniu, więc jej hook
+  utworzenia widzi wartość sprzed tego przeliczenia.
+- **Edycja, która trafi na równoczesną zmianę pól dodatkowych**, jest ponownie
+  walidowana i powtarzana. Hooki działają raz, dla próby, która zapisuje.
+- **Żaden inny zapis CRM nie jest dostępny dla hooków** — zmiana statusu,
+  przypisanie, etykiety, powiązania, notatki i wiadomości, wydarzenia,
+  załączniki i usunięcie. Hook zarejestrowany na którymś z nich jest odrzucany
+  przy starcie.
 
 ## Włączanie i wyłączanie
 

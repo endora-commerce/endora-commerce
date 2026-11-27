@@ -1,6 +1,8 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  OPPORTUNITY_HOOKABLE_ACTIONS,
+  toHookableActionDeclaration,
   type CustomFieldWriteDeclaration,
   type ModuleDemoManifest,
 } from '@endora-commerce/contracts';
@@ -544,6 +546,15 @@ export const manifest = defineModuleManifest({
       ],
     },
   ],
+  /**
+   * Command hooks (`specs/193-admin-form-extensions/` FR-111, issue #2006;
+   * the mechanism is `specs/176-command-hooks-outbox/`): creating and editing
+   * an Opportunity, the two writes of its editor's field set. Each Command
+   * supplies `hookData` (the uncommitted record and the changed names) and
+   * `outboxData` of ids and field names only;
+   * `opportunity-hookable-actions.test.ts` holds each to its ref.
+   */
+  hookableActions: Object.values(OPPORTUNITY_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   demo,

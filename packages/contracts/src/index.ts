@@ -255,6 +255,8 @@ export * from './project-hooks.js';
 export * from './promotion-hooks.js';
 // Issue #1906 — `quote_requests`' buyer create-and-submit.
 export * from './quote-request-hooks.js';
+// `specs/193-admin-form-extensions/` FR-111 (#2006) — `crm`'s Opportunity create and edit.
+export * from './opportunity-hooks.js';
 export * from './platform-info.js';
 export * from './admin-feedback.js';
 export * from './admin-actions.js';

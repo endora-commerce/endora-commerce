@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { OpportunityService, type OpportunityServiceDeps } from './opportunity-service.js';
 
 /**
@@ -56,5 +57,39 @@ describe('OpportunityService.createForDocument — a carry that fails', () => {
       }),
       expect.stringContaining('carry'),
     );
+  });
+});
+
+/**
+ * `createForDocument`'s idempotence answer (`already-linked`) is the document
+ * link's unique index refusing a second Opportunity — and only that. Since
+ * `crm.opportunity.create` is hookable (`specs/193-admin-form-extensions/`
+ * FR-111), a `beforeCommit` hook's own write can raise a unique violation of
+ * another constraint, which must fail the creation, not cancel it silently.
+ */
+describe('OpportunityService.createForDocument — which unique violation is already-linked', () => {
+  const violation = (constraint: string) =>
+    new UniqueConstraintViolationException(Object.assign(new Error('duplicate key value'), { constraint }));
+  const input = {
+    title: 'ORD-1 — Acme',
+    organizationId: ORGANIZATION_ID,
+    currency: 'PLN',
+    salesChannelId: null,
+    source: 'order' as const,
+    document: { kind: 'order' as const, id: ORDER_ID },
+  };
+
+  it('answers already-linked for the document link’s unique index', async () => {
+    const { deps, subject } = service();
+    deps.commandBus.run.mockRejectedValueOnce(violation('crm_opportunity_links_document_unique'));
+    expect(await subject.createForDocument(input)).toBe('already-linked');
+    expect(deps.recalculateValue).not.toHaveBeenCalled();
+  });
+
+  it('rethrows a unique violation of any other constraint — a hook’s, say', async () => {
+    const { deps, subject } = service();
+    const other = violation('acme_erp_links_external_id_unique');
+    deps.commandBus.run.mockRejectedValueOnce(other);
+    await expect(subject.createForDocument(input)).rejects.toBe(other);
   });
 });
