@@ -26,8 +26,11 @@ export interface ProductCreateHookData {
 
 /**
  * `product.update` — an existing product's global values changed (the admin
- * `PATCH`, the aggregate port's `update` and `setCustomFieldValues`, and each
- * product of a bulk edit). `product` is the after-state.
+ * `PATCH`, the API-key upsert of an existing SKU, the aggregate port's `update`
+ * and `setCustomFieldValues`). `product` is the after-state. A bulk edit does not
+ * run it: each of its product writes is `product.bulk_update.item`, which is not
+ * hookable (`specs/193-admin-form-extensions/` D-300.8), so a hook here never sees
+ * a bulk edit or its undo.
  */
 export interface ProductUpdateHookData {
   readonly product: CatalogProductRecord;
@@ -68,7 +71,10 @@ export interface ProductScopedValuesHookData {
 /**
  * `afterCommit` data: ids and field names only (audit-state list 1). A product
  * belongs to no Organization, so no row is pinned to one; handlers run in system
- * scope. `changedFields` is empty on create.
+ * scope. `changedFields` is empty on create, and on a `product.update` that
+ * changed nothing: that write still commits the product's editor version, so it
+ * writes a row with `changedFields: []`. The two scoped writes roll a write that
+ * changes nothing back, so they write no row for it.
  */
 export type ProductOutbox = {
   readonly productId: string;
