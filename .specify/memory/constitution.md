@@ -1,7 +1,57 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 4.4.0 → 4.5.0
+Version change: 4.5.0 → 4.6.0
+Status: APPROVED by the owner on 2026-11-27 (Governance step 4). Drafted by
+`specs/193-admin-form-extensions/` on the owner's instruction of 2026-11-27
+(D-300.7). The draft chains from 4.5.0 as written by PR #2010 (spec 190 docs
+pass), which merges first.
+
+Rationale: MINOR. In Principle XV, the bounded overridable surface gains one
+member (declared form extensions), and one new bullet states what a deployment
+may and may not adjust on a core admin form. It also states that operator
+overrides are presentation only. The guidance is materially expanded, so this
+is not a PATCH. It is not MAJOR either: no compliant work becomes
+non-compliant, because no core form was extensible before this amendment.
+
+Modified sections:
+  - XV. Untouched Core & Per-Deployment Overlay:
+    (1) "Bounded overridable surface" adds "declared form extensions" to the
+        surface list. Every other sentence of 4.5.0 is kept verbatim;
+    (2) new bullet "Core forms: accepted overrides and slots, never a type
+        change", inserted before 4.5.0's "Trust follows origin". The package
+        grant for form overrides (D-300.2) is an instance of that bullet's
+        per-point grant and is not restated.
+  - IX, XIII and XVII: reviewed and not edited. The operator screen reuses
+    the kit (IX holds as written). Its writes are Commands (XIII holds as
+    written). Contributions of an absent module are absent (XVII holds as
+    written; the layer's owner, `custom_fields`, is declared
+    non-deactivatable).
+
+Added sections:
+  - (none)
+
+Removed sections:
+  - (none)
+
+Templates / artifacts requiring alignment:
+  - ✅ .specify/templates/*: checked with grep. No template restates XV's
+       surface list.
+  - ✅ AGENTS.md: the XV summary ("a deployment customises through an
+       overlay module, never by editing core") stays true. Not edited.
+  - ⏳ docs/docs/architecture/customisation-ladder.md and the new
+       admin-form-extensions.md (+ Polish twins): spec 193 WP-DOC.
+  - ⏳ specs/conventions/contract-surface.md and module-admin-surfaces.md:
+       spec 193 WP-DOC.
+
+Deferred items / TODOs:
+  - `specs/188-policy-points/` still carries its own XV amendment (see the
+    4.5.0 report). Whichever merges after this one re-bumps the version.
+
+--- The 4.5.0 report follows unchanged.
+
+SYNC IMPACT REPORT
+===========Version change: 4.4.0 → 4.5.0
 Rationale: MINOR. Principle XV is rewritten around the sentences
 `specs/189-command-middleware/` landed in 4.4.0, as specified by
 `specs/190-overlay-full-modules/contracts/constitution-xv-amendment.md` and
@@ -1206,7 +1256,8 @@ capability meant to be per-deployment overridable:
   `auditLogService`, `eventBus`, `emFactory`), and cross-cutting behaviour on Commands is
   contributed as declared command middleware.
 - **Bounded overridable surface (YAGNI).** The overridable surface is **services, routes, config,
-  declared command hooks, declared command middleware, and whole new modules**. A command hook
+  declared command hooks, declared command middleware, declared form extensions, and whole new
+  modules**. A command hook
   runs only on an action its owning module declares hookable: a `beforeCommit` hook at a position
   the dependency graph — or the deployment's declared `commandHookOrder` — fixes, an `afterCommit`
   one after the Command commits. It extends the owner's write and never replaces it. Command
@@ -1219,6 +1270,17 @@ capability meant to be per-deployment overridable:
   units — a core column, a constraint, an index or entity metadata — are never offered. Resolution MUST be a
   build/composition-time concern on the **existing toolchain** — no new runtime dependency
   (Principle IV).
+- **Core forms: accepted overrides and slots, never a type change.** A core admin form is
+  extensible only where its owning module declares its fields. A deployment MAY add fields at
+  declared anchors, stored by the module that adds them, and MAY adjust a declared field only in the
+  ways that field accepts: its presentation, an input control whose output fits the field's value
+  type, and validation that only narrows the core rule. A rule that narrows validation MUST be
+  enforced on every write the Command Bus runs for that entity, never only in the form. No module
+  may change a field's value type, loosen a core rule, or hide a field core requires; a different
+  type is a new field beside the core one, or a versioned core change. Hiding a field or making it
+  read-only is presentation, never access control. A business operator MAY change a form's
+  presentation at run time, within what each field accepts, through audited Commands. Such a change
+  never alters what any API accepts.
 - **Trust follows origin.** What a module may contribute across owners is decided by where the
   platform discovered it (core, the deployment's overlay, or an installed package), never by
   anything the module declares about itself. A deployment may grant an installed package one named
@@ -1723,4 +1785,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 4.5.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-11-27
+**Version**: 4.6.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-11-27
