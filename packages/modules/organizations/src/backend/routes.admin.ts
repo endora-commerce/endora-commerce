@@ -22,11 +22,9 @@ import {
   type CustomFieldListFilterCondition,
   type CustomFieldListFilterPort,
   type CustomFieldValuePort,
-  type CustomerAccountMemberWritePort,
+  type CustomerAccountCommandPort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
-  type CustomerAccountRoleCommandPort,
-  type CustomerRolePort,
   type OrganizationRoleReadPort,
   type OrganizationRoleRef,
   type AdminOrganization,
@@ -147,27 +145,31 @@ export interface AdminOrgsDeps {
   requireAdmin: RequireAdminFactory;
   requireAdminAny: RequireAdminAnyFactory;
   invitationService: InvitationService;
-  roleService: CustomerRolePort;
   /**
-   * `customer_accounts`' published read and member write (feature 075, Phase
-   * C). Every member endpoint below used to load, create and mutate that
-   * module's entity directly; the writes moved to its side of the port and the
-   * audit row stayed here, because the operation being audited is an admin
-   * edit on *this* module's member panel.
+   * `customer_accounts`' published read and its aggregate port (feature 075,
+   * Phase C; `specs/186-aggregate-ports/` US3, issue #1822). Every member
+   * endpoint below used to load, create and mutate that module's entity
+   * directly; the writes are that module's Commands now — `customer_account.create`,
+   * `.change_role`, `.set_subtree_rollup`, `.update_profile`, `.remove_member` —
+   * run through the port a server-side caller uses, so both see one write
+   * path. The `customer_account.admin_*` entries stay here, because the
+   * operation they record is an admin edit on *this* module's member panel.
    *
    * With `customer_accounts` off the member endpoints fail closed. The module
    * is non-deactivatable, so that is a statement about direction rather than a
    * reachable state.
    */
   customerAccountRead: CustomerAccountReadPort;
-  customerAccountWrite: CustomerAccountMemberWritePort;
+  customerAccountCommandPort: Pick<
+    CustomerAccountCommandPort,
+    'create' | 'changeRole' | 'setSubtreeRollup' | 'updateProfile' | 'removeMember'
+  >;
   /**
    * `specs/170-organization-roles/` WP-03 — the role every member answer names
-   * (FR-008, FR-073), and `customer_account.change_role`, which assigns a role
-   * under `customers:manage` alone (FR-062) on the bus below.
+   * (FR-008, FR-073); `customer_account.change_role` assigns a role under
+   * `customers:manage` alone (FR-062).
    */
   organizationRoles: Pick<OrganizationRoleReadPort, 'roleRef'>;
-  customerAccountRoles: Pick<CustomerAccountRoleCommandPort, 'changeRole'>;
   auditLogService: AuditPort;
   /**
    * Optional — when provided, the admin direct-member-create endpoint emits
@@ -256,7 +258,6 @@ export async function registerOrganizationsAdminRoutes(
     requireAdminAny,
     emFactory,
     invitationService,
-    roleService,
     auditLogService,
   } = deps;
   const moderationService = deps.moderationService;
@@ -1169,7 +1170,7 @@ export async function registerOrganizationsAdminRoutes(
       // The duplicate check and the argon2 hash both moved to the owner's side
       // of the port with the write; `create` raises the same 409
       // `EMAIL_ALREADY_REGISTERED`.
-      const customer = await deps.customerAccountWrite.create({
+      const customer = await deps.customerAccountCommandPort.create({
         organizationId: org.id,
         // Handed over as typed: the write port folds it, so this surface
         // cannot disagree with the one the buyer registers through.
@@ -1220,13 +1221,7 @@ export async function registerOrganizationsAdminRoutes(
       // FR-062, FR-065): the role of another Organization is `404`, the last
       // administrator's demotion `409`, and its one audit entry — against the
       // Organization, naming the operator — is the record of this change.
-      await deps.commandBus.run(
-        deps.customerAccountRoles.changeRole({
-          organizationId: member.organizationId,
-          customerAccountId: member.id,
-          roleId: body.roleId,
-        }),
-      );
+      await deps.customerAccountCommandPort.changeRole(member.id, { organizationRoleId: body.roleId });
       const updated = await reloadMember(member.organizationId, member.id);
       return { data: await memberDetail(updated, await request.responseLanguage()) };
     },
@@ -1254,10 +1249,9 @@ export async function registerOrganizationsAdminRoutes(
       // `customer_account.set_subtree_rollup` (issue #1338): the owner's
       // Command, whose one audit entry — naming the operator — commits with
       // the write and replaces the hand audit `.admin_rollup_change`.
-      const updated = await deps.customerAccountWrite.setSubtreeRollup(
-        member.id,
-        body.subtreeRollupEnabled,
-      );
+      const updated = await deps.customerAccountCommandPort.setSubtreeRollup(member.id, {
+        enabled: body.subtreeRollupEnabled,
+      });
       return { data: await memberDetail(updated, await request.responseLanguage()) };
     },
   );
@@ -1282,7 +1276,7 @@ export async function registerOrganizationsAdminRoutes(
       // The uniqueness check, the lower-casing and the "a changed address is
       // no longer verified" rule all went with the write: they are properties
       // of the column, not of this screen.
-      const updated = await deps.customerAccountWrite.updateProfile(member.id, {
+      const updated = await deps.customerAccountCommandPort.updateProfile(member.id, {
         ...(body.email !== undefined ? { email: body.email } : {}),
         ...(body.firstName !== undefined ? { firstName: body.firstName } : {}),
         ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
@@ -1307,7 +1301,8 @@ export async function registerOrganizationsAdminRoutes(
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Member not found.');
       }
       const before = memberAuditState(member);
-      await roleService.removeMember(request.params.id, member.id);
+      // `customer_account.remove_member`, recorded against the Organization.
+      await deps.customerAccountCommandPort.removeMember(member.id);
       await audit(
         request,
         'customer_account.admin_remove',
@@ -1341,13 +1336,9 @@ export async function registerOrganizationsAdminRoutes(
       // through `customer_account.change_role` (`contracts/operator-api.md`
       // §3), whose audit entry is the record of the promotion. Promoting to
       // Administrator never trips the last-administrator guard.
-      await deps.commandBus.run(
-        deps.customerAccountRoles.changeRole({
-          organizationId: member.organizationId,
-          customerAccountId: member.id,
-          roleId: await predefinedRoleIdOn(emFactory(), member.organizationId, 'administrator'),
-        }),
-      );
+      await deps.customerAccountCommandPort.changeRole(member.id, {
+        organizationRoleId: await predefinedRoleIdOn(emFactory(), member.organizationId, 'administrator'),
+      });
       const updated = await reloadMember(member.organizationId, member.id);
       return { data: await memberDetail(updated, await request.responseLanguage()) };
     },

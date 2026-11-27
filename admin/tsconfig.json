@@ -11,9 +11,26 @@
       "@endora-commerce/contracts/*": ["../packages/contracts/src/*"],
       "@endora-commerce/admin-shell": ["../packages/admin-shell/src/index.ts"],
       "@endora-commerce/admin-shell/*": ["../packages/admin-shell/src/*"],
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      // The deployment admin registry `src/main.tsx` imports. Vite resolves it to
+      // the one `DEPLOYMENT` selects (`vite.config.ts`); the type-check reads bare
+      // core's, whose export has the same type.
+      "@endora-commerce-deployment/admin": ["./src/deployments/none.generated.ts"],
+      // An overlay module's admin layer (`include` below) sits under
+      // `backend/src/apps`, outside this member, so a bare import there would walk
+      // `node_modules` directories this member's dependencies are not in. These
+      // name this member's own copies — the ones it resolves for its own files —
+      // so both are checked against one React and one kit
+      // (`specs/190-overlay-full-modules/` FR-083, FR-084).
+      "@endora-commerce/admin-kit/*": ["./node_modules/@endora-commerce/admin-kit/dist/*/index.d.ts"],
+      "react": ["./node_modules/@types/react/index.d.ts"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "react-dom": ["./node_modules/@types/react-dom/index.d.ts"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*"]
     }
   },
-  "include": ["src/**/*", "test/**/*"],
+  // `../backend/src/apps/*/modules/*/admin/**/*` — every deployment's overlay admin
+  // layers, which the backend's overlay program excludes (FR-083).
+  "include": ["src/**/*", "test/**/*", "../backend/src/apps/*/modules/*/admin/**/*"],
   "exclude": ["node_modules", "dist"]
 }

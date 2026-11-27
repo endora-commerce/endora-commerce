@@ -245,6 +245,14 @@ export const manifest = defineModuleManifest({
     { code: 'RECORD_MERGE_NOT_RESUMABLE' },
     { code: 'RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED' },
     { code: 'RECORD_MERGE_RESIDUE' },
+    // T3 by noun (3) — `specs/189-command-middleware/` FR-060. The noun is the
+    // Command Bus's admission and middleware step, which runs for every
+    // module's Commands: an admission rule that timed out or failed (503,
+    // nothing written) and a middleware that ran a Command (500). A
+    // contributor's own refusal codes are its module's, not these.
+    { code: 'COMMAND_ADMISSION_TIMEOUT' },
+    { code: 'COMMAND_ADMISSION_FAILED' },
+    { code: 'COMMAND_MIDDLEWARE_REENTRY' },
     // T3 by D-122 (1) — issue #1560. A batch reorder (`PUT …/order`) whose
     // list is not the current one: a row left out or named twice (409). The
     // noun is an ordered configuration list, and `crm` and `tasks` each own

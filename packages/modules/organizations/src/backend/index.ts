@@ -20,6 +20,7 @@ import type {
   CreditLimitReadPort,
   CustomFieldListFilterPort,
   CustomFieldValuePort,
+  CustomerAccountCommandPort,
   CustomerAccountMemberCommandPort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
@@ -862,6 +863,9 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'customerAccountMemberCommandPort',
             ),
+            // `specs/186-aggregate-ports/` US3 (issue #1822) — the operator's
+            // member panel writes through the CustomerAccount aggregate port.
+            customerAccountCommandPort: lazyPort<CustomerAccountCommandPort>(ctx, 'customerAccountCommandPort'),
             customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
             // Issue #1903 — the admin list's custom-field filters
             // (`specs/157-custom-fields-list-filters/`).

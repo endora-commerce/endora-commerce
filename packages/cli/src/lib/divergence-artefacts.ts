@@ -118,6 +118,7 @@ const KIND_HEADINGS: Readonly<Record<DivergenceKind, string>> = {
   subscription: 'Events this deployment subscribes to',
   interceptor: 'Endpoints this deployment intercepts',
   'command-hook': 'Writes this deployment takes part in',
+  'command-middleware': 'Command middleware this deployment runs on the Command Bus',
   decoration: 'Registrations this deployment wraps',
   'root-plugin': 'Plugins this deployment mounts at the server root',
   worker: 'Queues this deployment consumes',
@@ -131,6 +132,7 @@ const KIND_ORDER: readonly DivergenceKind[] = [
   'subscription',
   'interceptor',
   'command-hook',
+  'command-middleware',
   'port-provided',
   'port-consumed',
   'decoration',
@@ -195,6 +197,8 @@ function escapeCell(text: string): string {
 
 function ownerCell(entry: DivergenceEntry): string {
   if (entry.kind === 'omission') return '—';
+  // 189 — the subject of a middleware is the bus, which no module owns.
+  if (entry.kind === 'command-middleware') return 'the Command Bus (no module owns it)';
   return entry.owner === null ? 'a composition root (no module owns it)' : `\`${entry.owner}\``;
 }
 
@@ -204,6 +208,11 @@ function subjectCell(entry: DivergenceEntry): string {
   }
   if (entry.kind === 'command-hook' && entry.detail.kind === 'command-hook') {
     return `\`${entry.subject}\` (${entry.detail.phase}, \`${entry.detail.id}\`)`;
+  }
+  if (entry.kind === 'command-middleware' && entry.detail.kind === 'command-middleware') {
+    const filter =
+      entry.detail.actions === '*' ? 'every Command' : entry.detail.actions.map((action) => `\`${action}\``).join(', ');
+    return `\`${entry.subject}\` (${entry.detail.phase}, ${filter})`;
   }
   if (entry.kind === 'column-extension' && entry.detail.kind === 'column-extension') {
     return `\`${entry.subject}\` (${entry.detail.columns.map((column) => `\`${column}\``).join(', ')})`;
@@ -837,11 +846,13 @@ export function unreadableCompositionReason(scan: InstanceCompositionScan): stri
 // The declaration, read as source text
 // ---------------------------------------------------------------------------
 
-/** The three fields a deployment declares (`deployment-declaration.md` §2). */
+/** The three fields a deployment declares (`deployment-declaration.md` §2), and the `admit` tie-break (189). */
 export interface DeclarationLiterals {
   readonly omittedModules: ReadonlyArray<{ readonly moduleId: string; readonly reason: string }>;
   readonly decorationOrder: Readonly<Record<string, readonly string[]>>;
   readonly reasons: Readonly<Record<string, string>>;
+  /** `specs/189-command-middleware/` FR-031 — absent when the file does not write it. */
+  readonly commandMiddlewareOrder?: readonly string[];
 }
 
 /** The empty declaration — what a deployment that has declared nothing says. */
@@ -1038,5 +1049,26 @@ export function readDivergenceDeclaration(source: string, file: string): Declara
     }
   }
 
-  return { declaration: { omittedModules, decorationOrder, reasons }, unresolved };
+  let commandMiddlewareOrder: string[] | undefined;
+  const middlewareOrder = fields.get('commandMiddlewareOrder');
+  if (middlewareOrder !== undefined) {
+    const ids = ts.isArrayLiteralExpression(middlewareOrder)
+      ? middlewareOrder.elements.map((element) => stringLiteralOf(element))
+      : null;
+    if (ids === null || ids.some((id) => id === null)) {
+      unresolved.push('commandMiddlewareOrder (not a literal array of ids)');
+    } else {
+      commandMiddlewareOrder = ids as string[];
+    }
+  }
+
+  return {
+    declaration: {
+      omittedModules,
+      decorationOrder,
+      reasons,
+      ...(commandMiddlewareOrder === undefined ? {} : { commandMiddlewareOrder }),
+    },
+    unresolved,
+  };
 }

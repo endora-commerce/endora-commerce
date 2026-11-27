@@ -19,6 +19,7 @@ import type {
   OrderReadPort,
   OrganizationDetailsPort,
   PermissionReadPort,
+  ProjectCommandPort,
   ProjectReadPort,
   QuoteRequestReadPort,
   ReportingTimeZonePort,
@@ -97,6 +98,7 @@ import { createOwnerReadChecks, type OwnerReadChecks } from './services/owner-re
 import { ProjectAccess, type ProjectAccessDeps } from './services/project-access.js';
 import { registerProjectAssetReferences } from './services/project-asset-references.js';
 import { registerProjectAuditReferences } from './services/project-audit-references.js';
+import { ProjectCommandService } from './services/project-command-port.js';
 import { createProjectNotifier, type ProjectNotifier } from './services/project-notifier.js';
 import { ProjectReadPortService } from './services/project-read-port.js';
 import { reportingTimeZoneOf } from './services/reporting-time-zone.js';
@@ -458,6 +460,37 @@ export function registerModule(ctx: ModuleContext): void {
             records: projectsRecordProjectService,
             notes: projectsCommentService,
             merges: () => ctx.cradle<ProjectsCradle>().projectsMergeService,
+          }),
+      )
+      .singleton(),
+  );
+  /**
+   * `projectCommandPort` (`specs/186-aggregate-ports/` US7, issue #1828) — the
+   * Project aggregate's write port, `providePort`: gated like the read port,
+   * so a consumer resolving it while this module is off gets
+   * `ModuleDisabledError` (503 `MODULE_DISABLED`) and nothing is written. Each
+   * method runs the service method its admin route runs, which builds the
+   * Command (`project-command-port.ts`).
+   */
+  ctx.di.providePort<ProjectCommandPort>(
+    'projectCommandPort',
+    ctx
+      .asFunction(
+        ({
+          projectsService,
+          projectsMoveService,
+          projectsLinkService,
+          projectsCommentService,
+          projectsAccess,
+          projectsReadService,
+        }: ProjectsCradle) =>
+          new ProjectCommandService({
+            projects: projectsService,
+            moves: projectsMoveService,
+            links: projectsLinkService,
+            comments: projectsCommentService,
+            access: projectsAccess,
+            read: projectsReadService,
           }),
       )
       .singleton(),

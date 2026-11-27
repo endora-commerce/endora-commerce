@@ -93,24 +93,42 @@ export class ProjectReadPortService implements ProjectReadPort {
     return visible.has(merge.survivorId) && visible.has(merge.loserId) ? merge : null;
   }
 
-  async #record(row: VisibleProjectRow): Promise<ProjectRecord> {
-    const summary = await this.deps.read.summary(row);
-    return {
-      id: row.id,
-      number: row.number,
-      title: row.title,
-      state: row.state,
-      currentStageId: row.current_stage_id,
-      currentStageName: summary.currentStage?.name ?? null,
-      organizationIds: summary.organizations.map((organization) => organization.id),
-      valueAmount: row.value_amount,
-      valueCurrency: row.value_currency,
-      templateId: row.template_id,
-      closedAt: row.closed_at === null ? null : new Date(row.closed_at),
-      createdAt: new Date(row.created_at),
-      mergedIntoProjectId: row.merged_into_project_id ?? null,
-      mergedAt: row.merged_at ? new Date(row.merged_at) : null,
-      mergeId: row.merge_id ?? null,
-    };
+  #record(row: VisibleProjectRow): Promise<ProjectRecord> {
+    return projectRecordOf(row, this.deps.read);
   }
+}
+
+/**
+ * A Project row as it crosses a module boundary: a plain object, never the
+ * entity. Its current Stage's name and its Organizations come from the summary
+ * the record panel answers with; its custom-field values are the stored bag
+ * (`specs/186-aggregate-ports/` FR-015), every key included. Shared by
+ * `projectReadPort` and `projectCommandPort`, which answers the record a write
+ * left.
+ */
+export async function projectRecordOf(
+  row: VisibleProjectRow,
+  read: Pick<ProjectReadService, 'summary'>,
+): Promise<ProjectRecord> {
+  const summary = await read.summary(row);
+  return {
+    id: row.id,
+    number: row.number,
+    title: row.title,
+    state: row.state,
+    currentStageId: row.current_stage_id,
+    currentStageName: summary.currentStage?.name ?? null,
+    organizationIds: summary.organizations.map((organization) => organization.id),
+    valueAmount: row.value_amount,
+    valueCurrency: row.value_currency,
+    templateId: row.template_id,
+    closedAt: row.closed_at === null ? null : new Date(row.closed_at),
+    createdAt: new Date(row.created_at),
+    customFieldValues: { ...(row.custom_field_values ?? {}) },
+    version: row.version,
+    configurationVersion: row.configuration_version,
+    mergedIntoProjectId: row.merged_into_project_id ?? null,
+    mergedAt: row.merged_at ? new Date(row.merged_at) : null,
+    mergeId: row.merge_id ?? null,
+  };
 }

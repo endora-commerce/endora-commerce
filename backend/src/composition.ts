@@ -414,6 +414,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // `specs/176-command-hooks-outbox/` FR-014 — and the command-hook tie-break
     // from the same declaration, which the composer seals the hook registry against.
     commandHookOrder: divergenceDeclaration.commandHookOrder,
+    commandMiddlewareOrder: divergenceDeclaration.commandMiddlewareOrder,
     // D-101 — and the omissions from the same declaration, which the presence
     // load reads. The platform may not locate the file (D115-3), so the value
     // is supplied rather than read.

@@ -71,6 +71,7 @@ import type {
 
 import { CommandBus } from '../commands/index.js';
 import { CommandHookRegistry } from '../commands/hooks/registry.js';
+import { CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
 import { createCommandOutboxWake } from '../commands/outbox/wake.js';
 import { configuredEntitiesFrom } from '../db/configured-entities.js';
 import { discoverConfiguredMigrations } from '../db/configured-migrations.js';
@@ -104,6 +105,7 @@ import { effectiveState } from '../kernel/lifecycle/effective-state.js';
 import { publishStateChanged, registryCache } from '../kernel/lifecycle/registry-cache.js';
 import { requiredModulesFrom } from '../kernel/lifecycle/required-modules.js';
 import {
+  commandMiddlewareFrom,
   hookableActionsFrom,
   moduleDependencyClosureFrom,
 } from '../kernel/lifecycle/command-hook-inputs.js';
@@ -117,6 +119,8 @@ import {
 } from '../kernel/schema-extensions/registry.js';
 import { createSchemaExtensionReads } from '../kernel/schema-extensions/reads.js';
 import { verifySchemaExtensions } from '../db/schema-extension-verifier.js';
+import { verifyEntityExtensions } from '../db/entity-extension-verifier.js';
+import { activeEntityExtensionContext } from '../kernel/entity-extensions/context.js';
 import { createRegistrationOwnership } from '../kernel/module-context.js';
 import {
   assertPublicApiBaseUrlConfigured,
@@ -362,6 +366,13 @@ export interface ComposeAppOptions {
    */
   readonly commandHookOrder?: Readonly<Record<string, readonly string[]>> | undefined;
   /**
+   * The order this deployment declares for `admit` command middleware from
+   * modules no manifest dependency ranks (`specs/189-command-middleware/`
+   * FR-031), read from the same `divergence.ts` as `commandHookOrder` and
+   * forwarded to `composeModules`, which seals the middleware registry against it.
+   */
+  readonly commandMiddlewareOrder?: readonly string[] | undefined;
+  /**
    * The modules this deployment declares it omits (D-101), from the same
    * declaration `decorationOrder` comes from.
    *
@@ -578,6 +589,16 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     activeSchemaExtensionContext(),
     (message) => platformLogger().warn({}, message),
   );
+  // `specs/187-side-table-extensions/` FR-022, FR-023 — and the declared side
+  // tables, read-only, in one catalog query: a cascade dropped by hand, or a
+  // side table lost to an upgrade, fails the boot naming the module and the
+  // table; an undeclared or unowned one is a `warn` (OR-8).
+  await verifyEntityExtensions(
+    (sql, params = []) =>
+      orm.em.getConnection().execute(sql, params, 'all') as Promise<Record<string, unknown>[]>,
+    activeEntityExtensionContext(),
+    (message) => platformLogger().warn({}, message),
+  );
   // Feature 050 — the single EM-injection seam. `forkScopedEm` is a bare
   // `orm.em.fork()`: it stamps NOTHING, because the tenant filters read the
   // ambient TenantContext from AsyncLocalStorage **when the query is built**
@@ -707,9 +728,19 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // process that commits is the one that knows rows were written, and the
   // drain itself runs wherever `_lifecycle` finds `processRunsWorkers`.
   const commandOutboxWake = createCommandOutboxWake(redis);
+  // `specs/189-command-middleware/` P1 — the command-middleware registry, shared
+  // the same way: the bus asks it on every Command, every module context
+  // registers into it, `composeModules` seals it below. Presence is the live
+  // effective state, asked per call (FR-033), and its failures are logged on
+  // the platform logger, which `buildServer` binds to the application's own.
+  const commandMiddlewareRegistry = new CommandMiddlewareRegistry({
+    isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+    log: platformLogger(),
+  });
   const commandBus = new CommandBus(orm, auditLogService, eventBus, {
     hooks: commandHookRegistry,
     outboxWake: commandOutboxWake,
+    middleware: commandMiddlewareRegistry,
   });
 
   // `specs/192-organization-merge/` — the record merge: the registry every
@@ -950,6 +981,14 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // the same manifest set.
     mergeRegistry: recordMergeRegistry,
     mergeDeclarations: mergeDeclarationsFrom(resolvedRegistry.map((entry) => entry.manifest)),
+    // 189 P1 — sealed after the hook registry, against the same manifest set;
+    // the composer adds each entry's origin.
+    commandMiddlewareRegistry,
+    commandMiddleware: {
+      declarations: commandMiddlewareFrom(resolvedRegistry.map((entry) => entry.manifest)),
+      moduleDependencies: moduleDependencyClosureFrom(resolvedRegistry.map((entry) => entry.manifest)),
+      commandMiddlewareOrder: options.commandMiddlewareOrder,
+    },
   });
 
   // The frozen and archived sets, before the first request can ask them, and

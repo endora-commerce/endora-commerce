@@ -7,6 +7,7 @@ import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
 import type {
   AuthSessionPort,
   CustomerAccountAdminSearchPort,
+  CustomerAccountCommandPort,
   CustomerAccountLifecycleWritePort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
@@ -23,6 +24,7 @@ import type {
   CustomerRollupScopePort,
   MfaEnrolmentStatePort,
   MfaLoginPort,
+  OrganizationDetailsPort,
   OrganizationRoleReadPort,
 } from '@endora-commerce/contracts';
 import type {
@@ -63,6 +65,7 @@ import {
   CustomerAccountLifecycleWriteService,
 } from './services/customer-account-lifecycle-ports.js';
 import { CustomerAuthService } from './services/customer-auth-service.js';
+import { CustomerAccountCommandService } from './services/customer-account-command-port.js';
 import { CustomerAccountPreferenceService } from './services/customer-account-preference-port.js';
 import { CustomerAuthenticationThrottle } from './services/customer-authentication-throttle.js';
 import { CustomerGroupReadService } from './services/customer-group-read-port.js';
@@ -70,7 +73,7 @@ import { CustomerGroupService } from './services/customer-group-service.js';
 import { CustomerRollupScopeService } from './services/customer-rollup-scope.js';
 import { PasswordResetService } from './services/password-reset-service.js';
 import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
-import type { MembershipPort, OrganizationDetailsPort } from '@endora-commerce/contracts';
+import type { MembershipPort } from '@endora-commerce/contracts';
 import type { RecordMergeService } from '@endora-commerce/platform/kernel';
 import { createMembershipPort } from './services/membership-port.js';
 import { toOneCustomerAccountRecord } from './services/customer-account-ports.js';
@@ -266,20 +269,60 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   /**
+   * `specs/186-aggregate-ports/` US3 (issue #1822) — the CustomerAccount
+   * aggregate port: every lifecycle write of an account as one audited Command,
+   * the one `customers`' and `organizations`' admin routes run. What it needs of
+   * other modules is resolved per call: `organizations`' roles (already above),
+   * whether an Organization is personal (the depletion guard's exemption), the
+   * personal-Organization provisioning seam (D-178), and `auth`'s sessions,
+   * which a block and a deletion end after their commit. The bus is read per
+   * call, never captured.
+   */
+  ctx.di.providePort<CustomerAccountCommandPort>(
+    'customerAccountCommandPort',
+    ctx
+      .asFunction(({ emFactory, commandBus }: CustomerAccountsCradle) => {
+        const organizations = lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort');
+        return new CustomerAccountCommandService({
+          commandBus,
+          emFactory,
+          twoFactorEnrolments,
+          roles: organizationRoles,
+          isPersonal: async (organizationId) => (await organizations.findById(organizationId))?.isPersonal === true,
+          // D-178 — `lazyPort` rather than a captured value: the gate stays
+          // live inside this singleton and the seam is resolved per call.
+          personalOrganizations: lazyPort<PersonalOrganizationProvisionApi>(ctx, 'personalOrganizationProvisionApi'),
+          sessions: lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
+          afterCommit: (fn) => ctx.cradle<CustomerAccountsCradle>().eventBus.afterScope(fn),
+          // `specs/170-forms-module/` research R-17 — the anonymisation is
+          // announced in a bus scope this write awaits, so a subscriber's
+          // erasure runs within the sweep step (cms' `publishContentChange`
+          // precedent). A handler's failure is the bus's to log and never
+          // fails the sweep.
+          announceAnonymized: async (payload) => {
+            const bus = ctx.cradle<CustomerAccountsCradle>().eventBus;
+            await bus.run(async () => {
+              bus.emit(CUSTOMER_ACCOUNT_ANONYMIZED_EVENT, payload);
+            });
+          },
+        });
+      })
+      .singleton(),
+  );
+
+  /**
    * Feature 075, Phase C — the member lifecycle `organizations` runs over this
-   * table. Published when that module was cut: it created and mutated the
-   * entity in seven places, and the argon2 hash it needed to do so came from an
-   * import of `auth`. Both are on this side of the port now, and each write
-   * records its own audit row, as `roleService` beside it always has.
+   * table. Deprecated since 0.113.0: its writes delegate to
+   * `customerAccountCommandPort` (186 T051); `attachToOrganization` stays, for
+   * `specs/191-membership-join-requests/` to replace.
    */
   ctx.di.providePort<CustomerAccountMemberWritePort>(
     'customerAccountMemberWritePort',
     ctx
       .asFunction(
-        ({ emFactory, auditLogService, commandBus }: CustomerAccountsCradle) =>
+        ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
           new CustomerAccountMemberWriteService(emFactory, twoFactorEnrolments, auditLogService, {
-            commandBus,
-            roles: organizationRoles,
+            port: lazyPort<CustomerAccountCommandPort>(ctx, 'customerAccountCommandPort'),
           }),
       )
       .singleton(),
@@ -287,46 +330,20 @@ export function registerModule(ctx: ModuleContext): void {
 
   /**
    * Feature 075, Phase C — the account lifecycle `customers` runs over this
-   * table, and the list its admin screen reads it with.
-   *
-   * `customers` is the management surface over these accounts and it ran both
-   * by holding the entity: block, unblock, soft-delete, restore, the retention
-   * sweep's scrub, the organisation and group assignments, standalone
-   * registration and the custom-field patch, plus the paginated admin query.
-   * The policy — who may act on whom, and the "an organisation keeps an
-   * administrator" guard — stayed on that side; the statement and its one audit
-   * row are here.
+   * table. Deprecated since 0.113.0: its writes delegate to
+   * `customerAccountCommandPort` and its work-list reads to
+   * `customerAccountReadPort` (186 T050, T051); the two Organization moves
+   * stay, for `specs/191-membership-join-requests/` to replace.
    */
   ctx.di.providePort<CustomerAccountLifecycleWritePort>(
     'customerAccountLifecycleWritePort',
     ctx
       .asFunction(
-        ({ emFactory, auditLogService, commandBus }: CustomerAccountsCradle) =>
-          new CustomerAccountLifecycleWriteService(
-            emFactory,
-            auditLogService,
-            twoFactorEnrolments,
-            // D-178 — `lazyPort` rather than a captured value: the gate stays
-            // live inside this singleton and the seam is resolved per call. The
-            // proxy is what makes the capture legal at all.
-            lazyPort<PersonalOrganizationProvisionApi>(ctx, 'personalOrganizationProvisionApi'),
-            commandBus,
-            // `specs/170-forms-module/` research R-17 — the anonymisation is
-            // announced in a bus scope this write awaits, so a subscriber's
-            // erasure runs within the sweep step (cms' `publishContentChange`
-            // precedent). The bus is read per call, never captured; a handler's
-            // failure is the bus's to log and never fails the sweep.
-            async (payload) => {
-              const bus = ctx.cradle<CustomerAccountsCradle>().eventBus;
-              await bus.run(async () => {
-                bus.emit(CUSTOMER_ACCOUNT_ANONYMIZED_EVENT, payload);
-              });
-            },
-            // Issue #1926 — standalone registration's transaction in a bus
-            // scope, so the personal organisation's access-cache drop follows
-            // its commit. Read per call, like the bus above.
-            (work) => ctx.cradle<CustomerAccountsCradle>().eventBus.run(work),
-          ),
+        ({ emFactory, auditLogService }: CustomerAccountsCradle) =>
+          new CustomerAccountLifecycleWriteService(emFactory, auditLogService, twoFactorEnrolments, {
+            commands: lazyPort<CustomerAccountCommandPort>(ctx, 'customerAccountCommandPort'),
+            reads: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+          }),
       )
       .singleton(),
   );
@@ -341,7 +358,12 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ commandBus }: CustomerAccountsCradle) =>
-          new CustomerAccountPreferenceService(twoFactorEnrolments, commandBus),
+          new CustomerAccountPreferenceService(
+            twoFactorEnrolments,
+            commandBus,
+            // 186 R-17.4 — the owner's choice runs the aggregate port's write.
+            lazyPort<CustomerAccountCommandPort>(ctx, 'customerAccountCommandPort'),
+          ),
       )
       .singleton(),
   );

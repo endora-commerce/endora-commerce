@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   AddressServicePort,
-  CustomerAccountLifecycleWritePort,
+  CustomerAccountCommandPort,
   PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
 import { AuditLogService } from '@endora-commerce/platform/composition';
@@ -12,6 +12,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Cart, CartAuditEntry, CustomerAccount, type CartRow } from '../../helpers/package-entities.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 import {
+  customerAccountCommandsFor,
   customerAccountPortsFor,
   personalOrganizationProvisionFor,
 } from '../../helpers/customer-account-ports.js';
@@ -19,7 +20,6 @@ import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 // `dist`, not `src` (feature 146): see `test/helpers/customer-account-ports.ts`.
 import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/dist/backend/services/customer-account-ports.js';
-import { CustomerAccountLifecycleWriteService } from '../../../../packages/modules/customer_accounts/dist/backend/services/customer-account-lifecycle-ports.js';
 import { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
 import { createAddressServicePort } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
 import { PersonalOrganizationService } from '../../../../packages/modules/organizations/src/backend/services/personal-organization-service.js';
@@ -28,7 +28,6 @@ import { CartAnonymizationService } from '../../../../packages/modules/carts/src
 import { CartAuditService } from '../../../../packages/modules/carts/src/backend/services/cart-audit-service.js';
 import { CustomerAuthorityService } from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
 import { CustomerDeletionService } from '../../../../packages/modules/customers/src/backend/services/customer-deletion-service.js';
-import type { OrganizationDepletionGuard } from '../../../../packages/modules/customers/src/backend/services/organization-depletion-guard.js';
 
 /**
  * Issue #920 — the retention sweep erases the free text operators and
@@ -55,7 +54,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
   let carts: CartAnonymizationService;
   let personalOrgs: PersonalOrganizationService;
   let addresses: AddressServicePort;
-  let accountWrites: CustomerAccountLifecycleWritePort;
+  let accountWrites: CustomerAccountCommandPort;
   let svc: CustomerDeletionService;
   /** `customer_account.anonymized.v1`, as `customer_accounts` announces it. */
   let anonymizedEvents: string[];
@@ -66,7 +65,6 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
   /** Every reason seeded on the subject's carts: none may survive in a row or an audit entry. */
   const SEEDED = [OPERATOR_REASON, APPROVER_REASON];
 
-  const DELETED_BY = { actorAdminUserId: '00000000-0000-4000-8000-00000000b920' };
   const after = (ms: number) => new Date(Date.now() + ms);
   const unique = (): string => `${Date.now()}-${Math.floor(performance.now() * 1000)}-${Math.random()}`;
 
@@ -101,7 +99,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
     };
   }
 
-  function buildService(overrides: { accountWrites?: CustomerAccountLifecycleWritePort } = {}): CustomerDeletionService {
+  function buildService(overrides: { accountWrites?: CustomerAccountCommandPort } = {}): CustomerDeletionService {
     const organizationRoles = {
       predefinedRoleId: (organizationId: string, kind: 'administrator' | 'member') =>
         predefinedRoleIdOf(em, organizationId, kind),
@@ -111,9 +109,6 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
       overrides.accountWrites ?? accountWrites,
       personalOrganizationPortOver(personalOrgs),
       new CustomerAuthorityService({ canSeeOrganization: async () => true }),
-      { destroyAllForCustomer: async () => undefined },
-      // The sweep never asks the last-administrator question.
-      {} as OrganizationDepletionGuard,
       addresses,
       async () => 365,
       // Issue #927 — the retired personal book; this file seeds no row of it.
@@ -142,16 +137,13 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
     addresses = createAddressServicePort(() => new AddressService(() => em, undefined, audit));
     personalOrgs = new PersonalOrganizationService(() => em, customerAccountPortsFor(() => em), audit);
     anonymizedEvents = [];
-    accountWrites = new CustomerAccountLifecycleWriteService(
-      () => em,
-      audit,
-      twoFactorEnrolmentsFor(() => em, 'customer'),
-      personalOrganizationProvisionFor(() => em),
-      undefined,
-      async (event) => {
+    // `specs/186-aggregate-ports/` — the writes are the aggregate port's Commands.
+    accountWrites = customerAccountCommandsFor(() => em, audit, {
+      personalOrganizations: personalOrganizationProvisionFor(() => em),
+      announceAnonymized: async (event) => {
         anonymizedEvents.push(event.customerAccountId);
       },
-    );
+    });
     svc = buildService();
   });
 
@@ -311,7 +303,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
     const before = await snapshot(byOperator.id);
     const othersBefore = await reasonsOf(othersCart.id);
 
-    await accountWrites.softDelete(subject.id, DELETED_BY);
+    await accountWrites.softDelete(subject.id);
     expect(await sweepFor([subject.id], after(60_000))).toEqual([subject.id]);
 
     expect(await reasonsOf(byOperator.id)).toEqual({ cart: null, history: [null, null] });
@@ -350,7 +342,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
     em.clear();
     const cleanUpdatedAt = (await em.findOneOrFail(Cart, { id: clean.id }, { filters: false })).updatedAt.toISOString();
 
-    await accountWrites.softDelete(subject.id, DELETED_BY);
+    await accountWrites.softDelete(subject.id);
     expect(await sweepFor([subject.id], after(60_000))).toEqual([subject.id]);
 
     expect(await reasonsOf(historyOnly.id)).toEqual({ cart: null, history: [null, null] });
@@ -364,7 +356,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
   it('I-920-3 — a run interrupted after the carts step is finished once; a second pass changes nothing', async () => {
     const subject = await personalCustomer();
     const cart = await rejectedCart(subject, { kind: 'operator' }, OPERATOR_REASON);
-    await accountWrites.softDelete(subject.id, DELETED_BY);
+    await accountWrites.softDelete(subject.id);
 
     let crashed = false;
     const crashing = buildService({
@@ -412,7 +404,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
     const colleaguesCart = await rejectedCart(colleague, { kind: 'approver', approver: subject }, APPROVER_REASON);
     const colleagueBefore = await reasonsOf(colleaguesCart.id);
 
-    await accountWrites.softDelete(subject.id, DELETED_BY);
+    await accountWrites.softDelete(subject.id);
     expect(await sweepFor([subject.id], after(60_000))).toEqual([subject.id]);
 
     expect(await reasonsOf(ownCart.id)).toEqual({ cart: null, history: [null, null] });

@@ -2383,26 +2383,26 @@ jest oferowane jako webhook.
 ## Odczyt i zmiana statusu szansy z innego modułu
 
 Dla programistów. Inny moduł albo nakładka wdrożenia pracuje z szansami przez
-dwa opublikowane porty — nigdy przez tabele ani klasy CRM. Oba typy eksportuje
-`@endora-commerce/contracts`.
+opublikowane porty — nigdy przez tabele ani klasy CRM: `opportunityReadPort`
+do odczytu i `opportunityCommandPort` do zapisu (zobacz *Zapisy po stronie
+serwera* niżej). Ich typy eksportuje `@endora-commerce/contracts`.
 
 | Nazwa w kontenerze | Typ | Co robi |
 | --- | --- | --- |
 | `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByIds(ids)`, `findByDocument(kind, documentId)`, `listOpenForOrganization(organizationId)` i `search({ q, limit })` (numer lub tytuł, najwyżej 20). Każda zwraca zwykłe wartości `OpportunityRecord` — id, numer, tytuł, organizację, kod i rodzaj statusu, osobę przypisaną, wartość, walutę, daty — albo `null` / pustą listę. `statusName(code, language)` nazywa status tak jak ekrany CRM: jego nazwą w tym języku, a w razie jej braku nazwą domyślną albo kodem. `listNotes({ organizationId?, authorAdminUserId?, createdFrom?, createdBefore?, cursor?, limit })` wypisuje notatki zapisane przy szansach, od najstarszej, stronami po najwyżej 100 — zobacz *Odczyt notatek* niżej. |
-| `opportunityTransitionPort` | `OpportunityTransitionPort` | `applyStatus({ opportunityId, to, actor, reason? })` przeprowadza szansę przez skonfigurowany przepływ, razem ze strażnikami i zdarzeniami, i zwraca wynik jako wartość. |
+| `opportunityTransitionPort` | `OpportunityTransitionPort` | **Przestarzały od 0.113.0, usuwany w 0.114.0.** `applyStatus({ opportunityId, to, actor, reason? })` wywołuje teraz `opportunityCommandPort.transition(opportunityId, { to, reason })` i zwraca ten sam wynik; przekazany `actor` nie jest już odczytywany. |
 
 ```ts
-import type { OpportunityTransitionPort } from '@endora-commerce/contracts';
+import type { OpportunityCommandPort } from '@endora-commerce/contracts';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 
-const opportunities = lazyPort<OpportunityTransitionPort>(ctx, 'opportunityTransitionPort');
+const opportunities = lazyPort<OpportunityCommandPort>(ctx, 'opportunityCommandPort');
 
-const outcome = await opportunities.applyStatus({
+const outcome = await opportunities.transition(
   opportunityId,
-  to: 'won',
-  actor: { kind: 'system' },
-  reason: 'Contract signed in the ERP',
-});
+  { to: 'won', reason: 'Contract signed in the ERP' },
+  { source: 'erp' },
+);
 if (!outcome.applied && outcome.reason !== 'already_there') {
   // 'not_found' | 'unknown_status' | 'not_permitted' | 'vetoed', with `detail`
 }
@@ -2435,13 +2435,87 @@ if (!outcome.applied && outcome.reason !== 'already_there') {
   wpisuje `crm` w `dependencies`. Moduł, który może, wpisuje go w
   `nonBindingDependencies` z `kind: 'degrades-without'`, nazwą portu i zdaniem
   `whenAbsent`, które operator przeczyta przed wyłączeniem CRM.
-- **Gdy CRM jest wyłączony, oba porty odmawiają**: pobranie któregokolwiek
+- **Gdy CRM jest wyłączony, każdy port odmawia**: pobranie któregokolwiek
   rzuca `ModuleDisabledError` (HTTP `503 MODULE_DISABLED`). Nie otaczaj
   wywołania gołym `catch` — moduł, który ma działać dalej, pyta najpierw
   `effectiveState.isPresent('crm')`.
 
 Aby reagować na zmianę statusu, a nie ją wywoływać, subskrybuj zdarzenia albo
 zarejestruj strażnika — opisuje to sekcja o własnej logice przy zmianie statusu.
+
+## Zapisy po stronie serwera
+
+Dla programistów. Inny moduł, moduł nakładki albo proces integracyjny
+(konektor CRM lub ERP) zapisuje szansę przez **`opportunityCommandPort`**, port
+zapisu szansy, zadeklarowany jako `OpportunityCommandPort` w
+`@endora-commerce/contracts`. Pobieraj go przy każdym użyciu przez
+`lazyPort<OpportunityCommandPort>(ctx, 'opportunityCommandPort')`, z `crm` w
+`dependencies` manifestu modułu wywołującego (albo w `nonBindingDependencies` z
+`kind: 'refuses-without'`).
+
+| Metoda | Akcja audytu | Co w panelu robi to samo |
+| --- | --- | --- |
+| `create(input, options?)` | `crm.opportunity.create` | `POST /api/v1/admin/crm/opportunities` |
+| `update(id, patch, options?)` | `crm.opportunity.update` | `PATCH /api/v1/admin/crm/opportunities/:id` |
+| `setCustomFieldValues(id, merge, options?)` | `crm.opportunity.update` | `PATCH /api/v1/admin/crm/opportunities/:id` z samym `customFieldValues` |
+| `assign(id, { adminUserId }, options?)` | `crm.opportunity.assign` | `POST /api/v1/admin/crm/opportunities/:id/assign` |
+| `transition(id, { to, reason? }, options?)` | `crm.opportunity.transition` | `POST /api/v1/admin/crm/opportunities/:id/transition` |
+| `setTags(id, { tagIds }, options?)` | `crm.opportunity.tag_set` | `PUT /api/v1/admin/crm/opportunities/:id/tags` |
+| `link(id, { documentKind, documentId, syncStatus? }, options?)` | `crm.opportunity.link_add` | `POST /api/v1/admin/crm/opportunities/:id/links` |
+| `unlink(id, linkId, options?)` | `crm.opportunity.link_remove` | `DELETE /api/v1/admin/crm/opportunities/:id/links/:linkId` |
+| `addComment(id, { kind, body }, options?)` | `crm.opportunity.note_add`, `crm.opportunity.message_add` | `POST /api/v1/admin/crm/opportunities/:id/comments` |
+| `delete(id, options?)` | `crm.opportunity.delete` | `DELETE /api/v1/admin/crm/opportunities/:id` |
+
+**Jedna ścieżka zapisu.** Każda metoda uruchamia to samo polecenie (Command) co
+endpoint panelu, tym samym kodem, więc oba zapisy nie mogą się różnić: jeden
+wpis audytu z tym samym stanem, te same zdarzenia i te same dalsze kroki —
+powiadomienie osoby przypisanej i osób wspomnianych, przeliczenie wartości po
+zmianie powiązania albo po przejściu na wartość wyliczaną. Zmiana statusu
+uruchamia strażników, prosi powiązane zamówienia o podążenie za szansą i
+ogłasza zmianę, dokładnie tak jak z panelu. Dane wejściowe to ciała żądań
+endpointów, walidowane w tych samych granicach; dane poza nimi kończą się
+odmową `422 VALIDATION_FAILED`. Odmowy to błędy endpointów z ich kodami
+(`404 CRM_OPPORTUNITY_NOT_FOUND`, `422 CRM_ASSIGNEE_INVALID`,
+`422 CUSTOM_FIELD_VALUE_INVALID`, `409 CRM_DOCUMENT_ALREADY_LINKED` i własne
+kody każdej operacji), z jednym wyjątkiem: **`transition` zwraca odmowę jako
+wartość**, wynik pokazany wyżej, więc sprzeciw strażnika to `vetoed` z jego
+zdaniem, a nie błąd. Metody zmieniające szansę zwracają jej `OpportunityRecord`
+razem z wartościami pól własnych; `link` zwraca powiązanie, a `addComment`
+notatkę albo wiadomość.
+
+**Wartości pól własnych.** `setCustomFieldValues` przekazuje twojej funkcji
+`merge` kopię bieżących wartości, gdy szansa jest zablokowana, i zapisuje to, co
+funkcja zwróci. Waliduj wewnątrz niej przez `CustomFieldValuePort.validateAndMerge`;
+CRM nie waliduje za ciebie, a odmowa, którą rzucisz, niczego nie zapisuje.
+
+**Kto zapisał.** Autorem jest bieżący kontekst, nigdy parametr: administrator
+w żądaniu panelu albo w `withSystemScopeActingFor`; aktor **systemowy** w
+`withSystemScope` w procesie w tle. Zmiana statusu bez administratora jest
+zapisywana z przyczyną *system*. **Notatka i wiadomość potrzebują autora**, więc
+`addComment` bez administratora kończy się odmową `403 FORBIDDEN`; proces w tle
+zapisuje ją w `withSystemScopeActingFor`. Port nie sprawdza uprawnień — to
+wywołujący jest bramką — więc nigdy nie pobieraj go dla trasy dostępnej
+klientowi. Wywołuj go po własnym zatwierdzeniu transakcji: każde wywołanie jest
+osobną transakcją.
+
+**Opcje** (ostatni parametr każdej metody):
+
+- `source` — kod pisany małymi literami, nazywający integrację (`erp`,
+  `crm.connector`, najwyżej 64 znaki), zapisywany jako `source` we wpisie
+  audytu obok aktora. Każda inna wartość kończy się odmową
+  `422 VALIDATION_FAILED`, zanim cokolwiek zostanie odczytane lub zapisane.
+  Historia zmian szansy go nie pokazuje; dziennik audytu tak.
+- `expectedVersion` — `version` szansy, którą odczytałeś. `update` go
+  przestrzega, tak jak `If-Match` w panelu, i odmawia zapisu szansy, która się
+  zmieniła, kodem `409 VERSION_CONFLICT`. Pozostałe metody go pomijają.
+- `extensions` — żaden zapis CRM nie jest zadeklarowany jako dostępny dla
+  hooków, więc każdy klucz kończy się odmową `422 COMMAND_EXTENSION_UNCLAIMED`,
+  zanim cokolwiek zostanie odczytane lub zapisane.
+
+**Czego port nie oferuje**: załączników, wydarzeń i ich przypomnień, ponawiania
+ani odrzucania zmiany zamówienia, której odmówiono, przeliczania wartości ani
+tego, czy powiązane zamówienie podąża za szansą. Przepływ, tagi i mapowania
+statusów zamówień to konfiguracja, a nie część szansy.
 
 ## Włączanie i wyłączanie
 

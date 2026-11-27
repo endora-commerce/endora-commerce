@@ -847,14 +847,14 @@ hooks registered on it and the outbox rows waiting or failed.
 
 | Action | Ref | Written by | Hook data |
 | --- | --- | --- | --- |
-| `projects.project.create` | `PROJECT_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/projects` | `projectId`, `stageId`, `templateId`, `organizationIds`, `changedCustomFields` |
-| `projects.project.update` | `PROJECT_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/projects/:id` (title, description, value, start date) | `projectId`, `changedFields` |
-| `projects.project.custom_fields_update` | `PROJECT_HOOKABLE_ACTIONS.customFieldsUpdate` | `PATCH /api/v1/admin/projects/:id` (custom fields) | `projectId`, `changedCustomFields` |
-| `projects.project.organization_add` | `PROJECT_HOOKABLE_ACTIONS.organizationAdd` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `targetOrganizationId`, `changed` |
-| `projects.project.organization_remove` | `PROJECT_HOOKABLE_ACTIONS.organizationRemove` | `PUT /api/v1/admin/projects/:id/organizations` | `projectId`, `targetOrganizationId`, `changed` |
-| `projects.project.stage_move` | `PROJECT_HOOKABLE_ACTIONS.stageMove` | `POST /api/v1/admin/projects/:id/move` | `projectId`, `fromStageId`, `toStageId` |
-| `projects.project.close` | `PROJECT_HOOKABLE_ACTIONS.close` | `POST /api/v1/admin/projects/:id/close` | `projectId`, `state` (`completed` or `lost`), `stageId`, `lossReasonCode` |
-| `projects.project.reopen` | `PROJECT_HOOKABLE_ACTIONS.reopen` | `POST /api/v1/admin/projects/:id/reopen` | `projectId`, `stageId`, `previousState` |
+| `projects.project.create` | `PROJECT_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/projects`, `projectCommandPort.create` | `projectId`, `stageId`, `templateId`, `organizationIds`, `changedCustomFields` |
+| `projects.project.update` | `PROJECT_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/projects/:id` (title, description, value, start date), `projectCommandPort.update` | `projectId`, `changedFields` |
+| `projects.project.custom_fields_update` | `PROJECT_HOOKABLE_ACTIONS.customFieldsUpdate` | `PATCH /api/v1/admin/projects/:id` (custom fields), `projectCommandPort.setCustomFieldValues` | `projectId`, `changedCustomFields` |
+| `projects.project.organization_add` | `PROJECT_HOOKABLE_ACTIONS.organizationAdd` | `PUT /api/v1/admin/projects/:id/organizations`, `projectCommandPort.setOrganizations` | `projectId`, `targetOrganizationId`, `changed` |
+| `projects.project.organization_remove` | `PROJECT_HOOKABLE_ACTIONS.organizationRemove` | `PUT /api/v1/admin/projects/:id/organizations`, `projectCommandPort.setOrganizations` | `projectId`, `targetOrganizationId`, `changed` |
+| `projects.project.stage_move` | `PROJECT_HOOKABLE_ACTIONS.stageMove` | `POST /api/v1/admin/projects/:id/move`, `projectCommandPort.moveToStage` | `projectId`, `fromStageId`, `toStageId` |
+| `projects.project.close` | `PROJECT_HOOKABLE_ACTIONS.close` | `POST /api/v1/admin/projects/:id/close`, `projectCommandPort.close` | `projectId`, `state` (`completed` or `lost`), `stageId`, `lossReasonCode` |
+| `projects.project.reopen` | `PROJECT_HOOKABLE_ACTIONS.reopen` | `POST /api/v1/admin/projects/:id/reopen`, `projectCommandPort.reopen` | `projectId`, `stageId`, `previousState` |
 
 All eight offer both phases, and the outbox row carries the same data as the
 hook. Both carry **ids, codes and field names only**: never the title, the
@@ -882,8 +882,10 @@ Three things to know when you hook these writes:
   owning Organization, and seeing it takes all of its Organizations, so a
   handler pinned to one of them could not read the project back. Every project
   `afterCommit` handler runs in system scope.
-- **Extension input is not wired yet.** No route body and no port carries
-  `extensions` to these commands, so a hook cannot be handed input of its own.
+- **Extension input comes from server-side callers only.** No route body
+  carries `extensions`; the last argument of every `projectCommandPort` method
+  does (see *Writing projects from another module*). On `setOrganizations` it
+  reaches each `organization_add` and `organization_remove`.
 
 Every other write of the module is a command too, and is **not** declared
 hookable — a hook registered on one of these actions is refused at startup:
@@ -1066,7 +1068,7 @@ It is gated: resolving it while Projects is off throws, and the call answers
 
 | Method | What it answers |
 | --- | --- |
-| `findById(id)` | The project as a `ProjectRecord` — `id`, `number`, `title`, `state`, `currentStageId`, `currentStageName`, `organizationIds`, `valueAmount`, `valueCurrency`, `templateId`, `closedAt`, `createdAt` — or `null`. |
+| `findById(id)` | The project as a `ProjectRecord` — `id`, `number`, `title`, `state`, `currentStageId`, `currentStageName`, `organizationIds`, `valueAmount`, `valueCurrency`, `templateId`, `closedAt`, `createdAt`, `customFieldValues`, `version`, `configurationVersion` — or `null`. |
 | `findByRecord(kind, id)` | The project an `order`, `quote_request` or `opportunity` is linked to, as a `ProjectRecord`, or `null`. |
 | `findByIds(ids)` | The projects of `ids`, in no particular order; an id the caller may not see, or that does not exist, is left out. |
 | `search({ q, limit })` | The projects whose number or title contains `q`, newest first, at most `limit` (20 at most). |
@@ -1083,6 +1085,11 @@ All of them answer for the caller, through `ProjectAccess` under the caller's ow
 tenant context: a project that does not exist, one out of the caller's reach
 and one the caller may not see are the same `null` — or are left out. The answer is a plain
 object, never an entity.
+
+`customFieldValues` is the project's custom-field values as stored, every
+field included — also one the admin panel hides or shows read-only, since the
+reader is code. `version` and `configurationVersion` are the two tokens a
+write through `projectCommandPort` can pass back as `expectedVersion`.
 
 `listNotes` lists notes only — never the internal messages, and never a deleted
 note — and only those of projects the caller may see. Every filter is optional
@@ -1137,6 +1144,102 @@ texts).
 ids only — is published once per completed merge and offered as a webhook
 event type. A project belongs to no single Organization, so it reaches
 platform-wide webhook subscriptions.
+
+### Writing projects from another module
+
+Another module, an overlay module or an integration worker writes a project
+through **`projectCommandPort`**, the Project aggregate's write port, declared
+as `ProjectCommandPort` in `@endora-commerce/contracts`. It never writes this
+module's tables itself. Resolve it per use with
+`lazyPort<ProjectCommandPort>(ctx, 'projectCommandPort')` and declare the edge in
+your manifest: `projects` can be switched off, so either list it in
+`dependencies` or declare a `nonBindingDependencies` entry of kind
+`refuses-without`. It is gated like the read port: while Projects is off,
+resolving it throws and the call answers `503` `MODULE_DISABLED`, and nothing
+is written. Do not catch that refusal and carry on.
+
+Each method runs the command the admin route for the same operation runs,
+through the same service, so the audit trail, the command hooks and everything
+that follows the write are the same:
+
+| Method | Audit action | What the admin does the same way |
+| --- | --- | --- |
+| `create(input, options?)` | `projects.project.create` | `POST /api/v1/admin/projects` |
+| `update(id, { title?, description?, value?, startOn? }, options?)` | `projects.project.update` | `PATCH /api/v1/admin/projects/:id` (those four fields) |
+| `setCustomFieldValues(id, merge, options?)` | `projects.project.custom_fields_update` | `PATCH /api/v1/admin/projects/:id` (`customFieldValues`) |
+| `setOrganizations(id, { organizationIds }, options?)` | `projects.project.organization_add`, `.organization_remove` | `PUT /api/v1/admin/projects/:id/organizations` |
+| `setMembers(id, { members }, options?)` | `projects.project.member_set` | `PUT /api/v1/admin/projects/:id/members` |
+| `moveToStage(id, { toStageId }, options?)` | `projects.project.stage_move` | `POST /api/v1/admin/projects/:id/move` |
+| `close(id, { outcome, lossReasonId?, comment? }, options?)` | `projects.project.close` | `POST /api/v1/admin/projects/:id/close` |
+| `reopen(id, options?)` | `projects.project.reopen` | `POST /api/v1/admin/projects/:id/reopen` |
+| `link(id, { kind, recordId }, options?)` | `projects.project.link_add` | `POST /api/v1/admin/projects/:id/links` |
+| `unlink(id, linkId, options?)` | `projects.project.link_remove` | `DELETE /api/v1/admin/projects/:id/links/:linkId` |
+| `addComment(id, { kind, body }, options?)` | `projects.project.note_add`, `.message_add` | `POST /api/v1/admin/projects/:id/comments` |
+| `delete(id, options?)` | `projects.project.delete` | `DELETE /api/v1/admin/projects/:id` |
+
+Most methods answer the project as a `ProjectRecord`, read after the write.
+`setOrganizations` answers `null` when the change took the project out of the
+caller's own reach; `link` answers `{ linkId }` and `addComment`
+`{ commentId }`. Archiving and restoring a project are not offered, because
+the module has no such operation. Its visibility and listed people, its stages,
+workflow and stage tasks, templates, roles, loss reasons and attachments are
+configuration and are not offered either.
+
+**No permission is checked**: the caller is the gate, and the port is never
+resolved for a customer-facing route. **The actor is the ambient one**, never
+an argument. A worker calls under `withSystemScope(reason)`: it sees every
+project, and each entry records the `system` actor. Under
+`withSystemScopeActingFor(adminUserId, reason)` it acts as that administrator
+and sees only what they may see. `create` and `addComment` record an
+administrator on the row (who created the project, who wrote the comment), so
+they are refused `403` `FORBIDDEN` before anything is read when no
+administrator is behind the call. Run them under `withSystemScopeActingFor`.
+
+**What follows a write follows a port call too**: the stage tasks of a stage
+entered by `create` or `moveToStage` (while Tasks is on), the people a
+description or a comment newly mentions, the members told of a message, the
+tasks of a deleted project, and the module's events. The registered stage
+guards run on `moveToStage`, `close` and `reopen`, and a refusal is `409`
+`PROJECT_GUARD_REFUSED`. The other refusals are the admin route's codes, and an
+input outside the route's limits is `422` `VALIDATION_FAILED`.
+
+**`setCustomFieldValues`** takes a callback over the stored values. The module
+runs it under the project's lock, between its own read and its own write, and
+does not validate: call `CustomFieldValuePort.validateAndMerge('project', current, patch)`
+inside it. A callback that changes nothing writes and records nothing. The
+admin edit runs the same audit action, so a command hook that has to see every
+change of the values registers once.
+
+**Options**, the last argument of every method:
+
+- `source` — a code naming your integration (`^[a-z][a-z0-9_.-]{0,63}$`),
+  recorded on each audit entry beside the actor. Anything else is refused
+  `422` `VALIDATION_FAILED` before anything is read.
+- `expectedVersion` — the token you read: `version` of the record on `update`,
+  `setCustomFieldValues`, `moveToStage`, `close` and `reopen`, and
+  `configurationVersion` on `setOrganizations` and `setMembers`. A stale one is
+  refused `409` `PROJECT_CHANGED`, the code the admin routes answer. Without
+  it, the write is held to the version the method reads itself. `link`,
+  `unlink`, `addComment` and `delete` ignore it.
+- `extensions` — input for the command hooks on the action, keyed by hook
+  module id. A key no present hook module claims is refused `422`
+  `COMMAND_EXTENSION_UNCLAIMED` before anything is written, so every key is
+  refused on `setMembers`, `link`, `unlink`, `addComment` and `delete`, whose
+  actions are not hookable.
+
+A call is its own transaction. Call it after your own commit, never inside
+it; to write atomically with a project write, use a `beforeCommit` command
+hook on it instead.
+
+**An example: an investor on a project.** A deployment keeps each project's
+investor in a table of its own, keyed by the project, and must make the
+investor a related payer of the project's organizations. It needs no change
+to this module. It learns of changes from the hookable actions above:
+`organization_add` and `organization_remove` name each organization. It reads
+the project's `organizationIds` through `projectReadPort` and calls
+`relatedPayerWritePort.addPayer` for each. If the investor is a custom field
+instead, the deployment reads it from the record's `customFieldValues` and
+writes it through `projectCommandPort.setCustomFieldValues`.
 
 ### One read path
 

@@ -463,6 +463,37 @@ const PUBLISHED_COMMANDS_SURFACE: Readonly<Record<string, readonly string[]>> = 
   'hooks/origin.js': ['currentCommandHookOrigin', 'CommandHookOrigin'],
   /** 176 P3 — what an `afterCommit` handler throws to dead-letter its row at once. */
   'outbox/errors.js': ['PermanentOutboxFailure'],
+  /**
+   * `specs/189-command-middleware/` P1 (`contracts/command-middleware-api.md`
+   * §2, §3) — what a middleware author writes against: the entry
+   * `ctx.commandMiddleware` takes, what `admit` and `observe` receive, and the
+   * running middleware's shape.
+   */
+  'middleware/types.js': [
+    'CommandAdmissionMeta',
+    'CommandAdmitHandler',
+    'CommandMiddlewareCallContext',
+    'CommandMiddlewareEntry',
+    'CommandMiddlewareOrigin',
+    'CommandObserveHandler',
+    'CommandRunEntry',
+    'CommandRunOutcome',
+  ],
+  /** The refusal class and the composition refusals a middleware author meets at boot. */
+  'middleware/errors.js': [
+    'CommandRefusedError',
+    'CommandRefusalStatus',
+    'UndeclaredCommandMiddlewareError',
+    'UnregisteredCommandMiddlewareError',
+    'CommandMiddlewarePhaseMismatchError',
+    'DuplicateCommandMiddlewareError',
+    'CommandMiddlewareOriginError',
+    'UnorderedCommandMiddlewareError',
+    'CommandMiddlewareOrderContradictionError',
+    'StaleCommandMiddlewareOrderError',
+  ],
+  /** The running middleware, for the re-entry guard's readers. */
+  'middleware/origin.js': ['currentCommandMiddlewareOrigin'],
 };
 
 /** `src/http/index.ts` — the `./http` subpath, as MR !880 built it. */
@@ -785,7 +816,11 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   // sealed against. Beside `requiredModulesFrom` for its reason; the test kit's
   // `composeTestServer` and its `command-hooks` helper are the consumers.
   'commands/hooks/registry.ts': ['CommandHookRegistry'],
-  'kernel/lifecycle/command-hook-inputs.ts': ['hookableActionsFrom', 'moduleDependencyClosureFrom'],
+  'kernel/lifecycle/command-hook-inputs.ts': ['commandMiddlewareFrom', 'hookableActionsFrom', 'moduleDependencyClosureFrom'],
+  // `specs/189-command-middleware/` P1 — the command-middleware registry, beside
+  // the hook registry for its reason; the test kit's `composeTestServer` and
+  // its `command-middleware` helpers are the consumers.
+  'commands/middleware/registry.ts': ['CommandMiddlewareRegistry'],
   // `specs/176-command-hooks-outbox/` P3 — the outbox's host half. Both roots
   // build the wake-up they hand their `CommandBus`; the generated entity
   // registry names the entity class (`ModuleRegistration`'s reason, below);

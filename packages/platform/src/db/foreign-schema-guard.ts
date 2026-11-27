@@ -915,6 +915,9 @@ export interface AuditedPackage {
   readonly entities: readonly unknown[];
   readonly migrations: readonly { readonly cls: unknown }[];
   readonly schemaExtensions?: readonly ColumnExtension[];
+  /** Its manifest's `dependencies` and `extends` — `audit-packages`' side-table verdicts (`specs/187-side-table-extensions/`). */
+  readonly dependencies?: readonly string[];
+  readonly entityExtensions?: readonly unknown[];
 }
 
 export interface ForeignWriteAudit {

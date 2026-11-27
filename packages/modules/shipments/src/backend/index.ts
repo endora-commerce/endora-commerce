@@ -5,7 +5,7 @@ import type {
   DeliveryMethodReadPort,
   EmailDefaultsRegistryPort,
   OrderReadPort,
-  OrderTransitionPort,
+  OrderCommandPort,
   ReceiveShipmentPort,
   ShipmentReadPort,
   ShipmentStatus,
@@ -195,8 +195,9 @@ export function registerModule(ctx: ModuleContext): void {
   /**
    * The carrier callback ingress.
    *
-   * **`orderTransitionPort` replaces two of the names this took** (feature 085
-   * Phase D). `orderStatusAnnouncePort` goes because the transition seam emits
+   * **`orderTransitionPort` replaced two of the names this took** (feature 085
+   * Phase D), and `orderCommandPort` replaced it in 0.113.0
+   * (`specs/186-aggregate-ports/`). `orderStatusAnnouncePort` goes because the transition seam emits
    * the templated `.after` events itself, so announcing beside it would double
    * every subscriber's reaction; `shippingOrderStatusRegistry` goes because "is
    * this a status code" was never the question a carrier callback needed
@@ -211,7 +212,7 @@ export function registerModule(ctx: ModuleContext): void {
           new ReceiveShipmentHandler(
             emFactory,
             lazyPort<DeliveryMethodReadPort>(ctx, 'deliveryMethodReadPort'),
-            lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
+            lazyPort<OrderCommandPort>(ctx, 'orderCommandPort'),
             ctx.log,
             eventBus as ShippingEventBus,
           ),

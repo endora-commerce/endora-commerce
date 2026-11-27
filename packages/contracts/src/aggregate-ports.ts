@@ -16,8 +16,9 @@ import { z } from 'zod';
  *   anything is written (`specs/176-command-hooks-outbox/`).
  * - `expectedVersion` — the aggregate `version` the caller read. Honoured where
  *   the aggregate has a `version` its admin route checks: a row that has moved on
- *   is refused `409 VERSION_CONFLICT`. A port whose aggregate has none says in
- *   its JSDoc that the member is ignored.
+ *   is refused `409` with the code the owner's admin route answers —
+ *   `VERSION_CONFLICT` unless the port's JSDoc names its own. A port whose
+ *   aggregate has none says in its JSDoc that the member is ignored.
  * - `source` — a code naming the integration that called
  *   ({@link aggregateCommandSourceSchema}), recorded as `source` in the Command's
  *   audit `stateAfter`. With no administrator the actor is `system`, and this

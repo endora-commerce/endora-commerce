@@ -26,22 +26,22 @@ import { PersonalOrganizationService } from '../../../../packages/modules/organi
 import { toOrganizationRecord } from '../../../../packages/modules/organizations/src/backend/services/organization-details-port.js';
 import { hashPassword } from '@endora-commerce/platform/kernel';
 import {
+  customerAccountCommandsFor,
   customerAccountPortsFor,
   personalOrganizationProvisionFor,
 } from '../../helpers/customer-account-ports.js';
 import type {
   AddressServicePort,
-  CustomerAccountLifecycleWritePort,
+  CustomerAccountCommandPort,
   PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
+import { withSystemScopeActingFor } from '@endora-commerce/platform/tenancy';
 // `dist`, not `src` (feature 146): see `test/helpers/customer-account-ports.ts` —
 // a source-evaluated `CustomerAccount` makes `QuoteRequestAccountPolicy`'s
 // transitive parent ambiguous and the ORM refuses to initialise.
 import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/dist/backend/services/customer-account-ports.js';
-import { CustomerAccountLifecycleWriteService } from '../../../../packages/modules/customer_accounts/dist/backend/services/customer-account-lifecycle-ports.js';
 import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
-import { OrganizationDepletionGuard } from '../../../../packages/modules/customers/src/backend/services/organization-depletion-guard.js';
 import { Address, Order } from '../../helpers/package-entities.js';
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 import { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
@@ -82,7 +82,8 @@ describe('CustomerDeletionService', () => {
   });
 
   let audit: AuditLogService;
-  let accountWrites: CustomerAccountLifecycleWritePort;
+  /** `customer_accounts`' aggregate port, which the service's writes run on since `specs/186-aggregate-ports/`. */
+  let accountWrites: CustomerAccountCommandPort;
   let organizationRoles: {
     predefinedRoleId: (organizationId: string, kind: 'administrator' | 'member') => Promise<string>;
   };
@@ -120,7 +121,7 @@ describe('CustomerDeletionService', () => {
    * swapped — which is how a crash between two of the sweep's writes is staged.
    */
   function buildService(overrides: {
-    accountWrites?: CustomerAccountLifecycleWritePort;
+    accountWrites?: CustomerAccountCommandPort;
     personalOrganizations?: PersonalOrganizationPort;
     addresses?: Pick<AddressServicePort, 'anonymizeForOrganization'>;
     history?: AnonymizedHistoryDeps;
@@ -134,22 +135,13 @@ describe('CustomerDeletionService', () => {
           finished.push(id);
           return record;
         },
+        // The operator's request around the operator's writes, as the admin
+        // route has it: the Command takes its actor from the ambient scope.
+        softDelete: (id: string) => asOperator(() => writes.softDelete(id)),
+        restore: (id: string) => asOperator(() => writes.restore(id)),
       }),
       overrides.personalOrganizations ?? personalOrganizationPortOver(personalOrgs),
       new CustomerAuthorityService({ canSeeOrganization: async () => true }),
-      { destroyAllForCustomer: (id: string) => sessions.destroyAllForCustomer(id) },
-      // `specs/170-organization-roles/` WP-03 (T120) — the guard against deleting
-      // a company Organization's last administrator.
-      new OrganizationDepletionGuard({
-        accounts,
-        organizations: {
-          findById: async (id) => {
-            const org = await em.findOne(Organization, { id });
-            return org ? toOrganizationRecord(org) : null;
-          },
-        },
-        organizationRoles,
-      }),
       // `specs/173-b2c-address-book-merge/` OD-7 — the scrubbed personal
       // Organization's saved addresses go with it.
       overrides.addresses ?? addresses,
@@ -183,16 +175,14 @@ describe('CustomerDeletionService', () => {
     accounts = new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer'), organizationRoles);
     anonymizedEvents = [];
     finished = [];
-    accountWrites = new CustomerAccountLifecycleWriteService(
-      () => em,
-      audit,
-      twoFactorEnrolmentsFor(() => em, 'customer'),
-      personalOrganizationProvisionFor(() => em),
-      undefined,
-      async (event) => {
+    accountWrites = customerAccountCommandsFor(() => em, audit, {
+      personalOrganizations: personalOrganizationProvisionFor(() => em),
+      // A deletion ends the account's sessions after its commit.
+      sessions: { destroyAllForCustomer: (id: string) => sessions.destroyAllForCustomer(id) },
+      announceAnonymized: async (event) => {
         anonymizedEvents.push(event.customerAccountId);
       },
-    );
+    });
     svc = buildService();
   });
 
@@ -228,6 +218,9 @@ describe('CustomerDeletionService', () => {
    * port is a class instance, whose methods live on its prototype and use
    * private fields, so a spread copies none of them.
    */
+  const asOperator = <T>(fn: () => Promise<T>): Promise<T> =>
+    withSystemScopeActingFor(actor.adminUserId, 'customers deletion test: the operator', fn);
+
   function overriding<T extends object>(target: T, replaced: Partial<T>): T {
     return new Proxy(target, {
       get(t, key) {
@@ -858,16 +851,12 @@ describe('CustomerDeletionService', () => {
       },
     } as unknown as AuditLogService;
     const emitted: string[] = [];
-    const writes = new CustomerAccountLifecycleWriteService(
-      () => em,
-      failingAudit,
-      twoFactorEnrolmentsFor(() => em, 'customer'),
-      personalOrganizationProvisionFor(() => em),
-      undefined,
-      async (event) => {
+    const writes = customerAccountCommandsFor(() => em, failingAudit, {
+      personalOrganizations: personalOrganizationProvisionFor(() => em),
+      announceAnonymized: async (event) => {
         emitted.push(event.customerAccountId);
       },
-    );
+    });
 
     await expect(writes.anonymize(customer.id)).rejects.toThrow('audit unavailable');
 
@@ -879,7 +868,7 @@ describe('CustomerDeletionService', () => {
     expect(account.customFieldValues).toEqual({ birthday: '1990-01-01', shoe_size: 44 });
     expect(emitted).toEqual([]);
     // Still due, so the next tick retries it.
-    const due = await accountWrites.listDueForAnonymization(after(60_000));
+    const due = await accounts.listDueForAnonymization(after(60_000));
     expect(due.map((d) => d.id)).toContain(customer.id);
   });
 
@@ -887,13 +876,9 @@ describe('CustomerDeletionService', () => {
     const customer = await makeFullyPopulatedPersonalCustomer();
     await svc.softDelete(customer.id, actor);
     const seenAtEmit: Array<{ anonymized: boolean; auditRows: number }> = [];
-    const writes = new CustomerAccountLifecycleWriteService(
-      () => em,
-      audit,
-      twoFactorEnrolmentsFor(() => em, 'customer'),
-      personalOrganizationProvisionFor(() => em),
-      undefined,
-      async (event) => {
+    const writes = customerAccountCommandsFor(() => em, audit, {
+      personalOrganizations: personalOrganizationProvisionFor(() => em),
+      announceAnonymized: async (event) => {
         // Read from the database, not from the instance the service holds.
         const [row] = await em.execute<Array<{ anonymized_at: Date | string | null }>>(
           'select anonymized_at from customer_accounts where id = ?',
@@ -908,7 +893,7 @@ describe('CustomerDeletionService', () => {
         });
         throw new Error('subscriber failed');
       },
-    );
+    });
 
     // A failing subscriber is reported, but cannot undo a committed scrub.
     await expect(writes.anonymize(customer.id)).rejects.toThrow('subscriber failed');
@@ -1107,7 +1092,7 @@ describe('CustomerDeletionService', () => {
     customer.preferredLanguage = 'en-US';
     await em.flush();
 
-    const due = await accountWrites.listDueForAnonymization(after(60_000));
+    const due = await accounts.listDueForAnonymization(after(60_000));
     expect(due.map((d) => d.id)).toContain(customer.id);
     expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
 
@@ -1446,8 +1431,8 @@ describe('CustomerDeletionService', () => {
    */
   it('I-24 — hasDueForAnonymization agrees with listDueForAnonymization (#857)', async () => {
     const agrees = async (cutoff: Date): Promise<string[]> => {
-      const due = (await accountWrites.listDueForAnonymization(cutoff)).map((d) => d.id);
-      expect(await accountWrites.hasDueForAnonymization(cutoff)).toBe(due.length > 0);
+      const due = (await accounts.listDueForAnonymization(cutoff)).map((d) => d.id);
+      expect(await accounts.hasDueForAnonymization(cutoff)).toBe(due.length > 0);
       return due;
     };
 
@@ -1464,7 +1449,7 @@ describe('CustomerDeletionService', () => {
 
     expect(await agrees(new Date(deletedAt.getTime() - 1))).not.toContain(c.id);
     expect(await agrees(after(60_000))).toContain(c.id);
-    expect(await accountWrites.hasDueForAnonymization(after(60_000))).toBe(true);
+    expect(await accounts.hasDueForAnonymization(after(60_000))).toBe(true);
 
     await accountWrites.anonymize(c.id);
     expect(await agrees(after(60_000))).not.toContain(c.id);
@@ -1484,11 +1469,11 @@ describe('CustomerDeletionService', () => {
     // can put the account on the list.
     const cutoff = new Date(deletedAt.getTime() - 365 * 24 * 60 * 60 * 1000);
 
-    expect((await accountWrites.listDueForAnonymization(cutoff)).map((d) => d.id)).toContain(customer.id);
-    expect(await accountWrites.hasDueForAnonymization(cutoff)).toBe(true);
+    expect((await accounts.listDueForAnonymization(cutoff)).map((d) => d.id)).toContain(customer.id);
+    expect(await accounts.hasDueForAnonymization(cutoff)).toBe(true);
 
     await accountWrites.anonymize(customer.id);
-    expect((await accountWrites.listDueForAnonymization(cutoff)).map((d) => d.id)).not.toContain(customer.id);
+    expect((await accounts.listDueForAnonymization(cutoff)).map((d) => d.id)).not.toContain(customer.id);
   });
 
   /**
@@ -1505,7 +1490,7 @@ describe('CustomerDeletionService', () => {
     // A cutoff a year back: the account is finished and outside it, so only
     // the organisation side can put the subject on the work list.
     const cutoff = new Date(scrubbedAt.getTime() - 365 * 24 * 60 * 60 * 1000);
-    expect((await accountWrites.listDueForAnonymization(cutoff)).map((d) => d.id)).not.toContain(customer.id);
+    expect((await accounts.listDueForAnonymization(cutoff)).map((d) => d.id)).not.toContain(customer.id);
 
     // The organisation probe agrees with its list, and the tick's question says yes.
     expect(await personalOrgs.listIncompletelyScrubbed()).toContain(org.id);

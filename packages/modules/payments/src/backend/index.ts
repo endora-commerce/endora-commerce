@@ -4,7 +4,7 @@ import type {
   EmailDefaultsRegistryPort,
   GatewayRefundRegistryPort,
   OrderReadPort,
-  OrderTransitionPort,
+  OrderCommandPort,
   PaymentAdapterRegistryPort,
   PaymentEmailRendererPort,
   PaymentMethodReadPort,
@@ -182,9 +182,6 @@ export function registerModule(ctx: ModuleContext): void {
             // singleton is a gate that keeps answering after an operator
             // switches the owner off.
             paymentService: lazyPort<PaymentService>(ctx, 'paymentService'),
-            // The terminality read (feature 085 Phase D): the same port the
-            // settlement handler writes through, resolved for its read half.
-            orderTransition: lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
             paymentAdapterRegistry: () =>
               ctx.cradle<PaymentsCradle>().paymentAdapterRegistry,
             // No `catch` around the port call, for the reason `orders` and
@@ -354,7 +351,8 @@ export function registerModule(ctx: ModuleContext): void {
    * three of a kind, and the difference is which transaction each runs in:
    * `paymentMethodReadPort` is a read of a row the settlement never writes,
    * `orderPaymentStatusApplyPort` is the co-transactional write above, and
-   * `orderTransitionPort` is called after the commit.
+   * `orderCommandPort` (`orderTransitionPort` until 0.113.0,
+   * `specs/186-aggregate-ports/`) is called after the commit.
    *
    * **`orderTransitionPort` replaces two of the three names this used to take**
    * (feature 085 Phase D). `orderStatusAnnouncePort` goes because the transition
@@ -372,7 +370,7 @@ export function registerModule(ctx: ModuleContext): void {
           new ReceivePaymentHandler(
             emFactory,
             lazyPort<PaymentMethodReadPort>(ctx, 'paymentMethodReadPort'),
-            lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
+            lazyPort<OrderCommandPort>(ctx, 'orderCommandPort'),
             lazyPort<OrderPaymentStatusApplyPort>(ctx, 'orderPaymentStatusApplyPort'),
             lazyPort<OrderPaymentSettlementEffectsPort>(ctx, 'orderPaymentSettlementEffectsPort'),
             ctx.log,

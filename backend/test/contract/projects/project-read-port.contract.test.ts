@@ -105,6 +105,10 @@ describe('projects (contract) — projectReadPort', () => {
       mergedIntoProjectId: null,
       mergedAt: null,
       mergeId: null,
+      // `specs/186-aggregate-ports/` FR-015 and R-22.3.
+      customFieldValues: {},
+      version: open.version,
+      configurationVersion: open.configurationVersion,
     });
     expect(Object.getPrototypeOf(record)).toBe(Object.prototype);
   });

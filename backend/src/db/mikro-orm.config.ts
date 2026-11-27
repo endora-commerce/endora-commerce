@@ -32,6 +32,7 @@ import { mikroOrmConfigFrom } from '@endora-commerce/platform/db';
 import type { Options } from '@mikro-orm/postgresql';
 
 import { configuredEntities } from './configured-entities.js';
+import { ENTITY_OWNERS } from './entities-registry.generated.js';
 import { configuredMigrations } from './configured-migrations.js';
 
 let memoised: Promise<Options> | undefined;
@@ -42,7 +43,10 @@ export default async function mikroOrmConfig(): Promise<Options> {
       configuredEntities(),
       configuredMigrations(),
     ]);
-    return mikroOrmConfigFrom({ entities, migrations });
+    // `ENTITY_OWNERS` tells the side-table rules which committed module owns
+    // which table (`specs/187-side-table-extensions/` M2, U1); the packages'
+    // and overlays' owners and every declaration come with `migrations`.
+    return mikroOrmConfigFrom({ entities, migrations, coreEntityOwners: ENTITY_OWNERS });
   })();
   return memoised;
 }

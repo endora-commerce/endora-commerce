@@ -23,6 +23,8 @@ import type { InterceptorRegistration } from '../http/interceptors/types.js';
 import type { CommandHookRegistry } from '../commands/hooks/registry.js';
 import type { CommandHookEntry } from '../commands/hooks/types.js';
 import type { RecordMergeRegistry } from './merge/registry.js';
+import type { CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
+import type { CommandMiddlewareEntry } from '../commands/middleware/types.js';
 import {
   defineModuleRoutes,
   defineModuleWorker,
@@ -749,6 +751,29 @@ export interface ModuleContext {
   };
 
   /**
+   * Command middleware owned by this module (`specs/189-command-middleware/`
+   * FR-002, `contracts/command-middleware-api.md` §2): code the Command Bus
+   * runs for **every** Command whose action matches the filter the manifest
+   * declares — `admit` before the Command does anything, `observe` after its
+   * run settled.
+   *
+   * The module id is stamped here, never taken from the entry. Each entry
+   * needs a `commandMiddleware` declaration in the manifest with the same id
+   * and phase; composition refuses either without the other, an installed
+   * package's `admit`, and two overlapping `admit` modules nothing orders.
+   * Registration resolves nothing, the bus skips the middleware while this
+   * module is switched off, and calling this after composition throws.
+   *
+   * ```ts
+   * ctx.commandMiddleware([
+   *   { id: 'legal-hold', phase: 'admit', admit: (meta) => { … } },
+   *   { id: 'timing', phase: 'observe', observe: (outcome, { log }) => { … } },
+   * ]);
+   * ```
+   */
+  commandMiddleware(entries: readonly CommandMiddlewareEntry[]): void;
+
+  /**
    * The explicit boot phase (FR-021). Runs once every module has registered,
    * inside `enterSystemScope('boot: <module id>')`, so it may resolve.
    *
@@ -829,6 +854,12 @@ export interface ModuleContextOptions {
    */
   readonly mergeRegistry?: RecordMergeRegistry;
   /**
+   * The composition's command-middleware registry (189 P1). Absent in a root
+   * that wires no middleware into its Command Bus; `commandMiddleware` then
+   * refuses.
+   */
+  readonly commandMiddlewareRegistry?: CommandMiddlewareRegistry;
+  /**
    * Shared across every module of one composition, so a name registered twice
    * is caught naming both modules (T042). Absent for a hand-built context — a
    * single module cannot collide with itself.
@@ -884,7 +915,8 @@ export interface ModuleContextOptions {
 }
 
 export function createModuleContext(options: ModuleContextOptions): ModuleContext {
-  const { module, container, eventBus, sink, log, interceptorRegistry, commandHookRegistry, ownership } = options;
+  const { module, container, eventBus, sink, log, interceptorRegistry, commandHookRegistry, commandMiddlewareRegistry, ownership } =
+    options;
   const isRegistering = options.isRegistering ?? ((): boolean => false);
   const isDeploymentOverlay = options.overlay === true;
   const decorationQueue = options.decorationQueue;
@@ -1216,6 +1248,25 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
       participate(host, key, participant) {
         options.mergeRegistry?.registerParticipant(module.id, host, key, participant);
       },
+    },
+
+    commandMiddleware(entries) {
+      if (!commandMiddlewareRegistry) {
+        throw new Error(
+          `[kernel] module '${module.id}' registered command middleware, but this composition root ` +
+            `mounts no command-middleware registry.`,
+        );
+      }
+      // Rebuilt rather than spread, so nothing an entry carries besides its
+      // three fields — a `moduleId` in particular — reaches the registry.
+      commandMiddlewareRegistry.register(
+        module.id,
+        entries.map((entry): CommandMiddlewareEntry =>
+          entry.phase === 'admit'
+            ? { id: entry.id, phase: 'admit', admit: entry.admit }
+            : { id: entry.id, phase: 'observe', observe: entry.observe },
+        ),
+      );
     },
 
     onBoot(hook) {

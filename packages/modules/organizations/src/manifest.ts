@@ -322,6 +322,15 @@ export const manifest = defineModuleManifest({
     },
     {
       moduleId: 'customer_accounts',
+      port: 'customerAccountCommandPort',
+      reason:
+        '`specs/186-aggregate-ports/` US3 (issue #1822): the operator member panel — create, role, ' +
+        'roll-up, profile, removal and the break-glass recovery — writes through the CustomerAccount ' +
+        "aggregate port, so a server-side caller and an operator run that module's one Command per " +
+        'operation. Same mutual pair, same trade.',
+    },
+    {
+      moduleId: 'customer_accounts',
       port: 'customerAccountRoleCommandPort',
       reason:
         '`specs/170-organization-roles/` WP-02b: deleting a role its members hold moves ' +

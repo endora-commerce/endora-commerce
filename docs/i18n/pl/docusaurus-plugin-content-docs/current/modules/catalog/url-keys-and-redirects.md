@@ -119,7 +119,8 @@ Co zapisuje konektor, synchronizacja z PIM albo arkusz kalkulacyjny i w jakim za
 zapisuje tylko zakresy, które wskazuje: zapis wartości globalnej nigdy nie usuwa nadpisania operatora
 w kanale sprzedaży ani w kanale i języku (FR-091).
 
-Konektory zapisują przez `catalogProductScopeWritePort.applyScopes` (wersja 2): listę komórek, z
+Konektory zapisują przez `catalogProductCommandPort.applyScopedValues` (od 0.113.0; przestarzały
+`catalogProductScopeWritePort.applyScopes` w wersji 2 wykonuje ten sam zapis): listę komórek, z
 których każda ma zakres (`{}`, `{ channelId }` albo `{ channelId, languageCode }`), ścieżkę pola i
 wartość w kodowaniu zapisu — brak wartości oznacza brak zmiany, `null` celowo pustą wartość, a
 `{ "inherit": true }` usunięcie własnej wartości. Konektor może zapisać nazwę, opis, wartości

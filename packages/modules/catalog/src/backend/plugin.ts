@@ -313,6 +313,15 @@ export interface CatalogModuleOptions {
    */
   reindexSearchIndexes?: SearchReindexRunner;
   /**
+   * `specs/186-aggregate-ports/` (#1825, FR-013) — hands the enqueuer of a searchable flip's
+   * reindex to the container's `catalogAdminService`, the instance
+   * `catalogAttributeCommandPort` runs, so a port call queues the reindex the admin route
+   * queues. Absent, only the routes' own instance queues it.
+   */
+  shareSearchReindexEnqueuer?: (
+    enqueue: (ctx: { actorAdminUserId: string | null; attributeKey: string }) => Promise<void>,
+  ) => void;
+  /**
    * Resolves the `general.product_image_placeholder_url` setting (global or
    * per sales channel) for a channel code. Wired from composition so catalog
    * stays decoupled from the settings module. When provided, storefront
@@ -490,7 +499,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     // "Akcje masowe" page, with the same bell + email notifications).
     if (options.reindexSearchIndexes) {
       const queue = bulkOperationService;
-      adminService.setSearchReindexEnqueuer(async ({ actorAdminUserId }) => {
+      const enqueue = async ({ actorAdminUserId }: { actorAdminUserId: string | null; attributeKey: string }) => {
         // Exempt from the known-requester rule by design (S-L3): a reindex writes no
         // product, and the flip that enqueues it may have no admin behind it.
         await queue.create({
@@ -499,7 +508,9 @@ export function catalogModule(options: CatalogModuleOptions) {
             actorAdminUserId ?? '00000000-0000-0000-0000-000000000000',
           payload: { productIds: [], fields: {} },
         });
-      });
+      };
+      adminService.setSearchReindexEnqueuer(enqueue);
+      options.shareSearchReindexEnqueuer?.(enqueue);
     }
 
     const bundleServicePublic = new BundleService(options.emFactory, options.commandBus);

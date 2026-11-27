@@ -406,6 +406,9 @@ async function loadDeclaration(deployment: string | null): Promise<{
   omittedModules: ReadonlyArray<{ moduleId: string; reason: string }>;
   decorationOrder: Readonly<Record<string, readonly string[]>>;
   reasons: Readonly<Record<string, string>>;
+  // `specs/189-command-middleware/` FR-031 — the derivation's
+  // `stale-middleware-order` / `incomplete-middleware-order` read it.
+  commandMiddlewareOrder?: readonly string[] | undefined;
 }> {
   const empty = { omittedModules: [], decorationOrder: {}, reasons: {} };
   if (deployment === null) return empty;

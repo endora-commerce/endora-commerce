@@ -19,7 +19,8 @@ import { ORDER_MINIMUM_MAX } from './order-minimums.js';
 import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 import { productPagePathsSchema } from './product-url-keys.js';
 import type { FieldPath, ScopeLevel } from './product-scope-model.js';
-import type { ProductScopedWriteCell } from './product-scopes.js';
+import type { ProductScopedWriteCell, ProductScopedWriteInput, ProductScopedWriteResult } from './product-scopes.js';
+import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
 import { scopeVersionTokenSchema } from './scoped-write-encoding.js';
 
 /**
@@ -3371,8 +3372,31 @@ export type CatalogAdminAttributeFlag =
   | 'isRequired'
   | 'isMassEditable';
 
+/** What `addAttributeOption` / {@link CatalogAttributeCommandPort.addOption} append. */
+export interface CatalogAttributeOptionCreateInput {
+  value: string;
+  label?: Record<string, string>;
+  labelDefault: string;
+  isDefault?: boolean;
+  sortOrder?: number;
+}
+
+/** What `patchAttributeOption` / {@link CatalogAttributeCommandPort.updateOption} change; the value is immutable. */
+export interface CatalogAttributeOptionPatch {
+  label?: Record<string, string>;
+  labelDefault?: string;
+  isDefault?: boolean;
+  sortOrder?: number;
+}
+
 /**
  * Container name: `catalogProductWritePort`. Owner: `catalog`.
+ *
+ * **Deprecated since 0.113.0, removed in a later release** (`specs/186-aggregate-ports/`,
+ * issue #1825): the product and variant writes are {@link CatalogProductCommandPort}'s, the
+ * attribute-definition writes {@link CatalogAttributeCommandPort}'s and the two attribute
+ * reads {@link CatalogAttributeReadPort}'s. Every method delegates to its replacement
+ * meanwhile, so the entries, the refusals and the records below are unchanged.
  *
  * `pim_ergonode` is the only consumer, and it is the whole reason this port is
  * narrow: an import run creates and updates products, attributes and variants,
@@ -3388,50 +3412,239 @@ export type CatalogAdminAttributeFlag =
  * `nonDeactivatable` never enters one.
  */
 export interface CatalogProductWritePort {
+  /**
+   * `auditCtx` is not read: the actor is the ambient one.
+   *
+   * @deprecated since 0.113.0; use {@link CatalogProductCommandPort.create} instead.
+   */
   createProduct(
     req: CreateProductRequest,
     auditCtx?: CatalogAdminAuditContext,
   ): Promise<CatalogProductRecord>;
+  /**
+   * A `version` in `req` travels as the replacement's `options.expectedVersion`.
+   *
+   * @deprecated since 0.113.0; use {@link CatalogProductCommandPort.update} instead.
+   */
   updateProduct(id: string, req: UpdateProductRequest): Promise<CatalogProductRecord>;
 
+  /** @deprecated since 0.113.0; use {@link CatalogAttributeReadPort.listAll} instead. */
   listAttributes(): Promise<CatalogAttributeView[]>;
+  /**
+   * The read port's flags are a subset of these: `isRequired` and `isMassEditable` have no
+   * equivalent there, so a caller filters {@link CatalogAttributeReadPort.listAll} for them.
+   *
+   * @deprecated since 0.113.0; use {@link CatalogAttributeReadPort.listByFlag} instead.
+   */
   listAttributesByFlag(flag: CatalogAdminAttributeFlag): Promise<CatalogAttributeView[]>;
+  /** @deprecated since 0.113.0; use {@link CatalogAttributeCommandPort.create} instead. */
   createAttribute(req: CreateAttributeRequest): Promise<CatalogAttributeView>;
+  /** @deprecated since 0.113.0; use {@link CatalogAttributeCommandPort.update} instead. */
   updateAttributeByIdOrKey(
     idOrKey: string,
     req: UpdateAttributeRequest,
     auditCtx?: CatalogAdminAuditContext,
   ): Promise<CatalogAttributeView>;
+  /** @deprecated since 0.113.0; use {@link CatalogAttributeCommandPort.addOption} instead. */
   addAttributeOption(
     attributeIdOrKey: string,
-    input: {
-      value: string;
-      label?: Record<string, string>;
-      labelDefault: string;
-      isDefault?: boolean;
-      sortOrder?: number;
-    },
+    input: CatalogAttributeOptionCreateInput,
   ): Promise<CatalogAttributeOptionResult>;
+  /** @deprecated since 0.113.0; use {@link CatalogAttributeCommandPort.updateOption} instead. */
   patchAttributeOption(
     optionId: string,
-    input: {
-      label?: Record<string, string>;
-      labelDefault?: string;
-      isDefault?: boolean;
-      sortOrder?: number;
-    },
+    input: CatalogAttributeOptionPatch,
   ): Promise<CatalogAttributeOptionResult>;
 
+  /** @deprecated since 0.113.0; use {@link CatalogProductCommandPort.createVariant} instead. */
   createVariant(
     parentProductId: string,
     req: CreateVariantRequest,
   ): Promise<CatalogProductVariantRecord>;
+  /** @deprecated since 0.113.0; use {@link CatalogProductCommandPort.updateVariant} instead. */
   updateVariant(
     parentProductId: string,
     variantId: string,
     req: UpdateVariantRequest,
   ): Promise<CatalogProductVariantRecord>;
+  /** @deprecated since 0.113.0; use {@link CatalogProductCommandPort.deleteVariant} instead. */
   deleteVariant(parentProductId: string, variantId: string): Promise<void>;
+}
+
+/** {@link CatalogProductCommandPort.update}'s patch: the admin `PATCH` body without its `version`. */
+export type CatalogProductUpdateInput = Omit<UpdateProductRequest, 'version'>;
+
+/**
+ * Container name: `catalogProductCommandPort`. Owner: `catalog`
+ * (`specs/186-aggregate-ports/`, D-293, issue #1825).
+ *
+ * The Product aggregate's write port: each method runs one audited Command, the
+ * one the admin route for the same operation runs, through the same service
+ * method, with the ambient actor — an administrator inside an admin request (or
+ * under `withSystemScopeActingFor`), the `system` actor under `withSystemScope`
+ * in a worker. **No permission is checked** — the caller is the gate; never
+ * resolve it for a customer-facing route. Call it after your own commit: each
+ * call is a transaction of its own.
+ *
+ * What the route does beside its write happens here too, because it is the
+ * shared service method's: `product.created.v1` / `.updated.v1` / `.archived.v1`
+ * / `.deleted.v1` after the commit (the search index, the storefront page
+ * revalidation and the webhooks react to them), the default sales channel a
+ * created product is bound to, the variant writes' `product.updated.v1`
+ * `['variants']`. **The completeness gate is not here** (feature 163, A-6): a
+ * status change through `update` is never refused `SCOPE_INCOMPLETE` and answers
+ * no warning, as the deprecated port and the imports never did.
+ *
+ * | Method | Command (audit action) | Admin route |
+ * | --- | --- | --- |
+ * | `create` | `product.create` | `POST /api/v1/admin/catalog/products` |
+ * | `update` | `product.update` | `PATCH …/products/:id` |
+ * | `archive` / `restore` | `product.archive` / `product.restore` | `POST …/:id/archive`, `…/:id/restore` |
+ * | `delete` | `product.delete` | `DELETE …/products/:id` |
+ * | `createVariant` / `updateVariant` / `deleteVariant` | `product_variant.create` / `.update` / `.delete` | `…/products/:productId/variants[/:variantId]` |
+ * | `setCustomFieldValues` | `product.update` | `PATCH …/products/:id` with `attributeValues` only |
+ * | `applyScopedValues` | `product.scoped_values.import` | — (the products import runs it; research R-19.1) |
+ *
+ * **Inputs and refusals are the admin route's**, as the platform's `HttpError`
+ * with its `code` — `404 PRODUCT_NOT_FOUND` for an unknown, deleted or
+ * malformed product id, `409 SKU_ALREADY_EXISTS`, `400 PRICE_SET_IN_PRICE_BOOKS`,
+ * `400 VALIDATION_FAILED` for an attribute outside the product's set, and so on.
+ * The inputs are not parsed again: a typed caller's input is the route body's
+ * type, and the service holds the rules a schema does not.
+ *
+ * **Options** ({@link AggregateCommandOptions}): `expectedVersion` is the
+ * product's editor version (`products.scope_version`, which the admin `PATCH`
+ * takes as `version`); `update` and `setCustomFieldValues` honour it, and a
+ * product that has moved on is refused `409 VERSION_CONFLICT`. Every other
+ * method ignores it. `source` is recorded on the audit entry beside the actor;
+ * a code outside `aggregateCommandSourceSchema` is refused
+ * `422 VALIDATION_FAILED` before anything is read or written. `extensions`:
+ * no `catalog` action is hookable yet, so any key is refused
+ * `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+ *
+ * **Not offered**: bundle slots, grouped items, product links, the gallery,
+ * attachments, packaging units, URL keys and redirects (sub-entities with their
+ * own Commands and admin screens); duplicate (an editor convenience); bulk edit
+ * and bulk import (`catalogBulkImportPort`, a report-shaped capability port);
+ * the scoped editor's save of one scope (`PUT …/scoped-values`, the operator's
+ * atomic save — `applyScopedValues` is the integration write). Attribute
+ * definitions are not part of the Product aggregate: {@link CatalogAttributeCommandPort}.
+ *
+ * **Owner off:** `catalog` declares `activation.nonDeactivatable`, so it never
+ * enters an off state and the seam's fail-closed answer (503 `MODULE_DISABLED`)
+ * cannot arise in practice.
+ */
+export interface CatalogProductCommandPort {
+  /** `product.create`; the product is bound to the default sales channel unless it already has one. */
+  create(req: CreateProductRequest, options?: AggregateCommandOptions): Promise<CatalogProductRecord>;
+  /**
+   * `product.update` — the admin `PATCH`, **without its completeness gate** (feature 163, A-6:
+   * integrations are never gated; research R-19.5): a status change is never refused
+   * `SCOPE_INCOMPLETE` and answers no warnings. This narrows FR-008 ("the admin route's
+   * refusals") for that one gate; every other refusal is the route's. A patch that changes
+   * nothing writes and records nothing (the editor version still moves, as on the route).
+   */
+  update(id: string, req: CatalogProductUpdateInput, options?: AggregateCommandOptions): Promise<CatalogProductRecord>;
+  /** `product.archive`; archiving an archived product records nothing and answers it unchanged. */
+  archive(id: string, options?: AggregateCommandOptions): Promise<CatalogProductRecord>;
+  /** `product.restore`; restoring a product that is not archived records nothing. */
+  restore(id: string, options?: AggregateCommandOptions): Promise<CatalogProductRecord>;
+  /** `product.delete` (soft); `409 PRODUCT_DELETE_BLOCKED` while an order or cart line names it. */
+  delete(id: string, options?: AggregateCommandOptions): Promise<void>;
+  /** `product_variant.create`; `400 PRODUCT_TYPE_MISMATCH` unless the product is `configurable`. */
+  createVariant(
+    productId: string,
+    req: CreateVariantRequest,
+    options?: AggregateCommandOptions,
+  ): Promise<CatalogProductVariantRecord>;
+  /** `product_variant.update`; `404 NOT_FOUND` for a variant that is not the product's. */
+  updateVariant(
+    productId: string,
+    variantId: string,
+    req: UpdateVariantRequest,
+    options?: AggregateCommandOptions,
+  ): Promise<CatalogProductVariantRecord>;
+  /** `product_variant.delete`; `404 NOT_FOUND` for a variant that is not the product's. */
+  deleteVariant(productId: string, variantId: string, options?: AggregateCommandOptions): Promise<void>;
+  /**
+   * The product's custom-field values, which are its **attribute values** (`attribute_values`,
+   * the `product` binding's value column). The owner loads the product, calls `merge` with its
+   * current bag and stores what `merge` answers — keys it drops are removed — as one
+   * `product.update` Command with the admin `PATCH`'s entry (research R-19.2).
+   *
+   * **Unlike the other hosts, the owner validates what `merge` answers**, with the rules of the
+   * admin `PATCH`'s `attributeValues`: every changed key belongs to the product's attribute set
+   * (`400 VALIDATION_FAILED`), the set's required attributes keep a value, no price key
+   * (`400 PRICE_SET_IN_PRICE_BOOKS`) and no content attribute (`400 ATTRIBUTE_VALUE_REJECTED`).
+   * `CustomFieldValuePort.validateAndMerge('product', …)` is not the validator: its `required`
+   * rule spans every product attribute, not the product's set. A refusal `merge` throws
+   * propagates unchanged and writes nothing.
+   */
+  setCustomFieldValues(
+    id: string,
+    merge: CustomFieldMerge,
+    options?: AggregateCommandOptions,
+  ): Promise<CatalogProductRecord>;
+  /**
+   * A connector's scoped write — the Command `product.scoped_values.import`, exactly as the
+   * deprecated `catalogProductScopeWritePort.applyScopes` ran it: per-cell tolerant, the
+   * integration allowlist, no completeness gate, URL keys never forced (see
+   * `CatalogProductScopeWritePort` for the cell rules and refusals). `options.source` is the
+   * entry's `source` (`null` when absent); unlike the deprecated port it need not name a
+   * registered module, only match `aggregateCommandSourceSchema` (research R-19.3).
+   */
+  applyScopedValues(
+    id: string,
+    input: ProductScopedWriteInput,
+    options?: AggregateCommandOptions,
+  ): Promise<ProductScopedWriteResult>;
+}
+
+/**
+ * Container name: `catalogAttributeCommandPort`. Owner: `catalog`
+ * (`specs/186-aggregate-ports/`, D-293, issue #1825).
+ *
+ * The write port of product-attribute **definitions** and their options — not part of the
+ * Product aggregate and not a custom-field host, so a second port of `catalog`, beside
+ * {@link CatalogProductCommandPort}. Reads stay on {@link CatalogAttributeReadPort}. Each
+ * method runs the Command the admin route for the same operation runs, through the same
+ * service method, with the ambient actor; **no permission is checked** — the caller is the
+ * gate. Call it after your own commit.
+ *
+ * | Method | Command (audit action) | Admin route |
+ * | --- | --- | --- |
+ * | `create` | `catalog.attribute.create` | `POST /api/v1/admin/catalog/attributes` |
+ * | `update` | `catalog.attribute.update` | `PATCH …/attributes/:idOrKey` |
+ * | `delete` | `catalog.attribute.delete` | `DELETE …/attributes/:idOrKey` |
+ * | `addOption` | `catalog.attribute_option.create` | `POST …/attributes/:attributeId/options` |
+ * | `updateOption` | `catalog.attribute_option.update` | `PATCH …/options/:optionId` |
+ * | `deleteOption` | `catalog.attribute_option.delete` | `DELETE …/options/:optionId` |
+ *
+ * Beside the write, as on the route: the definitions cache is invalidated after the commit,
+ * and an `update` that flips `isSearchable` queues a full search reindex (best effort).
+ * Refusals are the route's (`404 NOT_FOUND`, `409` while a set or a product uses what is
+ * deleted). **Options**: `expectedVersion` is ignored (a definition has no version), `source`
+ * is recorded on the entry, `extensions` is refused `422 COMMAND_EXTENSION_UNCLAIMED` (no
+ * attribute action is hookable).
+ *
+ * **Owner off:** `catalog` declares `activation.nonDeactivatable`, so it never enters an off
+ * state and the seam's fail-closed answer (503 `MODULE_DISABLED`) cannot arise in practice.
+ */
+export interface CatalogAttributeCommandPort {
+  create(req: CreateAttributeRequest, options?: AggregateCommandOptions): Promise<CatalogAttributeView>;
+  update(idOrKey: string, req: UpdateAttributeRequest, options?: AggregateCommandOptions): Promise<CatalogAttributeView>;
+  delete(idOrKey: string, options?: AggregateCommandOptions): Promise<void>;
+  addOption(
+    attributeIdOrKey: string,
+    input: CatalogAttributeOptionCreateInput,
+    options?: AggregateCommandOptions,
+  ): Promise<CatalogAttributeOptionResult>;
+  updateOption(
+    optionId: string,
+    input: CatalogAttributeOptionPatch,
+    options?: AggregateCommandOptions,
+  ): Promise<CatalogAttributeOptionResult>;
+  deleteOption(optionId: string, options?: AggregateCommandOptions): Promise<void>;
 }
 
 /*

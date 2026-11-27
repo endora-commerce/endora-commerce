@@ -24,6 +24,7 @@ import type {
   InventoryStockReadPort,
   InvoicePdfPort,
   InvoiceReadPort,
+  OrderCommandPort,
   OrderExternalReferencePort,
   OrderListPort,
   OrderPlacementPort,
@@ -103,6 +104,8 @@ import { orderListScopeFor, type OrderListService } from './services/order-list-
 import type { OrderTransitionService } from './services/order-transition-service.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderTransitionPortService } from './services/order-transition-port.js';
+import { OrderCommandService } from './services/order-command-port.js';
+import type { OrderCommentService } from './services/order-comment-service.js';
 import { releaseOrderAllocations } from './services/order-allocation-release.js';
 import { createOrderTransitionEffectHandlers } from './services/order-transition-effect-handlers.js';
 import { OrderTransitionEffectService } from './services/order-transition-effect-service.js';
@@ -315,11 +318,14 @@ export function registerModule(ctx: ModuleContext): void {
     orderListService: OrderListService | null;
     orderTransitionService: OrderTransitionService | null;
     orderStatusGraphService: OrderStatusGraphService | null;
+    /** `specs/186-aggregate-ports/` US4 — for `orderCommandPort.addComment`. */
+    orderCommentService: OrderCommentService | null;
   } = {
     orderService: null,
     orderListService: null,
     orderTransitionService: null,
     orderStatusGraphService: null,
+    orderCommentService: null,
   };
 
   /**
@@ -632,11 +638,6 @@ export function registerModule(ctx: ModuleContext): void {
               effectiveState.isPresent('payment_methods')
                 ? lazyPort<PaymentMethodReadPort>(ctx, 'paymentMethodReadPort')
                 : null,
-            // This module's own lifecycle write (feature 085, Phase F), for the
-            // buyer's cancellation. Resolved lazily like every other port and
-            // for the same reason: the registration below is a singleton and a
-            // gate may not be frozen inside one.
-            orderTransitionPort: lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
             invoiceRead: () =>
               effectiveState.isPresent('invoices')
                 ? lazyPort<InvoiceReadPort>(ctx, 'invoiceReadPort')
@@ -835,6 +836,9 @@ export function registerModule(ctx: ModuleContext): void {
             exposeOrderStatusGraphService: (service) => {
               exposed.orderStatusGraphService = service;
             },
+            exposeOrderCommentService: (service) => {
+              exposed.orderCommentService = service;
+            },
           }),
       )
       .singleton(),
@@ -934,6 +938,8 @@ export function registerModule(ctx: ModuleContext): void {
           new OrderReadService(
             emFactory,
             lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
+            // `isTerminal` (186 US4) reads the graph the routes write.
+            () => requireExposed(exposed.orderStatusGraphService, 'the order status graph'),
           ),
       )
       .singleton(),
@@ -1019,28 +1025,47 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   /**
-   * The lifecycle write (feature 085, Phase B).
+   * `specs/186-aggregate-ports/` US4 (issue #1823, D-293) — the Order
+   * aggregate's write port: the lifecycle status, the money axis an operator
+   * sets, custom-field values, comments and external references, each the
+   * Command its admin route runs, with the ambient actor. The services are
+   * built in the plugin body, so they are resolved per call, and a call
+   * before route registration answers 503.
    *
-   * `payments` and `shipments` move an order's status by assigning
-   * `order.status` on an entity they imported, which skips graph validation,
-   * the veto guards, the audit entry and the side-effects that release stock
-   * and free a credit-limit reservation. This is the seam that lets them stop,
-   * and the write twin of `orderStatusAnnouncePort` above — the two are called
-   * in sequence by the same handlers, which is why both take the same
-   * `OrderStatusActor` rather than each carrying an actor shape of its own.
-   *
-   * No consumer resolves it yet: it is published here so the three bypasses
-   * have somewhere to go.
+   * `orderTransitionPort` and `orderExternalReferencePort.set` below delegate
+   * to it (deprecated since 0.113.0).
+   */
+  ctx.di.providePort<OrderCommandPort>(
+    'orderCommandPort',
+    ctx
+      .asFunction(
+        ({ emFactory, commandBus }: OrdersCradle) =>
+          new OrderCommandService({
+            emFactory,
+            commandBus,
+            transitions: () => requireExposed(exposed.orderTransitionService, 'order transitions'),
+            graph: () => requireExposed(exposed.orderStatusGraphService, 'the order status graph'),
+            orders: () => requireExposed(exposed.orderService, 'order payment status'),
+            comments: () => requireExposed(exposed.orderCommentService, 'order comments'),
+          }),
+      )
+      .singleton(),
+  );
+
+  /**
+   * The lifecycle write (feature 085, Phase B) — **deprecated since 0.113.0**:
+   * `applyStatus` delegates to `orderCommandPort.applyStatus`, `isTerminal` to
+   * `orderReadPort.isTerminal` (`specs/186-aggregate-ports/` US4). Removed in
+   * 0.114.0.
    */
   ctx.di.providePort<OrderTransitionPort>(
     'orderTransitionPort',
     ctx
       .asFunction(
-        ({ emFactory }: OrdersCradle) =>
+        () =>
           new OrderTransitionPortService(
-            emFactory,
-            () => requireExposed(exposed.orderTransitionService, 'order transitions'),
-            () => requireExposed(exposed.orderStatusGraphService, 'the order status graph'),
+            () => lazyPort<OrderCommandPort>(ctx, 'orderCommandPort'),
+            () => lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
           ),
       )
       .singleton(),
@@ -1059,7 +1084,7 @@ export function registerModule(ctx: ModuleContext): void {
    * `@endora-commerce/contracts`, because its first parameter is a MikroORM
    * `EntityManager` and FR-034 keeps that package free of them.
    *
-   * The lifecycle half stays `orderTransitionPort` above, called after the
+   * The lifecycle half stays `orderCommandPort` above, called after the
    * settlement commits. Two ports rather than one because they run in two
    * different transactions, which is a fact about the seam and not a shape
    * anybody chose.
@@ -1122,7 +1147,12 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ emFactory, commandBus }: OrdersCradle) =>
-          new OrderExternalReferenceService({ emFactory, commandBus }),
+          new OrderExternalReferenceService({
+            emFactory,
+            commandBus,
+            // Deprecated since 0.113.0: `set` delegates to the aggregate port (186 T060).
+            commands: () => lazyPort<OrderCommandPort>(ctx, 'orderCommandPort'),
+          }),
       )
       .singleton(),
   );

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -18,6 +18,72 @@ import {
 } from '../../../src/lifecycle/registered-manifests.js';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+
+type ManifestEntry = (typeof REGISTERED_MANIFESTS)[number];
+
+/**
+ * Every overlay module of every deployment on disk, as the platform resolves it
+ * for that deployment (`specs/190-overlay-full-modules/` FR-086, #1855).
+ *
+ * An overlay module ships bundles, palette actions and — since #1855 — an admin
+ * layer of its own, and is composed only by a process that sets `DEPLOYMENT` to
+ * its deployment. A population of the bare-core registry alone would judge none
+ * of them, and the default run sets no `DEPLOYMENT`. So each deployment is
+ * resolved here explicitly, and an entry the core registry already holds is not
+ * repeated.
+ */
+const OVERLAY_MANIFESTS: readonly (ManifestEntry & { readonly deployment: string })[] = await (async () => {
+  const appsDir = join(REPO_ROOT, 'backend/src/apps');
+  const core = new Set(REGISTERED_MANIFESTS.map((entry) => entry.filePath));
+  const found: (ManifestEntry & { deployment: string })[] = [];
+  for (const deployment of readdirSync(appsDir).sort()) {
+    for (const entry of await resolvedManifestEntries({ DEPLOYMENT: deployment } as NodeJS.ProcessEnv)) {
+      if (!core.has(entry.filePath)) found.push({ ...entry, deployment });
+    }
+  }
+  return found;
+})();
+
+/**
+ * Every action key a manifest declares that some shipped language lacks — the
+ * derivation the action case below asserts empty, taken out so a red proof
+ * enters where the real population enters.
+ */
+function missingActionKeys(entries: readonly ManifestEntry[]): string[] {
+  const missing: string[] = [];
+  for (const entry of entries) {
+    const actions = entry.manifest.actions ?? [];
+    if (actions.length === 0 || entry.manifest.i18n === undefined) continue;
+    const loaded = loadModuleBundles(
+      entry.manifest.id,
+      dirname(entry.filePath),
+      entry.manifest.i18n.bundlesDir,
+    );
+    // A module that declares a bundles directory and ships nothing in it owes
+    // no key — `check:bundle-pairing` § 1's conditional, and the one state in
+    // which "no bundle" is not a defect. Every other module is held to the
+    // **platform's** languages, not to its own: iterating `loaded.byLanguage`
+    // asked each module about the languages it happened to ship, so one
+    // shipping only `en.json` had its keys checked against English and passed.
+    if (loaded.byLanguage.size === 0) continue;
+    for (const language of SUPPORTED_LANGUAGES) {
+      const entries = loaded.byLanguage.get(language);
+      if (entries === undefined) {
+        missing.push(`${entry.manifest.id}/${language}.json → (no bundle in this language)`);
+        continue;
+      }
+      for (const action of actions) {
+        const keys = [action.labelKey, action.descriptionKey, action.keywordsKey].filter(
+          (k): k is string => typeof k === 'string',
+        );
+        for (const key of keys) {
+          if (!(key in entries)) missing.push(`${entry.manifest.id}/${language}.json → ${key}`);
+        }
+      }
+    }
+  }
+  return missing;
+}
 
 /** Every file below `dir` whose path matches `pattern`, `node_modules` and `dist` excluded. */
 function filesUnder(dir: string, pattern: RegExp): string[] {
@@ -69,7 +135,8 @@ function filesUnder(dir: string, pattern: RegExp): string[] {
  * which `withBundles` filters out of this file before the first assertion.
  */
 describe('registered module i18n bundles — real filesystem shape', () => {
-  const withBundles = REGISTERED_MANIFESTS.filter((e) => e.manifest.i18n);
+  // Core, and every deployment's overlay modules (FR-086).
+  const withBundles = [...REGISTERED_MANIFESTS, ...OVERLAY_MANIFESTS].filter((e) => e.manifest.i18n);
 
   it('has at least one module shipping bundles (sanity)', () => {
     expect(withBundles.length).toBeGreaterThan(0);
@@ -94,40 +161,52 @@ describe('registered module i18n bundles — real filesystem shape', () => {
   );
 
   it('every action label/description/keywords key declared in a manifest resolves in every shipped language', () => {
+    expect(missingActionKeys(withBundles)).toEqual([]);
+  });
+
+  it('judges the overlay modules of every deployment on disk, and is red on an overlay action key no bundle has', () => {
+    // Non-vacuity: at least one deployment ships an overlay module with
+    // palette actions, or the population above was core's under another name.
+    const overlayWithActions = OVERLAY_MANIFESTS.filter((entry) => (entry.manifest.actions ?? []).length > 0);
+    expect(overlayWithActions.length).toBeGreaterThan(0);
+
+    const fixture = overlayWithActions[0]!;
+    const broken: ManifestEntry = {
+      ...fixture,
+      manifest: {
+        ...fixture.manifest,
+        actions: fixture.manifest.actions!.map((action, index) =>
+          index === 0 ? { ...action, labelKey: 'actions.notInAnyBundle.label' } : action,
+        ),
+      },
+    };
+    expect(missingActionKeys([broken])).toEqual(
+      SUPPORTED_LANGUAGES.map((language) => `${fixture.manifest.id}/${language}.json → actions.notInAnyBundle.label`),
+    );
+  });
+
+  it("every overlay admin layer's nav label resolves in its module's bundles, in every shipped language", async () => {
+    // `admin/index.tsx` is data and dynamic-import factories only, so it loads
+    // here without its screens (`specs/190-overlay-full-modules/` FR-086).
     const missing: string[] = [];
-    for (const entry of withBundles) {
-      const actions = entry.manifest.actions ?? [];
-      if (actions.length === 0) continue;
-      const loaded = loadModuleBundles(
-        entry.manifest.id,
-        dirname(entry.filePath),
-        entry.manifest.i18n!.bundlesDir,
-      );
-      // A module that declares a bundles directory and ships nothing in it owes
-      // no key — `check:bundle-pairing` § 1's conditional, and the one state in
-      // which "no bundle" is not a defect. Every other module is held to the
-      // **platform's** languages, not to its own: iterating `loaded.byLanguage`
-      // asked each module about the languages it happened to ship, so one
-      // shipping only `en.json` had its keys checked against English and passed.
-      if (loaded.byLanguage.size === 0) continue;
-      for (const language of SUPPORTED_LANGUAGES) {
-        const entries = loaded.byLanguage.get(language);
-        if (entries === undefined) {
-          missing.push(`${entry.manifest.id}/${language}.json → (no bundle in this language)`);
-          continue;
-        }
-        for (const action of actions) {
-          const keys = [action.labelKey, action.descriptionKey, action.keywordsKey].filter(
-            (k): k is string => typeof k === 'string',
-          );
-          for (const key of keys) {
-            if (!(key in entries)) {
-              missing.push(`${entry.manifest.id}/${language}.json → ${key}`);
-            }
+    let judged = 0;
+    for (const entry of OVERLAY_MANIFESTS) {
+      const layer = join(dirname(entry.filePath), 'admin', 'index.tsx');
+      if (!existsSync(layer)) continue;
+      const { contributions } = (await import(layer)) as {
+        contributions: { nav?: ReadonlyArray<{ labelKey: string }> };
+      };
+      const loaded = loadModuleBundles(entry.manifest.id, dirname(entry.filePath), entry.manifest.i18n?.bundlesDir ?? 'i18n');
+      for (const item of contributions.nav ?? []) {
+        judged += 1;
+        for (const language of SUPPORTED_LANGUAGES) {
+          if (!(item.labelKey in (loaded.byLanguage.get(language) ?? {}))) {
+            missing.push(`${entry.deployment}/${entry.manifest.id}/${language}.json → ${item.labelKey}`);
           }
         }
       }
     }
+    expect(judged, 'no overlay admin layer declares a nav entry').toBeGreaterThan(0);
     expect(missing).toEqual([]);
   });
 

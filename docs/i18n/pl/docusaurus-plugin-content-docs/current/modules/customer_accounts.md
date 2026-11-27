@@ -108,9 +108,9 @@ Po zatwierdzeniu zmiany roli ogłaszane jest też zdarzenie
 
 `customer_account.create` ma jedną implementację, udostępnioną na dwa sposoby:
 
-- `customerAccountMemberWritePort.create(input)` tworzy konto we własnej
-  transakcji — korzystają z tego bezpośrednie dodanie członka i przyjęcie
-  zaproszenia;
+- `customerAccountCommandPort.create(input, options?)` tworzy konto we własnej
+  transakcji — korzysta z tego bezpośrednie dodanie członka przez operatora
+  (zob. *Zapisy po stronie serwera* niżej);
 - `customerAccountMemberCommandPort.prepareCreate(input)` haszuje hasło
   i zwraca obiekt budujący; `.command({ organizationId, organizationRoleId })`
   to polecenie, które wywołujący uruchamia jako polecenie **podrzędne** swojego
@@ -148,12 +148,97 @@ nigdy jego wartości:
   niestandardowej;
 - zmiana preferowanego języka (`customer_account.set_preferred_language`)
   zapisuje `changedFields: ['preferredLanguage']` i jej źródło jako `source`
-  (`self_service` albo `sign_in`), nigdy sam język;
+  (`self_service`, `sign_in`, kod przekazany przez wywołującego po stronie
+  serwera albo `null`, gdy żadnego nie przekazał), nigdy sam język;
 - zmiana zbiorczego widoku (`customer_account.set_subtree_rollup`) zapisuje
   flagę `subtreeRollupEnabled` przed zmianą i po niej. To polecenie, więc wpis
   powstaje w transakcji zmiany.
 
 Wartości przechowuje samo konto.
+
+## Zapisy po stronie serwera
+
+Inny moduł, moduł nakładki albo proces integracyjny (konektor ERP lub CRM) zapisuje konto
+klienta przez **`customerAccountCommandPort`**, port zapisu konta, zadeklarowany jako
+`CustomerAccountCommandPort` w `@endora-commerce/contracts`. Nigdy nie zapisuje sam tabeli tego
+modułu. Pobieraj go przy każdym użyciu przez
+`lazyPort<CustomerAccountCommandPort>(ctx, 'customerAccountCommandPort')`, z
+`customer_accounts` w `dependencies` manifestu modułu wywołującego.
+
+| Metoda | Akcja audytu | Co w panelu robi to samo |
+| --- | --- | --- |
+| `create(input, options?)` | `customer_account.create` | `POST /api/v1/admin/organizations/:id/members` |
+| `createStandalone(input, options?)` | `customer_account.register_standalone` | — (rejestracja kupującego, `POST /api/v1/customers/register`) |
+| `updateProfile(id, patch, options?)` | `customer_account.update_profile` | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId` |
+| `block(id, { reason? }, options?)` | `customer_account.blocked` | `POST /api/v1/admin/customers/:id/block` |
+| `unblock(id, options?)` | `customer_account.unblocked` | `POST /api/v1/admin/customers/:id/unblock` |
+| `softDelete(id, options?)` | `customer_account.deleted` | `DELETE /api/v1/admin/customers/:id` |
+| `restore(id, options?)` | `customer_account.restored` | `POST /api/v1/admin/customers/:id/restore` |
+| `setCustomerGroup(id, { customerGroupId }, options?)` | `customer_account.group_assigned` | `PUT /api/v1/admin/customers/:id/customer-group` |
+| `setCustomFieldValues(id, merge, options?)` | `customer.custom_fields.update` | `PATCH /api/v1/admin/customers/:id/custom-fields` |
+| `setSubtreeRollup(id, { enabled }, options?)` | `customer_account.set_subtree_rollup` | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/rollup` |
+| `promoteToOrganizationAdmin(id, options?)` | `customer_account.promote_organization_admin` | — |
+| `markEmailVerified(id, { verifiedAt }, options?)` | `customer_account.email_verified` | — (link weryfikacyjny kupującego) |
+| `changeRole(id, { organizationRoleId }, options?)` | `customer_account.change_role` | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` |
+| `setPreferredLanguage(id, { language }, options?)` | `customer_account.set_preferred_language` | — (strona konta kupującego) |
+| `removeMember(id, options?)` | `customer_account.remove_member` | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` |
+| `anonymize(id, options?)` | `customer_account.anonymized` | — (cykliczna anonimizacja po okresie przechowywania) |
+
+**Jedna ścieżka zapisu.** Endpointy panelu modułów `customers` i `organizations` wywołują ten
+port, więc kliknięcie operatora i wywołanie po stronie serwera uruchamiają to samo polecenie
+(Command): jeden wpis audytu z tym samym stanem, we własnej transakcji zapisu. Endpointy panelu
+członków zapisują dodatkowo własny wpis `customer_account.admin_*` (że operator edytował panel);
+port go nie zapisuje. Dane wejściowe są walidowane w granicach endpointów, a odmowy to błędy
+endpointów z ich kodami — `422 VALIDATION_FAILED` dla danych poza granicami, `404
+CUSTOMER_NOT_FOUND` w metodach blokady, usunięcia, przywrócenia i grupy, a `404 NOT_FOUND`
+w pozostałych, tak jak odpowiadają ich endpointy, oraz własne kody każdej operacji (`409
+EMAIL_ALREADY_REGISTERED`, `409 CUSTOMER_ALREADY_DELETED`, `409 CUSTOMER_NOT_DELETED`, `409
+CUSTOMER_RESTORE_WINDOW_ELAPSED`, `409 CANNOT_DEMOTE_LAST_ADMIN`, `409
+CANNOT_REMOVE_LAST_ADMIN`).
+
+**Blokowanie i usuwanie.** Obie operacje odmawiają z `409 ORG_OWNER_DEPLETION`, gdy organizacja
+firmowa zostałaby bez aktywnego, niezablokowanego *Administratora*; posiadacze roli są blokowani
+przed policzeniem, więc dwa takie zapisy nie mogą przejść jednocześnie. Jedynego członka
+organizacji osobistej można zablokować i usunąć. Po zatwierdzeniu zapisu sesje konta są
+kończone, więc zablokowany albo usunięty kupujący zostaje od razu wylogowany; gdy magazyn sesji
+jest nieosiągalny, zapis pozostaje, a błąd trafia do logu. Zablokowanie konta już
+zablokowanego albo odblokowanie niezablokowanego niczego nie zmienia ani nie zapisuje.
+
+**Kto zapisał.** Aktor jest aktorem z bieżącego kontekstu, nigdy parametrem: administrator w
+żądaniu panelu albo w `withSystemScopeActingFor`; aktor **system** w `withSystemScope` w procesie
+w tle, który nie zapisuje administratora — blokada przez system zostawia
+`blockedByAdminUserId` puste. Bez żadnego kontekstu tenanta zapis jest odrzucany, zanim
+cokolwiek zostanie zapisane. Port nie sprawdza uprawnień — o dostępie decyduje wywołujący — więc
+nigdy nie pobieraj go dla trasy dostępnej dla klienta. Nie ma w nim też własnych reguł panelu:
+uprawnienia `customers:manage`, zasięgu przedstawiciela handlowego, sprawdzenia
+`expectedUpdatedAt` w panelu członków ani okna przywracania z
+`customers.deletion_retention_days`, które endpoint panelu stosuje, zanim cykliczna
+anonimizacja dotrze do usuniętego konta.
+
+**Opcje** (ostatni parametr każdej metody):
+
+- `source` — kod z małych liter nazywający integrację (`erp`, `erp.customer-master`, co najwyżej
+  64 znaki), zapisywany jako `source` we wpisie audytu obok aktora. Każda inna wartość jest
+  odrzucana z `422 VALIDATION_FAILED`, zanim cokolwiek zostanie odczytane lub zapisane.
+- `expectedVersion` — pomijana: konto nie ma wersji.
+- `extensions` — dane dla hooków poleceń akcji. Żadna akcja konta nie jest jeszcze dostępna dla
+  hooków, więc każdy klucz jest odrzucany z `422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek
+  zostanie zapisane.
+
+**Czego port nie oferuje.** Przeniesienie konta do innej organizacji (metody
+`setOrganization`, `detachToPersonalOrganization` i `attachToOrganization` starszych portów)
+należy do członkostwa w organizacji, które ma własny port. Hasła, logowanie i jego limity to
+uwierzytelnianie, a nie zapisy wykonywane przez integrację. Przechwycenie nieznanego
+preferowanego języka przy logowaniu pozostaje w `customerAccountPreferencePort.captureIfUnset`,
+a wybór kupującego na stronie konta — w `customerAccountPreferencePort.setPreferredLanguage`,
+które uruchamia to samo polecenie z kodem `self_service`.
+
+**Przestarzałe od 0.113.0.** `customerAccountLifecycleWritePort` i
+`customerAccountMemberWritePort` uruchamiają te same polecenia i zostaną usunięte w następnym
+wydaniu, z wyjątkiem przeniesień między organizacjami. Zamiast nich wywołuj metodę o tej samej
+nazwie tutaj; `block`, `unblock`, `softDelete`, `restore` i `setCustomerGroup` nie przyjmują już
+`actorAdminUserId`. Lista pracy cyklicznej anonimizacji, `listDueForAnonymization` i
+`hasDueForAnonymization`, przeszła do `customerAccountReadPort`.
 
 ## Preferowany język
 

@@ -5,6 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { EventBus } from '@endora-commerce/platform/events';
 import { OrderStatusGraphService } from '../../../../packages/modules/orders/dist/backend/services/order-status-graph-service.js';
 import { OrderTransitionService } from '../../../../packages/modules/orders/dist/backend/services/order-transition-service.js';
@@ -23,6 +24,9 @@ describe('order status lifecycle (feature 038)', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
   });
+  // `specs/186-aggregate-ports/` US4 — the status write is the
+  // `order.status_transition` Command, so the engine runs on the bus.
+  const commandBus = (): CommandBus => h.container.resolve<CommandBus>('commandBus');
   afterAll(async () => {
     await teardownBackendServer(h);
   });
@@ -103,7 +107,7 @@ describe('order status lifecycle (feature 038)', () => {
       bus.on('order.status_changed.v1', () => void fired.push('coarse'));
 
       const graphSvc = new OrderStatusGraphService(h.em);
-      const svc = new OrderTransitionService(h.em, bus, graphSvc);
+      const svc = new OrderTransitionService(h.em, bus, graphSvc, commandBus());
       const order = await createOrder('new');
 
       const updated = await svc.apply(order.id, 'pending', { kind: 'admin', adminUserId: randomUUID() });
@@ -115,7 +119,7 @@ describe('order status lifecycle (feature 038)', () => {
 
     it('rejects a transition with no configured edge', async () => {
       const graphSvc = new OrderStatusGraphService(h.em);
-      const svc = new OrderTransitionService(h.em, new EventBus(), graphSvc);
+      const svc = new OrderTransitionService(h.em, new EventBus(), graphSvc, commandBus());
       const order = await createOrder('new');
       await expect(svc.apply(order.id, 'shipment_sent', { kind: 'admin', adminUserId: randomUUID() })).rejects.toMatchObject({
         statusCode: 409,
@@ -124,7 +128,7 @@ describe('order status lifecycle (feature 038)', () => {
 
     it('lets a registered before-guard veto a transition (status unchanged)', async () => {
       const graphSvc = new OrderStatusGraphService(h.em);
-      const svc = new OrderTransitionService(h.em, new EventBus(), graphSvc);
+      const svc = new OrderTransitionService(h.em, new EventBus(), graphSvc, commandBus());
       svc.onOrderTransitionGuard({ to: 'cancelled' }, () => {
         throw new OrderTransitionVetoError('no cancel', 'new', 'cancelled');
       });
@@ -142,7 +146,7 @@ describe('order status lifecycle (feature 038)', () => {
         throw new Error('handler boom');
       });
       const graphSvc = new OrderStatusGraphService(h.em);
-      const svc = new OrderTransitionService(h.em, bus, graphSvc);
+      const svc = new OrderTransitionService(h.em, bus, graphSvc, commandBus());
       const order = await createOrder('new');
       const updated = await svc.apply(order.id, 'pending', { kind: 'system', source: 'payment' });
       expect(updated.status).toBe('pending');

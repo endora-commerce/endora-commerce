@@ -130,6 +130,7 @@ jobs:
       - name: admin image
         run: |
           docker build -f admin/Dockerfile \
+            --build-arg DEPLOYMENT="${DEPLOYMENT}" \
             --build-arg VITE_API_BASE_URL="https://${API_DOMAIN}" \
             -t "$REGISTRY_IMAGE/admin:$IMAGE_TAG" .
           docker push "$REGISTRY_IMAGE/admin:$IMAGE_TAG"

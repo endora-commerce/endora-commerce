@@ -419,7 +419,11 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // `subscribeWhenReady`, how a cross-process cache subscriber waits out the
     // ioredis handshake; `HandshakeAwareSubscriber` is a type and carries no
     // identity.
-    // **84 -> 85 is the same event, on `./tenancy`:** the record merge
+    // **84 -> 94 is the same event, on `./commands`:** command middleware
+    // (`specs/189-command-middleware/` P1) published `CommandRefusedError`,
+    // `currentCommandMiddlewareOrigin` and the eight composition refusals; the
+    // handler and outcome shapes are types and carry no identity.
+    // **94 -> 95 is the same event, on `./tenancy`:** the record merge
     // (`specs/192-organization-merge/`) published `mergeWriteRefusal`, what a
     // host module asks before a write naming a merging or merged record; the
     // `RecordMergeService` it added to `./kernel` is a type and carries no
@@ -434,7 +438,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(85);
+    expect(total).toBe(95);
   });
 
   /**

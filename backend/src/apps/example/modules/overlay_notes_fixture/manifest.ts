@@ -17,7 +17,9 @@ import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-comm
  * **It is not a capability.** It serves one gated admin read over its own
  * table — the API surface its off-state test proves absent while it is off
  * (FR-046, `test/integration/overlay/overlay-notes-fixture-off-state.test.ts`)
- * — and contributes no admin screen or storefront surface; a shop would never
+ * — and one admin screen over that read, `admin/index.tsx`, so an overlay admin
+ * layer is registered, built, type-checked, scanned and palette-covered in this
+ * repository (FR-080 – FR-086, #1855). It has no storefront surface; a shop would never
  * compose it, and `example` is the reference deployment, composed nowhere a
  * real shop runs (OR-12). The reference overlay a client reads is
  * `example_erp_keys` (US8, #1856).
@@ -55,6 +57,22 @@ export const manifest = defineModuleManifest({
   dependencies: ['auth', 'organizations', 'settings'],
   activation: { settingCode: OVERLAY_NOTES_FIXTURE_SETTING_CODES.ACTIVATION, default: true },
   settings,
+  i18n: { bundlesDir: 'i18n' },
+  // Principle XVI: the admin screen `admin/index.tsx` mounts is reachable from
+  // the palette. Its API is the notes read, not `/api/v1/admin` + the route.
+  actions: [
+    {
+      id: 'open-overlay-notes-fixture',
+      labelKey: 'actions.openOverlayNotesFixture.label',
+      descriptionKey: 'actions.openOverlayNotesFixture.description',
+      icon: 'FileText',
+      targetRoute: '/overlay-notes-fixture',
+      entryApiRoute: '/api/v1/admin/overlay-notes-fixture/notes',
+      requiredPermission: 'overlay_notes_fixture:read',
+      keywords: ['overlay', 'notes', 'fixture'],
+      weight: 900,
+    },
+  ],
   permissions: [
     {
       code: 'overlay_notes_fixture:read',

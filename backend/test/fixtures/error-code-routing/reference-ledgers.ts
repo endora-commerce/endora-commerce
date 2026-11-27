@@ -361,6 +361,29 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted by `specs/192-organization-merge/` (data-model §6) for a write naming an archived (merged) Organization, carrying the id of the one it was merged into (409). The noun is the ' +
       'Organization, and the raise sites are the merge rules and the reach guard of `organizations`.',
   },
+  // `specs/189-command-middleware/` P1 — the Command Bus's answers when an
+  // admission rule cannot decide, or a middleware runs a Command.
+  COMMAND_ADMISSION_TIMEOUT: {
+    to: '_i18n',
+    reason:
+      'Minted by spec 189 P1 (FR-013) for an `admit` command middleware that did not settle within ' +
+      'its budget: the Command is refused before it writes anything, failing closed. A 503. The ' +
+      'raiser is the Command Bus.',
+  },
+  COMMAND_ADMISSION_FAILED: {
+    to: '_i18n',
+    reason:
+      'Minted by spec 189 P1 (FR-013) for an `admit` command middleware that threw something other ' +
+      'than a refusal: the Command is refused before it writes anything, failing closed. A 503. The ' +
+      'raiser is the Command Bus.',
+  },
+  COMMAND_MIDDLEWARE_REENTRY: {
+    to: '_i18n',
+    reason:
+      'Minted by spec 189 P1 (FR-015) for a command middleware that called `CommandBus.run`: an ' +
+      'admission rule would loop and an observer would write outside its contract. A 500. The raiser ' +
+      'is the Command Bus.',
+  },
   COMMAND_OUTBOX_NOT_DEAD: {
     to: '_i18n',
     reason:
@@ -3600,6 +3623,27 @@ export const PLATFORM_OWNED_ERROR_CODES: PlatformOwnedErrorCodes = {
     reason:
       'A record-merge refusal: a merge stopped because finalize still found rows naming the loser (recorded on the merge). The noun is a record merge, which the platform runs for ' +
       'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  // `specs/189-command-middleware/` P1 — command middleware is a step of the
+  // platform's Command Bus, which no module owns.
+  COMMAND_ADMISSION_TIMEOUT: {
+    tier: 'T3',
+    reason:
+      'An admission rule that did not answer in time. The noun is the Command Bus\'s admission step, ' +
+      'which runs every contributing module\'s rules over every module\'s Commands; the middleware is ' +
+      'named in the log, not owned by the code.',
+  },
+  COMMAND_ADMISSION_FAILED: {
+    tier: 'T3',
+    reason:
+      'An admission rule that failed. The noun is the Command Bus\'s admission step, which spans every ' +
+      'contributing module and every Command at once, so no one module owns it.',
+  },
+  COMMAND_MIDDLEWARE_REENTRY: {
+    tier: 'T3',
+    reason:
+      'A command middleware that ran a Command. The refusal is the Command Bus\'s, raised for whichever ' +
+      'module contributed the middleware, so no one module owns it.',
   },
   COMMAND_OUTBOX_NOT_DEAD: {
     tier: 'T3',
