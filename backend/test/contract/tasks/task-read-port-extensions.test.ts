@@ -150,7 +150,7 @@ describe('TaskReadPort with include (FR-054, FR-056)', () => {
     const { result } = await probed(async () => ({
       one: await port().findById(id, INCLUDE),
       many: await port().findByIds([id], INCLUDE),
-      found: await port().search({ q: `TSK-X${token}-3`, limit: 5 }, INCLUDE),
+      found: await port().search({ q: `TSK-X${token}-3`, limit: 20 }, INCLUDE),
       inContext: await port().listInContext(context, INCLUDE),
       open: await port().listOpenInContext(context, INCLUDE),
     }));
