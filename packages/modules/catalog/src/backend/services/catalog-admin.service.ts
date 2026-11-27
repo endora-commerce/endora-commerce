@@ -169,6 +169,8 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
+import { productCreateHookData, productOutbox, productUpdateHookData } from '../commands/product-hook-data.js';
+import { isProductSkuUniqueViolation } from './sku-unique-violation.js';
 // D-77 — the apply seam is named once in this module, by `attribute-commands.ts`
 // (see the re-export there for why it is a re-export and not a local
 // declaration). This file takes it as it is: since T053(b) the write path
@@ -508,7 +510,9 @@ export class CatalogAdminService {
     try {
       product = await this.#runCommand(this.#createProductCommand(productId, req), caller);
     } catch (err) {
-      if (err instanceof UniqueConstraintViolationException) {
+      // Only the SKU index: a hook on `product.create` writes on this transaction, and its own
+      // unique violation is not a taken SKU (`specs/193-admin-form-extensions/` FR-112).
+      if (isProductSkuUniqueViolation(err)) {
         throw new HttpError(409, ERROR_CODES.SKU_ALREADY_EXISTS, `SKU "${req.sku}" already exists.`);
       }
       throw err;
@@ -606,6 +610,9 @@ export class CatalogAdminService {
           sku: product.sku,
         },
       }),
+      // `specs/193-admin-form-extensions/` FR-112 — `PRODUCT_HOOKABLE_ACTIONS.create`.
+      hookData: (product) => productCreateHookData(product, [...new Set(req.categoryIds ?? [])]),
+      outboxData: (product) => productOutbox(product.id, []),
     };
   }
 
@@ -753,6 +760,10 @@ export class CatalogAdminService {
                 changedFields,
               },
             },
+      // `specs/193-admin-form-extensions/` FR-112 — `PRODUCT_HOOKABLE_ACTIONS.update`. The
+      // categories are the set this write stored, when it named one (`categoryIds` is canonical).
+      hookData: (product) => productUpdateHookData(product, changedFields, req.categoryIds),
+      outboxData: (product) => productOutbox(product.id, changedFields),
     };
   }
 

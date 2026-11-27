@@ -93,6 +93,7 @@
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/mod-custom-fields": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
+    "@endora-commerce/test-kit": "workspace:*",
     "@mikro-orm/core": "^7.2.11",
     "@mikro-orm/decorators": "^7.2.11",
     "@mikro-orm/migrations": "^7.2.11",

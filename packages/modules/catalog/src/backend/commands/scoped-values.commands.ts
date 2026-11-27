@@ -15,6 +15,8 @@ import {
   scopedValueChangesSchema,
   toScopedWriteOp,
   type OrganizationDetailsPort,
+  type ProductScopedValuesHookData,
+  type ProductScopedValuesHookScope,
   type ScopedWriteOp,
   type SeoProductMetaField,
   type SeoProductMetaOwnValue,
@@ -33,6 +35,7 @@ import {
   bumpScopeVersion,
   SCOPE_KEY,
   isRemovalOnly,
+  opValue,
   ownValues,
   planScopedSave,
   writeScopedSave,
@@ -41,6 +44,7 @@ import {
   type WriteProbe,
 } from '../services/scoped-values-save.service.js';
 import { cellChanges } from '../services/scoped-values-import.js';
+import { productOutbox, scopedValuesHookScope } from './product-hook-data.js';
 import { assertGlobalOnlyFields, useTargetAttributeSet } from '../services/scoped-values-global-only.js';
 import type { LinkableAssetReader } from '../services/linkable-asset.js';
 import { loadScopedState, resolveRequestScope, type ScopedProductState } from '../services/scoped-values-state.js';
@@ -115,6 +119,8 @@ export function scopedValuesSaveCommand(
   body: SaveScopedValuesRequest,
   completeness: ScopeCompletenessGateMode | undefined,
 ): Command<ScopedValuesSaveResult> {
+  // `specs/193-admin-form-extensions/` FR-112 — the one scope this save wrote, for the hook data.
+  let hookScopes: ProductScopedValuesHookScope[] = [];
   return {
     action: 'product.scoped_values.save',
     objectType: 'product',
@@ -175,6 +181,10 @@ export function scopedValuesSaveCommand(
         audit.before['urlKey'] = urlKeySideEffects.before;
         audit.after['urlKey'] = urlKeySideEffects.after;
       }
+      const seoAfter = Object.fromEntries(
+        Object.entries(seoChanges).map(([field, op]) => [`seo:${field}`, opValue(op as ScopedWriteOp<unknown>)]),
+      );
+      hookScopes = [scopedValuesHookScope(plan, { after: seoAfter, changedFields })];
       return {
         result: { state, scope, changedFields, warnings },
         before: audit.before,
@@ -188,6 +198,9 @@ export function scopedValuesSaveCommand(
             eventName: 'product.updated.v1',
             payload: { eventId: randomUUID(), occurredAt: new Date().toISOString(), productId, changedFields },
           },
+    // FR-112 — `PRODUCT_HOOKABLE_ACTIONS.scopedValuesSave`.
+    hookData: (): ProductScopedValuesHookData => ({ productId, scopes: hookScopes }),
+    outboxData: ({ changedFields }) => productOutbox(productId, changedFields),
   };
 }
 

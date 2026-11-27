@@ -6,6 +6,8 @@ import {
   integrationWritableField,
   scopedValueChangesSchema,
   type CatalogAttributeView,
+  type ProductScopedValuesHookData,
+  type ProductScopedValuesHookScope,
   type ProductScopedWriteCell,
   type ProductScopedWriteRefusalCode,
   type ProductScopedWriteResult,
@@ -19,7 +21,16 @@ import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 
-import { auditStates, ownValues, planScopedSave, withoutUnchangedCells, writeScopedSave, type ScopedSavePlan } from './scoped-values-save.service.js';
+import { productOutbox, scopedValuesHookScope } from '../commands/product-hook-data.js';
+import {
+  auditStates,
+  opValue,
+  ownValues,
+  planScopedSave,
+  withoutUnchangedCells,
+  writeScopedSave,
+  type ScopedSavePlan,
+} from './scoped-values-save.service.js';
 import { bumpScopeVersion, loadScopedState, resolveRequestScope, type ScopedProductState } from './scoped-values-state.js';
 import type { UrlKeyService, UrlKeyWrite } from './url-key.service.js';
 
@@ -318,6 +329,8 @@ export async function runScopedImport(
     extensions?: Readonly<Record<string, unknown>>;
   },
 ): Promise<ScopedImportResult> {
+  // `specs/193-admin-form-extensions/` FR-112 — one entry per scope the import wrote, for the hook data.
+  let hookScopes: ProductScopedValuesHookScope[] = [];
   const command: Command<ScopedImportResult> = {
     action: 'product.scoped_values.import',
     objectType: 'product',
@@ -356,6 +369,7 @@ export async function runScopedImport(
       }
 
       const changedFields = [...new Set([...planned.plans.flatMap((plan) => plan.changedFields), ...(urlKeysWritten > 0 ? ['urlKeys'] : [])])];
+      hookScopes = importHookScopes(planned.plans, planned.urlKeyCells, urlKeysWritten > 0 ? urlKeys : []);
       const result: ScopedImportResult = {
         applied: planned.accepted + urlKeysWritten,
         refused: planned.refused,
@@ -383,6 +397,9 @@ export async function runScopedImport(
             eventName: 'product.updated.v1',
             payload: { eventId: randomUUID(), occurredAt: new Date().toISOString(), productId, changedFields },
           },
+    // FR-112 — `PRODUCT_HOOKABLE_ACTIONS.scopedValuesImport`.
+    hookData: (): ProductScopedValuesHookData => ({ productId, scopes: hookScopes }),
+    outboxData: ({ changedFields }) => productOutbox(productId, changedFields),
   };
   try {
     return await commandBus.run(command);
@@ -390,6 +407,32 @@ export async function runScopedImport(
     if (error instanceof NothingApplied) return error.result;
     throw error;
   }
+}
+
+/**
+ * The scoped hook data of an import: each plan's scope, then each URL key the import
+ * wrote at its scope (`urlKey`, the key as written or `{ inherit: true }`, under
+ * `urlKeys`). A key the URL-key service refused is not written, so it is not there.
+ */
+function importHookScopes(
+  plans: readonly ScopedSavePlan[],
+  urlKeyCells: PlannedIntegration['urlKeyCells'],
+  outcomes: readonly UrlKeyWriteOutcome[],
+): ProductScopedValuesHookScope[] {
+  const byScope = new Map<string, { scope: ScopeRef; after: Record<string, unknown>; changedFields: string[] }>();
+  for (const plan of plans) {
+    const entry = scopedValuesHookScope(plan);
+    byScope.set(scopeKey(plan.scope), { scope: entry.scope, after: { ...entry.after }, changedFields: [...entry.changedFields] });
+  }
+  urlKeyCells.forEach((cell, index) => {
+    if (!outcomes[index]?.written) return;
+    const key = scopeKey(cell.scope);
+    const entry = byScope.get(key) ?? { scope: cell.scope, after: {}, changedFields: [] };
+    entry.after['urlKey'] = opValue(cell.op);
+    if (!entry.changedFields.includes('urlKeys')) entry.changedFields.push('urlKeys');
+    byScope.set(key, entry);
+  });
+  return [...byScope.values()];
 }
 
 /** The plan of an import without writing (the products import's dry run). */

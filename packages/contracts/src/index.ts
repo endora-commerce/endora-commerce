@@ -255,6 +255,8 @@ export * from './project-hooks.js';
 export * from './promotion-hooks.js';
 // Issue #1906 — `quote_requests`' buyer create-and-submit.
 export * from './quote-request-hooks.js';
+// `specs/193-admin-form-extensions/` FR-112 — `catalog`'s Product writes.
+export * from './product-hooks.js';
 export * from './platform-info.js';
 export * from './admin-feedback.js';
 export * from './admin-actions.js';
