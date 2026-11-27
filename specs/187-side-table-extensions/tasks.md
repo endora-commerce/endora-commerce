@@ -235,16 +235,16 @@ to the port 186 publishes.
   *Note:* Not started: blocked by spec 186 PR #1963 (orders read port still changing).
 - [x] T041 [P] [US4] `quote_requests.QuoteRequest` — `QuoteRequestReadPort`.
   *Note:* Methods per §4: `findById`, `findByBusinessId`, `findByIds` (`listOpenForOrganizations` unchanged, as the row says). Test `backend/test/contract/quote_requests/quote-request-read-port-extensions.test.ts` (6): under an administrator confined to Organization A the loader is handed only A's 50 quotes, never B's.
-- [ ] T042 [P] [US4] `catalog.Product` — `CatalogProductReadPort`.
-  *Note:* Not started: blocked by spec 186 PRs #1975 / #1826 (catalog read ports still changing).
-- [ ] T043 [P] [US4] `catalog.Category` — `CatalogCategoryReadPort`.
-  *Note:* Not started: blocked by spec 186 PRs #1975 / #1826 (catalog read ports still changing).
+- [x] T042 [P] [US4] `catalog.Product` — `CatalogProductReadPort`.
+  *Note:* Methods per the published port, not the old §4 row (which said `listAll` only; row updated): `findById`, `findByIds`, `findBySku`, `findBySkus`, `listAll`, their `CatalogProductLookupOptions` intersected with `EntityExtensionReadOptions`; every other method unchanged. `CatalogProductReadService`'s options object gains an optional `extensionReads`. Test `backend/test/contract/catalog/product-read-port-extensions.test.ts` (7) over the composition's real port: 50 products on `findByIds`, one loader statement. Principle XII: `Product` is a `@GlobalEntity` and the port applies no channel or buyer policy (its contract: callers pass vetted ids), so the scope the loader is held to is the lookup's own — a soft-deleted product under `liveOnly` and an inactive one under `activeOnly` never reach it, and `findById`/`findBySku` of one answers `null` with no loader statement.
+- [x] T043 [P] [US4] `catalog.Category` — `CatalogCategoryReadPort`.
+  *Note:* Methods per §4 plus `findByIds`, which the port carries and the row had left out (row updated): `findById`, `findByIds`, `findBySlug`, `listAll`, `ancestorsOf` (one load for the whole chain, after the walk); `listWithInventoryThresholds` and the assignment/subtree reads unchanged. Test `backend/test/contract/catalog/category-read-port-extensions.test.ts` (8): 50 categories on `findByIds` and a 50-deep `ancestorsOf`, one loader statement each; as for T042 the port has no channel policy (XII is the caller's), and a soft-deleted category under `liveOnly` never reaches the loader.
 - [ ] T044 [P] [US4] `crm.CrmOpportunity` — `OpportunityReadPort`.
   *Note:* Not started: blocked by spec 186 PR #1976 (crm read port still changing).
 - [x] T045 [P] [US4] `projects.Project` — `ProjectReadPort`.
   *Note:* Methods per §4. `ProjectReadPortDeps` gains an optional `extensions: { reads, em }` (the provider passes `emFactory`, the factory `ProjectAccess` reads with); `projectRecordOf` and the command port are untouched. Test `backend/test/contract/projects/project-read-port-extensions.test.ts` (6): a Project hidden from the caller never reaches the loader; a member who sees it hands 51 ids.
-- [ ] T046 [P] [US4] `tasks.Task` — `TaskReadPort`.
-  *Note:* Not started: blocked by spec 186 PR #1985 (tasks read port still changing).
+- [x] T046 [P] [US4] `tasks.Task` — `TaskReadPort`.
+  *Note:* Methods per §4 (unchanged since 186 #1985): `findById`, `findByIds`, `search`, `listInContext`, `listOpenInContext`; `countInContext` unchanged. `TaskReadPortService` (module-internal) takes the module's `emFactory`, the one `TaskService` reads with. Test `backend/test/contract/tasks/task-read-port-extensions.test.ts` (8) as an administrator without `tasks:see_private`: 50 Tasks on `findByIds`, `listInContext` and `listOpenInContext`, one loader statement each; another administrator's private Task passed to `findByIds` never reaches the loader, and `findById` of it answers `null` with no loader statement.
 
 ---
 
