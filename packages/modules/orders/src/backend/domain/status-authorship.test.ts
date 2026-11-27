@@ -19,10 +19,11 @@ import {
  * | null | set | the customer acted themselves |
  * | **null** | **null** | **a `{ kind: 'system' }` actor acted** |
  *
- * The settlement ingress is the last row. `source` is not recorded at all, so
- * the payment ingress and the shipment ingress are one answer here and the
- * caller separates them by the configured failure status — see
- * `customer-cancellation.ts`.
+ * The settlement ingress is the last row — and, since 0.113.0, any entry whose
+ * `source` is `payment`, whoever the actor was. Since 0.113.0 a customer acting
+ * for themselves is also on `actorCustomerAccountId`. Every other `source`
+ * leaves the actor columns to decide, and the caller separates a shipment-held
+ * order by the configured failure status — see `customer-cancellation.ts`.
  */
 
 const AT = (ms: number): Date => new Date(1_700_000_000_000 + ms);
@@ -39,6 +40,22 @@ function entry(patch: Partial<StatusTransitionRecord> = {}): StatusTransitionRec
 }
 
 describe('authorOfCurrentStatus', () => {
+  // `specs/186-aggregate-ports/` R-18.2 — the transition is a Command since
+  // 0.113.0: a customer acting for themselves is on its own column, and the
+  // settlement ingress names itself with `source: 'payment'`.
+  it('reads the customer the bus records on its own column as a named actor', () => {
+    expect(authorOfCurrentStatus([entry({ actorCustomerAccountId: 'buyer-1' })], 'on_hold')).toBe('named_actor');
+  });
+
+  it('reads the settlement ingress from its source, whoever its ambient actor was', () => {
+    expect(authorOfCurrentStatus([entry({ actorAdminUserId: 'admin-7', source: 'payment' })], 'on_hold')).toBe(
+      'system',
+    );
+    expect(authorOfCurrentStatus([entry({ actorAdminUserId: 'admin-7', source: 'shipment' })], 'on_hold')).toBe(
+      'named_actor',
+    );
+  });
+
   it('reads a system actor from an entry naming neither an admin nor a customer', () => {
     expect(authorOfCurrentStatus([entry()], 'on_hold')).toBe('system');
   });

@@ -27,7 +27,7 @@ import type { OrderTransitionEffectService } from './order-transition-effect-ser
  * than optional, and this file writes no other column.
  *
  * **No audit entry here, deliberately.** The lifecycle move a settlement asks
- * for goes through `orderTransitionPort` after the commit, and that port
+ * for goes through `orderCommandPort` after the commit, and that port
  * records the `order.status_transition` entry co-transactionally with the
  * status it writes. The admin-driven twin of this write —
  * `OrderService.transitionPaymentStatus` — does audit, because there an

@@ -4,7 +4,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   DeliveryMethodReadPort,
   OrderReadPort,
-  OrderTransitionPort,
+  OrderCommandPort,
 } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -90,12 +90,12 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
   const ports = (): {
     orderReadPort: OrderReadPort;
     deliveryMethodReadPort: DeliveryMethodReadPort;
-    orderTransitionPort: OrderTransitionPort;
+    orderCommandPort: OrderCommandPort;
   } =>
     h.container.cradle as unknown as {
       orderReadPort: OrderReadPort;
       deliveryMethodReadPort: DeliveryMethodReadPort;
-      orderTransitionPort: OrderTransitionPort;
+      orderCommandPort: OrderCommandPort;
     };
 
   /** Refusals, when a case wants to read them rather than ignore them. */
@@ -120,7 +120,7 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
     new ReceiveShipmentHandler(
       h.em,
       ports().deliveryMethodReadPort,
-      ports().orderTransitionPort,
+      ports().orderCommandPort,
       log,
       events,
     );
@@ -240,6 +240,27 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
         objectId: order.id,
       }),
     ).toHaveLength(0);
+  });
+
+  /**
+   * Review of #1963 — a configured status in a spelling the admin status-code
+   * pattern refuses (`Shipped-Out`; the method's schema accepts any 1–64
+   * characters) is the `unknown_status` outcome, not a thrown 422 the carrier
+   * would retry forever.
+   */
+  it('keeps the order where it is when the configured target is no status at all', async () => {
+    const { order } = await seedOrder(h.em(), { status: 'shipment_ready', statusOnSuccess: 'Shipped-Out' });
+    const log = recordingLog();
+    const handler = receiveHandler(undefined, log);
+    const shipment = await shipmentService().createShipment(order.id);
+
+    const res = await handler.receive({ shipmentId: shipment.id, outcome: 'success' });
+
+    expect(res.status).toBe('success');
+    expect((await h.em().findOne(Order, { id: order.id }, { refresh: true }))!.status).toBe('shipment_ready');
+    expect(log.warnings).toEqual([
+      expect.objectContaining({ orderId: order.id, to: 'Shipped-Out', refusal: 'unknown_status' }),
+    ]);
   });
 
   it('is idempotent on repeated success and rejects failure after success', async () => {

@@ -11,6 +11,7 @@ import { Order } from '../entities/order.entity.js';
 import { OrderStatus } from '../entities/order-status.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
 import { OrderAccessService } from './order-access-service.js';
+import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
@@ -38,8 +39,27 @@ export class OrderReadService implements OrderReadPort {
   constructor(
     private readonly emFactory: () => EntityManager,
     organizationPermissions: OrganizationPermissionPort,
+    /**
+     * The configured lifecycle, for {@link isTerminal} — resolved per call,
+     * because the graph service is built in the plugin body and is cached and
+     * invalidated by the instance that writes it.
+     */
+    private readonly graph: () => Pick<OrderStatusGraphService, 'loadGraph'>,
   ) {
     this.#access = new OrderAccessService(organizationPermissions);
+  }
+
+  /**
+   * `specs/186-aggregate-ports/` — moved here from the deprecated
+   * `orderTransitionPort`. Asked of the graph, never of a status code this
+   * file recognises: the set is operator-configurable and a deployment may add
+   * terminal statuses of its own.
+   */
+  async isTerminal(orderId: string): Promise<boolean | null> {
+    if (!isUuidShape(orderId)) return null;
+    const order = await this.emFactory().findOne(Order, { id: orderId });
+    if (!order) return null;
+    return (await this.graph().loadGraph()).isTerminal(order.status);
   }
 
   async findById(id: string): Promise<OrderRecord | null> {
@@ -160,6 +180,17 @@ export function toOrderRecord(order: Order): OrderRecord {
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     customFieldValues: order.customFieldValues ?? {},
+    // `specs/186-aggregate-ports/` (R-8) — the payer as the order stores it
+    // (`specs/182-related-payers/`), in the admin detail's shape.
+    payer:
+      order.payerOrganizationId && order.payerSnapshot
+        ? {
+            organizationId: order.payerOrganizationId,
+            name: order.payerSnapshot.name,
+            taxId: order.payerSnapshot.taxId,
+            terms: order.payerTerms ?? 'buyer',
+          }
+        : null,
   };
 }
 
