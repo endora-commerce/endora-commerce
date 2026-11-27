@@ -17,7 +17,7 @@ import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type {
   CatalogCategoryReadPort,
-  CatalogCategoryWritePort,
+  CatalogCategoryCommandPort,
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
@@ -52,7 +52,7 @@ export interface InventoryModuleOptions {
    */
   catalogProducts: CatalogProductReadPort;
   catalogCategories: CatalogCategoryReadPort;
-  catalogCategoryWrites: CatalogCategoryWritePort;
+  catalogCategoryCommands: CatalogCategoryCommandPort;
   customerAccounts: CustomerAccountReadPort;
   /**
    * `catalogProductAvailabilityPort`, owned by `catalog` (feature 163) — the
@@ -197,7 +197,7 @@ export function inventoryModule(options: InventoryModuleOptions): InventoryModul
     const thresholdAdminService = new ThresholdAdminService(
       options.emFactory,
       options.catalogCategories,
-      options.catalogCategoryWrites,
+      options.catalogCategoryCommands,
       options.catalogProducts,
       options.auditLogService,
     );

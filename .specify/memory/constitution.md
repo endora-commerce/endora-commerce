@@ -1,6 +1,60 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 4.3.0 → 4.4.0
+Rationale: MINOR. Principle XIII's thin layer gains one sentence and Principle
+XV's two overlay bullets are extended, as specified by
+`specs/189-command-middleware/contracts/guard-seam-narrowing.md` §6 and ratified
+by the owner on 2026-11-23 (D-296.9). The amendment lands with the 0.113.0
+deprecation (189 P2): declared command middleware joins the bounded overridable
+surface, and XV's existing "never a guard seam" is stated against the four guard
+seams a composition root supplies, which D-296 narrows D-156.4 for.
+
+MINOR, not MAJOR. No compliant work becomes non-compliant in this release: an
+overlay's decoration of a guard seam still composes in 0.113.0 and is warned,
+and it is refused from 0.114.0 behind a versioned upgrade note. XV already said
+an override never swaps a guard seam; this names the seams. Not PATCH: XV's
+surface list gains a member and XIII gains a rule about what middleware may do,
+which is a material expansion of guidance rather than a clarification.
+
+Modified sections:
+  - XIII. Uniform Write Auditing via Command Bus — declared command middleware
+    (`admit`, `observe`) is part of the thin layer: a refused Command writes
+    nothing and records no audit entry, and an observer cannot change a write.
+  - XV. Untouched Core & Per-Deployment Overlay — "Overlays are ordinary
+    participants" names the four guard seams no module decorates and routes
+    cross-cutting behaviour on Commands to declared command middleware;
+    "Bounded overridable surface" names declared command middleware and says
+    what bounds it.
+
+Added sections:
+  - (none)
+
+Removed sections:
+  - (none)
+
+Templates / artifacts requiring alignment:
+  - ✅ specs/conventions/overlay-modules.md — *Decorating across owners* states
+       the deprecation for the four guard seams (189 T074).
+  - ⏳ docs/docs/architecture/overlay-pattern.md, customisation-ladder.md and
+       the upgrade page (+ Polish twins) — `specs/190-overlay-full-modules/`
+       (#1857), which also rewrites XV around these sentences and keeps their
+       substance.
+  - ✅ AGENTS.md — its summaries of XIII ("admin/domain writes run through
+       `CommandBus.run`") and XV ("a deployment customises through an overlay
+       module") stay true; not edited.
+  - ✅ .specify/templates/* — none restates XIII's thin-layer bullet or XV's
+       surface list; verified by grep.
+
+Deferred items / TODOs:
+  - `specs/188-policy-points/` carries an XV amendment of its own that has not
+    landed; whichever merges second re-bumps the version and rebases on the
+    first (188 plan, XV row).
+
+--- The 4.3.0 report follows unchanged.
+
+SYNC IMPACT REPORT
+==================
 Version change: 4.2.0 → 4.3.0
 Rationale: MINOR. Principle XIII gains one bullet and Principle XV's bounded
 overridable surface names one more member, both specified by
@@ -948,7 +1002,9 @@ existed anywhere. The following are binding for every backend feature that perfo
 - **Thin layer.** The Command Bus MUST wrap existing services and the existing audit + event
   infrastructure — **no CQRS, no separate read model, no bespoke command queue, no speculative
   redo** (Principle IV). Reversible bulk operations reuse the durable queue path (Principle X);
-  large undos run through the separable worker entrypoint, never inline.
+  large undos run through the separable worker entrypoint, never inline. Declared command
+  middleware (`admit`, `observe`) is part of this layer, not a wrapper around it: a refused
+  Command writes nothing and records no audit entry, and an observer cannot change a write.
 - **The outbox is event dispatch, not a command queue.** A **transactional outbox** for
   post-commit delivery — one row per `afterCommit` handler, written by the bus on the Command's
   own transaction after its audit entry, and drained at least once on the durable queue path
@@ -1075,12 +1131,18 @@ capability meant to be per-deployment overridable:
   participants (install / uninstall / reconcile), MUST register their permissions and pass the
   permission-inventory check **per deployment**, and MUST run under the same tenant-isolation guard
   (Principle XI), sales-channel scoping (Principle XII), and Command-Bus auditing (Principle XIII)
-  as core — an override swaps an **implementation**, never a guard seam.
+  as core — an override swaps an **implementation**, never a guard seam: no module, an overlay
+  module included, decorates the guard seams a composition root supplies (`commandBus`,
+  `auditLogService`, `eventBus`, `emFactory`), and cross-cutting behaviour on Commands is
+  contributed as declared command middleware.
 - **Bounded overridable surface (YAGNI).** The overridable surface is **services, routes, config,
-  declared command hooks, and whole new modules**. A command hook runs only on an action its
-  owning module declares hookable: a `beforeCommit` hook at a position the dependency graph — or
-  the deployment's declared `commandHookOrder` — fixes, an `afterCommit` one after the Command
-  commits. It extends the owner's write and never replaces it. Overlay modules ship no schema. A deployment needing new schema ships it
+  declared command hooks, declared command middleware, and whole new modules**. A command hook
+  runs only on an action its owning module declares hookable: a `beforeCommit` hook at a position
+  the dependency graph — or the deployment's declared `commandHookOrder` — fixes, an `afterCommit`
+  one after the Command commits. It extends the owner's write and never replaces it. Command
+  middleware runs on every Command whose action matches its declared filter: `admit` before the
+  Command does anything, which may only pass or refuse; `observe` after the run, read-only. It
+  never transforms a Command's input. Overlay modules ship no schema. A deployment needing new schema ships it
   in an installed module package, on one of three rungs: a **side table** the package owns, **declared
   extension columns** on an extensible table (Principle I), or a **variant the owning module
   provides**. Schema, entity or migration overrides of existing core units — a core column, a
@@ -1583,4 +1645,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 4.3.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-11-12
+**Version**: 4.4.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-11-27

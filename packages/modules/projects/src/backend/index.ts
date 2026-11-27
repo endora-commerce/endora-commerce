@@ -24,9 +24,9 @@ import type {
   QuoteRequestReadPort,
   ReportingTimeZonePort,
   SettingWriteValidatorRegistryPort,
+  TaskCommandPort,
   TaskContextRegistryPort,
   TaskReadPort,
-  TaskWritePort,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -252,7 +252,7 @@ export function registerModule(ctx: ModuleContext): void {
         (): ProjectTasks => ({
           present: () => effectiveState.isPresent('tasks'),
           read: lazyPort<TaskReadPort>(ctx, 'taskReadPort'),
-          write: lazyPort<TaskWritePort>(ctx, 'taskWritePort'),
+          write: lazyPort<TaskCommandPort>(ctx, 'taskCommandPort'),
         }),
       )
       .singleton(),

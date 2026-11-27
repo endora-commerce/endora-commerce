@@ -1,0 +1,5 @@
+---
+'@endora-commerce/cli': minor
+---
+
+The divergence report flags an overlay module's decoration of a guard seam (`specs/189-command-middleware/`, issue #1841; D-296, narrowing D-156.4). `DivergenceFinding` gains an optional `severity: 'error' | 'warning'`; absent means `'error'`, so every existing finding still fails. The new `deprecated-decoration` finding, of severity `'warning'`, is raised for each decoration of `commandBus`, `auditLogService`, `eventBus` or `emFactory` that a composition root supplies, names the overlay module's `backend.ts` and the replacement to use, and carries a `DIVERGENCE_REMEDIES` entry. A decoration of any other root-supplied name raises nothing new. `endora generate` prints warnings under `warnings:` and refuses a run only over an error finding. New exports from `lib/divergence`: `isDivergenceError`, `divergenceFindingCounts` and `divergenceExitCode`. **The finding becomes an error from 0.114.0**, when the platform refuses the decoration; the replacements are the platform changeset's table.
