@@ -4,6 +4,7 @@ import {
   OPPORTUNITY_READ_PORT_NOTES_MAX,
   type AdminUserReadPort,
   type CreateOpportunityCommentRequest,
+  type CustomFieldValuePort,
   type OpportunityComment,
   type OpportunityCommentKind,
   type OpportunityNotePage,
@@ -13,6 +14,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { orgConstraintFor, orgScopeSql, reachesNoOrganization } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
+import { isDeepStrictEqual } from 'util';
 import { NOTE_CURSOR_INSTANT_SQL, encodeNoteCursor, noteListBounds } from '../domain/note-page.js';
 import type { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityComment } from '../entities/crm-opportunity-comment.entity.js';
@@ -21,6 +23,11 @@ import type { AdminReach } from './admin-reach.js';
 import { crmNotificationText, tellAfterCommit, type CrmNotifier } from './crm-notifier.js';
 import { newlyMentioned, type MentionService, type SavedMentions } from './mention-service.js';
 import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
+import {
+  changedCustomFieldKeys,
+  mergeOpportunityCustomFields,
+  refuseMessageCustomFields,
+} from './opportunity-custom-fields.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
 import { storedReferencesOf, type ReferenceService, type ReferenceSource } from './reference-service.js';
@@ -37,7 +44,16 @@ export interface OpportunityCommentServiceDeps {
   canReach: AdminReach;
   /** Who a text mentions, and telling them (User Story 18). */
   mentions: MentionService;
+  /**
+   * `custom_fields`' validator for a note's values (`opportunity_note`, issue
+   * #2005) — lazy, resolved per call. It validates and merges; the note's own
+   * Command writes.
+   */
+  customFields: CustomFieldValuePort;
 }
+
+/** How many times an edit re-validates a note's values that changed under it. */
+const MAX_NOTE_CUSTOM_FIELD_REVALIDATIONS = 3;
 
 /** One row of the notes listing's statement. */
 interface NoteRow {
@@ -48,6 +64,7 @@ interface NoteRow {
   body: string;
   created_at: Date | string;
   edited_at: Date | string | null;
+  custom_field_values: Record<string, unknown> | null;
   /** `created_at` at full precision, as a cursor carries it. */
   cursor_at: string;
 }
@@ -164,7 +181,7 @@ export class OpportunityCommentService {
       .getConnection()
       .execute<NoteRow[]>(
         `select c."id", c."opportunity_id", o."organization_id", c."author_admin_user_id", c."body",
-                c."created_at", c."edited_at", ${NOTE_CURSOR_INSTANT_SQL} as "cursor_at"
+                c."created_at", c."edited_at", c."custom_field_values", ${NOTE_CURSOR_INSTANT_SQL} as "cursor_at"
            from "crm_opportunity_comments" c
            join "crm_opportunities" o on o."id" = c."opportunity_id"
           where ${where.join(' and ')}
@@ -185,6 +202,7 @@ export class OpportunityCommentService {
         body: row.body,
         createdAt: new Date(row.created_at),
         editedAt: row.edited_at === null ? null : new Date(row.edited_at),
+        customFieldValues: { ...(row.custom_field_values ?? {}) },
       })),
       nextCursor:
         rows.length > bounds.limit && last !== undefined
@@ -296,6 +314,13 @@ export class OpportunityCommentService {
    * `opportunityCommandPort.addComment`; `caller` is the port's `source` and
    * `extensions`, absent on the route. The author is the ambient
    * administrator, so with none it is refused 403 (research R-21.3).
+   *
+   * A note's custom-field values (`opportunity_note`, issue #2005) are
+   * validated here, before the Command — which reads no other module's port
+   * (research N-S1) — with the administrator's rules: a `required` definition
+   * is asked for on every note, also when none are sent. They are written by
+   * the Command that creates the note, and its audit entry names their keys,
+   * never the values. A message is no host: a non-empty bag is refused 422.
    */
   async add(
     opportunityId: string,
@@ -303,8 +328,14 @@ export class OpportunityCommentService {
     caller: CallerOptions = {},
   ): Promise<OpportunityComment> {
     const author = this.#author();
+    if (input.kind === 'message') refuseMessageCustomFields(input.customFieldValues);
     // The parent first: an Opportunity the caller cannot see is a 404.
     await loadOpportunity(this.deps.emFactory(), opportunityId);
+    const customFieldValues =
+      input.kind === 'note'
+        ? await mergeOpportunityCustomFields(this.deps.customFields, {}, input.customFieldValues ?? {}, 'opportunity_note')
+        : {};
+    const changedCustomFields = changedCustomFieldKeys({}, customFieldValues);
 
     const written = await this.deps.commandBus.run(withCallerOptions({
       action: input.kind === 'note' ? 'crm.opportunity.note_add' : 'crm.opportunity.message_add',
@@ -323,6 +354,7 @@ export class OpportunityCommentService {
           kind: input.kind,
           authorAdminUserId: author,
           body: input.body,
+          customFieldValues,
         });
         await this.#saveReferences(
           em,
@@ -339,6 +371,8 @@ export class OpportunityCommentService {
             kind: comment.kind,
             authorAdminUserId: author,
             length: comment.body.length,
+            // The keys a note was given values for — never the values (audit-state.md).
+            ...(changedCustomFields.length > 0 ? { changedCustomFields } : {}),
           },
         };
       },
@@ -372,39 +406,100 @@ export class OpportunityCommentService {
     return rendered;
   }
 
-  /** Edit a note. Its author only; a message is refused whoever asks. */
-  async update(opportunityId: string, commentId: string, body: string): Promise<OpportunityComment> {
+  /**
+   * Edit a note — its text and, merged key by key into what it holds, its
+   * custom-field values (issue #2005; absent leaves them as they are). Its
+   * author only; a message is refused whoever asks.
+   *
+   * The values are validated before the Command, against the bag read here;
+   * the Command writes the result only if the note still holds that bag once
+   * it is loaded again, and otherwise this is done again — the rule an
+   * Opportunity's own edit follows (research N-S1).
+   */
+  async update(
+    opportunityId: string,
+    commentId: string,
+    body: string,
+    customFieldPatch?: Record<string, unknown>,
+  ): Promise<OpportunityComment> {
     const saved: { mentions: SavedMentions | null } = { mentions: null };
-    const comment = await this.deps.commandBus.run({
-      action: 'crm.opportunity.note_update',
-      objectType: 'crm_opportunity',
-      objectId: opportunityId,
-      run: async ({ em }) => {
-        const { note, opportunity } = await this.#loadOwnNote(em, opportunityId, commentId, 'edited');
-        const before = { commentId: note.id, length: note.body.length };
-        if (note.body === body) return { result: note, skipAudit: true };
-        // Who this edit adds, against the text it replaces — worked out here,
-        // from the row the Command holds, and told after the commit.
-        saved.mentions = {
-          opportunityId: opportunity.id,
-          organizationId: opportunity.organizationId,
-          number: opportunity.number,
-          adminUserIds: newlyMentioned(note.body, body),
-        };
-        note.body = body;
-        note.editedAt = new Date();
-        await this.#saveReferences(
-          em,
-          { opportunityId: note.opportunityId, kind: 'comment', sourceId: note.id },
-          body,
-        );
-        return { result: note, before, after: { commentId: note.id, length: note.body.length } };
-      },
-    });
-    if (saved.mentions) await this.#tellMentioned(saved.mentions);
-    const [rendered] = await this.#render([comment]);
-    if (!rendered) throw new Error('crm: an edited note produced no rendering.');
-    return rendered;
+    let validatedAgainst: Record<string, unknown> = {};
+    let customFieldValues: Record<string, unknown> | null = null;
+    if (customFieldPatch !== undefined) {
+      // The note as its author may change it — the refusals in their order — before any value is looked at.
+      const { note } = await this.#loadOwnNote(this.deps.emFactory(), opportunityId, commentId, 'edited');
+      validatedAgainst = { ...(note.customFieldValues ?? {}) };
+      customFieldValues = await mergeOpportunityCustomFields(
+        this.deps.customFields,
+        validatedAgainst,
+        customFieldPatch,
+        'opportunity_note',
+      );
+    }
+    for (let attempt = 0; ; attempt += 1) {
+      const stale: { current: Record<string, unknown> | null } = { current: null };
+      const comment = await this.deps.commandBus.run({
+        action: 'crm.opportunity.note_update',
+        objectType: 'crm_opportunity',
+        objectId: opportunityId,
+        run: async ({ em }) => {
+          const { note, opportunity } = await this.#loadOwnNote(em, opportunityId, commentId, 'edited');
+          const valuesBefore = { ...(note.customFieldValues ?? {}) };
+          if (customFieldValues !== null && !isDeepStrictEqual(valuesBefore, validatedAgainst)) {
+            stale.current = valuesBefore;
+            return { result: note, skipAudit: true };
+          }
+          const valuesAfter = customFieldValues ?? valuesBefore;
+          const changedCustomFields = changedCustomFieldKeys(valuesBefore, valuesAfter);
+          if (note.body === body && changedCustomFields.length === 0) return { result: note, skipAudit: true };
+          const before = { commentId: note.id, length: note.body.length };
+          if (note.body !== body) {
+            // Who this edit adds, against the text it replaces — worked out here,
+            // from the row the Command holds, and told after the commit.
+            saved.mentions = {
+              opportunityId: opportunity.id,
+              organizationId: opportunity.organizationId,
+              number: opportunity.number,
+              adminUserIds: newlyMentioned(note.body, body),
+            };
+            note.body = body;
+            await this.#saveReferences(
+              em,
+              { opportunityId: note.opportunityId, kind: 'comment', sourceId: note.id },
+              body,
+            );
+          }
+          if (changedCustomFields.length > 0) note.customFieldValues = valuesAfter;
+          note.editedAt = new Date();
+          return {
+            result: note,
+            before,
+            after: {
+              commentId: note.id,
+              length: note.body.length,
+              // The keys whose value changed — never the values (audit-state.md).
+              ...(changedCustomFields.length > 0 ? { changedCustomFields } : {}),
+            },
+          };
+        },
+      });
+      if (stale.current === null) {
+        if (saved.mentions) await this.#tellMentioned(saved.mentions);
+        const [rendered] = await this.#render([comment]);
+        if (!rendered) throw new Error('crm: an edited note produced no rendering.');
+        return rendered;
+      }
+      if (attempt + 1 >= MAX_NOTE_CUSTOM_FIELD_REVALIDATIONS) {
+        throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The note was updated concurrently.');
+      }
+      validatedAgainst = stale.current;
+      customFieldValues = await mergeOpportunityCustomFields(
+        this.deps.customFields,
+        validatedAgainst,
+        customFieldPatch,
+        'opportunity_note',
+      );
+    }
   }
 
   /**
@@ -539,6 +634,7 @@ export class OpportunityCommentService {
       references: references[index] ?? [],
       editedAt: row.editedAt ? row.editedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
+      customFieldValues: { ...(row.customFieldValues ?? {}) },
     }));
   }
 }

@@ -91,6 +91,21 @@ export const customFieldWrites = [
     path: '/api/v1/admin/projects/:id',
     body: 'UpdateProjectBodySchema',
   },
+  // Issue #2005 — a note on a Project: written with the note, and edited with its text.
+  {
+    entityType: 'project_note',
+    kind: 'create',
+    method: 'POST',
+    path: '/api/v1/admin/projects/:id/comments',
+    body: 'CreateProjectCommentBodySchema',
+  },
+  {
+    entityType: 'project_note',
+    kind: 'update',
+    method: 'PATCH',
+    path: '/api/v1/admin/projects/:id/comments/:commentId',
+    body: 'UpdateProjectCommentBodySchema',
+  },
 ] satisfies CustomFieldWriteDeclaration[];
 
 export const manifest = defineModuleManifest({

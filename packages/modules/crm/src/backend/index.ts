@@ -414,6 +414,8 @@ export function registerModule(ctx: ModuleContext): void {
             references: crmReferenceService,
             canReach: createAdminReach(lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort')),
             mentions: crmMentionService,
+            // Issue #2005 — a note's values; the owner is non-deactivatable.
+            customFields: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
           }),
       )
       .singleton(),

@@ -645,6 +645,8 @@ export function registerModule(ctx: ModuleContext): void {
             notifier: projectsNotifier,
             references: projectsReferenceService,
             mentions: projectsMentionService,
+            // Issue #2005 — a note's values; the owner is non-deactivatable.
+            customFields: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
           }),
       )
       .singleton(),
