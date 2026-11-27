@@ -84,3 +84,15 @@ describe('adminQuoteRequestListResponseSchema (issue #317)', () => {
     ).toBe(false);
   });
 });
+
+describe('adminQuoteRequestListQuerySchema — sharing (`specs/192-quote-request-draft-share/`)', () => {
+  it('reads `sharing=unshared|shared`; absent is both', () => {
+    expect(adminQuoteRequestListQuerySchema.parse({ sharing: 'unshared' }).sharing).toBe('unshared');
+    expect(adminQuoteRequestListQuerySchema.parse({ sharing: 'shared' }).sharing).toBe('shared');
+    expect(adminQuoteRequestListQuerySchema.parse({})).not.toHaveProperty('sharing');
+  });
+
+  it('refuses any other value', () => {
+    expect(adminQuoteRequestListQuerySchema.safeParse({ sharing: 'foo' }).success).toBe(false);
+  });
+});

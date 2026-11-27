@@ -15,6 +15,7 @@ import {
  *   - quote_requests.showAddToQuoteOnPdp  (boolean, default true)
  *   - quote_requests.business_id.prefix   (string, default '')
  *   - quote_requests.business_id.suffix   (string, default '')
+ *   - quote_requests.default_validity_days (number, default 0, 0…3650)
  */
 
 export const QUOTE_REQUESTS_SETTING_CODES = {
@@ -23,6 +24,7 @@ export const QUOTE_REQUESTS_SETTING_CODES = {
   SHOW_ADD_TO_QUOTE_ON_PDP: 'quote_requests.show_add_to_quote_on_pdp',
   BUSINESS_ID_PREFIX: 'quote_requests.business_id.prefix',
   BUSINESS_ID_SUFFIX: 'quote_requests.business_id.suffix',
+  DEFAULT_VALIDITY_DAYS: 'quote_requests.default_validity_days',
 } as const;
 
 export const DEFAULT_QUOTE_REQUESTS_EXPIRY_DAYS = 0;
@@ -88,6 +90,16 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'quote_requests',
       valueType: 'string',
       defaultValue: '',
+    },
+    {
+      // `specs/192-quote-request-draft-share/` (FR-030 – FR-033, research R-12).
+      code: QUOTE_REQUESTS_SETTING_CODES.DEFAULT_VALIDITY_DAYS,
+      name: 'Default validity of operator quotes (days)',
+      description:
+        'Number of days a quote an operator creates for a customer stays valid, counted from the moment it is shared with the customer. Each new quote takes this value unless the operator changes it for that quote; changing it does not change quotes already created. 0 = no deadline. At most 3650 days; a larger value is read as 0.',
+      groupCode: 'quote_requests',
+      valueType: 'number',
+      defaultValue: 0,
     },
   ],
 });
@@ -410,11 +422,14 @@ export const manifest = defineModuleManifest({
    * The error codes this module owns — feature 090 Phase 3
    * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
    * §1.1). This is where the sentence for each is looked up from: `errors.<CODE>`
-   * in this module's own `i18n/{en,pl}.json`, which holds all ten in both
-   * languages and no eleventh. None of them is a `check-error-translations.ts`
-   * `UNTRANSLATED_ERROR_CODES` entry.
+   * in this module's own `i18n/{en,pl}.json`, which holds all eighteen in both
+   * languages, with a sentence per declared token. None of them is a
+   * `check-error-translations.ts` `UNTRANSLATED_ERROR_CODES` entry.
    *
-   * **Nine came from the capture and one was minted.**
+   * **Nine came from the capture and nine were minted.** The first minted,
+   * `RFQ_PRICE_PROPOSAL_NOT_ALLOWED`, is described here; the rest (features 147,
+   * 153, 163 and `specs/192-quote-request-draft-share/`) each carry their owner
+   * and reason in `MINTED_ERROR_CODES` and a comment at their entry.
    * `RFQ_PRICE_PROPOSAL_NOT_ALLOWED` was created by feature 146
    * (`specs/146-quote-request-pricing-history/`, FR-022) after the prefix chain
    * was deleted, so the capture below cannot hold it; its owner and reason are
@@ -502,7 +517,9 @@ export const manifest = defineModuleManifest({
    * language and not one `errors.<CODE>.<token>`.
    */
   errorCodes: [
-    { code: 'QUOTE_INCOMPLETE' },
+    // `specs/192-quote-request-draft-share/` (research R-8) — `share`: a share
+    // refused while a line has no agreed price; `details.lines` names them.
+    { code: 'QUOTE_INCOMPLETE', tokens: ['share'] },
     { code: 'QUOTE_VALIDITY_ENDED', tokens: ['lapsed', 'withdrawn', 'unavailable'] },
     { code: 'RFQ_ALREADY_CLAIMED' },
     { code: 'RFQ_EMPTY' },
@@ -523,6 +540,12 @@ export const manifest = defineModuleManifest({
     { code: 'QUOTE_REQUEST_PDF_TOO_LARGE' },
     { code: 'QUOTE_REQUEST_PDF_EMAIL_UNAVAILABLE', tokens: ['deactivated', 'no_transport', 'no_definition'] },
     { code: 'QUOTE_REQUEST_PDF_SEND_FAILED' },
+    // `specs/192-quote-request-draft-share/` — sharing an operator's quote with its
+    // customer, and the PDF send refused before it. Minted by this feature; owner and
+    // reason in `MINTED_ERROR_CODES`.
+    { code: 'RFQ_ALREADY_SHARED' },
+    { code: 'RFQ_SHARE_CUSTOMER_UNAVAILABLE', tokens: ['not_member', 'inactive', 'blocked'] },
+    { code: 'RFQ_NOT_SHARED' },
     // Issue #1906 — an assignee who may not handle the request: named on the
     // admin assign route or the port (the plain sentence), or by a command hook
     // inside a buyer's submission (`submission`, worded for the buyer). Minted
@@ -736,12 +759,16 @@ export const manifest = defineModuleManifest({
     ...QUOTE_NOTIFICATION_EMAILS,
   ],
   /**
-   * Command hooks (issue #1906, `specs/176-command-hooks-outbox/`): the buyer's
+   * Command hooks (`specs/176-command-hooks-outbox/`): the buyer's
    * create-and-submit, `quote_request.create`, and submit-again,
-   * `quote_request.resubmit`, for both phases — so a deployment's module may
-   * veto either, or set the new request's assignee inside the write through
-   * the hook data's `assign`, before the operators' notifications are fixed.
-   * `quote-request-create-hooks.test.ts` holds each Command to its ref.
+   * `quote_request.resubmit`, for both phases (issue #1906) — so a deployment's
+   * module may veto either, or set the new request's assignee inside the write
+   * through the hook data's `assign`, before the operators' notifications are
+   * fixed. `quote-request-create-hooks.test.ts` holds each Command to its ref.
+   * And the operator's share of an unshared quote with its customer,
+   * `quote_request.share`, `beforeCommit` only (`specs/192-quote-request-draft-share/`,
+   * `contracts/share-hook.md`) — another module may refuse it, say an approval
+   * still pending; `share-command.ts` supplies the hook data.
    */
   hookableActions: Object.values(QUOTE_REQUEST_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
   /**

@@ -202,11 +202,15 @@ async function refusalOf(promise: Promise<unknown>): Promise<{ statusCode: numbe
 }
 
 describe('quote_request.create — the buyer’s create-and-submit (issue #1906)', () => {
-  it('is one of the two actions the manifest declares hookable, for both phases', () => {
-    expect(manifest.hookableActions).toEqual([
-      { action: 'quote_request.create', objectType: 'quote_request', phases: ['beforeCommit', 'afterCommit'] },
-      { action: 'quote_request.resubmit', objectType: 'quote_request', phases: ['beforeCommit', 'afterCommit'] },
-    ]);
+  it('is one of the actions the manifest declares hookable, for both phases', () => {
+    // The share of `specs/192-quote-request-draft-share/` is declared beside them
+    // (`manifest-hookable-actions.test.ts` holds the whole list).
+    expect(manifest.hookableActions).toEqual(
+      expect.arrayContaining([
+        { action: 'quote_request.create', objectType: 'quote_request', phases: ['beforeCommit', 'afterCommit'] },
+        { action: 'quote_request.resubmit', objectType: 'quote_request', phases: ['beforeCommit', 'afterCommit'] },
+      ]),
+    );
   });
 
   it('without a hook, records the one entry it always recorded and announces rfq.created.v1 once', async () => {

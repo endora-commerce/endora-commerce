@@ -3,7 +3,13 @@ import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditPort, EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import type { EventBus } from '@endora-commerce/platform/events';
-import { ERROR_CODES, QUOTE_REQUEST_PDF_LIMITS, QUOTE_REQUEST_WEBHOOK_EVENT_TYPES, isUuidShape } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  QUOTE_REQUEST_PDF_LIMITS,
+  QUOTE_REQUEST_WEBHOOK_EVENT_TYPES,
+  QUOTE_VALIDITY_DAYS_MAX,
+  isUuidShape,
+} from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type {
   Actor,
@@ -46,6 +52,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type { Redis } from 'ioredis';
+import { defaultValidityDaysFromSetting } from './services/operator-quote-sharing.js';
 import { QuoteRequestReadService } from './services/quote-request-read-port.js';
 import { QuoteRequestCustomFieldCarryReceiver } from './services/quote-request-custom-field-carry-receiver.js';
 import { QuoteRequestCommandService } from './services/quote-request-command-port.js';
@@ -587,6 +594,22 @@ export function registerModule(ctx: ModuleContext): void {
               z.boolean(),
               true,
             ),
+          // `specs/192-quote-request-draft-share/` (R-12) — one global value,
+          // read with no channel of its own: the module's settings channel.
+          // Read without a shape so a value out of range (above
+          // `QUOTE_VALIDITY_DAYS_MAX`, negative, a fraction) falls back to `0`,
+          // no deadline, instead of a shape-mismatch error on every create.
+          resolveDefaultValidityDays: async () => {
+            const code = QUOTE_REQUESTS_SETTING_CODES.DEFAULT_VALIDITY_DAYS;
+            const stored = await setting<unknown>(code, z.unknown(), 0);
+            const days = defaultValidityDaysFromSetting(stored);
+            if (days !== null) return days;
+            ctx.log.warn(
+              { setting: code, value: stored },
+              `quote_requests: setting "${code}" holds a value outside 0…${QUOTE_VALIDITY_DAYS_MAX} days — read as 0, no deadline`,
+            );
+            return 0;
+          },
           resolveBusinessIdPrefix: () =>
             setting(QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_PREFIX, z.string(), ''),
           resolveBusinessIdSuffix: () =>

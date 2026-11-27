@@ -38,6 +38,7 @@ import type { RfqNotificationService } from '../services/rfq-notification-servic
 import type { RfqRevisionService } from '../services/rfq-revision-service.js';
 import type { RfqService } from '../services/rfq-service.js';
 import { lockUnchangedRow } from '../services/transition-lock.js';
+import { normaliseShareValidityDays, operatorQuoteStartsUnshared } from '../services/operator-quote-sharing.js';
 
 /**
  * Issue #1824 (`specs/186-aggregate-ports/` US5) — the operator's writes on a
@@ -108,6 +109,11 @@ export interface QuoteRequestAdminCommandDeps {
   readonly assigneeEligibility: AssigneeEligibility;
   /** Feature 055 — validates and merges custom-field values; absent = values are not written. */
   readonly customFieldValues?: CustomFieldValuePort | undefined;
+  /**
+   * `specs/192-quote-request-draft-share/` (R-12) — the
+   * `quote_requests.default_validity_days` setting; absent = `0`, no deadline.
+   */
+  readonly resolveDefaultValidityDays?: (() => Promise<number>) | undefined;
   /** Whether the ambient scope reaches every organization. Injectable for the unit test only. */
   readonly isPlatformAdmin?: () => boolean;
 }
@@ -282,7 +288,13 @@ export function makeCancelQuoteRequestCommand(
         },
         em,
       );
-      await deps.notificationService.record(em, { change: 'canceled', sourceEvent: evt, rfq, actor: null });
+      // `specs/192-quote-request-draft-share/` (FR-005, amendment R-A1) — a
+      // quote the customer cannot see is cancelled without telling them. The
+      // event is emitted for unshared quotes too — a customer-facing subscriber
+      // must check `sharedWithCustomer`.
+      if (rfq.sharedWithCustomer) {
+        await deps.notificationService.record(em, { change: 'canceled', sourceEvent: evt, rfq, actor: null });
+      }
 
       return { result: rfq, before: null, after: withSource(cancelAuditState(reason), input.source) };
     },
@@ -414,7 +426,10 @@ export function makeModifyQuoteRequestCommand(
 
       // Research R7 — a validity change is recorded on the event, since no
       // revision snapshot carries `expiresAt`.
-      const recorded: { validity?: { before: string | null; after: string | null } } = {};
+      const recorded: {
+        validity?: { before: string | null; after: string | null };
+        validityDays?: { before: number | null; after: number | null };
+      } = {};
       // Feature 159 — the grouping's shape before and after, for the audit entry
       // (FR-081); set only when the body rewrites the lines.
       let groupingAudit: { before: GroupingShapeEntry[]; after: GroupingShapeEntry[] } | null = null;
@@ -535,10 +550,20 @@ export function makeModifyQuoteRequestCommand(
       rfq.currentRevisionNumber += 1;
       rfq.awaitingCustomerRevisionAcceptance = true;
       rfq.assignedAdminUserId = operator.adminUserId ?? rfq.assignedAdminUserId ?? null;
-      if (body.expiresInDays !== undefined) {
+      if (body.expiresInDays !== undefined && !rfq.sharedWithCustomer) {
+        // `specs/192-quote-request-draft-share/` (research R-10) — the days are
+        // applied when the quote is shared; no date is written before that.
+        const before = rfq.shareValidityDays ?? null;
+        rfq.shareValidityDays = normaliseShareValidityDays(body.expiresInDays);
+        if (before !== rfq.shareValidityDays) recorded.validityDays = { before, after: rfq.shareValidityDays };
+      } else if (body.expiresInDays !== undefined) {
+        // Owner decision of 2026-11-24 (`specs/192-quote-request-draft-share/`):
+        // `0` or empty means no deadline on a shared quote too — never
+        // "expires now". An operator closes an offer by cancelling it.
+        const days = normaliseShareValidityDays(body.expiresInDays);
         const before = rfq.expiresAt?.toISOString() ?? null;
-        rfq.expiresAt = new Date(Date.now() + body.expiresInDays * 86_400_000);
-        const after = rfq.expiresAt.toISOString();
+        rfq.expiresAt = days === null ? null : new Date(Date.now() + days * 86_400_000);
+        const after = rfq.expiresAt?.toISOString() ?? null;
         if (before !== after) recorded.validity = { before, after };
       }
       rfq.version += 1;
@@ -576,7 +601,13 @@ export function makeModifyQuoteRequestCommand(
         },
         em,
       );
-      await deps.notificationService.record(em, { change: 'revised', sourceEvent: evt, rfq, actor: null });
+      // `specs/192-quote-request-draft-share/` (FR-005, amendment R-A1) — an
+      // edit of a quote the customer cannot see is the operators' alone. The
+      // event is emitted for unshared quotes too — a customer-facing subscriber
+      // must check `sharedWithCustomer`.
+      if (rfq.sharedWithCustomer) {
+        await deps.notificationService.record(em, { change: 'revised', sourceEvent: evt, rfq, actor: null });
+      }
 
       return {
         result: rfq,
@@ -612,8 +643,9 @@ export function onBehalfChannelId(body: Pick<AdminCreateQuoteRequest, 'salesChan
 /**
  * `quote_request.create_on_behalf` — a request an operator prepares for a
  * customer of an Organization: status `Created from admin`, revision 1, its
- * `created` entry and the automatic note, and the buyer's `prepared`
- * notification. Every refusal comes before anything is numbered or written.
+ * `created` entry and the automatic note. It starts unshared
+ * (`specs/192-quote-request-draft-share/`, FR-001): the buyer's `prepared`
+ * notification belongs to the share, not here. Every refusal comes before anything is numbered or written.
  * Announces `rfq.created_by_admin.v1` — never `rfq.created.v1`, which is the
  * customer's own submission.
  */
@@ -716,6 +748,16 @@ export function makeCreateOnBehalfCommand(
         }
       }
 
+      // `specs/192-quote-request-draft-share/` (FR-001, R-2) — the one place that
+      // decides whether the new quote starts unshared. It does, always, today;
+      // a line may then have no price yet (FR-013, R-19), since sharing is
+      // refused until every line has one.
+      const startsUnshared = operatorQuoteStartsUnshared();
+      // FR-031, FR-033 — the default is snapshotted into the new quote, so a later
+      // change of the setting moves no quote already created.
+      const defaultValidityDays =
+        body.expiresInDays === undefined ? ((await deps.resolveDefaultValidityDays?.()) ?? 0) : 0;
+
       const businessId = await deps.rfqService.generateBusinessId(em);
       const rfq = em.create(QuoteRequest, {
         id: quoteRequestId,
@@ -735,7 +777,14 @@ export function makeCreateOnBehalfCommand(
         // it surfaces the Accept/Reject controls on the storefront (the same flag
         // the operator's later revisions set).
         awaitingCustomerRevisionAcceptance: true,
-        expiresAt: body.expiresInDays !== undefined ? new Date(Date.now() + body.expiresInDays * 86_400_000) : null,
+        // `specs/192-quote-request-draft-share/` (R-10) — invisible to the
+        // customer until shared; the validity is kept as days and becomes a
+        // date at the share, so no date is written here.
+        sharedWithCustomer: !startsUnshared,
+        shareValidityDays: normaliseShareValidityDays(
+          body.expiresInDays === undefined ? defaultValidityDays : body.expiresInDays,
+        ),
+        expiresAt: null,
         customFieldValues,
       });
       await em.persist(rfq).flush();
@@ -763,7 +812,8 @@ export function makeCreateOnBehalfCommand(
             productSlug: product.slug,
             variantId: lineInput.variantId ?? null,
             quantity: lineInput.quantity,
-            agreedUnitPrice: unitPriceText(lineInput.agreedUnitPrice),
+            // FR-013 — a line the operator has not priced yet stays unpriced.
+            agreedUnitPrice: lineInput.agreedUnitPrice == null ? null : unitPriceText(lineInput.agreedUnitPrice),
             lineNote: lineInput.lineNote ?? null,
             lineCurrency,
             groupId: groupIds(plan.lines[index]!.group),
@@ -773,8 +823,8 @@ export function makeCreateOnBehalfCommand(
       }
       await em.persist(items).flush();
 
-      // FR-001 — the request, its groups and lines, revision 1, its history
-      // entries and the records naming `created` commit together.
+      // FR-001 — the request, its groups and lines, revision 1 and its history
+      // entries commit together.
       const actor = { adminUserId: operator.adminUserId, roleLabel: operator.roleLabel };
       const revision = await deps.revisionService.record(
         {
@@ -785,7 +835,7 @@ export function makeCreateOnBehalfCommand(
         },
         em,
       );
-      const created = await deps.eventService.append(
+      await deps.eventService.append(
         { quoteRequestId: rfq.id, eventType: 'created', actor, payload: { type: 'created' }, revisionId: revision.id },
         em,
       );
@@ -799,10 +849,10 @@ export function makeCreateOnBehalfCommand(
         },
         em,
       );
-      // The `created` entry is what the buyer is told about
-      // (`contracts/notification-matrix.md` §1, `prepared`); the automatic note
-      // beside it announces nothing (rule 6).
-      await deps.notificationService.record(em, { change: 'prepared', sourceEvent: created, rfq, actor: null });
+      // `specs/192-quote-request-draft-share/` (FR-005) — nothing is recorded for
+      // the customer here: the quote is unshared, and `prepared` announces the
+      // share (`contracts/notification-matrix-amendment.md`). The `created`
+      // entry and the automatic note are the operators' history.
 
       return {
         result: rfq,
@@ -813,6 +863,9 @@ export function makeCreateOnBehalfCommand(
             itemCount: items.length,
             salesChannelId: rfq.salesChannelId ?? null,
             groups: plan.after,
+            // `specs/192-quote-request-draft-share/` (data-model §5).
+            sharedWithCustomer: rfq.sharedWithCustomer,
+            shareValidityDays: rfq.shareValidityDays ?? null,
             // Feature 175 (FR-021) — the keys stored, never their values
             // (`specs/conventions/audit-state.md`, D-288).
             ...(Object.keys(rfq.customFieldValues ?? {}).length > 0

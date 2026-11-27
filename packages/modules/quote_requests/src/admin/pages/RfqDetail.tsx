@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   CalendarClock,
   CalendarX,
   Check,
+  EyeOff,
   ClipboardList,
   Copy,
   FileDown,
@@ -14,10 +15,11 @@ import {
   PencilLine,
   Plus,
   Send,
+  Share2,
   Split,
   XCircle,
 } from 'lucide-react';
-import type { AdminPrepareCustomerBasketResponse } from '@endora-commerce/contracts';
+import type { AdminPrepareCustomerBasketResponse, QuoteRequest } from '@endora-commerce/contracts';
 import { apiClient, ApiError, cn, formatDateTime, isDraftEqual, readReturnTo, useDetailResource, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, EditorSection, Input, Label, PageHeader, RecordTabs, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import {
@@ -38,13 +40,27 @@ import {
 import {
   arrangeLineGroups,
   LINE_QUANTITY_MAX,
+  QUOTE_VALIDITY_DAYS_MAX,
   lineAmountHalfUp,
   unitPriceDisplayText,
   type LineGroup,
 } from '@endora-commerce/contracts';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
-import { deadlineForDays, isValidityDaysInvalid, rfqValidity } from '../validity.js';
+import {
+  deadlineForDays,
+  isValidityDaysInvalid,
+  parseValidityDays,
+  rfqValidity,
+  unsharedValidityDaysPayload,
+  validityDeadlineDays,
+} from '../validity.js';
+import {
+  shareRefusalIsAlreadyShared,
+  shareRefusalNeedsReread,
+  shareRefusalOf,
+  shareRefusalWantsPrices,
+} from '../share-refusal.js';
 import { useRfqNumberFormat } from '../number-format.js';
 import type { ReferenceAmount } from '../reference-difference.js';
 import {
@@ -60,7 +76,7 @@ import {
   type ReferenceView,
 } from '../reference-view.js';
 import { RfqHistory } from './RfqHistory.js';
-import { rfqPageNotice } from './rfq-page-notice.js';
+import { rfqPageNotice, shareRefusalFromArrival, type ShownShareRefusal } from './rfq-page-notice.js';
 import {
   SectionSummary,
   sectionTotals,
@@ -71,6 +87,8 @@ import {
 import { quoteTotals } from '../quote-totals.js';
 import { rfqStatusLabels } from '../lib/labels.js';
 import { QuoteRequestPdfDialog, type QuoteRequestPdfMode } from '../components/QuoteRequestPdfDialog.js';
+import { shareConfirmMessage, shareCustomerName } from '../share-confirm.js';
+import { translatePlural } from '../plural.js';
 
 /**
  * Admin Quote Request detail (feature 008 / T043). Restructured to mirror the
@@ -191,6 +209,15 @@ interface AdminRfqDetail {
   expiredAt: string | null;
   expiresAt: string | null;
   convertedOrderId: string | null;
+  /**
+   * `specs/192-quote-request-draft-share/` — admin replies only. `false` while an
+   * operator's quote is not shared with its customer yet; absent on replies that
+   * predate the feature, which read as shared (FR-002).
+   */
+  sharedWithCustomer?: QuoteRequest['sharedWithCustomer'];
+  sharedAt?: QuoteRequest['sharedAt'];
+  /** The days applied when the quote is shared; `null` = no deadline. Unshared quotes only. */
+  shareValidityDays?: QuoteRequest['shareValidityDays'];
   /** Flat VAT rate (fraction) applied to this quote's net prices. */
   taxRate?: number;
   createdAt: string;
@@ -229,7 +256,21 @@ export function RfqDetail(): ReactNode {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const returnTo = readReturnTo(searchParams);
+  const location = useLocation();
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  /**
+   * `specs/192-quote-request-draft-share/` — the last refused share, in the
+   * `error` place above the tabs: its sentence and, for unpriced lines, which
+   * ones. *Create and share* hands one over through navigation state when the
+   * quote was created but its share was refused (FR-020); it is read once.
+   */
+  const [shareRefusal, setShareRefusal] = useState<ShownShareRefusal | null>(() => shareRefusalFromArrival(location.state));
+  useEffect(() => {
+    if (shareRefusalFromArrival(location.state) === null) return;
+    // Said once: a reload or a way back to this entry does not repeat it.
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, navigate]);
   /**
    * Issue #1499 (SALES-17, DEC-12 a) — an action's result is said beside the
    * control that caused it, in a region mounted empty from the first render:
@@ -242,6 +283,12 @@ export function RfqDetail(): ReactNode {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelOpen, setCancelOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  /**
+   * A share is asked before `busy` is set (the question is not the
+   * work, so no spinner while it is open); this guard holds from the first click,
+   * so a second click before the dialog renders asks nothing twice.
+   */
+  const shareStarted = useRef(false);
   const [tab, setTabState] = useState<RfqTab>('overview');
   /**
    * Issue #1469 — the Modify card mounts the first time its tab is opened (not
@@ -299,9 +346,22 @@ export function RfqDetail(): ReactNode {
   });
   const rfq = resource.data;
   const reread = resource.refresh;
+  // `specs/192-quote-request-draft-share/` — once the quote is shared, however the
+  // screen learns it (its own share, a re-read), the Modify card starts again from
+  // the stored quote: its days field meant "days from sharing" and must not be
+  // saved as a new deadline on a quote the customer now sees.
+  const unsharedNow = rfq?.sharedWithCustomer === false;
+  const unsharedBefore = useRef(unsharedNow);
+  useEffect(() => {
+    if (unsharedBefore.current === unsharedNow) return;
+    unsharedBefore.current = unsharedNow;
+    setModifyDirty(false);
+    setModifyEpoch((n) => n + 1);
+  }, [unsharedNow]);
   // A re-read clears the previous action's error, as the old full reload did.
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
+    setShareRefusal(null);
     await reread();
   }, [reread]);
   const loadError =
@@ -397,6 +457,68 @@ export function RfqDetail(): ReactNode {
     }
   };
 
+  // `specs/192-quote-request-draft-share/` (US2) — the one action that shows the
+  // quote to its customer and tells them. Asked first, because it cannot be
+  // undone (FR-025): the question names who is told and the validity written.
+  const share = async (): Promise<void> => {
+    if (!rfq || shareStarted.current) return;
+    shareStarted.current = true;
+    try {
+      await shareAsked(rfq);
+    } finally {
+      shareStarted.current = false;
+    }
+  };
+  const shareAsked = async (rfq: AdminRfqDetail): Promise<void> => {
+    const ok = await confirm({
+      title: tPdf('share.confirm.title', { id: rfq.businessId ?? rfq.id.slice(0, 8) }),
+      message: shareConfirmMessage(tPdf, {
+        customer: shareCustomerName(tPdf, rfq.customer),
+        days: rfq.shareValidityDays ?? null,
+        now: new Date(),
+        language,
+      }),
+      confirmLabel: tPdf('share.action'),
+    });
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    setShareRefusal(null);
+    actionStatus.clear();
+    try {
+      await apiClient.post(
+        `/api/v1/admin/quote-requests/${rfq.id}/share`,
+        {},
+        { headers: { 'If-Match': `"${rfq.version}"` } },
+      );
+      actionStatus.show(tPdf('share.success'));
+      setHistoryNonce((n) => n + 1);
+      await refresh();
+    } catch (err) {
+      const refusal = shareRefusalOf(err);
+      if (refusal === null) {
+        // No envelope to show: the operator gets a sentence, the console the whole failure.
+        console.error('[quote_requests] share failed without an API refusal', { quoteRequestId: rfq.id, error: err });
+        setError(tPdf('share.error'));
+        return;
+      }
+      if (shareRefusalNeedsReread(refusal)) {
+        // The screen catches up with the server before it says anything.
+        if (shareRefusalIsAlreadyShared(refusal)) setHistoryNonce((n) => n + 1);
+        await refresh();
+      }
+      if (shareRefusalIsAlreadyShared(refusal)) {
+        // Somebody else shared it meanwhile: what the operator wanted is done,
+        // so it is news, not an error.
+        actionStatus.show(refusal.message, 'info');
+      } else {
+        setShareRefusal(refusal);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const copyId = useCallback(async (): Promise<void> => {
     if (!rfq) return;
     const ref = rfq.businessId ?? rfq.id;
@@ -456,6 +578,13 @@ export function RfqDetail(): ReactNode {
   // longer be moved at all, and the banner says so instead of pointing at a
   // tab that is not rendered.
   const validityReDatable = rfq.status === 'Pending' || rfq.status === 'Created from admin';
+  // `specs/192-quote-request-draft-share/` — strictly `false`: a reply without the
+  // key (one that predates the feature) is a quote the customer already sees.
+  const unshared = rfq.sharedWithCustomer === false;
+  // A closed quote has nothing left to share: it stays *Not shared* (a fact,
+  // as in the list), but nothing on it speaks of a share still to come.
+  const shareAhead = unshared && !isTerminal;
+  const shareDays = validityDeadlineDays(rfq.shareValidityDays);
 
   const openValidityEditor = (): void => {
     setTab('modify');
@@ -464,7 +593,7 @@ export function RfqDetail(): ReactNode {
 
   // Issue #1499 (SALES-17) — at most one banner above the tabs, by priority.
   const pageNotice = rfqPageNotice({
-    error: (error ?? loadError) !== null,
+    error: (error ?? loadError) !== null || shareRefusal !== null,
     validityLapsed,
     draftOpen,
     onModifyTab: tab === 'modify',
@@ -505,6 +634,17 @@ export function RfqDetail(): ReactNode {
       </Button>
     );
   }
+  // `specs/192-quote-request-draft-share/` (US2) — the next step of a quote not
+  // shared yet is sharing it. Like Approve, it waits for an unsaved Modify draft:
+  // it would share the stored lines, not the ones on screen.
+  if (unshared && rfq.status === 'Created from admin') {
+    primaryAction = (
+      <Button onClick={(): void => void share()} disabled={busy || draftOpen} {...busyMarker} {...draftBlocked}>
+        {busy ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <Share2 aria-hidden="true" />}
+        {tPdf('share.action')}
+      </Button>
+    );
+  }
   if (rfq.status === 'Approved') {
     primaryAction = (
       <Button
@@ -522,7 +662,9 @@ export function RfqDetail(): ReactNode {
   // document templates facility is present (FR-060), and the send only while
   // the transactional e-mails are too (FR-099).
   const pdfPresent = isPresent('document_templates');
-  const pdfSendPresent = pdfPresent && isPresent('transactional_emails');
+  // Not while the quote is unshared (FR-007): the customer may not receive what
+  // their account does not show yet. Preview and download stay.
+  const pdfSendPresent = pdfPresent && isPresent('transactional_emails') && !unshared;
   const draftBlockedTitle = draftOpen ? t('rfq.detail.modify.unsaved.blocked') : undefined;
   const headerActions = (
     <DetailHeaderActions primary={primaryAction} moreDisabled={busy} status={actionStatus.props}>
@@ -578,7 +720,14 @@ export function RfqDetail(): ReactNode {
             <Badge variant={STATUS_VARIANT[rfq.status]} className="text-xs font-medium">
               {rfqStatusLabels.label(t, rfq.status)}
             </Badge>
-            {rfq.awaitingCustomerRevisionAcceptance ? (
+            {unshared ? (
+              <Badge variant="outline" className="gap-1 text-xs font-medium">
+                <EyeOff className="size-3" aria-hidden="true" />
+                {tPdf('share.badge.unshared')}
+              </Badge>
+            ) : null}
+            {/* Awaiting the customer is not true of a quote the customer cannot see yet. */}
+            {rfq.awaitingCustomerRevisionAcceptance && !unshared ? (
               <Badge variant="warning" className="text-xs font-medium">
                 {t('rfq.detail.badge.awaitingRevision')}
               </Badge>
@@ -605,6 +754,17 @@ export function RfqDetail(): ReactNode {
               </span>
             ) : null}
             {t('rfq.detail.meta.created', { date: formatDateTime(rfq.createdAt, language) })}
+            {/* `specs/192-quote-request-draft-share/` — whether the customer sees it,
+                and, until they do, the days its validity will count from sharing. */}
+            {shareAhead
+              ? ` · ${tPdf('share.meta.unshared')}${
+                  shareDays !== null
+                    ? ` · ${translatePlural(tPdf, language, 'share.meta.validityDays', shareDays, { days: shareDays })}`
+                    : ''
+                }`
+              : rfq.sharedAt
+                ? ` · ${tPdf('share.meta.shared', { date: formatDateTime(rfq.sharedAt, language) })}`
+                : ''}
             {rfq.submittedAt
               ? ` · ${t('rfq.detail.meta.submitted', { date: formatDateTime(rfq.submittedAt, language) })}`
               : ''}
@@ -622,11 +782,30 @@ export function RfqDetail(): ReactNode {
           </span>
         }
         actions={headerActions}
+        // The unshared line below sits close under the header; the header owns the gap.
+        {...(shareAhead ? { className: 'mb-2' } : {})}
       />
+      {/* `specs/192-quote-request-draft-share/` — who sees a quote not shared yet,
+          in plain text under the header while it is unshared and open. Not in the meta
+          line (clamped to one row), not a page notice (one at a time, so an error
+          would hide it), and not an alert: a standing fact, not news. */}
+      {shareAhead ? (
+        <p className="mb-6 text-sm text-muted-foreground">{tPdf('share.unshared.notice')}</p>
+      ) : null}
 
       {pageNotice === 'error' ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error ?? loadError}</AlertDescription>
+          <AlertDescription>
+            {shareRefusal !== null && error === null ? (
+              <ShareRefusalText
+                refusal={shareRefusal}
+                // The prices are set under Modify, which a closed quote does not have.
+                {...(!isTerminal ? { onGoToPrices: (): void => setTab('modify') } : {})}
+              />
+            ) : (
+              (error ?? loadError)
+            )}
+          </AlertDescription>
         </Alert>
       ) : null}
       {pdfMode ? (
@@ -955,7 +1134,8 @@ export function RfqDetail(): ReactNode {
                 rfq={rfq}
                 currentPrices={currentPrices}
                 onSaved={async (): Promise<void> => {
-                  setModifySaved(t('rfq.detail.modify.info.saved'));
+                  // Saved on a quote not shared yet, the customer is told nothing.
+                  setModifySaved(unshared ? tPdf('share.modify.saved') : t('rfq.detail.modify.info.saved'));
                   await refresh();
                   setModifyDirty(false);
                   setModifyEpoch((n) => n + 1);
@@ -986,6 +1166,7 @@ export function RfqDetail(): ReactNode {
           onClose={(): void => setCancelOpen(false)}
           busy={busy}
           error={error}
+          unshared={unshared}
         />
       ) : null}
       {confirmDialog}
@@ -1004,6 +1185,54 @@ export function RfqDetail(): ReactNode {
  * a typed reason is not lost to a stray click, and a refused cancellation is
  * announced here rather than on the page behind the scrim.
  */
+/**
+ * `specs/192-quote-request-draft-share/` — a refused share: the server's
+ * sentence (already in the operator's language, a share hook's own included)
+ * and, when lines have no price, which ones (FR-026), so the operator knows
+ * what to price under Modify without hunting for it.
+ */
+function ShareRefusalText({
+  refusal,
+  onGoToPrices,
+}: {
+  refusal: ShownShareRefusal;
+  onGoToPrices?: () => void;
+}): ReactNode {
+  const t = useTranslation('quote_requests');
+  return (
+    <>
+      {/* *Create and share* did half of what was asked: say the half that happened first. */}
+      {refusal.afterCreate ? <p className="mb-2 font-medium">{t('share.refusal.afterCreate')}</p> : null}
+      <p>{refusal.message}</p>
+      {refusal.lines.length > 0 ? (
+        <>
+          <p className="mt-2 font-medium">{t('share.refusal.linesTitle')}</p>
+          <ul className="mt-1 list-disc pl-5">
+            {refusal.lines.map((line) => {
+              const label =
+                line.variantLabel !== null
+                  ? t('share.refusal.lineVariant', { product: line.productName, variant: line.variantLabel })
+                  : line.productName;
+              return (
+                <li key={line.id}>
+                  {line.groupName !== null ? t('share.refusal.lineInGroup', { line: label, group: line.groupName }) : label}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      ) : null}
+      {/* The refusal names its remedy, as the unsaved-draft banner does (the
+          banner stays: it lists what to price). */}
+      {onGoToPrices && shareRefusalWantsPrices(refusal) ? (
+        <Button variant="outline" size="sm" className="mt-3 bg-card" onClick={onGoToPrices}>
+          {t('share.refusal.goToPrices')}
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
 function CancelDialog(props: {
   reason: string;
   onReasonChange: (v: string) => void;
@@ -1011,8 +1240,11 @@ function CancelDialog(props: {
   onClose: () => void;
   busy: boolean;
   error: string | null;
+  /** `specs/192-quote-request-draft-share/` — not shared yet: the customer is never told (FR-005). */
+  unshared: boolean;
 }): ReactNode {
   const t = useTranslation('core');
+  const own = useTranslation('quote_requests');
   const reasonRef = useRef<HTMLTextAreaElement>(null);
   const errorId = useId();
   return (
@@ -1046,7 +1278,7 @@ function CancelDialog(props: {
           id="cancel-reason"
           value={props.reason}
           onChange={(e): void => props.onReasonChange(e.target.value)}
-          placeholder={t('rfq.detail.cancelReasonPlaceholder')}
+          placeholder={props.unshared ? own('share.cancel.placeholder') : t('rfq.detail.cancelReasonPlaceholder')}
           rows={3}
           aria-describedby={errorId}
         />
@@ -1202,12 +1434,17 @@ function ModifyCard({
   );
   const nextKey = useRef(0);
   const newKey = (prefix: string): string => `${prefix}${(nextKey.current += 1)}`;
-  // Blank means "leave the deadline where it is" — that is `expiresInDays`
-  // being absent from the PATCH, which is what the contract reads as "do not
-  // touch it". It is never prefilled: `expiresInDays` counts from *now*, so
-  // any number put here on the operator's behalf would be this screen choosing
-  // a date the customer is then held to.
-  const [expiresInDays, setExpiresInDays] = useState('');
+  // On a shared quote, blank means "leave the deadline where it is" — that is
+  // `expiresInDays` being absent from the PATCH, which is what the contract
+  // reads as "do not touch it". It is never prefilled there: `expiresInDays`
+  // counts from *now*, so any number put here on the operator's behalf would be
+  // this screen choosing a date the customer is then held to.
+  // `specs/192-quote-request-draft-share/` — on a quote not shared yet the field
+  // holds the quote's own days (`shareValidityDays`), which count from sharing,
+  // so showing them commits nobody to a date; emptying it removes them.
+  const unshared = rfq.sharedWithCustomer === false;
+  const initialDays = unshared && rfq.shareValidityDays != null ? String(rfq.shareValidityDays) : '';
+  const [expiresInDays, setExpiresInDays] = useState(initialDays);
   const validityInputRef = useRef<HTMLInputElement>(null);
   const [lines, setLines] = useState<ModifyLineDraft[]>(
     rfq.items.map((it) => {
@@ -1298,7 +1535,7 @@ function ModifyCard({
     list.map((line) => ({ ...line, currentPrice: undefined }));
   const dirty =
     headerNote !== (rfq.headerNote ?? '') ||
-    expiresInDays.trim() !== '' ||
+    expiresInDays.trim() !== initialDays ||
     !isDraftEqual(groups, initialGroups.current) ||
     !isDraftEqual(comparableLines(lines), comparableLines(baselineLines));
   useEffect(() => {
@@ -1359,12 +1596,17 @@ function ModifyCard({
       // dropped from the payload: an operator who typed a number and got no
       // deadline would have been told nothing.
       const typedDays = expiresInDays.trim();
-      if (isValidityDaysInvalid(typedDays, new Date())) {
+      if (isValidityDaysInvalid(typedDays)) {
         setSaveError(t('rfq.detail.validity.error.days'));
         setBusy(false);
         validityInputRef.current?.focus();
         return false;
       }
+      const validityDaysPayload = unshared
+        ? unsharedValidityDaysPayload(typedDays, initialDays)
+        : typedDays !== ''
+          ? Number(typedDays)
+          : undefined;
       await apiClient.patch(
         `/api/v1/admin/quote-requests/${rfq.id}`,
         {
@@ -1381,8 +1623,9 @@ function ModifyCard({
           items,
           // Absent means "leave the deadline as it is" — the same shape
           // `RfqCreatePage` sends, and what `adminPatchQuoteRequestSchema`
-          // reads as untouched.
-          ...(typedDays !== '' ? { expiresInDays: Number(typedDays) } : {}),
+          // reads as untouched. On an unshared quote an emptied field sends
+          // `null` (no deadline once shared).
+          ...(validityDaysPayload !== undefined ? { expiresInDays: validityDaysPayload } : {}),
         },
         { headers: { 'If-Match': `"${rfq.version}"` } },
       );
@@ -1498,26 +1741,30 @@ function ModifyCard({
   // and "no deadline" are two of those answers and must not read as one.
   const now = new Date();
   const currentValidity = rfqValidity(rfq.expiresAt, now);
-  const typedDays = expiresInDays.trim();
+  const typedInput = parseValidityDays(expiresInDays);
   const previewDeadline = deadlineForDays(expiresInDays, now);
-  const daysInvalid = isValidityDaysInvalid(expiresInDays, now);
-  const validityHelp = daysInvalid
-    ? t('rfq.detail.validity.error.days')
-    : previewDeadline !== null
-      ? t(
-          Number(typedDays) === 0
-            ? 'rfq.detail.validity.help.previewImmediate'
-            : 'rfq.detail.validity.help.preview',
-          { date: formatDateTime(previewDeadline.toISOString(), language) },
-        )
-      : currentValidity.kind === 'none'
-        ? t('rfq.detail.validity.help.keepNone')
-        : t(
-            currentValidity.kind === 'active'
-              ? 'rfq.detail.validity.help.keepActive'
-              : 'rfq.detail.validity.help.keepLapsed',
-            { date: formatDateTime(currentValidity.expiresAt, language) },
-          );
+  const daysInvalid = typedInput.kind === 'invalid';
+  // `specs/192-quote-request-draft-share/` (FR-031, FR-032) — not shared yet:
+  // the days, counted from sharing, and no date; blank and 0 are no deadline.
+  // Shared: 0 removes the deadline, it never ends validity now.
+  const validityHelp = ((): string => {
+    if (daysInvalid) return t('rfq.detail.validity.error.days');
+    if (unshared) {
+      const days = validityDeadlineDays(typedInput.kind === 'days' ? typedInput.days : null);
+      return days !== null
+        ? translatePlural(tGroups, language, 'validity.unshared.days', days, { days })
+        : tGroups('validity.unshared.none');
+    }
+    if (previewDeadline !== null) {
+      return t('rfq.detail.validity.help.preview', { date: formatDateTime(previewDeadline.toISOString(), language) });
+    }
+    if (typedInput.kind === 'days') return tGroups('validity.previewNone');
+    if (currentValidity.kind === 'none') return t('rfq.detail.validity.help.keepNone');
+    return t(
+      currentValidity.kind === 'active' ? 'rfq.detail.validity.help.keepActive' : 'rfq.detail.validity.help.keepLapsed',
+      { date: formatDateTime(currentValidity.expiresAt, language) },
+    );
+  })();
 
   return (
     // Issue #1542 (SALES-16) — no title that repeats the tab's: two sections under it, the
@@ -1540,13 +1787,14 @@ function ModifyCard({
         <div className="space-y-1.5">
           <Label htmlFor="modify-expires-in-days" className="flex items-center gap-1.5">
             <CalendarClock className="size-3.5 opacity-70" aria-hidden="true" />
-            {t('rfq.detail.validity.field')}
+            {unshared ? tGroups('validity.unshared.field') : t('rfq.detail.validity.field')}
           </Label>
           <Input
             id="modify-expires-in-days"
             ref={validityInputRef}
             type="number"
             min={0}
+            max={QUOTE_VALIDITY_DAYS_MAX}
             step={1}
             inputMode="numeric"
             className="w-40 tabular-nums"
@@ -1760,7 +2008,7 @@ function ModifyCard({
         dirty={dirty}
         error={saveError}
         status={saveStatus}
-        note={t('rfq.detail.modify.notifiesCustomer')}
+        note={unshared ? tGroups('share.modify.note') : t('rfq.detail.modify.notifiesCustomer')}
         primary={
           <Button onClick={(): void => void save()} disabled={busy} aria-busy={busy || undefined}>
             {t('rfq.detail.modify.saveRevision')}

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { EntityManager } from '@mikro-orm/postgresql';
+import { QueryOrder, raw, type EntityManager, type QueryOrderMap } from '@mikro-orm/postgresql';
 import {
   type CustomFieldValuePort,
   ERROR_CODES,
@@ -111,6 +111,9 @@ import {
 export interface RfqEvents extends Record<string, EventBase> {
   'rfq.created.v1': EventBase & { rfqId: string; organizationId: string };
   'rfq.approved.v1': EventBase & { rfqId: string };
+  // `specs/192-quote-request-draft-share/` — the operator's cancel and modify
+  // emit these for unshared quotes too: a customer-facing subscriber must check
+  // `sharedWithCustomer` before telling anyone.
   'rfq.canceled.v1': EventBase & { rfqId: string; reason: string | null };
   'rfq.modified.v1': EventBase & { rfqId: string; revisionNumber: number };
 }
@@ -503,8 +506,14 @@ export class RfqService {
     // the org predicate is enforced by the always-on tenant filter (single-org,
     // or the SUBTREE for a roll-up-enabled head-office login), so we do not pin
     // `ctx.organizationId` here. Anyone else sees only their own RFQs.
-    const where = seesOrganization ? {} : { customerAccountId: ctx.customerAccountId };
-    const rfqs = await em.find(QuoteRequest, where, { orderBy: { createdAt: 'desc' } });
+    // `specs/192-quote-request-draft-share/` (FR-003) — an operator's quote
+    // the customer has not been shared yet is no customer's to list, whoever
+    // reads: own account, Organization Administrator or roll-up login.
+    const where = {
+      ...(seesOrganization ? {} : { customerAccountId: ctx.customerAccountId }),
+      sharedWithCustomer: true,
+    };
+    const rfqs = await em.find(QuoteRequest, where, { orderBy: customerListOrder() });
     if (rfqs.length === 0) return [];
 
     const items = await em.find(QuoteRequestItem, {
@@ -1368,6 +1377,10 @@ export class RfqService {
     if (!isUuidShape(rfqId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
     const rfq = await em.findOne(QuoteRequest, { id: rfqId });
     if (!rfq) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
+    // `specs/192-quote-request-draft-share/` (FR-003, FR-004) — an unshared
+    // quote answers exactly as one that does not exist, for every customer
+    // read and action that resolves a quote here.
+    if (!rfq.sharedWithCustomer) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
     if (rfq.organizationId !== ctx.organizationId) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
     }
@@ -1497,6 +1510,11 @@ export class RfqService {
             salesChannelId: rfq.salesChannelId ?? null,
             createdByAdminUserId: rfq.createdByAdminUserId ?? null,
             assignedAdminUserId: rfq.assignedAdminUserId ?? null,
+            // `specs/192-quote-request-draft-share/` (contracts/admin-api.md §8).
+            sharedWithCustomer: rfq.sharedWithCustomer,
+            sharedAt: rfq.sharedAt?.toISOString() ?? null,
+            sharedByAdminUserId: rfq.sharedByAdminUserId ?? null,
+            shareValidityDays: rfq.shareValidityDays ?? null,
           }
         : {}),
       status: rfq.status,
@@ -1552,7 +1570,9 @@ export class RfqService {
           minimumWarning: minimumWarnings[index] ?? null,
         };
       }),
-      events: (forAdmin ? events : customerEventsOf(events)).map((e) => {
+      // `specs/192-quote-request-draft-share/` (FR-012) — a customer's history
+      // of a quote an operator shared starts at the share.
+      events: (forAdmin ? events : customerEventsOf(events, rfq.sharedAt ?? null)).map((e) => {
         const event = {
           id: e.id,
           eventType: e.eventType,
@@ -1590,6 +1610,22 @@ export class RfqService {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * `specs/192-quote-request-draft-share/` (research R-20, OQ-6 answered by the
+ * owner on 2026-11-24) — the order of a customer's quote request list: by
+ * when the customer received each quote, newest first. That is the share for
+ * an operator's quote (`shared_at`) and the creation for every other one, so
+ * a draft prepared long ago and shared today sorts with today's quotes. The
+ * id breaks ties, so the order is stable.
+ */
+export function customerListOrder(): QueryOrderMap<QuoteRequest>[] {
+  // A fresh fragment per call: MikroORM forgets a raw key once a query used it.
+  return [
+    { [raw((alias: string) => `coalesce(${alias}."shared_at", ${alias}."created_at")`)]: QueryOrder.DESC },
+    { id: QueryOrder.DESC },
+  ];
+}
 
 /**
  * Feature 155 (D3/D4), on feature 174's model — the names a refusal gives its products: the

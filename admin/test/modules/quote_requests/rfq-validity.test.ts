@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   MS_PER_DAY,
+  createValidity,
   deadlineForDays,
   isValidityDaysInvalid,
+  parseValidityDays,
   rfqValidity,
+  unsharedValidityDaysPayload,
+  validityDeadlineDays,
 } from '../../../../packages/modules/quote_requests/src/admin/validity';
 
 /**
@@ -56,21 +60,81 @@ describe('deadlineForDays', () => {
     expect(deadlineForDays('  14 ', NOW)?.toISOString()).toBe('2026-09-12T12:00:00.000Z');
   });
 
-  it('treats zero as a real deadline of "now"', () => {
-    expect(deadlineForDays('0', NOW)?.toISOString()).toBe(NOW.toISOString());
+  // `specs/192-quote-request-draft-share/` FR-032 (owner decision of 2026-11-24):
+  // 0 days is no deadline on every write — the server's `normaliseShareValidityDays`.
+  it('has no deadline for zero days — 0 never ends validity now', () => {
+    expect(deadlineForDays('0', NOW)).toBeNull();
+    expect(isValidityDaysInvalid('0')).toBe(false);
+    expect(parseValidityDays('0')).toEqual({ kind: 'days', days: 0 });
   });
 
   it('has no answer for a blank field — that is "leave the deadline alone"', () => {
     expect(deadlineForDays('', NOW)).toBeNull();
     expect(deadlineForDays('   ', NOW)).toBeNull();
-    expect(isValidityDaysInvalid('', NOW)).toBe(false);
+    expect(isValidityDaysInvalid('')).toBe(false);
+    expect(parseValidityDays('  ')).toEqual({ kind: 'blank' });
   });
 
   it('refuses what the contract refuses', () => {
-    // adminPatchQuoteRequestSchema: z.number().int().nonnegative().optional()
-    for (const raw of ['-1', '2.5', 'abc', '1e', 'Infinity']) {
+    // quoteValidityDaysSchema: a whole number from 0 to QUOTE_VALIDITY_DAYS_MAX (3650).
+    for (const raw of ['-1', '2.5', 'abc', '1e', 'Infinity', '3651']) {
       expect(deadlineForDays(raw, NOW)).toBeNull();
-      expect(isValidityDaysInvalid(raw, NOW)).toBe(true);
+      expect(isValidityDaysInvalid(raw)).toBe(true);
     }
+  });
+
+  it('accepts the largest number of days the contract accepts', () => {
+    expect(isValidityDaysInvalid('3650')).toBe(false);
+    expect(deadlineForDays('3650', NOW)?.getTime()).toBe(NOW.getTime() + 3650 * MS_PER_DAY);
+  });
+});
+
+describe('unsharedValidityDaysPayload (specs/192-quote-request-draft-share/)', () => {
+  it('sends nothing while the field holds what it opened with', () => {
+    expect(unsharedValidityDaysPayload('30', '30')).toBeUndefined();
+    expect(unsharedValidityDaysPayload(' 30 ', '30')).toBeUndefined();
+    expect(unsharedValidityDaysPayload('', '')).toBeUndefined();
+  });
+
+  it('sends null once a field that held days is emptied — no deadline', () => {
+    expect(unsharedValidityDaysPayload('', '30')).toBeNull();
+  });
+
+  it('sends the typed number, zero included', () => {
+    expect(unsharedValidityDaysPayload('14', '30')).toBe(14);
+    expect(unsharedValidityDaysPayload('14', '')).toBe(14);
+    expect(unsharedValidityDaysPayload('0', '30')).toBe(0);
+  });
+});
+
+describe('validityDeadlineDays — 0 and null are no deadline', () => {
+  it.each([
+    [0, null],
+    [null, null],
+    [undefined, null],
+    [1, 1],
+    [3650, 3650],
+  ])('%s → %s', (days, expected) => {
+    expect(validityDeadlineDays(days)).toBe(expected);
+  });
+});
+
+describe('createValidity — the create screen field, hint, payload and question agree', () => {
+  const loading = { status: 'loading' as const, days: null };
+  const failed = { status: 'failed' as const, days: null };
+  const ready = (days: number | null) => ({ status: 'ready' as const, days });
+
+  it.each([
+    ['untouched, loading', loading, false, '', { value: '', wording: 'storeDefault', payload: undefined, confirmDays: undefined }],
+    ['untouched, failed', failed, false, '', { value: '', wording: 'storeDefault', payload: undefined, confirmDays: undefined }],
+    ['untouched, default 30', ready(30), false, '', { value: '30', wording: 'counted', payload: 30, confirmDays: 30 }],
+    ['untouched, default none', ready(null), false, '', { value: '', wording: 'counted', payload: 0, confirmDays: null }],
+    ['touched, 14', ready(30), true, '14', { value: '14', wording: 'counted', payload: 14, confirmDays: 14 }],
+    ['touched, empty', ready(30), true, '', { value: '', wording: 'counted', payload: 0, confirmDays: null }],
+    ['touched, 0', loading, true, '0', { value: '0', wording: 'counted', payload: 0, confirmDays: null }],
+    ['touched while failed, empty', failed, true, '', { value: '', wording: 'counted', payload: 0, confirmDays: null }],
+    ['touched, invalid', ready(30), true, '3651', { value: '3651', wording: 'counted', payload: undefined, confirmDays: undefined }],
+  ] as const)('%s', (_label, defaults, touched, typed, expected) => {
+    expect(createValidity(defaults, touched, typed)).toMatchObject(expected);
   });
 });

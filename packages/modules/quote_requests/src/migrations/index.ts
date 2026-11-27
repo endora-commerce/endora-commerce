@@ -11,7 +11,7 @@
  * invisible because a workspace member is not an installed package and the
  * committed host registry names each class directly.
  *
- * **Twelve classes, and the order in this array is not the order they run in.**
+ * **Nineteen classes, and the order in this array is not the order they run in.**
  * They are listed here in ascending timestamp, which is the order
  * `backend/src/db/migration-order.ts` computes *within* a module — and within a
  * module only. Where this module's block sits relative to every other module's
@@ -60,6 +60,7 @@ import { Migration20261021T164808QuoteRequestsQuoteRequestEventCarrySkipped } fr
 import { Migration20261025T031736QuoteRequestsUnitPriceFourPlaces } from './20261025T031736_quote_requests_unit_price_four_places.js';
 import { Migration20261113T081826QuoteRequestsNotificationsRedesign } from './20261113T081826_quote_requests_notifications_redesign.js';
 import { Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders } from './20261117T120057_quote_requests_renumber_resubmitted_placeholders.js';
+import { Migration20261124T131435QuoteRequestsQuoteRequestSharing } from './20261124T131435_quote_requests_quote_request_sharing.js';
 
 export const migrations = [
   Migration20260424T190112QuoteRequestsInit,
@@ -80,6 +81,7 @@ export const migrations = [
   Migration20261025T031736QuoteRequestsUnitPriceFourPlaces,
   Migration20261113T081826QuoteRequestsNotificationsRedesign,
   Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders,
+  Migration20261124T131435QuoteRequestsQuoteRequestSharing,
 ];
 
 export {
@@ -101,4 +103,5 @@ export {
   Migration20261025T031736QuoteRequestsUnitPriceFourPlaces,
   Migration20261113T081826QuoteRequestsNotificationsRedesign,
   Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders,
+  Migration20261124T131435QuoteRequestsQuoteRequestSharing,
 };

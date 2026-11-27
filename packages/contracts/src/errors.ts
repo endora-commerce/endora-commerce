@@ -206,6 +206,17 @@ export const ERROR_CODES = {
   // request resolved when none is named (owner decision 2026-10-29 "A") — is not
   // one of the Organization's active channels.
   RFQ_SALES_CHANNEL_NOT_ALLOWED: 'RFQ_SALES_CHANNEL_NOT_ALLOWED',
+  // Sharing an operator's quote with its customer (`specs/192-quote-request-draft-share/`).
+  /** 409 — the quote is already visible to its customer; a share happens once. */
+  RFQ_ALREADY_SHARED: 'RFQ_ALREADY_SHARED',
+  /**
+   * 409 — the quote's customer account cannot receive it: `details.code` is
+   * `not_member` (gone, or moved to another Organization), `inactive` (deleted
+   * or anonymised) or `blocked`.
+   */
+  RFQ_SHARE_CUSTOMER_UNAVAILABLE: 'RFQ_SHARE_CUSTOMER_UNAVAILABLE',
+  /** 409 — the quote is not shared with its customer yet, so it cannot be sent to them. */
+  RFQ_NOT_SHARED: 'RFQ_NOT_SHARED',
   // Issue #1906 — 422: a command hook on the buyer's `quote_request.create`
   // named an assignee who is not an active administrator holding `rfqs:handle`
   // and reaching the request's Organization.

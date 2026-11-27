@@ -11,6 +11,8 @@ import {
   makeApproveQuoteRequestCommand,
   makeAssignQuoteRequestCommand,
   makeCancelQuoteRequestCommand,
+  makeCreateOnBehalfCommand,
+  makeModifyQuoteRequestCommand,
   makeSetQuoteRequestCustomFieldValuesCommand,
   type QuoteRequestAdminCommandDeps,
   type QuoteRequestOperator,
@@ -25,8 +27,10 @@ import {
  * code beside it, nothing on a refusal, and the domain event and the
  * notification record exactly once.
  *
- * `create_on_behalf` and `modify` write lines, revisions and groups through
- * Postgres-shaped reads; they are measured against the database in
+ * `create_on_behalf` and `modify` are held here to the rules
+ * `specs/192-quote-request-draft-share/` gives an unshared quote (a create
+ * with one line, an edit of the validity alone); their line, revision and
+ * group writes are measured against the database in
  * `backend/test/contract/quote_requests/quote-request-command-port.test.ts`.
  */
 
@@ -34,6 +38,8 @@ const ADMIN = '00000000-0000-4000-8000-0000000004a1';
 const OTHER_ADMIN = '00000000-0000-4000-8000-0000000004a2';
 const INELIGIBLE = '00000000-0000-4000-8000-0000000004a3';
 const ORG = randomUUID();
+const CHANNEL = randomUUID();
+const PRODUCT = randomUUID();
 const OPERATOR: QuoteRequestOperator = { adminUserId: ADMIN, roleLabel: 'Platform administrator' };
 const SYSTEM: QuoteRequestOperator = { adminUserId: null, roleLabel: 'System' };
 
@@ -74,6 +80,11 @@ class FakeEm {
 
   async flush(): Promise<void> {
     this.flushes += 1;
+  }
+
+  /** The rows are already in their table: `create` put them there. */
+  persist(): this {
+    return this;
   }
 
   async transactional<T>(fn: (em: FakeEm) => Promise<T>): Promise<T> {
@@ -117,6 +128,18 @@ function harness() {
       record: vi.fn(async (_em: unknown, input: Record<string, unknown>) => {
         recorded.push(input);
       }),
+    },
+    // What the create and the edit read besides the request itself.
+    customerAccounts: { findById: async (id: string) => ({ id, organizationId: ORG }) },
+    channelMembership: { listChannelsForEntity: async () => [{ id: CHANNEL, active: true }] },
+    catalogProducts: {
+      findByIds: async (ids: string[]) => ids.map((id) => ({ id, name: 'Product', slug: 'product', archivedAt: null })),
+    },
+    rfqService: { generateBusinessId: async () => 'QR-000192', lineNames: async () => new Map<string, string>() },
+    revisionService: {
+      byNumber: vi.fn(async () => null),
+      record: vi.fn(async () => ({ id: randomUUID(), itemsSnapshot: [] })),
+      diffRevisions: vi.fn(() => []),
     },
   } as unknown as QuoteRequestAdminCommandDeps;
   return { em, entries, emitted, commandBus, deps, appended, recorded };
@@ -258,6 +281,20 @@ describe('quote_request.cancel', () => {
     expect(JSON.stringify(h.entries)).not.toContain('S1824-REASON');
     expect(h.recorded.map((r) => r['change'])).toEqual(['canceled']);
     expect(h.emitted.map((e) => [e.name, e.payload['reason']])).toEqual([['rfq.canceled.v1', 'S1824-REASON']]);
+  });
+
+  it('cancels a quote its customer cannot see without telling the customer, and still announces it (192, FR-005)', async () => {
+    const h = harness();
+    const quote = seedQuote(h.em, { status: 'Created from admin', sharedWithCustomer: false } as Partial<QuoteRequest>);
+
+    await asAdmin(() =>
+      h.commandBus.run(makeCancelQuoteRequestCommand(h.deps, { quoteRequestId: quote.id, operator: OPERATOR, expectedVersion: null })),
+    );
+
+    expect(quote).toMatchObject({ status: 'Canceled', sharedWithCustomer: false });
+    expect(h.appended.map((e) => e['eventType'])).toEqual(['canceled']);
+    expect(h.recorded).toEqual([]);
+    expect(h.emitted.map((e) => e.name)).toEqual(['rfq.canceled.v1']);
   });
 
   it('refuses an approved request with 409 RFQ_NOT_QUOTED', async () => {
@@ -417,5 +454,141 @@ describe('quote_request.custom_fields.update', () => {
     ).rejects.toBe(refusal);
     expect(quote.customFieldValues).toEqual({ kept: 'value' });
     expect(h.entries).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `specs/192-quote-request-draft-share/` — the rules an unshared quote keeps,
+// carried into the operator's Commands (issue #1824).
+// ---------------------------------------------------------------------------
+
+describe('quote_request.create_on_behalf — an unshared quote (192)', () => {
+  const createBody = (extra: Record<string, unknown> = {}) =>
+    ({
+      organizationId: ORG,
+      customerAccountId: randomUUID(),
+      salesChannelId: CHANNEL,
+      items: [{ productId: PRODUCT, quantity: 2 }],
+      ...extra,
+    }) as never;
+
+  /** The create as a platform-wide administrator runs it, with the setting's default. */
+  async function create(h: ReturnType<typeof harness>, body: never, defaultDays = 30) {
+    const resolveDefaultValidityDays = vi.fn(async () => defaultDays);
+    const deps = { ...h.deps, isPlatformAdmin: () => true, resolveDefaultValidityDays };
+    const quote = await asAdmin(() => h.commandBus.run(makeCreateOnBehalfCommand(deps, { operator: OPERATOR, body })));
+    return { quote, resolveDefaultValidityDays };
+  }
+
+  it('starts unshared, with no date, the default days snapshotted, and records nothing for the customer (FR-001, FR-005, FR-031)', async () => {
+    const h = harness();
+    const { quote } = await create(h, createBody());
+
+    expect(quote).toMatchObject({
+      status: 'Created from admin',
+      sharedWithCustomer: false,
+      shareValidityDays: 30,
+      expiresAt: null,
+    });
+    // An unpriced line is accepted while the quote is unshared (FR-013).
+    expect(h.em.table(QuoteRequestItem.name)).toEqual([expect.objectContaining({ productId: PRODUCT, agreedUnitPrice: null })]);
+    expect(h.appended.map((e) => e['eventType'])).toEqual(['created', 'note-added']);
+    // `prepared` belongs to the share, so nothing is recorded — and nothing is to be delivered.
+    expect(h.recorded).toEqual([]);
+    expect(h.emitted.map((e) => e.name)).toEqual(['rfq.created_by_admin.v1']);
+    expect(h.entries).toHaveLength(1);
+    expect(h.entries[0]).toMatchObject({
+      action: 'quote_request.create_on_behalf',
+      stateAfter: { status: 'Created from admin', sharedWithCustomer: false, shareValidityDays: 30 },
+    });
+  });
+
+  it.each([
+    ['days the operator sent', 14, 14],
+    ['0, read as no deadline', 0, null],
+    ['null, read as no deadline', null, null],
+  ] as const)('keeps %s instead of the default, without reading it (FR-032)', async (_what, sent, stored) => {
+    const h = harness();
+    const { quote, resolveDefaultValidityDays } = await create(h, createBody({ expiresInDays: sent }));
+    expect(quote).toMatchObject({ sharedWithCustomer: false, shareValidityDays: stored, expiresAt: null });
+    expect(resolveDefaultValidityDays).not.toHaveBeenCalled();
+    expect(h.recorded).toEqual([]);
+  });
+
+  it('snapshots a default of 0 as no deadline (R-12)', async () => {
+    const h = harness();
+    const { quote } = await create(h, createBody(), 0);
+    expect(quote).toMatchObject({ shareValidityDays: null, expiresAt: null });
+  });
+});
+
+describe('quote_request.modify — validity and the revised notification (192)', () => {
+  const modify = (h: ReturnType<typeof harness>, quote: QuoteRequest, body: Record<string, unknown>) =>
+    asAdmin(() =>
+      h.commandBus.run(
+        makeModifyQuoteRequestCommand(h.deps, { quoteRequestId: quote.id, operator: OPERATOR, expectedVersion: null, body: body as never }),
+      ),
+    );
+
+  it('stores the days on an unshared quote, writes no date and records no revised (R-10, FR-005)', async () => {
+    const h = harness();
+    const quote = seedQuote(h.em, {
+      status: 'Created from admin',
+      sharedWithCustomer: false,
+      shareValidityDays: 30,
+      expiresAt: null,
+      currentRevisionNumber: 1,
+    } as Partial<QuoteRequest>);
+
+    await modify(h, quote, { expiresInDays: 10 });
+
+    expect(quote).toMatchObject({ sharedWithCustomer: false, shareValidityDays: 10, expiresAt: null, currentRevisionNumber: 2, version: 4 });
+    expect(h.appended).toEqual([
+      expect.objectContaining({ eventType: 'modified', payload: expect.objectContaining({ validityDays: { before: 30, after: 10 } }) }),
+    ]);
+    expect(h.recorded).toEqual([]);
+    // The event is emitted for an unshared quote too; a customer-facing subscriber checks the flag.
+    expect(h.emitted.map((e) => e.name)).toEqual(['rfq.modified.v1']);
+  });
+
+  it('reads 0 on an unshared quote as no deadline', async () => {
+    const h = harness();
+    const quote = seedQuote(h.em, {
+      status: 'Created from admin',
+      sharedWithCustomer: false,
+      shareValidityDays: 30,
+      currentRevisionNumber: 1,
+    } as Partial<QuoteRequest>);
+    await modify(h, quote, { expiresInDays: 0 });
+    expect(quote.shareValidityDays).toBeNull();
+    expect(quote.expiresAt ?? null).toBeNull();
+  });
+
+  it('clears the deadline of a shared quote on 0 — never "expires now" — and records revised (owner decision 2026-11-24)', async () => {
+    const h = harness();
+    const deadline = new Date(Date.now() + 5 * 86_400_000);
+    const quote = seedQuote(h.em, { sharedWithCustomer: true, expiresAt: deadline, currentRevisionNumber: 1 } as Partial<QuoteRequest>);
+
+    await modify(h, quote, { expiresInDays: 0 });
+
+    expect(quote.expiresAt).toBeNull();
+    expect(h.appended).toEqual([
+      expect.objectContaining({
+        eventType: 'modified',
+        payload: expect.objectContaining({ validity: { before: deadline.toISOString(), after: null } }),
+      }),
+    ]);
+    expect(h.recorded.map((r) => r['change'])).toEqual(['revised']);
+  });
+
+  it('dates a shared quote from now by the days sent', async () => {
+    const h = harness();
+    const quote = seedQuote(h.em, { sharedWithCustomer: true, expiresAt: null, currentRevisionNumber: 1 } as Partial<QuoteRequest>);
+    const before = Date.now();
+    await modify(h, quote, { expiresInDays: 7 });
+    const at = quote.expiresAt!.getTime();
+    expect(at).toBeGreaterThanOrEqual(before + 7 * 86_400_000);
+    expect(at).toBeLessThanOrEqual(Date.now() + 7 * 86_400_000);
+    expect(h.recorded.map((r) => r['change'])).toEqual(['revised']);
   });
 });

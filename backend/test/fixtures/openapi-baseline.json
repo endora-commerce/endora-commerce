@@ -7264,6 +7264,15 @@
         }
       }
     },
+    "/api/v1/admin/quote-requests/create-defaults": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/quote-requests/custom-field-filters": {
       "get": {
         "responses": {
@@ -7394,6 +7403,15 @@
       }
     },
     "/api/v1/admin/quote-requests/{id}/prepare-customer-basket": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/quote-requests/{id}/share": {
       "post": {
         "responses": {
           "200": {

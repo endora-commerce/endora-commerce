@@ -16,8 +16,12 @@ import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actor
  * An integration creates a quote for a customer, prices a request the customer
  * submitted and approves it. Every write is audited with the `system` actor —
  * there is no `automation` actor kind (D-293.6) — and the integration's
- * `source` code beside it; the history names the writer `System`; the buyer is
- * notified and the events are emitted as on the admin routes.
+ * `source` code beside it; the history names the writer `System`; the events
+ * are emitted as on the admin routes. The buyer of the submitted request is
+ * notified; the quote the worker creates starts unshared
+ * (`specs/192-quote-request-draft-share/`, owner decision 2026-11-26), so its
+ * customer is told nothing of its create or its cancellation — the port has no
+ * share, an operator shares in the Admin UI.
  */
 describe('quoteRequestCommandPort from a worker (withSystemScope)', () => {
   let h: BackendServerHandle;
@@ -70,7 +74,7 @@ describe('quoteRequestCommandPort from a worker (withSystemScope)', () => {
     await teardownBackendServer(h);
   });
 
-  it('creates a quote for a customer as the system, naming the integration', async () => {
+  it('creates an unshared quote for a customer as the system, naming the integration, and tells the customer nothing', async () => {
     const record = await inWorker(() =>
       port.create(
         {
@@ -90,6 +94,8 @@ describe('quoteRequestCommandPort from a worker (withSystemScope)', () => {
       createdByAdminUserId: null,
       assignedAdminUserId: null,
       awaitingCustomerRevisionAcceptance: true,
+      sharedWithCustomer: false,
+      expiresAt: null,
     });
     const [entry, ...more] = await entries(record.id);
     expect(more).toEqual([]);
@@ -102,10 +108,15 @@ describe('quoteRequestCommandPort from a worker (withSystemScope)', () => {
       ['created', null, 'System'],
       ['note-added', null, 'System'],
     ]);
-    expect(await notifications(record.id)).toBeGreaterThan(0);
+    expect(await notifications(record.id)).toBe(0);
     await expect
       .poll(() => events.filter((e) => e.payload['rfqId'] === record.id).map((e) => [e.name, e.payload['adminUserId']]))
       .toEqual([[RFQ_CREATED_BY_ADMIN_EVENT, null]]);
+
+    // Cancelling it through the port stays silent to the customer.
+    const canceled = await inWorker(() => port.cancel(record.id, { reason: null }, { source: 'erp' }));
+    expect(canceled).toMatchObject({ status: 'Canceled', sharedWithCustomer: false });
+    expect(await notifications(record.id)).toBe(0);
   });
 
   it('refuses a create that names no channel: a worker has no request to resolve one from', async () => {

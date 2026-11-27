@@ -59,6 +59,8 @@ import { adminCanSeeOrganization } from './admin-org-visibility.js';
 import { listTotal } from './summarize.js';
 import { quoteRequestAmount } from './quote-amount.js';
 import { channelCurrencies, summaryCurrency } from './line-currency.js';
+import { normaliseShareValidityDays } from './operator-quote-sharing.js';
+import { makeShareQuoteRequestCommand } from '../commands/share-command.js';
 import {
   adminActorDirectory,
   customerActorDirectory,
@@ -119,6 +121,11 @@ export interface AdminListFilter {
   customFieldFilters?: CustomFieldFilters;
   /** Issue #317 — a fragment of the business id, the organization name or the customer's name, or a whole id. */
   q?: string;
+  /**
+   * `specs/192-quote-request-draft-share/` (FR-009) — only the quotes the
+   * customer cannot see yet, or only those it can; absent = both.
+   */
+  sharing?: 'unshared' | 'shared';
   /** Issue #317 — default `updatedAt:desc`. */
   sort?: AdminQuoteRequestListSort;
   /** Issue #317 — one-based; default 1. */
@@ -171,7 +178,9 @@ export interface RfqAdminServiceDeps {
   salesRepAssignment: SalesRepAssignmentPort;
   /**
    * Issue #1824 — the bus the operator's writes run on, as Commands
-   * (`commands/quote-request-admin-commands.ts`, Principle XIII).
+   * (`commands/quote-request-admin-commands.ts`, Principle XIII), and the
+   * share of `specs/192-quote-request-draft-share/` (`quote_request.share`,
+   * refusable by another module's hook, research R-4).
    */
   commandBus: Pick<CommandBus, 'run'>;
   /**
@@ -179,6 +188,11 @@ export interface RfqAdminServiceDeps {
    * `quote_request.prepare_customer_basket`, co-transactionally when provided.
    */
   auditLog?: AuditPort;
+  /**
+   * `specs/192-quote-request-draft-share/` (R-12) — the
+   * `quote_requests.default_validity_days` setting; absent = `0`, no deadline.
+   */
+  resolveDefaultValidityDays?: () => Promise<number>;
   /** Feature 055 — validates + merges custom-field values on RFQ edit. */
   customFieldValues?: CustomFieldValuePort;
   /**
@@ -275,6 +289,7 @@ export class RfqAdminService {
     if (filter.status) {
       where['status'] = Array.isArray(filter.status) ? { $in: filter.status } : filter.status;
     }
+    if (filter.sharing) where['sharedWithCustomer'] = filter.sharing === 'shared';
     // Feature 157 — one condition, a member of `$and`: it narrows the
     // organization and status conditions above and never replaces them.
     const customFieldCondition = await this.customFieldCondition(filter.customFieldFilters);
@@ -383,6 +398,8 @@ export class RfqAdminService {
         version: rfq.version,
         organizationName: org?.name ?? '',
         customerDisplayName: customer ? customerDisplayName(customer) : null,
+        // `specs/192-quote-request-draft-share/` (FR-009) — the list's *Not shared* badge.
+        sharedWithCustomer: rfq.sharedWithCustomer,
       };
     });
     return { rows, total };
@@ -746,6 +763,48 @@ export class RfqAdminService {
     return this.deps.rfqService.serializeFull(this.deps.emFactory(), rfq, true);
   }
 
+  /** `quote_requests.default_validity_days`; `0` when no reader is composed. */
+  private async defaultValidityDays(): Promise<number> {
+    return (await this.deps.resolveDefaultValidityDays?.()) ?? 0;
+  }
+
+  /**
+   * `GET /api/v1/admin/quote-requests/create-defaults`
+   * (`specs/192-quote-request-draft-share/`, contracts/admin-api.md §2) — what
+   * the create screen pre-fills: the default validity in days, `null` for none.
+   */
+  async createDefaults(): Promise<{ validityDays: number | null }> {
+    return { validityDays: normaliseShareValidityDays(await this.defaultValidityDays()) };
+  }
+
+  // -------------------------------------------------------------------------
+  // Share with the customer (`specs/192-quote-request-draft-share/`)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Share an unshared operator quote with its customer: the Command
+   * `quote_request.share` (research R-4) — its refusals, its write and every
+   * present `beforeCommit` hook in one transaction. Delivery of the `prepared`
+   * records is kicked once the Command committed, never before.
+   */
+  async share(ctx: AdminContext, rfqId: string, expectedVersion: number | null): Promise<RfqDto> {
+    await this.runWrite(
+      makeShareQuoteRequestCommand(
+        { quoteRequestId: rfqId, expectedVersion, roleLabel: ctx.roleLabel },
+        {
+          salesRepScope: this.deps.salesRepAssignment,
+          customerAccounts: this.deps.customerAccounts,
+          eventService: this.deps.eventService,
+          notificationService: this.deps.notificationService,
+          revisionService: this.deps.revisionService,
+        },
+      ),
+      { notifies: true },
+    );
+    const em = this.deps.emFactory();
+    return this.deps.rfqService.serializeFull(em, await this.findVisibleForAdmin(em, ctx, rfqId), true);
+  }
+
   // -------------------------------------------------------------------------
   // Internal-side claim (informational; visibility is per-org, not per-rfq)
   // -------------------------------------------------------------------------
@@ -822,9 +881,12 @@ export class RfqAdminService {
     ctx: AdminContext,
     body: AdminCreateQuoteRequest,
   ): Promise<RfqDto> {
+    // `specs/192-quote-request-draft-share/` (FR-005) — the new quote is
+    // unshared and records nothing for its customer, so nothing is kicked;
+    // `share` kicks the `prepared` delivery.
     const rfq = await this.runWrite(
       makeCreateOnBehalfCommand(this.deps, { operator: RfqAdminService.operatorOf(ctx), body }),
-      { notifies: true },
+      { notifies: false },
     );
     return this.deps.rfqService.serializeFull(this.deps.emFactory(), rfq, true);
   }

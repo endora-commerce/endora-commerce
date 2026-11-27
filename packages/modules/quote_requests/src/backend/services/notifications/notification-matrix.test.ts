@@ -42,7 +42,7 @@ const CONTRACT: Row[] = [
   ['offer_accepted', 'approved', { approvedBy: 'customer' }, C, CA, CA, O, NONE],
   ['offer_rejected', 'canceled', { canceledBy: 'customer' }, C, CA, CA, O, NONE],
   ['expired', 'expired', null, C, C, C, O, NONE],
-  ['prepared', 'created', null, C, C, C, NONE, NONE],
+  ['prepared', 'shared', null, C, C, C, NONE, NONE],
   ['revised', 'modified', null, C, C, C, NONE, NONE],
   ['approved', 'approved', { approvedBy: 'admin' }, C, C, C, NONE, NONE],
   ['canceled', 'canceled', { canceledBy: 'admin' }, C, C, C, NONE, NONE],

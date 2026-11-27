@@ -2046,6 +2046,29 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       '`quote_requests`\' own column, and the one raise site is its admin create. ' +
       '`SALES_CHANNEL_NOT_PERMITTED` is not reused: its sentence speaks to a signed-in buyer.',
   },
+  RFQ_ALREADY_SHARED: {
+    to: 'quote_requests',
+    reason:
+      'Minted by `specs/192-quote-request-draft-share/` (FR-024, FR-025) for a share of an operator\'s ' +
+      'quote request that is already visible to its customer — repeated, concurrent, or a quote that was ' +
+      'never unshared. The noun is the quote request\'s sharing state, `quote_requests`\' own column, and ' +
+      'the one raise site is its share Command.',
+  },
+  RFQ_SHARE_CUSTOMER_UNAVAILABLE: {
+    to: 'quote_requests',
+    reason:
+      'Minted by `specs/192-quote-request-draft-share/` (FR-027) for a share refused because the quote ' +
+      'request\'s customer account is gone or in another Organization, deleted or anonymised, or blocked — ' +
+      'named by the `details.code` token. The refusal is about sharing `quote_requests`\' own quote, and ' +
+      'the one raise site is its share Command; no `customer_accounts` code speaks to an operator about a quote.',
+  },
+  RFQ_NOT_SHARED: {
+    to: 'quote_requests',
+    reason:
+      'Minted by `specs/192-quote-request-draft-share/` (FR-007) for a Send PDF to customer of a quote ' +
+      'request its customer cannot see yet. The noun is the quote request\'s sharing state, ' +
+      '`quote_requests`\' own column, and the one raise site is its send Command.',
+  },
   RFQ_ASSIGNEE_NOT_ELIGIBLE: {
     to: 'quote_requests',
     reason:

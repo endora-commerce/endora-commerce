@@ -53,6 +53,16 @@ describe('judgeQuoteRequestSource', () => {
     },
   );
 
+  // `specs/192-quote-request-draft-share/` — an operator's quote not shared yet
+  // stays `Created from admin` until the customer approves it after the share,
+  // so the status gate alone keeps it off an Order: a basket naming it, even one
+  // holding its agreed line at its agreed price, gets no source.
+  it('refuses an unshared operator quote (Created from admin) whose agreed line is on the basket', () => {
+    expect(
+      judgeQuoteRequestSource(claim({ quoteRequest: { organizationId: ORG, status: 'Created from admin' } })),
+    ).toEqual({ accepted: false, reason: 'not-convertible' });
+  });
+
   it('refuses a request an Order already names, though it still reads Approved', () => {
     expect(judgeQuoteRequestSource(claim({ alreadyOrdered: true }))).toEqual({
       accepted: false,

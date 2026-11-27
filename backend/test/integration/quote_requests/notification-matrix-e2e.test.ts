@@ -6,6 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { shareQuoteRequestForTest } from '../../helpers/quote-request-share.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { Order } from '../../helpers/package-entities.js';
 import { ageQuoteRequest } from '../../helpers/quote-request-age.js';
@@ -316,7 +317,7 @@ describe('Quote request notification matrix, end to end (WP-12, T110)', () => {
 
   // --- operator-side changes ---------------------------------------------------------
 
-  it('prepared: a request the representative raises on the buyer’s behalf tells the customer side only', async () => {
+  it('prepared: a request the representative raises on the buyer’s behalf, once shared, tells the customer side only', async () => {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/quote-requests',
@@ -328,7 +329,10 @@ describe('Quote request notification matrix, end to end (WP-12, T110)', () => {
       },
     });
     expect(res.statusCode, res.body).toBe(201);
-    await expectDelivered((res.json() as { data: { id: string } }).data.id, 'prepared', null);
+    // `specs/192-quote-request-draft-share/` — announced when the representative shares it.
+    const id = (res.json() as { data: { id: string } }).data.id;
+    await shareQuoteRequestForTest(h.app, id, org.rep.cookies);
+    await expectDelivered(id, 'prepared', null);
   });
 
   it('revised: the customer side, requester included, on every customer channel', async () => {

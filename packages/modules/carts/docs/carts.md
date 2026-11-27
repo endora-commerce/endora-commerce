@@ -232,7 +232,7 @@ Each approval step sends an e-mail, after the step has been saved:
 | `POST /api/v1/cart/coupon` | Apply (or replace, or clear) the active coupon code; 422 `CART_COUPON_REJECTED` with reason on rejection — `carts.create` for a signed-in member; a guest is not judged |
 | `DELETE /api/v1/cart/coupon` | Alias for `POST {code: null}` — as above |
 | `POST /api/v1/cart/convert-to-quote-request` | Cart → Quote Request; source cart becomes `completed` with `converted_to_quote_request_id` set — `quote_requests.create` |
-| `POST /api/v1/cart/from-quote-request/:qrId` | Quote Request → Cart; lines re-priced at the customer's current prices — `carts.create` |
+| `POST /api/v1/cart/from-quote-request/:qrId` | Quote Request → Cart; lines re-priced at the customer's current prices — `carts.create`. A quote an operator has not shared with its customer yet answers `404`, the same as an unknown one |
 | `POST /api/v1/cart/from-shopping-list/:listId` | Shopping List → Cart; lines re-priced — `shopping_lists.convert`, judged first, and `carts.create` |
 | `POST /api/v1/cart/submit-for-approval` | Buyer submits cart for approval. Refused with `422 CART_APPROVAL_NOT_REQUIRED` when the buyer's role holds `carts.order_without_approval`, `422 CART_APPROVAL_ALREADY_SUBMITTED` for a cart already sent, and for a basket below a minimum — see *Order minimums* |
 

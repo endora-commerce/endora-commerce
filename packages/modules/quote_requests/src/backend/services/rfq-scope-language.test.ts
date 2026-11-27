@@ -51,6 +51,7 @@ function serviceAskingAt(): { service: InstanceType<typeof RfqService>; filterAv
       organizationId: ORG_ID,
       customerAccountId: CUSTOMER_ID,
       awaitingCustomerRevisionAcceptance: false,
+      sharedWithCustomer: true,
       version: 1,
       salesChannelId: B2C,
     }),

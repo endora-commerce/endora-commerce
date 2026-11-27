@@ -354,21 +354,41 @@ describe('Quote request notifications are recorded inside the transition (WP-04)
     });
   });
 
-  describe('create on behalf', () => {
-    it('commits the request, its created entry and the records together', async () => {
+  // `specs/192-quote-request-draft-share/` — an operator's create records nothing
+  // for the customer; `prepared` is recorded by the share, with its `shared`
+  // entry, on the share Command's transaction.
+  describe('create on behalf, then share', () => {
+    const share = (id: string) =>
+      h.app.inject({ method: 'POST', url: `/api/v1/admin/quote-requests/${id}/share`, cookies: ADMIN });
+
+    it('the create records nothing and kicks nothing', async () => {
       const { result: res, kicks } = await kicksDuring(() => createOnBehalf(`wp04-on-behalf-${randomUUID()}`));
       expect(res.statusCode, res.body).toBe(201);
       const id = (res.json() as { data: { id: string } }).data.id;
-      await recordsOf(id, 'prepared', 'created');
+      expect((await snapshot(id)).records).toBe(0);
+      expect(kicks).toBe(0);
+    });
+
+    it('the share commits the row, its shared entry and the records together, then kicks', async () => {
+      const created = await createOnBehalf(`wp04-on-behalf-${randomUUID()}`);
+      const id = (created.json() as { data: { id: string } }).data.id;
+      const { result: res, kicks } = await kicksDuring(() => share(id));
+      expect(res.statusCode, res.body).toBe(200);
+      await recordsOf(id, 'prepared', 'shared');
       expect(kicks).toBe(1);
     });
 
-    it('a failure after the records leaves no request', async () => {
-      const marker = `wp04-on-behalf-${randomUUID()}`;
-      const { result: res, recorded, kicks } = await failingAfterRecords(() => createOnBehalf(marker));
+    it('a failure after the records leaves the quote unshared, with no entry and no record', async () => {
+      const created = await createOnBehalf(`wp04-on-behalf-${randomUUID()}`);
+      const id = (created.json() as { data: { id: string } }).data.id;
+      const before = await snapshot(id);
+      const { result: res, recorded, kicks } = await failingAfterRecords(() => share(id));
       expect(recorded).toBeGreaterThan(0);
       expect(res.statusCode).toBe(500);
-      expect(await requestsMarked(marker)).toBe(0);
+      expect(await snapshot(id)).toEqual(before);
+      expect(
+        await scalar(`select count(*) as "n" from "quote_requests" where "id" = ? and "shared_with_customer"`, [id]),
+      ).toBe(0);
       expect(kicks).toBe(0);
     });
   });

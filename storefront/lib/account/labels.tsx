@@ -72,6 +72,9 @@ const QUOTE_REQUEST_EVENT_KEYS: Readonly<Record<string, MessageKey>> = {
   'customer-rejected-revision': 'account.quoteRequest.event.customerRejectedRevision',
   're-submitted': 'account.quoteRequest.event.resubmitted',
   'note-added': 'account.quoteRequest.event.noteAdded',
+  // `specs/192-quote-request-draft-share/` (FR-012) — where a quote an operator
+  // prepared starts on the customer's side.
+  shared: 'account.quoteRequest.event.shared',
 };
 
 /** A quote-request history event in the page's language, or its type for one this catalogue does not know. */

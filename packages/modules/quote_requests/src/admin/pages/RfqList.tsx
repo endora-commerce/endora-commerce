@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Columns3, FileText, Plus } from 'lucide-react';
+import { Columns3, EyeOff, FileText, Plus } from 'lucide-react';
 import { apiClient, ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, EmptyState, Label, MultiSelect, Select, type MultiSelectOption } from '@endora-commerce/admin-kit/ui';
 import {
@@ -32,7 +32,7 @@ import {
 } from '@endora-commerce/admin-kit/components';
 import type { CustomFieldFilters } from '@endora-commerce/contracts';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
-import { rfqStatusLabels } from '../lib/labels.js';
+import { rfqSharingLabels, rfqStatusLabels } from '../lib/labels.js';
 /**
  * Admin Quote Requests list (feature 008 / T042). The kit's `ListPage` with
  * the kit `ListToolbar`, as the Orders list (issue #1500, SALES-24): search +
@@ -58,6 +58,10 @@ type RfqStatus =
 const RFQ_STATUSES: readonly RfqStatus[] = rfqStatusLabels.values;
 
 type AssignmentScope = 'mine' | 'unassigned' | 'all';
+/** `specs/192-quote-request-draft-share/` (FR-009) — `''` is both. */
+type Sharing = (typeof rfqSharingLabels.values)[number];
+const isSharing = (value: unknown): value is Sharing =>
+  typeof value === 'string' && rfqSharingLabels.values.includes(value as Sharing);
 
 interface AdminRfqRow {
   id: string;
@@ -68,6 +72,8 @@ interface AdminRfqRow {
   customerDisplayName?: string | null;
   status: RfqStatus;
   awaitingCustomerRevisionAcceptance: boolean;
+  /** `specs/192-quote-request-draft-share/` — `false` while the customer cannot see it yet. */
+  sharedWithCustomer?: boolean;
   lineCount: number;
   /** Issue #456 — the one amount `quote_requests` publishes, two places; `null` without any price. */
   amount?: string | null;
@@ -230,6 +236,10 @@ export function RfqList(): ReactNode {
     const fromUrl = searchParams.get('status');
     return fromUrl !== null && RFQ_STATUSES.includes(fromUrl as RfqStatus) ? [fromUrl] : [];
   });
+  const [sharing, setSharing] = useState<Sharing | ''>(() => {
+    const fromUrl = searchParams.get('sharing');
+    return isSharing(fromUrl) ? fromUrl : '';
+  });
   /** What the search box shows, and the search the server was last asked for once typing settled. */
   const [q, setQ] = useState('');
   const [searchedQ, setSearchedQ] = useState('');
@@ -248,6 +258,10 @@ export function RfqList(): ReactNode {
   };
   const changeStatusCodes = (next: string[]): void => {
     setStatusCodes(next);
+    resetPage();
+  };
+  const changeSharing = (next: Sharing | ''): void => {
+    setSharing(next);
     resetPage();
   };
   const changeSort = (next: string): void => {
@@ -271,13 +285,14 @@ export function RfqList(): ReactNode {
     if (scope) params.set('assignmentScope', scope);
     if (organizationId) params.set('organizationId', organizationId);
     if (statusCodes.length > 0) params.set('status', statusCodes.join(','));
+    if (sharing) params.set('sharing', sharing);
     if (searchedQ) params.set('q', searchedQ);
     if (customFieldParam !== null) params.set('customFieldFilters', customFieldParam);
     params.set('sort', sort);
     params.set('page', String(pager.query.page));
     params.set('pageSize', String(pager.query.pageSize));
     return `/api/v1/admin/quote-requests?${params.toString()}`;
-  }, [scope, organizationId, statusCodes, searchedQ, customFieldParam, sort, pager.query.page, pager.query.pageSize]);
+  }, [scope, organizationId, statusCodes, sharing, searchedQ, customFieldParam, sort, pager.query.page, pager.query.pageSize]);
 
   const refresh = useCallback(async (): Promise<void> => {
     const path = listPath;
@@ -361,6 +376,15 @@ export function RfqList(): ReactNode {
       label: `${t('rfq.list.field.status')}: ${rfqStatusLabels.label(t, code)}`,
       onRemove: (): void => changeStatusCodes(statusCodes.filter((c) => c !== code)),
     })),
+    ...(sharing
+      ? [
+          {
+            key: 'sharing',
+            label: `${own('list.sharing.label')}: ${rfqSharingLabels.label(own, sharing)}`,
+            onRemove: (): void => changeSharing(''),
+          },
+        ]
+      : []),
     ...(organizationId
       ? [
           {
@@ -401,6 +425,7 @@ export function RfqList(): ReactNode {
         scope,
         ...(organizationId ? { organizationId } : {}),
         ...(statusCodes.length > 0 ? { status: statusCodes } : {}),
+        ...(sharing ? { sharing } : {}),
         ...(trimmed ? { q: trimmed } : {}),
         ...(Object.keys(customFieldFilters).length > 0 ? { customFields: { ...customFieldFilters } } : {}),
       },
@@ -430,6 +455,7 @@ export function RfqList(): ReactNode {
         ? f['status'].filter((s): s is RfqStatus => RFQ_STATUSES.includes(s as RfqStatus))
         : [],
     );
+    setSharing(isSharing(f['sharing']) ? f['sharing'] : '');
     const savedQ = typeof f['q'] === 'string' ? f['q'] : '';
     setQ(savedQ);
     // Searched at once: a loaded view is one list request, not one now and one after the debounce.
@@ -462,6 +488,7 @@ export function RfqList(): ReactNode {
   const resultsFiltered = filterChips.length > 0 || searchedQ !== '';
   const clearAllFilters = (): void => {
     setStatusCodes([]);
+    setSharing('');
     setOrganizationId('');
     setScope('mine');
     setQ('');
@@ -512,7 +539,14 @@ export function RfqList(): ReactNode {
       render: (r) => (
         <>
           <Badge variant={STATUS_VARIANT[r.status] ?? 'default'}>{rfqStatusLabels.label(t, r.status)}</Badge>
-          {r.awaitingCustomerRevisionAcceptance ? (
+          {/* `specs/192-quote-request-draft-share/` (FR-009) — words and an icon, never colour alone. */}
+          {r.sharedWithCustomer === false ? (
+            <Badge variant="outline" className="ml-1 gap-1">
+              <EyeOff className="size-3" aria-hidden="true" />
+              {own('share.badge.unshared')}
+            </Badge>
+          ) : null}
+          {r.awaitingCustomerRevisionAcceptance && r.sharedWithCustomer !== false ? (
             <Badge variant="warning" className="ml-1">
               {t('rfq.list.badge.awaitingCustomer')}
             </Badge>
@@ -594,6 +628,20 @@ export function RfqList(): ReactNode {
                 selected={statusCodes}
                 onChange={changeStatusCodes}
               />
+              {/* Two values that exclude each other, so one choice, not a multi-select (Hick). */}
+              <Select
+                aria-label={own('list.sharing.label')}
+                value={sharing}
+                onChange={(e): void => changeSharing(isSharing(e.target.value) ? e.target.value : '')}
+                className="w-auto"
+              >
+                <option value="">{own('list.sharing.all')}</option>
+                {rfqSharingLabels.options(own).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
               <Select
                 aria-label={t('rfq.list.field.sort')}
                 value={sort}

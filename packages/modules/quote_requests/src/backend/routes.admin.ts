@@ -7,7 +7,9 @@ import {
   adminCreateQuoteRequestSchema,
   adminPatchQuoteRequestSchema,
   adminPrepareCustomerBasketResponseSchema,
+  adminQuoteRequestCreateDefaultsSchema,
   adminQuoteRequestListQuerySchema,
+  adminShareQuoteRequestSchema,
   createQuoteRequestSavedViewRequestSchema,
   customFieldFiltersQueryParamSchema,
   ERROR_CODES,
@@ -85,6 +87,7 @@ export async function registerQuoteRequestsAdminRoutes(
       ...(query.assignmentScope ? { scope: query.assignmentScope } : {}),
       ...(customFieldFilters ? { customFieldFilters } : {}),
       ...(query.q ? { q: query.q } : {}),
+      ...(query.sharing ? { sharing: query.sharing } : {}),
       sort: query.sort,
       page: query.page,
       pageSize: query.pageSize,
@@ -122,6 +125,13 @@ export async function registerQuoteRequestsAdminRoutes(
       } satisfies AdminQuoteRequestListPagination,
     };
   });
+
+  // `specs/192-quote-request-draft-share/` (contracts/admin-api.md §2) — what
+  // the create screen pre-fills. Declared before `/:id`, so the segment is
+  // never read as an id; `rfqs:handle`, not `settings:read` (research R-12).
+  app.get('/api/v1/admin/quote-requests/create-defaults', { preHandler: guard }, async () => ({
+    data: adminQuoteRequestCreateDefaultsSchema.parse(await adminService.createDefaults()),
+  }));
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/quote-requests/:id',
@@ -170,6 +180,23 @@ export async function registerQuoteRequestsAdminRoutes(
       const body = adminPatchQuoteRequestSchema.parse(request.body);
       const expectedVersion = parseIfMatch(request);
       const rfq = await adminService.modify(ctx, request.params.id, expectedVersion, body);
+      setEtag(reply, rfq.version);
+      return { data: rfq };
+    },
+  );
+
+  // `specs/192-quote-request-draft-share/` (contracts/admin-api.md §1) — share
+  // an unshared operator quote with its customer. No body; `If-Match` as on
+  // `PATCH /:id`.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/quote-requests/:id/share',
+    { preHandler: guard },
+    async (request, reply) => {
+      const ctx = await resolveAdminContext(request);
+      // No body, or an empty object; parsed here because an absent body
+      // reaches the handler as `null`.
+      adminShareQuoteRequestSchema.parse(request.body ?? {});
+      const rfq = await adminService.share(ctx, request.params.id, parseIfMatch(request));
       setEtag(reply, rfq.version);
       return { data: rfq };
     },

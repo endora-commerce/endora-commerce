@@ -41,9 +41,16 @@ import type { RfqAdminService } from './rfq-admin-service.js';
  * input with the admin route's schema, builds the Command from the factory the
  * route's service builds it from (`commands/quote-request-admin-commands.ts`)
  * and runs it through `RfqAdminService.runWrite` — the route's own runner, which
- * also wakes the notification delivery after the commit — so the audit entry,
- * the history, the notifications and the event cannot differ between the two.
+ * also wakes the notification delivery after the commit of a write that
+ * records notifications — so the audit entry, the history, the notifications
+ * and the event cannot differ between the two.
  * `sendDocument` is the quote PDF route's `QuoteRequestDocumentService.send`.
+ *
+ * `specs/192-quote-request-draft-share/` (owner decision 2026-11-26) — a quote
+ * `create` makes starts unshared, as the admin route's does: nothing is
+ * recorded for its customer and no delivery is woken, and `update` and
+ * `cancel` of an unshared quote tell the customer nothing. There is no
+ * `share`: an operator shares the quote in the Admin UI.
  *
  * The operator the history names is the ambient one: the administrator of the
  * tenant context, with the label the admin routes show, else the system
@@ -68,7 +75,8 @@ export class QuoteRequestCommandService implements QuoteRequestCommandPort {
     const body = adminCreateQuoteRequestSchema.parse(input);
     const write = await this.#options(options);
     const admin = this.deps.admin();
-    const rfq = await admin.runWrite(makeCreateOnBehalfCommand(admin.commandDeps, { ...write, body }), { notifies: true });
+    // `specs/192-quote-request-draft-share/` (FR-005) — unshared, nothing recorded for the customer: no kick.
+    const rfq = await admin.runWrite(makeCreateOnBehalfCommand(admin.commandDeps, { ...write, body }), { notifies: false });
     return toQuoteRequestRecord(rfq);
   }
 

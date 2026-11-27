@@ -211,7 +211,7 @@ describe('carts — the org-admin cart list names its owners through customer_ac
 describe('carts — quote-to-cart conversion reads quote_requests through its port', () => {
   const quoteRequests = {
     findById: async () =>
-      ({ id: 'qr-1', customerAccountId: 'cust-1' }) as never,
+      ({ id: 'qr-1', customerAccountId: 'cust-1', sharedWithCustomer: true }) as never,
     listItems: async () => [
       {
         id: 'qri-1',
@@ -242,6 +242,30 @@ describe('carts — quote-to-cart conversion reads quote_requests through its po
       },
     },
   ) as SalesChannelMembershipPort;
+
+  // `specs/192-quote-request-draft-share/` (FR-004) — an unshared quote is
+  // refused before a line of it is read, as a quote that does not exist.
+  it('answers an unshared quote as not found and reads none of its lines', async () => {
+    const listItems = vi.fn(quoteRequests.listItems);
+    const unshared = {
+      findById: async () => ({ id: 'qr-1', customerAccountId: 'cust-1', sharedWithCustomer: false }) as never,
+      listItems,
+    } as unknown as QuoteRequestReadPort;
+    const service = new CartConversionService(
+      ownTablesOnly({}),
+      {} as never,
+      rfq,
+      unshared,
+      { findByIds: async () => [] } as unknown as CatalogProductReadPort,
+      refusingChannelMembership,
+    );
+    await expect(service.createCartFromQuoteRequest('qr-1', ctx)).rejects.toMatchObject({
+      statusCode: 404,
+      code: ERROR_CODES.NOT_FOUND,
+      message: 'quote_request_not_found',
+    });
+    expect(listItems).not.toHaveBeenCalled();
+  });
 
   it('drops a line whose product catalog no longer has, by name', async () => {
     const catalog = { findByIds: async () => [] } as unknown as CatalogProductReadPort;
@@ -351,7 +375,7 @@ describe('carts — quote-to-cart conversion maps the batch outcomes (feature 15
     packagingUnitBaseQuantity: null,
   });
   const quoteRequests = {
-    findById: async () => ({ id: 'qr-1', customerAccountId: 'cust-1' }) as never,
+    findById: async () => ({ id: 'qr-1', customerAccountId: 'cust-1', sharedWithCustomer: true }) as never,
     listItems: async () => [
       qrLine('qri-1', 'p-added', 10),
       qrLine('qri-2', 'p-short', 5),

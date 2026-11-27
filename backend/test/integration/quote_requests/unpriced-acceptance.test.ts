@@ -19,6 +19,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { shareQuoteRequestForTest } from '../../helpers/quote-request-share.js';
 
 /**
  * A quote request becomes an order only at a price the seller agreed.
@@ -286,6 +287,7 @@ describe('Quote Requests — a request is accepted, approved and ordered only on
     expect(created.statusCode).toBe(201);
     const rfq = (created.json() as { data: Rfq }).data;
     expect(rfq.status).toBe('Created from admin');
+    await shareQuoteRequestForTest(h.app, rfq.id);
 
     const accepted = await accept(rfq.id, rfq.currentRevisionNumber);
 

@@ -21,7 +21,7 @@ const RFQ = '00000000-0000-4000-8000-0000000000b1';
 function rig() {
   const orgWideViewerRoleIds = vi.fn(async (_organizationId: string) => [ADMIN_ROLE] as readonly string[]);
   const find = vi.fn(async () => []);
-  const findOne = vi.fn(async () => ({ id: RFQ, organizationId: ORG, customerAccountId: COLLEAGUE }));
+  const findOne = vi.fn(async () => ({ id: RFQ, organizationId: ORG, customerAccountId: COLLEAGUE, sharedWithCustomer: true }));
   const findInOrganization = vi.fn(async (id: string) => ({
     id,
     organizationId: ORG,
@@ -58,9 +58,9 @@ describe('one rule, two callers — #seesOrganization and the customer-side reci
   it('a role the rule names sees the whole Organization; any other sees only its own requests', async () => {
     const { service, find } = rig();
     await service.listVisibleForCustomer({ customerAccountId: COLLEAGUE, organizationId: ORG, organizationRoleId: ADMIN_ROLE });
-    expect(find).toHaveBeenLastCalledWith(expect.anything(), {}, expect.anything());
+    expect(find).toHaveBeenLastCalledWith(expect.anything(), { sharedWithCustomer: true }, expect.anything());
     await service.listVisibleForCustomer({ customerAccountId: REQUESTER, organizationId: ORG, organizationRoleId: MEMBER_ROLE });
-    expect(find).toHaveBeenLastCalledWith(expect.anything(), { customerAccountId: REQUESTER }, expect.anything());
+    expect(find).toHaveBeenLastCalledWith(expect.anything(), { customerAccountId: REQUESTER, sharedWithCustomer: true }, expect.anything());
   });
 
   it('a caller whose context carries no role is judged by its account’s role in that Organization', async () => {
@@ -78,6 +78,39 @@ describe('one rule, two callers — #seesOrganization and the customer-side reci
       organizationId: ORG,
       organizationRoleId: '00000000-0000-4000-8000-0000000000f9',
     });
-    expect(find).toHaveBeenLastCalledWith(expect.anything(), { customerAccountId: COLLEAGUE }, expect.anything());
+    expect(find).toHaveBeenLastCalledWith(expect.anything(), { customerAccountId: COLLEAGUE, sharedWithCustomer: true }, expect.anything());
+  });
+});
+
+/**
+ * `specs/192-quote-request-draft-share/` FR-035 (research R-20) — the
+ * customer's list orders by when the customer received each quote: the
+ * share, else the creation, newest first, the id breaking ties. Typed as a
+ * `QueryOrderMap`, not cast away, so a wrong key fails `tsc`.
+ */
+describe('customerListOrder', () => {
+  it('orders by coalesce(shared_at, created_at) desc, then id desc', async () => {
+    const { RawQueryFragment } = await import('@mikro-orm/core');
+    const { customerListOrder } = await import('./rfq-service.js');
+    const [byReceipt, byId] = customerListOrder();
+    // The key is a `raw()` fragment, which MikroORM 7 keys by a symbol:
+    // `Object.keys` / `Object.values` skip it, `Reflect.ownKeys` does not.
+    const keys = Reflect.ownKeys(byReceipt!);
+    expect(keys).toHaveLength(1);
+    expect(keys.map((key) => (byReceipt as Record<PropertyKey, unknown>)[key])).toEqual(['DESC']);
+    expect(RawQueryFragment.getKnownFragment(keys[0]!)?.sql).toBe(
+      'coalesce([::alias::]."shared_at", [::alias::]."created_at")',
+    );
+    expect(byId).toEqual({ id: 'DESC' });
+  });
+
+  it('is the order the customer list reads with', async () => {
+    const { service, find } = rig();
+    await service.listForCustomer({ customerAccountId: REQUESTER, organizationId: ORG });
+    const options = (find.mock.lastCall as unknown as [unknown, unknown, { orderBy: Array<Record<string, string>> }])[2];
+    expect(options.orderBy).toHaveLength(2);
+    const first = options.orderBy[0]!;
+    expect(Reflect.ownKeys(first).map((key) => (first as Record<PropertyKey, unknown>)[key])).toEqual(['DESC']);
+    expect(options.orderBy[1]).toEqual({ id: 'DESC' });
   });
 });

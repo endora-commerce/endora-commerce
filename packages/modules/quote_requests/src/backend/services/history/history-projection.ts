@@ -253,6 +253,8 @@ function singleKind(event: HistoryEventInput): QuoteRequestHistoryEntryKind {
       return 'pdf_sent';
     case 'custom-field-carry-skipped':
       return 'custom_field_carry_skipped';
+    case 'shared':
+      return 'shared';
   }
 }
 
@@ -373,7 +375,7 @@ function noteOf(group: HistoryEventInput[]): string | null {
   return note === AUTOMATIC_ADMIN_CREATION_NOTE ? null : note;
 }
 
-/** H3 — the diff against the previous revision, plus the validity change of the payload. */
+/** H3 — the diff against the previous revision, plus the validity (and validity-days) change of the payload. */
 function changesOf(event: HistoryEventInput, ctx: ProjectionContext): QuoteRequestHistoryChange[] {
   const changes: QuoteRequestHistoryChange[] = [];
   const revision = event.revisionId ? ctx.revisionById.get(event.revisionId) : undefined;
@@ -395,6 +397,14 @@ function changesOf(event: HistoryEventInput, ctx: ProjectionContext): QuoteReque
   if (validity !== null && typeof validity === 'object') {
     const { before, after } = validity as Record<string, unknown>;
     const parsed = quoteRequestHistoryChangeSchema.safeParse({ kind: 'validity', before, after });
+    if (parsed.success) changes.push(parsed.data);
+  }
+  // `specs/192-quote-request-draft-share/` (R-10) — the days an unshared quote
+  // will carry once shared; read field by field, as the validity above.
+  const validityDays = event.payload['validityDays'];
+  if (validityDays !== null && typeof validityDays === 'object') {
+    const { before, after } = validityDays as Record<string, unknown>;
+    const parsed = quoteRequestHistoryChangeSchema.safeParse({ kind: 'validity_days', before, after });
     if (parsed.success) changes.push(parsed.data);
   }
   return changes;

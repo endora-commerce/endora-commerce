@@ -171,10 +171,14 @@ describe('quoteRequestCommandPort — the admin routes’ Commands (#1824)', () 
       salesChannelId: channelId,
       createdByAdminUserId: TEST_ADMIN_ID,
       headerNote: 'Prepared for you',
+      // `specs/192-quote-request-draft-share/` — unshared, the days kept until the share.
+      sharedWithCustomer: false,
+      expiresAt: null,
     });
     const route = await written(viaRoute);
     const viaPort = await written(record.id);
     expect(viaPort).toEqual(route);
+    expect(route.notifications).toBe(0);
     expect(route.audit).toHaveLength(1);
     expect(route.audit[0]).toMatchObject({ action: 'quote_request.create_on_behalf', actorAdminUserId: TEST_ADMIN_ID });
     expect(route.history.map((e) => e.eventType)).toEqual(['created', 'note-added']);

@@ -320,6 +320,8 @@ const priceInput = (name: string): HTMLInputElement =>
   screen.getByRole('spinbutton', { name: `${tr('rfqCreate.field.agreedUnitPrice')} ${name}` }) as HTMLInputElement;
 
 const submitButton = (): HTMLElement => screen.getByRole('button', { name: tr('rfqCreate.submit') });
+/** `specs/192` — *Create and share*; this file's bundle is `core` only, so the module's key is its placeholder. */
+const shareButton = (): HTMLElement => screen.getByRole('button', { name: 'quote_requests.create.share' });
 const totalText = (amount: string): string => `${tr('rfqCreate.total')}: ${amount}`;
 
 async function retype(user: User, input: HTMLElement, value: string): Promise<void> {
@@ -505,7 +507,10 @@ describe('RfqCreatePage — Browse products and the quick search (US3)', () => {
     expect(screen.getByText(totalText('32.50'))).toBeInTheDocument();
   });
 
-  it('marks a line with no price and blocks submit, then sends every line once it is priced (sc. 5, FR-034)', async () => {
+  // `specs/192-quote-request-draft-share/` (FR-013, OQ-5) replaced "no price blocks the
+  // create": a line with no price is said, not flagged as an error, and the quote may be
+  // saved without sharing; only *Create and share* waits for every price (FR-026, T042).
+  it('says which line has no price yet, holds back only the share, then sends every line once it is priced (sc. 5, FR-034)', async () => {
     const user = userEvent.setup();
     renderPage();
     await waitForCustomer('Jan Kowalski');
@@ -513,9 +518,11 @@ describe('RfqCreatePage — Browse products and the quick search (US3)', () => {
     await waitFor(() => expect(priceInput('Widget 02')).toHaveValue(10));
 
     expect(within(lineRow('Widget 03')).getByText(tr('rfqCreate.line.priceMissing'))).toBeInTheDocument();
-    expect(priceInput('Widget 03')).toHaveAttribute('aria-invalid', 'true');
+    expect(priceInput('Widget 03')).not.toHaveAttribute('aria-invalid');
+    expect(priceInput('Widget 03')).toHaveAccessibleDescription(tr('rfqCreate.line.priceMissing'));
     expect(within(lineRow('Widget 01')).queryByText(tr('rfqCreate.line.priceMissing'))).toBeNull();
-    expect(submitButton()).toBeDisabled();
+    await waitFor(() => expect(submitButton()).toBeEnabled());
+    expect(shareButton()).toBeDisabled();
 
     await retype(user, priceInput('Widget 03'), '4.25');
     expect(within(lineRow('Widget 03')).queryByText(tr('rfqCreate.line.priceMissing'))).toBeNull();

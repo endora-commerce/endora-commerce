@@ -11,6 +11,8 @@
  * same field and neither may be rendered as the other.
  */
 
+import { QUOTE_VALIDITY_DAYS_MAX } from '@endora-commerce/contracts';
+
 /** One day in milliseconds — the unit `expiresInDays` is counted in. */
 export const MS_PER_DAY = 86_400_000;
 
@@ -36,6 +38,25 @@ export function rfqValidity(expiresAt: string | null | undefined, now: Date): Rf
 }
 
 /**
+ * What a typed `expiresInDays` field says, read the way the contract reads it
+ * (`quoteValidityDaysSchema`: a whole number from 0 to
+ * {@link QUOTE_VALIDITY_DAYS_MAX}). `blank` is not `0`: on a shared quote a
+ * blank field leaves the deadline as it is, while `0` removes it.
+ */
+export type ValidityDaysInput =
+  | { kind: 'blank' }
+  | { kind: 'days'; days: number }
+  | { kind: 'invalid' };
+
+export function parseValidityDays(raw: string): ValidityDaysInput {
+  const trimmed = raw.trim();
+  if (trimmed === '') return { kind: 'blank' };
+  const days = Number(trimmed);
+  if (!Number.isInteger(days) || days < 0 || days > QUOTE_VALIDITY_DAYS_MAX) return { kind: 'invalid' };
+  return { kind: 'days', days };
+}
+
+/**
  * The deadline the API will store for a typed `expiresInDays`, computed with
  * the arithmetic the server uses (`RfqAdminService.modify`:
  * `new Date(Date.now() + expiresInDays * 86_400_000)`).
@@ -44,23 +65,93 @@ export function rfqValidity(expiresAt: string | null | undefined, now: Date): Rf
  * becomes a commitment the customer is held to, so it has to be the server's
  * own answer rather than an approximation of it.
  *
- * Returns `null` for input the contract would reject
- * (`z.number().int().nonnegative()`) and for a blank field, which means "leave
- * the deadline as it is" — the caller distinguishes the two by looking at the
- * raw string, because they are different sentences on screen.
+ * Returns `null` for a blank field, for input the contract would refuse, and
+ * for `0`: 0 days means no deadline on every write of the validity
+ * (`specs/192-quote-request-draft-share/` FR-032, as `normaliseShareValidityDays`
+ * reads it on the server). The caller tells the three apart with
+ * {@link parseValidityDays}, because they are different sentences on screen.
  */
 export function deadlineForDays(raw: string, now: Date): Date | null {
-  const trimmed = raw.trim();
-  if (trimmed === '') return null;
-  const days = Number(trimmed);
-  if (!Number.isInteger(days) || days < 0) return null;
-  return new Date(now.getTime() + days * MS_PER_DAY);
+  const input = parseValidityDays(raw);
+  if (input.kind !== 'days') return null;
+  const days = validityDeadlineDays(input.days);
+  return days === null ? null : new Date(now.getTime() + days * MS_PER_DAY);
+}
+
+/**
+ * The one reading of "0 = no deadline" (`specs/192-quote-request-draft-share/`
+ * FR-032, owner decision): the days a validity actually runs for, or `null` when
+ * it has no deadline — `0` and `null` alike. Every screen that words a validity
+ * asks this, so none of them says "valid for 0 days".
+ */
+export function validityDeadlineDays(days: number | null | undefined): number | null {
+  return typeof days === 'number' && days > 0 ? days : null;
+}
+
+/** The store's default validity as the create screen read it (`GET …/create-defaults`). */
+export interface CreateValidityDefaults {
+  status: 'loading' | 'ready' | 'failed';
+  /** The default days; `null` = the store's default is no deadline (it answered 0 or none). */
+  days: number | null;
+}
+
+/**
+ * The create screen's validity field in every state it can be in, derived in one
+ * place so the field, its hint, the create's payload and the share question
+ * cannot disagree (review checkpoint B, fix 1):
+ *
+ * | state                               | field     | wording        | sends   | question says   |
+ * | ----------------------------------- | --------- | -------------- | ------- | --------------- |
+ * | untouched, default loading / failed | empty     | `storeDefault` | nothing | store's default |
+ * | untouched, default N days           | N         | `counted`      | N       | N days          |
+ * | untouched, default none (0 / null)  | empty     | `counted`      | 0       | no deadline     |
+ * | touched, N days                     | typed     | `counted`      | N       | N days          |
+ * | touched, empty or 0                 | typed     | `counted`      | 0       | no deadline     |
+ *
+ * `storeDefault` is the only state where an empty field does not mean "no
+ * deadline": the screen does not know the default, so the server applies it.
+ * Everywhere else what the screen says is sent explicitly, so a default changed
+ * between the read and the create cannot contradict it.
+ */
+export interface CreateValidity {
+  /** What the field shows. */
+  value: string;
+  input: ValidityDaysInput;
+  wording: 'storeDefault' | 'counted';
+  /** `expiresInDays` for the create; `undefined` = leave it to the store's default (or the input is invalid). */
+  payload: number | undefined;
+  /** The days the share question names: a number, `null` = no deadline, `undefined` = the store's default. */
+  confirmDays: number | null | undefined;
+}
+
+export function createValidity(defaults: CreateValidityDefaults, touched: boolean, typed: string): CreateValidity {
+  if (!touched && defaults.status !== 'ready') {
+    return { value: '', input: { kind: 'blank' }, wording: 'storeDefault', payload: undefined, confirmDays: undefined };
+  }
+  const value = touched ? typed : defaults.days === null ? '' : String(defaults.days);
+  const input = parseValidityDays(value);
+  if (input.kind === 'invalid') return { value, input, wording: 'counted', payload: undefined, confirmDays: undefined };
+  const days = input.kind === 'days' ? input.days : 0;
+  return { value, input, wording: 'counted', payload: days, confirmDays: validityDeadlineDays(days) };
 }
 
 /**
  * Whether a non-blank `expiresInDays` field would be refused by the contract.
  * Blank is not an error — it is the "keep the current deadline" case.
  */
-export function isValidityDaysInvalid(raw: string, now: Date): boolean {
-  return raw.trim() !== '' && deadlineForDays(raw, now) === null;
+export function isValidityDaysInvalid(raw: string): boolean {
+  return parseValidityDays(raw).kind === 'invalid';
+}
+
+/**
+ * The `expiresInDays` an edit of a quote not yet shared sends, given what the
+ * field held when it opened (`shareValidityDays`, or blank): absent while it is
+ * unchanged, `null` once emptied (no deadline), else the number — `0` included,
+ * which the server stores as no deadline too. Call it with valid input only.
+ */
+export function unsharedValidityDaysPayload(raw: string, initial: string): number | null | undefined {
+  const input = parseValidityDays(raw);
+  if (raw.trim() === initial.trim()) return undefined;
+  if (input.kind === 'days') return input.days;
+  return null;
 }

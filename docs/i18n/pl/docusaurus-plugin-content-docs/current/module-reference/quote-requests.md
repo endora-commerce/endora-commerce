@@ -71,6 +71,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | --- | --- | --- |
 | `quote_requests.business_id.prefix` | Business Quote Request ID prefix | `string` |
 | `quote_requests.business_id.suffix` | Business Quote Request ID suffix | `string` |
+| `quote_requests.default_validity_days` | Default validity of operator quotes (days) | `number` |
 | `quote_requests.enabled` | Quote requests enabled | `boolean` |
 | `quote_requests.expiry_days` | Auto-expire pending after (days) | `number` |
 | `quote_requests.show_add_to_quote_on_card` | Show "Add to quote" on product card | `boolean` |

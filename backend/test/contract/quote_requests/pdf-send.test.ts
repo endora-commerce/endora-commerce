@@ -12,6 +12,7 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ensureAdminWithRole } from '../../helpers/admin-search-fixtures.js';
 import { withModuleOff } from '../../helpers/off-state.js';
+import { markUnsharedForTest, shareQuoteRequestForTest } from '../../helpers/quote-request-share.js';
 import {
   InMemoryMailer,
   type MailerSendInput,
@@ -83,6 +84,8 @@ describe('quote request PDF — Send PDF to customer, route Q4 (spec 153, owner 
     });
     expect(res.statusCode, res.body).toBe(201);
     ({ id: quote, businessId } = (res.json() as { data: { id: string; businessId: string } }).data);
+    // `specs/192-quote-request-draft-share/` — sent only once shared.
+    await shareQuoteRequestForTest(h.app, quote);
   }, 60_000);
 
   afterAll(async () => {
@@ -251,6 +254,38 @@ describe('quote request PDF — Send PDF to customer, route Q4 (spec 153, owner 
     } finally {
       await h.app.inject({ method: 'POST', url: `${EMAILS}/quote_request_pdf/activation`, cookies: ADMIN, payload: { active: true } });
     }
+  });
+
+  // `specs/192-quote-request-draft-share/` (FR-007, R-13) — a quote its customer
+  // cannot see yet is never sent to them: refused before rendering, nothing
+  // e-mailed, nothing recorded.
+  it('an unshared quote: 409 RFQ_NOT_SHARED, nothing sent, nothing recorded', async () => {
+    const created = await h.app.inject({
+      method: 'POST',
+      url: QR,
+      cookies: ADMIN,
+      payload: {
+        organizationId: TEST_ORGANIZATION_ID,
+        customerAccountId: TEST_CUSTOMER_ID,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1, agreedUnitPrice: 8 }],
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const unshared = (created.json() as { data: { id: string } }).data.id;
+    await markUnsharedForTest(h.em(), unshared);
+    const sent = mailer.sent.length;
+
+    const res = await send(unshared, { recipients: ['buyer@example.com'] });
+
+    expect(res.statusCode, res.body).toBe(409);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('RFQ_NOT_SHARED');
+    expect(mailer.sent).toHaveLength(sent);
+    expect(
+      await sql(`select id from quote_request_events where quote_request_id = ? and event_type = 'pdf-sent'`, [unshared]),
+    ).toHaveLength(0);
+    expect(
+      await h.em().find(AuditLogEntry, { objectType: 'quote_request', objectId: unshared, action: 'quote_request.send_document' }),
+    ).toHaveLength(0);
   });
 
   it('a PDF over the attachment limit is refused before anything is sent', async () => {

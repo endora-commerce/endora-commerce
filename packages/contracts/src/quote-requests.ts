@@ -133,6 +133,10 @@ export const rfqEventTypeSchema = z.enum([
   // Feature 162 — custom-field values a Sales Opportunity could not carry into
   // this request. Admin replies only: it names keys of possibly internal fields.
   'custom-field-carry-skipped',
+  // `specs/192-quote-request-draft-share/` — an operator shared an unshared
+  // quote with its customer. Admin and customer replies: the customer's history
+  // starts at it (FR-012).
+  'shared',
 ]);
 export type RfqEventType = z.infer<typeof rfqEventTypeSchema>;
 
@@ -219,6 +223,13 @@ export const quoteRequestHistoryChangeSchema = z.discriminatedUnion('kind', [
     before: isoDateTimeSchema.nullable(),
     after: isoDateTimeSchema.nullable(),
   }),
+  // `specs/192-quote-request-draft-share/` — the validity days of an unshared
+  // quote, applied when it is shared; `null` = no deadline.
+  z.object({
+    kind: z.literal('validity_days'),
+    before: z.number().int().nonnegative().nullable(),
+    after: z.number().int().nonnegative().nullable(),
+  }),
   // Feature 159 — the grouping as recorded in the revision snapshots. Groups
   // pair across snapshots by id; names are as recorded, `null` = ungrouped.
   z.object({
@@ -288,6 +299,8 @@ export const quoteRequestHistoryEntryKindSchema = z.enum([
   'pdf_sent',
   // Feature 162.
   'custom_field_carry_skipped',
+  // `specs/192-quote-request-draft-share/` — an operator shared the quote.
+  'shared',
 ]);
 export type QuoteRequestHistoryEntryKind = z.infer<typeof quoteRequestHistoryEntryKindSchema>;
 
@@ -572,6 +585,17 @@ export const quoteRequestSchema = z.object({
    * back to the default and says so.
    */
   documentTemplateId: uuidSchema.nullable().optional(),
+  /**
+   * `specs/192-quote-request-draft-share/` — whether the customer may see the
+   * quote (`false` = the Admin UI's *Not shared*), when and by whom it was shared,
+   * and the validity days applied at the share (`null` = no deadline). **Admin
+   * replies only** — a customer reply carries none of the keys, as
+   * `createdByAdminUserId`.
+   */
+  sharedWithCustomer: z.boolean().optional(),
+  sharedAt: isoDateTimeSchema.nullable().optional(),
+  sharedByAdminUserId: uuidSchema.nullable().optional(),
+  shareValidityDays: z.number().int().nonnegative().nullable().optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
   version: z.number().int().nonnegative(),
@@ -653,6 +677,11 @@ export const quoteRequestSummarySchema = z.object({
    * picker to show. **Admin list only**; declared by issue #1270.
    */
   statusName: z.string().optional(),
+  /**
+   * `specs/192-quote-request-draft-share/` — `false` for a quote the customer
+   * cannot see yet (the list's *Not shared* badge). **Admin list only.**
+   */
+  sharedWithCustomer: z.boolean().optional(),
 });
 export type QuoteRequestSummary = z.infer<typeof quoteRequestSummarySchema>;
 
@@ -708,6 +737,12 @@ export const adminQuoteRequestListQuerySchema = z.object({
     .max(200)
     .optional()
     .transform((value) => (value === undefined || value === '' ? undefined : value)),
+  /**
+   * `specs/192-quote-request-draft-share/` (FR-009) — only the quotes the
+   * customer cannot see yet (`unshared`), or only those it can (`shared`);
+   * absent = both.
+   */
+  sharing: z.enum(['unshared', 'shared']).optional(),
   sort: z.enum(ADMIN_QUOTE_REQUEST_LIST_SORTS).default('updatedAt:desc'),
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(ADMIN_QUOTE_REQUEST_LIST_PAGE_SIZE_MAX).default(25),
@@ -800,12 +835,27 @@ export const adminCreateQuoteRequestLineSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.optional(),
   quantity: lineQuantitySchema,
-  agreedUnitPrice: fourDecimalUnitPrice(z.number().finite().nonnegative()),
+  /**
+   * `specs/192-quote-request-draft-share/` (FR-013) — absent or `null`: a line
+   * without a price yet. An operator's new quote starts unshared, and sharing
+   * it is refused while any line has no price.
+   */
+  agreedUnitPrice: fourDecimalUnitPrice(z.number().finite().nonnegative()).nullable().optional(),
   lineNote: z.string().max(2000).optional(),
   /** Feature 159 — the `groups[].key` this line belongs to; absent or `null` = ungrouped. */
   groupKey: lineGroupKeySchema.nullable().optional(),
 });
 export type AdminCreateQuoteRequestLine = z.infer<typeof adminCreateQuoteRequestLineSchema>;
+
+/**
+ * `specs/192-quote-request-draft-share/` — the most validity days a quote may
+ * carry, ten years: the typed `expiresInDays` and the
+ * `quote_requests.default_validity_days` setting alike. Without a bound a huge
+ * value made the share's date invalid and the share a `500`.
+ */
+export const QUOTE_VALIDITY_DAYS_MAX = 3650;
+/** Validity days: a whole number from `0` (no deadline) to {@link QUOTE_VALIDITY_DAYS_MAX}. */
+export const quoteValidityDaysSchema = z.number().int().min(0).max(QUOTE_VALIDITY_DAYS_MAX);
 
 export const adminCreateQuoteRequestSchema = z
   .object({
@@ -816,7 +866,12 @@ export const adminCreateQuoteRequestSchema = z
     groups: z.array(newLineGroupInputSchema).optional(),
     /** In display order: each group's lines, then the ungrouped lines. */
     items: z.array(adminCreateQuoteRequestLineSchema).min(1).max(REQUEST_LINE_ITEMS_MAX),
-    expiresInDays: z.number().int().nonnegative().optional(),
+    /**
+     * `specs/192-quote-request-draft-share/` — the validity days, counted from
+     * the share: absent = the `quote_requests.default_validity_days` setting;
+     * `null` or `0` = no deadline.
+     */
+    expiresInDays: quoteValidityDaysSchema.nullable().optional(),
     /**
      * Feature 163 (FR-018) — the sales channel the operator raises the request on:
      * the channel it is stored on, its lines' names are snapshotted at (in that
@@ -841,6 +896,17 @@ export const adminCreateQuoteRequestSchema = z
   })
   .superRefine((body, ctx) => refineLineGrouping(ctx, body));
 export type AdminCreateQuoteRequest = z.infer<typeof adminCreateQuoteRequestSchema>;
+
+/**
+ * `GET /api/v1/admin/quote-requests/create-defaults`
+ * (`specs/192-quote-request-draft-share/`, contracts/admin-api.md §2): what the
+ * create screen pre-fills. `validityDays` is the
+ * `quote_requests.default_validity_days` setting, `null` when it is `0`.
+ */
+export const adminQuoteRequestCreateDefaultsSchema = z.object({
+  validityDays: z.number().int().positive().nullable(),
+});
+export type AdminQuoteRequestCreateDefaults = z.infer<typeof adminQuoteRequestCreateDefaultsSchema>;
 
 /**
  * Feature 163 (FR-018) — what `POST /api/v1/admin/quote-requests` reports about
@@ -910,7 +976,12 @@ export const adminPatchQuoteRequestSchema = z
     groups: z.array(lineGroupInputSchema).optional(),
     /** In display order: each group's lines, then the ungrouped lines. */
     items: z.array(adminPatchQuoteRequestLineSchema).min(1).max(REQUEST_LINE_ITEMS_MAX).optional(),
-    expiresInDays: z.number().int().nonnegative().optional(),
+    /**
+     * `specs/192-quote-request-draft-share/`: `0` or `null` = no deadline,
+     * `N` = N days. Unshared quote: the days are applied at the share. Shared
+     * quote: the deadline is now + N days, or none.
+     */
+    expiresInDays: quoteValidityDaysSchema.nullable().optional(),
     /** Feature 055 — custom-field values for this quote request (validated on write). */
     customFieldValues: z.record(z.string(), z.unknown()).optional(),
   })
@@ -922,6 +993,15 @@ export const adminApproveQuoteRequestSchema = z
   .object({ note: z.string().max(2000).optional() })
   .strict();
 export type AdminApproveQuoteRequest = z.infer<typeof adminApproveQuoteRequestSchema>;
+
+/**
+ * `POST /api/v1/admin/quote-requests/:id/share`
+ * (`specs/192-quote-request-draft-share/`, contracts/admin-api.md §1) — no
+ * body: an empty object is accepted, any key refused. `If-Match` carries the
+ * version, as on `PATCH /:id`.
+ */
+export const adminShareQuoteRequestSchema = z.object({}).strict();
+export type AdminShareQuoteRequest = z.infer<typeof adminShareQuoteRequestSchema>;
 
 export const adminCancelQuoteRequestSchema = z
   .object({ reason: z.string().max(2000).optional() })
@@ -1079,6 +1159,12 @@ export interface QuoteRequestRecord {
   expiresAt: Date | null;
   convertedOrderId: string | null;
   customFieldValues: Record<string, unknown>;
+  /**
+   * `specs/192-quote-request-draft-share/` — `false` while an operator's quote
+   * is unshared: no customer read may return it. Required, so a consumer cannot
+   * read "absent" as "shared".
+   */
+  sharedWithCustomer: boolean;
   version: number;
   createdAt: Date;
   updatedAt: Date;
@@ -1244,6 +1330,15 @@ export interface QuoteRequestReadPort {
  * `rfq.modified.v1`, `rfq.approved.v1`, `rfq.canceled.v1`) dispatched on
  * commit.
  *
+ * **A quote this port creates starts unshared**
+ * (`specs/192-quote-request-draft-share/`), as the admin route's does: its
+ * customer cannot see it and is told nothing — no notification is recorded or
+ * delivered for its create, edits or cancellation. The events are still
+ * emitted; a customer-facing subscriber checks
+ * {@link QuoteRequestRecord.sharedWithCustomer}. The port has **no `share`**:
+ * an operator shares the quote in the Admin UI, and only then is the customer
+ * notified.
+ *
  * **Inputs and refusals are the admin route's.** Each input is the body the
  * route validates, parsed here with the same schema — an invalid one throws
  * the validation error the route answers `400 VALIDATION_FAILED` with — and
@@ -1286,14 +1381,23 @@ export interface QuoteRequestCommandPort {
    * `422 RFQ_SALES_CHANNEL_NOT_ALLOWED` (`no_channel`), so a server-side caller
    * names the channel. Emits `rfq.created_by_admin.v1`, whose `adminUserId` is
    * `null` when no administrator was present.
+   *
+   * The quote starts **unshared** (`sharedWithCustomer: false`, `expiresAt`
+   * `null`): `expiresInDays`, else the `quote_requests.default_validity_days`
+   * setting, is kept as days and becomes a date only when an operator shares
+   * it in the Admin UI. A line may have no agreed price yet. Nothing is
+   * recorded for the customer and no notification goes out.
    */
   create(input: AdminCreateQuoteRequest, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
   /**
    * `quote_request.modify` — the operator's revision of a `Pending` or
    * `Created from admin` request: lines, prices, groups, note, validity and
-   * custom-field values, as one new revision the customer is asked to accept.
-   * (`quote_request.patch_draft` is the buyer's draft edit; the admin route
-   * never runs it, so neither does this.)
+   * custom-field values, as one new revision. On a shared quote the customer
+   * is asked to accept it and is notified; on an unshared one the revision is
+   * the operators' alone — the customer is told nothing, and `expiresInDays`
+   * is kept as days until the share (no date is written). On a shared quote
+   * `0` or `null` clears the deadline. (`quote_request.patch_draft` is the
+   * buyer's draft edit; the admin route never runs it, so neither does this.)
    */
   update(id: string, patch: AdminPatchQuoteRequest, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
   /**
@@ -1329,7 +1433,9 @@ export interface QuoteRequestCommandPort {
   /**
    * `quote_request.cancel` — a `Pending` or `Created from admin` request. The
    * reason is kept on the request and its history entry, never in the audit
-   * entry; the buyer is notified.
+   * entry. The buyer is notified when the quote is shared; cancelling an
+   * unshared quote tells the customer nothing (`rfq.canceled.v1` is still
+   * emitted).
    */
   cancel(id: string, input: { reason: string | null }, options?: AggregateCommandOptions): Promise<QuoteRequestRecord>;
   /**

@@ -201,6 +201,8 @@ const FULL: QuoteRequestHistory = {
     entry('expired', SYSTEM),
     entry('completed', SYSTEM, { orderId: ORDER_ID }),
     entry('note_added', UNKNOWN, { note: 'Call back on Monday' }),
+    // `specs/192-quote-request-draft-share/` — an operator shared the quote.
+    entry('shared', REP),
     // Feature 153 (owner answer Q4) — the quote PDF e-mailed.
     entry('pdf_sent', REP, {
       delivery: { recipients: ['buyer@example.com', 'two@example.com'], templateName: 'With discounts', language: 'pl-PL', message: XSS },
@@ -469,6 +471,37 @@ describe.each<Language>(['en', 'pl'])('RfqHistory — %s', (language) => {
     const date = dateTime(language, '2026-10-30T10:00:00.000Z');
     expect(await screen.findByText(tr(language, 'change.validity_set', { after: date }))).toBeInTheDocument();
     expect(screen.getByText(tr(language, 'change.validity_removed', { before: date }))).toBeInTheDocument();
+  });
+
+  // `specs/192-quote-request-draft-share/` T040 — the days a quote not shared
+  // yet will carry, with a number and with none.
+  it('says the days a quote will carry once shared, each side a whole phrase, "no deadline" for none or 0 (specs/192)', async () => {
+    answerHistory({
+      truncated: false,
+      entries: [
+        entry('modified', REP, { changes: [{ kind: 'validity_days', before: null, after: 30 }] }),
+        entry('modified', REP, { changes: [{ kind: 'validity_days', before: 14, after: null }] }),
+        entry('modified', REP, { changes: [{ kind: 'validity_days', before: 1, after: 2 }] }),
+        entry('modified', REP, { changes: [{ kind: 'validity_days', before: 5, after: 0 }] }),
+      ],
+    });
+    renderHistory(language);
+    const expected = {
+      en: [
+        'Validity after sharing: no deadline → 30 days',
+        'Validity after sharing: 14 days → no deadline',
+        'Validity after sharing: 1 day → 2 days',
+        'Validity after sharing: 5 days → no deadline',
+      ],
+      pl: [
+        'Ważność po udostępnieniu: bez terminu → 30 dni',
+        'Ważność po udostępnieniu: 14 dni → bez terminu',
+        'Ważność po udostępnieniu: 1 dzień → 2 dni',
+        'Ważność po udostępnieniu: 5 dni → bez terminu',
+      ],
+    }[language];
+    expect(await screen.findByText(expected[0]!)).toBeInTheDocument();
+    for (const line of expected.slice(1)) expect(screen.getByText(line)).toBeInTheDocument();
   });
 
   it('names every actor (FR-017, FR-018; US3 #1–#5)', async () => {

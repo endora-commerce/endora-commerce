@@ -29,6 +29,22 @@
 // the "new quote request" notifications, so they go to the assignee the hook
 // chose. That is why the `beforeCommit` data is its own type rather than the
 // outbox row's.
+//
+// The operator's share (`specs/192-quote-request-draft-share/`, `contracts/share-hook.md`)
+// is the third action, `quote_request.share`, `beforeCommit` only.
+//
+// Sharing an operator's unshared quote with its customer is the point another
+// module may refuse — say, while an approval is still pending (FR-028). A hook
+// registered on `beforeCommit` runs inside the share's transaction, after the
+// built-in refusals passed and the row was written shared; throwing an
+// `HttpError` (`CommandHookRefusal`) rolls the whole share back and the caller
+// receives that status, code and details. The action id and object type are
+// frozen, `phases` and the hook data are additive-only
+// (`specs/conventions/contract-surface.md`).
+//
+// **Ids, counts and dates only** (`specs/conventions/audit-state.md` list 1). A
+// hook that needs the lines re-reads them through `quoteRequestReadPort.listItems`
+// (a share changes no line).
 
 import { hookableAction } from './command-hooks.js';
 
@@ -96,11 +112,25 @@ export type QuoteRequestAssignInWrite = {
   assign(adminUserId: string): Promise<void>;
 };
 
+/** `quote_request.share` — an operator shares an unshared quote with its customer. */
+export type QuoteRequestShareHookData = {
+  readonly quoteRequestId: string;
+  readonly organizationId: string;
+  readonly customerAccountId: string;
+  /** The channel the quote was raised on; `null` for a quote created outside a request scope. */
+  readonly salesChannelId: string | null;
+  /** The revision the customer is about to be shown. */
+  readonly currentRevisionNumber: number;
+  /** The validity date the share is writing (ISO 8601), or `null` (no deadline). */
+  readonly expiresAt: string | null;
+};
+
 /**
  * The refs a hook author registers against
  * (`ctx.commandHooks([{ on: QUOTE_REQUEST_HOOKABLE_ACTIONS.create, … }])`, with
  * `quote_requests` among the hook module's manifest `dependencies`) and the
- * `quote_requests` manifest lists. Both offer both phases.
+ * `quote_requests` manifest lists. `create` and `resubmit` offer both phases;
+ * `share` offers `beforeCommit` only — no consumer reads an outbox row of a share yet.
  *
  * The operator's writes (`quote_request.create_on_behalf`, `.modify`, `.assign`,
  * `.approve`, `.cancel`, `.custom_fields.update`) and the buyer's other writes
@@ -116,4 +146,5 @@ export const QUOTE_REQUEST_HOOKABLE_ACTIONS = {
     'quote_request',
     ['beforeCommit', 'afterCommit'],
   ),
+  share: hookableAction<QuoteRequestShareHookData>('quote_request.share', 'quote_request', ['beforeCommit']),
 } as const;

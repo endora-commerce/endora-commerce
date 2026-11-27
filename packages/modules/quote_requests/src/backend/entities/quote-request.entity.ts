@@ -17,6 +17,12 @@ import { randomUUID } from 'crypto';
  * 001 convention). Customer accept/reject revision additionally pin
  * `expectedRevisionNumber` against `current_revision_number`
  * (research §R3).
+ *
+ * Orthogonal to the status: `sharedWithCustomer`
+ * (`specs/192-quote-request-draft-share/`). An operator's new quote starts
+ * unshared — still `Created from admin`, but invisible and silent to every
+ * customer read — until the share Command (`quote_request.share`) flips it.
+ * Every other creation path keeps the column's default, `true`.
  */
 export type QuoteRequestStatus =
   | 'Created from admin'
@@ -52,6 +58,10 @@ export class QuoteRequest {
     | 'convertedOrderId'
     | 'salesChannelId'
     | 'documentTemplateId'
+    | 'sharedWithCustomer'
+    | 'sharedAt'
+    | 'sharedByAdminUserId'
+    | 'shareValidityDays'
     | 'version';
 
   @PrimaryKey({ type: 'uuid' })
@@ -173,6 +183,30 @@ export class QuoteRequest {
    */
   @Property({ type: 'uuid', nullable: true })
   documentTemplateId?: string | null;
+
+  /**
+   * `specs/192-quote-request-draft-share/` (data-model §1) — whether any
+   * customer read may return this quote; `false` is the Admin UI's *Draft*.
+   * Only `createOnBehalf` writes `false`, only the share Command writes it back
+   * to `true`, and nothing makes a shared quote unshared again (FR-025).
+   */
+  @Property({ type: 'boolean' })
+  sharedWithCustomer: boolean = true;
+
+  /** When an operator shared a quote that started unshared; `null` otherwise. */
+  @Property({ type: 'datetime', nullable: true })
+  sharedAt?: Date | null;
+
+  /** Who shared it. A plain uuid, no foreign key (as `createdByAdminUserId`). Admin replies only. */
+  @Property({ type: 'uuid', nullable: true })
+  sharedByAdminUserId?: string | null;
+
+  /**
+   * The validity days applied at the share (`expiresAt = sharedAt + days`);
+   * `null` = no deadline. Kept after the share as the record of what was applied.
+   */
+  @Property({ type: 'integer', nullable: true })
+  shareValidityDays?: number | null;
 
   @Property({ type: 'integer' })
   version: number = 0;

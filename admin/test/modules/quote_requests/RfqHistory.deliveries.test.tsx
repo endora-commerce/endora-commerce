@@ -158,6 +158,35 @@ describe.each<Language>(['en', 'pl'])('RfqHistory — deliveries (%s)', (languag
     expect(container.querySelector('details')).toBeNull();
   });
 
+  // `specs/192-quote-request-draft-share/` T040 (FR-022, FR-023) — the share is
+  // where the customer's "quote prepared" notification is recorded: its entry
+  // lists one delivery per channel the matrix names.
+  it('lists the three "quote prepared" deliveries under the share entry', async () => {
+    const SHARED = '00000000-0000-4000-8000-000000000003';
+    answer({
+      truncated: false,
+      entries: [
+        entry(SHARED, 'shared', {
+          actor: { kind: 'admin', adminUserId: 'b0000000-0000-4000-8000-000000000002', name: 'Carl Rep', recordedRole: null },
+          deliveries: [
+            delivery({ channel: 'customer_email' }),
+            delivery({ channel: 'customer_in_app' }),
+            delivery({ channel: 'customer_push', status: 'pending', attempts: 0, closedAt: null }),
+          ],
+        }),
+      ],
+    });
+    renderHistory(language);
+    expect(await screen.findByText(tr(language, 'entry.shared'))).toBeInTheDocument();
+    const list = await screen.findByRole('list', { name: tr(language, 'delivery.title') });
+    const rows = within(list).getAllByRole('listitem');
+    expect(rows).toHaveLength(3);
+    expect(within(rows[0]!).getByText(tr(language, 'delivery.channel.customer_email'))).toBeInTheDocument();
+    expect(within(rows[1]!).getByText(tr(language, 'delivery.channel.customer_in_app'))).toBeInTheDocument();
+    expect(within(rows[2]!).getByText(tr(language, 'delivery.channel.customer_push'))).toBeInTheDocument();
+    expect(within(rows[2]!).getByText(tr(language, 'delivery.status.pending'))).toBeInTheDocument();
+  });
+
   it('shows a failed delivery as Failed, with its attempts and the last error behind a disclosure', async () => {
     const failed = delivery({ status: 'failed', attempts: 5, lastError: `SMTP 554 ${XSS}` });
     answer({ truncated: false, entries: [entry(SUBMITTED, 'submitted', { deliveries: [failed] })] });

@@ -109,6 +109,40 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
   });
 
   /**
+   * `specs/192-quote-request-draft-share/` T033 (R-15) — the share and the
+   * create screen's defaults answer as never installed while the module is off
+   * and work again after; the default-validity setting is not editable while
+   * off. The share is probed on a real draft: before the flip it shares it,
+   * after the restore it answers that it already is — neither is the module's
+   * absence.
+   */
+  it('the share route, the create defaults and the default-validity setting are absent while off', async () => {
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/quote-requests',
+      cookies: admin,
+      payload: {
+        organizationId: TEST_ORGANIZATION_ID,
+        customerAccountId: TEST_CUSTOMER_ID,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1, agreedUnitPrice: 3 }],
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const id = (created.json() as { data: { id: string } }).data.id;
+    await expectModuleAbsent(h, 'quote_requests', {
+      routes: [
+        { method: 'POST', url: `/api/v1/admin/quote-requests/${id}/share`, cookies: admin },
+        { url: '/api/v1/admin/quote-requests/create-defaults', cookies: admin },
+      ],
+      settingWrite: {
+        code: QUOTE_REQUESTS_SETTING_CODES.DEFAULT_VALIDITY_DAYS,
+        value: 14,
+        cookies: admin,
+      },
+    });
+  });
+
+  /**
    * `specs/147-saved-views/` FR-018 (US3-7, threat model S-09): a saved view
    * on the Quote Request list is refused on **every** method while the module
    * is off — the collection's `GET` and `POST` and the item's `PATCH` and

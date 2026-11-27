@@ -18,7 +18,9 @@ both render the same chronological history.
 
 Six values, replacing the foundation-era set:
 
-- `Created from admin` — drafted by a sales rep / admin, awaiting customer acceptance.
+- `Created from admin` — prepared by a sales rep / admin, awaiting customer acceptance. A quote
+  an operator creates stays **unshared** — invisible to the customer — until it is shared; see
+  *Unshared quotes and sharing*. Being shared is a flag beside the status, not a status of its own.
 - `Pending` — submitted by the customer, awaiting internal-side response.
 - `Approved` — green-lit by the responsible party.
 - `Completed` — an order has been placed from this Quote Request.
@@ -38,7 +40,7 @@ revision additionally pin `expectedRevisionNumber`.
 
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/quote-requests` | customer | List visible Quote Requests (the *Administrator* role expands to whole-org visibility — see *Visibility model*). |
+| `GET /api/v1/quote-requests` | customer | List visible Quote Requests (the *Administrator* role expands to whole-org visibility — see *Visibility model*), newest received first: by the moment an operator shared the quote, else by its creation. Unshared quotes are never listed. |
 | `GET /api/v1/quote-requests/:id` | customer | Detail with optional `comparisonAgainstLastSeen` block while awaiting acceptance. |
 | `POST /api/v1/quote-requests` | customer | Create + submit in one call. Needs `quote_requests.create`. |
 | `PATCH /api/v1/quote-requests/:id` | customer | Edit a Pending RFQ that the internal side has not yet revised — see *Customer draft edits*. |
@@ -46,11 +48,13 @@ revision additionally pin `expectedRevisionNumber`.
 | `POST /api/v1/quote-requests/:id/reject-revision` | customer | Reject the latest revision with optional reason. |
 | `POST /api/v1/quote-requests/:id/resubmit` | customer | Clone an old Quote Request into a new Pending one at the customer's current prices. Needs `quote_requests.create`. |
 | `POST /api/v1/quote-requests/:id/convert-to-order` | customer | Seed the customer's cart from an Approved RFQ at the agreed unit prices and return the checkout URL. Needs `carts.create`. |
-| `GET /api/v1/admin/quote-requests` | admin | One page of the list, scoped by sales-rep assignment. The server applies `assignmentScope`, `organizationId`, `status`, `q` (business id, organization or customer name, or a whole id), `sort` (`updatedAt` or `total`, `asc` / `desc`) and the page (`page`, `pageSize` up to 200, default 25); `pagination` carries `page`, `pageSize` and `total`. |
+| `GET /api/v1/admin/quote-requests` | admin | One page of the list, scoped by sales-rep assignment. The server applies `assignmentScope`, `organizationId`, `status`, `q` (business id, organization or customer name, or a whole id), `sharing` (`unshared` or `shared`; absent = both), `sort` (`updatedAt` or `total`, `asc` / `desc`) and the page (`page`, `pageSize` up to 200, default 25); `pagination` carries `page`, `pageSize` and `total`. |
 | `GET /api/v1/admin/quote-requests/:id` | admin | Detail with full actor identity in the event log, and per line the reference price and the customer's proposal — see *Reference price*. |
 | `GET /api/v1/admin/quote-requests/:id/history` | admin | The request's history as readable entries — see *History*. |
-| `POST /api/v1/admin/quote-requests` | admin | Create on customer's behalf → status `Created from admin`. |
-| `PATCH /api/v1/admin/quote-requests/:id` | admin | Modify a Pending or Created from admin RFQ → triggers customer re-acceptance. |
+| `POST /api/v1/admin/quote-requests` | admin | Create on customer's behalf → status `Created from admin`, unshared. Lines may be left without a price. |
+| `GET /api/v1/admin/quote-requests/create-defaults` | admin | `{ validityDays }` — the default validity a new quote starts with (`null` = no deadline). |
+| `POST /api/v1/admin/quote-requests/:id/share` | admin | Share an unshared quote with its customer — see *Unshared quotes and sharing*. Optional `If-Match`. |
+| `PATCH /api/v1/admin/quote-requests/:id` | admin | Modify a Pending or Created from admin RFQ → triggers customer re-acceptance (an unshared quote: nobody is told). |
 | `POST /api/v1/admin/quote-requests/:id/approve` | admin | Approve a Pending RFQ whose every line has an agreed unit price. |
 | `POST /api/v1/admin/quote-requests/:id/prepare-customer-basket` | admin | Seed the basket of the customer who owns an Approved RFQ at the agreed unit prices, replacing what it held, for that customer to check out. The basket is the one of the channel the request was raised on. The same rules as the customer's own conversion; audited as `quote_request.prepare_customer_basket`. |
 | `POST /api/v1/admin/quote-requests/:id/cancel` | admin | Cancel with optional reason. |
@@ -76,6 +80,136 @@ by a module that can disappear. The one endpoint left above is the one that
 reads a quote request, and it is gated `rfqs:handle` precisely so that it
 disappears with this module.
 
+## Unshared quotes and sharing {#unshared-quotes-and-sharing}
+
+A quote an operator creates for a customer — on the *Create quote request*
+screen, whichever screen opened it, a CRM opportunity included — starts
+**unshared**: the customer cannot see it until an operator shares it. The
+operator can build it over several sittings and share it with one action when
+it is ready. A request a customer submits, an order's *Clone to quote* and the
+operator's quick-order build take the buyer's path and are visible to the
+customer at once, as before. Operator quotes that existed before this
+behaviour was installed stay visible: the migration marks every existing quote
+shared.
+
+The Admin UI marks an unshared quote with the **Not shared** badge on its
+screen and in the list, and its screen says under the header that only your
+team can see it and the customer is not notified until it is shared. The list's
+**Sharing** filter (`sharing=unshared` or `shared` on the API) narrows it to
+unshared or shared quotes.
+
+### While a quote is unshared {#while-a-quote-is-unshared}
+
+- **No customer can see it.** It is left out of every customer read: the
+  requester's own list, an Organization *Administrator*'s, a roll-up login's,
+  and the lists the `customers` module reads, the quote requests tab of a
+  customer's screen in the Admin UI included — operators find unshared quotes in the quote request list. Its
+  address and every customer action on it (edit, accept, reject, resubmit,
+  convert to a basket, and the `carts` module's
+  `POST /api/v1/cart/from-quote-request/:id`) answer `404`, exactly as for a
+  quote that does not exist, and change nothing.
+- **Nobody on the buyer side is told.** Creating, modifying and cancelling it
+  record no customer notification on any channel.
+- **It never expires**, by inactivity (`expiry_days`) or otherwise.
+- **Every edit the Admin UI allows is allowed**, and each is recorded in the
+  History. Its lines may stay without a price.
+- **Its validity is a number of days, not a date.** The date is written when
+  it is shared — see *Validity date*.
+- **Its PDF can be exported, not sent.** *Send PDF to customer* is not offered,
+  and the send route answers `409 RFQ_NOT_SHARED` — see *Quote PDF*.
+- **Cancelling it** tells nobody, and it stays invisible to the customer.
+
+### Sharing {#sharing}
+
+**Share with customer** is the primary action on an unshared quote's screen.
+It asks first — naming the customer and the validity the share will write —
+and calls `POST /api/v1/admin/quote-requests/:id/share`. Anyone holding
+`rfqs:handle` who can see the quote's Organization may share it. A share:
+
+- makes the quote visible to the customer, who can accept or reject it like
+  any quote an operator prepared;
+- writes the validity date: the moment of sharing plus the quote's days, or no
+  date;
+- records a *Shared with the customer* entry in the History — who shared it
+  and when — and sends the *quote prepared* notification
+  (`quote_request_customer_prepared`) to the buyer side, once, on the channels
+  under *Notifications*;
+- is final. A shared quote does not return to unshared; later changes of its
+  lines or prices are revisions the customer is told about, as before.
+
+The customer's own history of the quote starts at the share. The admin History
+keeps the edits made before it.
+
+A share is refused, with nothing written and nobody told, when:
+
+| Situation | Answer |
+| --- | --- |
+| The quote is already shared — a quote a customer submitted and an operator quote from before this behaviour included | `409 RFQ_ALREADY_SHARED` |
+| The quote is no longer `Created from admin` (it was cancelled or expired) | `409 RFQ_NOT_QUOTED` |
+| `If-Match` names an older version | `409 VERSION_CONFLICT` |
+| A line has no agreed unit price | `409 QUOTE_INCOMPLETE`; `details.code` is `share` and `details.lines` names each such line (`id`, `position`, `productName`, `variantLabel`, `groupName`) in display order |
+| The customer account no longer belongs to the quote's Organization, was deleted or anonymised, or is blocked | `409 RFQ_SHARE_CUSTOMER_UNAVAILABLE`; `details.code` is `not_member`, `inactive` or `blocked` |
+| A module's hook refuses it | the hook's own status, code and `details` — see [Hookable action](#hookable-action) |
+
+A quote of an Organization the caller may not see answers `404`. Two shares of
+the same quote at the same moment are serialised: the second answers
+`409 RFQ_ALREADY_SHARED`, and the customer is told once.
+
+**Create and share.** The *Create quote request* screen has two buttons.
+**Save without sharing** creates the quote unshared. **Create and share** creates it
+and shares it in one step, after the same question; it is disabled while a
+line has no price. When the share part is refused, the quote stays unshared
+and the operator lands on it with the refusal shown. When the create answers
+warnings — products the customer cannot buy on the chosen channel — nothing is
+shared: the screen lists the warnings and offers **Share with customer** for
+the quote just created.
+
+### Hookable action {#hookable-action}
+
+Sharing is declared hookable, so another module — a deployment's overlay
+module or an installed package — can refuse a share, for example while an
+internal approval is still pending. Register a command hook against the ref in
+`QUOTE_REQUEST_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`) and list
+`quote_requests` in your manifest `dependencies`. How hooks run, are ordered
+and are refused is on the *Command Bus* architecture page. The admin's
+*Command hooks* screen lists the action and the hooks registered on it.
+
+| Action | Ref | Written by | Hook data |
+| --- | --- | --- | --- |
+| `quote_request.share` | `QUOTE_REQUEST_HOOKABLE_ACTIONS.share` | `POST /api/v1/admin/quote-requests/:id/share`, which *Create and share* calls too | `quoteRequestId`, `organizationId`, `customerAccountId`, `salesChannelId`, `currentRevisionNumber`, `expiresAt` |
+
+Only `beforeCommit` is offered, so a share writes no outbox row. The data type
+is `QuoteRequestShareHookData`: ids, a revision number and a date, nothing of
+the lines or prices. `expiresAt` is the validity date the share is writing, or
+`null`; `salesChannelId` is `null` for a quote with no channel. A hook that
+needs the lines reads them through `quoteRequestReadPort.listItems` — a share
+changes no line.
+
+- **When it runs.** Inside the share's transaction, after the built-in
+  refusals above have passed and the quote has been written shared, before the
+  audit entry and the commit.
+- **Refusing.** Throw a `CommandHookRefusal`
+  (`@endora-commerce/platform/commands`) with a code your own module declares
+  in its manifest `errorCodes`, and a sentence for it in your own bundle. The
+  whole share is rolled back — the quote, the History entry and the
+  notification records — so the quote stays unshared and nobody is told. The
+  caller receives your status, code and `details` unchanged, and the Admin UI
+  shows your translated sentence.
+- **Refusals reach an administrator.** The message and `details` go to the
+  administrator who pressed *Share* as they are thrown: no secrets,
+  credentials, tokens or internal URLs, no stack traces, and no data of any
+  Organization but the quote's own.
+- **One second at most.** The hook runs while the share holds a lock on the
+  quote and an open transaction, so every other write to that quote waits for
+  it. Keep it well under 100 ms; one second is the budget for all of it. Do no
+  external I/O (HTTP, a mail server, a queue) without a timeout that fits
+  inside that budget, and prefer reading your own tables. A hook that cannot
+  decide in time refuses with its own code rather than holding the lock.
+- **Writing.** Only your own module's tables, on `ctx.em`, naming what you
+  wrote with `ctx.noteAuditChanges`.
+
+No other write of this module is hookable.
+
 ## Agreed prices
 
 A Quote Request becomes an order only at unit prices the seller agreed. A
@@ -94,6 +228,7 @@ met:
 | `accept-revision` | The seller's offer leaves a line without an agreed unit price. | `QUOTE_INCOMPLETE` |
 | admin `approve` | Any line has no agreed unit price. | `QUOTE_INCOMPLETE` |
 | `convert-to-order` | Any line has no agreed unit price. | `QUOTE_INCOMPLETE` |
+| admin `share` | Any line has no agreed unit price (`details.code` `share`, the lines named). | `QUOTE_INCOMPLETE` |
 
 What this means in practice:
 
@@ -122,6 +257,9 @@ What this means in practice:
   change what those prices mean. A request with no channel, raised before
   requests recorded one, is in PLN. Requests created before this rule stay in
   the currency they were stored with (PLN), whatever their channel's currency.
+- An operator may **create** a quote with lines that have no price yet, and
+  finish it later: it stays unshared, and sharing it is refused until every
+  line is priced. A request a customer submits keeps the rules above.
 - `reject-revision` is not affected: a customer can still withdraw a request
   the seller has not answered yet.
 - A request that reached `Approved` with an unpriced line before these rules
@@ -132,7 +270,28 @@ What this means in practice:
 ## Validity date
 
 An operator can date an offer — *Valid for N days* when revising a request or
-creating one on a customer's behalf (`expiresInDays`, stored as `expiresAt`).
+creating one on a customer's behalf (`expiresInDays`, a whole number from 0 to
+3650, stored as `expiresAt`). **0 days means no deadline** on every write — on
+a new quote, on an unshared one and on a revision of a shared one — and so does
+`null`. A revision with 0 days removes the date, and the customer can still
+accept the quote; to close an offer, cancel it. (Earlier releases read 0 days
+on a revision as "expires now".) Leaving `expiresInDays` out is different: a
+revision keeps the current date — the Modify tab's empty field on a shared
+quote — and a new quote takes the store's default. On an unshared quote's
+Modify tab, emptying the field sends `null` and removes its days.
+
+- **On a quote an operator creates, the days count from the share**, not from
+  the create. The unshared quote keeps the number of days, and the share writes
+  the date: the moment of sharing plus those days. A quote prepared over a
+  month still gives the customer its full period.
+- **A new quote starts with the store's default**, the setting
+  `quote_requests.default_validity_days` (see *Settings*). The *Create quote
+  request* screen fills it in, and the operator may change or clear it for that
+  quote. Changing the setting does not change quotes already created. Out of
+  the box it is 0: no deadline.
+- **On a revision of a shared quote**, or of a customer's request, the days
+  count from the revision, as before.
+
 Both parties are shown *expires &lt;date&gt;*, and the date is **the last moment
 an order can be placed at the agreed prices**, not only the last moment the
 basket can be prepared. Without a date the agreed prices have no deadline.
@@ -300,6 +459,13 @@ English and Polish:
   *order changed* when lines or groups were only reordered — see *Line groups*.
   A revision with no listed change reads *offer re-sent without changes*. A reason or note given with a cancellation,
   rejection or approval is shown.
+- **Sharing.** A share is one entry, *Shared with the customer*, naming the
+  administrator who shared, with the deliveries of the *quote prepared*
+  notification under it. A change to an unshared quote's days is listed as
+  *Validity after sharing*, old → new (*no deadline* for none). The customer's
+  history of a quote an operator shared starts at that entry: what was done
+  before it is shown on the admin surface only. See *Unshared quotes and
+  sharing*.
 - **Values not carried from a sales opportunity.** When a request created from
   a sales opportunity could not take some of the opportunity's custom-field
   values (see *Custom fields*), the history holds one entry by *System*,
@@ -621,7 +787,8 @@ of quote requests ships, this visibility moves to a permission of its own.)
 
 `RfqCustomerPort.listForCustomer` — what `customers` reads for a buyer's own
 list and for one customer's list in the Admin UI — always answers the requests
-that account itself raised, whatever role it holds.
+that account itself raised, whatever role it holds, and never an unshared
+quote.
 
 ## Organization permissions
 
@@ -848,8 +1015,8 @@ and **Delete view**.
 ## Quote PDF: export and send to the customer
 
 A sales representative turns a quote request into a PDF from its admin screen,
-in **every state** of the quote. Two buttons in the page header open the same
-dialog:
+in **every state** of the quote — except that an unshared quote can be
+exported but not sent. Two buttons in the page header open the same dialog:
 
 - **Export PDF** downloads the PDF, named after the quote's number.
 - **Send PDF to customer** e-mails it.
@@ -968,6 +1135,7 @@ recorded. A send is refused, with nothing recorded, when:
 | The PDF is larger than 10 MiB | `422 QUOTE_REQUEST_PDF_TOO_LARGE` |
 | The mail server refused every address | `502 QUOTE_REQUEST_PDF_SEND_FAILED` |
 | More than 10 sends by one administrator within a minute | `429 RATE_LIMITED` |
+| The quote is not shared with the customer yet (*Send PDF to customer* is not offered on it) | `409 RFQ_NOT_SHARED` |
 
 **API** (all behind `rfqs:handle` and the quote's visibility; `503
 MODULE_DISABLED` while document templates are off):
@@ -984,12 +1152,13 @@ page for the editor and the line items table.
 
 ## Settings
 
-Three settings drive the module — all live under the `quote_requests`
+These settings drive the module — all live under the `quote_requests`
 group and are configured through the existing settings module.
 
 | Code | Type | Default | Effect |
 | --- | --- | --- | --- |
 | `quote_requests.expiry_days` | integer | `0` | Expire Pending / Created from admin requests after N days without activity, unless they carry an offer that is still valid. Per sales channel: each request is held to its own channel's value, and `0` exempts a channel. Setting it expires the existing backlog — see *Background jobs*. |
+| `quote_requests.default_validity_days` | integer | `0` | *Default validity of operator quotes (days)*: the days a quote an operator creates stays valid, counted from sharing it — see *Validity date*. `0` = no deadline. From `0` to `3650`; a stored value outside that range is read as `0` and logged as a warning. One value for the whole store, not per sales channel. Applies to quotes created after the change. |
 | `quote_requests.show_add_to_quote_on_card` | boolean | `true` | Toggle the "Add to quote" button on storefront product cards. |
 | `quote_requests.show_add_to_quote_on_pdp` | boolean | `true` | Toggle the "Add to quote" button on product detail pages. |
 
@@ -1010,7 +1179,7 @@ Each tick reads `quote_requests.expiry_days` **for every sales channel**, and
 holds each request to the value of its own channel — see
 [Per sales channel](#per-sales-channel). `0` — the default — exempts a channel;
 set to `0` everywhere, the sweep does nothing. Otherwise a request is moved to
-`Expired` when **all three** hold:
+`Expired` when **all four** hold:
 
 1. **It is still open** — `Pending` or `Created from admin`. That covers a
    request waiting for the seller's first answer and an offer waiting for the
@@ -1026,6 +1195,8 @@ set to `0` everywhere, the sweep does nothing. Otherwise a request is moved to
    `expiry_days`: the request is never expired by this sweep while the date is
    ahead, however long it has been quiet. Once the date has passed, or where
    the seller set none, the inactivity rule applies as to any other request.
+4. **Its customer can see it.** An unshared operator quote is never expired —
+   see *Unshared quotes and sharing*.
 
 The sweep does not expire a request *because* its validity date passed. That
 date is enforced when the buyer accepts, converts and places the order (`410`,
@@ -1062,7 +1233,7 @@ everything that is open. **Changing it from `0` to `N` expires, over the next
 ticks, every open request that has been quiet for more than `N` days** — on an
 instance that has run with `0` for a year, that can be most of the open
 requests. The same holds for lowering it. Requests with an offer that is still
-valid are not touched (rule 3), and nobody is notified about the ones that
+valid are not touched (rule 3), nor are unshared quotes (rule 4), and nobody is notified about the ones that
 became due more than 24 hours earlier.
 
 Releases up to and including 0.104.0 documented this sweep and never ran it, so
@@ -1103,6 +1274,16 @@ Three tables on top of the foundation `quote_requests` and
   the recipient's table. It replaced `quote_request_notification_events`, which
   the migration `20261113T081826_quote_requests_notifications_redesign.ts`
   dropped with its rows — nothing had ever delivered them.
+
+`quote_requests.shared_with_customer` (not null, default `true`, so every
+quote that existed before sharing did is shared), `shared_at`,
+`shared_by_admin_user_id` and `share_validity_days` (the days an unshared quote
+applies when it is shared; `null` = no deadline) record the sharing — see
+*Unshared quotes and sharing*. Admin replies carry them as
+`sharedWithCustomer`, `sharedAt`, `sharedByAdminUserId` and
+`shareValidityDays`; customer replies never do. Other modules read
+`sharedWithCustomer` on `quoteRequestReadPort`'s records: `carts` refuses to
+fill a basket from an unshared quote.
 
 `quote_request_items` carries the stored reference price in
 `reference_unit_price`, `reference_currency` and `reference_captured_at` — all
@@ -1217,7 +1398,7 @@ There are two sides.
 | A buyer accepts the offer | as above | bell |
 | A buyer rejects the offer | as above | bell |
 | The request expires | e-mail, centre entry, push | bell |
-| An operator creates a request on the buyer's behalf | e-mail, centre entry, push | — |
+| An operator shares a quote prepared on the buyer's behalf | e-mail, centre entry, push | — |
 | An operator saves a new offer (revision) | e-mail, centre entry, push | — |
 | An operator approves the request | e-mail, centre entry, push | — |
 | An operator cancels the request | e-mail, centre entry, push | — |
@@ -1226,7 +1407,8 @@ There are two sides.
 The buyer whose own action caused a change gets the **e-mail** as a
 confirmation but no centre entry and no push: they are looking at the result.
 The buyer's own draft edits, notes, *Send PDF to customer* and the other
-history entries tell nobody.
+history entries tell nobody. Nor does anything that happens to an operator's
+quote before it is shared: its creation, its changes and its cancellation.
 
 **Who is told is fixed when the change is saved.** At delivery each person is
 checked again: an account that has since been deleted, blocked or anonymised,
@@ -1283,7 +1465,7 @@ per language and sales channel, or each e-mail is switched off, under
 | `quote_request_customer_offer_accepted` | buyer side | a buyer accepts the offer |
 | `quote_request_customer_offer_rejected` | buyer side | a buyer rejects the offer |
 | `quote_request_customer_expired` | buyer side | the request expires |
-| `quote_request_customer_prepared` | buyer side | an operator creates a request on the buyer's behalf |
+| `quote_request_customer_prepared` | buyer side | an operator shares a quote prepared on the buyer's behalf |
 | `quote_request_customer_revised` | buyer side | an operator saves an offer awaiting the buyer |
 | `quote_request_customer_approved` | buyer side | an operator approves the request |
 | `quote_request_customer_canceled` | buyer side | an operator cancels the request |
@@ -1296,7 +1478,7 @@ Every e-mail can use `quote.number`, `customer.name` (the recipient),
 `actor.name` (the buyer who acted) for submitted, re-submitted, accepted,
 rejected and both operator e-mails; `quote.previousNumber` for both
 re-submitted e-mails; `reason` for rejected and canceled; `quote.validUntil` for
-prepared, revised and approved; `quote.revisionNumber` for revised;
+prepared (the date the share wrote), revised and approved; `quote.revisionNumber` for revised;
 `quote.lineCount` and `quote.adminUrl` (the link to the request in the admin
 panel) for both operator e-mails. `quote.adminUrl` is empty when
 `ADMIN_BASE_URL` is not set, and the button is then left out. A template edited
@@ -1354,7 +1536,10 @@ and the two sides are resolved by
 customer side's rule is `orgWideViewerRoleIds`, the same function the
 storefront's visibility check uses, so a person is never told about a request
 they would get a `404` for. A record is unique per (history entry, recipient,
-channel).
+channel). The `prepared` change is recorded from the `shared` history entry the
+share writes; records written before sharing existed name the `created` entry
+and stay as they are. While a quote is unshared, `revised` and `canceled`
+record nothing for the buyer side.
 
 **Delivery.** After each committing change the writer adds one job to the BullMQ
 queue `quote_requests.notifications.deliver` (fixed job id
@@ -1479,6 +1664,10 @@ A quote request an administrator creates through
 | `adminUserId` | The administrator who created it, or `null` when server code created it with no administrator present — see *Server-side writes*. |
 | `origin` | What the create request carried as `origin`, or `null`. |
 
+It is emitted when the quote is created, while it is still unshared: it is the
+operator-side announcement and reaches no customer. Sharing emits no event on
+the bus.
+
 `rfq.created.v1` remains the event of a customer's own submission and is
 **not** emitted on this path, so nothing that listens to it starts seeing
 requests an administrator prepared.
@@ -1551,6 +1740,16 @@ never resolve it for a customer-facing route.
 request, so without `salesChannelId` the create is refused with
 `422 RFQ_SALES_CHANNEL_NOT_ALLOWED` (`no_channel`).
 
+**A quote the port creates starts unshared**, exactly as one an operator
+creates in the Admin UI (see [Unshared quotes and sharing](#unshared-quotes-and-sharing)): the customer
+cannot see it and no notification goes out. Its validity is kept in days —
+`expiresInDays`, else the default validity setting — and becomes a date only
+when the quote is shared. An `update` of an unshared quote stores the days and
+tells the customer nothing, and a `cancel` of one is silent too; the events are
+still emitted, with `sharedWithCustomer` on the record for a subscriber to
+check. **The port cannot share a quote:** an operator shares it in the Admin
+UI, and only then is the customer notified.
+
 **Custom-field values alone.** `setCustomFieldValues` takes a `merge` — a
 function from the current values to the new ones — and runs it inside its
 Command. The module does not validate: call `CustomFieldValuePort.validateAndMerge`
@@ -1560,7 +1759,7 @@ changes nothing writes nothing.
 
 **Deliberately not offered:** resubmitting, accepting or rejecting a revision,
 and converting to an order. They are the buyer's own decisions, taken in the
-storefront.
+storefront. Nor is sharing, which is the operator's decision in the Admin UI.
 
 **When the module is off**, resolving the port fails closed with
 `503 MODULE_DISABLED` and nothing is written. A module that uses it declares
@@ -1736,18 +1935,32 @@ quantity — then resolved again once the quantity is valid. Changing the
 customer clears every price that was not typed by hand and resolves it again
 for the new customer, so such a price may become empty.
 
-**An incomplete line blocks the request instead of being dropped.** A line with
-no agreed price, or with a quantity that is not a whole number of 1 or more, is
-marked, and **Create quote request** stays disabled until it is fixed or
-removed; every line on screen is sent. The running total counts the lines that
-have both a valid quantity and a price. A customer without an organization
-still shows the existing warning, since a quote request needs one.
+**Two buttons create the quote**: **Save without sharing** creates it unshared, and
+**Create and share** creates it and shares it with the customer — see
+*Unshared quotes and sharing*.
+
+**An incomplete line is marked, never dropped**; every line on screen is sent.
+A line with a quantity that is not a whole number of 1 or more, or a price that
+is not a number of 0 or more, keeps both buttons disabled until it is fixed or
+removed. A line with **no price yet** may be saved: **Save without sharing** stays
+available, and only **Create and share** waits until every line is priced. The
+running total counts the lines that have both a valid quantity and a price. A
+customer without an organization still shows the existing warning, since a
+quote request needs one.
+
+**Validity.** The *Valid for (days from sharing)* field is filled with the
+store's default (`quote_requests.default_validity_days`, read from
+`GET /api/v1/admin/quote-requests/create-defaults`). Empty or 0 means no
+deadline. While the default is being read, or when it cannot be read, the
+field stays empty with the placeholder *Store default*, and the server gives
+the quote the default. While the default is still loading and no days were
+typed, **Create and share** waits.
 
 **The sales channel the request is raised on** is chosen under the customer,
 among the active sales channels of the customer's organization. When the
 organization has exactly one, it is preselected; when it has several, choose one —
-**Create quote request** stays disabled until you do. When the organization has no
-active sales channel, the screen says so and **Create quote request** stays disabled
+both buttons stay disabled until you do. When the organization has no
+active sales channel, the screen says so and both buttons stay disabled
 until the organization is assigned to one. The channel is sent as
 `salesChannelId`: the request is stored on it, its line names are taken in that
 channel's default language, and its availability is judged there. The agreed
@@ -1761,7 +1974,7 @@ inactive — is refused with `422 RFQ_SALES_CHANNEL_NOT_ALLOWED` before anything
 is written, also when no channel was chosen and the fallback is not one of
 them. When the organization's channels cannot be read — the read fails or is
 refused, for instance on a network error — the screen says so with a **Retry**
-button, and **Create quote request** stays disabled until they have been read;
+button, and both buttons stay disabled until they have been read;
 while a retry is under way the button is inactive. Agreed prices are prefilled
 only once a channel is settled.
 
@@ -1769,8 +1982,10 @@ When a line's product is not available to the customer on that channel —
 switched off there, outside its publication window or outside its audience —
 the request is still created and the answer names the line in `warnings` with
 `PRODUCT_UNAVAILABLE_IN_SCOPE`. The screen then stays open and lists those
-products under **Quote request created with warnings**, and **Open the quote
-request** goes on to it; the request cannot be sent a second time from there.
+products under **Quote request created with warnings**, and **Open quote** goes
+on to it; the request cannot be sent a second time from there. The quote is
+unshared, also after **Create and share**: nothing is shared, and the screen
+offers **Share with customer** beside **Open quote**.
 
 ## Panels on the quote request screen
 

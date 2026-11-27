@@ -1,6 +1,6 @@
 # Endora Commerce (b2b-platform) — Agent Instructions
 
-Last updated: 2026-11-18
+Last updated: 2026-11-24
 
 **This file is the single source of truth for every AI coding agent working in this
 repository, and since 2026-09-11 it is a *router*.** It holds what an agent needs before its
@@ -292,6 +292,6 @@ never a copy — `.agents/skills/ux-laws/SKILL.md` is one. Update it in place.
 See "Repo map" above.
 
 ## Recent Changes
+- 192-quote-request-draft-share
 - feat/182-related-payers
 - 181-guest-complaints
-- 180-off-platform-complaints

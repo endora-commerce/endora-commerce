@@ -4,6 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { shareQuoteRequestForTest } from '../../helpers/quote-request-share.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
@@ -33,6 +34,8 @@ describe('153 — Send PDF to customer rate limit [integration]', () => {
     });
     expect(res.statusCode, res.body).toBe(201);
     quote = (res.json() as { data: { id: string } }).data.id;
+    // `specs/192-quote-request-draft-share/` — sent only once shared.
+    await shareQuoteRequestForTest(h.app, quote);
   });
 
   afterAll(async () => {

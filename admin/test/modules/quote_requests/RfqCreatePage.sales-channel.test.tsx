@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
@@ -193,6 +193,8 @@ describe('RfqCreatePage — the sales channel', () => {
     expect(resolves.at(-1)?.[1]).toMatchObject({ salesChannelId: B2C });
   });
 
+  // `specs/192-quote-request-draft-share/` — two actions now: *Save without sharing* (this key)
+  // and *Create and share*, the bar's primary, which the gate note describes.
   it('puts Create in the sticky save bar, described by why it is disabled (issue #1449, DS-19)', async () => {
     assigned = [B2B, B2C];
     openForCustomer();
@@ -201,7 +203,9 @@ describe('RfqCreatePage — the sales channel', () => {
     const submit = screen.getByRole('button', { name: 'rfqCreate.submit' });
     const bar = submit.closest('[data-slot="sticky-form-actions"]');
     expect(bar).toHaveAttribute('data-desktop', 'sticky');
-    expect(submit).toHaveAccessibleDescription('rfqCreate.gate.missingChannel');
+    expect(submit).toBeDisabled();
+    const share = within(bar as HTMLElement).getByRole('button', { name: 'quote_requests.create.share' });
+    expect(share).toHaveAccessibleDescription('rfqCreate.gate.missingChannel');
   });
 
   it('asks the operator to choose when the Organization shops on several channels', async () => {
