@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { GUARD_SEAM_REGISTRATIONS, guardSeamReplacementFor } from '@endora-commerce/contracts';
 import Fastify from 'fastify';
 import type { Worker } from 'bullmq';
 import { CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
@@ -7,6 +8,7 @@ import { EventBus } from '../events/index.js';
 import { registryCache } from './lifecycle/registry-cache.js';
 import { createRootContainer, registerValues } from './container.js';
 import {
+  createDecorationLedger,
   createModuleContext,
   createModuleRegistrationSink,
   createRegistrationOwnership,
@@ -279,6 +281,11 @@ describe('ModuleContext — decoration is owner-scoped (issue #203)', () => {
     // change. It is also the measurement behind D-156.4: because the flag
     // reaches this set, it can never be the vehicle for granting an installed
     // *package* decoration.
+    //
+    // 189 (D-296, narrowing D-156.4): for the four guard seams this exemption is
+    // deprecated in 0.113.0 — it still composes and is warned, see the T070 block
+    // below — and refused from 0.114.0, when P3 flips this case. Every other
+    // root-supplied name keeps it.
     const container = createRootContainer();
     const ownership = createRegistrationOwnership();
     registerValues(container, { commandBus: { run: (): string => 'audited' } });
@@ -657,5 +664,134 @@ describe('ModuleContext.commandMiddleware (189 T015, FR-002)', () => {
     expect(() => context().commandMiddleware([{ id: 'hold', phase: 'observe', observe: () => undefined }])).toThrow(
       /acme_hold[\s\S]*command-middleware registry/,
     );
+  });
+});
+
+/**
+ * 189 T070 (FR-050, FR-053) — the deprecation at the context, where `decorate` applies at once.
+ *
+ * D-296 narrows D-156.4 for the four guard seams only: an overlay's wrap of one still applies in
+ * 0.113.0 and is warned once per (module, name) with the `guardSeamReplacementFor` text; a wrap of
+ * any other root-supplied name, or of a module's registration, is unchanged and silent.
+ */
+describe('ModuleContext — guard-seam decoration is deprecated (189 T070)', () => {
+  function overlayContext(options: {
+    container: ReturnType<typeof createRootContainer>;
+    ownership: ReturnType<typeof createRegistrationOwnership>;
+    decorations: ReturnType<typeof createDecorationLedger>;
+    moduleId: string;
+    overlay?: boolean;
+    installedPackageModuleIds?: ReadonlySet<string>;
+    warn?: (fields: unknown, msg?: string) => void;
+  }): ModuleContext {
+    return createModuleContext({
+      module: { id: options.moduleId, version: '1.0.0' },
+      container: options.container,
+      eventBus: new EventBus(),
+      sink: createModuleRegistrationSink(),
+      log: { info: () => {}, warn: options.warn ?? (() => {}), error: () => {} },
+      ownership: options.ownership,
+      decorations: options.decorations,
+      ...(options.installedPackageModuleIds === undefined
+        ? {}
+        : { installedPackageModuleIds: options.installedPackageModuleIds }),
+      ...(options.overlay === undefined ? {} : { overlay: options.overlay }),
+    });
+  }
+
+  function fixture(): {
+    container: ReturnType<typeof createRootContainer>;
+    ownership: ReturnType<typeof createRegistrationOwnership>;
+    decorations: ReturnType<typeof createDecorationLedger>;
+  } {
+    const container = createRootContainer();
+    registerValues(container, {
+      commandBus: 'bus',
+      auditLogService: 'audit',
+      eventBus: 'events',
+      emFactory: 'em',
+      redis: 'redis',
+    });
+    return { container, ownership: createRegistrationOwnership(), decorations: createDecorationLedger() };
+  }
+
+  it.each(GUARD_SEAM_REGISTRATIONS)('keeps an overlay wrap of %s and warns once, naming the replacement', (name) => {
+    const shared = fixture();
+    const warn = vi.fn();
+    const client = overlayContext({ ...shared, moduleId: 'acme_audit', overlay: true, warn });
+
+    client.di.decorate<string>(name, (inner) => `acme:${inner}`);
+    client.di.decorate<string>(name, (inner) => `again:${inner}`);
+
+    expect(shared.container.resolve<string>(name)).toMatch(/^again:acme:/);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      {
+        overlay: 'acme_audit',
+        registration: name,
+        replacement: guardSeamReplacementFor(name),
+        refusedFrom: '0.114.0',
+        ruling: 'D-296',
+      },
+      'kernel.decoration.deprecated',
+    );
+    expect(shared.decorations.entries.map((entry) => entry.deprecated)).toEqual([true, true]);
+  });
+
+  it('keeps an overlay wrap of `redis` silent and unflagged', () => {
+    const shared = fixture();
+    const warn = vi.fn();
+    overlayContext({ ...shared, moduleId: 'acme_cache', overlay: true, warn }).di.decorate<string>(
+      'redis',
+      (inner) => `acme:${inner}`,
+    );
+
+    expect(shared.container.resolve<string>('redis')).toBe('acme:redis');
+    expect(warn).not.toHaveBeenCalled();
+    expect('deprecated' in (shared.decorations.entries[0] as object)).toBe(false);
+  });
+
+  it("keeps an overlay wrap of a workspace module's or another overlay's registration silent", () => {
+    const shared = fixture();
+    const warn = vi.fn();
+    const core = overlayContext({ ...shared, moduleId: 'price_lists' });
+    core.di.register({ pricingService: core.asValue('core') });
+    const sibling = overlayContext({ ...shared, moduleId: 'acme_base', overlay: true });
+    sibling.di.register({ acmeLabel: sibling.asValue('acme') });
+
+    const client = overlayContext({ ...shared, moduleId: 'acme_pricing', overlay: true, warn });
+    client.di.decorate<string>('pricingService', (inner) => `acme:${inner}`);
+    client.di.decorate<string>('acmeLabel', (inner) => `acme:${inner}`);
+
+    expect(shared.container.resolve<string>('pricingService')).toBe('acme:core');
+    expect(shared.container.resolve<string>('acmeLabel')).toBe('acme:acme');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a core module a guard seam, warning nothing', () => {
+    const shared = fixture();
+    const warn = vi.fn();
+    const core = overlayContext({ ...shared, moduleId: 'promotions', warn });
+
+    expect(() => core.di.decorate('commandBus', (inner) => inner)).toThrow(ForeignDecorationError);
+    expect(warn).not.toHaveBeenCalled();
+    expect(shared.decorations.entries).toEqual([]);
+  });
+
+  it("still refuses an installed package's registration first", () => {
+    const shared = fixture();
+    const warn = vi.fn();
+    const pkg = overlayContext({ ...shared, moduleId: 'crm' });
+    pkg.di.register({ greeter: pkg.asValue('package') });
+    const client = overlayContext({
+      ...shared,
+      moduleId: 'acme_overlay',
+      overlay: true,
+      installedPackageModuleIds: new Set(['crm']),
+      warn,
+    });
+
+    expect(() => client.di.decorate('greeter', (inner) => inner)).toThrow(/crm/);
+    expect(warn).not.toHaveBeenCalled();
   });
 });

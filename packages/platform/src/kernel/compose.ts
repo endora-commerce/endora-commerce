@@ -145,6 +145,12 @@ export interface ModuleEntry {
    * from the root the module was discovered under, never from anything the
    * module says about itself. It exempts the module from the ownership rule on
    * `ctx.di.decorate`, which is why it is a location and not a declaration.
+   *
+   * D-156.4, narrowed by D-296: the narrowing covers the four guard seams only
+   * (`GUARD_SEAM_REGISTRATIONS`: `commandBus`, `auditLogService`, `eventBus`,
+   * `emFactory`). An overlay's decoration of one is deprecated in 0.113.0 — it
+   * composes, warns and is flagged `deprecated` on `kernel.decorations` — and is
+   * refused from 0.114.0. Every other name the exemption reaches is unchanged.
    */
   readonly overlay?: boolean;
   /**
@@ -570,6 +576,8 @@ export function composeModules(
           decoratedBy: entry.moduleId,
           owner: entry.owner ?? null,
           depth: entry.depth,
+          // 189 FR-050 — a guard-seam wrap by an overlay (D-296), on its way out.
+          ...(entry.deprecated === true ? { deprecated: true } : {}),
         })),
       },
       'kernel.decorations',
