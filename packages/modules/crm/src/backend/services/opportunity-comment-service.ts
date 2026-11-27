@@ -1,3 +1,4 @@
+import { LockMode } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
@@ -443,7 +444,7 @@ export class OpportunityCommentService {
         objectType: 'crm_opportunity',
         objectId: opportunityId,
         run: async ({ em }) => {
-          const { note, opportunity } = await this.#loadOwnNote(em, opportunityId, commentId, 'edited');
+          const { note, opportunity } = await this.#loadOwnNote(em, opportunityId, commentId, 'edited', true);
           const valuesBefore = { ...(note.customFieldValues ?? {}) };
           if (customFieldValues !== null && !isDeepStrictEqual(valuesBefore, validatedAgainst)) {
             stale.current = valuesBefore;
@@ -574,14 +575,17 @@ export class OpportunityCommentService {
     opportunityId: string,
     commentId: string,
     verb: 'edited' | 'deleted',
+    lock = false,
   ): Promise<{ note: CrmOpportunityComment; opportunity: CrmOpportunity }> {
     const opportunity = await loadOpportunity(em, opportunityId);
     if (!isUuid(commentId)) throw commentNotFound();
-    const comment = await em.findOne(CrmOpportunityComment, {
-      id: commentId,
-      opportunityId: opportunity.id,
-      deletedAt: null,
-    });
+    // Inside the Command the note row is locked, so the re-check of its stored values against the
+    // ones validated before the run cannot race a concurrent edit (as the Opportunity edit locks).
+    const comment = await em.findOne(
+      CrmOpportunityComment,
+      { id: commentId, opportunityId: opportunity.id, deletedAt: null },
+      lock ? { lockMode: LockMode.PESSIMISTIC_WRITE } : {},
+    );
     if (!comment) throw commentNotFound();
     if (comment.kind === 'message') {
       throw new HttpError(409, ERROR_CODES.CRM_MESSAGE_IMMUTABLE, `A message cannot be ${verb} once it is sent.`);
