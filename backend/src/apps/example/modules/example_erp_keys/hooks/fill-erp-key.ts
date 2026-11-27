@@ -3,7 +3,7 @@ import type { OrganizationCreateHookData } from '@endora-commerce/contracts';
 import { CommandHookRefusal, type Command, type CommandHookContext } from '@endora-commerce/platform/commands';
 import { z } from 'zod';
 
-import { ExampleErpOrganizationKey } from '../entities/example-erp-organization-key.entity.js';
+import { ERP_KEY_UNIQUE_CONSTRAINT, ExampleErpOrganizationKey } from '../entities/example-erp-organization-key.entity.js';
 import { EXAMPLE_ERP_KEYS_ERROR_CODES } from '../manifest.js';
 import { ERP_KEY_PATTERN, normalizeErpKey } from '../ports.js';
 
@@ -34,7 +34,13 @@ export function setErpKeyCommand(organizationId: string, erpKey: string): Comman
       try {
         await em.flush();
       } catch (error) {
-        if (error instanceof UniqueConstraintViolationException) {
+        // The flush writes everything pending on the transaction, so only a
+        // violation of this module's own constraint is a key already taken;
+        // another hook's violation reaches its caller unchanged.
+        if (
+          error instanceof UniqueConstraintViolationException &&
+          (error as UniqueConstraintViolationException & { constraint?: unknown }).constraint === ERP_KEY_UNIQUE_CONSTRAINT
+        ) {
           throw new CommandHookRefusal(
             409,
             EXAMPLE_ERP_KEYS_ERROR_CODES.KEY_TAKEN,

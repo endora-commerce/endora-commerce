@@ -161,13 +161,28 @@ describe('the beforeCommit hook on organization.create', () => {
     expect(em.create).not.toHaveBeenCalled();
   });
 
+  /** What the driver raises: the `pg` error's own `constraint` is copied onto the exception. */
+  const uniqueViolation = (constraint: string): UniqueConstraintViolationException =>
+    new UniqueConstraintViolationException(
+      Object.assign(new Error(`duplicate key value violates unique constraint "${constraint}"`), { constraint }),
+    );
+
   it('refuses a key another organization holds with its own 409 code — the whole create rolls back', async () => {
     const { ctx } = hookContext({ erpKey: 'SAP-0042' }, async () => {
-      throw new UniqueConstraintViolationException(new Error('duplicate key value violates unique constraint'));
+      throw uniqueViolation('example_erp_keys_organization_keys_erp_key_unique');
     });
     const refusal = await refusalOf(fillErpKeyOnCreate(ctx));
     expect(refusal.statusCode).toBe(409);
     expect(refusal.code).toBe(EXAMPLE_ERP_KEYS_ERROR_CODES.KEY_TAKEN);
+  });
+
+  it('lets a unique violation on any other constraint through unchanged — the flush writes everything pending', async () => {
+    // Another hook's row, pending on the same transaction, fails on its own constraint.
+    const foreign = uniqueViolation('organizations_tax_id_unique');
+    const { ctx } = hookContext({ erpKey: 'SAP-0042' }, async () => {
+      throw foreign;
+    });
+    await expect(fillErpKeyOnCreate(ctx)).rejects.toBe(foreign);
   });
 
   it('lets any other failure through unchanged', async () => {

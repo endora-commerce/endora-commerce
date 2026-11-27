@@ -18,6 +18,12 @@ import { OrgScoped } from '@endora-commerce/platform/tenancy';
  * a second Organization claiming one is refused by the database, inside the
  * create, whatever the caller's scope.
  */
+/**
+ * The unique constraint on `erp_key`, as the module's migration names it — what
+ * the hook matches a unique violation on, so it claims only its own.
+ */
+export const ERP_KEY_UNIQUE_CONSTRAINT = 'example_erp_keys_organization_keys_erp_key_unique';
+
 @OrgScoped()
 @Entity({ tableName: 'example_erp_keys_organization_keys' })
 export class ExampleErpOrganizationKey {
@@ -26,7 +32,7 @@ export class ExampleErpOrganizationKey {
   @PrimaryKey({ type: 'uuid', fieldName: 'organization_id' })
   organizationId!: string;
 
-  @Unique({ name: 'example_erp_keys_organization_keys_erp_key_unique' })
+  @Unique({ name: ERP_KEY_UNIQUE_CONSTRAINT })
   @Property({ type: 'text' })
   erpKey!: string;
 
