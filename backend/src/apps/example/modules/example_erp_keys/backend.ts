@@ -7,7 +7,13 @@ import { ExampleErpOrganizationKey } from './entities/example-erp-organization-k
 import { fillErpKeyOnCreate } from './hooks/fill-erp-key.js';
 import { EXAMPLE_ERP_KEYS_HOST, EXAMPLE_ERP_KEYS_PERMISSION } from './manifest.js';
 import { ExampleErpKeyExtensionSchema, type ExampleErpKeysPort } from './ports.js';
-import { ExampleErpKeysService, listErpKeys, loadErpKeys } from './services/erp-keys.js';
+import {
+  ERP_KEY_LIST_DEFAULT_LIMIT,
+  ERP_KEY_LIST_LIMIT,
+  ExampleErpKeysService,
+  listErpKeys,
+  loadErpKeys,
+} from './services/erp-keys.js';
 
 /**
  * Every entity this module owns — what the platform's ORM configuration
@@ -18,7 +24,11 @@ export const entities = [ExampleErpOrganizationKey];
 /** The admin list, and the API the palette action and the screen open. */
 export const EXAMPLE_ERP_KEYS_ROUTE = '/api/v1/admin/example-erp-keys/keys';
 
-const ListQuerySchema = z.object({ erpKey: z.string().max(80).optional() });
+const ListQuerySchema = z.object({
+  erpKey: z.string().max(80).optional(),
+  cursor: z.string().max(200).optional(),
+  limit: z.coerce.number().int().positive().max(ERP_KEY_LIST_LIMIT).default(ERP_KEY_LIST_DEFAULT_LIMIT),
+});
 
 interface ExampleErpKeysCradle {
   readonly requireAdmin: RequireAdminFactory;
@@ -66,7 +76,7 @@ export function registerModule(ctx: ModuleContext): void {
       { preHandler: cradle().requireAdmin(EXAMPLE_ERP_KEYS_PERMISSION) },
       async (request) => {
         const query = ListQuerySchema.parse(request.query);
-        return { data: await listErpKeys(cradle().emFactory(), organizations, query) };
+        return listErpKeys(cradle().emFactory(), organizations, query);
       },
     );
   });

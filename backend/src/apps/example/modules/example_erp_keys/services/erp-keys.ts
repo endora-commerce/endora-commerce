@@ -1,8 +1,9 @@
-import type { EntityManager } from '@mikro-orm/core';
-import type { OrganizationDetailsPort } from '@endora-commerce/contracts';
+import type { EntityManager, FilterQuery } from '@mikro-orm/core';
+import { ERROR_CODES, type OrganizationDetailsPort, type Pagination } from '@endora-commerce/contracts';
+import { HttpError, decodeCursor, encodeCursor } from '@endora-commerce/platform/http';
 
 import { ExampleErpOrganizationKey } from '../entities/example-erp-organization-key.entity.js';
-import { normalizeErpKey, type ExampleErpKeyExtension, type ExampleErpKeyRow, type ExampleErpKeysPort } from '../ports.js';
+import { ERP_KEY_PATTERN, normalizeErpKey, type ExampleErpKeyExtension, type ExampleErpKeyRow, type ExampleErpKeysPort } from '../ports.js';
 
 /**
  * The extension-attribute loader `organizationDetailsPort` calls for
@@ -45,33 +46,58 @@ export class ExampleErpKeysService implements ExampleErpKeysPort {
   }
 }
 
-/** How many rows the admin list answers at most; a lookup by key answers one. */
+/** The largest page the admin list answers; a lookup by key answers one row. */
 export const ERP_KEY_LIST_LIMIT = 100;
 
+/** The page size when the caller names none. */
+export const ERP_KEY_LIST_DEFAULT_LIMIT = 50;
+
+/** One page of the admin list, in the repository's cursor envelope (`collectionEnvelope`). */
+export interface ErpKeyListPage {
+  readonly data: ExampleErpKeyRow[];
+  readonly pagination: Pagination;
+}
+
 /**
- * The admin list: the keys the caller may see, by key, with each Organization's
- * name read through the owner's port — never this module's own join on
- * `organizations`, which is not its table.
+ * The admin list: the keys the caller may see, by key, a page at a time, with
+ * each Organization's name read through the owner's port — never this module's
+ * own join on `organizations`, which is not its table.
+ *
+ * Keyset-paged on `erp_key`, which is unique, so the cursor is the last key of
+ * the page (opaque to the client) and a page never repeats or skips a row while
+ * keys are added. One row past `limit` is read to answer `hasMore`. A cursor
+ * this list did not issue is a `400`.
  */
 export async function listErpKeys(
   em: EntityManager,
   organizations: Pick<OrganizationDetailsPort, 'findByIds'>,
-  query: { readonly erpKey?: string | undefined },
-): Promise<ExampleErpKeyRow[]> {
+  query: { readonly erpKey?: string | undefined; readonly cursor?: string | undefined; readonly limit: number },
+): Promise<ErpKeyListPage> {
   const erpKey = query.erpKey === undefined ? '' : normalizeErpKey(query.erpKey);
-  const rows = await em.find(
-    ExampleErpOrganizationKey,
-    erpKey === '' ? {} : { erpKey },
-    { orderBy: { erpKey: 'asc' }, limit: ERP_KEY_LIST_LIMIT },
-  );
-  if (rows.length === 0) return [];
+  const after = query.cursor === undefined ? undefined : decodeCursor(query.cursor);
+  if (query.cursor !== undefined && (after === undefined || !ERP_KEY_PATTERN.test(after))) {
+    throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'The cursor is not one this list issued.');
+  }
+  const keyFilter = { ...(erpKey === '' ? {} : { $eq: erpKey }), ...(after === undefined ? {} : { $gt: after }) };
+  const where: FilterQuery<ExampleErpOrganizationKey> = Object.keys(keyFilter).length === 0 ? {} : { erpKey: keyFilter };
+  const found = await em.find(ExampleErpOrganizationKey, where, { orderBy: { erpKey: 'asc' }, limit: query.limit + 1 });
+  const hasMore = found.length > query.limit;
+  const rows = hasMore ? found.slice(0, query.limit) : found;
+  const last = rows[rows.length - 1];
+  const pagination: Pagination = {
+    cursor: hasMore && last !== undefined ? encodeCursor(last.erpKey) : null,
+    hasMore,
+    limit: query.limit,
+  };
+  if (rows.length === 0) return { data: [], pagination };
   const names = new Map(
     (await organizations.findByIds(rows.map((row) => row.organizationId))).map((record) => [record.id, record.name]),
   );
-  return rows.flatMap((row) => {
+  const data = rows.flatMap((row) => {
     const organizationName = names.get(row.organizationId);
     return organizationName === undefined
       ? []
       : [{ organizationId: row.organizationId, organizationName, erpKey: row.erpKey }];
   });
+  return { data, pagination };
 }

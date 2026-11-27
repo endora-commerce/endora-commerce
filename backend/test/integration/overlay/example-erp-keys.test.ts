@@ -197,6 +197,43 @@ describe('the admin surface', () => {
     ]);
   });
 
+  it('pages the whole list by key with the repository cursor contract, never stopping silently at a cap', async () => {
+    const second = (
+      await asImport(() =>
+        organizations.create(input(`ERP keyed second ${stamp}`), { extensions: { [MODULE_ID]: { erpKey: `${KEY}-2` } } }),
+      )
+    ).id;
+    type Page = { data: { organizationId: string; erpKey: string }[]; pagination: { cursor: string | null; hasMore: boolean; limit: number } };
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    for (let pages = 0; pages < 50; pages++) {
+      const url = `${KEYS}?limit=1${cursor === null ? '' : `&cursor=${encodeURIComponent(cursor)}`}`;
+      const res = await h.app.inject({ method: 'GET', url, cookies: ADMIN });
+      expect(res.statusCode, res.body).toBe(200);
+      const page = res.json() as Page;
+      expect(page.pagination.limit).toBe(1);
+      expect(page.data.length).toBeLessThanOrEqual(1);
+      seen.push(...page.data.map((row) => row.erpKey));
+      if (!page.pagination.hasMore) {
+        expect(page.pagination.cursor).toBeNull();
+        break;
+      }
+      cursor = page.pagination.cursor;
+      expect(cursor).not.toBeNull();
+    }
+    // Both keys, in key order, each exactly once — across pages of one row.
+    expect(seen.filter((key) => key.startsWith(KEY))).toEqual([KEY, `${KEY}-2`]);
+    expect(new Set(seen).size).toBe(seen.length);
+    expect(await asImport(() => port().keyOf(second))).toBe(`${KEY}-2`);
+  });
+
+  it('answers 400 to a cursor it did not issue, and to a page size over its cap', async () => {
+    const forged = await h.app.inject({ method: 'GET', url: `${KEYS}?cursor=${encodeURIComponent('not a cursor!')}`, cookies: ADMIN });
+    expect(forged.statusCode, forged.body).toBe(400);
+    const oversized = await h.app.inject({ method: 'GET', url: `${KEYS}?limit=1000`, cookies: ADMIN });
+    expect(oversized.statusCode, oversized.body).toBe(400);
+  });
+
   it('refuses an administrator without example_erp_keys:read', async () => {
     const res = await h.app.inject({ method: 'GET', url: KEYS, cookies: RESTRICTED });
     expect(res.statusCode, res.body).toBe(403);

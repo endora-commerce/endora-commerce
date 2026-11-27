@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
+import { PaginationFooter, useCursorPagination } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /** One row of `GET /api/v1/admin/example-erp-keys/keys` (`ports.ts` `ExampleErpKeyRow`). */
@@ -28,7 +29,16 @@ interface ErpKeyRow {
   readonly erpKey: string;
 }
 
+/** One page of that list: the repository's cursor envelope (`collectionEnvelope`). */
+interface ErpKeyPage {
+  readonly data: ErpKeyRow[];
+  readonly pagination: { readonly cursor: string | null; readonly hasMore: boolean; readonly limit: number };
+}
+
 const KEYS_API = '/api/v1/admin/example-erp-keys/keys';
+
+/** The largest page the endpoint answers (`ERP_KEY_LIST_LIMIT`). */
+const KEYS_PAGE_MAX = 100;
 
 /**
  * The kit's icon, by the name the sidebar entry and the palette action use: an
@@ -38,7 +48,8 @@ const KEYS_API = '/api/v1/admin/example-erp-keys/keys';
 const KeyIcon = resolveIcon('KeyRound');
 
 /**
- * The ERP keys screen: every key the operator may see, and a lookup by key.
+ * The ERP keys screen: every key the operator may see, a page at a time by
+ * key, and a lookup by key.
  *
  * One primary action — *Find* — and nothing to edit: a key is set by the ERP
  * import that creates the Organization, so the screen is where an operator
@@ -49,7 +60,8 @@ const KeyIcon = resolveIcon('KeyRound');
  * only — a later lookup keeps the table on screen and marks it `aria-busy`; an
  * error with a retry; *no keys yet* and *no Organization holds this key* as two
  * different empty states; and a result count in a live region mounted before it
- * has text.
+ * has text. The list is cursor-paged, so the footer offers Previous / Next and
+ * no total; a lookup goes back to the first page.
  */
 export default function ExampleErpKeysPage(): ReactNode {
   const t = useTranslation('example_erp_keys');
@@ -59,14 +71,23 @@ export default function ExampleErpKeysPage(): ReactNode {
   const [rows, setRows] = useState<readonly ErpKeyRow[] | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pager = useCursorPagination({ scope: 'example-erp-keys', maxPageSize: KEYS_PAGE_MAX });
+  const { cursor, limit } = pager.query;
+  const { page: pageIndex, syncPage, resetPage } = pager;
 
   const load = useCallback(
     async (erpKey: string): Promise<void> => {
       setBusy(true);
       setError(null);
       try {
-        const query = erpKey === '' ? '' : `?erpKey=${encodeURIComponent(erpKey)}`;
-        const res = await apiClient.get<{ data: ErpKeyRow[] }>(`${KEYS_API}${query}`);
+        const params = new URLSearchParams({ limit: String(limit) });
+        if (erpKey !== '') params.set('erpKey', erpKey);
+        if (cursor !== null) params.set('cursor', cursor);
+        const res = await apiClient.get<ErpKeyPage>(`${KEYS_API}?${params.toString()}`);
+        syncPage(res.pagination, res.data.length);
+        // A later page that came back empty steps back one page, which is
+        // asked next: keep the rows on screen rather than draw an empty page.
+        if (res.data.length === 0 && pageIndex > 0) return;
         setRows(res.data);
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('admin.error'));
@@ -74,7 +95,7 @@ export default function ExampleErpKeysPage(): ReactNode {
         setBusy(false);
       }
     },
-    [t],
+    [t, cursor, limit, pageIndex, syncPage],
   );
 
   useEffect(() => {
@@ -84,12 +105,16 @@ export default function ExampleErpKeysPage(): ReactNode {
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const next = draft.trim();
-    if (next === applied) void load(next);
-    else setApplied(next);
+    if (next === applied && pageIndex === 0) void load(next);
+    else {
+      resetPage();
+      setApplied(next);
+    }
   };
 
   const clear = (): void => {
     setDraft('');
+    resetPage();
     setApplied('');
   };
 
@@ -172,6 +197,9 @@ export default function ExampleErpKeysPage(): ReactNode {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {rows === null || (rows.length === 0 && pageIndex === 0) ? null : (
+            <PaginationFooter {...pager.footer(rows.length)} />
           )}
         </CardContent>
       </Card>
