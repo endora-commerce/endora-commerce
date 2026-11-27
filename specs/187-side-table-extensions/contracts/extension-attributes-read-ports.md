@@ -109,8 +109,8 @@ method is unchanged.
 | `customer_accounts.CustomerAccount` | `CustomerAccountReadPort` (`customerAccountReadPort`) | `findById`, `findByIds`, `searchByEmail`, `listAll` | B2 |
 | `orders.Order` | `OrderReadPort` (`orderReadPort`) | `findById`, `findByIdForCustomer`, `findByIds`, `listAll` | B2 |
 | `quote_requests.QuoteRequest` | `QuoteRequestReadPort` | `findById`, `findByBusinessId`, `findByIds` | B2 |
-| `catalog.Product` | `CatalogProductReadPort` | `listAll` | B2 |
-| `catalog.Category` | `CatalogCategoryReadPort` | `findById`, `findBySlug`, `listAll`, `ancestorsOf` | B2 |
+| `catalog.Product` | `CatalogProductReadPort` | `findById`, `findByIds`, `findBySku`, `findBySkus`, `listAll` | B2 |
+| `catalog.Category` | `CatalogCategoryReadPort` | `findById`, `findByIds`, `findBySlug`, `listAll`, `ancestorsOf` | B2 |
 | `crm.CrmOpportunity` | `OpportunityReadPort` | `findById`, `findByDocument`, `listOpenForOrganization`, `findByIds`, `search` | B2 |
 | `projects.Project` | `ProjectReadPort` | `findById`, `findByRecord`, `findByIds`, `search` | B2 |
 | `tasks.Task` | `TaskReadPort` | `findById`, `findByIds`, `search`, `listInContext`, `listOpenInContext` | B2 |
@@ -118,7 +118,12 @@ method is unchanged.
 Method lists were read from the contracts on `ff7efc3e8`; the `customer_accounts` row was updated
 with B2 (#1835): `findById` and `findByIds` (whose `options` already carried
 `CustomerAccountLookupOptions`, now intersected with `EntityExtensionReadOptions`) were on the port
-before that commit, so the note below about a missing by-id method no longer holds for it.
+before that commit, so the note below about a missing by-id method no longer holds for it. The two
+`catalog` rows were updated with B2 (#1835, T042/T043) to the ports as published: `findById`,
+`findByIds`, `findBySku` and `findBySkus` were on `CatalogProductReadPort` at `ff7efc3e8` already (the
+note below does not hold for it either), and `findByIds` on `CatalogCategoryReadPort`; where a method
+already took lookup options (`CatalogProductLookupOptions`, `{ liveOnly }`) they are intersected with
+`EntityExtensionReadOptions`. `listWithInventoryThresholds` stays unchanged.
 `ERROR_CODES` has no `VALIDATION_ERROR`; semantics 2 answers `422 VALIDATION_FAILED`. **Coordination with
 `specs/186-aggregate-ports/`**: `CustomerAccountReadPort` and `CatalogProductReadPort` have no by-id
 record method today; adding one is the aggregate port's business, not this feature's. If 186 adds,

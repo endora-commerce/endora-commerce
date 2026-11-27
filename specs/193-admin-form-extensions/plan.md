@@ -99,7 +99,7 @@ packages/contracts/src/admin-forms.ts (+ vectors), admin-contributions.ts, modul
 packages/contracts/src/{customer-account,opportunity,product}-hooks.ts                           WP-H1..H3
 packages/modules/{customer_accounts,crm,catalog}/src/backend/commands/*, manifest.ts             WP-H1..H3
 packages/platform/src/forms/*, kernel (fieldSets, fieldFormats, fieldSlotHook), commands hook runner,
-  lifecycle/routes.admin.ts (GET /api/v1/admin/forms)                                            WP-B
+  lifecycle/routes.admin.ts (GET /api/v1/admin/effective-forms)                                            WP-B
 packages/platform/src/kernel/entity-extensions + schema-extensions/reads.ts (adminReads)          WP-B2
 packages/admin-kit/src/lib/forms/*, components/declared-form/*, components/controls/*            WP-C
 packages/cli/src/lib/admin-forms.ts, lib/divergence.ts; backend/scripts/check-admin-forms.ts      WP-D
@@ -121,9 +121,9 @@ docs/docs/architecture/admin-form-extensions.md (+pl), customisation-ladder.md (
 | 1 | **H1** | customer_accounts | `CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS` (3); `hookData` and `outboxData`; manifest; port forwards `extensions` | — |
 | 1 | **H2** | crm | `OPPORTUNITY_HOOKABLE_ACTIONS` (2), same obligations | — |
 | 1 | **H3** | catalog | `PRODUCT_HOOKABLE_ACTIONS` (4, including the scoped data); each bulk-edit product write runs as the non-hookable `product.bulk_update.item` (D-300.8), with `hookData` for rule-check-only use | — |
-| 1 | **A** | contracts | Declaration types and schemas, conditions and evaluator, vectors, controls and formats, manifest fields, `AdminContributions` arrays, divergence kinds, grants, the `FormLayoutOverrideSource` port and its channel, test-kit schema helper | 189 origin on master |
-| 2 | **B** | platform | `FormRegistry.seal` refusals; `ctx.fieldSets` (including `ruleCheckOnly` and `scoped`) and `ctx.fieldFormats`; the field-rule check (ordering-exempt, actor skip, no retroactive `required`); `fieldSlotHook`; formats; `GET /api/v1/admin/forms` with the operator layer and the memo; error codes and bundles; T-B6 API-key scopes; test-kit writer helper | A |
-| 2 | **D** | cli + scripts | The `admin-forms` analysis; `check:admin-forms` and its estate obligations; `endora generate`; divergence derivation | A |
+| 1 | **A** | contracts | Declaration types and schemas, conditions and evaluator, vectors, controls and formats, manifest fields, `AdminContributions` arrays, grants, the `FormLayoutOverrideSource` port and its channel, test-kit schema helper | 189 origin on master |
+| 2 | **B** | platform | `FormRegistry.seal` refusals; `ctx.fieldSets` (including `ruleCheckOnly` and `scoped`) and `ctx.fieldFormats`; the field-rule check (ordering-exempt, actor skip, no retroactive `required`); `fieldSlotHook`; formats; `GET /api/v1/admin/effective-forms` with the operator layer and the memo; error codes and bundles; T-B6 API-key scopes; test-kit writer helper | A |
+| 2 | **D** | cli + scripts | The `admin-forms` analysis; `check:admin-forms` and its estate obligations; `endora generate`; the `form-override` and `form-override-grant` divergence kinds (moved here from A, issue #2020) and their derivation; the CLI's `formOverrideGrants` reader; `formLayout` and `applyFieldMoves` moved into contracts (D-300.14); the #2020 contracts fixes (D-300.16) | A |
 | 3 | **B2** | platform | `adminReads` loaders; `?extensions=` reads them; collision refusal | A, B |
 | 3 | **C** | admin-kit | Effective-forms provider; layout; `DeclaredFormProvider` and `DeclaredFormSection`; slots; controls; client rules; submission; error mapping | A, B |
 | 4 | **E1** | organizations | First adopter: field set and two forms, writers, `extensions` body, render swap | B, B2, C |

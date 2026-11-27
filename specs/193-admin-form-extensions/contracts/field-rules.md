@@ -89,7 +89,11 @@ export interface AdminFieldBehaviour {
 
 Requires `behaviour` in the target's `accepts` (own slot fields always accept it). `derive` writes
 the target only while the operator has not edited it in this form session; the server never runs it.
-A `derive` that targets a field is what clears `required-not-fillable`.
+A `derive` that targets a field is what clears `check:admin-forms`' `required-not-fillable` for a
+read-only field (D-300.12). The check cannot tell a `derive` from a `mask`, because both are behind
+the lazy factory, so it accepts any `fieldBehaviours` entry of the module that sets `readOnly`,
+targeting the field on that form. A mask on a read-only field does nothing, so in practice the entry
+is a derivation. A derived read-only field is submitted (field-slots.md §3).
 
 ## §5 The field-rule check (platform, per writer)
 
@@ -102,14 +106,25 @@ writer, steps 3–4 run per projected scope, and `required` is evaluated for the
 1. Skip entirely when no **present** module contributes a tightening, `requiredWhen`, format or
    `writePermission` to the set, and the owner declares no `writePermission` — the common case costs
    one map lookup.
-2. Skip when the actor is a buyer self-service actor (D-300.3: `actorCustomerAccountId` set and no
-   admin, or an anonymous storefront write).
+2. Skip when the write is buyer self-service (D-300.3, D-300.10): the actor is `kind: 'customer'`
+   with `actorAdminUserId === null`, **or** the check context's `buyerSelfService` is true and the
+   actor has `actorAdminUserId === null` and kind `system` or `customer`. The bus sets
+   `buyerSelfService` when this Command or any ancestor in its lineage declares
+   `Command.buyerSelfService: true`. On an `admin` or `api_key` actor the flag is ignored. A
+   `system` actor without it is bound (fail closed): a worker, an import and an integration callback
+   look the same from here.
 3. `{ before|changed, after } = project(hookData)`.
-4. For each field with an effective rule: evaluate `required` (create: on `after`; update: only if
-   the field is in `changed` — D-300.4), bounds, `options`, `pattern`, `format` on `after` when
-   the value is present; `requiredWhen` via `evaluateFieldCondition(cond, after)`.
+4. For each field with an effective rule, decide whether this write **holds** it (D-300.4,
+   D-300.11). A create holds every field. An update holds a field when the field is in `changed`
+   (set or cleared). For `requiredWhen` only, an update also holds the field when `changed` contains
+   any field the condition reads (the leaves' `field`s). A held field is checked: `required` (or a
+   true `requiredWhen`, via `evaluateFieldCondition(cond, after)`) on `after`; and bounds,
+   `options`, `pattern` and `format` on `after` when the value is present. A field that is not held
+   is not checked at all, so a record stored before a rule existed stays editable in its other
+   fields.
 5. `writePermission` for each field in `changed`: admin actor → `AdminPermissionChecker.hasPermission`;
-   API-key actor → key `scopes` ([NEEDS CLARIFICATION, plan T-B6]); system actor → exempt.
+   bound API-key actor → refused, `reason: 'api-key-scopes-unresolved'` (T-B6, research R-12: no scope
+   resolution exists in a Command); system actor, an unbound key included → exempt.
 6. Collect all violations; throw `HttpError(422, 'FIELD_RULE_VIOLATION', …, { details })` or
    `HttpError(403, 'FIELD_WRITE_FORBIDDEN', …, { details })` (403 wins when both). The transaction
    rolls back; no audit entry, no outbox row.
@@ -127,8 +142,10 @@ bundle.
 
 ## §6 Client parity
 
-The admin evaluates the same effective rules (from `GET /api/v1/admin/forms`) with the same
-`evaluateFieldCondition` and the platform format twins before submit; a server `details[]` entry is
+The admin evaluates the same effective rules (from `GET /api/v1/admin/effective-forms`) with the
+same `evaluateFieldCondition` and the platform format twins before submit, over the same held set as
+§5 step 4: on an edit form, a field the operator has not changed, and whose `requiredWhen` inputs
+are unchanged, is not checked (D-300.11); a server `details[]` entry is
 mapped onto the field by `path` (core key, or `extensions.<moduleId>.<key>` for a slot). A shared
 vector table (`packages/contracts/src/admin-forms.vectors.ts`) is run by the contracts, platform and
 admin-kit tests so the two ends cannot drift (SC-002).

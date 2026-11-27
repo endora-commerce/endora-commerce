@@ -35,13 +35,19 @@ export const FieldOverrideSchema = z.object({
 Each present property is one **override kind** (`FIELD_OVERRIDE_KINDS`); `labelKey`→`label`,
 `helpKey`→`help`, `placeholderKey`→`placeholder`, `maskEnforced` is part of `behaviour`.
 
+The schema itself refuses an override that sets no kind, and `FieldConditionSchema` refuses an empty
+`in` list and an empty `all` or `any` (D-300.16). A tightening whose `minLength` exceeds its
+`maxLength`, or whose `min` exceeds its `max`, is **not** refused by the schema: satisfiability is
+judged once, over the conjunction of every module's tightenings, by composition's
+`override-contradiction` (§3).
+
 ## §2 Effective forms (server-served)
 
 `_lifecycle` registers in `packages/platform/src/lifecycle/routes.admin.ts`, beside
 `registerModulePresenceRoutes`:
 
 ```
-GET /api/v1/admin/forms      preHandler: requireAdmin()   (no code — FR-023)
+GET /api/v1/admin/effective-forms      preHandler: requireAdmin()   (no code — FR-023, D-300.9)
 200 EffectiveFormsResponseSchema, ETag
 ```
 
@@ -80,7 +86,9 @@ export const EffectiveFormsResponseSchema = z.object({
   (`FormLayoutOverrideSource` port, operator-form-layout.md §4), memoised per (presence snapshot,
   operator-layer generation); the generation is bumped by `b2b:form-layout:changed` (R-18).
 - Layering per field and kind: core → deployment code / granted package → operator
-  (operator-form-layout.md §3). Same body for every admin; the admin decides read-only for `writePermission` from
+  (operator-form-layout.md §3). `section` and `order` come from the contracts' `applyFieldMoves`
+  (field-slots.md §5 step 1, D-300.14), over the effective `position` of each key: the operator's
+  when it set one, else the code override's. An operator move sorts as module `custom_fields`. Same body for every admin; the admin decides read-only for `writePermission` from
   its own session permissions.
 - The admin-kit provider (`packages/admin-kit/src/lib/forms/`) fetches it beside
   `getModulePresence()` and refreshes with it.
@@ -99,7 +107,7 @@ field and remedy:
 | `override-not-accepted` | kind not in the field's `accepts` |
 | `hidden-required-field` | `hidden` on a core-required field |
 | `default-on-hidden` | `default` with `hidden` |
-| `required-not-fillable` | field effectively required on a create form while hidden or read-only there and no `fieldBehaviours` derivation targets it |
+| `required-not-fillable` | field effectively required (core or tightened `required`) on a create form while `hidden` there; no exemption. The `readOnly` case is refused by `check:admin-forms` (field-slots.md §6), which can see `fieldBehaviours` (D-300.12) |
 | `override-loosens-rule` | a tightening outside core bounds / enum (field-rules.md §1) |
 | `override-contradiction` | the conjunction is unsatisfiable |
 | `override-conflict` | two modules set one presentation kind on one field (per form) |

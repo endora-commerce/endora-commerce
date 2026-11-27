@@ -21,6 +21,7 @@ import { productPagePathsSchema } from './product-url-keys.js';
 import type { FieldPath, ScopeLevel } from './product-scope-model.js';
 import type { ProductScopedWriteCell, ProductScopedWriteInput, ProductScopedWriteResult } from './product-scopes.js';
 import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
+import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
 import { scopeVersionTokenSchema } from './scoped-write-encoding.js';
 
 /**
@@ -2677,14 +2678,23 @@ export interface CatalogProductLookupOptions {
  * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface CatalogProductReadPort {
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>`, loaded for the
+   * products this lookup answered — after `liveOnly` / `activeOnly` — and no
+   * other; absent or empty, the answer is exactly what it was without it. The
+   * same holds for {@link findByIds}, {@link findBySku}, {@link findBySkus} and
+   * {@link listAll}. Like every method of this port it applies no channel or
+   * buyer policy: a caller names only ids it has already vetted.
+   */
   findById(
     id: string,
-    options?: CatalogProductLookupOptions,
-  ): Promise<CatalogProductRecord | null>;
+    options?: CatalogProductLookupOptions & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CatalogProductRecord> | null>;
   findByIds(
     ids: readonly string[],
-    options?: CatalogProductLookupOptions,
-  ): Promise<CatalogProductRecord[]>;
+    options?: CatalogProductLookupOptions & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CatalogProductRecord>[]>;
   /**
    * A SKU is unique among live products only (issue #693): a deleted product keeps its SKU and
    * frees it for reuse. Without `liveOnly`, the lookup therefore answers the live product when
@@ -2692,17 +2702,19 @@ export interface CatalogProductReadPort {
    */
   findBySku(
     sku: string,
-    options?: CatalogProductLookupOptions,
-  ): Promise<CatalogProductRecord | null>;
+    options?: CatalogProductLookupOptions & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CatalogProductRecord> | null>;
   /** At most one product per SKU, chosen as {@link findBySku} chooses it. */
   findBySkus(
     skus: readonly string[],
-    options?: CatalogProductLookupOptions,
-  ): Promise<CatalogProductRecord[]>;
+    options?: CatalogProductLookupOptions & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CatalogProductRecord>[]>;
   /** `count === ids.length` existence check, without loading the rows. */
   countByIds(ids: readonly string[]): Promise<number>;
   /** Every product, ordered by sku — the bulk export and the price-list backfill. */
-  listAll(options?: CatalogProductLookupOptions): Promise<CatalogProductRecord[]>;
+  listAll(
+    options?: CatalogProductLookupOptions & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CatalogProductRecord>[]>;
   /**
    * Every product as pricing resolves it — its id and its own attribute values
    * — ordered by id: the products `listAll()` answers (soft-deleted and inactive
@@ -2845,16 +2857,32 @@ export interface CatalogAttributeValueQuery {
  * `nonDeactivatable` never enters one.
  */
 export interface CatalogCategoryReadPort {
-  findById(id: string, options?: { liveOnly?: boolean }): Promise<CatalogCategoryRecord | null>;
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>`, loaded for the
+   * categories this lookup answered — after `liveOnly` — and no other; absent
+   * or empty, the answer is exactly what it was without it. The same holds for
+   * {@link findByIds}, {@link findBySlug}, {@link listAll} and
+   * {@link ancestorsOf} (one load for the whole chain).
+   */
+  findById(
+    id: string,
+    options?: { liveOnly?: boolean } & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CatalogCategoryRecord> | null>;
   findByIds(
     ids: readonly string[],
-    options?: { liveOnly?: boolean },
-  ): Promise<CatalogCategoryRecord[]>;
-  findBySlug(slug: string): Promise<CatalogCategoryRecord | null>;
+    options?: { liveOnly?: boolean } & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CatalogCategoryRecord>[]>;
+  findBySlug(
+    slug: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CatalogCategoryRecord> | null>;
   /** `count === ids.length` existence check. */
   countByIds(ids: readonly string[]): Promise<number>;
   /** The whole tree, ordered by sort order then slug. */
-  listAll(options?: { liveOnly?: boolean }): Promise<CatalogCategoryRecord[]>;
+  listAll(
+    options?: { liveOnly?: boolean } & EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CatalogCategoryRecord>[]>;
   /** Categories carrying at least one inventory threshold override. */
   listWithInventoryThresholds(): Promise<CatalogCategoryRecord[]>;
   /**
@@ -2862,7 +2890,10 @@ export interface CatalogCategoryReadPort {
    * resolve. A cycle is impossible — the write path enforces it — but the walk
    * is bounded anyway, because a corrupt `parent_id` should not hang a request.
    */
-  ancestorsOf(categoryId: string): Promise<CatalogCategoryRecord[]>;
+  ancestorsOf(
+    categoryId: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<CatalogCategoryRecord>[]>;
 
   /**
    * The category assignments of the given products (feature 075 / D-87).
