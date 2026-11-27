@@ -13,7 +13,13 @@ import {
 } from './errors.js';
 import { orderCommandHooks, type CommandHookRegistration } from './ordering.js';
 import type { OutboxData } from '@endora-commerce/contracts';
-import type { AfterCommitHandler, BeforeCommitHook, CommandHookEntry } from './types.js';
+import type {
+  AfterCommitHandler,
+  BeforeCommitHook,
+  CommandHookEntry,
+  FieldRuleCheck,
+  FieldRuleCheckSource,
+} from './types.js';
 
 /**
  * The command-hook registry (`specs/176-command-hooks-outbox/` FR-011 –
@@ -87,6 +93,7 @@ export class CommandHookRegistry {
   #afterCommitByKey = new Map<string, ResolvedAfterCommitHandler>();
   #claimants = new Map<string, ReadonlySet<string>>();
   #seq = 0;
+  #fieldRules: FieldRuleCheckSource | undefined;
 
   constructor(options: CommandHookRegistryOptions = {}) {
     this.#isPresent = options.isPresent ?? ((): boolean => true);
@@ -253,6 +260,27 @@ export class CommandHookRegistry {
   /** The modules with any hook on `action` (either phase), presence not applied. */
   claimants(action: string): ReadonlySet<string> {
     return this.#claimants.get(action) ?? new Set<string>();
+  }
+
+  /**
+   * Attach the platform's field-rule check (`specs/193-admin-form-extensions/`
+   * FR-041). Called once by `composeModules`, after the form registry sealed.
+   *
+   * It is not a registration and takes no part in the order: the check reads
+   * the hook data and writes nothing, so it sees the same projection wherever
+   * it runs, and the bus runs it before the first module hook of the action
+   * (research R-9). It is not in {@link plan}, which lists module hooks.
+   */
+  useFieldRuleCheck(source: FieldRuleCheckSource): void {
+    if (this.#fieldRules !== undefined) {
+      throw new Error('[command-hooks] a field-rule check source is already attached to this registry.');
+    }
+    this.#fieldRules = source;
+  }
+
+  /** The field-rule check of `action`, or `undefined` when none applies (no source, or no rule). */
+  fieldRuleCheck(action: string): FieldRuleCheck | undefined {
+    return this.#fieldRules?.fieldRuleCheck(action);
   }
 
   /** Whether a hook module is present on the effective state right now. */

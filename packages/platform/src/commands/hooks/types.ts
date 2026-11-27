@@ -34,6 +34,32 @@ export interface CommandHookContext<TData> {
 export type BeforeCommitHook<TData> = (ctx: CommandHookContext<TData>) => Promise<void> | void;
 
 /**
+ * What the platform's field-rule check is given (`specs/193-admin-form-extensions/`
+ * FR-041, `contracts/field-rules.md` §5): the Command's identity, its hook data
+ * and its actor. Read only — the check writes nothing, so it gets no `em`.
+ */
+export interface FieldRuleCheckContext {
+  readonly action: string;
+  readonly objectType: string;
+  readonly objectId: string;
+  readonly data: unknown;
+  readonly actor: CommandActor;
+}
+
+/** Refuses by throwing; the bus does not catch, so the Command rolls back. */
+export type FieldRuleCheck = (ctx: FieldRuleCheckContext) => Promise<void> | void;
+
+/**
+ * Where the bus finds the field-rule check of an action: the platform's form
+ * registry, attached once per composition. `undefined` for an action no field
+ * set lists as a writer, or whose field sets carry no rule — the common case,
+ * which then costs one map lookup and changes nothing about the Command.
+ */
+export interface FieldRuleCheckSource {
+  fieldRuleCheck(action: string): FieldRuleCheck | undefined;
+}
+
+/**
  * What an `afterCommit` handler receives when the transactional outbox
  * delivers its row (176 P3, FR-032 – FR-034): after the owner's commit, at
  * least once, in a scope pinned to `organizationId` when the row has one.

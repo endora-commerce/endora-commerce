@@ -416,6 +416,13 @@ export class CommandBus {
   /**
    * The present `beforeCommit` hooks of `command`'s action, in order, each with
    * its origin set. Returns what they noted, per module.
+   *
+   * `specs/193-admin-form-extensions/` FR-041 — the platform's field-rule
+   * check runs first, before every module hook, when a field set lists this
+   * action as a writer and carries a rule. It runs on an action no module may
+   * hook too (a rule-check-only writer, FR-113), which is why it is asked
+   * before the "no hooks" return. An action with neither is untouched: its
+   * hook data is not even computed.
    */
   private async runBeforeCommitHooks<TResult>(
     hooks: CommandHookRegistry,
@@ -428,9 +435,20 @@ export class CommandBus {
     below: Lineage,
   ): Promise<ReadonlyMap<string, ReadonlySet<string>> | undefined> {
     const present = hooks.beforeCommit(command.action).filter((hook) => hooks.isPresent(hook.moduleId));
-    if (present.length === 0) return undefined;
+    const fieldRuleCheck = hooks.fieldRuleCheck(command.action);
+    if (present.length === 0 && fieldRuleCheck === undefined) return undefined;
     if (!command.hookData) throw hookDataMissing(command.action);
     const data = command.hookData(result);
+    if (fieldRuleCheck !== undefined) {
+      await fieldRuleCheck({
+        action: command.action,
+        objectType: command.objectType,
+        objectId: command.objectId,
+        data,
+        actor,
+      });
+      if (present.length === 0) return undefined;
+    }
     const noted = new Map<string, Set<string>>();
     const viaHook: Lineage = { ancestors: below.ancestors, viaHook: true };
     for (const hook of present) {
